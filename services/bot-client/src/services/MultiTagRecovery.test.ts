@@ -91,6 +91,7 @@ describe('MultiTagRecovery', () => {
     markStale: ReturnType<typeof vi.fn>;
     deleteEntry: ReturnType<typeof vi.fn>;
     updateEntry: ReturnType<typeof vi.fn>;
+    isSlotDelivered: ReturnType<typeof vi.fn>;
   };
   let coordinator: {
     adoptRehydratedEntry: ReturnType<typeof vi.fn>;
@@ -124,6 +125,7 @@ describe('MultiTagRecovery', () => {
       markStale: vi.fn().mockResolvedValue(undefined),
       deleteEntry: vi.fn().mockResolvedValue(undefined),
       updateEntry: vi.fn().mockResolvedValue(undefined),
+      isSlotDelivered: vi.fn().mockResolvedValue(false),
     };
     coordinator = {
       adoptRehydratedEntry: vi.fn().mockResolvedValue(undefined),
@@ -476,6 +478,141 @@ describe('MultiTagRecovery', () => {
       expect(coordinator.handleJobResult).toHaveBeenCalledTimes(2);
       expect(coordinator.handleJobResult).toHaveBeenNthCalledWith(1, 'old-job-Alice', aliceResult);
       expect(coordinator.handleJobResult).toHaveBeenNthCalledWith(2, 'old-job-Bob', bobResult);
+    });
+  });
+
+  describe('idempotent re-dispatch (slot-delivered marker)', () => {
+    it('skips dispatch when a prior run already delivered the slot', async () => {
+      // Scenario: previous bot lifecycle delivered the message to Discord
+      // but crashed before deliverGroup's deleteEntry call ran. The entry
+      // snapshot still shows the flush-trigger slot as pending, BullMQ
+      // shows the job as completed. Without the marker check, recovery
+      // would re-dispatch → second user-visible delivery.
+      const aliceResult: LLMGenerationResult = {
+        requestId: 'old-job-Alice',
+        success: true,
+        content: 'alice content (already delivered)',
+      };
+      queue.getJob.mockImplementation(async (jobId: string) => {
+        if (jobId === 'old-job-Alice') {
+          return buildMockJob({ state: 'completed', returnvalue: aliceResult });
+        }
+        return null;
+      });
+      persistence.isSlotDelivered.mockImplementation(
+        async (jobId: string) => jobId === 'old-job-Alice'
+      );
+      const snapshot = buildSnapshot({
+        slots: [
+          {
+            slotIndex: 0,
+            personalityId: 'id-alice',
+            personalitySlug: 'alice',
+            source: 'mention',
+            isAutoResponse: false,
+            jobId: 'old-job-Alice',
+            status: 'pending',
+          },
+        ],
+      });
+      persistence.scanAllEntries.mockResolvedValue([snapshot]);
+
+      const stats = await recovery.run();
+
+      expect(persistence.isSlotDelivered).toHaveBeenCalledWith('old-job-Alice');
+      expect(coordinator.handleJobResult).not.toHaveBeenCalled();
+      expect(stats.slotsAlreadyDelivered).toBe(1);
+    });
+
+    it('dispatches normally when the marker is absent', async () => {
+      const aliceResult: LLMGenerationResult = {
+        requestId: 'old-job-Alice',
+        success: true,
+        content: 'alice content',
+      };
+      queue.getJob.mockImplementation(async (jobId: string) => {
+        if (jobId === 'old-job-Alice') {
+          return buildMockJob({ state: 'completed', returnvalue: aliceResult });
+        }
+        return null;
+      });
+      // Default isSlotDelivered returns false — exercised here explicitly.
+      persistence.isSlotDelivered.mockResolvedValue(false);
+      const snapshot = buildSnapshot({
+        slots: [
+          {
+            slotIndex: 0,
+            personalityId: 'id-alice',
+            personalitySlug: 'alice',
+            source: 'mention',
+            isAutoResponse: false,
+            jobId: 'old-job-Alice',
+            status: 'pending',
+          },
+        ],
+      });
+      persistence.scanAllEntries.mockResolvedValue([snapshot]);
+
+      const stats = await recovery.run();
+
+      expect(coordinator.handleJobResult).toHaveBeenCalledWith('old-job-Alice', aliceResult);
+      expect(stats.slotsAlreadyDelivered).toBe(0);
+    });
+
+    it('skips per-slot based on marker presence in mixed entries', async () => {
+      // Slot A: previously delivered (marker present). Slot B: not delivered.
+      // Only Slot B's dispatch should fire.
+      const aliceResult: LLMGenerationResult = {
+        requestId: 'old-job-Alice',
+        success: true,
+        content: 'alice (delivered)',
+      };
+      const bobResult: LLMGenerationResult = {
+        requestId: 'old-job-Bob',
+        success: true,
+        content: 'bob (not delivered)',
+      };
+      queue.getJob.mockImplementation(async (jobId: string) => {
+        if (jobId === 'old-job-Alice') {
+          return buildMockJob({ state: 'completed', returnvalue: aliceResult });
+        }
+        if (jobId === 'old-job-Bob') {
+          return buildMockJob({ state: 'completed', returnvalue: bobResult });
+        }
+        return null;
+      });
+      persistence.isSlotDelivered.mockImplementation(
+        async (jobId: string) => jobId === 'old-job-Alice'
+      );
+      const snapshot = buildSnapshot({
+        slots: [
+          {
+            slotIndex: 0,
+            personalityId: 'id-alice',
+            personalitySlug: 'alice',
+            source: 'mention',
+            isAutoResponse: false,
+            jobId: 'old-job-Alice',
+            status: 'pending',
+          },
+          {
+            slotIndex: 1,
+            personalityId: 'id-bob',
+            personalitySlug: 'bob',
+            source: 'mention',
+            isAutoResponse: false,
+            jobId: 'old-job-Bob',
+            status: 'pending',
+          },
+        ],
+      });
+      persistence.scanAllEntries.mockResolvedValue([snapshot]);
+
+      const stats = await recovery.run();
+
+      expect(coordinator.handleJobResult).toHaveBeenCalledOnce();
+      expect(coordinator.handleJobResult).toHaveBeenCalledWith('old-job-Bob', bobResult);
+      expect(stats.slotsAlreadyDelivered).toBe(1);
     });
   });
 

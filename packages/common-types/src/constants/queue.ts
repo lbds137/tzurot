@@ -87,6 +87,8 @@ export const REDIS_KEY_PREFIXES = {
   MULTI_TAG_STALE_JOBS: 'multitag:stale-jobids',
   /** Prefix for the DM "we already attempted history-scan backfill" sentinel */
   MULTI_TAG_DM_BACKFILL_TRIED: 'multitag:dm-backfill-tried:',
+  /** Prefix for per-slot "already delivered" dedup marker (recovery skips dispatch when present) */
+  MULTI_TAG_SLOT_DELIVERED: 'multitag:slot-delivered:',
 } as const;
 
 /**

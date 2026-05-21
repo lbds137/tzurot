@@ -332,4 +332,46 @@ describe('MultiTagPersistence', () => {
       expect(await persistence.wasDMBackfillTried('dm-channel-1')).toBe(false);
     });
   });
+
+  describe('slot-delivered marker (recovery idempotency)', () => {
+    it('markSlotDelivered writes a TTL marker keyed by jobId', async () => {
+      await persistence.markSlotDelivered('job-abc');
+      expect(mockRedis.set).toHaveBeenCalledWith(
+        `${REDIS_KEY_PREFIXES.MULTI_TAG_SLOT_DELIVERED}job-abc`,
+        '1',
+        'EX',
+        expect.any(Number)
+      );
+      const setCall = mockRedis.set.mock.calls[0];
+      expect(setCall[3]).toBeGreaterThan(0);
+    });
+
+    it('markSlotDelivered soft-fails on Redis error', async () => {
+      // A failed marker write means a subsequent recovery may re-dispatch
+      // and produce a duplicate message — exactly the failure mode the
+      // marker is designed to prevent. We log it but don't throw, because
+      // throwing would propagate up and break the delivery flow's per-slot
+      // try/catch contract.
+      mockRedis.set.mockRejectedValue(new Error('Redis down'));
+      await expect(persistence.markSlotDelivered('job-abc')).resolves.toBeUndefined();
+    });
+
+    it('isSlotDelivered returns true when the marker exists', async () => {
+      mockRedis.get.mockResolvedValue('1');
+      expect(await persistence.isSlotDelivered('job-abc')).toBe(true);
+    });
+
+    it('isSlotDelivered returns false when the marker is missing', async () => {
+      mockRedis.get.mockResolvedValue(null);
+      expect(await persistence.isSlotDelivered('job-abc')).toBe(false);
+    });
+
+    it('isSlotDelivered fails closed (returns false) on Redis error', async () => {
+      // Fail-closed is the safer side here: a false negative produces at-worst
+      // a duplicate message; a false positive permanently drops the user's
+      // message. Duplicate is the better failure mode.
+      mockRedis.get.mockRejectedValue(new Error('Redis down'));
+      expect(await persistence.isSlotDelivered('job-abc')).toBe(false);
+    });
+  });
 });
