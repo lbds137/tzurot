@@ -14,6 +14,7 @@ import { createDiagnosticRoutes } from './diagnostic.js';
 import type { PrismaClient, DiagnosticPayload } from '@tzurot/common-types';
 import express from 'express';
 import request from 'supertest';
+import { getAllRoutes } from '../../test/expressRouterUtils.js';
 
 // Mock logger
 vi.mock('@tzurot/common-types', async () => {
@@ -38,6 +39,20 @@ vi.mock('../../services/AuthMiddleware.js', () => ({
 }));
 
 describe('Admin Diagnostic Routes', () => {
+  describe('middleware composition', () => {
+    it('wires requireOwnerAuth on every route', () => {
+      // Mock prisma isn't invoked at router-registration time — pass an empty
+      // stub. The structural test only inspects the resulting router stack.
+      const routes = getAllRoutes(createDiagnosticRoutes({} as unknown as PrismaClient));
+      expect(routes.length, 'expected at least one registered route').toBeGreaterThan(0);
+      for (const route of routes) {
+        expect(route.stackLength, `${route.path} missing auth middleware`).toBeGreaterThanOrEqual(
+          2
+        );
+      }
+    });
+  });
+
   let mockPrisma: {
     llmDiagnosticLog: {
       findMany: ReturnType<typeof vi.fn>;

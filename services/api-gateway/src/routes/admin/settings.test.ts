@@ -10,6 +10,7 @@ import { createAdminSettingsRoutes } from './settings.js';
 import { ADMIN_SETTINGS_SINGLETON_ID, type PrismaClient } from '@tzurot/common-types';
 import express from 'express';
 import request from 'supertest';
+import { getAllRoutes } from '../../test/expressRouterUtils.js';
 
 // Mock isBotOwner - must be before vi.mock to be hoisted
 const mockIsBotOwner = vi.fn().mockReturnValue(true);
@@ -26,6 +27,34 @@ vi.mock('@tzurot/common-types', async importOriginal => {
       error: vi.fn(),
     }),
     isBotOwner: (...args: unknown[]) => mockIsBotOwner(...args),
+  };
+});
+
+// Mock AuthMiddleware so requireOwnerAuth() routes through the same
+// mockIsBotOwner that the inline isAuthorizedForRead path uses. Without
+// this, requireOwnerAuth would call the real isValidOwner -> config check
+// (which has no BOT_OWNER_ID in .env.test), failing all PATCH/DELETE tests.
+// isAuthorizedForRead stays real because GET / still uses it inline (the
+// service-only path can't migrate to middleware).
+vi.mock('../../services/AuthMiddleware.js', async importOriginal => {
+  const actual = await importOriginal<typeof import('../../services/AuthMiddleware.js')>();
+  return {
+    ...actual,
+    requireOwnerAuth:
+      () =>
+      (
+        req: { userId?: string },
+        res: { status: (n: number) => { json: (b: unknown) => void } },
+        next: () => void
+      ): void => {
+        if (mockIsBotOwner(req.userId)) {
+          next();
+        } else {
+          res
+            .status(403)
+            .json({ error: 'UNAUTHORIZED', message: 'Only bot owners can modify this' });
+        }
+      },
   };
 });
 
@@ -73,6 +102,29 @@ function createDefaultSettings(
 }
 
 describe('Admin Settings Routes (Singleton)', () => {
+  describe('middleware composition', () => {
+    it('GET / stays inline-auth (service-only allowed); PATCH/DELETE use middleware', () => {
+      // settings.ts has a mixed auth shape: GET supports service-only calls
+      // (bot-client hydrates admin settings at startup with no userId), so it
+      // can't migrate to requireOwnerAuth() middleware. PATCH and DELETE are
+      // owner-only writes — they got the standard requireOwnerAuth middleware
+      // in this PR. Lock the asymmetry in by asserting the resulting stack
+      // lengths.
+      const router = createAdminSettingsRoutes(createMockPrisma() as unknown as PrismaClient);
+      const routes = getAllRoutes(router);
+      const byPath = new Map(routes.map(r => [`${r.methods[0]} ${r.path}`, r]));
+      expect(byPath.get('get /')?.stackLength, 'GET / must stay inline-auth (1 handler)').toBe(1);
+      expect(
+        byPath.get('patch /config-defaults')?.stackLength,
+        'PATCH /config-defaults must use requireOwnerAuth middleware'
+      ).toBeGreaterThanOrEqual(2);
+      expect(
+        byPath.get('delete /config-defaults')?.stackLength,
+        'DELETE /config-defaults must use requireOwnerAuth middleware'
+      ).toBeGreaterThanOrEqual(2);
+    });
+  });
+
   let mockPrisma: ReturnType<typeof createMockPrisma>;
   let app: express.Express;
 
@@ -87,9 +139,13 @@ describe('Admin Settings Routes (Singleton)', () => {
 
     app = express();
     app.use(express.json());
-    // Add middleware to inject userId
+    // Add middleware to inject userId AND X-Owner-Id header. The header is
+    // required because PATCH/DELETE now use requireOwnerAuth() middleware,
+    // which reads ownerId via extractOwnerId() from the X-Owner-Id header.
+    // GET still consults req.userId via the inline isAuthorizedForRead check.
     app.use((req, _res, next) => {
       (req as express.Request & { userId: string }).userId = MOCK_USER_ID;
+      req.headers['x-owner-id'] = MOCK_USER_ID;
       next();
     });
     app.use('/admin/settings', createAdminSettingsRoutes(mockPrisma as unknown as PrismaClient));

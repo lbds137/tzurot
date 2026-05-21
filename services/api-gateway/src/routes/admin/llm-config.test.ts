@@ -7,6 +7,7 @@ import express, { type Express } from 'express';
 import request from 'supertest';
 import { createAdminLlmConfigRoutes } from './llm-config.js';
 import type { PrismaClient, LlmConfigCacheInvalidationService } from '@tzurot/common-types';
+import { getAllRoutes } from '../../test/expressRouterUtils.js';
 
 // Mock the admin auth middleware
 vi.mock('../../services/AuthMiddleware.js', () => ({
@@ -76,6 +77,18 @@ const createMockPrismaClient = () => {
 };
 
 describe('Admin LLM Config Routes', () => {
+  describe('middleware composition', () => {
+    it('wires requireOwnerAuth on every route', () => {
+      const routes = getAllRoutes(createAdminLlmConfigRoutes({} as unknown as PrismaClient));
+      expect(routes.length, 'expected at least one registered route').toBeGreaterThan(0);
+      for (const route of routes) {
+        expect(route.stackLength, `${route.path} missing auth middleware`).toBeGreaterThanOrEqual(
+          2
+        );
+      }
+    });
+  });
+
   let app: Express;
   let prisma: ReturnType<typeof createMockPrismaClient>;
 
