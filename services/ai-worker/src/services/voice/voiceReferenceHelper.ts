@@ -4,6 +4,14 @@
  * Fetches voice reference audio from the api-gateway.
  * Shared by ElevenLabsVoiceService (BYOK cloning) and
  * VoiceRegistrationService (self-hosted voice-engine registration).
+ *
+ * The /voice-references route is service-auth-protected; this helper
+ * sends `X-Service-Auth: ${INTERNAL_SERVICE_SECRET}` on every request.
+ * Missing secret is fail-fast — the helper throws before fetching rather
+ * than letting api-gateway respond 403. The fail-fast surfaces a config
+ * misconfiguration as a clear call-site error (with the right
+ * environment variable named) rather than a generic 403 from the
+ * gateway that's harder to attribute.
  */
 
 import { createLogger, getConfig, TimeoutError } from '@tzurot/common-types';
@@ -36,6 +44,12 @@ export async function fetchVoiceReference(slug: string): Promise<VoiceReferenceR
   if (gatewayUrl === undefined) {
     throw new Error('GATEWAY_URL not configured — cannot fetch voice reference');
   }
+  const serviceSecret = config.INTERNAL_SERVICE_SECRET;
+  if (serviceSecret === undefined || serviceSecret.length === 0) {
+    throw new Error(
+      'INTERNAL_SERVICE_SECRET not configured — cannot fetch voice reference (the gateway route requires service auth)'
+    );
+  }
 
   const voiceUrl = `${gatewayUrl}/voice-references/${encodeURIComponent(slug)}`;
   logger.info({ slug }, 'Fetching voice reference from gateway');
@@ -43,6 +57,7 @@ export async function fetchVoiceReference(slug: string): Promise<VoiceReferenceR
   let response: globalThis.Response;
   try {
     response = await fetch(voiceUrl, {
+      headers: { 'X-Service-Auth': serviceSecret },
       signal: AbortSignal.timeout(VOICE_REFERENCE_TIMEOUT_MS),
     });
   } catch (error) {

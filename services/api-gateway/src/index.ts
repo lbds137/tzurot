@@ -43,10 +43,9 @@ import { createModelsRouter } from './routes/models/index.js';
 import {
   createHealthRouter,
   createAvatarRouter,
-  createVoiceReferenceRouter,
   createExportsRouter,
 } from './routes/public/index.js';
-import { createMetricsRouter } from './routes/protected/index.js';
+import { createMetricsRouter, createVoiceReferenceRouter } from './routes/protected/index.js';
 
 // Middleware
 import {
@@ -247,17 +246,11 @@ function registerRoutes(app: Express, prisma: PrismaClient, services: ServicesCo
     'Public-route rate limiter initialized'
   );
 
-  // Media routes that legitimately need cross-origin embedding (Discord
-  // fetches avatars and voice samples from outside our origin). Opt these
-  // two specific routers into CORP cross-origin via the per-route
-  // middleware; everything else inherits helmet's same-origin default.
+  // Media route that legitimately needs cross-origin embedding (Discord
+  // fetches avatars from outside our origin). Opt into CORP cross-origin
+  // via the per-route middleware; everything else inherits helmet's
+  // same-origin default.
   app.use('/avatars', publicRateLimiter, allowCrossOriginEmbedding, createAvatarRouter(prisma));
-  app.use(
-    '/voice-references',
-    publicRateLimiter,
-    allowCrossOriginEmbedding,
-    createVoiceReferenceRouter(prisma)
-  );
   app.use('/exports', publicRateLimiter, createExportsRouter(prisma));
 
   // PROTECTED ROUTES (require service authentication)
@@ -273,6 +266,15 @@ function registerRoutes(app: Express, prisma: PrismaClient, services: ServicesCo
   // INTERNAL_SERVICE_SECRET like everything else in the protected section.
   app.use('/metrics', createMetricsRouter(aiQueue, startTime));
   logger.info('Metrics route registered (service-auth protected)');
+
+  // /voice-references serves audio buffers from `personality.voiceReferenceData`.
+  // Sole consumer is ai-worker's voiceReferenceHelper (server-to-server),
+  // so the route is service-auth-protected to close the slug-enumeration
+  // attack surface. Slugs are predictable, so leaving this anonymous would
+  // let an attacker enumerate the voice-clone library — see the route's
+  // module docstring for the historical context.
+  app.use('/voice-references', createVoiceReferenceRouter(prisma));
+  logger.info('Voice references route registered (service-auth protected)');
 
   app.use('/ai', createAIRouter(prisma, aiQueue, queueEvents));
   logger.info('AI routes registered');

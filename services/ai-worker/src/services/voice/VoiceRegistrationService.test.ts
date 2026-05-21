@@ -31,6 +31,7 @@ describe('VoiceRegistrationService', () => {
 
     getConfigSpy = vi.spyOn(commonTypes, 'getConfig').mockReturnValue({
       GATEWAY_URL: 'http://localhost:3000',
+      INTERNAL_SERVICE_SECRET: 'test-secret',
     } as unknown as EnvConfig);
 
     service = new VoiceRegistrationService(mockVoiceEngineClient as unknown as VoiceEngineClient);
