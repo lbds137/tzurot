@@ -1,13 +1,15 @@
 # Current
 
-> **Version**: v3.0.0-beta.123 (released 2026-05-19) — live on prod. Subsequent dev work (PRs #1062 → #1063 → #1064 → #1065 → #1066 → #1067 → #1068 → #1069) on develop, will ship in beta.124.
+> **Version**: v3.0.0-beta.124 (released 2026-05-21) — Railway prod auto-deploys on main merge. Bundles 9 PRs across MultiTagRecovery hardening, API security (voice-references service auth), and symmetric INTERNAL_SERVICE_SECRET startup validation.
 > **🚧 Release freeze status**: LIFTED. No release in progress.
 
 ---
 
 ## Next Session Goal
 
-**Active focus**: none. Today shipped 3 PRs: `/admin metrics` (#1067), `/voice-references` service auth (#1068), and symmetric `INTERNAL_SERVICE_SECRET` startup validation across all three services (#1069). MultiTagRecovery hardening chain shipped yesterday. The **API Security Hardening theme is now fully closed** (all 3 items: rate limiter #1046, helmet/CORS #1046/#1048, voice-references service auth #1068). Auth posture across services is now symmetric: api-gateway, bot-client, and ai-worker all refuse to boot without `INTERNAL_SERVICE_SECRET`.
+**Active focus**: none. **v3.0.0-beta.124 shipped to prod** with everything from MultiTagRecovery chain (#1062-#1066), today's quick-wins (#1067, #1068, #1069, #1070), and the post-release `adminFetch` timeout follow-up (#1072). The **API Security Hardening theme is fully closed** (all 3 items: rate limiter #1046, helmet/CORS #1046/#1048, voice-references service auth #1068). Auth posture across services is symmetric: api-gateway, bot-client, and ai-worker all refuse to boot without `INTERNAL_SERVICE_SECRET`.
+
+Clean slate. Three inbox items filed from the release-cycle reviews — triage at session start.
 
 **Candidates**:
 
