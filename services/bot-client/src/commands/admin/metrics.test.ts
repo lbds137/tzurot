@@ -145,4 +145,27 @@ describe('handleMetrics', () => {
     const errorField = fields.find(f => f.name === '📊 Gateway Metrics');
     expect(errorField?.value).toContain('unreachable');
   });
+
+  it('dispatches editReply exactly once across all branches (no inline editReply in non-OK path)', async () => {
+    // Regression: the previous shape called editReply inline inside the
+    // non-OK branch, returned early, then the bottom editReply fired in
+    // the success + catch paths. If the inline editReply threw (Discord
+    // interaction expired), the outer catch overwrote the warning fields
+    // with the "unreachable" message — wrong attribution. The refactored
+    // shape dispatches exactly once at the bottom for every branch.
+    mockAdminFetch.mockResolvedValue({
+      ok: false,
+      status: 503,
+    });
+
+    const context = createMockContext();
+    await handleMetrics(context);
+
+    expect(context.editReply).toHaveBeenCalledTimes(1);
+    // Attribution stays correct: 503 message, not "unreachable".
+    const fields = fieldsFromCall(context);
+    const errorField = fields.find(f => f.name === '📊 Gateway Metrics');
+    expect(errorField?.value).toContain('503');
+    expect(errorField?.value).not.toContain('unreachable');
+  });
 });

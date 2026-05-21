@@ -17,6 +17,7 @@ import {
   type SttProvider,
 } from '@tzurot/common-types';
 import type { LoadedPersonality, MessageContext, TranscribeResponse } from '../types.js';
+import { getValidatedServiceSecret } from '../startup.js';
 
 const logger = createLogger('GatewayClient');
 const config = getConfig();
@@ -151,7 +152,7 @@ export class GatewayClient {
         method: 'POST',
         headers: {
           'Content-Type': CONTENT_TYPES.JSON,
-          'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
+          'X-Service-Auth': getValidatedServiceSecret(),
         },
         body: JSON.stringify({
           personality: personality,
@@ -169,7 +170,7 @@ export class GatewayClient {
         // accommodates heavy-attachment cases; structural fix (move
         // downloads to ai-worker lazy-load) tracked in BACKLOG.md
         // § Production Issues.
-        signal: AbortSignal.timeout(60000), // 60s
+        signal: AbortSignal.timeout(TIMEOUTS.AI_GENERATE_SUBMIT),
       });
 
       if (!response.ok) {
@@ -246,7 +247,7 @@ export class GatewayClient {
       method: 'POST',
       headers: {
         'Content-Type': CONTENT_TYPES.JSON,
-        'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
+        'X-Service-Auth': getValidatedServiceSecret(),
       },
       body: JSON.stringify({
         attachments,
@@ -300,10 +301,10 @@ export class GatewayClient {
         method: 'POST',
         headers: {
           'Content-Type': CONTENT_TYPES.JSON,
-          'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
+          'X-Service-Auth': getValidatedServiceSecret(),
         },
         body: JSON.stringify({ channelId, personalitySlug }),
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(TIMEOUTS.GATEWAY_RPC),
       });
       if (!response.ok) {
         const text = await response.text();
@@ -330,9 +331,9 @@ export class GatewayClient {
         method: 'POST',
         headers: {
           'Content-Type': CONTENT_TYPES.JSON,
-          'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
+          'X-Service-Auth': getValidatedServiceSecret(),
         },
-        signal: AbortSignal.timeout(5000), // 5s timeout
+        signal: AbortSignal.timeout(TIMEOUTS.GATEWAY_RPC),
       });
 
       if (!response.ok) {
@@ -372,10 +373,10 @@ export class GatewayClient {
     try {
       const response = await fetch(`${this.baseUrl}/user/channel/${channelId}`, {
         headers: {
-          'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
+          'X-Service-Auth': getValidatedServiceSecret(),
           // Note: No X-User-Id needed - this is a service-to-service lookup
         },
-        signal: AbortSignal.timeout(5000), // 5s timeout
+        signal: AbortSignal.timeout(TIMEOUTS.GATEWAY_RPC),
       });
 
       if (!response.ok) {
@@ -412,9 +413,9 @@ export class GatewayClient {
     try {
       const response = await fetch(`${this.baseUrl}/admin/denylist/cache`, {
         headers: {
-          'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
+          'X-Service-Auth': getValidatedServiceSecret(),
         },
-        signal: AbortSignal.timeout(10000), // 10s - potentially large payload
+        signal: AbortSignal.timeout(TIMEOUTS.GATEWAY_BULK_FETCH),
       });
 
       if (!response.ok) {
@@ -464,9 +465,9 @@ export class GatewayClient {
     try {
       const response = await fetch(`${this.baseUrl}/admin/settings`, {
         headers: {
-          'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
+          'X-Service-Auth': getValidatedServiceSecret(),
         },
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(TIMEOUTS.GATEWAY_RPC),
       });
 
       if (!response.ok) {
@@ -514,9 +515,9 @@ export class GatewayClient {
         `${this.baseUrl}/user/conversation/message-personality?discordMessageId=${encodeURIComponent(discordMessageId)}`,
         {
           headers: {
-            'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
+            'X-Service-Auth': getValidatedServiceSecret(),
           },
-          signal: AbortSignal.timeout(5000), // 5s timeout
+          signal: AbortSignal.timeout(TIMEOUTS.GATEWAY_RPC),
         }
       );
 
@@ -571,10 +572,10 @@ export class GatewayClient {
           method: 'PATCH',
           headers: {
             'Content-Type': CONTENT_TYPES.JSON,
-            'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
+            'X-Service-Auth': getValidatedServiceSecret(),
           },
           body: JSON.stringify({ responseMessageIds }),
-          signal: AbortSignal.timeout(5000), // 5s timeout
+          signal: AbortSignal.timeout(TIMEOUTS.GATEWAY_RPC),
         }
       );
 

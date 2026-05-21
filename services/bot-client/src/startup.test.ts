@@ -29,8 +29,10 @@ import {
   validateDiscordToken,
   validateRedisUrl,
   validateInternalServiceSecret,
+  getValidatedServiceSecret,
   logGatewayHealthStatus,
 } from './startup.js';
+import { getConfig } from '@tzurot/common-types';
 
 describe('Startup Utilities', () => {
   beforeEach(() => {
@@ -127,6 +129,32 @@ describe('Startup Utilities', () => {
           config as ReturnType<typeof import('@tzurot/common-types').getConfig>
         )
       ).toThrow('INTERNAL_SERVICE_SECRET environment variable is required');
+    });
+  });
+
+  describe('getValidatedServiceSecret', () => {
+    it('returns the secret when configured', () => {
+      vi.mocked(getConfig).mockReturnValueOnce({
+        INTERNAL_SERVICE_SECRET: 'production-secret-value',
+      } as ReturnType<typeof getConfig>);
+
+      expect(getValidatedServiceSecret()).toBe('production-secret-value');
+    });
+
+    it('throws when the secret is undefined', () => {
+      vi.mocked(getConfig).mockReturnValueOnce({
+        INTERNAL_SERVICE_SECRET: undefined,
+      } as ReturnType<typeof getConfig>);
+
+      expect(() => getValidatedServiceSecret()).toThrow('INTERNAL_SERVICE_SECRET not configured');
+    });
+
+    it('throws when the secret is empty string', () => {
+      vi.mocked(getConfig).mockReturnValueOnce({
+        INTERNAL_SERVICE_SECRET: '',
+      } as ReturnType<typeof getConfig>);
+
+      expect(() => getValidatedServiceSecret()).toThrow('INTERNAL_SERVICE_SECRET not configured');
     });
   });
 

@@ -50,6 +50,24 @@ export const TIMEOUTS = {
    * gateway surfaces as "Gateway unreachable" rather than letting the slash
    * command sit in "Thinking…" until Discord's deferReply window expires. */
   ADMIN_GATEWAY: 10_000,
+  /** Default timeout for bot-client → api-gateway internal RPC calls (5 s).
+   * Covers small JSON request/response shapes (channel lookups, session
+   * writes, confirm-delivery acks, settings reads, diagnostic patches).
+   * Short enough that a hung gateway surfaces quickly; long enough to
+   * cover Railway internal-network latency under normal load. */
+  GATEWAY_RPC: 5_000,
+  /** Timeout for bot-client → api-gateway bulk-payload reads (10 s).
+   * Used for endpoints that return larger payloads — currently the
+   * denylist cache bootstrap. Distinct from GATEWAY_RPC because the
+   * payload size and parse time are meaningfully larger. */
+  GATEWAY_BULK_FETCH: 10_000,
+  /** Timeout for bot-client → api-gateway `/ai/generate` job submission (60 s).
+   * Long outlier because api-gateway currently downloads all extended-context
+   * attachments synchronously inside the handler before responding; response
+   * time scales with attachment payload size. Observed prod cases of
+   * 12-attachment requests (~several MB total) taking >10 s. Structural
+   * fix (move downloads to ai-worker lazy-load) tracked in backlog. */
+  AI_GENERATE_SUBMIT: 60_000,
 } as const;
 
 /**
