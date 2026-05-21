@@ -87,6 +87,7 @@ async function deliverSlot(
         slot.result as LLMGenerationResult & { success: true },
         slotContext
       );
+      await deps.persistence.markSlotDelivered(slot.jobId);
       return;
     }
     if (slot.status === 'completed' && slot.result !== undefined) {
@@ -118,7 +119,15 @@ async function deliverSlot(
     const isTimeout = slot.status === 'timedout';
     const category = isTimeout ? ApiErrorCategory.TIMEOUT : ApiErrorCategory.UNKNOWN;
     const technicalMessage = isTimeout ? 'Response timed out' : 'No response received';
-    const synthetic: LLMGenerationResult = slot.result ?? {
+    // When `slot.result` is defined but lacks `personalityErrorMessage`, the
+    // unguarded `??` would short-circuit and `buildErrorContent` would render
+    // the generic DEFAULT_ERROR instead of the persona-voice fallback. This
+    // applies to two paths: (a) `JobFailureListener` / `MultiTagRecovery`
+    // synthesize a failure result without enriching it; (b) ai-worker rarely
+    // emits an empty-content success result that fails `hasUsableContent`
+    // but lacks the error metadata. Overlay the personality's `errorMessage`
+    // before passing through so the user sees the character's voice.
+    const baseSynthetic: LLMGenerationResult = slot.result ?? {
       requestId: entry.groupId,
       success: false,
       error: technicalMessage,
@@ -135,7 +144,13 @@ async function deliverSlot(
         shouldRetry: false,
       },
     };
+    const synthetic: LLMGenerationResult =
+      baseSynthetic.personalityErrorMessage === undefined &&
+      slot.personality.errorMessage !== undefined
+        ? { ...baseSynthetic, personalityErrorMessage: slot.personality.errorMessage }
+        : baseSynthetic;
     await deps.slotDelivery.deliverError(buildErrorContent(synthetic), synthetic, slotContext);
+    await deps.persistence.markSlotDelivered(slot.jobId);
   } catch (err) {
     logger.error(
       {

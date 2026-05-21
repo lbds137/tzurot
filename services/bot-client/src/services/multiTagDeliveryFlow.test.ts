@@ -82,6 +82,7 @@ describe('deliverGroup', () => {
   let persistence: {
     deleteEntry: ReturnType<typeof vi.fn>;
     clearDMBackfillTried: ReturnType<typeof vi.fn>;
+    markSlotDelivered: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(() => {
@@ -96,6 +97,7 @@ describe('deliverGroup', () => {
     persistence = {
       deleteEntry: vi.fn().mockResolvedValue(undefined),
       clearDMBackfillTried: vi.fn().mockResolvedValue(undefined),
+      markSlotDelivered: vi.fn().mockResolvedValue(undefined),
     };
     deps = {
       slotDelivery: slotDelivery as unknown as DeliveryFlowDeps['slotDelivery'],
@@ -207,6 +209,132 @@ describe('deliverGroup', () => {
     // No personalityErrorMessage configured → falls through to the
     // UNKNOWN category's user message, NOT the generic bot fallback.
     expect(rendered).not.toContain('Sorry, I encountered an error');
+  });
+
+  it('overlays personalityErrorMessage when synthesized failure result lacks it', async () => {
+    // Path: JobFailureListener or MultiTagRecovery synthesized a failure result
+    // and routed it via coordinator.handleJobResult. The synthetic result has
+    // `success: false` but no `personalityErrorMessage`. Without the overlay,
+    // `??` would short-circuit and the user sees DEFAULT_ERROR instead of the
+    // personality's voice.
+    const entry = buildEntry({
+      slots: [
+        buildSlot('Alice', {
+          status: 'errored',
+          result: {
+            requestId: 'r1',
+            success: false,
+            error: 'Upstream gateway failure',
+          } as LLMGenerationResult,
+          personalityErrorMessage: 'Static crackles. Did something break?',
+        }),
+      ],
+    });
+
+    await deliverGroup(entry, deps);
+
+    const [rendered, synthetic] = slotDelivery.deliverError.mock.calls[0];
+    expect(synthetic.personalityErrorMessage).toBe('Static crackles. Did something break?');
+    expect(rendered).toContain('Static crackles');
+    expect(rendered).not.toContain('Sorry, I encountered an error');
+  });
+
+  it('overlays personalityErrorMessage on completed-but-empty success result', async () => {
+    // Path: ai-worker emits success:true with empty content (rare upstream
+    // edge — rate-limit soft-fail). hasUsableContent returns false; we route
+    // through the error path. The original result has no personalityErrorMessage,
+    // so without the overlay the user sees DEFAULT_ERROR.
+    const entry = buildEntry({
+      slots: [
+        buildSlot('Alice', {
+          status: 'completed',
+          result: {
+            requestId: 'r1',
+            success: true,
+            content: '',
+          } as LLMGenerationResult,
+          personalityErrorMessage: 'Words escape me, just for a moment.',
+        }),
+      ],
+    });
+
+    await deliverGroup(entry, deps);
+
+    const [rendered, synthetic] = slotDelivery.deliverError.mock.calls[0];
+    expect(synthetic.personalityErrorMessage).toBe('Words escape me, just for a moment.');
+    expect(rendered).toContain('Words escape me');
+    expect(rendered).not.toContain('Sorry, I encountered an error');
+  });
+
+  it('preserves an already-set personalityErrorMessage on the result without overwriting', async () => {
+    // Sanity: if the upstream already enriched the result, don't replace it
+    // with `slot.personality.errorMessage` (which may differ if the persona
+    // was edited mid-flight).
+    const entry = buildEntry({
+      slots: [
+        buildSlot('Alice', {
+          status: 'errored',
+          result: {
+            requestId: 'r1',
+            success: false,
+            error: 'Upstream',
+            personalityErrorMessage: 'Original enriched message',
+          } as LLMGenerationResult,
+          personalityErrorMessage: 'Slot-personality message (should NOT win)',
+        }),
+      ],
+    });
+
+    await deliverGroup(entry, deps);
+
+    const [, synthetic] = slotDelivery.deliverError.mock.calls[0];
+    expect(synthetic.personalityErrorMessage).toBe('Original enriched message');
+  });
+
+  it('writes slot-delivered marker after each successful slot send', async () => {
+    const entry = buildEntry({
+      slots: [
+        buildSlot('Alice', { slotIndex: 0, jobId: 'job-Alice' }),
+        buildSlot('Bob', { slotIndex: 1, jobId: 'job-Bob' }),
+      ],
+    });
+
+    await deliverGroup(entry, deps);
+
+    expect(persistence.markSlotDelivered).toHaveBeenCalledWith('job-Alice');
+    expect(persistence.markSlotDelivered).toHaveBeenCalledWith('job-Bob');
+    expect(persistence.markSlotDelivered).toHaveBeenCalledTimes(2);
+  });
+
+  it('writes slot-delivered marker after error-path delivery too', async () => {
+    // `timedout` status → hasUsableContent returns false → routes through
+    // deliverError. The marker is still written because the user-visible
+    // Discord message DID land (an in-character error message); a recovery
+    // re-dispatch would still be a duplicate.
+    const entry = buildEntry({
+      slots: [buildSlot('Alice', { status: 'timedout', result: undefined, jobId: 'job-Alice' })],
+    });
+
+    await deliverGroup(entry, deps);
+
+    expect(slotDelivery.deliverError).toHaveBeenCalledOnce();
+    expect(persistence.markSlotDelivered).toHaveBeenCalledWith('job-Alice');
+  });
+
+  it('does NOT write slot-delivered marker when delivery throws', async () => {
+    slotDelivery.deliverSuccess.mockRejectedValueOnce(new Error('Discord 500'));
+    const entry = buildEntry({
+      slots: [
+        buildSlot('Alice', { slotIndex: 0, jobId: 'job-Alice' }),
+        buildSlot('Bob', { slotIndex: 1, jobId: 'job-Bob' }),
+      ],
+    });
+
+    await deliverGroup(entry, deps);
+
+    // Alice's send threw — no marker. Bob's send succeeded — marker.
+    expect(persistence.markSlotDelivered).not.toHaveBeenCalledWith('job-Alice');
+    expect(persistence.markSlotDelivered).toHaveBeenCalledWith('job-Bob');
   });
 
   it('continues delivering remaining slots when one slot throws', async () => {
