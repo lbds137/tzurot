@@ -11,6 +11,7 @@ import {
   Duration,
   DurationParseError,
 } from '@tzurot/common-types';
+import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendCustomSuccess } from '../../utils/responseHelpers.js';
 
@@ -67,6 +68,7 @@ export function createAdminUsageRoutes(prisma: PrismaClient): Router {
    */
   router.get(
     '/',
+    requireOwnerAuth(),
     asyncHandler(async (req: Request, res: Response) => {
       const timeframe = (req.query.timeframe as string) ?? '7d';
       const periodStart = parseTimeframe(timeframe);

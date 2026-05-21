@@ -10,6 +10,10 @@ import { createDenylistRoutes } from './denylist.js';
 // Mock AuthMiddleware
 vi.mock('../../services/AuthMiddleware.js', () => ({
   extractOwnerId: () => '999999999999999999',
+  requireOwnerAuth: () => (req: { userId?: string }, _res: unknown, next: () => void) => {
+    req.userId = '999999999999999999';
+    next();
+  },
 }));
 
 // Mock isBotOwner
@@ -48,7 +52,50 @@ const createMockDenylistInvalidation = () => ({
   unsubscribe: vi.fn().mockResolvedValue(undefined),
 });
 
+interface RouterLayer {
+  route?: {
+    path: string;
+    methods: Record<string, boolean>;
+    stack: unknown[];
+  };
+}
+
 describe('Denylist Admin Routes', () => {
+  describe('middleware composition', () => {
+    it('wires requireOwnerAuth on user-facing routes but not on /cache', () => {
+      // /cache is the service-only cache hydration endpoint — bot-client
+      // hits this at startup before any Discord user context exists, so
+      // adding requireOwnerAuth here would break startup silently. Lock
+      // the design in by asserting /cache has exactly one handler in its
+      // route stack (asyncHandler only), while every other route has at
+      // least two (auth + business logic, plus optional rate limiter).
+      const router = createDenylistRoutes(
+        createMockPrisma() as never,
+        createMockDenylistInvalidation() as never
+      );
+      const stack = (router as unknown as { stack: RouterLayer[] }).stack;
+      let cacheChecked = false;
+      let otherRoutesChecked = 0;
+      for (const layer of stack) {
+        if (!layer.route) continue;
+        if (layer.route.path === '/cache') {
+          expect(layer.route.stack.length, '/cache must remain service-only (no owner-auth)').toBe(
+            1
+          );
+          cacheChecked = true;
+        } else {
+          expect(
+            layer.route.stack.length,
+            `${layer.route.path} missing auth middleware`
+          ).toBeGreaterThanOrEqual(2);
+          otherRoutesChecked += 1;
+        }
+      }
+      expect(cacheChecked, '/cache route not found in router stack').toBe(true);
+      expect(otherRoutesChecked, 'expected at least one non-/cache route').toBeGreaterThan(0);
+    });
+  });
+
   let app: Express;
   let mockPrisma: ReturnType<typeof createMockPrisma>;
   let mockInvalidation: ReturnType<typeof createMockDenylistInvalidation>;

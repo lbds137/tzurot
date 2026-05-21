@@ -43,6 +43,7 @@ export function createListKeysRoute(prisma: PrismaClient): Router {
           lastUsedAt: true,
         },
         orderBy: { createdAt: 'desc' },
+        take: 100, // User-scoped ceiling; provider count is bounded by a small handful
       });
 
       logger.info({ discordUserId, keyCount: keys.length }, 'Listed API keys');

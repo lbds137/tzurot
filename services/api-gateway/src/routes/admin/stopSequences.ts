@@ -10,6 +10,7 @@ import { Router, type Response, type Request } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { createLogger } from '@tzurot/common-types';
 import type { Redis } from 'ioredis';
+import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendCustomSuccess } from '../../utils/responseHelpers.js';
 
@@ -28,6 +29,7 @@ export function createStopSequenceRoutes(redis: Redis): Router {
 
   router.get(
     '/',
+    requireOwnerAuth(),
     asyncHandler(async (_req: Request, res: Response) => {
       const [totalStr, bySequence, byModel, startedAt] = await Promise.all([
         redis.get(REDIS_KEYS.TOTAL),

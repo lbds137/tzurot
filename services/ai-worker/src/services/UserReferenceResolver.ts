@@ -49,7 +49,8 @@ export class UserReferenceResolver {
     if (persona === null) {
       const replacement = fallbackName ?? fullMatch;
       if (fallbackName !== undefined) {
-        logger.debug({ ...logContext, fallbackName }, `No mapping found, falling back to username`);
+        // fallbackName is a Discord display name — logging it is a PII violation.
+        logger.debug(logContext, `No mapping found, falling back to username`);
       }
       return {
         updatedText: ctx.currentText.replaceAll(fullMatch, replacement),

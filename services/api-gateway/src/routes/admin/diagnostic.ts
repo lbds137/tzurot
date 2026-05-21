@@ -23,6 +23,7 @@ import {
   type DiagnosticPayload,
   DiagnosticUpdateSchema,
 } from '@tzurot/common-types';
+import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
@@ -345,12 +346,12 @@ function handleUpdateResponseIds(prisma: PrismaClient): RequestHandler {
 export function createDiagnosticRoutes(prisma: PrismaClient): Router {
   const router = Router();
 
-  router.get('/recent', handleGetRecent(prisma));
-  router.get('/by-message/:messageId', handleGetByMessage(prisma));
-  router.get('/by-response/:messageId', handleGetByResponse(prisma));
+  router.get('/recent', requireOwnerAuth(), handleGetRecent(prisma));
+  router.get('/by-message/:messageId', requireOwnerAuth(), handleGetByMessage(prisma));
+  router.get('/by-response/:messageId', requireOwnerAuth(), handleGetByResponse(prisma));
   // Note: /:requestId must come after /by-* routes to avoid matching 'by-message' as a requestId
-  router.get('/:requestId', handleGetByRequestId(prisma));
-  router.patch('/:requestId/response-ids', handleUpdateResponseIds(prisma));
+  router.get('/:requestId', requireOwnerAuth(), handleGetByRequestId(prisma));
+  router.patch('/:requestId/response-ids', requireOwnerAuth(), handleUpdateResponseIds(prisma));
 
   return router;
 }
