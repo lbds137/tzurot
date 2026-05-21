@@ -86,6 +86,8 @@ export function registerDevCommands(cli: CAC): void {
       runFindDeadFiles();
     });
 
+  registerSchemaAuditCommand(cli);
+
   cli
     .command(
       'lint:complexity-report',
@@ -104,5 +106,17 @@ export function registerDevCommands(cli: CAC): void {
         noFail: options.allowFailures,
         json: options.json,
       });
+    });
+}
+
+function registerSchemaAuditCommand(cli: CAC): void {
+  cli
+    .command('dev:schema-audit', 'Audit Prisma optional columns for fake-optionality')
+    .option('--json', 'Emit JSON instead of markdown')
+    .example('ops dev:schema-audit')
+    .example('ops dev:schema-audit --json')
+    .action(async (options: { json?: boolean }) => {
+      const { runSchemaAudit } = await import('../dev/schema-audit.js');
+      runSchemaAudit({ format: options.json === true ? 'json' : 'markdown' });
     });
 }
