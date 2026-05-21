@@ -7,6 +7,7 @@ import express from 'express';
 import request from 'supertest';
 import type { Redis } from 'ioredis';
 import { createStopSequenceRoutes } from './stopSequences.js';
+import { getAllRoutes } from '../../test/expressRouterUtils.js';
 
 // Mock the logger
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -60,41 +61,55 @@ function createApp(redis: Redis) {
   return app;
 }
 
-describe('GET /admin/stop-sequences', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it('should return stats from Redis', async () => {
-    const redis = createMockRedis({
-      total: '42',
-      bySequence: { '\nUser:': '30', '\nHuman:': '12' },
-      byModel: { 'gpt-4': '25', 'claude-3': '17' },
-      startedAt: '2026-02-10T00:00:00.000Z',
+describe('Admin Stop Sequence Routes', () => {
+  describe('middleware composition', () => {
+    it('wires requireOwnerAuth on every route', () => {
+      const routes = getAllRoutes(createStopSequenceRoutes({} as unknown as Redis));
+      expect(routes.length, 'expected at least one registered route').toBeGreaterThan(0);
+      for (const route of routes) {
+        expect(route.stackLength, `${route.path} missing auth middleware`).toBeGreaterThanOrEqual(
+          2
+        );
+      }
     });
-    const app = createApp(redis);
-
-    const res = await request(app).get('/admin/stop-sequences');
-
-    expect(res.status).toBe(200);
-    expect(res.body.totalActivations).toBe(42);
-    expect(res.body.bySequence['\nUser:']).toBe(30);
-    expect(res.body.bySequence['\nHuman:']).toBe(12);
-    expect(res.body.byModel['gpt-4']).toBe(25);
-    expect(res.body.byModel['claude-3']).toBe(17);
-    expect(res.body.startedAt).toBe('2026-02-10T00:00:00.000Z');
   });
 
-  it('should handle empty Redis keys gracefully', async () => {
-    const redis = createMockRedis();
-    const app = createApp(redis);
+  describe('GET /admin/stop-sequences', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
 
-    const res = await request(app).get('/admin/stop-sequences');
+    it('should return stats from Redis', async () => {
+      const redis = createMockRedis({
+        total: '42',
+        bySequence: { '\nUser:': '30', '\nHuman:': '12' },
+        byModel: { 'gpt-4': '25', 'claude-3': '17' },
+        startedAt: '2026-02-10T00:00:00.000Z',
+      });
+      const app = createApp(redis);
 
-    expect(res.status).toBe(200);
-    expect(res.body.totalActivations).toBe(0);
-    expect(res.body.bySequence).toEqual({});
-    expect(res.body.byModel).toEqual({});
-    expect(res.body.startedAt).toBeDefined();
+      const res = await request(app).get('/admin/stop-sequences');
+
+      expect(res.status).toBe(200);
+      expect(res.body.totalActivations).toBe(42);
+      expect(res.body.bySequence['\nUser:']).toBe(30);
+      expect(res.body.bySequence['\nHuman:']).toBe(12);
+      expect(res.body.byModel['gpt-4']).toBe(25);
+      expect(res.body.byModel['claude-3']).toBe(17);
+      expect(res.body.startedAt).toBe('2026-02-10T00:00:00.000Z');
+    });
+
+    it('should handle empty Redis keys gracefully', async () => {
+      const redis = createMockRedis();
+      const app = createApp(redis);
+
+      const res = await request(app).get('/admin/stop-sequences');
+
+      expect(res.status).toBe(200);
+      expect(res.body.totalActivations).toBe(0);
+      expect(res.body.bySequence).toEqual({});
+      expect(res.body.byModel).toEqual({});
+      expect(res.body.startedAt).toBeDefined();
+    });
   });
 });

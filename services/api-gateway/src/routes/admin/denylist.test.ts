@@ -6,6 +6,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
 import { createDenylistRoutes } from './denylist.js';
+import { getAllRoutes } from '../../test/expressRouterUtils.js';
 
 // Mock AuthMiddleware
 vi.mock('../../services/AuthMiddleware.js', () => ({
@@ -52,14 +53,6 @@ const createMockDenylistInvalidation = () => ({
   unsubscribe: vi.fn().mockResolvedValue(undefined),
 });
 
-interface RouterLayer {
-  route?: {
-    path: string;
-    methods: Record<string, boolean>;
-    stack: unknown[];
-  };
-}
-
 describe('Denylist Admin Routes', () => {
   describe('middleware composition', () => {
     it('wires requireOwnerAuth on user-facing routes but not on /cache', () => {
@@ -73,26 +66,18 @@ describe('Denylist Admin Routes', () => {
         createMockPrisma() as never,
         createMockDenylistInvalidation() as never
       );
-      const stack = (router as unknown as { stack: RouterLayer[] }).stack;
-      let cacheChecked = false;
-      let otherRoutesChecked = 0;
-      for (const layer of stack) {
-        if (!layer.route) continue;
-        if (layer.route.path === '/cache') {
-          expect(layer.route.stack.length, '/cache must remain service-only (no owner-auth)').toBe(
-            1
-          );
-          cacheChecked = true;
-        } else {
-          expect(
-            layer.route.stack.length,
-            `${layer.route.path} missing auth middleware`
-          ).toBeGreaterThanOrEqual(2);
-          otherRoutesChecked += 1;
-        }
+      const routes = getAllRoutes(router);
+      const cacheRoute = routes.find(r => r.path === '/cache');
+      expect(cacheRoute, '/cache route not found in router stack').toBeDefined();
+      expect(cacheRoute?.stackLength, '/cache must remain service-only (no owner-auth)').toBe(1);
+
+      const nonCacheRoutes = routes.filter(r => r.path !== '/cache');
+      expect(nonCacheRoutes.length, 'expected at least one non-/cache route').toBeGreaterThan(0);
+      for (const route of nonCacheRoutes) {
+        expect(route.stackLength, `${route.path} missing auth middleware`).toBeGreaterThanOrEqual(
+          2
+        );
       }
-      expect(cacheChecked, '/cache route not found in router stack').toBe(true);
-      expect(otherRoutesChecked, 'expected at least one non-/cache route').toBeGreaterThan(0);
     });
   });
 

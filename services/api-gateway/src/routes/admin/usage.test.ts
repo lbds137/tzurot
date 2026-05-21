@@ -7,6 +7,7 @@ import { createAdminUsageRoutes } from './usage.js';
 import type { PrismaClient } from '@tzurot/common-types';
 import express from 'express';
 import request from 'supertest';
+import { getAllRoutes } from '../../test/expressRouterUtils.js';
 
 // Mock logger
 vi.mock('@tzurot/common-types', async () => {
@@ -31,6 +32,18 @@ vi.mock('../../services/AuthMiddleware.js', () => ({
 }));
 
 describe('Admin Usage Routes', () => {
+  describe('middleware composition', () => {
+    it('wires requireOwnerAuth on every route', () => {
+      const routes = getAllRoutes(createAdminUsageRoutes({} as unknown as PrismaClient));
+      expect(routes.length, 'expected at least one registered route').toBeGreaterThan(0);
+      for (const route of routes) {
+        expect(route.stackLength, `${route.path} missing auth middleware`).toBeGreaterThanOrEqual(
+          2
+        );
+      }
+    });
+  });
+
   let mockPrisma: {
     usageLog: {
       findMany: ReturnType<typeof vi.fn>;
