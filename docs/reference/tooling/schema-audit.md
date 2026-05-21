@@ -2,7 +2,7 @@
 
 > **Command**: `pnpm ops dev:schema-audit`
 > **Purpose**: find Prisma `?` (optional) columns where `null` is NOT a meaningful application state — workarounds that ship latent bugs.
-> **Status**: ships from `feat/schema-audit-tool` branch; design pass in `docs/proposals/backlog/schema-audit-tool-design.md`.
+> **Status**: shipped from `feat/schema-audit-tool` branch via PR review.
 
 ## Why this tool exists
 
@@ -126,7 +126,7 @@ Combined, the goal is to make a "fake-optional" column impossible to introduce s
 
 ## Design references
 
-- Proposal doc: [`docs/proposals/backlog/schema-audit-tool-design.md`](../../proposals/backlog/schema-audit-tool-design.md) — full 4-council-model synthesis
 - Source modules: `packages/tooling/src/dev/schema-audit*.ts`
-- Tests: `packages/tooling/src/dev/schema-audit.test.ts`
+- Per-module tests: `packages/tooling/src/dev/schema-audit-{parser,reads,writes,findings,suppression,report}.test.ts`
 - Rule: [`.claude/rules/03-database.md`](../../../.claude/rules/03-database.md) — "Optional Columns Require Null-Semantics Documentation"
+- Original design pass (4-council-model synthesis) preserved in the PR description that shipped this tool
