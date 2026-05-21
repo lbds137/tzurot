@@ -13,7 +13,7 @@
  *   optionality is unused.
  */
 
-import { Project, Node, type ObjectLiteralExpression } from 'ts-morph';
+import { Project, Node, SyntaxKind, type ObjectLiteralExpression } from 'ts-morph';
 import type { PrismaField } from './schema-audit-parser.js';
 
 /**
@@ -67,6 +67,14 @@ function classifyDataProperty(
 /**
  * Classify a single object-literal property against a target field name.
  * Returns null if the property is unrelated (caller continues searching).
+ *
+ * The initializer expression is treated as `null` not just when it's the
+ * literal `null` keyword, but also when its top-level operator is `??` with
+ * a `null` right-hand side (or `|| null`, `|| undefined`) — those patterns
+ * acknowledge that the value MAY be null at runtime, which is the property
+ * the bimodal-writes and always-passed-no-default recipes care about. A
+ * caller writing `field: data.x ?? null` is NOT making a "this is always a
+ * real value" assertion, so it shouldn't be in the value-set.
  */
 function classifyProperty(prop: Node, fieldName: string): WriteOutcome | null {
   if (Node.isPropertyAssignment(prop)) {
@@ -74,14 +82,35 @@ function classifyProperty(prop: Node, fieldName: string): WriteOutcome | null {
     if (!Node.isIdentifier(nameNode) || nameNode.getText() !== fieldName) return null;
     const initializer = prop.getInitializer();
     if (initializer === undefined) return 'unclassifiable';
-    // Reference SyntaxKind.NullKeyword without importing — use literal check.
-    if (initializer.getText() === 'null') return 'null';
-    return 'value';
+    return classifyInitializer(initializer);
   }
   if (Node.isShorthandPropertyAssignment(prop) && prop.getName() === fieldName) {
     return 'value';
   }
   return null;
+}
+
+/**
+ * Classify an initializer expression as null-yielding or value-yielding.
+ * Recognises common nullable-fallback patterns syntactically — full
+ * type-resolution would catch more cases but adds AST complexity.
+ */
+function classifyInitializer(initializer: Node): WriteOutcome {
+  if (initializer.getText() === 'null') return 'null';
+  if (initializer.getKind() === SyntaxKind.BinaryExpression) {
+    const binary = initializer.asKindOrThrow(SyntaxKind.BinaryExpression);
+    const op = binary.getOperatorToken().getText();
+    if (op === '??' || op === '||') {
+      const rhsText = binary.getRight().getText();
+      if (rhsText === 'null' || rhsText === 'undefined') {
+        // Caller acknowledges the value may be null/undefined — treat as null
+        // for recipe purposes (same bucket as omitted from a "would tightening
+        // be safe?" perspective).
+        return 'null';
+      }
+    }
+  }
+  return 'value';
 }
 
 /**
