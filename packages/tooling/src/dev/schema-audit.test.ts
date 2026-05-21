@@ -13,7 +13,12 @@ import { join } from 'node:path';
 import {
   parsePrismaSchema,
   classifyReads,
+  analyzeWrites,
   generateFindings,
+  loadAuditConfig,
+  validateSuppressions,
+  applySuppressions,
+  type AuditFinding,
   type PrismaField,
 } from './schema-audit.js';
 
@@ -259,6 +264,7 @@ describe('generateFindings', () => {
           totalReads: 10,
         },
       ],
+      [],
       [field]
     );
     expect(findings).toHaveLength(1);
@@ -278,6 +284,7 @@ describe('generateFindings', () => {
           totalReads: 9,
         },
       ],
+      [],
       [field]
     );
     expect(findings).toHaveLength(0);
@@ -295,6 +302,7 @@ describe('generateFindings', () => {
           totalReads: 2,
         },
       ],
+      [],
       [field]
     );
     // Ambiguous signal — don't flag (conservative).
@@ -313,6 +321,7 @@ describe('generateFindings', () => {
           totalReads: 5,
         },
       ],
+      [],
       [field]
     );
     expect(findings).toHaveLength(1);
@@ -331,6 +340,7 @@ describe('generateFindings', () => {
           totalReads: 0,
         },
       ],
+      [],
       [field]
     );
     expect(findings).toHaveLength(0);
@@ -348,6 +358,7 @@ describe('generateFindings', () => {
           totalReads: 10,
         },
       ],
+      [],
       [
         {
           model: 'User',
@@ -360,5 +371,395 @@ describe('generateFindings', () => {
       ]
     );
     expect(findings).toHaveLength(0);
+  });
+});
+
+describe('analyzeWrites', () => {
+  const field: PrismaField = {
+    model: 'User',
+    field: 'targetField',
+    type: 'String',
+    optional: true,
+    defaultValue: null,
+    doc: null,
+  };
+
+  function withSourceFile(content: string, fn: (path: string) => void): void {
+    withTempDir(dir => {
+      const path = join(dir, 'test.ts');
+      writeFileSync(path, content);
+      fn(path);
+    });
+  }
+
+  it('classifies `field: null` literal as null-set', () => {
+    withSourceFile(
+      `
+declare const prisma: { user: { create: (args: unknown) => unknown } };
+prisma.user.create({ data: { targetField: null, discordId: 'x' } });
+`,
+      path => {
+        const classifications = analyzeWrites([field], [path]);
+        expect(classifications[0].nullLiteralSites).toBe(1);
+        expect(classifications[0].valueSites).toBe(0);
+      }
+    );
+  });
+
+  it('classifies `field: someValue` as value-set', () => {
+    withSourceFile(
+      `
+declare const prisma: { user: { create: (args: unknown) => unknown } };
+declare const id: string;
+prisma.user.create({ data: { targetField: id, discordId: 'x' } });
+`,
+      path => {
+        const classifications = analyzeWrites([field], [path]);
+        expect(classifications[0].valueSites).toBe(1);
+      }
+    );
+  });
+
+  it('classifies omitted field as omitted-set', () => {
+    withSourceFile(
+      `
+declare const prisma: { user: { create: (args: unknown) => unknown } };
+prisma.user.create({ data: { discordId: 'x' } });
+`,
+      path => {
+        const classifications = analyzeWrites([field], [path]);
+        expect(classifications[0].omittedSites).toBe(1);
+      }
+    );
+  });
+
+  it('classifies sites with spread as unclassifiable when field is absent', () => {
+    withSourceFile(
+      `
+declare const prisma: { user: { create: (args: unknown) => unknown } };
+declare const partial: { discordId: string };
+prisma.user.create({ data: { ...partial } });
+`,
+      path => {
+        const classifications = analyzeWrites([field], [path]);
+        expect(classifications[0].unclassifiableSites).toBe(1);
+      }
+    );
+  });
+
+  it('handles upsert by reading the `create` block', () => {
+    withSourceFile(
+      `
+declare const prisma: { user: { upsert: (args: unknown) => unknown } };
+prisma.user.upsert({
+  where: { id: '1' },
+  create: { targetField: null, discordId: 'x' },
+  update: {},
+});
+`,
+      path => {
+        const classifications = analyzeWrites([field], [path]);
+        expect(classifications[0].nullLiteralSites).toBe(1);
+      }
+    );
+  });
+
+  it('aggregates across multiple sites in one file', () => {
+    withSourceFile(
+      `
+declare const prisma: { user: { create: (args: unknown) => unknown } };
+declare const id: string;
+prisma.user.create({ data: { targetField: null, discordId: 'a' } });
+prisma.user.create({ data: { targetField: null, discordId: 'b' } });
+prisma.user.create({ data: { targetField: id, discordId: 'c' } });
+prisma.user.create({ data: { targetField: id, discordId: 'd' } });
+`,
+      path => {
+        const classifications = analyzeWrites([field], [path]);
+        expect(classifications[0].nullLiteralSites).toBe(2);
+        expect(classifications[0].valueSites).toBe(2);
+        expect(classifications[0].totalSites).toBe(4);
+      }
+    );
+  });
+});
+
+describe('bimodal-writes recipe', () => {
+  const field: PrismaField = {
+    model: 'User',
+    field: 'someField',
+    type: 'String',
+    optional: true,
+    defaultValue: null,
+    doc: null,
+  };
+
+  it('flags HIGH when writes split bimodally (>=2 null/omit + >=2 value)', () => {
+    const findings = generateFindings(
+      [],
+      [
+        {
+          model: 'User',
+          field: 'someField',
+          nullLiteralSites: 2,
+          valueSites: 3,
+          omittedSites: 0,
+          unclassifiableSites: 0,
+          totalSites: 5,
+        },
+      ],
+      [field]
+    );
+    const bimodal = findings.filter(f => f.recipe === 'bimodal-writes');
+    expect(bimodal).toHaveLength(1);
+    expect(bimodal[0].severity).toBe('HIGH');
+  });
+
+  it('does NOT flag when only one cluster present (e.g., all value)', () => {
+    const findings = generateFindings(
+      [],
+      [
+        {
+          model: 'User',
+          field: 'someField',
+          nullLiteralSites: 0,
+          valueSites: 5,
+          omittedSites: 0,
+          unclassifiableSites: 0,
+          totalSites: 5,
+        },
+      ],
+      [field]
+    );
+    expect(findings.filter(f => f.recipe === 'bimodal-writes')).toHaveLength(0);
+  });
+
+  it('counts null and omit toward the same cluster', () => {
+    const findings = generateFindings(
+      [],
+      [
+        {
+          model: 'User',
+          field: 'someField',
+          nullLiteralSites: 1,
+          valueSites: 3,
+          omittedSites: 1, // 1 null + 1 omit = 2 → bimodal threshold met
+          unclassifiableSites: 0,
+          totalSites: 5,
+        },
+      ],
+      [field]
+    );
+    expect(findings.filter(f => f.recipe === 'bimodal-writes')).toHaveLength(1);
+  });
+});
+
+describe('always-passed-no-default recipe', () => {
+  it('flags MEDIUM when all writes pass a value and no @default applies', () => {
+    const findings = generateFindings(
+      [],
+      [
+        {
+          model: 'User',
+          field: 'someField',
+          nullLiteralSites: 0,
+          valueSites: 5,
+          omittedSites: 0,
+          unclassifiableSites: 0,
+          totalSites: 5,
+        },
+      ],
+      [
+        {
+          model: 'User',
+          field: 'someField',
+          type: 'String',
+          optional: true,
+          defaultValue: null,
+          doc: null,
+        },
+      ]
+    );
+    const t = findings.filter(f => f.recipe === 'always-passed-no-default');
+    expect(t).toHaveLength(1);
+    expect(t[0].severity).toBe('MEDIUM');
+  });
+
+  it('does NOT flag when @default is a generator (callers expected to omit)', () => {
+    const findings = generateFindings(
+      [],
+      [
+        {
+          model: 'User',
+          field: 'id',
+          nullLiteralSites: 0,
+          valueSites: 5,
+          omittedSites: 0,
+          unclassifiableSites: 0,
+          totalSites: 5,
+        },
+      ],
+      [
+        {
+          model: 'User',
+          field: 'id',
+          type: 'String',
+          optional: true,
+          defaultValue: 'uuid()',
+          doc: null,
+        },
+      ]
+    );
+    expect(findings.filter(f => f.recipe === 'always-passed-no-default')).toHaveLength(0);
+  });
+
+  it('does NOT flag when any site is null/omit (bimodal-writes territory)', () => {
+    const findings = generateFindings(
+      [],
+      [
+        {
+          model: 'User',
+          field: 'someField',
+          nullLiteralSites: 1,
+          valueSites: 5,
+          omittedSites: 0,
+          unclassifiableSites: 0,
+          totalSites: 6,
+        },
+      ],
+      [
+        {
+          model: 'User',
+          field: 'someField',
+          type: 'String',
+          optional: true,
+          defaultValue: null,
+          doc: null,
+        },
+      ]
+    );
+    expect(findings.filter(f => f.recipe === 'always-passed-no-default')).toHaveLength(0);
+  });
+});
+
+describe('audit.config.ts suppression', () => {
+  const someField: PrismaField = {
+    model: 'User',
+    field: 'nsfwVerifiedAt',
+    type: 'DateTime',
+    optional: true,
+    defaultValue: null,
+    doc: null,
+  };
+  const otherField: PrismaField = {
+    model: 'User',
+    field: 'defaultLlmConfigId',
+    type: 'String',
+    optional: true,
+    defaultValue: null,
+    doc: null,
+  };
+
+  describe('loadAuditConfig', () => {
+    it('returns empty suppressions when the config file does not exist', async () => {
+      const result = await loadAuditConfig('/no/such/path/audit.config.ts');
+      expect(result).toEqual({ suppressions: [] });
+    });
+
+    it('loads a JSON config file', async () => {
+      await withTempDir(async dir => {
+        const path = join(dir, 'audit.config.json');
+        writeFileSync(
+          path,
+          JSON.stringify({
+            suppressions: [{ key: 'User.nsfwVerifiedAt', reason: 'state machine' }],
+          })
+        );
+        const result = await loadAuditConfig(path);
+        expect(result.suppressions).toHaveLength(1);
+        expect(result.suppressions[0].key).toBe('User.nsfwVerifiedAt');
+      });
+    });
+  });
+
+  describe('validateSuppressions', () => {
+    it('passes when every suppressed key resolves to an optional field', () => {
+      expect(() =>
+        validateSuppressions(
+          [{ key: 'User.nsfwVerifiedAt', reason: 'state machine' }],
+          [someField, otherField]
+        )
+      ).not.toThrow();
+    });
+
+    it('throws when a suppression key does not resolve to any field', () => {
+      expect(() =>
+        validateSuppressions(
+          [{ key: 'User.ghostField', reason: 'whatever' }],
+          [someField, otherField]
+        )
+      ).toThrow(/does not resolve/);
+    });
+
+    it('throws when a suppression key resolves to a NOT-NULL field (column was tightened)', () => {
+      expect(() =>
+        validateSuppressions(
+          [{ key: 'User.discordId', reason: 'stale' }],
+          [
+            someField,
+            {
+              model: 'User',
+              field: 'discordId',
+              type: 'String',
+              optional: false,
+              defaultValue: null,
+              doc: null,
+            },
+          ]
+        )
+      ).toThrow(/already been tightened/);
+    });
+  });
+
+  describe('applySuppressions', () => {
+    it('filters findings whose key matches a suppression entry', () => {
+      const findings: AuditFinding[] = [
+        {
+          severity: 'HIGH',
+          recipe: 'bimodal-writes',
+          model: 'User',
+          field: 'nsfwVerifiedAt',
+          evidence: '...',
+          fixShape: '...',
+        },
+        {
+          severity: 'MEDIUM',
+          recipe: 'read-mode-classification',
+          model: 'User',
+          field: 'defaultLlmConfigId',
+          evidence: '...',
+          fixShape: '...',
+        },
+      ];
+      const filtered = applySuppressions(findings, [
+        { key: 'User.nsfwVerifiedAt', reason: 'state machine' },
+      ]);
+      expect(filtered).toHaveLength(1);
+      expect(filtered[0].field).toBe('defaultLlmConfigId');
+    });
+
+    it('returns the original list when no suppressions match', () => {
+      const findings: AuditFinding[] = [
+        {
+          severity: 'HIGH',
+          recipe: 'bimodal-writes',
+          model: 'User',
+          field: 'unrelated',
+          evidence: '...',
+          fixShape: '...',
+        },
+      ];
+      expect(applySuppressions(findings, [])).toEqual(findings);
+    });
   });
 });
