@@ -9,6 +9,7 @@
  */
 
 import { getConfig, CONTENT_TYPES, TIMEOUTS } from '@tzurot/common-types';
+import { getValidatedServiceSecret } from '../startup.js';
 
 /**
  * Options for admin API requests
@@ -60,7 +61,7 @@ export async function adminFetch(path: string, options: AdminFetchOptions = {}):
   // Build headers with service auth and optional user ID
   const headers: Record<string, string> = {
     ...customHeaders,
-    'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
+    'X-Service-Auth': getValidatedServiceSecret(),
   };
 
   // Add user ID header if provided (required for isBotOwner checks)
