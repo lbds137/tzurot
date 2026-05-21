@@ -1,13 +1,13 @@
 # Current
 
-> **Version**: v3.0.0-beta.123 (released 2026-05-19) — live on prod. Subsequent dev work (PRs #1062 → #1063 → #1064 → #1065 → #1066 → #1067 → #1068) on develop, will ship in beta.124.
+> **Version**: v3.0.0-beta.123 (released 2026-05-19) — live on prod. Subsequent dev work (PRs #1062 → #1063 → #1064 → #1065 → #1066 → #1067 → #1068 → #1069) on develop, will ship in beta.124.
 > **🚧 Release freeze status**: LIFTED. No release in progress.
 
 ---
 
 ## Next Session Goal
 
-**Active focus**: none. Quick-wins chain (`/admin metrics` via #1067 + `/voice-references` service auth via #1068) shipped today. The MultiTagRecovery hardening chain shipped yesterday. The **API Security Hardening theme is now fully closed** (all 3 items: rate limiter #1046, helmet/CORS #1046/#1048, voice-references service auth #1068).
+**Active focus**: none. Today shipped 3 PRs: `/admin metrics` (#1067), `/voice-references` service auth (#1068), and symmetric `INTERNAL_SERVICE_SECRET` startup validation across all three services (#1069). MultiTagRecovery hardening chain shipped yesterday. The **API Security Hardening theme is now fully closed** (all 3 items: rate limiter #1046, helmet/CORS #1046/#1048, voice-references service auth #1068). Auth posture across services is now symmetric: api-gateway, bot-client, and ai-worker all refuse to boot without `INTERNAL_SERVICE_SECRET`.
 
 **Candidates**:
 
@@ -22,9 +22,9 @@
 
 ---
 
-## Last Session — Quick-wins chain: `/admin metrics` + `/voice-references` service auth (2026-05-20)
+## Last Session — Quick-wins + auth symmetry sweep (2026-05-20)
 
-Two-PR sweep tightening the bot's internal observability and closing the last API Security Hardening item.
+Three-PR sweep: internal observability (`/admin metrics`), closing the last API Security Hardening item (`/voice-references` service auth), then a follow-up to eliminate the auth-posture asymmetry that surfaced during PR #1068 review.
 
 ### PRs merged
 
@@ -32,11 +32,13 @@ Two-PR sweep tightening the bot's internal observability and closing the last AP
 | ----- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
 | #1067 | `feat(bot-client): /admin metrics command`                      | Bot-owner-only slash command renders queue/cache/uptime metrics in an ephemeral embed            |
 | #1068 | `fix(api-gateway): protect /voice-references with service auth` | Slug-enumeration attack surface closed; ai-worker now gates startup on `INTERNAL_SERVICE_SECRET` |
+| #1069 | `fix: symmetric INTERNAL_SERVICE_SECRET startup validation`     | api-gateway warn → throw; bot-client gains startup check matching ai-worker (#1068)              |
 
 ### Net result
 
 - **API Security Hardening theme fully closed.** All three items shipped (rate limiter #1046, helmet/CORS #1046/#1048, voice-references service auth #1068). Theme section removed from `future-themes.md`.
 - **Defense-in-depth on auth misconfig**: ai-worker now validates `INTERNAL_SERVICE_SECRET` at process startup (`validateRequiredEnvVars`) AND at call-site in `voiceReferenceHelper` — misconfig fails the boot instead of silently degrading TTS.
+- **Symmetric auth posture across services**: api-gateway, bot-client, and ai-worker all refuse to boot without `INTERNAL_SERVICE_SECRET`. Identical error messages across services make log-grep trivial during incident triage.
 - **Internal observability surface added**: `/admin metrics` slash command mirrors the existing `/admin health` pattern.
 
 ### Backlog deltas
