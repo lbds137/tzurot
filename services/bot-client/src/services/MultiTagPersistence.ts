@@ -45,6 +45,14 @@ const STALE_SET_TTL_SEC = 24 * 60 * 60;
 const DM_BACKFILL_TRIED_TTL_SEC = 60 * 60;
 
 /**
+ * TTL for the per-slot "already delivered" marker. Bound to
+ * `STALE_SET_TTL_SEC` because both guard the same invariant: "recovery
+ * sees stale state and decides to act." Sharing the constant keeps the
+ * two markers aligned through any future tuning of the stale-window.
+ */
+const SLOT_DELIVERED_TTL_SEC = STALE_SET_TTL_SEC;
+
+/**
  * SCAN COUNT hint for `scanAllEntries`. Not a hard cap — Redis treats this
  * as a per-call guideline. 100 matches the Redis convention for "moderate
  * batch" scans; small enough to avoid blocking, large enough that recovery
@@ -323,6 +331,54 @@ export class MultiTagPersistence {
         { err, channelId },
         'clearDMBackfillTried Redis call failed — sentinel will expire via TTL'
       );
+    }
+  }
+
+  /**
+   * Mark a slot's jobId as delivered. Written by `deliverSlot` after a
+   * successful Discord send so a subsequent recovery run knows not to
+   * re-dispatch the same result. Closes the narrow crash window between
+   * Discord send and `deleteEntry` in `deliverGroup` where the entry
+   * snapshot still shows the flush-trigger slot as pending — without
+   * this marker, recovery polls BullMQ, finds the job completed, and
+   * re-dispatches → duplicate user-visible delivery.
+   *
+   * Soft-fails on Redis errors: a marker that didn't get written results
+   * in at-worst one duplicate message on a crash-during-flush, which is
+   * the same failure mode the marker is designed to prevent. Logging the
+   * miss is the only meaningful action.
+   */
+  async markSlotDelivered(jobId: string): Promise<void> {
+    const key = `${REDIS_KEY_PREFIXES.MULTI_TAG_SLOT_DELIVERED}${jobId}`;
+    try {
+      await this.redis.set(key, '1', 'EX', SLOT_DELIVERED_TTL_SEC);
+    } catch (err) {
+      logger.warn(
+        { err, jobId },
+        'markSlotDelivered Redis call failed — recovery may re-dispatch this slot if a crash follows before deleteEntry runs'
+      );
+    }
+  }
+
+  /**
+   * Returns true if a previous run already delivered this slot to Discord.
+   * Used by `MultiTagRecovery` to skip re-dispatching deferred deliveries
+   * for slots already sent. Fails closed (returns false) on Redis errors
+   * because re-dispatching is safer than silently dropping: the failure
+   * mode of a false negative is duplicate message; of a false positive,
+   * permanently missing message. Duplicate is the better mode.
+   */
+  async isSlotDelivered(jobId: string): Promise<boolean> {
+    const key = `${REDIS_KEY_PREFIXES.MULTI_TAG_SLOT_DELIVERED}${jobId}`;
+    try {
+      const v = await this.redis.get(key);
+      return v !== null;
+    } catch (err) {
+      logger.warn(
+        { err, jobId },
+        'isSlotDelivered Redis check failed; failing closed (will re-dispatch — accepts duplicate over missing)'
+      );
+      return false;
     }
   }
 }

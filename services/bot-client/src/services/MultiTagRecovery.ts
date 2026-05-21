@@ -116,6 +116,13 @@ export interface RecoveryStats {
   slotsUnrecoverable: number;
   slotsAccessRevoked: number;
   staleJobIdsMarked: number;
+  /**
+   * Slots that a prior recovery run already delivered (per the
+   * `slot-delivered:{jobId}` marker written by `deliverSlot`). Skipped to
+   * avoid duplicate user-visible delivery on a re-run after a crash
+   * during `deliverGroup`'s post-Discord-send cleanup.
+   */
+  slotsAlreadyDelivered: number;
 }
 
 interface DeferredDelivery {
@@ -146,6 +153,7 @@ export class MultiTagRecovery {
       slotsUnrecoverable: 0,
       slotsAccessRevoked: 0,
       staleJobIdsMarked: 0,
+      slotsAlreadyDelivered: 0,
     };
 
     let snapshots: CoordinatorEntrySnapshot[];
@@ -299,19 +307,14 @@ export class MultiTagRecovery {
       // updateEntry persistence write inside handleJobResult itself. No
       // explicit updateEntry needed at this layer.
       //
-      // **Non-idempotency window**: if the process crashes between two
-      // successive `handleJobResult` calls in this loop, the next recovery
-      // run can re-dispatch the same already-delivered result. Whether
-      // the user sees a duplicate Discord message depends on
-      // `handleJobResult`'s persistence timing — if updateEntry runs
-      // before the user-visible send (current behavior in non-flush
-      // cases), the re-dispatch sees terminal status and skips; the
-      // all-terminal flush path deletes the entry, so a crash there
-      // means recovery is already done. The behavior is "potentially
-      // duplicate message" rather than "no message" — the better
-      // failure mode — and the exposure window is tiny (only between
-      // two awaits within recovery itself). Idempotent re-dispatch is
-      // tracked as a follow-up; see backlog/deferred.md.
+      // **Idempotency**: `multiTagDeliveryFlow.deliverSlot` writes a per-slot
+      // `slot-delivered:{jobId}` marker after every successful Discord send.
+      // Checking it here closes the narrow crash window where a prior recovery
+      // run delivered the slot but crashed before `deleteEntry` ran (the
+      // entry-snapshot still shows the flush-trigger slot as pending, the
+      // BullMQ job is completed, and without the marker this loop would
+      // re-dispatch → duplicate user-visible message). Two awaits across the
+      // bus rather than one, paid only on the recovery path which is rare.
       //
       // Per-delivery try/catch: a throw from one `handleJobResult` must
       // not block subsequent deliveries in the same entry. The narrow
@@ -321,6 +324,14 @@ export class MultiTagRecovery {
       // resilience matches the per-slot catch in `multiTagDeliveryFlow.deliverSlot`.
       for (const delivery of deferredDeliveries) {
         try {
+          if (await this.deps.persistence.isSlotDelivered(delivery.jobId)) {
+            logger.info(
+              { groupId: snapshot.groupId, jobId: delivery.jobId, kind: delivery.kind },
+              'Recovery: slot already delivered by a prior run — skipping dispatch'
+            );
+            stats.slotsAlreadyDelivered++;
+            continue;
+          }
           await this.deps.coordinator.handleJobResult(delivery.jobId, delivery.result);
         } catch (err) {
           logger.error(
