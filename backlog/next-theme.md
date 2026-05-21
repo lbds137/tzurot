@@ -13,8 +13,7 @@ The previous "Next Theme: CPD Clone Reduction" was **completed differently** by 
 
 1. **Adjacent CPD follow-up campaigns** — see [`backlog/future-themes.md`](future-themes.md) → "Adjacent CPD Follow-Up Campaigns" — four independently-pickable mini-epics (service-layer parallel cleanup, override-route campaign, bot-client command-pattern, ai-worker voice providers)
 2. **Self-Hosted TTS + BYOK Re-Eval** — Step-0 probes for OmniVoice / F5-TTS / CosyVoice (see `future-themes.md`)
-3. **API Security Hardening** — rate limiter + helmet/CORS + slug-enumeration fix (see `future-themes.md`)
-4. **Other future-themes** — see `backlog/future-themes.md` for the full queue
+3. **Other future-themes** — see `backlog/future-themes.md` for the full queue
 
 **For tomorrow's session-start**: read [`CURRENT.md`](../CURRENT.md) → [`backlog/quick-wins.md`](quick-wins.md) → pick from the candidates above OR sweep a quick-win first.
 
