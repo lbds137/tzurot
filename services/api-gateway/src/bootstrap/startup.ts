@@ -103,17 +103,17 @@ export function validateRequiredEnvVars(): void {
 }
 
 /**
- * Log warning if service auth secret is not configured
+ * Validate service auth secret is configured. Throws at startup so a
+ * misconfigured deploy fails to boot rather than silently 403-ing every
+ * protected-route request. Symmetric with ai-worker and bot-client startup checks.
  */
 export function validateServiceAuthConfig(): void {
   if (
     envConfig.INTERNAL_SERVICE_SECRET === undefined ||
     envConfig.INTERNAL_SERVICE_SECRET.length === 0
   ) {
-    logger.warn(
-      {},
-      'INTERNAL_SERVICE_SECRET is not set - all protected endpoints will reject requests. ' +
-        'Set INTERNAL_SERVICE_SECRET as a shared Railway variable to enable service-to-service auth.'
+    throw new Error(
+      'INTERNAL_SERVICE_SECRET environment variable is required (service-to-service auth for protected gateway routes)'
     );
   }
 }
