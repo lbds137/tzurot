@@ -9,6 +9,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Request, Response, Router } from 'express';
 import { StatusCodes } from 'http-status-codes';
+import { getAllRoutes } from '../../test/expressRouterUtils.js';
 
 const sampleRawConfig = {
   id: 'cfg-uuid-1',
@@ -134,14 +135,12 @@ describe('admin/tts-config routes', () => {
       // Handler-extraction tests pick the last handler, which bypasses
       // middleware. Inspect the router stack directly so a regression that
       // removed requireOwnerAuth() from any route would fail this check.
-      const router = buildRouter();
-      const stack = (router as unknown as { stack: RouterLayer[] }).stack;
-      for (const layer of stack) {
-        if (!layer.route) continue;
-        expect(
-          layer.route.stack.length,
-          `${layer.route.path} missing auth middleware`
-        ).toBeGreaterThanOrEqual(2);
+      const routes = getAllRoutes(buildRouter());
+      expect(routes.length, 'expected at least one registered route').toBeGreaterThan(0);
+      for (const route of routes) {
+        expect(route.stackLength, `${route.path} missing auth middleware`).toBeGreaterThanOrEqual(
+          2
+        );
       }
     });
   });

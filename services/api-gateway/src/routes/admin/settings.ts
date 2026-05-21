@@ -3,9 +3,16 @@
  * Owner-only endpoints for managing the global AdminSettings singleton
  *
  * Endpoints:
- * - GET /admin/settings - Get the AdminSettings singleton
- * - PATCH /admin/settings/config-defaults - Update configDefaults directly (flat body)
- * - DELETE /admin/settings/config-defaults - Clear all admin config defaults
+ * - GET /admin/settings - Get the AdminSettings singleton (service-only OR owner)
+ * - PATCH /admin/settings/config-defaults - Update configDefaults (owner only)
+ * - DELETE /admin/settings/config-defaults - Clear all admin config defaults (owner only)
+ *
+ * Auth shape: PATCH and DELETE use the standard `requireOwnerAuth()` middleware
+ * (consistent with the other 12 admin route modules). GET cannot — it must
+ * accept service-only calls (no Discord user context) so bot-client can
+ * hydrate its admin-settings cache at startup. The GET keeps the inline
+ * `isAuthorizedForRead` check, which permits no-userId requests but rejects
+ * user-context requests from non-owners (see `GatewayClient.getAdminSettings()`).
  */
 
 import { Router, type Request, type Response } from 'express';
@@ -23,7 +30,7 @@ import { asyncHandler } from '../../utils/asyncHandler.js';
 import { mergeConfigOverrides } from '../../utils/configOverrideMerge.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
-import { isAuthorizedForRead, isAuthorizedForWrite } from '../../services/AuthMiddleware.js';
+import { isAuthorizedForRead, requireOwnerAuth } from '../../services/AuthMiddleware.js';
 
 const logger = createLogger('admin-settings-routes');
 
@@ -97,11 +104,6 @@ function createConfigDefaultsPatchHandler(
   cascadeInvalidation?: ConfigCascadeCacheInvalidationService
 ): (req: Request, res: Response) => void {
   return asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    if (!isAuthorizedForWrite(req.userId)) {
-      sendError(res, ErrorResponses.unauthorized('Only bot owners can update settings'));
-      return;
-    }
-
     const input = req.body as Record<string, unknown>;
     const userUuid = await resolveUserUuid(prisma, req.userId);
     const existing = await getOrCreateSettings(prisma);
@@ -152,17 +154,17 @@ export function createAdminSettingsRoutes(
   );
 
   // PATCH /admin/settings/config-defaults - Flat body (same shape as all cascade tiers)
-  router.patch('/config-defaults', createConfigDefaultsPatchHandler(prisma, cascadeInvalidation));
+  router.patch(
+    '/config-defaults',
+    requireOwnerAuth(),
+    createConfigDefaultsPatchHandler(prisma, cascadeInvalidation)
+  );
 
   // DELETE /admin/settings/config-defaults - Clear all admin config defaults
   router.delete(
     '/config-defaults',
+    requireOwnerAuth(),
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-      if (!isAuthorizedForWrite(req.userId)) {
-        sendError(res, ErrorResponses.unauthorized('Only bot owners can update settings'));
-        return;
-      }
-
       const userUuid = await resolveUserUuid(prisma, req.userId);
       await getOrCreateSettings(prisma); // Ensure singleton exists
 
