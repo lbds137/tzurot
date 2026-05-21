@@ -70,7 +70,12 @@ import {
   startVerificationCleanupScheduler,
   stopVerificationCleanupScheduler,
 } from './services/VerificationCleanupScheduler.js';
-import { validateDiscordToken, validateRedisUrl, logGatewayHealthStatus } from './startup.js';
+import {
+  validateDiscordToken,
+  validateRedisUrl,
+  validateInternalServiceSecret,
+  logGatewayHealthStatus,
+} from './startup.js';
 import { restoreBotPresence } from './commands/admin/presence.js';
 import {
   createDeferredContext,
@@ -84,6 +89,7 @@ const envConfig = getConfig();
 
 // Validate bot-client specific required env vars
 validateDiscordToken();
+validateInternalServiceSecret();
 
 // Configuration from environment
 const config = {

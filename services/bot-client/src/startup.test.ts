@@ -25,7 +25,12 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-import { validateDiscordToken, validateRedisUrl, logGatewayHealthStatus } from './startup.js';
+import {
+  validateDiscordToken,
+  validateRedisUrl,
+  validateInternalServiceSecret,
+  logGatewayHealthStatus,
+} from './startup.js';
 
 describe('Startup Utilities', () => {
   beforeEach(() => {
@@ -87,6 +92,41 @@ describe('Startup Utilities', () => {
       expect(() =>
         validateRedisUrl(config as ReturnType<typeof import('@tzurot/common-types').getConfig>)
       ).toThrow('REDIS_URL environment variable is required');
+    });
+  });
+
+  describe('validateInternalServiceSecret', () => {
+    it('should not throw when INTERNAL_SERVICE_SECRET is set', () => {
+      const config = {
+        INTERNAL_SERVICE_SECRET: 'test-secret',
+      };
+      expect(() =>
+        validateInternalServiceSecret(
+          config as ReturnType<typeof import('@tzurot/common-types').getConfig>
+        )
+      ).not.toThrow();
+    });
+
+    it('should throw when INTERNAL_SERVICE_SECRET is undefined', () => {
+      const config = {
+        INTERNAL_SERVICE_SECRET: undefined,
+      };
+      expect(() =>
+        validateInternalServiceSecret(
+          config as ReturnType<typeof import('@tzurot/common-types').getConfig>
+        )
+      ).toThrow('INTERNAL_SERVICE_SECRET environment variable is required');
+    });
+
+    it('should throw when INTERNAL_SERVICE_SECRET is empty', () => {
+      const config = {
+        INTERNAL_SERVICE_SECRET: '',
+      };
+      expect(() =>
+        validateInternalServiceSecret(
+          config as ReturnType<typeof import('@tzurot/common-types').getConfig>
+        )
+      ).toThrow('INTERNAL_SERVICE_SECRET environment variable is required');
     });
   });
 

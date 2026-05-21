@@ -194,13 +194,26 @@ describe('Startup Utilities', () => {
       expect(() => validateServiceAuthConfig()).not.toThrow();
     });
 
-    it('should not throw when service secret is missing (just logs warning)', async () => {
+    it('should throw when service secret is undefined', async () => {
       vi.mocked(getConfig).mockReturnValue({
         INTERNAL_SERVICE_SECRET: undefined,
       } as ReturnType<typeof getConfig>);
 
       const { validateServiceAuthConfig } = await import('./startup.js');
-      expect(() => validateServiceAuthConfig()).not.toThrow();
+      expect(() => validateServiceAuthConfig()).toThrow(
+        'INTERNAL_SERVICE_SECRET environment variable is required'
+      );
+    });
+
+    it('should throw when service secret is empty string', async () => {
+      vi.mocked(getConfig).mockReturnValue({
+        INTERNAL_SERVICE_SECRET: '',
+      } as ReturnType<typeof getConfig>);
+
+      const { validateServiceAuthConfig } = await import('./startup.js');
+      expect(() => validateServiceAuthConfig()).toThrow(
+        'INTERNAL_SERVICE_SECRET environment variable is required'
+      );
     });
   });
 });
