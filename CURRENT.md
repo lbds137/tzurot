@@ -7,7 +7,9 @@
 
 ## Next Session Goal
 
-**Active focus**: none. **v3.0.0-beta.124 shipped to prod** plus a post-release polish PR (#1073) that cleared all 3 release-review inbox items: GatewayClient hardcoded timeouts → named `TIMEOUTS.*` constants, `?? ''` fallback → `getValidatedServiceSecret()` helper, `/admin metrics` single-dispatch refactor. The **API Security Hardening theme is fully closed**. Auth posture symmetric across services. **Fully clean slate** — inbox empty, no current focus, no quick wins, no active epic.
+**Active focus**: none. **v3.0.0-beta.124 shipped to prod** plus a post-release polish PR (#1073) that cleared all 3 release-review inbox items: GatewayClient hardcoded timeouts → named `TIMEOUTS.*` constants, `?? ''` fallback → `getValidatedServiceSecret()` helper, `/admin metrics` single-dispatch refactor. The **API Security Hardening theme is fully closed**. Auth posture symmetric across services.
+
+**Session 2026-05-21 added**: backlog cleanup (3 already-shipped deferred entries from PR #1070, TTS candidate refreshed to BYOK-only after May-13 sweep close-out) + security-audit discovery pass. **Inbox has 4 new findings** (2 MEDIUM, 2 LOW) — see [`backlog/inbox.md`](backlog/inbox.md). Audit certified clean on command-injection, SSRF, HTML/XML sanitization, secret leakage, Helmet/CORS, depcruise boundaries.
 
 Pick from `backlog/future-themes.md` candidates next session.
 
