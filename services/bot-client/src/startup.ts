@@ -46,6 +46,27 @@ export function validateInternalServiceSecret(config = getConfig()): void {
 }
 
 /**
+ * Return the validated `INTERNAL_SERVICE_SECRET` for use in outbound
+ * `X-Service-Auth` headers. Pairs with `validateInternalServiceSecret()`
+ * which runs at process startup — this helper throws loud at call time
+ * if the invariant is ever violated (test-mocking edge, hot-reload),
+ * rather than letting a `?? ''` fallback silently produce 401s.
+ *
+ * @throws Error if INTERNAL_SERVICE_SECRET is missing — should be caught
+ *   by `validateInternalServiceSecret` at boot, so a throw here indicates
+ *   a programming or test-setup error, not a config misconfig.
+ */
+export function getValidatedServiceSecret(): string {
+  const config = getConfig();
+  if (config.INTERNAL_SERVICE_SECRET === undefined || config.INTERNAL_SERVICE_SECRET.length === 0) {
+    throw new Error(
+      'INTERNAL_SERVICE_SECRET not configured — startup validation should have caught this'
+    );
+  }
+  return config.INTERNAL_SERVICE_SECRET;
+}
+
+/**
  * Log gateway health check result
  * @param isHealthy Whether the gateway health check passed
  */

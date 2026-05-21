@@ -49,32 +49,30 @@ export async function handleMetrics(context: DeferredCommandContext): Promise<vo
         value: `⚠️ Gateway responded with HTTP ${response.status}`,
       });
       embed.setColor(DISCORD_COLORS.WARNING);
-      await context.editReply({ embeds: [embed] });
-      return;
+    } else {
+      const metrics = (await response.json()) as GatewayMetricsResponse;
+
+      embed.addFields(
+        {
+          name: '📥 Queue (in flight)',
+          value: `Waiting: **${metrics.queue.waiting}** | Active: **${metrics.queue.active}** | Total: **${metrics.queue.total}**`,
+        },
+        {
+          name: '📈 Queue (lifetime)',
+          value: `Completed: **${metrics.queue.completed}** | Failed: **${metrics.queue.failed}**`,
+        },
+        {
+          name: '💾 Dedup cache',
+          value: `${metrics.cache.size} entries`,
+        },
+        {
+          name: '⏱️ Gateway uptime',
+          value: formatDuration(metrics.uptime),
+        }
+      );
+
+      embed.setFooter({ text: `Snapshot: ${metrics.timestamp}` });
     }
-
-    const metrics = (await response.json()) as GatewayMetricsResponse;
-
-    embed.addFields(
-      {
-        name: '📥 Queue (in flight)',
-        value: `Waiting: **${metrics.queue.waiting}** | Active: **${metrics.queue.active}** | Total: **${metrics.queue.total}**`,
-      },
-      {
-        name: '📈 Queue (lifetime)',
-        value: `Completed: **${metrics.queue.completed}** | Failed: **${metrics.queue.failed}**`,
-      },
-      {
-        name: '💾 Dedup cache',
-        value: `${metrics.cache.size} entries`,
-      },
-      {
-        name: '⏱️ Gateway uptime',
-        value: formatDuration(metrics.uptime),
-      }
-    );
-
-    embed.setFooter({ text: `Snapshot: ${metrics.timestamp}` });
   } catch (error) {
     logger.warn({ err: error }, 'Gateway metrics fetch failed');
     embed.addFields({
@@ -84,5 +82,10 @@ export async function handleMetrics(context: DeferredCommandContext): Promise<vo
     embed.setColor(DISCORD_COLORS.WARNING);
   }
 
+  // Single dispatch path for all branches (success / non-OK / fetch-threw).
+  // Earlier shape had an inline editReply inside the non-OK branch — if THAT
+  // throw fired (Discord interaction expired), it fell through to the outer
+  // catch, which overwrote the non-OK fields with the "unreachable" message.
+  // Wrong attribution. Single dispatch outside the try fixes it.
   await context.editReply({ embeds: [embed] });
 }
