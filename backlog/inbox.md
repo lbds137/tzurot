@@ -2,4 +2,4 @@
 
 _New items go here. Triage to appropriate section weekly._
 
-- **[LIFT] Migrate `tts-config.test.ts` `extractHandler` to shared `getRouteHandler` from `expressRouterUtils.ts`** — `services/api-gateway/src/routes/admin/tts-config.test.ts:106-115`. PR #1075 extracted `getAllRoutes()` to the shared test utility but left the pre-existing `extractHandler` helper (25 call sites) unmigrated. The local `RouterLayer` interface stays alive solely to support `extractHandler`. **Fix shape**: replace `extractHandler(router, method, path)` calls with `getRouteHandler(router, method, path)` from `expressRouterUtils.js`; the return type widens from `(req: Request, res: Response) => Promise<void>` to `(...args: unknown[]) => unknown`, so each call site needs an `as` cast OR a thin local wrapper to preserve the typed return. Delete the local `RouterLayer` interface after migration. ~25-line touch across the 25 call sites, mostly mechanical. **Promote when**: next touching `tts-config.test.ts` for any reason, OR opportunistically during a wider test-utility cleanup pass. Surfaced 2026-05-21 by PR #1075 round-2 claude-bot review.
+_Empty._
