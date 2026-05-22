@@ -72,15 +72,8 @@ interface RawConfigList {
  */
 interface RawConfigDetail extends RawConfigList {
   advancedParameters: unknown;
-  // Optional only to accommodate test fixtures that mock incomplete LlmConfig
-  // rows. Real Prisma always returns a value — the column is NOT NULL with
-  // @default(0.5) / @default(20). The ~21 affected fixtures are deferred to a
-  // follow-up PR (tracked in backlog/deferred.md); when that ships, drop the
-  // `?` / `| null` here and the `?? LLM_CONFIG_DEFAULTS.*` guards in
-  // formatConfigDetail below. The fallback is covered by an explicit test
-  // (`falls back to LLM_CONFIG_DEFAULTS when memory fields are missing`).
-  memoryScoreThreshold?: { toNumber: () => number } | null;
-  memoryLimit?: number | null;
+  memoryScoreThreshold: { toNumber: () => number };
+  memoryLimit: number;
   contextWindowTokens: number;
   maxMessages: number;
   maxAge: number | null;
@@ -656,9 +649,8 @@ export class LlmConfigService {
       isGlobal: raw.isGlobal,
       isDefault: raw.isDefault,
       isFreeDefault: raw.isFreeDefault,
-      memoryScoreThreshold:
-        raw.memoryScoreThreshold?.toNumber() ?? LLM_CONFIG_DEFAULTS.memoryScoreThreshold,
-      memoryLimit: raw.memoryLimit ?? LLM_CONFIG_DEFAULTS.memoryLimit,
+      memoryScoreThreshold: raw.memoryScoreThreshold.toNumber(),
+      memoryLimit: raw.memoryLimit,
       contextWindowTokens: raw.contextWindowTokens,
       maxMessages: raw.maxMessages,
       maxAge: raw.maxAge,
