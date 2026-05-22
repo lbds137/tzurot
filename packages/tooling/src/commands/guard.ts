@@ -47,4 +47,20 @@ export function registerGuardCommands(cli: CAC): void {
       const { checkProposalOrphans } = await import('../audits/check-proposal-orphans.js');
       await checkProposalOrphans(options);
     });
+
+  cli
+    .command(
+      'guard:audit-tool-docs',
+      'Check that every registered audit tool has a non-stub WHY.md'
+    )
+    .option(
+      '--summary',
+      'Output only the standardized JSONL audit-summary line (for the audit-aggregator)'
+    )
+    .example('ops guard:audit-tool-docs')
+    .example('ops guard:audit-tool-docs --summary')
+    .action(async (options: { summary?: boolean }) => {
+      const { checkAuditToolDocs } = await import('../audits/check-audit-tool-docs.js');
+      await checkAuditToolDocs(options);
+    });
 }

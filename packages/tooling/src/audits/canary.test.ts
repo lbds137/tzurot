@@ -19,6 +19,8 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { analyzeMigrationSafety } from '../db/check-migration-safety.js';
 import { runComplexityReport } from '../lint/complexity-report.js';
+import { checkAuditToolDocsFromRegistry } from './check-audit-tool-docs.js';
+import type { AuditToolEntry } from './audit-tool-registry.js';
 import { parseSummary } from './summary.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -75,4 +77,54 @@ describe('audit-canary: lint:complexity-report', () => {
     expect(summary.status).toBe('fail');
     expect(summary.findings).toBeGreaterThan(0);
   }, 30000); // ESLint startup overhead
+});
+
+describe('audit-canary: guard:audit-tool-docs', () => {
+  it('detects a registered tool with a missing WHY.md (canary registry)', () => {
+    // Canary: a synthetic registry pointing at the audit-tool-docs fixture
+    // directory, where one entry's WHY.md exists (the "valid" tool) and
+    // another's is deliberately missing. The guard must flag the missing
+    // one — otherwise it would silently pass on a stale registry in
+    // production too.
+    const canaryRegistry: AuditToolEntry[] = [
+      {
+        command: 'canary-tool-valid',
+        whyPath: 'packages/tooling/test-fixtures/audit-canaries/audit-tool-docs/valid-tool.WHY.md',
+        description: 'Canary fixture: substantial WHY.md should pass',
+      },
+      {
+        command: 'canary-tool-missing',
+        whyPath:
+          'packages/tooling/test-fixtures/audit-canaries/audit-tool-docs/this-file-does-not-exist.WHY.md',
+        description: 'Canary fixture: missing WHY.md must be detected',
+      },
+    ];
+
+    const result = checkAuditToolDocsFromRegistry(REPO_ROOT, canaryRegistry);
+    expect(result.totalTools).toBe(2);
+    expect(
+      result.missing,
+      `expected exactly one missing entry, got: ${JSON.stringify(result.missing)}`
+    ).toHaveLength(1);
+    expect(result.missing[0].command).toBe('canary-tool-missing');
+    expect(result.stubs).toEqual([]);
+  });
+
+  it('detects a registered tool with a stub WHY.md (canary registry)', () => {
+    const canaryRegistry: AuditToolEntry[] = [
+      {
+        command: 'canary-tool-stub',
+        whyPath: 'packages/tooling/test-fixtures/audit-canaries/audit-tool-docs/stub-tool.WHY.md',
+        description: 'Canary fixture: stub WHY.md must be detected',
+      },
+    ];
+
+    const result = checkAuditToolDocsFromRegistry(REPO_ROOT, canaryRegistry);
+    expect(
+      result.stubs,
+      `expected one stub entry, got: ${JSON.stringify(result.stubs)}`
+    ).toHaveLength(1);
+    expect(result.stubs[0].command).toBe('canary-tool-stub');
+    expect(result.missing).toEqual([]);
+  });
 });
