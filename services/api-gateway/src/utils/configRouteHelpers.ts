@@ -139,7 +139,7 @@ export async function findAdminUserOrSendError(
   // Direct discordId lookup is allowed here because admin routes are mounted
   // behind requireOwnerAuth — NOT requireProvisionedUser — so the internal
   // UUID is never attached to req via the provisioning middleware. The
-  // X-Owner-Id header carries the Discord ID and we need the UUID for the
+  // X-User-Id header carries the Discord ID and we need the UUID for the
   // ownerId FK on the row about to be created. The no-restricted-syntax rule
   // that bans this pattern in `routes/**/*.ts` doesn't reach this file by
   // path, which is the right outcome — this helper is the canonical path.
