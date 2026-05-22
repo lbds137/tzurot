@@ -92,9 +92,12 @@ export const LlmConfigCreateSchema = z.object({
   // AI behavior settings
   advancedParameters: AdvancedParamsSchema.optional(),
 
-  // Memory settings (previously missing from admin endpoints)
-  memoryScoreThreshold: z.number().min(0).max(1).optional().nullable(),
-  memoryLimit: z.number().int().positive().optional().nullable(),
+  // Memory settings — schema has `@default(0.5)` / `@default(20)` (NOT NULL).
+  // Optional in the input shape (caller can omit and Prisma fills the default),
+  // but not nullable: there's no application semantic for "set to null" on
+  // these fields. Per `03-database.md`'s null-semantics rule.
+  memoryScoreThreshold: z.number().min(0).max(1).optional(),
+  memoryLimit: z.number().int().positive().optional(),
   // contextWindowTokens min(1000) is intentional - reasonable minimum for context windows
   contextWindowTokens: z.number().int().min(1000).optional(),
 
@@ -136,9 +139,9 @@ export const LlmConfigUpdateSchema = z.object({
   // AI behavior settings
   advancedParameters: AdvancedParamsSchema.optional(),
 
-  // Memory settings
-  memoryScoreThreshold: z.number().min(0).max(1).optional().nullable(),
-  memoryLimit: z.number().int().positive().optional().nullable(),
+  // Memory settings — see LlmConfigCreateSchema for why these aren't nullable.
+  memoryScoreThreshold: z.number().min(0).max(1).optional(),
+  memoryLimit: z.number().int().positive().optional(),
   contextWindowTokens: z.number().int().min(1000).optional(),
 
   // Context settings (shared validation)

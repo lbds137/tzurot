@@ -172,8 +172,8 @@ model LlmConfig {
   /// JSONB field for provider-specific parameters (temperature, topP, topK, etc.)
   /// See AdvancedParamsSchema in common-types for validation
   advancedParameters          Json?                      @map("advanced_parameters")
-  memoryScoreThreshold        Decimal?                   @map("memory_score_threshold") @db.Decimal(3, 2)
-  memoryLimit                 Int?                       @map("memory_limit")
+  memoryScoreThreshold        Decimal                    @default(0.5) @map("memory_score_threshold") @db.Decimal(3, 2)
+  memoryLimit                 Int                        @default(20) @map("memory_limit")
   contextWindowTokens         Int                        @default(131072) @map("context_window_tokens")
   // Context settings - typed columns for stable app config (not JSONB)
   // These control how many messages to fetch from conversation history
@@ -386,8 +386,18 @@ model UserPersonaHistoryConfig {
 
   // STM Epoch System - Non-destructive conversation history filtering per-persona
   // Messages older than lastContextReset are excluded from AI context
+  /// State machine: null = no clear epoch active (either never cleared, or
+  /// undone after a first-time clear; full history visible). DateTime = clear
+  /// is active; messages before this timestamp are hidden. The undo path
+  /// writes `lastContextReset = previousContextReset`, which can be null when
+  /// undoing a first-time clear — that's the canonical "no clear active" state
+  /// for a row that exists. Do not tighten to NOT NULL; null is load-bearing.
   lastContextReset     DateTime? @map("last_context_reset")
-  previousContextReset DateTime? @map("previous_context_reset") // For undo support
+  /// State machine: null = no prior epoch to restore (either no clear ever
+  /// occurred, or the most recent undo consumed it). DateTime = a prior epoch
+  /// exists; one undo would restore lastContextReset to this value. Cleared
+  /// to null on every undo to prevent re-undoing the same operation.
+  previousContextReset DateTime? @map("previous_context_reset")
 
   persona     Persona     @relation("personaHistoryConfigs", fields: [personaId], references: [id], onDelete: Cascade)
   personality Personality @relation(fields: [personalityId], references: [id], onDelete: Cascade)

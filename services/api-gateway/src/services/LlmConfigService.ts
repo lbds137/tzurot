@@ -72,8 +72,15 @@ interface RawConfigList {
  */
 interface RawConfigDetail extends RawConfigList {
   advancedParameters: unknown;
-  memoryScoreThreshold: { toNumber: () => number } | null;
-  memoryLimit: number | null;
+  // Optional only to accommodate test fixtures that mock incomplete LlmConfig
+  // rows. Real Prisma always returns a value — the column is NOT NULL with
+  // @default(0.5) / @default(20). The ~21 affected fixtures are deferred to a
+  // follow-up PR (tracked in backlog/deferred.md); when that ships, drop the
+  // `?` / `| null` here and the `?? LLM_CONFIG_DEFAULTS.*` guards in
+  // formatConfigDetail below. The fallback is covered by an explicit test
+  // (`falls back to LLM_CONFIG_DEFAULTS when memory fields are missing`).
+  memoryScoreThreshold?: { toNumber: () => number } | null;
+  memoryLimit?: number | null;
   contextWindowTokens: number;
   maxMessages: number;
   maxAge: number | null;
@@ -93,8 +100,8 @@ interface FormattedConfigDetail {
   isGlobal: boolean;
   isDefault: boolean;
   isFreeDefault: boolean;
-  memoryScoreThreshold: number | null;
-  memoryLimit: number | null;
+  memoryScoreThreshold: number;
+  memoryLimit: number;
   contextWindowTokens: number;
   maxMessages: number;
   maxAge: number | null;
@@ -267,10 +274,13 @@ export class LlmConfigService {
           model: data.model.trim(),
           visionModel: data.visionModel ?? null,
           advancedParameters: data.advancedParameters ?? undefined,
-          // Memory settings
-          memoryScoreThreshold:
-            data.memoryScoreThreshold ?? LLM_CONFIG_DEFAULTS.memoryScoreThreshold,
-          memoryLimit: data.memoryLimit ?? LLM_CONFIG_DEFAULTS.memoryLimit,
+          // Memory settings — memoryScoreThreshold and memoryLimit are
+          // NOT NULL with `@default(0.5)` / `@default(20)` in the schema.
+          // Pass the input value directly; when the caller omits, the field
+          // is `undefined` and Prisma fills from the schema default. The Zod
+          // schema dropped `.nullable()`, so null can't reach this line.
+          memoryScoreThreshold: data.memoryScoreThreshold,
+          memoryLimit: data.memoryLimit,
           contextWindowTokens: data.contextWindowTokens ?? LLM_CONFIG_DEFAULTS.contextWindowTokens,
           // Context settings
           maxMessages: data.maxMessages ?? LLM_CONFIG_DEFAULTS.maxMessages,
@@ -646,8 +656,9 @@ export class LlmConfigService {
       isGlobal: raw.isGlobal,
       isDefault: raw.isDefault,
       isFreeDefault: raw.isFreeDefault,
-      memoryScoreThreshold: raw.memoryScoreThreshold?.toNumber() ?? null,
-      memoryLimit: raw.memoryLimit,
+      memoryScoreThreshold:
+        raw.memoryScoreThreshold?.toNumber() ?? LLM_CONFIG_DEFAULTS.memoryScoreThreshold,
+      memoryLimit: raw.memoryLimit ?? LLM_CONFIG_DEFAULTS.memoryLimit,
       contextWindowTokens: raw.contextWindowTokens,
       maxMessages: raw.maxMessages,
       maxAge: raw.maxAge,

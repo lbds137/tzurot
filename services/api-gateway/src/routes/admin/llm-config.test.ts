@@ -998,8 +998,8 @@ describe('Admin LLM Config Routes', () => {
         maxMessages: 50,
         maxAge: null,
         maxImages: 10,
-        memoryScoreThreshold: null,
-        memoryLimit: null,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
 
       const response = await request(appWithModel).get('/admin/llm-config/config-1');
@@ -1048,8 +1048,8 @@ describe('Admin LLM Config Routes', () => {
         maxMessages: 50,
         maxAge: null,
         maxImages: 10,
-        memoryScoreThreshold: null,
-        memoryLimit: null,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
         advancedParameters: null,
       });
 
@@ -1108,8 +1108,8 @@ describe('Admin LLM Config Routes', () => {
         maxMessages: 50,
         maxAge: null,
         maxImages: 10,
-        memoryScoreThreshold: null,
-        memoryLimit: null,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
         advancedParameters: null,
       });
 
