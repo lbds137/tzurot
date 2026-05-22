@@ -327,14 +327,17 @@ export class GatewayClient {
    */
   async confirmDelivery(jobId: string): Promise<void> {
     try {
-      const response = await fetch(`${this.baseUrl}/ai/job/${jobId}/confirm-delivery`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': CONTENT_TYPES.JSON,
-          'X-Service-Auth': getValidatedServiceSecret(),
-        },
-        signal: AbortSignal.timeout(TIMEOUTS.GATEWAY_RPC),
-      });
+      const response = await fetch(
+        `${this.baseUrl}/ai/job/${encodeURIComponent(jobId)}/confirm-delivery`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': CONTENT_TYPES.JSON,
+            'X-Service-Auth': getValidatedServiceSecret(),
+          },
+          signal: AbortSignal.timeout(TIMEOUTS.GATEWAY_RPC),
+        }
+      );
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -371,13 +374,16 @@ export class GatewayClient {
     }
 
     try {
-      const response = await fetch(`${this.baseUrl}/user/channel/${channelId}`, {
-        headers: {
-          'X-Service-Auth': getValidatedServiceSecret(),
-          // Note: No X-User-Id needed - this is a service-to-service lookup
-        },
-        signal: AbortSignal.timeout(TIMEOUTS.GATEWAY_RPC),
-      });
+      const response = await fetch(
+        `${this.baseUrl}/user/channel/${encodeURIComponent(channelId)}`,
+        {
+          headers: {
+            'X-Service-Auth': getValidatedServiceSecret(),
+            // Note: No X-User-Id needed - this is a service-to-service lookup
+          },
+          signal: AbortSignal.timeout(TIMEOUTS.GATEWAY_RPC),
+        }
+      );
 
       if (!response.ok) {
         logger.warn({ channelId, status: response.status }, 'Channel settings check failed');

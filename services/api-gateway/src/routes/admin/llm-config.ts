@@ -255,7 +255,7 @@ function createDeleteConfigHandler(service: LlmConfigService, prisma: PrismaClie
       () =>
         prisma.llmConfig.findUnique({
           where: { id: configId },
-          select: { id: true, name: true, isGlobal: true, isDefault: true },
+          select: { id: true, name: true, isGlobal: true, isDefault: true, isFreeDefault: true },
         }),
       { notFoundResource: CONFIG_RESOURCE, resourceLabel: CONFIG_LABEL, operation: 'delete' }
     );
@@ -267,6 +267,15 @@ function createDeleteConfigHandler(service: LlmConfigService, prisma: PrismaClie
       return sendError(
         res,
         ErrorResponses.validationError('Cannot delete the system default config')
+      );
+    }
+    // Same hard-block shape as isDefault: deleting the free-tier default
+    // would silently break LLM access for all guest users until an admin
+    // sets a new one. Force the admin to promote a replacement first.
+    if (config.isFreeDefault) {
+      return sendError(
+        res,
+        ErrorResponses.validationError('Cannot delete the free tier default config')
       );
     }
 
