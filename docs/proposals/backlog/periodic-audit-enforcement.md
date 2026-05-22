@@ -67,7 +67,7 @@ Implementation note: ~20 lines of CI script. Runs in the existing `lint` job, no
 
 **Why this belongs in Layer 1**: it's the same "validate the system works" check as canaries, just applied to proposals instead of audit tools. Both catch the same failure mode (something exists but isn't being used). Both run in regular CI, not cron.
 
-### Layer 2 — `WHY.md` per tool (solo-dev psychology fix) + Layer-1 hardening
+### Layer 2 — `WHY.md` per tool (solo-dev psychology fix) + Layer-1 hardening (SHIPPED)
 
 Every audit tool gets a one-paragraph `WHY.md` next to it explaining what problem it caught the day it was built. When a reminder fires at month 4 and you've forgotten why the tool exists, you read the `WHY.md`. Either re-up the commitment or delete the tool — both are correct outcomes.
 
@@ -89,6 +89,16 @@ Three follow-ups from the Layer 1 PR review land alongside Layer 2 instead of be
 2. **Direct test for the non-summary path of `checkProposalOrphans`**: `findProposalOrphans` is well-tested, but the human-readable CLI formatter + non-summary `process.exit(1)` is only exercised by the real-repo success-branch test. Add a temp-repo test scaffolding one orphan, spying on `console.log` + `process.exit`, asserting the orphan listing renders and exit was called with 1. Same pattern as the existing `--summary` path tests.
 
 3. **Single-word slug false-positive enforcement**: the word-boundary regex matches the basename as a token, so `memory.md` would be silently rescued by any markdown containing "memory" in prose. JSDoc warns the naming convention preserves precision, but nothing enforces it. Add a static check in `findProposalOrphans` that warns (or fails) when a proposal basename matches `^[a-z]{1,8}\.md$`. Alternative: surface the constraint in the human-readable error output so contributors hitting it see why. Reviewer-framed as "medium concern worth addressing before this enforcement pattern gets applied to more tools" — i.e., before Layer 2 adds more canaries.
+
+#### Layer 2 ship status
+
+Shipped in PR (TBD) targeting `develop`:
+
+- 12 WHY.md files colocated next to audit-tool implementations (`packages/tooling/src/**/<basename>.WHY.md`)
+- `AUDIT_TOOL_REGISTRY` in `packages/tooling/src/audits/audit-tool-registry.ts` — single source of truth for which commands count as audit tools
+- `guard:audit-tool-docs` command with `--summary` mode, fails CI on missing/stub WHY.md files
+- Canary tests with deliberate-violation fixtures (valid + stub + non-existent path) asserting all three classification paths work
+- All 3 absorbed Layer-1 hardening items: `runEslint` `additionalIgnoreOverrides` API, single-segment slug hard-fail, non-summary path test for `checkProposalOrphans`
 
 ### Layer 3 — Baseline meta blocks (anti-drift)
 
