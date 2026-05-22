@@ -74,17 +74,6 @@ interface ReportOptions {
   /**
    * @internal Canary-test seam.
    *
-   * When `false`, the tool passes `--no-ignore` to ESLint, defeating the
-   * project's `ignores` block (test-fixtures, generated code, AND
-   * `node_modules`). Canary callers use this with a tightly-scoped
-   * `targetDirs` pointing at a specific fixture path, so the broader
-   * ignore-defeat doesn't cause unrelated scans. Production callers
-   * should omit so the default ignores apply.
-   */
-  respectIgnores?: boolean;
-  /**
-   * @internal Canary-test seam.
-   *
    * Override the ESLint config file. Canary tests pass a minimal config
    * (just the complexity rule, no typed-rules) because their fixtures
    * aren't in any tsconfig project. Production callers should omit so
@@ -240,18 +229,26 @@ function buildRuleOverrides(): string[] {
 function runEslint(
   rootDir: string,
   targetDirs: string[],
-  respectIgnores: boolean,
   configPath: string | undefined
 ): ESLintResult[] {
   const ruleOverrides = buildRuleOverrides();
-  const ignoreFlags = respectIgnores ? [] : ['--no-ignore'];
   const configFlags = configPath === undefined ? [] : ['--config', configPath];
 
+  // How the canary scans a fixture in an ignored directory:
+  // The `--rule` CLI flags below force the listed rules to be applied to
+  // every file in `targetDirs`, regardless of whether the resolved config
+  // would otherwise include them. ESLint flat-config `ignores` arrays
+  // suppress RULES from applying to ignored paths — but `--rule` overrides
+  // bypass that, so the fixture under `**/test-fixtures/**` still gets
+  // complexity-checked. Empirically: `eslint <ignored-file>` produces 0
+  // findings, but `eslint --rule='complexity:["error",...]' <ignored-file>`
+  // produces the expected finding. The `--rule` overrides are doing the
+  // work; any prior `--ignore-pattern` flag was a no-op in this context.
   let eslintOutput: string;
   try {
     eslintOutput = execFileSync(
       'npx',
-      ['eslint', '--format=json', ...configFlags, ...ignoreFlags, ...ruleOverrides, ...targetDirs],
+      ['eslint', '--format=json', ...configFlags, ...ruleOverrides, ...targetDirs],
       {
         cwd: rootDir,
         encoding: 'utf-8',
@@ -427,7 +424,6 @@ function emitSummaryAndMaybeExit(findings: Finding[], noFail: boolean): void {
 export async function runComplexityReport(options: ReportOptions = {}): Promise<void> {
   const rootDir = resolve(options.rootDir ?? process.cwd());
   const targetDirs = options.targetDirs ?? ['services/', 'packages/'];
-  const respectIgnores = options.respectIgnores ?? true;
 
   if (options.json === true && options.summary === true) {
     // Both flags emit machine-readable output but in incompatible shapes;
@@ -440,7 +436,7 @@ export async function runComplexityReport(options: ReportOptions = {}): Promise<
     printThresholds();
   }
 
-  const results = runEslint(rootDir, targetDirs, respectIgnores, options.configPath);
+  const results = runEslint(rootDir, targetDirs, options.configPath);
   const findings = extractFindings(results);
   const byRule = categorizeFindings(findings);
 
