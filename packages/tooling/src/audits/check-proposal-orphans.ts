@@ -24,6 +24,39 @@ import { emitSummary } from './summary.js';
 export interface OrphanCheckResult {
   totalProposals: number;
   orphans: string[];
+  /**
+   * Proposals whose basename is a single kebab-segment (no hyphens). Reported
+   * separately from `orphans` because single-segment names defeat the word-
+   * boundary regex's precision: a proposal named `memory.md` would be rescued
+   * by any markdown file containing the word "memory" in prose, silently
+   * producing a false negative on the orphan check.
+   *
+   * The CLI treats this as a hard failure; multi-segment kebab-case names
+   * are required for the precision the orphan check depends on.
+   */
+  singleSegmentSlugs: string[];
+}
+
+/**
+ * A proposal basename is "single-segment" when it contains neither `-` nor
+ * `_` — e.g., `memory.md`, `api.md`, `shapes.md`. The orphan check's
+ * word-boundary regex matches these as whole words against prose, so any
+ * markdown file mentioning the word in passing rescues the proposal
+ * regardless of whether it's actually tracking it. Multi-segment names
+ * (`memory-and-context-redesign.md`, `MEMORY_INGESTION_IMPROVEMENTS.md`)
+ * make accidental matches vanishingly unlikely — the word-boundary regex's
+ * character class `[a-zA-Z0-9_-]` treats hyphens and underscores as part
+ * of the slug, so the closing boundary doesn't trip on a single segment
+ * of a multi-segment name.
+ *
+ * Kebab-case is the project's preferred naming convention for new proposals,
+ * but legacy SCREAMING_SNAKE_CASE files are accepted by this check because
+ * the underlying regex behaves the same way for both separators.
+ *
+ * Exported for testing.
+ */
+export function isSingleSegmentSlug(slug: string): boolean {
+  return !slug.includes('-') && !slug.includes('_');
 }
 
 const PROPOSALS_GLOB = 'docs/proposals/backlog';
@@ -131,7 +164,19 @@ export function findProposalOrphans(repoRoot: string): OrphanCheckResult {
     .join('\n\n');
 
   const orphans: string[] = [];
+  const singleSegmentSlugs: string[] = [];
   for (const proposal of proposals) {
+    const slug = basename(proposal, '.md');
+
+    if (isSingleSegmentSlug(slug)) {
+      // Don't run the orphan match on single-segment names — the result
+      // can't be trusted regardless of outcome (false-positive prone),
+      // and the slug itself is a separate hard-fail signal the CLI surfaces
+      // alongside any orphans.
+      singleSegmentSlugs.push(relative(repoRoot, proposal));
+      continue;
+    }
+
     // Match the proposal basename (no .md) as a whole word. A loose
     // substring match would let a proposal named `memory.md` be rescued
     // by any file containing "memory" in prose; the word-boundary form
@@ -139,7 +184,7 @@ export function findProposalOrphans(repoRoot: string): OrphanCheckResult {
     // permissive enough to catch markdown links like `[label](path/foo.md)`
     // or bare mentions like "see foo for context", but not coincidental
     // substring overlap.
-    const slug = basename(proposal, '.md');
+    //
     // Escape regex metacharacters in the slug (hyphens are common in
     // kebab-case proposal names and are safe, but defensive in case
     // future proposals use other characters).
@@ -155,7 +200,7 @@ export function findProposalOrphans(repoRoot: string): OrphanCheckResult {
     }
   }
 
-  return { totalProposals: proposals.length, orphans };
+  return { totalProposals: proposals.length, orphans, singleSegmentSlugs };
 }
 
 export interface CheckProposalOrphansOptions {
@@ -179,16 +224,17 @@ export async function checkProposalOrphans(
   options: CheckProposalOrphansOptions = {}
 ): Promise<void> {
   const repoRoot = options.repoRoot ?? process.cwd();
-  const { totalProposals, orphans } = findProposalOrphans(repoRoot);
+  const { totalProposals, orphans, singleSegmentSlugs } = findProposalOrphans(repoRoot);
+  const totalFindings = orphans.length + singleSegmentSlugs.length;
 
   if (options.summary) {
     emitSummary({
       tool: 'guard:proposal-links',
-      status: orphans.length > 0 ? 'fail' : 'ok',
-      findings: orphans.length,
+      status: totalFindings > 0 ? 'fail' : 'ok',
+      findings: totalFindings,
       baseline: 0,
     });
-    if (orphans.length > 0) {
+    if (totalFindings > 0) {
       process.exit(1);
     }
     return;
@@ -196,7 +242,7 @@ export async function checkProposalOrphans(
 
   console.log(`\n🔍 Checking ${totalProposals} proposals for inbound links...\n`);
 
-  if (orphans.length === 0) {
+  if (totalFindings === 0) {
     console.log(`✅ All ${totalProposals} proposals have at least one inbound link.`);
     console.log(
       `   Searched: backlog/**/*.md, docs/**/*.md (excluding docs/proposals/), CURRENT.md, BACKLOG.md\n`
@@ -204,11 +250,25 @@ export async function checkProposalOrphans(
     return;
   }
 
-  console.log(`❌ Found ${orphans.length} orphan proposal(s):\n`);
-  for (const orphan of orphans) {
-    console.log(`   ${orphan}`);
+  if (singleSegmentSlugs.length > 0) {
+    console.log(`❌ Found ${singleSegmentSlugs.length} single-segment proposal slug(s):\n`);
+    for (const slug of singleSegmentSlugs) {
+      console.log(`   ${slug}`);
+    }
+    console.log(`
+Single-segment basenames (no hyphen) defeat the orphan-check's word-boundary
+regex: a proposal named \`memory.md\` would be silently "rescued" by any
+markdown file mentioning the word "memory" in prose. Rename to a multi-segment
+kebab-case slug — e.g., \`memory.md\` → \`memory-and-context-redesign.md\`.
+`);
   }
-  console.log(`
+
+  if (orphans.length > 0) {
+    console.log(`❌ Found ${orphans.length} orphan proposal(s):\n`);
+    for (const orphan of orphans) {
+      console.log(`   ${orphan}`);
+    }
+    console.log(`
 A proposal is "orphan" when nothing under \`backlog/**/*.md\`,
 \`docs/**/*.md\` (excluding \`docs/proposals/\`), \`CURRENT.md\`, or
 \`BACKLOG.md\` mentions its basename.
@@ -219,8 +279,9 @@ Fix one of:
   - Delete it if the work shipped or the idea was abandoned
     (git history preserves the proposal text)
 `);
-  // Non-zero exit signals the CI gate; orphan listings printed above tell
-  // the contributor what to fix. Mirrors the summary-mode exit in the
-  // earlier branch — both paths fail closed when orphans exist.
+  }
+  // Non-zero exit signals the CI gate; findings printed above tell the
+  // contributor what to fix. Mirrors the summary-mode exit in the earlier
+  // branch — both paths fail closed when any findings exist.
   process.exit(1);
 }

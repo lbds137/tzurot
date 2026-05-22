@@ -53,7 +53,13 @@ describe('audit-canary: lint:complexity-report', () => {
         summary: true,
         targetDirs: [`${FIXTURES_ROOT}/lint-complexity`],
         rootDir: REPO_ROOT,
-        respectIgnores: false,
+        // The `--rule` CLI overrides inside runEslint force the complexity
+        // rule to apply to every file in `targetDirs` regardless of the
+        // resolved config — that's what scans the fixture despite it being
+        // under `**/test-fixtures/**` in the root config's ignores. The
+        // local `configPath` exists to supply parserOptions compatible with
+        // .js files (the root config uses typed-rules which can't parse
+        // files outside any tsconfig project).
         configPath: `${FIXTURES_ROOT}/lint-complexity/eslint.config.mjs`,
         noFail: true,
       });
