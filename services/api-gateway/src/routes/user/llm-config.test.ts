@@ -320,6 +320,8 @@ describe('/user/llm-config routes', () => {
         isDefault: false,
         ownerId: 'user-uuid-123',
         advancedParameters: { temperature: 0.7 },
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
 
       const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
@@ -353,6 +355,8 @@ describe('/user/llm-config routes', () => {
         isDefault: true,
         ownerId: 'other-user-uuid', // Different user owns this
         advancedParameters: null,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
 
       const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
@@ -470,6 +474,8 @@ describe('/user/llm-config routes', () => {
         visionModel: null,
         isGlobal: false,
         isDefault: false,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
 
       const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
@@ -501,6 +507,8 @@ describe('/user/llm-config routes', () => {
         visionModel: null,
         isGlobal: false,
         isDefault: false,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
 
       const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
@@ -614,6 +622,8 @@ describe('/user/llm-config routes', () => {
         ownerId: 'user-uuid-123',
         isGlobal: false,
         name: 'AdminVoice',
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
       // Existing-name check: the post-normalization name doesn't collide
       mockPrisma.llmConfig.findFirst.mockResolvedValue(null);
@@ -628,6 +638,8 @@ describe('/user/llm-config routes', () => {
         isDefault: false,
         ownerId: 'user-uuid-123',
         advancedParameters: {},
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
 
       const router = createLlmConfigRoutes(
@@ -665,6 +677,8 @@ describe('/user/llm-config routes', () => {
         ownerId: 'user-uuid-123',
         isGlobal: true,
         name: 'My Global Config',
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
       mockPrisma.llmConfig.update.mockResolvedValue({
         id: 'config-123',
@@ -677,6 +691,8 @@ describe('/user/llm-config routes', () => {
         isDefault: false,
         ownerId: 'user-uuid-123',
         advancedParameters: {},
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
 
       const router = createLlmConfigRoutes(
@@ -704,6 +720,8 @@ describe('/user/llm-config routes', () => {
         ownerId: 'other-user',
         isGlobal: false,
         name: 'Other User Config',
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
 
       const router = createLlmConfigRoutes(
@@ -724,6 +742,8 @@ describe('/user/llm-config routes', () => {
         ownerId: 'user-uuid-123',
         isGlobal: false,
         name: 'My Config',
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
 
       const router = createLlmConfigRoutes(
@@ -774,6 +794,8 @@ describe('/user/llm-config routes', () => {
         ownerId: 'user-uuid-123',
         isGlobal: false,
         name: 'My Config',
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
       mockPrisma.llmConfig.update.mockResolvedValue({
         id: 'config-123',
@@ -787,6 +809,8 @@ describe('/user/llm-config routes', () => {
         isFreeDefault: false,
         ownerId: 'user-uuid-123',
         advancedParameters: { temperature: 0.9 },
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
 
       const router = createLlmConfigRoutes(
@@ -828,6 +852,8 @@ describe('/user/llm-config routes', () => {
         ownerId: 'user-uuid-123',
         isGlobal: false,
         name: 'My Config',
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
       mockPrisma.llmConfig.update.mockResolvedValue({
         id: 'config-123',
@@ -841,6 +867,8 @@ describe('/user/llm-config routes', () => {
         isFreeDefault: false,
         ownerId: 'user-uuid-123',
         advancedParameters: null,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
 
       const router = createLlmConfigRoutes(
@@ -869,6 +897,8 @@ describe('/user/llm-config routes', () => {
         model: 'old-model',
         provider: 'openrouter',
         advancedParameters: null,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
       mockPrisma.llmConfig.update.mockResolvedValue({
         id: 'config-123',
@@ -882,6 +912,8 @@ describe('/user/llm-config routes', () => {
         isFreeDefault: false,
         ownerId: 'other-user',
         advancedParameters: null,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
 
       const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
@@ -915,6 +947,8 @@ describe('/user/llm-config routes', () => {
         model: 'claude-3',
         provider: 'openrouter',
         advancedParameters: null,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
       // Capture what name actually gets passed to the service.
       mockPrisma.llmConfig.findFirst.mockResolvedValue(null); // no name collision
@@ -930,6 +964,8 @@ describe('/user/llm-config routes', () => {
         isFreeDefault: false,
         ownerId: 'other-user',
         advancedParameters: null,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
 
       const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
@@ -958,6 +994,8 @@ describe('/user/llm-config routes', () => {
         model: 'claude-3',
         provider: 'openrouter',
         advancedParameters: null,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
 
       const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
@@ -1005,6 +1043,8 @@ describe('/user/llm-config routes', () => {
         ownerId: 'user-uuid-123',
         isGlobal: true,
         name: 'User Shared Config',
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
       // Service's checkDeleteConstraints checks both counts
       mockPrisma.personalityDefaultConfig.count.mockResolvedValue(0);
@@ -1033,6 +1073,8 @@ describe('/user/llm-config routes', () => {
         ownerId: 'other-user',
         isGlobal: false,
         name: 'Other User Config',
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
 
       const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
@@ -1051,6 +1093,8 @@ describe('/user/llm-config routes', () => {
         ownerId: 'user-uuid-123',
         isGlobal: false,
         name: 'My Config',
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
       // Service's checkDeleteConstraints checks both counts
       mockPrisma.personalityDefaultConfig.count.mockResolvedValue(0);
@@ -1077,6 +1121,8 @@ describe('/user/llm-config routes', () => {
         ownerId: 'user-uuid-123',
         isGlobal: false,
         name: 'My Config',
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
       // Service's checkDeleteConstraints checks both counts
       mockPrisma.personalityDefaultConfig.count.mockResolvedValue(0);
@@ -1109,6 +1155,8 @@ describe('/user/llm-config routes', () => {
         ownerId: 'user-uuid-123',
         isGlobal: false,
         name: 'My Config',
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
       mockPrisma.personalityDefaultConfig.count.mockResolvedValue(0);
       mockPrisma.userPersonalityConfig.count.mockResolvedValue(0);
@@ -1139,6 +1187,8 @@ describe('/user/llm-config routes', () => {
         ownerId: 'other-user',
         isGlobal: false,
         name: 'Other User Config',
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
       mockPrisma.personalityDefaultConfig.count.mockResolvedValue(0);
       mockPrisma.userPersonalityConfig.count.mockResolvedValue(0);
@@ -1163,6 +1213,8 @@ describe('/user/llm-config routes', () => {
         ownerId: 'other-user',
         isGlobal: false,
         name: 'Other User Config',
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
       // Service's checkDeleteConstraints would normally block on N user overrides.
       mockPrisma.personalityDefaultConfig.count.mockResolvedValue(0);
@@ -1187,6 +1239,8 @@ describe('/user/llm-config routes', () => {
         ownerId: 'user-uuid-123',
         isGlobal: false,
         name: 'My Config',
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
       mockPrisma.personalityDefaultConfig.count.mockResolvedValue(0);
       mockPrisma.userPersonalityConfig.count.mockResolvedValue(2);
@@ -1318,6 +1372,8 @@ describe('/user/llm-config routes', () => {
         name: 'My Config',
         model: 'anthropic/claude-sonnet-4',
         provider: 'openrouter',
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
       mockPrisma.llmConfig.update.mockResolvedValue({
         id: 'config-123',
