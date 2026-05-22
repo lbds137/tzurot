@@ -793,6 +793,24 @@ describe('Admin LLM Config Routes', () => {
       expect(response.body.message).toMatch(/default config/i);
     });
 
+    it('should reject deleting the free-tier default config', async () => {
+      // Same hard-block shape as isDefault — guest users would otherwise lose
+      // LLM access until an admin manually sets a new free-tier default.
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-id',
+        isGlobal: true,
+        isDefault: false,
+        isFreeDefault: true,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
+      });
+
+      const response = await request(app).delete('/admin/llm-config/config-id');
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toMatch(/free tier default/i);
+    });
+
     it('should reject deleting config in use by personalities', async () => {
       prisma.llmConfig.findUnique.mockResolvedValue({
         id: 'config-id',
