@@ -90,6 +90,9 @@ jobs:
       - name: Check for orphan proposal docs
         run: pnpm ops guard:proposal-links
 
+      - name: Check audit tools have WHY.md
+        run: pnpm ops guard:audit-tool-docs
+
       - name: Check dependency boundaries
         run: pnpm depcruise
 

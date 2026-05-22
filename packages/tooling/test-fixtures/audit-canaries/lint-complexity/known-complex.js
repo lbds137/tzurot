@@ -6,7 +6,6 @@
 // or ESLint plugin removed the rule). DO NOT FIX this code. DO NOT REMOVE
 // THIS FILE. It is intentional.
 //
-// Production lint skips `**/test-fixtures/**` (see eslint.config.js). The
 // canary test invokes the tool with `--rule` overrides via runEslint,
 // which force the complexity rule to apply to every file in `targetDirs`
 // regardless of the resolved config's ignores. The custom `configPath`

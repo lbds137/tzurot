@@ -17,7 +17,7 @@
  * work that should have been deleted long before.
  */
 
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, lstatSync } from 'node:fs';
 import { join, relative, basename } from 'node:path';
 import { emitSummary } from './summary.js';
 
@@ -85,13 +85,24 @@ function findMarkdownFiles(dir: string): string[] {
     const full = join(dir, entry);
     let stat;
     try {
-      stat = statSync(full);
+      // lstatSync does NOT follow symlinks. A symlink pointing at an
+      // ancestor directory (or anywhere else) is treated as a non-dir,
+      // non-`.md` entry and skipped, preventing recursion cycles that
+      // would crash CI with `RangeError: Maximum call stack size exceeded`
+      // on malformed checkouts.
+      //
+      // Side effect: symlinked `.md` files are also excluded from the
+      // analysis. The current project has no symlinks in `docs/` or
+      // `backlog/`, so this is a no-op in practice — but if a future
+      // contributor adds a symlink to bring a proposal under the orphan-
+      // check umbrella, use a regular file copy instead.
+      stat = lstatSync(full);
     } catch {
       continue;
     }
     if (stat.isDirectory()) {
       results.push(...findMarkdownFiles(full));
-    } else if (entry.endsWith('.md')) {
+    } else if (stat.isFile() && entry.endsWith('.md')) {
       results.push(full);
     }
   }
@@ -108,7 +119,10 @@ function collectSearchableFiles(repoRoot: string): string[] {
     const full = join(repoRoot, root);
     let stat;
     try {
-      stat = statSync(full);
+      // lstatSync (not statSync) so symlinks at SEARCH_ROOTS entries are
+      // treated as non-traversable, matching findMarkdownFiles's behavior
+      // — see the comment there for cycle-protection rationale.
+      stat = lstatSync(full);
     } catch {
       continue;
     }
@@ -240,7 +254,12 @@ export async function checkProposalOrphans(
     return;
   }
 
-  console.log(`\n🔍 Checking ${totalProposals} proposals for inbound links...\n`);
+  const linkCheckedCount = totalProposals - singleSegmentSlugs.length;
+  const suffix =
+    singleSegmentSlugs.length > 0
+      ? ` (${singleSegmentSlugs.length} skipped — single-segment slugs)`
+      : '';
+  console.log(`\n🔍 Checking ${linkCheckedCount} proposals for inbound links${suffix}...\n`);
 
   if (totalFindings === 0) {
     console.log(`✅ All ${totalProposals} proposals have at least one inbound link.`);
