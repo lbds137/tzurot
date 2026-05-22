@@ -87,7 +87,10 @@ export function registerDevCommands(cli: CAC): void {
     });
 
   registerSchemaAuditCommand(cli);
+  registerComplexityReportCommand(cli);
+}
 
+function registerComplexityReportCommand(cli: CAC): void {
   cli
     .command(
       'lint:complexity-report',
@@ -96,17 +99,30 @@ export function registerDevCommands(cli: CAC): void {
     .option('--verbose', 'Show all findings instead of top 5 per category')
     .option('--allow-failures', 'Exit 0 even if items are at/over limits (for local dev)')
     .option('--json', 'Output JSON for CI integration')
+    .option(
+      '--summary',
+      'Output only the standardized JSONL audit-summary line (for the audit-aggregator)'
+    )
     .example('ops lint:complexity-report')
     .example('ops lint:complexity-report --verbose')
     .example('ops lint:complexity-report --json')
-    .action(async (options: { verbose?: boolean; allowFailures?: boolean; json?: boolean }) => {
-      const { runComplexityReport } = await import('../lint/complexity-report.js');
-      await runComplexityReport({
-        verbose: options.verbose,
-        noFail: options.allowFailures,
-        json: options.json,
-      });
-    });
+    .example('ops lint:complexity-report --summary')
+    .action(
+      async (options: {
+        verbose?: boolean;
+        allowFailures?: boolean;
+        json?: boolean;
+        summary?: boolean;
+      }) => {
+        const { runComplexityReport } = await import('../lint/complexity-report.js');
+        await runComplexityReport({
+          verbose: options.verbose,
+          noFail: options.allowFailures,
+          json: options.json,
+          summary: options.summary,
+        });
+      }
+    );
 }
 
 function registerSchemaAuditCommand(cli: CAC): void {

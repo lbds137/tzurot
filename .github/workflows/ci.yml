@@ -87,6 +87,9 @@ jobs:
       - name: Check for duplicate export names
         run: pnpm ops guard:duplicate-exports
 
+      - name: Check for orphan proposal docs
+        run: pnpm ops guard:proposal-links
+
       - name: Check dependency boundaries
         run: pnpm depcruise
 

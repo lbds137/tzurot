@@ -6,6 +6,7 @@ import {
   formatFinding,
   extractFindings,
   buildJSONOutput,
+  runComplexityReport,
   type Finding,
 } from './complexity-report.js';
 
@@ -470,5 +471,15 @@ describe('buildJSONOutput', () => {
     expect(output.summary.hasFailures).toBe(false);
     expect(output.summary.byRule).toEqual({});
     expect(output.findings).toEqual([]);
+  });
+});
+
+describe('runComplexityReport (mutually-exclusive flags)', () => {
+  it('throws when both --json and --summary are passed', async () => {
+    // The two flags emit machine-readable output in incompatible shapes;
+    // silently dropping one would surprise scripts that pass both.
+    await expect(runComplexityReport({ json: true, summary: true })).rejects.toThrow(
+      '--json and --summary are mutually exclusive'
+    );
   });
 });

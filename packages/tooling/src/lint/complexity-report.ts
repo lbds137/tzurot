@@ -10,8 +10,8 @@
  *   pnpm ops complexity --no-fail # Don't exit with error code
  *   pnpm ops complexity --json    # Machine-readable JSON for CI dashboard integration
  *
- * Actual ESLint limits:
- * - max-lines: 500 (error)
+ * Actual ESLint limits (mirrors ACTUAL_LIMITS below and eslint.config.js):
+ * - max-lines: 400 (error)
  * - max-lines-per-function: 100 (warn)
  * - complexity: 20 (warn)
  * - max-statements: 50 (warn)
@@ -27,6 +27,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { resolve, relative } from 'node:path';
+import { emitSummary } from '../audits/summary.js';
 
 interface ESLintMessage {
   ruleId: string;
@@ -52,6 +53,44 @@ interface ReportOptions {
   noFail?: boolean;
   /** Output machine-readable JSON (for CI dashboard integration) */
   json?: boolean;
+  /** Output only the standardized JSONL audit-summary line (for the audit-aggregator). Suppresses all other stdout. */
+  summary?: boolean;
+  /**
+   * @internal Canary-test seam.
+   *
+   * Override the default scan targets (`services/`, `packages/`). Used by
+   * canary tests to point the tool at a fixture directory containing a
+   * deliberate violation. Production callers should omit this.
+   */
+  targetDirs?: string[];
+  /**
+   * @internal Canary-test seam.
+   *
+   * Override the working directory the tool resolves paths against. Used by
+   * canary tests so the tool can run against a fixture in an arbitrary
+   * location. Production callers should omit this (defaults to `process.cwd()`).
+   */
+  rootDir?: string;
+  /**
+   * @internal Canary-test seam.
+   *
+   * When `false`, the tool passes `--no-ignore` to ESLint, defeating the
+   * project's `ignores` block (test-fixtures, generated code, AND
+   * `node_modules`). Canary callers use this with a tightly-scoped
+   * `targetDirs` pointing at a specific fixture path, so the broader
+   * ignore-defeat doesn't cause unrelated scans. Production callers
+   * should omit so the default ignores apply.
+   */
+  respectIgnores?: boolean;
+  /**
+   * @internal Canary-test seam.
+   *
+   * Override the ESLint config file. Canary tests pass a minimal config
+   * (just the complexity rule, no typed-rules) because their fixtures
+   * aren't in any tsconfig project. Production callers should omit so
+   * the project's root `eslint.config.js` is auto-discovered.
+   */
+  configPath?: string;
 }
 
 /**
@@ -198,14 +237,21 @@ function buildRuleOverrides(): string[] {
   ];
 }
 
-function runEslint(rootDir: string): ESLintResult[] {
+function runEslint(
+  rootDir: string,
+  targetDirs: string[],
+  respectIgnores: boolean,
+  configPath: string | undefined
+): ESLintResult[] {
   const ruleOverrides = buildRuleOverrides();
+  const ignoreFlags = respectIgnores ? [] : ['--no-ignore'];
+  const configFlags = configPath === undefined ? [] : ['--config', configPath];
 
   let eslintOutput: string;
   try {
     eslintOutput = execFileSync(
       'npx',
-      ['eslint', '--format=json', ...ruleOverrides, 'services/', 'packages/'],
+      ['eslint', '--format=json', ...configFlags, ...ignoreFlags, ...ruleOverrides, ...targetDirs],
       {
         cwd: rootDir,
         encoding: 'utf-8',
@@ -223,10 +269,16 @@ function runEslint(rootDir: string): ESLintResult[] {
 
   try {
     return JSON.parse(eslintOutput) as ESLintResult[];
-  } catch {
-    console.error('Failed to parse ESLint output');
-    console.error(eslintOutput);
-    process.exit(1);
+  } catch (parseErr) {
+    // Don't `process.exit` here — that ignores `--no-fail` and would also
+    // kill vitest mid-test when the canary path runs. Throw so the caller
+    // (or the top-level CLI error handler) decides what to do. Includes
+    // the raw output truncated to the first 500 chars so the error is
+    // actionable without flooding logs.
+    const snippet = eslintOutput.slice(0, 500);
+    throw new Error(`Failed to parse ESLint JSON output. First 500 chars: ${snippet}`, {
+      cause: parseErr,
+    });
   }
 }
 
@@ -350,16 +402,52 @@ export function buildJSONOutput(
   };
 }
 
-export async function runComplexityReport(options: ReportOptions = {}): Promise<void> {
-  const rootDir = resolve(process.cwd());
+/**
+ * Emit the JSONL audit-summary line for the aggregator. Exits non-zero
+ * IFF a finding is at/over the hard limit AND `--no-fail` is not set —
+ * otherwise returns normally.
+ */
+function emitSummaryAndMaybeExit(findings: Finding[], noFail: boolean): void {
+  const atLimit = findings.filter(f => f.percentOfLimit >= 100).length;
+  const status = atLimit > 0 ? 'fail' : findings.length > 0 ? 'warn' : 'ok';
+  emitSummary({
+    tool: 'lint:complexity-report',
+    status,
+    findings: findings.length,
+    // No baseline file for this tool yet — `0` means "any finding is a
+    // regression relative to a clean state." Will get a real baseline when
+    // the periodic-audit ratchet system ships (per the proposal).
+    baseline: 0,
+  });
+  if (atLimit > 0 && !noFail) {
+    process.exit(1);
+  }
+}
 
-  if (!options.json) {
+export async function runComplexityReport(options: ReportOptions = {}): Promise<void> {
+  const rootDir = resolve(options.rootDir ?? process.cwd());
+  const targetDirs = options.targetDirs ?? ['services/', 'packages/'];
+  const respectIgnores = options.respectIgnores ?? true;
+
+  if (options.json === true && options.summary === true) {
+    // Both flags emit machine-readable output but in incompatible shapes;
+    // silently honoring one and dropping the other would surprise scripts
+    // that pass both expecting the union. Fail loud instead.
+    throw new Error('--json and --summary are mutually exclusive');
+  }
+
+  if (!options.json && !options.summary) {
     printThresholds();
   }
 
-  const results = runEslint(rootDir);
+  const results = runEslint(rootDir, targetDirs, respectIgnores, options.configPath);
   const findings = extractFindings(results);
   const byRule = categorizeFindings(findings);
+
+  if (options.summary) {
+    emitSummaryAndMaybeExit(findings, options.noFail ?? false);
+    return;
+  }
 
   // JSON output mode - for CI integration
   if (options.json) {

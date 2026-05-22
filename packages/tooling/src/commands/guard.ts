@@ -31,4 +31,20 @@ export function registerGuardCommands(cli: CAC): void {
       const { checkDuplicateExports } = await import('../dev/check-duplicate-exports.js');
       await checkDuplicateExports(options);
     });
+
+  cli
+    .command(
+      'guard:proposal-links',
+      'Check that every docs/proposals/backlog/*.md has at least one inbound link'
+    )
+    .option(
+      '--summary',
+      'Output only the standardized JSONL audit-summary line (for the audit-aggregator)'
+    )
+    .example('ops guard:proposal-links')
+    .example('ops guard:proposal-links --summary')
+    .action(async (options: { summary?: boolean }) => {
+      const { checkProposalOrphans } = await import('../audits/check-proposal-orphans.js');
+      await checkProposalOrphans(options);
+    });
 }

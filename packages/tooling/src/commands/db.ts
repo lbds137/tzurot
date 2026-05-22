@@ -10,12 +10,18 @@
 import type { CAC } from 'cac';
 import type { Environment } from '../utils/env-runner.js';
 
+// Reused across most db: commands.
+const ENV_OPTION_FLAG = '--env <env>';
+const ENV_OPTION_DESC = 'Environment: local, dev, or prod';
+const MIGRATIONS_PATH_OPTION_FLAG = '--migrations-path <path>';
+const MIGRATIONS_PATH_OPTION_DESC = 'Path to prisma migrations directory';
+
 export function registerDbCommands(cli: CAC): void {
   // Migration status - shows applied, pending, and failed migrations
   cli
     .command('db:status', 'Show migration status (applied, pending, failed)')
-    .option('--env <env>', 'Environment: local, dev, or prod', { default: 'local' })
-    .option('--migrations-path <path>', 'Path to prisma migrations directory')
+    .option(ENV_OPTION_FLAG, ENV_OPTION_DESC, { default: 'local' })
+    .option(MIGRATIONS_PATH_OPTION_FLAG, MIGRATIONS_PATH_OPTION_DESC)
     .action(async (options: { env?: Environment; migrationsPath?: string }) => {
       const { getMigrationStatus } = await import('../db/migration-status.js');
       await getMigrationStatus(options);
@@ -24,7 +30,7 @@ export function registerDbCommands(cli: CAC): void {
   // Run migrations - interactive with safety checks
   cli
     .command('db:migrate', 'Run pending migrations')
-    .option('--env <env>', 'Environment: local, dev, or prod', { default: 'local' })
+    .option(ENV_OPTION_FLAG, ENV_OPTION_DESC, { default: 'local' })
     .option('--force', 'Skip confirmation for production')
     .option('--dry-run', 'Show what would be applied without running')
     .action(async (options: { env?: Environment; force?: boolean; dryRun?: boolean }) => {
@@ -35,7 +41,7 @@ export function registerDbCommands(cli: CAC): void {
   // Deploy migrations - non-interactive for CI/scripts
   cli
     .command('db:deploy', 'Deploy migrations (non-interactive, for CI)')
-    .option('--env <env>', 'Environment: local, dev, or prod', { default: 'local' })
+    .option(ENV_OPTION_FLAG, ENV_OPTION_DESC, { default: 'local' })
     .action(async (options: { env?: Environment }) => {
       const { deployMigration } = await import('../db/run-migration.js');
       await deployMigration(options);
@@ -44,8 +50,8 @@ export function registerDbCommands(cli: CAC): void {
   // Check drift - now with environment support
   cli
     .command('db:check-drift', 'Check for migration drift between schema and database')
-    .option('--env <env>', 'Environment: local, dev, or prod', { default: 'local' })
-    .option('--migrations-path <path>', 'Path to prisma migrations directory')
+    .option(ENV_OPTION_FLAG, ENV_OPTION_DESC, { default: 'local' })
+    .option(MIGRATIONS_PATH_OPTION_FLAG, MIGRATIONS_PATH_OPTION_DESC)
     .action(async (options: { env?: Environment; migrationsPath?: string }) => {
       const { checkMigrationDrift } = await import('../db/check-migration-drift.js');
       await checkMigrationDrift(options);
@@ -54,8 +60,8 @@ export function registerDbCommands(cli: CAC): void {
   // Fix drift - now with environment support
   cli
     .command('db:fix-drift [...migrations]', 'Fix migration drift issues')
-    .option('--env <env>', 'Environment: local, dev, or prod', { default: 'local' })
-    .option('--migrations-path <path>', 'Path to prisma migrations directory')
+    .option(ENV_OPTION_FLAG, ENV_OPTION_DESC, { default: 'local' })
+    .option(MIGRATIONS_PATH_OPTION_FLAG, MIGRATIONS_PATH_OPTION_DESC)
     .action(
       async (migrations: string[], options: { env?: Environment; migrationsPath?: string }) => {
         const { fixMigrationDrift } = await import('../db/fix-migration-drift.js');
@@ -66,7 +72,7 @@ export function registerDbCommands(cli: CAC): void {
   // Inspect database - now with environment support
   cli
     .command('db:inspect', 'Inspect database state')
-    .option('--env <env>', 'Environment: local, dev, or prod', { default: 'local' })
+    .option(ENV_OPTION_FLAG, ENV_OPTION_DESC, { default: 'local' })
     .option('--table <name>', 'Inspect specific table')
     .option('--indexes', 'Show only indexes')
     .action(async (options: { env?: Environment; table?: string; indexes?: boolean }) => {
@@ -77,7 +83,7 @@ export function registerDbCommands(cli: CAC): void {
   // Safe migrate - create new migration with validation
   cli
     .command('db:safe-migrate', 'Create a safe migration with validation')
-    .option('--env <env>', 'Environment: local, dev, or prod', { default: 'local' })
+    .option(ENV_OPTION_FLAG, ENV_OPTION_DESC, { default: 'local' })
     .option('--name <name>', 'Migration name (will prompt if not provided)')
     .action(async (options: { env?: Environment; name?: string }) => {
       const { createSafeMigration } = await import('../db/create-safe-migration.js');
@@ -91,7 +97,11 @@ export function registerDbCommands(cli: CAC): void {
       default: 'prisma/migrations',
     })
     .option('--verbose', 'Show detailed output')
-    .action(async (options: { migrationsPath?: string; verbose?: boolean }) => {
+    .option(
+      '--summary',
+      'Output only the standardized JSONL audit-summary line (for the audit-aggregator)'
+    )
+    .action(async (options: { migrationsPath?: string; verbose?: boolean; summary?: boolean }) => {
       const { checkMigrationSafety } = await import('../db/check-migration-safety.js');
       await checkMigrationSafety(options);
     });
