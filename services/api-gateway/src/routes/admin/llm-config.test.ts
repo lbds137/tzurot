@@ -155,6 +155,8 @@ describe('Admin LLM Config Routes', () => {
         maxMessages: 50,
         maxAge: null,
         maxImages: 10,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
 
       const response = await request(app).get('/admin/llm-config/config-1');
@@ -182,6 +184,8 @@ describe('Admin LLM Config Routes', () => {
         maxMessages: 30,
         maxAge: 86400,
         maxImages: 5,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
 
       const response = await request(app).get('/admin/llm-config/config-1');
@@ -213,6 +217,8 @@ describe('Admin LLM Config Routes', () => {
         isDefault: false,
         isFreeDefault: false,
         advancedParameters: null,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
 
       const response = await request(app).get('/admin/llm-config/config-1');
@@ -239,6 +245,8 @@ describe('Admin LLM Config Routes', () => {
           top_p: 0.95,
           reasoning: { effort: 'high', max_tokens: 8000 },
         },
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
 
       const response = await request(app).get('/admin/llm-config/config-1');
@@ -264,6 +272,8 @@ describe('Admin LLM Config Routes', () => {
         isDefault: false,
         isFreeDefault: false,
         advancedParameters: null,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
 
       const response = await request(app).get('/admin/llm-config/config-1');
@@ -302,6 +312,8 @@ describe('Admin LLM Config Routes', () => {
         provider: 'openrouter',
         isGlobal: true,
         isDefault: false,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
 
       const response = await request(app).post('/admin/llm-config').send({
@@ -438,6 +450,8 @@ describe('Admin LLM Config Routes', () => {
         id: 'config-id',
         name: 'Old Name',
         isGlobal: true,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
       // No duplicate name exists
       prisma.llmConfig.findFirst.mockResolvedValue(null);
@@ -448,6 +462,8 @@ describe('Admin LLM Config Routes', () => {
         provider: 'openrouter',
         isGlobal: true,
         isDefault: false,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
 
       const response = await request(app).put('/admin/llm-config/config-id').send({
@@ -470,6 +486,8 @@ describe('Admin LLM Config Routes', () => {
         id: 'config-id',
         name: 'Existing Config',
         isGlobal: true,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
       prisma.llmConfig.update.mockResolvedValue({
         id: 'config-id',
@@ -517,6 +535,8 @@ describe('Admin LLM Config Routes', () => {
       prisma.llmConfig.findUnique.mockResolvedValue({
         id: 'config-id',
         isGlobal: false,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
 
       const response = await request(app).put('/admin/llm-config/config-id').send({
@@ -531,6 +551,8 @@ describe('Admin LLM Config Routes', () => {
       prisma.llmConfig.findUnique.mockResolvedValue({
         id: 'config-id',
         isGlobal: true,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
 
       const response = await request(app).put('/admin/llm-config/config-id').send({});
@@ -543,6 +565,8 @@ describe('Admin LLM Config Routes', () => {
       prisma.llmConfig.findUnique.mockResolvedValue({
         id: 'config-id',
         isGlobal: true,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
 
       const response = await request(app)
@@ -559,6 +583,8 @@ describe('Admin LLM Config Routes', () => {
       prisma.llmConfig.findUnique.mockResolvedValue({
         id: 'config-id',
         isGlobal: true,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
       prisma.llmConfig.update.mockResolvedValue({
         id: 'config-id',
@@ -567,6 +593,8 @@ describe('Admin LLM Config Routes', () => {
         provider: 'openrouter',
         isGlobal: true,
         isDefault: false,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
 
       const response = await request(app).put('/admin/llm-config/config-id').send({
@@ -588,6 +616,8 @@ describe('Admin LLM Config Routes', () => {
         id: 'config-id',
         name: 'My Config',
         isGlobal: true,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
       prisma.llmConfig.updateMany.mockResolvedValue({ count: 1 });
       prisma.llmConfig.update.mockResolvedValue({
@@ -619,6 +649,8 @@ describe('Admin LLM Config Routes', () => {
       prisma.llmConfig.findUnique.mockResolvedValue({
         id: 'config-id',
         isGlobal: false,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
 
       const response = await request(app).put('/admin/llm-config/config-id/set-default');
@@ -636,6 +668,8 @@ describe('Admin LLM Config Routes', () => {
         isGlobal: true,
         model: 'meta-llama/llama-3.3-70b-instruct:free',
         provider: 'openrouter',
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
       prisma.llmConfig.updateMany.mockResolvedValue({ count: 1 });
       prisma.llmConfig.update.mockResolvedValue({
@@ -669,6 +703,8 @@ describe('Admin LLM Config Routes', () => {
         isGlobal: false,
         model: 'meta-llama/llama-3.3-70b-instruct:free',
         provider: 'openrouter',
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
 
       const response = await request(app).put('/admin/llm-config/config-id/set-free-default');
@@ -683,6 +719,8 @@ describe('Admin LLM Config Routes', () => {
         name: 'Paid Config',
         isGlobal: true,
         model: 'anthropic/claude-sonnet-4', // Not a :free model
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
 
       const response = await request(app).put('/admin/llm-config/config-id/set-free-default');
@@ -702,6 +740,8 @@ describe('Admin LLM Config Routes', () => {
         name: 'Test Config',
         isGlobal: true,
         isDefault: false,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
       prisma.personalityDefaultConfig.count.mockResolvedValue(0);
       prisma.userPersonalityConfig.count.mockResolvedValue(0);
@@ -728,6 +768,8 @@ describe('Admin LLM Config Routes', () => {
         id: 'config-id',
         isGlobal: false,
         isDefault: false,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
 
       const response = await request(app).delete('/admin/llm-config/config-id');
@@ -741,6 +783,8 @@ describe('Admin LLM Config Routes', () => {
         id: 'config-id',
         isGlobal: true,
         isDefault: true,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
 
       const response = await request(app).delete('/admin/llm-config/config-id');
@@ -754,6 +798,8 @@ describe('Admin LLM Config Routes', () => {
         id: 'config-id',
         isGlobal: true,
         isDefault: false,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
       prisma.personalityDefaultConfig.count.mockResolvedValue(3);
 
@@ -768,6 +814,8 @@ describe('Admin LLM Config Routes', () => {
         id: 'config-id',
         isGlobal: true,
         isDefault: false,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
       prisma.personalityDefaultConfig.count.mockResolvedValue(0);
       prisma.userPersonalityConfig.count.mockResolvedValue(5);
@@ -784,6 +832,8 @@ describe('Admin LLM Config Routes', () => {
         name: 'Adopted Config',
         isGlobal: true,
         isDefault: false,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
       prisma.personalityDefaultConfig.count.mockResolvedValue(0);
       prisma.userPersonalityConfig.count.mockResolvedValue(0);
@@ -806,6 +856,8 @@ describe('Admin LLM Config Routes', () => {
         id: 'config-id',
         isGlobal: true,
         isDefault: false,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
       prisma.personalityDefaultConfig.count.mockResolvedValue(2);
       prisma.userPersonalityConfig.count.mockResolvedValue(0);
@@ -825,12 +877,16 @@ describe('Admin LLM Config Routes', () => {
         id: 'config-id',
         name: 'Old Name',
         isGlobal: true,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
       // Simulate another config with the same name exists
       prisma.llmConfig.findFirst.mockResolvedValue({
         id: 'other-config-id',
         name: 'Duplicate Name',
         isGlobal: true,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
 
       const response = await request(app).put('/admin/llm-config/config-id').send({
@@ -847,6 +903,8 @@ describe('Admin LLM Config Routes', () => {
         id: 'config-id',
         name: 'Same Name',
         isGlobal: true,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
       // findFirst returns null because we exclude the current config from the check
       prisma.llmConfig.findFirst.mockResolvedValue(null);
@@ -857,6 +915,8 @@ describe('Admin LLM Config Routes', () => {
         provider: 'openrouter',
         isGlobal: true,
         isDefault: false,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
 
       const response = await request(app).put('/admin/llm-config/config-id').send({
@@ -900,6 +960,8 @@ describe('Admin LLM Config Routes', () => {
         id: 'config-id',
         name: 'Old Name',
         isGlobal: true,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
       prisma.llmConfig.findFirst.mockResolvedValue(null); // No duplicate
       prisma.llmConfig.update.mockResolvedValue({
@@ -907,6 +969,8 @@ describe('Admin LLM Config Routes', () => {
         name: 'New Name',
         isGlobal: true,
         isDefault: false,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
 
       const response = await request(appWithCache).put('/admin/llm-config/config-id').send({
@@ -922,6 +986,8 @@ describe('Admin LLM Config Routes', () => {
         id: 'config-id',
         name: 'My Config',
         isGlobal: true,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
       prisma.llmConfig.updateMany.mockResolvedValue({ count: 1 });
       prisma.llmConfig.update.mockResolvedValue({
@@ -942,6 +1008,8 @@ describe('Admin LLM Config Routes', () => {
         isGlobal: true,
         model: 'meta-llama/llama-3.3-70b-instruct:free',
         provider: 'openrouter',
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
       prisma.llmConfig.updateMany.mockResolvedValue({ count: 1 });
       prisma.llmConfig.update.mockResolvedValue({
@@ -1094,6 +1162,8 @@ describe('Admin LLM Config Routes', () => {
         id: 'config-id',
         name: 'Old Name',
         isGlobal: true,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
       prisma.llmConfig.findFirst.mockResolvedValue(null);
       prisma.llmConfig.update.mockResolvedValue({
@@ -1128,6 +1198,8 @@ describe('Admin LLM Config Routes', () => {
         id: 'config-id',
         name: 'Old Name',
         isGlobal: true,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
       prisma.llmConfig.findFirst.mockResolvedValue(null);
       prisma.llmConfig.update.mockResolvedValue({
@@ -1135,6 +1207,8 @@ describe('Admin LLM Config Routes', () => {
         name: 'New Name',
         isGlobal: true,
         isDefault: false,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
 
       const response = await request(app).put('/admin/llm-config/config-id').send({
