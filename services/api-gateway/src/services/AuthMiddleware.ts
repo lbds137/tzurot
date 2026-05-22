@@ -25,13 +25,20 @@ const logger = createLogger('auth-middleware');
  * @returns Owner ID if found, undefined otherwise
  */
 export function extractOwnerId(req: Request): string | undefined {
-  // Check header first (most common)
-  const headerOwnerId = req.headers['x-owner-id'];
-  if (typeof headerOwnerId === 'string') {
-    return headerOwnerId;
+  // `X-User-Id` carries the caller's Discord ID. The `requireOwnerAuth`
+  // wrapper downstream (`verifyBotOwner`) gates that only the configured
+  // bot-owner ID passes; this header just identifies the caller. Set
+  // uniformly by `requireUserAuth` middleware and by bot-client's
+  // `adminFetch` for admin-route invocations.
+  const headerUserId = req.headers['x-user-id'];
+  if (typeof headerUserId === 'string') {
+    return headerUserId;
   }
 
-  // Check body (used by some endpoints like db-sync)
+  // Body fallback for endpoints that POST `{ ownerId }` directly
+  // (e.g., `/admin/db-sync`, `/admin/cleanup`) — these routes predate
+  // the unified header convention and still surface ownerId in payload
+  // shape rather than relying on the request header.
   if (
     req.body !== null &&
     req.body !== undefined &&
