@@ -107,6 +107,8 @@ The preset cascade (`LlmConfigResolver.resolveConfig`) has user-tier commands (`
 
 **Start**: `packages/common-types/src/services/LlmConfigResolver.ts:141` (cascade logic); `services/bot-client/src/commands/settings/preset/` (user-tier template); `services/bot-client/src/commands/character/dashboardButtons.ts` (add section); `services/ai-worker/src/jobs/ShapesImportHelpers.ts:41` (shapes pin path to preserve).
 
+**Related proposal**: [`docs/proposals/backlog/config-cascade-design.md`](../docs/proposals/backlog/config-cascade-design.md) covers the broader "unified configuration cascade" vision. Phase 1 (model validation + context window enforcement) shipped 2026-02-16. Phases 2–5 (LlmConfig slimming, lightweight overlay system, voice/image user overrides, focus mode tier expansion) are the deferred work that overlaps with this theme.
+
 ### Theme: `/character chat` — push-based result delivery + DM support (PersonalityChatManager extract)
 
 _Focus: merge two related refactors into one epic. (1) `/character chat` polls for job results with a 2-min cap, orphaning long-running free-model jobs; (2) `/character chat` hard-errors in DMs because its render path is webhook-only. Both want to extract logic so slash-command and message-handler entry points share the same infrastructure._
@@ -272,6 +274,10 @@ No limits on memories per persona. Add `maxMemoriesPerPersona` (default: 10,000)
 #### 🏗️ Contrastive Retrieval for RAG
 
 Improve memory retrieval quality with contrastive methods.
+
+#### 🏗️ Knowledge vs Memory Distinction
+
+Distinguish user-specific memories from personality-wide knowledge (lore, backstory, reference material). Add `type`/`scope` fields, support personality-wide knowledge items not filtered by userId. See [`docs/proposals/backlog/MEMORY_INGESTION_IMPROVEMENTS.md`](../docs/proposals/backlog/MEMORY_INGESTION_IMPROVEMENTS.md) for the full proposal (concepts valid, implementation TBD; originally drafted under the pgvector architecture).
 
 #### ✨ Cross-channel history — smarter retrieval with limits
 

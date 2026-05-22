@@ -51,6 +51,20 @@ Every existing audit tool gets:
 
 **Critical insight from Opus**: every other layer depends on the audits actually working. Without canaries, the rest of the system can report perfect health while everything decays — Potemkin enforcement. Build this first or build on sand.
 
+#### Layer 1 sibling — Proposal orphan-check (added during proposal-triage pass)
+
+This proposal-doc rot pattern is the same shape as the tool rot pattern. A proposal exists, no backlog file links to it, no one ever reads it again. Discovery pass on 2026-05-22 found **7 of 14 existing proposals had zero inbound links** — one of them (`tts-phase-3-voice-consolidation-plan.md`) was already-shipped and should have been deleted months ago per the lifecycle rule in `07-documentation.md`.
+
+The proposal orphan-check is a regular-CI (NOT cron) gate with the same shape as the canary/golden-fixture pattern:
+
+- For every `docs/proposals/backlog/*.md`, assert at least one inbound link from `backlog/**/*.md` OR `CURRENT.md` OR `docs/reference/**/*.md`.
+- Newly-added proposals MUST add the link in the same PR (forces the "this is real future work" vs. "this is just a brainstorm" decision at proposal time, not 6 months later).
+- Existing orphans are grandfathered via an explicit allowlist; the allowlist itself must be aged out within N days or each entry needs a triage decision (link / icebox / delete).
+
+Implementation note: ~20 lines of CI script. Runs in the existing `lint` job, no new infrastructure. The grandfathered-allowlist pattern matches how the CPD baseline absorbs pre-existing duplication.
+
+**Why this belongs in Layer 1**: it's the same "validate the system works" check as canaries, just applied to proposals instead of audit tools. Both catch the same failure mode (something exists but isn't being used). Both run in regular CI, not cron.
+
 ### Layer 2 — `WHY.md` per tool (solo-dev psychology fix)
 
 Every audit tool gets a one-paragraph `WHY.md` next to it explaining what problem it caught the day it was built. When a reminder fires at month 4 and you've forgotten why the tool exists, you read the `WHY.md`. Either re-up the commitment or delete the tool — both are correct outcomes.
