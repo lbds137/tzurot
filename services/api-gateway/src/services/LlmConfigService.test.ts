@@ -765,12 +765,21 @@ describe('LlmConfigService', () => {
       });
     });
 
-    it('should handle null memoryScoreThreshold', () => {
-      const raw = { ...sampleConfigDetail, memoryScoreThreshold: null };
-
-      const result = service.formatConfigDetail(raw);
-
-      expect(result.memoryScoreThreshold).toBeNull();
+    it('falls back to LLM_CONFIG_DEFAULTS when memory fields are missing (incomplete mocks)', () => {
+      // The schema has memoryScoreThreshold / memoryLimit as NOT NULL with
+      // @default(0.5) / @default(20), so real Prisma always returns them.
+      // But many test mocks ship incomplete LlmConfig rows that omit these
+      // fields. The formatter's `?? LLM_CONFIG_DEFAULTS.*` guard keeps those
+      // tests passing while reflecting the schema-default contract.
+      type IncompleteRaw = Omit<typeof sampleConfigDetail, 'memoryScoreThreshold' | 'memoryLimit'>;
+      const { memoryScoreThreshold: _mst, memoryLimit: _ml, ...incompleteRaw } = sampleConfigDetail;
+      void _mst;
+      void _ml;
+      const result = service.formatConfigDetail(
+        incompleteRaw as unknown as IncompleteRaw & typeof sampleConfigDetail
+      );
+      expect(result.memoryScoreThreshold).toBe(0.5);
+      expect(result.memoryLimit).toBe(20);
     });
 
     it('should handle null/invalid advancedParameters', () => {

@@ -1240,8 +1240,8 @@ describe('/user/llm-config routes', () => {
         maxMessages: 50,
         maxAge: null,
         maxImages: 10,
-        memoryScoreThreshold: null,
-        memoryLimit: null,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
       });
 
       const router = createLlmConfigRoutes(
@@ -1280,8 +1280,8 @@ describe('/user/llm-config routes', () => {
         maxMessages: 50,
         maxAge: null,
         maxImages: 10,
-        memoryScoreThreshold: null,
-        memoryLimit: null,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
         advancedParameters: null,
       });
 
@@ -1334,8 +1334,8 @@ describe('/user/llm-config routes', () => {
         maxMessages: 50,
         maxAge: null,
         maxImages: 10,
-        memoryScoreThreshold: null,
-        memoryLimit: null,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
         advancedParameters: null,
       });
 
