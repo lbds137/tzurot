@@ -46,7 +46,7 @@ describe('authMiddleware', () => {
   describe('extractOwnerId', () => {
     it('should extract owner ID from header', () => {
       const req = {
-        headers: { 'x-owner-id': '123456789' },
+        headers: { 'x-user-id': '123456789' },
         body: {},
       } as unknown as Request;
 
@@ -64,7 +64,7 @@ describe('authMiddleware', () => {
 
     it('should prefer header over body when both present', () => {
       const req = {
-        headers: { 'x-owner-id': 'header-id' },
+        headers: { 'x-user-id': 'header-id' },
         body: { ownerId: 'body-id' },
       } as unknown as Request;
 
@@ -82,7 +82,7 @@ describe('authMiddleware', () => {
 
     it('should return undefined when header is array', () => {
       const req = {
-        headers: { 'x-owner-id': ['id1', 'id2'] },
+        headers: { 'x-user-id': ['id1', 'id2'] },
         body: {},
       } as unknown as Request;
 
@@ -109,7 +109,7 @@ describe('authMiddleware', () => {
 
     it('should handle empty string in header', () => {
       const req = {
-        headers: { 'x-owner-id': '' },
+        headers: { 'x-user-id': '' },
         body: {},
       } as unknown as Request;
 
@@ -215,7 +215,7 @@ describe('authMiddleware', () => {
         BOT_OWNER_ID: 'valid-owner',
       } as any);
 
-      mockReq.headers = { 'x-owner-id': 'valid-owner' };
+      mockReq.headers = { 'x-user-id': 'valid-owner' };
 
       const middleware = requireOwnerAuth();
       middleware(mockReq as Request, mockRes as Response, mockNext);
@@ -230,7 +230,7 @@ describe('authMiddleware', () => {
         BOT_OWNER_ID: 'valid-owner',
       } as any);
 
-      mockReq.headers = { 'x-owner-id': 'invalid-owner' };
+      mockReq.headers = { 'x-user-id': 'invalid-owner' };
 
       const middleware = requireOwnerAuth();
       middleware(mockReq as Request, mockRes as Response, mockNext);
@@ -262,7 +262,7 @@ describe('authMiddleware', () => {
         BOT_OWNER_ID: 'valid-owner',
       } as any);
 
-      mockReq.headers = { 'x-owner-id': 'invalid-owner' };
+      mockReq.headers = { 'x-user-id': 'invalid-owner' };
 
       const middleware = requireOwnerAuth('Custom unauthorized message');
       middleware(mockReq as Request, mockRes as Response, mockNext);
@@ -307,7 +307,7 @@ describe('authMiddleware', () => {
         BOT_OWNER_ID: undefined,
       } as any);
 
-      mockReq.headers = { 'x-owner-id': 'some-id' };
+      mockReq.headers = { 'x-user-id': 'some-id' };
 
       const middleware = requireOwnerAuth();
       middleware(mockReq as Request, mockRes as Response, mockNext);
@@ -321,7 +321,7 @@ describe('authMiddleware', () => {
         BOT_OWNER_ID: 'valid-owner',
       } as any);
 
-      mockReq.headers = { 'x-owner-id': '' };
+      mockReq.headers = { 'x-user-id': '' };
 
       const middleware = requireOwnerAuth();
       middleware(mockReq as Request, mockRes as Response, mockNext);

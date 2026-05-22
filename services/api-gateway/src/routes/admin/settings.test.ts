@@ -139,13 +139,12 @@ describe('Admin Settings Routes (Singleton)', () => {
 
     app = express();
     app.use(express.json());
-    // Add middleware to inject userId AND X-Owner-Id header. The header is
-    // required because PATCH/DELETE now use requireOwnerAuth() middleware,
-    // which reads ownerId via extractOwnerId() from the X-Owner-Id header.
+    // Inject userId and X-User-Id header. PATCH/DELETE use requireOwnerAuth(),
+    // which reads ownerId via extractOwnerId() from the X-User-Id header.
     // GET still consults req.userId via the inline isAuthorizedForRead check.
     app.use((req, _res, next) => {
       (req as express.Request & { userId: string }).userId = MOCK_USER_ID;
-      req.headers['x-owner-id'] = MOCK_USER_ID;
+      req.headers['x-user-id'] = MOCK_USER_ID;
       next();
     });
     app.use('/admin/settings', createAdminSettingsRoutes(mockPrisma as unknown as PrismaClient));
