@@ -23,5 +23,11 @@ export const schemaAuditConfig: SchemaAuditConfig = {
         'orthogonal-aggregation: row encodes multiple independent overrides (llmConfigId, ttsConfigId, personaId, configOverrides JSON) and each upsert site sets one slice. Different upsert routes (model-override, tts-override, persona/override) legitimately omit configOverrides; the config-overrides + memory routes pass it. Not the caller-identity-encoded bug shape — the row aggregation is intentional.',
       reviewedAt: '2026-05-21',
     },
+    {
+      key: 'UserPersonaHistoryConfig.lastContextReset',
+      reason:
+        'state machine: null = no clear epoch active (full history visible), DateTime = clear active. The schema-audit tool flags this MEDIUM because .create/.upsert.create write sites all pass a non-null value, but bare `.update()` in the undo path (services/api-gateway/src/routes/user/history.ts:172-175) writes `lastContextReset: previousContextReset` which is null after undoing a first-time clear. The audit tool does not walk bare `.update()` paths (Limitation #8-adjacent), so its MEDIUM is a false positive on this field. See the triple-slash schema doc for the full state-machine table.',
+      reviewedAt: '2026-05-21',
+    },
   ],
 };

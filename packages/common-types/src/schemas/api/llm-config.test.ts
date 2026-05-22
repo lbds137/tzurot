@@ -344,13 +344,27 @@ describe('LLM Config API Contract Tests', () => {
         ...validCreateInput,
         description: null,
         visionModel: null,
-        memoryScoreThreshold: null,
-        memoryLimit: null,
         maxAge: null,
       };
 
       const result = LlmConfigCreateSchema.safeParse(inputWithNulls);
       expect(result.success).toBe(true);
+    });
+
+    it('should reject null for memoryScoreThreshold / memoryLimit (NOT NULL with schema default)', () => {
+      // Schema has these fields NOT NULL with @default(0.5) / @default(20).
+      // Callers omit to get the default; null is not a meaningful input value.
+      const inputWithNullMemory = {
+        ...validCreateInput,
+        memoryScoreThreshold: null,
+      };
+      expect(LlmConfigCreateSchema.safeParse(inputWithNullMemory).success).toBe(false);
+
+      const inputWithNullLimit = {
+        ...validCreateInput,
+        memoryLimit: null,
+      };
+      expect(LlmConfigCreateSchema.safeParse(inputWithNullLimit).success).toBe(false);
     });
 
     it('should reject missing name', () => {
@@ -476,13 +490,16 @@ describe('LLM Config API Contract Tests', () => {
       const clearingUpdate = {
         description: null,
         visionModel: null,
-        memoryScoreThreshold: null,
-        memoryLimit: null,
         maxAge: null,
       };
 
       const result = LlmConfigUpdateSchema.safeParse(clearingUpdate);
       expect(result.success).toBe(true);
+    });
+
+    it('should reject null for memoryScoreThreshold / memoryLimit on update (NOT NULL with schema default)', () => {
+      expect(LlmConfigUpdateSchema.safeParse({ memoryScoreThreshold: null }).success).toBe(false);
+      expect(LlmConfigUpdateSchema.safeParse({ memoryLimit: null }).success).toBe(false);
     });
 
     it('should reject invalid field values (same validation as create)', () => {
