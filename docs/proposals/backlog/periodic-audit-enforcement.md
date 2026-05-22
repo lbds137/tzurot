@@ -57,11 +57,13 @@ This proposal-doc rot pattern is the same shape as the tool rot pattern. A propo
 
 The proposal orphan-check is a regular-CI (NOT cron) gate with the same shape as the canary/golden-fixture pattern:
 
-- For every `docs/proposals/backlog/*.md`, assert at least one inbound link from `backlog/**/*.md` OR `CURRENT.md` OR `docs/reference/**/*.md`.
+- For every `docs/proposals/backlog/*.md`, assert at least one inbound link from `backlog/**/*.md`, `CURRENT.md`, or any non-proposal markdown under `docs/**/*.md` (so links from `docs/research/`, `docs/incidents/`, `docs/README.md`, etc. all count). Links between proposals don't count — proposals linking to other proposals doesn't satisfy "tracked from somewhere actionable."
 - Newly-added proposals MUST add the link in the same PR (forces the "this is real future work" vs. "this is just a brainstorm" decision at proposal time, not 6 months later).
 - Existing orphans are grandfathered via an explicit allowlist; the allowlist itself must be aged out within N days or each entry needs a triage decision (link / icebox / delete).
 
 Implementation note: ~20 lines of CI script. Runs in the existing `lint` job, no new infrastructure. The grandfathered-allowlist pattern matches how the CPD baseline absorbs pre-existing duplication.
+
+**Layer 1 PR status (filed PR #1082)**: The orphan-check ships as a hard gate (any orphan fails CI) without the grandfathered-allowlist mechanism. Justified because the discovery pass that motivated this work triaged the 7 historic orphans inline — current state has zero orphans, so the gate is satisfied as-is. The allowlist becomes necessary only if a future PR introduces a proposal whose linking is deliberately deferred (e.g., a brainstorm a contributor wants to keep but not promote); at that point, add the allowlist plus aging-out logic. Filing the gate now without the allowlist trades implementation completeness for shipping a working check earlier — same pattern as Layer 1 itself (validate first, build enforcement on top).
 
 **Why this belongs in Layer 1**: it's the same "validate the system works" check as canaries, just applied to proposals instead of audit tools. Both catch the same failure mode (something exists but isn't being used). Both run in regular CI, not cron.
 

@@ -12,6 +12,12 @@ dist/
 services/**/*.js
 packages/**/*.js
 !**/*.config.js
+# Allow audit-canary fixtures (deliberately-bad .js files that audit tools
+# must detect — TS-eslint project service can't parse files outside any
+# tsconfig, so .js is required for these fixtures). Scoped to the tooling
+# package's fixture dir so other services adding test-fixtures/ later
+# don't accidentally commit stray .js files.
+!packages/tooling/test-fixtures/**/*.js
 
 # Environment variables
 .env

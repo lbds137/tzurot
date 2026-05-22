@@ -124,4 +124,42 @@ describe('checkMigrationSafety', () => {
     const output = consoleLogSpy.mock.calls.flat().join(' ');
     expect(output).toContain('Found 1 migration files');
   });
+
+  describe('--summary mode', () => {
+    it('emits an ok JSONL summary line when migrations are safe', async () => {
+      vol.fromJSON({
+        '/migrations/20240101_test/migration.sql': 'CREATE TABLE x (id INT);',
+      });
+
+      const { checkMigrationSafety } = await import('./check-migration-safety.js');
+      const { parseSummary } = await import('../audits/summary.js');
+      await checkMigrationSafety({ migrationsPath: '/migrations', summary: true });
+
+      expect(processExitSpy).not.toHaveBeenCalled();
+      // The summary line is the last console.log call. Everything else
+      // (human-readable output) is suppressed by `summary: true`.
+      const lastLogCall = consoleLogSpy.mock.calls[consoleLogSpy.mock.calls.length - 1];
+      const summary = parseSummary(String(lastLogCall[0]));
+      expect(summary.tool).toBe('db:check-safety');
+      expect(summary.status).toBe('ok');
+      expect(summary.findings).toBe(0);
+    });
+
+    it('emits a fail JSONL summary line + exits 1 when a violation is found', async () => {
+      vol.fromJSON({
+        '/migrations/20240101_test/migration.sql': 'DROP INDEX "idx_memories_embedding";',
+      });
+
+      const { checkMigrationSafety } = await import('./check-migration-safety.js');
+      const { parseSummary } = await import('../audits/summary.js');
+      await checkMigrationSafety({ migrationsPath: '/migrations', summary: true });
+
+      const lastLogCall = consoleLogSpy.mock.calls[consoleLogSpy.mock.calls.length - 1];
+      const summary = parseSummary(String(lastLogCall[0]));
+      expect(summary.tool).toBe('db:check-safety');
+      expect(summary.status).toBe('fail');
+      expect(summary.findings).toBe(1);
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+    });
+  });
 });

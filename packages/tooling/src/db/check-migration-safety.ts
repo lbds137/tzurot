@@ -11,6 +11,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import chalk from 'chalk';
+import { emitSummary } from '../audits/summary.js';
 
 interface ProtectedIndex {
   name: string;
@@ -82,6 +83,26 @@ function checkMigrationFile(filePath: string): CheckResult {
 interface CheckMigrationSafetyOptions {
   migrationsPath?: string;
   verbose?: boolean;
+  /** Output only the standardized JSONL audit-summary line (suppresses other stdout). */
+  summary?: boolean;
+}
+
+/**
+ * Pure migration-safety check. No I/O beyond the file reads in `findSqlFiles`;
+ * no stdout writes; no `process.exit`. Used by the production CLI entry point
+ * (`checkMigrationSafety`) and by canary tests that need to assert deliberate
+ * violations are detected. Exported for testing.
+ *
+ * @internal
+ */
+export function analyzeMigrationSafety(migrationsPath: string): {
+  totalFiles: number;
+  violations: CheckResult[];
+} {
+  const sqlFiles = findSqlFiles(migrationsPath);
+  const results = sqlFiles.map(checkMigrationFile);
+  const violations = results.filter(r => r.violations.length > 0);
+  return { totalFiles: sqlFiles.length, violations };
 }
 
 /**
@@ -92,25 +113,37 @@ export async function checkMigrationSafety(
 ): Promise<void> {
   const migrationsPath = options.migrationsPath ?? 'prisma/migrations';
 
+  const { totalFiles, violations } = analyzeMigrationSafety(migrationsPath);
+
+  // Summary mode — emit one JSONL line for the audit-aggregator.
+  if (options.summary) {
+    const findings = violations.reduce((acc, r) => acc + r.violations.length, 0);
+    emitSummary({
+      tool: 'db:check-safety',
+      status: findings > 0 ? 'fail' : 'ok',
+      findings,
+      baseline: 0,
+    });
+    if (findings > 0) {
+      process.exit(1);
+    }
+    return;
+  }
+
   console.log(chalk.cyan('\n🔍 Checking migrations for safety issues...\n'));
 
-  const sqlFiles = findSqlFiles(migrationsPath);
-
-  if (sqlFiles.length === 0) {
+  if (totalFiles === 0) {
     console.log(chalk.yellow('No migration files found.'));
     return;
   }
 
   if (options.verbose) {
-    console.log(chalk.dim(`Found ${sqlFiles.length} migration files\n`));
+    console.log(chalk.dim(`Found ${totalFiles} migration files\n`));
   }
-
-  const results = sqlFiles.map(checkMigrationFile);
-  const violations = results.filter(r => r.violations.length > 0);
 
   if (violations.length === 0) {
     console.log(chalk.green('✅ All migrations are safe'));
-    console.log(chalk.dim(`   Checked ${sqlFiles.length} migration files`));
+    console.log(chalk.dim(`   Checked ${totalFiles} migration files`));
     return;
   }
 

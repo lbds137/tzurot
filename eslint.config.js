@@ -173,6 +173,10 @@ export default tseslint.config(
       'vitest.workspace.ts',
       'prisma.config.ts',
       'audit.config.ts',
+      // Audit-canary fixtures: deliberately-bad files that the audit tools
+      // must detect. Production lint skips them; the canary tests invoke
+      // each audit tool with `--no-ignore` so the canaries are scanned.
+      '**/test-fixtures/**',
       'tzurot-legacy/**',
       'scripts/**',
       '**/scripts/**',
