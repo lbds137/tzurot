@@ -213,6 +213,18 @@ function stripCwd(absPath: string, cwd: string): string {
  *  rather than redefining the string locally. */
 export const JSCPD_REPORT_PATH = 'reports/jscpd/jscpd-report.json';
 
+/**
+ * Implementation version of the post-filter heuristic. Bumped when the
+ * call-dominance classification logic changes (e.g., new exclusion rules,
+ * different tokenizer, threshold-meaning change). Goes into the baseline
+ * meta `configHash` so a heuristic change invalidates existing baselines
+ * and forces an explicit refresh via `cpd:update-baseline`.
+ *
+ * History: v1 — initial heuristic (count call-expression-shape lines,
+ * compare ratio against threshold; see `classifyFragment` above).
+ */
+export const FILTER_IMPL_VERSION = 1;
+
 /** Load jscpd report JSON from the given path. Defaults to JSCPD_REPORT_PATH.
  *
  *  Validates the report shape minimally so a schema drift in jscpd's output

@@ -3,6 +3,36 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { createHash } from 'node:crypto';
+
+/**
+ * Synchronous mirror of `hashConfigSlice` from audits/baseline-meta.ts.
+ * Test setup needs a deterministic hash for the current impl version,
+ * but importing `TEST_AUDIT_IMPL_VERSION` from `./audit-utils.js` here
+ * would pull in `node:fs` before the `vi.mock` below initializes —
+ * hoisting order bites. Inline the value instead; if
+ * `TEST_AUDIT_IMPL_VERSION` is bumped in audit-utils.ts, update this
+ * constant to match (baseline-meta tests will catch the mismatch
+ * because audit-unified will report drift).
+ */
+const TEST_AUDIT_IMPL_VERSION_FOR_TESTS = 1;
+
+function expectedTestAuditConfigHash(): string {
+  const slice = { implVersion: TEST_AUDIT_IMPL_VERSION_FOR_TESTS };
+  return createHash('sha256').update(JSON.stringify(slice)).digest('hex').slice(0, 12);
+}
+
+/**
+ * Shared meta block fixture for test baselines — keeps the drift check
+ * green in tests that aren't exercising drift detection itself.
+ */
+const VALID_BASELINE_META = {
+  toolVersion: 'test-audit/1.0',
+  configHash: expectedTestAuditConfigHash(),
+  nodeVersion: 'v25.3.0',
+  generatedFromSha: 'deadbeef00000000000000000000000000000000',
+  generatedAt: '2024-01-01T00:00:00.000Z',
+};
 
 // Mock fs operations
 const mockExistsSync = vi.fn();
@@ -82,6 +112,13 @@ describe('audit-unified', () => {
             serviceExemptionCriteria: 'Services are auto-detected for Prisma usage',
             contractExemptionCriteria: 'None',
           },
+          meta: {
+            toolVersion: 'test-audit/1.0',
+            configHash: expectedTestAuditConfigHash(),
+            nodeVersion: 'v25.3.0',
+            generatedFromSha: 'deadbeef00000000000000000000000000000000',
+            generatedAt: '2024-01-01T00:00:00.000Z',
+          },
         });
       }
       return '';
@@ -126,7 +163,7 @@ export class SimpleService {
       setupCleanBaseline();
 
       const { auditUnified } = await import('./audit-unified.js');
-      const result = auditUnified();
+      const result = await auditUnified();
 
       expect(result).toBe(true);
     });
@@ -172,6 +209,7 @@ export class SimpleService {
               serviceExemptionCriteria: 'Services are auto-detected for Prisma usage',
               contractExemptionCriteria: 'None',
             },
+            meta: VALID_BASELINE_META,
           });
         }
         if (path.includes('KnownService.ts')) {
@@ -184,7 +222,7 @@ export class SimpleService {
       });
 
       const { auditUnified } = await import('./audit-unified.js');
-      const result = auditUnified();
+      const result = await auditUnified();
 
       // Should pass because gaps are known in baseline
       expect(result).toBe(true);
@@ -227,6 +265,7 @@ export class SimpleService {
               serviceExemptionCriteria: 'Services are auto-detected for Prisma usage',
               contractExemptionCriteria: 'None',
             },
+            meta: VALID_BASELINE_META,
           });
         }
         if (path.includes('NewService.ts')) {
@@ -237,7 +276,7 @@ export class SimpleService {
       });
 
       const { auditUnified } = await import('./audit-unified.js');
-      const result = auditUnified();
+      const result = await auditUnified();
 
       expect(result).toBe(false);
     });
@@ -279,6 +318,7 @@ export class SimpleService {
               serviceExemptionCriteria: 'Services are auto-detected for Prisma usage',
               contractExemptionCriteria: 'None',
             },
+            meta: VALID_BASELINE_META,
           });
         }
         if (path.includes('SimpleService.ts')) {
@@ -289,7 +329,7 @@ export class SimpleService {
       });
 
       const { auditUnified } = await import('./audit-unified.js');
-      const result = auditUnified();
+      const result = await auditUnified();
 
       // Should pass because service without Prisma is auto-exempt
       expect(result).toBe(true);
@@ -332,6 +372,7 @@ export class SimpleService {
               serviceExemptionCriteria: 'Services are auto-detected for Prisma usage',
               contractExemptionCriteria: 'None',
             },
+            meta: VALID_BASELINE_META,
           });
         }
         if (path.includes('NewService.ts')) {
@@ -341,7 +382,7 @@ export class SimpleService {
       });
 
       const { auditUnified } = await import('./audit-unified.js');
-      const result = auditUnified({ update: true });
+      const result = await auditUnified({ update: true });
 
       expect(result).toBe(true);
       expect(mockWriteFileSync).toHaveBeenCalled();
@@ -357,7 +398,7 @@ export class SimpleService {
       setupCleanBaseline();
 
       const { auditUnified } = await import('./audit-unified.js');
-      const result = auditUnified({ category: 'services' });
+      const result = await auditUnified({ category: 'services' });
 
       expect(result).toBe(true);
 
@@ -376,7 +417,7 @@ export class SimpleService {
       setupCleanBaseline();
 
       const { auditUnified } = await import('./audit-unified.js');
-      const result = auditUnified({ category: 'contracts' });
+      const result = await auditUnified({ category: 'contracts' });
 
       expect(result).toBe(true);
 

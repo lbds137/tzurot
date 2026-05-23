@@ -1,5 +1,19 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { assertThresholdInRange, computeUpdatedBaseline, parseBaseline } from './cpd.js';
+import {
+  assertThresholdInRange,
+  computeUpdatedBaseline,
+  parseBaseline,
+  getCpdConfigFingerprint,
+} from './cpd.js';
+import type { BaselineMeta } from '../audits/baseline-meta.js';
+
+const fixtureMeta: BaselineMeta = {
+  toolVersion: 'cpd-check/1.0',
+  configHash: 'abc123def456',
+  nodeVersion: 'v25.3.0',
+  generatedFromSha: 'deadbeef00000000000000000000000000000000',
+  generatedAt: '2026-05-17T12:00:00.000Z',
+};
 
 const filterSummary = (
   overrides: Partial<{
@@ -126,6 +140,7 @@ describe('computeUpdatedBaseline', () => {
       filterSummary({ filteredLines: 1500, filteredCount: 80, rawLines: 1800, rawCount: 100 }),
       {},
       0.8,
+      fixtureMeta,
       fixedDate
     );
 
@@ -138,6 +153,7 @@ describe('computeUpdatedBaseline', () => {
       rawCount: 100,
       threshold: 0.8,
       graceMargin: 10,
+      meta: fixtureMeta,
     });
     expect(result.delta).toBe(1500);
     expect(result.prevLines).toBe(0);
@@ -157,6 +173,7 @@ describe('computeUpdatedBaseline', () => {
       filterSummary({ filteredLines: 1480 }),
       previous,
       0.8,
+      fixtureMeta,
       fixedDate
     );
 
@@ -174,6 +191,7 @@ describe('computeUpdatedBaseline', () => {
       filterSummary({ filteredLines: 1520 }),
       previous,
       0.8,
+      fixtureMeta,
       fixedDate
     );
     expect(result.delta).toBe(20);
@@ -185,6 +203,7 @@ describe('computeUpdatedBaseline', () => {
       filterSummary({ filteredLines: 1400 }),
       previous,
       0.8,
+      fixtureMeta,
       fixedDate
     );
     expect(result.delta).toBe(-100);
@@ -192,25 +211,45 @@ describe('computeUpdatedBaseline', () => {
 
   it('defaults graceMargin to 10 when previous baseline has no graceMargin', () => {
     const previous = { filteredLines: 1500 };
-    const result = computeUpdatedBaseline(filterSummary(), previous, 0.8, fixedDate);
+    const result = computeUpdatedBaseline(filterSummary(), previous, 0.8, fixtureMeta, fixedDate);
     expect(result.updated.graceMargin).toBe(10);
   });
 
   it('defaults version to 1 when previous version is missing or non-numeric', () => {
-    const result1 = computeUpdatedBaseline(filterSummary(), {}, 0.8, fixedDate);
+    const result1 = computeUpdatedBaseline(filterSummary(), {}, 0.8, fixtureMeta, fixedDate);
     expect(result1.updated.version).toBe(1);
 
     const result2 = computeUpdatedBaseline(
       filterSummary(),
       { filteredLines: 100, version: 'broken' },
       0.8,
+      fixtureMeta,
       fixedDate
     );
     expect(result2.updated.version).toBe(1);
   });
 
   it('records the threshold the filter was run at', () => {
-    const result = computeUpdatedBaseline(filterSummary(), {}, 0.5, fixedDate);
+    const result = computeUpdatedBaseline(filterSummary(), {}, 0.5, fixtureMeta, fixedDate);
     expect(result.updated.threshold).toBe(0.5);
+  });
+
+  it('writes the supplied meta block onto the updated baseline', () => {
+    const result = computeUpdatedBaseline(filterSummary(), {}, 0.8, fixtureMeta, fixedDate);
+    expect(result.updated.meta).toEqual(fixtureMeta);
+  });
+});
+
+describe('getCpdConfigFingerprint', () => {
+  it('returns the threshold and filterImplVersion', () => {
+    const fp = getCpdConfigFingerprint(0.8);
+    expect(fp.threshold).toBe(0.8);
+    expect(typeof fp.filterImplVersion).toBe('number');
+  });
+
+  it('different thresholds produce different fingerprints', () => {
+    const a = getCpdConfigFingerprint(0.8);
+    const b = getCpdConfigFingerprint(0.7);
+    expect(a.threshold).not.toBe(b.threshold);
   });
 });

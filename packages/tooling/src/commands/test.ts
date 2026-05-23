@@ -7,6 +7,9 @@
 
 import type { CAC } from 'cac';
 
+const UPDATE_OPTION_DESC = 'Update baseline with current gaps';
+const STRICT_OPTION_DESC = 'Fail if ANY gap exists (not just new ones)';
+
 export function registerTestCommands(cli: CAC): void {
   // Generate PGLite schema
   cli
@@ -21,8 +24,8 @@ export function registerTestCommands(cli: CAC): void {
   // Unified audit command (primary)
   cli
     .command('test:audit', 'Run unified test coverage audit')
-    .option('--update', 'Update baseline with current gaps')
-    .option('--strict', 'Fail if ANY gap exists (not just new ones)')
+    .option('--update', UPDATE_OPTION_DESC)
+    .option('--strict', STRICT_OPTION_DESC)
     .option('--category <cat>', 'Only run: services, contracts')
     .option('--verbose', 'Show detailed output')
     .example('pnpm ops test:audit')
@@ -47,7 +50,7 @@ export function registerTestCommands(cli: CAC): void {
           return;
         }
 
-        const passed = auditUnified({
+        const passed = await auditUnified({
           update: options.update,
           strict: options.strict,
           category,
@@ -62,14 +65,14 @@ export function registerTestCommands(cli: CAC): void {
   // Legacy command - contracts (deprecated)
   cli
     .command('test:audit-contracts', 'DEPRECATED: Use test:audit --category=contracts')
-    .option('--update', 'Update baseline with current gaps')
-    .option('--strict', 'Fail if ANY gap exists (not just new ones)')
+    .option('--update', UPDATE_OPTION_DESC)
+    .option('--strict', STRICT_OPTION_DESC)
     .example('pnpm ops test:audit --category=contracts')
     .action(async (options: { update?: boolean; strict?: boolean }) => {
       console.warn('⚠️  DEPRECATED: Use "pnpm ops test:audit --category=contracts"\n');
 
       const { auditUnified } = await import('../test/audit-unified.js');
-      const passed = auditUnified({
+      const passed = await auditUnified({
         update: options.update,
         strict: options.strict,
         category: 'contracts',
@@ -82,14 +85,14 @@ export function registerTestCommands(cli: CAC): void {
   // Legacy command - services (deprecated)
   cli
     .command('test:audit-services', 'DEPRECATED: Use test:audit --category=services')
-    .option('--update', 'Update baseline with current gaps')
-    .option('--strict', 'Fail if ANY gap exists (not just new ones)')
+    .option('--update', UPDATE_OPTION_DESC)
+    .option('--strict', STRICT_OPTION_DESC)
     .example('pnpm ops test:audit --category=services')
     .action(async (options: { update?: boolean; strict?: boolean }) => {
       console.warn('⚠️  DEPRECATED: Use "pnpm ops test:audit --category=services"\n');
 
       const { auditUnified } = await import('../test/audit-unified.js');
-      const passed = auditUnified({
+      const passed = await auditUnified({
         update: options.update,
         strict: options.strict,
         category: 'services',
