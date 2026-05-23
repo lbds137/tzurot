@@ -13,6 +13,12 @@ import { TEST_AUDIT_IMPL_VERSION } from './audit-version.js';
  * works without colliding with the `vi.mock('node:fs', ...)` hoist
  * below. A version bump in `audit-version.ts` propagates here
  * automatically — no manual sync required.
+ *
+ * **Maintenance dependency**: if `hashConfigSlice`'s algorithm changes
+ * (SHA-256 → SHA-512, JSON.stringify → a canonicalized serializer,
+ * different output truncation, etc.), this mirror must be updated too.
+ * Otherwise tests will start producing cryptic hash-mismatch errors
+ * instead of a clear "test helper out of sync" signal.
  */
 function expectedTestAuditConfigHash(): string {
   const slice = { implVersion: TEST_AUDIT_IMPL_VERSION };
