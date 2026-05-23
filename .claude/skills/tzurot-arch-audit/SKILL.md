@@ -28,7 +28,7 @@ pnpm ops guard:audit-tool-docs   # Audit-tool WHY.md bidirectional check
 
 **If all green** (no new warnings, violations, gaps, or guard failures): stop here.
 
-**If a `guard:*` or `cpd:check` / `test:audit` reports drift** (mentions `configHash`): the tool's measurement-affecting config changed since the baseline was captured. Run `pnpm ops <tool>:update-baseline` (or `--update` for test:audit) to refresh; verify the diff isn't masking a real regression before committing the refreshed baseline. See [`docs/reference/audit-enforcement.md`](../../../docs/reference/audit-enforcement.md) for the drift contract.
+**If `cpd:check` or `test:audit` reports drift** (mentions `configHash`): the tool's measurement-affecting config changed since the baseline was captured. Run `pnpm ops cpd:update-baseline` (or `pnpm ops test:audit --update`) to refresh; verify the diff isn't masking a real regression before committing the refreshed baseline. See [`docs/reference/audit-enforcement.md`](../../../docs/reference/audit-enforcement.md) for the drift contract. Guard tools (`guard:*`) don't have baselines and don't emit `configHash` errors — they hard-fail directly on findings.
 
 **If anything flags**: proceed to the relevant Deep Dive section below.
 
