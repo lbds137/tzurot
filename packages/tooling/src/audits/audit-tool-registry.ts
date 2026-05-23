@@ -105,10 +105,25 @@ export const AUDIT_TOOL_REGISTRY: readonly AuditToolEntry[] = [
   },
   // NOTE: `memory:analyze` is intentionally NOT in the registry. It's a
   // one-shot remediation tool for the retry-loop-bug cleanup, not a
-  // periodic audit. Its WHY.md at
-  // `packages/tooling/src/memory/cleanup-duplicates.WHY.md` still exists
-  // as operator documentation, but the guard:audit-tool-docs check
-  // doesn't enforce it because it doesn't meet the audit-class criteria
-  // ("runs periodically with a threshold"). If memory:analyze gains an
-  // ongoing periodic use case, re-add it here.
+  // periodic audit. Its WHY.md still exists as operator documentation
+  // but doesn't meet the audit-class criteria ("runs periodically with
+  // a threshold"). If memory:analyze gains an ongoing periodic use case,
+  // re-add it here. The WHY.md path is on the UNREGISTERED_WHY_PATHS
+  // allowlist below so the orphan-WHY sweep doesn't flag it.
+];
+
+/**
+ * WHY.md paths that intentionally do NOT correspond to a registered audit
+ * tool. The orphan-WHY sweep in `checkAuditToolDocsFromRegistry` walks
+ * `packages/tooling/src/**\/*.WHY.md` and asserts each path either
+ * matches a registry entry OR appears here.
+ *
+ * Entries document why a WHY.md exists outside the registry — typically
+ * operator-tool documentation that doesn't meet audit-class criteria but
+ * is still worth preserving as decay-zone context.
+ */
+export const UNREGISTERED_WHY_PATHS: readonly string[] = [
+  // Documents `memory:analyze`, intentionally not registered (one-shot
+  // remediation tool, not a periodic audit).
+  'packages/tooling/src/memory/cleanup-duplicates.WHY.md',
 ];

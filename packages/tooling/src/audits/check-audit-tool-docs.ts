@@ -18,10 +18,14 @@
  * `MIN_WHY_CONTENT_CHARS` below.
  */
 
-import { readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync, readdirSync, statSync, lstatSync } from 'node:fs';
+import { join, relative } from 'node:path';
 import { emitSummary } from './summary.js';
-import { AUDIT_TOOL_REGISTRY, type AuditToolEntry } from './audit-tool-registry.js';
+import {
+  AUDIT_TOOL_REGISTRY,
+  UNREGISTERED_WHY_PATHS,
+  type AuditToolEntry,
+} from './audit-tool-registry.js';
 
 export interface AuditToolDocsCheckResult {
   totalTools: number;
@@ -29,7 +33,23 @@ export interface AuditToolDocsCheckResult {
   missing: { command: string; whyPath: string }[];
   /** Tools whose WHY.md exists but is below the content threshold. */
   stubs: { command: string; whyPath: string; chars: number }[];
+  /**
+   * WHY.md files found in the tooling tree that don't correspond to any
+   * registered audit tool AND aren't on the `UNREGISTERED_WHY_PATHS`
+   * allowlist. The bidirectional check (Layer 3): every registered tool
+   * must have a WHY.md AND every WHY.md must be either registered or
+   * explicitly allowlisted.
+   */
+  orphanWhyFiles: string[];
 }
+
+/**
+ * Where the bidirectional check scans for WHY.md files. Repo-relative.
+ * Scoped to the tooling package because that's where audit tools live;
+ * a future expansion could broaden this (e.g., to `services/`) if WHY.md
+ * adoption spreads.
+ */
+const WHY_SEARCH_ROOT = 'packages/tooling/src';
 
 /**
  * Minimum-content threshold for a WHY.md to count as "real" documentation.
@@ -43,13 +63,56 @@ export interface AuditToolDocsCheckResult {
 const MIN_WHY_CONTENT_CHARS = 200;
 
 /**
+ * Recursively walk `dir` and return relative paths of every WHY.md file
+ * (basenames ending in `.WHY.md` OR a literal `WHY.md` inside a module
+ * directory). `lstatSync` so symlinks don't cycle; symlinked WHY.md
+ * files are excluded — use a regular file copy if a WHY.md needs to
+ * appear in two locations.
+ */
+function findWhyFiles(repoRoot: string, dir: string): string[] {
+  const results: string[] = [];
+  let entries: string[];
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    return [];
+  }
+  for (const entry of entries) {
+    const full = join(dir, entry);
+    let stat;
+    try {
+      stat = lstatSync(full);
+    } catch {
+      continue;
+    }
+    if (stat.isDirectory()) {
+      results.push(...findWhyFiles(repoRoot, full));
+    } else if (stat.isFile() && (entry.endsWith('.WHY.md') || entry === 'WHY.md')) {
+      results.push(relative(repoRoot, full));
+    }
+  }
+  return results;
+}
+
+/**
  * Pure check function. Reads each registered tool's WHY.md and classifies
- * it as missing / stub / ok. No stdout writes; no process.exit. Exported
- * for testing.
+ * it as missing / stub / ok. Also walks the tooling tree for WHY.md files
+ * with no registry entry (bidirectional check). No stdout writes; no
+ * process.exit. Exported for testing.
+ *
+ * @param whySearchRoot Override the WHY.md walk root. Canary tests use
+ *   a fixture path to scope the orphan sweep to deliberate fixtures.
+ *   Production callers should omit (defaults to `packages/tooling/src`).
+ * @param unregisteredWhyPaths Override the allowlist of WHY.md paths that
+ *   are intentionally not registered. Canary tests pass an empty array
+ *   so the sweep doesn't false-pass on legitimate unregistered files.
+ *   Production callers should omit (defaults to `UNREGISTERED_WHY_PATHS`).
  */
 export function checkAuditToolDocsFromRegistry(
   repoRoot: string,
-  registry: readonly AuditToolEntry[] = AUDIT_TOOL_REGISTRY
+  registry: readonly AuditToolEntry[] = AUDIT_TOOL_REGISTRY,
+  whySearchRoot: string = WHY_SEARCH_ROOT,
+  unregisteredWhyPaths: readonly string[] = UNREGISTERED_WHY_PATHS
 ): AuditToolDocsCheckResult {
   const missing: AuditToolDocsCheckResult['missing'] = [];
   const stubs: AuditToolDocsCheckResult['stubs'] = [];
@@ -83,6 +146,18 @@ export function checkAuditToolDocsFromRegistry(
     // measuring content. Frontmatter is metadata; the test of "is this a
     // real WHY.md?" is whether the body has substance.
     //
+    // The `[\s\S]*?` is intentionally lazy (rather than greedy). The
+    // failure mode of a lazy match is a *false pass* — if a YAML scalar
+    // happened to contain an embedded `---` line, the regex would treat
+    // it as the closing fence and the post-fence content would count
+    // toward the threshold (more bytes survive the strip → a stub might
+    // exceed the floor). The failure mode of a greedy match would be a
+    // *false fail* — if a WHY.md body contained `---` (e.g., a horizontal
+    // rule), the regex would strip past it and undercount the body.
+    // The current WHY.md format doesn't use YAML block scalars or body
+    // horizontal rules, so neither shape bites today; the lazy choice
+    // errs toward "let unusual files pass" rather than "fail surprisingly."
+    //
     // The trailing `[^\n]*(?:\r?\n|$)` handles three shapes:
     // - normal: closing `---` followed by `\r?\n` and a body line
     // - end-of-file: closing `---` is the last line, no trailing newline
@@ -103,7 +178,18 @@ export function checkAuditToolDocsFromRegistry(
     }
   }
 
-  return { totalTools: registry.length, missing, stubs };
+  // Bidirectional check: walk the tooling tree for WHY.md files that
+  // aren't registered AND aren't on the allowlist. Catches the failure
+  // mode where a tool gets removed from the registry but its WHY.md
+  // stays behind — knip can't detect this (paths are data, not imports).
+  const registeredPaths = new Set(registry.map(e => e.whyPath));
+  const allowlistedPaths = new Set(unregisteredWhyPaths);
+  const allWhyFiles = findWhyFiles(repoRoot, join(repoRoot, whySearchRoot));
+  const orphanWhyFiles = allWhyFiles.filter(
+    path => !registeredPaths.has(path) && !allowlistedPaths.has(path)
+  );
+
+  return { totalTools: registry.length, missing, stubs, orphanWhyFiles };
 }
 
 export interface CheckAuditToolDocsOptions {
@@ -120,6 +206,20 @@ export interface CheckAuditToolDocsOptions {
    * real registry. Production callers should omit.
    */
   registry?: readonly AuditToolEntry[];
+  /**
+   * @internal Canary-test seam.
+   *
+   * Override the WHY.md search root for the bidirectional orphan sweep.
+   * Production callers should omit (defaults to `packages/tooling/src`).
+   */
+  whySearchRoot?: string;
+  /**
+   * @internal Canary-test seam.
+   *
+   * Override the allowlist of intentionally-unregistered WHY.md paths.
+   * Production callers should omit (defaults to `UNREGISTERED_WHY_PATHS`).
+   */
+  unregisteredWhyPaths?: readonly string[];
 }
 
 /**
@@ -131,8 +231,13 @@ export interface CheckAuditToolDocsOptions {
  */
 export async function checkAuditToolDocs(options: CheckAuditToolDocsOptions = {}): Promise<void> {
   const repoRoot = options.repoRoot ?? process.cwd();
-  const { totalTools, missing, stubs } = checkAuditToolDocsFromRegistry(repoRoot, options.registry);
-  const totalFindings = missing.length + stubs.length;
+  const { totalTools, missing, stubs, orphanWhyFiles } = checkAuditToolDocsFromRegistry(
+    repoRoot,
+    options.registry,
+    options.whySearchRoot,
+    options.unregisteredWhyPaths
+  );
+  const totalFindings = missing.length + stubs.length + orphanWhyFiles.length;
 
   if (options.summary) {
     emitSummary({
@@ -150,7 +255,8 @@ export async function checkAuditToolDocs(options: CheckAuditToolDocsOptions = {}
   console.log(`\n🔍 Checking ${totalTools} audit tools for WHY.md docs...\n`);
 
   if (totalFindings === 0) {
-    console.log(`✅ All ${totalTools} audit tools have non-stub WHY.md files.\n`);
+    console.log(`✅ All ${totalTools} audit tools have non-stub WHY.md files.`);
+    console.log(`   No orphan WHY.md files in the tooling tree.\n`);
     return;
   }
 
@@ -172,16 +278,28 @@ export async function checkAuditToolDocs(options: CheckAuditToolDocsOptions = {}
     console.log();
   }
 
+  if (orphanWhyFiles.length > 0) {
+    console.log(`❌ Found ${orphanWhyFiles.length} orphan WHY.md file(s) (no registry entry):\n`);
+    for (const path of orphanWhyFiles) {
+      console.log(`   ${path}`);
+    }
+    console.log();
+  }
+
   console.log(`Every audit tool listed in \`AUDIT_TOOL_REGISTRY\` must have a non-stub
-WHY.md at its registered path. The WHY.md is the decay-zone prompt for
-when a Layer-5 cron reminder fires and the operator has to decide whether
-to keep or delete the tool. An empty or stub file defeats that purpose.
+WHY.md at its registered path. AND every WHY.md file in the tooling tree
+must either correspond to a registered audit tool OR appear in the
+\`UNREGISTERED_WHY_PATHS\` allowlist (for operator-tool docs that
+intentionally aren't audit-class).
 
 Fix one of:
   - Write the WHY.md following the template in
     \`docs/proposals/backlog/periodic-audit-enforcement.md\` Layer 2
   - Remove the tool from \`AUDIT_TOOL_REGISTRY\` if it's been deleted
-  - Move the file if you changed its location (and update the registry entry)
+  - Delete the orphan WHY.md if its audit tool no longer exists
+  - Add the WHY.md to \`UNREGISTERED_WHY_PATHS\` if it's intentionally
+    not an audit tool (e.g., operator-tool documentation)
+  - Move the file if you changed its location (and update the registry)
 `);
   process.exit(1);
 }
