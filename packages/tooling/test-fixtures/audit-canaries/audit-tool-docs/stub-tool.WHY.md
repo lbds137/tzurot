@@ -1,3 +1,4 @@
-<!-- DO NOT MODIFY. Canary fixture: must stay under 200 chars to trigger the stub-detection path. See valid-tool.WHY.md for the paired full-fixture explanation. -->
+<!-- DO NOT MODIFY. Canary for guard:audit-tool-docs stub detection.
+     Body must stay under 200 chars; using `T` for max margin. -->
 
-# TODO: write this later
+T

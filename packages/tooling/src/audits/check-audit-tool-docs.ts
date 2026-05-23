@@ -59,11 +59,15 @@ export function checkAuditToolDocsFromRegistry(
 
     let content: string;
     try {
-      // Confirm it's a regular file before reading — a directory at the
-      // expected path would be a separate misconfiguration the operator
-      // should see, not a "missing" or "stub" miscategorization. The
-      // try/catch covers the ENOENT case directly (no separate
-      // existsSync check needed — that would add a TOCTOU window).
+      // Confirm it's a regular file before reading. A non-file entry
+      // (directory accidentally created at the WHY.md path, broken
+      // symlink, etc.) gets classified as `missing` — same bucket as
+      // a truly-absent file because the operator's fix is the same
+      // shape ("get a regular WHY.md file to land at this path,"
+      // possibly removing whatever's blocking the path first). The
+      // try/catch covers ENOENT directly; no separate existsSync
+      // check needed (that would add a TOCTOU window without
+      // changing behavior).
       const stat = statSync(fullPath);
       if (!stat.isFile()) {
         missing.push({ command: entry.command, whyPath: entry.whyPath });
