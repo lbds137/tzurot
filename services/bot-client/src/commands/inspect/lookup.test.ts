@@ -28,6 +28,9 @@ vi.mock('@tzurot/common-types', async () => {
 // Mock fetch
 global.fetch = vi.fn();
 
+/** Discord user ID forwarded as `X-User-Id` to the gateway in every test call. */
+const CALLER_USER_ID = 'caller-user-id';
+
 function createMockDiagnosticPayload(): DiagnosticPayload {
   return {
     meta: {
@@ -149,11 +152,16 @@ describe('lookupByMessageId', () => {
       )
     );
 
-    const result = await lookupByMessageId('1234567890123456789');
+    const result = await lookupByMessageId('1234567890123456789', CALLER_USER_ID);
 
     expect(fetch).toHaveBeenCalledWith(
       expect.stringContaining('/admin/diagnostic/by-message/1234567890123456789'),
-      expect.any(Object)
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'X-User-Id': CALLER_USER_ID,
+          'X-Service-Auth': 'test-service-secret',
+        }),
+      })
     );
     expect(result.success).toBe(true);
   });
@@ -171,7 +179,7 @@ describe('lookupByMessageId', () => {
         )
       );
 
-    const result = await lookupByMessageId('1234567890123456789');
+    const result = await lookupByMessageId('1234567890123456789', CALLER_USER_ID);
 
     expect(fetch).toHaveBeenCalledTimes(2);
     expect(fetch).toHaveBeenNthCalledWith(
@@ -192,7 +200,7 @@ describe('lookupByMessageId', () => {
       .mockResolvedValueOnce(new Response('Not found', { status: 404 }))
       .mockResolvedValueOnce(new Response('Not found', { status: 404 }));
 
-    const result = await lookupByMessageId('1234567890123456789');
+    const result = await lookupByMessageId('1234567890123456789', CALLER_USER_ID);
 
     expect(result.success).toBe(false);
     if (!result.success) {
@@ -201,12 +209,29 @@ describe('lookupByMessageId', () => {
     }
   });
 
+  it('should report "by response" failure when fallback /by-response returns non-OK non-404', async () => {
+    // Regression guard for the pre-rearchitecture bug where the single `response`
+    // variable was reassigned and the catch-all error log incorrectly said
+    // "Fetch by message failed" even when the by-MESSAGE call had returned a
+    // normal 404 and the by-RESPONSE fallback was the one that failed.
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(new Response('Not found', { status: 404 }))
+      .mockResolvedValueOnce(new Response('Service Unavailable', { status: 503 }));
+
+    const result = await lookupByMessageId('1234567890123456789', CALLER_USER_ID);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errorMessage).toContain('HTTP 503');
+    }
+  });
+
   it('should return error for empty logs array', async () => {
     vi.mocked(fetch).mockResolvedValue(
       new Response(JSON.stringify({ logs: [], count: 0 }), { status: 200 })
     );
 
-    const result = await lookupByMessageId('1234567890123456789');
+    const result = await lookupByMessageId('1234567890123456789', CALLER_USER_ID);
     expect(result.success).toBe(false);
   });
 
@@ -225,7 +250,7 @@ describe('lookupByMessageId', () => {
       )
     );
 
-    const result = await lookupByMessageId('1234567890123456789');
+    const result = await lookupByMessageId('1234567890123456789', CALLER_USER_ID);
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.log.requestId).toBe('newer-req');
@@ -235,46 +260,35 @@ describe('lookupByMessageId', () => {
   it('should return error for HTTP 500', async () => {
     vi.mocked(fetch).mockResolvedValue(new Response('Internal Server Error', { status: 500 }));
 
-    const result = await lookupByMessageId('1234567890123456789');
+    const result = await lookupByMessageId('1234567890123456789', CALLER_USER_ID);
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.errorMessage).toContain('HTTP 500');
     }
   });
 
-  it('should reject logs not belonging to filterUserId', async () => {
+  it('should forward callerUserId as X-User-Id header', async () => {
     const mockPayload = createMockDiagnosticPayload();
     vi.mocked(fetch).mockResolvedValue(
       new Response(
         JSON.stringify({
-          logs: [{ id: 'log-uuid', requestId: 'req-1', userId: 'other-user', data: mockPayload }],
+          logs: [{ id: 'log-uuid', requestId: 'req-1', userId: 'any', data: mockPayload }],
           count: 1,
         }),
         { status: 200 }
       )
     );
 
-    const result = await lookupByMessageId('1234567890123456789', 'my-user-id');
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.errorMessage).toContain('Diagnostic log not found');
-    }
-  });
+    await lookupByMessageId('1234567890123456789', 'my-user-id');
 
-  it('should allow logs matching filterUserId', async () => {
-    const mockPayload = createMockDiagnosticPayload();
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          logs: [{ id: 'log-uuid', requestId: 'req-1', userId: 'my-user-id', data: mockPayload }],
-          count: 1,
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/admin/diagnostic/by-message/'),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'X-User-Id': 'my-user-id',
         }),
-        { status: 200 }
-      )
+      })
     );
-
-    const result = await lookupByMessageId('1234567890123456789', 'my-user-id');
-    expect(result.success).toBe(true);
   });
 });
 
@@ -293,7 +307,7 @@ describe('lookupByRequestId', () => {
       )
     );
 
-    const result = await lookupByRequestId('test-req');
+    const result = await lookupByRequestId('test-req', CALLER_USER_ID);
 
     expect(fetch).toHaveBeenCalledWith(
       expect.stringContaining('/admin/diagnostic/test-req'),
@@ -309,7 +323,7 @@ describe('lookupByRequestId', () => {
   it('should return 404 error message', async () => {
     vi.mocked(fetch).mockResolvedValue(new Response('Not found', { status: 404 }));
 
-    const result = await lookupByRequestId('expired-req');
+    const result = await lookupByRequestId('expired-req', CALLER_USER_ID);
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.errorMessage).toContain('Diagnostic log not found');
@@ -320,7 +334,7 @@ describe('lookupByRequestId', () => {
   it('should URL-encode the request ID', async () => {
     vi.mocked(fetch).mockResolvedValue(new Response('Not found', { status: 404 }));
 
-    await lookupByRequestId('req/with/slashes');
+    await lookupByRequestId('req/with/slashes', CALLER_USER_ID);
     expect(fetch).toHaveBeenCalledWith(
       expect.stringContaining('/admin/diagnostic/req%2Fwith%2Fslashes'),
       expect.any(Object)
@@ -330,7 +344,7 @@ describe('lookupByRequestId', () => {
   it('should include service auth header', async () => {
     vi.mocked(fetch).mockResolvedValue(new Response('Not found', { status: 404 }));
 
-    await lookupByRequestId('test-req');
+    await lookupByRequestId('test-req', CALLER_USER_ID);
     expect(fetch).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
@@ -344,44 +358,34 @@ describe('lookupByRequestId', () => {
   it('should include HTTP status in error message', async () => {
     vi.mocked(fetch).mockResolvedValue(new Response('Service Unavailable', { status: 503 }));
 
-    const result = await lookupByRequestId('test-req');
+    const result = await lookupByRequestId('test-req', CALLER_USER_ID);
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.errorMessage).toContain('HTTP 503');
     }
   });
 
-  it('should reject logs not belonging to filterUserId', async () => {
+  it('should forward callerUserId as X-User-Id header', async () => {
     const mockPayload = createMockDiagnosticPayload();
     vi.mocked(fetch).mockResolvedValue(
       new Response(
         JSON.stringify({
-          log: { id: 'log-uuid', requestId: 'test-req', userId: 'other-user', data: mockPayload },
+          log: { id: 'log-uuid', requestId: 'test-req', userId: 'any', data: mockPayload },
         }),
         { status: 200 }
       )
     );
 
-    const result = await lookupByRequestId('test-req', 'my-user-id');
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.errorMessage).toContain('Diagnostic log not found');
-    }
-  });
+    await lookupByRequestId('test-req', 'my-user-id');
 
-  it('should allow logs when no filterUserId', async () => {
-    const mockPayload = createMockDiagnosticPayload();
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          log: { id: 'log-uuid', requestId: 'test-req', userId: 'any-user', data: mockPayload },
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/admin/diagnostic/test-req'),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'X-User-Id': 'my-user-id',
         }),
-        { status: 200 }
-      )
+      })
     );
-
-    const result = await lookupByRequestId('test-req');
-    expect(result.success).toBe(true);
   });
 });
 
@@ -392,7 +396,7 @@ describe('resolveDiagnosticLog', () => {
   it('should route UUIDs to lookupByRequestId', async () => {
     vi.mocked(fetch).mockResolvedValue(new Response('Not found', { status: 404 }));
 
-    await resolveDiagnosticLog('a1b2c3d4-e5f6-7890-abcd-ef1234567890');
+    await resolveDiagnosticLog('a1b2c3d4-e5f6-7890-abcd-ef1234567890', CALLER_USER_ID);
 
     expect(fetch).toHaveBeenCalledWith(
       expect.stringContaining('/admin/diagnostic/a1b2c3d4-e5f6-7890-abcd-ef1234567890'),
@@ -405,7 +409,7 @@ describe('resolveDiagnosticLog', () => {
       new Response(JSON.stringify({ logs: [], count: 0 }), { status: 200 })
     );
 
-    await resolveDiagnosticLog('1234567890123456789');
+    await resolveDiagnosticLog('1234567890123456789', CALLER_USER_ID);
 
     expect(fetch).toHaveBeenCalledWith(
       expect.stringContaining('/by-message/1234567890123456789'),
@@ -418,7 +422,10 @@ describe('resolveDiagnosticLog', () => {
       new Response(JSON.stringify({ logs: [], count: 0 }), { status: 200 })
     );
 
-    await resolveDiagnosticLog('https://discord.com/channels/111/222/9876543210987654321');
+    await resolveDiagnosticLog(
+      'https://discord.com/channels/111/222/9876543210987654321',
+      CALLER_USER_ID
+    );
 
     expect(fetch).toHaveBeenCalledWith(
       expect.stringContaining('/by-message/9876543210987654321'),
@@ -426,11 +433,18 @@ describe('resolveDiagnosticLog', () => {
     );
   });
 
-  it('should pass filterUserId through', async () => {
+  it('should forward callerUserId through to the underlying lookup', async () => {
     vi.mocked(fetch).mockResolvedValue(new Response('Not found', { status: 404 }));
 
-    // filterUserId is passed to the underlying lookup function
-    const result = await resolveDiagnosticLog('a1b2c3d4-e5f6-7890-abcd-ef1234567890', 'user-123');
-    expect(result.success).toBe(false);
+    await resolveDiagnosticLog('a1b2c3d4-e5f6-7890-abcd-ef1234567890', 'user-123');
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/admin/diagnostic/a1b2c3d4'),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'X-User-Id': 'user-123',
+        }),
+      })
+    );
   });
 });

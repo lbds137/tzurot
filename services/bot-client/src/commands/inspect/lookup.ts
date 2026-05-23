@@ -6,7 +6,11 @@
  * - UUID (request ID)
  * - Snowflake (message ID)
  *
- * Non-admin users are filtered by userId — they can only see their own logs.
+ * The caller's Discord ID is forwarded to the gateway as `X-User-Id`. The
+ * gateway applies per-user filtering server-side (bot owner sees all logs;
+ * other users see only their own), so this client doesn't need to filter
+ * results after the fact — the API never returns another user's log to a
+ * non-owner caller.
  */
 
 import { createLogger } from '@tzurot/common-types';
@@ -16,13 +20,10 @@ import type { LookupResult, DiagnosticLogResponse, DiagnosticLogsResponse } from
 const logger = createLogger('inspect');
 
 /** Shared hint appended to 404 messages about log retention */
-const RETENTION_HINT = '\u2022 The log may have expired (24h retention)';
+const RETENTION_HINT = '• The log may have expired (24h retention)';
 
-/** Common "not found" message used for 404s and access control rejections */
+/** Common "not found" message used for 404s */
 const NOT_FOUND_MESSAGE = 'Diagnostic log not found.\n';
-
-/** Log message for access control denials (audit trail) */
-const ACCESS_DENIED_LOG = '[Inspect] Access denied: log belongs to another user';
 
 /** Discord message link regex - captures channel and message IDs */
 const MESSAGE_LINK_REGEX = /discord\.com\/channels\/(?:@me|\d+)\/(\d+)\/(\d+)/;
@@ -60,49 +61,69 @@ export function parseIdentifier(identifier: string): {
 /**
  * Lookup diagnostic log by Discord message ID
  * Tries trigger message first, then response message as fallback.
- * When filterUserId is set, rejects logs not belonging to that user.
  */
 export async function lookupByMessageId(
   messageId: string,
-  filterUserId?: string
+  callerUserId: string
 ): Promise<LookupResult> {
-  let response = await adminFetch(`/admin/diagnostic/by-message/${encodeURIComponent(messageId)}`);
+  const messageResponse = await adminFetch(
+    `/admin/diagnostic/by-message/${encodeURIComponent(messageId)}`,
+    { userId: callerUserId }
+  );
 
-  if (response.status === 404) {
+  // 404 on /by-message is normal — could be a response message ID instead.
+  // Fall back to the /by-response lookup before treating this as an error.
+  if (messageResponse.status === 404) {
     logger.debug({ messageId }, 'Not found as trigger message, trying response message lookup');
-    response = await adminFetch(`/admin/diagnostic/by-response/${encodeURIComponent(messageId)}`);
+    const fallbackResponse = await adminFetch(
+      `/admin/diagnostic/by-response/${encodeURIComponent(messageId)}`,
+      { userId: callerUserId }
+    );
 
-    if (response.ok) {
-      const result = (await response.json()) as DiagnosticLogResponse;
-      if (filterUserId !== undefined && result.log.userId !== filterUserId) {
-        logger.info({ messageId, filterUserId }, ACCESS_DENIED_LOG);
-        return { success: false, errorMessage: NOT_FOUND_MESSAGE + RETENTION_HINT };
-      }
+    if (fallbackResponse.ok) {
+      const result = (await fallbackResponse.json()) as DiagnosticLogResponse;
       return { success: true, log: result.log };
     }
-  }
 
-  if (!response.ok) {
-    if (response.status === 404) {
+    if (fallbackResponse.status === 404) {
+      logger.debug(
+        { messageId },
+        'Diagnostic log not found via by-message or by-response — likely expired or unknown message ID'
+      );
       return {
         success: false,
         errorMessage:
           'No diagnostic logs found for this message.\n' +
           RETENTION_HINT +
-          '\n\u2022 The message may not have triggered or been an AI response\n' +
-          '\u2022 The message ID may be incorrect',
+          '\n• The message may not have triggered or been an AI response\n' +
+          '• The message ID may be incorrect',
       };
     }
 
-    const errorText = await response.text();
-    logger.error({ status: response.status, error: errorText }, 'Fetch by message failed');
+    const fallbackErrorText = await fallbackResponse.text();
+    logger.error(
+      { messageId, status: fallbackResponse.status, error: fallbackErrorText },
+      'Fetch by response failed'
+    );
     return {
       success: false,
-      errorMessage: `Failed to fetch diagnostic logs (HTTP ${response.status})`,
+      errorMessage: `Failed to fetch diagnostic logs (HTTP ${fallbackResponse.status})`,
     };
   }
 
-  const { logs } = (await response.json()) as DiagnosticLogsResponse;
+  if (!messageResponse.ok) {
+    const errorText = await messageResponse.text();
+    logger.error(
+      { messageId, status: messageResponse.status, error: errorText },
+      'Fetch by message failed'
+    );
+    return {
+      success: false,
+      errorMessage: `Failed to fetch diagnostic logs (HTTP ${messageResponse.status})`,
+    };
+  }
+
+  const { logs } = (await messageResponse.json()) as DiagnosticLogsResponse;
 
   if (logs.length === 0) {
     return {
@@ -110,7 +131,7 @@ export async function lookupByMessageId(
       errorMessage:
         'No diagnostic logs found for this message.\n' +
         RETENTION_HINT +
-        '\n\u2022 The message may not have triggered an AI response',
+        '\n• The message may not have triggered an AI response',
     };
   }
 
@@ -121,24 +142,19 @@ export async function lookupByMessageId(
     );
   }
 
-  const log = logs[0];
-  if (filterUserId !== undefined && log.userId !== filterUserId) {
-    logger.info({ messageId, filterUserId }, ACCESS_DENIED_LOG);
-    return { success: false, errorMessage: NOT_FOUND_MESSAGE + RETENTION_HINT };
-  }
-
-  return { success: true, log };
+  return { success: true, log: logs[0] };
 }
 
 /**
  * Lookup diagnostic log by request UUID.
- * When filterUserId is set, rejects logs not belonging to that user.
  */
 export async function lookupByRequestId(
   requestId: string,
-  filterUserId?: string
+  callerUserId: string
 ): Promise<LookupResult> {
-  const response = await adminFetch(`/admin/diagnostic/${encodeURIComponent(requestId)}`);
+  const response = await adminFetch(`/admin/diagnostic/${encodeURIComponent(requestId)}`, {
+    userId: callerUserId,
+  });
 
   if (!response.ok) {
     if (response.status === 404) {
@@ -147,8 +163,8 @@ export async function lookupByRequestId(
         errorMessage:
           NOT_FOUND_MESSAGE +
           RETENTION_HINT +
-          '\n\u2022 The request ID may be incorrect\n' +
-          '\u2022 The request may not have completed successfully',
+          '\n• The request ID may be incorrect\n' +
+          '• The request may not have completed successfully',
       };
     }
 
@@ -161,25 +177,18 @@ export async function lookupByRequestId(
   }
 
   const result = (await response.json()) as DiagnosticLogResponse;
-
-  if (filterUserId !== undefined && result.log.userId !== filterUserId) {
-    logger.info({ requestId, filterUserId }, ACCESS_DENIED_LOG);
-    return { success: false, errorMessage: NOT_FOUND_MESSAGE + RETENTION_HINT };
-  }
-
   return { success: true, log: result.log };
 }
 
 /**
  * Resolve an identifier to a diagnostic log.
- * When filterUserId is set, rejects logs not belonging to that user.
  */
 export async function resolveDiagnosticLog(
   identifier: string,
-  filterUserId?: string
+  callerUserId: string
 ): Promise<LookupResult> {
   const parsed = parseIdentifier(identifier);
   return parsed.type === 'messageId'
-    ? lookupByMessageId(parsed.value, filterUserId)
-    : lookupByRequestId(parsed.value, filterUserId);
+    ? lookupByMessageId(parsed.value, callerUserId)
+    : lookupByRequestId(parsed.value, callerUserId);
 }

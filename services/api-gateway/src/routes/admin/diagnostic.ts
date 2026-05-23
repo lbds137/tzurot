@@ -17,13 +17,15 @@ import { Router, type Response, type Request, type RequestHandler } from 'expres
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
+  isBotOwner,
   isValidUUID,
   Prisma,
   type PrismaClient,
   type DiagnosticPayload,
   DiagnosticUpdateSchema,
 } from '@tzurot/common-types';
-import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
+import { requireServiceAuth, requireUserAuth } from '../../services/AuthMiddleware.js';
+import type { AuthenticatedRequest } from '../../types.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
@@ -34,6 +36,30 @@ const logger = createLogger('admin-diagnostic');
 
 /** Maximum number of recent logs to return */
 const MAX_RECENT_LOGS = 100;
+
+/**
+ * Error message for the fail-closed guard when requireUserAuth somehow lets
+ * a request through without populating req.userId. In normal operation this
+ * is unreachable — the guard exists to prevent a future middleware bug from
+ * silently degrading the per-user WHERE-clause filter into "no filter."
+ */
+const MISSING_CALLER_IDENTITY = 'Missing caller identity';
+
+/**
+ * Resolve the caller's Discord user ID from `req.userId` (set by
+ * `requireUserAuth`). Sends a 500 and returns null if missing — handlers
+ * should bail immediately on null. This is the fail-closed guard that
+ * keeps the per-user WHERE filter from silently degrading into "no filter"
+ * when middleware mis-wiring drops the userId.
+ */
+function resolveCallerUserId(req: Request, res: Response): string | null {
+  const id = (req as AuthenticatedRequest).userId;
+  if (id === undefined || id === '') {
+    sendError(res, ErrorResponses.internalError(MISSING_CALLER_IDENTITY));
+    return null;
+  }
+  return id;
+}
 
 /** Response format for a single diagnostic log */
 interface DiagnosticLogResponse {
@@ -138,9 +164,20 @@ function formatRecentLogResponse(row: RecentLogRow): RecentLogResponse {
  */
 function handleGetRecent(prisma: PrismaClient): RequestHandler {
   return asyncHandler(async (req: Request, res: Response) => {
+    const callerUserId = resolveCallerUserId(req, res);
+    if (callerUserId === null) {
+      return;
+    }
+    const ownerAccess = isBotOwner(callerUserId);
+
     const personalityId = getParam(req.query.personalityId as string | undefined);
-    const userId = getParam(req.query.userId as string | undefined);
+    const queryUserId = getParam(req.query.userId as string | undefined);
     const channelId = getParam(req.query.channelId as string | undefined);
+
+    // Non-owners can only see their own logs. The `?userId=` query param is
+    // ignored for non-owners — the filter is forced to the caller's ID. The
+    // owner may pass `?userId=` to inspect another user's logs.
+    const effectiveUserId = ownerAccess ? queryUserId : callerUserId;
 
     // Validate UUID format before casting — returns 400 instead of a PostgreSQL cast error (500)
     if (personalityId !== undefined && personalityId !== '' && !isValidUUID(personalityId)) {
@@ -155,8 +192,8 @@ function handleGetRecent(prisma: PrismaClient): RequestHandler {
     if (personalityId !== undefined && personalityId !== '') {
       conditions.push(Prisma.sql`personality_id = ${personalityId}::uuid`);
     }
-    if (userId !== undefined && userId !== '') {
-      conditions.push(Prisma.sql`user_id = ${userId}`);
+    if (effectiveUserId !== undefined && effectiveUserId !== '') {
+      conditions.push(Prisma.sql`user_id = ${effectiveUserId}`);
     }
     if (channelId !== undefined && channelId !== '') {
       conditions.push(Prisma.sql`channel_id = ${channelId}`);
@@ -181,7 +218,11 @@ function handleGetRecent(prisma: PrismaClient): RequestHandler {
     const logs = rows.map(formatRecentLogResponse);
 
     logger.info(
-      { count: logs.length, filters: { personalityId, userId, channelId } },
+      {
+        count: logs.length,
+        filters: { personalityId, userId: effectiveUserId, channelId },
+        ownerAccess,
+      },
       'Listed recent diagnostic logs'
     );
 
@@ -195,6 +236,12 @@ function handleGetRecent(prisma: PrismaClient): RequestHandler {
  */
 function handleGetByMessage(prisma: PrismaClient): RequestHandler {
   return asyncHandler(async (req: Request, res: Response) => {
+    const callerUserId = resolveCallerUserId(req, res);
+    if (callerUserId === null) {
+      return;
+    }
+    const ownerAccess = isBotOwner(callerUserId);
+
     const messageId = getParam(req.params.messageId);
 
     if (messageId === undefined || messageId === '') {
@@ -202,8 +249,14 @@ function handleGetByMessage(prisma: PrismaClient): RequestHandler {
       return;
     }
 
+    // Non-owners only see their own logs; owners see any log. The filter is
+    // applied at the database layer rather than client-side so we don't ship
+    // other users' diagnostic payloads across the service boundary.
     const logs = await prisma.llmDiagnosticLog.findMany({
-      where: { triggerMessageId: messageId },
+      where: {
+        triggerMessageId: messageId,
+        ...(ownerAccess ? {} : { userId: callerUserId }),
+      },
       orderBy: { createdAt: 'desc' },
       take: MAX_RECENT_LOGS,
     });
@@ -216,7 +269,10 @@ function handleGetByMessage(prisma: PrismaClient): RequestHandler {
       return;
     }
 
-    logger.info({ messageId, count: logs.length }, 'Retrieved diagnostic logs by message ID');
+    logger.info(
+      { messageId, count: logs.length, ownerAccess },
+      'Retrieved diagnostic logs by message ID'
+    );
 
     sendCustomSuccess(
       res,
@@ -232,6 +288,12 @@ function handleGetByMessage(prisma: PrismaClient): RequestHandler {
  */
 function handleGetByRequestId(prisma: PrismaClient): RequestHandler {
   return asyncHandler(async (req: Request, res: Response) => {
+    const callerUserId = resolveCallerUserId(req, res);
+    if (callerUserId === null) {
+      return;
+    }
+    const ownerAccess = isBotOwner(callerUserId);
+
     const requestId = getParam(req.params.requestId);
 
     if (requestId === undefined || requestId === '') {
@@ -239,8 +301,19 @@ function handleGetByRequestId(prisma: PrismaClient): RequestHandler {
       return;
     }
 
+    // Push the userId filter into the WHERE clause for non-owners so Prisma
+    // doesn't fetch the (potentially large) diagnostic `data` JSON for rows
+    // the caller can't see anyway. 404-not-403 existence-hiding is preserved
+    // because findUnique returns null for both "doesn't exist" and "exists
+    // but not yours" once the userId is part of the unique key.
+    //
+    // `userId` is NOT a unique field on its own — Prisma's extended-WHERE
+    // behavior (GA since Prisma 5) treats non-unique fields in findUnique's
+    // where clause as AND filters layered on top of the unique-key lookup.
+    // Type-safe and intentional, despite looking like the older "findUnique
+    // accepts unique fields only" pattern.
     const log = await prisma.llmDiagnosticLog.findUnique({
-      where: { requestId },
+      where: ownerAccess ? { requestId } : { requestId, userId: callerUserId },
     });
 
     if (!log) {
@@ -248,7 +321,10 @@ function handleGetByRequestId(prisma: PrismaClient): RequestHandler {
       return;
     }
 
-    logger.info({ requestId, personalityId: log.personalityId }, 'Retrieved diagnostic log');
+    logger.info(
+      { requestId, personalityId: log.personalityId, ownerAccess },
+      'Retrieved diagnostic log'
+    );
 
     sendCustomSuccess(res, { log: formatLogResponse(log) }, StatusCodes.OK);
   });
@@ -260,6 +336,12 @@ function handleGetByRequestId(prisma: PrismaClient): RequestHandler {
  */
 function handleGetByResponse(prisma: PrismaClient): RequestHandler {
   return asyncHandler(async (req: Request, res: Response) => {
+    const callerUserId = resolveCallerUserId(req, res);
+    if (callerUserId === null) {
+      return;
+    }
+    const ownerAccess = isBotOwner(callerUserId);
+
     const messageId = getParam(req.params.messageId);
 
     if (messageId === undefined || messageId === '') {
@@ -273,6 +355,7 @@ function handleGetByResponse(prisma: PrismaClient): RequestHandler {
     const log = await prisma.llmDiagnosticLog.findFirst({
       where: {
         responseMessageIds: { has: messageId },
+        ...(ownerAccess ? {} : { userId: callerUserId }),
       },
     });
 
@@ -287,7 +370,7 @@ function handleGetByResponse(prisma: PrismaClient): RequestHandler {
     }
 
     logger.info(
-      { messageId, requestId: log.requestId },
+      { messageId, requestId: log.requestId, ownerAccess },
       'Retrieved diagnostic log by response message ID'
     );
 
@@ -346,12 +429,38 @@ function handleUpdateResponseIds(prisma: PrismaClient): RequestHandler {
 export function createDiagnosticRoutes(prisma: PrismaClient): Router {
   const router = Router();
 
-  router.get('/recent', requireOwnerAuth(), handleGetRecent(prisma));
-  router.get('/by-message/:messageId', requireOwnerAuth(), handleGetByMessage(prisma));
-  router.get('/by-response/:messageId', requireOwnerAuth(), handleGetByResponse(prisma));
+  // GET routes use requireUserAuth — any authenticated user can call /inspect.
+  // Each handler then filters by userId for non-owners (server-side filtering,
+  // not client-side, so other users' diagnostic payloads never cross the
+  // service boundary). The bot owner sees all logs unfiltered.
+  //
+  // Service-secret enforcement is provided by the global `requireServiceAuth`
+  // mounted in `index.ts` ahead of route mounting — `requireUserAuth` alone
+  // does NOT validate the shared secret. If these routes are ever extracted
+  // to a sub-app or alternate mount that bypasses the global guard, callers
+  // could query diagnostic logs with only `X-User-Id`. The queued adminFetch /
+  // route-prefix refactor addresses this structurally via explicit prefix
+  // semantics (`/api/internal`, `/api/admin`, `/api/user`).
+  router.get('/recent', requireUserAuth(), handleGetRecent(prisma));
+  router.get('/by-message/:messageId', requireUserAuth(), handleGetByMessage(prisma));
+  router.get('/by-response/:messageId', requireUserAuth(), handleGetByResponse(prisma));
   // Note: /:requestId must come after /by-* routes to avoid matching 'by-message' as a requestId
-  router.get('/:requestId', requireOwnerAuth(), handleGetByRequestId(prisma));
-  router.patch('/:requestId/response-ids', requireOwnerAuth(), handleUpdateResponseIds(prisma));
+  router.get('/:requestId', requireUserAuth(), handleGetByRequestId(prisma));
+
+  // PATCH is an internal call from bot-client to api-gateway after AI response
+  // delivery — no human user is involved. requireServiceAuth() validates
+  // X-Service-Auth (the shared service secret) rather than gating on a user.
+  //
+  // Trust assumption: any holder of INTERNAL_SERVICE_SECRET can overwrite
+  // responseMessageIds on any diagnostic log row by requestId. In practice
+  // bot-client is the only legitimate caller, and it only PATCHes requestIds
+  // it generated itself — so the realistic blast radius is "if the service
+  // secret leaks, attacker can corrupt diagnostic row response-id arrays."
+  // Cannot create phantom rows (prisma.update throws P2025 on missing).
+  // Cannot read other users' data via this route. The queued adminFetch /
+  // route-prefix refactor will make this trust contract explicit by giving
+  // service-only routes a distinct prefix and middleware path.
+  router.patch('/:requestId/response-ids', requireServiceAuth(), handleUpdateResponseIds(prisma));
 
   return router;
 }

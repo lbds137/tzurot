@@ -153,7 +153,7 @@ describe('fetchRecentLogs', () => {
       new Response(JSON.stringify({ logs, count: 1 }), { status: 200 })
     );
 
-    const result = await fetchRecentLogs();
+    const result = await fetchRecentLogs('caller-user');
 
     expect(result.logs).toHaveLength(1);
     expect(result.logs[0].personalityName).toBe('Test Personality');
@@ -162,10 +162,10 @@ describe('fetchRecentLogs', () => {
   it('should throw on non-OK responses', async () => {
     vi.mocked(fetch).mockResolvedValue(new Response('Server error', { status: 500 }));
 
-    await expect(fetchRecentLogs()).rejects.toThrow('Failed to fetch recent logs');
+    await expect(fetchRecentLogs('caller-user')).rejects.toThrow('Failed to fetch recent logs');
   });
 
-  it('should include userId query param when provided', async () => {
+  it('should forward callerUserId as X-User-Id header (not query param)', async () => {
     const logs = [createMockLog()];
     vi.mocked(fetch).mockResolvedValue(
       new Response(JSON.stringify({ logs, count: 1 }), { status: 200 })
@@ -174,19 +174,14 @@ describe('fetchRecentLogs', () => {
     await fetchRecentLogs('user-123');
 
     expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining('userId=user-123'),
-      expect.any(Object)
+      expect.stringContaining('/admin/diagnostic/recent'),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'X-User-Id': 'user-123',
+        }),
+      })
     );
-  });
-
-  it('should not include userId param when not provided', async () => {
-    const logs = [createMockLog()];
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify({ logs, count: 1 }), { status: 200 })
-    );
-
-    await fetchRecentLogs();
-
+    // The legacy `?userId=` query-string filter is gone — server reads X-User-Id.
     expect(fetch).toHaveBeenCalledWith(expect.not.stringContaining('userId='), expect.any(Object));
   });
 });
@@ -245,7 +240,7 @@ describe('handleRecentBrowse', () => {
 
     const editReply = vi.fn();
     const context = { editReply } as unknown as DeferredCommandContext;
-    await handleRecentBrowse(context);
+    await handleRecentBrowse(context, 'caller-user');
 
     expect(editReply).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -259,7 +254,7 @@ describe('handleRecentBrowse', () => {
 
     const editReply = vi.fn();
     const context = { editReply } as unknown as DeferredCommandContext;
-    await handleRecentBrowse(context);
+    await handleRecentBrowse(context, 'caller-user');
 
     expect(editReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Error fetching recent diagnostic logs'),
@@ -284,7 +279,7 @@ describe('handleBrowsePagination', () => {
       editReply: vi.fn().mockResolvedValue(undefined),
     } as unknown as import('discord.js').ButtonInteraction;
 
-    await handleBrowsePagination(interaction);
+    await handleBrowsePagination(interaction, 'caller-user');
 
     expect(interaction.deferUpdate).toHaveBeenCalled();
     expect(interaction.editReply).toHaveBeenCalledWith(
@@ -303,7 +298,7 @@ describe('handleBrowsePagination', () => {
       editReply: vi.fn(),
     } as unknown as import('discord.js').ButtonInteraction;
 
-    await handleBrowsePagination(interaction);
+    await handleBrowsePagination(interaction, 'caller-user');
 
     expect(interaction.deferUpdate).not.toHaveBeenCalled();
   });
@@ -344,7 +339,7 @@ describe('handleBrowseLogSelection', () => {
       editReply: vi.fn().mockResolvedValue(undefined),
     } as unknown as import('discord.js').StringSelectMenuInteraction;
 
-    await handleBrowseLogSelection(interaction);
+    await handleBrowseLogSelection(interaction, 'caller-user');
 
     expect(interaction.deferUpdate).toHaveBeenCalled();
     expect(interaction.editReply).toHaveBeenCalledWith(
@@ -372,7 +367,7 @@ describe('handleBrowseLogSelection', () => {
       editReply: vi.fn().mockResolvedValue(undefined),
     } as unknown as import('discord.js').StringSelectMenuInteraction;
 
-    await handleBrowseLogSelection(interaction);
+    await handleBrowseLogSelection(interaction, 'caller-user');
 
     expect(interaction.editReply).toHaveBeenCalledWith(
       expect.objectContaining({
