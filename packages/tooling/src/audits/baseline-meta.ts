@@ -108,9 +108,10 @@ export function checkMetaDrift(
  * **Key order matters.** `JSON.stringify` is order-dependent, so
  * `{ a: 1, b: 2 }` and `{ b: 2, a: 1 }` hash differently. Callers
  * should construct the slice as a stable-order object literal in
- * source (V8 preserves insertion order for non-integer keys). Don't
- * spread from a dynamically-assembled config object without
- * canonicalizing key order first.
+ * source (V8 preserves insertion order for non-integer keys). If
+ * assembling dynamically (e.g., spreading from a loaded config),
+ * sort keys explicitly before passing — `Object.fromEntries(Object.entries(x).sort())`
+ * is the simplest canonicalization.
  *
  * Each tool defines its own `getConfigFingerprint()` returning the slice;
  * this helper hashes the result. The fingerprint is what each tool
