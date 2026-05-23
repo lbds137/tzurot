@@ -129,3 +129,56 @@ if [ -n "$STAGED_MIGRATION_FILES" ]; then
     done
     echo "Migrations safe"
 fi
+
+# Auto-bump lastUpdated frontmatter on staged .claude/{rules,skills} edits
+# Pairs with `guard:claude-content-refs` staleness warning — without
+# this hook, the staleness signal is unreliable (contributors edit
+# files without remembering to bump the frontmatter).
+#
+# Note: the sed `0,/pattern/s//repl/` first-match-only syntax below is
+# GNU-specific. BSD sed (macOS) does not support the `0,` address and
+# would silently substitute from line 1 to the last match of the
+# pattern. The Steam Deck (Linux) is the dev environment for this
+# project, so GNU sed is the only target. If macOS support is ever
+# needed, replace with awk or a portable scripting approach.
+STAGED_CLAUDE_DOCS=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^\.claude/(rules/.*\.md|skills/.*/SKILL\.md)$' || true)
+
+if [ -n "$STAGED_CLAUDE_DOCS" ]; then
+    TODAY=$(date +%Y-%m-%d)
+    BUMPED_ANY=0
+    # `while read` avoids word-splitting on filenames with spaces, which
+    # the bare `for file in $STAGED_CLAUDE_DOCS` would do. The `.claude/`
+    # paths don't contain spaces in practice, but shellcheck flags the
+    # bare form (SC2086) and the safer pattern is just as clear.
+    while IFS= read -r file; do
+        # Only touch files that already have a lastUpdated frontmatter field.
+        # Skip files without one — we don't add the field automatically; that's
+        # a deliberate authoring choice (some rules genuinely don't need one).
+        if ! grep -q "^lastUpdated:" "$file"; then
+            continue
+        fi
+        # No-op if already today (avoids noisy diffs for same-day commits)
+        if grep -qE "^lastUpdated: ['\"]$TODAY['\"]" "$file"; then
+            continue
+        fi
+        # Replace the first lastUpdated value. Quote style follows whatever
+        # is already there (single or double); fall back to single quotes
+        # if neither (shouldn't happen given the grep above).
+        # Stage the file and set BUMPED_ANY only when a sed actually ran
+        # — guards against a misleading "Bumped" message when the frontmatter
+        # has an unquoted date (rare; well-formed frontmatter quotes) and
+        # neither branch matches.
+        if grep -qE "^lastUpdated: '[^']*'" "$file"; then
+            sed -i -E "0,/^lastUpdated: '[^']*'/s//lastUpdated: '$TODAY'/" "$file"
+            git add "$file"
+            BUMPED_ANY=1
+        elif grep -qE "^lastUpdated: \"[^\"]*\"" "$file"; then
+            sed -i -E "0,/^lastUpdated: \"[^\"]*\"/s//lastUpdated: \"$TODAY\"/" "$file"
+            git add "$file"
+            BUMPED_ANY=1
+        fi
+    done <<< "$STAGED_CLAUDE_DOCS"
+    if [ "$BUMPED_ANY" = "1" ]; then
+        echo "Bumped lastUpdated to $TODAY on edited .claude/ files"
+    fi
+fi
