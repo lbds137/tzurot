@@ -265,7 +265,7 @@ export async function checkProposalOrphans(
   const linkCheckedCount = totalProposals - singleSegmentProposals.length;
   const suffix =
     singleSegmentProposals.length > 0
-      ? ` (${singleSegmentProposals.length} skipped — single-segment slugs)`
+      ? ` (${singleSegmentProposals.length} skipped — single-segment basenames)`
       : '';
   console.log(`\n🔍 Checking ${linkCheckedCount} proposals for inbound links${suffix}...\n`);
 
@@ -278,7 +278,9 @@ export async function checkProposalOrphans(
   }
 
   if (singleSegmentProposals.length > 0) {
-    console.log(`❌ Found ${singleSegmentProposals.length} single-segment proposal slug(s):\n`);
+    console.log(
+      `❌ Found ${singleSegmentProposals.length} proposal(s) with single-segment basename(s):\n`
+    );
     for (const slug of singleSegmentProposals) {
       console.log(`   ${slug}`);
     }
