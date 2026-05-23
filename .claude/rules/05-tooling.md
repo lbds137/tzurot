@@ -91,7 +91,7 @@ pnpm ops xray --imports              # Include import analysis (auto for md/json
 ### Test Audits
 
 ```bash
-pnpm ops test:audit                  # Run coverage ratchet (CI; drift-detected)
+pnpm ops test:audit                  # Run coverage ratchet (CI)
 pnpm ops test:audit --update         # Update baseline + refresh meta block (run after closing coverage gaps)
 ```
 
