@@ -91,9 +91,39 @@ pnpm ops xray --imports              # Include import analysis (auto for md/json
 ### Test Audits
 
 ```bash
-pnpm ops test:audit                  # Run coverage ratchet (CI)
-pnpm ops test:audit --update         # Update baseline after closing gaps
+pnpm ops test:audit                  # Run coverage ratchet (CI; drift-detected)
+pnpm ops test:audit --update         # Update baseline + refresh meta block
 ```
+
+**Drift detection (Layer 3):** `test:audit` hard-fails when the baseline's stored `configHash` doesn't match the current `getTestAuditConfigFingerprint()`. Bump `TEST_AUDIT_IMPL_VERSION` in `packages/tooling/src/test/audit-version.ts` whenever the measurement-affecting logic changes (Prisma-detection heuristic, service-file glob, etc.) — that bump invalidates baselines and forces an explicit `--update` refresh. The `--update` path is the only one that updates the meta block; hand-editing the baseline JSON is not the sanctioned path.
+
+### CPD (Duplication Ratchet)
+
+```bash
+pnpm cpd                             # Run jscpd (writes reports/jscpd/jscpd-report.json)
+pnpm ops cpd:filtered                # Post-filter + breakdown (excludes call-dominant fragments)
+pnpm ops cpd:filtered --show-pairs 25  # Show top 25 remaining file pairs
+pnpm ops cpd:check                   # CI ratchet gate (drift-detected)
+pnpm ops cpd:update-baseline         # Refresh baseline + meta block
+pnpm ops cpd:update-baseline --dry-run  # Preview without writing
+```
+
+`cpd:check` hard-fails on either (a) `filteredLines > baseline + graceMargin` or (b) `configHash` drift. Same `--update`-refreshes-meta contract as `test:audit`. Bump `FILTER_IMPL_VERSION` in `packages/tooling/src/cpd/postFilter.ts` when the call-dominance heuristic changes.
+
+### Guards (Structural enforcement)
+
+```bash
+pnpm ops guard:boundaries            # Service-boundary imports (bot-client/Prisma, etc.)
+pnpm ops guard:duplicate-exports     # Same name exported from multiple files
+pnpm ops guard:proposal-links        # docs/proposals/backlog/*.md must have inbound link
+pnpm ops guard:audit-tool-docs       # Every registered audit tool has a non-stub WHY.md
+```
+
+All four run in the CI `lint` job. All four hard-fail on findings. `guard:proposal-links` and `guard:audit-tool-docs` also support `--summary` for the future aggregator. `guard:audit-tool-docs` self-registers and runs the bidirectional check (every registered tool has a WHY.md AND every `*.WHY.md` is either registered or on `UNREGISTERED_WHY_PATHS`).
+
+### Audit-tool infrastructure (Layers 1-3)
+
+`pnpm ops`-class commands that meet the audit criteria (measurement + threshold + periodic) are subject to three structural enforcement layers. **Before adding a new audit tool, read [`docs/reference/audit-enforcement.md`](../../docs/reference/audit-enforcement.md)** — it covers the WHY.md convention, the canary-fixture pattern, the JSONL summary line shape, and the baseline-meta drift contract. Skipping these checklist items will fail CI in non-obvious ways.
 
 ## Git Workflow
 

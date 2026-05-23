@@ -1,0 +1,136 @@
+# Audit-Enforcement Reference
+
+How tzurot's audit tools stay alive, get validated, and detect their own decay. This is the operator/contributor reference for the system. For the architectural rationale and council-debated design choices, see [`docs/proposals/backlog/periodic-audit-enforcement.md`](../proposals/backlog/periodic-audit-enforcement.md).
+
+## What "audit-class" means
+
+A `pnpm ops` command is an **audit tool** when it:
+
+1. Reports a code-quality or data-quality measurement
+2. Runs periodically (CI, pre-commit, or manual periodic invocation)
+3. Has a threshold that decides pass/fail or warn/info
+
+Diagnostic tools that are user-invoked for inspection (`inspect:queue`, `inspect:dlq`, `inspect:tts-configs`, `xray --print-config`) are **not** audit tools — they don't have a threshold or a pass/fail verdict; they're shells for ad-hoc operator queries.
+
+`memory:analyze` is a borderline case: it has a measurement (duplicate memories) but is one-shot remediation, not a periodic audit. It's intentionally **not** registered in `AUDIT_TOOL_REGISTRY` even though it has a `WHY.md`.
+
+## The registered audit tools (12)
+
+Single source of truth: [`packages/tooling/src/audits/audit-tool-registry.ts`](../../packages/tooling/src/audits/audit-tool-registry.ts).
+
+| Command                                              | Implementation                                          | What it gates                                                 |
+| ---------------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------- |
+| `lint:complexity-report`                             | `packages/tooling/src/lint/complexity-report.ts`        | ESLint max-\* rule findings at 80% of hard limits             |
+| `db:check-safety`                                    | `packages/tooling/src/db/check-migration-safety.ts`     | Migrations don't drop protected indexes                       |
+| `db:check-drift`                                     | `packages/tooling/src/db/check-migration-drift.ts`      | Migration file checksums match the `_prisma_migrations` table |
+| `guard:proposal-links`                               | `packages/tooling/src/audits/check-proposal-orphans.ts` | Every `docs/proposals/backlog/*.md` has an inbound link       |
+| `guard:boundaries`                                   | `packages/tooling/src/dev/check-boundaries.ts`          | Service-boundary import rules (bot-client/Prisma, etc.)       |
+| `guard:audit-tool-docs`                              | `packages/tooling/src/audits/check-audit-tool-docs.ts`  | Every registered audit tool has a non-stub WHY.md             |
+| `cpd:filtered` / `cpd:check` / `cpd:update-baseline` | `packages/tooling/src/commands/cpd.ts`                  | Filtered duplication ratchet with drift detection             |
+| `dev:schema-audit`                                   | `packages/tooling/src/dev/schema-audit.ts`              | Prisma `?` fields with non-null-meaningful semantics          |
+| `dev:dead-files` (`knip:dead`)                       | `packages/tooling/src/dev/find-dead-files.ts`           | Production files imported only by their own tests             |
+| `test:audit`                                         | `packages/tooling/src/test/audit-unified.ts`            | Service + contract test coverage ratchet with drift detection |
+| `voice-refs:audit`                                   | `packages/tooling/src/voice/audit-references.ts`        | Voice reference durations vs Mistral 30s cap                  |
+| `xray`                                               | `packages/tooling/src/xray/`                            | Monorepo structural report + lint-suppression audit           |
+
+Each command's WHY.md is at the path `<implementation>.WHY.md` (or `WHY.md` if the implementation is a directory). The four-section template is: **What** / **Why** / **Threshold rationale** / **Decay check**.
+
+## The three structural enforcement layers
+
+### Layer 1 — Canary tests (validate the tools work)
+
+Every audit tool that has emitted a JSONL `--summary` line has a **canary test** in `packages/tooling/src/audits/canary.test.ts`. The canary runs the tool against a deliberate-violation fixture in `packages/tooling/test-fixtures/audit-canaries/<tool>/` and asserts the tool reports `status: 'fail'` with findings > 0.
+
+Canary fixtures are intentionally broken — `known-complex.js` has cyclomatic complexity 25 (over the 20 limit), `db-check-safety/0001_drops_protected_index/migration.sql` drops `idx_memories_embedding` without recreating, etc. The fixture comments contain explicit "DO NOT FIX / DO NOT REMOVE" warnings.
+
+**Adding a new audit tool**: write its canary fixture and canary test BEFORE shipping. The canary is what catches "tool was working in March, then a dep bump broke it silently."
+
+### Layer 2 — `WHY.md` per audit tool + `guard:audit-tool-docs`
+
+Every registered audit tool has a colocated `WHY.md`. The `guard:audit-tool-docs` command hard-fails CI when:
+
+- A registered tool's WHY.md is missing
+- A registered tool's WHY.md is below the 200-character non-frontmatter body threshold (empty / stub / "TODO: write this" placeholder)
+- A `*.WHY.md` file exists in `packages/tooling/src/` with no matching registry entry AND no `UNREGISTERED_WHY_PATHS` allowlist entry (bidirectional check)
+
+The `UNREGISTERED_WHY_PATHS` allowlist in the registry file is the escape hatch for WHY.md files that document non-audit-class tools (currently just `cleanup-duplicates.WHY.md` for `memory:analyze`).
+
+`guard:audit-tool-docs` self-registers — its own WHY.md is subject to its own check. The recursion stops one level deep.
+
+### Layer 3 — Baseline meta + drift detection
+
+Tools with a baseline file carry a `meta` block in the baseline JSON:
+
+```json
+{
+  "filteredLines": 1718,
+  ...
+  "meta": {
+    "toolVersion": "cpd-check/1.0",
+    "configHash": "a7f4e5150567",
+    "nodeVersion": "v24.11.1",
+    "generatedFromSha": "5faa8f92bc4056b585a64ad8409ab0fb29df6942",
+    "generatedAt": "2026-05-23T02:58:20.257Z"
+  }
+}
+```
+
+`configHash` is the drift gate. Each tool defines a `getConfigFingerprint()` that returns the measurement-affecting config slice (thresholds, implementation version, etc.). `hashConfigSlice` produces a stable 12-char SHA-256 from the slice. When the stored hash doesn't match the current hash, the tool hard-fails with:
+
+```
+❌ CPD baseline meta drift: configHash drift: baseline=a7f4e5150567 current=xxxxxxxxxxxx
+   The baseline was captured under different CPD config. Run `pnpm ops cpd:update-baseline` to refresh.
+```
+
+The drift gate forces an intentional refresh whenever the measurement rules change. Without it, a heuristic tweak silently makes every subsequent baseline comparison meaningless.
+
+**Currently drift-detected**: `cpd:check`, `test:audit`. Other audit tools don't have baselines yet; if they gain one, they should adopt the same meta-block pattern.
+
+## Adding a new audit tool
+
+When you build a new audit-class tool (something that reports a measurement with a pass/fail threshold and runs in CI), do these in order:
+
+1. **Build the tool** with a pure function for testability and a thin CLI wrapper. Mirror the structure of `check-proposal-orphans.ts` (pure `findProposalOrphans()` + CLI `checkProposalOrphans()`).
+2. **Add a `--summary` mode** that emits exactly one JSONL line via `audits/summary.ts:emitSummary()`. This is the contract the future aggregator parses.
+3. **Write the WHY.md** at `<implementation>.WHY.md`. Four sections: What / Why / Threshold rationale / Decay check. Substantive enough to clear the 200-char content threshold — don't ship a stub.
+4. **Register in `AUDIT_TOOL_REGISTRY`** in `audit-tool-registry.ts`. Add the command name, WHY.md path, and one-line description.
+5. **Write the canary fixture + test**. Put the fixture in `packages/tooling/test-fixtures/audit-canaries/<tool>/`. The canary test in `canary.test.ts` invokes the tool with `summary: true` against the fixture and asserts `status: 'fail'`, `findings > 0`. Fixture file MUST have a "DO NOT FIX / DO NOT REMOVE" comment.
+6. **Wire into CI** in `.github/workflows/ci.yml` lint job (or wherever appropriate for the tool's cadence).
+7. **If the tool has a baseline**: define `getConfigFingerprint()` and an `IMPL_VERSION` constant; the baseline write path calls `buildBaselineMeta()` and the check path calls `checkMetaDrift()`. Mirror the CPD or test:audit pattern.
+
+The canary test running green in CI proves the tool actually detects what it claims to.
+
+## Refreshing baselines
+
+Baselines drift when:
+
+- The tool's measurement-affecting config changes (threshold, rule set, heuristic implementation)
+- The underlying codebase legitimately moves the metric (a refactor reduced duplication; a new feature added some)
+
+To refresh:
+
+```bash
+pnpm ops cpd:update-baseline           # CPD
+pnpm ops test:audit --update           # test-coverage
+```
+
+Both write a fresh `meta` block on refresh, so the new `configHash` reflects the current config. If you're refreshing because the tool's implementation version bumped (`FILTER_IMPL_VERSION` or `TEST_AUDIT_IMPL_VERSION`), the refresh is the _only_ path that restores CI green — drift detection will fail every other invocation until the meta is current.
+
+**Don't bypass the ratchet by editing the baseline by hand.** The refresh command is the sanctioned path; it writes the correct meta block, preserves the `notes` field, and runs the full measurement. Hand-edits skip these and produce subtle staleness.
+
+## Where to find what
+
+- **Adding a new audit tool**: this doc, "Adding a new audit tool" section above
+- **Architectural rationale**: [`docs/proposals/backlog/periodic-audit-enforcement.md`](../proposals/backlog/periodic-audit-enforcement.md)
+- **WHY.md template**: copy any existing one (they all use the same 4-section structure); see [`packages/tooling/src/lint/complexity-report.WHY.md`](../../packages/tooling/src/lint/complexity-report.WHY.md) for a fully-fleshed example
+- **JSONL summary shape**: [`packages/tooling/src/audits/summary.ts`](../../packages/tooling/src/audits/summary.ts) — the `AuditSummary` interface is the contract
+- **Canary test pattern**: [`packages/tooling/src/audits/canary.test.ts`](../../packages/tooling/src/audits/canary.test.ts) — read existing tests before writing a new one
+- **Registry**: [`packages/tooling/src/audits/audit-tool-registry.ts`](../../packages/tooling/src/audits/audit-tool-registry.ts)
+- **Baseline meta helpers**: [`packages/tooling/src/audits/baseline-meta.ts`](../../packages/tooling/src/audits/baseline-meta.ts)
+
+## What's NOT yet shipped (Layers 4-5 of the proposal)
+
+- **Layer 4 — Markdown baselines**: the proposal originally drafted converting baselines from JSON to markdown for diff-readability. Deferred — JSON + meta block delivers the drift-detection invariant; the markdown migration is independent and probably skippable.
+- **Layer 5 — `ops:health` cron aggregator**: a daily/weekly cron that runs every audit tool with `--summary`, parses the JSONL lines, and reports aggregate health via Discord webhook. The goal layer of the proposal. Not yet built.
+
+If you're working on either, this doc + the proposal doc are the starting context.

@@ -135,6 +135,22 @@ cli
   });
 ```
 
+## Adding a New Audit Tool (Layers 1-3)
+
+If your new command is an **audit tool** — i.e., it reports a measurement with a pass/fail threshold and runs periodically in CI — additional structural requirements apply. See [`docs/reference/audit-enforcement.md`](../../docs/reference/audit-enforcement.md) for the full procedure; the checklist:
+
+1. **Pure function + CLI wrapper** — mirror `check-proposal-orphans.ts` (pure `findProposalOrphans()` + CLI `checkProposalOrphans()`)
+2. **`--summary` mode** that emits one JSONL line via `audits/summary.ts:emitSummary()`
+3. **WHY.md** at `<implementation>.WHY.md` (4 sections: What / Why / Threshold rationale / Decay check; ≥200 chars body)
+4. **Register in `AUDIT_TOOL_REGISTRY`** in `audit-tool-registry.ts`
+5. **Canary fixture + canary test** in `audits/canary.test.ts` — deliberate-violation fixture in `test-fixtures/audit-canaries/<tool>/` that the tool MUST detect
+6. **Wire into CI** in `.github/workflows/ci.yml`
+7. **If the tool has a baseline**: define `getConfigFingerprint()` + `IMPL_VERSION` constant; mirror the CPD or test:audit drift-detection pattern
+
+Skipping any of these will fail CI in non-obvious ways. The `guard:audit-tool-docs` check catches missing WHY.md files and orphan WHY.md files (files with no registry entry).
+
+The proposal at [`docs/proposals/backlog/periodic-audit-enforcement.md`](../../docs/proposals/backlog/periodic-audit-enforcement.md) covers the architectural rationale.
+
 ## Turborepo Caching
 
 This monorepo uses [Turborepo](https://turbo.build/repo) for build orchestration and caching.

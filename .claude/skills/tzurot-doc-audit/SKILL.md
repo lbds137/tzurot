@@ -30,6 +30,9 @@ git log --since="30 days ago" --name-only --pretty=format: -- docs/ .claude/rule
 # Proposals that might be stale? (project uses backlog/ — no active/ dir by design)
 ls docs/proposals/backlog/
 
+# Orphan proposals (structural check — fails CI on any unlinked proposal)
+pnpm ops guard:proposal-links
+
 # Skills lastUpdated dates
 grep -r 'lastUpdated' .claude/skills/*/SKILL.md
 ```
@@ -155,6 +158,7 @@ ls .claude/skills/*/SKILL.md
 - [ ] All `proposals/active/` items are actually being worked on (check `backlog/current-focus.md`)
 - [ ] No completed features still have active proposals (should be deleted)
 - [ ] Backlog proposals still relevant (not implemented, not abandoned)
+- [ ] `pnpm ops guard:proposal-links` is green (no orphan proposals — every `docs/proposals/backlog/*.md` has an inbound link from `backlog/`, `docs/`, `CURRENT.md`, or `BACKLOG.md`). This is structurally enforced in CI; running it during the doc audit catches a local drift before CI does.
 
 ### 6. Research Notes
 

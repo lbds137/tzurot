@@ -217,7 +217,41 @@ Ratchet audits to enforce test coverage (CI runs these automatically):
 - Use `--update` to accept current state after closing gaps
 - Use `--strict` to see ALL gaps (existing + new)
 
-See `tzurot-testing` skill for chip-away workflow details.
+**Drift detection (Layer 3):** `test:audit` hard-fails when the baseline's stored `configHash` doesn't match the current measurement-affecting config. Bumping `TEST_AUDIT_IMPL_VERSION` (in `packages/tooling/src/test/audit-version.ts`) invalidates baselines and forces an explicit `--update` refresh. The `--update` path is the only sanctioned way to refresh the meta block; hand-editing the baseline JSON skips meta updates and produces subtle staleness.
+
+See `tzurot-testing` skill for chip-away workflow details and [`docs/reference/audit-enforcement.md`](../audit-enforcement.md) for the audit-tool infrastructure.
+
+## CPD Commands
+
+Filtered copy-paste detection ratchet — same structural shape as test:audit:
+
+| Command                                  | Description                                          |
+| ---------------------------------------- | ---------------------------------------------------- |
+| `pnpm cpd`                               | Run jscpd (writes `reports/jscpd/jscpd-report.json`) |
+| `pnpm ops cpd:filtered`                  | Post-filter + breakdown (excludes call-dominant)     |
+| `pnpm ops cpd:filtered --show-pairs 25`  | Show top 25 remaining file pairs                     |
+| `pnpm ops cpd:check`                     | CI ratchet gate (drift-detected)                     |
+| `pnpm ops cpd:update-baseline`           | Refresh baseline + meta block                        |
+| `pnpm ops cpd:update-baseline --dry-run` | Preview without writing                              |
+
+`cpd:check` fails on either `filteredLines > baseline + graceMargin` OR `configHash` drift. The post-filter excludes fragments where ≥80% of classifiable lines are call-expression shape — see [`docs/reference/CPD_CAMPAIGN_AUDIT.md`](../CPD_CAMPAIGN_AUDIT.md) for the rationale. Bump `FILTER_IMPL_VERSION` (in `packages/tooling/src/cpd/postFilter.ts`) when the heuristic changes.
+
+## Guard Commands
+
+Structural enforcement checks that hard-fail CI on findings:
+
+| Command                                    | Description                                                               |
+| ------------------------------------------ | ------------------------------------------------------------------------- |
+| `pnpm ops guard:boundaries`                | Service-boundary imports (bot-client never imports Prisma directly, etc.) |
+| `pnpm ops guard:duplicate-exports`         | Same name exported from multiple files within a package                   |
+| `pnpm ops guard:proposal-links`            | Every `docs/proposals/backlog/*.md` has an inbound link                   |
+| `pnpm ops guard:proposal-links --summary`  | Emit JSONL summary line (for aggregator)                                  |
+| `pnpm ops guard:audit-tool-docs`           | Every registered audit tool has a non-stub WHY.md (bidirectional check)   |
+| `pnpm ops guard:audit-tool-docs --summary` | Emit JSONL summary line                                                   |
+
+`guard:proposal-links` also hard-fails on single-segment proposal basenames (`memory.md`, `api.md`) because they defeat the word-boundary regex's precision. Multi-segment kebab-case or SCREAMING_SNAKE_CASE only.
+
+`guard:audit-tool-docs` is self-registered — its own WHY.md is subject to its own check. The bidirectional sweep also detects orphan WHY.md files (files in the tooling tree with no registry entry). See [`docs/reference/audit-enforcement.md`](../audit-enforcement.md) for the full pattern.
 
 ## Voice Commands
 
