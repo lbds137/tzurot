@@ -92,7 +92,7 @@ Three follow-ups from the Layer 1 PR review land alongside Layer 2 instead of be
 
 #### Layer 2 ship status
 
-Shipped in PR (TBD) targeting `develop`:
+Shipped in [PR #1083](https://github.com/lbds137/tzurot/pull/1083) targeting `develop`:
 
 - 12 WHY.md files colocated next to audit-tool implementations (`packages/tooling/src/**/<basename>.WHY.md`)
 - `AUDIT_TOOL_REGISTRY` in `packages/tooling/src/audits/audit-tool-registry.ts` — single source of truth for which commands count as audit tools
