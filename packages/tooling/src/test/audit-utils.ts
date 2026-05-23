@@ -193,8 +193,8 @@ export function hasAuditIgnoreComment(filePath: string): boolean {
  * `audit-version.ts` (fs-free) so the test suite can statically import
  * it without pulling in `node:fs` ahead of `vi.mock` hoisting.
  */
-export { TEST_AUDIT_IMPL_VERSION } from './audit-version.js';
 import { TEST_AUDIT_IMPL_VERSION } from './audit-version.js';
+export { TEST_AUDIT_IMPL_VERSION };
 
 /**
  * Returns the measurement-affecting test-audit config. Hashed into the

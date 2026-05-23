@@ -105,6 +105,13 @@ export function checkMetaDrift(
  * rule lists. Excluding non-measurement noise (file paths, timestamps)
  * keeps the hash from churning on unrelated changes.
  *
+ * **Key order matters.** `JSON.stringify` is order-dependent, so
+ * `{ a: 1, b: 2 }` and `{ b: 2, a: 1 }` hash differently. Callers
+ * should construct the slice as a stable-order object literal in
+ * source (V8 preserves insertion order for non-integer keys). Don't
+ * spread from a dynamically-assembled config object without
+ * canonicalizing key order first.
+ *
  * Each tool defines its own `getConfigFingerprint()` returning the slice;
  * this helper hashes the result. The fingerprint is what each tool
  * commits to as its config-stability contract.
