@@ -105,13 +105,14 @@ export function checkMetaDrift(
  * rule lists. Excluding non-measurement noise (file paths, timestamps)
  * keeps the hash from churning on unrelated changes.
  *
- * **Key order matters.** `JSON.stringify` is order-dependent, so
- * `{ a: 1, b: 2 }` and `{ b: 2, a: 1 }` hash differently. Callers
- * should construct the slice as a stable-order object literal in
- * source (V8 preserves insertion order for non-integer keys). If
- * assembling dynamically (e.g., spreading from a loaded config),
- * sort keys explicitly before passing — `Object.fromEntries(Object.entries(x).sort())`
- * is the simplest canonicalization.
+ * @invariant Assemble the slice as a stable-order object literal in
+ * source, not from spread/dynamic keys. `JSON.stringify` is
+ * order-dependent — `{ a: 1, b: 2 }` and `{ b: 2, a: 1 }` hash
+ * differently. V8 preserves insertion order for non-integer keys, so
+ * inline literals are safe. If assembling dynamically (e.g., spreading
+ * from a loaded config), sort keys explicitly before passing —
+ * `Object.fromEntries(Object.entries(x).sort())` is the simplest
+ * canonicalization.
  *
  * Each tool defines its own `getConfigFingerprint()` returning the slice;
  * this helper hashes the result. The fingerprint is what each tool
