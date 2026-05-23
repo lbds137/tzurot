@@ -136,7 +136,7 @@ Four follow-ups from the Layer 2 PR review land alongside Layer 3 — same absor
 
 #### Layer 3 ship status
 
-Shipped in [PR #TBD](https://github.com/lbds137/tzurot/pull/) targeting `develop`:
+Shipped in [PR #1084](https://github.com/lbds137/tzurot/pull/1084) targeting `develop`:
 
 - `audits/baseline-meta.ts` module: shared `BaselineMeta` type, `buildBaselineMeta()` (auto-populates node/git/timestamp), `checkMetaDrift()` (returns aligned/drift verdict), `hashConfigSlice()` (stable 12-char SHA-256 of measurement-affecting config slice)
 - CPD integration: new `FILTER_IMPL_VERSION` constant, `getCpdConfigFingerprint()`, drift hard-fail in `cpd:check`, meta-block write in `cpd:update-baseline`. Backfilled `.github/baselines/cpd-baseline.json`.
