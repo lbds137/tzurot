@@ -3,26 +3,25 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { createHash } from 'node:crypto';
+import { hashConfigSlice } from '../audits/baseline-meta.js';
 import { TEST_AUDIT_IMPL_VERSION } from './audit-version.js';
 
 /**
- * Synchronous mirror of `hashConfigSlice` from audits/baseline-meta.ts.
- * `TEST_AUDIT_IMPL_VERSION` is imported from `./audit-version.js` (an
- * fs-free module) rather than `./audit-utils.js` so the static import
- * works without colliding with the `vi.mock('node:fs', ...)` hoist
- * below. A version bump in `audit-version.ts` propagates here
- * automatically — no manual sync required.
+ * Computes the expected baseline configHash for the current
+ * TEST_AUDIT_IMPL_VERSION. Uses `hashConfigSlice` directly (not a
+ * mirrored implementation) so the test setup stays in sync with
+ * production by construction.
  *
- * **Maintenance dependency**: if `hashConfigSlice`'s algorithm changes
- * (SHA-256 → SHA-512, JSON.stringify → a canonicalized serializer,
- * different output truncation, etc.), this mirror must be updated too.
- * Otherwise tests will start producing cryptic hash-mismatch errors
- * instead of a clear "test helper out of sync" signal.
+ * The static import of `hashConfigSlice` is safe alongside the
+ * `vi.mock('node:fs', ...)` below: `baseline-meta.ts` imports only
+ * `node:child_process` and `node:crypto` — neither of which the mock
+ * touches — so module-graph initialization completes without
+ * colliding with the mock. `TEST_AUDIT_IMPL_VERSION` is imported
+ * from the fs-free `audit-version.ts` for the same reason (the
+ * full `audit-utils.ts` does pull `node:fs`).
  */
 function expectedTestAuditConfigHash(): string {
-  const slice = { implVersion: TEST_AUDIT_IMPL_VERSION };
-  return createHash('sha256').update(JSON.stringify(slice)).digest('hex').slice(0, 12);
+  return hashConfigSlice({ implVersion: TEST_AUDIT_IMPL_VERSION });
 }
 
 /**
