@@ -2,17 +2,11 @@
 
 _Active bugs observed in production. Fix before new features._
 
-- **`/inspect` non-functional + diagnostic response-IDs unlinked — missing `X-User-Id` header on adminFetch calls** — User-reported 2026-05-23: `/inspect` returns 403/401 for everyone (including bot owner), and `/inspect <bot-response-message-id>` fails because response-message-IDs were never linked to the diagnostic log row.
+_None active. Re-add an entry here if a symptom resurfaces._
 
-  **Root cause**: PR #1074 added `requireOwnerAuth()` to diagnostic routes; PR f884ed758 (2026-05-22) fixed the server-side `extractOwnerId` to read `X-User-Id` (was reading legacy `X-Owner-Id`). But the bot-client side never started SENDING `X-User-Id` on these specific paths, so the middleware sees `ownerId="none"` and returns unauthorized. Verified via prod api-gateway logs: `[Auth] Unauthorized access attempt ownerId="none" path="/<UUID>/response-ids" method="PATCH"`.
+_Cleared 2026-05-23 (on develop, awaiting release):_
 
-  **Two call paths affected**:
-  1. `services/bot-client/src/utils/GatewayClient.ts:570` `updateDiagnosticResponseIds` — direct `fetch()` (not `adminFetch`); sends `X-Service-Auth` only. This is an internal bot-client → api-gateway call after AI response delivery; no user context is meaningful here. **Recommended fix**: change the route from `requireOwnerAuth()` to `requireServiceAuth()` (route at `services/api-gateway/src/routes/admin/diagnostic.ts:354`). Alternative: continue sending owner ID synthetically from bot-client, but that's a workaround, not a fix.
-  2. `services/bot-client/src/commands/inspect/lookup.ts:69,73,141` + `services/bot-client/src/commands/inspect/browse.ts:90` — user-initiated `/inspect` lookups via `adminFetch` without passing `userId`. **Fix**: add `, { userId: callerUserId }` to each `adminFetch(...)` call so `X-User-Id` header gets sent. Owner check then succeeds for bot owner; for non-owners, the existing `filterUserId` result-filter handles access control (though the route still has `requireOwnerAuth()` so non-owners are blocked at the door — separate design call: relax to `requireUserAuth()` + rely on result-filter, or accept owner-only).
-
-  **Effect**: response-message-ID lookups (`by-response/...`) silently fail because IDs never link; all owner-initiated `/inspect` lookups 403/401 because no `X-User-Id` sent.
-
-  **Symptoms in user reports**: "logs aren't getting saved" (response-IDs unlinked) + "logs fail to be retrieved" (403 on lookups). Same root cause both directions.
+- _**`/inspect` non-functional + diagnostic response-IDs unlinked — missing `X-User-Id` header on adminFetch calls** → resolved by **PR #1087** (merged to develop 2026-05-23, ships in next release). Rearchitected per council recommendation: PATCH `/response-ids` swapped to `requireServiceAuth()` (internal call, no human user); GET diagnostic routes swapped to `requireUserAuth()` + server-side per-user filtering in Prisma WHERE clauses. Replaces client-side `filterUserId` anti-pattern (which violated least-privilege by shipping other users' diagnostic data across the service boundary just to drop it at the last mile). 404-not-403 existence-hiding preserved for non-owner `/:requestId` lookups. Fail-closed `resolveCallerUserId` guard prevents silent filter degradation on middleware mis-wiring. Net +566/-199 LOC across 10 files, 7 new server-side filtering tests + 1 middleware-identity test + 1 regression test for the `lookupByMessageId` fallback-path log mis-attribution bug surfaced during review._
 
 _Cleared 2026-05-19:_
 
