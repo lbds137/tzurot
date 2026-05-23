@@ -121,6 +121,8 @@ pnpm ops guard:audit-tool-docs       # Every registered audit tool has a non-stu
 
 All four run in the CI `lint` job. All four hard-fail on findings. `guard:proposal-links` and `guard:audit-tool-docs` also support `--summary` for the future aggregator. `guard:audit-tool-docs` self-registers and runs the bidirectional check (every registered tool has a WHY.md AND every `*.WHY.md` is either registered or on `UNREGISTERED_WHY_PATHS`).
 
+**Note on `guard:duplicate-exports`**: it's a CI gate but intentionally NOT registered as an audit-class tool (no WHY.md, no canary, no `--summary` mode). The criteria for "audit-class" require a measurement with a threshold — duplicate-exports is a binary "does this exist?" check, not a measurement. Same framing as `memory:analyze` (one-shot remediation, not periodic audit). See [`docs/reference/audit-enforcement.md`](../../docs/reference/audit-enforcement.md) for the registry criteria.
+
 ### Audit-tool infrastructure (Layers 1-3)
 
 `pnpm ops`-class commands that meet the audit criteria (measurement + threshold + periodic) are subject to three structural enforcement layers. **Before adding a new audit tool, read [`docs/reference/audit-enforcement.md`](../../docs/reference/audit-enforcement.md)** — it covers the WHY.md convention, the canary-fixture pattern, the JSONL summary line shape, and the baseline-meta drift contract. Skipping these checklist items will fail CI in non-obvious ways.
