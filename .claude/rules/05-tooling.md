@@ -92,7 +92,7 @@ pnpm ops xray --imports              # Include import analysis (auto for md/json
 
 ```bash
 pnpm ops test:audit                  # Run coverage ratchet (CI; drift-detected)
-pnpm ops test:audit --update         # Update baseline + refresh meta block
+pnpm ops test:audit --update         # Update baseline + refresh meta block (run after closing coverage gaps)
 ```
 
 **Drift detection (Layer 3):** `test:audit` hard-fails when the baseline's stored `configHash` doesn't match the current `getTestAuditConfigFingerprint()`. Bump `TEST_AUDIT_IMPL_VERSION` in `packages/tooling/src/test/audit-version.ts` whenever the measurement-affecting logic changes (Prisma-detection heuristic, service-file glob, etc.) — that bump invalidates baselines and forces an explicit `--update` refresh. The `--update` path is the only one that updates the meta block; hand-editing the baseline JSON is not the sanctioned path.
