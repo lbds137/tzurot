@@ -9,14 +9,21 @@
  * - PATCH /admin/diagnostic/:requestId/response-ids - Update response message IDs
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createDiagnosticRoutes } from './diagnostic.js';
 import type { PrismaClient, DiagnosticPayload } from '@tzurot/common-types';
 import express from 'express';
 import request from 'supertest';
-import { getAllRoutes } from '../../test/expressRouterUtils.js';
+import { findRoute, getAllRoutes } from '../../test/expressRouterUtils.js';
 
-// Mock logger
+/** Configurable userId injected by the mocked requireUserAuth — flip per test. */
+let mockCallerUserId = 'admin-discord-id';
+
+/** Owner ID resolved by the mocked isBotOwner. Matches mockCallerUserId by default. */
+const MOCK_OWNER_ID = 'admin-discord-id';
+
+// Mock logger and isBotOwner — the route handlers branch on isBotOwner to
+// decide whether to apply the userId WHERE-clause filter.
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
@@ -27,28 +34,76 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
+    isBotOwner: (id: string) => id === MOCK_OWNER_ID,
   };
 });
 
-// Mock AuthMiddleware — owner-auth gating runs unconditionally in tests
+// Mock AuthMiddleware — auth gating runs unconditionally in tests. Each mock
+// stamps a unique marker on the request so the route-registration test can
+// verify which middleware is wired to each route by identity (not just by
+// stack depth). requireUserAuth injects mockCallerUserId for the
+// isBotOwner branching in the route handlers.
 vi.mock('../../services/AuthMiddleware.js', () => ({
-  requireOwnerAuth: () => (req: { userId?: string }, _res: unknown, next: () => void) => {
-    req.userId = 'admin-discord-id';
+  requireUserAuth:
+    () => (req: { userId?: string; __authMarker?: string }, _res: unknown, next: () => void) => {
+      req.__authMarker = 'user';
+      req.userId = mockCallerUserId;
+      next();
+    },
+  requireServiceAuth: () => (req: { __authMarker?: string }, _res: unknown, next: () => void) => {
+    req.__authMarker = 'service';
     next();
   },
 }));
 
 describe('Admin Diagnostic Routes', () => {
   describe('middleware composition', () => {
-    it('wires requireOwnerAuth on every route', () => {
-      // Mock prisma isn't invoked at router-registration time — pass an empty
-      // stub. The structural test only inspects the resulting router stack.
+    it('wires an auth middleware on every route', () => {
+      // GET routes get requireUserAuth (with server-side userId filtering for
+      // non-owners); PATCH gets requireServiceAuth (internal call only).
+      // The structural test only inspects the resulting router stack length.
       const routes = getAllRoutes(createDiagnosticRoutes({} as unknown as PrismaClient));
       expect(routes.length, 'expected at least one registered route').toBeGreaterThan(0);
       for (const route of routes) {
         expect(route.stackLength, `${route.path} missing auth middleware`).toBeGreaterThanOrEqual(
           2
         );
+      }
+    });
+
+    // Structural stack-length is not enough — accidentally swapping
+    // requireServiceAuth and requireUserAuth would keep stack depth the same
+    // but flip which authentication contract guards each route. The mocks set
+    // a distinct `__authMarker` on the request so we can verify which
+    // middleware is actually registered at each route by identity.
+    it('wires requireUserAuth on GET routes and requireServiceAuth on PATCH', () => {
+      const router = createDiagnosticRoutes({} as unknown as PrismaClient);
+
+      const expectations: { method: 'get' | 'patch'; path: string; marker: string }[] = [
+        { method: 'get', path: '/recent', marker: 'user' },
+        { method: 'get', path: '/by-message/:messageId', marker: 'user' },
+        { method: 'get', path: '/by-response/:messageId', marker: 'user' },
+        { method: 'get', path: '/:requestId', marker: 'user' },
+        { method: 'patch', path: '/:requestId/response-ids', marker: 'service' },
+      ];
+
+      for (const { method, path, marker } of expectations) {
+        const layer = findRoute(router, method, path);
+        if (layer?.route === undefined) {
+          throw new Error(`Expected route registered: ${method.toUpperCase()} ${path}`);
+        }
+        // The first stack entry is the auth middleware; the last is the
+        // route handler. We invoke the auth middleware directly with a
+        // synthetic req so it stamps its marker.
+        const authMiddleware = layer.route.stack[0].handle;
+        const req: { __authMarker?: string; userId?: string } = {};
+        const next = vi.fn();
+        authMiddleware(req, {} as object, next);
+        expect(
+          req.__authMarker,
+          `${method.toUpperCase()} ${path} wired wrong auth middleware`
+        ).toBe(marker);
+        expect(next).toHaveBeenCalled();
       }
     });
   });
@@ -676,6 +731,161 @@ describe('Admin Diagnostic Routes', () => {
         .send({ responseMessageIds: ['msg-1'] });
 
       expect(response.status).toBe(500);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Server-side per-user filtering — non-owner callers must only see their
+  // own logs. The filter is applied at the Prisma WHERE clause; never at the
+  // bot-client (see council Q2 / `/inspect` rearchitecture).
+  // -------------------------------------------------------------------------
+  describe('server-side userId filtering for non-owner callers', () => {
+    /** Restore the default owner caller after each non-owner test. */
+    afterEach(() => {
+      mockCallerUserId = 'admin-discord-id';
+    });
+
+    it('GET /recent — non-owner ignores ?userId= query and forces caller as filter', async () => {
+      mockCallerUserId = 'regular-user-789';
+      mockPrisma.$queryRaw.mockResolvedValue([]);
+
+      await request(app).get('/admin/diagnostic/recent?userId=someone-else');
+
+      // The owner can pass ?userId=; non-owners get forced to their own ID.
+      // Verify by inspecting the SQL fragments passed to $queryRaw.
+      const callArgs = mockPrisma.$queryRaw.mock.calls[0];
+      const fragmentValues = JSON.stringify(callArgs);
+      expect(fragmentValues).toContain('regular-user-789');
+      expect(fragmentValues).not.toContain('someone-else');
+    });
+
+    it('GET /recent — owner can use ?userId= to inspect another user', async () => {
+      mockPrisma.$queryRaw.mockResolvedValue([]);
+
+      await request(app).get('/admin/diagnostic/recent?userId=someone-else');
+
+      const fragmentValues = JSON.stringify(mockPrisma.$queryRaw.mock.calls[0]);
+      expect(fragmentValues).toContain('someone-else');
+    });
+
+    it('GET /by-message/:messageId — non-owner filter narrows to own userId', async () => {
+      mockCallerUserId = 'regular-user-789';
+      mockPrisma.llmDiagnosticLog.findMany.mockResolvedValue([]);
+
+      await request(app).get('/admin/diagnostic/by-message/some-message-id');
+
+      expect(mockPrisma.llmDiagnosticLog.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { triggerMessageId: 'some-message-id', userId: 'regular-user-789' },
+        })
+      );
+    });
+
+    it('GET /by-message/:messageId — owner gets no userId filter', async () => {
+      mockPrisma.llmDiagnosticLog.findMany.mockResolvedValue([]);
+
+      await request(app).get('/admin/diagnostic/by-message/some-message-id');
+
+      expect(mockPrisma.llmDiagnosticLog.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { triggerMessageId: 'some-message-id' },
+        })
+      );
+    });
+
+    it('GET /by-response/:messageId — non-owner filter narrows to own userId', async () => {
+      mockCallerUserId = 'regular-user-789';
+      mockPrisma.llmDiagnosticLog.findFirst.mockResolvedValue(null);
+
+      await request(app).get('/admin/diagnostic/by-response/chunk-1');
+
+      expect(mockPrisma.llmDiagnosticLog.findFirst).toHaveBeenCalledWith({
+        where: { responseMessageIds: { has: 'chunk-1' }, userId: 'regular-user-789' },
+      });
+    });
+
+    it('GET /by-response/:messageId — owner gets no userId filter', async () => {
+      mockPrisma.llmDiagnosticLog.findFirst.mockResolvedValue(null);
+
+      await request(app).get('/admin/diagnostic/by-response/chunk-1');
+
+      expect(mockPrisma.llmDiagnosticLog.findFirst).toHaveBeenCalledWith({
+        where: { responseMessageIds: { has: 'chunk-1' } },
+      });
+    });
+
+    it('GET /:requestId — owner WHERE clause is just { requestId } (no userId filter)', async () => {
+      mockPrisma.llmDiagnosticLog.findUnique.mockResolvedValue({
+        id: 'log-id',
+        requestId: 'test-req-123',
+        triggerMessageId: 'msg-1',
+        personalityId: 'p-1',
+        userId: 'some-random-user',
+        guildId: 'g-1',
+        channelId: 'c-1',
+        responseMessageIds: [],
+        model: 'claude-3-5-sonnet',
+        provider: 'anthropic',
+        durationMs: 1000,
+        createdAt: new Date(),
+        data: mockDiagnosticPayload,
+      });
+
+      const response = await request(app).get('/admin/diagnostic/test-req-123');
+
+      expect(response.status).toBe(200);
+      expect(mockPrisma.llmDiagnosticLog.findUnique).toHaveBeenCalledWith({
+        where: { requestId: 'test-req-123' },
+      });
+    });
+
+    it('GET /:requestId — non-owner gets 404 (not 403) when log belongs to another user', async () => {
+      mockCallerUserId = 'regular-user-789';
+      // The handler now pushes the userId filter into the Prisma WHERE clause
+      // for non-owners, so a "log exists but belongs to someone else" outcome
+      // is observed at this layer as Prisma returning null (filtered at the
+      // DB). The mock simulates that — findUnique called with the userId
+      // filter, no matching row, returns null. 404 results.
+      mockPrisma.llmDiagnosticLog.findUnique.mockResolvedValue(null);
+
+      const response = await request(app).get('/admin/diagnostic/test-req-123');
+
+      expect(response.status).toBe(404);
+      // Verify the userId filter is part of the WHERE clause — otherwise a
+      // future regression that re-fetches without the filter would still
+      // produce 404 in this test (mock returns null unconditionally) but
+      // would leak data in production.
+      expect(mockPrisma.llmDiagnosticLog.findUnique).toHaveBeenCalledWith({
+        where: { requestId: 'test-req-123', userId: 'regular-user-789' },
+      });
+    });
+
+    it('GET /:requestId — non-owner sees own log', async () => {
+      mockCallerUserId = 'regular-user-789';
+      mockPrisma.llmDiagnosticLog.findUnique.mockResolvedValue({
+        id: 'log-id',
+        requestId: 'test-req-123',
+        triggerMessageId: 'msg-1',
+        personalityId: 'p-1',
+        userId: 'regular-user-789',
+        guildId: 'g-1',
+        channelId: 'c-1',
+        responseMessageIds: [],
+        model: 'claude-3-5-sonnet',
+        provider: 'anthropic',
+        durationMs: 1000,
+        createdAt: new Date(),
+        data: mockDiagnosticPayload,
+      });
+
+      const response = await request(app).get('/admin/diagnostic/test-req-123');
+
+      expect(response.status).toBe(200);
+      expect(response.body.log.requestId).toBe('test-req-123');
+      // WHERE clause should include the userId filter for non-owners.
+      expect(mockPrisma.llmDiagnosticLog.findUnique).toHaveBeenCalledWith({
+        where: { requestId: 'test-req-123', userId: 'regular-user-789' },
+      });
     });
   });
 });

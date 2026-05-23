@@ -243,21 +243,21 @@ describe('execute (slash command)', () => {
     });
   });
 
-  it('should pass no filterUserId for admin users', async () => {
+  it('should forward the caller userId (owner) to handleRecentBrowse', async () => {
     const { handleRecentBrowse } = await import('./browse.js');
     const context = createMockContext(null, 'owner-123');
     await inspectCommand.execute(context);
 
-    // Admin should pass undefined filterUserId
-    expect(handleRecentBrowse).toHaveBeenCalledWith(context, undefined);
+    // Server-side filtering means the bot-client passes the caller's ID through
+    // unchanged regardless of owner status; the gateway decides what to filter.
+    expect(handleRecentBrowse).toHaveBeenCalledWith(context, 'owner-123');
   });
 
-  it('should pass filterUserId for non-admin users', async () => {
+  it('should forward the caller userId (non-owner) to handleRecentBrowse', async () => {
     const { handleRecentBrowse } = await import('./browse.js');
     const context = createMockContext(null, 'regular-user-456');
     await inspectCommand.execute(context);
 
-    // Non-admin should pass their userId
     expect(handleRecentBrowse).toHaveBeenCalledWith(context, 'regular-user-456');
   });
 });
@@ -348,6 +348,22 @@ describe('handleButton', () => {
     expect(interaction.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
     expect(interaction.deferUpdate).not.toHaveBeenCalled();
   });
+
+  it('dispatches browse-pagination buttons to handleBrowsePagination with caller userId', async () => {
+    const { handleBrowsePagination } = await import('./browse.js');
+    const interaction = {
+      // customId matches the `::browse::` substring the mocked isInspectBrowseInteraction checks for
+      customId: 'inspect::browse::1::all::',
+      user: { id: 'regular-user-456' },
+      deferReply: vi.fn().mockResolvedValue(undefined),
+      deferUpdate: vi.fn().mockResolvedValue(undefined),
+      editReply: vi.fn().mockResolvedValue(undefined),
+    } as unknown as import('discord.js').ButtonInteraction;
+
+    await inspectCommand.handleButton!(interaction);
+
+    expect(handleBrowsePagination).toHaveBeenCalledWith(interaction, 'regular-user-456');
+  });
 });
 
 describe('handleSelectMenu', () => {
@@ -405,5 +421,22 @@ describe('handleSelectMenu', () => {
 
     expect(interaction.deferReply).not.toHaveBeenCalled();
     expect(interaction.reply).not.toHaveBeenCalled();
+  });
+
+  it('dispatches browse-select interactions to handleBrowseLogSelection with caller userId', async () => {
+    const { handleBrowseLogSelection } = await import('./browse.js');
+    const interaction = {
+      // customId matches the `::browse-select::` substring the mocked isInspectBrowseSelectInteraction checks for
+      customId: 'inspect::browse-select::0',
+      values: ['req-from-list'],
+      user: { id: 'regular-user-456' },
+      deferReply: vi.fn().mockResolvedValue(undefined),
+      editReply: vi.fn().mockResolvedValue(undefined),
+      reply: vi.fn().mockResolvedValue(undefined),
+    } as unknown as import('discord.js').StringSelectMenuInteraction;
+
+    await inspectCommand.handleSelectMenu!(interaction);
+
+    expect(handleBrowseLogSelection).toHaveBeenCalledWith(interaction, 'regular-user-456');
   });
 });

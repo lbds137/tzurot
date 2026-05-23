@@ -81,15 +81,17 @@ const browseHelpers = createBrowseCustomIdHelpers<InspectBrowseFilter>({
 // Data fetching
 // ---------------------------------------------------------------------------
 
-/** Fetch recent diagnostic logs from the gateway, optionally filtered by userId */
+/**
+ * Fetch recent diagnostic logs from the gateway.
+ *
+ * The caller's Discord ID is forwarded via `X-User-Id`. The gateway applies
+ * the per-user filter server-side — bot owner sees all logs; non-owners see
+ * only their own. No query-string `?userId=` plumbing needed.
+ */
 export async function fetchRecentLogs(
-  filterUserId?: string
+  callerUserId: string
 ): Promise<{ logs: DiagnosticLogSummary[]; count: number }> {
-  const url =
-    filterUserId !== undefined
-      ? `/admin/diagnostic/recent?userId=${encodeURIComponent(filterUserId)}`
-      : '/admin/diagnostic/recent';
-  const response = await adminFetch(url);
+  const response = await adminFetch('/admin/diagnostic/recent', { userId: callerUserId });
   if (!response.ok) {
     throw new Error(`Failed to fetch recent logs: HTTP ${response.status}`);
   }
@@ -237,14 +239,14 @@ export function buildBrowsePage(
 
 /**
  * Slash command entry — show recent logs browse list.
- * filterUserId limits results to that user's logs (non-admin mode).
+ * Server-side filtering enforces that non-owners see only their own logs.
  */
 export async function handleRecentBrowse(
   context: DeferredCommandContext,
-  filterUserId?: string
+  callerUserId: string
 ): Promise<void> {
   try {
-    const data = await fetchRecentLogs(filterUserId);
+    const data = await fetchRecentLogs(callerUserId);
     const { embeds, components } = buildBrowsePage(data.logs, 0);
     await context.editReply({ embeds, components });
   } catch (error) {
@@ -257,11 +259,10 @@ export async function handleRecentBrowse(
 
 /**
  * Button handler — pagination through browse list.
- * filterUserId limits results to that user's logs (non-admin mode).
  */
 export async function handleBrowsePagination(
   interaction: ButtonInteraction,
-  filterUserId?: string
+  callerUserId: string
 ): Promise<void> {
   const parsed = browseHelpers.parse(interaction.customId);
   if (parsed === null) {
@@ -271,7 +272,7 @@ export async function handleBrowsePagination(
   await interaction.deferUpdate();
 
   try {
-    const data = await fetchRecentLogs(filterUserId);
+    const data = await fetchRecentLogs(callerUserId);
     const { embeds, components } = buildBrowsePage(data.logs, parsed.page);
     await interaction.editReply({ embeds, components });
   } catch (error) {
@@ -286,11 +287,10 @@ export async function handleBrowsePagination(
 
 /**
  * Select handler — drill into a specific log from the browse list.
- * filterUserId restricts access to only the user's own logs.
  */
 export async function handleBrowseLogSelection(
   interaction: StringSelectMenuInteraction,
-  filterUserId?: string
+  callerUserId: string
 ): Promise<void> {
   const parsed = browseHelpers.parseSelect(interaction.customId);
   if (parsed === null) {
@@ -301,7 +301,7 @@ export async function handleBrowseLogSelection(
 
   const requestId = interaction.values[0];
   try {
-    const result = await lookupByRequestId(requestId, filterUserId);
+    const result = await lookupByRequestId(requestId, callerUserId);
     if (!result.success) {
       await interaction.editReply({
         content: `\u274c ${result.errorMessage}`,

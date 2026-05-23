@@ -4,8 +4,10 @@
  * Centralized utility for making authenticated requests to admin endpoints.
  * Automatically includes the X-Service-Auth header for service-to-service authentication.
  *
- * IMPORTANT: Routes that check isBotOwner() require the userId parameter.
- * Currently this includes /admin/settings endpoints.
+ * IMPORTANT: Pass `userId` for any route that needs caller identity — either
+ * for isBotOwner() checks (e.g., /admin/settings) or for per-user server-side
+ * filtering (e.g., /admin/diagnostic/* GET routes, where non-owners see only
+ * their own logs via a Prisma WHERE clause that depends on X-User-Id).
  */
 
 import { getConfig, CONTENT_TYPES, TIMEOUTS } from '@tzurot/common-types';

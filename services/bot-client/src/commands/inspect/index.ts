@@ -12,7 +12,7 @@
 
 import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
-import { createLogger, isBotOwner, inspectOptions } from '@tzurot/common-types';
+import { createLogger, inspectOptions } from '@tzurot/common-types';
 import { defineCommand } from '../../utils/defineCommand.js';
 import type {
   SafeCommandContext,
@@ -56,31 +56,26 @@ const VIEW_BUILDERS = {
 } as const;
 
 /**
- * Determine the userId filter for a given user.
- * Admin: no filter (sees all). Regular user: filter to own logs.
- */
-function getFilterUserId(userId: string): string | undefined {
-  return isBotOwner(userId) ? undefined : userId;
-}
-
-/**
- * Handle `/inspect [identifier]` — browse recent logs or show specific log
+ * Handle `/inspect [identifier]` — browse recent logs or show specific log.
+ *
+ * The caller's Discord ID is forwarded to the gateway, which applies
+ * per-user filtering server-side (bot owner sees all logs; other users see
+ * only their own). No client-side filtering needed.
  */
 async function execute(ctx: SafeCommandContext): Promise<void> {
   const context = ctx as DeferredCommandContext;
-  const userId = context.user.id;
-  const filterUserId = getFilterUserId(userId);
+  const callerUserId = context.user.id;
 
   const options = inspectOptions(context.interaction);
   const identifier = options.identifier();
 
   if (identifier === null || identifier === '') {
-    await handleRecentBrowse(context, filterUserId);
+    await handleRecentBrowse(context, callerUserId);
     return;
   }
 
   try {
-    const result = await resolveDiagnosticLog(identifier, filterUserId);
+    const result = await resolveDiagnosticLog(identifier, callerUserId);
 
     if (!result.success) {
       await context.editReply({ content: `\u274c ${result.errorMessage}` });
@@ -117,8 +112,7 @@ async function execute(ctx: SafeCommandContext): Promise<void> {
 async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promise<void> {
   // Browse select (must check before general inspect interaction)
   if (isInspectBrowseSelectInteraction(interaction.customId)) {
-    const filterUserId = getFilterUserId(interaction.user.id);
-    await handleBrowseLogSelection(interaction, filterUserId);
+    await handleBrowseLogSelection(interaction, interaction.user.id);
     return;
   }
 
@@ -140,8 +134,7 @@ async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promi
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   try {
-    const filterUserId = getFilterUserId(interaction.user.id);
-    const result = await lookupByRequestId(parsed.requestId, filterUserId);
+    const result = await lookupByRequestId(parsed.requestId, interaction.user.id);
     if (!result.success) {
       await interaction.editReply({ content: `\u274c ${result.errorMessage}` });
       return;
@@ -181,8 +174,7 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
 
   // Browse pagination (must check before general inspect interaction)
   if (isInspectBrowseInteraction(customId)) {
-    const filterUserId = getFilterUserId(interaction.user.id);
-    await handleBrowsePagination(interaction, filterUserId);
+    await handleBrowsePagination(interaction, interaction.user.id);
     return;
   }
 
@@ -203,8 +195,7 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
   }
 
   try {
-    const filterUserId = getFilterUserId(interaction.user.id);
-    const result = await lookupByRequestId(parsed.requestId, filterUserId);
+    const result = await lookupByRequestId(parsed.requestId, interaction.user.id);
     if (!result.success) {
       await interaction.editReply({ content: `\u274c ${result.errorMessage}` });
       return;
