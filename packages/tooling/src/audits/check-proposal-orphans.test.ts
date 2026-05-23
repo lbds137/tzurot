@@ -64,7 +64,7 @@ describe('findProposalOrphans', () => {
       const result = findProposalOrphans(root);
       expect(result.totalProposals).toBe(2);
       expect(result.orphans).toEqual([]);
-      expect(result.singleSegmentSlugs).toEqual([]);
+      expect(result.singleSegmentProposals).toEqual([]);
     });
   });
 
@@ -149,12 +149,39 @@ describe('findProposalOrphans', () => {
     });
   });
 
+  it('matches inbound links case-insensitively (same-separator case variation)', async () => {
+    // SCREAMING_SNAKE_CASE proposals linked as snake_case (or kebab as
+    // Mixed-Kebab-Case) should not silently flag as orphan. Multi-segment
+    // names are precise enough that the `i` flag doesn't introduce false
+    // negatives. Note: this only normalizes letter case — hyphen↔underscore
+    // separator differences are NOT normalized (a separate concern).
+    await withTempRepo(root => {
+      scaffold(root, {
+        'docs/proposals/backlog/GIT_HOOK_IMPROVEMENTS.md': '# Git hook improvements',
+        'backlog/future-themes.md': 'See git_hook_improvements (lowercased).',
+      });
+      const result = findProposalOrphans(root);
+      expect(result.orphans).toEqual([]);
+    });
+  });
+
+  it('matches a kebab-case proposal linked as Mixed-Kebab-Case', async () => {
+    await withTempRepo(root => {
+      scaffold(root, {
+        'docs/proposals/backlog/memory-redesign-plan.md': '# Memory',
+        'backlog/future-themes.md': 'See Memory-Redesign-Plan in the queue.',
+      });
+      const result = findProposalOrphans(root);
+      expect(result.orphans).toEqual([]);
+    });
+  });
+
   it('handles missing proposals directory gracefully', async () => {
     await withTempRepo(root => {
       const result = findProposalOrphans(root);
       expect(result.totalProposals).toBe(0);
       expect(result.orphans).toEqual([]);
-      expect(result.singleSegmentSlugs).toEqual([]);
+      expect(result.singleSegmentProposals).toEqual([]);
     });
   });
 
@@ -183,9 +210,9 @@ describe('findProposalOrphans', () => {
       });
       const result = findProposalOrphans(root);
       expect(result.totalProposals).toBe(3);
-      expect(result.singleSegmentSlugs).toHaveLength(2);
-      expect(result.singleSegmentSlugs.some(s => s.includes('memory.md'))).toBe(true);
-      expect(result.singleSegmentSlugs.some(s => s.includes('api.md'))).toBe(true);
+      expect(result.singleSegmentProposals).toHaveLength(2);
+      expect(result.singleSegmentProposals.some(s => s.includes('memory.md'))).toBe(true);
+      expect(result.singleSegmentProposals.some(s => s.includes('api.md'))).toBe(true);
       // valid-name had an inbound link → no orphan, and not a single-segment slug
       expect(result.orphans).toEqual([]);
     });
@@ -201,7 +228,7 @@ describe('findProposalOrphans', () => {
           'See [memory](../docs/proposals/backlog/memory.md) in the queue.',
       });
       const result = findProposalOrphans(root);
-      expect(result.singleSegmentSlugs).toHaveLength(1);
+      expect(result.singleSegmentProposals).toHaveLength(1);
       expect(result.orphans).toEqual([]);
     });
   });
@@ -268,7 +295,7 @@ describe('checkProposalOrphans (CLI entry point with --summary)', () => {
   });
 
   it('summary findings count includes single-segment slugs', async () => {
-    // findings = orphans.length + singleSegmentSlugs.length, so a repo
+    // findings = orphans.length + singleSegmentProposals.length, so a repo
     // with one orphan AND one bad slug reports findings=2.
     await withTempRepo(async root => {
       scaffold(root, {
@@ -370,8 +397,8 @@ describe('findProposalOrphans (against real repo)', () => {
         `or CURRENT.md — or delete them if the work shipped.`
     ).toEqual([]);
     expect(
-      result.singleSegmentSlugs,
-      `Found single-segment proposal slugs: ${result.singleSegmentSlugs.join(', ')}. ` +
+      result.singleSegmentProposals,
+      `Found single-segment proposal slugs: ${result.singleSegmentProposals.join(', ')}. ` +
         `Rename to multi-segment kebab-case (e.g., memory.md → memory-and-context-redesign.md).`
     ).toEqual([]);
   });

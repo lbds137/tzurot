@@ -212,6 +212,79 @@ description: padding padding padding padding padding padding padding padding pad
       expect(result.stubs[0].command).toBe('tool-b');
     });
   });
+
+  it('flags a WHY.md file with no registry entry as orphan', async () => {
+    // Bidirectional check: a WHY.md sitting in the tooling tree that
+    // isn't registered AND isn't on the allowlist should be flagged.
+    await withTempRepo(root => {
+      const registry: AuditToolEntry[] = [
+        { command: 'tool-a', whyPath: 'src/a.WHY.md', description: 'Tool A' },
+      ];
+      scaffold(root, {
+        'src/a.WHY.md': SUBSTANTIAL_WHY_CONTENT,
+        'src/stale.WHY.md': SUBSTANTIAL_WHY_CONTENT, // orphan — no registry entry
+      });
+      const result = checkAuditToolDocsFromRegistry(root, registry, 'src', []);
+      expect(result.orphanWhyFiles).toHaveLength(1);
+      expect(result.orphanWhyFiles[0]).toBe('src/stale.WHY.md');
+      expect(result.missing).toEqual([]);
+      expect(result.stubs).toEqual([]);
+    });
+  });
+
+  it('does NOT flag a WHY.md on the unregistered-allowlist', async () => {
+    await withTempRepo(root => {
+      const registry: AuditToolEntry[] = [
+        { command: 'tool-a', whyPath: 'src/a.WHY.md', description: 'Tool A' },
+      ];
+      scaffold(root, {
+        'src/a.WHY.md': SUBSTANTIAL_WHY_CONTENT,
+        'src/operator-tool.WHY.md': SUBSTANTIAL_WHY_CONTENT, // unregistered but allowlisted
+      });
+      const result = checkAuditToolDocsFromRegistry(root, registry, 'src', [
+        'src/operator-tool.WHY.md',
+      ]);
+      expect(result.orphanWhyFiles).toEqual([]);
+    });
+  });
+
+  it('walks nested subdirectories for orphan WHY.md files', async () => {
+    await withTempRepo(root => {
+      const registry: AuditToolEntry[] = [];
+      scaffold(root, {
+        'src/lint/complexity-report.WHY.md': SUBSTANTIAL_WHY_CONTENT,
+        'src/db/check-safety.WHY.md': SUBSTANTIAL_WHY_CONTENT,
+        'src/audits/some-tool.WHY.md': SUBSTANTIAL_WHY_CONTENT,
+      });
+      const result = checkAuditToolDocsFromRegistry(root, registry, 'src', []);
+      expect(result.orphanWhyFiles).toHaveLength(3);
+    });
+  });
+
+  it('recognizes both `<basename>.WHY.md` and bare `WHY.md` shapes', async () => {
+    // Some audit tools use `<basename>.WHY.md` next to a single source file;
+    // others use a directory-level `WHY.md` covering a module. Both should
+    // be detected by the sweep.
+    await withTempRepo(root => {
+      const registry: AuditToolEntry[] = [];
+      scaffold(root, {
+        'src/foo/bar.WHY.md': SUBSTANTIAL_WHY_CONTENT,
+        'src/baz/WHY.md': SUBSTANTIAL_WHY_CONTENT,
+      });
+      const result = checkAuditToolDocsFromRegistry(root, registry, 'src', []);
+      expect(result.orphanWhyFiles).toHaveLength(2);
+    });
+  });
+
+  it('returns empty orphan list when the search root does not exist', async () => {
+    // Production calls against test fixtures may pass a nonexistent root;
+    // the walker should handle this gracefully (not throw).
+    await withTempRepo(root => {
+      const registry: AuditToolEntry[] = [];
+      const result = checkAuditToolDocsFromRegistry(root, registry, 'nonexistent', []);
+      expect(result.orphanWhyFiles).toEqual([]);
+    });
+  });
 });
 
 describe('checkAuditToolDocs (CLI entry point with --summary)', () => {

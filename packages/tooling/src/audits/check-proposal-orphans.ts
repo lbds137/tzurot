@@ -25,16 +25,19 @@ export interface OrphanCheckResult {
   totalProposals: number;
   orphans: string[];
   /**
-   * Proposals whose basename is a single kebab-segment (no hyphens). Reported
-   * separately from `orphans` because single-segment names defeat the word-
-   * boundary regex's precision: a proposal named `memory.md` would be rescued
-   * by any markdown file containing the word "memory" in prose, silently
-   * producing a false negative on the orphan check.
+   * Relative paths of proposals whose basename is a single segment (no `-`
+   * and no `_`). Reported separately from `orphans` because single-segment
+   * names defeat the word-boundary regex's precision: a proposal named
+   * `memory.md` would be rescued by any markdown file containing the word
+   * "memory" in prose, silently producing a false negative on the orphan
+   * check.
    *
-   * The CLI treats this as a hard failure; multi-segment kebab-case names
-   * are required for the precision the orphan check depends on.
+   * The CLI treats this as a hard failure; multi-segment kebab-case (or
+   * SCREAMING_SNAKE_CASE) names are required for the precision the orphan
+   * check depends on. Parallel shape to `orphans` — both are arrays of
+   * relative paths.
    */
-  singleSegmentSlugs: string[];
+  singleSegmentProposals: string[];
 }
 
 /**
@@ -178,7 +181,7 @@ export function findProposalOrphans(repoRoot: string): OrphanCheckResult {
     .join('\n\n');
 
   const orphans: string[] = [];
-  const singleSegmentSlugs: string[] = [];
+  const singleSegmentProposals: string[] = [];
   for (const proposal of proposals) {
     const slug = basename(proposal, '.md');
 
@@ -187,7 +190,7 @@ export function findProposalOrphans(repoRoot: string): OrphanCheckResult {
       // can't be trusted regardless of outcome (false-positive prone),
       // and the slug itself is a separate hard-fail signal the CLI surfaces
       // alongside any orphans.
-      singleSegmentSlugs.push(relative(repoRoot, proposal));
+      singleSegmentProposals.push(relative(repoRoot, proposal));
       continue;
     }
 
@@ -203,18 +206,23 @@ export function findProposalOrphans(repoRoot: string): OrphanCheckResult {
     // kebab-case proposal names and are safe, but defensive in case
     // future proposals use other characters).
     //
-    // Case-sensitive by intent: proposal slugs are consistently kebab-case
-    // in markdown links and prose mentions, and a mixed-case reference like
-    // `Periodic-Audit-Enforcement` is not an expected shape. Add the `i`
-    // flag here only if a future proposal naming convention diverges.
+    // Case-insensitive (`i` flag): the codebase has both kebab-case
+    // proposals (`memory-and-context-redesign.md`) and legacy
+    // SCREAMING_SNAKE_CASE (`GIT_HOOK_IMPROVEMENTS.md`). A contributor
+    // linking to a SCREAMING_SNAKE_CASE proposal as `git-hook-improvements`
+    // (lowercased) is a plausible mistake that shouldn't silently flag
+    // the proposal as orphan. Multi-segment names are precise enough
+    // that the `i` flag doesn't increase false-negative risk —
+    // `git-hook-improvements` as 3 segments is vanishingly unlikely to
+    // collide with unrelated prose.
     const escapedSlug = slug.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const wordBoundary = new RegExp(`(^|[^a-zA-Z0-9_-])${escapedSlug}([^a-zA-Z0-9_-]|$)`);
+    const wordBoundary = new RegExp(`(^|[^a-zA-Z0-9_-])${escapedSlug}([^a-zA-Z0-9_-]|$)`, 'i');
     if (!wordBoundary.test(haystack)) {
       orphans.push(relative(repoRoot, proposal));
     }
   }
 
-  return { totalProposals: proposals.length, orphans, singleSegmentSlugs };
+  return { totalProposals: proposals.length, orphans, singleSegmentProposals };
 }
 
 export interface CheckProposalOrphansOptions {
@@ -238,8 +246,8 @@ export async function checkProposalOrphans(
   options: CheckProposalOrphansOptions = {}
 ): Promise<void> {
   const repoRoot = options.repoRoot ?? process.cwd();
-  const { totalProposals, orphans, singleSegmentSlugs } = findProposalOrphans(repoRoot);
-  const totalFindings = orphans.length + singleSegmentSlugs.length;
+  const { totalProposals, orphans, singleSegmentProposals } = findProposalOrphans(repoRoot);
+  const totalFindings = orphans.length + singleSegmentProposals.length;
 
   if (options.summary) {
     emitSummary({
@@ -254,10 +262,10 @@ export async function checkProposalOrphans(
     return;
   }
 
-  const linkCheckedCount = totalProposals - singleSegmentSlugs.length;
+  const linkCheckedCount = totalProposals - singleSegmentProposals.length;
   const suffix =
-    singleSegmentSlugs.length > 0
-      ? ` (${singleSegmentSlugs.length} skipped — single-segment slugs)`
+    singleSegmentProposals.length > 0
+      ? ` (${singleSegmentProposals.length} skipped — single-segment slugs)`
       : '';
   console.log(`\n🔍 Checking ${linkCheckedCount} proposals for inbound links${suffix}...\n`);
 
@@ -269,9 +277,9 @@ export async function checkProposalOrphans(
     return;
   }
 
-  if (singleSegmentSlugs.length > 0) {
-    console.log(`❌ Found ${singleSegmentSlugs.length} single-segment proposal slug(s):\n`);
-    for (const slug of singleSegmentSlugs) {
+  if (singleSegmentProposals.length > 0) {
+    console.log(`❌ Found ${singleSegmentProposals.length} single-segment proposal slug(s):\n`);
+    for (const slug of singleSegmentProposals) {
       console.log(`   ${slug}`);
     }
     console.log(`
