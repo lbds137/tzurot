@@ -1,6 +1,6 @@
 # Ops CLI Full Reference
 
-This document provides the complete command reference for `pnpm ops`. For quick patterns and when to use each command, see the `tzurot-tooling` skill.
+This document provides the complete command reference for `pnpm ops`. For quick patterns and the audit-enforcement contract, see [`docs/reference/audit-enforcement.md`](../audit-enforcement.md) and [`.claude/rules/05-tooling.md`](../../../.claude/rules/05-tooling.md).
 
 ## Database Commands
 

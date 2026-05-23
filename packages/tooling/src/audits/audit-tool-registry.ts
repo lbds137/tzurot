@@ -103,6 +103,11 @@ export const AUDIT_TOOL_REGISTRY: readonly AuditToolEntry[] = [
     whyPath: 'packages/tooling/src/audits/check-audit-tool-docs.WHY.md',
     description: 'Registered audit tools must have a non-stub WHY.md',
   },
+  {
+    command: 'guard:claude-content-refs',
+    whyPath: 'packages/tooling/src/audits/check-claude-content-refs.WHY.md',
+    description: 'Skill/rule pnpm ops references resolve + lastUpdated freshness',
+  },
   // NOTE: `memory:analyze` is intentionally NOT in the registry. It's a
   // one-shot remediation tool for the retry-loop-bug cleanup, not a
   // periodic audit. Its WHY.md still exists as operator documentation

@@ -20,6 +20,7 @@ import { dirname, resolve } from 'node:path';
 import { analyzeMigrationSafety } from '../db/check-migration-safety.js';
 import { runComplexityReport } from '../lint/complexity-report.js';
 import { checkAuditToolDocsFromRegistry } from './check-audit-tool-docs.js';
+import { findContentRefs } from './check-claude-content-refs.js';
 import type { AuditToolEntry } from './audit-tool-registry.js';
 import { parseSummary } from './summary.js';
 
@@ -126,5 +127,28 @@ describe('audit-canary: guard:audit-tool-docs', () => {
     ).toHaveLength(1);
     expect(result.stubs[0].command).toBe('canary-tool-stub');
     expect(result.missing).toEqual([]);
+  });
+});
+
+describe('audit-canary: guard:claude-content-refs', () => {
+  it('detects a deliberately-dangling pnpm ops command reference', () => {
+    // The fixture references `pnpm ops nonexistent:canary-target` which
+    // is intentionally not in the validCommands set. If the audit tool
+    // ever stops detecting this, the canary fails and the silent-
+    // misconfiguration failure mode is caught.
+    const validCommands = new Set(['db:status']); // explicitly excludes the canary target
+    const result = findContentRefs(
+      REPO_ROOT,
+      validCommands,
+      // Scope the scan to the canary fixture so production rule/skill
+      // content doesn't contaminate the test.
+      [`${FIXTURES_ROOT.replace(`${REPO_ROOT}/`, '')}/claude-content-refs/rules`]
+    );
+    expect(result.totalFiles).toBe(1);
+    expect(
+      result.danglingRefs,
+      `expected exactly one dangling ref, got: ${JSON.stringify(result.danglingRefs)}`
+    ).toHaveLength(1);
+    expect(result.danglingRefs[0].command).toBe('nonexistent:canary-target');
   });
 });

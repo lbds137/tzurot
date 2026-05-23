@@ -6,6 +6,9 @@
 
 import type { CAC } from 'cac';
 
+const SUMMARY_OPTION_DESC =
+  'Output only the standardized JSONL audit-summary line (for the audit-aggregator)';
+
 export function registerGuardCommands(cli: CAC): void {
   cli
     .command('guard:boundaries', 'Check for architecture boundary violations')
@@ -37,10 +40,7 @@ export function registerGuardCommands(cli: CAC): void {
       'guard:proposal-links',
       'Check that every docs/proposals/backlog/*.md has at least one inbound link'
     )
-    .option(
-      '--summary',
-      'Output only the standardized JSONL audit-summary line (for the audit-aggregator)'
-    )
+    .option('--summary', SUMMARY_OPTION_DESC)
     .example('ops guard:proposal-links')
     .example('ops guard:proposal-links --summary')
     .action(async (options: { summary?: boolean }) => {
@@ -53,14 +53,24 @@ export function registerGuardCommands(cli: CAC): void {
       'guard:audit-tool-docs',
       'Check that every registered audit tool has a non-stub WHY.md'
     )
-    .option(
-      '--summary',
-      'Output only the standardized JSONL audit-summary line (for the audit-aggregator)'
-    )
+    .option('--summary', SUMMARY_OPTION_DESC)
     .example('ops guard:audit-tool-docs')
     .example('ops guard:audit-tool-docs --summary')
     .action(async (options: { summary?: boolean }) => {
       const { checkAuditToolDocs } = await import('../audits/check-audit-tool-docs.js');
       await checkAuditToolDocs(options);
+    });
+
+  cli
+    .command(
+      'guard:claude-content-refs',
+      'Verify skill/rule pnpm-ops command references resolve + flag stale lastUpdated'
+    )
+    .option('--summary', SUMMARY_OPTION_DESC)
+    .example('ops guard:claude-content-refs')
+    .example('ops guard:claude-content-refs --summary')
+    .action(async (options: { summary?: boolean }) => {
+      const { checkClaudeContentRefs } = await import('../audits/check-claude-content-refs.js');
+      await checkClaudeContentRefs(options);
     });
 }
