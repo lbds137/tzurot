@@ -4,6 +4,7 @@
 
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { join, relative, dirname } from 'node:path';
+import { TEST_AUDIT_IMPL_VERSION } from './audit-version.js';
 
 // ============================================================================
 // Types
@@ -193,7 +194,6 @@ export function hasAuditIgnoreComment(filePath: string): boolean {
  * `audit-version.ts` (fs-free) so the test suite can statically import
  * it without pulling in `node:fs` ahead of `vi.mock` hoisting.
  */
-import { TEST_AUDIT_IMPL_VERSION } from './audit-version.js';
 export { TEST_AUDIT_IMPL_VERSION };
 
 /**
