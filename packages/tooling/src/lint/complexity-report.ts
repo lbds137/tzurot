@@ -235,15 +235,19 @@ function runEslint(
   const configFlags = configPath === undefined ? [] : ['--config', configPath];
 
   // How the canary scans a fixture in an ignored directory:
-  // The `--rule` CLI flags below force the listed rules to be applied to
-  // every file in `targetDirs`, regardless of whether the resolved config
-  // would otherwise include them. ESLint flat-config `ignores` arrays
-  // suppress RULES from applying to ignored paths — but `--rule` overrides
-  // bypass that, so the fixture under `**/test-fixtures/**` still gets
-  // complexity-checked. Empirically: `eslint <ignored-file>` produces 0
-  // findings, but `eslint --rule='complexity:["error",...]' <ignored-file>`
-  // produces the expected finding. The `--rule` overrides are doing the
-  // work; any prior `--ignore-pattern` flag was a no-op in this context.
+  // `--config` points at the canary's local `eslint.config.mjs`, which
+  // has no `ignores` for test-fixtures and supplies non-typed parserOptions
+  // for plain `.js` files. That config replaces the root `eslint.config.js`
+  // for this invocation — the fixture is therefore in linting scope.
+  // `--rule` then layers on the complexity-rule overrides that the
+  // minimal local config otherwise omits.
+  //
+  // Load-bearing piece: `configPath`. Without it, ESLint falls back to
+  // the root config whose `**/test-fixtures/**` ignore excludes the
+  // fixture from scope entirely — `--rule` would have nothing to apply
+  // to, and the canary would silently emit 0 findings. Removing the
+  // `configPath` argument is a one-line change that would silently break
+  // the canary, so keep it explicit.
   let eslintOutput: string;
   try {
     eslintOutput = execFileSync(
