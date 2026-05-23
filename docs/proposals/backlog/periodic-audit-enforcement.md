@@ -100,7 +100,7 @@ Shipped in [PR #1083](https://github.com/lbds137/tzurot/pull/1083) targeting `de
 - Canary tests with deliberate-violation fixtures (valid + stub + non-existent path) asserting all three classification paths work
 - All 3 absorbed Layer-1 hardening items: `runEslint` `additionalIgnoreOverrides` API, single-segment slug hard-fail, non-summary path test for `checkProposalOrphans`
 
-### Layer 3 — Baseline meta blocks (anti-drift)
+### Layer 3 — Baseline meta blocks (anti-drift) (SHIPPED)
 
 Every baseline file (markdown, NOT JSON — see below) carries a metadata header:
 
@@ -121,6 +121,30 @@ generated-at: 2026-05-22T16:32:00Z
 - Baseline was committed against WIP code
 
 **Age-gate fires on config-hash mismatch, not just calendar days.** Without this, a 3-month-old baseline against a config bumped last week is reporting against a different reality than the code is running against.
+
+#### Absorbed Layer-2 hardening (surfaced by PR #1083 review)
+
+Four follow-ups from the Layer 2 PR review land alongside Layer 3 — same absorbing pattern. All touch the audit infrastructure Layer 3 builds on top of:
+
+1. **Rename `singleSegmentSlugs` → `singleSegmentProposals`** in `OrphanCheckResult`: field contained relative paths (not bare slugs), so the parallel-to-`orphans` shape is more accurate.
+
+2. **Lazy-quantifier comment in frontmatter strip regex**: `[\s\S]*?` errs toward false-pass (a stub might exceed the floor if a YAML scalar contained an embedded `---`); greedy would err toward false-fail (body horizontal rules would get stripped). Comment documents the tradeoff so a future reader doesn't optimize toward the wrong shape.
+
+3. **Case-insensitive flag on orphan-check word-boundary regex**: SCREAMING_SNAKE_CASE proposals mentioned in snake_case (or kebab-case proposals as Mixed-Kebab-Case) no longer silently flag as orphan. Multi-segment names are precise enough that the `i` flag doesn't introduce false negatives. Hyphen↔underscore separator differences remain unnormalized (separate concern).
+
+4. **Orphan-WHY.md detection (bidirectional check)**: `guard:audit-tool-docs` now walks `packages/tooling/src/**/*.WHY.md` and asserts each is either registered or on the new `UNREGISTERED_WHY_PATHS` allowlist. Catches the failure mode where a tool gets removed from the registry but its WHY.md is left behind — knip can't detect this (paths are data, not imports).
+
+#### Layer 3 ship status
+
+Shipped in [PR #TBD](https://github.com/lbds137/tzurot/pull/) targeting `develop`:
+
+- `audits/baseline-meta.ts` module: shared `BaselineMeta` type, `buildBaselineMeta()` (auto-populates node/git/timestamp), `checkMetaDrift()` (returns aligned/drift verdict), `hashConfigSlice()` (stable 12-char SHA-256 of measurement-affecting config slice)
+- CPD integration: new `FILTER_IMPL_VERSION` constant, `getCpdConfigFingerprint()`, drift hard-fail in `cpd:check`, meta-block write in `cpd:update-baseline`. Backfilled `.github/baselines/cpd-baseline.json`.
+- test:audit integration: new `TEST_AUDIT_IMPL_VERSION`, `getTestAuditConfigFingerprint()`, drift hard-fail in `auditUnified()`, meta-block write in `--update` path. Backfilled `.github/baselines/test-coverage-baseline.json`.
+- All 4 absorbed Layer-2 hardening items
+- Baselines stay JSON (Layer 4 markdown migration deferred — JSON+meta-block is enough to deliver the drift-detection invariant; markdown's diff-readability benefit is independent)
+
+**Design note: the meta block lives inside the existing JSON baseline** rather than as a sidecar file or markdown frontmatter. The proposal originally drafted Layer 4 (markdown migration) and Layer 3 as separate, but embedding meta in JSON gives the same drift-detection contract with a smaller diff and no file-format migration. Layer 4 can still happen if the diff-readability problem becomes acute.
 
 ### Layer 4 — Markdown baselines (not JSON)
 

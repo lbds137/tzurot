@@ -25,6 +25,12 @@ The ratchet pattern (file-level coverage baseline that can only go down, not up)
 
 `test:audit` is the structural enforcement that converts "test culture" into a CI gate. `.claude/rules/00-critical.md` "NEVER add NEW code to `knownGaps` baseline — write proper tests instead" is the explicit no-bypass rule.
 
+## Drift detection (Layer 3)
+
+`test:audit` hard-fails when the baseline's stored `meta.configHash` doesn't match the current config fingerprint. The fingerprint hashes `{ implVersion: TEST_AUDIT_IMPL_VERSION }` — bumped whenever the measurement-affecting logic changes (Prisma-detection heuristic, service-file glob, Zod schema enumeration, audit-ignore comment shape). A bump invalidates existing baselines and forces an explicit `test:audit --update` refresh. Without this, a heuristic change silently makes every subsequent ratchet check meaningless — the `knownGaps` baseline was captured under different rules than the current scan.
+
+The drift check is skipped in `--update` mode (that path REFRESHES the meta block; failing there would be circular).
+
 ## Threshold rationale
 
 The baseline is in `.github/baselines/test-coverage-baseline.json` and tracks known-gap files explicitly. The intent:
