@@ -24,6 +24,13 @@ export interface UnifiedBaseline {
     serviceExemptionCriteria: string;
     contractExemptionCriteria: string;
   };
+  /**
+   * Layer 3 baseline metadata. Optional for backward compat — pre-Layer-3
+   * baselines didn't have this. The drift gate in `auditUnified` treats
+   * a missing meta block as drift, forcing an explicit refresh via
+   * `test:audit --update`.
+   */
+  meta?: import('../audits/baseline-meta.js').BaselineMeta;
 }
 
 export interface ServiceAuditResult {
@@ -161,6 +168,7 @@ export function hasPrismaUsage(filePath: string): boolean {
   // Remove comments to avoid false positives
   const withoutComments = content
     .replace(/\/\*[\s\S]*?\*\//g, '') // Block comments
+    // eslint-disable-next-line regexp/no-super-linear-move -- Input is developer-authored TS source (trusted, bounded by file size); ReDoS not a real attack surface
     .replace(/\/\/.*$/gm, ''); // Line comments
 
   return PRISMA_PATTERNS.some(pattern => pattern.test(withoutComments));
@@ -178,6 +186,31 @@ export function hasAuditIgnoreComment(filePath: string): boolean {
 // ============================================================================
 // Baseline Helpers
 // ============================================================================
+
+/**
+ * Implementation version of the test-audit measurement logic. Bumped when
+ * any of these change: the Prisma-usage detection heuristic, the
+ * service-file glob, the contract-file enumeration, or the audit-ignore
+ * comment shape. Goes into the baseline meta `configHash` via
+ * `getTestAuditConfigFingerprint` so a heuristic change forces an
+ * explicit refresh.
+ *
+ * History: v1 — initial (Prisma auto-detection + `*.service.ts` glob +
+ * Zod schema enumeration).
+ */
+export const TEST_AUDIT_IMPL_VERSION = 1;
+
+/**
+ * Returns the measurement-affecting test-audit config. Hashed into the
+ * baseline `meta.configHash` so a heuristic change invalidates the
+ * baseline. Stable shape — bump `TEST_AUDIT_IMPL_VERSION` when the
+ * detection logic changes.
+ */
+export function getTestAuditConfigFingerprint(): {
+  implVersion: number;
+} {
+  return { implVersion: TEST_AUDIT_IMPL_VERSION };
+}
 
 /**
  * Create default empty baseline

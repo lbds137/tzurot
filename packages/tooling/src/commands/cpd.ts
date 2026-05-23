@@ -21,7 +21,29 @@ import type { CAC } from 'cac';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import chalk from 'chalk';
-import { JSCPD_REPORT_PATH } from '../cpd/postFilter.js';
+import { JSCPD_REPORT_PATH, FILTER_IMPL_VERSION } from '../cpd/postFilter.js';
+import {
+  buildBaselineMeta,
+  checkMetaDrift,
+  hashConfigSlice,
+  type BaselineMeta,
+} from '../audits/baseline-meta.js';
+
+/**
+ * Returns the measurement-affecting CPD config. Hashed into the baseline
+ * `meta.configHash` so a threshold or filter-implementation change
+ * invalidates the baseline.
+ *
+ * `graceMargin` is intentionally NOT in the fingerprint — it's a
+ * tolerance setting, not a measurement input. Bumping it doesn't
+ * invalidate the underlying line count.
+ */
+export function getCpdConfigFingerprint(threshold: number): {
+  threshold: number;
+  filterImplVersion: number;
+} {
+  return { threshold, filterImplVersion: FILTER_IMPL_VERSION };
+}
 
 const DEFAULT_BASELINE_PATH = '.github/baselines/cpd-baseline.json';
 const THRESHOLD_OPTION_FLAG = '--threshold <ratio>';
@@ -62,7 +84,7 @@ function assertReportExists(): void {
 export function parseBaseline(
   rawContent: string,
   pathForError: string
-): { filteredLines: number; graceMargin?: number } {
+): { filteredLines: number; graceMargin?: number; meta?: BaselineMeta } {
   let parsed: unknown;
   try {
     parsed = JSON.parse(rawContent);
@@ -91,7 +113,37 @@ export function parseBaseline(
     );
     process.exit(1);
   }
-  return { filteredLines: obj.filteredLines, graceMargin: obj.graceMargin };
+
+  // `meta` is optional — pre-Layer-3 baselines don't have one, and the
+  // drift check (in runCheckCommand) treats a missing meta as drift so
+  // the operator is forced to refresh and capture metadata.
+  let meta: BaselineMeta | undefined;
+  if (obj.meta !== undefined) {
+    if (typeof obj.meta !== 'object' || obj.meta === null) {
+      console.error(chalk.red(`Baseline ${pathForError} meta must be an object when set`));
+      process.exit(1);
+    }
+    const m = obj.meta as Record<string, unknown>;
+    // Field-level type check — only validate string-ness; presence is
+    // confirmed by the drift check downstream. This keeps parseBaseline
+    // focused on JSON shape, not semantic alignment.
+    const stringFields: (keyof BaselineMeta)[] = [
+      'toolVersion',
+      'configHash',
+      'nodeVersion',
+      'generatedFromSha',
+      'generatedAt',
+    ];
+    for (const field of stringFields) {
+      if (typeof m[field] !== 'string') {
+        console.error(chalk.red(`Baseline ${pathForError} meta.${field} must be a string`));
+        process.exit(1);
+      }
+    }
+    meta = m as unknown as BaselineMeta;
+  }
+
+  return { filteredLines: obj.filteredLines, graceMargin: obj.graceMargin, meta };
 }
 
 interface FilteredCommandOptions {
@@ -151,6 +203,26 @@ async function runCheckCommand(options: CheckCommandOptions): Promise<void> {
     readFileSync(resolve(process.cwd(), options.baseline), 'utf-8'),
     options.baseline
   );
+
+  // Layer 3 drift detection: hard-fail when the baseline's stored
+  // configHash doesn't match the current config. Forces an intentional
+  // refresh via `cpd:update-baseline` whenever the threshold or filter
+  // implementation changes — without this, a config bump silently makes
+  // every subsequent baseline comparison meaningless.
+  const currentConfigHash = await hashConfigSlice(getCpdConfigFingerprint(options.threshold));
+  const drift = checkMetaDrift(baseline.meta, currentConfigHash);
+  if (!drift.aligned) {
+    console.error();
+    console.error(chalk.red(`❌ CPD baseline meta drift: ${drift.detail}`));
+    console.error(
+      chalk.dim(
+        'The baseline was captured under different CPD config. Run ' +
+          '`pnpm ops cpd:update-baseline` to refresh against the current config.'
+      )
+    );
+    process.exit(1);
+  }
+
   const report = loadJscpdReport(JSCPD_REPORT_PATH);
   const result = filterReport(report, options.threshold);
 
@@ -212,6 +284,7 @@ export interface BaselineUpdateResult {
     rawCount: number;
     threshold: number;
     graceMargin: number;
+    meta: BaselineMeta;
   };
   /** Line-count change (positive = baseline raised). */
   delta: number;
@@ -224,12 +297,18 @@ export interface BaselineUpdateResult {
 /** Pure computation of the new baseline given the current filter result and
  *  the previous baseline (or `{}` if no previous baseline exists). Preserves
  *  existing fields like `notes`, `version`, `graceMargin` from the previous
- *  baseline; overwrites the count/line fields and `lastUpdated`. Exported
- *  for testing — the wrapping command is a thin I/O shell around this. */
+ *  baseline; overwrites the count/line fields, `lastUpdated`, and `meta`.
+ *  Exported for testing — the wrapping command is a thin I/O shell around this.
+ *
+ *  `meta` MUST be supplied by the caller (it's tool-specific — the baseline
+ *  module doesn't know how to compute the configHash). The caller builds it
+ *  via `buildBaselineMeta(toolVersion, configHash)`.
+ */
 export function computeUpdatedBaseline(
   result: FilterSummary,
   previous: Record<string, unknown>,
   threshold: number,
+  meta: BaselineMeta,
   now: Date = new Date()
 ): BaselineUpdateResult {
   // Narrow `version` and `graceMargin` types before merging — the
@@ -255,6 +334,7 @@ export function computeUpdatedBaseline(
     rawCount: result.rawCount,
     threshold,
     graceMargin: prevGraceMargin,
+    meta,
   };
 
   return {
@@ -287,10 +367,17 @@ async function runUpdateBaselineCommand(options: UpdateBaselineCommandOptions): 
       })()
     : {};
 
+  const configHash = await hashConfigSlice(getCpdConfigFingerprint(options.threshold));
+  // toolVersion: hard-coded for now; reconsider if this tool's logic
+  // starts evolving fast enough that callers need to disambiguate.
+  // The configHash captures the measurement-affecting bits anyway.
+  const meta = buildBaselineMeta('cpd-check/1.0', configHash);
+
   const { updated, delta, prevLines, prevCount } = computeUpdatedBaseline(
     result,
     previous,
-    options.threshold
+    options.threshold,
+    meta
   );
 
   const deltaStr =

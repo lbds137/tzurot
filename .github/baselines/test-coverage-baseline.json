@@ -1,6 +1,6 @@
 {
-  "version": 8,
-  "lastUpdated": "2026-02-08T20:08:14.209Z",
+  "version": 9,
+  "lastUpdated": "2026-05-23T03:05:15.302Z",
   "services": {
     "detectedPrismaServices": [
       "packages/common-types/src/services/ConversationHistoryService.ts",
@@ -8,7 +8,8 @@
       "packages/common-types/src/services/ConversationSyncService.ts",
       "packages/common-types/src/services/UserService.ts",
       "services/ai-worker/src/services/LongTermMemoryService.ts",
-      "services/api-gateway/src/services/LlmConfigService.ts"
+      "services/api-gateway/src/services/LlmConfigService.ts",
+      "services/api-gateway/src/services/TtsConfigService.ts"
     ],
     "knownGaps": []
   },
@@ -18,5 +19,12 @@
   "notes": {
     "serviceExemptionCriteria": "Services are auto-detected for Prisma usage. Only services with Prisma calls need integration tests.",
     "contractExemptionCriteria": "None - all API schemas need contract tests"
+  },
+  "meta": {
+    "toolVersion": "test-audit/1.0",
+    "configHash": "eef9df4af3ea",
+    "nodeVersion": "v24.11.1",
+    "generatedFromSha": "5faa8f92bc4056b585a64ad8409ab0fb29df6942",
+    "generatedAt": "2026-05-23T03:05:15.302Z"
   }
 }

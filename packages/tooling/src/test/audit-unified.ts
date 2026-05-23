@@ -209,6 +209,7 @@ function findTestedSchemas(projectRoot: string): string[] {
         const schemaFile = match[1];
 
         // Find which schemas from this file are actually used
+        // eslint-disable-next-line regexp/no-super-linear-move -- Input is developer-authored TS source (trusted, bounded by file size); ReDoS not a real attack surface
         const schemaUsageMatches = content.matchAll(/(\w+Schema)\.safeParse/g);
         for (const usageMatch of schemaUsageMatches) {
           tested.push(`${schemaFile}:${usageMatch[1]}`);
@@ -216,6 +217,7 @@ function findTestedSchemas(projectRoot: string): string[] {
       }
 
       // Also check for .parse() usage (some tests use .parse instead of .safeParse)
+      // eslint-disable-next-line regexp/no-super-linear-move -- Input is developer-authored TS source (trusted, bounded by file size); ReDoS not a real attack surface
       const parseMatches = content.matchAll(/(\w+Schema)\.parse\(/g);
       for (const match of parseMatches) {
         const importMatches2 = content.matchAll(/from ['"]\.\/([\w-]+)(?:\.js)?['"]/g);
@@ -234,6 +236,7 @@ function findTestedSchemas(projectRoot: string): string[] {
     for (const file of e2eFiles) {
       const content = readFile(join(e2eTestsDir, file));
 
+      // eslint-disable-next-line regexp/no-super-linear-move -- Input is developer-authored TS source (trusted, bounded by file size); ReDoS not a real attack surface
       const schemaUsageMatches = content.matchAll(/(\w+Schema)\.safeParse/g);
       for (const match of schemaUsageMatches) {
         tested.push(`e2e:${match[1]}`);
@@ -332,9 +335,73 @@ export function collectUnifiedAuditData(
 }
 
 /**
+ * Layer 3 drift detection helper. Returns `true` when the baseline's
+ * stored configHash matches the current measurement-affecting config;
+ * returns `false` after printing an actionable error message on drift.
+ * Extracted from `auditUnified` to keep that function's cognitive
+ * complexity inside the lint budget.
+ */
+async function checkBaselineDrift(baseline: UnifiedBaseline): Promise<boolean> {
+  const { checkMetaDrift, hashConfigSlice } = await import('../audits/baseline-meta.js');
+  const { getTestAuditConfigFingerprint } = await import('./audit-utils.js');
+  const currentConfigHash = await hashConfigSlice(getTestAuditConfigFingerprint());
+  const drift = checkMetaDrift(baseline.meta, currentConfigHash);
+  if (!drift.aligned) {
+    console.error(`\n❌ test-audit baseline meta drift: ${drift.detail}`);
+    console.error(
+      '   The baseline was captured under different test-audit config. Run ' +
+        '`pnpm ops test:audit --update` to refresh against the current config.'
+    );
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Build and save the updated baseline (the `--update` path). Extracted
+ * from `auditUnified` to keep that function's complexity inside the
+ * lint budget.
+ */
+async function writeUpdatedBaseline(
+  projectRoot: string,
+  baseline: UnifiedBaseline,
+  result: { services: ServiceAuditResult; contracts: ContractAuditResult },
+  category: 'services' | 'contracts' | undefined
+): Promise<void> {
+  console.log('📝 Updating baseline file...\n');
+  const { buildBaselineMeta, hashConfigSlice } = await import('../audits/baseline-meta.js');
+  const { getTestAuditConfigFingerprint } = await import('./audit-utils.js');
+  const configHash = await hashConfigSlice(getTestAuditConfigFingerprint());
+  const meta = buildBaselineMeta('test-audit/1.0', configHash);
+
+  const updatedBaseline: UnifiedBaseline = {
+    ...baseline,
+    version: baseline.version + 1,
+    lastUpdated: new Date().toISOString(),
+    services: {
+      // Include detected Prisma services for audit transparency
+      detectedPrismaServices: includesServices(category)
+        ? result.services.servicesWithPrisma
+        : baseline.services.detectedPrismaServices,
+      knownGaps: includesServices(category)
+        ? result.services.untestedServices
+        : baseline.services.knownGaps,
+    },
+    contracts: {
+      knownGaps: includesContracts(category)
+        ? result.contracts.untestedSchemas
+        : baseline.contracts.knownGaps,
+    },
+    meta,
+  };
+  saveUnifiedBaseline(projectRoot, updatedBaseline);
+  console.log(`✅ Baseline updated: ${UNIFIED_BASELINE_PATH}\n`);
+}
+
+/**
  * Main unified audit function
  */
-export function auditUnified(options: AuditUnifiedOptions = {}): boolean {
+export async function auditUnified(options: AuditUnifiedOptions = {}): Promise<boolean> {
   const { update = false, strict = false, category, verbose = false } = options;
   const projectRoot = process.cwd();
 
@@ -345,6 +412,12 @@ export function auditUnified(options: AuditUnifiedOptions = {}): boolean {
 
   const baseline = loadUnifiedBaseline(projectRoot);
   const result = collectUnifiedAuditData(projectRoot, baseline);
+
+  // Layer 3 drift detection. Skipped in `--update` mode because that
+  // path REFRESHES the meta block — failing there would be circular.
+  if (!update && !(await checkBaselineDrift(baseline))) {
+    return false;
+  }
 
   // Print requested sections
   if (includesServices(category)) {
@@ -361,28 +434,7 @@ export function auditUnified(options: AuditUnifiedOptions = {}): boolean {
 
   // Handle update mode
   if (update) {
-    console.log('📝 Updating baseline file...\n');
-    const updatedBaseline: UnifiedBaseline = {
-      ...baseline,
-      version: baseline.version + 1,
-      lastUpdated: new Date().toISOString(),
-      services: {
-        // Include detected Prisma services for audit transparency
-        detectedPrismaServices: includesServices(category)
-          ? result.services.servicesWithPrisma
-          : baseline.services.detectedPrismaServices,
-        knownGaps: includesServices(category)
-          ? result.services.untestedServices
-          : baseline.services.knownGaps,
-      },
-      contracts: {
-        knownGaps: includesContracts(category)
-          ? result.contracts.untestedSchemas
-          : baseline.contracts.knownGaps,
-      },
-    };
-    saveUnifiedBaseline(projectRoot, updatedBaseline);
-    console.log(`✅ Baseline updated: ${UNIFIED_BASELINE_PATH}\n`);
+    await writeUpdatedBaseline(projectRoot, baseline, result, category);
     return true;
   }
 
