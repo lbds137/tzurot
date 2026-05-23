@@ -64,33 +64,33 @@ describe('checkMetaDrift', () => {
 });
 
 describe('hashConfigSlice', () => {
-  it('produces a stable 12-char hex hash for the same input', async () => {
+  it('produces a stable 12-char hex hash for the same input', () => {
     const input = { threshold: 0.8, version: 1 };
-    const hash1 = await hashConfigSlice(input);
-    const hash2 = await hashConfigSlice(input);
+    const hash1 = hashConfigSlice(input);
+    const hash2 = hashConfigSlice(input);
     expect(hash1).toBe(hash2);
     expect(hash1).toMatch(/^[a-f0-9]{12}$/);
   });
 
-  it('produces different hashes for different inputs', async () => {
-    const hash1 = await hashConfigSlice({ threshold: 0.8 });
-    const hash2 = await hashConfigSlice({ threshold: 0.7 });
+  it('produces different hashes for different inputs', () => {
+    const hash1 = hashConfigSlice({ threshold: 0.8 });
+    const hash2 = hashConfigSlice({ threshold: 0.7 });
     expect(hash1).not.toBe(hash2);
   });
 
-  it('is sensitive to key order (JSON.stringify is order-dependent)', async () => {
+  it('is sensitive to key order (JSON.stringify is order-dependent)', () => {
     // Documenting the contract: hashConfigSlice does NOT canonicalize
     // key order. Callers should construct config slices with stable
     // key order (object literals in source files have stable order
     // in modern JS engines, so this is usually fine).
-    const a = await hashConfigSlice({ a: 1, b: 2 });
-    const b = await hashConfigSlice({ b: 2, a: 1 });
+    const a = hashConfigSlice({ a: 1, b: 2 });
+    const b = hashConfigSlice({ b: 2, a: 1 });
     expect(a).not.toBe(b);
   });
 
-  it('handles primitive inputs', async () => {
-    expect(await hashConfigSlice('hello')).toMatch(/^[a-f0-9]{12}$/);
-    expect(await hashConfigSlice(42)).toMatch(/^[a-f0-9]{12}$/);
-    expect(await hashConfigSlice(null)).toMatch(/^[a-f0-9]{12}$/);
+  it('handles primitive inputs', () => {
+    expect(hashConfigSlice('hello')).toMatch(/^[a-f0-9]{12}$/);
+    expect(hashConfigSlice(42)).toMatch(/^[a-f0-9]{12}$/);
+    expect(hashConfigSlice(null)).toMatch(/^[a-f0-9]{12}$/);
   });
 });

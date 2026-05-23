@@ -18,7 +18,7 @@
  * `MIN_WHY_CONTENT_CHARS` below.
  */
 
-import { readFileSync, readdirSync, statSync, lstatSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { emitSummary } from './summary.js';
 import {
@@ -65,29 +65,25 @@ const MIN_WHY_CONTENT_CHARS = 200;
 /**
  * Recursively walk `dir` and return relative paths of every WHY.md file
  * (basenames ending in `.WHY.md` OR a literal `WHY.md` inside a module
- * directory). `lstatSync` so symlinks don't cycle; symlinked WHY.md
- * files are excluded — use a regular file copy if a WHY.md needs to
- * appear in two locations.
+ * directory). Uses `withFileTypes: true` for the Dirent's own
+ * `isDirectory()` / `isFile()` predicates — no separate `lstatSync`
+ * per entry. Dirent does NOT follow symlinks, so symlink cycles are
+ * impossible and symlinked WHY.md files are excluded — use a regular
+ * file copy if a WHY.md needs to appear in two locations.
  */
 function findWhyFiles(repoRoot: string, dir: string): string[] {
   const results: string[] = [];
-  let entries: string[];
+  let entries;
   try {
-    entries = readdirSync(dir);
+    entries = readdirSync(dir, { withFileTypes: true });
   } catch {
     return [];
   }
   for (const entry of entries) {
-    const full = join(dir, entry);
-    let stat;
-    try {
-      stat = lstatSync(full);
-    } catch {
-      continue;
-    }
-    if (stat.isDirectory()) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
       results.push(...findWhyFiles(repoRoot, full));
-    } else if (stat.isFile() && (entry.endsWith('.WHY.md') || entry === 'WHY.md')) {
+    } else if (entry.isFile() && (entry.name.endsWith('.WHY.md') || entry.name === 'WHY.md')) {
       results.push(relative(repoRoot, full));
     }
   }

@@ -23,6 +23,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 
 export interface BaselineMeta {
   /** Tool-internal version string (semver or hash). Convention: the package.json version, or a hash of the tool's source if it's evolving fast. */
@@ -108,8 +109,7 @@ export function checkMetaDrift(
  * this helper hashes the result. The fingerprint is what each tool
  * commits to as its config-stability contract.
  */
-export async function hashConfigSlice(slice: unknown): Promise<string> {
-  const { createHash } = await import('node:crypto');
+export function hashConfigSlice(slice: unknown): string {
   const serialized = JSON.stringify(slice);
   return createHash('sha256').update(serialized).digest('hex').slice(0, 12);
 }

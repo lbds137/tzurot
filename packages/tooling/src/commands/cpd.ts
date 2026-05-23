@@ -209,7 +209,7 @@ async function runCheckCommand(options: CheckCommandOptions): Promise<void> {
   // refresh via `cpd:update-baseline` whenever the threshold or filter
   // implementation changes — without this, a config bump silently makes
   // every subsequent baseline comparison meaningless.
-  const currentConfigHash = await hashConfigSlice(getCpdConfigFingerprint(options.threshold));
+  const currentConfigHash = hashConfigSlice(getCpdConfigFingerprint(options.threshold));
   const drift = checkMetaDrift(baseline.meta, currentConfigHash);
   if (!drift.aligned) {
     console.error();
@@ -367,7 +367,7 @@ async function runUpdateBaselineCommand(options: UpdateBaselineCommandOptions): 
       })()
     : {};
 
-  const configHash = await hashConfigSlice(getCpdConfigFingerprint(options.threshold));
+  const configHash = hashConfigSlice(getCpdConfigFingerprint(options.threshold));
   // toolVersion: hard-coded for now; reconsider if this tool's logic
   // starts evolving fast enough that callers need to disambiguate.
   // The configHash captures the measurement-affecting bits anyway.

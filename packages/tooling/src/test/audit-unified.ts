@@ -7,6 +7,7 @@
 
 import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
 import { join, basename } from 'node:path';
+import chalk from 'chalk';
 
 import {
   type UnifiedBaseline,
@@ -344,13 +345,15 @@ export function collectUnifiedAuditData(
 async function checkBaselineDrift(baseline: UnifiedBaseline): Promise<boolean> {
   const { checkMetaDrift, hashConfigSlice } = await import('../audits/baseline-meta.js');
   const { getTestAuditConfigFingerprint } = await import('./audit-utils.js');
-  const currentConfigHash = await hashConfigSlice(getTestAuditConfigFingerprint());
+  const currentConfigHash = hashConfigSlice(getTestAuditConfigFingerprint());
   const drift = checkMetaDrift(baseline.meta, currentConfigHash);
   if (!drift.aligned) {
-    console.error(`\n❌ test-audit baseline meta drift: ${drift.detail}`);
+    console.error(chalk.red(`\n❌ test-audit baseline meta drift: ${drift.detail}`));
     console.error(
-      '   The baseline was captured under different test-audit config. Run ' +
-        '`pnpm ops test:audit --update` to refresh against the current config.'
+      chalk.dim(
+        '   The baseline was captured under different test-audit config. Run ' +
+          '`pnpm ops test:audit --update` to refresh against the current config.'
+      )
     );
     return false;
   }
@@ -371,7 +374,7 @@ async function writeUpdatedBaseline(
   console.log('📝 Updating baseline file...\n');
   const { buildBaselineMeta, hashConfigSlice } = await import('../audits/baseline-meta.js');
   const { getTestAuditConfigFingerprint } = await import('./audit-utils.js');
-  const configHash = await hashConfigSlice(getTestAuditConfigFingerprint());
+  const configHash = hashConfigSlice(getTestAuditConfigFingerprint());
   const meta = buildBaselineMeta('test-audit/1.0', configHash);
 
   const updatedBaseline: UnifiedBaseline = {

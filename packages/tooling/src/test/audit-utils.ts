@@ -188,23 +188,19 @@ export function hasAuditIgnoreComment(filePath: string): boolean {
 // ============================================================================
 
 /**
- * Implementation version of the test-audit measurement logic. Bumped when
- * any of these change: the Prisma-usage detection heuristic, the
- * service-file glob, the contract-file enumeration, or the audit-ignore
- * comment shape. Goes into the baseline meta `configHash` via
- * `getTestAuditConfigFingerprint` so a heuristic change forces an
- * explicit refresh.
- *
- * History: v1 — initial (Prisma auto-detection + `*.service.ts` glob +
- * Zod schema enumeration).
+ * Re-export of TEST_AUDIT_IMPL_VERSION for callers that historically
+ * imported it from this module. The constant itself lives in
+ * `audit-version.ts` (fs-free) so the test suite can statically import
+ * it without pulling in `node:fs` ahead of `vi.mock` hoisting.
  */
-export const TEST_AUDIT_IMPL_VERSION = 1;
+export { TEST_AUDIT_IMPL_VERSION } from './audit-version.js';
+import { TEST_AUDIT_IMPL_VERSION } from './audit-version.js';
 
 /**
  * Returns the measurement-affecting test-audit config. Hashed into the
  * baseline `meta.configHash` so a heuristic change invalidates the
- * baseline. Stable shape — bump `TEST_AUDIT_IMPL_VERSION` when the
- * detection logic changes.
+ * baseline. Stable shape — bump `TEST_AUDIT_IMPL_VERSION` (in
+ * `audit-version.ts`) when the detection logic changes.
  */
 export function getTestAuditConfigFingerprint(): {
   implVersion: number;
