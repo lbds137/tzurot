@@ -143,7 +143,7 @@ If your new command is an **audit tool** — i.e., it reports a measurement with
 2. **`--summary` mode** that emits one JSONL line via `audits/summary.ts:emitSummary()`
 3. **WHY.md** at `<implementation>.WHY.md` (4 sections: What / Why / Threshold rationale / Decay check; ≥200 chars body)
 4. **Register in `AUDIT_TOOL_REGISTRY`** in `audit-tool-registry.ts`
-5. **Canary fixture + canary test** in `audits/canary.test.ts` — deliberate-violation fixture in `test-fixtures/audit-canaries/<tool>/` that the tool MUST detect
+5. **Canary fixture + canary test** in `audits/canary.test.ts` (requires `--summary` mode from step 2) — deliberate-violation fixture in `test-fixtures/audit-canaries/<tool>/` that the tool MUST detect
 6. **Wire into CI** in `.github/workflows/ci.yml`
 7. **If the tool has a baseline**: define `getConfigFingerprint()` + `IMPL_VERSION` constant; mirror the CPD or test:audit drift-detection pattern
 

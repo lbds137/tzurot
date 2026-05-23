@@ -96,7 +96,7 @@ When you build a new audit-class tool (something that reports a measurement with
 2. **Add a `--summary` mode** that emits exactly one JSONL line via `audits/summary.ts:emitSummary()`. This is the contract the future aggregator parses.
 3. **Write the WHY.md** at `<implementation>.WHY.md`. Four sections: What / Why / Threshold rationale / Decay check. Substantive enough to clear the 200-char content threshold — don't ship a stub.
 4. **Register in `AUDIT_TOOL_REGISTRY`** in `audit-tool-registry.ts`. Add the command name, WHY.md path, and one-line description.
-5. **Write the canary fixture + test**. Put the fixture in `packages/tooling/test-fixtures/audit-canaries/<tool>/`. The canary test in `canary.test.ts` invokes the tool with `summary: true` against the fixture and asserts `status: 'fail'`, `findings > 0`. Fixture file MUST have a "DO NOT FIX / DO NOT REMOVE" comment.
+5. **Write the canary fixture + test** (requires `--summary` mode from step 2 — see Layer 1). Put the fixture in `packages/tooling/test-fixtures/audit-canaries/<tool>/`. The canary test in `canary.test.ts` invokes the tool with `summary: true` against the fixture and asserts `status: 'fail'`, `findings > 0`. Fixture file MUST have a "DO NOT FIX / DO NOT REMOVE" comment.
 6. **Wire into CI** in `.github/workflows/ci.yml` lint job (or wherever appropriate for the tool's cadence).
 7. **If the tool has a baseline**: define `getConfigFingerprint()` and an `IMPL_VERSION` constant; the baseline write path calls `buildBaselineMeta()` and the check path calls `checkMetaDrift()`. Mirror the CPD or test:audit pattern.
 
