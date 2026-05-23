@@ -4,21 +4,18 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createHash } from 'node:crypto';
+import { TEST_AUDIT_IMPL_VERSION } from './audit-version.js';
 
 /**
  * Synchronous mirror of `hashConfigSlice` from audits/baseline-meta.ts.
- * Test setup needs a deterministic hash for the current impl version,
- * but importing `TEST_AUDIT_IMPL_VERSION` from `./audit-utils.js` here
- * would pull in `node:fs` before the `vi.mock` below initializes —
- * hoisting order bites. Inline the value instead; if
- * `TEST_AUDIT_IMPL_VERSION` is bumped in audit-utils.ts, update this
- * constant to match (baseline-meta tests will catch the mismatch
- * because audit-unified will report drift).
+ * `TEST_AUDIT_IMPL_VERSION` is imported from `./audit-version.js` (an
+ * fs-free module) rather than `./audit-utils.js` so the static import
+ * works without colliding with the `vi.mock('node:fs', ...)` hoist
+ * below. A version bump in `audit-version.ts` propagates here
+ * automatically — no manual sync required.
  */
-const TEST_AUDIT_IMPL_VERSION_FOR_TESTS = 1;
-
 function expectedTestAuditConfigHash(): string {
-  const slice = { implVersion: TEST_AUDIT_IMPL_VERSION_FOR_TESTS };
+  const slice = { implVersion: TEST_AUDIT_IMPL_VERSION };
   return createHash('sha256').update(JSON.stringify(slice)).digest('hex').slice(0, 12);
 }
 
