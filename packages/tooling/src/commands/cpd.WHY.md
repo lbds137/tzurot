@@ -18,6 +18,12 @@ The CPD-reduction campaign that ran early 2026 reframed the goal mid-campaign �
 
 The full campaign audit is at `docs/reference/CPD_CAMPAIGN_AUDIT.md`. The 2-callback ceiling rule (don't extract a shared helper if it'd require more than 2 callback/predicate parameters) is the working heuristic that prevents this from being a treadmill.
 
+## Drift detection (Layer 3)
+
+`cpd:check` hard-fails when the baseline's stored `meta.configHash` doesn't match the current config fingerprint. The fingerprint hashes `{ threshold, filterImplVersion }` — the two inputs that affect measurement. Bumping `FILTER_IMPL_VERSION` in `postFilter.ts` (when the call-dominance heuristic changes) or changing the `--threshold` invalidates existing baselines and forces an explicit `cpd:update-baseline` refresh. Without this, a heuristic tweak silently makes every subsequent baseline comparison meaningless — the baseline floor was measured under different rules than the current run.
+
+`graceMargin` is intentionally NOT in the fingerprint. It's a tolerance setting, not a measurement input — bumping it doesn't invalidate the underlying line count.
+
 ## Threshold rationale
 
 The ratchet is `baseline.filteredLines + baseline.graceMargin`. `graceMargin` is intentional headroom for legitimate small regressions (a new feature genuinely adds some duplication that hasn't been worth extracting yet) — typically set to 20-50 lines.
