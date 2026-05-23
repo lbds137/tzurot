@@ -109,13 +109,7 @@ describe('audit-unified', () => {
             serviceExemptionCriteria: 'Services are auto-detected for Prisma usage',
             contractExemptionCriteria: 'None',
           },
-          meta: {
-            toolVersion: 'test-audit/1.0',
-            configHash: expectedTestAuditConfigHash(),
-            nodeVersion: 'v25.3.0',
-            generatedFromSha: 'deadbeef00000000000000000000000000000000',
-            generatedAt: '2024-01-01T00:00:00.000Z',
-          },
+          meta: VALID_BASELINE_META,
         });
       }
       return '';
@@ -161,6 +155,75 @@ export class SimpleService {
 
       const { auditUnified } = await import('./audit-unified.js');
       const result = await auditUnified();
+
+      expect(result).toBe(true);
+    });
+
+    it('should fail with drift error when baseline configHash mismatches', async () => {
+      // End-to-end coverage of the Layer 3 drift gate. Without this,
+      // someone refactoring `checkBaselineDrift` could accidentally
+      // delete the gate and the tests would still pass.
+      mockExistsSync.mockImplementation((path: string) => {
+        if (path.includes('test-coverage-baseline')) return true;
+        return false;
+      });
+      mockReaddirSync.mockImplementation(() => []);
+      mockReadFileSync.mockImplementation((path: string) => {
+        if (path.includes('test-coverage-baseline')) {
+          return JSON.stringify({
+            version: 1,
+            lastUpdated: '2024-01-01',
+            services: { knownGaps: [] },
+            contracts: { knownGaps: [] },
+            notes: {
+              serviceExemptionCriteria: 'Services are auto-detected for Prisma usage',
+              contractExemptionCriteria: 'None',
+            },
+            meta: {
+              ...VALID_BASELINE_META,
+              // Intentionally wrong — should trigger the drift gate
+              configHash: 'stale0000beef',
+            },
+          });
+        }
+        return '';
+      });
+
+      const { auditUnified } = await import('./audit-unified.js');
+      const result = await auditUnified();
+
+      expect(result).toBe(false);
+    });
+
+    it('should skip drift check in --update mode (avoid circular fail)', async () => {
+      // In `--update` mode, the path refreshes the meta block. Failing
+      // there on the OLD configHash would prevent the refresh from
+      // succeeding — circular. Verify that a stale baseline in update
+      // mode passes through to the refresh.
+      mockExistsSync.mockImplementation((path: string) => {
+        if (path.includes('test-coverage-baseline')) return true;
+        return false;
+      });
+      mockReaddirSync.mockImplementation(() => []);
+      mockReadFileSync.mockImplementation((path: string) => {
+        if (path.includes('test-coverage-baseline')) {
+          return JSON.stringify({
+            version: 1,
+            lastUpdated: '2024-01-01',
+            services: { knownGaps: [] },
+            contracts: { knownGaps: [] },
+            notes: {
+              serviceExemptionCriteria: 'Services are auto-detected for Prisma usage',
+              contractExemptionCriteria: 'None',
+            },
+            meta: { ...VALID_BASELINE_META, configHash: 'stale0000beef' },
+          });
+        }
+        return '';
+      });
+
+      const { auditUnified } = await import('./audit-unified.js');
+      const result = await auditUnified({ update: true });
 
       expect(result).toBe(true);
     });
