@@ -866,8 +866,8 @@ export class UserClient {
     });
   }
 
-  async getRecentDiagnostics(options: { subject?: SubjectDiscordId; userId?: string; personalityId?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getRecentDiagnostics.output>>> {
-    const fullPath = '/api/user/diagnostic/recent' + buildQueryString([['userId', options.subject], ['userId', options.userId], ['personalityId', options.personalityId]]);
+  async getRecentDiagnostics(options: { subject?: SubjectDiscordId; personalityId?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getRecentDiagnostics.output>>> {
+    const fullPath = '/api/user/diagnostic/recent' + buildQueryString([['userId', options.subject], ['personalityId', options.personalityId]]);
     return callGateway({
       baseUrl: this.baseUrl,
       serviceSecret: this.serviceSecret,
