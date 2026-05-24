@@ -209,3 +209,36 @@ export const DeleteTtsConfigResponseSchema = z.object({
   deleted: z.literal(true),
 });
 export type DeleteTtsConfigResponse = z.infer<typeof DeleteTtsConfigResponseSchema>;
+
+// ============================================================================
+// GET /admin/tts-config/:id and GET /user/tts-config/:id
+// Returns a single TTS config (admin: global; user: ownership-checked).
+// ============================================================================
+
+export const GetTtsConfigResponseSchema = z.object({
+  config: TtsConfigSummarySchema,
+});
+export type GetTtsConfigResponse = z.infer<typeof GetTtsConfigResponseSchema>;
+
+// ============================================================================
+// PUT /admin/tts-config/:id and PUT /user/tts-config/:id
+// Updates a TTS config; returns the post-update shape.
+// ============================================================================
+
+export const UpdateTtsConfigResponseSchema = z.object({
+  config: TtsConfigSummarySchema,
+});
+export type UpdateTtsConfigResponse = z.infer<typeof UpdateTtsConfigResponseSchema>;
+
+// ============================================================================
+// PUT /admin/tts-config/:id/set-default
+// PUT /admin/tts-config/:id/set-free-default
+// Promotes a global TTS config to the paid / free default; mirrors the
+// LLM-config set-default shape.
+// ============================================================================
+
+export const SetDefaultTtsConfigResponseSchema = z.object({
+  success: z.literal(true),
+  configName: z.string(),
+});
+export type SetDefaultTtsConfigResponse = z.infer<typeof SetDefaultTtsConfigResponseSchema>;
