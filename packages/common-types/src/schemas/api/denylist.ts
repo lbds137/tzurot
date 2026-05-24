@@ -77,3 +77,33 @@ export const DenylistCacheResponseSchema = z.object({
   entries: z.array(DenylistEntrySchema),
 });
 export type DenylistCacheResponse = z.infer<typeof DenylistCacheResponseSchema>;
+
+/** Response for POST /admin/denylist — newly added (or upserted) entry. */
+export const AddDenylistResponseSchema = z.object({
+  success: z.literal(true),
+  entry: DenylistEntrySchema,
+});
+export type AddDenylistResponse = z.infer<typeof AddDenylistResponseSchema>;
+
+/**
+ * Response for GET /admin/denylist — full list of entries with count.
+ * Optional `?type=USER|GUILD` filter is applied at the handler before
+ * the list is returned; the response shape is the same in either case.
+ */
+export const ListDenylistResponseSchema = z.object({
+  success: z.literal(true),
+  entries: z.array(DenylistEntrySchema),
+  count: z.number().int().nonnegative(),
+});
+export type ListDenylistResponse = z.infer<typeof ListDenylistResponseSchema>;
+
+/**
+ * Response for DELETE /admin/denylist/:type/:discordId/:scope/:scopeId.
+ * `removed: true` is redundant with `success: true` but the handler emits
+ * both so the schema matches the wire format exactly.
+ */
+export const RemoveDenylistResponseSchema = z.object({
+  success: z.literal(true),
+  removed: z.literal(true),
+});
+export type RemoveDenylistResponse = z.infer<typeof RemoveDenylistResponseSchema>;
