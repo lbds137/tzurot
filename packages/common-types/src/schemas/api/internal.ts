@@ -29,3 +29,41 @@ export const RecentUsersResponseSchema = z.object({
   sinceDays: z.number().int().positive(),
 });
 export type RecentUsersResponse = z.infer<typeof RecentUsersResponseSchema>;
+
+// ============================================================================
+// POST /internal/channel/dm-session/set
+// Records active personality in a DM session. Called by bot-client after a
+// multi-tag reply selects a personality; the gateway stores it so subsequent
+// messages in the DM channel route to the same personality without re-running
+// the tag-matching logic.
+// ============================================================================
+
+export const DmSessionSetRequestSchema = z.object({
+  channelId: z.string(),
+  personalitySlug: z.string(),
+});
+export type DmSessionSetRequest = z.infer<typeof DmSessionSetRequestSchema>;
+
+export const DmSessionSetResponseSchema = z.object({
+  channelId: z.string(),
+  personalitySlug: z.string(),
+});
+export type DmSessionSetResponse = z.infer<typeof DmSessionSetResponseSchema>;
+
+// ============================================================================
+// GET /internal/conversation/message-personality (reclassified from /user/*)
+// Looks up the personality that owns a given Discord message ID. Used by
+// bot-client's reply-resolution path to route reply targeting correctly.
+//
+// Currently mounted at /user/conversation/message-personality but has no
+// human-actor auth — it's a service-to-service lookup. The route manifest
+// reclassifies it under /internal/* so the audience is explicit.
+// ============================================================================
+
+export const MessagePersonalityResponseSchema = z.object({
+  personalityId: z.string(),
+  // Personality display name is optional — the historical conversation_history
+  // row may have only the personality UUID without the display-name denormalized.
+  personalityName: z.string().nullable().optional(),
+});
+export type MessagePersonalityResponse = z.infer<typeof MessagePersonalityResponseSchema>;
