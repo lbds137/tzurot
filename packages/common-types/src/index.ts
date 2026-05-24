@@ -107,9 +107,10 @@ export * from './services/resolvers/index.js';
 // Use these instead of manually constructing API response mocks
 export * from './factories/index.js';
 
-// Export route manifest types — branded ActorDiscordId/SubjectDiscordId,
-// smart constructors, RouteDef descriptor. The actual manifest registry
-// (admin/user/internal routes) lands as additional exports once declared.
+// Route manifest types — branded ActorDiscordId/SubjectDiscordId, smart
+// constructors, RouteDef descriptor. The audience-scoped registries
+// (internal/admin/user) and the composed ROUTE_MANIFEST are exported by
+// the lines immediately below.
 export * from './routes/types.js';
 // Internal-audience route registry (service-to-service endpoints).
 export * from './routes/internal.js';
@@ -118,3 +119,5 @@ export * from './routes/admin.js';
 // User-audience route registry (any-authenticated-user endpoints).
 // Composed in routes/user/index.ts from configs + resources sub-manifests.
 export * from './routes/user/index.js';
+// Central route manifest registry — composes all three audiences.
+export * from './routes/manifest.js';
