@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { DiscordSnowflakeSchema, RecentUsersResponseSchema } from './internal.js';
+import {
+  DiscordSnowflakeSchema,
+  RecentUsersResponseSchema,
+  DmSessionSetRequestSchema,
+  DmSessionSetResponseSchema,
+  MessagePersonalityResponseSchema,
+} from './internal.js';
 
 describe('DiscordSnowflakeSchema', () => {
   it('accepts a 17-digit snowflake', () => {
@@ -104,5 +110,61 @@ describe('RecentUsersResponseSchema', () => {
     const data = { discordIds: ['123456789012345678901'], sinceDays: 30 }; // 21 digits
     const result = RecentUsersResponseSchema.safeParse(data);
     expect(result.success).toBe(false);
+  });
+});
+
+describe('DmSessionSetRequestSchema and DmSessionSetResponseSchema', () => {
+  it('request accepts valid channelId + personalitySlug', () => {
+    expect(
+      DmSessionSetRequestSchema.safeParse({
+        channelId: '123456789012345678',
+        personalitySlug: 'lila',
+      }).success
+    ).toBe(true);
+  });
+
+  it('response shape mirrors request shape (echo of what was set)', () => {
+    expect(
+      DmSessionSetResponseSchema.safeParse({
+        channelId: '123456789012345678',
+        personalitySlug: 'lila',
+      }).success
+    ).toBe(true);
+  });
+
+  it('request rejects missing channelId', () => {
+    expect(DmSessionSetRequestSchema.safeParse({ personalitySlug: 'lila' }).success).toBe(false);
+  });
+});
+
+describe('MessagePersonalityResponseSchema', () => {
+  it('accepts a full response with name', () => {
+    expect(
+      MessagePersonalityResponseSchema.safeParse({
+        personalityId: 'personality-uuid',
+        personalityName: 'Lila',
+      }).success
+    ).toBe(true);
+  });
+
+  it('accepts response with null personalityName (denormalized name may be absent)', () => {
+    expect(
+      MessagePersonalityResponseSchema.safeParse({
+        personalityId: 'personality-uuid',
+        personalityName: null,
+      }).success
+    ).toBe(true);
+  });
+
+  it('accepts response without personalityName at all (optional field)', () => {
+    expect(
+      MessagePersonalityResponseSchema.safeParse({ personalityId: 'personality-uuid' }).success
+    ).toBe(true);
+  });
+
+  it('rejects missing personalityId', () => {
+    expect(MessagePersonalityResponseSchema.safeParse({ personalityName: 'Lila' }).success).toBe(
+      false
+    );
   });
 });
