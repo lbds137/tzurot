@@ -70,3 +70,6 @@ export * from './internal.js';
 
 // Diagnostic endpoints (response schemas for /admin/diagnostic/*)
 export * from './diagnostic.js';
+
+// AI endpoints (response schemas for /ai/{generate,transcribe,job/:id/...})
+export * from './ai.js';
