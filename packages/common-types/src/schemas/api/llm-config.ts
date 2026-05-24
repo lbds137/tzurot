@@ -267,3 +267,36 @@ export const DeleteLlmConfigResponseSchema = z.object({
   deleted: z.literal(true),
 });
 export type DeleteLlmConfigResponse = z.infer<typeof DeleteLlmConfigResponseSchema>;
+
+// ============================================================================
+// GET /admin/llm-config/:id and GET /user/llm-config/:id
+// Returns a single config (admin: global; user: ownership-checked).
+// ============================================================================
+
+export const GetLlmConfigResponseSchema = z.object({
+  config: LlmConfigSummarySchema,
+});
+export type GetLlmConfigResponse = z.infer<typeof GetLlmConfigResponseSchema>;
+
+// ============================================================================
+// PUT /admin/llm-config/:id and PUT /user/llm-config/:id
+// Updates a config; returns the post-update shape.
+// ============================================================================
+
+export const UpdateLlmConfigResponseSchema = z.object({
+  config: LlmConfigSummarySchema,
+});
+export type UpdateLlmConfigResponse = z.infer<typeof UpdateLlmConfigResponseSchema>;
+
+// ============================================================================
+// PUT /admin/llm-config/:id/set-default
+// PUT /admin/llm-config/:id/set-free-default
+// Promotes a global config to the paid / free default. The configName field
+// echoes what was promoted so the bot-client can render a confirmation.
+// ============================================================================
+
+export const SetDefaultLlmConfigResponseSchema = z.object({
+  success: z.literal(true),
+  configName: z.string(),
+});
+export type SetDefaultLlmConfigResponse = z.infer<typeof SetDefaultLlmConfigResponseSchema>;

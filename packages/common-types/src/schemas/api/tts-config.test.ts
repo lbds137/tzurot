@@ -17,6 +17,9 @@ import {
   ListTtsConfigsResponseSchema,
   CreateTtsConfigResponseSchema,
   DeleteTtsConfigResponseSchema,
+  GetTtsConfigResponseSchema,
+  UpdateTtsConfigResponseSchema,
+  SetDefaultTtsConfigResponseSchema,
   TTS_CONFIG_LIST_SELECT,
   TTS_CONFIG_DETAIL_SELECT,
   TTS_CONFIG_DEFAULTS,
@@ -239,5 +242,40 @@ describe('SELECT constants and DEFAULTS', () => {
 
   it('TTS_CONFIG_DEFAULTS provides a sensible self-hosted default', () => {
     expect(TTS_CONFIG_DEFAULTS.provider).toBe('self-hosted');
+  });
+});
+
+describe('GetTtsConfigResponseSchema and UpdateTtsConfigResponseSchema', () => {
+  // Matches TtsConfigSummarySchema actual fields (id, name, description,
+  // provider, modelId, isGlobal, isDefault, isOwned, permissions).
+  const validConfig = {
+    id: '00000000-0000-4000-8000-000000000001',
+    name: 'cfg',
+    description: null,
+    provider: 'self-hosted' as const,
+    modelId: 'kokoro',
+    isGlobal: true,
+    isDefault: false,
+    isOwned: false,
+    permissions: { canEdit: false, canDelete: false },
+  };
+
+  it('GetTtsConfigResponseSchema accepts a single-config wrapper', () => {
+    expect(GetTtsConfigResponseSchema.safeParse({ config: validConfig }).success).toBe(true);
+  });
+
+  it('UpdateTtsConfigResponseSchema mirrors the same shape', () => {
+    expect(UpdateTtsConfigResponseSchema.safeParse({ config: validConfig }).success).toBe(true);
+  });
+});
+
+describe('SetDefaultTtsConfigResponseSchema', () => {
+  it('accepts { success, configName }', () => {
+    expect(
+      SetDefaultTtsConfigResponseSchema.safeParse({
+        success: true,
+        configName: 'kokoro-default',
+      }).success
+    ).toBe(true);
   });
 });

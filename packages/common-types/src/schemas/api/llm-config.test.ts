@@ -11,6 +11,9 @@ import {
   ListLlmConfigsResponseSchema,
   CreateLlmConfigResponseSchema,
   DeleteLlmConfigResponseSchema,
+  GetLlmConfigResponseSchema,
+  UpdateLlmConfigResponseSchema,
+  SetDefaultLlmConfigResponseSchema,
   ContextSettingsSchema,
   LlmConfigCreateSchema,
   LlmConfigUpdateSchema,
@@ -548,6 +551,64 @@ describe('LLM Config API Contract Tests', () => {
       // computeLlmConfigPermissions(config, userId, discordUserId)
 
       expect(true).toBe(true);
+    });
+  });
+
+  describe('GetLlmConfigResponseSchema', () => {
+    // Mirrors LlmConfigSummarySchema's actual fields (id, name, description,
+    // provider, model, visionModel, isGlobal, isDefault, isOwned, permissions).
+    const validConfig = {
+      id: '00000000-0000-4000-8000-000000000001',
+      name: 'cfg',
+      description: null,
+      provider: 'openrouter',
+      model: 'openai/gpt-4o-mini',
+      visionModel: null,
+      isGlobal: true,
+      isDefault: false,
+      isOwned: false,
+      permissions: { canEdit: false, canDelete: false },
+    };
+
+    it('accepts a single-config wrapper', () => {
+      expect(GetLlmConfigResponseSchema.safeParse({ config: validConfig }).success).toBe(true);
+    });
+
+    it('rejects missing config field', () => {
+      expect(GetLlmConfigResponseSchema.safeParse({}).success).toBe(false);
+    });
+  });
+
+  describe('UpdateLlmConfigResponseSchema', () => {
+    it('mirrors GetLlmConfigResponseSchema (same { config } shape)', () => {
+      const validConfig = {
+        id: '00000000-0000-4000-8000-000000000001',
+        name: 'cfg',
+        description: null,
+        provider: 'openrouter',
+        model: 'openai/gpt-4o-mini',
+        visionModel: null,
+        isGlobal: true,
+        isDefault: false,
+        isOwned: false,
+        permissions: { canEdit: false, canDelete: false },
+      };
+      expect(UpdateLlmConfigResponseSchema.safeParse({ config: validConfig }).success).toBe(true);
+    });
+  });
+
+  describe('SetDefaultLlmConfigResponseSchema', () => {
+    it('accepts { success, configName }', () => {
+      expect(
+        SetDefaultLlmConfigResponseSchema.safeParse({
+          success: true,
+          configName: 'paid-default',
+        }).success
+      ).toBe(true);
+    });
+
+    it('rejects missing configName', () => {
+      expect(SetDefaultLlmConfigResponseSchema.safeParse({ success: true }).success).toBe(false);
     });
   });
 });
