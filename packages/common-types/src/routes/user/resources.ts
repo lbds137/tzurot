@@ -329,7 +329,14 @@ export const userResourceRoutes = {
     method: 'get',
     path: '/diagnostic/recent',
     id: 'getRecentDiagnostics',
-    query: { userId: z.string().optional(), personalityId: z.string().optional() },
+    // Note: the server handler reads `?userId=` for the subject — that's
+    // what `acceptsSubject: true` maps to in the generated client (the
+    // `options.subject` parameter). DO NOT also declare `userId` in
+    // `query` here — the codegen would emit two `['userId', ...]`
+    // entries into URLSearchParams.set, and the second would silently
+    // overwrite the typed subject branding (defeating the whole point).
+    // The cross-audience invariant test enforces this.
+    query: { personalityId: z.string().optional() },
     output: RecentDiagnosticLogsResponseSchema,
     acceptsSubject: true,
   },
