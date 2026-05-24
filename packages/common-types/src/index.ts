@@ -112,5 +112,6 @@ export * from './factories/index.js';
 // (admin/user/internal routes) lands as additional exports once declared.
 export * from './routes/types.js';
 // Internal-audience route registry (service-to-service endpoints).
-// Admin + user audiences land in subsequent commits on this branch.
 export * from './routes/internal.js';
+// Admin-audience route registry (bot-owner-only endpoints).
+export * from './routes/admin.js';
