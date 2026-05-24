@@ -115,3 +115,6 @@ export * from './routes/types.js';
 export * from './routes/internal.js';
 // Admin-audience route registry (bot-owner-only endpoints).
 export * from './routes/admin.js';
+// User-audience route registry (any-authenticated-user endpoints).
+// Composed in routes/user/index.ts from configs + resources sub-manifests.
+export * from './routes/user/index.js';

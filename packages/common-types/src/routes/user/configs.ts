@@ -1,0 +1,342 @@
+/**
+ * User-audience configuration routes.
+ *
+ * Covers per-user settings that aren't tied to a specific resource:
+ * timezone, LLM/TTS config CRUD, per-personality override pinning,
+ * STT default provider, model override.
+ *
+ * All routes here require provisioning — they operate on the caller's
+ * own row, so the gateway must resolve the Discord ID to an internal
+ * UUID at the middleware layer.
+ */
+
+import { z } from 'zod';
+import {
+  // Timezone
+  GetTimezoneResponseSchema,
+  SetTimezoneResponseSchema,
+  SetTimezoneInputSchema,
+  // LLM config
+  LlmConfigCreateSchema,
+  LlmConfigUpdateSchema,
+  ListLlmConfigsResponseSchema,
+  GetLlmConfigResponseSchema,
+  CreateLlmConfigResponseSchema,
+  UpdateLlmConfigResponseSchema,
+  DeleteLlmConfigResponseSchema,
+  // TTS config
+  TtsConfigCreateSchema,
+  TtsConfigUpdateSchema,
+  ListTtsConfigsResponseSchema,
+  GetTtsConfigResponseSchema,
+  CreateTtsConfigResponseSchema,
+  UpdateTtsConfigResponseSchema,
+  DeleteTtsConfigResponseSchema,
+  // TTS override
+  SetTtsOverrideSchema,
+  SetTtsDefaultConfigSchema,
+  ListTtsOverridesResponseSchema,
+  SetTtsOverrideResponseSchema,
+  SetTtsDefaultConfigResponseSchema,
+  ClearTtsDefaultConfigResponseSchema,
+  DeleteTtsOverrideResponseSchema,
+  // STT override
+  SetSttDefaultProviderSchema,
+  UserDefaultSttProviderSchema,
+  SetSttDefaultProviderResponseSchema,
+  ClearSttDefaultProviderResponseSchema,
+  // Model override
+  SetModelOverrideSchema,
+  SetDefaultConfigSchema,
+  ListModelOverridesResponseSchema,
+  SetModelOverrideResponseSchema,
+  SetDefaultConfigResponseSchema,
+  ClearDefaultConfigResponseSchema,
+  DeleteModelOverrideResponseSchema,
+} from '../../schemas/api/index.js';
+import type { RouteDef } from '../types.js';
+
+// Shared CRUD-detail path constants — GET/PUT/DELETE on the same :id share
+// the literal three ways per resource.
+const LLM_CONFIG_DETAIL_PATH = '/llm-config/:id';
+const TTS_CONFIG_DETAIL_PATH = '/tts-config/:id';
+const MODEL_OVERRIDE_DEFAULT_PATH = '/model-override/default';
+const STT_OVERRIDE_PATH = '/stt-override';
+
+export const userConfigRoutes = {
+  // ============================================================================
+  // Timezone (self-only)
+  // ============================================================================
+
+  getTimezone: {
+    audience: 'user',
+    method: 'get',
+    path: '/timezone',
+    id: 'getTimezone',
+    output: GetTimezoneResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
+  setTimezone: {
+    audience: 'user',
+    method: 'put',
+    path: '/timezone',
+    id: 'setTimezone',
+    input: SetTimezoneInputSchema,
+    output: SetTimezoneResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
+  // ============================================================================
+  // LLM config (user-owned)
+  // ============================================================================
+
+  listUserLlmConfigs: {
+    audience: 'user',
+    method: 'get',
+    path: '/llm-config',
+    id: 'listUserLlmConfigs',
+    output: ListLlmConfigsResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
+  getUserLlmConfig: {
+    audience: 'user',
+    method: 'get',
+    path: LLM_CONFIG_DETAIL_PATH,
+    id: 'getUserLlmConfig',
+    params: { id: z.string() },
+    output: GetLlmConfigResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
+  createUserLlmConfig: {
+    audience: 'user',
+    method: 'post',
+    path: '/llm-config',
+    id: 'createUserLlmConfig',
+    input: LlmConfigCreateSchema,
+    output: CreateLlmConfigResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
+  updateUserLlmConfig: {
+    audience: 'user',
+    method: 'put',
+    path: LLM_CONFIG_DETAIL_PATH,
+    id: 'updateUserLlmConfig',
+    params: { id: z.string() },
+    input: LlmConfigUpdateSchema,
+    output: UpdateLlmConfigResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
+  deleteUserLlmConfig: {
+    audience: 'user',
+    method: 'delete',
+    path: LLM_CONFIG_DETAIL_PATH,
+    id: 'deleteUserLlmConfig',
+    params: { id: z.string() },
+    output: DeleteLlmConfigResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
+  // ============================================================================
+  // TTS config (user-owned) — mirrors LLM config CRUD shape
+  // ============================================================================
+
+  listUserTtsConfigs: {
+    audience: 'user',
+    method: 'get',
+    path: '/tts-config',
+    id: 'listUserTtsConfigs',
+    output: ListTtsConfigsResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
+  getUserTtsConfig: {
+    audience: 'user',
+    method: 'get',
+    path: TTS_CONFIG_DETAIL_PATH,
+    id: 'getUserTtsConfig',
+    params: { id: z.string() },
+    output: GetTtsConfigResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
+  createUserTtsConfig: {
+    audience: 'user',
+    method: 'post',
+    path: '/tts-config',
+    id: 'createUserTtsConfig',
+    input: TtsConfigCreateSchema,
+    output: CreateTtsConfigResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
+  updateUserTtsConfig: {
+    audience: 'user',
+    method: 'put',
+    path: TTS_CONFIG_DETAIL_PATH,
+    id: 'updateUserTtsConfig',
+    params: { id: z.string() },
+    input: TtsConfigUpdateSchema,
+    output: UpdateTtsConfigResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
+  deleteUserTtsConfig: {
+    audience: 'user',
+    method: 'delete',
+    path: TTS_CONFIG_DETAIL_PATH,
+    id: 'deleteUserTtsConfig',
+    params: { id: z.string() },
+    output: DeleteTtsConfigResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
+  // ============================================================================
+  // TTS override (per-personality TTS pinning + user default)
+  // ============================================================================
+
+  listTtsOverrides: {
+    audience: 'user',
+    method: 'get',
+    path: '/tts-override',
+    id: 'listTtsOverrides',
+    output: ListTtsOverridesResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
+  setTtsOverride: {
+    audience: 'user',
+    method: 'put',
+    path: '/tts-override',
+    id: 'setTtsOverride',
+    input: SetTtsOverrideSchema,
+    output: SetTtsOverrideResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
+  deleteTtsOverride: {
+    audience: 'user',
+    method: 'delete',
+    path: '/tts-override/:personalityId',
+    id: 'deleteTtsOverride',
+    params: { personalityId: z.string() },
+    output: DeleteTtsOverrideResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
+  setTtsDefaultConfig: {
+    audience: 'user',
+    method: 'put',
+    path: '/tts-override/default',
+    id: 'setTtsDefaultConfig',
+    input: SetTtsDefaultConfigSchema,
+    output: SetTtsDefaultConfigResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
+  clearTtsDefaultConfig: {
+    audience: 'user',
+    method: 'delete',
+    path: '/tts-override/default',
+    id: 'clearTtsDefaultConfig',
+    output: ClearTtsDefaultConfigResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
+  // ============================================================================
+  // STT override (user default STT provider)
+  // ============================================================================
+
+  getSttDefaultProvider: {
+    audience: 'user',
+    method: 'get',
+    path: STT_OVERRIDE_PATH,
+    id: 'getSttDefaultProvider',
+    output: UserDefaultSttProviderSchema,
+    requiresProvisionedUser: true,
+  },
+
+  setSttDefaultProvider: {
+    audience: 'user',
+    method: 'put',
+    path: STT_OVERRIDE_PATH,
+    id: 'setSttDefaultProvider',
+    input: SetSttDefaultProviderSchema,
+    output: SetSttDefaultProviderResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
+  clearSttDefaultProvider: {
+    audience: 'user',
+    method: 'delete',
+    path: STT_OVERRIDE_PATH,
+    id: 'clearSttDefaultProvider',
+    output: ClearSttDefaultProviderResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
+  // ============================================================================
+  // Model override (per-personality model pin + user default)
+  // ============================================================================
+
+  listModelOverrides: {
+    audience: 'user',
+    method: 'get',
+    path: '/model-override',
+    id: 'listModelOverrides',
+    output: ListModelOverridesResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
+  setModelOverride: {
+    audience: 'user',
+    method: 'put',
+    path: '/model-override',
+    id: 'setModelOverride',
+    input: SetModelOverrideSchema,
+    output: SetModelOverrideResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
+  deleteModelOverride: {
+    audience: 'user',
+    method: 'delete',
+    path: '/model-override/:personalityId',
+    id: 'deleteModelOverride',
+    params: { personalityId: z.string() },
+    output: DeleteModelOverrideResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
+  getDefaultModelConfig: {
+    audience: 'user',
+    method: 'get',
+    path: MODEL_OVERRIDE_DEFAULT_PATH,
+    id: 'getDefaultModelConfig',
+    output: SetDefaultConfigResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
+  setDefaultModelConfig: {
+    audience: 'user',
+    method: 'put',
+    path: MODEL_OVERRIDE_DEFAULT_PATH,
+    id: 'setDefaultModelConfig',
+    input: SetDefaultConfigSchema,
+    output: SetDefaultConfigResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
+  clearDefaultModelConfig: {
+    audience: 'user',
+    method: 'delete',
+    path: MODEL_OVERRIDE_DEFAULT_PATH,
+    id: 'clearDefaultModelConfig',
+    output: ClearDefaultConfigResponseSchema,
+    requiresProvisionedUser: true,
+  },
+} as const satisfies Record<string, RouteDef>;
