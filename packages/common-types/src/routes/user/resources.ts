@@ -22,11 +22,13 @@ import {
   DeletePersonalityResponseSchema,
   SetVisibilitySchema,
   // Persona
+  PersonaCreateSchema,
   CreatePersonaResponseSchema,
   GetPersonaResponseSchema,
   ListPersonasResponseSchema,
   SetDefaultPersonaResponseSchema,
   // Persona override
+  SetPersonaOverrideSchema,
   SetOverrideResponseSchema,
   ClearOverrideResponseSchema,
   OverrideInfoResponseSchema,
@@ -42,6 +44,7 @@ import {
   // Wallet
   ListWalletKeysResponseSchema,
   RemoveWalletKeyResponseSchema,
+  TestWalletKeySchema,
   TestWalletKeyResponseSchema,
   // Voice resolution
   GetVoiceResolutionResponseSchema,
@@ -150,8 +153,7 @@ export const userResourceRoutes = {
     method: 'post',
     path: '/persona',
     id: 'createPersona',
-    // Persona-create body is handler-validated; manifest omits input schema
-    // until persona-create gets centralized.
+    input: PersonaCreateSchema,
     output: CreatePersonaResponseSchema,
     requiresProvisionedUser: true,
   },
@@ -195,6 +197,7 @@ export const userResourceRoutes = {
     path: PERSONA_OVERRIDE_DETAIL_PATH,
     id: 'setPersonaOverride',
     params: { personalitySlug: z.string() },
+    input: SetPersonaOverrideSchema,
     output: SetOverrideResponseSchema,
     requiresProvisionedUser: true,
   },
@@ -299,6 +302,7 @@ export const userResourceRoutes = {
     method: 'post',
     path: '/wallet/test',
     id: 'testWalletKey',
+    input: TestWalletKeySchema,
     output: TestWalletKeyResponseSchema,
     requiresProvisionedUser: true,
   },

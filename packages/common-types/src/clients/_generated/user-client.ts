@@ -608,7 +608,7 @@ export class UserClient {
     });
   }
 
-  async createPersona(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.createPersona.output>>> {
+  async createPersona(input: z.infer<typeof ROUTE_MANIFEST.createPersona.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.createPersona.output>>> {
     const fullPath = '/api/user/persona';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -620,6 +620,7 @@ export class UserClient {
         'X-User-Username': encodeURIComponent(this.user.username),
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
+      body: input,
       outputSchema: ROUTE_MANIFEST.createPersona.output,
     });
   }
@@ -672,7 +673,7 @@ export class UserClient {
     });
   }
 
-  async setPersonaOverride(personalitySlug: string): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setPersonaOverride.output>>> {
+  async setPersonaOverride(personalitySlug: string, input: z.infer<typeof ROUTE_MANIFEST.setPersonaOverride.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setPersonaOverride.output>>> {
     const fullPath = `/api/user/persona/override/${encodeURIComponent(personalitySlug)}`;
     return callGateway({
       baseUrl: this.baseUrl,
@@ -684,6 +685,7 @@ export class UserClient {
         'X-User-Username': encodeURIComponent(this.user.username),
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
+      body: input,
       outputSchema: ROUTE_MANIFEST.setPersonaOverride.output,
     });
   }
@@ -834,7 +836,7 @@ export class UserClient {
     });
   }
 
-  async testWalletKey(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.testWalletKey.output>>> {
+  async testWalletKey(input: z.infer<typeof ROUTE_MANIFEST.testWalletKey.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.testWalletKey.output>>> {
     const fullPath = '/api/user/wallet/test';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -846,6 +848,7 @@ export class UserClient {
         'X-User-Username': encodeURIComponent(this.user.username),
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
+      body: input,
       outputSchema: ROUTE_MANIFEST.testWalletKey.output,
     });
   }
