@@ -40,6 +40,30 @@ if [ -n "$STAGED_PRISMA_SCHEMA" ]; then
     echo "✓ pglite-schema.sql regenerated and staged"
 fi
 
+# Auto-regenerate route-manifest client classes when the manifest changes
+# Same shape as the prisma block above: detect a staged source change,
+# run the codegen, stage the regenerated files. Keeps the committed
+# _generated/ artifacts in lock-step with the manifest so reviewers see
+# both halves of every change in the same diff.
+STAGED_MANIFEST=$(git diff --cached --name-only | grep -E '^packages/common-types/src/routes/' || true)
+
+if [ -n "$STAGED_MANIFEST" ]; then
+    echo "Route manifest changed - regenerating client classes..."
+    # Hard-exit on codegen failure: without `|| exit 1`, a non-zero return
+    # would leave the previously-committed _generated/ files on disk
+    # unchanged, `git add` would stage them anyway, and the commit would
+    # ship manifest/client drift — the exact failure mode this hook is
+    # meant to prevent. The Prisma block above is incidentally safe (failed
+    # generation leaves the schema file missing), but codegen always has
+    # stale committed artifacts to fall back to.
+    # No stdout redirect — matches the Prisma block above so codegen
+    # diagnostics surface in the commit-time terminal output. Silencing
+    # stdout would hide error context behind a bare `exit 1`.
+    pnpm ops codegen:routes || exit 1
+    git add packages/common-types/src/clients/_generated/
+    echo "✓ Route client classes regenerated and staged"
+fi
+
 # Check for temporal markers in code comments (dates / PR refs / round refs)
 # Recurring failure mode: agent or contributor adds "PR #X" / "2026-XX-XX" /
 # "caught in round N" inside JSDoc or `//` comments. These rot meaninglessly
