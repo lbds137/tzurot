@@ -8,6 +8,7 @@
     "**/coverage/**",
     "**/*.d.ts",
     "**/generated/**",
+    "**/_generated/**",
     "**/*.test.ts",
     "**/*.spec.ts",
     "**/*.int.test.ts",
