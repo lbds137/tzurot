@@ -6,6 +6,9 @@ import {
   DenylistAddSchema,
   DenylistEntrySchema,
   DenylistCacheResponseSchema,
+  AddDenylistResponseSchema,
+  ListDenylistResponseSchema,
+  RemoveDenylistResponseSchema,
 } from './denylist.js';
 
 describe('denylistEntityTypeSchema', () => {
@@ -229,5 +232,66 @@ describe('DenylistCacheResponseSchema', () => {
       ],
     });
     expect(result.success).toBe(true);
+  });
+});
+
+describe('AddDenylistResponseSchema', () => {
+  const validEntry = {
+    id: '550e8400-e29b-41d4-a716-446655440000',
+    type: 'USER',
+    discordId: '123456789012345678',
+    scope: 'BOT',
+    scopeId: '*',
+    mode: 'BLOCK',
+    reason: null,
+    addedBy: 'owner-discord-id',
+    addedAt: new Date(),
+  };
+
+  it('accepts a valid add response', () => {
+    expect(AddDenylistResponseSchema.safeParse({ success: true, entry: validEntry }).success).toBe(
+      true
+    );
+  });
+
+  it('rejects missing entry field', () => {
+    expect(AddDenylistResponseSchema.safeParse({ success: true }).success).toBe(false);
+  });
+});
+
+describe('ListDenylistResponseSchema', () => {
+  it('accepts an empty list', () => {
+    expect(
+      ListDenylistResponseSchema.safeParse({ success: true, entries: [], count: 0 }).success
+    ).toBe(true);
+  });
+
+  it('rejects mismatched count vs entries length — wait, schema is permissive', () => {
+    // Schema doesn't enforce count === entries.length; handler is trusted to
+    // emit them consistent. Document the trust assumption via a test that
+    // EXPECTS lenient parsing.
+    expect(
+      ListDenylistResponseSchema.safeParse({ success: true, entries: [], count: 99 }).success
+    ).toBe(true);
+  });
+
+  it('rejects negative count', () => {
+    expect(
+      ListDenylistResponseSchema.safeParse({ success: true, entries: [], count: -1 }).success
+    ).toBe(false);
+  });
+});
+
+describe('RemoveDenylistResponseSchema', () => {
+  it('accepts the canonical { success: true, removed: true } shape', () => {
+    expect(RemoveDenylistResponseSchema.safeParse({ success: true, removed: true }).success).toBe(
+      true
+    );
+  });
+
+  it('rejects removed: false (literal true required)', () => {
+    expect(RemoveDenylistResponseSchema.safeParse({ success: true, removed: false }).success).toBe(
+      false
+    );
   });
 });
