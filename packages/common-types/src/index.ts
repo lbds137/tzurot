@@ -111,3 +111,6 @@ export * from './factories/index.js';
 // smart constructors, RouteDef descriptor. The actual manifest registry
 // (admin/user/internal routes) lands as additional exports once declared.
 export * from './routes/types.js';
+// Internal-audience route registry (service-to-service endpoints).
+// Admin + user audiences land in subsequent commits on this branch.
+export * from './routes/internal.js';
