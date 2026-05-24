@@ -73,3 +73,6 @@ export * from './diagnostic.js';
 
 // AI endpoints (response schemas for /ai/{generate,transcribe,job/:id/...})
 export * from './ai.js';
+
+// Admin operational routes (db-sync, cleanup, invalidate-cache responses)
+export * from './admin-operations.js';
