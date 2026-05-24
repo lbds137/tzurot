@@ -31,6 +31,7 @@ import { registerXrayCommands } from './commands/xray.js';
 import { registerGuardCommands } from './commands/guard.js';
 import { registerVoiceCommands } from './commands/voice.js';
 import { registerCpdCommands } from './commands/cpd.js';
+import { registerCodegenCommands } from './commands/codegen.js';
 
 // Read version from package.json dynamically
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -55,6 +56,7 @@ registerXrayCommands(cli);
 registerGuardCommands(cli);
 registerVoiceCommands(cli);
 registerCpdCommands(cli);
+registerCodegenCommands(cli);
 
 // Global options
 cli.help();

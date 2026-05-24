@@ -29,6 +29,7 @@ const EXCLUDE_PATTERNS = [
   /\/constants\.ts$/,
   /\/constants\//,
   /\/generated\//,
+  /\/_generated\//,
   /\/node_modules\//,
   /\/dist\//,
   // Config/setup files

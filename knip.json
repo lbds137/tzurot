@@ -46,7 +46,8 @@
     "vitest.workspace.ts",
     "**/__mocks__/**",
     "audit.config.ts",
-    "**/test-fixtures/audit-canaries/**"
+    "**/test-fixtures/audit-canaries/**",
+    "packages/common-types/src/clients/_generated/**"
   ],
   "ignoreBinaries": ["dot", "railway", "ruff"],
   "ignoreDependencies": [

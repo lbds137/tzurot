@@ -125,3 +125,12 @@ export * from './routes/manifest.js';
 // bot-client/utils/userGatewayClient.ts so generated clients can use them).
 export * from './clients/errors.js';
 export * from './clients/transport.js';
+// Generated client classes — re-exported from the package entry point so
+// downstream consumers (bot-client, ai-worker) can import them without
+// reaching into _generated/ paths.
+export { ServiceClient } from './clients/_generated/service-client.js';
+export type { ServiceClientOptions } from './clients/_generated/service-client.js';
+export { OwnerClient } from './clients/_generated/owner-client.js';
+export type { OwnerClientOptions } from './clients/_generated/owner-client.js';
+export { UserClient } from './clients/_generated/user-client.js';
+export type { UserClientOptions } from './clients/_generated/user-client.js';
