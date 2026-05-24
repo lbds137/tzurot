@@ -84,6 +84,14 @@ jobs:
       - name: Enforce CPD ratchet (filtered count must not exceed baseline)
         run: pnpm ops cpd:check
 
+      - name: Enforce route-manifest / generated-client drift
+        # Hard backstop for `--no-verify` bypasses of the pre-commit hook
+        # that regenerates `packages/common-types/src/clients/_generated/`
+        # whenever the manifest is edited. Fails if any committed
+        # generated file differs from what the current manifest would
+        # produce. To fix locally: `pnpm ops codegen:routes` then commit.
+        run: pnpm ops codegen:routes --check
+
       - name: Check for duplicate export names
         run: pnpm ops guard:duplicate-exports
 
