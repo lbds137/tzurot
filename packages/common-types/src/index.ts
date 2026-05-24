@@ -121,3 +121,7 @@ export * from './routes/admin.js';
 export * from './routes/user/index.js';
 // Central route manifest registry — composes all three audiences.
 export * from './routes/manifest.js';
+// Shared gateway client transport + error helpers (lifted from
+// bot-client/utils/userGatewayClient.ts so generated clients can use them).
+export * from './clients/errors.js';
+export * from './clients/transport.js';

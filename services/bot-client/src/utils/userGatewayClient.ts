@@ -18,6 +18,9 @@ import {
   isTimeoutError,
   type ApiErrorSubcode,
   type GatewayUser,
+  GatewayApiError,
+  parseErrorResponse,
+  type ParsedErrorResponse,
 } from '@tzurot/common-types';
 
 const logger = createLogger('gateway-client');
@@ -29,6 +32,14 @@ export { GATEWAY_TIMEOUTS };
 // The interface itself lives in common-types — PR B's gateway middleware
 // will import from the same source, giving both sides one contract.
 export type { GatewayUser };
+
+// Re-export the gateway-error class + parser. The canonical definitions
+// live in `@tzurot/common-types/clients/errors` (lifted for shared use
+// across bot-client + ai-worker + future generated clients). This file
+// re-exports them so existing consumers (`import { GatewayApiError } from
+// '../utils/userGatewayClient'`) continue to compile during the migration.
+export { GatewayApiError, parseErrorResponse };
+export type { ParsedErrorResponse };
 
 /**
  * Gateway API response wrapper
@@ -52,25 +63,7 @@ interface GatewayError {
   code?: ApiErrorSubcode;
 }
 
-type GatewayResult<T> = GatewayResponse<T> | GatewayError;
-
-/**
- * Error thrown by higher-level API client functions (e.g. `createPreset`)
- * when a gateway call returns a non-ok response. Carries the HTTP `status`
- * and, when the gateway set one, the machine-readable `code` sub-classifier
- * so retry/branching logic can match on the code instead of the message.
- */
-export class GatewayApiError extends Error {
-  public readonly status: number;
-  public readonly code?: ApiErrorSubcode;
-
-  constructor(message: string, status: number, code?: ApiErrorSubcode) {
-    super(message);
-    this.name = 'GatewayApiError';
-    this.status = status;
-    this.code = code;
-  }
-}
+type LegacyGatewayResult<T> = GatewayResponse<T> | GatewayError;
 
 /**
  * Build a `GatewayUser` from a Discord.js `User` object. Centralizes the
@@ -127,52 +120,16 @@ export function isGatewayConfigured(): boolean {
 }
 
 /**
- * Parsed shape of a gateway error response body.
- * `message` is human-readable; `code` is the optional machine-readable
- * sub-code (see {@link GatewayApiError.code} and `ApiErrorSubcode` in
- * common-types).
- */
-export interface ParsedErrorResponse {
-  message: string;
-  code?: ApiErrorSubcode;
-}
-
-/**
- * Parse error from API response. Returns both the human-readable message
- * and the optional machine-readable sub-code. Falls back to `HTTP <status>`
- * for the message when the body isn't JSON.
- *
- * The gateway only emits `code` values from the `ApiErrorSubcode` union.
- * Unrecognized strings on the wire would type-widen to `string`, but in
- * practice both sides compile against the same `@tzurot/common-types`
- * version so the cast is safe.
- */
-export async function parseErrorResponse(response: Response): Promise<ParsedErrorResponse> {
-  try {
-    const data = (await response.json()) as {
-      error?: string;
-      message?: string;
-      code?: ApiErrorSubcode;
-    };
-    // Prefer message (human-readable) over error (code like "VALIDATION_ERROR")
-    const message = data.message ?? data.error ?? `HTTP ${response.status}`;
-    return { message, code: data.code };
-  } catch {
-    return { message: `HTTP ${response.status}` };
-  }
-}
-
-/**
  * Call the gateway API with consistent auth and error handling
  *
  * @param path - API path (e.g., '/user/llm-config')
  * @param options - Request options including `user` context for auth + provisioning
- * @returns GatewayResult with typed data or error
+ * @returns LegacyGatewayResult with typed data or error
  */
 export async function callGatewayApi<T>(
   path: string,
   options: GatewayCallOptions
-): Promise<GatewayResult<T>> {
+): Promise<LegacyGatewayResult<T>> {
   const { method = 'GET', user, body, timeout = GATEWAY_TIMEOUTS.AUTOCOMPLETE } = options;
 
   try {
