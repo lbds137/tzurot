@@ -76,3 +76,6 @@ export * from './ai.js';
 
 // Admin operational routes (db-sync, cleanup, invalidate-cache responses)
 export * from './admin-operations.js';
+
+// Admin stop-sequence observability endpoint
+export * from './stopSequences.js';
