@@ -67,3 +67,6 @@ export * from './transcribe.js';
 
 // Internal service-to-service endpoints
 export * from './internal.js';
+
+// Diagnostic endpoints (response schemas for /admin/diagnostic/*)
+export * from './diagnostic.js';
