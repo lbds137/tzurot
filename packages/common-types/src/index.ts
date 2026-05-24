@@ -106,3 +106,8 @@ export * from './services/resolvers/index.js';
 // Export factories (validated mock helpers for testing)
 // Use these instead of manually constructing API response mocks
 export * from './factories/index.js';
+
+// Export route manifest types — branded ActorDiscordId/SubjectDiscordId,
+// smart constructors, RouteDef descriptor. The actual manifest registry
+// (admin/user/internal routes) lands as additional exports once declared.
+export * from './routes/types.js';
