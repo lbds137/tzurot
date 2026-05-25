@@ -81,7 +81,7 @@ describe('LLM Config Resolution Integration', () => {
     app.use(express.json());
 
     // Mount LLM config routes (auth is mocked above)
-    const router = createLlmConfigRoutes(prisma);
+    const router = createLlmConfigRoutes({ prisma });
     app.use('/user/llm-config', router);
   }, 30000);
 
