@@ -90,6 +90,20 @@ describe('buildMethod — service flavor', () => {
     const out = buildMethod(route, { flavor: 'service', pathPrefix: '/api/internal' });
     expect(out).not.toContain('subject');
   });
+
+  it('emits no timeoutMs line when route.timeoutMs is omitted', () => {
+    const out = buildMethod(baseRoute, { flavor: 'service', pathPrefix: '/api/internal' });
+    expect(out).not.toContain('timeoutMs');
+  });
+
+  it('emits the timeoutMs line referencing the manifest when route.timeoutMs is set', () => {
+    const route: RouteDef = { ...baseRoute, timeoutMs: 10_000 };
+    const out = buildMethod(route, { flavor: 'service', pathPrefix: '/api/internal' });
+    // The codegen references ROUTE_MANIFEST.<id>.timeoutMs rather than
+    // hard-coding the numeric value — keeps the generated source
+    // identifier-clean and survives manifest-value updates without regen.
+    expect(out).toContain(`timeoutMs: ROUTE_MANIFEST.getFoo.timeoutMs`);
+  });
 });
 
 describe('buildMethod — owner flavor', () => {
