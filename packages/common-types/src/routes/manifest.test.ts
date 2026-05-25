@@ -101,6 +101,26 @@ describe('central route manifest', () => {
     }
   });
 
+  it('timeoutMs values are integers in [1000, 60_000]', () => {
+    // Bounds:
+    //   - lower 1000ms: catches the "typed seconds instead of ms"
+    //     mistake (`timeoutMs: 30` → meant 30s, got 30ms)
+    //   - upper 60_000ms (1 min): catches the inverse mistake AND
+    //     the "this should really be async/streaming" anti-pattern;
+    //     largest named constant is GATEWAY_TIMEOUTS.BULK_OPERATION
+    //     = 30s, so 60s is 2x headroom for one-off future cases
+    //   - Number.isInteger: rejects NaN, decimals, Infinity
+    // A route that genuinely needs >60s should be a BullMQ job, not
+    // a sync gateway request.
+    for (const [key, route] of entries) {
+      if (route.timeoutMs !== undefined) {
+        expect(Number.isInteger(route.timeoutMs), `${key} timeoutMs integer`).toBe(true);
+        expect(route.timeoutMs, `${key} timeoutMs >= 1000`).toBeGreaterThanOrEqual(1000);
+        expect(route.timeoutMs, `${key} timeoutMs <= 60_000`).toBeLessThanOrEqual(60_000);
+      }
+    }
+  });
+
   it('GET routes do not declare an input body schema', () => {
     // GET-with-body is broken in the field — Node's fetch (and many
     // intermediaries) drop the body, so a manifest entry like

@@ -24,6 +24,7 @@
  */
 
 import { z } from 'zod';
+import { GATEWAY_TIMEOUTS } from '../constants/discord.js';
 import {
   DbSyncSchema,
   DbSyncResponseSchema,
@@ -83,12 +84,10 @@ export const adminRoutes = {
   /**
    * POST /api/admin/db-sync — Apply pending Prisma migrations.
    *
-   * SLOW ROUTE — multi-second latency under load. The generated
-   * client method inherits the default `GATEWAY_TIMEOUTS.AUTOCOMPLETE`
-   * (2500ms) which is too tight; legacy `adminFetch('admin/db-sync')`
-   * passed `GATEWAY_TIMEOUTS.DEFERRED` (10s) explicitly. The per-route
-   * or per-client timeout escape hatch is tracked in `backlog/deferred.md`
-   * — wire it through before this route's typed-client call site lands.
+   * Slow route (multi-second under load) — uses DEFERRED (10s) instead
+   * of the AUTOCOMPLETE default (2500ms). Matches the legacy
+   * `adminFetch('admin/db-sync')` budget so the typed-client cutover
+   * preserves the existing timeout headroom.
    */
   dbSync: {
     audience: 'admin',
@@ -97,19 +96,22 @@ export const adminRoutes = {
     id: 'dbSync',
     input: DbSyncSchema,
     output: DbSyncResponseSchema,
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   /**
    * POST /api/admin/cleanup — Purge orphan history rows + tombstones.
    *
-   * SLOW ROUTE — duration is data-dependent. Same timeout-headroom
-   * caveat as `dbSync` above.
+   * Slow route — duration is data-dependent (could span tens of seconds
+   * for large purges). Uses BULK_OPERATION (30s) so the typed-client
+   * cutover doesn't silently truncate the orphan-sweep work.
    */
   cleanup: {
     audience: 'admin',
     method: 'post',
     path: '/cleanup',
     id: 'cleanup',
+    timeoutMs: GATEWAY_TIMEOUTS.BULK_OPERATION,
     // Inline schema (not extracted to schemas/api/) because the shape is
     // route-local and there's no second consumer; extracting would add
     // an indirection without buying reusability.
