@@ -103,6 +103,7 @@ const EXCLUDE_PATTERNS = [
   // Pure type/interface definitions (no logic to test)
   /DiagnosticTypes\.ts$/, // ai-worker diagnostic types
   /ContextBuildOptions\.ts$/, // bot-client context builder options interface
+  /routeDeps\.ts$/, // api-gateway shared deps interface — pure type, no logic to test
   // bot-client composition root — pure DI wiring (no logic). Verified
   // indirectly by every integration test that exercises the services it
   // instantiates; any constructor-signature change is caught by TypeScript.
