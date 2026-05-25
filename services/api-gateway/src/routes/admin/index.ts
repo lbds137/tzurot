@@ -18,6 +18,7 @@ import {
 } from '@tzurot/common-types';
 import type { Redis } from 'ioredis';
 import type { OpenRouterModelCache } from '../../services/OpenRouterModelCache.js';
+import type { RouteDeps } from '../routeDeps.js';
 import { createDbSyncRoute } from './dbSync.js';
 import { createCreatePersonalityRoute } from './createPersonality.js';
 import { createUpdatePersonalityRoute } from './updatePersonality.js';
@@ -58,12 +59,28 @@ export function createAdminRouter(opts: AdminRouterOptions): Router {
     cascadeInvalidation,
     redis,
   } = opts;
+
+  // Build the shared RouteDeps once; refactored factories accept it.
+  // Legacy factories that still take per-arg signatures get the
+  // individual values forwarded below.
+  const deps: RouteDeps = {
+    prisma,
+    cacheInvalidationService,
+    llmConfigCacheInvalidation,
+    ttsConfigCacheInvalidation,
+    retentionService,
+    modelCache,
+    denylistInvalidation,
+    cascadeInvalidation,
+    redis,
+  };
+
   const router = Router();
 
   // Note: Service auth is applied globally - no need to apply here
 
   // Database sync endpoint
-  router.use('/db-sync', createDbSyncRoute());
+  router.use('/db-sync', createDbSyncRoute(deps));
 
   // Personality management endpoints
   router.use('/personality', createCreatePersonalityRoute(prisma, cacheInvalidationService));

@@ -5,7 +5,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
+import type { PrismaClient } from '@tzurot/common-types';
 import { createDbSyncRoute } from './dbSync.js';
+import type { RouteDeps } from '../routeDeps.js';
 
 // Mock DatabaseSyncService
 const mockSync = vi.fn();
@@ -46,10 +48,13 @@ describe('POST /admin/db-sync', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    // Create Express app with db-sync router
+    // Create Express app with db-sync router. dbSync doesn't actually
+    // use deps.prisma at runtime (it constructs its own clients from
+    // env-var URLs), so a minimal cast satisfies the type contract.
+    const deps = { prisma: {} as PrismaClient } satisfies RouteDeps;
     app = express();
     app.use(express.json());
-    app.use('/admin/db-sync', createDbSyncRoute());
+    app.use('/admin/db-sync', createDbSyncRoute(deps));
   });
 
   it('should perform database sync successfully', async () => {
