@@ -19,6 +19,9 @@ The handler-export refactor in PR-1.5b.2a (#1093) established `handle{Name}(deps
 4. **Run `pnpm ops codegen:routes`** and commit the generated `mounts.ts`. NOT wired into `index.ts` yet — that's PR-2's atomic-cutover work.
 5. **Integration test**: `services/api-gateway/src/routes/_generated/mounts.int.test.ts` builds the full Express app with `mountInternal/Admin/UserRoutes`, hits each prefix with various auth header combos, asserts 401/403/200 shapes. Replaces ad-hoc auth-shape testing scattered across individual route tests.
 6. **Remove the temporary `knip.json` ignore** on `routeDeps.ts` and the `EXCLUDE_PATTERNS` entry in `structure.test.ts` once `mounts.ts` lands.
+7. **Decide `RouteDeps.cascadeResolver` fate**: declared on the interface but currently unused — the one usage in `handleResolvePersonalityCascade` constructs its own `ConfigCascadeResolver` with `enableCleanup: false`. Either wire `deps.cascadeResolver` into a consumer or drop it from the interface to avoid the dead-field confusion.
+8. **`requireProvisioned` hoist polish**: `createModelOverrideRoutes` hoists `const requireProvisioned = requireProvisionedUser(deps.prisma)`; other multi-endpoint factories (`createTtsOverrideRoutes`, `createConfigOverrideRoutes`, etc.) repeat `requireProvisionedUser(deps.prisma)` inline per route. Apply the hoist pattern uniformly while reworking these files for codegen.
+9. **Optional: add direct unit tests for the new `handle*` exports** in `tts-config.ts` / `llm-config.ts` (currently covered transitively via the `createXxxRoutes` factory tests). Useful once codegen wires the handlers directly — failures should surface against the handler, not the factory.
 
 **Why deferred from PR-1.5b.2**: the handler-export refactor was already large (92 files, ~3200 LOC). User chose to ship the refactor as PR-1.5b.2a so review can focus on the mechanical work; codegen wiring + handler renaming gets its own focused PR.
 
