@@ -124,6 +124,15 @@ export function buildMethod(route: RouteDef, options: MethodBuildOptions): strin
 
   const bodyLine = hasInput ? `,\n      body: input` : '';
 
+  // Per-route timeout override: when route.timeoutMs is set (typically
+  // for slow operations like dbSync / cleanup that exceed the default
+  // AUTOCOMPLETE budget of 2500ms), emit a `timeoutMs: <value>` line
+  // so the transport uses it instead of falling back to the default.
+  // Reading from ROUTE_MANIFEST keeps the codegen tool free of having
+  // to embed the numeric value in the generated source.
+  const timeoutLine =
+    route.timeoutMs !== undefined ? `,\n      timeoutMs: ROUTE_MANIFEST.${id}.timeoutMs` : '';
+
   // -- Return-type annotation ----------------------------------------------
 
   const returnType = `Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.${id}.output>>>`;
@@ -138,7 +147,7 @@ export function buildMethod(route: RouteDef, options: MethodBuildOptions): strin
     `      serviceSecret: this.serviceSecret,`,
     `      method: '${httpMethod}',`,
     `      path: fullPath${headersBlock}${bodyLine},`,
-    `      outputSchema: ROUTE_MANIFEST.${id}.output,`,
+    `      outputSchema: ROUTE_MANIFEST.${id}.output${timeoutLine},`,
     `    });`,
     `  }`,
   ].join('\n');
