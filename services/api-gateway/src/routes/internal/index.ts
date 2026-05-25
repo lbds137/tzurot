@@ -7,12 +7,13 @@
  */
 
 import { Router } from 'express';
-import type { PrismaClient } from '@tzurot/common-types';
+import type { RouteDeps } from '../routeDeps.js';
 import { createUsersRecentHandler } from './usersRecent.js';
 import { createDmSessionSetHandler } from './dmSessionSet.js';
 
-export function createInternalRouter(prisma: PrismaClient): Router {
+export function createInternalRouter(deps: RouteDeps): Router {
   const router = Router();
+  const { prisma } = deps;
   router.get('/users/recent', createUsersRecentHandler(prisma));
   router.post('/channel/dm-session/set', ...createDmSessionSetHandler(prisma));
   return router;

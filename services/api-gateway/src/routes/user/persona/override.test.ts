@@ -65,7 +65,7 @@ describe('persona override routes', () => {
         },
       ]);
 
-      const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'get', '/override');
 
       const { req, res } = createMockReqRes();
@@ -87,7 +87,7 @@ describe('persona override routes', () => {
     it('should return empty array when no overrides exist', async () => {
       mockPrisma.userPersonalityConfig.findMany.mockResolvedValue([]);
 
-      const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'get', '/override');
 
       const { req, res } = createMockReqRes();
@@ -105,7 +105,7 @@ describe('persona override routes', () => {
         displayName: 'Lilith the Succubus',
       });
 
-      const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'get', '/override/:personalitySlug');
 
       const { req, res } = createMockReqRes({}, { personalitySlug: 'lilith' });
@@ -123,7 +123,7 @@ describe('persona override routes', () => {
     it('should return 404 for non-existent personality', async () => {
       mockPrisma.personality.findUnique.mockResolvedValue(null);
 
-      const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'get', '/override/:personalitySlug');
 
       const { req, res } = createMockReqRes({}, { personalitySlug: 'nonexistent' });
@@ -147,7 +147,7 @@ describe('persona override routes', () => {
       });
       mockPrisma.userPersonalityConfig.upsert.mockResolvedValue({});
 
-      const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'put', '/override/:personalitySlug');
 
       const { req, res } = createMockReqRes(
@@ -187,7 +187,7 @@ describe('persona override routes', () => {
     it('should return 404 for non-existent persona', async () => {
       mockPrisma.persona.findFirst.mockResolvedValue(null);
 
-      const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'put', '/override/:personalitySlug');
 
       const { req, res } = createMockReqRes(
@@ -203,7 +203,7 @@ describe('persona override routes', () => {
       mockPrisma.persona.findFirst.mockResolvedValue({ id: MOCK_PERSONA_ID, name: 'Test' });
       mockPrisma.personality.findUnique.mockResolvedValue(null);
 
-      const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'put', '/override/:personalitySlug');
 
       const { req, res } = createMockReqRes(
@@ -216,7 +216,7 @@ describe('persona override routes', () => {
     });
 
     it('should reject missing personaId', async () => {
-      const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'put', '/override/:personalitySlug');
 
       const { req, res } = createMockReqRes({}, { personalitySlug: 'lilith' });
@@ -239,7 +239,7 @@ describe('persona override routes', () => {
       });
       mockPrisma.userPersonalityConfig.delete.mockResolvedValue({});
 
-      const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'delete', '/override/:personalitySlug');
 
       const { req, res } = createMockReqRes({}, { personalitySlug: 'lilith' });
@@ -271,7 +271,7 @@ describe('persona override routes', () => {
       });
       mockPrisma.userPersonalityConfig.update.mockResolvedValue({});
 
-      const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'delete', '/override/:personalitySlug');
 
       const { req, res } = createMockReqRes({}, { personalitySlug: 'lilith' });
@@ -289,7 +289,7 @@ describe('persona override routes', () => {
     it('should return 404 for non-existent personality', async () => {
       mockPrisma.personality.findUnique.mockResolvedValue(null);
 
-      const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'delete', '/override/:personalitySlug');
 
       const { req, res } = createMockReqRes({}, { personalitySlug: 'nonexistent' });
@@ -306,7 +306,7 @@ describe('persona override routes', () => {
       });
       mockPrisma.userPersonalityConfig.findUnique.mockResolvedValue(null);
 
-      const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'delete', '/override/:personalitySlug');
 
       const { req, res } = createMockReqRes({}, { personalitySlug: 'lilith' });

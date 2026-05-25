@@ -88,7 +88,7 @@ describe('AI Routes Integration', () => {
     } as unknown as QueueEvents;
 
     // Mount AI router
-    const aiRouter = createAIRouter(prisma, mockQueue, mockQueueEvents);
+    const aiRouter = createAIRouter({ prisma, aiQueue: mockQueue, queueEvents: mockQueueEvents });
     app.use('/ai', aiRouter);
   }, 30000);
 

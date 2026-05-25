@@ -138,26 +138,26 @@ describe('/user/memory routes', () => {
 
   describe('route factory', () => {
     it('should create a router', () => {
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
 
       expect(router).toBeDefined();
       expect(typeof router).toBe('function');
     });
 
     it('should have GET /stats route registered', () => {
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
 
       expect(findRoute(router, 'get', '/stats')).toBeDefined();
     });
 
     it('should have GET /focus route registered', () => {
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
 
       expect(findRoute(router, 'get', '/focus')).toBeDefined();
     });
 
     it('should have POST /focus route registered', () => {
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
 
       expect(findRoute(router, 'post', '/focus')).toBeDefined();
     });
@@ -165,7 +165,7 @@ describe('/user/memory routes', () => {
 
   describe('GET /user/memory/stats', () => {
     it('should reject missing personalityId', async () => {
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'get', '/stats');
       const { req, res } = createMockReqRes({}, {});
 
@@ -183,7 +183,7 @@ describe('/user/memory routes', () => {
     it('should return 404 when personality not found', async () => {
       mockPrisma.personality.findUnique.mockResolvedValue(null);
 
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'get', '/stats');
       const { req, res } = createMockReqRes({}, { personalityId: TEST_PERSONALITY_ID });
 
@@ -198,7 +198,7 @@ describe('/user/memory routes', () => {
         .mockResolvedValueOnce({ id: TEST_USER_ID }) // First call - check user
         .mockResolvedValueOnce({ defaultPersonaId: null }); // Second call - get default persona
 
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'get', '/stats');
       const { req, res } = createMockReqRes({}, { personalityId: TEST_PERSONALITY_ID });
 
@@ -229,7 +229,7 @@ describe('/user/memory routes', () => {
         .mockResolvedValueOnce({ createdAt: oldestDate }) // oldest
         .mockResolvedValueOnce({ createdAt: newestDate }); // newest
 
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'get', '/stats');
       const { req, res } = createMockReqRes({}, { personalityId: TEST_PERSONALITY_ID });
 
@@ -256,7 +256,7 @@ describe('/user/memory routes', () => {
         configOverrides: { focusModeEnabled: true },
       });
 
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'get', '/stats');
       const { req, res } = createMockReqRes({}, { personalityId: TEST_PERSONALITY_ID });
 
@@ -272,7 +272,7 @@ describe('/user/memory routes', () => {
 
   describe('GET /user/memory/focus', () => {
     it('should reject missing personalityId', async () => {
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'get', '/focus');
       const { req, res } = createMockReqRes({}, {});
 
@@ -289,7 +289,7 @@ describe('/user/memory routes', () => {
     it('should return focusModeEnabled false when no config exists', async () => {
       mockPrisma.userPersonalityConfig.findUnique.mockResolvedValue(null);
 
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'get', '/focus');
       const { req, res } = createMockReqRes({}, { personalityId: TEST_PERSONALITY_ID });
 
@@ -309,7 +309,7 @@ describe('/user/memory routes', () => {
         configOverrides: { focusModeEnabled: true },
       });
 
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'get', '/focus');
       const { req, res } = createMockReqRes({}, { personalityId: TEST_PERSONALITY_ID });
 
@@ -327,7 +327,7 @@ describe('/user/memory routes', () => {
 
   describe('POST /user/memory/focus', () => {
     it('should reject missing personalityId', async () => {
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'post', '/focus');
       const { req, res } = createMockReqRes({ enabled: true });
 
@@ -342,7 +342,7 @@ describe('/user/memory routes', () => {
     });
 
     it('should reject missing enabled field', async () => {
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'post', '/focus');
       const { req, res } = createMockReqRes({ personalityId: TEST_PERSONALITY_ID });
 
@@ -357,7 +357,7 @@ describe('/user/memory routes', () => {
     });
 
     it('should reject non-boolean enabled', async () => {
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'post', '/focus');
       const { req, res } = createMockReqRes({
         personalityId: TEST_PERSONALITY_ID,
@@ -372,7 +372,7 @@ describe('/user/memory routes', () => {
     it('should return 404 when personality not found', async () => {
       mockPrisma.personality.findUnique.mockResolvedValue(null);
 
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'post', '/focus');
       const { req, res } = createMockReqRes({
         personalityId: TEST_PERSONALITY_ID,
@@ -388,7 +388,7 @@ describe('/user/memory routes', () => {
       // No existing UPC record
       mockPrisma.userPersonalityConfig.findUnique.mockResolvedValue(null);
 
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'post', '/focus');
       const { req, res } = createMockReqRes({
         personalityId: TEST_PERSONALITY_ID,
@@ -431,7 +431,7 @@ describe('/user/memory routes', () => {
         configOverrides: { focusModeEnabled: true, maxMessages: 30 },
       });
 
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'post', '/focus');
       const { req, res } = createMockReqRes({
         personalityId: TEST_PERSONALITY_ID,
@@ -466,7 +466,7 @@ describe('/user/memory routes', () => {
         configOverrides: { maxMessages: 25, maxImages: 5 },
       });
 
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'post', '/focus');
       const { req, res } = createMockReqRes({
         personalityId: TEST_PERSONALITY_ID,
@@ -497,7 +497,7 @@ describe('/user/memory routes', () => {
     });
 
     it('should have POST /search route registered', () => {
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
 
       expect(findRoute(router, 'post', '/search')).toBeDefined();
     });
@@ -505,7 +505,7 @@ describe('/user/memory routes', () => {
     it('should return 503 when embedding service is not available', async () => {
       mockIsEmbeddingServiceAvailable.mockReturnValue(false);
 
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'post', '/search');
       const { req, res } = createMockReqRes({ query: 'test search' }, {});
 
@@ -520,7 +520,7 @@ describe('/user/memory routes', () => {
     });
 
     it('should reject missing query', async () => {
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'post', '/search');
       const { req, res } = createMockReqRes({}, {});
 
@@ -536,7 +536,7 @@ describe('/user/memory routes', () => {
     });
 
     it('should reject empty query', async () => {
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'post', '/search');
       const { req, res } = createMockReqRes({ query: '' }, {});
 
@@ -551,7 +551,7 @@ describe('/user/memory routes', () => {
     });
 
     it('should return 400 for query exceeding max length', async () => {
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'post', '/search');
       const longQuery = 'a'.repeat(501); // Exceeds 500 char limit
       const { req, res } = createMockReqRes({ query: longQuery }, {});
@@ -574,7 +574,7 @@ describe('/user/memory routes', () => {
         defaultPersonaId: null,
       });
 
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'post', '/search');
       const { req, res } = createMockReqRes({ query: 'test search' }, {});
 
@@ -605,7 +605,7 @@ describe('/user/memory routes', () => {
       ];
       mockPrisma.$queryRaw.mockResolvedValue(mockResults);
 
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'post', '/search');
       const { req, res } = createMockReqRes({ query: 'test search' }, {});
 
@@ -648,7 +648,7 @@ describe('/user/memory routes', () => {
         .mockResolvedValueOnce([]) // semantic search - no results
         .mockResolvedValueOnce(textResults); // text search - has results
 
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'post', '/search');
       const { req, res } = createMockReqRes({ query: 'Draco' }, {});
 
@@ -677,7 +677,7 @@ describe('/user/memory routes', () => {
         .mockResolvedValueOnce([]) // semantic search
         .mockResolvedValueOnce([]); // text search
 
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'post', '/search');
       const { req, res } = createMockReqRes({ query: 'nonexistent' }, {});
 
@@ -695,7 +695,7 @@ describe('/user/memory routes', () => {
     });
 
     it('should reject limit exceeding max 50', async () => {
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'post', '/search');
       const { req, res } = createMockReqRes({ query: 'test search', limit: 100 }, {});
 
@@ -714,7 +714,7 @@ describe('/user/memory routes', () => {
     it('should handle embedding generation error', async () => {
       mockGenerateEmbedding.mockRejectedValue(new Error('OpenAI API error'));
 
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'post', '/search');
       const { req, res } = createMockReqRes({ query: 'test search' }, {});
 
@@ -742,7 +742,7 @@ describe('/user/memory routes', () => {
       }));
       mockPrisma.$queryRaw.mockResolvedValue(mockResults);
 
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'post', '/search');
       // Request with limit=5, but API returns 6 to check for hasMore
       const { req, res } = createMockReqRes({ query: 'test search', limit: 5 }, {});
@@ -770,7 +770,7 @@ describe('/user/memory routes', () => {
       ];
       mockPrisma.$queryRaw.mockResolvedValue(textResults);
 
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'post', '/search');
       const { req, res } = createMockReqRes({ query: 'test search', preferTextSearch: true }, {});
 
@@ -791,7 +791,7 @@ describe('/user/memory routes', () => {
     it('should return 503 when embedding service returns null', async () => {
       mockGenerateEmbedding.mockResolvedValue(null);
 
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'post', '/search');
       const { req, res } = createMockReqRes({ query: 'test search' }, {});
 
@@ -808,7 +808,7 @@ describe('/user/memory routes', () => {
 
   describe('GET /user/memory/list', () => {
     it('should have GET /list route registered', () => {
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
 
       expect(findRoute(router, 'get', '/list')).toBeDefined();
     });
@@ -816,7 +816,7 @@ describe('/user/memory routes', () => {
     it('should return empty list when user has no persona', async () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce({ defaultPersonaId: null });
 
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'get', '/list');
       const { req, res } = createMockReqRes({}, {});
 
@@ -857,7 +857,7 @@ describe('/user/memory routes', () => {
       mockPrisma.memory.count.mockResolvedValue(2);
       mockPrisma.memory.findMany.mockResolvedValue(mockMemories);
 
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'get', '/list');
       const { req, res } = createMockReqRes({}, { limit: '10', offset: '0' });
 
@@ -890,7 +890,7 @@ describe('/user/memory routes', () => {
       mockPrisma.memory.count.mockResolvedValue(0);
       mockPrisma.memory.findMany.mockResolvedValue([]);
 
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'get', '/list');
       const { req, res } = createMockReqRes({}, { personalityId: TEST_PERSONALITY_ID });
 
@@ -909,7 +909,7 @@ describe('/user/memory routes', () => {
       mockPrisma.memory.count.mockResolvedValue(0);
       mockPrisma.memory.findMany.mockResolvedValue([]);
 
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'get', '/list');
       const { req, res } = createMockReqRes({}, { limit: '100' });
 
@@ -926,7 +926,7 @@ describe('/user/memory routes', () => {
       mockPrisma.memory.count.mockResolvedValue(0);
       mockPrisma.memory.findMany.mockResolvedValue([]);
 
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'get', '/list');
       const { req, res } = createMockReqRes({}, {});
 
@@ -943,7 +943,7 @@ describe('/user/memory routes', () => {
       mockPrisma.memory.count.mockResolvedValue(25);
       mockPrisma.memory.findMany.mockResolvedValue([]);
 
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'get', '/list');
       const { req, res } = createMockReqRes({}, { limit: '10', offset: '10' });
 
@@ -973,7 +973,7 @@ describe('/user/memory routes', () => {
       mockPrisma.memory.count.mockResolvedValue(25);
       mockPrisma.memory.findMany.mockResolvedValue(mockMemories);
 
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'get', '/list');
       const { req, res } = createMockReqRes({}, { limit: '10', offset: '0' });
 
@@ -990,7 +990,7 @@ describe('/user/memory routes', () => {
       mockPrisma.memory.count.mockResolvedValue(0);
       mockPrisma.memory.findMany.mockResolvedValue([]);
 
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'get', '/list');
       const { req, res } = createMockReqRes({}, { sort: 'updatedAt', order: 'asc' });
 
@@ -1007,7 +1007,7 @@ describe('/user/memory routes', () => {
       mockPrisma.memory.count.mockResolvedValue(0);
       mockPrisma.memory.findMany.mockResolvedValue([]);
 
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createMemoryRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'get', '/list');
       const { req, res } = createMockReqRes({}, {});
 

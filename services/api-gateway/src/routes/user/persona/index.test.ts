@@ -37,14 +37,14 @@ describe('createPersonaRoutes', () => {
   const mockPrisma = createMockPrisma();
 
   it('should create a router', () => {
-    const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
+    const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
 
     expect(router).toBeDefined();
     expect(typeof router).toBe('function');
   });
 
   it('should have GET / route registered', () => {
-    const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
+    const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
 
     const getRoute = (
       router.stack as unknown as Array<{ route?: { path?: string; methods?: { get?: boolean } } }>
@@ -53,7 +53,7 @@ describe('createPersonaRoutes', () => {
   });
 
   it('should have POST / route registered', () => {
-    const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
+    const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
 
     const postRoute = (
       router.stack as unknown as Array<{ route?: { path?: string; methods?: { post?: boolean } } }>
@@ -62,7 +62,7 @@ describe('createPersonaRoutes', () => {
   });
 
   it('should have override routes registered', () => {
-    const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
+    const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
 
     const overrideRoute = (
       router.stack as unknown as Array<{ route?: { path?: string; methods?: { get?: boolean } } }>
@@ -71,7 +71,7 @@ describe('createPersonaRoutes', () => {
   });
 
   it('should have default route registered', () => {
-    const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
+    const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
 
     const defaultRoute = (
       router.stack as unknown as Array<{

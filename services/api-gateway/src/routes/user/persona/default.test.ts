@@ -57,7 +57,7 @@ describe('PATCH /user/persona/:id/default', () => {
     });
     mockPrisma.user.update.mockResolvedValue({});
 
-    const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
+    const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
     const handler = getHandler(router, 'patch', '/:id/default');
 
     const { req, res } = createMockReqRes({}, { id: MOCK_PERSONA_ID_2 });
@@ -83,7 +83,7 @@ describe('PATCH /user/persona/:id/default', () => {
   it('should return 404 for non-existent persona', async () => {
     mockPrisma.persona.findFirst.mockResolvedValue(null);
 
-    const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
+    const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
     const handler = getHandler(router, 'patch', '/:id/default');
 
     const { req, res } = createMockReqRes({}, { id: NONEXISTENT_UUID });

@@ -13,8 +13,8 @@
  */
 
 import { Router } from 'express';
-import type { Queue } from 'bullmq';
-import { createLogger, type PrismaClient } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types';
+import type { RouteDeps } from '../../routeDeps.js';
 import { createShapesAuthRoutes } from './auth.js';
 import { createShapesListRoutes } from './list.js';
 import { createShapesImportRoutes } from './import.js';
@@ -22,15 +22,16 @@ import { createShapesExportRoutes } from './export.js';
 
 const logger = createLogger('shapes-routes');
 
-export function createShapesRoutes(prisma: PrismaClient, queue?: Queue): Router {
+export function createShapesRoutes(deps: RouteDeps): Router {
   const router = Router();
+  const { prisma, aiQueue } = deps;
 
   router.use('/auth', createShapesAuthRoutes(prisma));
   router.use('/list', createShapesListRoutes(prisma));
 
-  if (queue !== undefined) {
-    router.use('/import', createShapesImportRoutes(prisma, queue));
-    router.use('/export', createShapesExportRoutes(prisma, queue));
+  if (aiQueue !== undefined) {
+    router.use('/import', createShapesImportRoutes(prisma, aiQueue));
+    router.use('/export', createShapesExportRoutes(prisma, aiQueue));
   } else {
     logger.warn('BullMQ queue unavailable — /import and /export routes disabled');
   }
