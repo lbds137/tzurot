@@ -3,16 +3,13 @@
  * Manually trigger cleanup of old conversation history and tombstones
  */
 
-import { Router, type Request, type Response } from 'express';
-import {
-  createLogger,
-  CLEANUP_DEFAULTS,
-  type ConversationRetentionService,
-} from '@tzurot/common-types';
+import { Router, type Request, type RequestHandler, type Response } from 'express';
+import { createLogger, CLEANUP_DEFAULTS } from '@tzurot/common-types';
 import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
+import type { RouteDeps } from '../routeDeps.js';
 
 const logger = createLogger('admin-cleanup');
 
@@ -42,69 +39,84 @@ function buildCleanupMessage(
   }
 }
 
-export function createCleanupRoute(retentionService: ConversationRetentionService): Router {
+/**
+ * POST /api/admin/cleanup — named handler export. Returns 503 if the
+ * retention service wasn't wired. The legacy aggregator gates
+ * conditionally so this branch is only reachable when the route is
+ * mounted unconditionally.
+ */
+export const handleCleanup = (deps: RouteDeps): RequestHandler => {
+  const { retentionService } = deps;
+  if (retentionService === undefined) {
+    return (_req, res) => {
+      sendError(res, ErrorResponses.serviceUnavailable('Retention service not configured'));
+    };
+  }
+  return asyncHandler(async (req: Request, res: Response) => {
+    // Handle missing body gracefully
+    const body = (req.body ?? {}) as {
+      daysToKeep?: number;
+      target?: 'history' | 'tombstones' | 'all';
+    };
+    const { daysToKeep = CLEANUP_DEFAULTS.DAYS_TO_KEEP_HISTORY, target = 'all' } = body;
+
+    // Validate daysToKeep
+    if (
+      typeof daysToKeep !== 'number' ||
+      daysToKeep < CLEANUP_DEFAULTS.MIN_DAYS ||
+      daysToKeep > CLEANUP_DEFAULTS.MAX_DAYS
+    ) {
+      return sendError(
+        res,
+        ErrorResponses.validationError(
+          `daysToKeep must be a number between ${CLEANUP_DEFAULTS.MIN_DAYS} and ${CLEANUP_DEFAULTS.MAX_DAYS}`
+        )
+      );
+    }
+
+    // Validate target
+    if (!['history', 'tombstones', 'all'].includes(target)) {
+      return sendError(
+        res,
+        ErrorResponses.validationError('target must be "history", "tombstones", or "all"')
+      );
+    }
+
+    let historyDeleted = 0;
+    let tombstonesDeleted = 0;
+
+    if (target === 'history' || target === 'all') {
+      historyDeleted = await retentionService.cleanupOldHistory(daysToKeep);
+      logger.info({ historyDeleted, daysToKeep }, 'Cleaned up old conversation history');
+    }
+
+    if (target === 'tombstones' || target === 'all') {
+      tombstonesDeleted = await retentionService.cleanupOldTombstones(daysToKeep);
+      logger.info({ tombstonesDeleted, daysToKeep }, 'Cleaned up old tombstones');
+    }
+
+    const result: CleanupResult = {
+      historyDeleted,
+      tombstonesDeleted,
+      daysKept: daysToKeep,
+    };
+
+    sendCustomSuccess(res, {
+      success: true,
+      ...result,
+      message: buildCleanupMessage(target, historyDeleted, tombstonesDeleted, daysToKeep),
+      timestamp: new Date().toISOString(),
+    });
+  });
+};
+
+/**
+ * Legacy factory for the `/admin/cleanup` mount. Wraps the named
+ * handler with per-route middleware for callers that haven't yet
+ * migrated to the bare handler export.
+ */
+export function createCleanupRoute(deps: RouteDeps): Router {
   const router = Router();
-
-  router.post(
-    '/',
-    requireOwnerAuth(),
-    asyncHandler(async (req: Request, res: Response) => {
-      // Handle missing body gracefully
-      const body = (req.body ?? {}) as {
-        daysToKeep?: number;
-        target?: 'history' | 'tombstones' | 'all';
-      };
-      const { daysToKeep = CLEANUP_DEFAULTS.DAYS_TO_KEEP_HISTORY, target = 'all' } = body;
-
-      // Validate daysToKeep
-      if (
-        typeof daysToKeep !== 'number' ||
-        daysToKeep < CLEANUP_DEFAULTS.MIN_DAYS ||
-        daysToKeep > CLEANUP_DEFAULTS.MAX_DAYS
-      ) {
-        return sendError(
-          res,
-          ErrorResponses.validationError(
-            `daysToKeep must be a number between ${CLEANUP_DEFAULTS.MIN_DAYS} and ${CLEANUP_DEFAULTS.MAX_DAYS}`
-          )
-        );
-      }
-
-      // Validate target
-      if (!['history', 'tombstones', 'all'].includes(target)) {
-        return sendError(
-          res,
-          ErrorResponses.validationError('target must be "history", "tombstones", or "all"')
-        );
-      }
-
-      let historyDeleted = 0;
-      let tombstonesDeleted = 0;
-
-      if (target === 'history' || target === 'all') {
-        historyDeleted = await retentionService.cleanupOldHistory(daysToKeep);
-        logger.info({ historyDeleted, daysToKeep }, 'Cleaned up old conversation history');
-      }
-
-      if (target === 'tombstones' || target === 'all') {
-        tombstonesDeleted = await retentionService.cleanupOldTombstones(daysToKeep);
-        logger.info({ tombstonesDeleted, daysToKeep }, 'Cleaned up old tombstones');
-      }
-
-      const result: CleanupResult = {
-        historyDeleted,
-        tombstonesDeleted,
-        daysKept: daysToKeep,
-      };
-
-      sendCustomSuccess(res, {
-        success: true,
-        ...result,
-        message: buildCleanupMessage(target, historyDeleted, tombstonesDeleted, daysToKeep),
-        timestamp: new Date().toISOString(),
-      });
-    })
-  );
-
+  router.post('/', requireOwnerAuth(), handleCleanup(deps));
   return router;
 }

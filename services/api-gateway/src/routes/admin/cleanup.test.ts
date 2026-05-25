@@ -4,7 +4,8 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createCleanupRoute } from './cleanup.js';
-import type { ConversationRetentionService } from '@tzurot/common-types';
+import type { ConversationRetentionService, PrismaClient } from '@tzurot/common-types';
+import type { RouteDeps } from '../routeDeps.js';
 import express from 'express';
 import request from 'supertest';
 
@@ -45,12 +46,13 @@ describe('Admin Cleanup Routes', () => {
       cleanupOldTombstones: vi.fn().mockResolvedValue(0),
     };
 
+    const deps: RouteDeps = {
+      prisma: {} as PrismaClient,
+      retentionService: mockService as unknown as ConversationRetentionService,
+    };
     app = express();
     app.use(express.json());
-    app.use(
-      '/admin/cleanup',
-      createCleanupRoute(mockService as unknown as ConversationRetentionService)
-    );
+    app.use('/admin/cleanup', createCleanupRoute(deps));
     // Add error handler for debugging
     app.use(
       (err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
