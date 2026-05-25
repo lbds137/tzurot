@@ -36,11 +36,11 @@
   },
   "devDependencies": {
     "@types/estree": "^1.0.9",
-    "@types/node": "^25.9.0",
-    "@vitest/coverage-v8": "^4.1.6",
+    "@types/node": "^25.9.1",
+    "@vitest/coverage-v8": "^4.1.7",
     "memfs": "^4.57.2",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.6",
+    "vitest": "^4.1.7",
     "zod": "^4.4.3"
   },
   "peerDependencies": {
