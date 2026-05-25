@@ -15,7 +15,7 @@
  * user-context requests from non-owners (see `GatewayClient.getAdminSettings()`).
  */
 
-import { Router, type Request, type Response } from 'express';
+import { Router, type Request, type RequestHandler, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   type PrismaClient,
@@ -31,6 +31,7 @@ import { mergeConfigOverrides } from '../../utils/configOverrideMerge.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { isAuthorizedForRead, requireOwnerAuth } from '../../services/AuthMiddleware.js';
+import type { RouteDeps } from '../routeDeps.js';
 
 const logger = createLogger('admin-settings-routes');
 
@@ -130,57 +131,56 @@ function createConfigDefaultsPatchHandler(
   });
 }
 
-export function createAdminSettingsRoutes(
-  prisma: PrismaClient,
-  cascadeInvalidation?: ConfigCascadeCacheInvalidationService
-): Router {
+/**
+ * GET /api/admin/settings — Get the AdminSettings singleton.
+ * Authorization: service-only OR bot owner (special auth shape — see file
+ * header). The handler keeps the inline `isAuthorizedForRead` check.
+ */
+export const handleGetAdminSettings = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    if (!isAuthorizedForRead(req.userId)) {
+      sendError(res, ErrorResponses.unauthorized('Only bot owners can view settings'));
+      return;
+    }
+
+    const settings = await getOrCreateSettings(prisma);
+    const response = buildResponse(settings);
+    AdminSettingsSchema.parse(response);
+    sendCustomSuccess(res, response, StatusCodes.OK);
+  });
+};
+
+/** PATCH /api/admin/settings/config-defaults — flat-body partial update */
+export const handleUpdateAdminSettings = (deps: RouteDeps): RequestHandler => {
+  return createConfigDefaultsPatchHandler(deps.prisma, deps.cascadeInvalidation);
+};
+
+/** DELETE /api/admin/settings/config-defaults — clear all admin config defaults */
+export const handleClearAdminSettings = (deps: RouteDeps): RequestHandler => {
+  const { prisma, cascadeInvalidation } = deps;
+  return asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const userUuid = await resolveUserUuid(prisma, req.userId);
+    await getOrCreateSettings(prisma); // Ensure singleton exists
+
+    await prisma.adminSettings.update({
+      where: { id: ADMIN_SETTINGS_SINGLETON_ID },
+      data: {
+        configDefaults: Prisma.JsonNull,
+        updatedBy: userUuid,
+      },
+    });
+
+    await tryInvalidateAdmin(cascadeInvalidation);
+
+    sendCustomSuccess(res, { success: true }, StatusCodes.OK);
+  });
+};
+
+export function createAdminSettingsRoutes(deps: RouteDeps): Router {
   const router = Router();
-
-  // GET /admin/settings - Get the AdminSettings singleton
-  // Authorization: allows service-only calls, requires bot owner for user requests
-  router.get(
-    '/',
-    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-      if (!isAuthorizedForRead(req.userId)) {
-        sendError(res, ErrorResponses.unauthorized('Only bot owners can view settings'));
-        return;
-      }
-
-      const settings = await getOrCreateSettings(prisma);
-      const response = buildResponse(settings);
-      AdminSettingsSchema.parse(response);
-      sendCustomSuccess(res, response, StatusCodes.OK);
-    })
-  );
-
-  // PATCH /admin/settings/config-defaults - Flat body (same shape as all cascade tiers)
-  router.patch(
-    '/config-defaults',
-    requireOwnerAuth(),
-    createConfigDefaultsPatchHandler(prisma, cascadeInvalidation)
-  );
-
-  // DELETE /admin/settings/config-defaults - Clear all admin config defaults
-  router.delete(
-    '/config-defaults',
-    requireOwnerAuth(),
-    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-      const userUuid = await resolveUserUuid(prisma, req.userId);
-      await getOrCreateSettings(prisma); // Ensure singleton exists
-
-      await prisma.adminSettings.update({
-        where: { id: ADMIN_SETTINGS_SINGLETON_ID },
-        data: {
-          configDefaults: Prisma.JsonNull,
-          updatedBy: userUuid,
-        },
-      });
-
-      await tryInvalidateAdmin(cascadeInvalidation);
-
-      sendCustomSuccess(res, { success: true }, StatusCodes.OK);
-    })
-  );
-
+  router.get('/', handleGetAdminSettings(deps));
+  router.patch('/config-defaults', requireOwnerAuth(), handleUpdateAdminSettings(deps));
+  router.delete('/config-defaults', requireOwnerAuth(), handleClearAdminSettings(deps));
   return router;
 }

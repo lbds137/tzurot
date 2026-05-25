@@ -21,13 +21,12 @@
  * (LLM-specific OpenRouter convention) but applies the TTS-shaped invariant.
  */
 
-import { Router, type Response, type Request } from 'express';
+import { Router, type Response, type Request, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
   isSelfHostedTtsProvider,
   type PrismaClient,
-  type TtsConfigCacheInvalidationService,
   TtsConfigCreateSchema,
   TtsConfigUpdateSchema,
 } from '@tzurot/common-types';
@@ -45,6 +44,7 @@ import {
   ensureNoNameCollision,
   shapeDeleteResponse,
 } from '../../utils/configRouteHelpers.js';
+import type { RouteDeps } from '../routeDeps.js';
 
 const logger = createLogger('admin-tts-config');
 
@@ -305,30 +305,49 @@ function createDeleteHandler(service: TtsConfigService, prisma: PrismaClient) {
   };
 }
 
+// --- Exported handler factories --------------------------------------------
+
+function buildService(deps: RouteDeps): TtsConfigService {
+  return new TtsConfigService(deps.prisma, deps.ttsConfigCacheInvalidation);
+}
+
+export const handleListGlobalTtsConfigs = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(createListHandler(buildService(deps)));
+
+export const handleGetGlobalTtsConfig = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(createGetHandler(buildService(deps)));
+
+export const handleCreateGlobalTtsConfig = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(createCreateHandler(buildService(deps), deps.prisma));
+
+export const handleUpdateGlobalTtsConfig = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(createEditHandler(buildService(deps), deps.prisma));
+
+export const handleSetGlobalTtsConfigDefault = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(createSetDefaultHandler(buildService(deps), deps.prisma));
+
+export const handleSetGlobalTtsConfigFreeDefault = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(createSetFreeDefaultHandler(buildService(deps), deps.prisma));
+
+export const handleDeleteGlobalTtsConfig = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(createDeleteHandler(buildService(deps), deps.prisma));
+
 // --- Main route factory ----------------------------------------------------
 
-export function createAdminTtsConfigRoutes(
-  prisma: PrismaClient,
-  ttsConfigCacheInvalidation?: TtsConfigCacheInvalidationService
-): Router {
+export function createAdminTtsConfigRoutes(deps: RouteDeps): Router {
   const router = Router();
-  const service = new TtsConfigService(prisma, ttsConfigCacheInvalidation);
 
-  router.get('/', requireOwnerAuth(), asyncHandler(createListHandler(service)));
-  router.get('/:id', requireOwnerAuth(), asyncHandler(createGetHandler(service)));
-  router.post('/', requireOwnerAuth(), asyncHandler(createCreateHandler(service, prisma)));
-  router.put('/:id', requireOwnerAuth(), asyncHandler(createEditHandler(service, prisma)));
-  router.put(
-    '/:id/set-default',
-    requireOwnerAuth(),
-    asyncHandler(createSetDefaultHandler(service, prisma))
-  );
+  router.get('/', requireOwnerAuth(), handleListGlobalTtsConfigs(deps));
+  router.get('/:id', requireOwnerAuth(), handleGetGlobalTtsConfig(deps));
+  router.post('/', requireOwnerAuth(), handleCreateGlobalTtsConfig(deps));
+  router.put('/:id', requireOwnerAuth(), handleUpdateGlobalTtsConfig(deps));
+  router.put('/:id/set-default', requireOwnerAuth(), handleSetGlobalTtsConfigDefault(deps));
   router.put(
     '/:id/set-free-default',
     requireOwnerAuth(),
-    asyncHandler(createSetFreeDefaultHandler(service, prisma))
+    handleSetGlobalTtsConfigFreeDefault(deps)
   );
-  router.delete('/:id', requireOwnerAuth(), asyncHandler(createDeleteHandler(service, prisma)));
+  router.delete('/:id', requireOwnerAuth(), handleDeleteGlobalTtsConfig(deps));
 
   return router;
 }
