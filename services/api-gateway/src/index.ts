@@ -276,7 +276,7 @@ function registerRoutes(app: Express, prisma: PrismaClient, services: ServicesCo
   app.use('/voice-references', createVoiceReferenceRouter(prisma));
   logger.info('Voice references route registered (service-auth protected)');
 
-  app.use('/ai', createAIRouter(prisma, aiQueue, queueEvents));
+  app.use('/ai', createAIRouter({ prisma, aiQueue, queueEvents }));
   logger.info('AI routes registered');
 
   app.use('/wallet', createWalletRouter(prisma, cacheRedis, apiKeyCacheInvalidation));
@@ -302,7 +302,7 @@ function registerRoutes(app: Express, prisma: PrismaClient, services: ServicesCo
   app.use('/models', createModelsRouter(modelCache));
   logger.info('Models routes registered');
 
-  app.use('/internal', createInternalRouter(prisma));
+  app.use('/internal', createInternalRouter({ prisma }));
   logger.info('Internal routes registered');
 
   app.use(

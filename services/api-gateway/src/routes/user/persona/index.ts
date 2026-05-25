@@ -16,24 +16,23 @@
  */
 
 import { Router } from 'express';
-import type { PrismaClient } from '@tzurot/common-types';
+import type { RouteDeps } from '../../routeDeps.js';
 import { addCrudRoutes } from './crud.js';
 import { addDefaultRoutes } from './default.js';
 import { addOverrideRoutes } from './override.js';
 
-// Re-export types for external consumers
-export function createPersonaRoutes(prisma: PrismaClient): Router {
+export function createPersonaRoutes(deps: RouteDeps): Router {
   const router = Router();
 
   // Order matters: routes with parameters must come after specific paths
   // Override routes have /override prefix so they won't conflict with /:id
-  addOverrideRoutes(router, prisma);
+  addOverrideRoutes(router, deps.prisma);
 
   // Default route (/:id/default) - before general /:id
-  addDefaultRoutes(router, prisma);
+  addDefaultRoutes(router, deps.prisma);
 
   // CRUD routes last (/ and /:id)
-  addCrudRoutes(router, prisma);
+  addCrudRoutes(router, deps.prisma);
 
   return router;
 }

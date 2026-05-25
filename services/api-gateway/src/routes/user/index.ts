@@ -161,7 +161,7 @@ export function createUserRouter(opts: UserRouterOptions): Router {
   router.use('/model-override', createModelOverrideRoutes(deps));
 
   // Persona routes (user profiles that tell AI about the user)
-  router.use('/persona', createPersonaRoutes(prisma));
+  router.use('/persona', createPersonaRoutes(deps));
 
   // History routes (STM management via context epochs)
   router.use('/history', createHistoryRoutes(deps));
@@ -170,7 +170,7 @@ export function createUserRouter(opts: UserRouterOptions): Router {
   router.use('/channel', createChannelRoutes(deps));
 
   // Memory routes (LTM management - stats, focus mode, search, browse, incognito)
-  router.use('/memory', createMemoryRoutes(prisma, redis));
+  router.use('/memory', createMemoryRoutes(deps));
 
   // NSFW verification routes (for DM interactions)
   router.use('/nsfw', createNsfwRoutes(deps));
@@ -186,7 +186,7 @@ export function createUserRouter(opts: UserRouterOptions): Router {
   router.use('/conversation', createConversationLookupRoutes(deps));
 
   // Shapes.inc import routes (credential management, import jobs)
-  router.use('/shapes', createShapesRoutes(prisma, aiQueue));
+  router.use('/shapes', createShapesRoutes(deps));
 
   // Voice management routes (ElevenLabs cloned voice CRUD)
   router.use('/voices', createVoicesRoutes(deps));

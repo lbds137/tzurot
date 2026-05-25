@@ -24,7 +24,6 @@
 
 import { Router, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import type { Redis } from 'ioredis';
 import {
   createLogger,
   Prisma,
@@ -32,6 +31,7 @@ import {
   generateUserPersonalityConfigUuid,
   FocusModeSchema,
 } from '@tzurot/common-types';
+import type { RouteDeps } from '../routeDeps.js';
 import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -285,8 +285,9 @@ function registerMemoryRoute(params: RegisterRouteParams): void {
   );
 }
 
-export function createMemoryRoutes(prisma: PrismaClient, redis?: Redis): Router {
+export function createMemoryRoutes(deps: RouteDeps): Router {
   const router = Router();
+  const { prisma, redis } = deps;
 
   // Incognito mode routes (requires Redis)
   if (redis !== undefined) {

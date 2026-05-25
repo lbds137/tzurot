@@ -32,7 +32,7 @@ describe('createInternalRouter', () => {
     vi.clearAllMocks();
     mockPrisma = { $queryRaw: vi.fn().mockResolvedValue([]) };
     app = express();
-    app.use('/internal', createInternalRouter(mockPrisma as unknown as PrismaClient));
+    app.use('/internal', createInternalRouter({ prisma: mockPrisma as unknown as PrismaClient }));
   });
 
   it('mounts GET /users/recent', async () => {
