@@ -64,7 +64,10 @@ describe('POST /admin/personality', () => {
     // Create Express app with create personality router
     app = express();
     app.use(express.json());
-    app.use('/admin/personality', createCreatePersonalityRoute(prisma as unknown as PrismaClient));
+    app.use(
+      '/admin/personality',
+      createCreatePersonalityRoute({ prisma: prisma as unknown as PrismaClient })
+    );
   });
 
   it('should create a new personality with required fields', async () => {
@@ -638,7 +641,10 @@ describe('POST /admin/personality', () => {
       appWithCache.use(express.json());
       appWithCache.use(
         '/admin/personality',
-        createCreatePersonalityRoute(prisma as unknown as PrismaClient, mockCacheService)
+        createCreatePersonalityRoute({
+          prisma: prisma as unknown as PrismaClient,
+          cacheInvalidationService: mockCacheService,
+        })
       );
 
       prisma.personality.findUnique.mockResolvedValue(null);
@@ -692,7 +698,10 @@ describe('POST /admin/personality', () => {
       appWithCache.use(express.json());
       appWithCache.use(
         '/admin/personality',
-        createCreatePersonalityRoute(prisma as unknown as PrismaClient, mockCacheService)
+        createCreatePersonalityRoute({
+          prisma: prisma as unknown as PrismaClient,
+          cacheInvalidationService: mockCacheService,
+        })
       );
 
       prisma.personality.findUnique.mockResolvedValue(null);
@@ -746,7 +755,10 @@ describe('POST /admin/personality', () => {
       appWithCache.use(express.json());
       appWithCache.use(
         '/admin/personality',
-        createCreatePersonalityRoute(prisma as unknown as PrismaClient, mockCacheService)
+        createCreatePersonalityRoute({
+          prisma: prisma as unknown as PrismaClient,
+          cacheInvalidationService: mockCacheService,
+        })
       );
 
       prisma.personality.findUnique.mockResolvedValue(null);

@@ -3,7 +3,7 @@
  * Create a new AI personality
  */
 
-import { Router, type Response } from 'express';
+import { Router, type RequestHandler, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
@@ -12,7 +12,7 @@ import {
   PersonalityCreateSchema,
   type PersonalityCreateInput,
 } from '@tzurot/common-types';
-import { type PrismaClient, Prisma } from '@tzurot/common-types';
+import { Prisma } from '@tzurot/common-types';
 import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -20,6 +20,7 @@ import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import { processAvatarData } from '../../utils/avatarProcessor.js';
 import type { AuthenticatedRequest } from '../../types.js';
+import type { RouteDeps } from '../routeDeps.js';
 
 const logger = createLogger('admin-create-personality');
 
@@ -85,95 +86,91 @@ function buildPersonalityCreateData(
   };
 }
 
-export function createCreatePersonalityRoute(
-  prisma: PrismaClient,
-  cacheInvalidationService?: CacheInvalidationService
-): Router {
-  const router = Router();
+export const handleCreateGlobalPersonality = (deps: RouteDeps): RequestHandler => {
+  const { prisma, cacheInvalidationService } = deps;
+  return asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const discordUserId = req.userId;
 
-  router.post(
-    '/',
-    requireOwnerAuth(),
-    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-      const discordUserId = req.userId;
+    // Validate request body with Zod schema
+    const parseResult = PersonalityCreateSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return sendZodError(res, parseResult.error);
+    }
+    const validated = parseResult.data;
+    const { slug } = validated;
 
-      // Validate request body with Zod schema
-      const parseResult = PersonalityCreateSchema.safeParse(req.body);
-      if (!parseResult.success) {
-        return sendZodError(res, parseResult.error);
-      }
-      const validated = parseResult.data;
-      const { slug } = validated;
+    // Get admin user's internal ID for ownership
+    const adminUser = await prisma.user.findUnique({
+      // eslint-disable-next-line no-restricted-syntax -- Admin owner lookup: route is behind requireOwnerAuth, not requireProvisionedUser, so provisionedUserId is not attached; the Discord ID comes from the X-User-Id header and the internal UUID is needed to populate Personality.ownerId
+      where: { discordId: discordUserId },
+      select: { id: true },
+    });
 
-      // Get admin user's internal ID for ownership
-      const adminUser = await prisma.user.findUnique({
-        // eslint-disable-next-line no-restricted-syntax -- Admin owner lookup: route is behind requireOwnerAuth, not requireProvisionedUser, so provisionedUserId is not attached; the Discord ID comes from the X-User-Id header and the internal UUID is needed to populate Personality.ownerId
-        where: { discordId: discordUserId },
-        select: { id: true },
-      });
+    if (adminUser === null) {
+      logger.warn({ discordUserId }, 'Admin user not found in database');
+      return sendError(res, ErrorResponses.unauthorized('Admin user not found in database'));
+    }
 
-      if (adminUser === null) {
-        logger.warn({ discordUserId }, 'Admin user not found in database');
-        return sendError(res, ErrorResponses.unauthorized('Admin user not found in database'));
-      }
-
-      // Check if personality already exists
-      const existing = await prisma.personality.findUnique({ where: { slug } });
-      if (existing !== null) {
-        return sendError(
-          res,
-          ErrorResponses.conflict(`A personality with slug '${slug}' already exists`)
-        );
-      }
-
-      // Process avatar if provided
-      const avatarResult = await processAvatarData(validated.avatarData, slug);
-      if (avatarResult !== null && !avatarResult.ok) {
-        return sendError(res, avatarResult.error);
-      }
-
-      // Find default system prompt
-      const defaultSystemPrompt = await prisma.systemPrompt.findFirst({
-        where: { isDefault: true },
-        select: { id: true },
-      });
-
-      // Create personality in database
-      const createData = buildPersonalityCreateData({
-        validated,
-        ownerId: adminUser.id,
-        systemPromptId: defaultSystemPrompt?.id ?? null,
-        avatarBuffer: avatarResult?.ok === true ? avatarResult.buffer : undefined,
-      });
-      const personality = await prisma.personality.create({ data: createData });
-
-      logger.info({ slug, personalityId: personality.id }, 'Created personality');
-
-      // Post-creation tasks.
-      // Note: personality_default_configs is intentionally NOT populated here.
-      // New personalities cascade to the current global default at request time
-      // (see PersonalityService.loadPersonality → loadGlobalDefaultConfig). A
-      // per-personality preset pin is an opt-in override, not a creation-time
-      // snapshot — see the "Preset cascade standardization" backlog epic.
-      await invalidateCacheIfPublic(cacheInvalidationService, validated.isPublic, personality.id);
-
-      sendCustomSuccess(
+    // Check if personality already exists
+    const existing = await prisma.personality.findUnique({ where: { slug } });
+    if (existing !== null) {
+      return sendError(
         res,
-        {
-          success: true,
-          personality: {
-            id: personality.id,
-            name: personality.name,
-            slug: personality.slug,
-            displayName: personality.displayName,
-            hasAvatar: avatarResult?.ok === true,
-          },
-          timestamp: new Date().toISOString(),
-        },
-        StatusCodes.CREATED
+        ErrorResponses.conflict(`A personality with slug '${slug}' already exists`)
       );
-    })
-  );
+    }
 
+    // Process avatar if provided
+    const avatarResult = await processAvatarData(validated.avatarData, slug);
+    if (avatarResult !== null && !avatarResult.ok) {
+      return sendError(res, avatarResult.error);
+    }
+
+    // Find default system prompt
+    const defaultSystemPrompt = await prisma.systemPrompt.findFirst({
+      where: { isDefault: true },
+      select: { id: true },
+    });
+
+    // Create personality in database
+    const createData = buildPersonalityCreateData({
+      validated,
+      ownerId: adminUser.id,
+      systemPromptId: defaultSystemPrompt?.id ?? null,
+      avatarBuffer: avatarResult?.ok === true ? avatarResult.buffer : undefined,
+    });
+    const personality = await prisma.personality.create({ data: createData });
+
+    logger.info({ slug, personalityId: personality.id }, 'Created personality');
+
+    // Post-creation tasks.
+    // Note: personality_default_configs is intentionally NOT populated here.
+    // New personalities cascade to the current global default at request time
+    // (see PersonalityService.loadPersonality → loadGlobalDefaultConfig). A
+    // per-personality preset pin is an opt-in override, not a creation-time
+    // snapshot — see the "Preset cascade standardization" backlog epic.
+    await invalidateCacheIfPublic(cacheInvalidationService, validated.isPublic, personality.id);
+
+    sendCustomSuccess(
+      res,
+      {
+        success: true,
+        personality: {
+          id: personality.id,
+          name: personality.name,
+          slug: personality.slug,
+          displayName: personality.displayName,
+          hasAvatar: avatarResult?.ok === true,
+        },
+        timestamp: new Date().toISOString(),
+      },
+      StatusCodes.CREATED
+    );
+  });
+};
+
+export function createCreatePersonalityRoute(deps: RouteDeps): Router {
+  const router = Router();
+  router.post('/', requireOwnerAuth(), handleCreateGlobalPersonality(deps));
   return router;
 }
