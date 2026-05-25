@@ -96,7 +96,7 @@ export function createAdminRouter(opts: AdminRouterOptions): Router {
   router.use('/tts-config', createAdminTtsConfigRoutes(prisma, ttsConfigCacheInvalidation));
 
   // Cache invalidation endpoint
-  router.use('/invalidate-cache', createInvalidateCacheRoute(cacheInvalidationService));
+  router.use('/invalidate-cache', createInvalidateCacheRoute(deps));
 
   // Usage statistics endpoint
   router.use('/usage', createAdminUsageRoutes(prisma));
@@ -106,7 +106,7 @@ export function createAdminRouter(opts: AdminRouterOptions): Router {
 
   // Cleanup endpoint (for conversation history and tombstones)
   if (retentionService !== undefined) {
-    router.use('/cleanup', createCleanupRoute(retentionService));
+    router.use('/cleanup', createCleanupRoute(deps));
   }
 
   // Diagnostic logs endpoint (flight recorder for LLM requests)

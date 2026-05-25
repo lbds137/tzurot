@@ -5,7 +5,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
+import type { PrismaClient } from '@tzurot/common-types';
 import { createInvalidateCacheRoute } from './invalidateCache.js';
+import type { RouteDeps } from '../routeDeps.js';
 
 // Mock AuthMiddleware
 vi.mock('../../services/AuthMiddleware.js', () => ({
@@ -34,9 +36,14 @@ describe('POST /admin/invalidate-cache', () => {
     cacheInvalidationService = createMockCacheInvalidationService();
 
     // Create Express app with invalidate cache router
+    const deps: RouteDeps = {
+      prisma: {} as PrismaClient,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mock service satisfies the interface at the call sites the handler exercises
+      cacheInvalidationService: cacheInvalidationService as any,
+    };
     app = express();
     app.use(express.json());
-    app.use('/admin/invalidate-cache', createInvalidateCacheRoute(cacheInvalidationService as any));
+    app.use('/admin/invalidate-cache', createInvalidateCacheRoute(deps));
   });
 
   it('should invalidate specific personality cache', async () => {
