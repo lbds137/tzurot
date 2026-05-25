@@ -16,6 +16,7 @@ import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.j
 import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import type { ProvisionedRequest } from '../../types.js';
+import type { RouteDeps } from '../routeDeps.js';
 
 const logger = createLogger('wallet-remove-key');
 
@@ -23,11 +24,10 @@ const logger = createLogger('wallet-remove-key');
  * Create remove key route handlers
  * Returns an array of middleware: [auth, handler]
  */
-export function createRemoveKeyRoute(
-  prisma: PrismaClient,
-  apiKeyCacheInvalidation?: ApiKeyCacheInvalidationService
-): RequestHandler[] {
-  const handler = asyncHandler(async (req: ProvisionedRequest, res: Response) => {
+/** DELETE /api/user/wallet/:provider — remove user's API key for a provider. */
+export const handleRemoveWalletKey = (deps: RouteDeps): RequestHandler => {
+  const { prisma, apiKeyCacheInvalidation } = deps;
+  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
     const provider = req.params.provider as AIProvider;
 
@@ -71,6 +71,14 @@ export function createRemoveKeyRoute(
       timestamp: new Date().toISOString(),
     });
   });
+};
 
-  return [requireUserAuth(), requireProvisionedUser(prisma), handler];
-}
+/** Legacy chain. Aggregator spreads the array into `router.delete(...)`. */
+export const createRemoveKeyRoute = (
+  prisma: PrismaClient,
+  apiKeyCacheInvalidation?: ApiKeyCacheInvalidationService
+): RequestHandler[] => [
+  requireUserAuth(),
+  requireProvisionedUser(prisma),
+  handleRemoveWalletKey({ prisma, apiKeyCacheInvalidation }),
+];

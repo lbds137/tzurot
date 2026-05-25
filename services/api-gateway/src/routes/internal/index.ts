@@ -8,13 +8,12 @@
 
 import { Router } from 'express';
 import type { RouteDeps } from '../routeDeps.js';
-import { createUsersRecentHandler } from './usersRecent.js';
-import { createDmSessionSetHandler } from './dmSessionSet.js';
+import { handleRecentUsers } from './usersRecent.js';
+import { handleSetDmSession } from './dmSessionSet.js';
 
 export function createInternalRouter(deps: RouteDeps): Router {
   const router = Router();
-  const { prisma } = deps;
-  router.get('/users/recent', createUsersRecentHandler(prisma));
-  router.post('/channel/dm-session/set', ...createDmSessionSetHandler(prisma));
+  router.get('/users/recent', handleRecentUsers(deps));
+  router.post('/channel/dm-session/set', handleSetDmSession(deps));
   return router;
 }

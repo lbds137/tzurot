@@ -19,7 +19,7 @@ const logger = createLogger('channel-get');
 /**
  * GET /api/user/channel/:channelId — channel settings (service-only).
  */
-export const handleGetChannelSettings = (deps: RouteDeps): RequestHandler => {
+export const handleGetUserChannel = (deps: RouteDeps): RequestHandler => {
   const { prisma } = deps;
   return asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const channelId = getParam(req.params.channelId);
@@ -90,5 +90,15 @@ export const handleGetChannelSettings = (deps: RouteDeps): RequestHandler => {
 
 // Service auth only — service-to-service lookup, not user-specific
 export function createGetHandler(deps: RouteDeps): RequestHandler[] {
-  return [requireServiceAuth(), handleGetChannelSettings(deps)];
+  return [requireServiceAuth(), handleGetUserChannel(deps)];
 }
+
+/**
+ * Alias used by the codegen mounts.ts. The internal `getChannelSettings`
+ * route and the user `getUserChannel` route share this implementation —
+ * the difference is only at the prefix mount (service-auth vs user-auth)
+ * which the generator handles per audience. Keeping both names exported
+ * lets the `handle${pascalCase(routeId)}` resolver locate the handler
+ * for either route without an explicit alias table.
+ */
+export const handleGetChannelSettings = handleGetUserChannel;

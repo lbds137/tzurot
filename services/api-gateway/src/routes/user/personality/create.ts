@@ -75,7 +75,7 @@ function buildCreateData(
 /**
  * POST /api/user/personality — create a new personality owned by the user.
  */
-export const handleCreateUserPersonality = (deps: RouteDeps): RequestHandler => {
+export const handleCreatePersonality = (deps: RouteDeps): RequestHandler => {
   const { prisma } = deps;
   return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
@@ -150,9 +150,5 @@ export const handleCreateUserPersonality = (deps: RouteDeps): RequestHandler => 
 };
 
 export function createCreateHandler(deps: RouteDeps): RequestHandler[] {
-  return [
-    requireUserAuth(),
-    requireProvisionedUser(deps.prisma),
-    handleCreateUserPersonality(deps),
-  ];
+  return [requireUserAuth(), requireProvisionedUser(deps.prisma), handleCreatePersonality(deps)];
 }

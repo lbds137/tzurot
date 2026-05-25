@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import type { PrismaClient } from '@tzurot/common-types';
-import { createUsersRecentHandler } from './usersRecent.js';
+import { handleRecentUsers } from './usersRecent.js';
 
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
@@ -27,7 +27,7 @@ describe('GET /internal/users/recent', () => {
     app = express();
     app.get(
       '/internal/users/recent',
-      createUsersRecentHandler(mockPrisma as unknown as PrismaClient)
+      handleRecentUsers({ prisma: mockPrisma as unknown as PrismaClient })
     );
   });
 

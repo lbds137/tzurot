@@ -5,8 +5,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
-import { createGenerateRoute } from './generate.js';
+import { handleAiGenerate } from './generate.js';
 import { JobStatus } from '@tzurot/common-types';
+import type { RouteDeps } from '../routeDeps.js';
 
 // Mock dependencies
 vi.mock('../../utils/deduplicationCache.js', () => ({
@@ -28,7 +29,10 @@ describe('POST /generate', () => {
     // Create Express app with generate router
     app = express();
     app.use(express.json());
-    app.use('/generate', createGenerateRoute());
+    // handleAiGenerate ignores its deps argument (see _deps in generate.ts).
+    // Pass an empty stub through the RouteDeps cast — `{} as unknown as
+    // RouteDeps` is clearer than `as never` here.
+    app.post('/generate', handleAiGenerate({} as unknown as RouteDeps));
   });
 
   it('should create a job and return 202 Accepted', async () => {

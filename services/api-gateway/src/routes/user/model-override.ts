@@ -161,7 +161,7 @@ export const handleSetModelOverride = (deps: RouteDeps): RequestHandler => {
 };
 
 /** GET /api/user/model-override/default — read user's global default LLM config */
-export const handleGetModelDefault = (deps: RouteDeps): RequestHandler => {
+export const handleGetDefaultModelConfig = (deps: RouteDeps): RequestHandler => {
   const { prisma } = deps;
   return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
@@ -186,7 +186,7 @@ export const handleGetModelDefault = (deps: RouteDeps): RequestHandler => {
 };
 
 /** PUT /api/user/model-override/default — set user's global default LLM config */
-export const handleSetModelDefault = (deps: RouteDeps): RequestHandler => {
+export const handleSetDefaultModelConfig = (deps: RouteDeps): RequestHandler => {
   const { prisma, llmConfigCacheInvalidation } = deps;
   return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
@@ -229,7 +229,7 @@ export const handleSetModelDefault = (deps: RouteDeps): RequestHandler => {
 };
 
 /** DELETE /api/user/model-override/default — clear user's global default LLM config */
-export const handleClearModelDefault = (deps: RouteDeps): RequestHandler => {
+export const handleClearDefaultModelConfig = (deps: RouteDeps): RequestHandler => {
   const { prisma, llmConfigCacheInvalidation } = deps;
   return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
@@ -285,7 +285,7 @@ export const handleClearModelDefault = (deps: RouteDeps): RequestHandler => {
 };
 
 /** DELETE /api/user/model-override/:personalityId — remove model override for a personality */
-export const handleClearModelOverride = (deps: RouteDeps): RequestHandler => {
+export const handleDeleteModelOverride = (deps: RouteDeps): RequestHandler => {
   const { prisma } = deps;
   return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
@@ -329,14 +329,19 @@ export function createModelOverrideRoutes(deps: RouteDeps): Router {
   router.get('/', requireUserAuth(), requireProvisioned, handleListModelOverrides(deps));
   router.put('/', requireUserAuth(), requireProvisioned, handleSetModelOverride(deps));
   // /default routes MUST come before /:personalityId to avoid the parameter shadowing them
-  router.get('/default', requireUserAuth(), requireProvisioned, handleGetModelDefault(deps));
-  router.put('/default', requireUserAuth(), requireProvisioned, handleSetModelDefault(deps));
-  router.delete('/default', requireUserAuth(), requireProvisioned, handleClearModelDefault(deps));
+  router.get('/default', requireUserAuth(), requireProvisioned, handleGetDefaultModelConfig(deps));
+  router.put('/default', requireUserAuth(), requireProvisioned, handleSetDefaultModelConfig(deps));
+  router.delete(
+    '/default',
+    requireUserAuth(),
+    requireProvisioned,
+    handleClearDefaultModelConfig(deps)
+  );
   router.delete(
     '/:personalityId',
     requireUserAuth(),
     requireProvisioned,
-    handleClearModelOverride(deps)
+    handleDeleteModelOverride(deps)
   );
 
   return router;

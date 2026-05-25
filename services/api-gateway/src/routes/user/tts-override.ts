@@ -169,7 +169,7 @@ export const handleSetTtsOverride = (deps: RouteDeps): RequestHandler => {
 };
 
 /** GET /api/user/tts-override/default — get user's global default TTS config */
-export const handleGetTtsDefault = (deps: RouteDeps): RequestHandler => {
+export const handleGetTtsDefaultConfig = (deps: RouteDeps): RequestHandler => {
   const { prisma } = deps;
   return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
@@ -194,7 +194,7 @@ export const handleGetTtsDefault = (deps: RouteDeps): RequestHandler => {
 };
 
 /** PUT /api/user/tts-override/default — set user's global default TTS config */
-export const handleSetTtsDefault = (deps: RouteDeps): RequestHandler => {
+export const handleSetTtsDefaultConfig = (deps: RouteDeps): RequestHandler => {
   const { prisma, ttsConfigCacheInvalidation } = deps;
   return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
@@ -236,7 +236,7 @@ export const handleSetTtsDefault = (deps: RouteDeps): RequestHandler => {
 };
 
 /** DELETE /api/user/tts-override/default — clear user's global default TTS config */
-export const handleClearTtsDefault = (deps: RouteDeps): RequestHandler => {
+export const handleClearTtsDefaultConfig = (deps: RouteDeps): RequestHandler => {
   const { prisma, ttsConfigCacheInvalidation } = deps;
   return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
@@ -291,7 +291,7 @@ export const handleClearTtsDefault = (deps: RouteDeps): RequestHandler => {
 };
 
 /** DELETE /api/user/tts-override/:personalityId — remove TTS override for a personality */
-export const handleClearTtsOverride = (deps: RouteDeps): RequestHandler => {
+export const handleDeleteTtsOverride = (deps: RouteDeps): RequestHandler => {
   const { prisma, ttsConfigCacheInvalidation } = deps;
   return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
@@ -340,14 +340,19 @@ export function createTtsOverrideRoutes(deps: RouteDeps): Router {
   router.get('/', requireUserAuth(), requireProvisioned, handleListTtsOverrides(deps));
   router.put('/', requireUserAuth(), requireProvisioned, handleSetTtsOverride(deps));
   // /default routes MUST come before /:personalityId to avoid the parameter shadowing them
-  router.get('/default', requireUserAuth(), requireProvisioned, handleGetTtsDefault(deps));
-  router.put('/default', requireUserAuth(), requireProvisioned, handleSetTtsDefault(deps));
-  router.delete('/default', requireUserAuth(), requireProvisioned, handleClearTtsDefault(deps));
+  router.get('/default', requireUserAuth(), requireProvisioned, handleGetTtsDefaultConfig(deps));
+  router.put('/default', requireUserAuth(), requireProvisioned, handleSetTtsDefaultConfig(deps));
+  router.delete(
+    '/default',
+    requireUserAuth(),
+    requireProvisioned,
+    handleClearTtsDefaultConfig(deps)
+  );
   router.delete(
     '/:personalityId',
     requireUserAuth(),
     requireProvisioned,
-    handleClearTtsOverride(deps)
+    handleDeleteTtsOverride(deps)
   );
 
   return router;

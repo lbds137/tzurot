@@ -31,6 +31,7 @@ import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { getParam } from '../../utils/requestParams.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
+import type { RouteDeps } from '../routeDeps.js';
 
 const logger = createLogger('admin-diagnostic');
 
@@ -162,7 +163,8 @@ function formatRecentLogResponse(row: RecentLogRow): RecentLogResponse {
  * Handler: GET /admin/diagnostic/recent
  * List recent diagnostic logs (last 100) with personality name extracted from JSONB
  */
-function handleGetRecent(prisma: PrismaClient): RequestHandler {
+export const handleGetRecentDiagnostics = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
   return asyncHandler(async (req: Request, res: Response) => {
     const callerUserId = resolveCallerUserId(req, res);
     if (callerUserId === null) {
@@ -228,13 +230,14 @@ function handleGetRecent(prisma: PrismaClient): RequestHandler {
 
     sendCustomSuccess(res, { logs, count: logs.length }, StatusCodes.OK);
   });
-}
+};
 
 /**
  * Handler: GET /admin/diagnostic/by-message/:messageId
  * Get all diagnostic logs for a Discord message ID
  */
-function handleGetByMessage(prisma: PrismaClient): RequestHandler {
+export const handleGetDiagnosticByMessage = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
   return asyncHandler(async (req: Request, res: Response) => {
     const callerUserId = resolveCallerUserId(req, res);
     if (callerUserId === null) {
@@ -280,13 +283,14 @@ function handleGetByMessage(prisma: PrismaClient): RequestHandler {
       StatusCodes.OK
     );
   });
-}
+};
 
 /**
  * Handler: GET /admin/diagnostic/:requestId
  * Get full diagnostic log by request ID
  */
-function handleGetByRequestId(prisma: PrismaClient): RequestHandler {
+export const handleGetDiagnosticByRequestId = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
   return asyncHandler(async (req: Request, res: Response) => {
     const callerUserId = resolveCallerUserId(req, res);
     if (callerUserId === null) {
@@ -328,13 +332,14 @@ function handleGetByRequestId(prisma: PrismaClient): RequestHandler {
 
     sendCustomSuccess(res, { log: formatLogResponse(log) }, StatusCodes.OK);
   });
-}
+};
 
 /**
  * Handler: GET /admin/diagnostic/by-response/:messageId
  * Get diagnostic log by AI response message ID (array containment query)
  */
-function handleGetByResponse(prisma: PrismaClient): RequestHandler {
+export const handleGetDiagnosticByResponse = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
   return asyncHandler(async (req: Request, res: Response) => {
     const callerUserId = resolveCallerUserId(req, res);
     if (callerUserId === null) {
@@ -376,14 +381,15 @@ function handleGetByResponse(prisma: PrismaClient): RequestHandler {
 
     sendCustomSuccess(res, { log: formatLogResponse(log) }, StatusCodes.OK);
   });
-}
+};
 
 /**
  * Handler: PATCH /admin/diagnostic/:requestId/response-ids
  * Update the response message IDs for a diagnostic log
  * Called by bot-client after sending response to Discord
  */
-function handleUpdateResponseIds(prisma: PrismaClient): RequestHandler {
+export const handleUpdateDiagnosticResponseIds = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
   return asyncHandler(async (req: Request, res: Response) => {
     const requestId = getParam(req.params.requestId);
 
@@ -420,7 +426,7 @@ function handleUpdateResponseIds(prisma: PrismaClient): RequestHandler {
       throw error;
     }
   });
-}
+};
 
 /**
  * Create diagnostic routes with injected dependencies
@@ -441,11 +447,15 @@ export function createDiagnosticRoutes(prisma: PrismaClient): Router {
   // could query diagnostic logs with only `X-User-Id`. The queued adminFetch /
   // route-prefix refactor addresses this structurally via explicit prefix
   // semantics (`/api/internal`, `/api/admin`, `/api/user`).
-  router.get('/recent', requireUserAuth(), handleGetRecent(prisma));
-  router.get('/by-message/:messageId', requireUserAuth(), handleGetByMessage(prisma));
-  router.get('/by-response/:messageId', requireUserAuth(), handleGetByResponse(prisma));
+  router.get('/recent', requireUserAuth(), handleGetRecentDiagnostics({ prisma }));
+  router.get('/by-message/:messageId', requireUserAuth(), handleGetDiagnosticByMessage({ prisma }));
+  router.get(
+    '/by-response/:messageId',
+    requireUserAuth(),
+    handleGetDiagnosticByResponse({ prisma })
+  );
   // Note: /:requestId must come after /by-* routes to avoid matching 'by-message' as a requestId
-  router.get('/:requestId', requireUserAuth(), handleGetByRequestId(prisma));
+  router.get('/:requestId', requireUserAuth(), handleGetDiagnosticByRequestId({ prisma }));
 
   // PATCH is an internal call from bot-client to api-gateway after AI response
   // delivery — no human user is involved. requireServiceAuth() validates
@@ -460,7 +470,11 @@ export function createDiagnosticRoutes(prisma: PrismaClient): Router {
   // Cannot read other users' data via this route. The queued adminFetch /
   // route-prefix refactor will make this trust contract explicit by giving
   // service-only routes a distinct prefix and middleware path.
-  router.patch('/:requestId/response-ids', requireServiceAuth(), handleUpdateResponseIds(prisma));
+  router.patch(
+    '/:requestId/response-ids',
+    requireServiceAuth(),
+    handleUpdateDiagnosticResponseIds({ prisma })
+  );
 
   return router;
 }

@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
-import { createJobStatusRoute } from './jobStatus.js';
+import { handleAiJobStatus } from './jobStatus.js';
 import type { Queue, Job } from 'bullmq';
 
 // Create mock BullMQ queue
@@ -31,7 +31,10 @@ describe('GET /job/:jobId', () => {
     // Create Express app with job status router
     app = express();
     app.use(express.json());
-    app.use('/', createJobStatusRoute(aiQueue as unknown as Queue));
+    app.get(
+      '/job/:jobId',
+      handleAiJobStatus({ prisma: {} as never, aiQueue: aiQueue as unknown as Queue })
+    );
   });
 
   it('should return job status', async () => {

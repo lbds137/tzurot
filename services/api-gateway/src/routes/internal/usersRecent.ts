@@ -14,13 +14,13 @@ import { type Request, type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
-  type PrismaClient,
   RecentUsersResponseSchema,
   DiscordSnowflakeSchema,
 } from '@tzurot/common-types';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
+import type { RouteDeps } from '../routeDeps.js';
 
 const logger = createLogger('internal-users-recent');
 
@@ -42,7 +42,9 @@ interface RawRow {
   discord_id: string;
 }
 
-export function createUsersRecentHandler(prisma: PrismaClient): RequestHandler {
+/** GET /api/internal/users/recent — Discord IDs of recently-active users. */
+export const handleRecentUsers = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
   return asyncHandler(async (req: Request, res: Response) => {
     // Parse and validate sinceDays query param. Number() + Number.isInteger()
     // is strictly stricter than parseInt(): rejects partial-numeric strings
@@ -107,4 +109,4 @@ export function createUsersRecentHandler(prisma: PrismaClient): RequestHandler {
 
     sendCustomSuccess(res, parsed, StatusCodes.OK);
   });
-}
+};

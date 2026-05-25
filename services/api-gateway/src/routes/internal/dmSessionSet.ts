@@ -34,11 +34,12 @@
 
 import { type Response, type RequestHandler } from 'express';
 import { z } from 'zod';
-import { createLogger, type PrismaClient, generateChannelSettingsUuid } from '@tzurot/common-types';
+import { createLogger, generateChannelSettingsUuid } from '@tzurot/common-types';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
+import type { RouteDeps } from '../routeDeps.js';
 
 const logger = createLogger('internal-dm-session-set');
 
@@ -50,8 +51,10 @@ const DmSessionSetRequestSchema = z.object({
   personalitySlug: z.string().min(1).max(255),
 });
 
-export function createDmSessionSetHandler(prisma: PrismaClient): RequestHandler[] {
-  const handler = asyncHandler(async (req, res: Response) => {
+/** POST /api/internal/channel/dm-session/set — record active personality in a DM channel. */
+export const handleSetDmSession = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req, res: Response) => {
     const parseResult = DmSessionSetRequestSchema.safeParse(req.body);
     if (!parseResult.success) {
       sendZodError(res, parseResult.error);
@@ -92,6 +95,4 @@ export function createDmSessionSetHandler(prisma: PrismaClient): RequestHandler[
     logger.debug({ channelId, personalitySlug }, 'DM session set');
     sendCustomSuccess(res, { channelId, personalitySlug });
   });
-
-  return [handler];
-}
+};

@@ -279,13 +279,9 @@ function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInv
 
 // --- Handler factory + route chain ---
 
-export const handleUpdateUserPersonality = (deps: RouteDeps): RequestHandler =>
+export const handleUpdatePersonality = (deps: RouteDeps): RequestHandler =>
   asyncHandler(createHandler(deps.prisma, deps.cacheInvalidationService));
 
 export function createUpdateHandler(deps: RouteDeps): RequestHandler[] {
-  return [
-    requireUserAuth(),
-    requireProvisionedUser(deps.prisma),
-    handleUpdateUserPersonality(deps),
-  ];
+  return [requireUserAuth(), requireProvisionedUser(deps.prisma), handleUpdatePersonality(deps)];
 }

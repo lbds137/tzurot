@@ -5,18 +5,20 @@
 
 import { Router } from 'express';
 import type { RouteDeps } from '../routeDeps.js';
-import { createGenerateRoute } from './generate.js';
-import { createTranscribeRoute } from './transcribe.js';
-import { createJobStatusRoute } from './jobStatus.js';
-import { createConfirmDeliveryRoute } from './confirmDelivery.js';
+import { handleAiGenerate } from './generate.js';
+import { handleAiTranscribe } from './transcribe.js';
+import { handleAiJobStatus } from './jobStatus.js';
+import { handleAiConfirmDelivery } from './confirmDelivery.js';
 
 /**
  * Create AI router. The required deps are aiQueue + queueEvents;
- * transcribe also needs prisma.
+ * transcribe also needs prisma. We call the handle* factories directly
+ * (no legacy `createGenerateRoute()` etc. wrappers) so we don't end up
+ * synthesizing `undefined as never` placeholders to satisfy them.
  */
 export function createAIRouter(deps: RouteDeps): Router {
   const router = Router();
-  const { prisma, aiQueue, queueEvents } = deps;
+  const { aiQueue, queueEvents } = deps;
 
   // Hard-fail at startup: aiQueue + queueEvents are not optional for the AI
   // routes (no degraded mode makes sense — the BullMQ queue IS the routing
@@ -27,15 +29,10 @@ export function createAIRouter(deps: RouteDeps): Router {
     throw new Error('createAIRouter requires aiQueue and queueEvents in RouteDeps');
   }
 
-  // AI generation endpoint
-  router.use('/generate', createGenerateRoute());
-
-  // Audio transcription endpoint
-  router.use('/transcribe', createTranscribeRoute(prisma, aiQueue, queueEvents));
-
-  // Job status and delivery confirmation endpoints
-  router.use('/', createJobStatusRoute(aiQueue));
-  router.use('/', createConfirmDeliveryRoute(prisma));
+  router.post('/generate', handleAiGenerate(deps));
+  router.post('/transcribe', handleAiTranscribe(deps));
+  router.get('/job/:jobId', handleAiJobStatus(deps));
+  router.post('/job/:jobId/confirm-delivery', handleAiConfirmDelivery(deps));
 
   return router;
 }
