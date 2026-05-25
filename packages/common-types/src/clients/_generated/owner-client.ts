@@ -58,6 +58,7 @@ export class OwnerClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.dbSync.output,
+      timeoutMs: ROUTE_MANIFEST.dbSync.timeoutMs,
     });
   }
 
@@ -73,6 +74,7 @@ export class OwnerClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.cleanup.output,
+      timeoutMs: ROUTE_MANIFEST.cleanup.timeoutMs,
     });
   }
 
