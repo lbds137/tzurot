@@ -146,7 +146,7 @@ describe('Voice Management Routes', () => {
 
     app = express();
     app.use(express.json());
-    app.use('/voices', createVoicesRoutes(mockPrisma));
+    app.use('/voices', createVoicesRoutes({ prisma: mockPrisma }));
 
     // Default: user has ElevenLabs key only (mirrors the legacy single-provider
     // setup that pre-PR-3 was the only supported configuration).
@@ -265,7 +265,6 @@ describe('Voice Management Routes', () => {
         { provider: 'mistral', message: 'Provider temporarily unavailable' },
       ]);
     });
-
   });
 
   // ===== DELETE /:provider/:voiceId =======================================

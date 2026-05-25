@@ -10,7 +10,7 @@
  * GET /user/history/stats - Get history statistics
  */
 
-import { Router, type Response, type Request } from 'express';
+import { Router, type Response, type Request, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
@@ -30,6 +30,7 @@ import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import { resolveHistoryContext } from '../../utils/historyContextResolver.js';
 import type { AuthenticatedRequest } from '../../types.js';
+import type { RouteDeps } from '../routeDeps.js';
 
 const logger = createLogger('user-history');
 
@@ -355,34 +356,42 @@ function createHardDeleteHandler(deps: HistoryHandlerDeps): RouteHandler {
   });
 }
 
-export function createHistoryRoutes(prisma: PrismaClient): Router {
-  const router = Router();
-  const deps: HistoryHandlerDeps = {
-    prisma,
-    conversationHistoryService: new ConversationHistoryService(prisma),
-    retentionService: new ConversationRetentionService(prisma),
+function buildHistoryDeps(deps: RouteDeps): HistoryHandlerDeps {
+  return {
+    prisma: deps.prisma,
+    conversationHistoryService: new ConversationHistoryService(deps.prisma),
+    retentionService: deps.retentionService ?? new ConversationRetentionService(deps.prisma),
   };
+}
 
-  // POST /user/history/clear - Set context epoch (soft reset)
-  router.post(
-    '/clear',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    createClearHandler(deps)
-  );
+/** POST /api/user/history/clear — soft-reset context via epoch */
+export const handleClearHistory = (deps: RouteDeps): RequestHandler =>
+  createClearHandler(buildHistoryDeps(deps));
 
-  // POST /user/history/undo - Restore previous epoch
-  router.post('/undo', requireUserAuth(), requireProvisionedUser(prisma), createUndoHandler(deps));
+/** POST /api/user/history/undo — restore previous context epoch */
+export const handleUndoHistory = (deps: RouteDeps): RequestHandler =>
+  createUndoHandler(buildHistoryDeps(deps));
 
-  // GET /user/history/stats - Get history statistics
-  router.get('/stats', requireUserAuth(), requireProvisionedUser(prisma), createStatsHandler(deps));
+/** GET /api/user/history/stats — conversation history statistics */
+export const handleGetHistoryStats = (deps: RouteDeps): RequestHandler =>
+  createStatsHandler(buildHistoryDeps(deps));
 
-  // DELETE /user/history/hard-delete - Permanently delete history
+/** DELETE /api/user/history/hard-delete — permanent deletion */
+export const handleHardDeleteHistory = (deps: RouteDeps): RequestHandler =>
+  createHardDeleteHandler(buildHistoryDeps(deps));
+
+export function createHistoryRoutes(deps: RouteDeps): Router {
+  const router = Router();
+  const requireProvisioned = requireProvisionedUser(deps.prisma);
+
+  router.post('/clear', requireUserAuth(), requireProvisioned, handleClearHistory(deps));
+  router.post('/undo', requireUserAuth(), requireProvisioned, handleUndoHistory(deps));
+  router.get('/stats', requireUserAuth(), requireProvisioned, handleGetHistoryStats(deps));
   router.delete(
     '/hard-delete',
     requireUserAuth(),
-    requireProvisionedUser(prisma),
-    createHardDeleteHandler(deps)
+    requireProvisioned,
+    handleHardDeleteHistory(deps)
   );
 
   return router;
