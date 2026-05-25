@@ -34,7 +34,9 @@ vi.mock('../../services/AuthMiddleware.js', () => ({
 describe('Admin Usage Routes', () => {
   describe('middleware composition', () => {
     it('wires requireOwnerAuth on every route', () => {
-      const routes = getAllRoutes(createAdminUsageRoutes({} as unknown as PrismaClient));
+      const routes = getAllRoutes(
+        createAdminUsageRoutes({ prisma: {} as unknown as PrismaClient })
+      );
       expect(routes.length, 'expected at least one registered route').toBeGreaterThan(0);
       for (const route of routes) {
         expect(route.stackLength, `${route.path} missing auth middleware`).toBeGreaterThanOrEqual(
@@ -68,7 +70,10 @@ describe('Admin Usage Routes', () => {
 
     app = express();
     app.use(express.json());
-    app.use('/admin/usage', createAdminUsageRoutes(mockPrisma as unknown as PrismaClient));
+    app.use(
+      '/admin/usage',
+      createAdminUsageRoutes({ prisma: mockPrisma as unknown as PrismaClient })
+    );
   });
 
   describe('GET /admin/usage', () => {
