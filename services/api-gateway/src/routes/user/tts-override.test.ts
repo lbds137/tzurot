@@ -110,7 +110,10 @@ const mockCache = {
 };
 
 function buildRouter() {
-  return createTtsOverrideRoutes(mockPrisma as never, mockCache as never);
+  return createTtsOverrideRoutes({
+    prisma: mockPrisma as never,
+    ttsConfigCacheInvalidation: mockCache as never,
+  });
 }
 
 const VALID_UUID_A = '11111111-1111-4111-8111-111111111111';

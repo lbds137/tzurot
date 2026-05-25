@@ -146,10 +146,10 @@ export function createUserRouter(opts: UserRouterOptions): Router {
   router.use('/llm-config', createLlmConfigRoutes(deps));
 
   // TTS config routes (with cache invalidation for user TTS config changes)
-  router.use('/tts-config', createTtsConfigRoutes(prisma, ttsConfigCacheInvalidation));
+  router.use('/tts-config', createTtsConfigRoutes(deps));
 
   // TTS override routes (per-personality TTS overrides + user global default)
-  router.use('/tts-override', createTtsOverrideRoutes(prisma, ttsConfigCacheInvalidation));
+  router.use('/tts-override', createTtsOverrideRoutes(deps));
 
   // STT preference (user-level — STT is speaker-bound, no per-personality dimension)
   router.use('/stt-override', createSttOverrideRoutes(deps));
@@ -158,7 +158,7 @@ export function createUserRouter(opts: UserRouterOptions): Router {
   router.use('/voice-resolution', createVoiceResolutionRoutes(deps));
 
   // Model override routes (with cache invalidation for default config changes)
-  router.use('/model-override', createModelOverrideRoutes(prisma, llmConfigCacheInvalidation));
+  router.use('/model-override', createModelOverrideRoutes(deps));
 
   // Persona routes (user profiles that tell AI about the user)
   router.use('/persona', createPersonaRoutes(prisma));

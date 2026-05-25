@@ -21,14 +21,12 @@
  * filed as a follow-up rather than introduced in PR 3b.
  */
 
-import { Router, type Response } from 'express';
+import { Router, type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
   isBotOwner,
-  type PrismaClient,
   type TtsConfigSummary,
-  type TtsConfigCacheInvalidationService,
   type TtsProviderId,
   computeLlmConfigPermissions,
   TtsConfigCreateSchema,
@@ -59,6 +57,7 @@ import {
   TtsInvalidProviderError,
   type TtsConfigScope,
 } from '../../services/TtsConfigService.js';
+import type { RouteDeps } from '../routeDeps.js';
 
 const logger = createLogger('user-tts-config');
 
@@ -360,45 +359,38 @@ function createDeleteHandler(service: TtsConfigService) {
   };
 }
 
+// --- Exported handler factories --------------------------------------------
+
+function buildService(deps: RouteDeps): TtsConfigService {
+  return new TtsConfigService(deps.prisma, deps.ttsConfigCacheInvalidation);
+}
+
+export const handleListUserTtsConfigs = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(createListHandler(buildService(deps)));
+
+export const handleGetUserTtsConfig = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(createGetHandler(buildService(deps)));
+
+export const handleCreateUserTtsConfig = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(createCreateHandler(buildService(deps)));
+
+export const handleUpdateUserTtsConfig = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(createUpdateHandler(buildService(deps)));
+
+export const handleDeleteUserTtsConfig = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(createDeleteHandler(buildService(deps)));
+
 // --- Main route factory ----------------------------------------------------
 
-export function createTtsConfigRoutes(
-  prisma: PrismaClient,
-  ttsConfigCacheInvalidation?: TtsConfigCacheInvalidationService
-): Router {
+export function createTtsConfigRoutes(deps: RouteDeps): Router {
   const router = Router();
-  const service = new TtsConfigService(prisma, ttsConfigCacheInvalidation);
+  const requireProvisioned = requireProvisionedUser(deps.prisma);
 
-  router.get(
-    '/',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler(createListHandler(service))
-  );
-  router.get(
-    '/:id',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler(createGetHandler(service))
-  );
-  router.post(
-    '/',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler(createCreateHandler(service))
-  );
-  router.put(
-    '/:id',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler(createUpdateHandler(service))
-  );
-  router.delete(
-    '/:id',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler(createDeleteHandler(service))
-  );
+  router.get('/', requireUserAuth(), requireProvisioned, handleListUserTtsConfigs(deps));
+  router.get('/:id', requireUserAuth(), requireProvisioned, handleGetUserTtsConfig(deps));
+  router.post('/', requireUserAuth(), requireProvisioned, handleCreateUserTtsConfig(deps));
+  router.put('/:id', requireUserAuth(), requireProvisioned, handleUpdateUserTtsConfig(deps));
+  router.delete('/:id', requireUserAuth(), requireProvisioned, handleDeleteUserTtsConfig(deps));
 
   return router;
 }

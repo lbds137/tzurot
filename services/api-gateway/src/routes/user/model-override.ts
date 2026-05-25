@@ -11,14 +11,13 @@
  * - DELETE /user/model-override/:personalityId - Remove override (MUST be after /default routes)
  */
 
-import { Router, type Response } from 'express';
+import { Router, type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
   generateUserPersonalityConfigUuid,
   type PrismaClient,
   type ModelOverrideSummary,
-  type LlmConfigCacheInvalidationService,
   type UserDefaultConfig,
   SetModelOverrideSchema,
   SetDefaultConfigSchema,
@@ -32,6 +31,7 @@ import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import { getParam } from '../../utils/requestParams.js';
 import type { ProvisionedRequest } from '../../types.js';
+import type { RouteDeps } from '../routeDeps.js';
 
 const logger = createLogger('user-model-override');
 
@@ -53,347 +53,290 @@ async function verifyConfigAccess(
   });
 }
 
-// eslint-disable-next-line max-lines-per-function -- Route factory with multiple endpoints
-export function createModelOverrideRoutes(
-  prisma: PrismaClient,
-  llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService
-): Router {
-  const router = Router();
+/** GET /api/user/model-override — list all user model overrides */
+export const handleListModelOverrides = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
+    const discordUserId = req.userId;
+    const userId = resolveProvisionedUserId(req);
 
-  /**
-   * GET /user/model-override
-   * List all model overrides for the user
-   */
-  router.get(
-    '/',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler(async (req: ProvisionedRequest, res: Response) => {
-      const discordUserId = req.userId;
+    const overrides = await prisma.userPersonalityConfig.findMany({
+      where: {
+        userId,
+        llmConfigId: { not: null },
+      },
+      select: {
+        personalityId: true,
+        personality: { select: { name: true } },
+        llmConfigId: true,
+        llmConfig: { select: { name: true } },
+      },
+      take: 100,
+    });
 
-      const userId = resolveProvisionedUserId(req);
+    const result: ModelOverrideSummary[] = overrides.map(o => ({
+      personalityId: o.personalityId,
+      personalityName: o.personality.name,
+      configId: o.llmConfigId,
+      configName: o.llmConfig?.name ?? null,
+    }));
 
-      // Get all overrides with personality and config names
-      const overrides = await prisma.userPersonalityConfig.findMany({
-        where: {
-          userId,
-          llmConfigId: { not: null },
-        },
-        select: {
-          personalityId: true,
-          personality: { select: { name: true } },
-          llmConfigId: true,
-          llmConfig: { select: { name: true } },
-        },
-        take: 100,
-      });
+    logger.info({ discordUserId, count: result.length }, 'Listed overrides');
+    sendCustomSuccess(res, { overrides: result }, StatusCodes.OK);
+  });
+};
 
-      const result: ModelOverrideSummary[] = overrides.map(o => ({
-        personalityId: o.personalityId,
-        personalityName: o.personality.name,
-        configId: o.llmConfigId,
-        configName: o.llmConfig?.name ?? null,
-      }));
+/** PUT /api/user/model-override — set model override for a personality */
+export const handleSetModelOverride = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
+    const discordUserId = req.userId;
 
-      logger.info({ discordUserId, count: result.length }, 'Listed overrides');
+    const parseResult = SetModelOverrideSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return sendZodError(res, parseResult.error);
+    }
 
-      sendCustomSuccess(res, { overrides: result }, StatusCodes.OK);
-    })
-  );
+    const { personalityId, configId } = parseResult.data;
+    const userId = resolveProvisionedUserId(req);
 
-  /**
-   * PUT /user/model-override
-   * Set model override for a personality
-   */
-  router.put(
-    '/',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler(async (req: ProvisionedRequest, res: Response) => {
-      const discordUserId = req.userId;
+    const personality = await prisma.personality.findFirst({
+      where: { id: personalityId },
+      select: { id: true, name: true },
+    });
 
-      // Validate request body with Zod
-      const parseResult = SetModelOverrideSchema.safeParse(req.body);
-      if (!parseResult.success) {
-        return sendZodError(res, parseResult.error);
-      }
+    if (personality === null) {
+      return sendError(res, ErrorResponses.notFound('Personality'));
+    }
 
-      const { personalityId, configId } = parseResult.data;
+    const llmConfig = await verifyConfigAccess(prisma, configId, userId);
+    if (llmConfig === null) {
+      return sendError(res, ErrorResponses.notFound('Config'));
+    }
 
-      const userId = resolveProvisionedUserId(req);
-
-      // Verify personality exists
-      const personality = await prisma.personality.findFirst({
-        where: { id: personalityId },
-        select: { id: true, name: true },
-      });
-
-      if (personality === null) {
-        return sendError(res, ErrorResponses.notFound('Personality'));
-      }
-
-      // Verify config exists and user can access it
-      const llmConfig = await verifyConfigAccess(prisma, configId, userId);
-      if (llmConfig === null) {
-        return sendError(res, ErrorResponses.notFound('Config'));
-      }
-
-      // Upsert the UserPersonalityConfig (use deterministic UUID for cross-env sync)
-      const override = await prisma.userPersonalityConfig.upsert({
-        where: {
-          userId_personalityId: {
-            userId,
-            personalityId,
-          },
-        },
-        create: {
-          id: generateUserPersonalityConfigUuid(userId, personalityId),
+    const override = await prisma.userPersonalityConfig.upsert({
+      where: {
+        userId_personalityId: {
           userId,
           personalityId,
-          llmConfigId: configId,
         },
-        update: {
-          llmConfigId: configId,
-        },
-        select: {
-          personalityId: true,
-          personality: { select: { name: true } },
-          llmConfigId: true,
-          llmConfig: { select: { name: true } },
-        },
-      });
+      },
+      create: {
+        id: generateUserPersonalityConfigUuid(userId, personalityId),
+        userId,
+        personalityId,
+        llmConfigId: configId,
+      },
+      update: {
+        llmConfigId: configId,
+      },
+      select: {
+        personalityId: true,
+        personality: { select: { name: true } },
+        llmConfigId: true,
+        llmConfig: { select: { name: true } },
+      },
+    });
 
-      const result: ModelOverrideSummary = {
-        personalityId: override.personalityId,
-        personalityName: override.personality.name,
-        configId: override.llmConfigId,
-        configName: override.llmConfig?.name ?? null,
-      };
+    const result: ModelOverrideSummary = {
+      personalityId: override.personalityId,
+      personalityName: override.personality.name,
+      configId: override.llmConfigId,
+      configName: override.llmConfig?.name ?? null,
+    };
 
-      logger.info(
-        {
-          discordUserId,
-          personalityId,
-          personalityName: personality.name,
-          configId,
-          configName: llmConfig.name,
-        },
-        'Set override'
-      );
-
-      sendCustomSuccess(res, { override: result }, StatusCodes.OK);
-    })
-  );
-
-  // ============================================
-  // User Global Default Config Routes
-  // NOTE: These MUST be defined BEFORE /:personalityId to avoid
-  // Express matching "default" as a personalityId parameter
-  // ============================================
-
-  /**
-   * GET /user/model-override/default
-   * Get user's global default LLM config
-   */
-  router.get(
-    '/default',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler(async (req: ProvisionedRequest, res: Response) => {
-      const discordUserId = req.userId;
-
-      const userId = resolveProvisionedUserId(req);
-
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          defaultLlmConfigId: true,
-          defaultLlmConfig: { select: { name: true } },
-        },
-      });
-
-      const result: UserDefaultConfig = {
-        configId: user?.defaultLlmConfigId ?? null,
-        configName: user?.defaultLlmConfig?.name ?? null,
-      };
-
-      logger.info({ discordUserId, configId: result.configId }, 'Got default config');
-
-      sendCustomSuccess(res, { default: result }, StatusCodes.OK);
-    })
-  );
-
-  /**
-   * PUT /user/model-default
-   * Set user's global default LLM config
-   */
-  router.put(
-    '/default',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler(async (req: ProvisionedRequest, res: Response) => {
-      const discordUserId = req.userId;
-
-      // Validate request body with Zod
-      const parseResult = SetDefaultConfigSchema.safeParse(req.body);
-      if (!parseResult.success) {
-        return sendZodError(res, parseResult.error);
-      }
-
-      const { configId } = parseResult.data;
-
-      const userId = resolveProvisionedUserId(req);
-
-      // Verify config exists and user can access it (global or owned)
-      const llmConfig = await verifyConfigAccess(prisma, configId, userId);
-      if (llmConfig === null) {
-        return sendError(res, ErrorResponses.notFound('Config'));
-      }
-
-      // Update user's default config
-      await prisma.user.update({
-        where: { id: userId },
-        data: { defaultLlmConfigId: configId },
-      });
-
-      const result: UserDefaultConfig = {
-        configId: llmConfig.id,
+    logger.info(
+      {
+        discordUserId,
+        personalityId,
+        personalityName: personality.name,
+        configId,
         configName: llmConfig.name,
-      };
+      },
+      'Set override'
+    );
 
-      logger.info({ discordUserId, configId, configName: llmConfig.name }, 'Set default config');
+    sendCustomSuccess(res, { override: result }, StatusCodes.OK);
+  });
+};
 
-      // Invalidate user's LLM config cache so ai-worker picks up the change
-      await tryInvalidateCache(
-        llmConfigCacheInvalidation?.invalidateUserLlmConfig.bind(
-          llmConfigCacheInvalidation,
-          discordUserId
-        ),
-        { discordUserId }
+/** GET /api/user/model-override/default — read user's global default LLM config */
+export const handleGetModelDefault = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
+    const discordUserId = req.userId;
+    const userId = resolveProvisionedUserId(req);
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        defaultLlmConfigId: true,
+        defaultLlmConfig: { select: { name: true } },
+      },
+    });
+
+    const result: UserDefaultConfig = {
+      configId: user?.defaultLlmConfigId ?? null,
+      configName: user?.defaultLlmConfig?.name ?? null,
+    };
+
+    logger.info({ discordUserId, configId: result.configId }, 'Got default config');
+    sendCustomSuccess(res, { default: result }, StatusCodes.OK);
+  });
+};
+
+/** PUT /api/user/model-override/default — set user's global default LLM config */
+export const handleSetModelDefault = (deps: RouteDeps): RequestHandler => {
+  const { prisma, llmConfigCacheInvalidation } = deps;
+  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
+    const discordUserId = req.userId;
+
+    const parseResult = SetDefaultConfigSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return sendZodError(res, parseResult.error);
+    }
+
+    const { configId } = parseResult.data;
+    const userId = resolveProvisionedUserId(req);
+
+    const llmConfig = await verifyConfigAccess(prisma, configId, userId);
+    if (llmConfig === null) {
+      return sendError(res, ErrorResponses.notFound('Config'));
+    }
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: { defaultLlmConfigId: configId },
+    });
+
+    const result: UserDefaultConfig = {
+      configId: llmConfig.id,
+      configName: llmConfig.name,
+    };
+
+    logger.info({ discordUserId, configId, configName: llmConfig.name }, 'Set default config');
+
+    await tryInvalidateCache(
+      llmConfigCacheInvalidation?.invalidateUserLlmConfig.bind(
+        llmConfigCacheInvalidation,
+        discordUserId
+      ),
+      { discordUserId }
+    );
+
+    sendCustomSuccess(res, { default: result }, StatusCodes.OK);
+  });
+};
+
+/** DELETE /api/user/model-override/default — clear user's global default LLM config */
+export const handleClearModelDefault = (deps: RouteDeps): RequestHandler => {
+  const { prisma, llmConfigCacheInvalidation } = deps;
+  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
+    const discordUserId = req.userId;
+    const userId = resolveProvisionedUserId(req);
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { defaultLlmConfigId: true },
+    });
+
+    if (user === null) {
+      return sendError(res, ErrorResponses.notFound('User'));
+    }
+
+    // Look up the system free default the user will fall back to. Per-
+    // personality overrides (UserPersonalityConfig.llmConfigId) and
+    // personality-level defaults (PersonalityDefaultLlmConfig) are
+    // unaffected; the free default is just the user-global fallback.
+    const newEffectiveDefault = await prisma.llmConfig.findFirst({
+      where: { isFreeDefault: true },
+      select: { id: true, name: true },
+    });
+
+    if (user.defaultLlmConfigId === null) {
+      logger.info(
+        { discordUserId, hadDefault: false },
+        'Clear called but no default was set (idempotent success)'
       );
-
-      sendCustomSuccess(res, { default: result }, StatusCodes.OK);
-    })
-  );
-
-  /**
-   * DELETE /user/model-default
-   * Clear user's global default LLM config
-   */
-  router.delete(
-    '/default',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler(async (req: ProvisionedRequest, res: Response) => {
-      const discordUserId = req.userId;
-
-      const userId = resolveProvisionedUserId(req);
-
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { defaultLlmConfigId: true },
-      });
-
-      if (user === null) {
-        return sendError(res, ErrorResponses.notFound('User'));
-      }
-
-      // Look up the system free default that the user will fall back to.
-      // Per-personality overrides (UserPersonalityConfig.llmConfigId) and
-      // personality-level defaults (PersonalityDefaultLlmConfig) are
-      // unaffected by this action — the free default is just the user-global
-      // fallback for personalities without their own override or default.
-      const newEffectiveDefault = await prisma.llmConfig.findFirst({
-        where: { isFreeDefault: true },
-        select: { id: true, name: true },
-      });
-
-      // Idempotent: if no default config is set, return success with wasSet: false
-      if (user.defaultLlmConfigId === null) {
-        logger.info(
-          { discordUserId, hadDefault: false },
-          'Clear called but no default was set (idempotent success)'
-        );
-        return sendCustomSuccess(
-          res,
-          { deleted: true, wasSet: false, newEffectiveDefault },
-          StatusCodes.OK
-        );
-      }
-
-      await prisma.user.update({
-        where: { id: userId },
-        data: { defaultLlmConfigId: null },
-      });
-
-      logger.info({ discordUserId }, 'Cleared default config');
-
-      // Invalidate user's LLM config cache so ai-worker picks up the change
-      await tryInvalidateCache(
-        llmConfigCacheInvalidation?.invalidateUserLlmConfig.bind(
-          llmConfigCacheInvalidation,
-          discordUserId
-        ),
-        { discordUserId }
+      return sendCustomSuccess(
+        res,
+        { deleted: true, wasSet: false, newEffectiveDefault },
+        StatusCodes.OK
       );
+    }
 
-      // Symmetric with the no-op `wasSet: false` branch above and with TTS's
-      // DELETE /default — explicit `wasSet: true` lets a caller distinguish
-      // "actually cleared" from "already empty" via a single field check.
-      sendCustomSuccess(res, { deleted: true, wasSet: true, newEffectiveDefault }, StatusCodes.OK);
-    })
-  );
+    await prisma.user.update({
+      where: { id: userId },
+      data: { defaultLlmConfigId: null },
+    });
 
-  // ============================================
-  // Personality-specific Override Route
-  // NOTE: This wildcard route MUST come AFTER /default routes
-  // ============================================
+    logger.info({ discordUserId }, 'Cleared default config');
 
-  /**
-   * DELETE /user/model-override/:personalityId
-   * Remove model override for a personality
-   */
+    await tryInvalidateCache(
+      llmConfigCacheInvalidation?.invalidateUserLlmConfig.bind(
+        llmConfigCacheInvalidation,
+        discordUserId
+      ),
+      { discordUserId }
+    );
+
+    sendCustomSuccess(res, { deleted: true, wasSet: true, newEffectiveDefault }, StatusCodes.OK);
+  });
+};
+
+/** DELETE /api/user/model-override/:personalityId — remove model override for a personality */
+export const handleClearModelOverride = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
+    const discordUserId = req.userId;
+    const personalityId = getParam(req.params.personalityId);
+    const userId = resolveProvisionedUserId(req);
+
+    const override = await prisma.userPersonalityConfig.findFirst({
+      where: {
+        userId,
+        personalityId,
+      },
+      select: { id: true, llmConfigId: true, personality: { select: { name: true } } },
+    });
+
+    if (override?.llmConfigId === null || override?.llmConfigId === undefined) {
+      logger.info(
+        { discordUserId, personalityId, hadOverride: false },
+        'Reset called but no override was set (idempotent success)'
+      );
+      return sendCustomSuccess(res, { deleted: true, wasSet: false }, StatusCodes.OK);
+    }
+
+    await prisma.userPersonalityConfig.update({
+      where: { id: override.id },
+      data: { llmConfigId: null },
+    });
+
+    logger.info(
+      { discordUserId, personalityId, personalityName: override.personality.name },
+      'Removed override'
+    );
+
+    sendCustomSuccess(res, { deleted: true }, StatusCodes.OK);
+  });
+};
+
+export function createModelOverrideRoutes(deps: RouteDeps): Router {
+  const router = Router();
+  const requireProvisioned = requireProvisionedUser(deps.prisma);
+
+  router.get('/', requireUserAuth(), requireProvisioned, handleListModelOverrides(deps));
+  router.put('/', requireUserAuth(), requireProvisioned, handleSetModelOverride(deps));
+  // /default routes MUST come before /:personalityId to avoid the parameter shadowing them
+  router.get('/default', requireUserAuth(), requireProvisioned, handleGetModelDefault(deps));
+  router.put('/default', requireUserAuth(), requireProvisioned, handleSetModelDefault(deps));
+  router.delete('/default', requireUserAuth(), requireProvisioned, handleClearModelDefault(deps));
   router.delete(
     '/:personalityId',
     requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler(async (req: ProvisionedRequest, res: Response) => {
-      const discordUserId = req.userId;
-      const personalityId = getParam(req.params.personalityId);
-
-      const userId = resolveProvisionedUserId(req);
-
-      // Find the override
-      const override = await prisma.userPersonalityConfig.findFirst({
-        where: {
-          userId,
-          personalityId,
-        },
-        select: { id: true, llmConfigId: true, personality: { select: { name: true } } },
-      });
-
-      // Idempotent: if no override exists or llmConfigId is already null, return success
-      if (override?.llmConfigId === null || override?.llmConfigId === undefined) {
-        logger.info(
-          { discordUserId, personalityId, hadOverride: false },
-          'Reset called but no override was set (idempotent success)'
-        );
-        return sendCustomSuccess(res, { deleted: true, wasSet: false }, StatusCodes.OK);
-      }
-
-      // Remove the override (set llmConfigId to null)
-      await prisma.userPersonalityConfig.update({
-        where: { id: override.id },
-        data: { llmConfigId: null },
-      });
-
-      logger.info(
-        { discordUserId, personalityId, personalityName: override.personality.name },
-        'Removed override'
-      );
-
-      sendCustomSuccess(res, { deleted: true }, StatusCodes.OK);
-    })
+    requireProvisioned,
+    handleClearModelOverride(deps)
   );
 
   return router;
