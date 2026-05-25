@@ -126,7 +126,7 @@ const mockPrisma = {
 };
 
 function buildRouter() {
-  return createAdminTtsConfigRoutes(mockPrisma as never);
+  return createAdminTtsConfigRoutes({ prisma: mockPrisma as never });
 }
 
 describe('admin/tts-config routes', () => {

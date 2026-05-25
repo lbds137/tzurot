@@ -79,7 +79,9 @@ const createMockPrismaClient = () => {
 describe('Admin LLM Config Routes', () => {
   describe('middleware composition', () => {
     it('wires requireOwnerAuth on every route', () => {
-      const routes = getAllRoutes(createAdminLlmConfigRoutes({} as unknown as PrismaClient));
+      const routes = getAllRoutes(
+        createAdminLlmConfigRoutes({ prisma: {} as unknown as PrismaClient })
+      );
       expect(routes.length, 'expected at least one registered route').toBeGreaterThan(0);
       for (const route of routes) {
         expect(route.stackLength, `${route.path} missing auth middleware`).toBeGreaterThanOrEqual(
@@ -101,7 +103,10 @@ describe('Admin LLM Config Routes', () => {
 
     app = express();
     app.use(express.json());
-    app.use('/admin/llm-config', createAdminLlmConfigRoutes(prisma as unknown as PrismaClient));
+    app.use(
+      '/admin/llm-config',
+      createAdminLlmConfigRoutes({ prisma: prisma as unknown as PrismaClient })
+    );
   });
 
   describe('GET /admin/llm-config', () => {
@@ -966,10 +971,10 @@ describe('Admin LLM Config Routes', () => {
       appWithCache.use(express.json());
       appWithCache.use(
         '/admin/llm-config',
-        createAdminLlmConfigRoutes(
-          prisma as unknown as PrismaClient,
-          cacheService as unknown as LlmConfigCacheInvalidationService
-        )
+        createAdminLlmConfigRoutes({
+          prisma: prisma as unknown as PrismaClient,
+          llmConfigCacheInvalidation: cacheService as unknown as LlmConfigCacheInvalidationService,
+        })
       );
     });
 
@@ -1062,11 +1067,12 @@ describe('Admin LLM Config Routes', () => {
       appWithModel.use(express.json());
       appWithModel.use(
         '/admin/llm-config',
-        createAdminLlmConfigRoutes(
-          prisma as unknown as PrismaClient,
-          cacheService as unknown as LlmConfigCacheInvalidationService,
-          mockModelCache as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache
-        )
+        createAdminLlmConfigRoutes({
+          prisma: prisma as unknown as PrismaClient,
+          llmConfigCacheInvalidation: cacheService as unknown as LlmConfigCacheInvalidationService,
+          modelCache:
+            mockModelCache as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache,
+        })
       );
 
       prisma.llmConfig.findUnique.mockResolvedValue({
@@ -1114,11 +1120,12 @@ describe('Admin LLM Config Routes', () => {
       appWithModel.use(express.json());
       appWithModel.use(
         '/admin/llm-config',
-        createAdminLlmConfigRoutes(
-          prisma as unknown as PrismaClient,
-          cacheService as unknown as LlmConfigCacheInvalidationService,
-          mockModelCache as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache
-        )
+        createAdminLlmConfigRoutes({
+          prisma: prisma as unknown as PrismaClient,
+          llmConfigCacheInvalidation: cacheService as unknown as LlmConfigCacheInvalidationService,
+          modelCache:
+            mockModelCache as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache,
+        })
       );
 
       prisma.llmConfig.findFirst.mockResolvedValue(null);
@@ -1169,11 +1176,12 @@ describe('Admin LLM Config Routes', () => {
       appWithModel.use(express.json());
       appWithModel.use(
         '/admin/llm-config',
-        createAdminLlmConfigRoutes(
-          prisma as unknown as PrismaClient,
-          cacheService as unknown as LlmConfigCacheInvalidationService,
-          mockModelCache as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache
-        )
+        createAdminLlmConfigRoutes({
+          prisma: prisma as unknown as PrismaClient,
+          llmConfigCacheInvalidation: cacheService as unknown as LlmConfigCacheInvalidationService,
+          modelCache:
+            mockModelCache as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache,
+        })
       );
 
       prisma.llmConfig.findUnique.mockResolvedValue({

@@ -110,7 +110,9 @@ describe('Admin Settings Routes (Singleton)', () => {
       // owner-only writes — they got the standard requireOwnerAuth middleware
       // in this PR. Lock the asymmetry in by asserting the resulting stack
       // lengths.
-      const router = createAdminSettingsRoutes(createMockPrisma() as unknown as PrismaClient);
+      const router = createAdminSettingsRoutes({
+        prisma: createMockPrisma() as unknown as PrismaClient,
+      });
       const routes = getAllRoutes(router);
       const byPath = new Map(routes.map(r => [`${r.methods[0]} ${r.path}`, r]));
       expect(byPath.get('get /')?.stackLength, 'GET / must stay inline-auth (1 handler)').toBe(1);
@@ -147,7 +149,10 @@ describe('Admin Settings Routes (Singleton)', () => {
       req.headers['x-user-id'] = MOCK_USER_ID;
       next();
     });
-    app.use('/admin/settings', createAdminSettingsRoutes(mockPrisma as unknown as PrismaClient));
+    app.use(
+      '/admin/settings',
+      createAdminSettingsRoutes({ prisma: mockPrisma as unknown as PrismaClient })
+    );
     // Add error handler
     app.use(
       (err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
@@ -210,7 +215,7 @@ describe('Admin Settings Routes (Singleton)', () => {
       // Intentionally NOT injecting userId - simulating internal service call
       appWithoutUserId.use(
         '/admin/settings',
-        createAdminSettingsRoutes(mockPrisma as unknown as PrismaClient)
+        createAdminSettingsRoutes({ prisma: mockPrisma as unknown as PrismaClient })
       );
     });
 
@@ -314,7 +319,10 @@ describe('Admin Settings Routes (Singleton)', () => {
       });
       appWithInvalidation.use(
         '/admin/settings',
-        createAdminSettingsRoutes(mockPrisma as unknown as PrismaClient, mockInvalidation as never)
+        createAdminSettingsRoutes({
+          prisma: mockPrisma as unknown as PrismaClient,
+          cascadeInvalidation: mockInvalidation as never,
+        })
       );
 
       const updatedSettings = createDefaultSettings({
@@ -385,7 +393,10 @@ describe('Admin Settings Routes (Singleton)', () => {
       });
       appWithInvalidation.use(
         '/admin/settings',
-        createAdminSettingsRoutes(mockPrisma as unknown as PrismaClient, mockInvalidation as never)
+        createAdminSettingsRoutes({
+          prisma: mockPrisma as unknown as PrismaClient,
+          cascadeInvalidation: mockInvalidation as never,
+        })
       );
 
       mockPrisma.adminSettings.update.mockResolvedValue(createDefaultSettings());

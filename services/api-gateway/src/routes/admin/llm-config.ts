@@ -12,12 +12,11 @@
  * - DELETE /admin/llm-config/:id - Delete a global config
  */
 
-import { Router, type Response, type Request } from 'express';
+import { Router, type Response, type Request, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
   type PrismaClient,
-  type LlmConfigCacheInvalidationService,
   // Shared schemas from common-types - single source of truth
   LlmConfigCreateSchema,
   LlmConfigUpdateSchema,
@@ -39,6 +38,7 @@ import {
   ensureNoNameCollision,
   shapeDeleteResponse,
 } from '../../utils/configRouteHelpers.js';
+import type { RouteDeps } from '../routeDeps.js';
 
 const logger = createLogger('admin-llm-config');
 
@@ -302,45 +302,49 @@ function createDeleteConfigHandler(service: LlmConfigService, prisma: PrismaClie
   };
 }
 
+// --- Exported handler factories (each constructs its own service from deps) ---
+
+function buildService(deps: RouteDeps): LlmConfigService {
+  return new LlmConfigService(deps.prisma, deps.llmConfigCacheInvalidation);
+}
+
+export const handleListGlobalLlmConfigs = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(createListHandler(buildService(deps)));
+
+export const handleGetGlobalLlmConfig = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(createGetHandler(buildService(deps), deps.modelCache));
+
+export const handleCreateGlobalLlmConfig = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(createCreateConfigHandler(buildService(deps), deps.prisma, deps.modelCache));
+
+export const handleUpdateGlobalLlmConfig = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(createEditConfigHandler(buildService(deps), deps.prisma, deps.modelCache));
+
+export const handleSetGlobalLlmConfigDefault = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(createSetDefaultHandler(buildService(deps), deps.prisma));
+
+export const handleSetGlobalLlmConfigFreeDefault = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(createSetFreeDefaultHandler(buildService(deps), deps.prisma));
+
+export const handleDeleteGlobalLlmConfig = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(createDeleteConfigHandler(buildService(deps), deps.prisma));
+
 // --- Main Route Factory ---
 
-export function createAdminLlmConfigRoutes(
-  prisma: PrismaClient,
-  llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService,
-  modelCache?: OpenRouterModelCache
-): Router {
+export function createAdminLlmConfigRoutes(deps: RouteDeps): Router {
   const router = Router();
 
-  // Instantiate service with dependencies
-  const service = new LlmConfigService(prisma, llmConfigCacheInvalidation);
-
-  router.get('/', requireOwnerAuth(), asyncHandler(createListHandler(service)));
-  router.get('/:id', requireOwnerAuth(), asyncHandler(createGetHandler(service, modelCache)));
-  router.post(
-    '/',
-    requireOwnerAuth(),
-    asyncHandler(createCreateConfigHandler(service, prisma, modelCache))
-  );
-  router.put(
-    '/:id',
-    requireOwnerAuth(),
-    asyncHandler(createEditConfigHandler(service, prisma, modelCache))
-  );
-  router.put(
-    '/:id/set-default',
-    requireOwnerAuth(),
-    asyncHandler(createSetDefaultHandler(service, prisma))
-  );
+  router.get('/', requireOwnerAuth(), handleListGlobalLlmConfigs(deps));
+  router.get('/:id', requireOwnerAuth(), handleGetGlobalLlmConfig(deps));
+  router.post('/', requireOwnerAuth(), handleCreateGlobalLlmConfig(deps));
+  router.put('/:id', requireOwnerAuth(), handleUpdateGlobalLlmConfig(deps));
+  router.put('/:id/set-default', requireOwnerAuth(), handleSetGlobalLlmConfigDefault(deps));
   router.put(
     '/:id/set-free-default',
     requireOwnerAuth(),
-    asyncHandler(createSetFreeDefaultHandler(service, prisma))
+    handleSetGlobalLlmConfigFreeDefault(deps)
   );
-  router.delete(
-    '/:id',
-    requireOwnerAuth(),
-    asyncHandler(createDeleteConfigHandler(service, prisma))
-  );
+  router.delete('/:id', requireOwnerAuth(), handleDeleteGlobalLlmConfig(deps));
 
   return router;
 }

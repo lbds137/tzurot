@@ -62,10 +62,10 @@ describe('Denylist Admin Routes', () => {
       // the design in by asserting /cache has exactly one handler in its
       // route stack (asyncHandler only), while every other route has at
       // least two (auth + business logic, plus optional rate limiter).
-      const router = createDenylistRoutes(
-        createMockPrisma() as never,
-        createMockDenylistInvalidation() as never
-      );
+      const router = createDenylistRoutes({
+        prisma: createMockPrisma() as never,
+        denylistInvalidation: createMockDenylistInvalidation() as never,
+      });
       const routes = getAllRoutes(router);
       const cacheRoute = routes.find(r => r.path === '/cache');
       expect(cacheRoute, '/cache route not found in router stack').toBeDefined();
@@ -94,7 +94,10 @@ describe('Denylist Admin Routes', () => {
     app.use(express.json());
     app.use(
       '/admin/denylist',
-      createDenylistRoutes(mockPrisma as never, mockInvalidation as never)
+      createDenylistRoutes({
+        prisma: mockPrisma as never,
+        denylistInvalidation: mockInvalidation as never,
+      })
     );
   });
 

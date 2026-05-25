@@ -87,13 +87,10 @@ export function createAdminRouter(opts: AdminRouterOptions): Router {
   router.use('/personality', createUpdatePersonalityRoute(deps));
 
   // LLM config management endpoints
-  router.use(
-    '/llm-config',
-    createAdminLlmConfigRoutes(prisma, llmConfigCacheInvalidation, modelCache)
-  );
+  router.use('/llm-config', createAdminLlmConfigRoutes(deps));
 
   // TTS config management endpoints
-  router.use('/tts-config', createAdminTtsConfigRoutes(prisma, ttsConfigCacheInvalidation));
+  router.use('/tts-config', createAdminTtsConfigRoutes(deps));
 
   // Cache invalidation endpoint
   router.use('/invalidate-cache', createInvalidateCacheRoute(deps));
@@ -102,7 +99,7 @@ export function createAdminRouter(opts: AdminRouterOptions): Router {
   router.use('/usage', createAdminUsageRoutes(deps));
 
   // Bot settings endpoint
-  router.use('/settings', createAdminSettingsRoutes(prisma, cascadeInvalidation));
+  router.use('/settings', createAdminSettingsRoutes(deps));
 
   // Cleanup endpoint (for conversation history and tombstones)
   if (retentionService !== undefined) {
@@ -114,7 +111,7 @@ export function createAdminRouter(opts: AdminRouterOptions): Router {
 
   // Denylist management endpoints (user/guild blocking)
   if (denylistInvalidation !== undefined) {
-    router.use('/denylist', createDenylistRoutes(prisma, denylistInvalidation, redis));
+    router.use('/denylist', createDenylistRoutes(deps));
   }
 
   // Stop sequence activation stats (read from Redis, written by ai-worker)

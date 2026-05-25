@@ -9,8 +9,7 @@
  * cache at startup, before any Discord user context exists.
  */
 
-import { Router, type Request, type Response } from 'express';
-import type { Redis } from 'ioredis';
+import { Router, type Request, type RequestHandler, type Response } from 'express';
 import {
   createLogger,
   isBotOwner,
@@ -26,6 +25,7 @@ import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { createRedisDenylistRateLimiter } from '../../utils/RedisRateLimiter.js';
+import type { RouteDeps } from '../routeDeps.js';
 
 const logger = createLogger('admin-denylist');
 
@@ -96,114 +96,132 @@ function handleAddEntry(
 /**
  * Create denylist admin routes
  */
-export function createDenylistRoutes(
-  prisma: PrismaClient,
-  denylistInvalidation: DenylistCacheInvalidationService,
-  redis?: Redis
-): Router {
-  const router = Router();
-  const rateLimiter = redis !== undefined ? createRedisDenylistRateLimiter(redis) : undefined;
-
-  // GET / — List all entries (optional ?type= filter)
-  router.get(
-    '/',
-    requireOwnerAuth(),
-    asyncHandler(async (req: Request, res: Response) => {
-      const typeFilter = req.query.type;
-      let where = {};
-      if (typeof typeFilter === 'string' && typeFilter.length > 0) {
-        const parsed = denylistEntityTypeSchema.safeParse(typeFilter);
-        if (!parsed.success) {
-          sendError(
-            res,
-            ErrorResponses.validationError('Invalid type filter — must be USER or GUILD')
-          );
-          return;
-        }
-        where = { type: parsed.data };
-      }
-
-      const entries = await prisma.denylistedEntity.findMany({
-        where,
-        orderBy: { addedAt: 'desc' },
-        take: LIST_MAX_ENTRIES,
-      });
-
-      sendCustomSuccess(res, { success: true, entries, count: entries.length });
-    })
-  );
-
-  // GET /cache — Bulk fetch for bot-client hydration
-  router.get(
-    '/cache',
-    asyncHandler(async (_req: Request, res: Response) => {
-      const entries = await prisma.denylistedEntity.findMany({ take: CACHE_HYDRATION_MAX_ENTRIES });
-      if (entries.length >= CACHE_HYDRATION_MAX_ENTRIES) {
-        logger.warn(
-          { count: entries.length, limit: CACHE_HYDRATION_MAX_ENTRIES },
-          'Cache hydration hit max entry limit — some entries may not be cached'
+/** GET /api/admin/denylist — list all entries (optional ?type= filter) */
+export const handleListDenylistEntries = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: Request, res: Response) => {
+    const typeFilter = req.query.type;
+    let where = {};
+    if (typeof typeFilter === 'string' && typeFilter.length > 0) {
+      const parsed = denylistEntityTypeSchema.safeParse(typeFilter);
+      if (!parsed.success) {
+        sendError(
+          res,
+          ErrorResponses.validationError('Invalid type filter — must be USER or GUILD')
         );
+        return;
       }
-      sendCustomSuccess(res, { entries });
-    })
-  );
+      where = { type: parsed.data };
+    }
 
-  // POST / — Add denylist entry (rate limited)
+    const entries = await prisma.denylistedEntity.findMany({
+      where,
+      orderBy: { addedAt: 'desc' },
+      take: LIST_MAX_ENTRIES,
+    });
+
+    sendCustomSuccess(res, { success: true, entries, count: entries.length });
+  });
+};
+
+/** GET /api/admin/denylist/cache — bulk fetch for bot-client hydration (service-only) */
+export const handleGetDenylistCache = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (_req: Request, res: Response) => {
+    const entries = await prisma.denylistedEntity.findMany({ take: CACHE_HYDRATION_MAX_ENTRIES });
+    if (entries.length >= CACHE_HYDRATION_MAX_ENTRIES) {
+      logger.warn(
+        { count: entries.length, limit: CACHE_HYDRATION_MAX_ENTRIES },
+        'Cache hydration hit max entry limit — some entries may not be cached'
+      );
+    }
+    sendCustomSuccess(res, { entries });
+  });
+};
+
+/** POST /api/admin/denylist — add/update a denylist entry */
+export const handleAddDenylistEntry = (deps: RouteDeps): RequestHandler => {
+  const { prisma, denylistInvalidation } = deps;
+  if (denylistInvalidation === undefined) {
+    return (_req, res) => {
+      sendError(res, ErrorResponses.serviceUnavailable('Denylist invalidation not configured'));
+    };
+  }
+  return handleAddEntry(prisma, denylistInvalidation);
+};
+
+/** DELETE /api/admin/denylist/:type/:discordId/:scope/:scopeId — remove entry */
+export const handleRemoveDenylistEntry = (deps: RouteDeps): RequestHandler => {
+  const { prisma, denylistInvalidation } = deps;
+  if (denylistInvalidation === undefined) {
+    return (_req, res) => {
+      sendError(res, ErrorResponses.serviceUnavailable('Denylist invalidation not configured'));
+    };
+  }
+  return asyncHandler(async (req: Request, res: Response) => {
+    const typeResult = denylistEntityTypeSchema.safeParse(req.params.type);
+    if (!typeResult.success) {
+      sendError(res, ErrorResponses.validationError('Invalid type — must be USER or GUILD'));
+      return;
+    }
+    const scopeResult = denylistScopeSchema.safeParse(req.params.scope);
+    if (!scopeResult.success) {
+      sendError(
+        res,
+        ErrorResponses.validationError(
+          'Invalid scope — must be BOT, GUILD, CHANNEL, or PERSONALITY'
+        )
+      );
+      return;
+    }
+    const type = typeResult.data;
+    const discordId = req.params.discordId as string;
+    const scope = scopeResult.data;
+    const scopeId = req.params.scopeId as string;
+
+    const existing = await prisma.denylistedEntity.findUnique({
+      where: { type_discordId_scope_scopeId: { type, discordId, scope, scopeId } },
+    });
+
+    if (existing === null) {
+      sendError(res, ErrorResponses.notFound('Denylist entry'));
+      return;
+    }
+
+    await prisma.denylistedEntity.delete({ where: { id: existing.id } });
+
+    await denylistInvalidation.publishRemove({
+      type,
+      discordId,
+      scope,
+      scopeId,
+      mode: existing.mode,
+    });
+    logger.info({ type, discordId, scope, scopeId }, 'Denylist entry removed');
+    sendCustomSuccess(res, { success: true, removed: true });
+  });
+};
+
+/**
+ * Legacy factory composing the 4 denylist endpoints with per-route
+ * middleware (the rate limiter ties them together at the factory
+ * level, so callers that haven't migrated to the bare handlers can
+ * keep the existing mount shape).
+ */
+export function createDenylistRoutes(deps: RouteDeps): Router {
+  const router = Router();
+  const rateLimiter =
+    deps.redis !== undefined ? createRedisDenylistRateLimiter(deps.redis) : undefined;
   const mutationMiddleware = rateLimiter !== undefined ? [rateLimiter] : [];
-  router.post(
-    '/',
-    requireOwnerAuth(),
-    ...mutationMiddleware,
-    handleAddEntry(prisma, denylistInvalidation)
-  );
 
-  // DELETE /:type/:discordId/:scope/:scopeId — Remove entry (rate limited)
+  router.get('/', requireOwnerAuth(), handleListDenylistEntries(deps));
+  router.get('/cache', handleGetDenylistCache(deps));
+  router.post('/', requireOwnerAuth(), ...mutationMiddleware, handleAddDenylistEntry(deps));
   router.delete(
     '/:type/:discordId/:scope/:scopeId',
     requireOwnerAuth(),
     ...mutationMiddleware,
-    asyncHandler(async (req: Request, res: Response) => {
-      const typeResult = denylistEntityTypeSchema.safeParse(req.params.type);
-      if (!typeResult.success) {
-        sendError(res, ErrorResponses.validationError('Invalid type — must be USER or GUILD'));
-        return;
-      }
-      const scopeResult = denylistScopeSchema.safeParse(req.params.scope);
-      if (!scopeResult.success) {
-        sendError(
-          res,
-          ErrorResponses.validationError(
-            'Invalid scope — must be BOT, GUILD, CHANNEL, or PERSONALITY'
-          )
-        );
-        return;
-      }
-      const type = typeResult.data;
-      const discordId = req.params.discordId as string;
-      const scope = scopeResult.data;
-      const scopeId = req.params.scopeId as string;
-
-      const existing = await prisma.denylistedEntity.findUnique({
-        where: { type_discordId_scope_scopeId: { type, discordId, scope, scopeId } },
-      });
-
-      if (existing === null) {
-        sendError(res, ErrorResponses.notFound('Denylist entry'));
-        return;
-      }
-
-      await prisma.denylistedEntity.delete({ where: { id: existing.id } });
-
-      await denylistInvalidation.publishRemove({
-        type,
-        discordId,
-        scope,
-        scopeId,
-        mode: existing.mode,
-      });
-      logger.info({ type, discordId, scope, scopeId }, 'Denylist entry removed');
-      sendCustomSuccess(res, { success: true, removed: true });
-    })
+    handleRemoveDenylistEntry(deps)
   );
 
   return router;
