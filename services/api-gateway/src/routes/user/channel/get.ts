@@ -92,13 +92,3 @@ export const handleGetUserChannel = (deps: RouteDeps): RequestHandler => {
 export function createGetHandler(deps: RouteDeps): RequestHandler[] {
   return [requireServiceAuth(), handleGetUserChannel(deps)];
 }
-
-/**
- * Alias used by the codegen mounts.ts. The internal `getChannelSettings`
- * route and the user `getUserChannel` route share this implementation —
- * the difference is only at the prefix mount (service-auth vs user-auth)
- * which the generator handles per audience. Keeping both names exported
- * lets the `handle${pascalCase(routeId)}` resolver locate the handler
- * for either route without an explicit alias table.
- */
-export const handleGetChannelSettings = handleGetUserChannel;

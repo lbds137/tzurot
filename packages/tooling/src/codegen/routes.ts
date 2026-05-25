@@ -23,6 +23,8 @@ import { ROUTE_MANIFEST, adminRoutes, internalRoutes, userRoutes } from '@tzurot
 import type { Audience, RouteDef } from '@tzurot/common-types';
 
 import { buildClientClass } from './client-builder.js';
+import { buildMountsFile } from './mounts-builder.js';
+import { handlerPathFor, handlerExportNameFor } from './handler-paths.js';
 // Re-exported so callers can build mounts.ts via the same codegen entry.
 export { buildMountsFile, type HandlerPathResolver } from './mounts-builder.js';
 
@@ -75,28 +77,42 @@ export function runCodegen(options: CodegenRunOptions = {}): CodegenRunResult {
 }
 
 /**
- * Builds all three client classes from the live manifest. Exposed for
- * unit tests so they can call without touching the filesystem.
+ * Builds all generated files (3 client classes + server-side mounts.ts)
+ * from the live manifest. Exposed for unit tests so they can call without
+ * touching the filesystem.
  */
 export function generateAllClients(): Record<string, string> {
+  const internalByAud = filterByAudience(internalRoutes, 'internal');
+  const adminByAud = filterByAudience(adminRoutes, 'admin');
+  const userByAud = filterByAudience(userRoutes, 'user');
+
   return {
     'packages/common-types/src/clients/_generated/service-client.ts': buildClientClass({
       className: 'ServiceClient',
       flavor: 'service',
       audience: 'internal',
-      routes: filterByAudience(internalRoutes, 'internal'),
+      routes: internalByAud,
     }),
     'packages/common-types/src/clients/_generated/owner-client.ts': buildClientClass({
       className: 'OwnerClient',
       flavor: 'owner',
       audience: 'admin',
-      routes: filterByAudience(adminRoutes, 'admin'),
+      routes: adminByAud,
     }),
     'packages/common-types/src/clients/_generated/user-client.ts': buildClientClass({
       className: 'UserClient',
       flavor: 'user',
       audience: 'user',
-      routes: filterByAudience(userRoutes, 'user'),
+      routes: userByAud,
+    }),
+    'services/api-gateway/src/routes/_generated/mounts.ts': buildMountsFile({
+      routesByAudience: {
+        internal: internalByAud,
+        admin: adminByAud,
+        user: userByAud,
+      },
+      handlerPathFor,
+      handlerExportNameFor,
     }),
   };
 }

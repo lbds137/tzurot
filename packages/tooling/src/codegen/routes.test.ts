@@ -35,13 +35,14 @@ describe('summarizeManifest', () => {
 });
 
 describe('generateAllClients', () => {
-  it('emits three files keyed by output path', () => {
+  it('emits four files keyed by output path', () => {
     const files = generateAllClients();
     const paths = Object.keys(files);
-    expect(paths).toHaveLength(3);
+    expect(paths).toHaveLength(4);
     expect(paths.some(p => p.endsWith('/service-client.ts'))).toBe(true);
     expect(paths.some(p => p.endsWith('/owner-client.ts'))).toBe(true);
     expect(paths.some(p => p.endsWith('/user-client.ts'))).toBe(true);
+    expect(paths.some(p => p.endsWith('/mounts.ts'))).toBe(true);
   });
 
   it('every generated file has the AUTO-GENERATED header', () => {
@@ -92,7 +93,7 @@ describe('runCodegen (write path)', () => {
     const result = runCodegen({ rootDir: tempRoot });
     expect(result.upToDate).toBe(true);
     expect(result.drifted).toEqual([]);
-    expect(Object.keys(result.files)).toHaveLength(3);
+    expect(Object.keys(result.files)).toHaveLength(4);
 
     for (const path of Object.keys(result.files)) {
       const content = readFileSync(path, 'utf-8');
@@ -122,7 +123,7 @@ describe('runCodegen (drift detection)', () => {
   it('reports drift for every file when nothing is on disk', () => {
     const checkResult = runCodegen({ rootDir: tempRoot, check: true });
     expect(checkResult.upToDate).toBe(false);
-    expect(checkResult.drifted).toHaveLength(3);
+    expect(checkResult.drifted).toHaveLength(4);
     expect(checkResult.drifted.every(p => p.endsWith('.ts'))).toBe(true);
   });
 

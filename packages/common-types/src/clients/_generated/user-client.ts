@@ -297,6 +297,22 @@ export class UserClient {
     });
   }
 
+  async getTtsDefaultConfig(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getTtsDefaultConfig.output>>> {
+    const fullPath = '/api/user/tts-override/default';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'GET',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      outputSchema: ROUTE_MANIFEST.getTtsDefaultConfig.output,
+    });
+  }
+
   async setTtsDefaultConfig(input: z.infer<typeof ROUTE_MANIFEST.setTtsDefaultConfig.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setTtsDefaultConfig.output>>> {
     const fullPath = '/api/user/tts-override/default';
     return callGateway({

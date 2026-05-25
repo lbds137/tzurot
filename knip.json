@@ -13,8 +13,7 @@
     },
     "services/api-gateway": {
       "entry": ["src/**/*.test.ts", "src/**/*.int.test.ts"],
-      "ignoreDependencies": ["openai", "pino", "redis"],
-      "ignore": ["src/routes/routeDeps.ts"]
+      "ignoreDependencies": ["openai", "pino", "redis"]
     },
     "services/ai-worker": {
       "entry": ["src/**/*.test.ts", "src/**/*.int.test.ts"],
@@ -48,7 +47,7 @@
     "**/__mocks__/**",
     "audit.config.ts",
     "**/test-fixtures/audit-canaries/**",
-    "packages/common-types/src/clients/_generated/**"
+    "services/api-gateway/src/routes/_generated/**"
   ],
   "ignoreBinaries": ["dot", "railway", "ruff"],
   "ignoreDependencies": [

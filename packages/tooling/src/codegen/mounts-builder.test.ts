@@ -347,3 +347,63 @@ describe('buildMountsFile — multi-route composition', () => {
     expect(src).not.toContain(`requireProvisionedUser`);
   });
 });
+
+describe('buildMountsFile — route ordering for Express', () => {
+  it('registers static-path routes before parameterized siblings', () => {
+    // Manifest intentionally lists the parameterized route first to verify
+    // the sort flips them. Without sortRoutesForExpress, `/thing/default`
+    // would be shadowed by `/thing/:id` and respond from the wrong handler.
+    const src = buildMountsFile({
+      routesByAudience: {
+        internal: {},
+        admin: {},
+        user: {
+          getById: makeRoute({
+            id: 'getById',
+            audience: 'user',
+            path: '/thing/:id',
+          }),
+          getDefault: makeRoute({
+            id: 'getDefault',
+            audience: 'user',
+            path: '/thing/default',
+          }),
+        },
+      },
+      handlerPathFor,
+    });
+    const defaultIdx = src.indexOf(`app.get('/api/user/thing/default'`);
+    const byIdIdx = src.indexOf(`app.get('/api/user/thing/:id'`);
+    expect(defaultIdx).toBeGreaterThan(0);
+    expect(byIdIdx).toBeGreaterThan(0);
+    expect(defaultIdx).toBeLessThan(byIdIdx);
+  });
+
+  it('preserves manifest order for same-param-count routes', () => {
+    // Two routes at the same param-count bucket stable-sort to manifest
+    // order. Express's exact-segment-count matching prevents collisions
+    // at equal depth across disjoint static-segment positions.
+    const src = buildMountsFile({
+      routesByAudience: {
+        internal: {},
+        admin: {},
+        user: {
+          first: makeRoute({
+            id: 'first',
+            audience: 'user',
+            path: '/a/:x/foo',
+          }),
+          second: makeRoute({
+            id: 'second',
+            audience: 'user',
+            path: '/b/:y/bar',
+          }),
+        },
+      },
+      handlerPathFor,
+    });
+    const firstIdx = src.indexOf(`/api/user/a/:x/foo`);
+    const secondIdx = src.indexOf(`/api/user/b/:y/bar`);
+    expect(firstIdx).toBeLessThan(secondIdx);
+  });
+});
