@@ -10,7 +10,6 @@ import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
-  type PrismaClient,
   UpdateChannelGuildRequestSchema,
   UpdateChannelGuildResponseSchema,
 } from '@tzurot/common-types';
@@ -19,15 +18,16 @@ import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess } from '../../../utils/responseHelpers.js';
 import { sendZodError } from '../../../utils/zodHelpers.js';
 import type { AuthenticatedRequest } from '../../../types.js';
+import type { RouteDeps } from '../../routeDeps.js';
 
 const logger = createLogger('channel-update-guild');
 
 /**
- * Create handler for PATCH /user/channel/update-guild
- * Updates guildId for channel settings that are missing it (legacy backfill).
+ * PATCH /api/user/channel/update-guild — backfill missing guildId.
  */
-export function createUpdateGuildHandler(prisma: PrismaClient): RequestHandler[] {
-  const handler = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+export const handleUpdateChannelGuild = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     // Validate request body
     const parseResult = UpdateChannelGuildRequestSchema.safeParse(req.body);
     if (!parseResult.success) {
@@ -63,6 +63,8 @@ export function createUpdateGuildHandler(prisma: PrismaClient): RequestHandler[]
 
     sendCustomSuccess(res, response, StatusCodes.OK);
   });
+};
 
-  return [requireUserAuth(), requireProvisionedUser(prisma), handler];
+export function createUpdateGuildHandler(deps: RouteDeps): RequestHandler[] {
+  return [requireUserAuth(), requireProvisionedUser(deps.prisma), handleUpdateChannelGuild(deps)];
 }

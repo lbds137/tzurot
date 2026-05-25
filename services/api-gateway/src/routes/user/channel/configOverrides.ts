@@ -22,8 +22,6 @@ import {
   generateChannelSettingsUuid,
   isValidDiscordId,
   Prisma,
-  type PrismaClient,
-  type ConfigCascadeCacheInvalidationService,
 } from '@tzurot/common-types';
 import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
@@ -35,6 +33,7 @@ import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js'
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { getRequiredParam } from '../../../utils/requestParams.js';
 import type { AuthenticatedRequest } from '../../../types.js';
+import type { RouteDeps } from '../../routeDeps.js';
 
 const logger = createLogger('channel-config-overrides');
 
@@ -47,124 +46,122 @@ function validateChannelId(channelId: string, res: Response): boolean {
   return true;
 }
 
+/** GET /api/user/channel/:channelId/config-overrides — raw overrides */
+export const handleGetChannelConfigOverrides = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const channelId = getRequiredParam(req.params.channelId, 'channelId');
+    if (!validateChannelId(channelId, res)) {
+      return;
+    }
+
+    const settings = await prisma.channelSettings.findUnique({
+      where: { channelId },
+      select: { configOverrides: true },
+    });
+
+    sendCustomSuccess(
+      res,
+      { configOverrides: (settings?.configOverrides as Record<string, unknown> | null) ?? null },
+      StatusCodes.OK
+    );
+  });
+};
+
 /**
- * Create GET handler for channel config overrides
- * GET /user/channel/:channelId/config-overrides
+ * PATCH /api/user/channel/:channelId/config-overrides — merge update.
+ * Accepts Partial<ConfigOverrides> directly; send a null field value to clear it.
  */
-export function createGetConfigOverridesHandler(prisma: PrismaClient): RequestHandler[] {
+export const handleUpdateChannelConfigOverrides = (deps: RouteDeps): RequestHandler => {
+  const { prisma, cascadeInvalidation } = deps;
+  return asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const channelId = getRequiredParam(req.params.channelId, 'channelId');
+    if (!validateChannelId(channelId, res)) {
+      return;
+    }
+    const input = req.body as Record<string, unknown>;
+
+    const settingsId = generateChannelSettingsUuid(channelId);
+    const existing = await prisma.channelSettings.findUnique({
+      where: { channelId },
+      select: { configOverrides: true },
+    });
+
+    const { merged, prismaValue } = mergeAndValidateOverrides(
+      existing?.configOverrides,
+      input,
+      res
+    );
+    if (merged === undefined) {
+      return;
+    }
+
+    await prisma.channelSettings.upsert({
+      where: { channelId },
+      create: {
+        id: settingsId,
+        channelId,
+        configOverrides: prismaValue,
+      },
+      update: {
+        configOverrides: prismaValue,
+      },
+    });
+
+    await tryInvalidateCache(
+      cascadeInvalidation?.invalidateChannel.bind(cascadeInvalidation, channelId),
+      { channelId }
+    );
+
+    logger.info({ channelId, userId: req.userId }, 'Updated channel config overrides');
+    sendCustomSuccess(res, { configOverrides: merged }, StatusCodes.OK);
+  });
+};
+
+/** DELETE /api/user/channel/:channelId/config-overrides — clear */
+export const handleClearChannelConfigOverrides = (deps: RouteDeps): RequestHandler => {
+  const { prisma, cascadeInvalidation } = deps;
+  return asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const channelId = getRequiredParam(req.params.channelId, 'channelId');
+    if (!validateChannelId(channelId, res)) {
+      return;
+    }
+
+    await prisma.channelSettings.updateMany({
+      where: { channelId },
+      data: { configOverrides: Prisma.JsonNull },
+    });
+
+    await tryInvalidateCache(
+      cascadeInvalidation?.invalidateChannel.bind(cascadeInvalidation, channelId),
+      { channelId }
+    );
+
+    logger.info({ channelId, userId: req.userId }, 'Cleared channel config overrides');
+    sendCustomSuccess(res, { success: true }, StatusCodes.OK);
+  });
+};
+
+export function createGetConfigOverridesHandler(deps: RouteDeps): RequestHandler[] {
   return [
     requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-      const channelId = getRequiredParam(req.params.channelId, 'channelId');
-      if (!validateChannelId(channelId, res)) {
-        return;
-      }
-
-      const settings = await prisma.channelSettings.findUnique({
-        where: { channelId },
-        select: { configOverrides: true },
-      });
-
-      sendCustomSuccess(
-        res,
-        { configOverrides: (settings?.configOverrides as Record<string, unknown> | null) ?? null },
-        StatusCodes.OK
-      );
-    }),
+    requireProvisionedUser(deps.prisma),
+    handleGetChannelConfigOverrides(deps),
   ];
 }
 
-/**
- * Create PATCH handler for channel config overrides
- * PATCH /user/channel/:channelId/config-overrides
- *
- * Accepts Partial<ConfigOverrides> directly (same shape as user/personality tiers).
- * Send null for a field value to clear that override.
- */
-export function createPatchConfigOverridesHandler(
-  prisma: PrismaClient,
-  cascadeInvalidation?: ConfigCascadeCacheInvalidationService
-): RequestHandler[] {
+export function createPatchConfigOverridesHandler(deps: RouteDeps): RequestHandler[] {
   return [
     requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-      const channelId = getRequiredParam(req.params.channelId, 'channelId');
-      if (!validateChannelId(channelId, res)) {
-        return;
-      }
-      const input = req.body as Record<string, unknown>;
-
-      // Get or create channel settings
-      const settingsId = generateChannelSettingsUuid(channelId);
-      const existing = await prisma.channelSettings.findUnique({
-        where: { channelId },
-        select: { configOverrides: true },
-      });
-
-      const { merged, prismaValue } = mergeAndValidateOverrides(
-        existing?.configOverrides,
-        input,
-        res
-      );
-      if (merged === undefined) {
-        return;
-      }
-
-      // Upsert: create channel settings if they don't exist yet
-      await prisma.channelSettings.upsert({
-        where: { channelId },
-        create: {
-          id: settingsId,
-          channelId,
-          configOverrides: prismaValue,
-        },
-        update: {
-          configOverrides: prismaValue,
-        },
-      });
-
-      await tryInvalidateCache(
-        cascadeInvalidation?.invalidateChannel.bind(cascadeInvalidation, channelId),
-        { channelId }
-      );
-
-      logger.info({ channelId, userId: req.userId }, 'Updated channel config overrides');
-      sendCustomSuccess(res, { configOverrides: merged }, StatusCodes.OK);
-    }),
+    requireProvisionedUser(deps.prisma),
+    handleUpdateChannelConfigOverrides(deps),
   ];
 }
 
-/**
- * Create DELETE handler for channel config overrides
- * DELETE /user/channel/:channelId/config-overrides
- */
-export function createDeleteConfigOverridesHandler(
-  prisma: PrismaClient,
-  cascadeInvalidation?: ConfigCascadeCacheInvalidationService
-): RequestHandler[] {
+export function createDeleteConfigOverridesHandler(deps: RouteDeps): RequestHandler[] {
   return [
     requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-      const channelId = getRequiredParam(req.params.channelId, 'channelId');
-      if (!validateChannelId(channelId, res)) {
-        return;
-      }
-
-      await prisma.channelSettings.updateMany({
-        where: { channelId },
-        data: { configOverrides: Prisma.JsonNull },
-      });
-
-      await tryInvalidateCache(
-        cascadeInvalidation?.invalidateChannel.bind(cascadeInvalidation, channelId),
-        { channelId }
-      );
-
-      logger.info({ channelId, userId: req.userId }, 'Cleared channel config overrides');
-      sendCustomSuccess(res, { success: true }, StatusCodes.OK);
-    }),
+    requireProvisionedUser(deps.prisma),
+    handleClearChannelConfigOverrides(deps),
   ];
 }

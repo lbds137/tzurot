@@ -73,7 +73,7 @@ describe('GET /user/channel/list', () => {
     ];
     mockPrisma.channelSettings.findMany.mockResolvedValue(activations);
 
-    const router = createChannelRoutes(mockPrisma as unknown as PrismaClient);
+    const router = createChannelRoutes({ prisma: mockPrisma as unknown as PrismaClient });
     const handler = getHandler(router, 'get', '/list');
     const { req, res } = createMockReqRes();
 
@@ -103,7 +103,7 @@ describe('GET /user/channel/list', () => {
   it('should return empty array when no activations exist', async () => {
     mockPrisma.channelSettings.findMany.mockResolvedValue([]);
 
-    const router = createChannelRoutes(mockPrisma as unknown as PrismaClient);
+    const router = createChannelRoutes({ prisma: mockPrisma as unknown as PrismaClient });
     const handler = getHandler(router, 'get', '/list');
     const { req, res } = createMockReqRes();
 
@@ -119,7 +119,7 @@ describe('GET /user/channel/list', () => {
     const activation = createMockActivation();
     mockPrisma.channelSettings.findMany.mockResolvedValue([activation]);
 
-    const router = createChannelRoutes(mockPrisma as unknown as PrismaClient);
+    const router = createChannelRoutes({ prisma: mockPrisma as unknown as PrismaClient });
     const handler = getHandler(router, 'get', '/list');
     const { req, res } = createMockReqRes();
 
@@ -146,7 +146,7 @@ describe('GET /user/channel/list', () => {
     const activation = createMockActivation();
     mockPrisma.channelSettings.findMany.mockResolvedValue([activation]);
 
-    const router = createChannelRoutes(mockPrisma as unknown as PrismaClient);
+    const router = createChannelRoutes({ prisma: mockPrisma as unknown as PrismaClient });
     const handler = getHandler(router, 'get', '/list');
     const { req, res } = createMockReqRes({}, {}, { guildId: MOCK_GUILD_ID });
 
@@ -167,7 +167,7 @@ describe('GET /user/channel/list', () => {
   it('should only return channels with activated personalities', async () => {
     mockPrisma.channelSettings.findMany.mockResolvedValue([]);
 
-    const router = createChannelRoutes(mockPrisma as unknown as PrismaClient);
+    const router = createChannelRoutes({ prisma: mockPrisma as unknown as PrismaClient });
     const handler = getHandler(router, 'get', '/list');
     const { req, res } = createMockReqRes();
 
@@ -187,7 +187,7 @@ describe('GET /user/channel/list', () => {
     const activation = createMockActivation({ createdBy: null });
     mockPrisma.channelSettings.findMany.mockResolvedValue([activation]);
 
-    const router = createChannelRoutes(mockPrisma as unknown as PrismaClient);
+    const router = createChannelRoutes({ prisma: mockPrisma as unknown as PrismaClient });
     const handler = getHandler(router, 'get', '/list');
     const { req, res } = createMockReqRes();
 
@@ -205,7 +205,7 @@ describe('GET /user/channel/list', () => {
   });
 
   it('should order activations by createdAt descending', async () => {
-    const router = createChannelRoutes(mockPrisma as unknown as PrismaClient);
+    const router = createChannelRoutes({ prisma: mockPrisma as unknown as PrismaClient });
     const handler = getHandler(router, 'get', '/list');
     const { req, res } = createMockReqRes();
 

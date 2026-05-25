@@ -7,7 +7,6 @@ import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
-  type PrismaClient,
   Prisma,
   generatePersonalityUuid,
   PersonalityCreateSchema,
@@ -25,6 +24,7 @@ import { processVoiceReferenceData } from '../../../utils/voiceReferenceProcesso
 import { formatPersonalityResponse } from './formatters.js';
 import type { ProvisionedRequest } from '../../../types.js';
 import { getOrCreateInternalUser } from '../userHelpers.js';
+import type { RouteDeps } from '../../routeDeps.js';
 
 const logger = createLogger('user-personality-create');
 
@@ -73,11 +73,11 @@ function buildCreateData(
 }
 
 /**
- * Create handler for POST /user/personality
- * Create a new personality owned by the user
+ * POST /api/user/personality — create a new personality owned by the user.
  */
-export function createCreateHandler(prisma: PrismaClient): RequestHandler[] {
-  const handler = asyncHandler(async (req: ProvisionedRequest, res: Response) => {
+export const handleCreateUserPersonality = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
 
     // Validate request body with Zod schema
@@ -147,6 +147,12 @@ export function createCreateHandler(prisma: PrismaClient): RequestHandler[] {
       StatusCodes.CREATED
     );
   });
+};
 
-  return [requireUserAuth(), requireProvisionedUser(prisma), handler];
+export function createCreateHandler(deps: RouteDeps): RequestHandler[] {
+  return [
+    requireUserAuth(),
+    requireProvisionedUser(deps.prisma),
+    handleCreateUserPersonality(deps),
+  ];
 }

@@ -40,14 +40,14 @@ describe('/user/personality route composition', () => {
 
   describe('route factory', () => {
     it('should create a router', () => {
-      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
 
       expect(router).toBeDefined();
       expect(typeof router).toBe('function');
     });
 
     it('should have GET / route registered', () => {
-      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
 
       expect(router.stack).toBeDefined();
       expect(router.stack.length).toBeGreaterThan(0);
@@ -59,7 +59,7 @@ describe('/user/personality route composition', () => {
     });
 
     it('should have GET /:slug route registered', () => {
-      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
 
       const getRoute = (
         router.stack as unknown as { route?: { path?: string; methods?: { get?: boolean } } }[]
@@ -68,7 +68,7 @@ describe('/user/personality route composition', () => {
     });
 
     it('should have POST / route registered', () => {
-      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
 
       const postRoute = (
         router.stack as unknown as { route?: { path?: string; methods?: { post?: boolean } } }[]
@@ -77,7 +77,7 @@ describe('/user/personality route composition', () => {
     });
 
     it('should have PUT /:slug route registered', () => {
-      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
 
       const putRoute = (
         router.stack as unknown as { route?: { path?: string; methods?: { put?: boolean } } }[]
@@ -86,7 +86,7 @@ describe('/user/personality route composition', () => {
     });
 
     it('should have PATCH /:slug/visibility route registered', () => {
-      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
 
       const patchRoute = (
         router.stack as unknown as { route?: { path?: string; methods?: { patch?: boolean } } }[]
@@ -95,7 +95,7 @@ describe('/user/personality route composition', () => {
     });
 
     it('should have DELETE /:slug route registered', () => {
-      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
 
       const deleteRoute = (
         router.stack as unknown as { route?: { path?: string; methods?: { delete?: boolean } } }[]

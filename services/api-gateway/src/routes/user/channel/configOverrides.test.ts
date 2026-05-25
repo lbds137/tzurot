@@ -48,7 +48,10 @@ describe('Channel Config Overrides Routes', () => {
 
     app = express();
     app.use(express.json());
-    app.use('/user/channel', createChannelRoutes(mockPrisma as unknown as PrismaClient));
+    app.use(
+      '/user/channel',
+      createChannelRoutes({ prisma: mockPrisma as unknown as PrismaClient })
+    );
   });
 
   describe('channelId validation', () => {
@@ -143,7 +146,10 @@ describe('Channel Config Overrides Routes', () => {
       appWithInvalidation.use(express.json());
       appWithInvalidation.use(
         '/user/channel',
-        createChannelRoutes(mockPrisma as unknown as PrismaClient, mockInvalidation as never)
+        createChannelRoutes({
+          prisma: mockPrisma as unknown as PrismaClient,
+          cascadeInvalidation: mockInvalidation as never,
+        })
       );
 
       await request(appWithInvalidation)
@@ -167,7 +173,10 @@ describe('Channel Config Overrides Routes', () => {
       appWithInvalidation.use(express.json());
       appWithInvalidation.use(
         '/user/channel',
-        createChannelRoutes(mockPrisma as unknown as PrismaClient, mockInvalidation as never)
+        createChannelRoutes({
+          prisma: mockPrisma as unknown as PrismaClient,
+          cascadeInvalidation: mockInvalidation as never,
+        })
       );
 
       const response = await request(appWithInvalidation)
@@ -192,7 +201,10 @@ describe('Channel Config Overrides Routes', () => {
       appWithInvalidation.use(express.json());
       appWithInvalidation.use(
         '/user/channel',
-        createChannelRoutes(mockPrisma as unknown as PrismaClient, mockInvalidation as never)
+        createChannelRoutes({
+          prisma: mockPrisma as unknown as PrismaClient,
+          cascadeInvalidation: mockInvalidation as never,
+        })
       );
 
       const response = await request(appWithInvalidation).delete(

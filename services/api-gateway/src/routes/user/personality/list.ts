@@ -18,6 +18,7 @@ import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
 import { sendCustomSuccess } from '../../../utils/responseHelpers.js';
 import type { ProvisionedRequest } from '../../../types.js';
+import type { RouteDeps } from '../../routeDeps.js';
 
 const logger = createLogger('user-personality-list');
 
@@ -124,13 +125,12 @@ async function fetchUserPersonalities(
 }
 
 /**
- * Create handler for GET /user/personality
- * List all personalities visible to the user
- * - Public personalities (isPublic = true)
- * - User-owned personalities (ownerId = user.id OR PersonalityOwner entry)
+ * GET /api/user/personality — List all personalities visible to the user
+ * (public + user-owned for regular users; all for admins).
  */
-export function createListHandler(prisma: PrismaClient): RequestHandler[] {
-  const handler = asyncHandler(async (req: ProvisionedRequest, res: Response) => {
+export const handleListUserPersonalities = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
     const isAdmin = isBotOwner(discordUserId);
 
@@ -149,6 +149,13 @@ export function createListHandler(prisma: PrismaClient): RequestHandler[] {
     logger.info({ discordUserId, totalCount: personalities.length }, 'Listed personalities');
     sendCustomSuccess(res, { personalities }, StatusCodes.OK);
   });
+};
 
-  return [requireUserAuth(), requireProvisionedUser(prisma), handler];
+/** Legacy chain (auth middleware + handler) — kept for the existing aggregator. */
+export function createListHandler(deps: RouteDeps): RequestHandler[] {
+  return [
+    requireUserAuth(),
+    requireProvisionedUser(deps.prisma),
+    handleListUserPersonalities(deps),
+  ];
 }

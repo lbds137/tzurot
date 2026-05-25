@@ -10,7 +10,6 @@ import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
-  type PrismaClient,
   DeactivateChannelRequestSchema,
   DeactivateChannelResponseSchema,
 } from '@tzurot/common-types';
@@ -19,15 +18,16 @@ import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess } from '../../../utils/responseHelpers.js';
 import { sendZodError } from '../../../utils/zodHelpers.js';
 import type { AuthenticatedRequest } from '../../../types.js';
+import type { RouteDeps } from '../../routeDeps.js';
 
 const logger = createLogger('channel-deactivate');
 
 /**
- * Create handler for DELETE /user/channel/deactivate
- * Deactivates any personality from the channel by clearing activatedPersonalityId.
+ * DELETE /api/user/channel/deactivate — clear activated personality on a channel.
  */
-export function createDeactivateHandler(prisma: PrismaClient): RequestHandler[] {
-  const handler = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+export const handleDeactivateChannel = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
 
     // Validate request body
@@ -89,6 +89,8 @@ export function createDeactivateHandler(prisma: PrismaClient): RequestHandler[] 
 
     sendCustomSuccess(res, response, StatusCodes.OK);
   });
+};
 
-  return [requireUserAuth(), requireProvisionedUser(prisma), handler];
+export function createDeactivateHandler(deps: RouteDeps): RequestHandler[] {
+  return [requireUserAuth(), requireProvisionedUser(deps.prisma), handleDeactivateChannel(deps)];
 }

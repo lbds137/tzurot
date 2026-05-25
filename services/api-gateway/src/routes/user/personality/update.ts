@@ -28,6 +28,7 @@ import type { ProvisionedRequest } from '../../../types.js';
 import { getParam } from '../../../utils/requestParams.js';
 import { resolvePersonalityForEdit } from './helpers.js';
 import { formatPersonalityResponse } from './formatters.js';
+import type { RouteDeps } from '../../routeDeps.js';
 
 const logger = createLogger('user-personality-update');
 
@@ -276,15 +277,15 @@ function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInv
   };
 }
 
-// --- Route Factory ---
+// --- Handler factory + route chain ---
 
-export function createUpdateHandler(
-  prisma: PrismaClient,
-  cacheInvalidationService?: CacheInvalidationService
-): RequestHandler[] {
+export const handleUpdateUserPersonality = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(createHandler(deps.prisma, deps.cacheInvalidationService));
+
+export function createUpdateHandler(deps: RouteDeps): RequestHandler[] {
   return [
     requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler(createHandler(prisma, cacheInvalidationService)),
+    requireProvisionedUser(deps.prisma),
+    handleUpdateUserPersonality(deps),
   ];
 }
