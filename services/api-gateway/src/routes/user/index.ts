@@ -64,6 +64,7 @@ import type {
   SttResolverCacheInvalidationService,
 } from '@tzurot/common-types';
 import type { OpenRouterModelCache } from '../../services/OpenRouterModelCache.js';
+import type { RouteDeps } from '../routeDeps.js';
 import { createTimezoneRoutes } from './timezone.js';
 import { createUsageRoutes } from './usage.js';
 import { createPersonalityRoutes } from './personality/index.js';
@@ -114,13 +115,29 @@ export function createUserRouter(opts: UserRouterOptions): Router {
     aiQueue,
     sttResolverCacheInvalidation,
   } = opts;
+
+  // Build the shared RouteDeps once; refactored factories accept it,
+  // legacy per-arg factories take individual values forwarded below.
+  const deps: RouteDeps = {
+    prisma,
+    llmConfigCacheInvalidation,
+    ttsConfigCacheInvalidation,
+    cacheInvalidationService,
+    redis,
+    modelCache,
+    cascadeInvalidation,
+    cascadeResolver,
+    aiQueue,
+    sttResolverCacheInvalidation,
+  };
+
   const router = Router();
 
   // Timezone routes
-  router.use('/timezone', createTimezoneRoutes(prisma));
+  router.use('/timezone', createTimezoneRoutes(deps));
 
   // Usage routes
-  router.use('/usage', createUsageRoutes(prisma));
+  router.use('/usage', createUsageRoutes(deps));
 
   // Personality routes (with cache invalidation for avatar changes)
   router.use('/personality', createPersonalityRoutes(prisma, cacheInvalidationService));
@@ -141,7 +158,7 @@ export function createUserRouter(opts: UserRouterOptions): Router {
   router.use('/stt-override', createSttOverrideRoutes(prisma, sttResolverCacheInvalidation));
 
   // Voice resolution aggregate read endpoint (powers /voice view dashboard)
-  router.use('/voice-resolution', createVoiceResolutionRoutes(prisma));
+  router.use('/voice-resolution', createVoiceResolutionRoutes(deps));
 
   // Model override routes (with cache invalidation for default config changes)
   router.use('/model-override', createModelOverrideRoutes(prisma, llmConfigCacheInvalidation));
@@ -159,7 +176,7 @@ export function createUserRouter(opts: UserRouterOptions): Router {
   router.use('/memory', createMemoryRoutes(prisma, redis));
 
   // NSFW verification routes (for DM interactions)
-  router.use('/nsfw', createNsfwRoutes(prisma));
+  router.use('/nsfw', createNsfwRoutes(deps));
 
   // Config override routes — two routers layered on the same path.
   // Express chains them sequentially and route patterns don't overlap:
@@ -172,7 +189,7 @@ export function createUserRouter(opts: UserRouterOptions): Router {
   );
 
   // Conversation lookup routes (internal service-to-service, no user auth)
-  router.use('/conversation', createConversationLookupRoutes(prisma));
+  router.use('/conversation', createConversationLookupRoutes(deps));
 
   // Shapes.inc import routes (credential management, import jobs)
   router.use('/shapes', createShapesRoutes(prisma, aiQueue));

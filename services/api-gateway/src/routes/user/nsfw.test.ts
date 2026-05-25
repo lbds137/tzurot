@@ -70,7 +70,7 @@ function createTestApp() {
     (req as any).provisionedDefaultPersonaId = 'persona-uuid-default';
     next();
   });
-  app.use('/nsfw', createNsfwRoutes(mockPrisma as any));
+  app.use('/nsfw', createNsfwRoutes({ prisma: mockPrisma as any }));
   return app;
 }
 

@@ -58,7 +58,7 @@ describe('conversationLookup routes', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    router = createConversationLookupRoutes(mockPrisma as unknown as PrismaClient);
+    router = createConversationLookupRoutes({ prisma: mockPrisma as unknown as PrismaClient });
   });
 
   describe('GET /conversation/message-personality', () => {
