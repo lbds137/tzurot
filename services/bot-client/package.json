@@ -24,7 +24,7 @@
   },
   "dependencies": {
     "@tzurot/common-types": "workspace:*",
-    "bullmq": "^5.76.10",
+    "bullmq": "^5.77.3",
     "discord.js": "^14.26.4",
     "ioredis": "^5.10.1",
     "pino": "^10.3.1",

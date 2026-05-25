@@ -28,7 +28,7 @@
   "dependencies": {
     "@tzurot/common-types": "workspace:*",
     "@tzurot/embeddings": "workspace:*",
-    "bullmq": "^5.76.10",
+    "bullmq": "^5.77.3",
     "cac": "^7.0.0",
     "ioredis": "^5.10.0",
     "chalk": "^5.6.2",
