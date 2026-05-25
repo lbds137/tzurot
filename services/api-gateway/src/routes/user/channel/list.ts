@@ -21,7 +21,7 @@ const logger = createLogger('channel-list');
 /**
  * GET /api/user/channel/list — all channel settings with activated personalities.
  */
-export const handleListChannelSettings = (deps: RouteDeps): RequestHandler => {
+export const handleListUserChannels = (deps: RouteDeps): RequestHandler => {
   const { prisma } = deps;
   return asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
@@ -94,5 +94,5 @@ export const handleListChannelSettings = (deps: RouteDeps): RequestHandler => {
 };
 
 export function createListHandler(deps: RouteDeps): RequestHandler[] {
-  return [requireUserAuth(), requireProvisionedUser(deps.prisma), handleListChannelSettings(deps)];
+  return [requireUserAuth(), requireProvisionedUser(deps.prisma), handleListUserChannels(deps)];
 }

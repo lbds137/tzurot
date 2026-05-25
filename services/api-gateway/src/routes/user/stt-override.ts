@@ -34,7 +34,7 @@ import type { RouteDeps } from '../routeDeps.js';
 const logger = createLogger('user-stt-override');
 
 /** GET /api/user/stt-override — read user's STT preference */
-export const handleGetSttOverride = (deps: RouteDeps): RequestHandler => {
+export const handleGetSttDefaultProvider = (deps: RouteDeps): RequestHandler => {
   const { prisma } = deps;
   return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
@@ -59,7 +59,7 @@ export const handleGetSttOverride = (deps: RouteDeps): RequestHandler => {
 };
 
 /** PUT /api/user/stt-override — set the user's STT preference */
-export const handleSetSttOverride = (deps: RouteDeps): RequestHandler => {
+export const handleSetSttDefaultProvider = (deps: RouteDeps): RequestHandler => {
   const { prisma, sttResolverCacheInvalidation } = deps;
   return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
@@ -93,7 +93,7 @@ export const handleSetSttOverride = (deps: RouteDeps): RequestHandler => {
 };
 
 /** DELETE /api/user/stt-override — clear the user's STT preference */
-export const handleClearSttOverride = (deps: RouteDeps): RequestHandler => {
+export const handleClearSttDefaultProvider = (deps: RouteDeps): RequestHandler => {
   const { prisma, sttResolverCacheInvalidation } = deps;
   return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
@@ -138,9 +138,9 @@ export function createSttOverrideRoutes(deps: RouteDeps): Router {
   const router = Router();
   const requireProvisioned = requireProvisionedUser(deps.prisma);
 
-  router.get('/', requireUserAuth(), requireProvisioned, handleGetSttOverride(deps));
-  router.put('/', requireUserAuth(), requireProvisioned, handleSetSttOverride(deps));
-  router.delete('/', requireUserAuth(), requireProvisioned, handleClearSttOverride(deps));
+  router.get('/', requireUserAuth(), requireProvisioned, handleGetSttDefaultProvider(deps));
+  router.put('/', requireUserAuth(), requireProvisioned, handleSetSttDefaultProvider(deps));
+  router.delete('/', requireUserAuth(), requireProvisioned, handleClearSttDefaultProvider(deps));
 
   return router;
 }

@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import type { PrismaClient } from '@tzurot/common-types';
-import { createDmSessionSetHandler } from './dmSessionSet.js';
+import { handleSetDmSession } from './dmSessionSet.js';
 
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
@@ -38,7 +38,7 @@ describe('POST /internal/channel/dm-session/set', () => {
     app.use(express.json());
     app.post(
       '/internal/channel/dm-session/set',
-      ...createDmSessionSetHandler(mockPrisma as unknown as PrismaClient)
+      handleSetDmSession({ prisma: mockPrisma as unknown as PrismaClient })
     );
   });
 

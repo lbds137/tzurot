@@ -3,7 +3,7 @@
  * Create an AI generation job and return 202 Accepted immediately
  */
 
-import { Router, type Request, type Response } from 'express';
+import { type Request, type Response, type RequestHandler } from 'express';
 import { randomUUID } from 'crypto';
 import { createLogger, generateRequestSchema, JobStatus } from '@tzurot/common-types';
 import { getDeduplicationCache } from '../../utils/deduplicationCache.js';
@@ -14,80 +14,85 @@ import { sendZodError } from '../../utils/zodHelpers.js';
 
 const logger = createLogger('AIRouter');
 
-export function createGenerateRoute(): Router {
-  const router = Router();
+import type { RouteDeps } from '../routeDeps.js';
 
-  router.post(
-    '/',
-    asyncHandler(async (req: Request, res: Response) => {
-      const startTime = Date.now();
+/**
+ * POST /api/internal/ai/generate — create an AI generation job.
+ *
+ * The `_deps` parameter is the interface-implementation escape hatch from
+ * `02-code-standards.md` — every handler in the manifest is invoked as
+ * `handle<Name>(deps)` by the generated mounts.ts, so the signature is
+ * fixed by the codegen contract regardless of which deps a given handler
+ * actually uses. This handler's body reads neither `deps.prisma` nor any
+ * other field; the deduplication cache and BullMQ job queue are
+ * module-load singletons accessed via getters.
+ */
+export const handleAiGenerate = (_deps: RouteDeps): RequestHandler =>
+  asyncHandler(async (req: Request, res: Response) => {
+    const startTime = Date.now();
 
-      // Validate request body
-      const validationResult = generateRequestSchema.safeParse(req.body);
-      if (!validationResult.success) {
-        logger.warn({ errors: validationResult.error.issues }, 'Validation error');
-        return sendZodError(res, validationResult.error);
-      }
+    // Validate request body
+    const validationResult = generateRequestSchema.safeParse(req.body);
+    if (!validationResult.success) {
+      logger.warn({ errors: validationResult.error.issues }, 'Validation error');
+      return sendZodError(res, validationResult.error);
+    }
 
-      const request = validationResult.data;
+    const request = validationResult.data;
 
-      // Check for duplicate requests
-      const deduplicationCache = getDeduplicationCache();
-      const duplicate = await deduplicationCache.checkDuplicate(request);
-      if (duplicate !== null) {
-        logger.info({ jobId: duplicate.jobId }, 'Returning cached job for duplicate request');
-        return sendSuccess(res, {
-          jobId: duplicate.jobId,
-          requestId: duplicate.requestId,
-          status: JobStatus.Queued,
-        });
-      }
+    // Check for duplicate requests
+    const deduplicationCache = getDeduplicationCache();
+    const duplicate = await deduplicationCache.checkDuplicate(request);
+    if (duplicate !== null) {
+      logger.info({ jobId: duplicate.jobId }, 'Returning cached job for duplicate request');
+      return sendSuccess(res, {
+        jobId: duplicate.jobId,
+        requestId: duplicate.requestId,
+        status: JobStatus.Queued,
+      });
+    }
 
-      const requestId = randomUUID();
+    const requestId = randomUUID();
 
-      if (request.context.referencedMessages && request.context.referencedMessages.length > 0) {
-        logger.info(
-          { requestId, referencedMessagesCount: request.context.referencedMessages.length },
-          `Request includes ${request.context.referencedMessages.length} referenced message(s)`
-        );
-      }
+    if (request.context.referencedMessages && request.context.referencedMessages.length > 0) {
+      logger.info(
+        { requestId, referencedMessagesCount: request.context.referencedMessages.length },
+        `Request includes ${request.context.referencedMessages.length} referenced message(s)`
+      );
+    }
 
-      try {
-        // Attachment URLs flow through unchanged. Bytes are downloaded inside
-        // ai-worker's DownloadAttachmentsStep so this handler never blocks on
-        // network I/O regardless of attachment size or count.
-        const jobId = await createJobChain({
-          requestId,
-          personality: request.personality,
-          message: request.message,
-          context: request.context,
-          responseDestination: { type: 'api' as const },
-          userApiKey: request.userApiKey,
-        });
+    try {
+      // Attachment URLs flow through unchanged. Bytes are downloaded inside
+      // ai-worker's DownloadAttachmentsStep so this handler never blocks on
+      // network I/O regardless of attachment size or count.
+      const jobId = await createJobChain({
+        requestId,
+        personality: request.personality,
+        message: request.message,
+        context: request.context,
+        responseDestination: { type: 'api' as const },
+        userApiKey: request.userApiKey,
+      });
 
-        await deduplicationCache.cacheRequest(request, requestId, jobId);
-        const creationTime = Date.now() - startTime;
-        logger.info(
-          { jobId, personalityName: request.personality.name, creationTimeMs: creationTime },
-          'Created job chain'
-        );
+      await deduplicationCache.cacheRequest(request, requestId, jobId);
+      const creationTime = Date.now() - startTime;
+      logger.info(
+        { jobId, personalityName: request.personality.name, creationTimeMs: creationTime },
+        'Created job chain'
+      );
 
-        sendCustomSuccess(res, { jobId, requestId, status: JobStatus.Queued }, 202);
-      } catch (error) {
-        const processingTime = Date.now() - startTime;
-        logger.error(
-          {
-            err: error,
-            userId: request.context.userId,
-            personalityName: request.personality.name,
-            processingTimeMs: processingTime,
-          },
-          `Error creating job (${processingTime}ms)`
-        );
-        throw error;
-      }
-    })
-  );
-
-  return router;
-}
+      sendCustomSuccess(res, { jobId, requestId, status: JobStatus.Queued }, 202);
+    } catch (error) {
+      const processingTime = Date.now() - startTime;
+      logger.error(
+        {
+          err: error,
+          userId: request.context.userId,
+          personalityName: request.personality.name,
+          processingTimeMs: processingTime,
+        },
+        `Error creating job (${processingTime}ms)`
+      );
+      throw error;
+    }
+  });

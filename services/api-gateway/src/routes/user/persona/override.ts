@@ -6,7 +6,7 @@
  * - DELETE /override/:personalitySlug - Clear persona override
  */
 
-import { Router, type Response } from 'express';
+import { Router, type Response, type RequestHandler } from 'express';
 import {
   createLogger,
   generateUserPersonalityConfigUuid,
@@ -23,6 +23,7 @@ import { getParam } from '../../../utils/requestParams.js';
 import type { ProvisionedRequest } from '../../../types.js';
 import type { PersonaOverrideSummary } from './types.js';
 import { getOrCreateInternalUser } from '../userHelpers.js';
+import type { RouteDeps } from '../../routeDeps.js';
 
 const logger = createLogger('user-persona-override');
 
@@ -55,8 +56,9 @@ async function resolvePersonalityBySlug(
 
 // --- Handler Factories ---
 
-function createListHandler(prisma: PrismaClient) {
-  return async (req: ProvisionedRequest, res: Response) => {
+export const handleListPersonaOverrides = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const user = getOrCreateInternalUser(req);
 
     const overrides = await prisma.userPersonalityConfig.findMany({
@@ -86,11 +88,12 @@ function createListHandler(prisma: PrismaClient) {
     });
 
     sendCustomSuccess(res, { overrides: response });
-  };
-}
+  });
+};
 
-function createGetHandler(prisma: PrismaClient) {
-  return async (req: ProvisionedRequest, res: Response) => {
+export const handleGetPersonaOverride = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const personality = await resolvePersonalityBySlug(
       prisma,
       getParam(req.params.personalitySlug),
@@ -107,11 +110,12 @@ function createGetHandler(prisma: PrismaClient) {
         displayName: personality.displayName,
       },
     });
-  };
-}
+  });
+};
 
-function createSetHandler(prisma: PrismaClient) {
-  return async (req: ProvisionedRequest, res: Response) => {
+export const handleSetPersonaOverride = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const personalitySlug = getParam(req.params.personalitySlug);
 
     // Validate request body with Zod
@@ -163,11 +167,12 @@ function createSetHandler(prisma: PrismaClient) {
       },
       persona: { id: persona.id, name: persona.name, preferredName: persona.preferredName },
     });
-  };
-}
+  });
+};
 
-function createClearHandler(prisma: PrismaClient) {
-  return async (req: ProvisionedRequest, res: Response) => {
+export const handleClearPersonaOverride = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const user = getOrCreateInternalUser(req);
 
     const personality = await resolvePersonalityBySlug(
@@ -211,36 +216,37 @@ function createClearHandler(prisma: PrismaClient) {
 
     logger.info({ userId: user.id, personalityId: personality.id }, 'Cleared persona override');
     sendCustomSuccess(res, { success: true, personality: personalityResponse, hadOverride: true });
-  };
-}
+  });
+};
 
 // --- Main Route Setup ---
 
 const OVERRIDE_BY_SLUG = '/override/:personalitySlug';
 
 export function addOverrideRoutes(router: Router, prisma: PrismaClient): void {
+  const deps: RouteDeps = { prisma };
   router.get(
     '/override',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createListHandler(prisma))
+    handleListPersonaOverrides(deps)
   );
   router.get(
     OVERRIDE_BY_SLUG,
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createGetHandler(prisma))
+    handleGetPersonaOverride(deps)
   );
   router.put(
     OVERRIDE_BY_SLUG,
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createSetHandler(prisma))
+    handleSetPersonaOverride(deps)
   );
   router.delete(
     OVERRIDE_BY_SLUG,
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createClearHandler(prisma))
+    handleClearPersonaOverride(deps)
   );
 }

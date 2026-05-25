@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
-import { createConfirmDeliveryRoute } from './confirmDelivery.js';
+import { handleAiConfirmDelivery } from './confirmDelivery.js';
 import type { PrismaClient } from '@tzurot/common-types';
 
 // Create mock Prisma client
@@ -29,7 +29,10 @@ describe('POST /job/:jobId/confirm-delivery', () => {
     // Create Express app with confirm delivery router
     app = express();
     app.use(express.json());
-    app.use('/', createConfirmDeliveryRoute(prisma as unknown as PrismaClient));
+    app.post(
+      '/job/:jobId/confirm-delivery',
+      handleAiConfirmDelivery({ prisma: prisma as unknown as PrismaClient })
+    );
   });
 
   it('should confirm job delivery', async () => {

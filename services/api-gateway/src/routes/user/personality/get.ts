@@ -94,9 +94,9 @@ function createHandler(prisma: PrismaClient) {
 
 // --- Handler factory + route chain ---
 
-export const handleGetUserPersonality = (deps: RouteDeps): RequestHandler =>
+export const handleGetPersonality = (deps: RouteDeps): RequestHandler =>
   asyncHandler(createHandler(deps.prisma));
 
 export function createGetHandler(deps: RouteDeps): RequestHandler[] {
-  return [requireUserAuth(), requireProvisionedUser(deps.prisma), handleGetUserPersonality(deps)];
+  return [requireUserAuth(), requireProvisionedUser(deps.prisma), handleGetPersonality(deps)];
 }

@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
-import { createTranscribeRoute } from './transcribe.js';
+import { handleAiTranscribe } from './transcribe.js';
 import type { Queue, QueueEvents, Job } from 'bullmq';
 import type { PrismaClient } from '@tzurot/common-types';
 import { JobStatus } from '@tzurot/common-types';
@@ -48,13 +48,13 @@ describe('POST /transcribe', () => {
 
     app = express();
     app.use(express.json());
-    app.use(
+    app.post(
       '/transcribe',
-      createTranscribeRoute(
+      handleAiTranscribe({
         prisma,
-        aiQueue as unknown as Queue,
-        queueEvents as unknown as QueueEvents
-      )
+        aiQueue: aiQueue as unknown as Queue,
+        queueEvents: queueEvents as unknown as QueueEvents,
+      })
     );
   });
 

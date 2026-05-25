@@ -25,7 +25,7 @@ interface MessagePersonalityResponse {
  * GET /api/user/conversation/message-personality — lookup personality by Discord message ID
  * Internal service-to-service endpoint (no user auth required).
  */
-export const handleLookupMessagePersonality = (deps: RouteDeps): RequestHandler => {
+export const handleLookupPersonalityFromMessage = (deps: RouteDeps): RequestHandler => {
   const conversationHistoryService = new ConversationHistoryService(deps.prisma);
   return asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const discordMessageId = getParam(req.query.discordMessageId as string | string[] | undefined);
@@ -62,6 +62,6 @@ export const handleLookupMessagePersonality = (deps: RouteDeps): RequestHandler 
 
 export function createConversationLookupRoutes(deps: RouteDeps): Router {
   const router = Router();
-  router.get('/message-personality', handleLookupMessagePersonality(deps));
+  router.get('/message-personality', handleLookupPersonalityFromMessage(deps));
   return router;
 }

@@ -128,7 +128,7 @@ async function fetchUserPersonalities(
  * GET /api/user/personality — List all personalities visible to the user
  * (public + user-owned for regular users; all for admins).
  */
-export const handleListUserPersonalities = (deps: RouteDeps): RequestHandler => {
+export const handleListPersonalities = (deps: RouteDeps): RequestHandler => {
   const { prisma } = deps;
   return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
@@ -153,9 +153,5 @@ export const handleListUserPersonalities = (deps: RouteDeps): RequestHandler => 
 
 /** Legacy chain (auth middleware + handler) — kept for the existing aggregator. */
 export function createListHandler(deps: RouteDeps): RequestHandler[] {
-  return [
-    requireUserAuth(),
-    requireProvisionedUser(deps.prisma),
-    handleListUserPersonalities(deps),
-  ];
+  return [requireUserAuth(), requireProvisionedUser(deps.prisma), handleListPersonalities(deps)];
 }

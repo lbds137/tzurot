@@ -7,7 +7,7 @@
  * - DELETE /:id - Delete a persona
  */
 
-import { Router, type Response } from 'express';
+import { Router, type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
@@ -28,6 +28,7 @@ import { validateUuid } from '../../../utils/validators.js';
 import { getParam } from '../../../utils/requestParams.js';
 import type { ProvisionedRequest } from '../../../types.js';
 import { getOrCreateInternalUser } from '../userHelpers.js';
+import type { RouteDeps } from '../../routeDeps.js';
 
 const logger = createLogger('user-persona-crud');
 
@@ -92,8 +93,9 @@ async function resolveOwnedPersona(
 
 // --- Handler Factories ---
 
-function createListHandler(prisma: PrismaClient) {
-  return async (req: ProvisionedRequest, res: Response) => {
+export const handleListPersonas = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const user = getOrCreateInternalUser(req);
 
     const personas = await prisma.persona.findMany({
@@ -108,11 +110,12 @@ function createListHandler(prisma: PrismaClient) {
     }));
 
     sendCustomSuccess(res, { personas: response });
-  };
-}
+  });
+};
 
-function createGetHandler(prisma: PrismaClient) {
-  return async (req: ProvisionedRequest, res: Response) => {
+export const handleGetPersona = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const id = getParam(req.params.id);
 
     const idValidation = validateUuid(id, 'persona ID');
@@ -134,11 +137,12 @@ function createGetHandler(prisma: PrismaClient) {
     sendCustomSuccess(res, {
       persona: toPersonaDetails(persona, persona.id === user.defaultPersonaId),
     });
-  };
-}
+  });
+};
 
-function createCreateHandler(prisma: PrismaClient) {
-  return async (req: ProvisionedRequest, res: Response) => {
+export const handleCreatePersona = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     // Validate request body with Zod
     const parseResult = PersonaCreateSchema.safeParse(req.body);
     if (!parseResult.success) {
@@ -172,10 +176,10 @@ function createCreateHandler(prisma: PrismaClient) {
       },
       StatusCodes.CREATED
     );
-  };
-}
+  });
+};
 
-function createUpdateHandler(prisma: PrismaClient) {
+const createUpdateHandler = (prisma: PrismaClient) => {
   return async (req: ProvisionedRequest, res: Response) => {
     const id = getParam(req.params.id);
 
@@ -224,9 +228,9 @@ function createUpdateHandler(prisma: PrismaClient) {
       persona: toPersonaDetails(persona, persona.id === user.defaultPersonaId),
     });
   };
-}
+};
 
-function createDeleteHandler(prisma: PrismaClient) {
+const createDeleteHandler = (prisma: PrismaClient) => {
   return async (req: ProvisionedRequest, res: Response) => {
     const id = getParam(req.params.id);
 
@@ -250,7 +254,7 @@ function createDeleteHandler(prisma: PrismaClient) {
 
     sendCustomSuccess(res, { message: 'Persona deleted' });
   };
-}
+};
 
 // --- Main Route Setup ---
 
@@ -259,19 +263,19 @@ export function addCrudRoutes(router: Router, prisma: PrismaClient): void {
     '/',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createListHandler(prisma))
+    handleListPersonas({ prisma })
   );
   router.get(
     '/:id',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createGetHandler(prisma))
+    handleGetPersona({ prisma })
   );
   router.post(
     '/',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createCreateHandler(prisma))
+    handleCreatePersona({ prisma })
   );
   router.put(
     '/:id',
