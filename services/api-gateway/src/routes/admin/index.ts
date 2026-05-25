@@ -84,7 +84,7 @@ export function createAdminRouter(opts: AdminRouterOptions): Router {
 
   // Personality management endpoints
   router.use('/personality', createCreatePersonalityRoute(deps));
-  router.use('/personality', createUpdatePersonalityRoute(prisma, cacheInvalidationService));
+  router.use('/personality', createUpdatePersonalityRoute(deps));
 
   // LLM config management endpoints
   router.use(
@@ -99,7 +99,7 @@ export function createAdminRouter(opts: AdminRouterOptions): Router {
   router.use('/invalidate-cache', createInvalidateCacheRoute(deps));
 
   // Usage statistics endpoint
-  router.use('/usage', createAdminUsageRoutes(prisma));
+  router.use('/usage', createAdminUsageRoutes(deps));
 
   // Bot settings endpoint
   router.use('/settings', createAdminSettingsRoutes(prisma, cascadeInvalidation));
@@ -119,7 +119,7 @@ export function createAdminRouter(opts: AdminRouterOptions): Router {
 
   // Stop sequence activation stats (read from Redis, written by ai-worker)
   if (redis !== undefined) {
-    router.use('/stop-sequences', createStopSequenceRoutes(redis));
+    router.use('/stop-sequences', createStopSequenceRoutes(deps));
   }
 
   return router;

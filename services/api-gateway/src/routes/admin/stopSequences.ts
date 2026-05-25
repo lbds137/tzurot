@@ -6,13 +6,14 @@
  * so bot-client can display them without direct ai-worker access.
  */
 
-import { Router, type Response, type Request } from 'express';
+import { Router, type Response, type Request, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { createLogger } from '@tzurot/common-types';
-import type { Redis } from 'ioredis';
 import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
-import { sendCustomSuccess } from '../../utils/responseHelpers.js';
+import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
+import { ErrorResponses } from '../../utils/errorResponses.js';
+import type { RouteDeps } from '../routeDeps.js';
 
 const logger = createLogger('admin-stop-sequences');
 
@@ -24,47 +25,51 @@ const REDIS_KEYS = {
   STARTED_AT: 'stop_seq:started_at',
 } as const;
 
-export function createStopSequenceRoutes(redis: Redis): Router {
+export const handleGetStopSequencesStats = (deps: RouteDeps): RequestHandler => {
+  const { redis } = deps;
+  if (redis === undefined) {
+    return (_req, res) => {
+      sendError(res, ErrorResponses.serviceUnavailable('Redis not configured'));
+    };
+  }
+  return asyncHandler(async (_req: Request, res: Response) => {
+    const [totalStr, bySequence, byModel, startedAt] = await Promise.all([
+      redis.get(REDIS_KEYS.TOTAL),
+      redis.hgetall(REDIS_KEYS.BY_SEQUENCE),
+      redis.hgetall(REDIS_KEYS.BY_MODEL),
+      redis.get(REDIS_KEYS.STARTED_AT),
+    ]);
+
+    const total = totalStr !== null ? parseInt(totalStr, 10) : 0;
+
+    // Convert hash string values to numbers
+    const bySequenceNums: Record<string, number> = {};
+    for (const [key, val] of Object.entries(bySequence)) {
+      bySequenceNums[key] = parseInt(val, 10);
+    }
+
+    const byModelNums: Record<string, number> = {};
+    for (const [key, val] of Object.entries(byModel)) {
+      byModelNums[key] = parseInt(val, 10);
+    }
+
+    logger.info({ total }, 'Returned stats');
+
+    sendCustomSuccess(
+      res,
+      {
+        totalActivations: total,
+        bySequence: bySequenceNums,
+        byModel: byModelNums,
+        startedAt: startedAt ?? new Date().toISOString(),
+      },
+      StatusCodes.OK
+    );
+  });
+};
+
+export function createStopSequenceRoutes(deps: RouteDeps): Router {
   const router = Router();
-
-  router.get(
-    '/',
-    requireOwnerAuth(),
-    asyncHandler(async (_req: Request, res: Response) => {
-      const [totalStr, bySequence, byModel, startedAt] = await Promise.all([
-        redis.get(REDIS_KEYS.TOTAL),
-        redis.hgetall(REDIS_KEYS.BY_SEQUENCE),
-        redis.hgetall(REDIS_KEYS.BY_MODEL),
-        redis.get(REDIS_KEYS.STARTED_AT),
-      ]);
-
-      const total = totalStr !== null ? parseInt(totalStr, 10) : 0;
-
-      // Convert hash string values to numbers
-      const bySequenceNums: Record<string, number> = {};
-      for (const [key, val] of Object.entries(bySequence)) {
-        bySequenceNums[key] = parseInt(val, 10);
-      }
-
-      const byModelNums: Record<string, number> = {};
-      for (const [key, val] of Object.entries(byModel)) {
-        byModelNums[key] = parseInt(val, 10);
-      }
-
-      logger.info({ total }, 'Returned stats');
-
-      sendCustomSuccess(
-        res,
-        {
-          totalActivations: total,
-          bySequence: bySequenceNums,
-          byModel: byModelNums,
-          startedAt: startedAt ?? new Date().toISOString(),
-        },
-        StatusCodes.OK
-      );
-    })
-  );
-
+  router.get('/', requireOwnerAuth(), handleGetStopSequencesStats(deps));
   return router;
 }

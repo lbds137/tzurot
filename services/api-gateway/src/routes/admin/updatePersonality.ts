@@ -3,15 +3,15 @@
  * Edit an existing AI personality
  */
 
-import { Router, type Request, type Response } from 'express';
+import { Router, type Request, type RequestHandler, type Response } from 'express';
 import {
   createLogger,
   type CacheInvalidationService,
   PersonalityUpdateSchema,
   type PersonalityUpdateInput,
 } from '@tzurot/common-types';
-import { type PrismaClient } from '@tzurot/common-types';
 import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
+import type { RouteDeps } from '../routeDeps.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
@@ -98,98 +98,94 @@ async function invalidateCacheAfterUpdate(
 
 // --- Route Handler ---
 
-export function createUpdatePersonalityRoute(
-  prisma: PrismaClient,
-  cacheInvalidationService?: CacheInvalidationService
-): Router {
+export const handleUpdateGlobalPersonality = (deps: RouteDeps): RequestHandler => {
+  const { prisma, cacheInvalidationService } = deps;
+  return asyncHandler(async (req: Request, res: Response) => {
+    const slug = getParam(req.params.slug);
+    if (slug === undefined) {
+      return sendError(res, ErrorResponses.validationError('slug is required'));
+    }
+
+    // Validate URL param slug format and reserved names
+    const slugValidation = validateSlug(slug);
+    if (!slugValidation.valid) {
+      return sendError(res, slugValidation.error);
+    }
+
+    // Validate request body with Zod schema
+    const parseResult = PersonalityUpdateSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return sendZodError(res, parseResult.error);
+    }
+    const validated = parseResult.data;
+
+    // Check if personality exists and get current visibility state
+    const existing = await prisma.personality.findUnique({
+      where: { slug },
+      select: { id: true, isPublic: true },
+    });
+    if (existing === null) {
+      return sendError(res, ErrorResponses.notFound(`Personality with slug '${slug}'`));
+    }
+
+    // Check slug uniqueness if being changed
+    if (validated.slug !== undefined && validated.slug !== slug) {
+      const conflicting = await prisma.personality.findUnique({
+        where: { slug: validated.slug },
+        select: { id: true },
+      });
+      if (conflicting !== null) {
+        return sendError(
+          res,
+          ErrorResponses.conflict(`A personality with slug '${validated.slug}' already exists`)
+        );
+      }
+    }
+
+    // Process avatar if provided
+    const avatarResult = await processAvatarData(validated.avatarData, slug);
+    if (avatarResult !== null && !avatarResult.ok) {
+      return sendError(res, avatarResult.error);
+    }
+
+    // Build and execute update
+    const updateData = buildUpdateData(
+      validated,
+      avatarResult?.ok === true ? avatarResult.buffer : undefined
+    );
+    const personality = await prisma.personality.update({
+      where: { slug },
+      data: updateData,
+    });
+
+    logger.info({ slug, personalityId: personality.id }, 'Updated personality');
+
+    // Invalidate cache with visibility-aware logic
+    const wasPublic = existing.isPublic;
+    const isNowPublic = validated.isPublic ?? wasPublic;
+    await invalidateCacheAfterUpdate(
+      cacheInvalidationService,
+      personality.id,
+      wasPublic,
+      isNowPublic
+    );
+
+    sendCustomSuccess(res, {
+      success: true,
+      personality: {
+        id: personality.id,
+        name: personality.name,
+        slug: personality.slug,
+        displayName: personality.displayName,
+        hasAvatar: personality.avatarData !== null,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  });
+};
+
+export function createUpdatePersonalityRoute(deps: RouteDeps): Router {
   const router = Router();
-
-  router.patch(
-    '/:slug',
-    requireOwnerAuth(),
-    asyncHandler(async (req: Request, res: Response) => {
-      const slug = getParam(req.params.slug);
-      if (slug === undefined) {
-        return sendError(res, ErrorResponses.validationError('slug is required'));
-      }
-
-      // Validate URL param slug format and reserved names
-      const slugValidation = validateSlug(slug);
-      if (!slugValidation.valid) {
-        return sendError(res, slugValidation.error);
-      }
-
-      // Validate request body with Zod schema
-      const parseResult = PersonalityUpdateSchema.safeParse(req.body);
-      if (!parseResult.success) {
-        return sendZodError(res, parseResult.error);
-      }
-      const validated = parseResult.data;
-
-      // Check if personality exists and get current visibility state
-      const existing = await prisma.personality.findUnique({
-        where: { slug },
-        select: { id: true, isPublic: true },
-      });
-      if (existing === null) {
-        return sendError(res, ErrorResponses.notFound(`Personality with slug '${slug}'`));
-      }
-
-      // Check slug uniqueness if being changed
-      if (validated.slug !== undefined && validated.slug !== slug) {
-        const conflicting = await prisma.personality.findUnique({
-          where: { slug: validated.slug },
-          select: { id: true },
-        });
-        if (conflicting !== null) {
-          return sendError(
-            res,
-            ErrorResponses.conflict(`A personality with slug '${validated.slug}' already exists`)
-          );
-        }
-      }
-
-      // Process avatar if provided
-      const avatarResult = await processAvatarData(validated.avatarData, slug);
-      if (avatarResult !== null && !avatarResult.ok) {
-        return sendError(res, avatarResult.error);
-      }
-
-      // Build and execute update
-      const updateData = buildUpdateData(
-        validated,
-        avatarResult?.ok === true ? avatarResult.buffer : undefined
-      );
-      const personality = await prisma.personality.update({
-        where: { slug },
-        data: updateData,
-      });
-
-      logger.info({ slug, personalityId: personality.id }, 'Updated personality');
-
-      // Invalidate cache with visibility-aware logic
-      const wasPublic = existing.isPublic;
-      const isNowPublic = validated.isPublic ?? wasPublic;
-      await invalidateCacheAfterUpdate(
-        cacheInvalidationService,
-        personality.id,
-        wasPublic,
-        isNowPublic
-      );
-
-      sendCustomSuccess(res, {
-        success: true,
-        personality: {
-          id: personality.id,
-          name: personality.name,
-          slug: personality.slug,
-          displayName: personality.displayName,
-          hasAvatar: personality.avatarData !== null,
-        },
-        timestamp: new Date().toISOString(),
-      });
-    })
-  );
-
+  router.patch('/:slug', requireOwnerAuth(), handleUpdateGlobalPersonality(deps));
   return router;
 }

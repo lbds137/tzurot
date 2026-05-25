@@ -55,7 +55,10 @@ describe('PATCH /admin/personality/:slug', () => {
     // Create Express app with update personality router
     app = express();
     app.use(express.json());
-    app.use('/admin/personality', createUpdatePersonalityRoute(prisma as unknown as PrismaClient));
+    app.use(
+      '/admin/personality',
+      createUpdatePersonalityRoute({ prisma: prisma as unknown as PrismaClient })
+    );
   });
 
   describe('successful updates', () => {
@@ -446,7 +449,10 @@ describe('PATCH /admin/personality/:slug', () => {
       appWithCache.use(express.json());
       appWithCache.use(
         '/admin/personality',
-        createUpdatePersonalityRoute(prisma as unknown as PrismaClient, mockCacheService)
+        createUpdatePersonalityRoute({
+          prisma: prisma as unknown as PrismaClient,
+          cacheInvalidationService: mockCacheService,
+        })
       );
     });
 

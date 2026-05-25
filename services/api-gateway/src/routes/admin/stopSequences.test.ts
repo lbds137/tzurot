@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import type { Redis } from 'ioredis';
+import type { PrismaClient } from '@tzurot/common-types';
 import { createStopSequenceRoutes } from './stopSequences.js';
 import { getAllRoutes } from '../../test/expressRouterUtils.js';
 
@@ -57,14 +58,22 @@ function createMockRedis(
 
 function createApp(redis: Redis) {
   const app = express();
-  app.use('/admin/stop-sequences', createStopSequenceRoutes(redis));
+  app.use(
+    '/admin/stop-sequences',
+    createStopSequenceRoutes({ prisma: {} as unknown as PrismaClient, redis })
+  );
   return app;
 }
 
 describe('Admin Stop Sequence Routes', () => {
   describe('middleware composition', () => {
     it('wires requireOwnerAuth on every route', () => {
-      const routes = getAllRoutes(createStopSequenceRoutes({} as unknown as Redis));
+      const routes = getAllRoutes(
+        createStopSequenceRoutes({
+          prisma: {} as unknown as PrismaClient,
+          redis: {} as unknown as Redis,
+        })
+      );
       expect(routes.length, 'expected at least one registered route').toBeGreaterThan(0);
       for (const route of routes) {
         expect(route.stackLength, `${route.path} missing auth middleware`).toBeGreaterThanOrEqual(
