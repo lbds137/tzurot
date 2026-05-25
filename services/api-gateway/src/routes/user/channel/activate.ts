@@ -10,7 +10,6 @@ import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
-  type PrismaClient,
   generateChannelSettingsUuid,
   ActivateChannelRequestSchema,
   ActivateChannelResponseSchema,
@@ -23,6 +22,7 @@ import { sendZodError } from '../../../utils/zodHelpers.js';
 import type { ProvisionedRequest } from '../../../types.js';
 import { getOrCreateInternalUser } from '../userHelpers.js';
 import { canUserViewPersonality } from '../personality/helpers.js';
+import type { RouteDeps } from '../../routeDeps.js';
 
 const logger = createLogger('channel-activate');
 
@@ -82,11 +82,11 @@ function buildActivationResponse(
 }
 
 /**
- * Create handler for POST /user/channel/activate
- * Activates a personality in a channel. Replaces any existing activation.
+ * POST /api/user/channel/activate — activate personality in a channel.
  */
-export function createActivateHandler(prisma: PrismaClient): RequestHandler[] {
-  const handler = asyncHandler(async (req: ProvisionedRequest, res: Response) => {
+export const handleActivateChannel = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
 
     // Validate request body
@@ -164,6 +164,8 @@ export function createActivateHandler(prisma: PrismaClient): RequestHandler[] {
 
     sendCustomSuccess(res, buildActivationResponse(settings, wasReplaced), StatusCodes.CREATED);
   });
+};
 
-  return [requireUserAuth(), requireProvisionedUser(prisma), handler];
+export function createActivateHandler(deps: RouteDeps): RequestHandler[] {
+  return [requireUserAuth(), requireProvisionedUser(deps.prisma), handleActivateChannel(deps)];
 }

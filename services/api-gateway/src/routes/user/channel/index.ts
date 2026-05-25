@@ -14,10 +14,7 @@
  */
 
 import { Router } from 'express';
-import {
-  type PrismaClient,
-  type ConfigCascadeCacheInvalidationService,
-} from '@tzurot/common-types';
+import type { RouteDeps } from '../../routeDeps.js';
 import { createActivateHandler } from './activate.js';
 import { createDeactivateHandler } from './deactivate.js';
 import { createGetHandler } from './get.js';
@@ -31,41 +28,30 @@ import {
 
 /**
  * Create channel activation router with injected dependencies
- * @param prisma - Database client
- * @param cascadeInvalidation - Config cascade cache invalidation service (optional)
  */
-export function createChannelRoutes(
-  prisma: PrismaClient,
-  cascadeInvalidation?: ConfigCascadeCacheInvalidationService
-): Router {
+export function createChannelRoutes(deps: RouteDeps): Router {
   const router = Router();
 
   // List activations - GET /list (must come before /:channelId)
-  router.get('/list', ...createListHandler(prisma));
+  router.get('/list', ...createListHandler(deps));
 
   // Activate personality - POST /activate
-  router.post('/activate', ...createActivateHandler(prisma));
+  router.post('/activate', ...createActivateHandler(deps));
 
   // Deactivate personality - DELETE /deactivate
-  router.delete('/deactivate', ...createDeactivateHandler(prisma));
+  router.delete('/deactivate', ...createDeactivateHandler(deps));
 
   // Update guildId - PATCH /update-guild (for lazy backfill)
-  router.patch('/update-guild', ...createUpdateGuildHandler(prisma));
+  router.patch('/update-guild', ...createUpdateGuildHandler(deps));
 
   // Channel config overrides
   const configOverridesPath = '/:channelId/config-overrides';
-  router.get(configOverridesPath, ...createGetConfigOverridesHandler(prisma));
-  router.patch(
-    configOverridesPath,
-    ...createPatchConfigOverridesHandler(prisma, cascadeInvalidation)
-  );
-  router.delete(
-    configOverridesPath,
-    ...createDeleteConfigOverridesHandler(prisma, cascadeInvalidation)
-  );
+  router.get(configOverridesPath, ...createGetConfigOverridesHandler(deps));
+  router.patch(configOverridesPath, ...createPatchConfigOverridesHandler(deps));
+  router.delete(configOverridesPath, ...createDeleteConfigOverridesHandler(deps));
 
   // Get settings - GET /:channelId
-  router.get('/:channelId', ...createGetHandler(prisma));
+  router.get('/:channelId', ...createGetHandler(deps));
 
   return router;
 }

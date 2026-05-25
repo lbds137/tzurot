@@ -12,7 +12,7 @@
  */
 
 import { Router } from 'express';
-import { type PrismaClient, type CacheInvalidationService } from '@tzurot/common-types';
+import type { RouteDeps } from '../../routeDeps.js';
 import { createListHandler } from './list.js';
 import { createGetHandler } from './get.js';
 import { createCreateHandler } from './create.js';
@@ -22,34 +22,16 @@ import { createDeleteHandler } from './delete.js';
 
 /**
  * Create personality router with injected dependencies
- * @param prisma - Database client
- * @param cacheInvalidationService - Service for invalidating personality caches across all services
  */
-export function createPersonalityRoutes(
-  prisma: PrismaClient,
-  cacheInvalidationService?: CacheInvalidationService
-): Router {
+export function createPersonalityRoutes(deps: RouteDeps): Router {
   const router = Router();
 
-  // List personalities - GET /
-  router.get('/', ...createListHandler(prisma));
-
-  // Get single personality - GET /:slug
-  router.get('/:slug', ...createGetHandler(prisma));
-
-  // Create personality - POST /
-  router.post('/', ...createCreateHandler(prisma));
-
-  // Update personality - PUT /:slug
-  router.put('/:slug', ...createUpdateHandler(prisma, cacheInvalidationService));
-
-  // Toggle visibility - PATCH /:slug/visibility
-  router.patch('/:slug/visibility', ...createVisibilityHandler(prisma));
-
-  // Delete personality - DELETE /:slug
-  router.delete('/:slug', ...createDeleteHandler(prisma, cacheInvalidationService));
+  router.get('/', ...createListHandler(deps));
+  router.get('/:slug', ...createGetHandler(deps));
+  router.post('/', ...createCreateHandler(deps));
+  router.put('/:slug', ...createUpdateHandler(deps));
+  router.patch('/:slug/visibility', ...createVisibilityHandler(deps));
+  router.delete('/:slug', ...createDeleteHandler(deps));
 
   return router;
 }
-
-// Re-export helpers for use by other modules if needed

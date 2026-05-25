@@ -140,7 +140,7 @@ export function createUserRouter(opts: UserRouterOptions): Router {
   router.use('/usage', createUsageRoutes(deps));
 
   // Personality routes (with cache invalidation for avatar changes)
-  router.use('/personality', createPersonalityRoutes(prisma, cacheInvalidationService));
+  router.use('/personality', createPersonalityRoutes(deps));
 
   // LLM config routes (with cache invalidation for user config changes)
   router.use('/llm-config', createLlmConfigRoutes(deps));
@@ -167,7 +167,7 @@ export function createUserRouter(opts: UserRouterOptions): Router {
   router.use('/history', createHistoryRoutes(deps));
 
   // Channel activation routes (auto-respond to all messages in a channel)
-  router.use('/channel', createChannelRoutes(prisma, cascadeInvalidation));
+  router.use('/channel', createChannelRoutes(deps));
 
   // Memory routes (LTM management - stats, focus mode, search, browse, incognito)
   router.use('/memory', createMemoryRoutes(prisma, redis));

@@ -8,25 +8,22 @@
 
 import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import {
-  createLogger,
-  type PrismaClient,
-  ListChannelSettingsResponseSchema,
-} from '@tzurot/common-types';
+import { createLogger, ListChannelSettingsResponseSchema } from '@tzurot/common-types';
 import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 import type { AuthenticatedRequest } from '../../../types.js';
+import type { RouteDeps } from '../../routeDeps.js';
 
 const logger = createLogger('channel-list');
 
 /**
- * Create handler for GET /user/channel/list
- * Returns all channel settings with activated personalities, optionally filtered by guildId.
+ * GET /api/user/channel/list — all channel settings with activated personalities.
  */
-export function createListHandler(prisma: PrismaClient): RequestHandler[] {
-  const handler = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+export const handleListChannelSettings = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
 
     // Optional guildId filter from query params
@@ -94,6 +91,8 @@ export function createListHandler(prisma: PrismaClient): RequestHandler[] {
 
     sendCustomSuccess(res, response, StatusCodes.OK);
   });
+};
 
-  return [requireUserAuth(), requireProvisionedUser(prisma), handler];
+export function createListHandler(deps: RouteDeps): RequestHandler[] {
+  return [requireUserAuth(), requireProvisionedUser(deps.prisma), handleListChannelSettings(deps)];
 }

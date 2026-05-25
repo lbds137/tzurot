@@ -89,7 +89,7 @@ describe('PUT /user/personality/:slug (update)', () => {
   it('should return 404 when personality not found', async () => {
     mockPrisma.personality.findUnique.mockResolvedValue(null);
 
-    const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+    const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
     const handler = getHandler(router, 'put', '/:slug');
     const { req, res } = createMockReqRes({ name: 'Updated' }, { slug: 'nonexistent' });
 
@@ -104,7 +104,7 @@ describe('PUT /user/personality/:slug (update)', () => {
       ownerId: 'other-user',
     });
 
-    const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+    const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
     const handler = getHandler(router, 'put', '/:slug');
     const { req, res } = createMockReqRes({ name: 'Updated' }, { slug: 'not-mine' });
 
@@ -129,7 +129,7 @@ describe('PUT /user/personality/:slug (update)', () => {
       })
     );
 
-    const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+    const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
     const handler = getHandler(router, 'put', '/:slug');
     const { req, res } = createMockReqRes(
       { name: 'Updated Name', displayName: 'Updated Display' },
@@ -183,7 +183,7 @@ describe('PUT /user/personality/:slug (update)', () => {
       })
     );
 
-    const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+    const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
     const handler = getHandler(router, 'put', '/:slug');
     const { req, res } = createMockReqRes({ name: 'Updated' }, { slug: 'shared-char' });
 
@@ -213,7 +213,7 @@ describe('PUT /user/personality/:slug (update)', () => {
         })
       );
 
-      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'put', '/:slug');
       const { req, res } = createMockReqRes(
         { avatarData: 'data:image/png;base64,iVBORw0KGgo=' }, // Only avatar, no displayName
@@ -243,7 +243,7 @@ describe('PUT /user/personality/:slug (update)', () => {
         })
       );
 
-      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'put', '/:slug');
       const { req, res } = createMockReqRes(
         { name: 'NewName' }, // Only name, no displayName
@@ -274,7 +274,7 @@ describe('PUT /user/personality/:slug (update)', () => {
         })
       );
 
-      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'put', '/:slug');
       const { req, res } = createMockReqRes(
         { displayName: 'Custom Display Name' },
@@ -303,7 +303,7 @@ describe('PUT /user/personality/:slug (update)', () => {
         })
       );
 
-      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'put', '/:slug');
       const { req, res } = createMockReqRes(
         { displayName: '' }, // Explicitly empty
@@ -354,7 +354,7 @@ describe('PUT /user/personality/:slug (update)', () => {
       );
       mockUnlink.mockResolvedValue(undefined);
 
-      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'put', '/:slug');
       const { req, res } = createMockReqRes(
         { name: 'Updated', avatarData: 'data:image/png;base64,iVBORw0KGgo=' },
@@ -376,7 +376,7 @@ describe('PUT /user/personality/:slug (update)', () => {
         throw enoentError;
       });
 
-      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'put', '/:slug');
       const { req, res } = createMockReqRes(
         { name: 'Updated', avatarData: 'data:image/png;base64,iVBORw0KGgo=' },
@@ -396,7 +396,7 @@ describe('PUT /user/personality/:slug (update)', () => {
       enoentError.code = 'ENOENT';
       mockUnlink.mockRejectedValue(enoentError);
 
-      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'put', '/:slug');
       const { req, res } = createMockReqRes(
         { name: 'Updated', avatarData: 'data:image/png;base64,iVBORw0KGgo=' },
@@ -417,7 +417,7 @@ describe('PUT /user/personality/:slug (update)', () => {
         throw permError;
       });
 
-      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'put', '/:slug');
       const { req, res } = createMockReqRes(
         { name: 'Updated', avatarData: 'data:image/png;base64,iVBORw0KGgo=' },
@@ -440,7 +440,7 @@ describe('PUT /user/personality/:slug (update)', () => {
         avatarData: null,
       });
 
-      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'put', '/:slug');
       const { req, res } = createMockReqRes(
         { name: 'Updated', avatarData: 'data:image/png;base64,iVBORw0KGgo=' },
@@ -480,10 +480,10 @@ describe('PUT /user/personality/:slug (update)', () => {
         invalidatePersonality: vi.fn().mockResolvedValue(undefined),
       } as unknown as import('@tzurot/common-types').CacheInvalidationService;
 
-      const router = createPersonalityRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockCacheInvalidationService
-      );
+      const router = createPersonalityRoutes({
+        prisma: mockPrisma as unknown as PrismaClient,
+        cacheInvalidationService: mockCacheInvalidationService,
+      });
       const handler = getHandler(router, 'put', '/:slug');
       const { req, res } = createMockReqRes(
         { avatarData: 'data:image/png;base64,iVBORw0KGgo=' },
@@ -503,10 +503,10 @@ describe('PUT /user/personality/:slug (update)', () => {
         invalidatePersonality: vi.fn().mockRejectedValue(new Error('Cache service unavailable')),
       } as unknown as import('@tzurot/common-types').CacheInvalidationService;
 
-      const router = createPersonalityRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockCacheInvalidationService
-      );
+      const router = createPersonalityRoutes({
+        prisma: mockPrisma as unknown as PrismaClient,
+        cacheInvalidationService: mockCacheInvalidationService,
+      });
       const handler = getHandler(router, 'put', '/:slug');
       const { req, res } = createMockReqRes(
         { avatarData: 'data:image/png;base64,iVBORw0KGgo=' },
@@ -525,10 +525,10 @@ describe('PUT /user/personality/:slug (update)', () => {
         invalidatePersonality: vi.fn().mockResolvedValue(undefined),
       } as unknown as import('@tzurot/common-types').CacheInvalidationService;
 
-      const router = createPersonalityRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockCacheInvalidationService
-      );
+      const router = createPersonalityRoutes({
+        prisma: mockPrisma as unknown as PrismaClient,
+        cacheInvalidationService: mockCacheInvalidationService,
+      });
       const handler = getHandler(router, 'put', '/:slug');
       const { req, res } = createMockReqRes(
         { name: 'Updated Name' }, // No avatar update
@@ -561,7 +561,7 @@ describe('PUT /user/personality/:slug (update)', () => {
     });
 
     it('should return error for invalid voice reference data URI', async () => {
-      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'put', '/:slug');
       const { req, res } = createMockReqRes(
         { voiceReferenceData: 'not-a-data-uri' },
@@ -575,7 +575,7 @@ describe('PUT /user/personality/:slug (update)', () => {
     });
 
     it('should return error for unsupported voice reference MIME type', async () => {
-      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'put', '/:slug');
       const { req, res } = createMockReqRes(
         { voiceReferenceData: 'data:image/png;base64,iVBORw0KGgo=' },
@@ -599,7 +599,7 @@ describe('PUT /user/personality/:slug (update)', () => {
         })
       );
 
-      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'put', '/:slug');
       const { req, res } = createMockReqRes({ voiceReferenceData: null }, { slug: 'test-char' });
 
@@ -633,7 +633,7 @@ describe('PUT /user/personality/:slug (update)', () => {
         })
       );
 
-      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'put', '/:slug');
       const { req, res } = createMockReqRes(
         { name: 'Updated' }, // No voiceReferenceData field
@@ -668,7 +668,7 @@ describe('PUT /user/personality/:slug (update)', () => {
       const base64 = audioBytes.toString('base64');
       const dataUri = `data:audio/wav;base64,${base64}`;
 
-      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'put', '/:slug');
       const { req, res } = createMockReqRes({ voiceReferenceData: dataUri }, { slug: 'test-char' });
 
@@ -706,7 +706,7 @@ describe('PUT /user/personality/:slug (update)', () => {
     it('should reject slug update from non-admin user', async () => {
       mockIsBotOwner.mockReturnValue(false);
 
-      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'put', '/:slug');
       const { req, res } = createMockReqRes(
         { slug: 'new-slug' }, // Attempting to change slug
@@ -745,7 +745,7 @@ describe('PUT /user/personality/:slug (update)', () => {
         })
       );
 
-      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'put', '/:slug');
       const { req, res } = createMockReqRes({ slug: 'new-slug' }, { slug: 'old-slug' });
 
@@ -796,10 +796,10 @@ describe('PUT /user/personality/:slug (update)', () => {
         invalidatePersonality: vi.fn().mockResolvedValue(undefined),
       } as unknown as import('@tzurot/common-types').CacheInvalidationService;
 
-      const router = createPersonalityRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockCacheInvalidationService
-      );
+      const router = createPersonalityRoutes({
+        prisma: mockPrisma as unknown as PrismaClient,
+        cacheInvalidationService: mockCacheInvalidationService,
+      });
       const handler = getHandler(router, 'put', '/:slug');
       const { req, res } = createMockReqRes({ slug: 'new-slug' }, { slug: 'old-slug' });
 
@@ -819,7 +819,7 @@ describe('PUT /user/personality/:slug (update)', () => {
     it('should reject invalid slug format', async () => {
       mockIsBotOwner.mockReturnValue(true);
 
-      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'put', '/:slug');
       const { req, res } = createMockReqRes(
         { slug: 'Invalid Slug With Spaces!' }, // Invalid format
@@ -849,7 +849,7 @@ describe('PUT /user/personality/:slug (update)', () => {
         })
         .mockResolvedValueOnce({ id: 'other-personality' }); // Another personality has this slug
 
-      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'put', '/:slug');
       const { req, res } = createMockReqRes({ slug: 'taken-slug' }, { slug: 'old-slug' });
 
@@ -876,7 +876,7 @@ describe('PUT /user/personality/:slug (update)', () => {
         })
       );
 
-      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'put', '/:slug');
       const { req, res } = createMockReqRes(
         { name: 'Updated Name', slug: 'same-slug' }, // Same slug as URL param
@@ -892,7 +892,7 @@ describe('PUT /user/personality/:slug (update)', () => {
     it('should reject reserved slug names', async () => {
       mockIsBotOwner.mockReturnValue(true);
 
-      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'put', '/:slug');
       const { req, res } = createMockReqRes(
         { slug: 'admin' }, // Reserved slug

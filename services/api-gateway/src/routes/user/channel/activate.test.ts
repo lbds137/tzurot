@@ -73,7 +73,7 @@ describe('POST /user/channel/activate', () => {
     mockPrisma.personality.findUnique.mockResolvedValue(personality);
     mockPrisma.channelSettings.upsert.mockResolvedValue(createdSettings);
 
-    const router = createChannelRoutes(mockPrisma as unknown as PrismaClient);
+    const router = createChannelRoutes({ prisma: mockPrisma as unknown as PrismaClient });
     const handler = getHandler(router, 'post', '/activate');
     const { req, res } = createMockReqRes({
       channelId: MOCK_DISCORD_USER_ID,
@@ -108,7 +108,7 @@ describe('POST /user/channel/activate', () => {
     mockPrisma.channelSettings.findUnique.mockResolvedValue(existingSettings);
     mockPrisma.channelSettings.upsert.mockResolvedValue(updatedSettings);
 
-    const router = createChannelRoutes(mockPrisma as unknown as PrismaClient);
+    const router = createChannelRoutes({ prisma: mockPrisma as unknown as PrismaClient });
     const handler = getHandler(router, 'post', '/activate');
     const { req, res } = createMockReqRes({
       channelId: MOCK_DISCORD_USER_ID,
@@ -130,7 +130,7 @@ describe('POST /user/channel/activate', () => {
   });
 
   it('should reject invalid request body', async () => {
-    const router = createChannelRoutes(mockPrisma as unknown as PrismaClient);
+    const router = createChannelRoutes({ prisma: mockPrisma as unknown as PrismaClient });
     const handler = getHandler(router, 'post', '/activate');
     const { req, res } = createMockReqRes({
       channelId: '', // Invalid - empty string
@@ -151,7 +151,7 @@ describe('POST /user/channel/activate', () => {
   it('should return 404 for non-existent personality', async () => {
     mockPrisma.personality.findUnique.mockResolvedValue(null);
 
-    const router = createChannelRoutes(mockPrisma as unknown as PrismaClient);
+    const router = createChannelRoutes({ prisma: mockPrisma as unknown as PrismaClient });
     const handler = getHandler(router, 'post', '/activate');
     const { req, res } = createMockReqRes({
       channelId: MOCK_DISCORD_USER_ID,
@@ -179,7 +179,7 @@ describe('POST /user/channel/activate', () => {
 
     mockPrisma.personality.findUnique.mockResolvedValue(privatePersonality);
 
-    const router = createChannelRoutes(mockPrisma as unknown as PrismaClient);
+    const router = createChannelRoutes({ prisma: mockPrisma as unknown as PrismaClient });
     const handler = getHandler(router, 'post', '/activate');
     const { req, res } = createMockReqRes({
       channelId: MOCK_DISCORD_USER_ID,
@@ -210,7 +210,7 @@ describe('POST /user/channel/activate', () => {
     mockPrisma.personality.findUnique.mockResolvedValue(privatePersonality);
     mockPrisma.channelSettings.upsert.mockResolvedValue(settings);
 
-    const router = createChannelRoutes(mockPrisma as unknown as PrismaClient);
+    const router = createChannelRoutes({ prisma: mockPrisma as unknown as PrismaClient });
     const handler = getHandler(router, 'post', '/activate');
     const { req, res } = createMockReqRes({
       channelId: MOCK_DISCORD_USER_ID,
@@ -233,7 +233,7 @@ describe('POST /user/channel/activate', () => {
     mockPrisma.personality.findUnique.mockResolvedValue(ownedPersonality);
     mockPrisma.channelSettings.upsert.mockResolvedValue(settings);
 
-    const router = createChannelRoutes(mockPrisma as unknown as PrismaClient);
+    const router = createChannelRoutes({ prisma: mockPrisma as unknown as PrismaClient });
     const handler = getHandler(router, 'post', '/activate');
     const { req, res } = createMockReqRes({
       channelId: MOCK_DISCORD_USER_ID,

@@ -5,7 +5,7 @@
 
 import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, type PrismaClient, SetVisibilitySchema } from '@tzurot/common-types';
+import { createLogger, SetVisibilitySchema } from '@tzurot/common-types';
 import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
@@ -14,15 +14,16 @@ import { sendZodError } from '../../../utils/zodHelpers.js';
 import type { ProvisionedRequest } from '../../../types.js';
 import { getParam } from '../../../utils/requestParams.js';
 import { resolvePersonalityForEdit } from './helpers.js';
+import type { RouteDeps } from '../../routeDeps.js';
 
 const logger = createLogger('user-personality-visibility');
 
 /**
- * Create handler for PATCH /user/personality/:slug/visibility
- * Toggle visibility of an owned personality
+ * PATCH /api/user/personality/:slug/visibility — toggle visibility.
  */
-export function createVisibilityHandler(prisma: PrismaClient): RequestHandler[] {
-  const handler = asyncHandler(async (req: ProvisionedRequest, res: Response) => {
+export const handleSetPersonalityVisibility = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
     const slug = getParam(req.params.slug);
     if (slug === undefined || slug === '') {
@@ -80,6 +81,12 @@ export function createVisibilityHandler(prisma: PrismaClient): RequestHandler[] 
       StatusCodes.OK
     );
   });
+};
 
-  return [requireUserAuth(), requireProvisionedUser(prisma), handler];
+export function createVisibilityHandler(deps: RouteDeps): RequestHandler[] {
+  return [
+    requireUserAuth(),
+    requireProvisionedUser(deps.prisma),
+    handleSetPersonalityVisibility(deps),
+  ];
 }

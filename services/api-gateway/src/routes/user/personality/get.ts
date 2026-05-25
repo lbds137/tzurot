@@ -20,6 +20,7 @@ import type { ProvisionedRequest } from '../../../types.js';
 import { getParam } from '../../../utils/requestParams.js';
 import { canUserEditPersonality } from './helpers.js';
 import { formatPersonalityResponse } from './formatters.js';
+import type { RouteDeps } from '../../routeDeps.js';
 
 const logger = createLogger('user-personality-get');
 
@@ -91,8 +92,11 @@ function createHandler(prisma: PrismaClient) {
   };
 }
 
-// --- Route Factory ---
+// --- Handler factory + route chain ---
 
-export function createGetHandler(prisma: PrismaClient): RequestHandler[] {
-  return [requireUserAuth(), requireProvisionedUser(prisma), asyncHandler(createHandler(prisma))];
+export const handleGetUserPersonality = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(createHandler(deps.prisma));
+
+export function createGetHandler(deps: RouteDeps): RequestHandler[] {
+  return [requireUserAuth(), requireProvisionedUser(deps.prisma), handleGetUserPersonality(deps)];
 }

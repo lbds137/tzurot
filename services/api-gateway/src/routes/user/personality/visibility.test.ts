@@ -47,7 +47,7 @@ describe('PATCH /user/personality/:slug/visibility', () => {
   });
 
   it('should reject missing isPublic', async () => {
-    const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+    const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
     const handler = getHandler(router, 'patch', '/:slug/visibility');
     const { req, res } = createMockReqRes({}, { slug: 'test-char' });
 
@@ -59,7 +59,7 @@ describe('PATCH /user/personality/:slug/visibility', () => {
   it('should return 404 when personality not found', async () => {
     mockPrisma.personality.findUnique.mockResolvedValue(null);
 
-    const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+    const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
     const handler = getHandler(router, 'patch', '/:slug/visibility');
     const { req, res } = createMockReqRes({ isPublic: true }, { slug: 'nonexistent' });
 
@@ -75,7 +75,7 @@ describe('PATCH /user/personality/:slug/visibility', () => {
       isPublic: false,
     });
 
-    const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+    const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
     const handler = getHandler(router, 'patch', '/:slug/visibility');
     const { req, res } = createMockReqRes({ isPublic: true }, { slug: 'not-mine' });
 
@@ -96,7 +96,7 @@ describe('PATCH /user/personality/:slug/visibility', () => {
       isPublic: true,
     });
 
-    const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+    const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
     const handler = getHandler(router, 'patch', '/:slug/visibility');
     const { req, res } = createMockReqRes({ isPublic: true }, { slug: 'my-char' });
 
@@ -130,7 +130,7 @@ describe('PATCH /user/personality/:slug/visibility', () => {
       isPublic: false,
     });
 
-    const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+    const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
     const handler = getHandler(router, 'patch', '/:slug/visibility');
     const { req, res } = createMockReqRes({ isPublic: false }, { slug: 'my-char' });
 
