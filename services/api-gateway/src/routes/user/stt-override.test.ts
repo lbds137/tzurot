@@ -90,7 +90,10 @@ const mockPrisma = {
 const mockCache = { invalidateUserStt: vi.fn().mockResolvedValue(undefined) };
 
 function buildRouter() {
-  return createSttOverrideRoutes(mockPrisma as never, mockCache as never);
+  return createSttOverrideRoutes({
+    prisma: mockPrisma as never,
+    sttResolverCacheInvalidation: mockCache as never,
+  });
 }
 
 describe('user/stt-override routes', () => {

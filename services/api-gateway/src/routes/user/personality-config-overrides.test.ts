@@ -121,7 +121,9 @@ describe('/user/config-overrides personality routes', () => {
 
   describe('route factory', () => {
     it('should create a router with personality routes', () => {
-      const router = createPersonalityConfigOverrideRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonalityConfigOverrideRoutes({
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
 
       expect(router).toBeDefined();
       expect(findRoute(router, 'get', '/resolve-personality/:personalityId')).toBeDefined();
@@ -131,7 +133,9 @@ describe('/user/config-overrides personality routes', () => {
 
   describe('GET /resolve-personality/:personalityId', () => {
     it('should return resolved 3-tier cascade', async () => {
-      const router = createPersonalityConfigOverrideRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonalityConfigOverrideRoutes({
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
       const handler = getHandler(router, 'get', '/resolve-personality/:personalityId');
       const { req, res } = createMockReqRes({}, { personalityId: TEST_PERSONALITY_ID });
 
@@ -142,7 +146,9 @@ describe('/user/config-overrides personality routes', () => {
     });
 
     it('should reject non-UUID personalityId', async () => {
-      const router = createPersonalityConfigOverrideRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonalityConfigOverrideRoutes({
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
       const handler = getHandler(router, 'get', '/resolve-personality/:personalityId');
       const { req, res } = createMockReqRes({}, { personalityId: 'not-a-uuid' });
 
@@ -155,7 +161,9 @@ describe('/user/config-overrides personality routes', () => {
 
   describe('PATCH /personality/:personalityId', () => {
     it('should reject non-UUID personalityId', async () => {
-      const router = createPersonalityConfigOverrideRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonalityConfigOverrideRoutes({
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
       const handler = getHandler(router, 'patch', '/personality/:personalityId');
       const { req, res } = createMockReqRes({ maxMessages: 25 }, { personalityId: 'not-a-uuid' });
 
@@ -165,7 +173,9 @@ describe('/user/config-overrides personality routes', () => {
     });
 
     it('should return 404 when personality not found', async () => {
-      const router = createPersonalityConfigOverrideRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonalityConfigOverrideRoutes({
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
       const handler = getHandler(router, 'patch', '/personality/:personalityId');
       const { req, res } = createMockReqRes(
         { maxMessages: 25 },
@@ -183,7 +193,9 @@ describe('/user/config-overrides personality routes', () => {
         configDefaults: null,
       });
 
-      const router = createPersonalityConfigOverrideRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonalityConfigOverrideRoutes({
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
       const handler = getHandler(router, 'patch', '/personality/:personalityId');
       const { req, res } = createMockReqRes(
         { maxMessages: 25 },
@@ -201,7 +213,9 @@ describe('/user/config-overrides personality routes', () => {
         configDefaults: null,
       });
 
-      const router = createPersonalityConfigOverrideRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonalityConfigOverrideRoutes({
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
       const handler = getHandler(router, 'patch', '/personality/:personalityId');
       const { req, res } = createMockReqRes(
         { maxMessages: 25 },
@@ -229,7 +243,9 @@ describe('/user/config-overrides personality routes', () => {
         configDefaults: { maxImages: 5 },
       });
 
-      const router = createPersonalityConfigOverrideRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonalityConfigOverrideRoutes({
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
       const handler = getHandler(router, 'patch', '/personality/:personalityId');
       const { req, res } = createMockReqRes(
         { maxMessages: 25 },
@@ -256,10 +272,12 @@ describe('/user/config-overrides personality routes', () => {
         invalidatePersonality: vi.fn().mockResolvedValue(undefined),
       };
 
-      const router = createPersonalityConfigOverrideRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockInvalidation as unknown as Parameters<typeof createPersonalityConfigOverrideRoutes>[1]
-      );
+      const router = createPersonalityConfigOverrideRoutes({
+        prisma: mockPrisma as unknown as PrismaClient,
+        cascadeInvalidation: mockInvalidation as unknown as NonNullable<
+          Parameters<typeof createPersonalityConfigOverrideRoutes>[0]['cascadeInvalidation']
+        >,
+      });
       const handler = getHandler(router, 'patch', '/personality/:personalityId');
       const { req, res } = createMockReqRes(
         { maxMessages: 25 },
@@ -281,10 +299,12 @@ describe('/user/config-overrides personality routes', () => {
         invalidatePersonality: vi.fn().mockRejectedValue(new Error('Redis connection lost')),
       };
 
-      const router = createPersonalityConfigOverrideRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockInvalidation as unknown as Parameters<typeof createPersonalityConfigOverrideRoutes>[1]
-      );
+      const router = createPersonalityConfigOverrideRoutes({
+        prisma: mockPrisma as unknown as PrismaClient,
+        cascadeInvalidation: mockInvalidation as unknown as NonNullable<
+          Parameters<typeof createPersonalityConfigOverrideRoutes>[0]['cascadeInvalidation']
+        >,
+      });
       const handler = getHandler(router, 'patch', '/personality/:personalityId');
       const { req, res } = createMockReqRes(
         { maxMessages: 25 },
@@ -304,7 +324,9 @@ describe('/user/config-overrides personality routes', () => {
         configDefaults: null,
       });
 
-      const router = createPersonalityConfigOverrideRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createPersonalityConfigOverrideRoutes({
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
       const handler = getHandler(router, 'patch', '/personality/:personalityId');
       const { req, res } = createMockReqRes(
         { maxMessages: -5 },

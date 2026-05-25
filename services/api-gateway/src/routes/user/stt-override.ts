@@ -13,12 +13,10 @@
  *   DELETE /user/stt-override — clear
  */
 
-import { Router, type Response } from 'express';
+import { Router, type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
-  type PrismaClient,
-  type SttResolverCacheInvalidationService,
   type UserDefaultSttProvider,
   SetSttDefaultProviderSchema,
   isSttProvider,
@@ -31,113 +29,118 @@ import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import type { ProvisionedRequest } from '../../types.js';
+import type { RouteDeps } from '../routeDeps.js';
 
 const logger = createLogger('user-stt-override');
 
-export function createSttOverrideRoutes(
-  prisma: PrismaClient,
-  sttCacheInvalidation?: SttResolverCacheInvalidationService
-): Router {
+/** GET /api/user/stt-override — read user's STT preference */
+export const handleGetSttOverride = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
+    const discordUserId = req.userId;
+    const userId = resolveProvisionedUserId(req);
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { defaultSttProviderId: true },
+    });
+
+    // Defensive narrowing: DB column has no CHECK constraint, so legacy
+    // rows or out-of-band SQL inserts could carry an unrecognized provider
+    // string. Mirror SttResolver.narrow() — surface unknown values as null.
+    const raw = user?.defaultSttProviderId ?? null;
+    const result: UserDefaultSttProvider = {
+      providerId: raw !== null && isSttProvider(raw) ? raw : null,
+    };
+
+    logger.info({ discordUserId, providerId: result.providerId }, 'Got STT preference');
+    sendCustomSuccess(res, { default: result }, StatusCodes.OK);
+  });
+};
+
+/** PUT /api/user/stt-override — set the user's STT preference */
+export const handleSetSttOverride = (deps: RouteDeps): RequestHandler => {
+  const { prisma, sttResolverCacheInvalidation } = deps;
+  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
+    const discordUserId = req.userId;
+
+    const parseResult = SetSttDefaultProviderSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return sendZodError(res, parseResult.error);
+    }
+    const { providerId } = parseResult.data;
+    const userId = resolveProvisionedUserId(req);
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: { defaultSttProviderId: providerId },
+    });
+
+    const result: UserDefaultSttProvider = { providerId };
+
+    logger.info({ discordUserId, providerId }, 'Set STT preference');
+
+    await tryInvalidateCache(
+      sttResolverCacheInvalidation?.invalidateUserStt.bind(
+        sttResolverCacheInvalidation,
+        discordUserId
+      ),
+      { discordUserId }
+    );
+
+    sendCustomSuccess(res, { default: result }, StatusCodes.OK);
+  });
+};
+
+/** DELETE /api/user/stt-override — clear the user's STT preference */
+export const handleClearSttOverride = (deps: RouteDeps): RequestHandler => {
+  const { prisma, sttResolverCacheInvalidation } = deps;
+  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
+    const discordUserId = req.userId;
+    const userId = resolveProvisionedUserId(req);
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { defaultSttProviderId: true },
+    });
+    if (user === null) {
+      return sendError(res, ErrorResponses.notFound('User'));
+    }
+
+    if (user.defaultSttProviderId === null) {
+      logger.info(
+        { discordUserId, hadDefault: false },
+        'Clear called but no STT preference was set (idempotent success)'
+      );
+      return sendCustomSuccess(res, { deleted: true, wasSet: false }, StatusCodes.OK);
+    }
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: { defaultSttProviderId: null },
+    });
+
+    logger.info({ discordUserId }, 'Cleared STT preference');
+
+    await tryInvalidateCache(
+      sttResolverCacheInvalidation?.invalidateUserStt.bind(
+        sttResolverCacheInvalidation,
+        discordUserId
+      ),
+      { discordUserId }
+    );
+
+    sendCustomSuccess(res, { deleted: true, wasSet: true }, StatusCodes.OK);
+  });
+};
+
+export function createSttOverrideRoutes(deps: RouteDeps): Router {
   const router = Router();
+  const requireProvisioned = requireProvisionedUser(deps.prisma);
 
-  router.get(
-    '/',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler(async (req: ProvisionedRequest, res: Response) => {
-      const discordUserId = req.userId;
-      const userId = resolveProvisionedUserId(req);
-
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { defaultSttProviderId: true },
-      });
-
-      // Defensive narrowing: DB column has no CHECK constraint, so legacy
-      // rows or out-of-band SQL inserts could carry an unrecognized provider
-      // string. Mirror SttResolver.narrow() — surface unknown values as null.
-      const raw = user?.defaultSttProviderId ?? null;
-      const result: UserDefaultSttProvider = {
-        providerId: raw !== null && isSttProvider(raw) ? raw : null,
-      };
-
-      logger.info({ discordUserId, providerId: result.providerId }, 'Got STT preference');
-      sendCustomSuccess(res, { default: result }, StatusCodes.OK);
-    })
-  );
-
-  router.put(
-    '/',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler(async (req: ProvisionedRequest, res: Response) => {
-      const discordUserId = req.userId;
-
-      const parseResult = SetSttDefaultProviderSchema.safeParse(req.body);
-      if (!parseResult.success) {
-        return sendZodError(res, parseResult.error);
-      }
-      const { providerId } = parseResult.data;
-      const userId = resolveProvisionedUserId(req);
-
-      await prisma.user.update({
-        where: { id: userId },
-        data: { defaultSttProviderId: providerId },
-      });
-
-      const result: UserDefaultSttProvider = { providerId };
-
-      logger.info({ discordUserId, providerId }, 'Set STT preference');
-
-      await tryInvalidateCache(
-        sttCacheInvalidation?.invalidateUserStt.bind(sttCacheInvalidation, discordUserId),
-        { discordUserId }
-      );
-
-      sendCustomSuccess(res, { default: result }, StatusCodes.OK);
-    })
-  );
-
-  router.delete(
-    '/',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler(async (req: ProvisionedRequest, res: Response) => {
-      const discordUserId = req.userId;
-      const userId = resolveProvisionedUserId(req);
-
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { defaultSttProviderId: true },
-      });
-      if (user === null) {
-        return sendError(res, ErrorResponses.notFound('User'));
-      }
-
-      // Idempotent: nothing set → wasSet:false success
-      if (user.defaultSttProviderId === null) {
-        logger.info(
-          { discordUserId, hadDefault: false },
-          'Clear called but no STT preference was set (idempotent success)'
-        );
-        return sendCustomSuccess(res, { deleted: true, wasSet: false }, StatusCodes.OK);
-      }
-
-      await prisma.user.update({
-        where: { id: userId },
-        data: { defaultSttProviderId: null },
-      });
-
-      logger.info({ discordUserId }, 'Cleared STT preference');
-
-      await tryInvalidateCache(
-        sttCacheInvalidation?.invalidateUserStt.bind(sttCacheInvalidation, discordUserId),
-        { discordUserId }
-      );
-
-      sendCustomSuccess(res, { deleted: true, wasSet: true }, StatusCodes.OK);
-    })
-  );
+  router.get('/', requireUserAuth(), requireProvisioned, handleGetSttOverride(deps));
+  router.put('/', requireUserAuth(), requireProvisioned, handleSetSttOverride(deps));
+  router.delete('/', requireUserAuth(), requireProvisioned, handleClearSttOverride(deps));
 
   return router;
 }

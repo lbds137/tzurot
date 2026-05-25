@@ -199,14 +199,14 @@ describe('/user/llm-config routes', () => {
 
   describe('route factory', () => {
     it('should create a router', () => {
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
 
       expect(router).toBeDefined();
       expect(typeof router).toBe('function');
     });
 
     it('should have GET / route registered', () => {
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
 
       expect(router.stack).toBeDefined();
       expect(router.stack.length).toBeGreaterThan(0);
@@ -215,25 +215,25 @@ describe('/user/llm-config routes', () => {
     });
 
     it('should have GET /:id route registered', () => {
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
 
       expect(findRoute(router, 'get', '/:id')).toBeDefined();
     });
 
     it('should have POST route registered', () => {
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
 
       expect(findRoute(router, 'post', '/')).toBeDefined();
     });
 
     it('should have PUT /:id route registered', () => {
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
 
       expect(findRoute(router, 'put', '/:id')).toBeDefined();
     });
 
     it('should have DELETE route registered', () => {
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
 
       expect(findRoute(router, 'delete', '/:id')).toBeDefined();
     });
@@ -253,7 +253,7 @@ describe('/user/llm-config routes', () => {
       };
       mockPrisma.llmConfig.findMany.mockResolvedValueOnce([globalConfig]).mockResolvedValueOnce([]);
 
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'get', '/');
       const { req, res } = createMockReqRes();
 
@@ -281,7 +281,7 @@ describe('/user/llm-config routes', () => {
       };
       mockPrisma.llmConfig.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([userConfig]);
 
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'get', '/');
       const { req, res } = createMockReqRes();
 
@@ -299,7 +299,7 @@ describe('/user/llm-config routes', () => {
     it('should return 404 when config not found', async () => {
       mockPrisma.llmConfig.findUnique.mockResolvedValue(null);
 
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'get', '/:id');
       const { req, res } = createMockReqRes({}, { id: 'config-123' });
 
@@ -324,7 +324,7 @@ describe('/user/llm-config routes', () => {
         memoryLimit: 20,
       });
 
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'get', '/:id');
       const { req, res } = createMockReqRes({}, { id: 'config-123' });
 
@@ -359,7 +359,7 @@ describe('/user/llm-config routes', () => {
         memoryLimit: 20,
       });
 
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'get', '/:id');
       const { req, res } = createMockReqRes({}, { id: 'config-123' });
 
@@ -386,7 +386,7 @@ describe('/user/llm-config routes', () => {
       // (otherwise supertest hangs waiting for a response that never comes).
       mockValidateLlmConfigModelFields.mockResolvedValueOnce(false);
 
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'post', '/');
       const { req, res } = createMockReqRes({ name: 'My Config', model: 'bad-model' });
 
@@ -398,7 +398,7 @@ describe('/user/llm-config routes', () => {
     });
 
     it('should reject missing name', async () => {
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'post', '/');
       const { req, res } = createMockReqRes({ model: 'gpt-4' });
 
@@ -414,7 +414,7 @@ describe('/user/llm-config routes', () => {
     });
 
     it('should reject missing model', async () => {
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'post', '/');
       const { req, res } = createMockReqRes({ name: 'My Config' });
 
@@ -429,7 +429,7 @@ describe('/user/llm-config routes', () => {
     });
 
     it('should reject name over 100 characters', async () => {
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'post', '/');
       const { req, res } = createMockReqRes({
         name: 'a'.repeat(101),
@@ -450,7 +450,7 @@ describe('/user/llm-config routes', () => {
     it('should reject duplicate name for user', async () => {
       mockPrisma.llmConfig.findFirst.mockResolvedValue({ id: 'existing' });
 
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'post', '/');
       const { req, res } = createMockReqRes({ name: 'My Config', model: 'gpt-4' });
 
@@ -478,7 +478,7 @@ describe('/user/llm-config routes', () => {
         memoryLimit: 20,
       });
 
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'post', '/');
       const { req, res } = createMockReqRes({ name: 'My Config', model: 'gpt-4' });
 
@@ -511,7 +511,7 @@ describe('/user/llm-config routes', () => {
         memoryLimit: 20,
       });
 
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'post', '/');
       const { req, res } = createMockReqRes({
         name: 'My Config',
@@ -548,7 +548,7 @@ describe('/user/llm-config routes', () => {
         contextWindowTokens: 100000,
       });
 
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'post', '/');
       const { req, res } = createMockReqRes({
         name: 'Memory Config',
@@ -579,10 +579,10 @@ describe('/user/llm-config routes', () => {
     it('should return 400 when model validation fails on update', async () => {
       mockValidateLlmConfigModelFields.mockResolvedValueOnce(false);
 
-      const router = createLlmConfigRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockCacheInvalidation
-      );
+      const router = createLlmConfigRoutes({
+        prisma: mockPrisma as unknown as PrismaClient,
+        llmConfigCacheInvalidation: mockCacheInvalidation,
+      });
       const handler = getHandler(router, 'put', '/:id');
       const { req, res } = createMockReqRes(
         { contextWindowTokens: 999999999 },
@@ -598,10 +598,10 @@ describe('/user/llm-config routes', () => {
     it('should return 404 when config not found', async () => {
       mockPrisma.llmConfig.findUnique.mockResolvedValue(null);
 
-      const router = createLlmConfigRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockCacheInvalidation
-      );
+      const router = createLlmConfigRoutes({
+        prisma: mockPrisma as unknown as PrismaClient,
+        llmConfigCacheInvalidation: mockCacheInvalidation,
+      });
       const handler = getHandler(router, 'put', '/:id');
       const { req, res } = createMockReqRes({ name: 'New Name' }, { id: 'config-123' });
 
@@ -642,10 +642,10 @@ describe('/user/llm-config routes', () => {
         memoryLimit: 20,
       });
 
-      const router = createLlmConfigRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockCacheInvalidation
-      );
+      const router = createLlmConfigRoutes({
+        prisma: mockPrisma as unknown as PrismaClient,
+        llmConfigCacheInvalidation: mockCacheInvalidation,
+      });
       const handler = getHandler(router, 'put', '/:id');
       const req = {
         body: { isGlobal: true },
@@ -695,10 +695,10 @@ describe('/user/llm-config routes', () => {
         memoryLimit: 20,
       });
 
-      const router = createLlmConfigRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockCacheInvalidation
-      );
+      const router = createLlmConfigRoutes({
+        prisma: mockPrisma as unknown as PrismaClient,
+        llmConfigCacheInvalidation: mockCacheInvalidation,
+      });
       const handler = getHandler(router, 'put', '/:id');
       const { req, res } = createMockReqRes(
         { name: 'Updated Global Config' },
@@ -724,10 +724,10 @@ describe('/user/llm-config routes', () => {
         memoryLimit: 20,
       });
 
-      const router = createLlmConfigRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockCacheInvalidation
-      );
+      const router = createLlmConfigRoutes({
+        prisma: mockPrisma as unknown as PrismaClient,
+        llmConfigCacheInvalidation: mockCacheInvalidation,
+      });
       const handler = getHandler(router, 'put', '/:id');
       const { req, res } = createMockReqRes({ name: 'New Name' }, { id: 'config-123' });
 
@@ -746,10 +746,10 @@ describe('/user/llm-config routes', () => {
         memoryLimit: 20,
       });
 
-      const router = createLlmConfigRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockCacheInvalidation
-      );
+      const router = createLlmConfigRoutes({
+        prisma: mockPrisma as unknown as PrismaClient,
+        llmConfigCacheInvalidation: mockCacheInvalidation,
+      });
       const handler = getHandler(router, 'put', '/:id');
       const { req, res } = createMockReqRes({}, { id: 'config-123' });
 
@@ -764,10 +764,10 @@ describe('/user/llm-config routes', () => {
     });
 
     it('should reject non-boolean isGlobal value', async () => {
-      const router = createLlmConfigRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockCacheInvalidation
-      );
+      const router = createLlmConfigRoutes({
+        prisma: mockPrisma as unknown as PrismaClient,
+        llmConfigCacheInvalidation: mockCacheInvalidation,
+      });
       const handler = getHandler(router, 'put', '/:id');
       // Send string instead of boolean - Zod validates before DB lookup
       const { req, res } = createMockReqRes({ isGlobal: 'true' }, { id: 'config-123' });
@@ -813,10 +813,10 @@ describe('/user/llm-config routes', () => {
         memoryLimit: 20,
       });
 
-      const router = createLlmConfigRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockCacheInvalidation
-      );
+      const router = createLlmConfigRoutes({
+        prisma: mockPrisma as unknown as PrismaClient,
+        llmConfigCacheInvalidation: mockCacheInvalidation,
+      });
       const handler = getHandler(router, 'put', '/:id');
       const { req, res } = createMockReqRes(
         { name: 'New Name', advancedParameters: { temperature: 0.9 } },
@@ -871,10 +871,10 @@ describe('/user/llm-config routes', () => {
         memoryLimit: 20,
       });
 
-      const router = createLlmConfigRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockCacheInvalidation
-      );
+      const router = createLlmConfigRoutes({
+        prisma: mockPrisma as unknown as PrismaClient,
+        llmConfigCacheInvalidation: mockCacheInvalidation,
+      });
       const handler = getHandler(router, 'put', '/:id');
       const { req, res } = createMockReqRes({ name: 'New Name' }, { id: 'config-123' });
 
@@ -916,7 +916,7 @@ describe('/user/llm-config routes', () => {
         memoryLimit: 20,
       });
 
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'put', '/:id');
       const { req, res } = createMockReqRes({ model: 'claude-3' }, { id: 'config-123' });
 
@@ -968,7 +968,7 @@ describe('/user/llm-config routes', () => {
         memoryLimit: 20,
       });
 
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'put', '/:id');
       const { req, res } = createMockReqRes({ name: 'Renamed Verbatim' }, { id: 'config-123' });
 
@@ -998,7 +998,7 @@ describe('/user/llm-config routes', () => {
         memoryLimit: 20,
       });
 
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'put', '/:id');
       const { req, res } = createMockReqRes({ model: 'new-model' }, { id: 'config-123' });
 
@@ -1013,7 +1013,7 @@ describe('/user/llm-config routes', () => {
     it('should return 404 when user not found', async () => {
       mockPrisma.user.findFirst.mockResolvedValue(null);
 
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'delete', '/:id');
       const { req, res } = createMockReqRes({}, { id: 'config-123' });
 
@@ -1026,7 +1026,7 @@ describe('/user/llm-config routes', () => {
       // Service uses findUnique for getById
       mockPrisma.llmConfig.findUnique.mockResolvedValue(null);
 
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'delete', '/:id');
       const { req, res } = createMockReqRes({}, { id: 'config-123' });
 
@@ -1051,7 +1051,7 @@ describe('/user/llm-config routes', () => {
       mockPrisma.userPersonalityConfig.count.mockResolvedValue(0);
       mockPrisma.llmConfig.delete.mockResolvedValue({} as unknown);
 
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'delete', '/:id');
       const { req, res } = createMockReqRes({}, { id: 'config-123' });
 
@@ -1077,7 +1077,7 @@ describe('/user/llm-config routes', () => {
         memoryLimit: 20,
       });
 
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'delete', '/:id');
       const { req, res } = createMockReqRes({}, { id: 'config-123' });
 
@@ -1100,7 +1100,7 @@ describe('/user/llm-config routes', () => {
       mockPrisma.personalityDefaultConfig.count.mockResolvedValue(0);
       mockPrisma.userPersonalityConfig.count.mockResolvedValue(2);
 
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'delete', '/:id');
       const { req, res } = createMockReqRes({}, { id: 'config-123' });
 
@@ -1128,7 +1128,7 @@ describe('/user/llm-config routes', () => {
       mockPrisma.personalityDefaultConfig.count.mockResolvedValue(0);
       mockPrisma.userPersonalityConfig.count.mockResolvedValue(0);
 
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'delete', '/:id');
       const { req, res } = createMockReqRes({}, { id: 'config-123' });
 
@@ -1163,7 +1163,7 @@ describe('/user/llm-config routes', () => {
       // Force the service to return a non-null warning via the underlying user.count.
       mockPrisma.user.count.mockResolvedValueOnce(5);
 
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'delete', '/:id');
       const { req, res } = createMockReqRes({}, { id: 'config-123' });
 
@@ -1193,7 +1193,7 @@ describe('/user/llm-config routes', () => {
       mockPrisma.personalityDefaultConfig.count.mockResolvedValue(0);
       mockPrisma.userPersonalityConfig.count.mockResolvedValue(0);
 
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'delete', '/:id');
       const { req, res } = createMockReqRes({}, { id: 'config-123' });
 
@@ -1220,7 +1220,7 @@ describe('/user/llm-config routes', () => {
       mockPrisma.personalityDefaultConfig.count.mockResolvedValue(0);
       mockPrisma.userPersonalityConfig.count.mockResolvedValue(7);
 
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'delete', '/:id');
       const { req, res } = createMockReqRes({}, { id: 'config-123' });
 
@@ -1245,7 +1245,7 @@ describe('/user/llm-config routes', () => {
       mockPrisma.personalityDefaultConfig.count.mockResolvedValue(0);
       mockPrisma.userPersonalityConfig.count.mockResolvedValue(2);
 
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'delete', '/:id');
       const { req, res } = createMockReqRes({}, { id: 'config-123' });
 
@@ -1298,11 +1298,11 @@ describe('/user/llm-config routes', () => {
         memoryLimit: 20,
       });
 
-      const router = createLlmConfigRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockCacheInvalidation,
-        mockModelCache
-      );
+      const router = createLlmConfigRoutes({
+        prisma: mockPrisma as unknown as PrismaClient,
+        llmConfigCacheInvalidation: mockCacheInvalidation,
+        modelCache: mockModelCache,
+      });
       const handler = getHandler(router, 'get', '/:id');
       const { req, res } = createMockReqRes({}, { id: 'config-123' });
 
@@ -1339,11 +1339,11 @@ describe('/user/llm-config routes', () => {
         advancedParameters: null,
       });
 
-      const router = createLlmConfigRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockCacheInvalidation,
-        mockModelCache
-      );
+      const router = createLlmConfigRoutes({
+        prisma: mockPrisma as unknown as PrismaClient,
+        llmConfigCacheInvalidation: mockCacheInvalidation,
+        modelCache: mockModelCache,
+      });
       const handler = getHandler(router, 'post', '/');
       const { req, res } = createMockReqRes({
         name: 'New Config',
@@ -1395,11 +1395,11 @@ describe('/user/llm-config routes', () => {
         advancedParameters: null,
       });
 
-      const router = createLlmConfigRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockCacheInvalidation,
-        mockModelCache
-      );
+      const router = createLlmConfigRoutes({
+        prisma: mockPrisma as unknown as PrismaClient,
+        llmConfigCacheInvalidation: mockCacheInvalidation,
+        modelCache: mockModelCache,
+      });
       const handler = getHandler(router, 'put', '/:id');
       const { req, res } = createMockReqRes({ name: 'Updated Config' }, { id: 'config-123' });
 
@@ -1419,7 +1419,7 @@ describe('/user/llm-config routes', () => {
 
   describe('POST /user/llm-config/resolve', () => {
     it('should reject missing personalityId', async () => {
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'post', '/resolve');
       const { req, res } = createMockReqRes({
         personalityConfig: { id: 'p-1', name: 'Test', model: 'gpt-4' },
@@ -1431,7 +1431,7 @@ describe('/user/llm-config routes', () => {
     });
 
     it('should reject missing personalityConfig', async () => {
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'post', '/resolve');
       const { req, res } = createMockReqRes({
         personalityId: 'personality-123',
@@ -1443,7 +1443,7 @@ describe('/user/llm-config routes', () => {
     });
 
     it('should reject invalid personalityConfig structure', async () => {
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'post', '/resolve');
       const { req, res } = createMockReqRes({
         personalityId: 'personality-123',
@@ -1456,7 +1456,7 @@ describe('/user/llm-config routes', () => {
     });
 
     it('should resolve config and include overrides in response', async () => {
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'post', '/resolve');
       const { req, res } = createMockReqRes({
         personalityId: 'personality-123',
@@ -1483,7 +1483,7 @@ describe('/user/llm-config routes', () => {
     });
 
     it('should pass channelId to cascade resolver when provided', async () => {
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'post', '/resolve');
       const { req, res } = createMockReqRes({
         personalityId: 'personality-123',
@@ -1502,7 +1502,7 @@ describe('/user/llm-config routes', () => {
     });
 
     it('should reject invalid channelId format', async () => {
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'post', '/resolve');
       const { req, res } = createMockReqRes({
         personalityId: 'personality-123',
@@ -1517,7 +1517,7 @@ describe('/user/llm-config routes', () => {
 
     it('should return 500 when resolver throws', async () => {
       mockResolveConfig.mockRejectedValueOnce(new Error('DB error'));
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'post', '/resolve');
       const { req, res } = createMockReqRes({
         personalityId: 'personality-123',

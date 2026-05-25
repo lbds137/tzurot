@@ -10,15 +10,12 @@
  * - DELETE /user/llm-config/:id - Delete user config
  */
 
-import { Router, type Response } from 'express';
+import { Router, type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
   isBotOwner,
-  type PrismaClient,
   type LlmConfigSummary,
-  type LlmConfigCacheInvalidationService,
-  type ConfigCascadeResolver,
   computeLlmConfigPermissions,
   // Shared schemas from common-types - single source of truth
   LlmConfigCreateSchema,
@@ -52,6 +49,7 @@ import {
   getDiscordUsernameFromRequest,
 } from '../../utils/normalizeConfigNameOnPromote.js';
 import { createResolveHandler } from './llmConfigResolve.js';
+import type { RouteDeps } from '../routeDeps.js';
 
 const logger = createLogger('user-llm-config');
 
@@ -410,55 +408,42 @@ function createDeleteHandler(service: LlmConfigService) {
   };
 }
 
+// --- Exported handler factories ---
+
+function buildService(deps: RouteDeps): LlmConfigService {
+  return new LlmConfigService(deps.prisma, deps.llmConfigCacheInvalidation);
+}
+
+export const handleListUserLlmConfigs = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(createListHandler(buildService(deps)));
+
+export const handleGetUserLlmConfig = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(createGetHandler(buildService(deps), deps.modelCache));
+
+export const handleCreateUserLlmConfig = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(createCreateHandler(buildService(deps), deps.modelCache));
+
+export const handleResolveUserLlmConfig = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(createResolveHandler(deps.prisma, deps.cascadeResolver));
+
+export const handleUpdateUserLlmConfig = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(createUpdateHandler(buildService(deps), deps.modelCache));
+
+export const handleDeleteUserLlmConfig = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(createDeleteHandler(buildService(deps)));
+
 // --- Main Route Factory ---
 
-export function createLlmConfigRoutes(
-  prisma: PrismaClient,
-  llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService,
-  modelCache?: OpenRouterModelCache,
-  cascadeResolver?: ConfigCascadeResolver
-): Router {
+export function createLlmConfigRoutes(deps: RouteDeps): Router {
   const router = Router();
+  const requireProvisioned = requireProvisionedUser(deps.prisma);
 
-  // Instantiate services with dependencies
-  const service = new LlmConfigService(prisma, llmConfigCacheInvalidation);
-
-  router.get(
-    '/',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler(createListHandler(service))
-  );
-  router.get(
-    '/:id',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler(createGetHandler(service, modelCache))
-  );
-  router.post(
-    '/',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler(createCreateHandler(service, modelCache))
-  );
-  router.post(
-    '/resolve',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler(createResolveHandler(prisma, cascadeResolver))
-  );
-  router.put(
-    '/:id',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler(createUpdateHandler(service, modelCache))
-  );
-  router.delete(
-    '/:id',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler(createDeleteHandler(service))
-  );
+  router.get('/', requireUserAuth(), requireProvisioned, handleListUserLlmConfigs(deps));
+  router.get('/:id', requireUserAuth(), requireProvisioned, handleGetUserLlmConfig(deps));
+  router.post('/', requireUserAuth(), requireProvisioned, handleCreateUserLlmConfig(deps));
+  router.post('/resolve', requireUserAuth(), requireProvisioned, handleResolveUserLlmConfig(deps));
+  router.put('/:id', requireUserAuth(), requireProvisioned, handleUpdateUserLlmConfig(deps));
+  router.delete('/:id', requireUserAuth(), requireProvisioned, handleDeleteUserLlmConfig(deps));
 
   return router;
 }
