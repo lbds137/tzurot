@@ -100,7 +100,10 @@ export async function closeQueue(): Promise<void> {
 export async function checkQueueHealth(): Promise<boolean> {
   try {
     const client = await aiQueue.client;
-    await client.ping();
+    // bullmq 5.77+ narrowed IRedisClient to drop `ping()`. The runtime
+    // value is still the underlying ioredis Redis instance, which does
+    // implement ping — cast to the structural shape we actually need.
+    await (client as unknown as { ping(): Promise<string> }).ping();
     return true;
   } catch (error) {
     logger.error({ err: error }, 'Health check failed');
