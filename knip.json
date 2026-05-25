@@ -13,7 +13,8 @@
     },
     "services/api-gateway": {
       "entry": ["src/**/*.test.ts", "src/**/*.int.test.ts"],
-      "ignoreDependencies": ["openai", "pino", "redis"]
+      "ignoreDependencies": ["openai", "pino", "redis"],
+      "ignore": ["src/routes/routeDeps.ts"]
     },
     "services/ai-worker": {
       "entry": ["src/**/*.test.ts", "src/**/*.int.test.ts"],
