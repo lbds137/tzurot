@@ -11,7 +11,7 @@
  * - POST /clear              — delete ALL tzurot-prefixed voices across all providers
  */
 
-import { Router, type Response as ExpressResponse } from 'express';
+import { Router, type Response as ExpressResponse, type RequestHandler } from 'express';
 import {
   createLogger,
   TTS_VOICE_NAME_PREFIX,
@@ -38,7 +38,8 @@ import {
   type MistralCloned,
 } from '../../utils/mistralVoicesClient.js';
 import type { AuthenticatedRequest } from '../../types.js';
-import { handleListModels } from './voiceModels.js';
+import { handleListModels as listModelsImpl } from './voiceModels.js';
+import type { RouteDeps } from '../routeDeps.js';
 
 const logger = createLogger('VoicesRoute');
 
@@ -246,7 +247,7 @@ async function deleteVoiceAtProvider(
 // ===== Handlers ============================================================
 
 /** GET / — list tzurot-prefixed voices across all providers the user has keys for. */
-async function handleListVoices(
+async function listVoicesImpl(
   prisma: PrismaClient,
   req: AuthenticatedRequest,
   res: ExpressResponse
@@ -295,7 +296,7 @@ async function handleListVoices(
 }
 
 /** DELETE /:provider/:voiceId — delete a single tzurot-prefixed voice from a specific provider. */
-async function handleDeleteVoice(
+async function deleteVoiceImpl(
   prisma: PrismaClient,
   req: AuthenticatedRequest,
   res: ExpressResponse
@@ -387,7 +388,7 @@ async function handleDeleteVoice(
  * response body: `{ deleted, total, errors? }`. When `errors` is present,
  * some deletions failed but others succeeded.
  */
-async function handleClearVoices(
+async function clearVoicesImpl(
   prisma: PrismaClient,
   req: AuthenticatedRequest,
   res: ExpressResponse
@@ -468,47 +469,55 @@ async function handleClearVoices(
   });
 }
 
+// ===== Handler factories ===================================================
+
+/** GET /api/user/voices — list cloned voices across configured providers */
+export const handleListVoices = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: AuthenticatedRequest, res: ExpressResponse) => {
+    await listVoicesImpl(prisma, req, res);
+  });
+};
+
+/** GET /api/user/voices/models — list available voice models per provider */
+export const handleListVoiceModels = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: AuthenticatedRequest, res: ExpressResponse) => {
+    await listModelsImpl(prisma, req, res);
+  });
+};
+
+/** POST /api/user/voices/clear — delete all tzurot-prefixed voices */
+export const handleClearVoices = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: AuthenticatedRequest, res: ExpressResponse) => {
+    await clearVoicesImpl(prisma, req, res);
+  });
+};
+
+/** DELETE /api/user/voices/:provider/:voiceId — delete a single voice */
+export const handleDeleteVoice = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: AuthenticatedRequest, res: ExpressResponse) => {
+    await deleteVoiceImpl(prisma, req, res);
+  });
+};
+
 // ===== Router setup ========================================================
 
-export function createVoicesRoutes(prisma: PrismaClient): Router {
+export function createVoicesRoutes(deps: RouteDeps): Router {
   const router = Router();
+  const requireProvisioned = requireProvisionedUser(deps.prisma);
 
-  router.get(
-    '/',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler(async (req: AuthenticatedRequest, res: ExpressResponse) => {
-      await handleListVoices(prisma, req, res);
-    })
-  );
-
-  // Register /models before /:provider/:voiceId so the wildcard doesn't shadow it
-  router.get(
-    '/models',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler(async (req: AuthenticatedRequest, res: ExpressResponse) => {
-      await handleListModels(prisma, req, res);
-    })
-  );
-
-  // Register /clear before /:provider/:voiceId so the wildcard doesn't shadow it
-  router.post(
-    '/clear',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler(async (req: AuthenticatedRequest, res: ExpressResponse) => {
-      await handleClearVoices(prisma, req, res);
-    })
-  );
-
+  router.get('/', requireUserAuth(), requireProvisioned, handleListVoices(deps));
+  // Register /models and /clear before /:provider/:voiceId so the wildcard doesn't shadow them
+  router.get('/models', requireUserAuth(), requireProvisioned, handleListVoiceModels(deps));
+  router.post('/clear', requireUserAuth(), requireProvisioned, handleClearVoices(deps));
   router.delete(
     '/:provider/:voiceId',
     requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler(async (req: AuthenticatedRequest, res: ExpressResponse) => {
-      await handleDeleteVoice(prisma, req, res);
-    })
+    requireProvisioned,
+    handleDeleteVoice(deps)
   );
 
   return router;

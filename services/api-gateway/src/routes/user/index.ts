@@ -167,7 +167,7 @@ export function createUserRouter(opts: UserRouterOptions): Router {
   router.use('/persona', createPersonaRoutes(prisma));
 
   // History routes (STM management via context epochs)
-  router.use('/history', createHistoryRoutes(prisma));
+  router.use('/history', createHistoryRoutes(deps));
 
   // Channel activation routes (auto-respond to all messages in a channel)
   router.use('/channel', createChannelRoutes(prisma, cascadeInvalidation));
@@ -195,7 +195,7 @@ export function createUserRouter(opts: UserRouterOptions): Router {
   router.use('/shapes', createShapesRoutes(prisma, aiQueue));
 
   // Voice management routes (ElevenLabs cloned voice CRUD)
-  router.use('/voices', createVoicesRoutes(prisma));
+  router.use('/voices', createVoicesRoutes(deps));
 
   return router;
 }
