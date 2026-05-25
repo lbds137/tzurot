@@ -7,7 +7,7 @@
 pnpm dev              # Start all services
 pnpm test             # Run unit tests
 pnpm test:int         # Run integration tests (snapshots, cross-service)
-pnpm quality          # lint + cpd + depcruise + typecheck + typecheck:spec
+pnpm quality          # lint + codegen-drift + knip + cpd + cpd:check + depcruise + typecheck + typecheck:spec
 pnpm lint             # Lint all packages
 pnpm lint:errors      # Show only errors
 
