@@ -195,6 +195,22 @@ export interface RouteDef<
    * routes — manifest invariant test enforces.
    */
   readonly requiresProvisionedUser?: boolean;
+  /**
+   * Request timeout in milliseconds. When set, the generated client
+   * method passes this value to `callGateway`'s `timeoutMs` parameter,
+   * overriding the transport default of `GATEWAY_TIMEOUTS.AUTOCOMPLETE`
+   * (2500ms — sized for Discord's 3-second autocomplete budget).
+   *
+   * Required for slow routes that legitimately exceed 2500ms:
+   *   - `dbSync`, `cleanup` (multi-second Prisma migrations / orphan
+   *     purges; legacy `adminFetch` used `GATEWAY_TIMEOUTS.DEFERRED` =
+   *     10000ms)
+   *   - Future bulk-operation or AI-generation routes
+   *
+   * Omit for routes that comfortably fit the autocomplete budget
+   * (the vast majority).
+   */
+  readonly timeoutMs?: number;
 }
 
 /**
