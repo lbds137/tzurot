@@ -4,117 +4,114 @@
  * POST /user/nsfw/verify - Mark user as NSFW verified (called when user interacts in NSFW channel)
  */
 
-import { Router, type Response } from 'express';
+import { Router, type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, type PrismaClient } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types';
 import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendCustomSuccess } from '../../utils/responseHelpers.js';
 import type { ProvisionedRequest } from '../../types.js';
+import type { RouteDeps } from '../routeDeps.js';
 
 const logger = createLogger('user-nsfw');
 
-export function createNsfwRoutes(prisma: PrismaClient): Router {
-  const router = Router();
+/** GET /api/user/nsfw — current NSFW verification state */
+export const handleGetNsfwStatus = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
+    const userId = resolveProvisionedUserId(req);
 
-  /**
-   * GET /user/nsfw
-   * Get current user's NSFW verification status
-   */
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { nsfwVerified: true, nsfwVerifiedAt: true },
+    });
+
+    if (user === null) {
+      return sendCustomSuccess(
+        res,
+        {
+          nsfwVerified: false,
+          nsfwVerifiedAt: null,
+        },
+        StatusCodes.OK
+      );
+    }
+
+    sendCustomSuccess(
+      res,
+      {
+        nsfwVerified: user.nsfwVerified,
+        nsfwVerifiedAt: user.nsfwVerifiedAt?.toISOString() ?? null,
+      },
+      StatusCodes.OK
+    );
+  });
+};
+
+/** POST /api/user/nsfw/verify — mark user as NSFW verified */
+export const handleVerifyNsfw = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
+    const discordUserId = req.userId;
+
+    logger.info({ discordUserId }, 'Verifying user via NSFW channel interaction');
+
+    const userId = resolveProvisionedUserId(req);
+
+    const existingUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { nsfwVerified: true, nsfwVerifiedAt: true },
+    });
+
+    if (existingUser?.nsfwVerified === true) {
+      return sendCustomSuccess(
+        res,
+        {
+          nsfwVerified: true,
+          nsfwVerifiedAt: existingUser.nsfwVerifiedAt?.toISOString() ?? null,
+          alreadyVerified: true,
+        },
+        StatusCodes.OK
+      );
+    }
+
+    const now = new Date();
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        nsfwVerified: true,
+        nsfwVerifiedAt: now,
+      },
+    });
+
+    logger.info({ discordUserId }, 'User successfully verified');
+
+    sendCustomSuccess(
+      res,
+      {
+        nsfwVerified: true,
+        nsfwVerifiedAt: now.toISOString(),
+        alreadyVerified: false,
+      },
+      StatusCodes.OK
+    );
+  });
+};
+
+export function createNsfwRoutes(deps: RouteDeps): Router {
+  const router = Router();
   router.get(
     '/',
     requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler(async (req: ProvisionedRequest, res: Response) => {
-      const userId = resolveProvisionedUserId(req);
-
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { nsfwVerified: true, nsfwVerifiedAt: true },
-      });
-
-      if (user === null) {
-        // User row doesn't exist yet, not verified
-        return sendCustomSuccess(
-          res,
-          {
-            nsfwVerified: false,
-            nsfwVerifiedAt: null,
-          },
-          StatusCodes.OK
-        );
-      }
-
-      sendCustomSuccess(
-        res,
-        {
-          nsfwVerified: user.nsfwVerified,
-          nsfwVerifiedAt: user.nsfwVerifiedAt?.toISOString() ?? null,
-        },
-        StatusCodes.OK
-      );
-    })
+    requireProvisionedUser(deps.prisma),
+    handleGetNsfwStatus(deps)
   );
-
-  /**
-   * POST /user/nsfw/verify
-   * Mark user as NSFW verified
-   * Called when user interacts with the bot in an age-restricted (NSFW) Discord channel
-   */
   router.post(
     '/verify',
     requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler(async (req: ProvisionedRequest, res: Response) => {
-      const discordUserId = req.userId;
-
-      logger.info({ discordUserId }, 'Verifying user via NSFW channel interaction');
-
-      const userId = resolveProvisionedUserId(req);
-
-      // Check if already verified
-      const existingUser = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { nsfwVerified: true, nsfwVerifiedAt: true },
-      });
-
-      if (existingUser?.nsfwVerified === true) {
-        // Already verified, return success with existing timestamp
-        return sendCustomSuccess(
-          res,
-          {
-            nsfwVerified: true,
-            nsfwVerifiedAt: existingUser.nsfwVerifiedAt?.toISOString() ?? null,
-            alreadyVerified: true,
-          },
-          StatusCodes.OK
-        );
-      }
-
-      // Update the NSFW verification status
-      const now = new Date();
-      await prisma.user.update({
-        where: { id: userId },
-        data: {
-          nsfwVerified: true,
-          nsfwVerifiedAt: now,
-        },
-      });
-
-      logger.info({ discordUserId }, 'User successfully verified');
-
-      sendCustomSuccess(
-        res,
-        {
-          nsfwVerified: true,
-          nsfwVerifiedAt: now.toISOString(),
-          alreadyVerified: false,
-        },
-        StatusCodes.OK
-      );
-    })
+    requireProvisionedUser(deps.prisma),
+    handleVerifyNsfw(deps)
   );
-
   return router;
 }

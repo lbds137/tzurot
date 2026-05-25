@@ -91,7 +91,7 @@ const mockPrisma = {
 };
 
 function buildRouter() {
-  return createVoiceResolutionRoutes(mockPrisma as never);
+  return createVoiceResolutionRoutes({ prisma: mockPrisma as never });
 }
 
 describe('user/voice-resolution route', () => {

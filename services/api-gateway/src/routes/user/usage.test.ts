@@ -74,7 +74,7 @@ async function callHandler(
   req: Request & { userId: string },
   res: Response
 ): Promise<void> {
-  const router = createUsageRoutes(prisma as PrismaClient);
+  const router = createUsageRoutes({ prisma: prisma as PrismaClient });
   const handler = getRouteHandler(router, 'get');
   await handler(req, res);
 }
@@ -88,14 +88,14 @@ describe('/user/usage routes', () => {
 
   describe('route factory', () => {
     it('should create a router', () => {
-      const router = createUsageRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createUsageRoutes({ prisma: mockPrisma as unknown as PrismaClient });
 
       expect(router).toBeDefined();
       expect(typeof router).toBe('function');
     });
 
     it('should have GET route registered', () => {
-      const router = createUsageRoutes(mockPrisma as unknown as PrismaClient);
+      const router = createUsageRoutes({ prisma: mockPrisma as unknown as PrismaClient });
 
       expect(router.stack).toBeDefined();
       expect(router.stack.length).toBeGreaterThan(0);
