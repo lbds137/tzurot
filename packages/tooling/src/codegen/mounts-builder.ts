@@ -36,15 +36,29 @@
 
 import type { Audience, RouteDef } from '@tzurot/common-types';
 import { AUTOGEN_HEADER } from './header.js';
+import { capitalizeFirst } from './string-utils.js';
 
 /** Maps a route id to its relative import path from `_generated/`. */
 export type HandlerPathResolver = (routeId: string) => string;
+/** Maps a route id to the symbol name to import (default: `handle{PascalCase}`). */
+export type HandlerExportNameResolver = (routeId: string) => string;
 
 export interface MountsBuildOptions {
   /** Routes grouped by their audience (internal / admin / user). */
   readonly routesByAudience: Readonly<Record<Audience, Record<string, RouteDef>>>;
   /** Returns the import path for a given route id's handler. */
   readonly handlerPathFor: HandlerPathResolver;
+  /**
+   * Returns the export name for a given route id. Optional — defaults to
+   * `handle{PascalCase(id)}`. Override when a route shares its handler
+   * with a sibling route (e.g. `getChannelSettings` uses
+   * `handleGetUserChannel`).
+   */
+  readonly handlerExportNameFor?: HandlerExportNameResolver;
+}
+
+function defaultExportName(routeId: string): string {
+  return `handle${capitalizeFirst(routeId)}`;
 }
 
 /**
@@ -52,6 +66,7 @@ export interface MountsBuildOptions {
  */
 export function buildMountsFile(options: MountsBuildOptions): string {
   const { routesByAudience, handlerPathFor } = options;
+  const handlerExportNameFor = options.handlerExportNameFor ?? defaultExportName;
 
   const allRoutes = [
     ...Object.values(routesByAudience.internal),
@@ -61,13 +76,14 @@ export function buildMountsFile(options: MountsBuildOptions): string {
 
   const sections: string[] = [
     AUTOGEN_HEADER,
-    buildImports(allRoutes, handlerPathFor),
+    buildImports(allRoutes, handlerPathFor, handlerExportNameFor),
     '',
     buildMountFunction({
       name: 'mountInternalRoutes',
       audience: 'internal',
       routes: routesByAudience.internal,
       audienceMiddleware: [],
+      handlerExportNameFor,
     }),
     '',
     buildMountFunction({
@@ -75,6 +91,7 @@ export function buildMountsFile(options: MountsBuildOptions): string {
       audience: 'admin',
       routes: routesByAudience.admin,
       audienceMiddleware: ['requireUserAuth()', 'requireOwnerAuth()'],
+      handlerExportNameFor,
     }),
     '',
     buildMountFunction({
@@ -82,6 +99,7 @@ export function buildMountsFile(options: MountsBuildOptions): string {
       audience: 'user',
       routes: routesByAudience.user,
       audienceMiddleware: ['requireUserAuth()'],
+      handlerExportNameFor,
     }),
     '',
   ];
@@ -89,14 +107,28 @@ export function buildMountsFile(options: MountsBuildOptions): string {
   return sections.join('\n');
 }
 
-function buildImports(allRoutes: RouteDef[], handlerPathFor: HandlerPathResolver): string {
+function buildImports(
+  allRoutes: RouteDef[],
+  handlerPathFor: HandlerPathResolver,
+  handlerExportNameFor: HandlerExportNameResolver
+): string {
   // The two hardcoded import paths below (`../../services/AuthMiddleware.js`
   // and `../routeDeps.js`) assume the generated file lives at
   // `services/api-gateway/src/routes/_generated/mounts.ts`. Mirrors the
   // HandlerPathResolver JSDoc constraint. If the CLI is wired to emit
   // elsewhere, update these paths in lockstep.
-  const handlerImports = allRoutes
-    .map(r => `import { handle${pascalCase(r.id)} } from '${handlerPathFor(r.id)}';`)
+  // Dedupe by export name — two routes sharing a handler (e.g.
+  // getChannelSettings + getUserChannel both → handleGetUserChannel) would
+  // otherwise produce a duplicate `import { handleX }` line.
+  const importsByName = new Map<string, string>();
+  for (const r of allRoutes) {
+    const name = handlerExportNameFor(r.id);
+    if (!importsByName.has(name)) {
+      importsByName.set(name, handlerPathFor(r.id));
+    }
+  }
+  const handlerImports = [...importsByName.entries()]
+    .map(([name, path]) => `import { ${name} } from '${path}';`)
     .join('\n');
 
   // Emit only the middleware symbols actually referenced by the
@@ -148,12 +180,13 @@ interface MountFunctionOptions {
   readonly routes: Record<string, RouteDef>;
   /** Middleware applied to every route at this audience (e.g. `['requireUserAuth()']`). */
   readonly audienceMiddleware: string[];
+  readonly handlerExportNameFor: HandlerExportNameResolver;
 }
 
 function buildMountFunction(options: MountFunctionOptions): string {
-  const { name, audience, routes, audienceMiddleware } = options;
+  const { name, audience, routes, audienceMiddleware, handlerExportNameFor } = options;
   const prefix = pathPrefixForAudience(audience);
-  const entries = Object.values(routes);
+  const entries = sortRoutesForExpress(Object.values(routes));
 
   if (entries.length === 0) {
     return [
@@ -163,14 +196,61 @@ function buildMountFunction(options: MountFunctionOptions): string {
     ].join('\n');
   }
 
-  const body = entries.map(route => buildMountCall(route, prefix, audienceMiddleware)).join('\n');
+  const body = entries
+    .map(route => buildMountCall(route, prefix, audienceMiddleware, handlerExportNameFor))
+    .join('\n');
 
   return [`export function ${name}(app: Express, deps: RouteDeps): void {`, body, `}`].join('\n');
 }
 
-function buildMountCall(route: RouteDef, prefix: string, audienceMiddleware: string[]): string {
+/**
+ * Sort routes so that more-specific paths register before less-specific ones
+ * sharing the same (method, parent) bucket. Express matches in registration
+ * order, so a parameterized segment like `/:personalityId` registered
+ * earlier will swallow a sibling static segment like `/default` registered
+ * later — `DELETE /tts-override/default` would hit `/:personalityId` with
+ * `personalityId="default"` instead of the dedicated handler.
+ *
+ * Rule: for any two routes A and B that differ only at one segment (A's is
+ * static, B's is a `:param`), A must register first. Implementation: count
+ * `:param` segments per path and sort ascending — fewer parameterized
+ * segments = more specific = registers first. Stable sort preserves the
+ * manifest order within the same specificity bucket so the output is still
+ * predictable diff-wise.
+ *
+ * Without this fix, the codegen would emit broken route ordering for at
+ * least three known cases that the legacy hand-written routers documented
+ * with `// /default routes MUST come before /:param` comments.
+ *
+ * **Assumption — same-param-count routes within an audience don't require
+ * relative ordering.** The sort by param-count handles the static-vs-param
+ * collision at a shared segment position. It does NOT handle a hypothetical
+ * pair where both routes have `:param` at the same segment AND one needs
+ * to register before the other (Express can't disambiguate such paths
+ * regardless — the only signal is registration order). Two routes with
+ * disjoint static segments at different positions (e.g.
+ * `/persona/override/:slug` vs `/persona/:id/default`) don't collide at
+ * all — their static segment positions diverge, so either order works.
+ * If a future route pair triggers same-param-count shadowing, add a
+ * secondary sort key (e.g. lexicographic static-segment first-occurrence
+ * position) or reorder the manifest entries by hand.
+ */
+function sortRoutesForExpress(routes: RouteDef[]): RouteDef[] {
+  return [...routes].sort((a, b) => paramSegmentCount(a.path) - paramSegmentCount(b.path));
+}
+
+function paramSegmentCount(path: string): number {
+  return path.split('/').filter(seg => seg.startsWith(':')).length;
+}
+
+function buildMountCall(
+  route: RouteDef,
+  prefix: string,
+  audienceMiddleware: string[],
+  handlerExportNameFor: HandlerExportNameResolver
+): string {
   const path = `${prefix}${route.path}`;
-  const handlerCall = `handle${pascalCase(route.id)}(deps)`;
+  const handlerCall = `${handlerExportNameFor(route.id)}(deps)`;
 
   const middleware = [...audienceMiddleware];
   if (route.audience === 'user' && route.requiresProvisionedUser === true) {
@@ -195,19 +275,4 @@ function pathPrefixForAudience(audience: Audience): string {
     case 'user':
       return '/api/user';
   }
-}
-
-/**
- * Convert a camelCase route id to PascalCase for the handler name.
- * `getRecentDiagnostics` → `GetRecentDiagnostics`.
- *
- * Assumes route ids are camelCase (the manifest convention enforced by
- * the per-audience invariant tests in `routes/*.test.ts`). For
- * kebab-case or snake_case input this would produce broken handler
- * names — `get-timezone` → `Get-timezone`, not `GetTimezone`. Don't
- * introduce non-camelCase route ids without first generalizing this
- * helper.
- */
-function pascalCase(id: string): string {
-  return id.charAt(0).toUpperCase() + id.slice(1);
 }

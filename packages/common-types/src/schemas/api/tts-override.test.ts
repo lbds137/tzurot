@@ -13,6 +13,7 @@ import {
   UserDefaultTtsConfigSchema,
   ListTtsOverridesResponseSchema,
   SetTtsOverrideResponseSchema,
+  GetTtsDefaultConfigResponseSchema,
   SetTtsDefaultConfigResponseSchema,
   ClearTtsDefaultConfigResponseSchema,
   DeleteTtsOverrideResponseSchema,
@@ -120,6 +121,26 @@ describe('Response schemas', () => {
         default: { configId: 'c1', configName: 'kyutai-self-hosted' },
       }).success
     ).toBe(true);
+  });
+
+  it('GetTtsDefaultConfigResponseSchema accepts a populated default', () => {
+    expect(
+      GetTtsDefaultConfigResponseSchema.safeParse({
+        default: { configId: 'c1', configName: 'kyutai-self-hosted' },
+      }).success
+    ).toBe(true);
+  });
+
+  it('GetTtsDefaultConfigResponseSchema accepts an unset default (null configId/Name)', () => {
+    expect(
+      GetTtsDefaultConfigResponseSchema.safeParse({
+        default: { configId: null, configName: null },
+      }).success
+    ).toBe(true);
+  });
+
+  it('GetTtsDefaultConfigResponseSchema rejects a missing default field', () => {
+    expect(GetTtsDefaultConfigResponseSchema.safeParse({}).success).toBe(false);
   });
 
   it('ClearTtsDefaultConfigResponseSchema accepts both wasSet shapes with newEffectiveDefault: null', () => {

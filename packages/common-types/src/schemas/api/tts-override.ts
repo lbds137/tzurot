@@ -62,6 +62,15 @@ export const SetTtsOverrideResponseSchema = z.object({
 export type SetTtsOverrideResponse = z.infer<typeof SetTtsOverrideResponseSchema>;
 
 // ============================================================================
+// GET /user/tts-override/default
+// ============================================================================
+
+export const GetTtsDefaultConfigResponseSchema = z.object({
+  default: UserDefaultTtsConfigSchema,
+});
+export type GetTtsDefaultConfigResponse = z.infer<typeof GetTtsDefaultConfigResponseSchema>;
+
+// ============================================================================
 // PUT /user/tts-override/default
 // ============================================================================
 

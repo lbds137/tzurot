@@ -37,6 +37,7 @@ import {
   SetTtsDefaultConfigSchema,
   ListTtsOverridesResponseSchema,
   SetTtsOverrideResponseSchema,
+  GetTtsDefaultConfigResponseSchema,
   SetTtsDefaultConfigResponseSchema,
   ClearTtsDefaultConfigResponseSchema,
   DeleteTtsOverrideResponseSchema,
@@ -61,6 +62,7 @@ import type { RouteDef } from '../types.js';
 const LLM_CONFIG_DETAIL_PATH = '/llm-config/:id';
 const TTS_CONFIG_DETAIL_PATH = '/tts-config/:id';
 const MODEL_OVERRIDE_DEFAULT_PATH = '/model-override/default';
+const TTS_OVERRIDE_DEFAULT_PATH = '/tts-override/default';
 const STT_OVERRIDE_PATH = '/stt-override';
 
 export const userConfigRoutes = {
@@ -228,10 +230,19 @@ export const userConfigRoutes = {
     requiresProvisionedUser: true,
   },
 
+  getTtsDefaultConfig: {
+    audience: 'user',
+    method: 'get',
+    path: TTS_OVERRIDE_DEFAULT_PATH,
+    id: 'getTtsDefaultConfig',
+    output: GetTtsDefaultConfigResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
   setTtsDefaultConfig: {
     audience: 'user',
     method: 'put',
-    path: '/tts-override/default',
+    path: TTS_OVERRIDE_DEFAULT_PATH,
     id: 'setTtsDefaultConfig',
     input: SetTtsDefaultConfigSchema,
     output: SetTtsDefaultConfigResponseSchema,
@@ -241,7 +252,7 @@ export const userConfigRoutes = {
   clearTtsDefaultConfig: {
     audience: 'user',
     method: 'delete',
-    path: '/tts-override/default',
+    path: TTS_OVERRIDE_DEFAULT_PATH,
     id: 'clearTtsDefaultConfig',
     output: ClearTtsDefaultConfigResponseSchema,
     requiresProvisionedUser: true,
