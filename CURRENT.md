@@ -7,16 +7,18 @@
 
 ## Next Session Goal
 
-**Active focus**: none. **v3.0.0-beta.125 shipped to prod**. Schema migration `tighten_llm_config_memory_defaults` applied to both dev and prod (option-A sequence: pre-release migration to keep `/admin db-sync` schema-aligned through the release window). Schema-audit tool reports 0 active findings against the new schema.
+**Active focus**: none. **PR-1.5c shipped to develop** (PR #1097, merged 2026-05-26). Route manifest now at 128 routes (was 92); the route-manifest scaffold work is now ~75% complete on the user audience (memory main CRUD + admin/diagnostic lift remain).
 
-Pick from `backlog/future-themes.md` candidates next session.
+Pick from candidates below or `backlog/future-themes.md` next session.
 
 **Candidates**:
 
-1. **Self-Hosted TTS + BYOK Re-Eval — Step 0 BYOK probes** ([future-themes.md](backlog/future-themes.md)) — Cartesia / Fish Audio / PlayHT / Resemble pricing-and-quality pass.
-2. **Adjacent CPD Follow-Up Campaigns** ([future-themes.md](backlog/future-themes.md)) — four independently-pickable mini-epics from the 2026-05-16 CPD campaign close-out.
-3. **Quick-win: migrate `/admin/db-sync` + `/admin/cleanup` from body ownerId to X-User-Id header** ([quick-wins.md](backlog/quick-wins.md)) — closes the remaining two-codepath shape in `extractOwnerId`. Surfaced by PR #1081 review.
-4. **Deferred items with named triggers** ([deferred.md](backlog/deferred.md)) — many are gated on "next time you touch X." Check the list when picking up new work.
+1. **PR-1.5d candidate: user/memory main CRUD** — the ~10 dynamic-filter routes deferred from PR-1.5c. Needs design pass first to reconcile the dynamic-filter handler pattern with the static `RouteDef` manifest shape.
+2. **PR-1.5d candidate: admin/diagnostic audience lift** — 5 routes currently in admin audience that could move to user audience per the route-manifest design. Needs user decision on the lift.
+3. **Self-Hosted TTS + BYOK Re-Eval — Step 0 BYOK probes** ([future-themes.md](backlog/future-themes.md)) — Cartesia / Fish Audio / PlayHT / Resemble pricing-and-quality pass.
+4. **Adjacent CPD Follow-Up Campaigns** ([future-themes.md](backlog/future-themes.md)) — four independently-pickable mini-epics from the 2026-05-16 CPD campaign close-out.
+5. **Quick-win: migrate `/admin/db-sync` + `/admin/cleanup` from body ownerId to X-User-Id header** ([quick-wins.md](backlog/quick-wins.md)) — closes the remaining two-codepath shape in `extractOwnerId`. Surfaced by PR #1081 review.
+6. **Deferred items with named triggers** ([deferred.md](backlog/deferred.md)) — many are gated on "next time you touch X." Check the list when picking up new work.
 
 **Verify on prod (low priority, fix shipped)**:
 
@@ -25,7 +27,41 @@ Pick from `backlog/future-themes.md` candidates next session.
 
 ---
 
-## Last Session — Quick-wins + auth symmetry sweep (2026-05-20)
+## Last Session — PR-1.5c: 36 missing user-route manifest entries (2026-05-26)
+
+Marathon session shipping the PR-1.5 epic's largest single PR: filled in the 36 user-audience routes that had working server handlers but no manifest entries, so the route-manifest codegen now covers them.
+
+### PR merged
+
+| PR    | Title                                                                           | Outcome                                                                                                                                                                    |
+| ----- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #1097 | `feat(common-types): PR-1.5c — add manifest entries for 36 missing user routes` | Manifest 92 → 128 routes; resources.ts split into 6 sub-files; codegen learns required-vs-optional query param distinction; 4 schema bugs caught post-autosquash and fixed |
+
+### Net result
+
+- **Manifest coverage**: 128 routes (10 internal, 27 admin, 91 user) — ~75% of the user surface area now codegen-typed
+- **File split**: routes/user/resources.ts (was 499 lines) → ownership.ts + resources.ts + memory.ts + config-overrides.ts + shapes.ts + diagnostics.ts (all under 400-line limit)
+- **Codegen improvements**: `isOptionalZod` now correctly distinguishes `z.string()` (required) from `.optional()` / `.default()` (optional) — generated `client.getHistoryStats({ ... })` now refuses to omit required query params at compile time
+- **4 schema bugs caught post-autosquash**: `listPersonaOverrides` wrong output schema, `ShapesImportJobSummary` non-nullable counts on `Int?` columns, `startShapesImport`/`startShapesExport` missing `input:` schemas, `setWalletKey` registered at `/wallet` instead of `/wallet/set`. Reading the post-autosquash review caught all four before merge
+- **Dead code removed**: `types/schemas/historyApi.ts` (stale schemas missing `personaId`/`personaName`; zero consumers)
+- **17 review rounds, 5,500+ diff lines, 36 routes** — heavy iteration but every concern resolved
+
+### Backlog deltas
+
+- `quick-wins.md`: 3 follow-up entries filed
+  - Shapes-handler Zod bypass (input schemas decorative — handlers cast `req.body as {...}` manually)
+  - Wallet rate-limiter cutover risk (`router.use(...)` middleware not emitted by codegen)
+  - `ResolveUserConfigDefaultsResponseSchema` collision-guard + type-inference tightening
+- `current-focus.md`: no changes (PR-1.5c was an opportunistic standalone PR, not part of a tracked epic)
+
+### Deferred to PR-1.5d (or later)
+
+- /user/memory main CRUD (~10 routes — dynamic-filter pattern needs design)
+- /admin/diagnostic audience lift (5 routes — needs decision)
+
+---
+
+## Previous Session — Quick-wins + auth symmetry sweep (2026-05-20)
 
 Three-PR sweep: internal observability (`/admin metrics`), closing the last API Security Hardening item (`/voice-references` service auth), then a follow-up to eliminate the auth-posture asymmetry that surfaced during PR #1068 review.
 
