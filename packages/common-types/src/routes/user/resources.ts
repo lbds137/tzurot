@@ -58,6 +58,14 @@ import {
   // NSFW verification
   GetNsfwStatusResponseSchema,
   VerifyNsfwResponseSchema,
+  // History
+  ClearHistorySchema,
+  UndoHistorySchema,
+  HardDeleteHistorySchema,
+  ClearHistoryResponseSchema,
+  UndoHistoryResponseSchema,
+  HistoryStatsResponseSchema,
+  HardDeleteHistoryResponseSchema,
   // Diagnostic GETs (lifted from /admin in the route-prefix cutover)
   DiagnosticLogResponseSchema,
   DiagnosticLogsResponseSchema,
@@ -316,6 +324,65 @@ export const userResourceRoutes = {
     path: '/usage',
     id: 'getUserUsage',
     output: UsageStatsSchema,
+    requiresProvisionedUser: true,
+  },
+
+  // ============================================================================
+  // Conversation history (per-personality / per-channel)
+  // ============================================================================
+
+  clearHistory: {
+    audience: 'user',
+    method: 'post',
+    path: '/history/clear',
+    id: 'clearHistory',
+    input: ClearHistorySchema,
+    output: ClearHistoryResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
+  undoHistory: {
+    audience: 'user',
+    method: 'post',
+    path: '/history/undo',
+    id: 'undoHistory',
+    input: UndoHistorySchema,
+    output: UndoHistoryResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
+  getHistoryStats: {
+    audience: 'user',
+    method: 'get',
+    path: '/history/stats',
+    id: 'getHistoryStats',
+    // `personalitySlug` and `channelId` are required at the server (the handler
+    // returns 400 on missing). The current codegen marks all query params as
+    // optional in the generated client signature; callers must supply both
+    // anyway. Tracked in backlog/quick-wins.md (codegen required-query-param typing).
+    query: {
+      personalitySlug: z.string(),
+      channelId: z.string(),
+      personaId: z.string().optional(),
+    },
+    output: HistoryStatsResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
+  // DELETE with a request body is RFC 7231 §4.3.5 valid, but some reverse
+  // proxies, CDNs, and older HTTP clients strip DELETE bodies — meaning the
+  // `{ personalitySlug, channelId, personaId? }` payload may not reach the
+  // server in deployments behind such middleboxes. The current bot-client
+  // calls this via the in-process transport so this isn't a problem today,
+  // but a future SDK or CLI caller may need POST /history/hard-delete (with
+  // body) as an alternative shape.
+  hardDeleteHistory: {
+    audience: 'user',
+    method: 'delete',
+    path: '/history/hard-delete',
+    id: 'hardDeleteHistory',
+    input: HardDeleteHistorySchema,
+    output: HardDeleteHistoryResponseSchema,
     requiresProvisionedUser: true,
   },
 

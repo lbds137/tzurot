@@ -28,6 +28,7 @@ const ADMIN_LLM_CONFIG = '../admin/llm-config.js';
 const ADMIN_SETTINGS = '../admin/settings.js';
 const ADMIN_TTS_CONFIG = '../admin/tts-config.js';
 const USER_CHANNEL_GET = '../user/channel/get.js';
+const USER_HISTORY = '../user/history.js';
 const USER_LLM_CONFIG = '../user/llm-config.js';
 const USER_MODEL_OVERRIDE = '../user/model-override.js';
 const USER_PERSONA_CRUD = '../user/persona/crud.js';
@@ -166,6 +167,12 @@ const PATH_MAP: Readonly<Record<string, string>> = {
   getVoiceResolution: '../user/voice-resolution.js',
   getNsfwStatus: '../user/nsfw.js',
   verifyNsfw: '../user/nsfw.js',
+
+  // User history
+  clearHistory: USER_HISTORY,
+  undoHistory: USER_HISTORY,
+  getHistoryStats: USER_HISTORY,
+  hardDeleteHistory: USER_HISTORY,
 
   // Wallet
   listWalletKeys: '../wallet/listKeys.js',

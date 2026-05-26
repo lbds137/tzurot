@@ -886,6 +886,73 @@ export class UserClient {
     });
   }
 
+  async clearHistory(input: z.infer<typeof ROUTE_MANIFEST.clearHistory.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.clearHistory.output>>> {
+    const fullPath = '/api/user/history/clear';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.clearHistory.output,
+    });
+  }
+
+  async undoHistory(input: z.infer<typeof ROUTE_MANIFEST.undoHistory.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.undoHistory.output>>> {
+    const fullPath = '/api/user/history/undo';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.undoHistory.output,
+    });
+  }
+
+  async getHistoryStats(options: { personalitySlug?: string; channelId?: string; personaId?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getHistoryStats.output>>> {
+    const fullPath = '/api/user/history/stats' + buildQueryString([['personalitySlug', options.personalitySlug], ['channelId', options.channelId], ['personaId', options.personaId]]);
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'GET',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      outputSchema: ROUTE_MANIFEST.getHistoryStats.output,
+    });
+  }
+
+  async hardDeleteHistory(input: z.infer<typeof ROUTE_MANIFEST.hardDeleteHistory.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.hardDeleteHistory.output>>> {
+    const fullPath = '/api/user/history/hard-delete';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'DELETE',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.hardDeleteHistory.output,
+    });
+  }
+
   async getNsfwStatus(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getNsfwStatus.output>>> {
     const fullPath = '/api/user/nsfw';
     return callGateway({
