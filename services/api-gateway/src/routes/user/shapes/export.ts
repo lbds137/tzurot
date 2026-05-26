@@ -272,8 +272,12 @@ function resolveBaseUrl(): string {
 }
 
 /** POST /api/user/shapes/export — start an async export job. */
-export const handleStartShapesExport = (deps: RouteDeps): RequestHandler =>
-  asyncHandler(async (req: ProvisionedRequest, res: Response) => {
+export const handleStartShapesExport = (deps: RouteDeps): RequestHandler => {
+  // Resolve baseUrl once at factory-call time (same as the list handler below)
+  // rather than per-request — env vars don't change at runtime and the per-
+  // request call was a consistency oversight, not a deliberate choice.
+  const baseUrl = resolveBaseUrl();
+  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     if (deps.aiQueue === undefined) {
       sendError(
         res,
@@ -281,8 +285,9 @@ export const handleStartShapesExport = (deps: RouteDeps): RequestHandler =>
       );
       return;
     }
-    await createExportHandler(deps.prisma, deps.aiQueue, resolveBaseUrl())(req, res);
+    await createExportHandler(deps.prisma, deps.aiQueue, baseUrl)(req, res);
   });
+};
 
 /** GET /api/user/shapes/export/jobs — list export history for the caller. */
 export const handleListShapesExportJobs = (deps: RouteDeps): RequestHandler =>
