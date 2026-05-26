@@ -1,9 +1,19 @@
 /**
  * Batch Memory Operations
- * Handles bulk deletion and purge operations for memories
  *
- * POST /user/memory/delete - Batch delete with filters (skips locked)
- * POST /user/memory/purge - Purge all memories for personality (skips locked)
+ * Destructive batch flows use a preview/execute token handshake. The
+ * preview endpoint runs the filter against the DB, returns a summary, and
+ * issues a short-lived token whose Redis value is the bound filter. The
+ * execute endpoint accepts ONLY the token — it never sees the filter from
+ * the client — eliminating drift between preview and execute.
+ *
+ * Endpoints (mounted in memory.ts):
+ *   POST /user/memory/delete/preview  → impact summary + previewToken
+ *   POST /user/memory/delete          → consumes previewToken, soft-deletes
+ *   POST /user/memory/purge/token     → confirmation phrase + purgeToken
+ *   POST /user/memory/purge           → consumes purgeToken, soft-deletes
+ *
+ * Locked memories are always skipped (never touched by either flow).
  */
 
 import type { Response } from 'express';
@@ -12,7 +22,9 @@ import {
   createLogger,
   type PrismaClient,
   Prisma,
+  BatchDeletePreviewSchema,
   BatchDeleteSchema,
+  IssuePurgeTokenSchema,
   PurgeMemoriesSchema,
 } from '@tzurot/common-types';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -21,50 +33,38 @@ import { sendZodError } from '../../utils/zodHelpers.js';
 import type { ProvisionedRequest } from '../../types.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { getDefaultPersonaId, getPersonalityById, parseTimeframeFilter } from './memoryHelpers.js';
+import type { MemoryActionTokenService } from '../../services/MemoryActionTokenService.js';
 
 const logger = createLogger('memory-batch');
 
+/** Service-unavailable response when Redis (and therefore the token service) is absent. */
+function sendRedisUnavailable(res: Response): void {
+  sendError(
+    res,
+    ErrorResponses.serviceUnavailable('Batch memory operations require Redis; service unavailable.')
+  );
+}
+
 /**
- * Handler for POST /user/memory/delete
- * Batch delete memories with filters (skips locked memories)
+ * Resolve and validate the personaId for a batch delete preview.
+ * Returns null and sends an error response on failure.
  */
-// eslint-disable-next-line max-lines-per-function -- Procedural handler with sequential validation steps and timeframe parsing
-export async function handleBatchDelete(
+async function resolvePersonaIdForBatch(
   prisma: PrismaClient,
-  req: ProvisionedRequest,
+  userId: string,
+  requestedPersonaId: string | undefined,
   res: Response
-): Promise<void> {
-  const discordUserId = req.userId;
-
-  const parseResult = BatchDeleteSchema.safeParse(req.body);
-  if (!parseResult.success) {
-    sendZodError(res, parseResult.error);
-    return;
-  }
-
-  const { personalityId, personaId: requestedPersonaId, timeframe } = parseResult.data;
-
-  // Get user
-  const userId = resolveProvisionedUserId(req);
-
-  // Validate personality exists
-  const personality = await getPersonalityById(prisma, personalityId, res);
-  if (!personality) {
-    return;
-  }
-
-  // Determine persona ID
+): Promise<string | null> {
   let personaId = requestedPersonaId;
   if (personaId === undefined || personaId === '') {
     const defaultPersonaId = await getDefaultPersonaId(prisma, userId);
     if (defaultPersonaId === null) {
       sendError(res, ErrorResponses.validationError('No persona found. Create one first.'));
-      return;
+      return null;
     }
     personaId = defaultPersonaId;
   }
 
-  // Verify persona belongs to user
   const persona = await prisma.persona.findUnique({
     where: { id: personaId },
     select: { id: true, ownerId: true },
@@ -72,18 +72,63 @@ export async function handleBatchDelete(
 
   if (persona?.ownerId !== userId) {
     sendError(res, ErrorResponses.forbidden('Persona not found or does not belong to you'));
+    return null;
+  }
+
+  return personaId;
+}
+
+/**
+ * Handler for POST /user/memory/delete/preview
+ *
+ * Body: { personalityId, personaId?, timeframe? }
+ * Returns: { wouldDelete, lockedWouldSkip, previewToken, ... }
+ *
+ * The previewToken is the ONLY way to invoke POST /user/memory/delete —
+ * the filter is stored server-side under the token key, so the execute
+ * path is guaranteed to operate on the same filter the user previewed.
+ */
+ 
+export async function handleBatchDeletePreview(
+  prisma: PrismaClient,
+  tokenService: MemoryActionTokenService | null,
+  req: ProvisionedRequest,
+  res: Response
+): Promise<void> {
+  if (tokenService === null) {
+    sendRedisUnavailable(res);
     return;
   }
 
-  // Build where clause for batch delete
+  const discordUserId = req.userId;
+
+  const parseResult = BatchDeletePreviewSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    sendZodError(res, parseResult.error);
+    return;
+  }
+
+  const { personalityId, personaId: requestedPersonaId, timeframe } = parseResult.data;
+
+  const userId = resolveProvisionedUserId(req);
+
+  const personality = await getPersonalityById(prisma, personalityId, res);
+  if (!personality) {
+    return;
+  }
+
+  const personaId = await resolvePersonaIdForBatch(prisma, userId, requestedPersonaId, res);
+  if (personaId === null) {
+    return;
+  }
+
   const where: Prisma.MemoryWhereInput = {
     personaId,
     personalityId,
-    visibility: 'normal', // Only delete normal (visible) memories
-    isLocked: false, // Skip locked memories
+    visibility: 'normal',
+    isLocked: false,
   };
 
-  // Add timeframe filter if provided
   const timeframeParsed = parseTimeframeFilter(timeframe);
   if (timeframeParsed.error !== undefined) {
     sendError(res, ErrorResponses.validationError(timeframeParsed.error));
@@ -93,7 +138,122 @@ export async function handleBatchDelete(
     where.createdAt = timeframeParsed.filter;
   }
 
-  // Count memories that will be deleted
+  const [wouldDelete, lockedWouldSkip] = await Promise.all([
+    prisma.memory.count({ where }),
+    prisma.memory.count({
+      where: {
+        personaId,
+        personalityId,
+        visibility: 'normal',
+        isLocked: true,
+        ...(timeframeParsed.filter !== null ? { createdAt: timeframeParsed.filter } : {}),
+      },
+    }),
+  ]);
+
+  const previewToken = await tokenService.issuePreviewToken(discordUserId, {
+    personalityId,
+    personaId,
+    timeframe,
+  });
+
+  logger.debug(
+    {
+      discordUserId,
+      personalityId,
+      personaId: personaId.substring(0, 8),
+      wouldDelete,
+      lockedWouldSkip,
+    },
+    '[Memory] Batch delete preview issued'
+  );
+
+  sendCustomSuccess(
+    res,
+    {
+      wouldDelete,
+      lockedWouldSkip,
+      personalityId,
+      personalityName: personality.name,
+      timeframe: timeframe ?? 'all',
+      previewToken,
+    },
+    StatusCodes.OK
+  );
+}
+
+/**
+ * Handler for POST /user/memory/delete
+ *
+ * Body: { previewToken }
+ * The filter that produced the preview is re-read from Redis under the
+ * token key and applied verbatim. The token is consumed atomically — it
+ * cannot be replayed.
+ */
+// eslint-disable-next-line max-lines-per-function -- Procedural handler: validate token → re-apply filter → soft-delete
+export async function handleBatchDelete(
+  prisma: PrismaClient,
+  tokenService: MemoryActionTokenService | null,
+  req: ProvisionedRequest,
+  res: Response
+): Promise<void> {
+  if (tokenService === null) {
+    sendRedisUnavailable(res);
+    return;
+  }
+
+  const discordUserId = req.userId;
+
+  const parseResult = BatchDeleteSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    sendZodError(res, parseResult.error);
+    return;
+  }
+
+  const { previewToken } = parseResult.data;
+  const filter = await tokenService.consumePreviewToken(discordUserId, previewToken);
+  if (filter === null) {
+    sendError(
+      res,
+      ErrorResponses.validationError(
+        'Preview token is invalid, expired, or already used. Re-run the preview to get a fresh token.'
+      )
+    );
+    return;
+  }
+
+  const { personalityId, personaId: filterPersonaId, timeframe } = filter;
+  const userId = resolveProvisionedUserId(req);
+
+  const personality = await getPersonalityById(prisma, personalityId, res);
+  if (!personality) {
+    return;
+  }
+
+  // Token-bound personaId should match the user's own persona; re-verify
+  // ownership defense-in-depth in case the token was issued in an older
+  // session that no longer reflects the current persona state.
+  const personaId = await resolvePersonaIdForBatch(prisma, userId, filterPersonaId, res);
+  if (personaId === null) {
+    return;
+  }
+
+  const where: Prisma.MemoryWhereInput = {
+    personaId,
+    personalityId,
+    visibility: 'normal',
+    isLocked: false,
+  };
+
+  const timeframeParsed = parseTimeframeFilter(timeframe);
+  if (timeframeParsed.error !== undefined) {
+    sendError(res, ErrorResponses.validationError(timeframeParsed.error));
+    return;
+  }
+  if (timeframeParsed.filter !== null) {
+    where.createdAt = timeframeParsed.filter;
+  }
+
   const countToDelete = await prisma.memory.count({ where });
 
   if (countToDelete === 0) {
@@ -109,22 +269,19 @@ export async function handleBatchDelete(
     return;
   }
 
-  // Count locked memories that would have matched (for informational purposes)
   const lockedCount = await prisma.memory.count({
     where: {
-      ...where,
-      isLocked: true,
+      personaId,
+      personalityId,
       visibility: 'normal',
+      isLocked: true,
+      ...(timeframeParsed.filter !== null ? { createdAt: timeframeParsed.filter } : {}),
     },
   });
 
-  // Perform soft delete
   const result = await prisma.memory.updateMany({
     where,
-    data: {
-      visibility: 'deleted',
-      updatedAt: new Date(),
-    },
+    data: { visibility: 'deleted', updatedAt: new Date() },
   });
 
   logger.warn(
@@ -157,15 +314,83 @@ export async function handleBatchDelete(
 }
 
 /**
- * Handler for POST /user/memory/purge
- * Purge all memories for a personality (skips locked memories)
- * Requires typed confirmation phrase
+ * Handler for POST /user/memory/purge/token
+ *
+ * Body: { personalityId, confirmationPhrase }
+ * Returns: { purgeToken, personalityName, ... }
+ *
+ * Validates the confirmation phrase against the personality name. On success,
+ * issues a short-lived purge token bound to the personality. The actual
+ * destructive purge requires the token at POST /user/memory/purge.
  */
-export async function handlePurge(
+export async function handleIssuePurgeToken(
   prisma: PrismaClient,
+  tokenService: MemoryActionTokenService | null,
   req: ProvisionedRequest,
   res: Response
 ): Promise<void> {
+  if (tokenService === null) {
+    sendRedisUnavailable(res);
+    return;
+  }
+
+  const discordUserId = req.userId;
+
+  const parseResult = IssuePurgeTokenSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    sendZodError(res, parseResult.error);
+    return;
+  }
+
+  const { personalityId, confirmationPhrase } = parseResult.data;
+
+  const personality = await getPersonalityById(prisma, personalityId, res);
+  if (!personality) {
+    return;
+  }
+
+  const expectedPhrase = `DELETE ${personality.name.toUpperCase()} MEMORIES`;
+  if (confirmationPhrase.toUpperCase() !== expectedPhrase.toUpperCase()) {
+    sendError(
+      res,
+      ErrorResponses.validationError(`Confirmation required. Type: "${expectedPhrase}"`)
+    );
+    return;
+  }
+
+  const purgeToken = await tokenService.issuePurgeToken(discordUserId, personalityId);
+
+  logger.info(
+    { discordUserId, personalityId, personalityName: personality.name },
+    '[Memory] Purge token issued'
+  );
+
+  sendCustomSuccess(
+    res,
+    { purgeToken, personalityId, personalityName: personality.name },
+    StatusCodes.OK
+  );
+}
+
+/**
+ * Handler for POST /user/memory/purge
+ *
+ * Body: { purgeToken }
+ * Consumes the token, then soft-deletes all non-locked memories for the
+ * personality bound to that token.
+ */
+ 
+export async function handlePurge(
+  prisma: PrismaClient,
+  tokenService: MemoryActionTokenService | null,
+  req: ProvisionedRequest,
+  res: Response
+): Promise<void> {
+  if (tokenService === null) {
+    sendRedisUnavailable(res);
+    return;
+  }
+
   const discordUserId = req.userId;
 
   const parseResult = PurgeMemoriesSchema.safeParse(req.body);
@@ -174,55 +399,46 @@ export async function handlePurge(
     return;
   }
 
-  const { personalityId, confirmationPhrase } = parseResult.data;
+  const { purgeToken } = parseResult.data;
+  const consumed = await tokenService.consumePurgeToken(discordUserId, purgeToken);
+  if (consumed === null) {
+    sendError(
+      res,
+      ErrorResponses.validationError(
+        'Purge token is invalid, expired, or already used. Re-issue via /memory/purge/token.'
+      )
+    );
+    return;
+  }
 
-  // Get user
+  const { personalityId } = consumed;
   const userId = resolveProvisionedUserId(req);
 
-  // Validate personality exists
   const personality = await getPersonalityById(prisma, personalityId, res);
   if (!personality) {
     return;
   }
 
-  // Generate expected confirmation phrase
-  const expectedPhrase = `DELETE ${personality.name.toUpperCase()} MEMORIES`;
-
-  // Validate confirmation phrase (case-insensitive for better UX)
-  if (confirmationPhrase?.toUpperCase() !== expectedPhrase.toUpperCase()) {
-    sendError(
-      res,
-      ErrorResponses.validationError(`Confirmation required. Type: "${expectedPhrase}"`)
-    );
-    return;
-  }
-
-  // Get user's persona
   const defaultPersonaId = await getDefaultPersonaId(prisma, userId);
   if (defaultPersonaId === null) {
     sendError(res, ErrorResponses.validationError('No persona found. Create one first.'));
     return;
   }
 
-  // Count memories before purge
-  const totalCount = await prisma.memory.count({
-    where: {
-      personaId: defaultPersonaId,
-      personalityId,
-      visibility: 'normal',
-    },
-  });
+  const [totalCount, lockedCount] = await Promise.all([
+    prisma.memory.count({
+      where: { personaId: defaultPersonaId, personalityId, visibility: 'normal' },
+    }),
+    prisma.memory.count({
+      where: {
+        personaId: defaultPersonaId,
+        personalityId,
+        visibility: 'normal',
+        isLocked: true,
+      },
+    }),
+  ]);
 
-  const lockedCount = await prisma.memory.count({
-    where: {
-      personaId: defaultPersonaId,
-      personalityId,
-      visibility: 'normal',
-      isLocked: true,
-    },
-  });
-
-  // Perform soft delete on all non-locked memories
   const result = await prisma.memory.updateMany({
     where: {
       personaId: defaultPersonaId,
@@ -230,10 +446,7 @@ export async function handlePurge(
       visibility: 'normal',
       isLocked: false,
     },
-    data: {
-      visibility: 'deleted',
-      updatedAt: new Date(),
-    },
+    data: { visibility: 'deleted', updatedAt: new Date() },
   });
 
   logger.warn(
@@ -260,99 +473,6 @@ export async function handlePurge(
         lockedCount > 0
           ? `Purged ${result.count} memories for ${personality.name}. ${lockedCount} locked (core) memories were preserved.`
           : `Purged all ${result.count} memories for ${personality.name}.`,
-    },
-    StatusCodes.OK
-  );
-}
-
-/**
- * Handler for GET /user/memory/delete/preview
- * Preview what would be deleted without actually deleting
- */
-export async function handleBatchDeletePreview(
-  prisma: PrismaClient,
-  req: ProvisionedRequest,
-  res: Response
-): Promise<void> {
-  const {
-    personalityId,
-    personaId: requestedPersonaId,
-    timeframe,
-  } = req.query as {
-    personalityId?: string;
-    personaId?: string;
-    timeframe?: string;
-  };
-
-  // Validate required fields
-  if (personalityId === undefined || personalityId === '') {
-    sendError(res, ErrorResponses.validationError('personalityId query parameter is required'));
-    return;
-  }
-
-  // Get user
-  const userId = resolveProvisionedUserId(req);
-
-  // Validate personality exists
-  const personality = await getPersonalityById(prisma, personalityId, res);
-  if (!personality) {
-    return;
-  }
-
-  // Determine persona ID
-  let personaId = requestedPersonaId;
-  if (personaId === undefined || personaId === '') {
-    const defaultPersonaId = await getDefaultPersonaId(prisma, userId);
-    if (defaultPersonaId === null) {
-      sendCustomSuccess(
-        res,
-        {
-          wouldDelete: 0,
-          lockedWouldSkip: 0,
-          message: 'No persona found',
-        },
-        StatusCodes.OK
-      );
-      return;
-    }
-    personaId = defaultPersonaId;
-  }
-
-  // Build where clause
-  const where: Prisma.MemoryWhereInput = {
-    personaId,
-    personalityId,
-    visibility: 'normal',
-    isLocked: false,
-  };
-
-  // Add timeframe filter if provided
-  const timeframeParsed = parseTimeframeFilter(timeframe);
-  if (timeframeParsed.error !== undefined) {
-    sendError(res, ErrorResponses.validationError(timeframeParsed.error));
-    return;
-  }
-  if (timeframeParsed.filter !== null) {
-    where.createdAt = timeframeParsed.filter;
-  }
-
-  // Count memories that would be deleted
-  const wouldDelete = await prisma.memory.count({ where });
-  const lockedWouldSkip = await prisma.memory.count({
-    where: {
-      ...where,
-      isLocked: true,
-    },
-  });
-
-  sendCustomSuccess(
-    res,
-    {
-      wouldDelete,
-      lockedWouldSkip,
-      personalityId,
-      personalityName: personality.name,
-      timeframe: timeframe ?? 'all',
     },
     StatusCodes.OK
   );

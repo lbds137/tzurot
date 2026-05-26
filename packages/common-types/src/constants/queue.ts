@@ -89,6 +89,19 @@ export const REDIS_KEY_PREFIXES = {
   MULTI_TAG_DM_BACKFILL_TRIED: 'multitag:dm-backfill-tried:',
   /** Prefix for per-slot "already delivered" dedup marker (recovery skips dispatch when present) */
   MULTI_TAG_SLOT_DELIVERED: 'multitag:slot-delivered:',
+  /**
+   * Prefix for batch-delete preview tokens. Key: `memory:preview:{userId}:{token}`.
+   * Value: JSON-encoded filter that produced the preview. TTL: 5 min.
+   * Consumer: `api-gateway/MemoryActionTokenService`.
+   */
+  MEMORY_PREVIEW_TOKEN: 'memory:preview:',
+  /**
+   * Prefix for memory purge confirmation tokens. Key:
+   * `memory:purge:{userId}:{token}`. Value: JSON-encoded `{ personalityId }`
+   * binding. TTL: 5 min.
+   * Consumer: `api-gateway/MemoryActionTokenService`.
+   */
+  MEMORY_PURGE_TOKEN: 'memory:purge:',
 } as const;
 
 /**

@@ -5,6 +5,7 @@
  */
 
 import { z } from 'zod';
+import { PreviewTokenSchema, PurgeTokenSchema } from '../../routes/types.js';
 
 const PERSONALITY_ID_REQUIRED = 'personalityId is required';
 
@@ -50,23 +51,49 @@ export const MemoryUpdateSchema = z.object({
 export type MemoryUpdateInput = z.infer<typeof MemoryUpdateSchema>;
 
 // ============================================================================
-// POST /user/memory/delete
+// POST /user/memory/delete/preview
+// Issues a short-lived PreviewToken bound to the supplied filter. The token
+// is the only legal input to POST /user/memory/delete — the execute path
+// then re-reads the filter server-side and cannot drift from the preview.
 // ============================================================================
 
-export const BatchDeleteSchema = z.object({
+export const BatchDeletePreviewSchema = z.object({
   personalityId: z.string().min(1, PERSONALITY_ID_REQUIRED),
   personaId: z.string().optional(),
   timeframe: z.string().optional(),
 });
+export type BatchDeletePreviewInput = z.infer<typeof BatchDeletePreviewSchema>;
+
+// ============================================================================
+// POST /user/memory/delete
+// Body is a token previously obtained from /memory/delete/preview. The
+// filter that produced the preview is server-side under the token key.
+// ============================================================================
+
+export const BatchDeleteSchema = z.object({
+  previewToken: PreviewTokenSchema,
+});
 export type BatchDeleteInput = z.infer<typeof BatchDeleteSchema>;
 
 // ============================================================================
+// POST /user/memory/purge/token
+// Issues a short-lived PurgeToken after validating the confirmation phrase.
+// ============================================================================
+
+export const IssuePurgeTokenSchema = z.object({
+  personalityId: z.string().min(1, PERSONALITY_ID_REQUIRED),
+  confirmationPhrase: z.string().min(1, 'confirmationPhrase is required'),
+});
+export type IssuePurgeTokenInput = z.infer<typeof IssuePurgeTokenSchema>;
+
+// ============================================================================
 // POST /user/memory/purge
+// Body is a token previously obtained from /memory/purge/token. The
+// personality binding is server-side under the token key.
 // ============================================================================
 
 export const PurgeMemoriesSchema = z.object({
-  personalityId: z.string().min(1, PERSONALITY_ID_REQUIRED),
-  confirmationPhrase: z.string().optional(),
+  purgeToken: PurgeTokenSchema,
 });
 export type PurgeMemoriesInput = z.infer<typeof PurgeMemoriesSchema>;
 
