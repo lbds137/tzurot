@@ -250,21 +250,35 @@ describe('Config-Overrides Response Schemas', () => {
   });
 
   describe('ResolveUserConfigDefaultsResponseSchema', () => {
-    it('accepts flat shape with sources + userOverrides', () => {
+    // Helper: emits the same exhaustive sources map the handler produces
+    // (every ConfigOverrides field present, defaulting to 'hardcoded').
+    const allHardcodedSources = Object.fromEntries(
+      Object.keys(HARDCODED_CONFIG_DEFAULTS).map(k => [k, 'hardcoded' as const])
+    );
+
+    it('accepts flat shape with exhaustive sources + userOverrides', () => {
       const data = {
         ...HARDCODED_CONFIG_DEFAULTS,
-        sources: { maxMessages: 'hardcoded' as const },
+        sources: { ...allHardcodedSources, maxMessages: 'user-default' as const },
         userOverrides: { maxMessages: 75 },
       };
       expect(ResolveUserConfigDefaultsResponseSchema.safeParse(data).success).toBe(true);
     });
 
-    it('accepts null userOverrides', () => {
+    it('accepts null userOverrides with exhaustive sources', () => {
       const data = {
-        sources: {},
+        sources: allHardcodedSources,
         userOverrides: null,
       };
       expect(ResolveUserConfigDefaultsResponseSchema.safeParse(data).success).toBe(true);
+    });
+
+    it('rejects partial sources (Zod v4 record requires exhaustive keys)', () => {
+      const data = {
+        sources: { maxMessages: 'hardcoded' as const },
+        userOverrides: null,
+      };
+      expect(ResolveUserConfigDefaultsResponseSchema.safeParse(data).success).toBe(false);
     });
   });
 

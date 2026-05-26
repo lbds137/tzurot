@@ -173,14 +173,15 @@ const ConfigOverridesKeySchema = z.enum(CONFIG_OVERRIDES_KEYS);
  * the `ResolvedConfigOverrides` interface above. The `.extend()` adds the
  * resolver-specific `sources` field.
  *
- * `z.partialRecord` (Zod v4 API) produces `{ [K in Enum]?: V }`. We can't
- * use `z.record(enum, ...)` here because Zod v4 makes that exhaustive
- * (requires every enum member as a key), which would reject the handler's
- * per-overridden-field emission shape. `partialRecord` is the non-exhaustive
- * variant; the type-only Zod-v3 equivalent was the default record behavior.
+ * `sources` uses exhaustive `z.record(enum, value)` (Zod v4: this requires
+ * every enum member as a key) because both emission paths —
+ * `ConfigCascadeResolver.mergeTiers` and the flat `handleResolveUserDefaults`
+ * handler — initialize every key to `'hardcoded'` before applying overrides.
+ * The exhaustive shape gives callers tighter type inference
+ * (`Record<KnownKey, Source>` rather than `Partial<...>`).
  */
 export const ResolvedConfigOverridesSchema = ConfigOverridesSchema.required().extend({
-  sources: z.partialRecord(ConfigOverridesKeySchema, ConfigOverrideSourceSchema),
+  sources: z.record(ConfigOverridesKeySchema, ConfigOverrideSourceSchema),
 });
 
 /**
@@ -193,7 +194,7 @@ export const ResolvedConfigOverridesSchema = ConfigOverridesSchema.required().ex
  */
 export const ResolveUserConfigDefaultsResponseSchema = z
   .object({
-    sources: z.partialRecord(ConfigOverridesKeySchema, ConfigOverrideSourceSchema),
+    sources: z.record(ConfigOverridesKeySchema, ConfigOverrideSourceSchema),
     userOverrides: z.record(z.string(), z.unknown()).nullable(),
   })
   .passthrough();
