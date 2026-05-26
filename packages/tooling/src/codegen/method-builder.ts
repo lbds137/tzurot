@@ -15,6 +15,11 @@ import type { Audience, RouteDef } from '@tzurot/common-types';
  * Detect whether a Zod schema is marked optional. `z.string()` is required,
  * `z.string().optional()` is optional. Defaulted schemas (`z.string().default(...)`)
  * are also treated as optional since the caller can omit them.
+ *
+ * Note: `z.ZodNullable` is intentionally NOT included. A nullable query string
+ * means "the value may be null when sent" — not "the caller may omit the key".
+ * Query-string transport encodes `null` differently from absence, so a
+ * `nullable()` param still needs to be passed by the caller.
  */
 function isOptionalZod(schema: z.ZodTypeAny): boolean {
   return schema instanceof z.ZodOptional || schema instanceof z.ZodDefault;
