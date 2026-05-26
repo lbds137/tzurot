@@ -65,6 +65,7 @@ import { handleGetUserLlmConfig } from '../user/llm-config.js';
 import { handleCreateUserLlmConfig } from '../user/llm-config.js';
 import { handleUpdateUserLlmConfig } from '../user/llm-config.js';
 import { handleDeleteUserLlmConfig } from '../user/llm-config.js';
+import { handleResolveUserLlmConfig } from '../user/llm-config.js';
 import { handleListUserTtsConfigs } from '../user/tts-config.js';
 import { handleGetUserTtsConfig } from '../user/tts-config.js';
 import { handleCreateUserTtsConfig } from '../user/tts-config.js';
@@ -167,6 +168,7 @@ export function mountUserRoutes(app: Express, deps: RouteDeps): void {
   app.put('/api/user/timezone', requireUserAuth(), requireProvisionedUser(deps.prisma), handleSetTimezone(deps));
   app.get('/api/user/llm-config', requireUserAuth(), requireProvisionedUser(deps.prisma), handleListUserLlmConfigs(deps));
   app.post('/api/user/llm-config', requireUserAuth(), requireProvisionedUser(deps.prisma), handleCreateUserLlmConfig(deps));
+  app.post('/api/user/llm-config/resolve', requireUserAuth(), requireProvisionedUser(deps.prisma), handleResolveUserLlmConfig(deps));
   app.get('/api/user/tts-config', requireUserAuth(), requireProvisionedUser(deps.prisma), handleListUserTtsConfigs(deps));
   app.post('/api/user/tts-config', requireUserAuth(), requireProvisionedUser(deps.prisma), handleCreateUserTtsConfig(deps));
   app.get('/api/user/tts-override', requireUserAuth(), requireProvisionedUser(deps.prisma), handleListTtsOverrides(deps));

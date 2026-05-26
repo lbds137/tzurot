@@ -108,6 +108,7 @@ const PATH_MAP: Readonly<Record<string, string>> = {
   deleteUserLlmConfig: USER_LLM_CONFIG,
   getUserLlmConfig: USER_LLM_CONFIG,
   listUserLlmConfigs: USER_LLM_CONFIG,
+  resolveUserLlmConfig: USER_LLM_CONFIG,
   updateUserLlmConfig: USER_LLM_CONFIG,
 
   // User TTS config

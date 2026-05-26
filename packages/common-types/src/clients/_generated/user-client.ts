@@ -166,6 +166,23 @@ export class UserClient {
     });
   }
 
+  async resolveUserLlmConfig(input: z.infer<typeof ROUTE_MANIFEST.resolveUserLlmConfig.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.resolveUserLlmConfig.output>>> {
+    const fullPath = '/api/user/llm-config/resolve';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.resolveUserLlmConfig.output,
+    });
+  }
+
   async listUserTtsConfigs(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listUserTtsConfigs.output>>> {
     const fullPath = '/api/user/tts-config';
     return callGateway({

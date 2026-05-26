@@ -300,3 +300,50 @@ export const SetDefaultLlmConfigResponseSchema = z.object({
   configName: z.string(),
 });
 export type SetDefaultLlmConfigResponse = z.infer<typeof SetDefaultLlmConfigResponseSchema>;
+
+// ============================================================================
+// POST /user/llm-config/resolve
+// Resolves the effective LLM config for a user+personality combination.
+// Body: { personalityId, personalityConfig: LoadedPersonality, channelId? }
+// Response shape is the runtime ConfigResolutionResult interface in
+// services/LlmConfigResolver.ts (`{ config: ResolvedLlmConfig, source, overrides? }`).
+// ResolvedLlmConfig spans the union of ConvertedLlmParams (sampling / reasoning
+// JSONB-derived params) and DB columns — too broad to mirror precisely without
+// drift risk, so passthrough captures known top-level fields while accepting
+// extras. The known fields are what bot-client's PersonalityChatManager reads.
+// ============================================================================
+
+export const ResolveLlmConfigInputSchema = z.object({
+  personalityId: z.string().min(1),
+  // Mirrors the server-side `resolveConfigBodySchema` in llmConfigResolve.ts:
+  // we require the three fields the handler always reads (`id`, `name`, `model`)
+  // and `.passthrough()` the rest of the LoadedPersonality envelope. This catches
+  // an obviously-malformed payload at the schema boundary while leaving the full
+  // LoadedPersonality field list to the TS type rather than mirroring it in Zod
+  // (which would invite drift). Keep this in sync with the server schema.
+  personalityConfig: z
+    .object({
+      id: z.string(),
+      name: z.string(),
+      model: z.string(),
+    })
+    .passthrough(),
+  channelId: z.string().optional(),
+});
+export type ResolveLlmConfigInput = z.infer<typeof ResolveLlmConfigInputSchema>;
+
+export const ResolveLlmConfigResponseSchema = z
+  .object({
+    config: z
+      .object({
+        model: z.string(),
+        maxMessages: z.number().int().optional(),
+        maxAge: z.number().int().nullable().optional(),
+        maxImages: z.number().int().optional(),
+      })
+      .passthrough(),
+    source: z.string(),
+    overrides: z.unknown().optional(),
+  })
+  .passthrough();
+export type ResolveLlmConfigResponse = z.infer<typeof ResolveLlmConfigResponseSchema>;
