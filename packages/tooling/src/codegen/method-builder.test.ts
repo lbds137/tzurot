@@ -185,4 +185,18 @@ describe('buildMethod — user flavor', () => {
     const out = buildMethod(route, { flavor: 'user', pathPrefix: '/api/user' });
     expect(out).toContain(`options: { sort?: string } = {}`);
   });
+
+  it('treats z.string().nullable() as required (nullable ≠ optional for query strings)', () => {
+    // Locks in the deliberate exclusion of `ZodNullable` from `isOptionalZod`.
+    // A nullable query param can carry `null` as a sent value, but the caller
+    // still has to pass the key — those aren't the same thing.
+    const route: RouteDef = {
+      ...baseRoute,
+      query: { filter: z.string().nullable() },
+    };
+    const out = buildMethod(route, { flavor: 'user', pathPrefix: '/api/user' });
+    expect(out).toContain(`options: { filter: string }`);
+    expect(out).not.toContain('filter?: string');
+    expect(out).not.toContain('filter: string } = {}');
+  });
 });
