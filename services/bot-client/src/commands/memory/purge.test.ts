@@ -352,7 +352,7 @@ describe('handlePurgeModal (modal submission)', () => {
       .mockResolvedValueOnce({
         ok: true,
         data: {
-          purgeToken: 'purge_test0123456789abc',
+          purgeToken: 'purge_test0000test0001',
           personalityId: PERSONALITY_ID,
           personalityName: PERSONALITY_NAME,
         },
@@ -385,7 +385,7 @@ describe('handlePurgeModal (modal submission)', () => {
       .mockResolvedValueOnce({
         ok: true,
         data: {
-          purgeToken: 'purge_test0123456789abc',
+          purgeToken: 'purge_test0000test0001',
           personalityId: PERSONALITY_ID,
           personalityName: PERSONALITY_NAME,
         },
@@ -423,7 +423,7 @@ describe('handlePurgeModal (modal submission)', () => {
       '/user/memory/purge',
       expect.objectContaining({
         method: 'POST',
-        body: { purgeToken: 'purge_test0123456789abc' },
+        body: { purgeToken: 'purge_test0000test0001' },
       })
     );
     expect(interaction.editReply).toHaveBeenCalledWith(
@@ -449,7 +449,7 @@ describe('handlePurgeModal (modal submission)', () => {
       .mockResolvedValueOnce({
         ok: true,
         data: {
-          purgeToken: 'purge_test0123456789abc',
+          purgeToken: 'purge_test0000test0001',
           personalityId: PERSONALITY_ID,
           personalityName: PERSONALITY_NAME,
         },

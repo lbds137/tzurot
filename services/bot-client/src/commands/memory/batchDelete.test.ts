@@ -233,7 +233,7 @@ describe('handleBatchDelete', () => {
           personalityId: 'personality-uuid-123',
           personalityName: 'Lilith',
           timeframe: 'all',
-          previewToken: 'preview_test0123456789abc',
+          previewToken: 'preview_test0000test0001',
         },
       });
     });
@@ -296,7 +296,7 @@ describe('handleBatchDelete', () => {
             personalityId: 'personality-uuid-123',
             personalityName: 'Lilith',
             timeframe: 'all',
-            previewToken: 'preview_test0123456789abc',
+            previewToken: 'preview_test0000test0001',
           },
         })
         // Delete response
@@ -323,7 +323,7 @@ describe('handleBatchDelete', () => {
         '/user/memory/delete',
         expect.objectContaining({
           method: 'POST',
-          body: { previewToken: 'preview_test0123456789abc' },
+          body: { previewToken: 'preview_test0000test0001' },
         })
       );
 
@@ -343,7 +343,7 @@ describe('handleBatchDelete', () => {
             personalityId: 'personality-uuid-123',
             personalityName: 'Lilith',
             timeframe: '7d',
-            previewToken: 'preview_xyz0123456789abc',
+            previewToken: 'preview_test0000test0002',
           },
         })
         .mockResolvedValueOnce({
@@ -378,7 +378,7 @@ describe('handleBatchDelete', () => {
         '/user/memory/delete',
         expect.objectContaining({
           method: 'POST',
-          body: { previewToken: 'preview_xyz0123456789abc' },
+          body: { previewToken: 'preview_test0000test0002' },
         })
       );
     });
@@ -393,7 +393,7 @@ describe('handleBatchDelete', () => {
             personalityId: 'personality-uuid-123',
             personalityName: 'Lilith',
             timeframe: 'all',
-            previewToken: 'preview_test0123456789abc',
+            previewToken: 'preview_test0000test0001',
           },
         })
         .mockResolvedValueOnce({
@@ -424,7 +424,7 @@ describe('handleBatchDelete', () => {
             personalityId: 'personality-uuid-123',
             personalityName: 'Lilith',
             timeframe: 'all',
-            previewToken: 'preview_test0123456789abc',
+            previewToken: 'preview_test0000test0001',
           },
         })
         .mockResolvedValueOnce({
