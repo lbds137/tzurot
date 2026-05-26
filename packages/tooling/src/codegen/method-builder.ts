@@ -9,7 +9,7 @@
  */
 
 import { z } from 'zod';
-import type { Audience, RouteDef } from '@tzurot/common-types';
+import { resolveQueryShape, type Audience, type RouteDef } from '@tzurot/common-types';
 
 /**
  * Detect whether a Zod schema is marked optional. `z.string()` is required,
@@ -28,12 +28,15 @@ function isOptionalZod(schema: z.ZodTypeAny): boolean {
 /**
  * For a route's `query` map, return whether at least one entry is required
  * (used to decide if the entire `options` argument can be omitted).
+ * Accepts either form of `RouteDef.query` (Record or ZodObject) via
+ * `resolveQueryShape`.
  */
 function hasRequiredQueryParam(query: RouteDef['query']): boolean {
-  if (query === undefined) {
+  const shape = resolveQueryShape(query);
+  if (shape === undefined) {
     return false;
   }
-  return Object.values(query).some(schema => !isOptionalZod(schema));
+  return Object.values(shape).some(schema => !isOptionalZod(schema));
 }
 
 /**
@@ -117,8 +120,9 @@ export function buildMethod(route: RouteDef, options: MethodBuildOptions): strin
   if (acceptsSubject) {
     queryEntries.push(`['userId', options.subject]`);
   }
-  if (route.query !== undefined) {
-    for (const key of Object.keys(route.query)) {
+  const queryShape = resolveQueryShape(route.query);
+  if (queryShape !== undefined) {
+    for (const key of Object.keys(queryShape)) {
       queryEntries.push(`['${key}', options.${key}]`);
     }
   }
@@ -221,8 +225,9 @@ function buildOptionsType(route: RouteDef, acceptsSubject: boolean): string {
   if (acceptsSubject) {
     fields.push(`subject?: SubjectDiscordId`);
   }
-  if (route.query !== undefined) {
-    for (const [key, schema] of Object.entries(route.query)) {
+  const shape = resolveQueryShape(route.query);
+  if (shape !== undefined) {
+    for (const [key, schema] of Object.entries(shape)) {
       // All query params are strings at the wire level; their narrower
       // typing lives in the route's Zod schema (validated server-side).
       // Required vs optional is derived from the schema's Zod wrapper:
