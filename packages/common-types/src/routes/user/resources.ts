@@ -38,6 +38,7 @@ import {
   ClearHistorySchema,
   UndoHistorySchema,
   HardDeleteHistorySchema,
+  HistoryStatsQuerySchema,
   ClearHistoryResponseSchema,
   UndoHistoryResponseSchema,
   HistoryStatsResponseSchema,
@@ -155,14 +156,10 @@ export const userResourceRoutes = {
     method: 'get',
     path: '/history/stats',
     id: 'getHistoryStats',
-    // `.min(1)` mirrors the server-side `HistoryStatsQuerySchema` in
-    // schemas/api/history.ts — the handler returns 400 on empty values
-    // and the generated client should refuse to send them.
-    query: {
-      personalitySlug: z.string().min(1),
-      channelId: z.string().min(1),
-      personaId: z.string().optional(),
-    },
+    // Reuse the server-side schema's shape directly so manifest and handler
+    // can't drift on validation constraints. `.shape` exposes the per-field
+    // Zod schemas in the `Record<string, ZodTypeAny>` shape the codegen needs.
+    query: HistoryStatsQuerySchema.shape,
     output: HistoryStatsResponseSchema,
     requiresProvisionedUser: true,
   },
@@ -258,7 +255,9 @@ export const userResourceRoutes = {
     method: 'get',
     path: '/voice-resolution',
     id: 'getVoiceResolution',
-    query: { personalityId: z.string() },
+    // `.uuid()` mirrors the server-side `GetVoiceResolutionQuerySchema` in
+    // schemas/api/voice-resolution.ts — server rejects non-UUID with 400.
+    query: { personalityId: z.string().uuid() },
     output: GetVoiceResolutionResponseSchema,
     requiresProvisionedUser: true,
   },
