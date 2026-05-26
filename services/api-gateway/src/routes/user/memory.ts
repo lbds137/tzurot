@@ -7,13 +7,14 @@
  * GET /user/memory/focus - Get focus mode status
  * POST /user/memory/focus - Enable/disable focus mode
  * POST /user/memory/search - Semantic search of memories
- * GET /user/memory/delete/preview - Preview batch delete without executing
- * POST /user/memory/delete - Batch delete memories with filters
- * POST /user/memory/purge - Purge all memories for a personality (typed confirmation required)
+ * POST /user/memory/delete/preview - Preview batch delete; issues PreviewToken
+ * POST /user/memory/delete - Execute batch delete using PreviewToken
+ * POST /user/memory/purge/token - Validate confirmation phrase; issues PurgeToken
+ * POST /user/memory/purge - Execute purge using PurgeToken
  * GET /user/memory/:id - Get a single memory
  * PATCH /user/memory/:id - Update memory content
  * DELETE /user/memory/:id - Delete a single memory
- * POST /user/memory/:id/lock - Toggle memory lock status
+ * PUT /user/memory/:id/lock - Set memory lock state explicitly (idempotent on retry)
  *
  * Incognito mode (sub-routes mounted at /user/memory/incognito):
  * GET /user/memory/incognito - Get incognito status
@@ -46,8 +47,14 @@ import {
   handleSetMemoryLock,
   handleDeleteMemory,
 } from './memorySingle.js';
-import { handleBatchDelete, handleBatchDeletePreview, handlePurge } from './memoryBatch.js';
+import {
+  handleBatchDelete,
+  handleBatchDeletePreview,
+  handleIssuePurgeToken,
+  handlePurge,
+} from './memoryBatch.js';
 import { createIncognitoRoutes } from './memoryIncognito.js';
+import { MemoryActionTokenService } from '../../services/MemoryActionTokenService.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { getDefaultPersonaId, getPersonalityById } from './memoryHelpers.js';
 
@@ -267,6 +274,19 @@ type MemoryHandler = (
   res: Response
 ) => Promise<void>;
 
+/**
+ * Wider signature for handlers that depend on the Redis-backed
+ * MemoryActionTokenService (preview-token batch ops). `tokenService` is
+ * `null` when Redis is unavailable; handlers respond with a 500 in that
+ * case rather than crashing.
+ */
+type MemoryTokenHandler = (
+  prisma: PrismaClient,
+  tokenService: MemoryActionTokenService | null,
+  req: ProvisionedRequest,
+  res: Response
+) => Promise<void>;
+
 interface RegisterRouteParams {
   router: Router;
   prisma: PrismaClient;
@@ -294,6 +314,15 @@ export function createMemoryRoutes(deps: RouteDeps): Router {
     router.use('/incognito', createIncognitoRoutes(prisma, redis));
   }
 
+  // Token service for preview/purge handshake — null when Redis is absent;
+  // the batch handlers respond with a 500 instead of crashing in that case.
+  const tokenService = redis !== undefined ? new MemoryActionTokenService(redis) : null;
+
+  /** Bind a token-using handler to the resolved token service. */
+  const bindToken = (handler: MemoryTokenHandler): MemoryHandler => {
+    return (p, req, res) => handler(p, tokenService, req, res);
+  };
+
   const routes: {
     method: RegisterRouteParams['method'];
     path: string;
@@ -305,9 +334,10 @@ export function createMemoryRoutes(deps: RouteDeps): Router {
     { method: 'post', path: '/focus', handler: handleSetFocus },
     { method: 'post', path: '/search', handler: handleSearch },
     // Batch operations — must come before /:id routes
-    { method: 'get', path: '/delete/preview', handler: handleBatchDeletePreview },
-    { method: 'post', path: '/delete', handler: handleBatchDelete },
-    { method: 'post', path: '/purge', handler: handlePurge },
+    { method: 'post', path: '/delete/preview', handler: bindToken(handleBatchDeletePreview) },
+    { method: 'post', path: '/delete', handler: bindToken(handleBatchDelete) },
+    { method: 'post', path: '/purge/token', handler: bindToken(handleIssuePurgeToken) },
+    { method: 'post', path: '/purge', handler: bindToken(handlePurge) },
     // Single memory operations — must come after specific routes
     { method: 'get', path: '/:id', handler: handleGetMemory },
     { method: 'patch', path: '/:id', handler: handleUpdateMemory },
