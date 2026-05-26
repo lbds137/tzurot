@@ -5,7 +5,7 @@
  * GET  /user/shapes/import/jobs - List import history
  */
 
-import { Router, type Response } from 'express';
+import { Router, type Response, type RequestHandler } from 'express';
 import type { Queue } from 'bullmq';
 import { StatusCodes } from 'http-status-codes';
 import {
@@ -24,6 +24,7 @@ import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js'
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { isPrismaUniqueConstraintError } from '../../../utils/prismaErrors.js';
 import type { ProvisionedRequest } from '../../../types.js';
+import type { RouteDeps } from '../../routeDeps.js';
 
 const logger = createLogger('shapes-import');
 
@@ -215,20 +216,44 @@ function createListImportJobsHandler(prisma: PrismaClient) {
   };
 }
 
+// ===== Handler factories ===================================================
+//
+// The import-start handler requires `deps.aiQueue` (BullMQ); missing queue
+// short-circuits with a 503 — same shape as memoryIncognito's redis guard.
+// The jobs-list handler doesn't need the queue.
+
+/** POST /api/user/shapes/import — start a shapes.inc import job. */
+export const handleStartShapesImport = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(async (req: ProvisionedRequest, res: Response) => {
+    if (deps.aiQueue === undefined) {
+      sendError(
+        res,
+        ErrorResponses.serviceUnavailable('Job queue required for shapes import is not configured')
+      );
+      return;
+    }
+    await createImportHandler(deps.prisma, deps.aiQueue)(req, res);
+  });
+
+/** GET /api/user/shapes/import/jobs — list import history for the caller. */
+export const handleListShapesImportJobs = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(createListImportJobsHandler(deps.prisma));
+
 export function createShapesImportRoutes(prisma: PrismaClient, queue: Queue): Router {
   const router = Router();
+  const deps: RouteDeps = { prisma, aiQueue: queue };
 
   router.post(
     '/',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createImportHandler(prisma, queue))
+    handleStartShapesImport(deps)
   );
   router.get(
     '/jobs',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createListImportJobsHandler(prisma))
+    handleListShapesImportJobs(deps)
   );
 
   return router;

@@ -1,0 +1,149 @@
+/**
+ * Zod schemas for /user/shapes API endpoints.
+ *
+ * Shapes.inc integration: BYOK session-cookie credentials, listing owned
+ * shapes, and async import/export jobs. Most response shapes are
+ * permissively-typed wrappers since the job-row Prisma selects include
+ * JSONB metadata columns we don't want to fully type at the contract layer.
+ */
+
+import { z } from 'zod';
+
+// ============================================================================
+// /user/shapes/auth
+// ============================================================================
+
+export const StoreShapesAuthInputSchema = z.object({
+  sessionCookie: z.string().min(1),
+});
+export type StoreShapesAuthInput = z.infer<typeof StoreShapesAuthInputSchema>;
+
+export const StoreShapesAuthResponseSchema = z.object({
+  success: z.literal(true),
+  timestamp: z.string(),
+});
+export type StoreShapesAuthResponse = z.infer<typeof StoreShapesAuthResponseSchema>;
+
+export const DeleteShapesAuthResponseSchema = z.object({
+  success: z.literal(true),
+  message: z.string(),
+  timestamp: z.string(),
+});
+export type DeleteShapesAuthResponse = z.infer<typeof DeleteShapesAuthResponseSchema>;
+
+/**
+ * Status response — discriminated by `hasCredentials`. When true, the
+ * three timestamp fields are present; when false, only the service tag.
+ */
+export const ShapesAuthStatusResponseSchema = z.discriminatedUnion('hasCredentials', [
+  z.object({
+    hasCredentials: z.literal(false),
+    service: z.string(),
+  }),
+  z.object({
+    hasCredentials: z.literal(true),
+    service: z.string(),
+    storedAt: z.string(),
+    lastUsedAt: z.string().nullable(),
+    expiresAt: z.string().nullable(),
+  }),
+]);
+export type ShapesAuthStatusResponse = z.infer<typeof ShapesAuthStatusResponseSchema>;
+
+// ============================================================================
+// /user/shapes/list
+// ============================================================================
+
+export const ShapesListItemSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  username: z.string(),
+  avatar: z.string(),
+  createdAt: z.string().nullable(),
+});
+export type ShapesListItem = z.infer<typeof ShapesListItemSchema>;
+
+export const ListShapesResponseSchema = z.object({
+  shapes: z.array(ShapesListItemSchema),
+  total: z.number().int().nonnegative(),
+});
+export type ListShapesResponse = z.infer<typeof ListShapesResponseSchema>;
+
+// ============================================================================
+// /user/shapes/import
+// ============================================================================
+
+export const StartShapesImportResponseSchema = z.object({
+  success: z.literal(true),
+  importJobId: z.string(),
+  sourceSlug: z.string(),
+  importType: z.string(),
+  status: z.string(),
+});
+export type StartShapesImportResponse = z.infer<typeof StartShapesImportResponseSchema>;
+
+/**
+ * Import job summary as returned by GET /user/shapes/import/jobs.
+ * `importMetadata` is Prisma JSON — passthrough so we don't drift on its shape.
+ */
+export const ShapesImportJobSummarySchema = z
+  .object({
+    id: z.string(),
+    sourceSlug: z.string(),
+    status: z.string(),
+    importType: z.string(),
+    memoriesImported: z.number().int().nonnegative(),
+    memoriesFailed: z.number().int().nonnegative(),
+    createdAt: z.union([z.string(), z.date()]),
+    completedAt: z.union([z.string(), z.date()]).nullable(),
+    errorMessage: z.string().nullable(),
+    importMetadata: z.unknown(),
+  })
+  .passthrough();
+export type ShapesImportJobSummary = z.infer<typeof ShapesImportJobSummarySchema>;
+
+export const ListShapesImportJobsResponseSchema = z.object({
+  jobs: z.array(ShapesImportJobSummarySchema),
+});
+export type ListShapesImportJobsResponse = z.infer<typeof ListShapesImportJobsResponseSchema>;
+
+// ============================================================================
+// /user/shapes/export
+// ============================================================================
+
+export const StartShapesExportResponseSchema = z.object({
+  success: z.literal(true),
+  exportJobId: z.string(),
+  sourceSlug: z.string(),
+  format: z.string(),
+  status: z.string(),
+  downloadUrl: z.string(),
+});
+export type StartShapesExportResponse = z.infer<typeof StartShapesExportResponseSchema>;
+
+/**
+ * Export job summary as returned by GET /user/shapes/export/jobs.
+ * `downloadUrl` is populated only for completed jobs.
+ */
+export const ShapesExportJobSummarySchema = z
+  .object({
+    id: z.string(),
+    sourceSlug: z.string(),
+    status: z.string(),
+    format: z.string(),
+    fileName: z.string().nullable(),
+    fileSizeBytes: z.number().int().nullable(),
+    createdAt: z.union([z.string(), z.date()]),
+    completedAt: z.union([z.string(), z.date()]).nullable(),
+    expiresAt: z.union([z.string(), z.date()]).nullable(),
+    errorMessage: z.string().nullable(),
+    exportMetadata: z.unknown(),
+    downloadUrl: z.string().nullable(),
+  })
+  .passthrough();
+export type ShapesExportJobSummary = z.infer<typeof ShapesExportJobSummarySchema>;
+
+export const ListShapesExportJobsResponseSchema = z.object({
+  jobs: z.array(ShapesExportJobSummarySchema),
+});
+export type ListShapesExportJobsResponse = z.infer<typeof ListShapesExportJobsResponseSchema>;

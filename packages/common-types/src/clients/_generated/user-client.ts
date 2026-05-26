@@ -1345,6 +1345,135 @@ export class UserClient {
     });
   }
 
+  async storeShapesAuth(input: z.infer<typeof ROUTE_MANIFEST.storeShapesAuth.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.storeShapesAuth.output>>> {
+    const fullPath = '/api/user/shapes/auth';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.storeShapesAuth.output,
+    });
+  }
+
+  async deleteShapesAuth(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.deleteShapesAuth.output>>> {
+    const fullPath = '/api/user/shapes/auth';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'DELETE',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      outputSchema: ROUTE_MANIFEST.deleteShapesAuth.output,
+    });
+  }
+
+  async getShapesAuthStatus(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getShapesAuthStatus.output>>> {
+    const fullPath = '/api/user/shapes/auth/status';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'GET',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      outputSchema: ROUTE_MANIFEST.getShapesAuthStatus.output,
+    });
+  }
+
+  async listShapes(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listShapes.output>>> {
+    const fullPath = '/api/user/shapes/list';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'GET',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      outputSchema: ROUTE_MANIFEST.listShapes.output,
+    });
+  }
+
+  async startShapesImport(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.startShapesImport.output>>> {
+    const fullPath = '/api/user/shapes/import';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      outputSchema: ROUTE_MANIFEST.startShapesImport.output,
+    });
+  }
+
+  async listShapesImportJobs(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listShapesImportJobs.output>>> {
+    const fullPath = '/api/user/shapes/import/jobs';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'GET',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      outputSchema: ROUTE_MANIFEST.listShapesImportJobs.output,
+    });
+  }
+
+  async startShapesExport(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.startShapesExport.output>>> {
+    const fullPath = '/api/user/shapes/export';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      outputSchema: ROUTE_MANIFEST.startShapesExport.output,
+    });
+  }
+
+  async listShapesExportJobs(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listShapesExportJobs.output>>> {
+    const fullPath = '/api/user/shapes/export/jobs';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'GET',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      outputSchema: ROUTE_MANIFEST.listShapesExportJobs.output,
+    });
+  }
+
   async getRecentDiagnostics(options: { subject?: SubjectDiscordId; personalityId?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getRecentDiagnostics.output>>> {
     const fullPath = '/api/user/diagnostic/recent' + buildQueryString([['userId', options.subject], ['personalityId', options.personalityId]]);
     return callGateway({

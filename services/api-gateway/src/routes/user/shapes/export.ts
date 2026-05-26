@@ -8,7 +8,7 @@
  * Users download completed exports via GET /exports/:jobId (public endpoint).
  */
 
-import { Router, type Response } from 'express';
+import { Router, type Response, type RequestHandler } from 'express';
 import type { Queue } from 'bullmq';
 import { StatusCodes } from 'http-status-codes';
 import {
@@ -31,6 +31,7 @@ import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js'
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { isPrismaUniqueConstraintError } from '../../../utils/prismaErrors.js';
 import type { ProvisionedRequest } from '../../../types.js';
+import type { RouteDeps } from '../../routeDeps.js';
 
 const logger = createLogger('shapes-export');
 
@@ -263,22 +264,45 @@ function createListExportJobsHandler(prisma: PrismaClient, baseUrl: string) {
   };
 }
 
+// ===== Handler factories ===================================================
+
+function resolveBaseUrl(): string {
+  const envConfig = getConfig();
+  return envConfig.PUBLIC_GATEWAY_URL ?? envConfig.GATEWAY_URL ?? '';
+}
+
+/** POST /api/user/shapes/export — start an async export job. */
+export const handleStartShapesExport = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(async (req: ProvisionedRequest, res: Response) => {
+    if (deps.aiQueue === undefined) {
+      sendError(
+        res,
+        ErrorResponses.serviceUnavailable('Job queue required for shapes export is not configured')
+      );
+      return;
+    }
+    await createExportHandler(deps.prisma, deps.aiQueue, resolveBaseUrl())(req, res);
+  });
+
+/** GET /api/user/shapes/export/jobs — list export history for the caller. */
+export const handleListShapesExportJobs = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(createListExportJobsHandler(deps.prisma, resolveBaseUrl()));
+
 export function createShapesExportRoutes(prisma: PrismaClient, queue: Queue): Router {
   const router = Router();
-  const envConfig = getConfig();
-  const baseUrl = envConfig.PUBLIC_GATEWAY_URL ?? envConfig.GATEWAY_URL ?? '';
+  const deps: RouteDeps = { prisma, aiQueue: queue };
 
   router.post(
     '/',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createExportHandler(prisma, queue, baseUrl))
+    handleStartShapesExport(deps)
   );
   router.get(
     '/jobs',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createListExportJobsHandler(prisma, baseUrl))
+    handleListShapesExportJobs(deps)
   );
 
   return router;

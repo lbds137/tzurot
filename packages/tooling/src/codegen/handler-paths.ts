@@ -33,6 +33,10 @@ const USER_LLM_CONFIG = '../user/llm-config.js';
 const USER_MEMORY_INCOGNITO = '../user/memoryIncognito.js';
 const USER_CONFIG_OVERRIDES = '../user/config-overrides.js';
 const USER_PERSONALITY_CONFIG_OVERRIDES = '../user/personality-config-overrides.js';
+const USER_SHAPES_AUTH = '../user/shapes/auth.js';
+const USER_SHAPES_LIST = '../user/shapes/list.js';
+const USER_SHAPES_IMPORT = '../user/shapes/import.js';
+const USER_SHAPES_EXPORT = '../user/shapes/export.js';
 const USER_MODEL_OVERRIDE = '../user/model-override.js';
 const USER_PERSONA_CRUD = '../user/persona/crud.js';
 const USER_PERSONA_OVERRIDE = '../user/persona/override.js';
@@ -202,6 +206,16 @@ const PATH_MAP: Readonly<Record<string, string>> = {
   // User config-overrides (personality-tier endpoints — separate file)
   resolvePersonalityCascade: USER_PERSONALITY_CONFIG_OVERRIDES,
   updatePersonalityConfigDefaults: USER_PERSONALITY_CONFIG_OVERRIDES,
+
+  // User shapes.inc BYOK
+  storeShapesAuth: USER_SHAPES_AUTH,
+  deleteShapesAuth: USER_SHAPES_AUTH,
+  getShapesAuthStatus: USER_SHAPES_AUTH,
+  listShapes: USER_SHAPES_LIST,
+  startShapesImport: USER_SHAPES_IMPORT,
+  listShapesImportJobs: USER_SHAPES_IMPORT,
+  startShapesExport: USER_SHAPES_EXPORT,
+  listShapesExportJobs: USER_SHAPES_EXPORT,
 
   // Wallet
   listWalletKeys: '../wallet/listKeys.js',
