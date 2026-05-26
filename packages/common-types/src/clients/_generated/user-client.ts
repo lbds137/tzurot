@@ -1131,6 +1131,73 @@ export class UserClient {
     });
   }
 
+  async getIncognitoStatus(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getIncognitoStatus.output>>> {
+    const fullPath = '/api/user/memory/incognito';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'GET',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      outputSchema: ROUTE_MANIFEST.getIncognitoStatus.output,
+    });
+  }
+
+  async enableIncognito(input: z.infer<typeof ROUTE_MANIFEST.enableIncognito.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.enableIncognito.output>>> {
+    const fullPath = '/api/user/memory/incognito';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.enableIncognito.output,
+    });
+  }
+
+  async disableIncognito(input: z.infer<typeof ROUTE_MANIFEST.disableIncognito.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.disableIncognito.output>>> {
+    const fullPath = '/api/user/memory/incognito';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'DELETE',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.disableIncognito.output,
+    });
+  }
+
+  async incognitoForget(input: z.infer<typeof ROUTE_MANIFEST.incognitoForget.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.incognitoForget.output>>> {
+    const fullPath = '/api/user/memory/incognito/forget';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.incognitoForget.output,
+    });
+  }
+
   async getRecentDiagnostics(options: { subject?: SubjectDiscordId; personalityId?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getRecentDiagnostics.output>>> {
     const fullPath = '/api/user/diagnostic/recent' + buildQueryString([['userId', options.subject], ['personalityId', options.personalityId]]);
     return callGateway({

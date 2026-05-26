@@ -56,6 +56,9 @@ export * from './nsfw.js';
 // Voice cloning management endpoints
 export * from './voices.js';
 
+// Memory incognito mode endpoints
+export * from './memoryIncognito.js';
+
 // Denylist schemas
 export * from './denylist.js';
 

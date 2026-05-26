@@ -13,6 +13,7 @@ import {
   userConfigRoutes,
   userOwnershipRoutes,
   userResourceRoutes,
+  userMemoryRoutes,
   userDiagnosticRoutes,
 } from './index.js';
 import type { AnyRouteDef } from '../types.js';
@@ -96,11 +97,12 @@ describe('user route manifest', () => {
     }
   });
 
-  it('all four sub-manifests are disjoint (no id collisions on merge)', () => {
+  it('all sub-manifests are disjoint (no id collisions on merge)', () => {
     const subManifests: [string, object][] = [
       ['configs', userConfigRoutes],
       ['ownership', userOwnershipRoutes],
       ['resources', userResourceRoutes],
+      ['memory', userMemoryRoutes],
       ['diagnostics', userDiagnosticRoutes],
     ];
     for (let i = 0; i < subManifests.length; i++) {
@@ -120,6 +122,7 @@ describe('user route manifest', () => {
       Object.keys(userConfigRoutes).length +
         Object.keys(userOwnershipRoutes).length +
         Object.keys(userResourceRoutes).length +
+        Object.keys(userMemoryRoutes).length +
         Object.keys(userDiagnosticRoutes).length
     );
   });
