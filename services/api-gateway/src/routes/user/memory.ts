@@ -43,7 +43,7 @@ import { handleList } from './memoryList.js';
 import {
   handleGetMemory,
   handleUpdateMemory,
-  handleToggleLock,
+  handleSetMemoryLock,
   handleDeleteMemory,
 } from './memorySingle.js';
 import { handleBatchDelete, handleBatchDeletePreview, handlePurge } from './memoryBatch.js';
@@ -270,7 +270,7 @@ type MemoryHandler = (
 interface RegisterRouteParams {
   router: Router;
   prisma: PrismaClient;
-  method: 'get' | 'post' | 'patch' | 'delete';
+  method: 'get' | 'post' | 'put' | 'patch' | 'delete';
   path: string;
   handler: MemoryHandler;
 }
@@ -312,7 +312,7 @@ export function createMemoryRoutes(deps: RouteDeps): Router {
     { method: 'get', path: '/:id', handler: handleGetMemory },
     { method: 'patch', path: '/:id', handler: handleUpdateMemory },
     { method: 'delete', path: '/:id', handler: handleDeleteMemory },
-    { method: 'post', path: '/:id/lock', handler: handleToggleLock },
+    { method: 'put', path: '/:id/lock', handler: handleSetMemoryLock },
   ];
 
   for (const route of routes) {
