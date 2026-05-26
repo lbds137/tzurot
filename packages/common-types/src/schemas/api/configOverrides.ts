@@ -123,3 +123,114 @@ export interface ResolvedConfigOverrides {
   /** Per-field source tracking: which tier provided each value */
   sources: Record<keyof ConfigOverrides, ConfigOverrideSource>;
 }
+
+// ============================================================================
+// Runtime schemas for resolved + raw config-overrides API endpoints
+// ============================================================================
+
+const ConfigOverrideSourceSchema = z.enum([
+  'hardcoded',
+  'admin',
+  'personality',
+  'channel',
+  'user-default',
+  'user-personality',
+]);
+
+/**
+ * Runtime tuple of `ConfigOverrides` field names.
+ *
+ * Single source of truth for the known finite key set; `keyof ConfigOverrides`
+ * is type-only and can't reach Zod at runtime. The `satisfies` clause forces
+ * the compiler to verify every key in the tuple exists on `ConfigOverrides`;
+ * the test in `configOverrides.test.ts` asserts the inverse (every key in
+ * `ConfigOverrides` is present here). Together those make drift impossible.
+ */
+export const CONFIG_OVERRIDES_KEYS = [
+  'maxMessages',
+  'maxAge',
+  'maxImages',
+  'memoryScoreThreshold',
+  'memoryLimit',
+  'focusModeEnabled',
+  'crossChannelHistoryEnabled',
+  'shareLtmAcrossPersonalities',
+  'showModelFooter',
+  'voiceResponseMode',
+  'voiceTranscriptionEnabled',
+] as const satisfies readonly (keyof ConfigOverrides)[];
+
+const ConfigOverridesKeySchema = z.enum(CONFIG_OVERRIDES_KEYS);
+
+/**
+ * Runtime Zod schema mirroring the ResolvedConfigOverrides interface above.
+ * Used as the response schema for cascade-resolution endpoints.
+ *
+ * Derived from `ConfigOverridesSchema.required()` so the field list and
+ * validators stay in sync automatically when a new override is added —
+ * `.required()` strips the per-field `.optional()` wrappers but preserves
+ * nullable types (e.g., `maxAge` remains `number | null`), which matches
+ * the `ResolvedConfigOverrides` interface above. The `.extend()` adds the
+ * resolver-specific `sources` field.
+ *
+ * `z.partialRecord` (Zod v4 API) produces `{ [K in Enum]?: V }`. We can't
+ * use `z.record(enum, ...)` here because Zod v4 makes that exhaustive
+ * (requires every enum member as a key), which would reject the handler's
+ * per-overridden-field emission shape. `partialRecord` is the non-exhaustive
+ * variant; the type-only Zod-v3 equivalent was the default record behavior.
+ */
+export const ResolvedConfigOverridesSchema = ConfigOverridesSchema.required().extend({
+  sources: z.partialRecord(ConfigOverridesKeySchema, ConfigOverrideSourceSchema),
+});
+
+/**
+ * Response for GET /user/config-overrides/resolve-defaults.
+ * Flat shape: each ConfigOverrides field appears at the top level alongside
+ * `sources` (per-field provenance) and `userOverrides` (the raw user tier
+ * stored in DB, or null if unset). Field collisions are prevented by the
+ * comment in config-overrides.ts: ConfigOverrides field names must not
+ * include 'sources' or 'userOverrides'.
+ */
+export const ResolveUserConfigDefaultsResponseSchema = z
+  .object({
+    sources: z.partialRecord(ConfigOverridesKeySchema, ConfigOverrideSourceSchema),
+    userOverrides: z.record(z.string(), z.unknown()).nullable(),
+  })
+  .passthrough();
+export type ResolveUserConfigDefaultsResponse = z.infer<
+  typeof ResolveUserConfigDefaultsResponseSchema
+>;
+
+/** Response for GET /user/config-overrides/defaults — the raw JSONB column (or null). */
+export const GetUserConfigDefaultsResponseSchema = z.object({
+  configDefaults: z.record(z.string(), z.unknown()).nullable(),
+});
+export type GetUserConfigDefaultsResponse = z.infer<typeof GetUserConfigDefaultsResponseSchema>;
+
+/** Response for PATCH /user/config-overrides/defaults — merged result echoed back. */
+export const UpdateConfigDefaultsResponseSchema = z.object({
+  configDefaults: z.record(z.string(), z.unknown()),
+});
+export type UpdateConfigDefaultsResponse = z.infer<typeof UpdateConfigDefaultsResponseSchema>;
+
+/** Response for DELETE /user/config-overrides/defaults — bare success ack. */
+export const ClearUserConfigDefaultsResponseSchema = z.object({
+  success: z.literal(true),
+});
+export type ClearUserConfigDefaultsResponse = z.infer<typeof ClearUserConfigDefaultsResponseSchema>;
+
+/** Response for PATCH /user/config-overrides/:personalityId — merged per-personality overrides. */
+export const UpdatePersonalityConfigOverridesResponseSchema = z.object({
+  configOverrides: z.record(z.string(), z.unknown()),
+});
+export type UpdatePersonalityConfigOverridesResponse = z.infer<
+  typeof UpdatePersonalityConfigOverridesResponseSchema
+>;
+
+/** Response for DELETE /user/config-overrides/:personalityId — bare success ack. */
+export const ClearPersonalityConfigOverridesResponseSchema = z.object({
+  success: z.literal(true),
+});
+export type ClearPersonalityConfigOverridesResponse = z.infer<
+  typeof ClearPersonalityConfigOverridesResponseSchema
+>;
