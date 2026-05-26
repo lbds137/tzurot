@@ -136,7 +136,7 @@ describe('buildMethod — user flavor', () => {
   it('exposes query parameters in an options bag when route has queries', () => {
     const route: RouteDef = {
       ...baseRoute,
-      query: { since: z.string(), limit: z.string() },
+      query: { since: z.string().optional(), limit: z.string().optional() },
     };
     const out = buildMethod(route, { flavor: 'user', pathPrefix: '/api/user' });
     expect(out).toContain(`options: { since?: string; limit?: string } = {}`);
@@ -151,6 +151,38 @@ describe('buildMethod — user flavor', () => {
       query: { personalityId: z.string() },
     };
     const out = buildMethod(route, { flavor: 'user', pathPrefix: '/api/user' });
-    expect(out).toContain(`options: { subject?: SubjectDiscordId; personalityId?: string } = {}`);
+    // personalityId is z.string() (required) so the options bag is required
+    // and the field has no `?` marker. subject is always optional.
+    expect(out).toContain(`options: { subject?: SubjectDiscordId; personalityId: string }`);
+    expect(out).not.toContain('SubjectDiscordId; personalityId: string } = {}');
+  });
+
+  it('emits required field (no ?) when query schema is z.string()', () => {
+    const route: RouteDef = {
+      ...baseRoute,
+      query: { channelId: z.string(), personaId: z.string().optional() },
+    };
+    const out = buildMethod(route, { flavor: 'user', pathPrefix: '/api/user' });
+    expect(out).toContain(`options: { channelId: string; personaId?: string }`);
+    // Required param → entire options bag is required (no `= {}` default)
+    expect(out).not.toContain('personaId?: string } = {}');
+  });
+
+  it('emits optional field (with ?) and default {} when all params are optional', () => {
+    const route: RouteDef = {
+      ...baseRoute,
+      query: { since: z.string().optional(), limit: z.string().optional() },
+    };
+    const out = buildMethod(route, { flavor: 'user', pathPrefix: '/api/user' });
+    expect(out).toContain(`options: { since?: string; limit?: string } = {}`);
+  });
+
+  it('treats z.string().default(...) as optional', () => {
+    const route: RouteDef = {
+      ...baseRoute,
+      query: { sort: z.string().default('asc') },
+    };
+    const out = buildMethod(route, { flavor: 'user', pathPrefix: '/api/user' });
+    expect(out).toContain(`options: { sort?: string } = {}`);
   });
 });
