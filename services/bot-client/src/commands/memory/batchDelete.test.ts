@@ -133,8 +133,11 @@ describe('handleBatchDelete', () => {
         'lilith'
       );
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        expect.stringContaining('personalityId=personality-uuid-123'),
-        expect.objectContaining({ method: 'GET' })
+        '/user/memory/delete/preview',
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.objectContaining({ personalityId: 'personality-uuid-123' }),
+        })
       );
     });
   });
@@ -210,8 +213,11 @@ describe('handleBatchDelete', () => {
       await handleBatchDelete(context);
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        expect.stringMatching(/timeframe=7d/),
-        expect.any(Object)
+        '/user/memory/delete/preview',
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.objectContaining({ timeframe: '7d' }),
+        })
       );
     });
   });
@@ -227,6 +233,7 @@ describe('handleBatchDelete', () => {
           personalityId: 'personality-uuid-123',
           personalityName: 'Lilith',
           timeframe: 'all',
+          previewToken: 'preview_test0123456789abc',
         },
       });
     });
@@ -278,8 +285,8 @@ describe('handleBatchDelete', () => {
       mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
     });
 
-    it('should perform deletion when user confirms', async () => {
-      // Preview response
+    it('should perform deletion using the previewToken when user confirms', async () => {
+      // Preview response — now carries the token bound to the filter
       mockCallGatewayApi
         .mockResolvedValueOnce({
           ok: true,
@@ -289,6 +296,7 @@ describe('handleBatchDelete', () => {
             personalityId: 'personality-uuid-123',
             personalityName: 'Lilith',
             timeframe: 'all',
+            previewToken: 'preview_test0123456789abc',
           },
         })
         // Delete response
@@ -309,25 +317,23 @@ describe('handleBatchDelete', () => {
       const context = createMockContext();
       await handleBatchDelete(context);
 
-      // Verify delete API was called
+      // Delete API is invoked with ONLY the previewToken — the filter
+      // never crosses the wire on the execute path.
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
         '/user/memory/delete',
         expect.objectContaining({
           method: 'POST',
-          body: expect.objectContaining({
-            personalityId: 'personality-uuid-123',
-          }),
+          body: { previewToken: 'preview_test0123456789abc' },
         })
       );
 
-      // Verify success message shown
       expect(buttonInteraction.editReply).toHaveBeenCalledWith({
         embeds: expect.any(Array),
         components: [],
       });
     });
 
-    it('should include timeframe in delete request', async () => {
+    it('should include timeframe only in the preview body — execute uses the token', async () => {
       mockCallGatewayApi
         .mockResolvedValueOnce({
           ok: true,
@@ -337,6 +343,7 @@ describe('handleBatchDelete', () => {
             personalityId: 'personality-uuid-123',
             personalityName: 'Lilith',
             timeframe: '7d',
+            previewToken: 'preview_xyz0123456789abc',
           },
         })
         .mockResolvedValueOnce({
@@ -356,12 +363,22 @@ describe('handleBatchDelete', () => {
       const context = createMockContext('lilith', '7d');
       await handleBatchDelete(context);
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
+      // Preview includes timeframe …
+      expect(mockCallGatewayApi).toHaveBeenNthCalledWith(
+        1,
+        '/user/memory/delete/preview',
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.objectContaining({ timeframe: '7d' }),
+        })
+      );
+      // … execute is token-only.
+      expect(mockCallGatewayApi).toHaveBeenNthCalledWith(
+        2,
         '/user/memory/delete',
         expect.objectContaining({
-          body: expect.objectContaining({
-            timeframe: '7d',
-          }),
+          method: 'POST',
+          body: { previewToken: 'preview_xyz0123456789abc' },
         })
       );
     });
@@ -376,6 +393,7 @@ describe('handleBatchDelete', () => {
             personalityId: 'personality-uuid-123',
             personalityName: 'Lilith',
             timeframe: 'all',
+            previewToken: 'preview_test0123456789abc',
           },
         })
         .mockResolvedValueOnce({
@@ -406,6 +424,7 @@ describe('handleBatchDelete', () => {
             personalityId: 'personality-uuid-123',
             personalityName: 'Lilith',
             timeframe: 'all',
+            previewToken: 'preview_test0123456789abc',
           },
         })
         .mockResolvedValueOnce({

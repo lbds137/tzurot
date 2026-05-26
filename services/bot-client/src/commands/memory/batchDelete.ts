@@ -38,6 +38,8 @@ interface PreviewResponse {
   personalityId: string;
   personalityName: string;
   timeframe: string;
+  /** Short-lived token bound to the filter that produced this preview. */
+  previewToken: string;
 }
 
 interface DeleteResponse {
@@ -94,19 +96,18 @@ export async function handleBatchDelete(context: DeferredCommandContext): Promis
       return;
     }
 
-    // Get preview of what would be deleted
-    const queryParams = new URLSearchParams({ personalityId });
-    if (timeframe !== null) {
-      queryParams.set('timeframe', timeframe);
-    }
-
-    const previewResult = await callGatewayApi<PreviewResponse>(
-      `/user/memory/delete/preview?${queryParams.toString()}`,
-      {
-        user,
-        method: 'GET',
-      }
-    );
+    // Preview the deletion and obtain a token bound to this filter. The
+    // execute call below sends ONLY the token — server-side reads the
+    // filter back from Redis under the token key, so the execute path
+    // is guaranteed to match what the user previewed.
+    const previewResult = await callGatewayApi<PreviewResponse>(`/user/memory/delete/preview`, {
+      user,
+      method: 'POST',
+      body: {
+        personalityId,
+        ...(timeframe !== null ? { timeframe } : {}),
+      },
+    });
 
     if (!previewResult.ok) {
       const errorMessage =
@@ -193,10 +194,7 @@ export async function handleBatchDelete(context: DeferredCommandContext): Promis
       const deleteResult = await callGatewayApi<DeleteResponse>('/user/memory/delete', {
         user,
         method: 'POST',
-        body: {
-          personalityId,
-          timeframe,
-        },
+        body: { previewToken: preview.previewToken },
       });
 
       if (!deleteResult.ok) {

@@ -77,22 +77,29 @@ export async function updateMemory(
 }
 
 /**
- * Toggle memory lock status
+ * Set memory lock state explicitly. Idempotent on retry — caller supplies
+ * the desired final state so a network-retried request can't accidentally
+ * unlock something the previous attempt locked.
  */
-export async function toggleMemoryLock(
+export async function setMemoryLock(
   user: GatewayUser,
-  memoryId: string
+  memoryId: string,
+  locked: boolean
 ): Promise<MemoryItem | null> {
   const result = await callGatewayApi<SingleMemoryResponse>(
     `/user/memory/${encodeURIComponent(memoryId)}/lock`,
     {
       user,
-      method: 'POST',
+      method: 'PUT',
+      body: { locked },
     }
   );
 
   if (!result.ok) {
-    logger.warn({ userId: user.discordId, memoryId, error: result.error }, 'Failed to toggle lock');
+    logger.warn(
+      { userId: user.discordId, memoryId, locked, error: result.error },
+      'Failed to set memory lock'
+    );
     return null;
   }
 

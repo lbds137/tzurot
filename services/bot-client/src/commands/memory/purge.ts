@@ -63,6 +63,12 @@ interface PurgeResponse {
   message: string;
 }
 
+interface PurgeTokenResponse {
+  purgeToken: string;
+  personalityId: string;
+  personalityName: string;
+}
+
 /** Build the confirmation phrase the user must type to confirm the purge. */
 function getConfirmationPhrase(personalityName: string): string {
   return `DELETE ${personalityName.toUpperCase()} MEMORIES`;
@@ -269,6 +275,55 @@ export async function handlePurgeButton(interaction: ButtonInteraction): Promise
 }
 
 /**
+ * Two-step purge handshake: exchange the confirmation phrase for a short-
+ * lived purge token, then redeem the token to actually purge. The execute
+ * call sees only the token — `personalityId` lives server-side under the
+ * token key, eliminating phrase-vs-personality drift across the round trip.
+ *
+ * Returns the purge result on success, or null when either step failed
+ * (in which case the user-facing error has already been written via
+ * `interaction.editReply`).
+ */
+async function executePurgeHandshake(
+  user: ReturnType<typeof toGatewayUser>,
+  personalityId: string,
+  enteredPhrase: string,
+  interaction: ModalSubmitInteraction
+): Promise<PurgeResponse | null> {
+  const tokenResult = await callGatewayApi<PurgeTokenResponse>('/user/memory/purge/token', {
+    user,
+    method: 'POST',
+    body: { personalityId, confirmationPhrase: enteredPhrase },
+  });
+
+  if (!tokenResult.ok) {
+    await interaction.editReply({
+      content: `Failed to confirm purge: ${tokenResult.error ?? 'Unknown error'}`,
+      embeds: [],
+      components: [],
+    });
+    return null;
+  }
+
+  const purgeResult = await callGatewayApi<PurgeResponse>('/user/memory/purge', {
+    user,
+    method: 'POST',
+    body: { purgeToken: tokenResult.data.purgeToken },
+  });
+
+  if (!purgeResult.ok) {
+    await interaction.editReply({
+      content: `Failed to purge memories: ${purgeResult.error ?? 'Unknown error'}`,
+      embeds: [],
+      components: [],
+    });
+    return null;
+  }
+
+  return purgeResult.data;
+}
+
+/**
  * Handle the "type the phrase" modal submission for /memory purge.
  * Routed from CommandHandler → memory's handleModal.
  */
@@ -344,22 +399,12 @@ export async function handlePurgeModal(interaction: ModalSubmitInteraction): Pro
   });
 
   const user = toGatewayUser(interaction.user);
-  const purgeResult = await callGatewayApi<PurgeResponse>('/user/memory/purge', {
-    user,
-    method: 'POST',
-    body: { personalityId, confirmationPhrase: enteredPhrase },
-  });
-
-  if (!purgeResult.ok) {
-    await interaction.editReply({
-      content: `Failed to purge memories: ${purgeResult.error ?? 'Unknown error'}`,
-      embeds: [],
-      components: [],
-    });
+  const purgeResult = await executePurgeHandshake(user, personalityId, enteredPhrase, interaction);
+  if (purgeResult === null) {
     return;
   }
 
-  const result = purgeResult.data;
+  const result = purgeResult;
   let successDescription = `Purged **${result.deletedCount}** memories for **${escapeMarkdown(result.personalityName)}**.`;
   if (result.lockedPreserved > 0) {
     successDescription += `\n\n**${result.lockedPreserved}** locked (core) memories were preserved.`;
