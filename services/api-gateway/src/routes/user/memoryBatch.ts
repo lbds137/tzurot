@@ -88,7 +88,7 @@ async function resolvePersonaIdForBatch(
  * the filter is stored server-side under the token key, so the execute
  * path is guaranteed to operate on the same filter the user previewed.
  */
- 
+
 export async function handleBatchDeletePreview(
   prisma: PrismaClient,
   tokenService: MemoryActionTokenService | null,
@@ -211,7 +211,12 @@ export async function handleBatchDelete(
   }
 
   const { previewToken } = parseResult.data;
-  const filter = await tokenService.consumePreviewToken(discordUserId, previewToken);
+
+  // Two-step token redemption: peek to validate preconditions, then
+  // atomically consume. If personality lookup or persona validation fails,
+  // the token stays valid in Redis for the user to retry without restarting
+  // the preview flow.
+  const filter = await tokenService.peekPreviewToken(discordUserId, previewToken);
   if (filter === null) {
     sendError(
       res,
@@ -235,6 +240,20 @@ export async function handleBatchDelete(
   // session that no longer reflects the current persona state.
   const personaId = await resolvePersonaIdForBatch(prisma, userId, filterPersonaId, res);
   if (personaId === null) {
+    return;
+  }
+
+  // Preconditions OK — claim the token atomically. The only failure here is
+  // a concurrent consume by the same user (double-click), which is benign:
+  // the destructive op below is idempotent on already-deleted rows.
+  const consumed = await tokenService.consumePreviewToken(discordUserId, previewToken);
+  if (consumed === null) {
+    sendError(
+      res,
+      ErrorResponses.validationError(
+        'Preview token was consumed by a concurrent request. Re-run the preview to get a fresh token.'
+      )
+    );
     return;
   }
 
@@ -379,7 +398,7 @@ export async function handleIssuePurgeToken(
  * Consumes the token, then soft-deletes all non-locked memories for the
  * personality bound to that token.
  */
- 
+
 export async function handlePurge(
   prisma: PrismaClient,
   tokenService: MemoryActionTokenService | null,
@@ -400,8 +419,11 @@ export async function handlePurge(
   }
 
   const { purgeToken } = parseResult.data;
-  const consumed = await tokenService.consumePurgeToken(discordUserId, purgeToken);
-  if (consumed === null) {
+
+  // Peek first so a personality that was deleted within the 5-min token
+  // window doesn't burn the user's one-shot token.
+  const peeked = await tokenService.peekPurgeToken(discordUserId, purgeToken);
+  if (peeked === null) {
     sendError(
       res,
       ErrorResponses.validationError(
@@ -411,7 +433,7 @@ export async function handlePurge(
     return;
   }
 
-  const { personalityId } = consumed;
+  const { personalityId } = peeked;
   const userId = resolveProvisionedUserId(req);
 
   const personality = await getPersonalityById(prisma, personalityId, res);
@@ -419,6 +441,24 @@ export async function handlePurge(
     return;
   }
 
+  // Preconditions OK — claim the token. Concurrent-consume race is benign
+  // because updateMany of already-deleted rows is a no-op.
+  const consumed = await tokenService.consumePurgeToken(discordUserId, purgeToken);
+  if (consumed === null) {
+    sendError(
+      res,
+      ErrorResponses.validationError(
+        'Purge token was consumed by a concurrent request. Re-issue via /memory/purge/token.'
+      )
+    );
+    return;
+  }
+
+  // Purge always operates on the user's *default* persona. Batch-delete
+  // (above) supports a token-supplied persona override because the preview
+  // flow lets the user filter by persona; purge has no equivalent filter —
+  // it's an all-memories destructive op scoped to the personality. If a
+  // future variant needs persona-scoped purge, mirror resolvePersonaIdForBatch.
   const defaultPersonaId = await getDefaultPersonaId(prisma, userId);
   if (defaultPersonaId === null) {
     sendError(res, ErrorResponses.validationError('No persona found. Create one first.'));

@@ -176,9 +176,13 @@ export interface RouteDef<
    * (or part of the options bag, depending on optionality). Server-side
    * the corresponding handler can `req.get(headerName)` and validate.
    *
-   * Currently used by destructive batch operations (`/memory/delete`,
-   * `/memory/purge`) to require an `Idempotency-Key` UUID so retries on
-   * network timeout don't double-execute.
+   * Reserved for future use. The destructive memory batch operations
+   * (`/memory/delete`, `/memory/purge`) achieve idempotency through the
+   * preview-token / purge-token handshake instead — the token IS the
+   * single-use replay key, so a separate `Idempotency-Key` header isn't
+   * needed in the current design. This field stands ready for routes
+   * outside the token-handshake pattern that still need header-driven
+   * idempotency.
    */
   readonly headers?: Record<string, z.ZodTypeAny>;
   /**
