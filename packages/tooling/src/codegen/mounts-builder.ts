@@ -74,8 +74,25 @@ export function buildMountsFile(options: MountsBuildOptions): string {
     ...Object.values(routesByAudience.user),
   ];
 
+  // File-level header note about routing ordering — readers landing on
+  // the generated file in isolation get one explanation up-front instead
+  // of seeing the same comment repeated inside every `mount*Routes` body.
+  const orderingNote = [
+    '/**',
+    ' * Route registration order:',
+    ' *',
+    ' * `sortRoutesForExpress` in mounts-builder.ts sorts routes ascending by',
+    ' * `:param` segment count, so literal paths (e.g., `/voices/clear`)',
+    ' * register before parameterized siblings (e.g., `/voices/:provider/:voiceId`).',
+    ' * Express matches in registration order, so this guarantees the most',
+    ' * specific path wins for any (method, parent) shape collision.',
+    ' */',
+  ].join('\n');
+
   const sections: string[] = [
     AUTOGEN_HEADER,
+    orderingNote,
+    '',
     buildImports(allRoutes, handlerPathFor, handlerExportNameFor),
     '',
     buildMountFunction({
@@ -200,20 +217,10 @@ function buildMountFunction(options: MountFunctionOptions): string {
     .map(route => buildMountCall(route, prefix, audienceMiddleware, handlerExportNameFor))
     .join('\n');
 
-  // Inline note for readers landing on the generated file in isolation:
-  // routes are sorted by `:param` segment count ascending (more-specific
-  // literal paths register before parameterized siblings). See
-  // `sortRoutesForExpress` in mounts-builder.ts for the rule + rationale.
-  const orderingComment =
-    `  // Routes sorted by codegen: literal paths register before parameterized\n` +
-    `  // siblings so Express matches the most specific path first.`;
-
-  return [
-    `export function ${name}(app: Express, deps: RouteDeps): void {`,
-    orderingComment,
-    body,
-    `}`,
-  ].join('\n');
+  // Routing-order explanation lives in the file-level header comment
+  // emitted by `buildMountsFile` (above) — single source instead of
+  // repeating the note in every `mount*Routes` body.
+  return [`export function ${name}(app: Express, deps: RouteDeps): void {`, body, `}`].join('\n');
 }
 
 /**

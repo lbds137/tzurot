@@ -35,8 +35,12 @@ import type { RouteDef } from '../types.js';
 const BASE = '/config-overrides';
 const PERSONALITY_ID_PARAM_PATH = `${BASE}/:personalityId`;
 const PERSONALITY_NESTED_PATH = `${BASE}/personality/:personalityId`;
-const RESOLVE_PERSONALITY_PATH = `${BASE}/resolve-personality/:personalityId`;
-const RESOLVE_PERSONALITY_CASCADE_PATH = `${BASE}/resolve/:personalityId`;
+// `RESOLVE_FULL_CASCADE_PATH` is the user-tier 5-tier resolution
+// (hardcoded → admin → personality → channel → user-default → user-personality).
+// `RESOLVE_PERSONALITY_TIER_PATH` is the personality-tier 3-tier resolution
+// (hardcoded → admin → personality only — strips the user-specific tiers).
+const RESOLVE_PERSONALITY_TIER_PATH = `${BASE}/resolve-personality/:personalityId`;
+const RESOLVE_FULL_CASCADE_PATH = `${BASE}/resolve/:personalityId`;
 
 export const userConfigOverrideRoutes = {
   // ============================================================================
@@ -83,7 +87,7 @@ export const userConfigOverrideRoutes = {
   resolveCascade: {
     audience: 'user',
     method: 'get',
-    path: RESOLVE_PERSONALITY_CASCADE_PATH,
+    path: RESOLVE_FULL_CASCADE_PATH,
     id: 'resolveCascade',
     params: { personalityId: z.string() },
     query: { channelId: z.string().optional() },
@@ -128,7 +132,7 @@ export const userConfigOverrideRoutes = {
   resolvePersonalityCascade: {
     audience: 'user',
     method: 'get',
-    path: RESOLVE_PERSONALITY_PATH,
+    path: RESOLVE_PERSONALITY_TIER_PATH,
     id: 'resolvePersonalityCascade',
     params: { personalityId: z.string() },
     output: ResolvedConfigOverridesSchema,
