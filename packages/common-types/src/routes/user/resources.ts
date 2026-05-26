@@ -155,9 +155,12 @@ export const userResourceRoutes = {
     method: 'get',
     path: '/history/stats',
     id: 'getHistoryStats',
+    // `.min(1)` mirrors the server-side `HistoryStatsQuerySchema` in
+    // schemas/api/history.ts — the handler returns 400 on empty values
+    // and the generated client should refuse to send them.
     query: {
-      personalitySlug: z.string(),
-      channelId: z.string(),
+      personalitySlug: z.string().min(1),
+      channelId: z.string().min(1),
       personaId: z.string().optional(),
     },
     output: HistoryStatsResponseSchema,
@@ -219,7 +222,7 @@ export const userResourceRoutes = {
   setWalletKey: {
     audience: 'user',
     method: 'post',
-    path: '/wallet',
+    path: '/wallet/set',
     id: 'setWalletKey',
     input: SetWalletKeySchema,
     output: SetWalletKeyResponseSchema,

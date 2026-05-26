@@ -1002,7 +1002,7 @@ export class UserClient {
   }
 
   async setWalletKey(input: z.infer<typeof ROUTE_MANIFEST.setWalletKey.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setWalletKey.output>>> {
-    const fullPath = '/api/user/wallet';
+    const fullPath = '/api/user/wallet/set';
     return callGateway({
       baseUrl: this.baseUrl,
       serviceSecret: this.serviceSecret,
@@ -1410,7 +1410,7 @@ export class UserClient {
     });
   }
 
-  async startShapesImport(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.startShapesImport.output>>> {
+  async startShapesImport(input: z.infer<typeof ROUTE_MANIFEST.startShapesImport.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.startShapesImport.output>>> {
     const fullPath = '/api/user/shapes/import';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -1422,6 +1422,7 @@ export class UserClient {
         'X-User-Username': encodeURIComponent(this.user.username),
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
+      body: input,
       outputSchema: ROUTE_MANIFEST.startShapesImport.output,
     });
   }
@@ -1442,7 +1443,7 @@ export class UserClient {
     });
   }
 
-  async startShapesExport(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.startShapesExport.output>>> {
+  async startShapesExport(input: z.infer<typeof ROUTE_MANIFEST.startShapesExport.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.startShapesExport.output>>> {
     const fullPath = '/api/user/shapes/export';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -1454,6 +1455,7 @@ export class UserClient {
         'X-User-Username': encodeURIComponent(this.user.username),
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
+      body: input,
       outputSchema: ROUTE_MANIFEST.startShapesExport.output,
     });
   }

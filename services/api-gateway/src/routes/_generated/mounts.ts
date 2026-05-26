@@ -236,7 +236,7 @@ export function mountUserRoutes(app: Express, deps: RouteDeps): void {
   app.get('/api/user/nsfw', requireUserAuth(), requireProvisionedUser(deps.prisma), handleGetNsfwStatus(deps));
   app.post('/api/user/nsfw/verify', requireUserAuth(), requireProvisionedUser(deps.prisma), handleVerifyNsfw(deps));
   app.get('/api/user/wallet/list', requireUserAuth(), requireProvisionedUser(deps.prisma), handleListWalletKeys(deps));
-  app.post('/api/user/wallet', requireUserAuth(), requireProvisionedUser(deps.prisma), handleSetWalletKey(deps));
+  app.post('/api/user/wallet/set', requireUserAuth(), requireProvisionedUser(deps.prisma), handleSetWalletKey(deps));
   app.post('/api/user/wallet/test', requireUserAuth(), requireProvisionedUser(deps.prisma), handleTestWalletKey(deps));
   app.get('/api/user/voice-resolution', requireUserAuth(), requireProvisionedUser(deps.prisma), handleGetVoiceResolution(deps));
   app.get('/api/user/voices', requireUserAuth(), requireProvisionedUser(deps.prisma), handleListVoices(deps));

@@ -73,6 +73,17 @@ export type ListShapesResponse = z.infer<typeof ListShapesResponseSchema>;
 // /user/shapes/import
 // ============================================================================
 
+/**
+ * Request body for `POST /user/shapes/import`. The handler accepts `importType`
+ * as the literal `'memory_only'` or anything else (which it normalizes to
+ * `'full'`); we narrow to the two known values at the contract layer.
+ */
+export const StartShapesImportInputSchema = z.object({
+  sourceSlug: z.string().min(1),
+  importType: z.enum(['full', 'memory_only']).optional(),
+});
+export type StartShapesImportInput = z.infer<typeof StartShapesImportInputSchema>;
+
 export const StartShapesImportResponseSchema = z.object({
   success: z.literal(true),
   importJobId: z.string(),
@@ -92,8 +103,10 @@ export const ShapesImportJobSummarySchema = z
     sourceSlug: z.string(),
     status: z.string(),
     importType: z.string(),
-    memoriesImported: z.number().int().nonnegative(),
-    memoriesFailed: z.number().int().nonnegative(),
+    // Nullable: Prisma columns are `Int?`. Jobs in `pending` or `in_progress`
+    // state have `null` for both counts until the worker completes them.
+    memoriesImported: z.number().int().nonnegative().nullable(),
+    memoriesFailed: z.number().int().nonnegative().nullable(),
     createdAt: z.union([z.string(), z.date()]),
     completedAt: z.union([z.string(), z.date()]).nullable(),
     errorMessage: z.string().nullable(),
@@ -110,6 +123,17 @@ export type ListShapesImportJobsResponse = z.infer<typeof ListShapesImportJobsRe
 // ============================================================================
 // /user/shapes/export
 // ============================================================================
+
+/**
+ * Request body for `POST /user/shapes/export`. Note the field is `slug`
+ * (not `sourceSlug` — asymmetric with import; the handler uses this name).
+ * Format defaults to `'json'` server-side when omitted.
+ */
+export const StartShapesExportInputSchema = z.object({
+  slug: z.string().min(1),
+  format: z.enum(['json', 'markdown']).optional(),
+});
+export type StartShapesExportInput = z.infer<typeof StartShapesExportInputSchema>;
 
 export const StartShapesExportResponseSchema = z.object({
   success: z.literal(true),
