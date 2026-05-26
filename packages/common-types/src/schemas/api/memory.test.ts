@@ -7,6 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   FocusModeSchema,
+  SetMemoryLockSchema,
   MemoryUpdateSchema,
   BatchDeletePreviewSchema,
   BatchDeleteSchema,
@@ -56,6 +57,28 @@ describe('Memory API Input Schema Tests', () => {
         personalityId: 'abc',
         enabled: 'true',
       });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('SetMemoryLockSchema', () => {
+    it('accepts locked: true', () => {
+      const result = SetMemoryLockSchema.safeParse({ locked: true });
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts locked: false', () => {
+      const result = SetMemoryLockSchema.safeParse({ locked: false });
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects missing locked', () => {
+      const result = SetMemoryLockSchema.safeParse({});
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects non-boolean locked', () => {
+      const result = SetMemoryLockSchema.safeParse({ locked: 'true' });
       expect(result.success).toBe(false);
     });
   });
@@ -129,14 +152,14 @@ describe('Memory API Input Schema Tests', () => {
   describe('BatchDeleteSchema', () => {
     it('accepts a valid preview_-prefixed token', () => {
       const result = BatchDeleteSchema.safeParse({
-        previewToken: 'preview_abcdef0123456789',
+        previewToken: 'preview_test0000test0000',
       });
       expect(result.success).toBe(true);
     });
 
     it('rejects a purge_-prefixed token (wrong brand)', () => {
       const result = BatchDeleteSchema.safeParse({
-        previewToken: 'purge_abcdef0123456789',
+        previewToken: 'purge_test0000test0000',
       });
       expect(result.success).toBe(false);
     });
@@ -186,14 +209,14 @@ describe('Memory API Input Schema Tests', () => {
   describe('PurgeMemoriesSchema', () => {
     it('accepts a valid purge_-prefixed token', () => {
       const result = PurgeMemoriesSchema.safeParse({
-        purgeToken: 'purge_abcdef0123456789',
+        purgeToken: 'purge_test0000test0000',
       });
       expect(result.success).toBe(true);
     });
 
     it('rejects a preview_-prefixed token (wrong brand)', () => {
       const result = PurgeMemoriesSchema.safeParse({
-        purgeToken: 'preview_abcdef0123456789',
+        purgeToken: 'preview_test0000test0000',
       });
       expect(result.success).toBe(false);
     });

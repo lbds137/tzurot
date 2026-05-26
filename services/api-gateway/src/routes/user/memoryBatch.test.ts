@@ -59,8 +59,8 @@ const TEST_PERSONA_ID = '00000000-0000-0000-0000-000000000002';
 const TEST_PERSONALITY_ID = '00000000-0000-0000-0000-000000000003';
 const TEST_DISCORD_USER_ID = 'discord-user-123';
 
-const VALID_PREVIEW_TOKEN = 'preview_abcdef0123456789';
-const VALID_PURGE_TOKEN = 'purge_abcdef0123456789';
+const VALID_PREVIEW_TOKEN = 'preview_test0000test0000';
+const VALID_PURGE_TOKEN = 'purge_test0000test0000';
 
 const mockPrisma = {
   memory: {
@@ -243,7 +243,7 @@ describe('memoryBatch handlers', () => {
     });
 
     it('rejects malformed previewToken (wrong prefix)', async () => {
-      const { req, res } = createMockBodyReq({ previewToken: 'purge_abcdef0123456789' });
+      const { req, res } = createMockBodyReq({ previewToken: 'purge_test0000test0000' });
       await handleBatchDelete(mockPrisma as unknown as PrismaClient, tokenService, req, res);
       expect(res.status).toHaveBeenCalledWith(400);
     });
@@ -424,7 +424,7 @@ describe('memoryBatch handlers', () => {
     });
 
     it('rejects malformed purgeToken (wrong prefix)', async () => {
-      const { req, res } = createMockBodyReq({ purgeToken: 'preview_abcdef0123456789' });
+      const { req, res } = createMockBodyReq({ purgeToken: 'preview_test0000test0000' });
       await handlePurge(mockPrisma as unknown as PrismaClient, tokenService, req, res);
       expect(res.status).toHaveBeenCalledWith(400);
     });

@@ -63,11 +63,11 @@ describe('MemoryActionTokenService', () => {
         redis.getdel as unknown as { mockResolvedValueOnce: (v: unknown) => void }
       ).mockResolvedValueOnce(stored);
 
-      const result = await service.consumePreviewToken('user-a', 'preview_xyz0123456789abc');
+      const result = await service.consumePreviewToken('user-a', 'preview_test0000test0002');
 
       expect(result).toEqual(filter);
       expect(redis.getdel).toHaveBeenCalledWith(
-        `${REDIS_KEY_PREFIXES.MEMORY_PREVIEW_TOKEN}user-a:preview_xyz0123456789abc`
+        `${REDIS_KEY_PREFIXES.MEMORY_PREVIEW_TOKEN}user-a:preview_test0000test0002`
       );
     });
 
