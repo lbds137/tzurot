@@ -32,7 +32,7 @@ export function createPersonaRoutes(deps: RouteDeps): Router {
   addDefaultRoutes(router, deps.prisma);
 
   // CRUD routes last (/ and /:id)
-  addCrudRoutes(router, deps.prisma);
+  addCrudRoutes(router, deps);
 
   return router;
 }
