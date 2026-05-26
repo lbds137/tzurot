@@ -40,7 +40,7 @@ vi.mock('../../utils/resolveProvisionedUserId.js', () => ({
 import {
   handleGetMemory,
   handleUpdateMemory,
-  handleToggleLock,
+  handleSetMemoryLock,
   handleDeleteMemory,
 } from './memorySingle.js';
 import { getDefaultPersonaId } from './memoryHelpers.js';
@@ -57,6 +57,7 @@ const TEST_DISCORD_USER_ID = 'discord-user-123';
 const mockPrisma = {
   memory: {
     findFirst: vi.fn(),
+    findUnique: vi.fn(),
     update: vi.fn(),
   },
 };
@@ -348,11 +349,11 @@ describe('memorySingle handlers', () => {
     });
   });
 
-  describe('handleToggleLock', () => {
+  describe('handleSetMemoryLock', () => {
     it('should reject missing memoryId', async () => {
-      const { req, res } = createMockReqRes({ id: '' });
+      const { req, res } = createMockReqRes({ id: '' }, { locked: true });
 
-      await handleToggleLock(mockPrisma as unknown as PrismaClient, req, res);
+      await handleSetMemoryLock(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -362,26 +363,44 @@ describe('memorySingle handlers', () => {
       );
     });
 
+    it('should reject missing locked field in body', async () => {
+      const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID }, {});
+
+      await handleSetMemoryLock(mockPrisma as unknown as PrismaClient, req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(mockPrisma.memory.update).not.toHaveBeenCalled();
+    });
+
+    it('should reject non-boolean locked field', async () => {
+      const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID }, { locked: 'yes' });
+
+      await handleSetMemoryLock(mockPrisma as unknown as PrismaClient, req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(mockPrisma.memory.update).not.toHaveBeenCalled();
+    });
+
     it('should return 404 when user has no persona', async () => {
       mockGetDefaultPersonaId.mockResolvedValue(null);
-      const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID });
+      const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID }, { locked: true });
 
-      await handleToggleLock(mockPrisma as unknown as PrismaClient, req, res);
+      await handleSetMemoryLock(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(404);
     });
 
     it('should return 404 when memory not found', async () => {
       mockPrisma.memory.findFirst.mockResolvedValue(null);
-      const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID });
+      const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID }, { locked: true });
 
-      await handleToggleLock(mockPrisma as unknown as PrismaClient, req, res);
+      await handleSetMemoryLock(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(404);
       expect(mockPrisma.memory.update).not.toHaveBeenCalled();
     });
 
-    it('should lock an unlocked memory', async () => {
+    it('should lock an unlocked memory when locked=true', async () => {
       mockPrisma.memory.findFirst.mockResolvedValue({
         ...defaultMemory,
         isLocked: false,
@@ -391,9 +410,9 @@ describe('memorySingle handlers', () => {
         isLocked: true,
       });
 
-      const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID });
+      const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID }, { locked: true });
 
-      await handleToggleLock(mockPrisma as unknown as PrismaClient, req, res);
+      await handleSetMemoryLock(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(mockPrisma.memory.update).toHaveBeenCalledWith({
         where: { id: TEST_MEMORY_ID },
@@ -416,7 +435,7 @@ describe('memorySingle handlers', () => {
       );
     });
 
-    it('should unlock a locked memory', async () => {
+    it('should unlock a locked memory when locked=false', async () => {
       mockPrisma.memory.findFirst.mockResolvedValue({
         ...defaultMemory,
         isLocked: true,
@@ -426,9 +445,9 @@ describe('memorySingle handlers', () => {
         isLocked: false,
       });
 
-      const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID });
+      const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID }, { locked: false });
 
-      await handleToggleLock(mockPrisma as unknown as PrismaClient, req, res);
+      await handleSetMemoryLock(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(mockPrisma.memory.update).toHaveBeenCalledWith({
         where: { id: TEST_MEMORY_ID },
@@ -446,11 +465,64 @@ describe('memorySingle handlers', () => {
       );
     });
 
-    it('should update the updatedAt timestamp when toggling', async () => {
-      const beforeToggle = Date.now();
-      const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID });
+    it('idempotent: short-circuits when desired state already holds (locked=true on locked memory)', async () => {
+      // The idempotency property — caller can retry on network timeout
+      // without flipping the state again. handler returns current memory
+      // without calling update.
+      mockPrisma.memory.findFirst.mockResolvedValue({
+        ...defaultMemory,
+        isLocked: true,
+      });
+      mockPrisma.memory.findUnique.mockResolvedValue({
+        ...defaultMemory,
+        isLocked: true,
+      });
 
-      await handleToggleLock(mockPrisma as unknown as PrismaClient, req, res);
+      const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID }, { locked: true });
+
+      await handleSetMemoryLock(mockPrisma as unknown as PrismaClient, req, res);
+
+      expect(mockPrisma.memory.update).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          memory: expect.objectContaining({ isLocked: true }),
+        })
+      );
+    });
+
+    it('idempotent: short-circuits when desired state already holds (locked=false on unlocked memory)', async () => {
+      mockPrisma.memory.findFirst.mockResolvedValue({
+        ...defaultMemory,
+        isLocked: false,
+      });
+      mockPrisma.memory.findUnique.mockResolvedValue({
+        ...defaultMemory,
+        isLocked: false,
+      });
+
+      const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID }, { locked: false });
+
+      await handleSetMemoryLock(mockPrisma as unknown as PrismaClient, req, res);
+
+      expect(mockPrisma.memory.update).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('should update the updatedAt timestamp when state changes', async () => {
+      mockPrisma.memory.findFirst.mockResolvedValue({
+        ...defaultMemory,
+        isLocked: false,
+      });
+      mockPrisma.memory.update.mockResolvedValue({
+        ...defaultMemory,
+        isLocked: true,
+      });
+
+      const beforeToggle = Date.now();
+      const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID }, { locked: true });
+
+      await handleSetMemoryLock(mockPrisma as unknown as PrismaClient, req, res);
 
       const updateCall = mockPrisma.memory.update.mock.calls[0][0];
       const updatedAtDate = updateCall.data.updatedAt as Date;

@@ -5,7 +5,12 @@
 
 import type { Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, type PrismaClient, MemoryUpdateSchema } from '@tzurot/common-types';
+import {
+  createLogger,
+  type PrismaClient,
+  MemoryUpdateSchema,
+  SetMemoryLockSchema,
+} from '@tzurot/common-types';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
@@ -197,10 +202,12 @@ export async function handleUpdateMemory(
 }
 
 /**
- * Handler for POST /user/memory/:id/lock
- * Toggle memory lock status
+ * Handler for PUT /user/memory/:id/lock
+ * Set memory lock state explicitly. Idempotent on retry — caller passes
+ * the desired state in the body rather than relying on server-side toggle
+ * of the current state.
  */
-export async function handleToggleLock(
+export async function handleSetMemoryLock(
   prisma: PrismaClient,
   req: ProvisionedRequest,
   res: Response
@@ -213,6 +220,13 @@ export async function handleToggleLock(
     return;
   }
 
+  const parseResult = SetMemoryLockSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    sendZodError(res, parseResult.error);
+    return;
+  }
+  const { locked } = parseResult.data;
+
   const existing = await verifyMemoryOwnership({
     prisma,
     req,
@@ -223,17 +237,34 @@ export async function handleToggleLock(
     return;
   }
 
+  // Short-circuit when the requested state already holds — keeps the
+  // retry path idempotent without an extra DB write.
+  if (existing.isLocked === locked) {
+    const memory = await prisma.memory.findUnique({
+      where: { id: memoryId },
+      include: PERSONALITY_INCLUDE,
+    });
+    // existing already proved the row exists; the `null` branch is unreachable
+    // but TypeScript doesn't know that without the explicit guard.
+    if (memory === null) {
+      sendError(res, ErrorResponses.notFound('Memory'));
+      return;
+    }
+    sendCustomSuccess(res, { memory: transformMemory(memory) }, StatusCodes.OK);
+    return;
+  }
+
   const memory = await prisma.memory.update({
     where: { id: memoryId },
     data: {
-      isLocked: !existing.isLocked,
+      isLocked: locked,
       updatedAt: new Date(),
     },
     include: PERSONALITY_INCLUDE,
   });
 
   const action = memory.isLocked ? 'locked' : 'unlocked';
-  logger.info({ discordUserId, memoryId, action }, 'Memory lock toggled');
+  logger.info({ discordUserId, memoryId, action }, 'Memory lock state set');
   sendCustomSuccess(res, { memory: transformMemory(memory) }, StatusCodes.OK);
 }
 

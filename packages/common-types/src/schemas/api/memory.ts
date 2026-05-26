@@ -19,6 +19,17 @@ export const FocusModeSchema = z.object({
 export type FocusModeInput = z.infer<typeof FocusModeSchema>;
 
 // ============================================================================
+// PUT /user/memory/:id/lock
+// Sets the lock state explicitly (idempotent on retry, unlike the prior
+// toggle-on-POST shape).
+// ============================================================================
+
+export const SetMemoryLockSchema = z.object({
+  locked: z.boolean({ error: 'locked must be a boolean' }),
+});
+export type SetMemoryLockInput = z.infer<typeof SetMemoryLockSchema>;
+
+// ============================================================================
 // PATCH /user/memory/:id
 // ============================================================================
 
