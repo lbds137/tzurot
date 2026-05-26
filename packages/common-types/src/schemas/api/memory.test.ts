@@ -8,7 +8,9 @@ import { describe, it, expect } from 'vitest';
 import {
   FocusModeSchema,
   MemoryUpdateSchema,
+  BatchDeletePreviewSchema,
   BatchDeleteSchema,
+  IssuePurgeTokenSchema,
   PurgeMemoriesSchema,
   MemorySearchSchema,
 } from './memory.js';
@@ -98,14 +100,14 @@ describe('Memory API Input Schema Tests', () => {
     });
   });
 
-  describe('BatchDeleteSchema', () => {
-    it('should accept minimal input', () => {
-      const result = BatchDeleteSchema.safeParse({ personalityId: 'abc-123' });
+  describe('BatchDeletePreviewSchema', () => {
+    it('accepts minimal input (personalityId only)', () => {
+      const result = BatchDeletePreviewSchema.safeParse({ personalityId: 'abc-123' });
       expect(result.success).toBe(true);
     });
 
-    it('should accept full input with timeframe and personaId', () => {
-      const result = BatchDeleteSchema.safeParse({
+    it('accepts full input with timeframe and personaId', () => {
+      const result = BatchDeletePreviewSchema.safeParse({
         personalityId: 'abc-123',
         personaId: 'persona-1',
         timeframe: '7d',
@@ -113,37 +115,90 @@ describe('Memory API Input Schema Tests', () => {
       expect(result.success).toBe(true);
     });
 
-    it('should reject empty personalityId', () => {
-      const result = BatchDeleteSchema.safeParse({ personalityId: '' });
+    it('rejects empty personalityId', () => {
+      const result = BatchDeletePreviewSchema.safeParse({ personalityId: '' });
       expect(result.success).toBe(false);
     });
 
-    it('should reject missing personalityId', () => {
+    it('rejects missing personalityId', () => {
+      const result = BatchDeletePreviewSchema.safeParse({});
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('BatchDeleteSchema', () => {
+    it('accepts a valid preview_-prefixed token', () => {
+      const result = BatchDeleteSchema.safeParse({
+        previewToken: 'preview_abcdef0123456789',
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects a purge_-prefixed token (wrong brand)', () => {
+      const result = BatchDeleteSchema.safeParse({
+        previewToken: 'purge_abcdef0123456789',
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("rejects an arbitrary string that doesn't match the token regex", () => {
+      const result = BatchDeleteSchema.safeParse({ previewToken: 'not-a-token' });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects missing previewToken', () => {
       const result = BatchDeleteSchema.safeParse({});
       expect(result.success).toBe(false);
     });
   });
 
-  describe('PurgeMemoriesSchema', () => {
-    it('should accept personalityId with confirmation', () => {
-      const result = PurgeMemoriesSchema.safeParse({
+  describe('IssuePurgeTokenSchema', () => {
+    it('accepts personalityId + confirmation phrase', () => {
+      const result = IssuePurgeTokenSchema.safeParse({
         personalityId: 'abc-123',
         confirmationPhrase: 'DELETE LILITH MEMORIES',
       });
       expect(result.success).toBe(true);
     });
 
-    it('should accept personalityId without confirmation (validation happens in route)', () => {
-      const result = PurgeMemoriesSchema.safeParse({ personalityId: 'abc-123' });
-      expect(result.success).toBe(true);
-    });
-
-    it('should reject empty personalityId', () => {
-      const result = PurgeMemoriesSchema.safeParse({ personalityId: '' });
+    it('rejects empty personalityId', () => {
+      const result = IssuePurgeTokenSchema.safeParse({
+        personalityId: '',
+        confirmationPhrase: 'X',
+      });
       expect(result.success).toBe(false);
     });
 
-    it('should reject missing personalityId', () => {
+    it('rejects missing confirmationPhrase', () => {
+      const result = IssuePurgeTokenSchema.safeParse({ personalityId: 'abc-123' });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects empty confirmationPhrase', () => {
+      const result = IssuePurgeTokenSchema.safeParse({
+        personalityId: 'abc-123',
+        confirmationPhrase: '',
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('PurgeMemoriesSchema', () => {
+    it('accepts a valid purge_-prefixed token', () => {
+      const result = PurgeMemoriesSchema.safeParse({
+        purgeToken: 'purge_abcdef0123456789',
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects a preview_-prefixed token (wrong brand)', () => {
+      const result = PurgeMemoriesSchema.safeParse({
+        purgeToken: 'preview_abcdef0123456789',
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects missing purgeToken', () => {
       const result = PurgeMemoriesSchema.safeParse({});
       expect(result.success).toBe(false);
     });

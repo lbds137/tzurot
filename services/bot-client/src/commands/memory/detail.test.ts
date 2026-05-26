@@ -311,7 +311,7 @@ describe('Memory Detail', () => {
         editReply: mockEditReply,
       } as unknown as ButtonInteraction;
 
-      await handleLockButton(interaction, 'memory-123');
+      await handleLockButton(interaction, 'memory-123', true);
 
       expect(mockDeferUpdate).toHaveBeenCalled();
       expect(mockEditReply).toHaveBeenCalled();
@@ -332,7 +332,7 @@ describe('Memory Detail', () => {
         followUp: mockFollowUp,
       } as unknown as ButtonInteraction;
 
-      await handleLockButton(interaction, 'memory-123');
+      await handleLockButton(interaction, 'memory-123', true);
 
       expect(mockFollowUp).toHaveBeenCalledWith(
         expect.objectContaining({
