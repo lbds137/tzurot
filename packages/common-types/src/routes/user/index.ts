@@ -1,13 +1,14 @@
 /**
  * User-audience route registry (composed).
  *
- * Six source files contribute:
+ * Seven source files contribute:
  *   - configs.ts: timezone, LLM/TTS config + overrides, model override, STT override
  *   - ownership.ts: personality, persona, persona-override CRUD
  *   - resources.ts: channel, wallet, voice resolution, voices CRUD,
  *     usage, NSFW, history
  *   - memory.ts: memory CRUD + incognito mode
  *   - config-overrides.ts: user-tier + personality-tier config cascade overrides
+ *   - shapes.ts: shapes.inc BYOK (credentials, listing, async import/export)
  *   - diagnostics.ts: /diagnostic/* GETs (acceptsSubject for owner inspection)
  *
  * Split is purely a max-lines / max-imports concern; semantically it is
@@ -17,8 +18,8 @@
  * Mounted at `/api/user/*` after the route-prefix cutover. The generated
  * `UserClient` requires `actor: ActorDiscordId` on every method.
  *
- * Domains NOT yet in the manifest (follow-up commits on this branch):
- * memory main CRUD (dynamic-filter routes), shapes.
+ * Domains NOT yet in the manifest (follow-up commits / future PR):
+ * memory main CRUD (dynamic-filter routes — needs more design).
  */
 
 import type { RouteDef } from '../types.js';
@@ -27,6 +28,7 @@ import { userOwnershipRoutes } from './ownership.js';
 import { userResourceRoutes } from './resources.js';
 import { userMemoryRoutes } from './memory.js';
 import { userConfigOverrideRoutes } from './config-overrides.js';
+import { userShapesRoutes } from './shapes.js';
 import { userDiagnosticRoutes } from './diagnostics.js';
 
 export const userRoutes = {
@@ -35,6 +37,7 @@ export const userRoutes = {
   ...userResourceRoutes,
   ...userMemoryRoutes,
   ...userConfigOverrideRoutes,
+  ...userShapesRoutes,
   ...userDiagnosticRoutes,
 } as const satisfies Record<string, RouteDef>;
 
@@ -49,5 +52,6 @@ export {
   userResourceRoutes,
   userMemoryRoutes,
   userConfigOverrideRoutes,
+  userShapesRoutes,
   userDiagnosticRoutes,
 };

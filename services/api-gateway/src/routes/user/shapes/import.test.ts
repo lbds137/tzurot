@@ -29,7 +29,7 @@ vi.mock('../../../utils/asyncHandler.js', () => ({
   asyncHandler: vi.fn(fn => fn),
 }));
 
-import { createShapesImportRoutes } from './import.js';
+import { createShapesImportRoutes, handleStartShapesImport } from './import.js';
 import type { PrismaClient } from '@tzurot/common-types';
 import { findRoute, getRouteHandler } from '../../../test/expressRouterUtils.js';
 
@@ -264,6 +264,17 @@ describe('Shapes Import Routes', () => {
 
       const whereClause = mockPrisma.importJob.findMany.mock.calls[0][0].where;
       expect(whereClause).not.toHaveProperty('sourceSlug');
+    });
+  });
+
+  describe('aiQueue-missing 503 guard (handler factory)', () => {
+    it('handleStartShapesImport returns 503 when aiQueue is undefined', async () => {
+      const handler = handleStartShapesImport({ prisma: mockPrisma as unknown as PrismaClient });
+      const { req, res } = createMockReqRes({ sourceSlug: 'test-shape', importType: 'full' });
+
+      await handler(req as unknown as Request, res, vi.fn());
+
+      expect(res.status).toHaveBeenCalledWith(503);
     });
   });
 });

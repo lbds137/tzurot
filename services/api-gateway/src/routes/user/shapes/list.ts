@@ -7,7 +7,7 @@
  * using their stored session cookie.
  */
 
-import { Router, type Response } from 'express';
+import { Router, type Response, type RequestHandler } from 'express';
 import {
   createLogger,
   decryptApiKey,
@@ -23,6 +23,7 @@ import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserI
 import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 import type { ProvisionedRequest } from '../../../types.js';
+import type { RouteDeps } from '../../routeDeps.js';
 
 const logger = createLogger('shapes-list');
 
@@ -138,15 +139,15 @@ function createListHandler(prisma: PrismaClient) {
   };
 }
 
+/** GET /api/user/shapes/list — fetch owned shapes from shapes.inc */
+export const handleListShapes = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(createListHandler(deps.prisma));
+
 export function createShapesListRoutes(prisma: PrismaClient): Router {
   const router = Router();
+  const deps: RouteDeps = { prisma };
 
-  router.get(
-    '/',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler(createListHandler(prisma))
-  );
+  router.get('/', requireUserAuth(), requireProvisionedUser(prisma), handleListShapes(deps));
 
   return router;
 }

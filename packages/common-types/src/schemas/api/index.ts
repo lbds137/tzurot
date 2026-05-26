@@ -59,6 +59,9 @@ export * from './voices.js';
 // Memory incognito mode endpoints
 export * from './memoryIncognito.js';
 
+// Shapes.inc BYOK integration endpoints
+export * from './shapes.js';
+
 // Denylist schemas
 export * from './denylist.js';
 

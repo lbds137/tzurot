@@ -10,7 +10,7 @@
  * - Never logs or returns actual cookie values
  */
 
-import { Router, type Response } from 'express';
+import { Router, type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
@@ -31,6 +31,7 @@ import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js'
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { probeShapesSession } from '../../../services/ShapesPreflight.js';
 import type { ProvisionedRequest } from '../../../types.js';
+import type { RouteDeps } from '../../routeDeps.js';
 
 const logger = createLogger('shapes-auth');
 
@@ -178,26 +179,36 @@ function createStatusHandler(prisma: PrismaClient) {
   };
 }
 
+// ===== Handler factories ===================================================
+
+/** POST /api/user/shapes/auth — store shapes.inc session cookie. */
+export const handleStoreShapesAuth = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(createStoreHandler(deps.prisma));
+
+/** DELETE /api/user/shapes/auth — remove shapes.inc credentials. */
+export const handleDeleteShapesAuth = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(createDeleteHandler(deps.prisma));
+
+/** GET /api/user/shapes/auth/status — check whether the user has stored credentials. */
+export const handleGetShapesAuthStatus = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(createStatusHandler(deps.prisma));
+
 export function createShapesAuthRoutes(prisma: PrismaClient): Router {
   const router = Router();
+  const deps: RouteDeps = { prisma };
 
-  router.post(
-    '/',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler(createStoreHandler(prisma))
-  );
+  router.post('/', requireUserAuth(), requireProvisionedUser(prisma), handleStoreShapesAuth(deps));
   router.delete(
     '/',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createDeleteHandler(prisma))
+    handleDeleteShapesAuth(deps)
   );
   router.get(
     '/status',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createStatusHandler(prisma))
+    handleGetShapesAuthStatus(deps)
   );
 
   return router;
