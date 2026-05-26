@@ -13,7 +13,15 @@
  * and matched at runtime to dispatch to the correct provider implementation.
  * Renaming any of these is a database migration.
  */
-export type AudioProviderId = 'elevenlabs' | 'mistral';
+/**
+ * Single source of truth: the runtime tuple of known audio provider ids.
+ * `AudioProviderId` is derived from this so adding a new provider is a one-
+ * line edit here, automatically reflected in the Zod schema in
+ * `schemas/api/voices.ts` and in `isAudioProviderId`.
+ */
+export const AUDIO_PROVIDER_IDS = ['elevenlabs', 'mistral'] as const;
+
+export type AudioProviderId = (typeof AUDIO_PROVIDER_IDS)[number];
 
 /**
  * Type guard: is the given string a known AudioProviderId?
@@ -22,5 +30,5 @@ export type AudioProviderId = 'elevenlabs' | 'mistral';
  * Discord interactions, gateway requests) that haven't been narrowed yet.
  */
 export function isAudioProviderId(value: string): value is AudioProviderId {
-  return value === 'elevenlabs' || value === 'mistral';
+  return (AUDIO_PROVIDER_IDS as readonly string[]).includes(value);
 }

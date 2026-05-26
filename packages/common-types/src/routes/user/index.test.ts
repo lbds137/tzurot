@@ -8,7 +8,13 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { userRoutes, userConfigRoutes, userResourceRoutes } from './index.js';
+import {
+  userRoutes,
+  userConfigRoutes,
+  userOwnershipRoutes,
+  userResourceRoutes,
+  userDiagnosticRoutes,
+} from './index.js';
 import type { AnyRouteDef } from '../types.js';
 
 const entries = Object.entries(userRoutes) as [string, AnyRouteDef][];
@@ -90,16 +96,31 @@ describe('user route manifest', () => {
     }
   });
 
-  it('configs and resources are disjoint (no id collisions on merge)', () => {
-    const configKeys = Object.keys(userConfigRoutes);
-    const resourceKeys = Object.keys(userResourceRoutes);
-    const intersection = configKeys.filter(k => resourceKeys.includes(k));
-    expect(intersection).toEqual([]);
+  it('all four sub-manifests are disjoint (no id collisions on merge)', () => {
+    const subManifests: [string, object][] = [
+      ['configs', userConfigRoutes],
+      ['ownership', userOwnershipRoutes],
+      ['resources', userResourceRoutes],
+      ['diagnostics', userDiagnosticRoutes],
+    ];
+    for (let i = 0; i < subManifests.length; i++) {
+      for (let j = i + 1; j < subManifests.length; j++) {
+        const [labelA, mapA] = subManifests[i] as [string, object];
+        const [labelB, mapB] = subManifests[j] as [string, object];
+        const keysA = Object.keys(mapA);
+        const keysB = Object.keys(mapB);
+        const intersection = keysA.filter(k => keysB.includes(k));
+        expect(intersection, `${labelA} ∩ ${labelB}`).toEqual([]);
+      }
+    }
   });
 
   it('merged manifest equals the size of its inputs combined', () => {
     expect(entries.length).toBe(
-      Object.keys(userConfigRoutes).length + Object.keys(userResourceRoutes).length
+      Object.keys(userConfigRoutes).length +
+        Object.keys(userOwnershipRoutes).length +
+        Object.keys(userResourceRoutes).length +
+        Object.keys(userDiagnosticRoutes).length
     );
   });
 });

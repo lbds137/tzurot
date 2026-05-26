@@ -1067,6 +1067,70 @@ export class UserClient {
     });
   }
 
+  async listVoices(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listVoices.output>>> {
+    const fullPath = '/api/user/voices';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'GET',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      outputSchema: ROUTE_MANIFEST.listVoices.output,
+    });
+  }
+
+  async listVoiceModels(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listVoiceModels.output>>> {
+    const fullPath = '/api/user/voices/models';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'GET',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      outputSchema: ROUTE_MANIFEST.listVoiceModels.output,
+    });
+  }
+
+  async clearVoices(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.clearVoices.output>>> {
+    const fullPath = '/api/user/voices/clear';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      outputSchema: ROUTE_MANIFEST.clearVoices.output,
+    });
+  }
+
+  async deleteVoice(provider: string, voiceId: string): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.deleteVoice.output>>> {
+    const fullPath = `/api/user/voices/${encodeURIComponent(provider)}/${encodeURIComponent(voiceId)}`;
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'DELETE',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      outputSchema: ROUTE_MANIFEST.deleteVoice.output,
+    });
+  }
+
   async getRecentDiagnostics(options: { subject?: SubjectDiscordId; personalityId?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getRecentDiagnostics.output>>> {
     const fullPath = '/api/user/diagnostic/recent' + buildQueryString([['userId', options.subject], ['personalityId', options.personalityId]]);
     return callGateway({

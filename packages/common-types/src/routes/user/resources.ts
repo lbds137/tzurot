@@ -1,40 +1,16 @@
 /**
  * User-audience resource routes.
  *
- * Covers personality + persona ownership, channel activation, wallet
- * (BYOK key management), voice resolution, and the diagnostic GETs
- * lifted from /admin per the route-prefix cutover.
+ * Covers channel activation, wallet (BYOK), voice resolution, voices CRUD,
+ * usage stats, NSFW verification, and conversation history. Ownership CRUD
+ * (personality/persona) and diagnostic GETs live in sibling sub-files.
  *
- * Most routes here require provisioning. The diagnostic GETs are the
- * exception — they accept a `subject` query param (bot owner only;
- * server filters to caller for non-owners), and the subject's user
- * row may not be provisioned.
+ * Every entry here requires provisioning — these routes always operate on
+ * the caller's own row.
  */
 
 import { z } from 'zod';
 import {
-  // Personality (user-owned)
-  PersonalityCreateSchema,
-  PersonalityUpdateSchema,
-  CreatePersonalityResponseSchema,
-  GetPersonalityResponseSchema,
-  ListPersonalitiesResponseSchema,
-  DeletePersonalityResponseSchema,
-  SetVisibilitySchema,
-  // Persona
-  PersonaCreateSchema,
-  PersonaUpdateSchema,
-  CreatePersonaResponseSchema,
-  UpdatePersonaResponseSchema,
-  DeletePersonaResponseSchema,
-  GetPersonaResponseSchema,
-  ListPersonasResponseSchema,
-  SetDefaultPersonaResponseSchema,
-  // Persona override
-  SetPersonaOverrideSchema,
-  SetOverrideResponseSchema,
-  ClearOverrideResponseSchema,
-  OverrideInfoResponseSchema,
   // Channel activation
   ActivateChannelRequestSchema,
   DeactivateChannelRequestSchema,
@@ -66,192 +42,15 @@ import {
   UndoHistoryResponseSchema,
   HistoryStatsResponseSchema,
   HardDeleteHistoryResponseSchema,
-  // Diagnostic GETs (lifted from /admin in the route-prefix cutover)
-  DiagnosticLogResponseSchema,
-  DiagnosticLogsResponseSchema,
-  RecentDiagnosticLogsResponseSchema,
+  // Voices (cloned voice management)
+  ListVoicesResponseSchema,
+  ListVoiceModelsResponseSchema,
+  ClearVoicesResponseSchema,
+  DeleteVoiceResponseSchema,
 } from '../../schemas/api/index.js';
 import type { RouteDef } from '../types.js';
 
-// Shared CRUD-detail path constants
-const PERSONALITY_DETAIL_PATH = '/personality/:slug';
-const PERSONA_DETAIL_PATH = '/persona/:id';
-const PERSONA_OVERRIDE_DETAIL_PATH = '/persona/override/:personalitySlug';
-
 export const userResourceRoutes = {
-  // ============================================================================
-  // Personality CRUD (user owns their own personalities)
-  // ============================================================================
-
-  listPersonalities: {
-    audience: 'user',
-    method: 'get',
-    path: '/personality',
-    id: 'listPersonalities',
-    output: ListPersonalitiesResponseSchema,
-    requiresProvisionedUser: true,
-  },
-
-  getPersonality: {
-    audience: 'user',
-    method: 'get',
-    path: PERSONALITY_DETAIL_PATH,
-    id: 'getPersonality',
-    params: { slug: z.string() },
-    output: GetPersonalityResponseSchema,
-    requiresProvisionedUser: true,
-  },
-
-  createPersonality: {
-    audience: 'user',
-    method: 'post',
-    path: '/personality',
-    id: 'createPersonality',
-    input: PersonalityCreateSchema,
-    output: CreatePersonalityResponseSchema,
-    requiresProvisionedUser: true,
-  },
-
-  updatePersonality: {
-    audience: 'user',
-    method: 'put',
-    path: PERSONALITY_DETAIL_PATH,
-    id: 'updatePersonality',
-    params: { slug: z.string() },
-    input: PersonalityUpdateSchema,
-    output: GetPersonalityResponseSchema,
-    requiresProvisionedUser: true,
-  },
-
-  setPersonalityVisibility: {
-    audience: 'user',
-    method: 'patch',
-    path: '/personality/:slug/visibility',
-    id: 'setPersonalityVisibility',
-    params: { slug: z.string() },
-    input: SetVisibilitySchema,
-    output: GetPersonalityResponseSchema,
-    requiresProvisionedUser: true,
-  },
-
-  deletePersonality: {
-    audience: 'user',
-    method: 'delete',
-    path: PERSONALITY_DETAIL_PATH,
-    id: 'deletePersonality',
-    params: { slug: z.string() },
-    output: DeletePersonalityResponseSchema,
-    requiresProvisionedUser: true,
-  },
-
-  // ============================================================================
-  // Persona CRUD
-  // ============================================================================
-
-  listPersonas: {
-    audience: 'user',
-    method: 'get',
-    path: '/persona',
-    id: 'listPersonas',
-    output: ListPersonasResponseSchema,
-    requiresProvisionedUser: true,
-  },
-
-  getPersona: {
-    audience: 'user',
-    method: 'get',
-    path: PERSONA_DETAIL_PATH,
-    id: 'getPersona',
-    params: { id: z.string() },
-    output: GetPersonaResponseSchema,
-    requiresProvisionedUser: true,
-  },
-
-  createPersona: {
-    audience: 'user',
-    method: 'post',
-    path: '/persona',
-    id: 'createPersona',
-    input: PersonaCreateSchema,
-    output: CreatePersonaResponseSchema,
-    requiresProvisionedUser: true,
-  },
-
-  updatePersona: {
-    audience: 'user',
-    method: 'put',
-    path: PERSONA_DETAIL_PATH,
-    id: 'updatePersona',
-    params: { id: z.string() },
-    input: PersonaUpdateSchema,
-    output: UpdatePersonaResponseSchema,
-    requiresProvisionedUser: true,
-  },
-
-  deletePersona: {
-    audience: 'user',
-    method: 'delete',
-    path: PERSONA_DETAIL_PATH,
-    id: 'deletePersona',
-    params: { id: z.string() },
-    output: DeletePersonaResponseSchema,
-    requiresProvisionedUser: true,
-  },
-
-  setPersonaDefault: {
-    audience: 'user',
-    method: 'patch',
-    path: '/persona/:id/default',
-    id: 'setPersonaDefault',
-    params: { id: z.string() },
-    output: SetDefaultPersonaResponseSchema,
-    requiresProvisionedUser: true,
-  },
-
-  // ============================================================================
-  // Persona override (per-personality persona pinning)
-  // ============================================================================
-
-  listPersonaOverrides: {
-    audience: 'user',
-    method: 'get',
-    path: '/persona/override',
-    id: 'listPersonaOverrides',
-    output: OverrideInfoResponseSchema,
-    requiresProvisionedUser: true,
-  },
-
-  getPersonaOverride: {
-    audience: 'user',
-    method: 'get',
-    path: PERSONA_OVERRIDE_DETAIL_PATH,
-    id: 'getPersonaOverride',
-    params: { personalitySlug: z.string() },
-    output: OverrideInfoResponseSchema,
-    requiresProvisionedUser: true,
-  },
-
-  setPersonaOverride: {
-    audience: 'user',
-    method: 'put',
-    path: PERSONA_OVERRIDE_DETAIL_PATH,
-    id: 'setPersonaOverride',
-    params: { personalitySlug: z.string() },
-    input: SetPersonaOverrideSchema,
-    output: SetOverrideResponseSchema,
-    requiresProvisionedUser: true,
-  },
-
-  clearPersonaOverride: {
-    audience: 'user',
-    method: 'delete',
-    path: PERSONA_OVERRIDE_DETAIL_PATH,
-    id: 'clearPersonaOverride',
-    params: { personalitySlug: z.string() },
-    output: ClearOverrideResponseSchema,
-    requiresProvisionedUser: true,
-  },
-
   // ============================================================================
   // Channel activation
   // ============================================================================
@@ -466,56 +265,43 @@ export const userResourceRoutes = {
   },
 
   // ============================================================================
-  // Diagnostic GETs (lifted from /admin per the route-prefix cutover)
-  // Owner can pass ?userId=<subject> to inspect another user's logs;
-  // non-owners' subject parameter is ignored server-side. Subject's row
-  // may not be provisioned — these routes do NOT requireProvisionedUser.
+  // Voices (BYOK cloned voice management — ElevenLabs / Mistral)
   // ============================================================================
 
-  getRecentDiagnostics: {
+  listVoices: {
     audience: 'user',
     method: 'get',
-    path: '/diagnostic/recent',
-    id: 'getRecentDiagnostics',
-    // Note: the server handler reads `?userId=` for the subject — that's
-    // what `acceptsSubject: true` maps to in the generated client (the
-    // `options.subject` parameter). DO NOT also declare `userId` in
-    // `query` here — the codegen would emit two `['userId', ...]`
-    // entries into URLSearchParams.set, and the second would silently
-    // overwrite the typed subject branding (defeating the whole point).
-    // The cross-audience invariant test enforces this.
-    query: { personalityId: z.string().optional() },
-    output: RecentDiagnosticLogsResponseSchema,
-    acceptsSubject: true,
+    path: '/voices',
+    id: 'listVoices',
+    output: ListVoicesResponseSchema,
+    requiresProvisionedUser: true,
   },
 
-  getDiagnosticByMessage: {
+  listVoiceModels: {
     audience: 'user',
     method: 'get',
-    path: '/diagnostic/by-message/:messageId',
-    id: 'getDiagnosticByMessage',
-    params: { messageId: z.string() },
-    output: DiagnosticLogsResponseSchema,
-    acceptsSubject: true,
+    path: '/voices/models',
+    id: 'listVoiceModels',
+    output: ListVoiceModelsResponseSchema,
+    requiresProvisionedUser: true,
   },
 
-  getDiagnosticByResponse: {
+  clearVoices: {
     audience: 'user',
-    method: 'get',
-    path: '/diagnostic/by-response/:messageId',
-    id: 'getDiagnosticByResponse',
-    params: { messageId: z.string() },
-    output: DiagnosticLogResponseSchema,
-    acceptsSubject: true,
+    method: 'post',
+    path: '/voices/clear',
+    id: 'clearVoices',
+    output: ClearVoicesResponseSchema,
+    requiresProvisionedUser: true,
   },
 
-  getDiagnosticByRequestId: {
+  deleteVoice: {
     audience: 'user',
-    method: 'get',
-    path: '/diagnostic/:requestId',
-    id: 'getDiagnosticByRequestId',
-    params: { requestId: z.string() },
-    output: DiagnosticLogResponseSchema,
-    acceptsSubject: true,
+    method: 'delete',
+    path: '/voices/:provider/:voiceId',
+    id: 'deleteVoice',
+    params: { provider: z.string(), voiceId: z.string() },
+    output: DeleteVoiceResponseSchema,
+    requiresProvisionedUser: true,
   },
 } as const satisfies Record<string, RouteDef>;

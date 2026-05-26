@@ -37,6 +37,7 @@ const USER_STT_OVERRIDE = '../user/stt-override.js';
 const USER_TIMEZONE = '../user/timezone.js';
 const USER_TTS_CONFIG = '../user/tts-config.js';
 const USER_TTS_OVERRIDE = '../user/tts-override.js';
+const USER_VOICES = '../user/voices.js';
 
 const PATH_MAP: Readonly<Record<string, string>> = {
   // Channel
@@ -173,6 +174,12 @@ const PATH_MAP: Readonly<Record<string, string>> = {
   undoHistory: USER_HISTORY,
   getHistoryStats: USER_HISTORY,
   hardDeleteHistory: USER_HISTORY,
+
+  // User voices
+  listVoices: USER_VOICES,
+  listVoiceModels: USER_VOICES,
+  clearVoices: USER_VOICES,
+  deleteVoice: USER_VOICES,
 
   // Wallet
   listWalletKeys: '../wallet/listKeys.js',

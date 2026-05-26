@@ -3,8 +3,8 @@
  *
  * The composed manifest in index.test.ts asserts global invariants;
  * this file asserts file-local invariants — every entry in resources.ts
- * is a user-audience route on a resource-shape URL, with diagnostic
- * GETs (acceptsSubject) being the only routes that skip provisioning.
+ * is a user-audience route on a resource-shape URL. Diagnostic GETs
+ * (acceptsSubject) live in diagnostics.ts and have their own tests.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -25,10 +25,10 @@ describe('user resource routes', () => {
       '/channel',
       '/wallet',
       '/voice-resolution',
-      '/diagnostic',
       '/usage',
       '/nsfw',
       '/history',
+      '/voices',
     ];
     for (const [key, route] of entries) {
       const matches = resourcePathPrefixes.some(prefix => route.path.startsWith(prefix));
@@ -36,21 +36,15 @@ describe('user resource routes', () => {
     }
   });
 
-  it('acceptsSubject is set only on diagnostic routes', () => {
+  it('no entry uses acceptsSubject (those live in diagnostics.ts)', () => {
     for (const [key, route] of entries) {
-      if (route.acceptsSubject === true) {
-        expect(route.path.startsWith('/diagnostic'), `${key} acceptsSubject path`).toBe(true);
-      }
+      expect(route.acceptsSubject, `${key} acceptsSubject`).toBeFalsy();
     }
   });
 
-  it('non-diagnostic routes require provisioning; diagnostic acceptsSubject routes do not', () => {
+  it('every entry requires provisioning (operates on caller row)', () => {
     for (const [key, route] of entries) {
-      if (route.acceptsSubject === true) {
-        expect(route.requiresProvisionedUser, `${key} requiresProvisionedUser`).toBeFalsy();
-      } else {
-        expect(route.requiresProvisionedUser, `${key} requiresProvisionedUser`).toBe(true);
-      }
+      expect(route.requiresProvisionedUser, `${key} requiresProvisionedUser`).toBe(true);
     }
   });
 });
