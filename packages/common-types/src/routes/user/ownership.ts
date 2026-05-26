@@ -29,6 +29,7 @@ import {
   SetOverrideResponseSchema,
   ClearOverrideResponseSchema,
   OverrideInfoResponseSchema,
+  ListPersonaOverridesResponseSchema,
 } from '../../schemas/api/index.js';
 import type { RouteDef } from '../types.js';
 
@@ -175,7 +176,7 @@ export const userOwnershipRoutes = {
     method: 'get',
     path: '/persona/override',
     id: 'listPersonaOverrides',
-    output: OverrideInfoResponseSchema,
+    output: ListPersonaOverridesResponseSchema,
     requiresProvisionedUser: true,
   },
 

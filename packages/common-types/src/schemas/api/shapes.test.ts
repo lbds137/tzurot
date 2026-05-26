@@ -10,9 +10,11 @@ import {
   ShapesAuthStatusResponseSchema,
   ListShapesResponseSchema,
   ShapesListItemSchema,
+  StartShapesImportInputSchema,
   StartShapesImportResponseSchema,
   ShapesImportJobSummarySchema,
   ListShapesImportJobsResponseSchema,
+  StartShapesExportInputSchema,
   StartShapesExportResponseSchema,
   ShapesExportJobSummarySchema,
   ListShapesExportJobsResponseSchema,
@@ -93,6 +95,57 @@ describe('Shapes API Contract Tests', () => {
     });
   });
 
+  describe('StartShapesImportInputSchema', () => {
+    it('accepts sourceSlug only (importType optional)', () => {
+      expect(StartShapesImportInputSchema.safeParse({ sourceSlug: 'alice' }).success).toBe(true);
+    });
+
+    it('accepts both known importType values', () => {
+      expect(
+        StartShapesImportInputSchema.safeParse({ sourceSlug: 'a', importType: 'full' }).success
+      ).toBe(true);
+      expect(
+        StartShapesImportInputSchema.safeParse({ sourceSlug: 'a', importType: 'memory_only' })
+          .success
+      ).toBe(true);
+    });
+
+    it('rejects empty sourceSlug', () => {
+      expect(StartShapesImportInputSchema.safeParse({ sourceSlug: '' }).success).toBe(false);
+    });
+
+    it('rejects unknown importType', () => {
+      expect(
+        StartShapesImportInputSchema.safeParse({ sourceSlug: 'a', importType: 'partial' }).success
+      ).toBe(false);
+    });
+  });
+
+  describe('StartShapesExportInputSchema', () => {
+    it('accepts slug only (format optional)', () => {
+      expect(StartShapesExportInputSchema.safeParse({ slug: 'alice' }).success).toBe(true);
+    });
+
+    it('accepts both known format values', () => {
+      expect(StartShapesExportInputSchema.safeParse({ slug: 'a', format: 'json' }).success).toBe(
+        true
+      );
+      expect(
+        StartShapesExportInputSchema.safeParse({ slug: 'a', format: 'markdown' }).success
+      ).toBe(true);
+    });
+
+    it('rejects empty slug', () => {
+      expect(StartShapesExportInputSchema.safeParse({ slug: '' }).success).toBe(false);
+    });
+
+    it('rejects unknown format', () => {
+      expect(StartShapesExportInputSchema.safeParse({ slug: 'a', format: 'csv' }).success).toBe(
+        false
+      );
+    });
+  });
+
   describe('StartShapesImportResponseSchema', () => {
     it('accepts import-start response', () => {
       const data = {
@@ -107,18 +160,34 @@ describe('Shapes API Contract Tests', () => {
   });
 
   describe('ShapesImportJobSummarySchema', () => {
-    it('accepts a job summary', () => {
+    it('accepts a completed-job summary with numeric counts', () => {
       const data = {
         id: 'job-1',
         sourceSlug: 'alice',
+        status: 'completed',
+        importType: 'memories',
+        memoriesImported: 42,
+        memoriesFailed: 0,
+        createdAt: '2026-05-25T00:00:00.000Z',
+        completedAt: '2026-05-25T00:01:00.000Z',
+        errorMessage: null,
+        importMetadata: { hint: 'wip' },
+      };
+      expect(ShapesImportJobSummarySchema.safeParse(data).success).toBe(true);
+    });
+
+    it('accepts an in-flight job with null counts (Prisma Int? columns)', () => {
+      const data = {
+        id: 'job-2',
+        sourceSlug: 'alice',
         status: 'pending',
         importType: 'memories',
-        memoriesImported: 0,
-        memoriesFailed: 0,
+        memoriesImported: null,
+        memoriesFailed: null,
         createdAt: '2026-05-25T00:00:00.000Z',
         completedAt: null,
         errorMessage: null,
-        importMetadata: { hint: 'wip' },
+        importMetadata: null,
       };
       expect(ShapesImportJobSummarySchema.safeParse(data).success).toBe(true);
     });

@@ -141,6 +141,25 @@ export const OverrideInfoResponseSchema = z.object({
 export type OverrideInfoResponse = z.infer<typeof OverrideInfoResponseSchema>;
 
 // ============================================================================
+// GET /user/persona/override
+// Returns the user's per-personality persona-override summaries.
+// ============================================================================
+
+const PersonaOverrideSummarySchema = z.object({
+  personalityId: z.string(),
+  personalitySlug: z.string(),
+  personalityName: z.string(),
+  personaId: z.string(),
+  personaName: z.string(),
+});
+export type PersonaOverrideSummaryEntry = z.infer<typeof PersonaOverrideSummarySchema>;
+
+export const ListPersonaOverridesResponseSchema = z.object({
+  overrides: z.array(PersonaOverrideSummarySchema),
+});
+export type ListPersonaOverridesResponse = z.infer<typeof ListPersonaOverridesResponseSchema>;
+
+// ============================================================================
 // PUT /user/persona/override/:personalitySlug
 // Sets an existing persona as override for a personality
 // ============================================================================

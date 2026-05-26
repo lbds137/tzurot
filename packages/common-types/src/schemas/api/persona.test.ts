@@ -17,6 +17,7 @@ import {
   DeletePersonaResponseSchema,
   SetDefaultPersonaResponseSchema,
   OverrideInfoResponseSchema,
+  ListPersonaOverridesResponseSchema,
   SetOverrideResponseSchema,
   ClearOverrideResponseSchema,
   CreateOverrideResponseSchema,
@@ -263,6 +264,32 @@ describe('Persona API Contract Tests', () => {
       };
       const result = SetOverrideResponseSchema.safeParse(data);
       expect(result.success).toBe(false);
+    });
+  });
+
+  describe('ListPersonaOverridesResponseSchema', () => {
+    it('should accept an empty list', () => {
+      expect(ListPersonaOverridesResponseSchema.safeParse({ overrides: [] }).success).toBe(true);
+    });
+
+    it('should accept a list with entries', () => {
+      const data = {
+        overrides: [
+          {
+            personalityId: 'p1-uuid',
+            personalitySlug: 'lilith',
+            personalityName: 'Lilith',
+            personaId: 'persona-uuid',
+            personaName: 'Default',
+          },
+        ],
+      };
+      expect(ListPersonaOverridesResponseSchema.safeParse(data).success).toBe(true);
+    });
+
+    it('should reject entries missing required fields', () => {
+      const data = { overrides: [{ personalityId: 'p1', personalitySlug: 'lilith' }] };
+      expect(ListPersonaOverridesResponseSchema.safeParse(data).success).toBe(false);
     });
   });
 
