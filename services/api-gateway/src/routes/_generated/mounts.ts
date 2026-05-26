@@ -150,6 +150,8 @@ import { handleGetDiagnosticByResponse } from '../admin/diagnostic.js';
 import { handleGetDiagnosticByRequestId } from '../admin/diagnostic.js';
 
 export function mountInternalRoutes(app: Express, deps: RouteDeps): void {
+  // Routes sorted by codegen: literal paths register before parameterized
+  // siblings so Express matches the most specific path first.
   app.post('/api/internal/ai/generate', handleAiGenerate(deps));
   app.post('/api/internal/ai/transcribe', handleAiTranscribe(deps));
   app.post('/api/internal/channel/dm-session/set', handleSetDmSession(deps));
@@ -163,6 +165,8 @@ export function mountInternalRoutes(app: Express, deps: RouteDeps): void {
 }
 
 export function mountAdminRoutes(app: Express, deps: RouteDeps): void {
+  // Routes sorted by codegen: literal paths register before parameterized
+  // siblings so Express matches the most specific path first.
   app.post('/api/admin/db-sync', requireUserAuth(), requireOwnerAuth(), handleDbSync(deps));
   app.post('/api/admin/cleanup', requireUserAuth(), requireOwnerAuth(), handleCleanup(deps));
   app.post('/api/admin/invalidate-cache', requireUserAuth(), requireOwnerAuth(), handleInvalidateCache(deps));
@@ -193,6 +197,8 @@ export function mountAdminRoutes(app: Express, deps: RouteDeps): void {
 }
 
 export function mountUserRoutes(app: Express, deps: RouteDeps): void {
+  // Routes sorted by codegen: literal paths register before parameterized
+  // siblings so Express matches the most specific path first.
   app.get('/api/user/timezone', requireUserAuth(), requireProvisionedUser(deps.prisma), handleGetTimezone(deps));
   app.put('/api/user/timezone', requireUserAuth(), requireProvisionedUser(deps.prisma), handleSetTimezone(deps));
   app.get('/api/user/llm-config', requireUserAuth(), requireProvisionedUser(deps.prisma), handleListUserLlmConfigs(deps));

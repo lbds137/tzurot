@@ -8,7 +8,28 @@
  * does not need to know the original import identifier.
  */
 
+import { z } from 'zod';
 import type { Audience, RouteDef } from '@tzurot/common-types';
+
+/**
+ * Detect whether a Zod schema is marked optional. `z.string()` is required,
+ * `z.string().optional()` is optional. Defaulted schemas (`z.string().default(...)`)
+ * are also treated as optional since the caller can omit them.
+ */
+function isOptionalZod(schema: z.ZodTypeAny): boolean {
+  return schema instanceof z.ZodOptional || schema instanceof z.ZodDefault;
+}
+
+/**
+ * For a route's `query` map, return whether at least one entry is required
+ * (used to decide if the entire `options` argument can be omitted).
+ */
+function hasRequiredQueryParam(query: RouteDef['query']): boolean {
+  if (query === undefined) {
+    return false;
+  }
+  return Object.values(query).some(schema => !isOptionalZod(schema));
+}
 
 /**
  * Required by callers. Tells the builder how to construct headers and
@@ -67,17 +88,13 @@ export function buildMethod(route: RouteDef, options: MethodBuildOptions): strin
 
   // -- Method-signature parameters -----------------------------------------
 
-  const sigParams: string[] = [];
-  for (const p of pathParamNames) {
-    sigParams.push(`${p}: string`);
-  }
-  if (hasInput) {
-    sigParams.push(`input: z.infer<typeof ROUTE_MANIFEST.${id}.input>`);
-  }
-  if (hasQuery || acceptsSubject) {
-    const optionsType = buildOptionsType(route, acceptsSubject);
-    sigParams.push(`options: ${optionsType} = {}`);
-  }
+  const sigParams = buildSignatureParams({
+    route,
+    pathParamNames,
+    hasInput,
+    hasQuery,
+    acceptsSubject,
+  });
 
   // -- Path interpolation --------------------------------------------------
 
@@ -153,6 +170,41 @@ export function buildMethod(route: RouteDef, options: MethodBuildOptions): strin
   ].join('\n');
 }
 
+interface SignatureParamsInput {
+  readonly route: RouteDef;
+  readonly pathParamNames: readonly string[];
+  readonly hasInput: boolean;
+  readonly hasQuery: boolean;
+  readonly acceptsSubject: boolean;
+}
+
+/**
+ * Compose the method signature's parameter list (path params, input body,
+ * options bag). Extracted from buildMethod to keep its cognitive complexity
+ * down — same logic, just relocated.
+ */
+function buildSignatureParams(input: SignatureParamsInput): string[] {
+  const { route, pathParamNames, hasInput, hasQuery, acceptsSubject } = input;
+  const params: string[] = [];
+
+  for (const p of pathParamNames) {
+    params.push(`${p}: string`);
+  }
+  if (hasInput) {
+    params.push(`input: z.infer<typeof ROUTE_MANIFEST.${route.id}.input>`);
+  }
+  if (hasQuery || acceptsSubject) {
+    const optionsType = buildOptionsType(route, acceptsSubject);
+    // If any query param is required (non-optional Zod schema), the entire
+    // options bag must be required too — callers can't omit it. `subject`
+    // is always optional, so it never forces the bag to be required by itself.
+    const optionsRequired = hasRequiredQueryParam(route.query);
+    params.push(optionsRequired ? `options: ${optionsType}` : `options: ${optionsType} = {}`);
+  }
+
+  return params;
+}
+
 /**
  * Build the inline options object type for a method that has a query
  * parameter, a subject parameter, or both.
@@ -165,10 +217,14 @@ function buildOptionsType(route: RouteDef, acceptsSubject: boolean): string {
     fields.push(`subject?: SubjectDiscordId`);
   }
   if (route.query !== undefined) {
-    for (const key of Object.keys(route.query)) {
+    for (const [key, schema] of Object.entries(route.query)) {
       // All query params are strings at the wire level; their narrower
       // typing lives in the route's Zod schema (validated server-side).
-      fields.push(`${key}?: string`);
+      // Required vs optional is derived from the schema's Zod wrapper:
+      // `z.string()` is required (the server returns 400 on missing),
+      // `z.string().optional()` or `z.string().default(...)` are optional.
+      const marker = isOptionalZod(schema) ? '?' : '';
+      fields.push(`${key}${marker}: string`);
     }
   }
   return `{ ${fields.join('; ')} }`;

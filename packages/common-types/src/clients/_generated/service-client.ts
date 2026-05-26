@@ -99,7 +99,7 @@ export class ServiceClient {
     });
   }
 
-  async lookupPersonalityFromMessage(options: { discordMessageId?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.lookupPersonalityFromMessage.output>>> {
+  async lookupPersonalityFromMessage(options: { discordMessageId: string }): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.lookupPersonalityFromMessage.output>>> {
     const fullPath = '/api/internal/conversation/message-personality' + buildQueryString([['discordMessageId', options.discordMessageId]]);
     return callGateway({
       baseUrl: this.baseUrl,

@@ -155,10 +155,6 @@ export const userResourceRoutes = {
     method: 'get',
     path: '/history/stats',
     id: 'getHistoryStats',
-    // `personalitySlug` and `channelId` are required at the server (the handler
-    // returns 400 on missing). The current codegen marks all query params as
-    // optional in the generated client signature; callers must supply both
-    // anyway. Tracked in backlog/quick-wins.md (codegen required-query-param typing).
     query: {
       personalitySlug: z.string(),
       channelId: z.string(),

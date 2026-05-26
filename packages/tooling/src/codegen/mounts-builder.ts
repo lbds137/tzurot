@@ -200,7 +200,20 @@ function buildMountFunction(options: MountFunctionOptions): string {
     .map(route => buildMountCall(route, prefix, audienceMiddleware, handlerExportNameFor))
     .join('\n');
 
-  return [`export function ${name}(app: Express, deps: RouteDeps): void {`, body, `}`].join('\n');
+  // Inline note for readers landing on the generated file in isolation:
+  // routes are sorted by `:param` segment count ascending (more-specific
+  // literal paths register before parameterized siblings). See
+  // `sortRoutesForExpress` in mounts-builder.ts for the rule + rationale.
+  const orderingComment =
+    `  // Routes sorted by codegen: literal paths register before parameterized\n` +
+    `  // siblings so Express matches the most specific path first.`;
+
+  return [
+    `export function ${name}(app: Express, deps: RouteDeps): void {`,
+    orderingComment,
+    body,
+    `}`,
+  ].join('\n');
 }
 
 /**

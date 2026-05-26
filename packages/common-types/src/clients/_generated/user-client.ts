@@ -920,7 +920,7 @@ export class UserClient {
     });
   }
 
-  async getHistoryStats(options: { personalitySlug?: string; channelId?: string; personaId?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getHistoryStats.output>>> {
+  async getHistoryStats(options: { personalitySlug: string; channelId: string; personaId?: string }): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getHistoryStats.output>>> {
     const fullPath = '/api/user/history/stats' + buildQueryString([['personalitySlug', options.personalitySlug], ['channelId', options.channelId], ['personaId', options.personaId]]);
     return callGateway({
       baseUrl: this.baseUrl,
@@ -1051,7 +1051,7 @@ export class UserClient {
     });
   }
 
-  async getVoiceResolution(options: { personalityId?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getVoiceResolution.output>>> {
+  async getVoiceResolution(options: { personalityId: string }): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getVoiceResolution.output>>> {
     const fullPath = '/api/user/voice-resolution' + buildQueryString([['personalityId', options.personalityId]]);
     return callGateway({
       baseUrl: this.baseUrl,
