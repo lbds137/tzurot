@@ -266,16 +266,25 @@ function createListExportJobsHandler(prisma: PrismaClient, baseUrl: string) {
 
 // ===== Handler factories ===================================================
 
+/**
+ * Memoized base URL. Env vars don't change at runtime, so we resolve once
+ * lazily on first read and reuse the value for every subsequent factory
+ * invocation in this module. Single-source: both `handleStartShapesExport`
+ * and `handleListShapesExportJobs` go through this getter.
+ */
+let _baseUrlCache: string | undefined;
 function resolveBaseUrl(): string {
-  const envConfig = getConfig();
-  return envConfig.PUBLIC_GATEWAY_URL ?? envConfig.GATEWAY_URL ?? '';
+  if (_baseUrlCache === undefined) {
+    const envConfig = getConfig();
+    _baseUrlCache = envConfig.PUBLIC_GATEWAY_URL ?? envConfig.GATEWAY_URL ?? '';
+  }
+  return _baseUrlCache;
 }
 
 /** POST /api/user/shapes/export — start an async export job. */
 export const handleStartShapesExport = (deps: RouteDeps): RequestHandler => {
-  // Resolve baseUrl once at factory-call time (same as the list handler below)
-  // rather than per-request — env vars don't change at runtime and the per-
-  // request call was a consistency oversight, not a deliberate choice.
+  // Resolve baseUrl once at factory-call time (cached across factory calls
+  // by `resolveBaseUrl`) — env vars don't change at runtime.
   const baseUrl = resolveBaseUrl();
   return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     if (deps.aiQueue === undefined) {
