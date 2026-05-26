@@ -14,6 +14,8 @@ import {
   GetLlmConfigResponseSchema,
   UpdateLlmConfigResponseSchema,
   SetDefaultLlmConfigResponseSchema,
+  ResolveLlmConfigInputSchema,
+  ResolveLlmConfigResponseSchema,
   ContextSettingsSchema,
   LlmConfigCreateSchema,
   LlmConfigUpdateSchema,
@@ -609,6 +611,92 @@ describe('LLM Config API Contract Tests', () => {
 
     it('rejects missing configName', () => {
       expect(SetDefaultLlmConfigResponseSchema.safeParse({ success: true }).success).toBe(false);
+    });
+  });
+
+  describe('ResolveLlmConfigInputSchema', () => {
+    const validPersonalityConfig = { id: 'p1-uuid', name: 'Lilith', model: 'gpt-4' };
+
+    it('accepts minimal body with required personalityConfig fields', () => {
+      const body = { personalityId: 'p1', personalityConfig: validPersonalityConfig };
+      expect(ResolveLlmConfigInputSchema.safeParse(body).success).toBe(true);
+    });
+
+    it('accepts personalityConfig with extra passthrough fields (full LoadedPersonality)', () => {
+      const body = {
+        personalityId: 'p1',
+        personalityConfig: {
+          ...validPersonalityConfig,
+          maxMessages: 50,
+          maxImages: 10,
+          customField: 'arbitrary',
+        },
+      };
+      expect(ResolveLlmConfigInputSchema.safeParse(body).success).toBe(true);
+    });
+
+    it('accepts optional channelId', () => {
+      const body = {
+        personalityId: 'p1',
+        personalityConfig: validPersonalityConfig,
+        channelId: '123',
+      };
+      expect(ResolveLlmConfigInputSchema.safeParse(body).success).toBe(true);
+    });
+
+    it('rejects empty personalityId', () => {
+      const body = { personalityId: '', personalityConfig: validPersonalityConfig };
+      expect(ResolveLlmConfigInputSchema.safeParse(body).success).toBe(false);
+    });
+
+    it('rejects missing personalityConfig', () => {
+      const body = { personalityId: 'p1' };
+      expect(ResolveLlmConfigInputSchema.safeParse(body).success).toBe(false);
+    });
+
+    it('rejects personalityConfig missing required fields (id, name, model)', () => {
+      const body = { personalityId: 'p1', personalityConfig: { model: 'gpt-4' } };
+      expect(ResolveLlmConfigInputSchema.safeParse(body).success).toBe(false);
+    });
+  });
+
+  describe('ResolveLlmConfigResponseSchema', () => {
+    it('accepts minimal response with config.model and source', () => {
+      const data = { config: { model: 'claude-sonnet-4' }, source: 'user-default' };
+      expect(ResolveLlmConfigResponseSchema.safeParse(data).success).toBe(true);
+    });
+
+    it('accepts config with extra passthrough fields', () => {
+      const data = {
+        config: {
+          model: 'gpt-4',
+          maxMessages: 20,
+          maxAge: 3600,
+          maxImages: 5,
+          temperature: 0.7, // extra ConvertedLlmParams field
+        },
+        source: 'personality',
+        overrides: { maxMessages: 20 },
+      };
+      expect(ResolveLlmConfigResponseSchema.safeParse(data).success).toBe(true);
+    });
+
+    it('accepts null maxAge', () => {
+      const data = {
+        config: { model: 'm', maxMessages: 10, maxAge: null, maxImages: 0 },
+        source: 'personality',
+      };
+      expect(ResolveLlmConfigResponseSchema.safeParse(data).success).toBe(true);
+    });
+
+    it('rejects missing config.model', () => {
+      const data = { config: {}, source: 'personality' };
+      expect(ResolveLlmConfigResponseSchema.safeParse(data).success).toBe(false);
+    });
+
+    it('rejects missing source', () => {
+      const data = { config: { model: 'm' } };
+      expect(ResolveLlmConfigResponseSchema.safeParse(data).success).toBe(false);
     });
   });
 });

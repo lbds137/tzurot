@@ -24,6 +24,8 @@ import {
   CreateLlmConfigResponseSchema,
   UpdateLlmConfigResponseSchema,
   DeleteLlmConfigResponseSchema,
+  ResolveLlmConfigInputSchema,
+  ResolveLlmConfigResponseSchema,
   // TTS config
   TtsConfigCreateSchema,
   TtsConfigUpdateSchema,
@@ -140,6 +142,16 @@ export const userConfigRoutes = {
     id: 'deleteUserLlmConfig',
     params: { id: z.string() },
     output: DeleteLlmConfigResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
+  resolveUserLlmConfig: {
+    audience: 'user',
+    method: 'post',
+    path: '/llm-config/resolve',
+    id: 'resolveUserLlmConfig',
+    input: ResolveLlmConfigInputSchema,
+    output: ResolveLlmConfigResponseSchema,
     requiresProvisionedUser: true,
   },
 
