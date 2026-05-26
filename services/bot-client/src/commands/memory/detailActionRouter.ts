@@ -21,6 +21,22 @@ import {
 } from './detailModals.js';
 
 /**
+ * Decode the `extra` segment carried by a `lock` action's customId into the
+ * desired final lock state. Returns null when the segment is missing or
+ * doesn't match `'0' | '1'` (e.g., legacy customId from before the
+ * idempotent-lock migration).
+ */
+function parseLockExtra(extra: string | undefined): boolean | null {
+  if (extra === '1') {
+    return true;
+  }
+  if (extra === '0') {
+    return false;
+  }
+  return null;
+}
+
+/**
  * Handle memory detail action buttons.
  * Returns true if the button was handled, false if not recognized.
  *
@@ -52,7 +68,7 @@ export async function handleMemoryDetailAction(
     return false;
   }
 
-  const { action, memoryId } = parsed;
+  const { action, memoryId, extra } = parsed;
 
   switch (action) {
     case 'edit':
@@ -70,12 +86,14 @@ export async function handleMemoryDetailAction(
     case 'cancel-edit':
       await handleCancelEditButton(buttonInteraction);
       return true;
-    case 'lock':
-      if (memoryId === undefined) {
+    case 'lock': {
+      const desired = parseLockExtra(extra);
+      if (memoryId === undefined || desired === null) {
         return false;
       }
-      await handleLockButton(buttonInteraction, memoryId);
+      await handleLockButton(buttonInteraction, memoryId, desired);
       return true;
+    }
     case 'delete':
       if (memoryId === undefined) {
         return false;

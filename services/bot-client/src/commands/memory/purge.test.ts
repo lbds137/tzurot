@@ -347,50 +347,69 @@ describe('handlePurgeModal (modal submission)', () => {
     expect(mockCallGatewayApi).not.toHaveBeenCalled();
   });
 
-  it('trims whitespace before validating', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
-        deletedCount: 5,
-        lockedPreserved: 0,
-        personalityId: PERSONALITY_ID,
-        personalityName: PERSONALITY_NAME,
-        message: 'ok',
-      },
-    });
+  it('trims whitespace before validating and forwards trimmed phrase to /purge/token', async () => {
+    mockCallGatewayApi
+      .mockResolvedValueOnce({
+        ok: true,
+        data: {
+          purgeToken: 'purge_test0123456789abc',
+          personalityId: PERSONALITY_ID,
+          personalityName: PERSONALITY_NAME,
+        },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: {
+          deletedCount: 5,
+          lockedPreserved: 0,
+          personalityId: PERSONALITY_ID,
+          personalityName: PERSONALITY_NAME,
+          message: 'ok',
+        },
+      });
     const interaction = createMockModalInteraction(`  ${EXPECTED_PHRASE}  `);
 
     await handlePurgeModal(interaction);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/memory/purge',
+    expect(mockCallGatewayApi).toHaveBeenNthCalledWith(
+      1,
+      '/user/memory/purge/token',
       expect.objectContaining({
         body: expect.objectContaining({ confirmationPhrase: EXPECTED_PHRASE }),
       })
     );
   });
 
-  it('performs purge on correct phrase + reports success', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
-        deletedCount: 8,
-        lockedPreserved: 2,
-        personalityId: PERSONALITY_ID,
-        personalityName: PERSONALITY_NAME,
-        message: 'ok',
-      },
-    });
+  it('performs purge as token-handshake (issue → consume) and reports success', async () => {
+    mockCallGatewayApi
+      .mockResolvedValueOnce({
+        ok: true,
+        data: {
+          purgeToken: 'purge_test0123456789abc',
+          personalityId: PERSONALITY_ID,
+          personalityName: PERSONALITY_NAME,
+        },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: {
+          deletedCount: 8,
+          lockedPreserved: 2,
+          personalityId: PERSONALITY_ID,
+          personalityName: PERSONALITY_NAME,
+          message: 'ok',
+        },
+      });
     const interaction = createMockModalInteraction(EXPECTED_PHRASE);
 
     await handlePurgeModal(interaction);
 
-    // Modal acked first via update() — clears warning, no async work between.
     expect(interaction.update).toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining('Purging') })
     );
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/memory/purge',
+    expect(mockCallGatewayApi).toHaveBeenNthCalledWith(
+      1,
+      '/user/memory/purge/token',
       expect.objectContaining({
         method: 'POST',
         body: expect.objectContaining({
@@ -399,13 +418,43 @@ describe('handlePurgeModal (modal submission)', () => {
         }),
       })
     );
+    expect(mockCallGatewayApi).toHaveBeenNthCalledWith(
+      2,
+      '/user/memory/purge',
+      expect.objectContaining({
+        method: 'POST',
+        body: { purgeToken: 'purge_test0123456789abc' },
+      })
+    );
     expect(interaction.editReply).toHaveBeenCalledWith(
       expect.objectContaining({ embeds: expect.any(Array) })
     );
   });
 
-  it('reports failure when purge API fails', async () => {
-    mockCallGatewayApi.mockResolvedValue({ ok: false, error: 'Database error' });
+  it('reports failure when token issuance fails (confirmation rejected server-side)', async () => {
+    mockCallGatewayApi.mockResolvedValueOnce({ ok: false, error: 'Confirmation required' });
+    const interaction = createMockModalInteraction(EXPECTED_PHRASE);
+
+    await handlePurgeModal(interaction);
+
+    expect(interaction.editReply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('Failed to confirm') })
+    );
+    // Only the token-issue call should have run; no execute attempt.
+    expect(mockCallGatewayApi).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports failure when execute step fails after token issuance', async () => {
+    mockCallGatewayApi
+      .mockResolvedValueOnce({
+        ok: true,
+        data: {
+          purgeToken: 'purge_test0123456789abc',
+          personalityId: PERSONALITY_ID,
+          personalityName: PERSONALITY_NAME,
+        },
+      })
+      .mockResolvedValueOnce({ ok: false, error: 'Database error' });
     const interaction = createMockModalInteraction(EXPECTED_PHRASE);
 
     await handlePurgeModal(interaction);

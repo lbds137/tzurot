@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { fetchMemory, updateMemory, toggleMemoryLock, deleteMemory } from './detailApi.js';
+import { fetchMemory, updateMemory, setMemoryLock, deleteMemory } from './detailApi.js';
 import type { MemoryItem } from './detailApi.js';
 
 // Mock common-types
@@ -121,15 +121,15 @@ describe('Memory Detail API', () => {
     });
   });
 
-  describe('toggleMemoryLock', () => {
-    it('should toggle lock successfully', async () => {
+  describe('setMemoryLock', () => {
+    it('sets the lock state explicitly with PUT + { locked }', async () => {
       const memory = createMockMemory({ isLocked: true });
       mockCallGatewayApi.mockResolvedValue({
         ok: true,
         data: { memory },
       });
 
-      const result = await toggleMemoryLock(TEST_USER, 'memory-123');
+      const result = await setMemoryLock(TEST_USER, 'memory-123', true);
 
       expect(result).toEqual(memory);
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/memory-123/lock', {
@@ -138,17 +138,33 @@ describe('Memory Detail API', () => {
           username: 'testuser',
           displayName: 'testuser',
         },
-        method: 'POST',
+        method: 'PUT',
+        body: { locked: true },
       });
     });
 
-    it('should return null on API error', async () => {
+    it('passes locked=false through to the API for unlock', async () => {
+      const memory = createMockMemory({ isLocked: false });
+      mockCallGatewayApi.mockResolvedValue({
+        ok: true,
+        data: { memory },
+      });
+
+      await setMemoryLock(TEST_USER, 'memory-123', false);
+
+      expect(mockCallGatewayApi).toHaveBeenCalledWith(
+        '/user/memory/memory-123/lock',
+        expect.objectContaining({ method: 'PUT', body: { locked: false } })
+      );
+    });
+
+    it('returns null on API error', async () => {
       mockCallGatewayApi.mockResolvedValue({
         ok: false,
         error: 'Lock failed',
       });
 
-      const result = await toggleMemoryLock(TEST_USER, 'memory-123');
+      const result = await setMemoryLock(TEST_USER, 'memory-123', true);
 
       expect(result).toBeNull();
     });

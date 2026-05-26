@@ -87,14 +87,34 @@ describe('handleMemoryDetailAction', () => {
     expect(mockHandleCancelEditButton).toHaveBeenCalledWith(interaction);
   });
 
-  it('should dispatch lock action', async () => {
+  it('dispatches lock action with desiredState=true when extra is "1"', async () => {
+    mockParseMemoryActionId.mockReturnValue({ action: 'lock', memoryId: 'mem-1', extra: '1' });
+    const interaction = createMockButtonInteraction('memory-detail::lock::mem-1::1');
+
+    const result = await handleMemoryDetailAction(interaction, mockOnRefresh);
+
+    expect(result).toBe(true);
+    expect(mockHandleLockButton).toHaveBeenCalledWith(interaction, 'mem-1', true);
+  });
+
+  it('dispatches lock action with desiredState=false when extra is "0"', async () => {
+    mockParseMemoryActionId.mockReturnValue({ action: 'lock', memoryId: 'mem-1', extra: '0' });
+    const interaction = createMockButtonInteraction('memory-detail::lock::mem-1::0');
+
+    const result = await handleMemoryDetailAction(interaction, mockOnRefresh);
+
+    expect(result).toBe(true);
+    expect(mockHandleLockButton).toHaveBeenCalledWith(interaction, 'mem-1', false);
+  });
+
+  it('returns false for lock action without a valid extra (legacy customId)', async () => {
     mockParseMemoryActionId.mockReturnValue({ action: 'lock', memoryId: 'mem-1' });
     const interaction = createMockButtonInteraction('memory-detail::lock::mem-1');
 
     const result = await handleMemoryDetailAction(interaction, mockOnRefresh);
 
-    expect(result).toBe(true);
-    expect(mockHandleLockButton).toHaveBeenCalledWith(interaction, 'mem-1');
+    expect(result).toBe(false);
+    expect(mockHandleLockButton).not.toHaveBeenCalled();
   });
 
   it('should dispatch delete action', async () => {
@@ -202,20 +222,23 @@ describe('handleMemoryDetailAction', () => {
     const SESSION_INDEPENDENT_CASES: Array<{
       action: string;
       memoryId: string | undefined;
+      extra?: string;
     }> = [
       { action: 'edit', memoryId: 'mem-1' },
       { action: 'edit-truncated', memoryId: 'mem-1' },
       { action: 'cancel-edit', memoryId: undefined },
-      { action: 'lock', memoryId: 'mem-1' },
+      { action: 'lock', memoryId: 'mem-1', extra: '1' },
       { action: 'view-full', memoryId: 'mem-1' },
       { action: 'delete', memoryId: 'mem-1' }, // shows confirmation dialog — no refresh
     ];
 
     it.each(SESSION_INDEPENDENT_CASES)(
       '$action action does not call onRefresh',
-      async ({ action, memoryId }) => {
-        mockParseMemoryActionId.mockReturnValue({ action, memoryId });
-        const interaction = createMockButtonInteraction(`memory-detail::${action}::${memoryId}`);
+      async ({ action, memoryId, extra }) => {
+        mockParseMemoryActionId.mockReturnValue({ action, memoryId, extra });
+        const interaction = createMockButtonInteraction(
+          `memory-detail::${action}::${memoryId}${extra !== undefined ? `::${extra}` : ''}`
+        );
 
         await handleMemoryDetailAction(interaction, mockOnRefresh);
 

@@ -18,7 +18,7 @@ import { createLogger, DISCORD_COLORS, formatDateTimeCompact } from '@tzurot/com
 import { CUSTOM_ID_DELIMITER } from '../../utils/customIds.js';
 import { toGatewayUser } from '../../utils/userGatewayClient.js';
 
-import { fetchMemory, toggleMemoryLock, deleteMemory } from './detailApi.js';
+import { fetchMemory, setMemoryLock, deleteMemory } from './detailApi.js';
 import type { MemoryItem } from './detailApi.js';
 import { EMBED_DESCRIPTION_SAFE_LIMIT } from './formatters.js';
 
@@ -144,7 +144,9 @@ export function buildDetailButtons(
       .setEmoji('✏️')
       .setStyle(ButtonStyle.Primary),
     new ButtonBuilder()
-      .setCustomId(buildMemoryActionId('lock', memory.id))
+      // Encode desired final state in customId — the API takes the target
+      // state explicitly so retries can't accidentally flip the wrong way.
+      .setCustomId(buildMemoryActionId('lock', memory.id, memory.isLocked ? '0' : '1'))
       .setLabel(lockLabel)
       .setEmoji(lockEmoji)
       .setStyle(lockStyle),
@@ -234,17 +236,28 @@ export async function handleMemorySelect(interaction: StringSelectMenuInteractio
 }
 
 /**
- * Handle lock/unlock button click
+ * Handle lock/unlock button click.
+ *
+ * The desired target state is encoded in the customId by `buildDetailButtons`
+ * — the button rendered while the memory is unlocked carries `'1'` (lock it),
+ * while the button rendered for a locked memory carries `'0'` (unlock it).
+ * The API takes the target state explicitly so a retried network request
+ * can't accidentally flip the wrong way.
  */
 export async function handleLockButton(
   interaction: ButtonInteraction,
-  memoryId: string
+  memoryId: string,
+  desiredState: boolean
 ): Promise<void> {
   const userId = interaction.user.id;
 
   await interaction.deferUpdate();
 
-  const updatedMemory = await toggleMemoryLock(toGatewayUser(interaction.user), memoryId);
+  const updatedMemory = await setMemoryLock(
+    toGatewayUser(interaction.user),
+    memoryId,
+    desiredState
+  );
   if (updatedMemory === null) {
     await interaction.followUp({
       content: '❌ Failed to update lock status. Please try again.',
@@ -262,7 +275,7 @@ export async function handleLockButton(
   });
 
   const action = updatedMemory.isLocked ? 'locked' : 'unlocked';
-  logger.info({ userId, memoryId, action }, 'Memory lock toggled');
+  logger.info({ userId, memoryId, action }, 'Memory lock set');
 }
 
 /**
