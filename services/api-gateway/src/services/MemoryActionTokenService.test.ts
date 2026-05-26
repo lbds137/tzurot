@@ -10,6 +10,7 @@ import { REDIS_KEY_PREFIXES, type BatchDeletePreviewInput } from '@tzurot/common
 function createMockRedis(): Redis {
   return {
     setex: vi.fn().mockResolvedValue('OK'),
+    get: vi.fn().mockResolvedValue(null),
     getdel: vi.fn().mockResolvedValue(null),
   } as unknown as Redis;
 }
@@ -111,6 +112,82 @@ describe('MemoryActionTokenService', () => {
     });
   });
 
+  describe('peekPreviewToken', () => {
+    it('returns the bound filter WITHOUT consuming the key', async () => {
+      const filter: BatchDeletePreviewInput = { personalityId: 'p', timeframe: '7d' };
+      const stored = JSON.stringify({ filter, issuedAt: '2026-05-26T12:00:00.000Z' });
+      (
+        redis.get as unknown as { mockResolvedValueOnce: (v: unknown) => void }
+      ).mockResolvedValueOnce(stored);
+
+      const result = await service.peekPreviewToken('user-a', 'preview_xyz000000test0000');
+
+      expect(result).toEqual(filter);
+      expect(redis.get).toHaveBeenCalledWith(
+        `${REDIS_KEY_PREFIXES.MEMORY_PREVIEW_TOKEN}user-a:preview_xyz000000test0000`
+      );
+      // Critically, peek must NOT call getdel — that's the load-bearing
+      // difference vs consume.
+      expect(redis.getdel).not.toHaveBeenCalled();
+    });
+
+    it('returns null on miss (no key present)', async () => {
+      const result = await service.peekPreviewToken('user-a', 'preview_missing000000test');
+      expect(result).toBeNull();
+    });
+
+    it('returns null on malformed payload', async () => {
+      (
+        redis.get as unknown as { mockResolvedValueOnce: (v: unknown) => void }
+      ).mockResolvedValueOnce('not-json');
+      const result = await service.peekPreviewToken('user-a', 'preview_bad0000000000test');
+      expect(result).toBeNull();
+    });
+
+    it('can be called repeatedly — non-destructive', async () => {
+      const filter: BatchDeletePreviewInput = { personalityId: 'p' };
+      const stored = JSON.stringify({ filter, issuedAt: '2026-05-26T12:00:00.000Z' });
+      const mock = redis.get as unknown as { mockResolvedValue: (v: unknown) => void };
+      mock.mockResolvedValue(stored);
+
+      const a = await service.peekPreviewToken('user-a', 'preview_aaaaaaaaaaaaaaaa');
+      const b = await service.peekPreviewToken('user-a', 'preview_aaaaaaaaaaaaaaaa');
+
+      expect(a).toEqual(filter);
+      expect(b).toEqual(filter);
+    });
+  });
+
+  describe('peekPurgeToken', () => {
+    it('returns the bound personalityId WITHOUT consuming the key', async () => {
+      const stored = JSON.stringify({
+        personalityId: 'persona-1',
+        issuedAt: '2026-05-26T12:00:00.000Z',
+      });
+      (
+        redis.get as unknown as { mockResolvedValueOnce: (v: unknown) => void }
+      ).mockResolvedValueOnce(stored);
+
+      const result = await service.peekPurgeToken('user-a', 'purge_xyz0123456789abc');
+
+      expect(result).toEqual({ personalityId: 'persona-1' });
+      expect(redis.getdel).not.toHaveBeenCalled();
+    });
+
+    it('returns null on miss', async () => {
+      const result = await service.peekPurgeToken('user-a', 'purge_missing000000000000');
+      expect(result).toBeNull();
+    });
+
+    it('returns null on malformed payload', async () => {
+      (
+        redis.get as unknown as { mockResolvedValueOnce: (v: unknown) => void }
+      ).mockResolvedValueOnce('not-json');
+      const result = await service.peekPurgeToken('user-a', 'purge_bad000000000000000');
+      expect(result).toBeNull();
+    });
+  });
+
   describe('issuePurgeToken', () => {
     it('mints a `purge_`-prefixed token and stores personalityId with 5-minute TTL', async () => {
       const token = await service.issuePurgeToken('user-123', 'persona-1');
@@ -141,6 +218,53 @@ describe('MemoryActionTokenService', () => {
     it('returns null on miss', async () => {
       const result = await service.consumePurgeToken('user-a', 'purge_missing000000000000');
       expect(result).toBeNull();
+    });
+
+    it('returns null and logs when payload JSON is malformed', async () => {
+      (
+        redis.getdel as unknown as { mockResolvedValueOnce: (v: unknown) => void }
+      ).mockResolvedValueOnce('not-json');
+      const result = await service.consumePurgeToken('user-a', 'purge_bad000000000000000');
+      expect(result).toBeNull();
+    });
+
+    it('cannot be replayed — a second consume sees null', async () => {
+      const stored = JSON.stringify({
+        personalityId: 'persona-1',
+        issuedAt: '2026-05-26T12:00:00.000Z',
+      });
+      const mock = redis.getdel as unknown as {
+        mockResolvedValueOnce: (v: unknown) => void;
+      };
+      mock.mockResolvedValueOnce(stored);
+      mock.mockResolvedValueOnce(null);
+
+      const first = await service.consumePurgeToken('user-a', 'purge_aaaaaaaaaaaaaaaa');
+      const second = await service.consumePurgeToken('user-a', 'purge_aaaaaaaaaaaaaaaa');
+
+      expect(first).not.toBeNull();
+      expect(second).toBeNull();
+    });
+
+    it('is namespaced by userId — token issued for user A misses for user B', async () => {
+      const result = await service.consumePurgeToken('user-b', 'purge_stolen000000000000');
+      expect(result).toBeNull();
+      expect(redis.getdel).toHaveBeenCalledWith(
+        `${REDIS_KEY_PREFIXES.MEMORY_PURGE_TOKEN}user-b:purge_stolen000000000000`
+      );
+    });
+  });
+
+  describe('issuePreviewToken — Redis errors propagate', () => {
+    it('propagates setex failures (handled by Express global error handler)', async () => {
+      const err = new Error('Redis connection lost');
+      (
+        redis.setex as unknown as { mockRejectedValueOnce: (v: unknown) => void }
+      ).mockRejectedValueOnce(err);
+
+      await expect(service.issuePreviewToken('user-a', { personalityId: 'p' })).rejects.toThrow(
+        'Redis connection lost'
+      );
     });
   });
 });

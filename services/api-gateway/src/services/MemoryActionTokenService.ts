@@ -22,6 +22,11 @@
  *
  * TTL is 5 minutes — long enough for confirmation-modal UX, short enough that
  * stale tokens don't accumulate.
+ *
+ * Requires Redis 6.2+ — GETDEL was added in 6.2 and is the load-bearing
+ * atomicity guarantee for replay prevention. Railway ships Redis 7.x, so
+ * production is fine; local dev via Docker should pin redis:7-alpine or
+ * later. (Older Redis would silently degrade to a non-atomic GET+DEL race.)
  */
 
 import { randomBytes } from 'node:crypto';
@@ -87,6 +92,38 @@ export class MemoryActionTokenService {
   }
 
   /**
+   * Non-destructively read a preview token. Use this when you want to
+   * validate preconditions (e.g., the bound personality still exists)
+   * before committing to consuming the token — failed validation should
+   * NOT burn the user's one-shot redemption.
+   *
+   * The 5-min TTL bounds the impact of a peek without consume. Once
+   * preconditions are validated, follow up with `consumePreviewToken`
+   * to atomically claim it.
+   *
+   * Tiny race window: peek → validation → consume can race against a
+   * concurrent consume by the same user (e.g., double-click on confirm).
+   * Both attempts succeed at the peek-and-validate step; the destructive
+   * op below them is idempotent (soft-delete of already-deleted rows is
+   * a no-op), so the race is benign in practice.
+   */
+  async peekPreviewToken(userId: string, token: string): Promise<BatchDeletePreviewInput | null> {
+    const key = buildPreviewKey(userId, token);
+    const raw = await this.redis.get(key);
+    if (raw === null) {
+      logger.debug({ userId, token: `${token.substring(0, 12)}…` }, 'Preview token peek miss');
+      return null;
+    }
+    try {
+      const payload = JSON.parse(raw) as PreviewTokenPayload;
+      return payload.filter;
+    } catch (error) {
+      logger.warn({ err: error, userId }, 'Failed to parse preview token payload on peek');
+      return null;
+    }
+  }
+
+  /**
    * Atomically read and delete a preview token. Returns the bound filter, or
    * null if the token is invalid, expired, or has already been consumed.
    *
@@ -131,6 +168,27 @@ export class MemoryActionTokenService {
       'Purge token issued'
     );
     return token;
+  }
+
+  /**
+   * Non-destructively read a purge token. See `peekPreviewToken` for the
+   * full rationale — same trade-off (avoids burning a token on a 404
+   * personality lookup) and same benign race in the peek → consume window.
+   */
+  async peekPurgeToken(userId: string, token: string): Promise<{ personalityId: string } | null> {
+    const key = buildPurgeKey(userId, token);
+    const raw = await this.redis.get(key);
+    if (raw === null) {
+      logger.debug({ userId, token: `${token.substring(0, 12)}…` }, 'Purge token peek miss');
+      return null;
+    }
+    try {
+      const payload = JSON.parse(raw) as PurgeTokenPayload;
+      return { personalityId: payload.personalityId };
+    } catch (error) {
+      logger.warn({ err: error, userId }, 'Failed to parse purge token payload on peek');
+      return null;
+    }
   }
 
   /**

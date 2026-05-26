@@ -75,24 +75,25 @@ const mockPrisma = {
 function createTokenServiceMock(
   overrides: Partial<{
     issuePreviewToken: () => Promise<string>;
+    peekPreviewToken: (uid: string, t: string) => Promise<BatchDeletePreviewInput | null>;
     consumePreviewToken: (uid: string, t: string) => Promise<BatchDeletePreviewInput | null>;
     issuePurgeToken: () => Promise<string>;
+    peekPurgeToken: (uid: string, t: string) => Promise<{ personalityId: string } | null>;
     consumePurgeToken: (uid: string, t: string) => Promise<{ personalityId: string } | null>;
   }> = {}
 ): MemoryActionTokenService {
+  const defaultPreview: BatchDeletePreviewInput = {
+    personalityId: TEST_PERSONALITY_ID,
+    personaId: TEST_PERSONA_ID,
+  };
+  const defaultPurge = { personalityId: TEST_PERSONALITY_ID };
   return {
     issuePreviewToken: vi.fn(overrides.issuePreviewToken ?? (async () => VALID_PREVIEW_TOKEN)),
-    consumePreviewToken: vi.fn(
-      overrides.consumePreviewToken ??
-        (async () => ({
-          personalityId: TEST_PERSONALITY_ID,
-          personaId: TEST_PERSONA_ID,
-        }))
-    ),
+    peekPreviewToken: vi.fn(overrides.peekPreviewToken ?? (async () => defaultPreview)),
+    consumePreviewToken: vi.fn(overrides.consumePreviewToken ?? (async () => defaultPreview)),
     issuePurgeToken: vi.fn(overrides.issuePurgeToken ?? (async () => VALID_PURGE_TOKEN)),
-    consumePurgeToken: vi.fn(
-      overrides.consumePurgeToken ?? (async () => ({ personalityId: TEST_PERSONALITY_ID }))
-    ),
+    peekPurgeToken: vi.fn(overrides.peekPurgeToken ?? (async () => defaultPurge)),
+    consumePurgeToken: vi.fn(overrides.consumePurgeToken ?? (async () => defaultPurge)),
   } as unknown as MemoryActionTokenService;
 }
 
@@ -248,9 +249,9 @@ describe('memoryBatch handlers', () => {
       expect(res.status).toHaveBeenCalledWith(400);
     });
 
-    it('returns 400 when token is unknown / expired / replayed', async () => {
+    it('returns 400 when token is unknown / expired (peek miss)', async () => {
       tokenService = createTokenServiceMock({
-        consumePreviewToken: async () => null,
+        peekPreviewToken: async () => null,
       });
       const { req, res } = createMockBodyReq({ previewToken: VALID_PREVIEW_TOKEN });
       await handleBatchDelete(mockPrisma as unknown as PrismaClient, tokenService, req, res);
@@ -260,15 +261,44 @@ describe('memoryBatch handlers', () => {
           message: expect.stringContaining('Preview token'),
         })
       );
+      // Token is NOT consumed on peek miss — user can retry without restarting preview.
+      expect(tokenService.consumePreviewToken).not.toHaveBeenCalled();
     });
 
-    it('returns 403 when token-bound persona does not belong to user', async () => {
+    it('returns 400 when token is concurrently consumed between peek and consume', async () => {
       tokenService = createTokenServiceMock({
-        consumePreviewToken: async () => ({
-          personalityId: TEST_PERSONALITY_ID,
-          personaId: TEST_PERSONA_ID,
-        }),
+        consumePreviewToken: async () => null, // race lost
       });
+      const { req, res } = createMockBodyReq({ previewToken: VALID_PREVIEW_TOKEN });
+      await handleBatchDelete(mockPrisma as unknown as PrismaClient, tokenService, req, res);
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining('concurrent'),
+        })
+      );
+    });
+
+    it('does NOT consume the token when personality lookup fails post-peek', async () => {
+      mockGetPersonalityById.mockResolvedValue(null);
+      const { req, res } = createMockBodyReq({ previewToken: VALID_PREVIEW_TOKEN });
+      await handleBatchDelete(mockPrisma as unknown as PrismaClient, tokenService, req, res);
+      // Personality 404 is rendered by getPersonalityById itself; importantly,
+      // the token survives the failure so the user can retry.
+      expect(tokenService.peekPreviewToken).toHaveBeenCalled();
+      expect(tokenService.consumePreviewToken).not.toHaveBeenCalled();
+    });
+
+    it('returns early when token-bound personality is missing', async () => {
+      mockGetPersonalityById.mockResolvedValue(null);
+      const { req, res } = createMockBodyReq({ previewToken: VALID_PREVIEW_TOKEN });
+      await handleBatchDelete(mockPrisma as unknown as PrismaClient, tokenService, req, res);
+      // getPersonalityById's own 404 is the only response — handler doesn't double-send.
+      expect(mockGetPersonalityById).toHaveBeenCalled();
+      expect(res.status).not.toHaveBeenCalled();
+    });
+
+    it('returns 403 when token-bound persona does not belong to user, without consuming token', async () => {
       mockPrisma.persona.findUnique.mockResolvedValue({
         id: TEST_PERSONA_ID,
         ownerId: 'different-user-id',
@@ -276,6 +306,8 @@ describe('memoryBatch handlers', () => {
       const { req, res } = createMockBodyReq({ previewToken: VALID_PREVIEW_TOKEN });
       await handleBatchDelete(mockPrisma as unknown as PrismaClient, tokenService, req, res);
       expect(res.status).toHaveBeenCalledWith(403);
+      // Token NOT consumed on persona-ownership failure — user can retry.
+      expect(tokenService.consumePreviewToken).not.toHaveBeenCalled();
     });
 
     it('returns zero-count success when no memories match', async () => {
@@ -316,12 +348,14 @@ describe('memoryBatch handlers', () => {
     });
 
     it('applies timeframe filter from the token-bound payload', async () => {
+      const filterWithTimeframe: BatchDeletePreviewInput = {
+        personalityId: TEST_PERSONALITY_ID,
+        personaId: TEST_PERSONA_ID,
+        timeframe: '30d',
+      };
       tokenService = createTokenServiceMock({
-        consumePreviewToken: async () => ({
-          personalityId: TEST_PERSONALITY_ID,
-          personaId: TEST_PERSONA_ID,
-          timeframe: '30d',
-        }),
+        peekPreviewToken: async () => filterWithTimeframe,
+        consumePreviewToken: async () => filterWithTimeframe,
       });
       const cutoffDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       mockParseTimeframeFilter.mockReturnValue({ filter: { gte: cutoffDate } });
@@ -429,9 +463,9 @@ describe('memoryBatch handlers', () => {
       expect(res.status).toHaveBeenCalledWith(400);
     });
 
-    it('returns 400 when token is unknown / expired / replayed', async () => {
+    it('returns 400 when token is unknown / expired (peek miss)', async () => {
       tokenService = createTokenServiceMock({
-        consumePurgeToken: async () => null,
+        peekPurgeToken: async () => null,
       });
       const { req, res } = createMockBodyReq({ purgeToken: VALID_PURGE_TOKEN });
       await handlePurge(mockPrisma as unknown as PrismaClient, tokenService, req, res);
@@ -441,6 +475,31 @@ describe('memoryBatch handlers', () => {
           message: expect.stringContaining('Purge token'),
         })
       );
+      // Token survives the failure — no destructive consume on peek miss.
+      expect(tokenService.consumePurgeToken).not.toHaveBeenCalled();
+    });
+
+    it('returns 400 when token is concurrently consumed between peek and consume', async () => {
+      tokenService = createTokenServiceMock({
+        consumePurgeToken: async () => null, // race lost
+      });
+      const { req, res } = createMockBodyReq({ purgeToken: VALID_PURGE_TOKEN });
+      await handlePurge(mockPrisma as unknown as PrismaClient, tokenService, req, res);
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining('concurrent'),
+        })
+      );
+    });
+
+    it('does NOT consume the token when personality lookup fails post-peek', async () => {
+      mockGetPersonalityById.mockResolvedValue(null);
+      const { req, res } = createMockBodyReq({ purgeToken: VALID_PURGE_TOKEN });
+      await handlePurge(mockPrisma as unknown as PrismaClient, tokenService, req, res);
+      // Token survives the personality-missing case — user can retry.
+      expect(tokenService.peekPurgeToken).toHaveBeenCalled();
+      expect(tokenService.consumePurgeToken).not.toHaveBeenCalled();
     });
 
     it('returns 400 when user has no persona', async () => {

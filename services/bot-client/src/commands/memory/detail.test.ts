@@ -340,6 +340,25 @@ describe('Memory Detail', () => {
         })
       );
     });
+
+    it('forwards desiredState=false to setMemoryLock for unlock flow', async () => {
+      const memory = createMockMemory({ isLocked: false });
+      mockCallGatewayApi.mockResolvedValue({ ok: true, data: { memory } });
+
+      const interaction = {
+        user: { id: 'user-123' },
+        deferUpdate: vi.fn(),
+        followUp: vi.fn(),
+        editReply: vi.fn(),
+      } as unknown as ButtonInteraction;
+
+      await handleLockButton(interaction, 'memory-123', false);
+
+      expect(mockCallGatewayApi).toHaveBeenCalledWith(
+        expect.stringContaining('/lock'),
+        expect.objectContaining({ method: 'PUT', body: { locked: false } })
+      );
+    });
   });
 
   describe('handleDeleteButton', () => {
