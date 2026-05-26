@@ -163,6 +163,8 @@ const PATH_MAP: Readonly<Record<string, string>> = {
   setTimezone: USER_TIMEZONE,
   getUserUsage: '../user/usage.js',
   getVoiceResolution: '../user/voice-resolution.js',
+  getNsfwStatus: '../user/nsfw.js',
+  verifyNsfw: '../user/nsfw.js',
 
   // Wallet
   listWalletKeys: '../wallet/listKeys.js',

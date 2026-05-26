@@ -50,6 +50,9 @@ export * from './configOverrides.js';
 // Usage endpoints
 export * from './usage.js';
 
+// NSFW verification endpoints
+export * from './nsfw.js';
+
 // Denylist schemas
 export * from './denylist.js';
 

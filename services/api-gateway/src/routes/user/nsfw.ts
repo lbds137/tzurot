@@ -64,12 +64,16 @@ export const handleVerifyNsfw = (deps: RouteDeps): RequestHandler => {
       select: { nsfwVerified: true, nsfwVerifiedAt: true },
     });
 
-    if (existingUser?.nsfwVerified === true) {
+    // Both fields must be set for the "already verified" early return;
+    // an inconsistent row (verified=true with null timestamp — the invalid
+    // state-machine state per 03-database.md) falls through to the re-verify
+    // path below, which writes a fresh timestamp and self-heals.
+    if (existingUser?.nsfwVerified === true && existingUser.nsfwVerifiedAt !== null) {
       return sendCustomSuccess(
         res,
         {
           nsfwVerified: true,
-          nsfwVerifiedAt: existingUser.nsfwVerifiedAt?.toISOString() ?? null,
+          nsfwVerifiedAt: existingUser.nsfwVerifiedAt.toISOString(),
           alreadyVerified: true,
         },
         StatusCodes.OK
