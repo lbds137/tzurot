@@ -8,7 +8,7 @@
  * POST /user/memory/incognito/forget - Retroactively delete recent memories
  */
 
-import { Router, type Response } from 'express';
+import { Router, type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import type { Redis } from 'ioredis';
 import {
@@ -27,6 +27,7 @@ import type { AuthenticatedRequest, ProvisionedRequest } from '../../types.js';
 import { IncognitoSessionManager } from '../../services/IncognitoSessionManager.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { getDefaultPersonaId } from './memoryHelpers.js';
+import type { RouteDeps } from '../routeDeps.js';
 
 const logger = createLogger('user-memory-incognito');
 
@@ -304,47 +305,90 @@ async function handleForget(
   );
 }
 
+// ===== Handler factories ===================================================
+//
+// `IncognitoSessionManager` is a thin wrapper around the Redis client with no
+// per-construction state, so each request creates a fresh manager — cheap and
+// keeps the 503 guard for missing-redis inside the request scope where we can
+// send a response. If profiling ever shows this is a hot path, hoist the
+// `new IncognitoSessionManager(...)` into the factory body behind a redis-
+// present guard.
+
+function requireRedis(deps: RouteDeps, res: Response): Redis | null {
+  if (deps.redis === undefined) {
+    sendError(
+      res,
+      ErrorResponses.serviceUnavailable('Redis required for incognito mode is not configured')
+    );
+    return null;
+  }
+  return deps.redis;
+}
+
+/** GET /api/user/memory/incognito */
+export const handleGetIncognitoStatus = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const redis = requireRedis(deps, res);
+    if (redis === null) {
+      return;
+    }
+    const manager = new IncognitoSessionManager(redis);
+    await handleGetStatus(manager, req, res);
+  });
+
+/** POST /api/user/memory/incognito */
+export const handleEnableIncognito = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const redis = requireRedis(deps, res);
+    if (redis === null) {
+      return;
+    }
+    const manager = new IncognitoSessionManager(redis);
+    await handleEnable(deps.prisma, manager, req, res);
+  });
+
+/** DELETE /api/user/memory/incognito */
+export const handleDisableIncognito = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const redis = requireRedis(deps, res);
+    if (redis === null) {
+      return;
+    }
+    const manager = new IncognitoSessionManager(redis);
+    await handleDisable(deps.prisma, manager, req, res);
+  });
+
+/** POST /api/user/memory/incognito/forget */
+export const handleIncognitoForget = (deps: RouteDeps): RequestHandler =>
+  asyncHandler((req: ProvisionedRequest, res: Response) => handleForget(deps.prisma, req, res));
+
 /**
- * Create incognito routes with injected dependencies
+ * Legacy aggregator-style factory — preserved for the existing top-level
+ * user-router wiring. The generated mounts.ts uses the named handler exports
+ * above directly.
  */
 export function createIncognitoRoutes(prisma: PrismaClient, redis: Redis): Router {
   const router = Router();
-  const manager = new IncognitoSessionManager(redis);
+  const deps: RouteDeps = { prisma, redis };
 
-  // GET /user/memory/incognito - Get status
   router.get(
     '/',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler((req: AuthenticatedRequest, res: Response) => handleGetStatus(manager, req, res))
+    handleGetIncognitoStatus(deps)
   );
-
-  // POST /user/memory/incognito - Enable
-  router.post(
-    '/',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler((req: AuthenticatedRequest, res: Response) =>
-      handleEnable(prisma, manager, req, res)
-    )
-  );
-
-  // DELETE /user/memory/incognito - Disable
+  router.post('/', requireUserAuth(), requireProvisionedUser(prisma), handleEnableIncognito(deps));
   router.delete(
     '/',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler((req: AuthenticatedRequest, res: Response) =>
-      handleDisable(prisma, manager, req, res)
-    )
+    handleDisableIncognito(deps)
   );
-
-  // POST /user/memory/incognito/forget - Retroactive delete
   router.post(
     '/forget',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler((req: ProvisionedRequest, res: Response) => handleForget(prisma, req, res))
+    handleIncognitoForget(deps)
   );
 
   return router;

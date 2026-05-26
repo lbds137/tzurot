@@ -59,7 +59,12 @@ const mockRedis = {
   mget: vi.fn().mockResolvedValue([]),
 };
 
-import { createIncognitoRoutes } from './memoryIncognito.js';
+import {
+  createIncognitoRoutes,
+  handleGetIncognitoStatus,
+  handleEnableIncognito,
+  handleDisableIncognito,
+} from './memoryIncognito.js';
 import { getRouteHandler, findRoute } from '../../test/expressRouterUtils.js';
 import type { PrismaClient } from '@tzurot/common-types';
 import type { Redis } from 'ioredis';
@@ -654,6 +659,43 @@ describe('/user/memory/incognito routes', () => {
           personalities: expect.arrayContaining(['Personality 1', 'Personality 2']),
         })
       );
+    });
+  });
+
+  describe('redis-missing 503 guards (handler factories)', () => {
+    // The factory handlers each guard `deps.redis === undefined` and short-
+    // circuit with 503 before constructing the IncognitoSessionManager.
+    // These exercise the guard branch that route-factory tests don't reach
+    // (createIncognitoRoutes always passes a redis instance).
+
+    it('handleGetIncognitoStatus returns 503 when redis is undefined', async () => {
+      const handler = handleGetIncognitoStatus({ prisma: mockPrisma as unknown as PrismaClient });
+      const { req, res } = createMockReqRes();
+
+      await handler(req as unknown as Request, res, vi.fn());
+
+      expect(res.status).toHaveBeenCalledWith(503);
+    });
+
+    it('handleEnableIncognito returns 503 when redis is undefined', async () => {
+      const handler = handleEnableIncognito({ prisma: mockPrisma as unknown as PrismaClient });
+      const { req, res } = createMockReqRes({
+        personalityId: TEST_PERSONALITY_ID,
+        duration: '1h',
+      });
+
+      await handler(req as unknown as Request, res, vi.fn());
+
+      expect(res.status).toHaveBeenCalledWith(503);
+    });
+
+    it('handleDisableIncognito returns 503 when redis is undefined', async () => {
+      const handler = handleDisableIncognito({ prisma: mockPrisma as unknown as PrismaClient });
+      const { req, res } = createMockReqRes({ personalityId: TEST_PERSONALITY_ID });
+
+      await handler(req as unknown as Request, res, vi.fn());
+
+      expect(res.status).toHaveBeenCalledWith(503);
     });
   });
 });
