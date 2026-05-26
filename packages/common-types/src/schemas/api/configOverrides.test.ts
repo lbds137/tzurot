@@ -265,8 +265,9 @@ describe('Config-Overrides Response Schemas', () => {
       expect(ResolveUserConfigDefaultsResponseSchema.safeParse(data).success).toBe(true);
     });
 
-    it('accepts null userOverrides with exhaustive sources', () => {
+    it('accepts null userOverrides with exhaustive sources + all ConfigOverrides fields', () => {
       const data = {
+        ...HARDCODED_CONFIG_DEFAULTS,
         sources: allHardcodedSources,
         userOverrides: null,
       };
@@ -275,7 +276,18 @@ describe('Config-Overrides Response Schemas', () => {
 
     it('rejects partial sources (Zod v4 record requires exhaustive keys)', () => {
       const data = {
+        ...HARDCODED_CONFIG_DEFAULTS,
         sources: { maxMessages: 'hardcoded' as const },
+        userOverrides: null,
+      };
+      expect(ResolveUserConfigDefaultsResponseSchema.safeParse(data).success).toBe(false);
+    });
+
+    it('rejects responses missing ConfigOverrides fields (now strongly-typed at root)', () => {
+      const data = {
+        // Missing maxMessages, maxAge, etc. — schema now derived from
+        // ConfigOverridesSchema.required() so these are mandatory.
+        sources: allHardcodedSources,
         userOverrides: null,
       };
       expect(ResolveUserConfigDefaultsResponseSchema.safeParse(data).success).toBe(false);

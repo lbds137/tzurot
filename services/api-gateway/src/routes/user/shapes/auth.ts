@@ -23,11 +23,13 @@ import {
   SHAPES_TOKEN_MIN_LENGTH,
   SHAPES_TOKEN_MAX_LENGTH,
   isPlausibleShapesTokenValue,
+  StoreShapesAuthInputSchema,
 } from '@tzurot/common-types';
 import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js';
+import { parseBodyOrSendError } from '../../../utils/configRouteHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { probeShapesSession } from '../../../services/ShapesPreflight.js';
 import type { ProvisionedRequest } from '../../../types.js';
@@ -43,15 +45,12 @@ const SHAPES_CREDENTIAL_WHERE = {
 function createStoreHandler(prisma: PrismaClient) {
   return async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
-    const { sessionCookie } = req.body as { sessionCookie?: string };
 
-    if (
-      sessionCookie === undefined ||
-      typeof sessionCookie !== 'string' ||
-      sessionCookie.trim().length === 0
-    ) {
-      return sendError(res, ErrorResponses.validationError('sessionCookie is required'));
+    const parsed = parseBodyOrSendError(res, StoreShapesAuthInputSchema, req.body);
+    if (parsed === null) {
+      return;
     }
+    const { sessionCookie } = parsed;
 
     // Bot-client's auth modal normalizes input to `name=value` form via
     // parseShapesSessionCookieInput before POSTing here. We accept only that
