@@ -26,6 +26,7 @@ describe('user resource routes', () => {
       '/wallet',
       '/voice-resolution',
       '/diagnostic',
+      '/usage',
     ];
     for (const [key, route] of entries) {
       const matches = resourcePathPrefixes.some(prefix => route.path.startsWith(prefix));

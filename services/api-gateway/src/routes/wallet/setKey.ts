@@ -8,7 +8,7 @@
  * - Never logs or returns the actual key
  */
 
-import { Router, type Response } from 'express';
+import { Router, type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
@@ -27,6 +27,7 @@ import { ErrorResponses, type ErrorResponse } from '../../utils/errorResponses.j
 import { sendZodError } from '../../utils/zodHelpers.js';
 import { validateApiKey, type ApiKeyValidationResult } from '../../utils/apiKeyValidation.js';
 import type { ProvisionedRequest } from '../../types.js';
+import type { RouteDeps } from '../routeDeps.js';
 
 const logger = createLogger('wallet-set-key');
 
@@ -54,84 +55,88 @@ function mapValidationErrorToResponse(validation: ApiKeyValidationResult): Error
   }
 }
 
+/** POST /api/user/wallet — store a validated API key for the current user. */
+export const handleSetWalletKey = (deps: RouteDeps): RequestHandler => {
+  const { prisma, apiKeyCacheInvalidation } = deps;
+  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
+    const parseResult = SetWalletKeySchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return sendZodError(res, parseResult.error);
+    }
+
+    const { provider, apiKey } = parseResult.data;
+    const discordUserId = req.userId;
+
+    logger.info({ provider, discordUserId }, 'Validating API key');
+
+    // Validate the API key with the provider
+    const validation = await validateApiKey(apiKey, provider);
+    if (!validation.valid) {
+      logger.warn(
+        { provider, discordUserId, errorCode: validation.errorCode },
+        'API key validation failed'
+      );
+      return sendError(res, mapValidationErrorToResponse(validation));
+    }
+
+    const userId = resolveProvisionedUserId(req);
+
+    // Encrypt and store the API key
+    const encrypted = encryptApiKey(apiKey);
+    await prisma.userApiKey.upsert({
+      where: { userId_provider: { userId, provider } },
+      update: {
+        iv: encrypted.iv,
+        content: encrypted.content,
+        tag: encrypted.tag,
+        isActive: true,
+        updatedAt: new Date(),
+      },
+      create: {
+        id: generateUserApiKeyUuid(userId, provider),
+        userId,
+        provider,
+        iv: encrypted.iv,
+        content: encrypted.content,
+        tag: encrypted.tag,
+        isActive: true,
+      },
+    });
+
+    logger.info(
+      { provider, discordUserId, hasCredits: validation.credits !== undefined },
+      'API key stored successfully'
+    );
+
+    // Publish cache invalidation event for ai-worker instances
+    if (apiKeyCacheInvalidation !== undefined) {
+      await apiKeyCacheInvalidation.invalidateUserApiKeys(discordUserId);
+      logger.debug({ discordUserId }, 'Published API key cache invalidation event');
+    }
+
+    sendCustomSuccess(
+      res,
+      {
+        success: true,
+        provider,
+        credits: validation.credits,
+        timestamp: new Date().toISOString(),
+      },
+      StatusCodes.OK
+    );
+  });
+};
+
 export function createSetKeyRoute(
   prisma: PrismaClient,
   apiKeyCacheInvalidation?: ApiKeyCacheInvalidationService
 ): Router {
   const router = Router();
-
   router.post(
     '/',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(async (req: ProvisionedRequest, res: Response) => {
-      const parseResult = SetWalletKeySchema.safeParse(req.body);
-      if (!parseResult.success) {
-        return sendZodError(res, parseResult.error);
-      }
-
-      const { provider, apiKey } = parseResult.data;
-      const discordUserId = req.userId;
-
-      logger.info({ provider, discordUserId }, 'Validating API key');
-
-      // Validate the API key with the provider
-      const validation = await validateApiKey(apiKey, provider);
-      if (!validation.valid) {
-        logger.warn(
-          { provider, discordUserId, errorCode: validation.errorCode },
-          'API key validation failed'
-        );
-        return sendError(res, mapValidationErrorToResponse(validation));
-      }
-
-      const userId = resolveProvisionedUserId(req);
-
-      // Encrypt and store the API key
-      const encrypted = encryptApiKey(apiKey);
-      await prisma.userApiKey.upsert({
-        where: { userId_provider: { userId, provider } },
-        update: {
-          iv: encrypted.iv,
-          content: encrypted.content,
-          tag: encrypted.tag,
-          isActive: true,
-          updatedAt: new Date(),
-        },
-        create: {
-          id: generateUserApiKeyUuid(userId, provider),
-          userId,
-          provider,
-          iv: encrypted.iv,
-          content: encrypted.content,
-          tag: encrypted.tag,
-          isActive: true,
-        },
-      });
-
-      logger.info(
-        { provider, discordUserId, hasCredits: validation.credits !== undefined },
-        'API key stored successfully'
-      );
-
-      // Publish cache invalidation event for ai-worker instances
-      if (apiKeyCacheInvalidation !== undefined) {
-        await apiKeyCacheInvalidation.invalidateUserApiKeys(discordUserId);
-        logger.debug({ discordUserId }, 'Published API key cache invalidation event');
-      }
-
-      sendCustomSuccess(
-        res,
-        {
-          success: true,
-          provider,
-          credits: validation.credits,
-          timestamp: new Date().toISOString(),
-        },
-        StatusCodes.OK
-      );
-    })
+    handleSetWalletKey({ prisma, apiKeyCacheInvalidation })
   );
-
   return router;
 }

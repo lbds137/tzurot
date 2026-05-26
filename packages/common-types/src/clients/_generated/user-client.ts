@@ -641,6 +641,39 @@ export class UserClient {
     });
   }
 
+  async updatePersona(id: string, input: z.infer<typeof ROUTE_MANIFEST.updatePersona.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updatePersona.output>>> {
+    const fullPath = `/api/user/persona/${encodeURIComponent(id)}`;
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'PUT',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.updatePersona.output,
+    });
+  }
+
+  async deletePersona(id: string): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.deletePersona.output>>> {
+    const fullPath = `/api/user/persona/${encodeURIComponent(id)}`;
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'DELETE',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      outputSchema: ROUTE_MANIFEST.deletePersona.output,
+    });
+  }
+
   async setPersonaDefault(id: string): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setPersonaDefault.output>>> {
     const fullPath = `/api/user/persona/${encodeURIComponent(id)}/default`;
     return callGateway({
@@ -820,6 +853,22 @@ export class UserClient {
     });
   }
 
+  async getUserUsage(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getUserUsage.output>>> {
+    const fullPath = '/api/user/usage';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'GET',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      outputSchema: ROUTE_MANIFEST.getUserUsage.output,
+    });
+  }
+
   async listWalletKeys(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listWalletKeys.output>>> {
     const fullPath = '/api/user/wallet/list';
     return callGateway({
@@ -833,6 +882,23 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.listWalletKeys.output,
+    });
+  }
+
+  async setWalletKey(input: z.infer<typeof ROUTE_MANIFEST.setWalletKey.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setWalletKey.output>>> {
+    const fullPath = '/api/user/wallet';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.setWalletKey.output,
     });
   }
 

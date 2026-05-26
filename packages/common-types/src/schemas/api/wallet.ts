@@ -67,6 +67,18 @@ export const TestWalletKeyResponseSchema = z.object({
 export type TestWalletKeyResponse = z.infer<typeof TestWalletKeyResponseSchema>;
 
 // ============================================================================
+// POST /wallet — store a validated API key
+// ============================================================================
+
+export const SetWalletKeyResponseSchema = z.object({
+  success: z.literal(true),
+  provider: AIProviderSchema,
+  credits: z.number().optional(),
+  timestamp: z.string(),
+});
+export type SetWalletKeyResponse = z.infer<typeof SetWalletKeyResponseSchema>;
+
+// ============================================================================
 // Input Schemas (request body validation)
 // ============================================================================
 

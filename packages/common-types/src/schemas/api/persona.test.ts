@@ -13,6 +13,8 @@ import {
   ListPersonasResponseSchema,
   GetPersonaResponseSchema,
   CreatePersonaResponseSchema,
+  UpdatePersonaResponseSchema,
+  DeletePersonaResponseSchema,
   SetDefaultPersonaResponseSchema,
   OverrideInfoResponseSchema,
   SetOverrideResponseSchema,
@@ -162,6 +164,33 @@ describe('Persona API Contract Tests', () => {
       };
       const result = CreatePersonaResponseSchema.safeParse(data);
       expect(result.success).toBe(false);
+    });
+  });
+
+  describe('UpdatePersonaResponseSchema', () => {
+    it('should accept valid update response', () => {
+      const data = {
+        success: true as const,
+        persona: createValidPersonaDetails(),
+      };
+      expect(UpdatePersonaResponseSchema.safeParse(data).success).toBe(true);
+    });
+
+    it('should reject missing persona field', () => {
+      const data = { success: true as const };
+      expect(UpdatePersonaResponseSchema.safeParse(data).success).toBe(false);
+    });
+  });
+
+  describe('DeletePersonaResponseSchema', () => {
+    it('should accept a response with just a message field', () => {
+      expect(DeletePersonaResponseSchema.safeParse({ message: 'Persona deleted' }).success).toBe(
+        true
+      );
+    });
+
+    it('should reject a missing message field', () => {
+      expect(DeletePersonaResponseSchema.safeParse({}).success).toBe(false);
     });
   });
 

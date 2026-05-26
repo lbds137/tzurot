@@ -10,6 +10,7 @@ import {
   ListWalletKeysResponseSchema,
   RemoveWalletKeyResponseSchema,
   TestWalletKeyResponseSchema,
+  SetWalletKeyResponseSchema,
   SetWalletKeySchema,
   TestWalletKeySchema,
 } from './wallet.js';
@@ -259,6 +260,36 @@ describe('Wallet API Contract Tests', () => {
 
     it('should reject missing provider', () => {
       const result = TestWalletKeySchema.safeParse({});
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('SetWalletKeyResponseSchema', () => {
+    it('should accept a successful set response', () => {
+      const result = SetWalletKeyResponseSchema.safeParse({
+        success: true,
+        provider: 'openrouter',
+        credits: 12.5,
+        timestamp: '2026-05-25T00:00:00.000Z',
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept a response without credits (provider does not expose them)', () => {
+      const result = SetWalletKeyResponseSchema.safeParse({
+        success: true,
+        provider: 'elevenlabs',
+        timestamp: '2026-05-25T00:00:00.000Z',
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject success=false', () => {
+      const result = SetWalletKeyResponseSchema.safeParse({
+        success: false,
+        provider: 'openrouter',
+        timestamp: '2026-05-25T00:00:00.000Z',
+      });
       expect(result.success).toBe(false);
     });
   });

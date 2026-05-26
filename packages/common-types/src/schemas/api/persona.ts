@@ -93,6 +93,32 @@ export const CreatePersonaResponseSchema = z.object({
 export type CreatePersonaResponse = z.infer<typeof CreatePersonaResponseSchema>;
 
 // ============================================================================
+// PUT /user/persona/:id — update an owned persona
+// ============================================================================
+
+export const UpdatePersonaResponseSchema = z.object({
+  success: z.literal(true),
+  persona: PersonaDetailsSchema,
+});
+export type UpdatePersonaResponse = z.infer<typeof UpdatePersonaResponseSchema>;
+
+// ============================================================================
+// DELETE /user/persona/:id — delete an owned persona (not the default)
+// ============================================================================
+
+// No `success: literal(true)` sentinel here — handler returns `{ message }`
+// directly. Intentionally asymmetric with `DeletePersonalityResponseSchema`
+// (which carries `success` + `deletedSlug` + `deletedName` + `deletedCounts`):
+// persona delete is a simple confirmation while personality delete reports
+// downstream cascade counts. Don't add `success` here without changing the
+// handler too — Zod 4 strips unknown keys, so the schema would silently
+// accept a spurious `success` field from a future handler edit.
+export const DeletePersonaResponseSchema = z.object({
+  message: z.string(),
+});
+export type DeletePersonaResponse = z.infer<typeof DeletePersonaResponseSchema>;
+
+// ============================================================================
 // PATCH /user/persona/:id/default
 // Sets a persona as the user's default
 // ============================================================================
