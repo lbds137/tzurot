@@ -156,6 +156,9 @@ describe('Shapes Auth Routes', () => {
       const { res } = await callStoreHandler({ sessionCookie: '   ' });
 
       expect(res.status).toHaveBeenCalledWith(400);
+      // Schema-layer rejection — `.trim().min(1)` catches whitespace-only
+      // before the handler's downstream `isPlausibleShapesTokenValue` check.
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'VALIDATION_ERROR' }));
     });
 
     it('should reject a cookie with an unexpected name', async () => {

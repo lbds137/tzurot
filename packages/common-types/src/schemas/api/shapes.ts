@@ -14,7 +14,10 @@ import { z } from 'zod';
 // ============================================================================
 
 export const StoreShapesAuthInputSchema = z.object({
-  sessionCookie: z.string().min(1),
+  // `.trim().min(1)` matches the import/export schemas — rejects whitespace-only
+  // at the contract layer so the error category stays VALIDATION_ERROR rather
+  // than falling through to the downstream `isPlausibleShapesTokenValue` check.
+  sessionCookie: z.string().trim().min(1),
 });
 export type StoreShapesAuthInput = z.infer<typeof StoreShapesAuthInputSchema>;
 
@@ -79,7 +82,10 @@ export type ListShapesResponse = z.infer<typeof ListShapesResponseSchema>;
  * `'full'`); we narrow to the two known values at the contract layer.
  */
 export const StartShapesImportInputSchema = z.object({
-  sourceSlug: z.string().min(1),
+  // `.trim()` is load-bearing: the handler relies on the schema to normalize
+  // whitespace before `.toLowerCase()`. Without trim here, a whitespace-only
+  // sourceSlug would survive `.min(1)` and reach job creation.
+  sourceSlug: z.string().trim().min(1),
   importType: z.enum(['full', 'memory_only']).optional(),
 });
 export type StartShapesImportInput = z.infer<typeof StartShapesImportInputSchema>;
@@ -130,7 +136,9 @@ export type ListShapesImportJobsResponse = z.infer<typeof ListShapesImportJobsRe
  * Format defaults to `'json'` server-side when omitted.
  */
 export const StartShapesExportInputSchema = z.object({
-  slug: z.string().min(1),
+  // `.trim()` is load-bearing for the same reason as the import schema —
+  // the handler does `.toLowerCase()` without re-trimming.
+  slug: z.string().trim().min(1),
   format: z.enum(['json', 'markdown']).optional(),
 });
 export type StartShapesExportInput = z.infer<typeof StartShapesExportInputSchema>;

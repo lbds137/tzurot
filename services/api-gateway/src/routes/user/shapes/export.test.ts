@@ -131,6 +131,13 @@ describe('Shapes Export Routes', () => {
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'VALIDATION_ERROR' }));
     });
 
+    it('should reject whitespace-only slug', async () => {
+      const { res } = await callExportHandler({ slug: '   ' });
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'VALIDATION_ERROR' }));
+    });
+
     it('should return 403 when no credentials found', async () => {
       mockPrisma.userCredential.findFirst.mockResolvedValue(null);
       const { res } = await callExportHandler({ slug: 'test-shape' });

@@ -23,11 +23,13 @@ import {
   CREDENTIAL_TYPES,
   getConfig,
   Prisma,
+  StartShapesExportInputSchema,
 } from '@tzurot/common-types';
 import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js';
+import { parseBodyOrSendError } from '../../../utils/configRouteHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { isPrismaUniqueConstraintError } from '../../../utils/prismaErrors.js';
 import type { ProvisionedRequest } from '../../../types.js';
@@ -117,14 +119,17 @@ async function createExportJobOrConflict(
 function createExportHandler(prisma: PrismaClient, queue: Queue, baseUrl: string) {
   return async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
-    const { slug, format: formatRaw } = req.body as { slug?: string; format?: string };
 
-    if (slug === undefined || typeof slug !== 'string' || slug.trim().length === 0) {
-      return sendError(res, ErrorResponses.validationError('slug is required'));
+    const parsed = parseBodyOrSendError(res, StartShapesExportInputSchema, req.body);
+    if (parsed === null) {
+      return;
     }
-
-    const normalizedSlug = slug.trim().toLowerCase();
-    const format = formatRaw === 'markdown' ? 'markdown' : 'json';
+    const { slug, format: formatRaw } = parsed;
+    // slug is already trimmed at the schema layer (StartShapesExportInputSchema).
+    const normalizedSlug = slug.toLowerCase();
+    // Schema constrains `format` to `'json' | 'markdown' | undefined`;
+    // default to `'json'` when omitted.
+    const format = formatRaw ?? 'json';
 
     const userId = resolveProvisionedUserId(req);
 

@@ -127,6 +127,7 @@ describe('Shapes Import Routes', () => {
       const { res } = await callImportHandler({ sourceSlug: '   ' });
 
       expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'VALIDATION_ERROR' }));
     });
 
     it('should reject duplicate pending import', async () => {

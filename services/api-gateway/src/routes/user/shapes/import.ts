@@ -15,12 +15,14 @@ import {
   IMPORT_SOURCES,
   JobType,
   JOB_PREFIXES,
+  StartShapesImportInputSchema,
   type ShapesImportJobData,
 } from '@tzurot/common-types';
 import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js';
+import { parseBodyOrSendError } from '../../../utils/configRouteHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { isPrismaUniqueConstraintError } from '../../../utils/prismaErrors.js';
 import type { ProvisionedRequest } from '../../../types.js';
@@ -89,23 +91,17 @@ async function createImportJobOrConflict(
 function createImportHandler(prisma: PrismaClient, queue: Queue) {
   return async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
-    const { sourceSlug, importType } = req.body as {
-      sourceSlug?: string;
-      importType?: string;
-    };
 
-    // Validate required fields
-    if (
-      sourceSlug === undefined ||
-      typeof sourceSlug !== 'string' ||
-      sourceSlug.trim().length === 0
-    ) {
-      return sendError(res, ErrorResponses.validationError('sourceSlug is required'));
+    const parsed = parseBodyOrSendError(res, StartShapesImportInputSchema, req.body);
+    if (parsed === null) {
+      return;
     }
-
-    const normalizedSlug = sourceSlug.trim().toLowerCase();
-
-    const validImportType = importType === 'memory_only' ? 'memory_only' : 'full';
+    const { sourceSlug, importType } = parsed;
+    // sourceSlug is already trimmed at the schema layer (StartShapesImportInputSchema).
+    const normalizedSlug = sourceSlug.toLowerCase();
+    // Schema constrains `importType` to `'full' | 'memory_only' | undefined`;
+    // default to `'full'` when omitted.
+    const validImportType = importType ?? 'full';
 
     const userId = resolveProvisionedUserId(req);
 

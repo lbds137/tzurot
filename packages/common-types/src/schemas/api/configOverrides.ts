@@ -185,19 +185,36 @@ export const ResolvedConfigOverridesSchema = ConfigOverridesSchema.required().ex
 });
 
 /**
- * Response for GET /user/config-overrides/resolve-defaults.
- * Flat shape: each ConfigOverrides field appears at the top level alongside
- * `sources` (per-field provenance) and `userOverrides` (the raw user tier
- * stored in DB, or null if unset). Field collisions are prevented by the
- * comment in config-overrides.ts: ConfigOverrides field names must not
- * include 'sources' or 'userOverrides'.
+ * Compile-time collision guard. Proves `keyof ConfigOverrides` has empty
+ * intersection with the reserved meta-keys (`sources`, `userOverrides`).
+ * If a future contributor adds a `ConfigOverrides` field named `sources`
+ * or `userOverrides`, this type assertion fails to compile, catching the
+ * flat-spread collision risk at the type level rather than at runtime.
  */
-export const ResolveUserConfigDefaultsResponseSchema = z
-  .object({
-    sources: z.record(ConfigOverridesKeySchema, ConfigOverrideSourceSchema),
-    userOverrides: z.record(z.string(), z.unknown()).nullable(),
-  })
-  .passthrough();
+type _ReservedKeysDoNotCollide =
+  Extract<keyof ConfigOverrides, 'sources' | 'userOverrides'> extends never ? true : false;
+const _reservedKeysCheck: _ReservedKeysDoNotCollide = true;
+// Reference the check so `noUnusedLocals` keeps it. Compile-time guard only.
+void _reservedKeysCheck;
+
+/**
+ * Response for GET /user/config-overrides/resolve-defaults.
+ *
+ * Flat shape: each `ConfigOverrides` field appears at the top level alongside
+ * `sources` (per-field provenance) and `userOverrides` (the raw user tier
+ * stored in DB, or null if unset).
+ *
+ * Derived from `ConfigOverridesSchema.required().extend({ sources, userOverrides })`
+ * so callers get the strongly-typed `ConfigOverrides` fields at root
+ * (`maxMessages: number | null`, `voiceResponseMode: enum`, etc.) instead of
+ * the previous `.passthrough()` shape that yielded `{ [k: string]: unknown }`.
+ * Field collisions with `sources` / `userOverrides` are prevented at compile
+ * time by the `_ReservedKeysDoNotCollide` assertion above.
+ */
+export const ResolveUserConfigDefaultsResponseSchema = ConfigOverridesSchema.required().extend({
+  sources: z.record(ConfigOverridesKeySchema, ConfigOverrideSourceSchema),
+  userOverrides: z.record(z.string(), z.unknown()).nullable(),
+});
 export type ResolveUserConfigDefaultsResponse = z.infer<
   typeof ResolveUserConfigDefaultsResponseSchema
 >;
