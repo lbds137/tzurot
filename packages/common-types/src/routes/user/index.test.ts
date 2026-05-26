@@ -14,6 +14,7 @@ import {
   userOwnershipRoutes,
   userResourceRoutes,
   userMemoryRoutes,
+  userConfigOverrideRoutes,
   userDiagnosticRoutes,
 } from './index.js';
 import type { AnyRouteDef } from '../types.js';
@@ -103,6 +104,7 @@ describe('user route manifest', () => {
       ['ownership', userOwnershipRoutes],
       ['resources', userResourceRoutes],
       ['memory', userMemoryRoutes],
+      ['config-overrides', userConfigOverrideRoutes],
       ['diagnostics', userDiagnosticRoutes],
     ];
     for (let i = 0; i < subManifests.length; i++) {
@@ -123,6 +125,7 @@ describe('user route manifest', () => {
         Object.keys(userOwnershipRoutes).length +
         Object.keys(userResourceRoutes).length +
         Object.keys(userMemoryRoutes).length +
+        Object.keys(userConfigOverrideRoutes).length +
         Object.keys(userDiagnosticRoutes).length
     );
   });

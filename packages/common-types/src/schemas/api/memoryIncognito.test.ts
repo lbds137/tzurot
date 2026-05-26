@@ -8,6 +8,7 @@ import {
   EnableIncognitoResponseSchema,
   DisableIncognitoResponseSchema,
   IncognitoForgetResponseSchema,
+  IncognitoSessionWithRemainingSchema,
 } from './memoryIncognito.js';
 
 const sampleSession = {
@@ -17,6 +18,27 @@ const sampleSession = {
   expiresAt: '2026-05-25T01:00:00.000Z',
   duration: '1h' as const,
 };
+
+describe('IncognitoSessionWithRemainingSchema', () => {
+  it('accepts session enriched with numeric timeRemaining', () => {
+    const data = { ...sampleSession, timeRemaining: 1000 };
+    expect(IncognitoSessionWithRemainingSchema.safeParse(data).success).toBe(true);
+  });
+
+  it('accepts null timeRemaining (forever session)', () => {
+    const data = {
+      ...sampleSession,
+      duration: 'forever' as const,
+      expiresAt: null,
+      timeRemaining: null,
+    };
+    expect(IncognitoSessionWithRemainingSchema.safeParse(data).success).toBe(true);
+  });
+
+  it('rejects missing timeRemaining', () => {
+    expect(IncognitoSessionWithRemainingSchema.safeParse(sampleSession).success).toBe(false);
+  });
+});
 
 describe('Memory Incognito API Contract Tests', () => {
   describe('GetIncognitoStatusResponseSchema', () => {

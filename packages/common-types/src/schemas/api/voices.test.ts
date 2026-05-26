@@ -10,7 +10,43 @@ import {
   ListVoiceModelsResponseSchema,
   ClearVoicesResponseSchema,
   DeleteVoiceResponseSchema,
+  TaggedVoiceSchema,
+  ProviderWarningSchema,
+  VoiceModelSchema,
 } from './voices.js';
+
+describe('TaggedVoiceSchema', () => {
+  it('accepts a well-formed voice', () => {
+    const data = { provider: 'elevenlabs', voiceId: 'v1', name: 'tzurot-x', slug: 'x' };
+    expect(TaggedVoiceSchema.safeParse(data).success).toBe(true);
+  });
+
+  it('rejects unknown provider', () => {
+    const data = { provider: 'openai', voiceId: 'v1', name: 'x', slug: 'x' };
+    expect(TaggedVoiceSchema.safeParse(data).success).toBe(false);
+  });
+});
+
+describe('ProviderWarningSchema', () => {
+  it('accepts a per-provider warning', () => {
+    const data = { provider: 'mistral', message: 'Mistral key invalid' };
+    expect(ProviderWarningSchema.safeParse(data).success).toBe(true);
+  });
+
+  it('rejects missing message', () => {
+    expect(ProviderWarningSchema.safeParse({ provider: 'mistral' }).success).toBe(false);
+  });
+});
+
+describe('VoiceModelSchema', () => {
+  it('accepts a single model entry', () => {
+    expect(VoiceModelSchema.safeParse({ modelId: 'eleven_v2_5', name: 'v2.5' }).success).toBe(true);
+  });
+
+  it('rejects missing name', () => {
+    expect(VoiceModelSchema.safeParse({ modelId: 'eleven_v2_5' }).success).toBe(false);
+  });
+});
 
 describe('Voices API Contract Tests', () => {
   describe('ListVoicesResponseSchema', () => {

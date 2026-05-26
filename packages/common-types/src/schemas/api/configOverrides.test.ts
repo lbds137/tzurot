@@ -7,6 +7,14 @@ import {
   ConfigOverridesSchema,
   HARDCODED_CONFIG_DEFAULTS,
   type ConfigOverrides,
+  ResolvedConfigOverridesSchema,
+  ResolveUserConfigDefaultsResponseSchema,
+  GetUserConfigDefaultsResponseSchema,
+  UpdateConfigDefaultsResponseSchema,
+  ClearUserConfigDefaultsResponseSchema,
+  UpdatePersonalityConfigOverridesResponseSchema,
+  ClearPersonalityConfigOverridesResponseSchema,
+  CONFIG_OVERRIDES_KEYS,
 } from './configOverrides.js';
 
 describe('ConfigOverridesSchema', () => {
@@ -205,5 +213,111 @@ describe('HARDCODED_CONFIG_DEFAULTS', () => {
       focusModeEnabled: HARDCODED_CONFIG_DEFAULTS.focusModeEnabled,
     });
     expect(result.success).toBe(true);
+  });
+});
+
+describe('CONFIG_OVERRIDES_KEYS', () => {
+  it('lists every key in the ConfigOverrides schema (no drift)', () => {
+    const schemaKeys = Object.keys(ConfigOverridesSchema.shape).sort();
+    const tupleKeys = [...CONFIG_OVERRIDES_KEYS].sort();
+    expect(tupleKeys).toEqual(schemaKeys);
+  });
+
+  it('produces an exhaustive key set (every HARDCODED_CONFIG_DEFAULTS key present)', () => {
+    const defaultKeys = Object.keys(HARDCODED_CONFIG_DEFAULTS).sort();
+    const tupleKeys = [...CONFIG_OVERRIDES_KEYS].sort();
+    expect(tupleKeys).toEqual(defaultKeys);
+  });
+});
+
+describe('Config-Overrides Response Schemas', () => {
+  const fullyResolved = {
+    ...HARDCODED_CONFIG_DEFAULTS,
+    sources: Object.fromEntries(
+      Object.keys(HARDCODED_CONFIG_DEFAULTS).map(k => [k, 'hardcoded' as const])
+    ),
+  };
+
+  describe('ResolvedConfigOverridesSchema', () => {
+    it('accepts the hardcoded baseline (all sources = hardcoded)', () => {
+      expect(ResolvedConfigOverridesSchema.safeParse(fullyResolved).success).toBe(true);
+    });
+
+    it('rejects unknown source label', () => {
+      const bad = { ...fullyResolved, sources: { maxMessages: 'bogus' } };
+      expect(ResolvedConfigOverridesSchema.safeParse(bad).success).toBe(false);
+    });
+  });
+
+  describe('ResolveUserConfigDefaultsResponseSchema', () => {
+    it('accepts flat shape with sources + userOverrides', () => {
+      const data = {
+        ...HARDCODED_CONFIG_DEFAULTS,
+        sources: { maxMessages: 'hardcoded' as const },
+        userOverrides: { maxMessages: 75 },
+      };
+      expect(ResolveUserConfigDefaultsResponseSchema.safeParse(data).success).toBe(true);
+    });
+
+    it('accepts null userOverrides', () => {
+      const data = {
+        sources: {},
+        userOverrides: null,
+      };
+      expect(ResolveUserConfigDefaultsResponseSchema.safeParse(data).success).toBe(true);
+    });
+  });
+
+  describe('GetUserConfigDefaultsResponseSchema', () => {
+    it('accepts populated configDefaults', () => {
+      const data = { configDefaults: { maxMessages: 30 } };
+      expect(GetUserConfigDefaultsResponseSchema.safeParse(data).success).toBe(true);
+    });
+
+    it('accepts null configDefaults', () => {
+      expect(GetUserConfigDefaultsResponseSchema.safeParse({ configDefaults: null }).success).toBe(
+        true
+      );
+    });
+  });
+
+  describe('UpdateConfigDefaultsResponseSchema', () => {
+    it('accepts merged configDefaults', () => {
+      const data = { configDefaults: { maxMessages: 30, focusModeEnabled: true } };
+      expect(UpdateConfigDefaultsResponseSchema.safeParse(data).success).toBe(true);
+    });
+
+    it('rejects null configDefaults (PATCH always returns merged object)', () => {
+      expect(UpdateConfigDefaultsResponseSchema.safeParse({ configDefaults: null }).success).toBe(
+        false
+      );
+    });
+  });
+
+  describe('ClearUserConfigDefaultsResponseSchema', () => {
+    it('accepts { success: true }', () => {
+      expect(ClearUserConfigDefaultsResponseSchema.safeParse({ success: true }).success).toBe(true);
+    });
+
+    it('rejects success=false', () => {
+      expect(ClearUserConfigDefaultsResponseSchema.safeParse({ success: false }).success).toBe(
+        false
+      );
+    });
+  });
+
+  describe('UpdatePersonalityConfigOverridesResponseSchema', () => {
+    it('accepts merged configOverrides', () => {
+      const data = { configOverrides: { maxMessages: 30 } };
+      expect(UpdatePersonalityConfigOverridesResponseSchema.safeParse(data).success).toBe(true);
+    });
+  });
+
+  describe('ClearPersonalityConfigOverridesResponseSchema', () => {
+    it('accepts { success: true }', () => {
+      expect(
+        ClearPersonalityConfigOverridesResponseSchema.safeParse({ success: true }).success
+      ).toBe(true);
+    });
   });
 });

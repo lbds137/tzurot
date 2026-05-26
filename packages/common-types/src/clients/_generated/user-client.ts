@@ -1198,6 +1198,153 @@ export class UserClient {
     });
   }
 
+  async resolveUserDefaults(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.resolveUserDefaults.output>>> {
+    const fullPath = '/api/user/config-overrides/resolve-defaults';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'GET',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      outputSchema: ROUTE_MANIFEST.resolveUserDefaults.output,
+    });
+  }
+
+  async getUserDefaults(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getUserDefaults.output>>> {
+    const fullPath = '/api/user/config-overrides/defaults';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'GET',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      outputSchema: ROUTE_MANIFEST.getUserDefaults.output,
+    });
+  }
+
+  async updateUserDefaults(input: z.infer<typeof ROUTE_MANIFEST.updateUserDefaults.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updateUserDefaults.output>>> {
+    const fullPath = '/api/user/config-overrides/defaults';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'PATCH',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.updateUserDefaults.output,
+    });
+  }
+
+  async clearUserDefaults(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.clearUserDefaults.output>>> {
+    const fullPath = '/api/user/config-overrides/defaults';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'DELETE',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      outputSchema: ROUTE_MANIFEST.clearUserDefaults.output,
+    });
+  }
+
+  async resolveCascade(personalityId: string, options: { channelId?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.resolveCascade.output>>> {
+    const fullPath = `/api/user/config-overrides/resolve/${encodeURIComponent(personalityId)}` + buildQueryString([['channelId', options.channelId]]);
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'GET',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      outputSchema: ROUTE_MANIFEST.resolveCascade.output,
+    });
+  }
+
+  async updatePersonalityOverrides(personalityId: string, input: z.infer<typeof ROUTE_MANIFEST.updatePersonalityOverrides.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updatePersonalityOverrides.output>>> {
+    const fullPath = `/api/user/config-overrides/${encodeURIComponent(personalityId)}`;
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'PATCH',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.updatePersonalityOverrides.output,
+    });
+  }
+
+  async clearPersonalityOverrides(personalityId: string): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.clearPersonalityOverrides.output>>> {
+    const fullPath = `/api/user/config-overrides/${encodeURIComponent(personalityId)}`;
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'DELETE',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      outputSchema: ROUTE_MANIFEST.clearPersonalityOverrides.output,
+    });
+  }
+
+  async resolvePersonalityCascade(personalityId: string): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.resolvePersonalityCascade.output>>> {
+    const fullPath = `/api/user/config-overrides/resolve-personality/${encodeURIComponent(personalityId)}`;
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'GET',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      outputSchema: ROUTE_MANIFEST.resolvePersonalityCascade.output,
+    });
+  }
+
+  async updatePersonalityConfigDefaults(personalityId: string, input: z.infer<typeof ROUTE_MANIFEST.updatePersonalityConfigDefaults.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updatePersonalityConfigDefaults.output>>> {
+    const fullPath = `/api/user/config-overrides/personality/${encodeURIComponent(personalityId)}`;
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'PATCH',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.updatePersonalityConfigDefaults.output,
+    });
+  }
+
   async getRecentDiagnostics(options: { subject?: SubjectDiscordId; personalityId?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getRecentDiagnostics.output>>> {
     const fullPath = '/api/user/diagnostic/recent' + buildQueryString([['userId', options.subject], ['personalityId', options.personalityId]]);
     return callGateway({

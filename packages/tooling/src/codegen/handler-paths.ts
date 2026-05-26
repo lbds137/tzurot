@@ -31,6 +31,8 @@ const USER_CHANNEL_GET = '../user/channel/get.js';
 const USER_HISTORY = '../user/history.js';
 const USER_LLM_CONFIG = '../user/llm-config.js';
 const USER_MEMORY_INCOGNITO = '../user/memoryIncognito.js';
+const USER_CONFIG_OVERRIDES = '../user/config-overrides.js';
+const USER_PERSONALITY_CONFIG_OVERRIDES = '../user/personality-config-overrides.js';
 const USER_MODEL_OVERRIDE = '../user/model-override.js';
 const USER_PERSONA_CRUD = '../user/persona/crud.js';
 const USER_PERSONA_OVERRIDE = '../user/persona/override.js';
@@ -187,6 +189,19 @@ const PATH_MAP: Readonly<Record<string, string>> = {
   enableIncognito: USER_MEMORY_INCOGNITO,
   disableIncognito: USER_MEMORY_INCOGNITO,
   incognitoForget: USER_MEMORY_INCOGNITO,
+
+  // User config-overrides (user-tier endpoints)
+  resolveUserDefaults: USER_CONFIG_OVERRIDES,
+  getUserDefaults: USER_CONFIG_OVERRIDES,
+  updateUserDefaults: USER_CONFIG_OVERRIDES,
+  clearUserDefaults: USER_CONFIG_OVERRIDES,
+  resolveCascade: USER_CONFIG_OVERRIDES,
+  updatePersonalityOverrides: USER_CONFIG_OVERRIDES,
+  clearPersonalityOverrides: USER_CONFIG_OVERRIDES,
+
+  // User config-overrides (personality-tier endpoints — separate file)
+  resolvePersonalityCascade: USER_PERSONALITY_CONFIG_OVERRIDES,
+  updatePersonalityConfigDefaults: USER_PERSONALITY_CONFIG_OVERRIDES,
 
   // Wallet
   listWalletKeys: '../wallet/listKeys.js',
