@@ -7,18 +7,20 @@
 
 ## Next Session Goal
 
-**Active focus**: none. **PR-1.5c shipped to develop** (PR #1097, merged 2026-05-26). Route manifest now at 128 routes (was 92); the route-manifest scaffold work is now ~75% complete on the user audience (memory main CRUD + admin/diagnostic lift remain).
+**Active epic**: **Route Manifest Scaffold + Typed-Client Codegen** ([active-epic.md](backlog/active-epic.md)) — Phase 3 in progress. **PR-1.5d shipped to develop** (PR #1098, merged 2026-05-26) closing the three PR #1097 follow-ups; epic retrofitted into `active-epic.md` after the user flagged we'd been shipping 6+ PRs on a cohesive arc with no tracker.
 
-Pick from candidates below or `backlog/future-themes.md` next session.
+**Next under the epic** (recommend running both open design questions through the council per `feedback_council_models_for_design`: GLM 5.1, Kimi K2.6, Qwen 3.7 Max, parallel):
 
-**Candidates**:
+1. **PR-1.5e: user/memory main CRUD** — ~10 dynamic-filter routes. **Open design**: the dynamic-filter handler pattern (build `where` from query params) doesn't fit `RouteDef.query`'s static shape cleanly. Options: (a) declare union of all filter fields as optional query params, (b) POST with body-shaped query schema, (c) keep manifest-out.
+2. **PR-1.5f: admin/diagnostic audience lift** — 5 admin-tier routes that could lift to user audience with `acceptsSubject: true`. **Open design**: 4 of 9 diagnostic routes already lifted in PR-1.5c; the 5 remaining are more sensitive — needs user decision.
+3. **PR-2 (future): route-prefix cutover** — atomic switch from legacy `/admin /user /internal` mounts to generated `mountAdminRoutes/mountUserRoutes/mountInternalRoutes` + migrate all 173+ bot-client call sites. Single deploy-gap PR. Two backlog items already filed under this trigger.
 
-1. **PR-1.5d candidate: user/memory main CRUD** — the ~10 dynamic-filter routes deferred from PR-1.5c. Needs design pass first to reconcile the dynamic-filter handler pattern with the static `RouteDef` manifest shape.
-2. **PR-1.5d candidate: admin/diagnostic audience lift** — 5 routes currently in admin audience that could move to user audience per the route-manifest design. Needs user decision on the lift.
-3. **Self-Hosted TTS + BYOK Re-Eval — Step 0 BYOK probes** ([future-themes.md](backlog/future-themes.md)) — Cartesia / Fish Audio / PlayHT / Resemble pricing-and-quality pass.
-4. **Adjacent CPD Follow-Up Campaigns** ([future-themes.md](backlog/future-themes.md)) — four independently-pickable mini-epics from the 2026-05-16 CPD campaign close-out.
-5. **Quick-win: migrate `/admin/db-sync` + `/admin/cleanup` from body ownerId to X-User-Id header** ([quick-wins.md](backlog/quick-wins.md)) — closes the remaining two-codepath shape in `extractOwnerId`. Surfaced by PR #1081 review.
-6. **Deferred items with named triggers** ([deferred.md](backlog/deferred.md)) — many are gated on "next time you touch X." Check the list when picking up new work.
+**Other candidates** (off-epic):
+
+- **Self-Hosted TTS + BYOK Re-Eval — Step 0 BYOK probes** ([future-themes.md](backlog/future-themes.md)) — Cartesia / Fish Audio / PlayHT / Resemble pricing-and-quality pass.
+- **Adjacent CPD Follow-Up Campaigns** ([future-themes.md](backlog/future-themes.md)) — four independently-pickable mini-epics from the 2026-05-16 CPD campaign close-out.
+- **Quick-win: migrate `/admin/db-sync` + `/admin/cleanup` from body ownerId to X-User-Id header** ([quick-wins.md](backlog/quick-wins.md)) — closes the remaining two-codepath shape in `extractOwnerId`. Surfaced by PR #1081 review.
+- **Deferred items with named triggers** ([deferred.md](backlog/deferred.md)) — many are gated on "next time you touch X."
 
 **Verify on prod (low priority, fix shipped)**:
 
@@ -27,7 +29,42 @@ Pick from candidates below or `backlog/future-themes.md` next session.
 
 ---
 
-## Last Session — PR-1.5c: 36 missing user-route manifest entries (2026-05-26)
+## Last Session — PR-1.5d: PR #1097 follow-ups + epic retrofit (2026-05-26)
+
+Closed three follow-up items from PR #1097's review cycle plus retrofitted the active-epic tracker after noticing 6+ PRs had shipped on a cohesive arc with no formal epic.
+
+### PR merged
+
+| PR    | Title                                                                        | Outcome                                                                                                                                                                                                                 |
+| ----- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #1098 | `fix(api-gateway): wire zod schemas + strong-type ResolveUserConfigDefaults` | Shapes-handler Zod bypass closed (3 handlers); ResolveUserConfigDefaults moved from passthrough to strongly-typed; compile-time collision guard added; backlog −3 entries; active-epic.md retrofitted with all 5 phases |
+
+### Net result
+
+- **Shapes-handler validation gap closed**: `import.ts`, `auth.ts`, `export.ts` switched from `req.body as {...}` casts to `parseBodyOrSendError(res, Schema, req.body)`. Direct API caller passing `importType: 'garbage'` now returns `VALIDATION_ERROR` instead of silently normalizing to `'full'`.
+- **`.trim().min(1)` on all three shapes inputs** — rejects whitespace-only strings at the contract layer instead of falling through to downstream format validators. Error category now consistent (`VALIDATION_ERROR` across all three handlers).
+- **`ResolveUserConfigDefaultsResponseSchema` strong-typed**: replaced `.passthrough()` with `ConfigOverridesSchema.required().extend({ sources, userOverrides })`. Generated client callers now see `{ maxMessages: number | null, voiceResponseMode: enum, ... }` at root instead of `{ [k: string]: unknown }`.
+- **Compile-time collision guard**: `_ReservedKeysDoNotCollide` assertion proves `keyof ConfigOverrides` has empty intersection with `'sources' | 'userOverrides'`. Future field-name collision is now a compile error, not a runtime ambiguity.
+- **Epic retrofit**: `backlog/active-epic.md` formalizes Route Manifest Scaffold + Typed-Client Codegen with all 5 phases (Manifest scaffold ✅, Handler refactor ✅, Coverage 🚧, Cutover ⏳, Cleanup ⏳) and the two open design decisions for PR-1.5e/1.5f.
+- **6 review rounds**, all converging clean: 3 substantive items addressed + 3 micro-iterations (one nit dismissed in round 2 surfaced again in round 3 with stronger reasoning — applied then).
+
+### Backlog deltas
+
+- `quick-wins.md`: 3 entries removed
+  - Shapes-handler Zod bypass (shipped in this PR)
+  - `ResolveUserConfigDefaultsResponseSchema` collision-guard (shipped in this PR)
+  - Stale `routeDeps.ts` scaffolding removal (handler refactor already wired the interface; structure.test exclusion is the right form)
+- `active-epic.md`: replaced placeholder with full Route Manifest Scaffold epic
+- Net: −3 entries, 0 added — matches the user directive that "newly added items should generally be tackled under subsequent work"
+
+### Process notes
+
+- The user noticed the missing epic mid-session — first time formalizing it after PR-1.0, PR-1.5a, PR-1.5b.2a #1093, PR-1.5b.2b #1094, PR-1.5c #1097 already shipped uncovered. Now traceable.
+- Saved memory entry `feedback_council_models_for_design.md` capturing the user's preferred council lineup (GLM 5.1, Kimi K2.6, Qwen 3.7 Max) for the upcoming PR-1.5e/1.5f design decisions.
+
+---
+
+## Previous Session — PR-1.5c: 36 missing user-route manifest entries (2026-05-26)
 
 Marathon session shipping the PR-1.5 epic's largest single PR: filled in the 36 user-audience routes that had working server handlers but no manifest entries, so the route-manifest codegen now covers them.
 
@@ -61,7 +98,7 @@ Marathon session shipping the PR-1.5 epic's largest single PR: filled in the 36 
 
 ---
 
-## Previous Session — Quick-wins + auth symmetry sweep (2026-05-20)
+## Earlier Session — Quick-wins + auth symmetry sweep (2026-05-20)
 
 Three-PR sweep: internal observability (`/admin metrics`), closing the last API Security Hardening item (`/voice-references` service auth), then a follow-up to eliminate the auth-posture asymmetry that surfaced during PR #1068 review.
 
