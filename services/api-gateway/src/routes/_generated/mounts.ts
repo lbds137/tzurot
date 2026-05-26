@@ -119,6 +119,10 @@ import { handleSetWalletKey } from '../wallet/setKey.js';
 import { handleRemoveWalletKey } from '../wallet/removeKey.js';
 import { handleTestWalletKey } from '../wallet/testKey.js';
 import { handleGetVoiceResolution } from '../user/voice-resolution.js';
+import { handleListVoices } from '../user/voices.js';
+import { handleListVoiceModels } from '../user/voices.js';
+import { handleClearVoices } from '../user/voices.js';
+import { handleDeleteVoice } from '../user/voices.js';
 import { handleGetRecentDiagnostics } from '../admin/diagnostic.js';
 import { handleGetDiagnosticByMessage } from '../admin/diagnostic.js';
 import { handleGetDiagnosticByResponse } from '../admin/diagnostic.js';
@@ -208,6 +212,9 @@ export function mountUserRoutes(app: Express, deps: RouteDeps): void {
   app.post('/api/user/wallet', requireUserAuth(), requireProvisionedUser(deps.prisma), handleSetWalletKey(deps));
   app.post('/api/user/wallet/test', requireUserAuth(), requireProvisionedUser(deps.prisma), handleTestWalletKey(deps));
   app.get('/api/user/voice-resolution', requireUserAuth(), requireProvisionedUser(deps.prisma), handleGetVoiceResolution(deps));
+  app.get('/api/user/voices', requireUserAuth(), requireProvisionedUser(deps.prisma), handleListVoices(deps));
+  app.get('/api/user/voices/models', requireUserAuth(), requireProvisionedUser(deps.prisma), handleListVoiceModels(deps));
+  app.post('/api/user/voices/clear', requireUserAuth(), requireProvisionedUser(deps.prisma), handleClearVoices(deps));
   app.get('/api/user/diagnostic/recent', requireUserAuth(), handleGetRecentDiagnostics(deps));
   app.get('/api/user/llm-config/:id', requireUserAuth(), requireProvisionedUser(deps.prisma), handleGetUserLlmConfig(deps));
   app.put('/api/user/llm-config/:id', requireUserAuth(), requireProvisionedUser(deps.prisma), handleUpdateUserLlmConfig(deps));
@@ -234,4 +241,5 @@ export function mountUserRoutes(app: Express, deps: RouteDeps): void {
   app.get('/api/user/diagnostic/by-message/:messageId', requireUserAuth(), handleGetDiagnosticByMessage(deps));
   app.get('/api/user/diagnostic/by-response/:messageId', requireUserAuth(), handleGetDiagnosticByResponse(deps));
   app.get('/api/user/diagnostic/:requestId', requireUserAuth(), handleGetDiagnosticByRequestId(deps));
+  app.delete('/api/user/voices/:provider/:voiceId', requireUserAuth(), requireProvisionedUser(deps.prisma), handleDeleteVoice(deps));
 }

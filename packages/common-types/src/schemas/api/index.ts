@@ -53,6 +53,9 @@ export * from './usage.js';
 // NSFW verification endpoints
 export * from './nsfw.js';
 
+// Voice cloning management endpoints
+export * from './voices.js';
+
 // Denylist schemas
 export * from './denylist.js';
 
