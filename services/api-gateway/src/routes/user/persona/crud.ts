@@ -179,8 +179,9 @@ export const handleCreatePersona = (deps: RouteDeps): RequestHandler => {
   });
 };
 
-const createUpdateHandler = (prisma: PrismaClient) => {
-  return async (req: ProvisionedRequest, res: Response) => {
+export const handleUpdatePersona = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const id = getParam(req.params.id);
 
     const resolved = await resolveOwnedPersona(prisma, req, id, res);
@@ -227,11 +228,12 @@ const createUpdateHandler = (prisma: PrismaClient) => {
       success: true,
       persona: toPersonaDetails(persona, persona.id === user.defaultPersonaId),
     });
-  };
+  });
 };
 
-const createDeleteHandler = (prisma: PrismaClient) => {
-  return async (req: ProvisionedRequest, res: Response) => {
+export const handleDeletePersona = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const id = getParam(req.params.id);
 
     const resolved = await resolveOwnedPersona(prisma, req, id, res);
@@ -253,7 +255,7 @@ const createDeleteHandler = (prisma: PrismaClient) => {
     logger.info({ userId: user.id, personaId: persona.id }, 'Deleted persona');
 
     sendCustomSuccess(res, { message: 'Persona deleted' });
-  };
+  });
 };
 
 // --- Main Route Setup ---
@@ -281,12 +283,12 @@ export function addCrudRoutes(router: Router, prisma: PrismaClient): void {
     '/:id',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createUpdateHandler(prisma))
+    handleUpdatePersona({ prisma })
   );
   router.delete(
     '/:id',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createDeleteHandler(prisma))
+    handleDeletePersona({ prisma })
   );
 }

@@ -23,7 +23,10 @@ import {
   SetVisibilitySchema,
   // Persona
   PersonaCreateSchema,
+  PersonaUpdateSchema,
   CreatePersonaResponseSchema,
+  UpdatePersonaResponseSchema,
+  DeletePersonaResponseSchema,
   GetPersonaResponseSchema,
   ListPersonasResponseSchema,
   SetDefaultPersonaResponseSchema,
@@ -44,10 +47,14 @@ import {
   // Wallet
   ListWalletKeysResponseSchema,
   RemoveWalletKeyResponseSchema,
+  SetWalletKeySchema,
+  SetWalletKeyResponseSchema,
   TestWalletKeySchema,
   TestWalletKeyResponseSchema,
   // Voice resolution
   GetVoiceResolutionResponseSchema,
+  // Usage
+  UsageStatsSchema,
   // Diagnostic GETs (lifted from /admin in the route-prefix cutover)
   DiagnosticLogResponseSchema,
   DiagnosticLogsResponseSchema,
@@ -57,6 +64,7 @@ import type { RouteDef } from '../types.js';
 
 // Shared CRUD-detail path constants
 const PERSONALITY_DETAIL_PATH = '/personality/:slug';
+const PERSONA_DETAIL_PATH = '/persona/:id';
 const PERSONA_OVERRIDE_DETAIL_PATH = '/persona/override/:personalitySlug';
 
 export const userResourceRoutes = {
@@ -141,7 +149,7 @@ export const userResourceRoutes = {
   getPersona: {
     audience: 'user',
     method: 'get',
-    path: '/persona/:id',
+    path: PERSONA_DETAIL_PATH,
     id: 'getPersona',
     params: { id: z.string() },
     output: GetPersonaResponseSchema,
@@ -155,6 +163,27 @@ export const userResourceRoutes = {
     id: 'createPersona',
     input: PersonaCreateSchema,
     output: CreatePersonaResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
+  updatePersona: {
+    audience: 'user',
+    method: 'put',
+    path: PERSONA_DETAIL_PATH,
+    id: 'updatePersona',
+    params: { id: z.string() },
+    input: PersonaUpdateSchema,
+    output: UpdatePersonaResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
+  deletePersona: {
+    audience: 'user',
+    method: 'delete',
+    path: PERSONA_DETAIL_PATH,
+    id: 'deletePersona',
+    params: { id: z.string() },
+    output: DeletePersonaResponseSchema,
     requiresProvisionedUser: true,
   },
 
@@ -275,6 +304,19 @@ export const userResourceRoutes = {
   },
 
   // ============================================================================
+  // Usage stats (per-user token usage)
+  // ============================================================================
+
+  getUserUsage: {
+    audience: 'user',
+    method: 'get',
+    path: '/usage',
+    id: 'getUserUsage',
+    output: UsageStatsSchema,
+    requiresProvisionedUser: true,
+  },
+
+  // ============================================================================
   // Wallet (BYOK key management)
   // ============================================================================
 
@@ -284,6 +326,16 @@ export const userResourceRoutes = {
     path: '/wallet/list',
     id: 'listWalletKeys',
     output: ListWalletKeysResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
+  setWalletKey: {
+    audience: 'user',
+    method: 'post',
+    path: '/wallet',
+    id: 'setWalletKey',
+    input: SetWalletKeySchema,
+    output: SetWalletKeyResponseSchema,
     requiresProvisionedUser: true,
   },
 

@@ -149,21 +149,25 @@ const PATH_MAP: Readonly<Record<string, string>> = {
   // User persona
   clearPersonaOverride: USER_PERSONA_OVERRIDE,
   createPersona: USER_PERSONA_CRUD,
+  deletePersona: USER_PERSONA_CRUD,
   getPersona: USER_PERSONA_CRUD,
   getPersonaOverride: USER_PERSONA_OVERRIDE,
   listPersonaOverrides: USER_PERSONA_OVERRIDE,
   listPersonas: USER_PERSONA_CRUD,
   setPersonaDefault: '../user/persona/default.js',
   setPersonaOverride: USER_PERSONA_OVERRIDE,
+  updatePersona: USER_PERSONA_CRUD,
 
   // User other
   getTimezone: USER_TIMEZONE,
   setTimezone: USER_TIMEZONE,
+  getUserUsage: '../user/usage.js',
   getVoiceResolution: '../user/voice-resolution.js',
 
   // Wallet
   listWalletKeys: '../wallet/listKeys.js',
   removeWalletKey: '../wallet/removeKey.js',
+  setWalletKey: '../wallet/setKey.js',
   testWalletKey: '../wallet/testKey.js',
 };
 
