@@ -13,7 +13,7 @@
  * runtime 401 or a silent data leak.
  */
 
-import type { z } from 'zod';
+import { z } from 'zod';
 
 /**
  * Discord ID of the human (or service principal) initiating the request.
@@ -157,8 +157,56 @@ export interface RouteDef<
    * If a numeric query needs compile-time narrowing on the client
    * side, a follow-up could specialize `buildOptionsType` to inspect
    * the Zod schema kind.
+   *
+   * Two shapes accepted:
+   *   - `Record<string, ZodTypeAny>` — the "spread" form, one entry per
+   *     query param. Use this for ad-hoc per-route queries.
+   *   - `ZodObject<TQuery>` — the "schema" form. Use this when you want
+   *     to share a reusable query schema across routes (e.g., the
+   *     `createPaginationSchema(sortFields)` factory output). The codegen
+   *     unwraps to `.shape` internally so the two forms are equivalent
+   *     at the wire level; the schema form lets you `.extend()` it with
+   *     per-route fields without copying the record entries.
    */
-  readonly query?: TQuery;
+  readonly query?: TQuery | z.ZodObject<TQuery>;
+  /**
+   * Zod schemas for request HEADERS. Each entry is one header name,
+   * lowercased per HTTP convention (`'idempotency-key'`, not `'Idempotency-Key'`).
+   * Generated client method emits these as required positional arguments
+   * (or part of the options bag, depending on optionality). Server-side
+   * the corresponding handler can `req.get(headerName)` and validate.
+   *
+   * Currently used by destructive batch operations (`/memory/delete`,
+   * `/memory/purge`) to require an `Idempotency-Key` UUID so retries on
+   * network timeout don't double-execute.
+   */
+  readonly headers?: Record<string, z.ZodTypeAny>;
+  /**
+   * Opt-in metadata that affects codegen behavior or documents semantic
+   * intent. All fields optional; absence means "use defaults."
+   *
+   *   - `safeRead`: route uses POST for transport reasons (complex body
+   *     that won't fit a query string) but is semantically read-only.
+   *     Generated client treats it like a GET for cache purposes — e.g.,
+   *     React Query wrappers use `useQuery` instead of `useMutation`.
+   *     Without this flag, POST routes are assumed to be mutating.
+   *
+   *   - `softDeleteAware`: the resource supports soft delete. Future
+   *     codegen can honor this to add `includeDeleted?: boolean` to list
+   *     queries or warn when a caller fetches a soft-deleted entity. Set
+   *     on the resource-level routes (list, get-by-id) that participate
+   *     in the soft-delete cycle, not on the delete operation itself.
+   *
+   *   - `idempotent`: route is safe to retry without side effects beyond
+   *     the first call. Set by the route author to document intent;
+   *     destructive routes that achieve idempotency via Idempotency-Key
+   *     headers should also set this true.
+   */
+  readonly meta?: {
+    readonly safeRead?: boolean;
+    readonly softDeleteAware?: boolean;
+    readonly idempotent?: boolean;
+  };
   /**
    * If true, this route operates on a subject distinct from the actor.
    * Generated client method gains `subject?: SubjectDiscordId` parameter.
@@ -219,3 +267,96 @@ export interface RouteDef<
  * is what code that walks the manifest works with.
  */
 export type AnyRouteDef = RouteDef<z.ZodTypeAny | undefined, z.ZodTypeAny>;
+
+/**
+ * Resolve a `RouteDef.query` field to its `Record<string, ZodTypeAny>`
+ * shape, regardless of whether the manifest entry passed a `Record<>` or
+ * a `ZodObject` (the two accepted forms — see `RouteDef.query` JSDoc).
+ *
+ * Returns `undefined` if no query schema was declared. Used by:
+ *   - the codegen (`method-builder.ts`) to iterate query param names
+ *   - the cross-manifest invariant tests to walk every query field
+ *   - any future tooling that wants a uniform query shape
+ */
+export function resolveQueryShape(
+  query: AnyRouteDef['query']
+): Record<string, z.ZodTypeAny> | undefined {
+  if (query === undefined) {
+    return undefined;
+  }
+  if (query instanceof z.ZodObject) {
+    return query.shape;
+  }
+  return query;
+}
+
+// ============================================================================
+// Pagination factory (shared across paginated list endpoints)
+// ============================================================================
+
+/**
+ * Build a reusable Zod object capturing the standard pagination params:
+ * `limit`, `offset`, `sort`, `order`. Returned as a `ZodObject` so callers
+ * can `.extend()` it with route-specific filters and `RouteDef.query`
+ * accepts it directly.
+ *
+ * The `sortFields` tuple is preserved at the type level — generated clients
+ * see `sort?: 'createdAt' | 'updatedAt'` rather than `sort?: string`,
+ * catching drift between the route's declared sort fields and what callers
+ * pass.
+ *
+ * @example
+ * ```ts
+ * const MemoryListQuery = createPaginationSchema(['createdAt', 'updatedAt']);
+ * // RouteDef entry:
+ * query: MemoryListQuery.extend({ personalityId: z.string().uuid() })
+ * ```
+ *
+ * Defaults follow the project convention: `limit=20`, `offset=0`,
+ * `sort=<first field>`, `order='desc'`. Callers wanting different defaults
+ * can override on the returned schema's individual fields.
+ */
+// eslint-disable-next-line @typescript-eslint/explicit-function-return-type -- Zod 4's enum-generic inference is too strict for a hand-written return signature; tuple sortFields would erode to `string` if explicitly typed. Inference preserves the narrow type via `const TSort`.
+export function createPaginationSchema<const TSort extends readonly [string, ...string[]]>(
+  sortFields: TSort
+) {
+  return z.object({
+    limit: z.number().int().min(1).max(100).optional(),
+    offset: z.number().int().min(0).optional(),
+    sort: z.enum(sortFields).optional(),
+    order: z.enum(['asc', 'desc'] as const).optional(),
+  });
+}
+
+// ============================================================================
+// Branded token types (preview / purge confirmation)
+// ============================================================================
+
+/**
+ * Branded type for previewed-then-execute batch operations.
+ *
+ * `GET /memory/delete/preview` issues a `PreviewToken` (short-lived,
+ * server-side Redis-backed) along with the impact summary. `POST
+ * /memory/delete` consumes the token — the filter that produced the
+ * preview is stored server-side under the token key, so the execute path
+ * can't drift from the preview path.
+ *
+ * Branding means callers can't accidentally pass an arbitrary string —
+ * they must obtain a real token from the preview endpoint first.
+ */
+export const PreviewTokenSchema = z
+  .string()
+  .regex(/^preview_[A-Za-z0-9_-]{16,64}$/, 'Invalid preview token format')
+  .brand<'PreviewToken'>();
+export type PreviewToken = z.infer<typeof PreviewTokenSchema>;
+
+/**
+ * Branded type for purge confirmation. Same shape as `PreviewToken` but
+ * a distinct brand so callers can't pass a delete-preview token to a
+ * purge endpoint (or vice versa) by accident.
+ */
+export const PurgeTokenSchema = z
+  .string()
+  .regex(/^purge_[A-Za-z0-9_-]{16,64}$/, 'Invalid purge token format')
+  .brand<'PurgeToken'>();
+export type PurgeToken = z.infer<typeof PurgeTokenSchema>;

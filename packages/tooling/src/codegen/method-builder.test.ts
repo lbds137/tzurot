@@ -199,4 +199,25 @@ describe('buildMethod — user flavor', () => {
     expect(out).not.toContain('filter?: string');
     expect(out).not.toContain('filter: string } = {}');
   });
+
+  it('accepts a ZodObject query schema (not just Record<string, ZodTypeAny>)', () => {
+    // Shared/reusable query schemas (e.g., createPaginationSchema output) are
+    // ZodObjects, not plain Records. Codegen must unwrap via resolveQueryShape
+    // so the generated client signature is identical for both forms.
+    const querySchema = z.object({
+      limit: z.number().int().optional(),
+      sort: z.enum(['createdAt', 'updatedAt']).optional(),
+      personalityId: z.string(),
+    });
+    const route: RouteDef = {
+      ...baseRoute,
+      query: querySchema,
+    };
+    const out = buildMethod(route, { flavor: 'user', pathPrefix: '/api/user' });
+    // Required `personalityId` forces the options bag to be required;
+    // optional limit/sort get `?` markers.
+    expect(out).toContain(`options: { limit?: string; sort?: string; personalityId: string }`);
+    expect(out).toContain(`['limit', options.limit]`);
+    expect(out).toContain(`['personalityId', options.personalityId]`);
+  });
 });
