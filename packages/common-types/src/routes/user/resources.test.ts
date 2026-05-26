@@ -28,6 +28,7 @@ describe('user resource routes', () => {
       '/diagnostic',
       '/usage',
       '/nsfw',
+      '/history',
     ];
     for (const [key, route] of entries) {
       const matches = resourcePathPrefixes.some(prefix => route.path.startsWith(prefix));

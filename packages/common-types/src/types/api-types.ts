@@ -22,15 +22,6 @@ export type {
   StoredReferencedMessage,
   MessageMetadata,
   LLMGenerationResult,
-  // History API types
-  HistoryClearRequest,
-  HistoryClearResponse,
-  HistoryUndoRequest,
-  HistoryUndoResponse,
-  HistoryStatsQuery,
-  HistoryStatsResponse,
-  HistoryHardDeleteRequest,
-  HistoryHardDeleteResponse,
 } from './schemas/index.js';
 
 // Re-export schemas for runtime validation
@@ -40,16 +31,6 @@ export {
   loadedPersonalitySchema,
   requestContextSchema,
   referencedMessageSchema,
-
-  // History API schemas
-  historyClearRequestSchema,
-  historyClearResponseSchema,
-  historyUndoRequestSchema,
-  historyUndoResponseSchema,
-  historyStatsQuerySchema,
-  historyStatsResponseSchema,
-  historyHardDeleteRequestSchema,
-  historyHardDeleteResponseSchema,
 } from './schemas/index.js';
 
 /**

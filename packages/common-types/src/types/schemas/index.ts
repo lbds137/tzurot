@@ -9,4 +9,3 @@ export * from './discord.js';
 export * from './message.js';
 export * from './personality.js';
 export * from './generation.js';
-export * from './historyApi.js';
