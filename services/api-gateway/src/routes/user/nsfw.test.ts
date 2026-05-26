@@ -171,5 +171,27 @@ describe('NSFW Routes', () => {
       // Should NOT call update since already verified
       expect(mockPrisma.user.update).not.toHaveBeenCalled();
     });
+
+    it('should self-heal inconsistent state (verified=true with null timestamp)', async () => {
+      // Invariant violation: verified flag set but no timestamp.
+      // Per 03-database.md, this shouldn't exist, but defensively the handler
+      // falls through to the re-verify path which writes a fresh timestamp.
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        nsfwVerified: true,
+        nsfwVerifiedAt: null,
+      });
+      mockPrisma.user.update.mockResolvedValue({
+        nsfwVerified: true,
+        nsfwVerifiedAt: new Date(),
+      });
+
+      const response = await request(app).post('/nsfw/verify');
+
+      expect(response.status).toBe(StatusCodes.OK);
+      expect(response.body.nsfwVerified).toBe(true);
+      expect(response.body.alreadyVerified).toBe(false); // re-verified, not already
+      expect(response.body.nsfwVerifiedAt).toBeDefined();
+      expect(mockPrisma.user.update).toHaveBeenCalled();
+    });
   });
 });

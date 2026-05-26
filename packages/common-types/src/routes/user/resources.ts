@@ -55,6 +55,9 @@ import {
   GetVoiceResolutionResponseSchema,
   // Usage
   UsageStatsSchema,
+  // NSFW verification
+  GetNsfwStatusResponseSchema,
+  VerifyNsfwResponseSchema,
   // Diagnostic GETs (lifted from /admin in the route-prefix cutover)
   DiagnosticLogResponseSchema,
   DiagnosticLogsResponseSchema,
@@ -313,6 +316,28 @@ export const userResourceRoutes = {
     path: '/usage',
     id: 'getUserUsage',
     output: UsageStatsSchema,
+    requiresProvisionedUser: true,
+  },
+
+  // ============================================================================
+  // NSFW verification
+  // ============================================================================
+
+  getNsfwStatus: {
+    audience: 'user',
+    method: 'get',
+    path: '/nsfw',
+    id: 'getNsfwStatus',
+    output: GetNsfwStatusResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
+  verifyNsfw: {
+    audience: 'user',
+    method: 'post',
+    path: '/nsfw/verify',
+    id: 'verifyNsfw',
+    output: VerifyNsfwResponseSchema,
     requiresProvisionedUser: true,
   },
 

@@ -107,6 +107,8 @@ import { handleListUserChannels } from '../user/channel/list.js';
 import { handleUpdateChannelGuild } from '../user/channel/updateGuild.js';
 import { handleGetChannelConfigOverrides } from '../user/channel/configOverrides.js';
 import { handleGetUserUsage } from '../user/usage.js';
+import { handleGetNsfwStatus } from '../user/nsfw.js';
+import { handleVerifyNsfw } from '../user/nsfw.js';
 import { handleListWalletKeys } from '../wallet/listKeys.js';
 import { handleSetWalletKey } from '../wallet/setKey.js';
 import { handleRemoveWalletKey } from '../wallet/removeKey.js';
@@ -190,6 +192,8 @@ export function mountUserRoutes(app: Express, deps: RouteDeps): void {
   app.get('/api/user/channel/list', requireUserAuth(), requireProvisionedUser(deps.prisma), handleListUserChannels(deps));
   app.patch('/api/user/channel/update-guild', requireUserAuth(), requireProvisionedUser(deps.prisma), handleUpdateChannelGuild(deps));
   app.get('/api/user/usage', requireUserAuth(), requireProvisionedUser(deps.prisma), handleGetUserUsage(deps));
+  app.get('/api/user/nsfw', requireUserAuth(), requireProvisionedUser(deps.prisma), handleGetNsfwStatus(deps));
+  app.post('/api/user/nsfw/verify', requireUserAuth(), requireProvisionedUser(deps.prisma), handleVerifyNsfw(deps));
   app.get('/api/user/wallet/list', requireUserAuth(), requireProvisionedUser(deps.prisma), handleListWalletKeys(deps));
   app.post('/api/user/wallet', requireUserAuth(), requireProvisionedUser(deps.prisma), handleSetWalletKey(deps));
   app.post('/api/user/wallet/test', requireUserAuth(), requireProvisionedUser(deps.prisma), handleTestWalletKey(deps));

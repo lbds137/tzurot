@@ -869,6 +869,38 @@ export class UserClient {
     });
   }
 
+  async getNsfwStatus(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getNsfwStatus.output>>> {
+    const fullPath = '/api/user/nsfw';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'GET',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      outputSchema: ROUTE_MANIFEST.getNsfwStatus.output,
+    });
+  }
+
+  async verifyNsfw(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.verifyNsfw.output>>> {
+    const fullPath = '/api/user/nsfw/verify';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      outputSchema: ROUTE_MANIFEST.verifyNsfw.output,
+    });
+  }
+
   async listWalletKeys(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listWalletKeys.output>>> {
     const fullPath = '/api/user/wallet/list';
     return callGateway({
