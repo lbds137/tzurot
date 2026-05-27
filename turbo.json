@@ -21,6 +21,19 @@
       "cache": true,
       "env": ["CI", "NODE_ENV"]
     },
+    "@tzurot/common-types#test": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "src/**",
+        "*.config.ts",
+        "vitest.config.ts",
+        "../../services/*/src/**",
+        "../../packages/*/src/**"
+      ],
+      "outputs": ["coverage/**", "junit.xml"],
+      "cache": true,
+      "env": ["CI", "NODE_ENV"]
+    },
     "test:coverage": {
       "dependsOn": ["^build"],
       "inputs": ["src/**", "*.config.ts", "vitest.config.ts"],
