@@ -7,43 +7,33 @@
  */
 
 import { createLogger, CLEANUP_DEFAULTS, adminCleanupOptions } from '@tzurot/common-types';
-import { adminPostJson } from '../../utils/adminApiClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
 const logger = createLogger('admin-cleanup');
 
-interface CleanupResponse {
-  success: boolean;
-  historyDeleted: number;
-  tombstonesDeleted: number;
-  daysKept: number;
-  message: string;
-  timestamp: string;
-}
-
 export async function handleCleanup(context: DeferredCommandContext): Promise<void> {
-  const userId = context.user.id;
   const options = adminCleanupOptions(context.interaction);
   const daysToKeep = options.days() ?? CLEANUP_DEFAULTS.DAYS_TO_KEEP_HISTORY;
-  const target = options.target() ?? 'all';
+  // Discord's slash-command option type comes through as `string`, but the
+  // server schema enums to ('history' | 'tombstones' | 'all'). The slash
+  // command itself only exposes those three choices to users, so the cast
+  // is sound — the server will reject any client-side bypass anyway.
+  const target = (options.target() ?? 'all') as 'history' | 'tombstones' | 'all';
 
   try {
-    const response = await adminPostJson('/admin/cleanup', {
-      daysToKeep,
-      target,
-      ownerId: userId,
-    });
+    const { ownerClient } = clientsFor(context.interaction);
+    const result = await ownerClient.cleanup({ daysToKeep, target });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      logger.error({ status: response.status, error: errorText }, 'Cleanup failed');
+    if (!result.ok) {
+      logger.error({ status: result.status, error: result.error }, 'Cleanup failed');
       await context.editReply({
-        content: `❌ Cleanup failed (HTTP ${response.status}):\n\`\`\`\n${errorText}\n\`\`\``,
+        content: `❌ Cleanup failed (HTTP ${result.status}):\n\`\`\`\n${result.error}\n\`\`\``,
       });
       return;
     }
 
-    const data = (await response.json()) as CleanupResponse;
+    const data = result.data;
 
     const lines = [
       '✅ **Cleanup Complete**',

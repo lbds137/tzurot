@@ -3,7 +3,7 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import { DISCORD_COLORS } from '@tzurot/common-types';
+import { DISCORD_COLORS, type AdminUsageStats } from '@tzurot/common-types';
 
 /**
  * Base usage stats structure (shared between user and admin)
@@ -16,17 +16,6 @@ interface BaseUsageStats {
   byProvider: Record<string, { requests: number; tokensIn: number; tokensOut: number }>;
   byModel: Record<string, { requests: number; tokensIn: number; tokensOut: number }>;
   byRequestType: Record<string, { requests: number; tokensIn: number; tokensOut: number }>;
-}
-
-/**
- * Admin-specific stats (extends base with global data)
- */
-export interface AdminUsageStats extends BaseUsageStats {
-  timeframe: string;
-  periodStart: string | null;
-  periodEnd: string;
-  uniqueUsers: number;
-  topUsers: { discordId: string; requests: number; tokens: number }[];
 }
 
 /**

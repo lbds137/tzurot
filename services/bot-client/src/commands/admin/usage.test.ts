@@ -6,10 +6,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { GatewayResult, OwnerClient } from '@tzurot/common-types';
 import { handleUsage } from './usage.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
-// Mock logger and config
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
@@ -20,15 +20,33 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
-    getConfig: () => ({
-      GATEWAY_URL: 'http://localhost:3000',
-      INTERNAL_SERVICE_SECRET: 'test-service-secret',
-    }),
   };
 });
 
-// Mock fetch
-global.fetch = vi.fn();
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
+
+interface StubClient {
+  getAdminUsageStats: ReturnType<typeof vi.fn>;
+}
+
+function createStubClient(): StubClient {
+  return { getAdminUsageStats: vi.fn() };
+}
+
+function asOwnerClient(stub: StubClient): OwnerClient {
+  return stub as unknown as OwnerClient;
+}
+
+function ok<T>(data: T): GatewayResult<T> {
+  return { ok: true, data };
+}
+
+function err(status: number, message = 'fail'): GatewayResult<never> {
+  return { ok: false, error: message, status };
+}
 
 /**
  * Create complete mock usage stats with all required fields
@@ -67,22 +85,23 @@ function createMockUsageStats(
 }
 
 describe('handleUsage', () => {
+  let stub: StubClient;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = createStubClient();
+    clientsForMock.mockReturnValue({ ownerClient: asOwnerClient(stub) });
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  /**
-   * Create a mock DeferredCommandContext for testing.
-   */
   function createMockContext(period: string | null = null): DeferredCommandContext {
     const mockEditReply = vi.fn().mockResolvedValue(undefined);
-
     return {
       interaction: {
+        user: { id: 'user-123' },
         options: {
           getString: vi.fn((name: string) => {
             if (name === 'period') return period;
@@ -114,54 +133,26 @@ describe('handleUsage', () => {
   }
 
   it('should use default timeframe of 7d when not provided', async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify(createMockUsageStats()), { status: 200 })
-    );
+    stub.getAdminUsageStats.mockResolvedValue(ok(createMockUsageStats()));
 
     const context = createMockContext(null);
     await handleUsage(context);
 
-    expect(fetch).toHaveBeenCalledWith(expect.stringContaining('timeframe=7d'), expect.any(Object));
+    expect(stub.getAdminUsageStats).toHaveBeenCalledWith({ timeframe: '7d' });
   });
 
   it('should use provided timeframe', async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify(createMockUsageStats({ timeframe: '30d' })), { status: 200 })
-    );
+    stub.getAdminUsageStats.mockResolvedValue(ok(createMockUsageStats({ timeframe: '30d' })));
 
     const context = createMockContext('30d');
     await handleUsage(context);
 
-    expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining('timeframe=30d'),
-      expect.any(Object)
-    );
-  });
-
-  it('should include service secret in headers', async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify(createMockUsageStats()), { status: 200 })
-    );
-
-    const context = createMockContext(null);
-    await handleUsage(context);
-
-    expect(fetch).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          'X-Service-Auth': 'test-service-secret',
-        }),
-      })
-    );
+    expect(stub.getAdminUsageStats).toHaveBeenCalledWith({ timeframe: '30d' });
   });
 
   it('should display usage statistics in embed', async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(
-        JSON.stringify(createMockUsageStats({ totalRequests: 150, totalTokens: 50000 })),
-        { status: 200 }
-      )
+    stub.getAdminUsageStats.mockResolvedValue(
+      ok(createMockUsageStats({ totalRequests: 150, totalTokens: 50000 }))
     );
 
     const context = createMockContext('7d');
@@ -173,7 +164,7 @@ describe('handleUsage', () => {
   });
 
   it('should handle HTTP errors', async () => {
-    vi.mocked(fetch).mockResolvedValue(new Response('Internal Server Error', { status: 500 }));
+    stub.getAdminUsageStats.mockResolvedValue(err(500, 'Internal Server Error'));
 
     const context = createMockContext(null);
     await handleUsage(context);
@@ -184,7 +175,7 @@ describe('handleUsage', () => {
   });
 
   it('should handle network errors', async () => {
-    vi.mocked(fetch).mockRejectedValue(new Error('Network error'));
+    stub.getAdminUsageStats.mockRejectedValue(new Error('Network error'));
 
     const context = createMockContext(null);
     await handleUsage(context);
@@ -195,22 +186,19 @@ describe('handleUsage', () => {
   });
 
   it('should handle zero usage data', async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(
-        JSON.stringify(
-          createMockUsageStats({
-            totalRequests: 0,
-            totalTokensIn: 0,
-            totalTokensOut: 0,
-            totalTokens: 0,
-            uniqueUsers: 0,
-            byProvider: {},
-            byModel: {},
-            byRequestType: {},
-            topUsers: [],
-          })
-        ),
-        { status: 200 }
+    stub.getAdminUsageStats.mockResolvedValue(
+      ok(
+        createMockUsageStats({
+          totalRequests: 0,
+          totalTokensIn: 0,
+          totalTokensOut: 0,
+          totalTokens: 0,
+          uniqueUsers: 0,
+          byProvider: {},
+          byModel: {},
+          byRequestType: {},
+          topUsers: [],
+        })
       )
     );
 
@@ -223,49 +211,42 @@ describe('handleUsage', () => {
   });
 
   it('should handle large token counts', async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(
-        JSON.stringify(
-          createMockUsageStats({
-            totalRequests: 1000,
-            totalTokensIn: 1_500_000,
-            totalTokensOut: 500_000,
-            totalTokens: 2_000_000,
-          })
-        ),
-        { status: 200 }
+    stub.getAdminUsageStats.mockResolvedValue(
+      ok(
+        createMockUsageStats({
+          totalRequests: 1000,
+          totalTokensIn: 1_500_000,
+          totalTokensOut: 500_000,
+          totalTokens: 2_000_000,
+        })
       )
     );
 
     const context = createMockContext(null);
     await handleUsage(context);
 
-    // Large token counts should be formatted with K/M suffixes
     expect(context.editReply).toHaveBeenCalledWith({
       embeds: [expect.any(Object)],
     });
   });
 
   it('should display all breakdowns when data is available', async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(
-        JSON.stringify(
-          createMockUsageStats({
-            byProvider: {
-              openrouter: { requests: 80, tokensIn: 4000, tokensOut: 2000 },
-              anthropic: { requests: 20, tokensIn: 1000, tokensOut: 500 },
-            },
-            byModel: {
-              'claude-sonnet': { requests: 60, tokensIn: 3000, tokensOut: 1500 },
-              'gpt-4': { requests: 40, tokensIn: 2000, tokensOut: 1000 },
-            },
-            topUsers: [
-              { discordId: 'user-1', requests: 50, tokens: 3000 },
-              { discordId: 'user-2', requests: 30, tokens: 2000 },
-            ],
-          })
-        ),
-        { status: 200 }
+    stub.getAdminUsageStats.mockResolvedValue(
+      ok(
+        createMockUsageStats({
+          byProvider: {
+            openrouter: { requests: 80, tokensIn: 4000, tokensOut: 2000 },
+            anthropic: { requests: 20, tokensIn: 1000, tokensOut: 500 },
+          },
+          byModel: {
+            'claude-sonnet': { requests: 60, tokensIn: 3000, tokensOut: 1500 },
+            'gpt-4': { requests: 40, tokensIn: 2000, tokensOut: 1000 },
+          },
+          topUsers: [
+            { discordId: 'user-1', requests: 50, tokens: 3000 },
+            { discordId: 'user-2', requests: 30, tokens: 2000 },
+          ],
+        })
       )
     );
 
@@ -277,26 +258,8 @@ describe('handleUsage', () => {
     });
   });
 
-  // Defense in depth: even though `timeframe` is enum-bound in the command schema,
-  // removing encodeURIComponent() from the URL construction would let arbitrary
-  // future values pass through unescaped. Asserts that spaces/reserved chars get
-  // percent-encoded.
-  it('URL-encodes the timeframe query parameter', async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify(createMockUsageStats()), { status: 200 })
-    );
-
-    const context = createMockContext('7d with spaces&foo=bar');
-    await handleUsage(context);
-
-    expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining('timeframe=7d%20with%20spaces%26foo%3Dbar'),
-      expect.any(Object)
-    );
-  });
-
   it('should handle 403 unauthorized response', async () => {
-    vi.mocked(fetch).mockResolvedValue(new Response('Unauthorized', { status: 403 }));
+    stub.getAdminUsageStats.mockResolvedValue(err(403, 'Unauthorized'));
 
     const context = createMockContext(null);
     await handleUsage(context);

@@ -34,16 +34,18 @@ export type DbSyncResponse = z.infer<typeof DbSyncResponseSchema>;
 
 /**
  * Response for POST /admin/cleanup — orphan history / tombstone purge.
- * The `result` spread carries fields like `historyDeleted`, `tombstonesDeleted`,
- * `daysToKeep`, etc. `message` is a pre-formatted human-readable summary the
- * bot-client renders directly to Discord.
+ * `message` is a pre-formatted human-readable summary the bot-client
+ * renders directly to Discord. The numeric counts and timestamp are
+ * the load-bearing fields the bot-client embeds rely on.
  */
-export const AdminCleanupResponseSchema = z
-  .object({
-    success: z.literal(true),
-    message: z.string(),
-  })
-  .passthrough();
+export const AdminCleanupResponseSchema = z.object({
+  success: z.literal(true),
+  message: z.string(),
+  historyDeleted: z.number().int().nonnegative(),
+  tombstonesDeleted: z.number().int().nonnegative(),
+  daysKept: z.number().int().nonnegative(),
+  timestamp: z.string(),
+});
 export type AdminCleanupResponse = z.infer<typeof AdminCleanupResponseSchema>;
 
 /**

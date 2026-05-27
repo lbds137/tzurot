@@ -7,7 +7,7 @@
 
 import { EmbedBuilder } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
-import { adminFetch } from '../../utils/adminApiClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import { formatDuration } from '../../utils/formatting.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
@@ -15,13 +15,6 @@ const logger = createLogger('admin-stop-sequences');
 
 /** Max entries per embed field to stay under Discord's 1024-char field limit */
 const MAX_FIELD_ENTRIES = 15;
-
-interface StopSequenceStatsResponse {
-  totalActivations: number;
-  bySequence: Record<string, number>;
-  byModel: Record<string, number>;
-  startedAt: string;
-}
 
 /** Sort entries by count descending */
 function sortedEntries(record: Record<string, number>): [string, number][] {
@@ -41,18 +34,18 @@ function stripProvider(model: string): string {
 
 export async function handleStopSequences(context: DeferredCommandContext): Promise<void> {
   try {
-    const response = await adminFetch('/admin/stop-sequences');
+    const { ownerClient } = clientsFor(context.interaction);
+    const result = await ownerClient.getStopSequencesStats();
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      logger.error({ status: response.status, error: errorText }, 'Stop sequence query failed');
+    if (!result.ok) {
+      logger.error({ status: result.status, error: result.error }, 'Stop sequence query failed');
       await context.editReply({
-        content: `❌ Failed to retrieve stop sequence stats (HTTP ${response.status})`,
+        content: `❌ Failed to retrieve stop sequence stats (HTTP ${result.status})`,
       });
       return;
     }
 
-    const stats = (await response.json()) as StopSequenceStatsResponse;
+    const stats = result.data;
     const trackingDuration = formatDuration(Date.now() - new Date(stats.startedAt).getTime());
 
     const embed = new EmbedBuilder()

@@ -122,6 +122,12 @@ describe('Generated client URL encoding — OwnerClient', () => {
     expect(url).toContain('s%2Fscope');
     expect(url).toContain('s%2Fscope-id');
   });
+
+  it('getAdminUsageStats URL-encodes the timeframe query param', async () => {
+    // Regression guard: pins query-param encoding at the compiled-client level; a codegen refactor that breaks it fails here, not silently at runtime.
+    await ownerClient().getAdminUsageStats({ timeframe: TRICKY });
+    expect(urlFromFetchCall()).toContain(TRICKY_ENC);
+  });
 });
 
 describe('Generated client URL encoding — UserClient', () => {

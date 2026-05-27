@@ -36,25 +36,26 @@ describe('DbSyncResponseSchema', () => {
 });
 
 describe('AdminCleanupResponseSchema', () => {
-  it('accepts the minimal cleanup ack', () => {
+  it('accepts the full cleanup ack with all required counter fields', () => {
+    expect(
+      AdminCleanupResponseSchema.safeParse({
+        success: true,
+        message: 'Cleaned 10 history rows and 2 tombstones',
+        historyDeleted: 10,
+        tombstonesDeleted: 2,
+        daysKept: 30,
+        timestamp: '2026-01-01T00:00:00.000Z',
+      }).success
+    ).toBe(true);
+  });
+
+  it('rejects payloads missing the counter fields (load-bearing for bot-client embed)', () => {
     expect(
       AdminCleanupResponseSchema.safeParse({
         success: true,
         message: 'Cleaned 5 history rows',
       }).success
-    ).toBe(true);
-  });
-
-  it('accepts extra counters via passthrough', () => {
-    expect(
-      AdminCleanupResponseSchema.safeParse({
-        success: true,
-        message: 'Cleaned',
-        historyDeleted: 10,
-        tombstonesDeleted: 2,
-        daysToKeep: 30,
-      }).success
-    ).toBe(true);
+    ).toBe(false);
   });
 });
 

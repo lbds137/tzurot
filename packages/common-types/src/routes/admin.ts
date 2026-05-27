@@ -58,8 +58,9 @@ import {
   DeleteTtsConfigResponseSchema,
   SetDefaultTtsConfigResponseSchema,
   AdminSettingsSchema,
+  ConfigOverridesSchema,
   StopSequencesResponseSchema,
-  UsageStatsSchema,
+  AdminUsageStatsSchema,
 } from '../schemas/api/index.js';
 import type { RouteDef } from './types.js';
 
@@ -387,9 +388,12 @@ export const adminRoutes = {
     method: 'patch',
     path: '/settings/config-defaults',
     id: 'updateAdminSettings',
-    // Input mirrors the AdminSettings schema directly — handler validates with
-    // safeParse via the same schema (matches the cascade tier shape).
-    input: AdminSettingsSchema.partial(),
+    // Flat body matches every other cascade tier's PATCH: a partial
+    // ConfigOverrides shape (e.g., { maxMessages: 30 }), NOT the full
+    // AdminSettings row. The handler's merge step writes only the
+    // configDefaults JSONB column; the other AdminSettings fields are
+    // ignored if present.
+    input: ConfigOverridesSchema.partial(),
     output: AdminSettingsSchema,
   },
 
@@ -424,7 +428,7 @@ export const adminRoutes = {
     path: '/usage',
     id: 'getAdminUsageStats',
     query: { timeframe: z.string().optional() },
-    output: UsageStatsSchema,
+    output: AdminUsageStatsSchema,
     meta: { safeRead: true },
   },
 } as const satisfies Record<string, RouteDef>;

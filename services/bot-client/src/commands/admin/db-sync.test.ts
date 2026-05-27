@@ -6,10 +6,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { GatewayResult, OwnerClient } from '@tzurot/common-types';
 import { handleDbSync, formatListForEmbedField } from './db-sync.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
-// Mock logger and config
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
@@ -20,33 +20,52 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
-    getConfig: () => ({
-      GATEWAY_URL: 'http://localhost:3000',
-      INTERNAL_SERVICE_SECRET: 'test-service-secret',
-    }),
   };
 });
 
-// Mock fetch
-global.fetch = vi.fn();
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
+
+interface StubClient {
+  dbSync: ReturnType<typeof vi.fn>;
+}
+
+function createStubClient(): StubClient {
+  return { dbSync: vi.fn() };
+}
+
+function asOwnerClient(stub: StubClient): OwnerClient {
+  return stub as unknown as OwnerClient;
+}
+
+function ok<T>(data: T): GatewayResult<T> {
+  return { ok: true, data };
+}
+
+function err(status: number, message = 'fail'): GatewayResult<never> {
+  return { ok: false, error: message, status };
+}
 
 describe('handleDbSync', () => {
+  let stub: StubClient;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = createStubClient();
+    clientsForMock.mockReturnValue({ ownerClient: asOwnerClient(stub) });
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  /**
-   * Create a mock DeferredCommandContext for testing.
-   */
   function createMockContext(dryRun: boolean | null = null): DeferredCommandContext {
     const mockEditReply = vi.fn().mockResolvedValue(undefined);
-
     return {
       interaction: {
+        user: { id: 'owner-123' },
         options: {
           getString: vi.fn(() => null),
           getBoolean: vi.fn((name: string) => {
@@ -78,159 +97,93 @@ describe('handleDbSync', () => {
   }
 
   it('should default dry-run to false when not provided', async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify({ schemaVersion: '1.0' }), { status: 200 })
-    );
+    stub.dbSync.mockResolvedValue(ok({ success: true, timestamp: 'now', schemaVersion: '1.0' }));
 
     const context = createMockContext(null);
     await handleDbSync(context);
 
-    expect(fetch).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({
-        body: expect.stringContaining('"dryRun":false'),
-      })
-    );
+    expect(stub.dbSync).toHaveBeenCalledWith({ dryRun: false });
   });
 
   it('should use provided dry-run value', async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify({ schemaVersion: '1.0' }), { status: 200 })
-    );
+    stub.dbSync.mockResolvedValue(ok({ success: true, timestamp: 'now', schemaVersion: '1.0' }));
 
     const context = createMockContext(true);
     await handleDbSync(context);
 
-    expect(fetch).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({
-        body: expect.stringContaining('"dryRun":true'),
-      })
-    );
-  });
-
-  it('should include owner ID in request body', async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify({ schemaVersion: '1.0' }), { status: 200 })
-    );
-
-    const context = createMockContext(false);
-    await handleDbSync(context);
-
-    expect(fetch).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({
-        body: expect.stringContaining('"ownerId":"owner-123"'),
-      })
-    );
-  });
-
-  it('should use POST method with correct headers including service secret', async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify({ schemaVersion: '1.0' }), { status: 200 })
-    );
-
-    const context = createMockContext(false);
-    await handleDbSync(context);
-
-    expect(fetch).toHaveBeenCalledWith(
-      'http://localhost:3000/admin/db-sync',
-      expect.objectContaining({
-        method: 'POST',
-        headers: expect.objectContaining({
-          'Content-Type': 'application/json',
-          'X-Service-Auth': 'test-service-secret',
-        }),
-      })
-    );
+    expect(stub.dbSync).toHaveBeenCalledWith({ dryRun: true });
   });
 
   it('should display success embed for dry run', async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          schemaVersion: '1.0.0',
-          stats: {
-            users: { devToProd: 5, prodToDev: 2, conflicts: 0 },
-          },
-        }),
-        { status: 200 }
-      )
+    stub.dbSync.mockResolvedValue(
+      ok({
+        success: true,
+        timestamp: 'now',
+        schemaVersion: '1.0.0',
+        stats: { users: { devToProd: 5, prodToDev: 2, conflicts: 0 } },
+      })
     );
 
     const context = createMockContext(true);
     await handleDbSync(context);
 
-    expect(context.editReply).toHaveBeenCalledWith({
-      embeds: [expect.any(Object)],
-    });
+    expect(context.editReply).toHaveBeenCalledWith({ embeds: [expect.any(Object)] });
   });
 
   it('should display success embed for actual sync', async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          schemaVersion: '1.0.0',
-          stats: {
-            users: { devToProd: 5, prodToDev: 2, conflicts: 0 },
-          },
-        }),
-        { status: 200 }
-      )
+    stub.dbSync.mockResolvedValue(
+      ok({
+        success: true,
+        timestamp: 'now',
+        schemaVersion: '1.0.0',
+        stats: { users: { devToProd: 5, prodToDev: 2, conflicts: 0 } },
+      })
     );
 
     const context = createMockContext(false);
     await handleDbSync(context);
 
-    expect(context.editReply).toHaveBeenCalledWith({
-      embeds: [expect.any(Object)],
-    });
+    expect(context.editReply).toHaveBeenCalledWith({ embeds: [expect.any(Object)] });
   });
 
   it('should display sync statistics', async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          schemaVersion: '2.0.0',
-          stats: {
-            users: { devToProd: 10, prodToDev: 5, conflicts: 1 },
-            personas: { devToProd: 3, prodToDev: 0, conflicts: 0 },
-          },
-        }),
-        { status: 200 }
-      )
+    stub.dbSync.mockResolvedValue(
+      ok({
+        success: true,
+        timestamp: 'now',
+        schemaVersion: '2.0.0',
+        stats: {
+          users: { devToProd: 10, prodToDev: 5, conflicts: 1 },
+          personas: { devToProd: 3, prodToDev: 0, conflicts: 0 },
+        },
+      })
     );
 
     const context = createMockContext(false);
     await handleDbSync(context);
 
-    expect(context.editReply).toHaveBeenCalledWith({
-      embeds: [expect.any(Object)],
-    });
+    expect(context.editReply).toHaveBeenCalledWith({ embeds: [expect.any(Object)] });
   });
 
   it('should display warnings when present', async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          schemaVersion: '1.0.0',
-          stats: {},
-          warnings: ['⚠️ Table mismatch detected', '⚠️ Schema version mismatch'],
-        }),
-        { status: 200 }
-      )
+    stub.dbSync.mockResolvedValue(
+      ok({
+        success: true,
+        timestamp: 'now',
+        schemaVersion: '1.0.0',
+        stats: {},
+        warnings: ['⚠️ Table mismatch detected', '⚠️ Schema version mismatch'],
+      })
     );
 
     const context = createMockContext(false);
     await handleDbSync(context);
 
-    expect(context.editReply).toHaveBeenCalledWith({
-      embeds: [expect.any(Object)],
-    });
+    expect(context.editReply).toHaveBeenCalledWith({ embeds: [expect.any(Object)] });
   });
 
   it('should handle HTTP errors', async () => {
-    vi.mocked(fetch).mockResolvedValue(new Response('Database not configured', { status: 500 }));
+    stub.dbSync.mockResolvedValue(err(500, 'Database not configured'));
 
     const context = createMockContext(false);
     await handleDbSync(context);
@@ -241,7 +194,7 @@ describe('handleDbSync', () => {
   });
 
   it('should handle network errors', async () => {
-    vi.mocked(fetch).mockRejectedValue(new Error('Network timeout'));
+    stub.dbSync.mockRejectedValue(new Error('Network timeout'));
 
     const context = createMockContext(false);
     await handleDbSync(context);
@@ -252,47 +205,33 @@ describe('handleDbSync', () => {
   });
 
   it('should handle changes preview in dry run', async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          schemaVersion: '1.0.0',
-          stats: {},
-          changes: {
-            users: [{ id: '1', action: 'insert' }],
-          },
-        }),
-        { status: 200 }
-      )
+    stub.dbSync.mockResolvedValue(
+      ok({
+        success: true,
+        timestamp: 'now',
+        schemaVersion: '1.0.0',
+        stats: {},
+        changes: { users: [{ id: '1', action: 'insert' }] },
+      })
     );
 
     const context = createMockContext(true);
     await handleDbSync(context);
 
-    expect(context.editReply).toHaveBeenCalledWith({
-      embeds: [expect.any(Object)],
-    });
+    expect(context.editReply).toHaveBeenCalledWith({ embeds: [expect.any(Object)] });
   });
 
   it('should handle empty stats gracefully', async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          schemaVersion: '1.0.0',
-        }),
-        { status: 200 }
-      )
-    );
+    stub.dbSync.mockResolvedValue(ok({ success: true, timestamp: 'now', schemaVersion: '1.0.0' }));
 
     const context = createMockContext(false);
     await handleDbSync(context);
 
-    expect(context.editReply).toHaveBeenCalledWith({
-      embeds: [expect.any(Object)],
-    });
+    expect(context.editReply).toHaveBeenCalledWith({ embeds: [expect.any(Object)] });
   });
 
   it('should handle 403 unauthorized response', async () => {
-    vi.mocked(fetch).mockResolvedValue(new Response('Forbidden', { status: 403 }));
+    stub.dbSync.mockResolvedValue(err(403, 'Forbidden'));
 
     const context = createMockContext(false);
     await handleDbSync(context);
@@ -363,7 +302,7 @@ describe('formatListForEmbedField', () => {
   });
 
   it('returns the joined result intact when it equals the limit exactly', () => {
-    const items = ['a', 'b', 'c']; // 'a\nb\nc' = 5 chars
+    const items = ['a', 'b', 'c'];
     expect(formatListForEmbedField(items, 5)).toBe('a\nb\nc');
   });
 });
