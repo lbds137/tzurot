@@ -26,10 +26,11 @@ End-state: the only legal way to call the gateway is through generated, scoped, 
 - ✅ **PR-1.5f** (#1100): declare 13 memory routes in manifest — handler-export refactor + 12 response schemas + `MemoryActionTokenService.peek*` companions + `memoryBatchHelpers.ts` extraction + `asyncHandler` returns `Promise<void>`. Manifest 128 → 141 (104 user, +13).
 - ✅ **PR-1.5g** (#1101): wire RouteDef.meta to codegen JSDoc emission + new `meta.atMostOnce` tag (single-use-token contract; round-2 finding reclassified batchDelete/purge from `idempotent` to `atMostOnce`); 5 mutual-exclusivity invariant tests; 69 routes tagged. Diagnostic-lift candidate was retired as phantom (PR-1.5c had already lifted them). 3 review-surfaced quick-wins absorbed.
 
-### Phase 4: Route-prefix cutover + bot-client migration (next)
+### Phase 4: Route-prefix cutover + bot-client migration (in progress)
 
-- ⏳ **PR-2**: Atomic cutover — replace `app.use('/admin', ...)` / `app.use('/user', ...)` / `app.use('/internal', ...)` with `mountInternalRoutes` / `mountAdminRoutes` / `mountUserRoutes` + migrate all 243 bot-client call sites (38 `adminFetch` → `ownerClient.xxx`, 205 `callGatewayApi` → `userClient.xxx`, `GatewayClient` direct fetches → `serviceClient.xxx`) + delete legacy `adminApiClient.ts` + `userGatewayClient.ts`. Naturally splits into ~4-6 sub-PRs (mount cutover transitional dual-mount → per-area bot-client migrations → legacy deletion). Three backlog items already filed under this trigger:
-  - Wallet rate-limiter middleware re-application (`quick-wins.md`)
+- ✅ **PR-2a** (#1102, merged 2026-05-27): dual-mount `/api/{internal,admin,user}/*` alongside legacy mounts; `clientsFor(interaction)` factory; `commands/inspect` migrated as PoC (4 callsites); `pnpm ops legacy:count` burn-down CI gate with baseline (adminFetch=32, callGatewayApi=207); URL-encoding sweep test across all generated path-param methods; structural turbo-cache fix for cross-package `structure.test` scan; wallet rate-limiter path-scoped to `/api/user/wallet/*`. Also absorbed: 3 new deferred-backlog entries (normalizeDateTime extraction, walkDirectory TOCTOU, shared stub-helper extraction).
+- ⏳ **PR-2b…j**: per-area bot-client migrations sequenced by domain (memory / character / persona / admin / voice / wallet / etc.). Burn-down gate enforces strict-monotonic decrease per category. Three backlog items still tracked under this trigger:
+  - Wallet rate-limiter middleware re-application (`quick-wins.md`) — partially addressed in PR-2a (path-scoped at gateway). Remaining: confirm coverage in PR-2 wallet slice.
   - Coordinated bot-client `/wallet/set` → `setWalletKey` typed-client migration (called out in PR #1097 round-8 review)
   - Re-check common-types export count post-PR-2 against the 50-export / 3000-line `xray` thresholds; propose `@tzurot/routes` or `@tzurot/clients` extraction if over (`deferred.md`)
 
@@ -41,9 +42,12 @@ End-state: the only legal way to call the gateway is through generated, scoped, 
 
 The session log showed 6+ PRs already on this arc with no tracked epic — that was an oversight. Filed retroactively (2026-05-26) so the remaining PRs (1.5g, 2, 3+) ship under a named umbrella with visible phase tracking.
 
-### Open design decisions
+### PR-2 slice structure (decided 2026-05-27 in PR-2a council pass)
 
-1. **PR-2 slice structure**: the cutover is large enough that monolithic-PR risk is real. Options on the table (decided when PR-2 starts):
-   - (a) Mount cutover first as a transitional dual-mount no-op PR (both legacy `createXxxRouter` and codegen `mount*Routes` registered; codegen prefix matches legacy URL). Validates the generated mounts in production traffic without consumer changes.
-   - (b) Per-area bot-client migrations sequenced by domain (memory / character / persona / admin / voice / etc.) — each ~30-50 callsites, individually reviewable.
-   - (c) Legacy deletion final pass after all consumers migrated.
+Council-vetted 9-PR sequence (GLM 5.1, Kimi K2.6, Qwen 3.7 Max all converged):
+
+- ✅ **PR-2a**: dual-mount + factory + PoC + burn-down gate (shipped #1102)
+- ⏳ **PR-2b…i** (~8 PRs): per-area bot-client migrations at 15–25 callsites each. Burn-down gate enforces monotonic decrease per category.
+- ⏳ **PR-2j**: legacy deletion final pass. Delete `adminApiClient.ts`, `userGatewayClient.ts`, the legacy `/admin /user /internal` mounts in `index.ts`, the `legacy:count` gate, and the baseline file. Counts must be zero at this point.
+
+The atomic-cutover option (single PR replaces mounts + all 243 callsites) was rejected because Railway deploys api-gateway and bot-client independently — there's no way to flip both prefixes simultaneously. Dual-mount avoids the race entirely.

@@ -7,11 +7,11 @@
 
 ## Next Session Goal
 
-**Active epic**: **Route Manifest Scaffold + Typed-Client Codegen** ([active-epic.md](backlog/active-epic.md)) — Phase 3 COMPLETE. **PR-1.5g shipped to develop** (PR #1101, merged 2026-05-26) — wired `RouteDef.meta` to codegen JSDoc emission (`@safeRead`/`@softDeleteAware`/`@idempotent`/`@atMostOnce`); new `meta.atMostOnce` tag surfaces the "do NOT auto-retry" contract for token-gated destructive routes; 5 mutual-exclusivity invariant tests; 69 routes tagged; 3 review-surfaced quick-wins absorbed (purge case-insensitivity, batchDelete `::` delimiter, date-schema `.datetime({ offset: true })`). Manifest stays at 141 routes; generated `user-client.ts` gains 81 new JSDoc tag annotations. 5 commits, 4 review rounds; merged at 7420c85c.
+**Active epic**: **Route Manifest Scaffold + Typed-Client Codegen** ([active-epic.md](backlog/active-epic.md)) — Phase 4 IN PROGRESS. **PR-2a shipped to develop** (PR #1102, merged 2026-05-27) — dual-mount `/api/{internal,admin,user}/*` alongside legacy prefixes; `clientsFor(interaction)` factory mints actor+user brand once at boundary; `commands/inspect` migrated as PoC (4 callsites: 3 lookup + 1 browse); `pnpm ops legacy:count` burn-down CI gate added with baseline (adminFetch=32, callGatewayApi=207). Council-vetted dual-mount strategy avoids Railway's independent-deploy race. 10 review rounds, 24 unit tests added, all converging clean.
 
-**Next under the epic — Phase 4 starts**:
+**Next under the epic — Phase 4 continues**:
 
-**PR-2: route-prefix cutover + bot-client migration**. Atomic switch from legacy `/admin /user /internal` mounts to generated `mountAdminRoutes/mountUserRoutes/mountInternalRoutes` + migrate all 243 bot-client call sites (38 `adminFetch` + 205 `callGatewayApi`) + delete `adminApiClient.ts`/`userGatewayClient.ts`. Three backlog items already filed under this trigger (wallet rate-limiter middleware, common-types export-count audit, /wallet/set typed-client migration). Naturally splits into ~4-6 smaller PRs (mount cutover transitional dual-mount → per-area bot-client migrations → legacy deletion). Next session opens with the slice-structure proposal.
+**PR-2b: first per-area migration**. Pick a self-contained domain (~15–25 callsites) and migrate it from `adminFetch` / `callGatewayApi` to the typed clients. The burn-down gate enforces strict-monotonic decrease per category, so PR-2b must drop at least one count. Candidates by surface area (rough): `commands/wallet` (small, ~10 callsites, paired with the deferred wallet rate-limiter follow-up); `commands/timezone` (tiny, 2 routes); `commands/admin/*` (the rest of the adminFetch surface — ~28 callsites); `commands/memory` (large, ~30 callsites including the preview/purge token flows). User direction: keep plugging away — open the next PR after PR-2a settles.
 
 **Other candidates** (off-epic):
 
@@ -27,7 +27,43 @@
 
 ---
 
-## Last Session — PR-1.5d: PR #1097 follow-ups + epic retrofit (2026-05-26)
+## Last Session — PR-2a: dual-mount + clientsFor + inspect PoC + burn-down gate (2026-05-27)
+
+Phase 4 (PR-2) opening slice. Wires the codegen-generated mount functions into api-gateway alongside the legacy mounts, builds the `clientsFor(interaction)` boundary factory, migrates the first consumer (`commands/inspect`) as a proof of concept, and adds a `pnpm ops legacy:count` burn-down gate so subsequent migration PRs can't regress.
+
+### PR merged
+
+| PR    | Title                                                                 | Outcome                                                                                                                                                                                                                                                                                      |
+| ----- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #1102 | `feat(bot-client): dual-mount /api/* + migrate inspect to UserClient` | Dual-mount cutover, `clientsFor` factory, inspect migrated (4 callsites), burn-down gate with baseline + CI integration, structural turbo-cache fix for `structure.test` cross-package scan, 24 new unit tests including a URL-encoding sweep across all generated path-param client methods |
+
+### Net result
+
+- **api-gateway dual-mounts `/api/{internal,admin,user}/*`** alongside the legacy `/admin /user /internal` prefixes. Both serve traffic during the migration window. Wallet rate-limiter path-scoped to `/api/user/wallet/*` to preserve protection.
+- **`clientsFor(interaction)` factory** in `bot-client/src/utils/gatewayClients.ts` — mints `ActorDiscordId` + `GatewayUser` exactly once per Discord interaction. Downstream handlers receive already-branded ServiceClient/OwnerClient/UserClient instances. Eliminates the missing-userId / wrong-fetcher / wrong-prefix footgun class at the type level.
+- **`commands/inspect` migrated** as PoC — 4 callsites (3 in `lookup.ts`, 1 in `browse.ts`) cut over from `adminFetch` to `userClient.getDiagnosticBy*`. Diagnostic routes are on UserClient (not OwnerClient) since PR-1.5c lifted them to user audience with `acceptsSubject:true`. Tests rewritten from raw `fetch` mocking to typed stub clients (strictly cleaner).
+- **`pnpm ops legacy:count` burn-down gate**: counts `adminFetch` + `callGatewayApi` references in `services/bot-client/src` (excluding tests). Baseline starts at `adminFetch=32, callGatewayApi=207`. CI fails if either count rises. Deleted (with baseline) once both reach zero. Wired into `pnpm quality` and the CI lint job.
+- **Structural turbo-cache fix**: `structure.test.ts` in `@tzurot/common-types` scans all six packages' src dirs to enforce colocated tests, but turbo only invalidated common-types' test cache on common-types' OWN src changes — so missing tests in sibling packages slipped past local `pnpm test` (cached pass). Added a `@tzurot/common-types#test` turbo override that includes sibling `services/*/src/**` and `packages/*/src/**` as inputs. CI caught this exactly once in PR-2a; the structural fix prevents the class of failure from recurring.
+- **URL-encoding sweep test** (`generated-encoding.test.ts`): 22 tests covering every path-param method across ServiceClient/OwnerClient/UserClient. Each invokes with a slash-containing input and asserts the fetch URL contains the encoded form (`%2F`). Locks the SSRF guard at the compiled-output layer, not just the codegen template.
+- **10 review rounds, all converging clean**: 4 user-approved ASKs (existsSync guard, URL-encoding sweep breadth, turbo glob retention, lstatSync swap, readBaseline numeric guard + version validation); 3 trivial-shape auto-applies (JSDoc temporal-marker scrubs, dead-code `describeSource` cleanup, `BoundGatewayClients` eager-construction comment); 5 nits explicitly dismissed (test helper duplication, createdAt duplication, perf nits — all tracked in deferred.md where applicable).
+
+### Backlog deltas
+
+- `deferred.md`: 3 entries added
+  - `normalizeDateTime(v: string | Date): string` extraction (promote when 3rd callsite appears)
+  - `walkDirectory` TOCTOU on `lstatSync` (promote when real race surfaces or gate moves out of dev-tool)
+  - Shared gateway-client stub helpers for bot-client tests (promote when 4th migrated command adds another consumer)
+- `active-epic.md`: Phase 4 marked IN PROGRESS; PR-2a entry added under Phase 4 with all sub-deliverables enumerated.
+
+### Process notes
+
+- **Standing permission for routine git commit/push/PR-create cycles worked exactly as intended** — no asking, just executing on green tests/quality. 6 review rounds × 2 push cycles each (fixup + post-autosquash) all proceeded without per-cycle approval prompts. The user's intervention surface stayed focused on the substantive ASKs (5 of them), not the mechanical churn.
+- **Reviewer reasoning sharpened across rounds**: round 7 dismissed `readBaseline` schema validation as "transitional tool nit"; round 9 reframed it as "NaN > 0 evaluates to false → gate passes silently on real regression" with a concrete failure case. The agent re-classified from Dismiss to Apply. Pattern worth keeping: when a reviewer escalates the same item with a sharper argument, that's new information, not ping-pong — re-evaluate.
+- **Structural fix for "CI caught what local missed"**: the turbo cache override is the third instance of the agent updating the structural enforcement layer in response to a recurring failure mode (after `00-critical.md` "Fix Recurring Failures Structurally" rule). Memory alone wouldn't have prevented the next contributor from hitting it.
+
+---
+
+## Previous Session — PR-1.5d: PR #1097 follow-ups + epic retrofit (2026-05-26)
 
 Closed three follow-up items from PR #1097's review cycle plus retrofitted the active-epic tracker after noticing 6+ PRs had shipped on a cohesive arc with no formal epic.
 
@@ -62,7 +98,7 @@ Closed three follow-up items from PR #1097's review cycle plus retrofitted the a
 
 ---
 
-## Previous Session — PR-1.5c: 36 missing user-route manifest entries (2026-05-26)
+## Earlier — PR-1.5c: 36 missing user-route manifest entries (2026-05-26)
 
 Marathon session shipping the PR-1.5 epic's largest single PR: filled in the 36 user-audience routes that had working server handlers but no manifest entries, so the route-manifest codegen now covers them.
 
