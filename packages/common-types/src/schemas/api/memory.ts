@@ -173,7 +173,9 @@ export const SetFocusResponseSchema = z.object({
 });
 export type SetFocusResponse = z.infer<typeof SetFocusResponseSchema>;
 
-/** Search result row: MemoryItem extended with similarity + search type. */
+/** Search result row: MemoryItem extended with a per-row similarity score
+ *  (null when the response falls back to text search). The wrapping
+ *  `MemorySearchResponseSchema` carries `searchType` for the whole batch. */
 export const MemorySearchResultSchema = MemoryItemSchema.extend({
   similarity: z.number().nullable(),
 });

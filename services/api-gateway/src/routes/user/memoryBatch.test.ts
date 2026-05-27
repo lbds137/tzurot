@@ -505,11 +505,14 @@ describe('memoryBatch handlers', () => {
       expect(mockTokenService.consumePurgeToken).not.toHaveBeenCalled();
     });
 
-    it('returns 400 when user has no persona', async () => {
+    it('returns 400 when user has no persona, without consuming the token', async () => {
       mockGetDefaultPersonaId.mockResolvedValue(null);
       const { req, res } = createMockBodyReq({ purgeToken: VALID_PURGE_TOKEN });
       await handlePurge(depsWithRedis())(req, res, () => undefined);
       expect(res.status).toHaveBeenCalledWith(400);
+      // Persona check happens BEFORE consume — token survives so the user
+      // can fix the missing-persona condition and retry.
+      expect(mockTokenService.consumePurgeToken).not.toHaveBeenCalled();
     });
 
     it('purges all non-locked memories for the token-bound personality', async () => {
