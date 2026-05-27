@@ -42,16 +42,22 @@ const logger = createLogger('MemoryActionTokenService');
 /** Token TTL in seconds. 5 minutes covers confirmation-modal UX comfortably. */
 const TOKEN_TTL_SECONDS = 5 * 60;
 
-/** Length of the random suffix following the `preview_` / `purge_` prefix. */
+/**
+ * Length of the random suffix following the `preview_` / `purge_` prefix.
+ * 16 bytes encoded as base64url produces 22 characters (no padding), which
+ * satisfies the brand regex `[A-Za-z0-9_-]{16,64}` with room to spare.
+ */
 const TOKEN_RANDOM_BYTES = 16;
 
 interface PreviewTokenPayload {
   readonly filter: BatchDeletePreviewInput;
+  /** Informational only — Redis TTL is the authoritative expiry gate. */
   readonly issuedAt: string;
 }
 
 interface PurgeTokenPayload {
   readonly personalityId: string;
+  /** Informational only — Redis TTL is the authoritative expiry gate. */
   readonly issuedAt: string;
 }
 

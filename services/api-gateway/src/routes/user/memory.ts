@@ -277,7 +277,7 @@ type MemoryHandler = (
 /**
  * Wider signature for handlers that depend on the Redis-backed
  * MemoryActionTokenService (preview-token batch ops). `tokenService` is
- * `null` when Redis is unavailable; handlers respond with a 500 in that
+ * `null` when Redis is unavailable; handlers respond with a 503 in that
  * case rather than crashing.
  */
 type MemoryTokenHandler = (
@@ -315,7 +315,7 @@ export function createMemoryRoutes(deps: RouteDeps): Router {
   }
 
   // Token service for preview/purge handshake — null when Redis is absent;
-  // the batch handlers respond with a 500 instead of crashing in that case.
+  // the batch handlers respond with a 503 instead of crashing in that case.
   const tokenService = redis !== undefined ? new MemoryActionTokenService(redis) : null;
 
   /** Bind a token-using handler to the resolved token service. */
