@@ -20,17 +20,6 @@ export interface DiagnosticLog {
   data: DiagnosticPayload;
 }
 
-/** API response for a single diagnostic log */
-export interface DiagnosticLogResponse {
-  log: DiagnosticLog;
-}
-
-/** API response for multiple diagnostic logs */
-export interface DiagnosticLogsResponse {
-  logs: DiagnosticLog[];
-  count: number;
-}
-
 /** Result of a diagnostic log lookup */
 export type LookupResult =
   | { success: true; log: DiagnosticLog }

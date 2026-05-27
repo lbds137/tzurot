@@ -8,12 +8,16 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MessageFlags } from 'discord.js';
-import type { DiagnosticPayload } from '@tzurot/common-types';
+import type {
+  DiagnosticLogResponse,
+  DiagnosticPayload,
+  GatewayResult,
+  UserClient,
+} from '@tzurot/common-types';
 import { InspectCustomIds } from './customIds.js';
 import { DebugViewType } from './types.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
-// Mock logger, config, and isBotOwner
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
@@ -24,16 +28,42 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
-    getConfig: () => ({
-      GATEWAY_URL: 'http://localhost:3000',
-      INTERNAL_SERVICE_SECRET: 'test-service-secret',
-    }),
     isBotOwner: (id: string) => id === 'owner-123',
   };
 });
 
-// Mock fetch
-global.fetch = vi.fn();
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
+
+interface StubClient {
+  getRecentDiagnostics: ReturnType<typeof vi.fn>;
+  getDiagnosticByMessage: ReturnType<typeof vi.fn>;
+  getDiagnosticByResponse: ReturnType<typeof vi.fn>;
+  getDiagnosticByRequestId: ReturnType<typeof vi.fn>;
+}
+
+function createStubClient(): StubClient {
+  return {
+    getRecentDiagnostics: vi.fn(),
+    getDiagnosticByMessage: vi.fn(),
+    getDiagnosticByResponse: vi.fn(),
+    getDiagnosticByRequestId: vi.fn(),
+  };
+}
+
+function asUserClient(stub: StubClient): UserClient {
+  return stub as unknown as UserClient;
+}
+
+function ok<T>(data: T): GatewayResult<T> {
+  return { ok: true, data };
+}
+
+function err(status: number, message = 'fail'): GatewayResult<never> {
+  return { ok: false, error: message, status };
+}
 
 function createMockDiagnosticPayload(): DiagnosticPayload {
   return {
@@ -106,6 +136,28 @@ function createMockDiagnosticPayload(): DiagnosticPayload {
   };
 }
 
+function createSuccessResponse(
+  requestId: string,
+  payload: DiagnosticPayload
+): GatewayResult<DiagnosticLogResponse> {
+  return ok({
+    log: {
+      id: 'log-uuid',
+      requestId,
+      triggerMessageId: null,
+      personalityId: 'personality-uuid',
+      userId: '123456789',
+      guildId: '987654321',
+      channelId: '111222333',
+      model: 'test',
+      provider: 'test',
+      durationMs: 100,
+      createdAt: '2026-01-22T12:00:00Z',
+      data: payload,
+    },
+  });
+}
+
 function createMockContext(
   identifier: string | null = 'test-req-123',
   userId = 'owner-123'
@@ -113,6 +165,7 @@ function createMockContext(
   const mockEditReply = vi.fn().mockResolvedValue(undefined);
   return {
     interaction: {
+      user: { id: userId },
       options: {
         getString: vi.fn((name: string) => {
           if (name === 'identifier') return identifier;
@@ -143,31 +196,6 @@ function createMockContext(
   } as unknown as DeferredCommandContext;
 }
 
-function createSuccessResponse(
-  requestId: string,
-  payload: DiagnosticPayload,
-  userId = '123456789'
-) {
-  return new Response(
-    JSON.stringify({
-      log: {
-        id: 'log-uuid',
-        requestId,
-        personalityId: 'personality-uuid',
-        userId,
-        guildId: '987654321',
-        channelId: '111222333',
-        model: 'test',
-        provider: 'test',
-        durationMs: 100,
-        createdAt: '2026-01-22T12:00:00Z',
-        data: payload,
-      },
-    }),
-    { status: 200 }
-  );
-}
-
 // Mock browse module
 vi.mock('./browse.js', () => ({
   handleRecentBrowse: vi.fn().mockResolvedValue(undefined),
@@ -179,9 +207,12 @@ vi.mock('./browse.js', () => ({
 
 // Import the default export which contains execute, handleSelectMenu, handleButton
 let inspectCommand: typeof import('./index.js').default;
+let stub: StubClient;
 
 beforeEach(async () => {
   vi.clearAllMocks();
+  stub = createStubClient();
+  clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
   const mod = await import('./index.js');
   inspectCommand = mod.default;
 });
@@ -194,7 +225,7 @@ describe('execute (slash command)', () => {
     await inspectCommand.execute(context);
 
     expect(handleRecentBrowse).toHaveBeenCalled();
-    expect(fetch).not.toHaveBeenCalled();
+    expect(stub.getDiagnosticByRequestId).not.toHaveBeenCalled();
   });
 
   it('should dispatch to browse when identifier is empty string', async () => {
@@ -203,12 +234,14 @@ describe('execute (slash command)', () => {
     await inspectCommand.execute(context);
 
     expect(handleRecentBrowse).toHaveBeenCalled();
-    expect(fetch).not.toHaveBeenCalled();
+    expect(stub.getDiagnosticByRequestId).not.toHaveBeenCalled();
   });
 
   it('should return embed with components on success', async () => {
     const mockPayload = createMockDiagnosticPayload();
-    vi.mocked(fetch).mockResolvedValue(createSuccessResponse('test-req-123', mockPayload));
+    stub.getDiagnosticByRequestId.mockResolvedValue(
+      createSuccessResponse('test-req-123', mockPayload)
+    );
 
     const context = createMockContext('test-req-123');
     await inspectCommand.execute(context);
@@ -222,7 +255,7 @@ describe('execute (slash command)', () => {
   });
 
   it('should handle 404 errors', async () => {
-    vi.mocked(fetch).mockResolvedValue(new Response('Not found', { status: 404 }));
+    stub.getDiagnosticByRequestId.mockResolvedValue(err(404));
 
     const context = createMockContext('expired-req');
     await inspectCommand.execute(context);
@@ -233,7 +266,7 @@ describe('execute (slash command)', () => {
   });
 
   it('should handle network errors', async () => {
-    vi.mocked(fetch).mockRejectedValue(new Error('Network error'));
+    stub.getDiagnosticByRequestId.mockRejectedValue(new Error('Network error'));
 
     const context = createMockContext('test-req');
     await inspectCommand.execute(context);
@@ -243,22 +276,23 @@ describe('execute (slash command)', () => {
     });
   });
 
-  it('should forward the caller userId (owner) to handleRecentBrowse', async () => {
+  it('should pass the bound userClient through to handleRecentBrowse', async () => {
     const { handleRecentBrowse } = await import('./browse.js');
     const context = createMockContext(null, 'owner-123');
     await inspectCommand.execute(context);
 
-    // Server-side filtering means the bot-client passes the caller's ID through
-    // unchanged regardless of owner status; the gateway decides what to filter.
-    expect(handleRecentBrowse).toHaveBeenCalledWith(context, 'owner-123');
+    // Server-side filtering means the bot-client passes the bound userClient
+    // through unchanged regardless of owner status; the gateway decides what
+    // to filter based on the X-User-Id header on the bound client.
+    expect(handleRecentBrowse).toHaveBeenCalledWith(context, asUserClient(stub));
   });
 
-  it('should forward the caller userId (non-owner) to handleRecentBrowse', async () => {
+  it('should pass the bound userClient through for non-owner callers', async () => {
     const { handleRecentBrowse } = await import('./browse.js');
     const context = createMockContext(null, 'regular-user-456');
     await inspectCommand.execute(context);
 
-    expect(handleRecentBrowse).toHaveBeenCalledWith(context, 'regular-user-456');
+    expect(handleRecentBrowse).toHaveBeenCalledWith(context, asUserClient(stub));
   });
 });
 
@@ -287,7 +321,9 @@ describe('handleButton', () => {
 
   it('should defer and respond with the requested view', async () => {
     const mockPayload = createMockDiagnosticPayload();
-    vi.mocked(fetch).mockResolvedValue(createSuccessResponse('test-req-123', mockPayload));
+    stub.getDiagnosticByRequestId.mockResolvedValue(
+      createSuccessResponse('test-req-123', mockPayload)
+    );
 
     const interaction = createMockButtonInteraction(DebugViewType.FullJson);
     await inspectCommand.handleButton!(interaction);
@@ -301,7 +337,7 @@ describe('handleButton', () => {
   });
 
   it('should handle expired logs gracefully', async () => {
-    vi.mocked(fetch).mockResolvedValue(new Response('Not found', { status: 404 }));
+    stub.getDiagnosticByRequestId.mockResolvedValue(err(404));
 
     const interaction = createMockButtonInteraction(DebugViewType.Reasoning);
     await inspectCommand.handleButton!(interaction);
@@ -329,7 +365,9 @@ describe('handleButton', () => {
     // deferUpdate edits the existing ephemeral message in place, so successive
     // filter clicks don't accumulate as separate messages in the user's view.
     const mockPayload = createMockDiagnosticPayload();
-    vi.mocked(fetch).mockResolvedValue(createSuccessResponse('test-req-123', mockPayload));
+    stub.getDiagnosticByRequestId.mockResolvedValue(
+      createSuccessResponse('test-req-123', mockPayload)
+    );
 
     const interaction = createMockMemoryButtonInteraction();
     await inspectCommand.handleButton!(interaction);
@@ -340,7 +378,9 @@ describe('handleButton', () => {
 
   it('uses deferReply for non-memory view-navigation buttons', async () => {
     const mockPayload = createMockDiagnosticPayload();
-    vi.mocked(fetch).mockResolvedValue(createSuccessResponse('test-req-123', mockPayload));
+    stub.getDiagnosticByRequestId.mockResolvedValue(
+      createSuccessResponse('test-req-123', mockPayload)
+    );
 
     const interaction = createMockButtonInteraction(DebugViewType.FullJson);
     await inspectCommand.handleButton!(interaction);
@@ -349,7 +389,7 @@ describe('handleButton', () => {
     expect(interaction.deferUpdate).not.toHaveBeenCalled();
   });
 
-  it('dispatches browse-pagination buttons to handleBrowsePagination with caller userId', async () => {
+  it('dispatches browse-pagination buttons to handleBrowsePagination', async () => {
     const { handleBrowsePagination } = await import('./browse.js');
     const interaction = {
       // customId matches the `::browse::` substring the mocked isInspectBrowseInteraction checks for
@@ -362,7 +402,7 @@ describe('handleButton', () => {
 
     await inspectCommand.handleButton!(interaction);
 
-    expect(handleBrowsePagination).toHaveBeenCalledWith(interaction, 'regular-user-456');
+    expect(handleBrowsePagination).toHaveBeenCalledWith(interaction);
   });
 });
 
@@ -381,7 +421,9 @@ describe('handleSelectMenu', () => {
 
   it('should defer and respond with the selected view', async () => {
     const mockPayload = createMockDiagnosticPayload();
-    vi.mocked(fetch).mockResolvedValue(createSuccessResponse('test-req-123', mockPayload));
+    stub.getDiagnosticByRequestId.mockResolvedValue(
+      createSuccessResponse('test-req-123', mockPayload)
+    );
 
     const interaction = createMockSelectInteraction(DebugViewType.TokenBudget);
     await inspectCommand.handleSelectMenu!(interaction);
@@ -423,7 +465,7 @@ describe('handleSelectMenu', () => {
     expect(interaction.reply).not.toHaveBeenCalled();
   });
 
-  it('dispatches browse-select interactions to handleBrowseLogSelection with caller userId', async () => {
+  it('dispatches browse-select interactions to handleBrowseLogSelection', async () => {
     const { handleBrowseLogSelection } = await import('./browse.js');
     const interaction = {
       // customId matches the `::browse-select::` substring the mocked isInspectBrowseSelectInteraction checks for
@@ -437,6 +479,6 @@ describe('handleSelectMenu', () => {
 
     await inspectCommand.handleSelectMenu!(interaction);
 
-    expect(handleBrowseLogSelection).toHaveBeenCalledWith(interaction, 'regular-user-456');
+    expect(handleBrowseLogSelection).toHaveBeenCalledWith(interaction);
   });
 });

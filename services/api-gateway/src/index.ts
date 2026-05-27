@@ -41,6 +41,12 @@ import { createUserRouter } from './routes/user/index.js';
 import { createInternalRouter } from './routes/internal/index.js';
 import { createModelsRouter } from './routes/models/index.js';
 import {
+  mountInternalRoutes,
+  mountAdminRoutes,
+  mountUserRoutes,
+} from './routes/_generated/mounts.js';
+import type { RouteDeps } from './routes/routeDeps.js';
+import {
   createHealthRouter,
   createAvatarRouter,
   createExportsRouter,
@@ -59,7 +65,10 @@ import {
 import { DatabaseNotificationListener } from './services/DatabaseNotificationListener.js';
 import { OpenRouterModelCache } from './services/OpenRouterModelCache.js';
 import { requireServiceAuth } from './services/AuthMiddleware.js';
-import { createRedisPublicRouteRateLimiter } from './utils/RedisRateLimiter.js';
+import {
+  createRedisPublicRouteRateLimiter,
+  createRedisWalletRateLimiter,
+} from './utils/RedisRateLimiter.js';
 import {
   initializeEmbeddingService,
   shutdownEmbeddingService,
@@ -320,6 +329,40 @@ function registerRoutes(app: Express, prisma: PrismaClient, services: ServicesCo
     })
   );
   logger.info('Admin routes registered');
+
+  // ---- Codegen-mounted /api/{internal,admin,user} routes ------------------
+  //
+  // Mounted alongside the legacy /admin, /user, /internal mounts above.
+  // bot-client migrates callsite-by-callsite from the legacy adminFetch /
+  // callGatewayApi helpers to the generated typed clients (which target the
+  // /api/* prefixes). Once every callsite has moved, the legacy mounts and
+  // their `createXxxRouter` aggregators are deleted in a follow-up PR.
+  //
+  // Wallet rate-limiter is path-scoped here so /api/user/wallet/* gets the
+  // same protection the legacy /wallet/* mount has via createWalletRouter.
+
+  const routeDeps: RouteDeps = {
+    prisma,
+    cacheInvalidationService,
+    llmConfigCacheInvalidation,
+    ttsConfigCacheInvalidation,
+    denylistInvalidation,
+    cascadeInvalidation,
+    sttResolverCacheInvalidation,
+    apiKeyCacheInvalidation,
+    retentionService,
+    cascadeResolver,
+    modelCache,
+    redis: cacheRedis,
+    aiQueue,
+    queueEvents,
+  };
+
+  app.use('/api/user/wallet', createRedisWalletRateLimiter(cacheRedis));
+  mountInternalRoutes(app, routeDeps);
+  mountAdminRoutes(app, routeDeps);
+  mountUserRoutes(app, routeDeps);
+  logger.info('Codegen routes mounted at /api/{internal,admin,user}');
 
   // ERROR HANDLERS (must be last)
   app.use(notFoundHandler);

@@ -6,16 +6,20 @@
  * - UUID (request ID)
  * - Snowflake (message ID)
  *
- * The caller's Discord ID is forwarded to the gateway as `X-User-Id`. The
- * gateway applies per-user filtering server-side (bot owner sees all logs;
- * other users see only their own), so this client doesn't need to filter
- * results after the fact — the API never returns another user's log to a
- * non-owner caller.
+ * The caller's Discord ID is forwarded to the gateway via the typed
+ * `UserClient` (X-User-Id header). The gateway applies per-user filtering
+ * server-side (bot owner sees all logs; other users see only their own),
+ * so this client doesn't need to filter results after the fact — the API
+ * never returns another user's log to a non-owner caller.
  */
 
-import { createLogger } from '@tzurot/common-types';
-import { adminFetch } from '../../utils/adminApiClient.js';
-import type { LookupResult, DiagnosticLogResponse, DiagnosticLogsResponse } from './types.js';
+import {
+  createLogger,
+  type DiagnosticLog as ApiDiagnosticLog,
+  type DiagnosticPayload,
+  type UserClient,
+} from '@tzurot/common-types';
+import type { LookupResult, DiagnosticLog } from './types.js';
 
 const logger = createLogger('inspect');
 
@@ -33,6 +37,36 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 
 /** Discord snowflake ID regex (numeric, 17-20 digits) */
 const SNOWFLAKE_REGEX = /^\d{17,20}$/;
+
+/**
+ * Adapt the Zod-validated diagnostic-log shape from the typed UserClient
+ * into the local `DiagnosticLog` shape consumed by inspect view builders.
+ *
+ * The two differ in three places:
+ * - `triggerMessageId`: API returns `string | null`; locals treat the
+ *   field as optional (`?: string`). Map null → undefined.
+ * - `createdAt`: Zod schema types this as `string | Date`. Normalize
+ *   to ISO string regardless of runtime type so downstream view code
+ *   can rely on the string contract.
+ * - `data`: schema is `unknown` (trusted JSONB blob); cast to the
+ *   structural `DiagnosticPayload` consumers expect.
+ */
+function adaptLog(log: ApiDiagnosticLog): DiagnosticLog {
+  return {
+    id: log.id,
+    requestId: log.requestId,
+    triggerMessageId: log.triggerMessageId ?? undefined,
+    personalityId: log.personalityId,
+    userId: log.userId,
+    guildId: log.guildId,
+    channelId: log.channelId,
+    model: log.model,
+    provider: log.provider,
+    durationMs: log.durationMs,
+    createdAt: typeof log.createdAt === 'string' ? log.createdAt : log.createdAt.toISOString(),
+    data: log.data as DiagnosticPayload,
+  };
+}
 
 /**
  * Parse identifier to extract message ID if it's a Discord link
@@ -64,28 +98,21 @@ export function parseIdentifier(identifier: string): {
  */
 export async function lookupByMessageId(
   messageId: string,
-  callerUserId: string
+  userClient: UserClient
 ): Promise<LookupResult> {
-  const messageResponse = await adminFetch(
-    `/admin/diagnostic/by-message/${encodeURIComponent(messageId)}`,
-    { userId: callerUserId }
-  );
+  const messageResult = await userClient.getDiagnosticByMessage(messageId);
 
   // 404 on /by-message is normal — could be a response message ID instead.
   // Fall back to the /by-response lookup before treating this as an error.
-  if (messageResponse.status === 404) {
+  if (!messageResult.ok && messageResult.status === 404) {
     logger.debug({ messageId }, 'Not found as trigger message, trying response message lookup');
-    const fallbackResponse = await adminFetch(
-      `/admin/diagnostic/by-response/${encodeURIComponent(messageId)}`,
-      { userId: callerUserId }
-    );
+    const fallbackResult = await userClient.getDiagnosticByResponse(messageId);
 
-    if (fallbackResponse.ok) {
-      const result = (await fallbackResponse.json()) as DiagnosticLogResponse;
-      return { success: true, log: result.log };
+    if (fallbackResult.ok) {
+      return { success: true, log: adaptLog(fallbackResult.data.log) };
     }
 
-    if (fallbackResponse.status === 404) {
+    if (fallbackResult.status === 404) {
       logger.debug(
         { messageId },
         'Diagnostic log not found via by-message or by-response — likely expired or unknown message ID'
@@ -100,30 +127,28 @@ export async function lookupByMessageId(
       };
     }
 
-    const fallbackErrorText = await fallbackResponse.text();
     logger.error(
-      { messageId, status: fallbackResponse.status, error: fallbackErrorText },
+      { messageId, status: fallbackResult.status, error: fallbackResult.error },
       'Fetch by response failed'
     );
     return {
       success: false,
-      errorMessage: `Failed to fetch diagnostic logs (HTTP ${fallbackResponse.status})`,
+      errorMessage: `Failed to fetch diagnostic logs (HTTP ${fallbackResult.status})`,
     };
   }
 
-  if (!messageResponse.ok) {
-    const errorText = await messageResponse.text();
+  if (!messageResult.ok) {
     logger.error(
-      { messageId, status: messageResponse.status, error: errorText },
+      { messageId, status: messageResult.status, error: messageResult.error },
       'Fetch by message failed'
     );
     return {
       success: false,
-      errorMessage: `Failed to fetch diagnostic logs (HTTP ${messageResponse.status})`,
+      errorMessage: `Failed to fetch diagnostic logs (HTTP ${messageResult.status})`,
     };
   }
 
-  const { logs } = (await messageResponse.json()) as DiagnosticLogsResponse;
+  const { logs } = messageResult.data;
 
   if (logs.length === 0) {
     return {
@@ -142,7 +167,7 @@ export async function lookupByMessageId(
     );
   }
 
-  return { success: true, log: logs[0] };
+  return { success: true, log: adaptLog(logs[0]) };
 }
 
 /**
@@ -150,14 +175,12 @@ export async function lookupByMessageId(
  */
 export async function lookupByRequestId(
   requestId: string,
-  callerUserId: string
+  userClient: UserClient
 ): Promise<LookupResult> {
-  const response = await adminFetch(`/admin/diagnostic/${encodeURIComponent(requestId)}`, {
-    userId: callerUserId,
-  });
+  const result = await userClient.getDiagnosticByRequestId(requestId);
 
-  if (!response.ok) {
-    if (response.status === 404) {
+  if (!result.ok) {
+    if (result.status === 404) {
       return {
         success: false,
         errorMessage:
@@ -168,16 +191,14 @@ export async function lookupByRequestId(
       };
     }
 
-    const errorText = await response.text();
-    logger.error({ status: response.status, error: errorText }, 'Fetch failed');
+    logger.error({ status: result.status, error: result.error }, 'Fetch failed');
     return {
       success: false,
-      errorMessage: `Failed to fetch diagnostic log (HTTP ${response.status})`,
+      errorMessage: `Failed to fetch diagnostic log (HTTP ${result.status})`,
     };
   }
 
-  const result = (await response.json()) as DiagnosticLogResponse;
-  return { success: true, log: result.log };
+  return { success: true, log: adaptLog(result.data.log) };
 }
 
 /**
@@ -185,10 +206,10 @@ export async function lookupByRequestId(
  */
 export async function resolveDiagnosticLog(
   identifier: string,
-  callerUserId: string
+  userClient: UserClient
 ): Promise<LookupResult> {
   const parsed = parseIdentifier(identifier);
   return parsed.type === 'messageId'
-    ? lookupByMessageId(parsed.value, callerUserId)
-    : lookupByRequestId(parsed.value, callerUserId);
+    ? lookupByMessageId(parsed.value, userClient)
+    : lookupByRequestId(parsed.value, userClient);
 }

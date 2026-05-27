@@ -2,7 +2,7 @@
  * Tests for inspect browse module
  *
  * Tests the browse UI for recent diagnostic logs:
- * - fetchRecentLogs — API call and parsing with userId filtering
+ * - fetchRecentLogs — API call and parsing via UserClient
  * - buildBrowsePage — embed + components assembly
  * - buildEmptyBrowseEmbed — empty state
  * - handleRecentBrowse — slash command entry
@@ -12,7 +12,13 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { DiagnosticPayload } from '@tzurot/common-types';
+import type {
+  DiagnosticLogResponse,
+  DiagnosticPayload,
+  GatewayResult,
+  RecentDiagnosticLogsResponse,
+  UserClient,
+} from '@tzurot/common-types';
 import {
   fetchRecentLogs,
   buildBrowsePage,
@@ -26,7 +32,6 @@ import {
 import type { DiagnosticLogSummary } from './types.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
-// Mock logger and config
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
@@ -37,15 +42,13 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
-    getConfig: () => ({
-      GATEWAY_URL: 'http://localhost:3000',
-      INTERNAL_SERVICE_SECRET: 'test-service-secret',
-    }),
   };
 });
 
-// Mock fetch
-global.fetch = vi.fn();
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
 
 function createMockLog(overrides: Partial<DiagnosticLogSummary> = {}): DiagnosticLogSummary {
   return {
@@ -143,46 +146,74 @@ function createMockDiagnosticPayload(): DiagnosticPayload {
   };
 }
 
+function ok<T>(data: T): GatewayResult<T> {
+  return { ok: true, data };
+}
+
+function err(status: number, message = 'fail'): GatewayResult<never> {
+  return { ok: false, error: message, status };
+}
+
+interface StubClient {
+  getRecentDiagnostics: ReturnType<typeof vi.fn>;
+  getDiagnosticByRequestId: ReturnType<typeof vi.fn>;
+}
+
+function createStubClient(): StubClient {
+  return {
+    getRecentDiagnostics: vi.fn(),
+    getDiagnosticByRequestId: vi.fn(),
+  };
+}
+
+function asUserClient(stub: StubClient): UserClient {
+  return stub as unknown as UserClient;
+}
+
+function makeRecentResponse(logs: DiagnosticLogSummary[]): RecentDiagnosticLogsResponse {
+  // The schema requires a complete RecentDiagnosticLog shape; the local
+  // DiagnosticLogSummary lacks no required fields, so the cast is safe
+  // for testing purposes.
+  return { logs: logs as never, count: logs.length };
+}
+
 describe('fetchRecentLogs', () => {
   beforeEach(() => vi.clearAllMocks());
   afterEach(() => vi.restoreAllMocks());
 
   it('should parse a successful response', async () => {
+    const stub = createStubClient();
     const logs = [createMockLog()];
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify({ logs, count: 1 }), { status: 200 })
-    );
+    stub.getRecentDiagnostics.mockResolvedValue(ok(makeRecentResponse(logs)));
 
-    const result = await fetchRecentLogs('caller-user');
+    const result = await fetchRecentLogs(asUserClient(stub));
 
+    expect(stub.getRecentDiagnostics).toHaveBeenCalledTimes(1);
     expect(result.logs).toHaveLength(1);
     expect(result.logs[0].personalityName).toBe('Test Personality');
   });
 
   it('should throw on non-OK responses', async () => {
-    vi.mocked(fetch).mockResolvedValue(new Response('Server error', { status: 500 }));
+    const stub = createStubClient();
+    stub.getRecentDiagnostics.mockResolvedValue(err(500));
 
-    await expect(fetchRecentLogs('caller-user')).rejects.toThrow('Failed to fetch recent logs');
+    await expect(fetchRecentLogs(asUserClient(stub))).rejects.toThrow(
+      'Failed to fetch recent logs'
+    );
   });
 
-  it('should forward callerUserId as X-User-Id header (not query param)', async () => {
-    const logs = [createMockLog()];
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify({ logs, count: 1 }), { status: 200 })
-    );
+  it('should normalize Date createdAt to ISO string', async () => {
+    const stub = createStubClient();
+    // Cast to bypass the type-system enforcement that local
+    // DiagnosticLogSummary.createdAt is `string` only — at runtime the
+    // schema accepts `string | Date` and we need to verify the adapter.
+    const logs = [createMockLog({ createdAt: new Date('2026-02-09T12:00:00Z') as never })];
+    stub.getRecentDiagnostics.mockResolvedValue(ok(makeRecentResponse(logs)));
 
-    await fetchRecentLogs('user-123');
+    const result = await fetchRecentLogs(asUserClient(stub));
 
-    expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining('/admin/diagnostic/recent'),
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          'X-User-Id': 'user-123',
-        }),
-      })
-    );
-    // The legacy `?userId=` query-string filter is gone — server reads X-User-Id.
-    expect(fetch).toHaveBeenCalledWith(expect.not.stringContaining('userId='), expect.any(Object));
+    expect(typeof result.logs[0].createdAt).toBe('string');
+    expect(result.logs[0].createdAt).toBe('2026-02-09T12:00:00.000Z');
   });
 });
 
@@ -233,14 +264,13 @@ describe('handleRecentBrowse', () => {
   afterEach(() => vi.restoreAllMocks());
 
   it('should show browse list on success', async () => {
+    const stub = createStubClient();
     const logs = createMockLogs(3);
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify({ logs, count: 3 }), { status: 200 })
-    );
+    stub.getRecentDiagnostics.mockResolvedValue(ok(makeRecentResponse(logs)));
 
     const editReply = vi.fn();
     const context = { editReply } as unknown as DeferredCommandContext;
-    await handleRecentBrowse(context, 'caller-user');
+    await handleRecentBrowse(context, asUserClient(stub));
 
     expect(editReply).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -250,11 +280,12 @@ describe('handleRecentBrowse', () => {
   });
 
   it('should show error on failure', async () => {
-    vi.mocked(fetch).mockRejectedValue(new Error('Network error'));
+    const stub = createStubClient();
+    stub.getRecentDiagnostics.mockRejectedValue(new Error('Network error'));
 
     const editReply = vi.fn();
     const context = { editReply } as unknown as DeferredCommandContext;
-    await handleRecentBrowse(context, 'caller-user');
+    await handleRecentBrowse(context, asUserClient(stub));
 
     expect(editReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Error fetching recent diagnostic logs'),
@@ -267,10 +298,10 @@ describe('handleBrowsePagination', () => {
   afterEach(() => vi.restoreAllMocks());
 
   it('should paginate on valid browse button', async () => {
+    const stub = createStubClient();
     const logs = createMockLogs(15);
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify({ logs, count: 15 }), { status: 200 })
-    );
+    stub.getRecentDiagnostics.mockResolvedValue(ok(makeRecentResponse(logs)));
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
 
     const interaction = {
       customId: 'inspect::browse::1::all::',
@@ -279,7 +310,7 @@ describe('handleBrowsePagination', () => {
       editReply: vi.fn().mockResolvedValue(undefined),
     } as unknown as import('discord.js').ButtonInteraction;
 
-    await handleBrowsePagination(interaction, 'caller-user');
+    await handleBrowsePagination(interaction);
 
     expect(interaction.deferUpdate).toHaveBeenCalled();
     expect(interaction.editReply).toHaveBeenCalledWith(
@@ -298,9 +329,10 @@ describe('handleBrowsePagination', () => {
       editReply: vi.fn(),
     } as unknown as import('discord.js').ButtonInteraction;
 
-    await handleBrowsePagination(interaction, 'caller-user');
+    await handleBrowsePagination(interaction);
 
     expect(interaction.deferUpdate).not.toHaveBeenCalled();
+    expect(clientsForMock).not.toHaveBeenCalled();
   });
 });
 
@@ -309,27 +341,26 @@ describe('handleBrowseLogSelection', () => {
   afterEach(() => vi.restoreAllMocks());
 
   it('should drill into selected log', async () => {
+    const stub = createStubClient();
     const payload = createMockDiagnosticPayload();
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          log: {
-            id: 'log-uuid',
-            requestId: 'req-uuid-0',
-            personalityId: 'p-1',
-            userId: 'u-1',
-            guildId: 'g-1',
-            channelId: 'c-1',
-            model: 'test',
-            provider: 'test',
-            durationMs: 100,
-            createdAt: '2026-02-09T12:00:00Z',
-            data: payload,
-          },
-        }),
-        { status: 200 }
-      )
-    );
+    const log: DiagnosticLogResponse = {
+      log: {
+        id: 'log-uuid',
+        requestId: 'req-uuid-0',
+        triggerMessageId: null,
+        personalityId: 'p-1',
+        userId: 'u-1',
+        guildId: 'g-1',
+        channelId: 'c-1',
+        model: 'test',
+        provider: 'test',
+        durationMs: 100,
+        createdAt: '2026-02-09T12:00:00Z',
+        data: payload,
+      },
+    };
+    stub.getDiagnosticByRequestId.mockResolvedValue(ok(log));
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
 
     const interaction = {
       customId: 'inspect::browse-select::0::all::',
@@ -339,7 +370,7 @@ describe('handleBrowseLogSelection', () => {
       editReply: vi.fn().mockResolvedValue(undefined),
     } as unknown as import('discord.js').StringSelectMenuInteraction;
 
-    await handleBrowseLogSelection(interaction, 'caller-user');
+    await handleBrowseLogSelection(interaction);
 
     expect(interaction.deferUpdate).toHaveBeenCalled();
     expect(interaction.editReply).toHaveBeenCalledWith(
@@ -357,7 +388,9 @@ describe('handleBrowseLogSelection', () => {
   });
 
   it('should show error when log not found', async () => {
-    vi.mocked(fetch).mockResolvedValue(new Response('Not found', { status: 404 }));
+    const stub = createStubClient();
+    stub.getDiagnosticByRequestId.mockResolvedValue(err(404));
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
 
     const interaction = {
       customId: 'inspect::browse-select::0::all::',
@@ -367,7 +400,7 @@ describe('handleBrowseLogSelection', () => {
       editReply: vi.fn().mockResolvedValue(undefined),
     } as unknown as import('discord.js').StringSelectMenuInteraction;
 
-    await handleBrowseLogSelection(interaction, 'caller-user');
+    await handleBrowseLogSelection(interaction);
 
     expect(interaction.editReply).toHaveBeenCalledWith(
       expect.objectContaining({
