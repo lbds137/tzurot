@@ -8,6 +8,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import type { Response } from 'express';
 import type { PrismaClient } from '@tzurot/common-types';
 import type { ProvisionedRequest } from '../../types.js';
+import type { RouteDeps } from '../routeDeps.js';
 
 // Mock logger
 vi.mock('@tzurot/common-types', async () => {
@@ -65,6 +66,10 @@ const mockPrisma = {
   $queryRaw: vi.fn(),
 } as unknown as PrismaClient;
 
+function deps(): RouteDeps {
+  return { prisma: mockPrisma };
+}
+
 function createMockReq(body: Record<string, unknown> = {}): ProvisionedRequest {
   return {
     userId: TEST_DISCORD_USER_ID,
@@ -90,7 +95,7 @@ describe('memorySearch', () => {
       mockIsEmbeddingAvailable.mockReturnValue(false);
       const res = createMockRes();
 
-      await handleSearch(mockPrisma, createMockReq({ query: 'test' }), res);
+      await handleSearch(deps())(createMockReq({ query: 'test' }), res);
 
       expect(res.status).toHaveBeenCalledWith(503);
       expect(res.json).toHaveBeenCalledWith(
@@ -101,7 +106,7 @@ describe('memorySearch', () => {
     it('should return validation error for missing query', async () => {
       const res = createMockRes();
 
-      await handleSearch(mockPrisma, createMockReq({}), res);
+      await handleSearch(deps())(createMockReq({}), res);
 
       expect(res.status).toHaveBeenCalledWith(400);
     });
@@ -111,7 +116,7 @@ describe('memorySearch', () => {
       mockGetDefaultPersonaId.mockResolvedValue(null);
       const res = createMockRes();
 
-      await handleSearch(mockPrisma, createMockReq({ query: 'test' }), res);
+      await handleSearch(deps())(createMockReq({ query: 'test' }), res);
 
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
@@ -124,7 +129,7 @@ describe('memorySearch', () => {
       mockGetDefaultPersonaId.mockResolvedValue(TEST_PERSONA_ID);
       const res = createMockRes();
 
-      await handleSearch(mockPrisma, createMockReq({ query: 'test', dateFrom: 'not-a-date' }), res);
+      await handleSearch(deps())(createMockReq({ query: 'test', dateFrom: 'not-a-date' }), res);
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -150,7 +155,7 @@ describe('memorySearch', () => {
       ]);
       const res = createMockRes();
 
-      await handleSearch(mockPrisma, createMockReq({ query: 'test', preferTextSearch: true }), res);
+      await handleSearch(deps())(createMockReq({ query: 'test', preferTextSearch: true }), res);
 
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
@@ -185,7 +190,7 @@ describe('memorySearch', () => {
         ]); // Text fallback returns results
       const res = createMockRes();
 
-      await handleSearch(mockPrisma, createMockReq({ query: 'test' }), res);
+      await handleSearch(deps())(createMockReq({ query: 'test' }), res);
 
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
@@ -199,7 +204,7 @@ describe('memorySearch', () => {
       mockGenerateEmbedding.mockRejectedValue(new Error('embedding error'));
       const res = createMockRes();
 
-      await handleSearch(mockPrisma, createMockReq({ query: 'test' }), res);
+      await handleSearch(deps())(createMockReq({ query: 'test' }), res);
 
       expect(res.status).toHaveBeenCalledWith(500);
     });
@@ -210,7 +215,7 @@ describe('memorySearch', () => {
       mockGenerateEmbedding.mockResolvedValue(null);
       const res = createMockRes();
 
-      await handleSearch(mockPrisma, createMockReq({ query: 'test' }), res);
+      await handleSearch(deps())(createMockReq({ query: 'test' }), res);
 
       expect(res.status).toHaveBeenCalledWith(503);
     });
@@ -234,7 +239,7 @@ describe('memorySearch', () => {
       ]);
       const res = createMockRes();
 
-      await handleSearch(mockPrisma, createMockReq({ query: 'test' }), res);
+      await handleSearch(deps())(createMockReq({ query: 'test' }), res);
 
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
@@ -267,7 +272,7 @@ describe('memorySearch', () => {
       (mockPrisma.$queryRaw as ReturnType<typeof vi.fn>).mockResolvedValue(results);
       const res = createMockRes();
 
-      await handleSearch(mockPrisma, createMockReq({ query: 'test', preferTextSearch: true }), res);
+      await handleSearch(deps())(createMockReq({ query: 'test', preferTextSearch: true }), res);
 
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ hasMore: true, count: 10 }));
     });

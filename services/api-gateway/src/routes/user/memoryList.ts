@@ -3,11 +3,13 @@
  * Paginated list of long-term memories for browsing
  */
 
-import type { Response } from 'express';
+import type { RequestHandler, Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, type PrismaClient } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types';
 import { sendCustomSuccess } from '../../utils/responseHelpers.js';
 import type { ProvisionedRequest } from '../../types.js';
+import type { RouteDeps } from '../routeDeps.js';
+import { asyncHandler } from '../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { getDefaultPersonaId } from './memoryHelpers.js';
 
@@ -59,114 +61,114 @@ interface ListResponse {
  * - sort: Sort field (createdAt, updatedAt) (default: createdAt)
  * - order: Sort order (asc, desc) (default: desc)
  */
-export async function handleList(
-  prisma: PrismaClient,
-  req: ProvisionedRequest,
-  res: Response
-): Promise<void> {
-  const discordUserId = req.userId;
-  const { personalityId, limit, offset, sort, order } = req.query as ListQuery;
 
-  // Parse and validate pagination parameters
-  const effectiveLimit = Math.min(
-    Math.max(1, parseInt(limit ?? '', 10) || LIST_DEFAULTS.limit),
-    LIST_DEFAULTS.maxLimit
-  );
-  const effectiveOffset = Math.max(0, parseInt(offset ?? '', 10) || 0);
+export const handleList = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
+    const discordUserId = req.userId;
+    const { personalityId, limit, offset, sort, order } = req.query as ListQuery;
 
-  // Parse and validate sort parameters
-  const validSortFields: SortField[] = ['createdAt', 'updatedAt'];
-  const effectiveSort: SortField = validSortFields.includes(sort as SortField)
-    ? (sort as SortField)
-    : 'createdAt';
-  const effectiveOrder: SortOrder = order === 'asc' ? 'asc' : 'desc';
+    // Parse and validate pagination parameters
+    const effectiveLimit = Math.min(
+      Math.max(1, parseInt(limit ?? '', 10) || LIST_DEFAULTS.limit),
+      LIST_DEFAULTS.maxLimit
+    );
+    const effectiveOffset = Math.max(0, parseInt(offset ?? '', 10) || 0);
 
-  // Get user
-  const userId = resolveProvisionedUserId(req);
+    // Parse and validate sort parameters
+    const validSortFields: SortField[] = ['createdAt', 'updatedAt'];
+    const effectiveSort: SortField = validSortFields.includes(sort as SortField)
+      ? (sort as SortField)
+      : 'createdAt';
+    const effectiveOrder: SortOrder = order === 'asc' ? 'asc' : 'desc';
 
-  // Get persona
-  const personaId = await getDefaultPersonaId(prisma, userId);
-  if (personaId === null) {
+    // Get user
+    const userId = resolveProvisionedUserId(req);
+
+    // Get persona
+    const personaId = await getDefaultPersonaId(prisma, userId);
+    if (personaId === null) {
+      sendCustomSuccess(
+        res,
+        {
+          memories: [],
+          total: 0,
+          limit: effectiveLimit,
+          offset: effectiveOffset,
+          hasMore: false,
+        } satisfies ListResponse,
+        StatusCodes.OK
+      );
+      return;
+    }
+
+    // Build where clause
+    const whereClause = {
+      personaId,
+      visibility: 'normal',
+      ...(personalityId !== undefined && personalityId.length > 0 ? { personalityId } : {}),
+    };
+
+    // Get total count and memories in parallel
+    const [total, memories] = await Promise.all([
+      prisma.memory.count({ where: whereClause }),
+      prisma.memory.findMany({
+        where: whereClause,
+        orderBy: { [effectiveSort]: effectiveOrder },
+        skip: effectiveOffset,
+        take: effectiveLimit,
+        select: {
+          id: true,
+          content: true,
+          createdAt: true,
+          updatedAt: true,
+          personalityId: true,
+          isLocked: true,
+          personality: {
+            select: {
+              name: true,
+              displayName: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    // Transform to response format
+    const memoryList: MemoryListItem[] = memories.map(m => ({
+      id: m.id,
+      content: m.content,
+      createdAt: m.createdAt.toISOString(),
+      updatedAt: m.updatedAt.toISOString(),
+      personalityId: m.personalityId,
+      personalityName: m.personality?.displayName ?? m.personality?.name ?? 'Unknown',
+      isLocked: m.isLocked,
+    }));
+
+    const hasMore = effectiveOffset + memoryList.length < total;
+
+    logger.debug(
+      {
+        discordUserId,
+        personalityId,
+        total,
+        returned: memoryList.length,
+        offset: effectiveOffset,
+        hasMore,
+      },
+      'List retrieved'
+    );
+
     sendCustomSuccess(
       res,
       {
-        memories: [],
-        total: 0,
+        memories: memoryList,
+        total,
         limit: effectiveLimit,
         offset: effectiveOffset,
-        hasMore: false,
+        hasMore,
       } satisfies ListResponse,
       StatusCodes.OK
     );
-    return;
-  }
-
-  // Build where clause
-  const whereClause = {
-    personaId,
-    visibility: 'normal',
-    ...(personalityId !== undefined && personalityId.length > 0 ? { personalityId } : {}),
-  };
-
-  // Get total count and memories in parallel
-  const [total, memories] = await Promise.all([
-    prisma.memory.count({ where: whereClause }),
-    prisma.memory.findMany({
-      where: whereClause,
-      orderBy: { [effectiveSort]: effectiveOrder },
-      skip: effectiveOffset,
-      take: effectiveLimit,
-      select: {
-        id: true,
-        content: true,
-        createdAt: true,
-        updatedAt: true,
-        personalityId: true,
-        isLocked: true,
-        personality: {
-          select: {
-            name: true,
-            displayName: true,
-          },
-        },
-      },
-    }),
-  ]);
-
-  // Transform to response format
-  const memoryList: MemoryListItem[] = memories.map(m => ({
-    id: m.id,
-    content: m.content,
-    createdAt: m.createdAt.toISOString(),
-    updatedAt: m.updatedAt.toISOString(),
-    personalityId: m.personalityId,
-    personalityName: m.personality?.displayName ?? m.personality?.name ?? 'Unknown',
-    isLocked: m.isLocked,
-  }));
-
-  const hasMore = effectiveOffset + memoryList.length < total;
-
-  logger.debug(
-    {
-      discordUserId,
-      personalityId,
-      total,
-      returned: memoryList.length,
-      offset: effectiveOffset,
-      hasMore,
-    },
-    'List retrieved'
-  );
-
-  sendCustomSuccess(
-    res,
-    {
-      memories: memoryList,
-      total,
-      limit: effectiveLimit,
-      offset: effectiveOffset,
-      hasMore,
-    } satisfies ListResponse,
-    StatusCodes.OK
-  );
-}
+  });
+};
