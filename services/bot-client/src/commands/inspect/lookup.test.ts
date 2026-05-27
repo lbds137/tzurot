@@ -5,9 +5,14 @@ import {
   lookupByRequestId,
   resolveDiagnosticLog,
 } from './lookup.js';
-import type { DiagnosticPayload } from '@tzurot/common-types';
+import type {
+  DiagnosticLogResponse,
+  DiagnosticLogsResponse,
+  DiagnosticPayload,
+  GatewayResult,
+  UserClient,
+} from '@tzurot/common-types';
 
-// Mock logger and config
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
@@ -18,18 +23,8 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
-    getConfig: () => ({
-      GATEWAY_URL: 'http://localhost:3000',
-      INTERNAL_SERVICE_SECRET: 'test-service-secret',
-    }),
   };
 });
-
-// Mock fetch
-global.fetch = vi.fn();
-
-/** Discord user ID forwarded as `X-User-Id` to the gateway in every test call. */
-const CALLER_USER_ID = 'caller-user-id';
 
 function createMockDiagnosticPayload(): DiagnosticPayload {
   return {
@@ -102,6 +97,57 @@ function createMockDiagnosticPayload(): DiagnosticPayload {
   };
 }
 
+/**
+ * Minimal log shape returned by the diagnostic endpoints. The schema in
+ * common-types requires `triggerMessageId: string | null` and `createdAt:
+ * string | Date`, but the test stubs return whatever shape we want — the
+ * client transport doesn't run Zod validation on the stub output (we're
+ * bypassing it directly by mocking the client method itself).
+ */
+function makeLog(overrides: Partial<Record<string, unknown>> = {}): unknown {
+  return {
+    id: 'log-uuid',
+    requestId: 'req-1',
+    triggerMessageId: null,
+    personalityId: 'personality-uuid',
+    userId: '123456789',
+    guildId: null,
+    channelId: null,
+    model: 'claude-3-5-sonnet',
+    provider: 'anthropic',
+    durationMs: 1500,
+    createdAt: '2026-01-22T12:00:00Z',
+    data: createMockDiagnosticPayload(),
+    ...overrides,
+  };
+}
+
+function ok<T>(data: T): GatewayResult<T> {
+  return { ok: true, data };
+}
+
+function err(status: number, message = 'fail'): GatewayResult<never> {
+  return { ok: false, error: message, status };
+}
+
+interface StubClient {
+  getDiagnosticByMessage: ReturnType<typeof vi.fn>;
+  getDiagnosticByResponse: ReturnType<typeof vi.fn>;
+  getDiagnosticByRequestId: ReturnType<typeof vi.fn>;
+}
+
+function createStubClient(): StubClient {
+  return {
+    getDiagnosticByMessage: vi.fn(),
+    getDiagnosticByResponse: vi.fn(),
+    getDiagnosticByRequestId: vi.fn(),
+  };
+}
+
+function asUserClient(stub: StubClient): UserClient {
+  return stub as unknown as UserClient;
+}
+
 describe('parseIdentifier', () => {
   beforeEach(() => vi.clearAllMocks());
   afterEach(() => vi.restoreAllMocks());
@@ -137,70 +183,44 @@ describe('parseIdentifier', () => {
 });
 
 describe('lookupByMessageId', () => {
-  beforeEach(() => vi.clearAllMocks());
+  let stub: StubClient;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stub = createStubClient();
+  });
   afterEach(() => vi.restoreAllMocks());
 
-  it('should use /by-message endpoint', async () => {
-    const mockPayload = createMockDiagnosticPayload();
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          logs: [{ id: 'log-uuid', requestId: 'req-1', userId: '123456789', data: mockPayload }],
-          count: 1,
-        }),
-        { status: 200 }
-      )
+  it('should call userClient.getDiagnosticByMessage', async () => {
+    stub.getDiagnosticByMessage.mockResolvedValue(
+      ok<DiagnosticLogsResponse>({ logs: [makeLog()] as never, count: 1 })
     );
 
-    const result = await lookupByMessageId('1234567890123456789', CALLER_USER_ID);
+    const result = await lookupByMessageId('1234567890123456789', asUserClient(stub));
 
-    expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining('/admin/diagnostic/by-message/1234567890123456789'),
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          'X-User-Id': CALLER_USER_ID,
-          'X-Service-Auth': 'test-service-secret',
-        }),
-      })
-    );
+    expect(stub.getDiagnosticByMessage).toHaveBeenCalledWith('1234567890123456789');
+    expect(stub.getDiagnosticByResponse).not.toHaveBeenCalled();
     expect(result.success).toBe(true);
   });
 
   it('should fall back to /by-response on 404', async () => {
-    const mockPayload = createMockDiagnosticPayload();
-    vi.mocked(fetch)
-      .mockResolvedValueOnce(new Response('Not found', { status: 404 }))
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            log: { id: 'log-uuid', requestId: 'req-1', userId: '123456789', data: mockPayload },
-          }),
-          { status: 200 }
-        )
-      );
-
-    const result = await lookupByMessageId('1234567890123456789', CALLER_USER_ID);
-
-    expect(fetch).toHaveBeenCalledTimes(2);
-    expect(fetch).toHaveBeenNthCalledWith(
-      1,
-      expect.stringContaining('/by-message/'),
-      expect.any(Object)
+    stub.getDiagnosticByMessage.mockResolvedValue(err(404));
+    stub.getDiagnosticByResponse.mockResolvedValue(
+      ok<DiagnosticLogResponse>({ log: makeLog() as never })
     );
-    expect(fetch).toHaveBeenNthCalledWith(
-      2,
-      expect.stringContaining('/by-response/'),
-      expect.any(Object)
-    );
+
+    const result = await lookupByMessageId('1234567890123456789', asUserClient(stub));
+
+    expect(stub.getDiagnosticByMessage).toHaveBeenCalledTimes(1);
+    expect(stub.getDiagnosticByResponse).toHaveBeenCalledWith('1234567890123456789');
     expect(result.success).toBe(true);
   });
 
   it('should return error when both endpoints return 404', async () => {
-    vi.mocked(fetch)
-      .mockResolvedValueOnce(new Response('Not found', { status: 404 }))
-      .mockResolvedValueOnce(new Response('Not found', { status: 404 }));
+    stub.getDiagnosticByMessage.mockResolvedValue(err(404));
+    stub.getDiagnosticByResponse.mockResolvedValue(err(404));
 
-    const result = await lookupByMessageId('1234567890123456789', CALLER_USER_ID);
+    const result = await lookupByMessageId('1234567890123456789', asUserClient(stub));
 
     expect(result.success).toBe(false);
     if (!result.success) {
@@ -210,15 +230,14 @@ describe('lookupByMessageId', () => {
   });
 
   it('should report "by response" failure when fallback /by-response returns non-OK non-404', async () => {
-    // Regression guard for the pre-rearchitecture bug where the single `response`
-    // variable was reassigned and the catch-all error log incorrectly said
-    // "Fetch by message failed" even when the by-MESSAGE call had returned a
-    // normal 404 and the by-RESPONSE fallback was the one that failed.
-    vi.mocked(fetch)
-      .mockResolvedValueOnce(new Response('Not found', { status: 404 }))
-      .mockResolvedValueOnce(new Response('Service Unavailable', { status: 503 }));
+    // Invariant: the error message must identify WHICH fetch failed. When
+    // /by-message 404s and the /by-response fallback then errors, the
+    // surfaced HTTP code is the fallback's (503 here), not the original 404.
+    // Reusing a single response variable across both calls would shadow this.
+    stub.getDiagnosticByMessage.mockResolvedValue(err(404));
+    stub.getDiagnosticByResponse.mockResolvedValue(err(503));
 
-    const result = await lookupByMessageId('1234567890123456789', CALLER_USER_ID);
+    const result = await lookupByMessageId('1234567890123456789', asUserClient(stub));
 
     expect(result.success).toBe(false);
     if (!result.success) {
@@ -227,30 +246,23 @@ describe('lookupByMessageId', () => {
   });
 
   it('should return error for empty logs array', async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify({ logs: [], count: 0 }), { status: 200 })
+    stub.getDiagnosticByMessage.mockResolvedValue(
+      ok<DiagnosticLogsResponse>({ logs: [], count: 0 })
     );
 
-    const result = await lookupByMessageId('1234567890123456789', CALLER_USER_ID);
+    const result = await lookupByMessageId('1234567890123456789', asUserClient(stub));
     expect(result.success).toBe(false);
   });
 
   it('should use most recent log when multiple exist', async () => {
-    const mockPayload = createMockDiagnosticPayload();
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          logs: [
-            { id: 'log-2', requestId: 'newer-req', userId: '123456789', data: mockPayload },
-            { id: 'log-1', requestId: 'older-req', userId: '123456789', data: mockPayload },
-          ],
-          count: 2,
-        }),
-        { status: 200 }
-      )
+    stub.getDiagnosticByMessage.mockResolvedValue(
+      ok<DiagnosticLogsResponse>({
+        logs: [makeLog({ requestId: 'newer-req' }), makeLog({ requestId: 'older-req' })] as never,
+        count: 2,
+      })
     );
 
-    const result = await lookupByMessageId('1234567890123456789', CALLER_USER_ID);
+    const result = await lookupByMessageId('1234567890123456789', asUserClient(stub));
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.log.requestId).toBe('newer-req');
@@ -258,72 +270,41 @@ describe('lookupByMessageId', () => {
   });
 
   it('should return error for HTTP 500', async () => {
-    vi.mocked(fetch).mockResolvedValue(new Response('Internal Server Error', { status: 500 }));
+    stub.getDiagnosticByMessage.mockResolvedValue(err(500));
 
-    const result = await lookupByMessageId('1234567890123456789', CALLER_USER_ID);
+    const result = await lookupByMessageId('1234567890123456789', asUserClient(stub));
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.errorMessage).toContain('HTTP 500');
     }
   });
-
-  it('should forward callerUserId as X-User-Id header', async () => {
-    const mockPayload = createMockDiagnosticPayload();
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          logs: [{ id: 'log-uuid', requestId: 'req-1', userId: 'any', data: mockPayload }],
-          count: 1,
-        }),
-        { status: 200 }
-      )
-    );
-
-    await lookupByMessageId('1234567890123456789', 'my-user-id');
-
-    expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining('/admin/diagnostic/by-message/'),
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          'X-User-Id': 'my-user-id',
-        }),
-      })
-    );
-  });
 });
 
 describe('lookupByRequestId', () => {
-  beforeEach(() => vi.clearAllMocks());
+  let stub: StubClient;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stub = createStubClient();
+  });
   afterEach(() => vi.restoreAllMocks());
 
-  it('should call the direct endpoint', async () => {
-    const mockPayload = createMockDiagnosticPayload();
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          log: { id: 'log-uuid', requestId: 'test-req', userId: '123456789', data: mockPayload },
-        }),
-        { status: 200 }
-      )
+  it('should call userClient.getDiagnosticByRequestId', async () => {
+    stub.getDiagnosticByRequestId.mockResolvedValue(
+      ok<DiagnosticLogResponse>({ log: makeLog({ requestId: 'test-req' }) as never })
     );
 
-    const result = await lookupByRequestId('test-req', CALLER_USER_ID);
+    const result = await lookupByRequestId('test-req', asUserClient(stub));
 
-    expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining('/admin/diagnostic/test-req'),
-      expect.any(Object)
-    );
-    expect(fetch).not.toHaveBeenCalledWith(
-      expect.stringContaining('/by-message/'),
-      expect.any(Object)
-    );
+    expect(stub.getDiagnosticByRequestId).toHaveBeenCalledWith('test-req');
+    expect(stub.getDiagnosticByMessage).not.toHaveBeenCalled();
     expect(result.success).toBe(true);
   });
 
   it('should return 404 error message', async () => {
-    vi.mocked(fetch).mockResolvedValue(new Response('Not found', { status: 404 }));
+    stub.getDiagnosticByRequestId.mockResolvedValue(err(404));
 
-    const result = await lookupByRequestId('expired-req', CALLER_USER_ID);
+    const result = await lookupByRequestId('expired-req', asUserClient(stub));
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.errorMessage).toContain('Diagnostic log not found');
@@ -331,120 +312,67 @@ describe('lookupByRequestId', () => {
     }
   });
 
-  it('should URL-encode the request ID', async () => {
-    vi.mocked(fetch).mockResolvedValue(new Response('Not found', { status: 404 }));
+  it('should pass request ID to the client untouched', async () => {
+    // The generated client handles URL encoding internally; the lookup
+    // function just forwards the request ID string.
+    stub.getDiagnosticByRequestId.mockResolvedValue(err(404));
 
-    await lookupByRequestId('req/with/slashes', CALLER_USER_ID);
-    expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining('/admin/diagnostic/req%2Fwith%2Fslashes'),
-      expect.any(Object)
-    );
-  });
-
-  it('should include service auth header', async () => {
-    vi.mocked(fetch).mockResolvedValue(new Response('Not found', { status: 404 }));
-
-    await lookupByRequestId('test-req', CALLER_USER_ID);
-    expect(fetch).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          'X-Service-Auth': 'test-service-secret',
-        }),
-      })
-    );
+    await lookupByRequestId('req/with/slashes', asUserClient(stub));
+    expect(stub.getDiagnosticByRequestId).toHaveBeenCalledWith('req/with/slashes');
   });
 
   it('should include HTTP status in error message', async () => {
-    vi.mocked(fetch).mockResolvedValue(new Response('Service Unavailable', { status: 503 }));
+    stub.getDiagnosticByRequestId.mockResolvedValue(err(503));
 
-    const result = await lookupByRequestId('test-req', CALLER_USER_ID);
+    const result = await lookupByRequestId('test-req', asUserClient(stub));
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.errorMessage).toContain('HTTP 503');
     }
   });
-
-  it('should forward callerUserId as X-User-Id header', async () => {
-    const mockPayload = createMockDiagnosticPayload();
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          log: { id: 'log-uuid', requestId: 'test-req', userId: 'any', data: mockPayload },
-        }),
-        { status: 200 }
-      )
-    );
-
-    await lookupByRequestId('test-req', 'my-user-id');
-
-    expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining('/admin/diagnostic/test-req'),
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          'X-User-Id': 'my-user-id',
-        }),
-      })
-    );
-  });
 });
 
 describe('resolveDiagnosticLog', () => {
-  beforeEach(() => vi.clearAllMocks());
+  let stub: StubClient;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stub = createStubClient();
+  });
   afterEach(() => vi.restoreAllMocks());
 
   it('should route UUIDs to lookupByRequestId', async () => {
-    vi.mocked(fetch).mockResolvedValue(new Response('Not found', { status: 404 }));
+    stub.getDiagnosticByRequestId.mockResolvedValue(err(404));
 
-    await resolveDiagnosticLog('a1b2c3d4-e5f6-7890-abcd-ef1234567890', CALLER_USER_ID);
+    await resolveDiagnosticLog('a1b2c3d4-e5f6-7890-abcd-ef1234567890', asUserClient(stub));
 
-    expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining('/admin/diagnostic/a1b2c3d4-e5f6-7890-abcd-ef1234567890'),
-      expect.any(Object)
+    expect(stub.getDiagnosticByRequestId).toHaveBeenCalledWith(
+      'a1b2c3d4-e5f6-7890-abcd-ef1234567890'
     );
+    expect(stub.getDiagnosticByMessage).not.toHaveBeenCalled();
   });
 
   it('should route snowflakes to lookupByMessageId', async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify({ logs: [], count: 0 }), { status: 200 })
+    stub.getDiagnosticByMessage.mockResolvedValue(
+      ok<DiagnosticLogsResponse>({ logs: [], count: 0 })
     );
 
-    await resolveDiagnosticLog('1234567890123456789', CALLER_USER_ID);
+    await resolveDiagnosticLog('1234567890123456789', asUserClient(stub));
 
-    expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining('/by-message/1234567890123456789'),
-      expect.any(Object)
-    );
+    expect(stub.getDiagnosticByMessage).toHaveBeenCalledWith('1234567890123456789');
+    expect(stub.getDiagnosticByRequestId).not.toHaveBeenCalled();
   });
 
   it('should route message links to lookupByMessageId', async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify({ logs: [], count: 0 }), { status: 200 })
+    stub.getDiagnosticByMessage.mockResolvedValue(
+      ok<DiagnosticLogsResponse>({ logs: [], count: 0 })
     );
 
     await resolveDiagnosticLog(
       'https://discord.com/channels/111/222/9876543210987654321',
-      CALLER_USER_ID
+      asUserClient(stub)
     );
 
-    expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining('/by-message/9876543210987654321'),
-      expect.any(Object)
-    );
-  });
-
-  it('should forward callerUserId through to the underlying lookup', async () => {
-    vi.mocked(fetch).mockResolvedValue(new Response('Not found', { status: 404 }));
-
-    await resolveDiagnosticLog('a1b2c3d4-e5f6-7890-abcd-ef1234567890', 'user-123');
-
-    expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining('/admin/diagnostic/a1b2c3d4'),
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          'X-User-Id': 'user-123',
-        }),
-      })
-    );
+    expect(stub.getDiagnosticByMessage).toHaveBeenCalledWith('9876543210987654321');
   });
 });

@@ -18,6 +18,7 @@ import type {
   SafeCommandContext,
   DeferredCommandContext,
 } from '../../utils/commandContext/types.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import { InspectCustomIds } from './customIds.js';
 import { resolveDiagnosticLog, lookupByRequestId } from './lookup.js';
 import { buildDiagnosticEmbed } from './embed.js';
@@ -64,18 +65,18 @@ const VIEW_BUILDERS = {
  */
 async function execute(ctx: SafeCommandContext): Promise<void> {
   const context = ctx as DeferredCommandContext;
-  const callerUserId = context.user.id;
+  const { userClient } = clientsFor(context.interaction);
 
   const options = inspectOptions(context.interaction);
   const identifier = options.identifier();
 
   if (identifier === null || identifier === '') {
-    await handleRecentBrowse(context, callerUserId);
+    await handleRecentBrowse(context, userClient);
     return;
   }
 
   try {
-    const result = await resolveDiagnosticLog(identifier, callerUserId);
+    const result = await resolveDiagnosticLog(identifier, userClient);
 
     if (!result.success) {
       await context.editReply({ content: `\u274c ${result.errorMessage}` });
@@ -112,7 +113,7 @@ async function execute(ctx: SafeCommandContext): Promise<void> {
 async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promise<void> {
   // Browse select (must check before general inspect interaction)
   if (isInspectBrowseSelectInteraction(interaction.customId)) {
-    await handleBrowseLogSelection(interaction, interaction.user.id);
+    await handleBrowseLogSelection(interaction);
     return;
   }
 
@@ -133,8 +134,9 @@ async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promi
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
+  const { userClient } = clientsFor(interaction);
   try {
-    const result = await lookupByRequestId(parsed.requestId, interaction.user.id);
+    const result = await lookupByRequestId(parsed.requestId, userClient);
     if (!result.success) {
       await interaction.editReply({ content: `\u274c ${result.errorMessage}` });
       return;
@@ -174,7 +176,7 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
 
   // Browse pagination (must check before general inspect interaction)
   if (isInspectBrowseInteraction(customId)) {
-    await handleBrowsePagination(interaction, interaction.user.id);
+    await handleBrowsePagination(interaction);
     return;
   }
 
@@ -194,8 +196,9 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   }
 
+  const { userClient } = clientsFor(interaction);
   try {
-    const result = await lookupByRequestId(parsed.requestId, interaction.user.id);
+    const result = await lookupByRequestId(parsed.requestId, userClient);
     if (!result.success) {
       await interaction.editReply({ content: `\u274c ${result.errorMessage}` });
       return;

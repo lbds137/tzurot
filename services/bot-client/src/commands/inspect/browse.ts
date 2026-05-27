@@ -23,8 +23,12 @@ import {
   type StringSelectMenuInteraction,
   type MessageActionRowComponentBuilder,
 } from 'discord.js';
-import { z } from 'zod';
-import { createLogger, DISCORD_COLORS, formatRelativeTime } from '@tzurot/common-types';
+import {
+  createLogger,
+  DISCORD_COLORS,
+  formatRelativeTime,
+  type UserClient,
+} from '@tzurot/common-types';
 import {
   ITEMS_PER_PAGE,
   createBrowseCustomIdHelpers,
@@ -35,7 +39,7 @@ import {
   pluralize,
   formatPageIndicator,
 } from '../../utils/browse/index.js';
-import { adminFetch } from '../../utils/adminApiClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import { lookupByRequestId } from './lookup.js';
 import { buildDiagnosticEmbed } from './embed.js';
 import { buildInspectComponents } from './components.js';
@@ -43,26 +47,6 @@ import type { DeferredCommandContext } from '../../utils/commandContext/types.js
 import type { DiagnosticLogSummary } from './types.js';
 
 const logger = createLogger('inspect-browse');
-
-/** Runtime schema for diagnostic log summaries from the gateway */
-const DiagnosticLogSummarySchema = z.object({
-  id: z.string(),
-  requestId: z.string(),
-  personalityId: z.string().nullable(),
-  personalityName: z.string().nullable(),
-  userId: z.string().nullable(),
-  guildId: z.string().nullable(),
-  channelId: z.string().nullable(),
-  model: z.string(),
-  provider: z.string(),
-  durationMs: z.number(),
-  createdAt: z.string(),
-});
-
-const RecentLogsResponseSchema = z.object({
-  logs: z.array(DiagnosticLogSummarySchema),
-  count: z.number(),
-});
 
 // ---------------------------------------------------------------------------
 // Browse custom ID helpers (standard pattern, no sort)
@@ -84,19 +68,31 @@ const browseHelpers = createBrowseCustomIdHelpers<InspectBrowseFilter>({
 /**
  * Fetch recent diagnostic logs from the gateway.
  *
- * The caller's Discord ID is forwarded via `X-User-Id`. The gateway applies
- * the per-user filter server-side — bot owner sees all logs; non-owners see
- * only their own. No query-string `?userId=` plumbing needed.
+ * The caller's Discord ID is forwarded via the typed UserClient. The
+ * gateway applies the per-user filter server-side — bot owner sees all
+ * logs; non-owners see only their own. The owner-as-subject path uses
+ * `subject?: SubjectDiscordId` (not exposed here yet; inspect doesn't
+ * currently let owners drill into other users' logs through this
+ * command — the existing flow lets owners see everyone in the recent
+ * list because the server-side filter is identity-based).
  */
 export async function fetchRecentLogs(
-  callerUserId: string
+  userClient: UserClient
 ): Promise<{ logs: DiagnosticLogSummary[]; count: number }> {
-  const response = await adminFetch('/admin/diagnostic/recent', { userId: callerUserId });
-  if (!response.ok) {
-    throw new Error(`Failed to fetch recent logs: HTTP ${response.status}`);
+  const result = await userClient.getRecentDiagnostics();
+  if (!result.ok) {
+    throw new Error(`Failed to fetch recent logs: HTTP ${result.status}`);
   }
-  const data: unknown = await response.json();
-  return RecentLogsResponseSchema.parse(data);
+  // The schema-derived `createdAt` is `string | Date` (Express serializes
+  // Date → string; tests can pass Date directly). Normalize to ISO string
+  // for the local `DiagnosticLogSummary` shape.
+  return {
+    logs: result.data.logs.map(log => ({
+      ...log,
+      createdAt: typeof log.createdAt === 'string' ? log.createdAt : log.createdAt.toISOString(),
+    })),
+    count: result.data.count,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -243,10 +239,10 @@ export function buildBrowsePage(
  */
 export async function handleRecentBrowse(
   context: DeferredCommandContext,
-  callerUserId: string
+  userClient: UserClient
 ): Promise<void> {
   try {
-    const data = await fetchRecentLogs(callerUserId);
+    const data = await fetchRecentLogs(userClient);
     const { embeds, components } = buildBrowsePage(data.logs, 0);
     await context.editReply({ embeds, components });
   } catch (error) {
@@ -260,10 +256,7 @@ export async function handleRecentBrowse(
 /**
  * Button handler — pagination through browse list.
  */
-export async function handleBrowsePagination(
-  interaction: ButtonInteraction,
-  callerUserId: string
-): Promise<void> {
+export async function handleBrowsePagination(interaction: ButtonInteraction): Promise<void> {
   const parsed = browseHelpers.parse(interaction.customId);
   if (parsed === null) {
     return;
@@ -271,8 +264,9 @@ export async function handleBrowsePagination(
 
   await interaction.deferUpdate();
 
+  const { userClient } = clientsFor(interaction);
   try {
-    const data = await fetchRecentLogs(callerUserId);
+    const data = await fetchRecentLogs(userClient);
     const { embeds, components } = buildBrowsePage(data.logs, parsed.page);
     await interaction.editReply({ embeds, components });
   } catch (error) {
@@ -289,8 +283,7 @@ export async function handleBrowsePagination(
  * Select handler — drill into a specific log from the browse list.
  */
 export async function handleBrowseLogSelection(
-  interaction: StringSelectMenuInteraction,
-  callerUserId: string
+  interaction: StringSelectMenuInteraction
 ): Promise<void> {
   const parsed = browseHelpers.parseSelect(interaction.customId);
   if (parsed === null) {
@@ -299,9 +292,10 @@ export async function handleBrowseLogSelection(
 
   await interaction.deferUpdate();
 
+  const { userClient } = clientsFor(interaction);
   const requestId = interaction.values[0];
   try {
-    const result = await lookupByRequestId(requestId, callerUserId);
+    const result = await lookupByRequestId(requestId, userClient);
     if (!result.success) {
       await interaction.editReply({
         content: `\u274c ${result.errorMessage}`,

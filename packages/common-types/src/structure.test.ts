@@ -9,6 +9,20 @@
  * - *.d.ts (type definitions)
  * - types.ts, types/*.ts (type-only files)
  * - constants.ts, constants/*.ts (constant-only files)
+ *
+ * Cross-package scan ↔ turbo cache contract:
+ *
+ * This test scans all six packages' src directories (see findSourceFiles
+ * call below). Because the test physically lives in @tzurot/common-types,
+ * turbo.json overrides @tzurot/common-types#test to include sibling
+ * services and packages src globs as cache inputs — without that, a new
+ * file added under services/bot-client/src with no colocated test would
+ * leave common-types' test cache valid (its OWN src didn't change),
+ * turbo would replay the cached pass, and the missing test would slip
+ * past local pnpm test only to fail in fresh-cache CI.
+ *
+ * If you broaden the dirs scanned below, broaden the matching inputs in
+ * turbo.json (and vice versa). Keep them in lockstep.
  */
 
 import { describe, it, expect } from 'vitest';

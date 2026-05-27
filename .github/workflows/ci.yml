@@ -92,6 +92,13 @@ jobs:
         # produce. To fix locally: `pnpm ops codegen:routes` then commit.
         run: pnpm ops codegen:routes --check
 
+      - name: Enforce legacy gateway-callsite burn-down (route-manifest cutover gate)
+        # Transitional gate for the route-manifest cutover. Counts adminFetch +
+        # callGatewayApi callsites in services/bot-client/src and fails if
+        # either rises above the stored baseline. Deleted (with the baseline
+        # file) once both counts reach zero.
+        run: pnpm ops legacy:count
+
       - name: Check for duplicate export names
         run: pnpm ops guard:duplicate-exports
 
