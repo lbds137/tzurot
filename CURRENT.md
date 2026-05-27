@@ -7,13 +7,13 @@
 
 ## Next Session Goal
 
-**Active epic**: **Route Manifest Scaffold + Typed-Client Codegen** ([active-epic.md](backlog/active-epic.md)) — Phase 3 in progress. **PR-1.5d shipped to develop** (PR #1098, merged 2026-05-26) closing the three PR #1097 follow-ups; epic retrofitted into `active-epic.md` after the user flagged we'd been shipping 6+ PRs on a cohesive arc with no tracker.
+**Active epic**: **Route Manifest Scaffold + Typed-Client Codegen** ([active-epic.md](backlog/active-epic.md)) — Phase 3 in progress. **PR-1.5e shipped to develop** (PR #1099, merged 2026-05-26) — preview-token handshake (eliminates filter drift between batch-delete preview and execute), idempotent PUT lock route, peek-validate-consume pattern (avoids token-waste on 404), plus RouteDef foundation extensions (query union form + pagination factory + branded token types). 8 commits; 4 review rounds; closed cleanly.
 
-**Next under the epic** (recommend running both open design questions through the council per `feedback_council_models_for_design`: GLM 5.1, Kimi K2.6, Qwen 3.7 Max, parallel):
+**Next under the epic**:
 
-1. **PR-1.5e: user/memory main CRUD** — ~10 dynamic-filter routes. **Open design**: the dynamic-filter handler pattern (build `where` from query params) doesn't fit `RouteDef.query`'s static shape cleanly. Options: (a) declare union of all filter fields as optional query params, (b) POST with body-shaped query schema, (c) keep manifest-out.
-2. **PR-1.5f: admin/diagnostic audience lift** — 5 admin-tier routes that could lift to user audience with `acceptsSubject: true`. **Open design**: 4 of 9 diagnostic routes already lifted in PR-1.5c; the 5 remaining are more sensitive — needs user decision.
-3. **PR-2 (future): route-prefix cutover** — atomic switch from legacy `/admin /user /internal` mounts to generated `mountAdminRoutes/mountUserRoutes/mountInternalRoutes` + migrate all 173+ bot-client call sites. Single deploy-gap PR. Two backlog items already filed under this trigger.
+1. **PR-1.5f: declare 13 memory routes in manifest** — close the deferred Phase 5 from PR-1.5e. Refactor 13 memory handlers to `(deps: RouteDeps) => RequestHandler` shape so codegen can mount them; add response schemas for stats/list/focus/search/batch/single CRUD; add manifest entries + PATH_MAP entries; regenerate `_generated/`. **Structural blocker surfaced**: `asyncHandler` returns `void` (not `Promise<void>`), so multi-await handler tests don't reliably observe completion via `await handler(req, res)`. Decision pending: either (a) modify asyncHandler to return its IIFE's promise (project-wide change, low blast radius), or (b) per-file `extractHandler` test pattern with microtask flushing. **Branch**: `feat/pr-1.5f-memory-manifest`; WIP stashed at `stash@{0}: WIP PR-1.5f memorySingle refactor`.
+2. **PR-1.5g: admin/diagnostic audience lift** — 5 admin-tier routes that could lift to user audience with `acceptsSubject: true`. **Open design**: 4 of 9 diagnostic routes already lifted in PR-1.5c; the 5 remaining are more sensitive — needs user decision.
+3. **PR-2 (future): route-prefix cutover** — atomic switch from legacy `/admin /user /internal` mounts to generated `mountAdminRoutes/mountUserRoutes/mountInternalRoutes` + migrate all 173+ bot-client call sites. Single deploy-gap PR. Three backlog items already filed under this trigger.
 
 **Other candidates** (off-epic):
 
