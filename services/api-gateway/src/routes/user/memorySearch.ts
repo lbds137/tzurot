@@ -3,9 +3,11 @@
  * Semantic and text-based search of long-term memories
  */
 
-import type { Response } from 'express';
+import type { RequestHandler, Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { createLogger, Prisma, type PrismaClient, MemorySearchSchema } from '@tzurot/common-types';
+import type { RouteDeps } from '../routeDeps.js';
+import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
@@ -272,90 +274,90 @@ async function executeSemanticSearchWithFallback(
 }
 
 /** Handler for POST /user/memory/search */
-export async function handleSearch(
-  prisma: PrismaClient,
-  req: ProvisionedRequest,
-  res: Response
-): Promise<void> {
-  if (!isEmbeddingServiceAvailable()) {
-    sendError(res, ErrorResponses.serviceUnavailable('Memory search is not configured'));
-    return;
-  }
 
-  const discordUserId = req.userId;
-
-  const parseResult = MemorySearchSchema.safeParse(req.body);
-  if (!parseResult.success) {
-    sendZodError(res, parseResult.error);
-    return;
-  }
-
-  const { query, personalityId, limit, offset, dateFrom, dateTo, preferTextSearch } =
-    parseResult.data;
-
-  const effectiveLimit = Math.min(
-    Math.max(1, limit ?? SEARCH_DEFAULTS.limit),
-    SEARCH_DEFAULTS.maxLimit
-  );
-  const effectiveOffset = Math.max(0, offset ?? 0);
-
-  const userId = resolveProvisionedUserId(req);
-
-  const personaId = await getDefaultPersonaId(prisma, userId);
-  if (personaId === null) {
-    sendCustomSuccess(res, { results: [], count: 0, hasMore: false }, StatusCodes.OK);
-    return;
-  }
-
-  // Validate date strings to prevent PostgreSQL errors
-  const dateValidation = validateDateFilters(dateFrom, dateTo);
-  if ('error' in dateValidation) {
-    sendError(res, ErrorResponses.validationError(dateValidation.error));
-    return;
-  }
-
-  const filters: SearchFilters = {
-    personaId,
-    personalityId,
-    dateFrom: dateValidation.dateFrom,
-    dateTo: dateValidation.dateTo,
-  };
-
-  let output: SearchOutput;
-
-  // Skip semantic search if client hints that text search is preferred (e.g., pagination after fallback)
-  if (preferTextSearch === true) {
-    output = await executeTextSearch(prisma, query, filters, effectiveLimit, effectiveOffset);
-  } else {
-    const result = await executeSemanticSearchWithFallback(
-      prisma,
-      query,
-      filters,
-      effectiveLimit,
-      effectiveOffset
-    );
-
-    if ('error' in result) {
-      if (result.error === 'embedding_unavailable') {
-        sendError(res, ErrorResponses.serviceUnavailable('Failed to generate search embedding'));
-      } else {
-        sendError(res, ErrorResponses.internalError('Search embedding generation failed'));
-      }
+export const handleSearch = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
+    if (!isEmbeddingServiceAvailable()) {
+      sendError(res, ErrorResponses.serviceUnavailable('Memory search is not configured'));
       return;
     }
 
-    output = result;
-  }
+    const discordUserId = req.userId;
 
-  logger.debug(
-    {
-      discordUserId,
-      queryLength: query.length,
+    const parseResult = MemorySearchSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      sendZodError(res, parseResult.error);
+      return;
+    }
+
+    const { query, personalityId, limit, offset, dateFrom, dateTo, preferTextSearch } =
+      parseResult.data;
+
+    const effectiveLimit = Math.min(
+      Math.max(1, limit ?? SEARCH_DEFAULTS.limit),
+      SEARCH_DEFAULTS.maxLimit
+    );
+    const effectiveOffset = Math.max(0, offset ?? 0);
+
+    const userId = resolveProvisionedUserId(req);
+
+    const personaId = await getDefaultPersonaId(prisma, userId);
+    if (personaId === null) {
+      sendCustomSuccess(res, { results: [], count: 0, hasMore: false }, StatusCodes.OK);
+      return;
+    }
+
+    // Validate date strings to prevent PostgreSQL errors
+    const dateValidation = validateDateFilters(dateFrom, dateTo);
+    if ('error' in dateValidation) {
+      sendError(res, ErrorResponses.validationError(dateValidation.error));
+      return;
+    }
+
+    const filters: SearchFilters = {
+      personaId,
       personalityId,
-      resultCount: output.count,
-      searchType: output.searchType,
-    },
-    `Search completed${output.searchType === 'text' ? ' (text fallback)' : ''}`
-  );
-  sendCustomSuccess(res, output, StatusCodes.OK);
-}
+      dateFrom: dateValidation.dateFrom,
+      dateTo: dateValidation.dateTo,
+    };
+
+    let output: SearchOutput;
+
+    // Skip semantic search if client hints that text search is preferred (e.g., pagination after fallback)
+    if (preferTextSearch === true) {
+      output = await executeTextSearch(prisma, query, filters, effectiveLimit, effectiveOffset);
+    } else {
+      const result = await executeSemanticSearchWithFallback(
+        prisma,
+        query,
+        filters,
+        effectiveLimit,
+        effectiveOffset
+      );
+
+      if ('error' in result) {
+        if (result.error === 'embedding_unavailable') {
+          sendError(res, ErrorResponses.serviceUnavailable('Failed to generate search embedding'));
+        } else {
+          sendError(res, ErrorResponses.internalError('Search embedding generation failed'));
+        }
+        return;
+      }
+
+      output = result;
+    }
+
+    logger.debug(
+      {
+        discordUserId,
+        queryLength: query.length,
+        personalityId,
+        resultCount: output.count,
+        searchType: output.searchType,
+      },
+      `Search completed${output.searchType === 'text' ? ' (text fallback)' : ''}`
+    );
+    sendCustomSuccess(res, output, StatusCodes.OK);
+  });
+};

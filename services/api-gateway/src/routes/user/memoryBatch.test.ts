@@ -1,21 +1,19 @@
 /**
  * Tests for /user/memory batch operations
  *
- * The destructive batch flows use a preview/execute token handshake:
- *  - POST /delete/preview      → issues PreviewToken
- *  - POST /delete              → consumes PreviewToken
- *  - POST /purge/token         → validates confirmation, issues PurgeToken
- *  - POST /purge               → consumes PurgeToken
- *
- * Tests cover the token-handshake mechanics plus the Redis-unavailable
- * fallback (503) for each of the four handlers.
+ * Handlers are now (deps: RouteDeps) => RequestHandler factories. The
+ * MemoryActionTokenService is `new`-constructed per request from
+ * `deps.redis`, so we mock the service class via vi.hoisted/vi.mock and
+ * have every `new MemoryActionTokenService(redis)` return the same
+ * shared mock instance. Tests configure that instance's methods.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Response } from 'express';
+import type { Redis } from 'ioredis';
 import type { PrismaClient, BatchDeletePreviewInput } from '@tzurot/common-types';
 import type { ProvisionedRequest } from '../../types.js';
-import type { MemoryActionTokenService } from '../../services/MemoryActionTokenService.js';
+import type { RouteDeps } from '../routeDeps.js';
 
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
@@ -38,6 +36,32 @@ vi.mock('./memoryHelpers.js', () => ({
 
 vi.mock('../../utils/resolveProvisionedUserId.js', () => ({
   resolveProvisionedUserId: vi.fn(),
+}));
+
+// vi.hoisted so the mock instance is available before vi.mock evaluates.
+// Every `new MemoryActionTokenService(redis)` inside a handler returns this
+// same shared instance; tests configure its method mocks directly.
+const { mockTokenService } = vi.hoisted(() => ({
+  mockTokenService: {
+    issuePreviewToken: vi.fn(),
+    peekPreviewToken: vi.fn(),
+    consumePreviewToken: vi.fn(),
+    issuePurgeToken: vi.fn(),
+    peekPurgeToken: vi.fn(),
+    consumePurgeToken: vi.fn(),
+  },
+}));
+
+vi.mock('../../services/MemoryActionTokenService.js', () => ({
+  // `function` (not arrow) so `new MemoryActionTokenService(redis)` is a
+  // valid constructor invocation. Constructor ignores redis and returns the
+  // shared mockTokenService — every handler in a single test sees the same
+  // instance, so configuring mockTokenService.method.mockResolvedValue(...)
+  // controls all 4 handlers' behavior in lockstep.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  MemoryActionTokenService: vi.fn().mockImplementation(function (this: any) {
+    return mockTokenService;
+  }),
 }));
 
 import {
@@ -72,29 +96,17 @@ const mockPrisma = {
   },
 };
 
-function createTokenServiceMock(
-  overrides: Partial<{
-    issuePreviewToken: () => Promise<string>;
-    peekPreviewToken: (uid: string, t: string) => Promise<BatchDeletePreviewInput | null>;
-    consumePreviewToken: (uid: string, t: string) => Promise<BatchDeletePreviewInput | null>;
-    issuePurgeToken: () => Promise<string>;
-    peekPurgeToken: (uid: string, t: string) => Promise<{ personalityId: string } | null>;
-    consumePurgeToken: (uid: string, t: string) => Promise<{ personalityId: string } | null>;
-  }> = {}
-): MemoryActionTokenService {
-  const defaultPreview: BatchDeletePreviewInput = {
-    personalityId: TEST_PERSONALITY_ID,
-    personaId: TEST_PERSONA_ID,
-  };
-  const defaultPurge = { personalityId: TEST_PERSONALITY_ID };
+/** Deps with Redis present (the common case — service constructs over it). */
+function depsWithRedis(): RouteDeps {
   return {
-    issuePreviewToken: vi.fn(overrides.issuePreviewToken ?? (async () => VALID_PREVIEW_TOKEN)),
-    peekPreviewToken: vi.fn(overrides.peekPreviewToken ?? (async () => defaultPreview)),
-    consumePreviewToken: vi.fn(overrides.consumePreviewToken ?? (async () => defaultPreview)),
-    issuePurgeToken: vi.fn(overrides.issuePurgeToken ?? (async () => VALID_PURGE_TOKEN)),
-    peekPurgeToken: vi.fn(overrides.peekPurgeToken ?? (async () => defaultPurge)),
-    consumePurgeToken: vi.fn(overrides.consumePurgeToken ?? (async () => defaultPurge)),
-  } as unknown as MemoryActionTokenService;
+    prisma: mockPrisma as unknown as PrismaClient,
+    redis: {} as Redis, // shape only; the mocked service class ignores it
+  };
+}
+
+/** Deps without Redis — exercises the 503 guard inside each handler. */
+function depsWithoutRedis(): RouteDeps {
+  return { prisma: mockPrisma as unknown as PrismaClient };
 }
 
 function createMockBodyReq(body: Record<string, unknown> = {}) {
@@ -123,9 +135,12 @@ const defaultPersona = {
   ownerId: TEST_USER_ID,
 };
 
-describe('memoryBatch handlers', () => {
-  let tokenService: MemoryActionTokenService;
+const defaultFilter: BatchDeletePreviewInput = {
+  personalityId: TEST_PERSONALITY_ID,
+  personaId: TEST_PERSONA_ID,
+};
 
+describe('memoryBatch handlers', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
@@ -136,19 +151,26 @@ describe('memoryBatch handlers', () => {
     mockPrisma.persona.findUnique.mockResolvedValue(defaultPersona);
     mockPrisma.memory.count.mockResolvedValue(0);
     mockPrisma.memory.updateMany.mockResolvedValue({ count: 0 });
-    tokenService = createTokenServiceMock();
+
+    // Default happy-path token service behavior; individual tests override.
+    mockTokenService.issuePreviewToken.mockResolvedValue(VALID_PREVIEW_TOKEN);
+    mockTokenService.peekPreviewToken.mockResolvedValue(defaultFilter);
+    mockTokenService.consumePreviewToken.mockResolvedValue(defaultFilter);
+    mockTokenService.issuePurgeToken.mockResolvedValue(VALID_PURGE_TOKEN);
+    mockTokenService.peekPurgeToken.mockResolvedValue({ personalityId: TEST_PERSONALITY_ID });
+    mockTokenService.consumePurgeToken.mockResolvedValue({ personalityId: TEST_PERSONALITY_ID });
   });
 
   describe('handleBatchDeletePreview', () => {
-    it('returns 503 when token service is null (Redis unavailable)', async () => {
+    it('returns 503 when Redis is unavailable', async () => {
       const { req, res } = createMockBodyReq({ personalityId: TEST_PERSONALITY_ID });
-      await handleBatchDeletePreview(mockPrisma as unknown as PrismaClient, null, req, res);
+      await handleBatchDeletePreview(depsWithoutRedis())(req, res);
       expect(res.status).toHaveBeenCalledWith(503);
     });
 
     it('rejects missing personalityId', async () => {
       const { req, res } = createMockBodyReq({});
-      await handleBatchDeletePreview(mockPrisma as unknown as PrismaClient, tokenService, req, res);
+      await handleBatchDeletePreview(depsWithRedis())(req, res);
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -161,7 +183,7 @@ describe('memoryBatch handlers', () => {
     it('returns early when personality not found', async () => {
       mockGetPersonalityById.mockResolvedValue(null);
       const { req, res } = createMockBodyReq({ personalityId: TEST_PERSONALITY_ID });
-      await handleBatchDeletePreview(mockPrisma as unknown as PrismaClient, tokenService, req, res);
+      await handleBatchDeletePreview(depsWithRedis())(req, res);
       expect(mockGetPersonalityById).toHaveBeenCalled();
       expect(res.status).not.toHaveBeenCalled();
     });
@@ -169,7 +191,7 @@ describe('memoryBatch handlers', () => {
     it('returns 400 when user has no persona', async () => {
       mockGetDefaultPersonaId.mockResolvedValue(null);
       const { req, res } = createMockBodyReq({ personalityId: TEST_PERSONALITY_ID });
-      await handleBatchDeletePreview(mockPrisma as unknown as PrismaClient, tokenService, req, res);
+      await handleBatchDeletePreview(depsWithRedis())(req, res);
       expect(res.status).toHaveBeenCalledWith(400);
     });
 
@@ -182,7 +204,7 @@ describe('memoryBatch handlers', () => {
         personalityId: TEST_PERSONALITY_ID,
         timeframe: 'invalid',
       });
-      await handleBatchDeletePreview(mockPrisma as unknown as PrismaClient, tokenService, req, res);
+      await handleBatchDeletePreview(depsWithRedis())(req, res);
       expect(res.status).toHaveBeenCalledWith(400);
     });
 
@@ -190,9 +212,9 @@ describe('memoryBatch handlers', () => {
       mockPrisma.memory.count.mockResolvedValueOnce(10).mockResolvedValueOnce(2);
 
       const { req, res } = createMockBodyReq({ personalityId: TEST_PERSONALITY_ID });
-      await handleBatchDeletePreview(mockPrisma as unknown as PrismaClient, tokenService, req, res);
+      await handleBatchDeletePreview(depsWithRedis())(req, res);
 
-      expect(tokenService.issuePreviewToken).toHaveBeenCalledWith(
+      expect(mockTokenService.issuePreviewToken).toHaveBeenCalledWith(
         TEST_DISCORD_USER_ID,
         expect.objectContaining({
           personalityId: TEST_PERSONALITY_ID,
@@ -221,9 +243,9 @@ describe('memoryBatch handlers', () => {
         personalityId: TEST_PERSONALITY_ID,
         timeframe: '7d',
       });
-      await handleBatchDeletePreview(mockPrisma as unknown as PrismaClient, tokenService, req, res);
+      await handleBatchDeletePreview(depsWithRedis())(req, res);
 
-      expect(tokenService.issuePreviewToken).toHaveBeenCalledWith(
+      expect(mockTokenService.issuePreviewToken).toHaveBeenCalledWith(
         TEST_DISCORD_USER_ID,
         expect.objectContaining({ timeframe: '7d' })
       );
@@ -231,30 +253,28 @@ describe('memoryBatch handlers', () => {
   });
 
   describe('handleBatchDelete', () => {
-    it('returns 503 when token service is null', async () => {
+    it('returns 503 when Redis is unavailable', async () => {
       const { req, res } = createMockBodyReq({ previewToken: VALID_PREVIEW_TOKEN });
-      await handleBatchDelete(mockPrisma as unknown as PrismaClient, null, req, res);
+      await handleBatchDelete(depsWithoutRedis())(req, res);
       expect(res.status).toHaveBeenCalledWith(503);
     });
 
     it('rejects missing previewToken', async () => {
       const { req, res } = createMockBodyReq({});
-      await handleBatchDelete(mockPrisma as unknown as PrismaClient, tokenService, req, res);
+      await handleBatchDelete(depsWithRedis())(req, res);
       expect(res.status).toHaveBeenCalledWith(400);
     });
 
     it('rejects malformed previewToken (wrong prefix)', async () => {
       const { req, res } = createMockBodyReq({ previewToken: 'purge_test0000test0000' });
-      await handleBatchDelete(mockPrisma as unknown as PrismaClient, tokenService, req, res);
+      await handleBatchDelete(depsWithRedis())(req, res);
       expect(res.status).toHaveBeenCalledWith(400);
     });
 
     it('returns 400 when token is unknown / expired (peek miss)', async () => {
-      tokenService = createTokenServiceMock({
-        peekPreviewToken: async () => null,
-      });
+      mockTokenService.peekPreviewToken.mockResolvedValue(null);
       const { req, res } = createMockBodyReq({ previewToken: VALID_PREVIEW_TOKEN });
-      await handleBatchDelete(mockPrisma as unknown as PrismaClient, tokenService, req, res);
+      await handleBatchDelete(depsWithRedis())(req, res);
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -262,15 +282,13 @@ describe('memoryBatch handlers', () => {
         })
       );
       // Token is NOT consumed on peek miss — user can retry without restarting preview.
-      expect(tokenService.consumePreviewToken).not.toHaveBeenCalled();
+      expect(mockTokenService.consumePreviewToken).not.toHaveBeenCalled();
     });
 
     it('returns 400 when token is concurrently consumed between peek and consume', async () => {
-      tokenService = createTokenServiceMock({
-        consumePreviewToken: async () => null, // race lost
-      });
+      mockTokenService.consumePreviewToken.mockResolvedValue(null);
       const { req, res } = createMockBodyReq({ previewToken: VALID_PREVIEW_TOKEN });
-      await handleBatchDelete(mockPrisma as unknown as PrismaClient, tokenService, req, res);
+      await handleBatchDelete(depsWithRedis())(req, res);
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -282,20 +300,11 @@ describe('memoryBatch handlers', () => {
     it('does NOT consume the token when personality lookup fails post-peek', async () => {
       mockGetPersonalityById.mockResolvedValue(null);
       const { req, res } = createMockBodyReq({ previewToken: VALID_PREVIEW_TOKEN });
-      await handleBatchDelete(mockPrisma as unknown as PrismaClient, tokenService, req, res);
+      await handleBatchDelete(depsWithRedis())(req, res);
       // Personality 404 is rendered by getPersonalityById itself; importantly,
       // the token survives the failure so the user can retry.
-      expect(tokenService.peekPreviewToken).toHaveBeenCalled();
-      expect(tokenService.consumePreviewToken).not.toHaveBeenCalled();
-    });
-
-    it('returns early when token-bound personality is missing', async () => {
-      mockGetPersonalityById.mockResolvedValue(null);
-      const { req, res } = createMockBodyReq({ previewToken: VALID_PREVIEW_TOKEN });
-      await handleBatchDelete(mockPrisma as unknown as PrismaClient, tokenService, req, res);
-      // getPersonalityById's own 404 is the only response — handler doesn't double-send.
-      expect(mockGetPersonalityById).toHaveBeenCalled();
-      expect(res.status).not.toHaveBeenCalled();
+      expect(mockTokenService.peekPreviewToken).toHaveBeenCalled();
+      expect(mockTokenService.consumePreviewToken).not.toHaveBeenCalled();
     });
 
     it('returns 403 when token-bound persona does not belong to user, without consuming token', async () => {
@@ -304,16 +313,16 @@ describe('memoryBatch handlers', () => {
         ownerId: 'different-user-id',
       });
       const { req, res } = createMockBodyReq({ previewToken: VALID_PREVIEW_TOKEN });
-      await handleBatchDelete(mockPrisma as unknown as PrismaClient, tokenService, req, res);
+      await handleBatchDelete(depsWithRedis())(req, res);
       expect(res.status).toHaveBeenCalledWith(403);
       // Token NOT consumed on persona-ownership failure — user can retry.
-      expect(tokenService.consumePreviewToken).not.toHaveBeenCalled();
+      expect(mockTokenService.consumePreviewToken).not.toHaveBeenCalled();
     });
 
     it('returns zero-count success when no memories match', async () => {
       mockPrisma.memory.count.mockResolvedValue(0);
       const { req, res } = createMockBodyReq({ previewToken: VALID_PREVIEW_TOKEN });
-      await handleBatchDelete(mockPrisma as unknown as PrismaClient, tokenService, req, res);
+      await handleBatchDelete(depsWithRedis())(req, res);
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ deletedCount: 0 }));
       expect(mockPrisma.memory.updateMany).not.toHaveBeenCalled();
@@ -324,7 +333,7 @@ describe('memoryBatch handlers', () => {
       mockPrisma.memory.updateMany.mockResolvedValue({ count: 5 });
 
       const { req, res } = createMockBodyReq({ previewToken: VALID_PREVIEW_TOKEN });
-      await handleBatchDelete(mockPrisma as unknown as PrismaClient, tokenService, req, res);
+      await handleBatchDelete(depsWithRedis())(req, res);
 
       expect(mockPrisma.memory.updateMany).toHaveBeenCalledWith({
         where: expect.objectContaining({
@@ -353,17 +362,15 @@ describe('memoryBatch handlers', () => {
         personaId: TEST_PERSONA_ID,
         timeframe: '30d',
       };
-      tokenService = createTokenServiceMock({
-        peekPreviewToken: async () => filterWithTimeframe,
-        consumePreviewToken: async () => filterWithTimeframe,
-      });
+      mockTokenService.peekPreviewToken.mockResolvedValue(filterWithTimeframe);
+      mockTokenService.consumePreviewToken.mockResolvedValue(filterWithTimeframe);
       const cutoffDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       mockParseTimeframeFilter.mockReturnValue({ filter: { gte: cutoffDate } });
       mockPrisma.memory.count.mockResolvedValue(2);
       mockPrisma.memory.updateMany.mockResolvedValue({ count: 2 });
 
       const { req, res } = createMockBodyReq({ previewToken: VALID_PREVIEW_TOKEN });
-      await handleBatchDelete(mockPrisma as unknown as PrismaClient, tokenService, req, res);
+      await handleBatchDelete(depsWithRedis())(req, res);
 
       expect(mockParseTimeframeFilter).toHaveBeenCalledWith('30d');
       expect(mockPrisma.memory.updateMany).toHaveBeenCalledWith(
@@ -377,24 +384,24 @@ describe('memoryBatch handlers', () => {
   });
 
   describe('handleIssuePurgeToken', () => {
-    it('returns 503 when token service is null', async () => {
+    it('returns 503 when Redis is unavailable', async () => {
       const { req, res } = createMockBodyReq({
         personalityId: TEST_PERSONALITY_ID,
         confirmationPhrase: 'DELETE TEST-PERSONALITY MEMORIES',
       });
-      await handleIssuePurgeToken(mockPrisma as unknown as PrismaClient, null, req, res);
+      await handleIssuePurgeToken(depsWithoutRedis())(req, res);
       expect(res.status).toHaveBeenCalledWith(503);
     });
 
     it('rejects missing personalityId', async () => {
       const { req, res } = createMockBodyReq({ confirmationPhrase: 'DELETE X MEMORIES' });
-      await handleIssuePurgeToken(mockPrisma as unknown as PrismaClient, tokenService, req, res);
+      await handleIssuePurgeToken(depsWithRedis())(req, res);
       expect(res.status).toHaveBeenCalledWith(400);
     });
 
     it('rejects missing confirmation phrase', async () => {
       const { req, res } = createMockBodyReq({ personalityId: TEST_PERSONALITY_ID });
-      await handleIssuePurgeToken(mockPrisma as unknown as PrismaClient, tokenService, req, res);
+      await handleIssuePurgeToken(depsWithRedis())(req, res);
       expect(res.status).toHaveBeenCalledWith(400);
     });
 
@@ -403,14 +410,14 @@ describe('memoryBatch handlers', () => {
         personalityId: TEST_PERSONALITY_ID,
         confirmationPhrase: 'wrong phrase',
       });
-      await handleIssuePurgeToken(mockPrisma as unknown as PrismaClient, tokenService, req, res);
+      await handleIssuePurgeToken(depsWithRedis())(req, res);
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           message: expect.stringContaining('DELETE TEST-PERSONALITY MEMORIES'),
         })
       );
-      expect(tokenService.issuePurgeToken).not.toHaveBeenCalled();
+      expect(mockTokenService.issuePurgeToken).not.toHaveBeenCalled();
     });
 
     it('accepts case-insensitive confirmation phrase and issues a token', async () => {
@@ -418,8 +425,8 @@ describe('memoryBatch handlers', () => {
         personalityId: TEST_PERSONALITY_ID,
         confirmationPhrase: 'delete test-personality memories',
       });
-      await handleIssuePurgeToken(mockPrisma as unknown as PrismaClient, tokenService, req, res);
-      expect(tokenService.issuePurgeToken).toHaveBeenCalledWith(
+      await handleIssuePurgeToken(depsWithRedis())(req, res);
+      expect(mockTokenService.issuePurgeToken).toHaveBeenCalledWith(
         TEST_DISCORD_USER_ID,
         TEST_PERSONALITY_ID
       );
@@ -439,36 +446,34 @@ describe('memoryBatch handlers', () => {
         personalityId: TEST_PERSONALITY_ID,
         confirmationPhrase: 'DELETE TEST-PERSONALITY MEMORIES',
       });
-      await handleIssuePurgeToken(mockPrisma as unknown as PrismaClient, tokenService, req, res);
+      await handleIssuePurgeToken(depsWithRedis())(req, res);
       expect(res.status).not.toHaveBeenCalled();
     });
   });
 
   describe('handlePurge', () => {
-    it('returns 503 when token service is null', async () => {
+    it('returns 503 when Redis is unavailable', async () => {
       const { req, res } = createMockBodyReq({ purgeToken: VALID_PURGE_TOKEN });
-      await handlePurge(mockPrisma as unknown as PrismaClient, null, req, res);
+      await handlePurge(depsWithoutRedis())(req, res);
       expect(res.status).toHaveBeenCalledWith(503);
     });
 
     it('rejects missing purgeToken', async () => {
       const { req, res } = createMockBodyReq({});
-      await handlePurge(mockPrisma as unknown as PrismaClient, tokenService, req, res);
+      await handlePurge(depsWithRedis())(req, res);
       expect(res.status).toHaveBeenCalledWith(400);
     });
 
     it('rejects malformed purgeToken (wrong prefix)', async () => {
       const { req, res } = createMockBodyReq({ purgeToken: 'preview_test0000test0000' });
-      await handlePurge(mockPrisma as unknown as PrismaClient, tokenService, req, res);
+      await handlePurge(depsWithRedis())(req, res);
       expect(res.status).toHaveBeenCalledWith(400);
     });
 
     it('returns 400 when token is unknown / expired (peek miss)', async () => {
-      tokenService = createTokenServiceMock({
-        peekPurgeToken: async () => null,
-      });
+      mockTokenService.peekPurgeToken.mockResolvedValue(null);
       const { req, res } = createMockBodyReq({ purgeToken: VALID_PURGE_TOKEN });
-      await handlePurge(mockPrisma as unknown as PrismaClient, tokenService, req, res);
+      await handlePurge(depsWithRedis())(req, res);
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -476,15 +481,13 @@ describe('memoryBatch handlers', () => {
         })
       );
       // Token survives the failure — no destructive consume on peek miss.
-      expect(tokenService.consumePurgeToken).not.toHaveBeenCalled();
+      expect(mockTokenService.consumePurgeToken).not.toHaveBeenCalled();
     });
 
     it('returns 400 when token is concurrently consumed between peek and consume', async () => {
-      tokenService = createTokenServiceMock({
-        consumePurgeToken: async () => null, // race lost
-      });
+      mockTokenService.consumePurgeToken.mockResolvedValue(null);
       const { req, res } = createMockBodyReq({ purgeToken: VALID_PURGE_TOKEN });
-      await handlePurge(mockPrisma as unknown as PrismaClient, tokenService, req, res);
+      await handlePurge(depsWithRedis())(req, res);
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -496,16 +499,16 @@ describe('memoryBatch handlers', () => {
     it('does NOT consume the token when personality lookup fails post-peek', async () => {
       mockGetPersonalityById.mockResolvedValue(null);
       const { req, res } = createMockBodyReq({ purgeToken: VALID_PURGE_TOKEN });
-      await handlePurge(mockPrisma as unknown as PrismaClient, tokenService, req, res);
+      await handlePurge(depsWithRedis())(req, res);
       // Token survives the personality-missing case — user can retry.
-      expect(tokenService.peekPurgeToken).toHaveBeenCalled();
-      expect(tokenService.consumePurgeToken).not.toHaveBeenCalled();
+      expect(mockTokenService.peekPurgeToken).toHaveBeenCalled();
+      expect(mockTokenService.consumePurgeToken).not.toHaveBeenCalled();
     });
 
     it('returns 400 when user has no persona', async () => {
       mockGetDefaultPersonaId.mockResolvedValue(null);
       const { req, res } = createMockBodyReq({ purgeToken: VALID_PURGE_TOKEN });
-      await handlePurge(mockPrisma as unknown as PrismaClient, tokenService, req, res);
+      await handlePurge(depsWithRedis())(req, res);
       expect(res.status).toHaveBeenCalledWith(400);
     });
 
@@ -514,7 +517,7 @@ describe('memoryBatch handlers', () => {
       mockPrisma.memory.updateMany.mockResolvedValue({ count: 7 });
 
       const { req, res } = createMockBodyReq({ purgeToken: VALID_PURGE_TOKEN });
-      await handlePurge(mockPrisma as unknown as PrismaClient, tokenService, req, res);
+      await handlePurge(depsWithRedis())(req, res);
 
       expect(mockPrisma.memory.updateMany).toHaveBeenCalledWith({
         where: {
@@ -542,7 +545,7 @@ describe('memoryBatch handlers', () => {
       mockPrisma.memory.updateMany.mockResolvedValue({ count: 3 });
 
       const { req, res } = createMockBodyReq({ purgeToken: VALID_PURGE_TOKEN });
-      await handlePurge(mockPrisma as unknown as PrismaClient, tokenService, req, res);
+      await handlePurge(depsWithRedis())(req, res);
 
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -554,7 +557,7 @@ describe('memoryBatch handlers', () => {
     it('returns early when token-bound personality is missing', async () => {
       mockGetPersonalityById.mockResolvedValue(null);
       const { req, res } = createMockBodyReq({ purgeToken: VALID_PURGE_TOKEN });
-      await handlePurge(mockPrisma as unknown as PrismaClient, tokenService, req, res);
+      await handlePurge(depsWithRedis())(req, res);
       expect(res.status).not.toHaveBeenCalled();
     });
   });

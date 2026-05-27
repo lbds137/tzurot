@@ -23,12 +23,11 @@
  * POST /user/memory/incognito/forget - Retroactively delete recent memories
  */
 
-import { Router, type Response } from 'express';
+import { Router, type RequestHandler, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
   Prisma,
-  type PrismaClient,
   generateUserPersonalityConfigUuid,
   FocusModeSchema,
 } from '@tzurot/common-types';
@@ -54,257 +53,217 @@ import {
   handlePurge,
 } from './memoryBatch.js';
 import { createIncognitoRoutes } from './memoryIncognito.js';
-import { MemoryActionTokenService } from '../../services/MemoryActionTokenService.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { getDefaultPersonaId, getPersonalityById } from './memoryHelpers.js';
 
 const logger = createLogger('user-memory');
 
-/**
- * Handler for GET /user/memory/stats
- */
-async function handleGetStats(
-  prisma: PrismaClient,
-  req: ProvisionedRequest,
-  res: Response
-): Promise<void> {
-  const discordUserId = req.userId;
-  const { personalityId } = req.query as { personalityId?: string };
+/** Handler for GET /user/memory/stats */
 
-  if (personalityId === undefined || personalityId === '') {
-    sendError(res, ErrorResponses.validationError('personalityId query parameter is required'));
-    return;
-  }
+export const handleGetStats = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
+    const discordUserId = req.userId;
+    const { personalityId } = req.query as { personalityId?: string };
 
-  const userId = resolveProvisionedUserId(req);
+    if (personalityId === undefined || personalityId === '') {
+      sendError(res, ErrorResponses.validationError('personalityId query parameter is required'));
+      return;
+    }
 
-  const personality = await getPersonalityById(prisma, personalityId, res);
-  if (!personality) {
-    return;
-  }
+    const userId = resolveProvisionedUserId(req);
 
-  const config = await prisma.userPersonalityConfig.findUnique({
-    where: { userId_personalityId: { userId, personalityId } },
-    select: { personaId: true, configOverrides: true },
-  });
+    const personality = await getPersonalityById(prisma, personalityId, res);
+    if (!personality) {
+      return;
+    }
 
-  const personaId = config?.personaId ?? (await getDefaultPersonaId(prisma, userId));
+    const config = await prisma.userPersonalityConfig.findUnique({
+      where: { userId_personalityId: { userId, personalityId } },
+      select: { personaId: true, configOverrides: true },
+    });
 
-  if (personaId === null || personaId === undefined) {
+    const personaId = config?.personaId ?? (await getDefaultPersonaId(prisma, userId));
+
+    if (personaId === null || personaId === undefined) {
+      sendCustomSuccess(
+        res,
+        {
+          personalityId,
+          personalityName: personality.name,
+          personaId: null,
+          totalCount: 0,
+          lockedCount: 0,
+          oldestMemory: null,
+          newestMemory: null,
+          focusModeEnabled: false,
+        },
+        StatusCodes.OK
+      );
+      return;
+    }
+
+    const [totalCount, lockedCount, oldestMemory, newestMemory] = await Promise.all([
+      prisma.memory.count({ where: { personaId, personalityId, visibility: 'normal' } }),
+      prisma.memory.count({
+        where: { personaId, personalityId, visibility: 'normal', isLocked: true },
+      }),
+      prisma.memory.findFirst({
+        where: { personaId, personalityId, visibility: 'normal' },
+        orderBy: { createdAt: 'asc' },
+        select: { createdAt: true },
+      }),
+      prisma.memory.findFirst({
+        where: { personaId, personalityId, visibility: 'normal' },
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true },
+      }),
+    ]);
+
+    logger.debug(
+      { discordUserId, personalityId, personaId: personaId.substring(0, 8), totalCount },
+      'Stats retrieved'
+    );
+
     sendCustomSuccess(
       res,
       {
         personalityId,
         personalityName: personality.name,
-        personaId: null,
-        totalCount: 0,
-        lockedCount: 0,
-        oldestMemory: null,
-        newestMemory: null,
-        focusModeEnabled: false,
+        personaId,
+        totalCount,
+        lockedCount,
+        oldestMemory: oldestMemory?.createdAt?.toISOString() ?? null,
+        newestMemory: newestMemory?.createdAt?.toISOString() ?? null,
+        focusModeEnabled:
+          (config?.configOverrides as Record<string, unknown> | null)?.focusModeEnabled === true,
       },
       StatusCodes.OK
     );
-    return;
-  }
-
-  const [totalCount, lockedCount, oldestMemory, newestMemory] = await Promise.all([
-    prisma.memory.count({ where: { personaId, personalityId, visibility: 'normal' } }),
-    prisma.memory.count({
-      where: { personaId, personalityId, visibility: 'normal', isLocked: true },
-    }),
-    prisma.memory.findFirst({
-      where: { personaId, personalityId, visibility: 'normal' },
-      orderBy: { createdAt: 'asc' },
-      select: { createdAt: true },
-    }),
-    prisma.memory.findFirst({
-      where: { personaId, personalityId, visibility: 'normal' },
-      orderBy: { createdAt: 'desc' },
-      select: { createdAt: true },
-    }),
-  ]);
-
-  logger.debug(
-    { discordUserId, personalityId, personaId: personaId.substring(0, 8), totalCount },
-    'Stats retrieved'
-  );
-
-  sendCustomSuccess(
-    res,
-    {
-      personalityId,
-      personalityName: personality.name,
-      personaId,
-      totalCount,
-      lockedCount,
-      oldestMemory: oldestMemory?.createdAt?.toISOString() ?? null,
-      newestMemory: newestMemory?.createdAt?.toISOString() ?? null,
-      focusModeEnabled:
-        (config?.configOverrides as Record<string, unknown> | null)?.focusModeEnabled === true,
-    },
-    StatusCodes.OK
-  );
-}
-
-/**
- * Handler for GET /user/memory/focus
- */
-async function handleGetFocus(
-  prisma: PrismaClient,
-  req: ProvisionedRequest,
-  res: Response
-): Promise<void> {
-  const { personalityId } = req.query as { personalityId?: string };
-
-  if (personalityId === undefined || personalityId === '') {
-    sendError(res, ErrorResponses.validationError('personalityId query parameter is required'));
-    return;
-  }
-
-  const userId = resolveProvisionedUserId(req);
-
-  const config = await prisma.userPersonalityConfig.findUnique({
-    where: { userId_personalityId: { userId, personalityId } },
-    select: { configOverrides: true },
   });
+};
 
-  sendCustomSuccess(
-    res,
-    {
-      personalityId,
-      focusModeEnabled:
-        (config?.configOverrides as Record<string, unknown> | null)?.focusModeEnabled === true,
-    },
-    StatusCodes.OK
-  );
-}
+/** Handler for GET /user/memory/focus */
+export const handleGetFocus = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
+    const { personalityId } = req.query as { personalityId?: string };
 
-/**
- * Handler for POST /user/memory/focus
- */
-async function handleSetFocus(
-  prisma: PrismaClient,
-  req: ProvisionedRequest,
-  res: Response
-): Promise<void> {
-  const discordUserId = req.userId;
+    if (personalityId === undefined || personalityId === '') {
+      sendError(res, ErrorResponses.validationError('personalityId query parameter is required'));
+      return;
+    }
 
-  const parseResult = FocusModeSchema.safeParse(req.body);
-  if (!parseResult.success) {
-    sendZodError(res, parseResult.error);
-    return;
-  }
+    const userId = resolveProvisionedUserId(req);
 
-  const { personalityId, enabled } = parseResult.data;
+    const config = await prisma.userPersonalityConfig.findUnique({
+      where: { userId_personalityId: { userId, personalityId } },
+      select: { configOverrides: true },
+    });
 
-  const userId = resolveProvisionedUserId(req);
-
-  const personality = await getPersonalityById(prisma, personalityId, res);
-  if (!personality) {
-    return;
-  }
-
-  // Read existing configOverrides to merge focusModeEnabled into JSONB
-  const upcId = generateUserPersonalityConfigUuid(userId, personalityId);
-  const existing = await prisma.userPersonalityConfig.findUnique({
-    where: { id: upcId },
-    select: { configOverrides: true },
+    sendCustomSuccess(
+      res,
+      {
+        personalityId,
+        focusModeEnabled:
+          (config?.configOverrides as Record<string, unknown> | null)?.focusModeEnabled === true,
+      },
+      StatusCodes.OK
+    );
   });
+};
 
-  const existingOverrides =
-    existing?.configOverrides !== null &&
-    existing?.configOverrides !== undefined &&
-    typeof existing.configOverrides === 'object' &&
-    !Array.isArray(existing.configOverrides)
-      ? (existing.configOverrides as Record<string, unknown>)
-      : {};
+/** Handler for POST /user/memory/focus */
 
-  // Merge focusModeEnabled into JSONB (dual-write: column + JSONB)
-  // Strip false to keep JSONB clean (false is the default)
-  const mergedOverrides: Record<string, unknown> = { ...existingOverrides };
-  if (enabled) {
-    mergedOverrides.focusModeEnabled = true;
-  } else {
-    delete mergedOverrides.focusModeEnabled;
-  }
-  const configOverridesValue =
-    Object.keys(mergedOverrides).length > 0
-      ? (mergedOverrides as Prisma.InputJsonValue)
-      : Prisma.JsonNull;
+export const handleSetFocus = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
+    const discordUserId = req.userId;
 
-  await prisma.userPersonalityConfig.upsert({
-    where: { userId_personalityId: { userId, personalityId } },
-    update: { configOverrides: configOverridesValue },
-    create: {
-      id: upcId,
-      userId,
-      personalityId,
-      configOverrides: configOverridesValue,
-    },
+    const parseResult = FocusModeSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      sendZodError(res, parseResult.error);
+      return;
+    }
+
+    const { personalityId, enabled } = parseResult.data;
+
+    const userId = resolveProvisionedUserId(req);
+
+    const personality = await getPersonalityById(prisma, personalityId, res);
+    if (!personality) {
+      return;
+    }
+
+    // Read existing configOverrides to merge focusModeEnabled into JSONB
+    const upcId = generateUserPersonalityConfigUuid(userId, personalityId);
+    const existing = await prisma.userPersonalityConfig.findUnique({
+      where: { id: upcId },
+      select: { configOverrides: true },
+    });
+
+    const existingOverrides =
+      existing?.configOverrides !== null &&
+      existing?.configOverrides !== undefined &&
+      typeof existing.configOverrides === 'object' &&
+      !Array.isArray(existing.configOverrides)
+        ? (existing.configOverrides as Record<string, unknown>)
+        : {};
+
+    // Merge focusModeEnabled into JSONB (dual-write: column + JSONB).
+    // Strip false to keep JSONB clean (false is the default).
+    const mergedOverrides: Record<string, unknown> = { ...existingOverrides };
+    if (enabled) {
+      mergedOverrides.focusModeEnabled = true;
+    } else {
+      delete mergedOverrides.focusModeEnabled;
+    }
+    const configOverridesValue =
+      Object.keys(mergedOverrides).length > 0
+        ? (mergedOverrides as Prisma.InputJsonValue)
+        : Prisma.JsonNull;
+
+    await prisma.userPersonalityConfig.upsert({
+      where: { userId_personalityId: { userId, personalityId } },
+      update: { configOverrides: configOverridesValue },
+      create: {
+        id: upcId,
+        userId,
+        personalityId,
+        configOverrides: configOverridesValue,
+      },
+    });
+
+    logger.info(
+      { discordUserId, personalityId, enabled },
+      `Focus mode ${enabled ? 'enabled' : 'disabled'}`
+    );
+
+    sendCustomSuccess(
+      res,
+      {
+        personalityId,
+        personalityName: personality.name,
+        focusModeEnabled: enabled,
+        message: enabled
+          ? `Focus mode enabled for ${personality.name}. Memory retrieval is now paused — the AI will only use the current conversation context.`
+          : `Focus mode disabled for ${personality.name}. Memory retrieval is active — the AI will use past memories during conversations.`,
+      },
+      StatusCodes.OK
+    );
   });
-
-  logger.info(
-    { discordUserId, personalityId, enabled },
-    `Focus mode ${enabled ? 'enabled' : 'disabled'}`
-  );
-
-  sendCustomSuccess(
-    res,
-    {
-      personalityId,
-      personalityName: personality.name,
-      focusModeEnabled: enabled,
-      message: enabled
-        ? `Focus mode enabled for ${personality.name}. Memory retrieval is now paused — the AI will only use the current conversation context.`
-        : `Focus mode disabled for ${personality.name}. Memory retrieval is active — the AI will use past memories during conversations.`,
-    },
-    StatusCodes.OK
-  );
-}
+};
 
 /**
- * Handler signature common to every memory route: takes prisma +
- * the provisioned request, returns a promise. Defined locally to avoid
- * exporting the shape.
+ * Mount all /user/memory/* routes onto a fresh router. Each handler is the
+ * (deps: RouteDeps) => RequestHandler shape that codegen emits — once the
+ * generated mounts.ts is wired up, the codegen will register these routes
+ * identically and this factory becomes the legacy path to delete.
+ *
+ * Registration order matters: literal paths (`/stats`, `/list`, `/search`,
+ * `/delete*`, `/purge*`, `/focus`) must come before `/:id` so they don't get
+ * shadowed by the parameterised route.
  */
-type MemoryHandler = (
-  prisma: PrismaClient,
-  req: ProvisionedRequest,
-  res: Response
-) => Promise<void>;
-
-/**
- * Wider signature for handlers that depend on the Redis-backed
- * MemoryActionTokenService (preview-token batch ops). `tokenService` is
- * `null` when Redis is unavailable; handlers respond with a 503 in that
- * case rather than crashing.
- */
-type MemoryTokenHandler = (
-  prisma: PrismaClient,
-  tokenService: MemoryActionTokenService | null,
-  req: ProvisionedRequest,
-  res: Response
-) => Promise<void>;
-
-interface RegisterRouteParams {
-  router: Router;
-  prisma: PrismaClient;
-  method: 'get' | 'post' | 'put' | 'patch' | 'delete';
-  path: string;
-  handler: MemoryHandler;
-}
-
-function registerMemoryRoute(params: RegisterRouteParams): void {
-  const { router, prisma, method, path, handler } = params;
-  router[method](
-    path,
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler((req: ProvisionedRequest, res: Response) => handler(prisma, req, res))
-  );
-}
-
 export function createMemoryRoutes(deps: RouteDeps): Router {
   const router = Router();
   const { prisma, redis } = deps;
@@ -314,48 +273,21 @@ export function createMemoryRoutes(deps: RouteDeps): Router {
     router.use('/incognito', createIncognitoRoutes(prisma, redis));
   }
 
-  // Token service for preview/purge handshake — null when Redis is absent;
-  // the batch handlers respond with a 503 instead of crashing in that case.
-  const tokenService = redis !== undefined ? new MemoryActionTokenService(redis) : null;
-
-  /** Bind a token-using handler to the resolved token service. */
-  const bindToken = (handler: MemoryTokenHandler): MemoryHandler => {
-    return (p, req, res) => handler(p, tokenService, req, res);
-  };
-
-  const routes: {
-    method: RegisterRouteParams['method'];
-    path: string;
-    handler: MemoryHandler;
-  }[] = [
-    { method: 'get', path: '/stats', handler: handleGetStats },
-    { method: 'get', path: '/list', handler: handleList },
-    { method: 'get', path: '/focus', handler: handleGetFocus },
-    { method: 'post', path: '/focus', handler: handleSetFocus },
-    { method: 'post', path: '/search', handler: handleSearch },
-    // Batch operations — must come before /:id routes
-    { method: 'post', path: '/delete/preview', handler: bindToken(handleBatchDeletePreview) },
-    { method: 'post', path: '/delete', handler: bindToken(handleBatchDelete) },
-    { method: 'post', path: '/purge/token', handler: bindToken(handleIssuePurgeToken) },
-    { method: 'post', path: '/purge', handler: bindToken(handlePurge) },
-  ];
-
-  for (const route of routes) {
-    registerMemoryRoute({
-      router,
-      prisma,
-      method: route.method,
-      path: route.path,
-      handler: route.handler,
-    });
-  }
-
-  // Single-memory routes use the new (deps) => RequestHandler shape (the
-  // shape codegen mounts.ts will emit). Registered directly so we don't
-  // need an adapter for one set vs the other. Must come after the table
-  // above so `/stats` / `/list` / `/focus` / `/search` / `/delete*` / `/purge*`
-  // match before the `:id` parameter.
   const requireProvisioned = requireProvisionedUser(prisma);
+  router.get('/stats', requireUserAuth(), requireProvisioned, handleGetStats(deps));
+  router.get('/focus', requireUserAuth(), requireProvisioned, handleGetFocus(deps));
+  router.post('/focus', requireUserAuth(), requireProvisioned, handleSetFocus(deps));
+  router.get('/list', requireUserAuth(), requireProvisioned, handleList(deps));
+  router.post('/search', requireUserAuth(), requireProvisioned, handleSearch(deps));
+  router.post(
+    '/delete/preview',
+    requireUserAuth(),
+    requireProvisioned,
+    handleBatchDeletePreview(deps)
+  );
+  router.post('/delete', requireUserAuth(), requireProvisioned, handleBatchDelete(deps));
+  router.post('/purge/token', requireUserAuth(), requireProvisioned, handleIssuePurgeToken(deps));
+  router.post('/purge', requireUserAuth(), requireProvisioned, handlePurge(deps));
   router.get('/:id', requireUserAuth(), requireProvisioned, handleGetMemory(deps));
   router.patch('/:id', requireUserAuth(), requireProvisioned, handleUpdateMemory(deps));
   router.delete('/:id', requireUserAuth(), requireProvisioned, handleDeleteMemory(deps));
