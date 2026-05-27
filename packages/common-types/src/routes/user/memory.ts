@@ -135,9 +135,11 @@ export const userMemoryRoutes = {
     input: BatchDeleteSchema,
     output: BatchDeleteResponseSchema,
     requiresProvisionedUser: true,
-    // Idempotent via single-use token: replaying the same body yields
-    // 'Preview token is invalid, expired, or already used.'
-    meta: { idempotent: true },
+    // At-most-once: the previewToken in the body is single-use. Replaying
+    // the same body after a network blip yields a 4xx token-expired error
+    // even though the original mutation succeeded server-side. Retry layers
+    // must NOT auto-retry — surface the original outcome to the user.
+    meta: { atMostOnce: true },
   },
 
   issuePurgeToken: {
@@ -158,8 +160,9 @@ export const userMemoryRoutes = {
     input: PurgeMemoriesSchema,
     output: PurgeMemoriesResponseSchema,
     requiresProvisionedUser: true,
-    // Same single-use-token idempotency as batchDelete.
-    meta: { idempotent: true },
+    // Same at-most-once contract as batchDelete: purgeToken is single-use,
+    // a retried body yields a 4xx even though the purge succeeded.
+    meta: { atMostOnce: true },
   },
 
   // ---- Single memory operations ------------------------------------------

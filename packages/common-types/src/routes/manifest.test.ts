@@ -186,4 +186,31 @@ describe('central route manifest', () => {
       ).toBe(false);
     }
   });
+
+  it('meta.safeRead and meta.atMostOnce are not both true on the same route', () => {
+    // safeRead = no mutation; atMostOnce = mutation with single-use guard.
+    // A route that claims both has a mistagging.
+    for (const [key, route] of entries) {
+      const safe = route.meta?.safeRead === true;
+      const atMost = route.meta?.atMostOnce === true;
+      expect(
+        safe && atMost,
+        `${key} declares both meta.safeRead AND meta.atMostOnce — atMostOnce implies mutation, safeRead implies none`
+      ).toBe(false);
+    }
+  });
+
+  it('meta.idempotent and meta.atMostOnce are not both true on the same route', () => {
+    // Literal opposites: idempotent = retry-safe; atMostOnce = retry produces
+    // a spurious 4xx that masks server-side success. A route can be one or
+    // the other (or neither — most mutating POSTs are neither), never both.
+    for (const [key, route] of entries) {
+      const idem = route.meta?.idempotent === true;
+      const atMost = route.meta?.atMostOnce === true;
+      expect(
+        idem && atMost,
+        `${key} declares both meta.idempotent AND meta.atMostOnce — these are literal opposites`
+      ).toBe(false);
+    }
+  });
 });

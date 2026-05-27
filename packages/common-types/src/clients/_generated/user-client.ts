@@ -1361,7 +1361,7 @@ export class UserClient {
   }
 
   /**
-   * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
+   * @atMostOnce Mutating + single-use-token guarded; replay yields a 4xx token-expired error even though the original mutation succeeded server-side. Retry layers must NOT auto-retry — surface the original error to the user only if no success response was observed.
    */
   async batchDelete(input: z.infer<typeof ROUTE_MANIFEST.batchDelete.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.batchDelete.output>>> {
     const fullPath = '/api/user/memory/delete';
@@ -1398,7 +1398,7 @@ export class UserClient {
   }
 
   /**
-   * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
+   * @atMostOnce Mutating + single-use-token guarded; replay yields a 4xx token-expired error even though the original mutation succeeded server-side. Retry layers must NOT auto-retry — surface the original error to the user only if no success response was observed.
    */
   async purge(input: z.infer<typeof ROUTE_MANIFEST.purge.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.purge.output>>> {
     const fullPath = '/api/user/memory/purge';

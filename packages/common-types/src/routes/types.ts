@@ -202,14 +202,32 @@ export interface RouteDef<
    *     in the soft-delete cycle, not on the delete operation itself.
    *
    *   - `idempotent`: route is safe to retry without side effects beyond
-   *     the first call. Set by the route author to document intent;
-   *     destructive routes that achieve idempotency via Idempotency-Key
-   *     headers should also set this true.
+   *     the first call. Replaying the SAME request lands the SAME 2xx
+   *     response. Examples: PUT routes (HTTP convention), `setFocus`
+   *     (state-set with same body). Retry layers reading this tag MAY
+   *     auto-retry on network failure without surfacing an error.
+   *
+   *   - `atMostOnce`: route mutates AND is guarded by a single-use
+   *     token (or similar at-most-once mechanism). Replaying the SAME
+   *     request yields a 4xx token-expired error even though the
+   *     original mutation succeeded server-side. The opposite of
+   *     `idempotent` — a retry layer reading this tag must NOT
+   *     auto-retry, because the spurious 4xx would surface a recoverable
+   *     server-side success as a user-facing failure. Used by
+   *     preview-token / purge-token destructive batch operations.
+   *
+   *   - Mutual-exclusivity invariants (enforced by manifest tests):
+   *     `safeRead` and `idempotent` cannot both be true (a route either
+   *     reads or writes-idempotently — never both). `safeRead` and
+   *     `atMostOnce` cannot both be true (safeRead implies no mutation).
+   *     `idempotent` and `atMostOnce` cannot both be true (literal
+   *     opposites — idempotent retry is safe, atMostOnce retry isn't).
    */
   readonly meta?: {
     readonly safeRead?: boolean;
     readonly softDeleteAware?: boolean;
     readonly idempotent?: boolean;
+    readonly atMostOnce?: boolean;
   };
   /**
    * If true, this route operates on a subject distinct from the actor.
