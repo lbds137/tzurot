@@ -103,7 +103,7 @@ async function resolveUserUuid(prisma: PrismaClient, discordId: string): Promise
 function createConfigDefaultsPatchHandler(
   prisma: PrismaClient,
   cascadeInvalidation?: ConfigCascadeCacheInvalidationService
-): (req: Request, res: Response) => void {
+): (req: Request, res: Response) => Promise<void> {
   return asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const input = req.body as Record<string, unknown>;
     const userUuid = await resolveUserUuid(prisma, req.userId);

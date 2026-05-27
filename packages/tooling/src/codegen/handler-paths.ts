@@ -30,7 +30,12 @@ const ADMIN_TTS_CONFIG = '../admin/tts-config.js';
 const USER_CHANNEL_GET = '../user/channel/get.js';
 const USER_HISTORY = '../user/history.js';
 const USER_LLM_CONFIG = '../user/llm-config.js';
+const USER_MEMORY = '../user/memory.js';
+const USER_MEMORY_BATCH = '../user/memoryBatch.js';
 const USER_MEMORY_INCOGNITO = '../user/memoryIncognito.js';
+const USER_MEMORY_LIST = '../user/memoryList.js';
+const USER_MEMORY_SEARCH = '../user/memorySearch.js';
+const USER_MEMORY_SINGLE = '../user/memorySingle.js';
 const USER_CONFIG_OVERRIDES = '../user/config-overrides.js';
 const USER_PERSONALITY_CONFIG_OVERRIDES = '../user/personality-config-overrides.js';
 const USER_SHAPES_AUTH = '../user/shapes/auth.js';
@@ -193,6 +198,27 @@ const PATH_MAP: Readonly<Record<string, string>> = {
   enableIncognito: USER_MEMORY_INCOGNITO,
   disableIncognito: USER_MEMORY_INCOGNITO,
   incognitoForget: USER_MEMORY_INCOGNITO,
+
+  // User memory (stats / focus — handlers in memory.ts)
+  getStats: USER_MEMORY,
+  getFocus: USER_MEMORY,
+  setFocus: USER_MEMORY,
+
+  // User memory (list + search)
+  list: USER_MEMORY_LIST,
+  search: USER_MEMORY_SEARCH,
+
+  // User memory (batch operations — preview-token handshake)
+  batchDeletePreview: USER_MEMORY_BATCH,
+  batchDelete: USER_MEMORY_BATCH,
+  issuePurgeToken: USER_MEMORY_BATCH,
+  purge: USER_MEMORY_BATCH,
+
+  // User memory (single CRUD)
+  getMemory: USER_MEMORY_SINGLE,
+  updateMemory: USER_MEMORY_SINGLE,
+  deleteMemory: USER_MEMORY_SINGLE,
+  setMemoryLock: USER_MEMORY_SINGLE,
 
   // User config-overrides (user-tier endpoints)
   resolveUserDefaults: USER_CONFIG_OVERRIDES,

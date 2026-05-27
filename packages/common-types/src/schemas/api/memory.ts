@@ -116,3 +116,128 @@ export const MemorySearchSchema = z.object({
   preferTextSearch: z.boolean().optional(),
 });
 export type MemorySearchInput = z.infer<typeof MemorySearchSchema>;
+
+// ============================================================================
+// Response schemas — used by RouteDef.output to give generated clients
+// runtime validation + correct return-type inference.
+// ============================================================================
+
+/** Shared shape for a single memory row in responses (single, list, search). */
+export const MemoryItemSchema = z.object({
+  id: z.string(),
+  content: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  personalityId: z.string(),
+  personalityName: z.string(),
+  isLocked: z.boolean(),
+});
+export type MemoryItem = z.infer<typeof MemoryItemSchema>;
+
+/** GET /user/memory/stats */
+export const MemoryStatsResponseSchema = z.object({
+  personalityId: z.string(),
+  personalityName: z.string(),
+  personaId: z.string().nullable(),
+  totalCount: z.number(),
+  lockedCount: z.number(),
+  oldestMemory: z.string().nullable(),
+  newestMemory: z.string().nullable(),
+  focusModeEnabled: z.boolean(),
+});
+export type MemoryStatsResponse = z.infer<typeof MemoryStatsResponseSchema>;
+
+/** GET /user/memory/list */
+export const MemoryListResponseSchema = z.object({
+  memories: z.array(MemoryItemSchema),
+  total: z.number(),
+  limit: z.number(),
+  offset: z.number(),
+  hasMore: z.boolean(),
+});
+export type MemoryListResponse = z.infer<typeof MemoryListResponseSchema>;
+
+/** GET /user/memory/focus */
+export const FocusModeStatusResponseSchema = z.object({
+  personalityId: z.string(),
+  focusModeEnabled: z.boolean(),
+});
+export type FocusModeStatusResponse = z.infer<typeof FocusModeStatusResponseSchema>;
+
+/** POST /user/memory/focus */
+export const SetFocusResponseSchema = z.object({
+  personalityId: z.string(),
+  personalityName: z.string(),
+  focusModeEnabled: z.boolean(),
+  message: z.string(),
+});
+export type SetFocusResponse = z.infer<typeof SetFocusResponseSchema>;
+
+/** Search result row: MemoryItem extended with similarity + search type. */
+export const MemorySearchResultSchema = MemoryItemSchema.extend({
+  similarity: z.number().nullable(),
+});
+export type MemorySearchResult = z.infer<typeof MemorySearchResultSchema>;
+
+/** POST /user/memory/search */
+export const MemorySearchResponseSchema = z.object({
+  results: z.array(MemorySearchResultSchema),
+  count: z.number(),
+  hasMore: z.boolean(),
+  searchType: z.enum(['semantic', 'text']).optional(),
+});
+export type MemorySearchResponse = z.infer<typeof MemorySearchResponseSchema>;
+
+/** POST /user/memory/delete/preview */
+export const BatchDeletePreviewResponseSchema = z.object({
+  wouldDelete: z.number(),
+  lockedWouldSkip: z.number(),
+  personalityId: z.string(),
+  personalityName: z.string(),
+  timeframe: z.string(),
+  previewToken: z.string(),
+});
+export type BatchDeletePreviewResponse = z.infer<typeof BatchDeletePreviewResponseSchema>;
+
+/** POST /user/memory/delete */
+export const BatchDeleteResponseSchema = z.object({
+  deletedCount: z.number(),
+  skippedLocked: z.number(),
+  personalityId: z.string().optional(),
+  personalityName: z.string().optional(),
+  message: z.string(),
+});
+export type BatchDeleteResponse = z.infer<typeof BatchDeleteResponseSchema>;
+
+/** POST /user/memory/purge/token */
+export const IssuePurgeTokenResponseSchema = z.object({
+  purgeToken: z.string(),
+  personalityId: z.string(),
+  personalityName: z.string(),
+});
+export type IssuePurgeTokenResponse = z.infer<typeof IssuePurgeTokenResponseSchema>;
+
+/** POST /user/memory/purge */
+export const PurgeMemoriesResponseSchema = z.object({
+  deletedCount: z.number(),
+  lockedPreserved: z.number(),
+  personalityId: z.string(),
+  personalityName: z.string(),
+  message: z.string(),
+});
+export type PurgeMemoriesResponse = z.infer<typeof PurgeMemoriesResponseSchema>;
+
+/**
+ * GET /user/memory/:id  ·  PATCH /user/memory/:id  ·  PUT /user/memory/:id/lock
+ * All three return the same `{ memory }` envelope.
+ */
+export const SingleMemoryResponseSchema = z.object({
+  memory: MemoryItemSchema,
+});
+export type SingleMemoryResponse = z.infer<typeof SingleMemoryResponseSchema>;
+
+/** DELETE /user/memory/:id */
+export const DeleteMemoryResponseSchema = z.object({
+  success: z.boolean(),
+});
+export type DeleteMemoryResponse = z.infer<typeof DeleteMemoryResponseSchema>;

@@ -107,7 +107,7 @@ describe('handleList', () => {
   it('should return empty list when no memories exist', async () => {
     const { req, res } = createMockReqRes();
 
-    await handleList(deps())(req, res);
+    await handleList(deps())(req, res, () => undefined);
 
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith({
@@ -126,7 +126,7 @@ describe('handleList', () => {
 
     const { req, res } = createMockReqRes();
 
-    await handleList(deps())(req, res);
+    await handleList(deps())(req, res, () => undefined);
 
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith({
@@ -152,7 +152,7 @@ describe('handleList', () => {
     (mockPrisma.memory.count as ReturnType<typeof vi.fn>).mockResolvedValue(0);
     const { req, res } = createMockReqRes({ limit: '5', offset: '10' });
 
-    await handleList(deps())(req, res);
+    await handleList(deps())(req, res, () => undefined);
 
     expect(mockPrisma.memory.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -165,7 +165,7 @@ describe('handleList', () => {
   it('should clamp limit to max 50', async () => {
     const { req, res } = createMockReqRes({ limit: '100' });
 
-    await handleList(deps())(req, res);
+    await handleList(deps())(req, res, () => undefined);
 
     expect(mockPrisma.memory.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 50 }));
   });
@@ -173,7 +173,7 @@ describe('handleList', () => {
   it('should clamp limit to min 1', async () => {
     const { req, res } = createMockReqRes({ limit: '-5' });
 
-    await handleList(deps())(req, res);
+    await handleList(deps())(req, res, () => undefined);
 
     expect(mockPrisma.memory.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 1 }));
   });
@@ -181,7 +181,7 @@ describe('handleList', () => {
   it('should filter by personalityId when provided', async () => {
     const { req, res } = createMockReqRes({ personalityId: 'pers-xyz' });
 
-    await handleList(deps())(req, res);
+    await handleList(deps())(req, res, () => undefined);
 
     expect(mockPrisma.memory.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -193,7 +193,7 @@ describe('handleList', () => {
   it('should sort by updatedAt ascending when specified', async () => {
     const { req, res } = createMockReqRes({ sort: 'updatedAt', order: 'asc' });
 
-    await handleList(deps())(req, res);
+    await handleList(deps())(req, res, () => undefined);
 
     expect(mockPrisma.memory.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -205,7 +205,7 @@ describe('handleList', () => {
   it('should default to createdAt desc sort', async () => {
     const { req, res } = createMockReqRes();
 
-    await handleList(deps())(req, res);
+    await handleList(deps())(req, res, () => undefined);
 
     expect(mockPrisma.memory.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -217,7 +217,7 @@ describe('handleList', () => {
   it('should ignore invalid sort field', async () => {
     const { req, res } = createMockReqRes({ sort: 'invalid' });
 
-    await handleList(deps())(req, res);
+    await handleList(deps())(req, res, () => undefined);
 
     expect(mockPrisma.memory.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -234,7 +234,7 @@ describe('handleList', () => {
 
     const { req, res } = createMockReqRes({ limit: '5' });
 
-    await handleList(deps())(req, res);
+    await handleList(deps())(req, res, () => undefined);
 
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ hasMore: true, total: 20 }));
   });
@@ -243,7 +243,7 @@ describe('handleList', () => {
     mockGetDefaultPersonaId.mockResolvedValue(null);
     const { req, res } = createMockReqRes();
 
-    await handleList(deps())(req, res);
+    await handleList(deps())(req, res, () => undefined);
 
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ memories: [], total: 0 }));
@@ -260,7 +260,7 @@ describe('handleList', () => {
 
     const { req, res } = createMockReqRes();
 
-    await handleList(deps())(req, res);
+    await handleList(deps())(req, res, () => undefined);
 
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
