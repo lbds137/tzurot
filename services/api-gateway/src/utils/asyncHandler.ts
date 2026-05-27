@@ -50,9 +50,17 @@ const logger = createLogger('asyncHandler');
  */
 export function asyncHandler<R extends Request = Request>(
   handler: (req: R, res: Response) => Promise<void>
-): (req: Request, res: Response) => void {
-  return (req: Request, res: Response) => {
-    void (async () => {
+): (req: Request, res: Response) => Promise<void> {
+  return (req: Request, res: Response): Promise<void> => {
+    // Returns the IIFE's promise so callers (including tests) can await the
+    // full request lifecycle. Express ignores the returned promise — the
+    // framework's contract is res.json()/next(), so this is invisible in
+    // production but lets tests rely on `await handler(req, res)` actually
+    // awaiting all internal microtasks. Without this, multi-await handlers
+    // (peek → validate → consume → soft-delete) leave their final res.json()
+    // call queued AFTER the test's continuation, causing flaky mocks-not-called
+    // assertions.
+    return (async () => {
       try {
         await handler(req as R, res);
       } catch (error) {
