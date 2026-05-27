@@ -183,18 +183,7 @@ export function buildMethod(route: RouteDef, options: MethodBuildOptions): strin
   ].join('\n');
 }
 
-/**
- * Build the JSDoc block for a generated method that surfaces the route's
- * `meta` tags as `@safeRead` / `@softDeleteAware` / `@idempotent`
- * annotations. Returns an empty string when no tags are set so the
- * caller can splice the block in front of the `async` declaration
- * without conditional padding.
- *
- * We don't put runtime-affecting docs here — those would force the
- * generated file to drift on every manifest tag toggle. The annotations
- * are documentation: IDE hovers, greppable contracts, future cache-layer
- * / retry-policy consumers.
- */
+/** Surface RouteDef.meta as `@safeRead`/`@softDeleteAware`/`@idempotent`/`@atMostOnce` JSDoc on the generated method; empty string when no tags set. */
 function buildMetaJsdoc(route: RouteDef): string {
   const lines: string[] = [];
   if (route.meta?.safeRead === true) {
