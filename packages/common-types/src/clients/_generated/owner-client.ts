@@ -138,6 +138,9 @@ export class OwnerClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async listDenylistEntries(options: { type?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listDenylistEntries.output>>> {
     const fullPath = '/api/admin/denylist' + buildQueryString([['type', options.type]]);
     return callGateway({
@@ -166,6 +169,9 @@ export class OwnerClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async listGlobalLlmConfigs(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listGlobalLlmConfigs.output>>> {
     const fullPath = '/api/admin/llm-config';
     return callGateway({
@@ -180,6 +186,9 @@ export class OwnerClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async getGlobalLlmConfig(id: string): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getGlobalLlmConfig.output>>> {
     const fullPath = `/api/admin/llm-config/${encodeURIComponent(id)}`;
     return callGateway({
@@ -209,6 +218,9 @@ export class OwnerClient {
     });
   }
 
+  /**
+   * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
+   */
   async updateGlobalLlmConfig(id: string, input: z.infer<typeof ROUTE_MANIFEST.updateGlobalLlmConfig.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updateGlobalLlmConfig.output>>> {
     const fullPath = `/api/admin/llm-config/${encodeURIComponent(id)}`;
     return callGateway({
@@ -224,6 +236,9 @@ export class OwnerClient {
     });
   }
 
+  /**
+   * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
+   */
   async setGlobalLlmConfigDefault(id: string): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setGlobalLlmConfigDefault.output>>> {
     const fullPath = `/api/admin/llm-config/${encodeURIComponent(id)}/set-default`;
     return callGateway({
@@ -238,6 +253,9 @@ export class OwnerClient {
     });
   }
 
+  /**
+   * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
+   */
   async setGlobalLlmConfigFreeDefault(id: string): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setGlobalLlmConfigFreeDefault.output>>> {
     const fullPath = `/api/admin/llm-config/${encodeURIComponent(id)}/set-free-default`;
     return callGateway({
@@ -266,6 +284,9 @@ export class OwnerClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async listGlobalTtsConfigs(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listGlobalTtsConfigs.output>>> {
     const fullPath = '/api/admin/tts-config';
     return callGateway({
@@ -280,6 +301,9 @@ export class OwnerClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async getGlobalTtsConfig(id: string): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getGlobalTtsConfig.output>>> {
     const fullPath = `/api/admin/tts-config/${encodeURIComponent(id)}`;
     return callGateway({
@@ -309,6 +333,9 @@ export class OwnerClient {
     });
   }
 
+  /**
+   * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
+   */
   async updateGlobalTtsConfig(id: string, input: z.infer<typeof ROUTE_MANIFEST.updateGlobalTtsConfig.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updateGlobalTtsConfig.output>>> {
     const fullPath = `/api/admin/tts-config/${encodeURIComponent(id)}`;
     return callGateway({
@@ -324,6 +351,9 @@ export class OwnerClient {
     });
   }
 
+  /**
+   * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
+   */
   async setGlobalTtsConfigDefault(id: string): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setGlobalTtsConfigDefault.output>>> {
     const fullPath = `/api/admin/tts-config/${encodeURIComponent(id)}/set-default`;
     return callGateway({
@@ -338,6 +368,9 @@ export class OwnerClient {
     });
   }
 
+  /**
+   * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
+   */
   async setGlobalTtsConfigFreeDefault(id: string): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setGlobalTtsConfigFreeDefault.output>>> {
     const fullPath = `/api/admin/tts-config/${encodeURIComponent(id)}/set-free-default`;
     return callGateway({
@@ -366,6 +399,9 @@ export class OwnerClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async getAdminSettings(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getAdminSettings.output>>> {
     const fullPath = '/api/admin/settings';
     return callGateway({
@@ -409,6 +445,9 @@ export class OwnerClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async getStopSequencesStats(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getStopSequencesStats.output>>> {
     const fullPath = '/api/admin/stop-sequences';
     return callGateway({
@@ -423,6 +462,9 @@ export class OwnerClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async getAdminUsageStats(options: { timeframe?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getAdminUsageStats.output>>> {
     const fullPath = '/api/admin/usage' + buildQueryString([['timeframe', options.timeframe]]);
     return callGateway({

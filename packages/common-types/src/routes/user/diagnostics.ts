@@ -34,6 +34,7 @@ export const userDiagnosticRoutes = {
     query: { personalityId: z.string().optional() },
     output: RecentDiagnosticLogsResponseSchema,
     acceptsSubject: true,
+    meta: { safeRead: true },
   },
 
   getDiagnosticByMessage: {
@@ -44,6 +45,7 @@ export const userDiagnosticRoutes = {
     params: { messageId: z.string() },
     output: DiagnosticLogsResponseSchema,
     acceptsSubject: true,
+    meta: { safeRead: true },
   },
 
   getDiagnosticByResponse: {
@@ -54,6 +56,7 @@ export const userDiagnosticRoutes = {
     params: { messageId: z.string() },
     output: DiagnosticLogResponseSchema,
     acceptsSubject: true,
+    meta: { safeRead: true },
   },
 
   getDiagnosticByRequestId: {
@@ -64,5 +67,6 @@ export const userDiagnosticRoutes = {
     params: { requestId: z.string() },
     output: DiagnosticLogResponseSchema,
     acceptsSubject: true,
+    meta: { safeRead: true },
   },
 } as const satisfies Record<string, RouteDef>;

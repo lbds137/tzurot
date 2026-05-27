@@ -221,6 +221,7 @@ export const userMemoryRoutes = {
     id: 'getIncognitoStatus',
     output: GetIncognitoStatusResponseSchema,
     requiresProvisionedUser: true,
+    meta: { safeRead: true },
   },
 
   enableIncognito: {

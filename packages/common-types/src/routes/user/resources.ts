@@ -83,6 +83,7 @@ export const userResourceRoutes = {
     id: 'listUserChannels',
     output: ListChannelActivationsResponseSchema,
     requiresProvisionedUser: true,
+    meta: { safeRead: true },
   },
 
   getUserChannel: {
@@ -93,6 +94,7 @@ export const userResourceRoutes = {
     params: { channelId: z.string() },
     output: GetChannelActivationResponseSchema,
     requiresProvisionedUser: true,
+    meta: { safeRead: true },
   },
 
   updateChannelGuild: {
@@ -112,6 +114,7 @@ export const userResourceRoutes = {
     params: { channelId: z.string() },
     output: ChannelSettingsSchema,
     requiresProvisionedUser: true,
+    meta: { safeRead: true },
   },
 
   // ============================================================================
@@ -125,6 +128,7 @@ export const userResourceRoutes = {
     id: 'getUserUsage',
     output: UsageStatsSchema,
     requiresProvisionedUser: true,
+    meta: { safeRead: true },
   },
 
   // ============================================================================
@@ -162,6 +166,7 @@ export const userResourceRoutes = {
     query: HistoryStatsQuerySchema.shape,
     output: HistoryStatsResponseSchema,
     requiresProvisionedUser: true,
+    meta: { safeRead: true },
   },
 
   // DELETE with a request body is RFC 7231 §4.3.5 valid, but some reverse
@@ -192,6 +197,7 @@ export const userResourceRoutes = {
     id: 'getNsfwStatus',
     output: GetNsfwStatusResponseSchema,
     requiresProvisionedUser: true,
+    meta: { safeRead: true },
   },
 
   verifyNsfw: {
@@ -214,6 +220,7 @@ export const userResourceRoutes = {
     id: 'listWalletKeys',
     output: ListWalletKeysResponseSchema,
     requiresProvisionedUser: true,
+    meta: { safeRead: true },
   },
 
   setWalletKey: {
@@ -260,6 +267,7 @@ export const userResourceRoutes = {
     query: { personalityId: z.string().uuid() },
     output: GetVoiceResolutionResponseSchema,
     requiresProvisionedUser: true,
+    meta: { safeRead: true },
   },
 
   // ============================================================================
@@ -273,6 +281,7 @@ export const userResourceRoutes = {
     id: 'listVoices',
     output: ListVoicesResponseSchema,
     requiresProvisionedUser: true,
+    meta: { safeRead: true },
   },
 
   listVoiceModels: {
@@ -282,6 +291,7 @@ export const userResourceRoutes = {
     id: 'listVoiceModels',
     output: ListVoiceModelsResponseSchema,
     requiresProvisionedUser: true,
+    meta: { safeRead: true },
   },
 
   clearVoices: {

@@ -189,6 +189,7 @@ export const adminRoutes = {
     id: 'listDenylistEntries',
     query: { type: denylistEntityTypeSchema.optional() },
     output: ListDenylistResponseSchema,
+    meta: { safeRead: true },
   },
 
   /**
@@ -219,6 +220,7 @@ export const adminRoutes = {
     path: '/llm-config',
     id: 'listGlobalLlmConfigs',
     output: ListLlmConfigsResponseSchema,
+    meta: { safeRead: true },
   },
 
   /** GET /api/admin/llm-config/:id — Fetch one global config. */
@@ -229,6 +231,7 @@ export const adminRoutes = {
     id: 'getGlobalLlmConfig',
     params: { id: z.string() },
     output: GetLlmConfigResponseSchema,
+    meta: { safeRead: true },
   },
 
   /** POST /api/admin/llm-config — Create a new global config. */
@@ -250,6 +253,7 @@ export const adminRoutes = {
     params: { id: z.string() },
     input: LlmConfigUpdateSchema,
     output: UpdateLlmConfigResponseSchema,
+    meta: { idempotent: true },
   },
 
   /** PUT /api/admin/llm-config/:id/set-default — Promote to paid default. */
@@ -260,6 +264,7 @@ export const adminRoutes = {
     id: 'setGlobalLlmConfigDefault',
     params: { id: z.string() },
     output: SetDefaultLlmConfigResponseSchema,
+    meta: { idempotent: true },
   },
 
   /** PUT /api/admin/llm-config/:id/set-free-default — Promote to free-tier default. */
@@ -270,6 +275,7 @@ export const adminRoutes = {
     id: 'setGlobalLlmConfigFreeDefault',
     params: { id: z.string() },
     output: SetDefaultLlmConfigResponseSchema,
+    meta: { idempotent: true },
   },
 
   /** DELETE /api/admin/llm-config/:id — Remove a global config. */
@@ -292,6 +298,7 @@ export const adminRoutes = {
     path: '/tts-config',
     id: 'listGlobalTtsConfigs',
     output: ListTtsConfigsResponseSchema,
+    meta: { safeRead: true },
   },
 
   getGlobalTtsConfig: {
@@ -301,6 +308,7 @@ export const adminRoutes = {
     id: 'getGlobalTtsConfig',
     params: { id: z.string() },
     output: GetTtsConfigResponseSchema,
+    meta: { safeRead: true },
   },
 
   createGlobalTtsConfig: {
@@ -320,6 +328,7 @@ export const adminRoutes = {
     params: { id: z.string() },
     input: TtsConfigUpdateSchema,
     output: UpdateTtsConfigResponseSchema,
+    meta: { idempotent: true },
   },
 
   setGlobalTtsConfigDefault: {
@@ -329,6 +338,7 @@ export const adminRoutes = {
     id: 'setGlobalTtsConfigDefault',
     params: { id: z.string() },
     output: SetDefaultTtsConfigResponseSchema,
+    meta: { idempotent: true },
   },
 
   setGlobalTtsConfigFreeDefault: {
@@ -338,6 +348,7 @@ export const adminRoutes = {
     id: 'setGlobalTtsConfigFreeDefault',
     params: { id: z.string() },
     output: SetDefaultTtsConfigResponseSchema,
+    meta: { idempotent: true },
   },
 
   deleteGlobalTtsConfig: {
@@ -367,6 +378,7 @@ export const adminRoutes = {
     path: '/settings',
     id: 'getAdminSettings',
     output: AdminSettingsSchema,
+    meta: { safeRead: true },
   },
 
   /** PATCH /api/admin/settings/config-defaults — Flat-body cascade update. */
@@ -399,6 +411,7 @@ export const adminRoutes = {
     path: '/stop-sequences',
     id: 'getStopSequencesStats',
     output: StopSequencesResponseSchema,
+    meta: { safeRead: true },
   },
 
   /**
@@ -412,6 +425,7 @@ export const adminRoutes = {
     id: 'getAdminUsageStats',
     query: { timeframe: z.string().optional() },
     output: UsageStatsSchema,
+    meta: { safeRead: true },
   },
 } as const satisfies Record<string, RouteDef>;
 

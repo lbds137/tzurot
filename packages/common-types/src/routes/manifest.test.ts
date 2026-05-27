@@ -135,4 +135,55 @@ describe('central route manifest', () => {
       }
     }
   });
+
+  // ==========================================================================
+  // Meta-tag consistency invariants
+  //
+  // `meta` is opt-in metadata that the codegen turns into JSDoc `@safeRead` /
+  // `@idempotent` / `@softDeleteAware` tags on generated client methods.
+  // Consumer code (cache layers, retry policies) can read these tags. The
+  // invariants below catch common mis-tagging:
+  //   - GET routes are semantically read-only → should be safeRead.
+  //   - PUT routes are idempotent by HTTP convention → should be idempotent.
+  //   - safeRead and idempotent are mutually exclusive on the same route
+  //     (a route that mutates idempotently is not a safe read).
+  // ==========================================================================
+
+  it('GET routes declare meta.safeRead: true', () => {
+    for (const [key, route] of entries) {
+      if (route.method === 'get') {
+        expect(
+          route.meta?.safeRead,
+          `${key} (GET) should declare meta.safeRead: true — GETs are semantically read-only`
+        ).toBe(true);
+      }
+    }
+  });
+
+  it('PUT routes declare meta.idempotent: true', () => {
+    for (const [key, route] of entries) {
+      if (route.method === 'put') {
+        expect(
+          route.meta?.idempotent,
+          `${key} (PUT) should declare meta.idempotent: true — PUT is idempotent by HTTP convention`
+        ).toBe(true);
+      }
+    }
+  });
+
+  it('meta.safeRead and meta.idempotent are not both true on the same route', () => {
+    // A safeRead route doesn't mutate; an idempotent route does mutate but
+    // safely on retry. The two states are mutually exclusive — a route that
+    // claims both has a mistagging. (Idempotent reads exist trivially but
+    // we model those via safeRead alone; "idempotent" here means "idempotent
+    // write".)
+    for (const [key, route] of entries) {
+      const safe = route.meta?.safeRead === true;
+      const idem = route.meta?.idempotent === true;
+      expect(
+        safe && idem,
+        `${key} declares both meta.safeRead AND meta.idempotent — pick one`
+      ).toBe(false);
+    }
+  });
 });

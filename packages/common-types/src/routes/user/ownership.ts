@@ -49,6 +49,7 @@ export const userOwnershipRoutes = {
     id: 'listPersonalities',
     output: ListPersonalitiesResponseSchema,
     requiresProvisionedUser: true,
+    meta: { safeRead: true },
   },
 
   getPersonality: {
@@ -59,6 +60,7 @@ export const userOwnershipRoutes = {
     params: { slug: z.string() },
     output: GetPersonalityResponseSchema,
     requiresProvisionedUser: true,
+    meta: { safeRead: true },
   },
 
   createPersonality: {
@@ -80,6 +82,7 @@ export const userOwnershipRoutes = {
     input: PersonalityUpdateSchema,
     output: GetPersonalityResponseSchema,
     requiresProvisionedUser: true,
+    meta: { idempotent: true },
   },
 
   setPersonalityVisibility: {
@@ -114,6 +117,7 @@ export const userOwnershipRoutes = {
     id: 'listPersonas',
     output: ListPersonasResponseSchema,
     requiresProvisionedUser: true,
+    meta: { safeRead: true },
   },
 
   getPersona: {
@@ -124,6 +128,7 @@ export const userOwnershipRoutes = {
     params: { id: z.string() },
     output: GetPersonaResponseSchema,
     requiresProvisionedUser: true,
+    meta: { safeRead: true },
   },
 
   createPersona: {
@@ -145,6 +150,7 @@ export const userOwnershipRoutes = {
     input: PersonaUpdateSchema,
     output: UpdatePersonaResponseSchema,
     requiresProvisionedUser: true,
+    meta: { idempotent: true },
   },
 
   deletePersona: {
@@ -178,6 +184,7 @@ export const userOwnershipRoutes = {
     id: 'listPersonaOverrides',
     output: ListPersonaOverridesResponseSchema,
     requiresProvisionedUser: true,
+    meta: { safeRead: true },
   },
 
   getPersonaOverride: {
@@ -188,6 +195,7 @@ export const userOwnershipRoutes = {
     params: { personalitySlug: z.string() },
     output: OverrideInfoResponseSchema,
     requiresProvisionedUser: true,
+    meta: { safeRead: true },
   },
 
   setPersonaOverride: {
@@ -199,6 +207,7 @@ export const userOwnershipRoutes = {
     input: SetPersonaOverrideSchema,
     output: SetOverrideResponseSchema,
     requiresProvisionedUser: true,
+    meta: { idempotent: true },
   },
 
   clearPersonaOverride: {

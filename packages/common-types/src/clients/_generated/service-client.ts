@@ -65,6 +65,9 @@ export class ServiceClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async aiJobStatus(jobId: string): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.aiJobStatus.output>>> {
     const fullPath = `/api/internal/ai/job/${encodeURIComponent(jobId)}`;
     return callGateway({
@@ -99,6 +102,9 @@ export class ServiceClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async lookupPersonalityFromMessage(options: { discordMessageId: string }): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.lookupPersonalityFromMessage.output>>> {
     const fullPath = '/api/internal/conversation/message-personality' + buildQueryString([['discordMessageId', options.discordMessageId]]);
     return callGateway({
@@ -110,6 +116,9 @@ export class ServiceClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async recentUsers(options: { sinceDays?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.recentUsers.output>>> {
     const fullPath = '/api/internal/users/recent' + buildQueryString([['sinceDays', options.sinceDays]]);
     return callGateway({
@@ -121,6 +130,9 @@ export class ServiceClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async getDenylistCache(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getDenylistCache.output>>> {
     const fullPath = '/api/internal/denylist/cache';
     return callGateway({
@@ -144,6 +156,9 @@ export class ServiceClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async getChannelSettings(channelId: string): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getChannelSettings.output>>> {
     const fullPath = `/api/internal/channel/${encodeURIComponent(channelId)}`;
     return callGateway({

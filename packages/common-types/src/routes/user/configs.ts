@@ -79,6 +79,7 @@ export const userConfigRoutes = {
     id: 'getTimezone',
     output: GetTimezoneResponseSchema,
     requiresProvisionedUser: true,
+    meta: { safeRead: true },
   },
 
   setTimezone: {
@@ -89,6 +90,7 @@ export const userConfigRoutes = {
     input: SetTimezoneInputSchema,
     output: SetTimezoneResponseSchema,
     requiresProvisionedUser: true,
+    meta: { idempotent: true },
   },
 
   // ============================================================================
@@ -102,6 +104,7 @@ export const userConfigRoutes = {
     id: 'listUserLlmConfigs',
     output: ListLlmConfigsResponseSchema,
     requiresProvisionedUser: true,
+    meta: { safeRead: true },
   },
 
   getUserLlmConfig: {
@@ -112,6 +115,7 @@ export const userConfigRoutes = {
     params: { id: z.string() },
     output: GetLlmConfigResponseSchema,
     requiresProvisionedUser: true,
+    meta: { safeRead: true },
   },
 
   createUserLlmConfig: {
@@ -133,6 +137,7 @@ export const userConfigRoutes = {
     input: LlmConfigUpdateSchema,
     output: UpdateLlmConfigResponseSchema,
     requiresProvisionedUser: true,
+    meta: { idempotent: true },
   },
 
   deleteUserLlmConfig: {
@@ -166,6 +171,7 @@ export const userConfigRoutes = {
     id: 'listUserTtsConfigs',
     output: ListTtsConfigsResponseSchema,
     requiresProvisionedUser: true,
+    meta: { safeRead: true },
   },
 
   getUserTtsConfig: {
@@ -176,6 +182,7 @@ export const userConfigRoutes = {
     params: { id: z.string() },
     output: GetTtsConfigResponseSchema,
     requiresProvisionedUser: true,
+    meta: { safeRead: true },
   },
 
   createUserTtsConfig: {
@@ -197,6 +204,7 @@ export const userConfigRoutes = {
     input: TtsConfigUpdateSchema,
     output: UpdateTtsConfigResponseSchema,
     requiresProvisionedUser: true,
+    meta: { idempotent: true },
   },
 
   deleteUserTtsConfig: {
@@ -220,6 +228,7 @@ export const userConfigRoutes = {
     id: 'listTtsOverrides',
     output: ListTtsOverridesResponseSchema,
     requiresProvisionedUser: true,
+    meta: { safeRead: true },
   },
 
   setTtsOverride: {
@@ -230,6 +239,7 @@ export const userConfigRoutes = {
     input: SetTtsOverrideSchema,
     output: SetTtsOverrideResponseSchema,
     requiresProvisionedUser: true,
+    meta: { idempotent: true },
   },
 
   deleteTtsOverride: {
@@ -249,6 +259,7 @@ export const userConfigRoutes = {
     id: 'getTtsDefaultConfig',
     output: GetTtsDefaultConfigResponseSchema,
     requiresProvisionedUser: true,
+    meta: { safeRead: true },
   },
 
   setTtsDefaultConfig: {
@@ -259,6 +270,7 @@ export const userConfigRoutes = {
     input: SetTtsDefaultConfigSchema,
     output: SetTtsDefaultConfigResponseSchema,
     requiresProvisionedUser: true,
+    meta: { idempotent: true },
   },
 
   clearTtsDefaultConfig: {
@@ -281,6 +293,7 @@ export const userConfigRoutes = {
     id: 'getSttDefaultProvider',
     output: UserDefaultSttProviderSchema,
     requiresProvisionedUser: true,
+    meta: { safeRead: true },
   },
 
   setSttDefaultProvider: {
@@ -291,6 +304,7 @@ export const userConfigRoutes = {
     input: SetSttDefaultProviderSchema,
     output: SetSttDefaultProviderResponseSchema,
     requiresProvisionedUser: true,
+    meta: { idempotent: true },
   },
 
   clearSttDefaultProvider: {
@@ -313,6 +327,7 @@ export const userConfigRoutes = {
     id: 'listModelOverrides',
     output: ListModelOverridesResponseSchema,
     requiresProvisionedUser: true,
+    meta: { safeRead: true },
   },
 
   setModelOverride: {
@@ -323,6 +338,7 @@ export const userConfigRoutes = {
     input: SetModelOverrideSchema,
     output: SetModelOverrideResponseSchema,
     requiresProvisionedUser: true,
+    meta: { idempotent: true },
   },
 
   deleteModelOverride: {
@@ -342,6 +358,7 @@ export const userConfigRoutes = {
     id: 'getDefaultModelConfig',
     output: SetDefaultConfigResponseSchema,
     requiresProvisionedUser: true,
+    meta: { safeRead: true },
   },
 
   setDefaultModelConfig: {
@@ -352,6 +369,7 @@ export const userConfigRoutes = {
     input: SetDefaultConfigSchema,
     output: SetDefaultConfigResponseSchema,
     requiresProvisionedUser: true,
+    meta: { idempotent: true },
   },
 
   clearDefaultModelConfig: {
