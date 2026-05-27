@@ -7,8 +7,8 @@
  */
 
 import { createLogger, adminUsageOptions } from '@tzurot/common-types';
-import { adminFetch } from '../../utils/adminApiClient.js';
-import { buildAdminUsageEmbed, type AdminUsageStats } from '../../utils/usageFormatter.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
+import { buildAdminUsageEmbed } from '../../utils/usageFormatter.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
 const logger = createLogger('admin-usage');
@@ -22,19 +22,19 @@ export async function handleUsage(context: DeferredCommandContext): Promise<void
       : '7d';
 
   try {
-    const response = await adminFetch(`/admin/usage?timeframe=${encodeURIComponent(timeframe)}`);
+    const { ownerClient } = clientsFor(context.interaction);
+    const result = await ownerClient.getAdminUsageStats({ timeframe });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      logger.error({ status: response.status, error: errorText }, 'Usage query failed');
+    if (!result.ok) {
+      logger.error({ status: result.status, error: result.error }, 'Usage query failed');
 
       await context.editReply({
-        content: `❌ Failed to retrieve usage statistics (HTTP ${response.status}):\n\`\`\`\n${errorText}\n\`\`\``,
+        content: `❌ Failed to retrieve usage statistics (HTTP ${result.status}):\n\`\`\`\n${result.error}\n\`\`\``,
       });
       return;
     }
 
-    const stats = (await response.json()) as AdminUsageStats;
+    const stats = result.data;
     const embed = buildAdminUsageEmbed(stats);
 
     await context.editReply({ embeds: [embed] });

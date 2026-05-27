@@ -6,10 +6,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { GatewayResult, OwnerClient } from '@tzurot/common-types';
 import { handleCleanup } from './cleanup.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
-// Mock logger and config
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
@@ -20,19 +20,34 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
-    getConfig: () => ({
-      GATEWAY_URL: 'http://localhost:3000',
-      INTERNAL_SERVICE_SECRET: 'test-service-secret',
-    }),
   };
 });
 
-// Mock fetch
-global.fetch = vi.fn();
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
 
-/**
- * Create mock cleanup response
- */
+interface StubClient {
+  cleanup: ReturnType<typeof vi.fn>;
+}
+
+function createStubClient(): StubClient {
+  return { cleanup: vi.fn() };
+}
+
+function asOwnerClient(stub: StubClient): OwnerClient {
+  return stub as unknown as OwnerClient;
+}
+
+function ok<T>(data: T): GatewayResult<T> {
+  return { ok: true, data };
+}
+
+function err(status: number, message = 'fail'): GatewayResult<never> {
+  return { ok: false, error: message, status };
+}
+
 function createMockCleanupResponse(
   overrides: Partial<{
     success: boolean;
@@ -55,25 +70,26 @@ function createMockCleanupResponse(
 }
 
 describe('handleCleanup', () => {
+  let stub: StubClient;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = createStubClient();
+    clientsForMock.mockReturnValue({ ownerClient: asOwnerClient(stub) });
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  /**
-   * Create a mock DeferredCommandContext for testing.
-   */
   function createMockContext(
     days: number | null = null,
     target: string | null = null
   ): DeferredCommandContext {
     const mockEditReply = vi.fn().mockResolvedValue(undefined);
-
     return {
       interaction: {
+        user: { id: 'user-123' },
         options: {
           getString: vi.fn((name: string) => {
             if (name === 'target') return target;
@@ -109,96 +125,48 @@ describe('handleCleanup', () => {
   }
 
   it('should use default daysToKeep of 30 when not provided', async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify(createMockCleanupResponse()), { status: 200 })
-    );
+    stub.cleanup.mockResolvedValue(ok(createMockCleanupResponse()));
 
     const context = createMockContext(null, null);
     await handleCleanup(context);
 
-    expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining('/admin/cleanup'),
-      expect.objectContaining({
-        method: 'POST',
-        body: expect.stringContaining('"daysToKeep":30'),
-      })
+    expect(stub.cleanup).toHaveBeenCalledWith(
+      expect.objectContaining({ daysToKeep: 30, target: 'all' })
     );
   });
 
   it('should use provided daysToKeep value', async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify(createMockCleanupResponse({ daysKept: 7 })), { status: 200 })
-    );
+    stub.cleanup.mockResolvedValue(ok(createMockCleanupResponse({ daysKept: 7 })));
 
     const context = createMockContext(7, null);
     await handleCleanup(context);
 
-    expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining('/admin/cleanup'),
-      expect.objectContaining({
-        body: expect.stringContaining('"daysToKeep":7'),
-      })
+    expect(stub.cleanup).toHaveBeenCalledWith(
+      expect.objectContaining({ daysToKeep: 7, target: 'all' })
     );
   });
 
   it('should use default target of "all" when not provided', async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify(createMockCleanupResponse()), { status: 200 })
-    );
+    stub.cleanup.mockResolvedValue(ok(createMockCleanupResponse()));
 
     const context = createMockContext(null, null);
     await handleCleanup(context);
 
-    expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining('/admin/cleanup'),
-      expect.objectContaining({
-        body: expect.stringContaining('"target":"all"'),
-      })
-    );
+    expect(stub.cleanup).toHaveBeenCalledWith(expect.objectContaining({ target: 'all' }));
   });
 
   it('should use provided target value', async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify(createMockCleanupResponse({ tombstonesDeleted: 0 })), {
-        status: 200,
-      })
-    );
+    stub.cleanup.mockResolvedValue(ok(createMockCleanupResponse({ tombstonesDeleted: 0 })));
 
     const context = createMockContext(null, 'history');
     await handleCleanup(context);
 
-    expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining('/admin/cleanup'),
-      expect.objectContaining({
-        body: expect.stringContaining('"target":"history"'),
-      })
-    );
-  });
-
-  it('should include service secret in headers', async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify(createMockCleanupResponse()), { status: 200 })
-    );
-
-    const context = createMockContext(null, null);
-    await handleCleanup(context);
-
-    expect(fetch).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          'X-Service-Auth': 'test-service-secret',
-        }),
-      })
-    );
+    expect(stub.cleanup).toHaveBeenCalledWith(expect.objectContaining({ target: 'history' }));
   });
 
   it('should display success message with cleanup results', async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(
-        JSON.stringify(createMockCleanupResponse({ historyDeleted: 25, tombstonesDeleted: 10 })),
-        { status: 200 }
-      )
+    stub.cleanup.mockResolvedValue(
+      ok(createMockCleanupResponse({ historyDeleted: 25, tombstonesDeleted: 10 }))
     );
 
     const context = createMockContext(null, null);
@@ -210,7 +178,7 @@ describe('handleCleanup', () => {
   });
 
   it('should handle HTTP errors', async () => {
-    vi.mocked(fetch).mockResolvedValue(new Response('Internal Server Error', { status: 500 }));
+    stub.cleanup.mockResolvedValue(err(500, 'Internal Server Error'));
 
     const context = createMockContext(null, null);
     await handleCleanup(context);
@@ -221,7 +189,7 @@ describe('handleCleanup', () => {
   });
 
   it('should handle network errors', async () => {
-    vi.mocked(fetch).mockRejectedValue(new Error('Network error'));
+    stub.cleanup.mockRejectedValue(new Error('Network error'));
 
     const context = createMockContext(null, null);
     await handleCleanup(context);
@@ -232,11 +200,8 @@ describe('handleCleanup', () => {
   });
 
   it('should handle zero deletions', async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(
-        JSON.stringify(createMockCleanupResponse({ historyDeleted: 0, tombstonesDeleted: 0 })),
-        { status: 200 }
-      )
+    stub.cleanup.mockResolvedValue(
+      ok(createMockCleanupResponse({ historyDeleted: 0, tombstonesDeleted: 0 }))
     );
 
     const context = createMockContext(null, null);
@@ -248,7 +213,7 @@ describe('handleCleanup', () => {
   });
 
   it('should handle 403 unauthorized response', async () => {
-    vi.mocked(fetch).mockResolvedValue(new Response('Unauthorized', { status: 403 }));
+    stub.cleanup.mockResolvedValue(err(403, 'Unauthorized'));
 
     const context = createMockContext(null, null);
     await handleCleanup(context);
@@ -259,9 +224,7 @@ describe('handleCleanup', () => {
   });
 
   it('should display daysKept in the response', async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify(createMockCleanupResponse({ daysKept: 60 })), { status: 200 })
-    );
+    stub.cleanup.mockResolvedValue(ok(createMockCleanupResponse({ daysKept: 60 })));
 
     const context = createMockContext(60, null);
     await handleCleanup(context);

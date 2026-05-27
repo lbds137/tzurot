@@ -13,7 +13,7 @@ import {
   TEXT_LIMITS,
   adminDbSyncOptions,
 } from '@tzurot/common-types';
-import { adminPostJson } from '../../utils/adminApiClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
 const logger = createLogger('admin-db-sync');
@@ -127,29 +127,24 @@ function buildSyncSummary(result: SyncResult, dryRun: boolean): string {
 }
 
 export async function handleDbSync(context: DeferredCommandContext): Promise<void> {
-  const userId = context.user.id;
   const options = adminDbSyncOptions(context.interaction);
   const dryRun = options['dry-run']() ?? false;
 
   try {
-    // Call API Gateway sync endpoint
-    // (API gateway will validate that database URLs are configured)
-    const response = await adminPostJson('/admin/db-sync', {
-      dryRun,
-      ownerId: userId,
-    });
+    const { ownerClient } = clientsFor(context.interaction);
+    const apiResult = await ownerClient.dbSync({ dryRun });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      logger.error({ status: response.status, error: errorText }, 'DB sync failed');
+    if (!apiResult.ok) {
+      logger.error({ status: apiResult.status, error: apiResult.error }, 'DB sync failed');
 
       await context.editReply({
-        content: `❌ Database sync failed (HTTP ${response.status}):\n\`\`\`\n${errorText}\n\`\`\``,
+        content: `❌ Database sync failed (HTTP ${apiResult.status}):\n\`\`\`\n${apiResult.error}\n\`\`\``,
       });
       return;
     }
 
-    const result = (await response.json()) as SyncResult;
+    // Cast until DbSyncResponseSchema is tightened (deferred: backlog/deferred.md).
+    const result = apiResult.data as SyncResult;
 
     // Build result embed
     const embed = new EmbedBuilder()

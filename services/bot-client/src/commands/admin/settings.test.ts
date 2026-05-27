@@ -8,6 +8,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
+import type { GatewayResult, OwnerClient } from '@tzurot/common-types';
 import {
   handleSettings,
   handleAdminSettingsButton,
@@ -17,7 +18,6 @@ import {
 } from './settings.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
-// Mock dependencies
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
   return {
@@ -31,14 +31,11 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-const mockAdminFetch = vi.fn();
-const mockAdminPatchJson = vi.fn();
-vi.mock('../../utils/adminApiClient.js', () => ({
-  adminFetch: (...args: unknown[]) => mockAdminFetch(...args),
-  adminPatchJson: (...args: unknown[]) => mockAdminPatchJson(...args),
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
 }));
 
-// Mock the session manager
 const mockSessionManager = {
   set: vi.fn(),
   get: vi.fn(),
@@ -52,7 +49,30 @@ vi.mock('../../utils/dashboard/SessionManager.js', () => ({
   },
 }));
 
+interface StubClient {
+  getAdminSettings: ReturnType<typeof vi.fn>;
+  updateAdminSettings: ReturnType<typeof vi.fn>;
+}
+
+function createStubClient(): StubClient {
+  return { getAdminSettings: vi.fn(), updateAdminSettings: vi.fn() };
+}
+
+function asOwnerClient(stub: StubClient): OwnerClient {
+  return stub as unknown as OwnerClient;
+}
+
+function ok<T>(data: T): GatewayResult<T> {
+  return { ok: true, data };
+}
+
+function err(status: number, message = 'fail'): GatewayResult<never> {
+  return { ok: false, error: message, status };
+}
+
 describe('Admin Settings Dashboard', () => {
+  let stub: StubClient;
+
   const mockSettings = {
     id: '550e8400-e29b-41d4-a716-446655440001',
     updatedBy: 'user-123',
@@ -61,23 +81,22 @@ describe('Admin Settings Dashboard', () => {
     updatedAt: '2025-01-15T00:00:00.000Z',
   };
 
-  /**
-   * Create a mock DeferredCommandContext for testing handleSettings.
-   *
-   * Note: createSettingsDashboard receives context.interaction directly and calls
-   * interaction.editReply(), so the mock interaction must have editReply too.
-   */
   function createMockContext(): DeferredCommandContext & {
     editReply: ReturnType<typeof vi.fn>;
-    interaction: { editReply: ReturnType<typeof vi.fn>; deferred: boolean; replied: boolean };
+    interaction: {
+      editReply: ReturnType<typeof vi.fn>;
+      deferred: boolean;
+      replied: boolean;
+      user: { id: string };
+    };
   } {
     const mockEditReply = vi.fn().mockResolvedValue({ id: 'message-123' });
 
-    // The interaction must have editReply because createSettingsDashboard calls it directly
     const mockInteraction = {
       editReply: mockEditReply,
       deferred: true,
       replied: false,
+      user: { id: 'user-456' },
     };
 
     return {
@@ -94,12 +113,17 @@ describe('Admin Settings Dashboard', () => {
       getRequiredOption: vi.fn(),
       getSubcommand: () => 'settings',
       getSubcommandGroup: () => null,
-      editReply: mockEditReply, // Context's editReply mirrors interaction's for consistency
+      editReply: mockEditReply,
       followUp: vi.fn(),
       deleteReply: vi.fn(),
     } as unknown as DeferredCommandContext & {
       editReply: ReturnType<typeof vi.fn>;
-      interaction: { editReply: ReturnType<typeof vi.fn>; deferred: boolean; replied: boolean };
+      interaction: {
+        editReply: ReturnType<typeof vi.fn>;
+        deferred: boolean;
+        replied: boolean;
+        user: { id: string };
+      };
     };
   }
 
@@ -149,22 +173,18 @@ describe('Admin Settings Dashboard', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = createStubClient();
+    clientsForMock.mockReturnValue({ ownerClient: asOwnerClient(stub) });
   });
 
   describe('handleSettings', () => {
     it('should display settings dashboard embed', async () => {
       const context = createMockContext();
-      mockAdminFetch.mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue(mockSettings),
-      });
+      stub.getAdminSettings.mockResolvedValue(ok(mockSettings));
 
       await handleSettings(context);
 
-      expect(mockAdminFetch).toHaveBeenCalledWith('/admin/settings', {
-        method: 'GET',
-        userId: 'user-456',
-      });
+      expect(stub.getAdminSettings).toHaveBeenCalled();
       expect(context.editReply).toHaveBeenCalledWith(
         expect.objectContaining({
           embeds: expect.any(Array),
@@ -175,10 +195,7 @@ describe('Admin Settings Dashboard', () => {
 
     it('should include Global Settings title in embed', async () => {
       const context = createMockContext();
-      mockAdminFetch.mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue(mockSettings),
-      });
+      stub.getAdminSettings.mockResolvedValue(ok(mockSettings));
 
       await handleSettings(context);
 
@@ -191,10 +208,7 @@ describe('Admin Settings Dashboard', () => {
 
     it('should include all 11 settings fields', async () => {
       const context = createMockContext();
-      mockAdminFetch.mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue(mockSettings),
-      });
+      stub.getAdminSettings.mockResolvedValue(ok(mockSettings));
 
       await handleSettings(context);
 
@@ -221,10 +235,7 @@ describe('Admin Settings Dashboard', () => {
 
     it('should include select menu and close button', async () => {
       const context = createMockContext();
-      mockAdminFetch.mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue(mockSettings),
-      });
+      stub.getAdminSettings.mockResolvedValue(ok(mockSettings));
 
       await handleSettings(context);
 
@@ -234,10 +245,7 @@ describe('Admin Settings Dashboard', () => {
 
     it('should handle fetch failure gracefully', async () => {
       const context = createMockContext();
-      mockAdminFetch.mockResolvedValue({
-        ok: false,
-        json: vi.fn(),
-      });
+      stub.getAdminSettings.mockResolvedValue(err(500));
 
       await handleSettings(context);
 
@@ -248,7 +256,7 @@ describe('Admin Settings Dashboard', () => {
 
     it('should handle unexpected errors gracefully', async () => {
       const context = createMockContext();
-      mockAdminFetch.mockRejectedValue(new Error('Network error'));
+      stub.getAdminSettings.mockRejectedValue(new Error('Network error'));
 
       await handleSettings(context);
 
@@ -263,7 +271,7 @@ describe('Admin Settings Dashboard', () => {
         get: () => true,
         configurable: true,
       });
-      mockAdminFetch.mockRejectedValue(new Error('Network error'));
+      stub.getAdminSettings.mockRejectedValue(new Error('Network error'));
 
       await handleSettings(context);
 
@@ -284,7 +292,6 @@ describe('Admin Settings Dashboard', () => {
     it('should return false for non-admin settings custom IDs', () => {
       expect(isAdminSettingsInteraction('channel-settings::select::chan-123')).toBe(false);
       expect(isAdminSettingsInteraction('character-settings::set::aurora')).toBe(false);
-      // admin::servers is a different admin subcommand, not settings
       expect(isAdminSettingsInteraction('admin::servers::list')).toBe(false);
     });
 
@@ -327,10 +334,7 @@ describe('Admin Settings Dashboard', () => {
         },
       });
 
-      mockAdminPatchJson.mockResolvedValue({
-        ok: false,
-        text: vi.fn().mockResolvedValue('Permission denied'),
-      });
+      stub.updateAdminSettings.mockResolvedValue(err(403, 'Permission denied'));
 
       await handleAdminSettingsButton(interaction as unknown as ButtonInteraction);
 
@@ -432,36 +436,26 @@ describe('Admin Settings Dashboard', () => {
       );
 
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxMessages'));
-      mockAdminPatchJson.mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({ ...mockSettings, configDefaults: { maxMessages: 75 } }),
-      });
+      stub.updateAdminSettings.mockResolvedValue(
+        ok({ ...mockSettings, configDefaults: { maxMessages: 75 } })
+      );
 
       await handleAdminSettingsModal(interaction as never);
 
-      expect(mockAdminPatchJson).toHaveBeenCalledWith(
-        '/admin/settings/config-defaults',
-        { maxMessages: 75 },
-        'user-456'
-      );
+      expect(stub.updateAdminSettings).toHaveBeenCalledWith({ maxMessages: 75 });
     });
 
     it('should update maxAge setting with duration string (2h)', async () => {
       const interaction = createMockModalInteraction('admin-settings::modal::global::maxAge', '2h');
 
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxAge'));
-      mockAdminPatchJson.mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({ ...mockSettings, configDefaults: { maxAge: 7200 } }),
-      });
+      stub.updateAdminSettings.mockResolvedValue(
+        ok({ ...mockSettings, configDefaults: { maxAge: 7200 } })
+      );
 
       await handleAdminSettingsModal(interaction as never);
 
-      expect(mockAdminPatchJson).toHaveBeenCalledWith(
-        '/admin/settings/config-defaults',
-        { maxAge: 7200 }, // 2h = 7200 seconds
-        'user-456'
-      );
+      expect(stub.updateAdminSettings).toHaveBeenCalledWith({ maxAge: 7200 });
     });
 
     it('should update maxAge setting to "off" (disabled)', async () => {
@@ -471,18 +465,13 @@ describe('Admin Settings Dashboard', () => {
       );
 
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxAge'));
-      mockAdminPatchJson.mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({ ...mockSettings, configDefaults: { maxAge: null } }),
-      });
+      stub.updateAdminSettings.mockResolvedValue(
+        ok({ ...mockSettings, configDefaults: { maxAge: null } })
+      );
 
       await handleAdminSettingsModal(interaction as never);
 
-      expect(mockAdminPatchJson).toHaveBeenCalledWith(
-        '/admin/settings/config-defaults',
-        { maxAge: null }, // "off" maps to null in JSONB
-        'user-456'
-      );
+      expect(stub.updateAdminSettings).toHaveBeenCalledWith({ maxAge: null });
     });
 
     it('should clear maxAge override when set to "auto"', async () => {
@@ -492,19 +481,12 @@ describe('Admin Settings Dashboard', () => {
       );
 
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxAge'));
-      mockAdminPatchJson.mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({ ...mockSettings, configDefaults: null }),
-      });
+      stub.updateAdminSettings.mockResolvedValue(ok({ ...mockSettings, configDefaults: null }));
 
       await handleAdminSettingsModal(interaction as never);
 
-      // For global settings, auto means clear the override (use hardcoded default)
-      expect(mockAdminPatchJson).toHaveBeenCalledWith(
-        '/admin/settings/config-defaults',
-        { maxAge: null },
-        'user-456'
-      );
+      // For global settings, auto means clear the override.
+      expect(stub.updateAdminSettings).toHaveBeenCalledWith({ maxAge: null });
     });
 
     it('should update maxImages setting', async () => {
@@ -514,18 +496,13 @@ describe('Admin Settings Dashboard', () => {
       );
 
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxImages'));
-      mockAdminPatchJson.mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({ ...mockSettings, configDefaults: { maxImages: 10 } }),
-      });
+      stub.updateAdminSettings.mockResolvedValue(
+        ok({ ...mockSettings, configDefaults: { maxImages: 10 } })
+      );
 
       await handleAdminSettingsModal(interaction as never);
 
-      expect(mockAdminPatchJson).toHaveBeenCalledWith(
-        '/admin/settings/config-defaults',
-        { maxImages: 10 },
-        'user-456'
-      );
+      expect(stub.updateAdminSettings).toHaveBeenCalledWith({ maxImages: 10 });
     });
 
     it('should clear maxImages override when set to "auto"', async () => {
@@ -535,19 +512,11 @@ describe('Admin Settings Dashboard', () => {
       );
 
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxImages'));
-      mockAdminPatchJson.mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({ ...mockSettings, configDefaults: null }),
-      });
+      stub.updateAdminSettings.mockResolvedValue(ok({ ...mockSettings, configDefaults: null }));
 
       await handleAdminSettingsModal(interaction as never);
 
-      // For global settings, auto means clear the override
-      expect(mockAdminPatchJson).toHaveBeenCalledWith(
-        '/admin/settings/config-defaults',
-        { maxImages: null },
-        'user-456'
-      );
+      expect(stub.updateAdminSettings).toHaveBeenCalledWith({ maxImages: null });
     });
 
     it('should clear maxMessages override when set to "auto"', async () => {
@@ -557,19 +526,11 @@ describe('Admin Settings Dashboard', () => {
       );
 
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxMessages'));
-      mockAdminPatchJson.mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({ ...mockSettings, configDefaults: null }),
-      });
+      stub.updateAdminSettings.mockResolvedValue(ok({ ...mockSettings, configDefaults: null }));
 
       await handleAdminSettingsModal(interaction as never);
 
-      // For global settings, auto means clear the override.
-      expect(mockAdminPatchJson).toHaveBeenCalledWith(
-        '/admin/settings/config-defaults',
-        { maxMessages: null },
-        'user-456'
-      );
+      expect(stub.updateAdminSettings).toHaveBeenCalledWith({ maxMessages: null });
     });
 
     it('should handle network error gracefully', async () => {
@@ -579,14 +540,11 @@ describe('Admin Settings Dashboard', () => {
       );
 
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxMessages'));
-      mockAdminPatchJson.mockRejectedValue(new Error('Network error'));
+      stub.updateAdminSettings.mockRejectedValue(new Error('Network error'));
 
-      // Should not throw
       await handleAdminSettingsModal(interaction as never);
 
-      // When update fails, the handler returns early without editing the reply
-      // (preserves the previous dashboard state)
-      expect(mockAdminPatchJson).toHaveBeenCalled();
+      expect(stub.updateAdminSettings).toHaveBeenCalled();
       expect(interaction.editReply).not.toHaveBeenCalled();
     });
   });

@@ -22,8 +22,13 @@ import type {
   ModalSubmitInteraction,
 } from 'discord.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { createLogger, DISCORD_COLORS, type GetAdminSettingsResponse } from '@tzurot/common-types';
-import { adminFetch, adminPatchJson } from '../../utils/adminApiClient.js';
+import {
+  createLogger,
+  DISCORD_COLORS,
+  type GetAdminSettingsResponse,
+  type OwnerClient,
+} from '@tzurot/common-types';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import {
   type SettingsData,
   type SettingsDashboardConfig,
@@ -77,7 +82,8 @@ export async function handleSettings(context: DeferredCommandContext): Promise<v
 
   try {
     // Fetch current settings from API gateway
-    const settings = await fetchAdminSettings(userId);
+    const { ownerClient } = clientsFor(context.interaction);
+    const settings = await fetchAdminSettings(ownerClient);
 
     if (settings === null) {
       await context.editReply({
@@ -158,17 +164,14 @@ export function isAdminSettingsInteraction(customId: string): boolean {
 /**
  * Fetch AdminSettings from API gateway
  */
-async function fetchAdminSettings(userId: string): Promise<GetAdminSettingsResponse | null> {
-  const response = await adminFetch('/admin/settings', {
-    method: 'GET',
-    userId,
-  });
-
-  if (!response.ok) {
+async function fetchAdminSettings(
+  ownerClient: OwnerClient
+): Promise<GetAdminSettingsResponse | null> {
+  const result = await ownerClient.getAdminSettings();
+  if (!result.ok) {
     return null;
   }
-
-  return (await response.json()) as GetAdminSettingsResponse;
+  return result.data;
 }
 
 /**
@@ -204,20 +207,16 @@ async function handleSettingUpdate(
     }
 
     // Send update to admin config-defaults sub-route (flat body shape)
-    const response = await adminPatchJson('/admin/settings/config-defaults', body, userId);
+    const { ownerClient } = clientsFor(interaction);
+    const result = await ownerClient.updateAdminSettings(body);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      logger.warn({ settingId, error: errorText }, 'Update failed');
-      return { success: false, error: errorText };
+    if (!result.ok) {
+      logger.warn({ settingId, error: result.error }, 'Update failed');
+      return { success: false, error: result.error };
     }
 
-    // Fetch fresh data and convert to SettingsData
-    const newSettings = (await response.json()) as GetAdminSettingsResponse;
-    const newData = convertToSettingsData(newSettings);
-
+    const newData = convertToSettingsData(result.data);
     logger.info({ settingId, newValue, userId }, 'Setting updated');
-
     return { success: true, newData };
   } catch (error) {
     logger.error({ err: error, settingId }, 'Error updating setting');
