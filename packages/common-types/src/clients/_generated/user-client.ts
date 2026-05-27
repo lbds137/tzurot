@@ -51,6 +51,9 @@ export class UserClient {
     this.user = options.user;
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async getTimezone(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getTimezone.output>>> {
     const fullPath = '/api/user/timezone';
     return callGateway({
@@ -67,6 +70,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
+   */
   async setTimezone(input: z.infer<typeof ROUTE_MANIFEST.setTimezone.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setTimezone.output>>> {
     const fullPath = '/api/user/timezone';
     return callGateway({
@@ -84,6 +90,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async listUserLlmConfigs(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listUserLlmConfigs.output>>> {
     const fullPath = '/api/user/llm-config';
     return callGateway({
@@ -100,6 +109,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async getUserLlmConfig(id: string): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getUserLlmConfig.output>>> {
     const fullPath = `/api/user/llm-config/${encodeURIComponent(id)}`;
     return callGateway({
@@ -133,6 +145,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
+   */
   async updateUserLlmConfig(id: string, input: z.infer<typeof ROUTE_MANIFEST.updateUserLlmConfig.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updateUserLlmConfig.output>>> {
     const fullPath = `/api/user/llm-config/${encodeURIComponent(id)}`;
     return callGateway({
@@ -183,6 +198,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async listUserTtsConfigs(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listUserTtsConfigs.output>>> {
     const fullPath = '/api/user/tts-config';
     return callGateway({
@@ -199,6 +217,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async getUserTtsConfig(id: string): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getUserTtsConfig.output>>> {
     const fullPath = `/api/user/tts-config/${encodeURIComponent(id)}`;
     return callGateway({
@@ -232,6 +253,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
+   */
   async updateUserTtsConfig(id: string, input: z.infer<typeof ROUTE_MANIFEST.updateUserTtsConfig.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updateUserTtsConfig.output>>> {
     const fullPath = `/api/user/tts-config/${encodeURIComponent(id)}`;
     return callGateway({
@@ -265,6 +289,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async listTtsOverrides(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listTtsOverrides.output>>> {
     const fullPath = '/api/user/tts-override';
     return callGateway({
@@ -281,6 +308,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
+   */
   async setTtsOverride(input: z.infer<typeof ROUTE_MANIFEST.setTtsOverride.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setTtsOverride.output>>> {
     const fullPath = '/api/user/tts-override';
     return callGateway({
@@ -314,6 +344,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async getTtsDefaultConfig(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getTtsDefaultConfig.output>>> {
     const fullPath = '/api/user/tts-override/default';
     return callGateway({
@@ -330,6 +363,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
+   */
   async setTtsDefaultConfig(input: z.infer<typeof ROUTE_MANIFEST.setTtsDefaultConfig.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setTtsDefaultConfig.output>>> {
     const fullPath = '/api/user/tts-override/default';
     return callGateway({
@@ -363,6 +399,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async getSttDefaultProvider(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getSttDefaultProvider.output>>> {
     const fullPath = '/api/user/stt-override';
     return callGateway({
@@ -379,6 +418,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
+   */
   async setSttDefaultProvider(input: z.infer<typeof ROUTE_MANIFEST.setSttDefaultProvider.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setSttDefaultProvider.output>>> {
     const fullPath = '/api/user/stt-override';
     return callGateway({
@@ -412,6 +454,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async listModelOverrides(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listModelOverrides.output>>> {
     const fullPath = '/api/user/model-override';
     return callGateway({
@@ -428,6 +473,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
+   */
   async setModelOverride(input: z.infer<typeof ROUTE_MANIFEST.setModelOverride.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setModelOverride.output>>> {
     const fullPath = '/api/user/model-override';
     return callGateway({
@@ -461,6 +509,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async getDefaultModelConfig(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getDefaultModelConfig.output>>> {
     const fullPath = '/api/user/model-override/default';
     return callGateway({
@@ -477,6 +528,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
+   */
   async setDefaultModelConfig(input: z.infer<typeof ROUTE_MANIFEST.setDefaultModelConfig.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setDefaultModelConfig.output>>> {
     const fullPath = '/api/user/model-override/default';
     return callGateway({
@@ -510,6 +564,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async listPersonalities(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listPersonalities.output>>> {
     const fullPath = '/api/user/personality';
     return callGateway({
@@ -526,6 +583,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async getPersonality(slug: string): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getPersonality.output>>> {
     const fullPath = `/api/user/personality/${encodeURIComponent(slug)}`;
     return callGateway({
@@ -559,6 +619,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
+   */
   async updatePersonality(slug: string, input: z.infer<typeof ROUTE_MANIFEST.updatePersonality.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updatePersonality.output>>> {
     const fullPath = `/api/user/personality/${encodeURIComponent(slug)}`;
     return callGateway({
@@ -609,6 +672,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async listPersonas(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listPersonas.output>>> {
     const fullPath = '/api/user/persona';
     return callGateway({
@@ -625,6 +691,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async getPersona(id: string): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getPersona.output>>> {
     const fullPath = `/api/user/persona/${encodeURIComponent(id)}`;
     return callGateway({
@@ -658,6 +727,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
+   */
   async updatePersona(id: string, input: z.infer<typeof ROUTE_MANIFEST.updatePersona.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updatePersona.output>>> {
     const fullPath = `/api/user/persona/${encodeURIComponent(id)}`;
     return callGateway({
@@ -707,6 +779,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async listPersonaOverrides(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listPersonaOverrides.output>>> {
     const fullPath = '/api/user/persona/override';
     return callGateway({
@@ -723,6 +798,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async getPersonaOverride(personalitySlug: string): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getPersonaOverride.output>>> {
     const fullPath = `/api/user/persona/override/${encodeURIComponent(personalitySlug)}`;
     return callGateway({
@@ -739,6 +817,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
+   */
   async setPersonaOverride(personalitySlug: string, input: z.infer<typeof ROUTE_MANIFEST.setPersonaOverride.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setPersonaOverride.output>>> {
     const fullPath = `/api/user/persona/override/${encodeURIComponent(personalitySlug)}`;
     return callGateway({
@@ -806,6 +887,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async listUserChannels(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listUserChannels.output>>> {
     const fullPath = '/api/user/channel/list';
     return callGateway({
@@ -822,6 +906,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async getUserChannel(channelId: string): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getUserChannel.output>>> {
     const fullPath = `/api/user/channel/${encodeURIComponent(channelId)}`;
     return callGateway({
@@ -854,6 +941,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async getChannelConfigOverrides(channelId: string): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getChannelConfigOverrides.output>>> {
     const fullPath = `/api/user/channel/${encodeURIComponent(channelId)}/config-overrides`;
     return callGateway({
@@ -870,6 +960,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async getUserUsage(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getUserUsage.output>>> {
     const fullPath = '/api/user/usage';
     return callGateway({
@@ -920,6 +1013,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async getHistoryStats(options: { personalitySlug: string; channelId: string; personaId?: string }): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getHistoryStats.output>>> {
     const fullPath = '/api/user/history/stats' + buildQueryString([['personalitySlug', options.personalitySlug], ['channelId', options.channelId], ['personaId', options.personaId]]);
     return callGateway({
@@ -953,6 +1049,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async getNsfwStatus(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getNsfwStatus.output>>> {
     const fullPath = '/api/user/nsfw';
     return callGateway({
@@ -985,6 +1084,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async listWalletKeys(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listWalletKeys.output>>> {
     const fullPath = '/api/user/wallet/list';
     return callGateway({
@@ -1051,6 +1153,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async getVoiceResolution(options: { personalityId: string }): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getVoiceResolution.output>>> {
     const fullPath = '/api/user/voice-resolution' + buildQueryString([['personalityId', options.personalityId]]);
     return callGateway({
@@ -1067,6 +1172,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async listVoices(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listVoices.output>>> {
     const fullPath = '/api/user/voices';
     return callGateway({
@@ -1083,6 +1191,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async listVoiceModels(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listVoiceModels.output>>> {
     const fullPath = '/api/user/voices/models';
     return callGateway({
@@ -1131,6 +1242,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async getStats(options: { personalityId: string }): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getStats.output>>> {
     const fullPath = '/api/user/memory/stats' + buildQueryString([['personalityId', options.personalityId]]);
     return callGateway({
@@ -1147,6 +1261,10 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   * @softDeleteAware Resource has a soft-delete column; soft-deleted rows may be returned or filtered depending on handler semantics.
+   */
   async list(options: { personalityId?: string; limit?: string; offset?: string; sort?: string; order?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.list.output>>> {
     const fullPath = '/api/user/memory/list' + buildQueryString([['personalityId', options.personalityId], ['limit', options.limit], ['offset', options.offset], ['sort', options.sort], ['order', options.order]]);
     return callGateway({
@@ -1163,6 +1281,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async getFocus(options: { personalityId: string }): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getFocus.output>>> {
     const fullPath = '/api/user/memory/focus' + buildQueryString([['personalityId', options.personalityId]]);
     return callGateway({
@@ -1179,6 +1300,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
+   */
   async setFocus(input: z.infer<typeof ROUTE_MANIFEST.setFocus.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setFocus.output>>> {
     const fullPath = '/api/user/memory/focus';
     return callGateway({
@@ -1196,6 +1320,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async search(input: z.infer<typeof ROUTE_MANIFEST.search.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.search.output>>> {
     const fullPath = '/api/user/memory/search';
     return callGateway({
@@ -1213,6 +1340,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async batchDeletePreview(input: z.infer<typeof ROUTE_MANIFEST.batchDeletePreview.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.batchDeletePreview.output>>> {
     const fullPath = '/api/user/memory/delete/preview';
     return callGateway({
@@ -1230,6 +1360,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
+   */
   async batchDelete(input: z.infer<typeof ROUTE_MANIFEST.batchDelete.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.batchDelete.output>>> {
     const fullPath = '/api/user/memory/delete';
     return callGateway({
@@ -1264,6 +1397,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
+   */
   async purge(input: z.infer<typeof ROUTE_MANIFEST.purge.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.purge.output>>> {
     const fullPath = '/api/user/memory/purge';
     return callGateway({
@@ -1281,6 +1417,10 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   * @softDeleteAware Resource has a soft-delete column; soft-deleted rows may be returned or filtered depending on handler semantics.
+   */
   async getMemory(id: string): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getMemory.output>>> {
     const fullPath = `/api/user/memory/${encodeURIComponent(id)}`;
     return callGateway({
@@ -1330,6 +1470,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
+   */
   async setMemoryLock(id: string, input: z.infer<typeof ROUTE_MANIFEST.setMemoryLock.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setMemoryLock.output>>> {
     const fullPath = `/api/user/memory/${encodeURIComponent(id)}/lock`;
     return callGateway({
@@ -1347,6 +1490,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async getIncognitoStatus(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getIncognitoStatus.output>>> {
     const fullPath = '/api/user/memory/incognito';
     return callGateway({
@@ -1414,6 +1560,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async resolveUserDefaults(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.resolveUserDefaults.output>>> {
     const fullPath = '/api/user/config-overrides/resolve-defaults';
     return callGateway({
@@ -1430,6 +1579,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async getUserDefaults(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getUserDefaults.output>>> {
     const fullPath = '/api/user/config-overrides/defaults';
     return callGateway({
@@ -1479,6 +1631,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async resolveCascade(personalityId: string, options: { channelId?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.resolveCascade.output>>> {
     const fullPath = `/api/user/config-overrides/resolve/${encodeURIComponent(personalityId)}` + buildQueryString([['channelId', options.channelId]]);
     return callGateway({
@@ -1528,6 +1683,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async resolvePersonalityCascade(personalityId: string): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.resolvePersonalityCascade.output>>> {
     const fullPath = `/api/user/config-overrides/resolve-personality/${encodeURIComponent(personalityId)}`;
     return callGateway({
@@ -1594,6 +1752,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async getShapesAuthStatus(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getShapesAuthStatus.output>>> {
     const fullPath = '/api/user/shapes/auth/status';
     return callGateway({
@@ -1610,6 +1771,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async listShapes(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listShapes.output>>> {
     const fullPath = '/api/user/shapes/list';
     return callGateway({
@@ -1643,6 +1807,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async listShapesImportJobs(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listShapesImportJobs.output>>> {
     const fullPath = '/api/user/shapes/import/jobs';
     return callGateway({
@@ -1676,6 +1843,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async listShapesExportJobs(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listShapesExportJobs.output>>> {
     const fullPath = '/api/user/shapes/export/jobs';
     return callGateway({
@@ -1692,6 +1862,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async getRecentDiagnostics(options: { subject?: SubjectDiscordId; personalityId?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getRecentDiagnostics.output>>> {
     const fullPath = '/api/user/diagnostic/recent' + buildQueryString([['userId', options.subject], ['personalityId', options.personalityId]]);
     return callGateway({
@@ -1708,6 +1881,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async getDiagnosticByMessage(messageId: string, options: { subject?: SubjectDiscordId } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getDiagnosticByMessage.output>>> {
     const fullPath = `/api/user/diagnostic/by-message/${encodeURIComponent(messageId)}` + buildQueryString([['userId', options.subject]]);
     return callGateway({
@@ -1724,6 +1900,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async getDiagnosticByResponse(messageId: string, options: { subject?: SubjectDiscordId } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getDiagnosticByResponse.output>>> {
     const fullPath = `/api/user/diagnostic/by-response/${encodeURIComponent(messageId)}` + buildQueryString([['userId', options.subject]]);
     return callGateway({
@@ -1740,6 +1919,9 @@ export class UserClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async getDiagnosticByRequestId(requestId: string, options: { subject?: SubjectDiscordId } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getDiagnosticByRequestId.output>>> {
     const fullPath = `/api/user/diagnostic/${encodeURIComponent(requestId)}` + buildQueryString([['userId', options.subject]]);
     return callGateway({

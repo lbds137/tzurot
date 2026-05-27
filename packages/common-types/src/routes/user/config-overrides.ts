@@ -54,6 +54,7 @@ export const userConfigOverrideRoutes = {
     id: 'resolveUserDefaults',
     output: ResolveUserConfigDefaultsResponseSchema,
     requiresProvisionedUser: true,
+    meta: { safeRead: true },
   },
 
   getUserDefaults: {
@@ -63,6 +64,7 @@ export const userConfigOverrideRoutes = {
     id: 'getUserDefaults',
     output: GetUserConfigDefaultsResponseSchema,
     requiresProvisionedUser: true,
+    meta: { safeRead: true },
   },
 
   updateUserDefaults: {
@@ -93,6 +95,7 @@ export const userConfigOverrideRoutes = {
     query: { channelId: z.string().optional() },
     output: ResolvedConfigOverridesSchema,
     requiresProvisionedUser: true,
+    meta: { safeRead: true },
   },
 
   updatePersonalityOverrides: {
@@ -137,6 +140,7 @@ export const userConfigOverrideRoutes = {
     params: { personalityId: z.string() },
     output: ResolvedConfigOverridesSchema,
     requiresProvisionedUser: true,
+    meta: { safeRead: true },
   },
 
   updatePersonalityConfigDefaults: {

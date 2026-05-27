@@ -82,6 +82,7 @@ export const internalRoutes = {
     params: { jobId: z.string() },
     output: AiJobStatusResponseSchema,
     serviceOnly: true,
+    meta: { safeRead: true },
   },
 
   /**
@@ -130,6 +131,7 @@ export const internalRoutes = {
     query: { discordMessageId: z.string() },
     output: MessagePersonalityResponseSchema,
     serviceOnly: true,
+    meta: { safeRead: true },
   },
 
   /**
@@ -146,6 +148,7 @@ export const internalRoutes = {
     query: { sinceDays: z.coerce.number().int().positive().optional() },
     output: RecentUsersResponseSchema,
     serviceOnly: true,
+    meta: { safeRead: true },
   },
 
   /**
@@ -163,6 +166,7 @@ export const internalRoutes = {
     id: 'getDenylistCache',
     output: DenylistCacheResponseSchema,
     serviceOnly: true,
+    meta: { safeRead: true },
   },
 
   /**
@@ -201,6 +205,7 @@ export const internalRoutes = {
     params: { channelId: z.string() },
     output: GetChannelSettingsResponseSchema,
     serviceOnly: true,
+    meta: { safeRead: true },
   },
 } as const satisfies Record<string, RouteDef>;
 

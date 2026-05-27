@@ -57,6 +57,7 @@ export const userShapesRoutes = {
     id: 'getShapesAuthStatus',
     output: ShapesAuthStatusResponseSchema,
     requiresProvisionedUser: true,
+    meta: { safeRead: true },
   },
 
   // ============================================================================
@@ -70,6 +71,7 @@ export const userShapesRoutes = {
     id: 'listShapes',
     output: ListShapesResponseSchema,
     requiresProvisionedUser: true,
+    meta: { safeRead: true },
   },
 
   // ============================================================================
@@ -93,6 +95,7 @@ export const userShapesRoutes = {
     id: 'listShapesImportJobs',
     output: ListShapesImportJobsResponseSchema,
     requiresProvisionedUser: true,
+    meta: { safeRead: true },
   },
 
   // ============================================================================
@@ -116,5 +119,6 @@ export const userShapesRoutes = {
     id: 'listShapesExportJobs',
     output: ListShapesExportJobsResponseSchema,
     requiresProvisionedUser: true,
+    meta: { safeRead: true },
   },
 } as const satisfies Record<string, RouteDef>;

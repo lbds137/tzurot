@@ -106,6 +106,56 @@ describe('buildMethod — service flavor', () => {
   });
 });
 
+describe('buildMethod — meta JSDoc emission', () => {
+  it('omits the JSDoc block when no meta tags are set', () => {
+    const out = buildMethod(baseRoute, { flavor: 'service', pathPrefix: '/api/internal' });
+    expect(out).not.toMatch(/^\s*\/\*\*/);
+    expect(out).not.toContain('@safeRead');
+    expect(out).not.toContain('@idempotent');
+  });
+
+  it('emits @safeRead when meta.safeRead is true', () => {
+    const route: RouteDef = { ...baseRoute, meta: { safeRead: true } };
+    const out = buildMethod(route, { flavor: 'service', pathPrefix: '/api/internal' });
+    expect(out).toContain('@safeRead');
+    expect(out).toContain('safe to cache client-side');
+  });
+
+  it('emits @idempotent when meta.idempotent is true', () => {
+    const route: RouteDef = { ...baseRoute, meta: { idempotent: true } };
+    const out = buildMethod(route, { flavor: 'service', pathPrefix: '/api/internal' });
+    expect(out).toContain('@idempotent');
+    expect(out).toContain('safe to retry');
+  });
+
+  it('emits @softDeleteAware when meta.softDeleteAware is true', () => {
+    const route: RouteDef = { ...baseRoute, meta: { softDeleteAware: true } };
+    const out = buildMethod(route, { flavor: 'service', pathPrefix: '/api/internal' });
+    expect(out).toContain('@softDeleteAware');
+  });
+
+  it('emits all three tags when all three meta flags are true', () => {
+    const route: RouteDef = {
+      ...baseRoute,
+      meta: { safeRead: true, softDeleteAware: true, idempotent: true },
+    };
+    const out = buildMethod(route, { flavor: 'service', pathPrefix: '/api/internal' });
+    expect(out).toContain('@safeRead');
+    expect(out).toContain('@softDeleteAware');
+    expect(out).toContain('@idempotent');
+  });
+
+  it('places the JSDoc block immediately before the async declaration', () => {
+    const route: RouteDef = { ...baseRoute, meta: { safeRead: true } };
+    const out = buildMethod(route, { flavor: 'service', pathPrefix: '/api/internal' });
+    // Block opens with /**, closes with */, then the method signature appears.
+    const blockEndIdx = out.indexOf('*/');
+    const asyncIdx = out.indexOf('async');
+    expect(blockEndIdx).toBeGreaterThan(-1);
+    expect(asyncIdx).toBeGreaterThan(blockEndIdx);
+  });
+});
+
 describe('buildMethod — owner flavor', () => {
   it('injects X-User-Id from this.actor', () => {
     const out = buildMethod(baseRoute, { flavor: 'owner', pathPrefix: '/api/admin' });

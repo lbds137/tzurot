@@ -163,10 +163,14 @@ export function buildMethod(route: RouteDef, options: MethodBuildOptions): strin
 
   const returnType = `Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.${id}.output>>>`;
 
+  // -- JSDoc block (semantic-intent tags from RouteDef.meta) ---------------
+
+  const jsdocBlock = buildMetaJsdoc(route);
+
   // -- Compose --------------------------------------------------------------
 
   return [
-    `  async ${id}(${sigParams.join(', ')}): ${returnType} {`,
+    `${jsdocBlock}  async ${id}(${sigParams.join(', ')}): ${returnType} {`,
     queryStmt,
     `    return callGateway({`,
     `      baseUrl: this.baseUrl,`,
@@ -177,6 +181,38 @@ export function buildMethod(route: RouteDef, options: MethodBuildOptions): strin
     `    });`,
     `  }`,
   ].join('\n');
+}
+
+/**
+ * Build the JSDoc block for a generated method that surfaces the route's
+ * `meta` tags as `@safeRead` / `@softDeleteAware` / `@idempotent`
+ * annotations. Returns an empty string when no tags are set so the
+ * caller can splice the block in front of the `async` declaration
+ * without conditional padding.
+ *
+ * We don't put runtime-affecting docs here — those would force the
+ * generated file to drift on every manifest tag toggle. The annotations
+ * are documentation: IDE hovers, greppable contracts, future cache-layer
+ * / retry-policy consumers.
+ */
+function buildMetaJsdoc(route: RouteDef): string {
+  const lines: string[] = [];
+  if (route.meta?.safeRead === true) {
+    lines.push(
+      `   * @safeRead Server-side has no observable mutation — safe to cache client-side.`
+    );
+  }
+  if (route.meta?.softDeleteAware === true) {
+    lines.push(
+      `   * @softDeleteAware Resource has a soft-delete column; soft-deleted rows may be returned or filtered depending on handler semantics.`
+    );
+  }
+  if (route.meta?.idempotent === true) {
+    lines.push(
+      `   * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.`
+    );
+  }
+  return lines.length === 0 ? '' : `  /**\n${lines.join('\n')}\n   */\n`;
 }
 
 interface SignatureParamsInput {
