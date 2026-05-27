@@ -268,6 +268,14 @@ describe('Memory API Input Schema Tests', () => {
       expect(result.success).toBe(false);
     });
 
+    it('should reject offset-less datetime strings (offset is required)', () => {
+      const result = MemorySearchSchema.safeParse({
+        query: 'search term',
+        dateFrom: '2025-01-01T00:00:00', // no Z, no ±HH:MM
+      });
+      expect(result.success).toBe(false);
+    });
+
     it('should reject empty query', () => {
       const result = MemorySearchSchema.safeParse({ query: '' });
       expect(result.success).toBe(false);
