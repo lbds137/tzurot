@@ -134,6 +134,13 @@ describe('buildMethod — meta JSDoc emission', () => {
     expect(out).toContain('@softDeleteAware');
   });
 
+  it('emits @atMostOnce when meta.atMostOnce is true', () => {
+    const route: RouteDef = { ...baseRoute, meta: { atMostOnce: true } };
+    const out = buildMethod(route, { flavor: 'service', pathPrefix: '/api/internal' });
+    expect(out).toContain('@atMostOnce');
+    expect(out).toContain('must NOT auto-retry');
+  });
+
   it('emits all three tags when all three meta flags are true', () => {
     // Codegen-in-isolation test: this combination would fail the manifest
     // invariant test (safeRead + idempotent are mutually exclusive on a

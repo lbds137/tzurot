@@ -212,6 +212,11 @@ function buildMetaJsdoc(route: RouteDef): string {
       `   * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.`
     );
   }
+  if (route.meta?.atMostOnce === true) {
+    lines.push(
+      `   * @atMostOnce Mutating + single-use-token guarded; replay yields a 4xx token-expired error even though the original mutation succeeded server-side. Retry layers must NOT auto-retry — surface the original error to the user only if no success response was observed.`
+    );
+  }
   return lines.length === 0 ? '' : `  /**\n${lines.join('\n')}\n   */\n`;
 }
 

@@ -337,9 +337,9 @@ describe('handlePurgeModal (modal submission)', () => {
   });
 
   it('accepts case-mismatched confirmation phrase (case-insensitive compare matches API)', async () => {
-    // Previously rejected — now accepted to align with the api-gateway's
-    // own .toUpperCase() compare. Users who type the phrase in lowercase
-    // shouldn't fail the client gate when the server would accept it.
+    // Case-insensitive compare matches the api-gateway's own .toUpperCase()
+    // validation. A user typing the phrase in lowercase shouldn't fail the
+    // client gate when the server would accept it.
     mockCallGatewayApi
       .mockResolvedValueOnce({
         ok: true,
