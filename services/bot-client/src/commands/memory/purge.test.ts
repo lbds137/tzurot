@@ -336,15 +336,38 @@ describe('handlePurgeModal (modal submission)', () => {
     expect(mockCallGatewayApi).not.toHaveBeenCalled();
   });
 
-  it('rejects case-mismatched confirmation phrase', async () => {
-    const interaction = createMockModalInteraction('delete lilith memories');
+  it('accepts case-mismatched confirmation phrase (case-insensitive compare matches API)', async () => {
+    // Previously rejected — now accepted to align with the api-gateway's
+    // own .toUpperCase() compare. Users who type the phrase in lowercase
+    // shouldn't fail the client gate when the server would accept it.
+    mockCallGatewayApi
+      .mockResolvedValueOnce({
+        ok: true,
+        data: {
+          purgeToken: 'purge_test0000test0002',
+          personalityId: PERSONALITY_ID,
+          personalityName: PERSONALITY_NAME,
+        },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: {
+          deletedCount: 0,
+          lockedPreserved: 0,
+          personalityId: PERSONALITY_ID,
+          personalityName: PERSONALITY_NAME,
+          message: 'ok',
+        },
+      });
 
+    const interaction = createMockModalInteraction('delete lilith memories');
     await handlePurgeModal(interaction);
 
-    expect(interaction.reply).toHaveBeenCalledWith(
+    // Doesn't reject — proceeds to the token-issue + purge round-trip.
+    expect(interaction.reply).not.toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining('did not match') })
     );
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(mockCallGatewayApi).toHaveBeenCalledTimes(2);
   });
 
   it('trims whitespace before validating and forwards trimmed phrase to /purge/token', async () => {

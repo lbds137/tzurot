@@ -152,13 +152,13 @@ export async function handleBatchDelete(context: DeferredCommandContext): Promis
 
     // Create confirmation buttons
     const confirmButton = new ButtonBuilder()
-      .setCustomId('memory_batch_delete_confirm')
+      .setCustomId('memory-batch-delete::confirm')
       .setLabel(`Delete ${preview.wouldDelete} Memories`)
       .setEmoji('🗑️')
       .setStyle(ButtonStyle.Danger);
 
     const cancelButton = new ButtonBuilder()
-      .setCustomId('memory_batch_delete_cancel')
+      .setCustomId('memory-batch-delete::cancel')
       .setLabel('Cancel')
       .setEmoji('❌')
       .setStyle(ButtonStyle.Secondary);
@@ -179,7 +179,7 @@ export async function handleBatchDelete(context: DeferredCommandContext): Promis
         time: CONFIRMATION_TIMEOUT,
       });
 
-      if (buttonInteraction.customId === 'memory_batch_delete_cancel') {
+      if (buttonInteraction.customId === 'memory-batch-delete::cancel') {
         await buttonInteraction.update({
           content: 'Deletion cancelled.',
           embeds: [],

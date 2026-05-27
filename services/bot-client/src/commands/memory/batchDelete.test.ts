@@ -252,7 +252,7 @@ describe('handleBatchDelete', () => {
     });
 
     it('should cancel when user clicks cancel button', async () => {
-      const buttonInteraction = createMockButtonInteraction('memory_batch_delete_cancel');
+      const buttonInteraction = createMockButtonInteraction('memory-batch-delete::cancel');
       mockAwaitMessageComponent.mockResolvedValue(buttonInteraction);
 
       const context = createMockContext();
@@ -311,7 +311,7 @@ describe('handleBatchDelete', () => {
           },
         });
 
-      const buttonInteraction = createMockButtonInteraction('memory_batch_delete_confirm');
+      const buttonInteraction = createMockButtonInteraction('memory-batch-delete::confirm');
       mockAwaitMessageComponent.mockResolvedValue(buttonInteraction);
 
       const context = createMockContext();
@@ -357,7 +357,7 @@ describe('handleBatchDelete', () => {
           },
         });
 
-      const buttonInteraction = createMockButtonInteraction('memory_batch_delete_confirm');
+      const buttonInteraction = createMockButtonInteraction('memory-batch-delete::confirm');
       mockAwaitMessageComponent.mockResolvedValue(buttonInteraction);
 
       const context = createMockContext('lilith', '7d');
@@ -401,7 +401,7 @@ describe('handleBatchDelete', () => {
           error: 'Database error',
         });
 
-      const buttonInteraction = createMockButtonInteraction('memory_batch_delete_confirm');
+      const buttonInteraction = createMockButtonInteraction('memory-batch-delete::confirm');
       mockAwaitMessageComponent.mockResolvedValue(buttonInteraction);
 
       const context = createMockContext();
@@ -438,7 +438,7 @@ describe('handleBatchDelete', () => {
           },
         });
 
-      const buttonInteraction = createMockButtonInteraction('memory_batch_delete_confirm');
+      const buttonInteraction = createMockButtonInteraction('memory-batch-delete::confirm');
       mockAwaitMessageComponent.mockResolvedValue(buttonInteraction);
 
       const context = createMockContext();

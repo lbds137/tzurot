@@ -252,11 +252,20 @@ describe('Memory API Input Schema Tests', () => {
         personalityId: 'abc-123',
         limit: 20,
         offset: 10,
-        dateFrom: '2025-01-01',
-        dateTo: '2025-12-31',
+        // ISO-8601 datetime with offset (schema requires .datetime({ offset: true }))
+        dateFrom: '2025-01-01T00:00:00.000Z',
+        dateTo: '2025-12-31T23:59:59.999Z',
         preferTextSearch: true,
       });
       expect(result.success).toBe(true);
+    });
+
+    it('should reject bare-date strings (schema requires ISO-8601 datetime)', () => {
+      const result = MemorySearchSchema.safeParse({
+        query: 'search term',
+        dateFrom: '2025-01-01', // bare date — no time component
+      });
+      expect(result.success).toBe(false);
     });
 
     it('should reject empty query', () => {
