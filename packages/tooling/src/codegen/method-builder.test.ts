@@ -141,20 +141,26 @@ describe('buildMethod — meta JSDoc emission', () => {
     expect(out).toContain('must NOT auto-retry');
   });
 
-  it('emits all three tags when all three meta flags are true', () => {
+  it('emits all four meta tags when all four flags are true', () => {
     // Codegen-in-isolation test: this combination would fail the manifest
-    // invariant test (safeRead + idempotent are mutually exclusive on a
-    // real route) but the renderer doesn't know or care — its job is to
-    // emit whatever tags the route declares. The invariant lives in
-    // manifest.test.ts, not here.
+    // mutual-exclusivity invariants (safeRead+idempotent, safeRead+atMostOnce,
+    // idempotent+atMostOnce are all banned on real routes) but the renderer
+    // doesn't know or care — its job is to emit whatever tags the route
+    // declares. The invariants live in manifest.test.ts, not here.
     const route: RouteDef = {
       ...baseRoute,
-      meta: { safeRead: true, softDeleteAware: true, idempotent: true },
+      meta: {
+        safeRead: true,
+        softDeleteAware: true,
+        idempotent: true,
+        atMostOnce: true,
+      },
     };
     const out = buildMethod(route, { flavor: 'service', pathPrefix: '/api/internal' });
     expect(out).toContain('@safeRead');
     expect(out).toContain('@softDeleteAware');
     expect(out).toContain('@idempotent');
+    expect(out).toContain('@atMostOnce');
   });
 
   it('places the JSDoc block immediately before the async declaration', () => {
