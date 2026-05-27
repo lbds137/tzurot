@@ -338,11 +338,6 @@ export function createMemoryRoutes(deps: RouteDeps): Router {
     { method: 'post', path: '/delete', handler: bindToken(handleBatchDelete) },
     { method: 'post', path: '/purge/token', handler: bindToken(handleIssuePurgeToken) },
     { method: 'post', path: '/purge', handler: bindToken(handlePurge) },
-    // Single memory operations — must come after specific routes
-    { method: 'get', path: '/:id', handler: handleGetMemory },
-    { method: 'patch', path: '/:id', handler: handleUpdateMemory },
-    { method: 'delete', path: '/:id', handler: handleDeleteMemory },
-    { method: 'put', path: '/:id/lock', handler: handleSetMemoryLock },
   ];
 
   for (const route of routes) {
@@ -354,6 +349,17 @@ export function createMemoryRoutes(deps: RouteDeps): Router {
       handler: route.handler,
     });
   }
+
+  // Single-memory routes use the new (deps) => RequestHandler shape (the
+  // shape codegen mounts.ts will emit). Registered directly so we don't
+  // need an adapter for one set vs the other. Must come after the table
+  // above so `/stats` / `/list` / `/focus` / `/search` / `/delete*` / `/purge*`
+  // match before the `:id` parameter.
+  const requireProvisioned = requireProvisionedUser(prisma);
+  router.get('/:id', requireUserAuth(), requireProvisioned, handleGetMemory(deps));
+  router.patch('/:id', requireUserAuth(), requireProvisioned, handleUpdateMemory(deps));
+  router.delete('/:id', requireUserAuth(), requireProvisioned, handleDeleteMemory(deps));
+  router.put('/:id/lock', requireUserAuth(), requireProvisioned, handleSetMemoryLock(deps));
 
   return router;
 }

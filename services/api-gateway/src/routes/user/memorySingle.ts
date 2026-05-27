@@ -1,9 +1,14 @@
 /**
  * Single Memory Operations Handler
  * CRUD operations for individual memories
+ *
+ * Handlers follow the (deps: RouteDeps) => RequestHandler shape so codegen
+ * can wire them up from the route manifest. The legacy
+ * `createMemoryRoutes(deps)` factory in memory.ts mounts them today; the
+ * generated mounts.ts will mount them once the cutover lands.
  */
 
-import type { Response } from 'express';
+import type { RequestHandler, Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
@@ -11,6 +16,8 @@ import {
   MemoryUpdateSchema,
   SetMemoryLockSchema,
 } from '@tzurot/common-types';
+import type { RouteDeps } from '../routeDeps.js';
+import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
@@ -108,98 +115,96 @@ function transformMemory(memory: {
  * Handler for GET /user/memory/:id
  * Get a single memory by ID
  */
-export async function handleGetMemory(
-  prisma: PrismaClient,
-  req: ProvisionedRequest,
-  res: Response
-): Promise<void> {
-  const discordUserId = req.userId;
-  const memoryId = getParam(req.params.id);
+export const handleGetMemory = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
+    const discordUserId = req.userId;
+    const memoryId = getParam(req.params.id);
 
-  if (memoryId === undefined || memoryId.length === 0) {
-    sendError(res, ErrorResponses.validationError(MEMORY_ID_REQUIRED));
-    return;
-  }
+    if (memoryId === undefined || memoryId.length === 0) {
+      sendError(res, ErrorResponses.validationError(MEMORY_ID_REQUIRED));
+      return;
+    }
 
-  const userId = resolveProvisionedUserId(req);
+    const userId = resolveProvisionedUserId(req);
 
-  const personaId = await getDefaultPersonaId(prisma, userId);
-  if (personaId === null) {
-    sendError(res, ErrorResponses.notFound(MEMORY_RESOURCE));
-    return;
-  }
+    const personaId = await getDefaultPersonaId(prisma, userId);
+    if (personaId === null) {
+      sendError(res, ErrorResponses.notFound(MEMORY_RESOURCE));
+      return;
+    }
 
-  const memory = await prisma.memory.findFirst({
-    where: {
-      id: memoryId,
-      personaId,
-      visibility: 'normal',
-    },
-    include: PERSONALITY_INCLUDE,
+    const memory = await prisma.memory.findFirst({
+      where: {
+        id: memoryId,
+        personaId,
+        visibility: 'normal',
+      },
+      include: PERSONALITY_INCLUDE,
+    });
+
+    if (memory === null) {
+      sendError(res, ErrorResponses.notFound(MEMORY_RESOURCE));
+      return;
+    }
+
+    logger.debug({ discordUserId, memoryId }, 'Single memory fetched');
+    sendCustomSuccess(res, { memory: transformMemory(memory) }, StatusCodes.OK);
   });
-
-  if (memory === null) {
-    sendError(res, ErrorResponses.notFound(MEMORY_RESOURCE));
-    return;
-  }
-
-  logger.debug({ discordUserId, memoryId }, 'Single memory fetched');
-  sendCustomSuccess(res, { memory: transformMemory(memory) }, StatusCodes.OK);
-}
+};
 
 /**
  * Handler for PATCH /user/memory/:id
  * Update memory content
  */
-export async function handleUpdateMemory(
-  prisma: PrismaClient,
-  req: ProvisionedRequest,
-  res: Response
-): Promise<void> {
-  const discordUserId = req.userId;
-  const memoryId = getParam(req.params.id);
+export const handleUpdateMemory = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
+    const discordUserId = req.userId;
+    const memoryId = getParam(req.params.id);
 
-  if (memoryId === undefined || memoryId.length === 0) {
-    sendError(res, ErrorResponses.validationError(MEMORY_ID_REQUIRED));
-    return;
-  }
+    if (memoryId === undefined || memoryId.length === 0) {
+      sendError(res, ErrorResponses.validationError(MEMORY_ID_REQUIRED));
+      return;
+    }
 
-  const parseResult = MemoryUpdateSchema.safeParse(req.body);
-  if (!parseResult.success) {
-    sendZodError(res, parseResult.error);
-    return;
-  }
+    const parseResult = MemoryUpdateSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      sendZodError(res, parseResult.error);
+      return;
+    }
 
-  const { content } = parseResult.data;
+    const { content } = parseResult.data;
 
-  const existing = await verifyMemoryOwnership({
-    prisma,
-    req,
-    memoryId,
-    res,
+    const existing = await verifyMemoryOwnership({
+      prisma,
+      req,
+      memoryId,
+      res,
+    });
+    if (existing === null) {
+      return;
+    }
+
+    // Prevent editing locked memories
+    if (existing.isLocked) {
+      sendError(res, ErrorResponses.forbidden('Cannot modify a locked memory'));
+      return;
+    }
+
+    const memory = await prisma.memory.update({
+      where: { id: memoryId },
+      data: {
+        content: content.trim(),
+        updatedAt: new Date(),
+      },
+      include: PERSONALITY_INCLUDE,
+    });
+
+    logger.info({ discordUserId, memoryId }, 'Memory updated');
+    sendCustomSuccess(res, { memory: transformMemory(memory) }, StatusCodes.OK);
   });
-  if (existing === null) {
-    return;
-  }
-
-  // Prevent editing locked memories
-  if (existing.isLocked) {
-    sendError(res, ErrorResponses.forbidden('Cannot modify a locked memory'));
-    return;
-  }
-
-  const memory = await prisma.memory.update({
-    where: { id: memoryId },
-    data: {
-      content: content.trim(),
-      updatedAt: new Date(),
-    },
-    include: PERSONALITY_INCLUDE,
-  });
-
-  logger.info({ discordUserId, memoryId }, 'Memory updated');
-  sendCustomSuccess(res, { memory: transformMemory(memory) }, StatusCodes.OK);
-}
+};
 
 /**
  * Handler for PUT /user/memory/:id/lock
@@ -207,109 +212,107 @@ export async function handleUpdateMemory(
  * the desired state in the body rather than relying on server-side toggle
  * of the current state.
  */
-export async function handleSetMemoryLock(
-  prisma: PrismaClient,
-  req: ProvisionedRequest,
-  res: Response
-): Promise<void> {
-  const discordUserId = req.userId;
-  const memoryId = getParam(req.params.id);
+export const handleSetMemoryLock = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
+    const discordUserId = req.userId;
+    const memoryId = getParam(req.params.id);
 
-  if (memoryId === undefined || memoryId.length === 0) {
-    sendError(res, ErrorResponses.validationError(MEMORY_ID_REQUIRED));
-    return;
-  }
-
-  const parseResult = SetMemoryLockSchema.safeParse(req.body);
-  if (!parseResult.success) {
-    sendZodError(res, parseResult.error);
-    return;
-  }
-  const { locked } = parseResult.data;
-
-  const existing = await verifyMemoryOwnership({
-    prisma,
-    req,
-    memoryId,
-    res,
-  });
-  if (existing === null) {
-    return;
-  }
-
-  // Short-circuit when the requested state already holds — keeps the
-  // retry path idempotent without an extra DB write.
-  if (existing.isLocked === locked) {
-    const memory = await prisma.memory.findUnique({
-      where: { id: memoryId },
-      include: PERSONALITY_INCLUDE,
-    });
-    // existing already proved the row exists; the `null` branch is unreachable
-    // but TypeScript doesn't know that without the explicit guard.
-    if (memory === null) {
-      sendError(res, ErrorResponses.notFound('Memory'));
+    if (memoryId === undefined || memoryId.length === 0) {
+      sendError(res, ErrorResponses.validationError(MEMORY_ID_REQUIRED));
       return;
     }
+
+    const parseResult = SetMemoryLockSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      sendZodError(res, parseResult.error);
+      return;
+    }
+    const { locked } = parseResult.data;
+
+    const existing = await verifyMemoryOwnership({
+      prisma,
+      req,
+      memoryId,
+      res,
+    });
+    if (existing === null) {
+      return;
+    }
+
+    // Short-circuit when the requested state already holds — keeps the
+    // retry path idempotent without an extra DB write.
+    if (existing.isLocked === locked) {
+      const memory = await prisma.memory.findUnique({
+        where: { id: memoryId },
+        include: PERSONALITY_INCLUDE,
+      });
+      // existing already proved the row exists; the `null` branch is unreachable
+      // but TypeScript doesn't know that without the explicit guard.
+      if (memory === null) {
+        sendError(res, ErrorResponses.notFound('Memory'));
+        return;
+      }
+      sendCustomSuccess(res, { memory: transformMemory(memory) }, StatusCodes.OK);
+      return;
+    }
+
+    const memory = await prisma.memory.update({
+      where: { id: memoryId },
+      data: {
+        isLocked: locked,
+        updatedAt: new Date(),
+      },
+      include: PERSONALITY_INCLUDE,
+    });
+
+    const action = memory.isLocked ? 'locked' : 'unlocked';
+    logger.info({ discordUserId, memoryId, action }, 'Memory lock state set');
     sendCustomSuccess(res, { memory: transformMemory(memory) }, StatusCodes.OK);
-    return;
-  }
-
-  const memory = await prisma.memory.update({
-    where: { id: memoryId },
-    data: {
-      isLocked: locked,
-      updatedAt: new Date(),
-    },
-    include: PERSONALITY_INCLUDE,
   });
-
-  const action = memory.isLocked ? 'locked' : 'unlocked';
-  logger.info({ discordUserId, memoryId, action }, 'Memory lock state set');
-  sendCustomSuccess(res, { memory: transformMemory(memory) }, StatusCodes.OK);
-}
+};
 
 /**
  * Handler for DELETE /user/memory/:id
  * Delete a memory (soft delete by setting visibility)
  */
-export async function handleDeleteMemory(
-  prisma: PrismaClient,
-  req: ProvisionedRequest,
-  res: Response
-): Promise<void> {
-  const discordUserId = req.userId;
-  const memoryId = getParam(req.params.id);
+export const handleDeleteMemory = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
+    const discordUserId = req.userId;
+    const memoryId = getParam(req.params.id);
 
-  if (memoryId === undefined || memoryId.length === 0) {
-    sendError(res, ErrorResponses.validationError(MEMORY_ID_REQUIRED));
-    return;
-  }
+    if (memoryId === undefined || memoryId.length === 0) {
+      sendError(res, ErrorResponses.validationError(MEMORY_ID_REQUIRED));
+      return;
+    }
 
-  const existing = await verifyMemoryOwnership({
-    prisma,
-    req,
-    memoryId,
-    res,
+    const existing = await verifyMemoryOwnership({
+      prisma,
+      req,
+      memoryId,
+      res,
+    });
+    if (existing === null) {
+      return;
+    }
+
+    // Prevent deleting locked memories
+    if (existing.isLocked) {
+      sendError(res, ErrorResponses.forbidden('Cannot delete a locked memory'));
+      return;
+    }
+
+    // Soft delete by setting visibility to 'deleted'
+    await prisma.memory.update({
+      where: { id: memoryId },
+      data: {
+        visibility: 'deleted',
+        updatedAt: new Date(),
+      },
+    });
+
+    logger.info({ discordUserId, memoryId }, 'Memory deleted');
+    sendCustomSuccess(res, { success: true }, StatusCodes.OK);
   });
-  if (existing === null) {
-    return;
-  }
-
-  // Prevent deleting locked memories
-  if (existing.isLocked) {
-    sendError(res, ErrorResponses.forbidden('Cannot delete a locked memory'));
-    return;
-  }
-
-  // Soft delete by setting visibility to 'deleted'
-  await prisma.memory.update({
-    where: { id: memoryId },
-    data: {
-      visibility: 'deleted',
-      updatedAt: new Date(),
-    },
-  });
-
-  logger.info({ discordUserId, memoryId }, 'Memory deleted');
-  sendCustomSuccess(res, { success: true }, StatusCodes.OK);
-}
+};
