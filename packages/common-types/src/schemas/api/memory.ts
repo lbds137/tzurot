@@ -111,10 +111,12 @@ export const MemorySearchSchema = z.object({
   personalityId: z.string().optional(),
   limit: z.number().int().min(1).max(50).optional(),
   offset: z.number().int().min(0).optional(),
-  // ISO-8601 datetime strings (with-or-without timezone offset). Caller's
-  // bad-date input fails Zod at the gateway before reaching the handler's
-  // own validateDateFilters — the handler still defends against the
-  // (now-impossible) bad-date path with a friendlier 400 wording.
+  // ISO-8601 datetime with timezone offset (Z or ±HH:MM required — Zod's
+  // `{ offset: true }` accepts non-Z offsets but the offset itself is
+  // mandatory). Caller's bad-date input fails Zod at the gateway before
+  // reaching the handler's own validateDateFilters — the handler still
+  // defends against the (now-impossible) bad-date path with a friendlier
+  // 400 wording.
   dateFrom: z.string().datetime({ offset: true }).optional(),
   dateTo: z.string().datetime({ offset: true }).optional(),
   preferTextSearch: z.boolean().optional(),

@@ -135,6 +135,11 @@ describe('buildMethod — meta JSDoc emission', () => {
   });
 
   it('emits all three tags when all three meta flags are true', () => {
+    // Codegen-in-isolation test: this combination would fail the manifest
+    // invariant test (safeRead + idempotent are mutually exclusive on a
+    // real route) but the renderer doesn't know or care — its job is to
+    // emit whatever tags the route declares. The invariant lives in
+    // manifest.test.ts, not here.
     const route: RouteDef = {
       ...baseRoute,
       meta: { safeRead: true, softDeleteAware: true, idempotent: true },
