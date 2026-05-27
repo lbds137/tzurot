@@ -357,7 +357,10 @@ export async function handlePurgeModal(interaction: ModalSubmitInteraction): Pro
   const expectedPhrase = getConfirmationPhrase(personalityName);
   const enteredPhrase = interaction.fields.getTextInputValue('confirmation_phrase').trim();
 
-  if (enteredPhrase !== expectedPhrase) {
+  // Case-insensitive compare matches the api-gateway's own validation —
+  // a user typing 'delete lilith memories' lowercase shouldn't fail at
+  // the client gate when the server would have accepted it.
+  if (enteredPhrase.toUpperCase() !== expectedPhrase.toUpperCase()) {
     await interaction.reply({
       content: `Purge cancelled - confirmation phrase did not match.\n\nYou entered: \`${enteredPhrase}\`\nExpected: \`${expectedPhrase}\``,
       flags: MessageFlags.Ephemeral,

@@ -111,8 +111,12 @@ export const MemorySearchSchema = z.object({
   personalityId: z.string().optional(),
   limit: z.number().int().min(1).max(50).optional(),
   offset: z.number().int().min(0).optional(),
-  dateFrom: z.string().optional(),
-  dateTo: z.string().optional(),
+  // ISO-8601 datetime strings (with-or-without timezone offset). Caller's
+  // bad-date input fails Zod at the gateway before reaching the handler's
+  // own validateDateFilters — the handler still defends against the
+  // (now-impossible) bad-date path with a friendlier 400 wording.
+  dateFrom: z.string().datetime({ offset: true }).optional(),
+  dateTo: z.string().datetime({ offset: true }).optional(),
   preferTextSearch: z.boolean().optional(),
 });
 export type MemorySearchInput = z.infer<typeof MemorySearchSchema>;
@@ -126,8 +130,11 @@ export type MemorySearchInput = z.infer<typeof MemorySearchSchema>;
 export const MemoryItemSchema = z.object({
   id: z.string(),
   content: z.string(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
+  // ISO-8601 timestamps — handlers always emit via `.toISOString()`; the
+  // schema constraint self-documents that contract and catches any future
+  // regression where a raw Date or non-ISO string slips into the response.
+  createdAt: z.string().datetime({ offset: true }),
+  updatedAt: z.string().datetime({ offset: true }),
   personalityId: z.string(),
   personalityName: z.string(),
   isLocked: z.boolean(),
