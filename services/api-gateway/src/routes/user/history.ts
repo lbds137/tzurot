@@ -44,7 +44,7 @@ interface HistoryHandlerDeps {
   retentionService: ConversationRetentionService;
 }
 
-type RouteHandler = (req: Request, res: Response) => void;
+type RouteHandler = (req: Request, res: Response) => Promise<void>;
 
 /**
  * Handle POST /user/history/clear

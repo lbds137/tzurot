@@ -41,7 +41,7 @@ const CACHE_HYDRATION_MAX_ENTRIES = 10_000;
 function handleAddEntry(
   prisma: PrismaClient,
   denylistInvalidation: DenylistCacheInvalidationService
-): (req: Request, res: Response) => void {
+): (req: Request, res: Response) => Promise<void> {
   return asyncHandler(async (req: Request, res: Response) => {
     const parseResult = DenylistAddSchema.safeParse(req.body);
     if (!parseResult.success) {

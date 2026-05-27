@@ -14,6 +14,19 @@ import {
   IssuePurgeTokenSchema,
   PurgeMemoriesSchema,
   MemorySearchSchema,
+  MemoryItemSchema,
+  MemoryStatsResponseSchema,
+  MemoryListResponseSchema,
+  FocusModeStatusResponseSchema,
+  SetFocusResponseSchema,
+  MemorySearchResultSchema,
+  MemorySearchResponseSchema,
+  BatchDeletePreviewResponseSchema,
+  BatchDeleteResponseSchema,
+  IssuePurgeTokenResponseSchema,
+  PurgeMemoriesResponseSchema,
+  SingleMemoryResponseSchema,
+  DeleteMemoryResponseSchema,
 } from './memory.js';
 
 describe('Memory API Input Schema Tests', () => {
@@ -279,6 +292,293 @@ describe('Memory API Input Schema Tests', () => {
     it('should reject negative offset', () => {
       const result = MemorySearchSchema.safeParse({ query: 'test', offset: -1 });
       expect(result.success).toBe(false);
+    });
+  });
+
+  // ==========================================================================
+  // Response schemas (audit-ratchet coverage; the route-handler tests cover
+  // the round-trip shapes — these tests just confirm the schemas parse
+  // representative payloads and reject obvious shape errors).
+  // ==========================================================================
+
+  describe('MemoryItemSchema', () => {
+    const sample = {
+      id: 'mem-1',
+      content: 'hello',
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+      personalityId: 'p1',
+      personalityName: 'Test',
+      isLocked: false,
+    };
+
+    it('accepts a complete memory item', () => {
+      expect(MemoryItemSchema.safeParse(sample).success).toBe(true);
+    });
+
+    it('rejects missing required fields', () => {
+      const { isLocked: _isLocked, ...partial } = sample;
+      expect(MemoryItemSchema.safeParse(partial).success).toBe(false);
+    });
+
+    it('rejects non-boolean isLocked', () => {
+      expect(MemoryItemSchema.safeParse({ ...sample, isLocked: 'yes' }).success).toBe(false);
+    });
+  });
+
+  describe('MemoryStatsResponseSchema', () => {
+    it('accepts a valid stats response', () => {
+      const result = MemoryStatsResponseSchema.safeParse({
+        personalityId: 'p1',
+        personalityName: 'Test',
+        personaId: 'persona-1',
+        totalCount: 10,
+        lockedCount: 2,
+        oldestMemory: '2025-01-01T00:00:00Z',
+        newestMemory: '2026-01-01T00:00:00Z',
+        focusModeEnabled: false,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts null personaId / oldestMemory / newestMemory', () => {
+      const result = MemoryStatsResponseSchema.safeParse({
+        personalityId: 'p1',
+        personalityName: 'Test',
+        personaId: null,
+        totalCount: 0,
+        lockedCount: 0,
+        oldestMemory: null,
+        newestMemory: null,
+        focusModeEnabled: false,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects non-number totalCount', () => {
+      const result = MemoryStatsResponseSchema.safeParse({
+        personalityId: 'p1',
+        personalityName: 'Test',
+        personaId: null,
+        totalCount: '10',
+        lockedCount: 0,
+        oldestMemory: null,
+        newestMemory: null,
+        focusModeEnabled: false,
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('MemoryListResponseSchema', () => {
+    it('accepts an empty list', () => {
+      const result = MemoryListResponseSchema.safeParse({
+        memories: [],
+        total: 0,
+        limit: 15,
+        offset: 0,
+        hasMore: false,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects a memories array with malformed items', () => {
+      const result = MemoryListResponseSchema.safeParse({
+        memories: [{ id: 'x' }], // missing required fields
+        total: 1,
+        limit: 15,
+        offset: 0,
+        hasMore: false,
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('FocusModeStatusResponseSchema', () => {
+    it('accepts a valid status response', () => {
+      expect(
+        FocusModeStatusResponseSchema.safeParse({ personalityId: 'p1', focusModeEnabled: true })
+          .success
+      ).toBe(true);
+    });
+
+    it('rejects missing focusModeEnabled', () => {
+      expect(FocusModeStatusResponseSchema.safeParse({ personalityId: 'p1' }).success).toBe(false);
+    });
+  });
+
+  describe('SetFocusResponseSchema', () => {
+    it('accepts a valid set-focus response', () => {
+      const result = SetFocusResponseSchema.safeParse({
+        personalityId: 'p1',
+        personalityName: 'Test',
+        focusModeEnabled: true,
+        message: 'Focus mode enabled',
+      });
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe('MemorySearchResultSchema', () => {
+    it('accepts a result with similarity', () => {
+      const result = MemorySearchResultSchema.safeParse({
+        id: 'mem-1',
+        content: 'hello',
+        createdAt: '2026-01-01T00:00:00Z',
+        updatedAt: '2026-01-01T00:00:00Z',
+        personalityId: 'p1',
+        personalityName: 'Test',
+        isLocked: false,
+        similarity: 0.85,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts null similarity (text search fallback)', () => {
+      const result = MemorySearchResultSchema.safeParse({
+        id: 'mem-1',
+        content: 'hello',
+        createdAt: '2026-01-01T00:00:00Z',
+        updatedAt: '2026-01-01T00:00:00Z',
+        personalityId: 'p1',
+        personalityName: 'Test',
+        isLocked: false,
+        similarity: null,
+      });
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe('MemorySearchResponseSchema', () => {
+    it('accepts a response without searchType', () => {
+      const result = MemorySearchResponseSchema.safeParse({
+        results: [],
+        count: 0,
+        hasMore: false,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts a response with searchType=text', () => {
+      const result = MemorySearchResponseSchema.safeParse({
+        results: [],
+        count: 0,
+        hasMore: false,
+        searchType: 'text',
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects invalid searchType', () => {
+      const result = MemorySearchResponseSchema.safeParse({
+        results: [],
+        count: 0,
+        hasMore: false,
+        searchType: 'fuzzy',
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('BatchDeletePreviewResponseSchema', () => {
+    it('accepts a valid preview response', () => {
+      const result = BatchDeletePreviewResponseSchema.safeParse({
+        wouldDelete: 5,
+        lockedWouldSkip: 1,
+        personalityId: 'p1',
+        personalityName: 'Test',
+        timeframe: 'all',
+        previewToken: 'preview_test0000test0000',
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects missing previewToken', () => {
+      const result = BatchDeletePreviewResponseSchema.safeParse({
+        wouldDelete: 5,
+        lockedWouldSkip: 1,
+        personalityId: 'p1',
+        personalityName: 'Test',
+        timeframe: 'all',
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('BatchDeleteResponseSchema', () => {
+    it('accepts a response with personality fields', () => {
+      const result = BatchDeleteResponseSchema.safeParse({
+        deletedCount: 5,
+        skippedLocked: 1,
+        personalityId: 'p1',
+        personalityName: 'Test',
+        message: 'Deleted 5 memories.',
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts a zero-count response without personality fields', () => {
+      const result = BatchDeleteResponseSchema.safeParse({
+        deletedCount: 0,
+        skippedLocked: 0,
+        message: 'No memories found matching the criteria',
+      });
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe('IssuePurgeTokenResponseSchema', () => {
+    it('accepts a valid token-issue response', () => {
+      const result = IssuePurgeTokenResponseSchema.safeParse({
+        purgeToken: 'purge_test0000test0000',
+        personalityId: 'p1',
+        personalityName: 'Test',
+      });
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe('PurgeMemoriesResponseSchema', () => {
+    it('accepts a valid purge response', () => {
+      const result = PurgeMemoriesResponseSchema.safeParse({
+        deletedCount: 10,
+        lockedPreserved: 2,
+        personalityId: 'p1',
+        personalityName: 'Test',
+        message: 'Purged 10 memories.',
+      });
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe('SingleMemoryResponseSchema', () => {
+    it('accepts a valid envelope', () => {
+      const result = SingleMemoryResponseSchema.safeParse({
+        memory: {
+          id: 'mem-1',
+          content: 'hello',
+          createdAt: '2026-01-01T00:00:00Z',
+          updatedAt: '2026-01-01T00:00:00Z',
+          personalityId: 'p1',
+          personalityName: 'Test',
+          isLocked: false,
+        },
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects missing memory key', () => {
+      expect(SingleMemoryResponseSchema.safeParse({}).success).toBe(false);
+    });
+  });
+
+  describe('DeleteMemoryResponseSchema', () => {
+    it('accepts { success: true }', () => {
+      expect(DeleteMemoryResponseSchema.safeParse({ success: true }).success).toBe(true);
+    });
+
+    it('rejects { success: "true" }', () => {
+      expect(DeleteMemoryResponseSchema.safeParse({ success: 'true' }).success).toBe(false);
     });
   });
 });

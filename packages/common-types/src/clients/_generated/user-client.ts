@@ -1131,6 +1131,222 @@ export class UserClient {
     });
   }
 
+  async getStats(options: { personalityId: string }): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getStats.output>>> {
+    const fullPath = '/api/user/memory/stats' + buildQueryString([['personalityId', options.personalityId]]);
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'GET',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      outputSchema: ROUTE_MANIFEST.getStats.output,
+    });
+  }
+
+  async list(options: { personalityId?: string; limit?: string; offset?: string; sort?: string; order?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.list.output>>> {
+    const fullPath = '/api/user/memory/list' + buildQueryString([['personalityId', options.personalityId], ['limit', options.limit], ['offset', options.offset], ['sort', options.sort], ['order', options.order]]);
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'GET',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      outputSchema: ROUTE_MANIFEST.list.output,
+    });
+  }
+
+  async getFocus(options: { personalityId: string }): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getFocus.output>>> {
+    const fullPath = '/api/user/memory/focus' + buildQueryString([['personalityId', options.personalityId]]);
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'GET',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      outputSchema: ROUTE_MANIFEST.getFocus.output,
+    });
+  }
+
+  async setFocus(input: z.infer<typeof ROUTE_MANIFEST.setFocus.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setFocus.output>>> {
+    const fullPath = '/api/user/memory/focus';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.setFocus.output,
+    });
+  }
+
+  async search(input: z.infer<typeof ROUTE_MANIFEST.search.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.search.output>>> {
+    const fullPath = '/api/user/memory/search';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.search.output,
+    });
+  }
+
+  async batchDeletePreview(input: z.infer<typeof ROUTE_MANIFEST.batchDeletePreview.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.batchDeletePreview.output>>> {
+    const fullPath = '/api/user/memory/delete/preview';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.batchDeletePreview.output,
+    });
+  }
+
+  async batchDelete(input: z.infer<typeof ROUTE_MANIFEST.batchDelete.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.batchDelete.output>>> {
+    const fullPath = '/api/user/memory/delete';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.batchDelete.output,
+    });
+  }
+
+  async issuePurgeToken(input: z.infer<typeof ROUTE_MANIFEST.issuePurgeToken.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.issuePurgeToken.output>>> {
+    const fullPath = '/api/user/memory/purge/token';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.issuePurgeToken.output,
+    });
+  }
+
+  async purge(input: z.infer<typeof ROUTE_MANIFEST.purge.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.purge.output>>> {
+    const fullPath = '/api/user/memory/purge';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.purge.output,
+    });
+  }
+
+  async getMemory(id: string): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getMemory.output>>> {
+    const fullPath = `/api/user/memory/${encodeURIComponent(id)}`;
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'GET',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      outputSchema: ROUTE_MANIFEST.getMemory.output,
+    });
+  }
+
+  async updateMemory(id: string, input: z.infer<typeof ROUTE_MANIFEST.updateMemory.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updateMemory.output>>> {
+    const fullPath = `/api/user/memory/${encodeURIComponent(id)}`;
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'PATCH',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.updateMemory.output,
+    });
+  }
+
+  async deleteMemory(id: string): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.deleteMemory.output>>> {
+    const fullPath = `/api/user/memory/${encodeURIComponent(id)}`;
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'DELETE',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      outputSchema: ROUTE_MANIFEST.deleteMemory.output,
+    });
+  }
+
+  async setMemoryLock(id: string, input: z.infer<typeof ROUTE_MANIFEST.setMemoryLock.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setMemoryLock.output>>> {
+    const fullPath = `/api/user/memory/${encodeURIComponent(id)}/lock`;
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'PUT',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.setMemoryLock.output,
+    });
+  }
+
   async getIncognitoStatus(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getIncognitoStatus.output>>> {
     const fullPath = '/api/user/memory/incognito';
     return callGateway({

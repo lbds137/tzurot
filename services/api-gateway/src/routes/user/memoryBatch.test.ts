@@ -164,13 +164,13 @@ describe('memoryBatch handlers', () => {
   describe('handleBatchDeletePreview', () => {
     it('returns 503 when Redis is unavailable', async () => {
       const { req, res } = createMockBodyReq({ personalityId: TEST_PERSONALITY_ID });
-      await handleBatchDeletePreview(depsWithoutRedis())(req, res);
+      await handleBatchDeletePreview(depsWithoutRedis())(req, res, () => undefined);
       expect(res.status).toHaveBeenCalledWith(503);
     });
 
     it('rejects missing personalityId', async () => {
       const { req, res } = createMockBodyReq({});
-      await handleBatchDeletePreview(depsWithRedis())(req, res);
+      await handleBatchDeletePreview(depsWithRedis())(req, res, () => undefined);
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -183,7 +183,7 @@ describe('memoryBatch handlers', () => {
     it('returns early when personality not found', async () => {
       mockGetPersonalityById.mockResolvedValue(null);
       const { req, res } = createMockBodyReq({ personalityId: TEST_PERSONALITY_ID });
-      await handleBatchDeletePreview(depsWithRedis())(req, res);
+      await handleBatchDeletePreview(depsWithRedis())(req, res, () => undefined);
       expect(mockGetPersonalityById).toHaveBeenCalled();
       expect(res.status).not.toHaveBeenCalled();
     });
@@ -191,7 +191,7 @@ describe('memoryBatch handlers', () => {
     it('returns 400 when user has no persona', async () => {
       mockGetDefaultPersonaId.mockResolvedValue(null);
       const { req, res } = createMockBodyReq({ personalityId: TEST_PERSONALITY_ID });
-      await handleBatchDeletePreview(depsWithRedis())(req, res);
+      await handleBatchDeletePreview(depsWithRedis())(req, res, () => undefined);
       expect(res.status).toHaveBeenCalledWith(400);
     });
 
@@ -204,7 +204,7 @@ describe('memoryBatch handlers', () => {
         personalityId: TEST_PERSONALITY_ID,
         timeframe: 'invalid',
       });
-      await handleBatchDeletePreview(depsWithRedis())(req, res);
+      await handleBatchDeletePreview(depsWithRedis())(req, res, () => undefined);
       expect(res.status).toHaveBeenCalledWith(400);
     });
 
@@ -212,7 +212,7 @@ describe('memoryBatch handlers', () => {
       mockPrisma.memory.count.mockResolvedValueOnce(10).mockResolvedValueOnce(2);
 
       const { req, res } = createMockBodyReq({ personalityId: TEST_PERSONALITY_ID });
-      await handleBatchDeletePreview(depsWithRedis())(req, res);
+      await handleBatchDeletePreview(depsWithRedis())(req, res, () => undefined);
 
       expect(mockTokenService.issuePreviewToken).toHaveBeenCalledWith(
         TEST_DISCORD_USER_ID,
@@ -243,7 +243,7 @@ describe('memoryBatch handlers', () => {
         personalityId: TEST_PERSONALITY_ID,
         timeframe: '7d',
       });
-      await handleBatchDeletePreview(depsWithRedis())(req, res);
+      await handleBatchDeletePreview(depsWithRedis())(req, res, () => undefined);
 
       expect(mockTokenService.issuePreviewToken).toHaveBeenCalledWith(
         TEST_DISCORD_USER_ID,
@@ -255,26 +255,26 @@ describe('memoryBatch handlers', () => {
   describe('handleBatchDelete', () => {
     it('returns 503 when Redis is unavailable', async () => {
       const { req, res } = createMockBodyReq({ previewToken: VALID_PREVIEW_TOKEN });
-      await handleBatchDelete(depsWithoutRedis())(req, res);
+      await handleBatchDelete(depsWithoutRedis())(req, res, () => undefined);
       expect(res.status).toHaveBeenCalledWith(503);
     });
 
     it('rejects missing previewToken', async () => {
       const { req, res } = createMockBodyReq({});
-      await handleBatchDelete(depsWithRedis())(req, res);
+      await handleBatchDelete(depsWithRedis())(req, res, () => undefined);
       expect(res.status).toHaveBeenCalledWith(400);
     });
 
     it('rejects malformed previewToken (wrong prefix)', async () => {
       const { req, res } = createMockBodyReq({ previewToken: 'purge_test0000test0000' });
-      await handleBatchDelete(depsWithRedis())(req, res);
+      await handleBatchDelete(depsWithRedis())(req, res, () => undefined);
       expect(res.status).toHaveBeenCalledWith(400);
     });
 
     it('returns 400 when token is unknown / expired (peek miss)', async () => {
       mockTokenService.peekPreviewToken.mockResolvedValue(null);
       const { req, res } = createMockBodyReq({ previewToken: VALID_PREVIEW_TOKEN });
-      await handleBatchDelete(depsWithRedis())(req, res);
+      await handleBatchDelete(depsWithRedis())(req, res, () => undefined);
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -288,7 +288,7 @@ describe('memoryBatch handlers', () => {
     it('returns 400 when token is concurrently consumed between peek and consume', async () => {
       mockTokenService.consumePreviewToken.mockResolvedValue(null);
       const { req, res } = createMockBodyReq({ previewToken: VALID_PREVIEW_TOKEN });
-      await handleBatchDelete(depsWithRedis())(req, res);
+      await handleBatchDelete(depsWithRedis())(req, res, () => undefined);
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -300,7 +300,7 @@ describe('memoryBatch handlers', () => {
     it('does NOT consume the token when personality lookup fails post-peek', async () => {
       mockGetPersonalityById.mockResolvedValue(null);
       const { req, res } = createMockBodyReq({ previewToken: VALID_PREVIEW_TOKEN });
-      await handleBatchDelete(depsWithRedis())(req, res);
+      await handleBatchDelete(depsWithRedis())(req, res, () => undefined);
       // Personality 404 is rendered by getPersonalityById itself; importantly,
       // the token survives the failure so the user can retry.
       expect(mockTokenService.peekPreviewToken).toHaveBeenCalled();
@@ -313,7 +313,7 @@ describe('memoryBatch handlers', () => {
         ownerId: 'different-user-id',
       });
       const { req, res } = createMockBodyReq({ previewToken: VALID_PREVIEW_TOKEN });
-      await handleBatchDelete(depsWithRedis())(req, res);
+      await handleBatchDelete(depsWithRedis())(req, res, () => undefined);
       expect(res.status).toHaveBeenCalledWith(403);
       // Token NOT consumed on persona-ownership failure — user can retry.
       expect(mockTokenService.consumePreviewToken).not.toHaveBeenCalled();
@@ -322,7 +322,7 @@ describe('memoryBatch handlers', () => {
     it('returns zero-count success when no memories match', async () => {
       mockPrisma.memory.count.mockResolvedValue(0);
       const { req, res } = createMockBodyReq({ previewToken: VALID_PREVIEW_TOKEN });
-      await handleBatchDelete(depsWithRedis())(req, res);
+      await handleBatchDelete(depsWithRedis())(req, res, () => undefined);
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ deletedCount: 0 }));
       expect(mockPrisma.memory.updateMany).not.toHaveBeenCalled();
@@ -333,7 +333,7 @@ describe('memoryBatch handlers', () => {
       mockPrisma.memory.updateMany.mockResolvedValue({ count: 5 });
 
       const { req, res } = createMockBodyReq({ previewToken: VALID_PREVIEW_TOKEN });
-      await handleBatchDelete(depsWithRedis())(req, res);
+      await handleBatchDelete(depsWithRedis())(req, res, () => undefined);
 
       expect(mockPrisma.memory.updateMany).toHaveBeenCalledWith({
         where: expect.objectContaining({
@@ -370,7 +370,7 @@ describe('memoryBatch handlers', () => {
       mockPrisma.memory.updateMany.mockResolvedValue({ count: 2 });
 
       const { req, res } = createMockBodyReq({ previewToken: VALID_PREVIEW_TOKEN });
-      await handleBatchDelete(depsWithRedis())(req, res);
+      await handleBatchDelete(depsWithRedis())(req, res, () => undefined);
 
       expect(mockParseTimeframeFilter).toHaveBeenCalledWith('30d');
       expect(mockPrisma.memory.updateMany).toHaveBeenCalledWith(
@@ -389,19 +389,19 @@ describe('memoryBatch handlers', () => {
         personalityId: TEST_PERSONALITY_ID,
         confirmationPhrase: 'DELETE TEST-PERSONALITY MEMORIES',
       });
-      await handleIssuePurgeToken(depsWithoutRedis())(req, res);
+      await handleIssuePurgeToken(depsWithoutRedis())(req, res, () => undefined);
       expect(res.status).toHaveBeenCalledWith(503);
     });
 
     it('rejects missing personalityId', async () => {
       const { req, res } = createMockBodyReq({ confirmationPhrase: 'DELETE X MEMORIES' });
-      await handleIssuePurgeToken(depsWithRedis())(req, res);
+      await handleIssuePurgeToken(depsWithRedis())(req, res, () => undefined);
       expect(res.status).toHaveBeenCalledWith(400);
     });
 
     it('rejects missing confirmation phrase', async () => {
       const { req, res } = createMockBodyReq({ personalityId: TEST_PERSONALITY_ID });
-      await handleIssuePurgeToken(depsWithRedis())(req, res);
+      await handleIssuePurgeToken(depsWithRedis())(req, res, () => undefined);
       expect(res.status).toHaveBeenCalledWith(400);
     });
 
@@ -410,7 +410,7 @@ describe('memoryBatch handlers', () => {
         personalityId: TEST_PERSONALITY_ID,
         confirmationPhrase: 'wrong phrase',
       });
-      await handleIssuePurgeToken(depsWithRedis())(req, res);
+      await handleIssuePurgeToken(depsWithRedis())(req, res, () => undefined);
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -425,7 +425,7 @@ describe('memoryBatch handlers', () => {
         personalityId: TEST_PERSONALITY_ID,
         confirmationPhrase: 'delete test-personality memories',
       });
-      await handleIssuePurgeToken(depsWithRedis())(req, res);
+      await handleIssuePurgeToken(depsWithRedis())(req, res, () => undefined);
       expect(mockTokenService.issuePurgeToken).toHaveBeenCalledWith(
         TEST_DISCORD_USER_ID,
         TEST_PERSONALITY_ID
@@ -446,7 +446,7 @@ describe('memoryBatch handlers', () => {
         personalityId: TEST_PERSONALITY_ID,
         confirmationPhrase: 'DELETE TEST-PERSONALITY MEMORIES',
       });
-      await handleIssuePurgeToken(depsWithRedis())(req, res);
+      await handleIssuePurgeToken(depsWithRedis())(req, res, () => undefined);
       expect(res.status).not.toHaveBeenCalled();
     });
   });
@@ -454,26 +454,26 @@ describe('memoryBatch handlers', () => {
   describe('handlePurge', () => {
     it('returns 503 when Redis is unavailable', async () => {
       const { req, res } = createMockBodyReq({ purgeToken: VALID_PURGE_TOKEN });
-      await handlePurge(depsWithoutRedis())(req, res);
+      await handlePurge(depsWithoutRedis())(req, res, () => undefined);
       expect(res.status).toHaveBeenCalledWith(503);
     });
 
     it('rejects missing purgeToken', async () => {
       const { req, res } = createMockBodyReq({});
-      await handlePurge(depsWithRedis())(req, res);
+      await handlePurge(depsWithRedis())(req, res, () => undefined);
       expect(res.status).toHaveBeenCalledWith(400);
     });
 
     it('rejects malformed purgeToken (wrong prefix)', async () => {
       const { req, res } = createMockBodyReq({ purgeToken: 'preview_test0000test0000' });
-      await handlePurge(depsWithRedis())(req, res);
+      await handlePurge(depsWithRedis())(req, res, () => undefined);
       expect(res.status).toHaveBeenCalledWith(400);
     });
 
     it('returns 400 when token is unknown / expired (peek miss)', async () => {
       mockTokenService.peekPurgeToken.mockResolvedValue(null);
       const { req, res } = createMockBodyReq({ purgeToken: VALID_PURGE_TOKEN });
-      await handlePurge(depsWithRedis())(req, res);
+      await handlePurge(depsWithRedis())(req, res, () => undefined);
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -487,7 +487,7 @@ describe('memoryBatch handlers', () => {
     it('returns 400 when token is concurrently consumed between peek and consume', async () => {
       mockTokenService.consumePurgeToken.mockResolvedValue(null);
       const { req, res } = createMockBodyReq({ purgeToken: VALID_PURGE_TOKEN });
-      await handlePurge(depsWithRedis())(req, res);
+      await handlePurge(depsWithRedis())(req, res, () => undefined);
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -499,7 +499,7 @@ describe('memoryBatch handlers', () => {
     it('does NOT consume the token when personality lookup fails post-peek', async () => {
       mockGetPersonalityById.mockResolvedValue(null);
       const { req, res } = createMockBodyReq({ purgeToken: VALID_PURGE_TOKEN });
-      await handlePurge(depsWithRedis())(req, res);
+      await handlePurge(depsWithRedis())(req, res, () => undefined);
       // Token survives the personality-missing case — user can retry.
       expect(mockTokenService.peekPurgeToken).toHaveBeenCalled();
       expect(mockTokenService.consumePurgeToken).not.toHaveBeenCalled();
@@ -508,7 +508,7 @@ describe('memoryBatch handlers', () => {
     it('returns 400 when user has no persona', async () => {
       mockGetDefaultPersonaId.mockResolvedValue(null);
       const { req, res } = createMockBodyReq({ purgeToken: VALID_PURGE_TOKEN });
-      await handlePurge(depsWithRedis())(req, res);
+      await handlePurge(depsWithRedis())(req, res, () => undefined);
       expect(res.status).toHaveBeenCalledWith(400);
     });
 
@@ -517,7 +517,7 @@ describe('memoryBatch handlers', () => {
       mockPrisma.memory.updateMany.mockResolvedValue({ count: 7 });
 
       const { req, res } = createMockBodyReq({ purgeToken: VALID_PURGE_TOKEN });
-      await handlePurge(depsWithRedis())(req, res);
+      await handlePurge(depsWithRedis())(req, res, () => undefined);
 
       expect(mockPrisma.memory.updateMany).toHaveBeenCalledWith({
         where: {
@@ -545,7 +545,7 @@ describe('memoryBatch handlers', () => {
       mockPrisma.memory.updateMany.mockResolvedValue({ count: 3 });
 
       const { req, res } = createMockBodyReq({ purgeToken: VALID_PURGE_TOKEN });
-      await handlePurge(depsWithRedis())(req, res);
+      await handlePurge(depsWithRedis())(req, res, () => undefined);
 
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -557,7 +557,7 @@ describe('memoryBatch handlers', () => {
     it('returns early when token-bound personality is missing', async () => {
       mockGetPersonalityById.mockResolvedValue(null);
       const { req, res } = createMockBodyReq({ purgeToken: VALID_PURGE_TOKEN });
-      await handlePurge(depsWithRedis())(req, res);
+      await handlePurge(depsWithRedis())(req, res, () => undefined);
       expect(res.status).not.toHaveBeenCalled();
     });
   });

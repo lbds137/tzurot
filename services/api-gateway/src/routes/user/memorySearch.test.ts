@@ -95,7 +95,7 @@ describe('memorySearch', () => {
       mockIsEmbeddingAvailable.mockReturnValue(false);
       const res = createMockRes();
 
-      await handleSearch(deps())(createMockReq({ query: 'test' }), res);
+      await handleSearch(deps())(createMockReq({ query: 'test' }), res, () => undefined);
 
       expect(res.status).toHaveBeenCalledWith(503);
       expect(res.json).toHaveBeenCalledWith(
@@ -106,7 +106,7 @@ describe('memorySearch', () => {
     it('should return validation error for missing query', async () => {
       const res = createMockRes();
 
-      await handleSearch(deps())(createMockReq({}), res);
+      await handleSearch(deps())(createMockReq({}), res, () => undefined);
 
       expect(res.status).toHaveBeenCalledWith(400);
     });
@@ -116,7 +116,7 @@ describe('memorySearch', () => {
       mockGetDefaultPersonaId.mockResolvedValue(null);
       const res = createMockRes();
 
-      await handleSearch(deps())(createMockReq({ query: 'test' }), res);
+      await handleSearch(deps())(createMockReq({ query: 'test' }), res, () => undefined);
 
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
@@ -129,7 +129,11 @@ describe('memorySearch', () => {
       mockGetDefaultPersonaId.mockResolvedValue(TEST_PERSONA_ID);
       const res = createMockRes();
 
-      await handleSearch(deps())(createMockReq({ query: 'test', dateFrom: 'not-a-date' }), res);
+      await handleSearch(deps())(
+        createMockReq({ query: 'test', dateFrom: 'not-a-date' }),
+        res,
+        () => undefined
+      );
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -155,7 +159,11 @@ describe('memorySearch', () => {
       ]);
       const res = createMockRes();
 
-      await handleSearch(deps())(createMockReq({ query: 'test', preferTextSearch: true }), res);
+      await handleSearch(deps())(
+        createMockReq({ query: 'test', preferTextSearch: true }),
+        res,
+        () => undefined
+      );
 
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
@@ -190,7 +198,7 @@ describe('memorySearch', () => {
         ]); // Text fallback returns results
       const res = createMockRes();
 
-      await handleSearch(deps())(createMockReq({ query: 'test' }), res);
+      await handleSearch(deps())(createMockReq({ query: 'test' }), res, () => undefined);
 
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
@@ -204,7 +212,7 @@ describe('memorySearch', () => {
       mockGenerateEmbedding.mockRejectedValue(new Error('embedding error'));
       const res = createMockRes();
 
-      await handleSearch(deps())(createMockReq({ query: 'test' }), res);
+      await handleSearch(deps())(createMockReq({ query: 'test' }), res, () => undefined);
 
       expect(res.status).toHaveBeenCalledWith(500);
     });
@@ -215,7 +223,7 @@ describe('memorySearch', () => {
       mockGenerateEmbedding.mockResolvedValue(null);
       const res = createMockRes();
 
-      await handleSearch(deps())(createMockReq({ query: 'test' }), res);
+      await handleSearch(deps())(createMockReq({ query: 'test' }), res, () => undefined);
 
       expect(res.status).toHaveBeenCalledWith(503);
     });
@@ -239,7 +247,7 @@ describe('memorySearch', () => {
       ]);
       const res = createMockRes();
 
-      await handleSearch(deps())(createMockReq({ query: 'test' }), res);
+      await handleSearch(deps())(createMockReq({ query: 'test' }), res, () => undefined);
 
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
@@ -272,7 +280,11 @@ describe('memorySearch', () => {
       (mockPrisma.$queryRaw as ReturnType<typeof vi.fn>).mockResolvedValue(results);
       const res = createMockRes();
 
-      await handleSearch(deps())(createMockReq({ query: 'test', preferTextSearch: true }), res);
+      await handleSearch(deps())(
+        createMockReq({ query: 'test', preferTextSearch: true }),
+        res,
+        () => undefined
+      );
 
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ hasMore: true, count: 10 }));
     });
