@@ -23,14 +23,14 @@ import {
 import {
   createLogger,
   isBotOwner,
-  type ListChannelSettingsResponse,
   type ChannelSettings,
   DISCORD_COLORS,
   channelBrowseOptions,
   formatDateShort,
+  type UserClient,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi, toGatewayUser, type GatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import { requireManageMessagesContext } from '../../utils/permissions.js';
 import { createListComparator, type ListSortType } from '../../utils/listSorting.js';
 import { CHANNELS_PER_PAGE, CHANNELS_PER_PAGE_ALL_SERVERS, type GuildPage } from './listTypes.js';
@@ -351,7 +351,7 @@ function buildBrowsePage(options: BuildBrowsePageOptions): {
 async function backfillMissingGuildIds(
   activations: ChannelSettings[],
   client: Client,
-  user: GatewayUser
+  userClient: UserClient
 ): Promise<void> {
   const needsBackfill = activations.filter(a => a.guildId === null);
 
@@ -371,13 +371,9 @@ async function backfillMissingGuildIds(
         continue;
       }
       if ('guild' in channel && channel.guild !== null) {
-        await callGatewayApi('/user/channel/update-guild', {
-          user,
-          method: 'PATCH',
-          body: {
-            channelId: activation.channelId,
-            guildId: channel.guild.id,
-          },
+        await userClient.updateChannelGuild({
+          channelId: activation.channelId,
+          guildId: channel.guild.id,
         });
         activation.guildId = channel.guild.id;
       }
@@ -411,21 +407,16 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
     return;
   }
 
-  try {
-    // Build query path with optional guildId filter. `context.guildId ?? ''`
-    // preserves pre-encode-sweep behavior when the command is invoked in a DM
-    // (guildId null) — the gateway rejects empty-guildId requests, so the
-    // outcome is the same. A proper "reject in DM" guard belongs upstream if
-    // this path is reachable in practice.
-    const queryPath =
-      filter === 'all'
-        ? '/user/channel/list'
-        : `/user/channel/list?guildId=${encodeURIComponent(context.guildId ?? '')}`;
+  const { userClient } = clientsFor(context.interaction);
 
-    const result = await callGatewayApi<ListChannelSettingsResponse>(queryPath, {
-      user: toGatewayUser(context.user),
-      method: 'GET',
-    });
+  try {
+    // `context.guildId ?? ''` preserves pre-encode-sweep behavior when the
+    // command is invoked in a DM (guildId null) — the gateway rejects
+    // empty-guildId requests, so the outcome is the same. A proper
+    // "reject in DM" guard belongs upstream if this path is reachable.
+    const result = await userClient.listUserChannels(
+      filter === 'all' ? {} : { guildId: context.guildId ?? '' }
+    );
 
     if (!result.ok) {
       logger.warn(
@@ -439,7 +430,7 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
     let { settings } = result.data;
 
     // Lazy backfill missing guildIds
-    await backfillMissingGuildIds(settings, interaction.client, toGatewayUser(context.user));
+    await backfillMissingGuildIds(settings, interaction.client, userClient);
 
     // For current server view, filter again after backfill
     if (filter === 'current' && context.guildId !== null) {
@@ -501,18 +492,14 @@ export async function handleBrowsePagination(
     return;
   }
 
+  const { userClient } = clientsFor(interaction);
+
   try {
     // See matching comment in the primary browse handler above for the
     // `?? ''` fallback rationale.
-    const queryPath =
-      filter === 'all'
-        ? '/user/channel/list'
-        : `/user/channel/list?guildId=${encodeURIComponent(guildId ?? '')}`;
-
-    const result = await callGatewayApi<ListChannelSettingsResponse>(queryPath, {
-      user: toGatewayUser(interaction.user),
-      method: 'GET',
-    });
+    const result = await userClient.listUserChannels(
+      filter === 'all' ? {} : { guildId: guildId ?? '' }
+    );
 
     if (!result.ok) {
       logger.warn({ userId }, 'Failed to fetch channels for pagination');

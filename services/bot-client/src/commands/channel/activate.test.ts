@@ -8,19 +8,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { PermissionFlagsBits } from 'discord.js';
 import type { PermissionsBitField, GuildMember } from 'discord.js';
+import type { GatewayResult, UserClient } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { handleActivate } from './activate.js';
-
-// Mock gateway client
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: vi.fn(),
-  };
-});
 
 // Mock GatewayClient for cache invalidation
 vi.mock('../../utils/GatewayClient.js', () => ({
@@ -34,7 +24,6 @@ vi.mock('../../services/serviceRegistry.js', () => ({
   }),
 }));
 
-// Mock logger
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
@@ -48,14 +37,34 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
+
+interface StubClient {
+  activateChannel: ReturnType<typeof vi.fn>;
+}
+
+function createStubClient(): StubClient {
+  return { activateChannel: vi.fn() };
+}
+
+function asUserClient(stub: StubClient): UserClient {
+  return stub as unknown as UserClient;
+}
+
+function ok<T>(data: T): GatewayResult<T> {
+  return { ok: true, data };
+}
+
+function err(status: number, message = 'fail'): GatewayResult<never> {
+  return { ok: false, error: message, status };
+}
 
 describe('/channel activate', () => {
-  const mockCallGatewayApi = vi.mocked(callGatewayApi);
+  let stub: StubClient;
 
-  /**
-   * Create a mock DeferredCommandContext for testing.
-   */
   function createMockContext(options: {
     personalitySlug?: string;
     channelId?: string;
@@ -78,15 +87,13 @@ describe('/channel activate', () => {
       }),
     } as unknown as PermissionsBitField;
 
-    const mockMember = {
-      permissions: mockPermissions,
-    } as GuildMember;
-
+    const mockMember = { permissions: mockPermissions } as GuildMember;
     const mockEditReply = vi.fn().mockResolvedValue(undefined);
 
     return {
       interaction: {
         editReply: mockEditReply,
+        user: { id: 'user-123', username: 'testuser' },
         options: {
           getString: vi.fn((name: string) => {
             if (name === 'character') return personalitySlug;
@@ -117,36 +124,29 @@ describe('/channel activate', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = createStubClient();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
   });
 
   it('should activate a personality successfully', async () => {
     const context = createMockContext({});
-    mockCallGatewayApi.mockResolvedValueOnce({
-      ok: true,
-      data: {
+    stub.activateChannel.mockResolvedValueOnce(
+      ok({
         activation: {
           id: 'activation-123',
           personalitySlug: 'test-personality',
           personalityName: 'Test Personality',
         },
         replaced: false,
-      },
-    });
+      })
+    );
 
     await handleActivate(context);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/channel/activate', {
-      user: {
-        discordId: 'user-123',
-        username: 'testuser',
-        displayName: 'testuser',
-      },
-      method: 'POST',
-      body: {
-        channelId: '123456789012345678',
-        personalitySlug: 'test-personality',
-        guildId: '987654321098765432',
-      },
+    expect(stub.activateChannel).toHaveBeenCalledWith({
+      channelId: '123456789012345678',
+      personalitySlug: 'test-personality',
+      guildId: '987654321098765432',
     });
     expect(context.editReply).toHaveBeenCalledWith(
       expect.stringContaining('Activated **Test Personality**')
@@ -155,17 +155,16 @@ describe('/channel activate', () => {
 
   it('should indicate when replacing an existing activation', async () => {
     const context = createMockContext({});
-    mockCallGatewayApi.mockResolvedValueOnce({
-      ok: true,
-      data: {
+    stub.activateChannel.mockResolvedValueOnce(
+      ok({
         activation: {
           id: 'activation-123',
           personalitySlug: 'test-personality',
           personalityName: 'Test Personality',
         },
         replaced: true,
-      },
-    });
+      })
+    );
 
     await handleActivate(context);
 
@@ -179,10 +178,13 @@ describe('/channel activate', () => {
 
     await handleActivate(context);
 
+    // requireManageMessagesContext rejects first (guildId === null), so the
+    // editReply call has the `{ content: ... }` shape from that helper, not
+    // the bare-string shape from activate.ts's own guard.
     expect(context.editReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('only be used in a server'),
+      content: expect.stringContaining('server'),
     });
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(stub.activateChannel).not.toHaveBeenCalled();
   });
 
   it('should reject when user lacks ManageMessages permission', async () => {
@@ -193,16 +195,12 @@ describe('/channel activate', () => {
     expect(context.editReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Manage Messages'),
     });
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(stub.activateChannel).not.toHaveBeenCalled();
   });
 
   it('should handle 404 - personality not found', async () => {
     const context = createMockContext({});
-    mockCallGatewayApi.mockResolvedValueOnce({
-      ok: false,
-      status: 404,
-      error: 'Personality not found',
-    });
+    stub.activateChannel.mockResolvedValueOnce(err(404, 'Personality not found'));
 
     await handleActivate(context);
 
@@ -211,11 +209,7 @@ describe('/channel activate', () => {
 
   it('should handle 403 - no access to personality', async () => {
     const context = createMockContext({});
-    mockCallGatewayApi.mockResolvedValueOnce({
-      ok: false,
-      status: 403,
-      error: 'Access denied',
-    });
+    stub.activateChannel.mockResolvedValueOnce(err(403, 'Access denied'));
 
     await handleActivate(context);
 
@@ -224,11 +218,7 @@ describe('/channel activate', () => {
 
   it('should handle generic API errors', async () => {
     const context = createMockContext({});
-    mockCallGatewayApi.mockResolvedValueOnce({
-      ok: false,
-      status: 500,
-      error: 'Internal server error',
-    });
+    stub.activateChannel.mockResolvedValueOnce(err(500, 'Internal server error'));
 
     await handleActivate(context);
 
@@ -237,7 +227,7 @@ describe('/channel activate', () => {
 
   it('should handle unexpected errors', async () => {
     const context = createMockContext({});
-    mockCallGatewayApi.mockRejectedValueOnce(new Error('Network error'));
+    stub.activateChannel.mockRejectedValueOnce(new Error('Network error'));
 
     await handleActivate(context);
 
@@ -249,7 +239,7 @@ describe('/channel activate', () => {
 
     await handleActivate(context);
 
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(stub.activateChannel).not.toHaveBeenCalled();
     expect(context.editReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Autocomplete was unavailable'),
     });

@@ -3,10 +3,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { handleBrowse, handleBrowsePagination, isChannelBrowseInteraction } from './browse.js';
 import type { ButtonInteraction } from 'discord.js';
+import type { GatewayResult, UserClient } from '@tzurot/common-types';
+import { handleBrowse, handleBrowsePagination, isChannelBrowseInteraction } from './browse.js';
 
-// Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
   return {
@@ -21,23 +21,39 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-// Mock userGatewayClient
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
-
-// Mock permissions
 const mockRequireManageMessagesContext = vi.fn().mockResolvedValue(true);
 vi.mock('../../utils/permissions.js', () => ({
   requireManageMessagesContext: (...args: unknown[]) => mockRequireManageMessagesContext(...args),
 }));
+
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
+
+interface StubClient {
+  listUserChannels: ReturnType<typeof vi.fn>;
+  updateChannelGuild: ReturnType<typeof vi.fn>;
+}
+
+function createStubClient(): StubClient {
+  return {
+    listUserChannels: vi.fn(),
+    updateChannelGuild: vi.fn(),
+  };
+}
+
+function asUserClient(stub: StubClient): UserClient {
+  return stub as unknown as UserClient;
+}
+
+function ok<T>(data: T): GatewayResult<T> {
+  return { ok: true, data };
+}
+
+function err(status: number, message = 'fail'): GatewayResult<never> {
+  return { ok: false, error: message, status };
+}
 
 describe('isChannelBrowseInteraction', () => {
   it('should return true for browse custom IDs', () => {
@@ -55,18 +71,17 @@ describe('isChannelBrowseInteraction', () => {
 
 describe('handleBrowse', () => {
   const mockEditReply = vi.fn();
+  let stub: StubClient;
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    // Reset isBotOwner mock to default (false)
     const { isBotOwner } = await import('@tzurot/common-types');
     vi.mocked(isBotOwner).mockReturnValue(false);
 
     mockRequireManageMessagesContext.mockResolvedValue(true);
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: { settings: [] },
-    });
+    stub = createStubClient();
+    stub.listUserChannels.mockResolvedValue(ok({ settings: [] }));
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
   });
 
   afterEach(() => {
@@ -78,6 +93,7 @@ describe('handleBrowse', () => {
       user: { id: '123456789', username: 'testuser' },
       guildId: 'guild-123',
       interaction: {
+        user: { id: '123456789', username: 'testuser' },
         client: {
           channels: { cache: new Map() },
           guilds: { cache: new Map() },
@@ -106,13 +122,12 @@ describe('handleBrowse', () => {
     await handleBrowse(context);
 
     expect(mockRequireManageMessagesContext).toHaveBeenCalled();
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(stub.listUserChannels).not.toHaveBeenCalled();
   });
 
   it('should browse channels with default settings', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.listUserChannels.mockResolvedValue(
+      ok({
         settings: [
           {
             channelId: 'channel-1',
@@ -123,23 +138,14 @@ describe('handleBrowse', () => {
             createdAt: '2025-06-15T12:00:00.000Z',
           },
         ],
-      },
-    });
+      })
+    );
 
     const context = createMockContext();
     await handleBrowse(context);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      expect.stringContaining('/user/channel/list?guildId='),
-      expect.objectContaining({
-        user: {
-          discordId: '123456789',
-          username: 'testuser',
-          displayName: 'testuser',
-        },
-        method: 'GET',
-      })
-    );
+    // Current-server filter sends the guildId via the options bag.
+    expect(stub.listUserChannels).toHaveBeenCalledWith({ guildId: 'guild-123' });
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: expect.any(Array),
       components: expect.any(Array),
@@ -153,16 +159,15 @@ describe('handleBrowse', () => {
     expect(mockEditReply).toHaveBeenCalledWith(
       expect.stringContaining('only available to bot owners')
     );
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(stub.listUserChannels).not.toHaveBeenCalled();
   });
 
   it('should allow all filter for bot owners', async () => {
     const { isBotOwner } = await import('@tzurot/common-types');
     vi.mocked(isBotOwner).mockReturnValue(true);
 
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.listUserChannels.mockResolvedValue(
+      ok({
         settings: [
           {
             channelId: 'channel-1',
@@ -173,32 +178,20 @@ describe('handleBrowse', () => {
             createdAt: '2025-06-15T12:00:00.000Z',
           },
         ],
-      },
-    });
+      })
+    );
 
     const context = createMockContext(null, 'all');
     await handleBrowse(context);
 
-    // Verify the API was called with the all-servers path (no guildId filter)
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/channel/list',
-      expect.objectContaining({
-        user: {
-          discordId: '123456789',
-          username: 'testuser',
-          displayName: 'testuser',
-        },
-        method: 'GET',
-      })
-    );
-    // Verify a response was sent (embed contains guild page data)
+    // The 'all' filter sends no guildId (empty options bag).
+    expect(stub.listUserChannels).toHaveBeenCalledWith({});
     expect(mockEditReply).toHaveBeenCalled();
   });
 
   it('should filter by query', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.listUserChannels.mockResolvedValue(
+      ok({
         settings: [
           {
             channelId: 'channel-1',
@@ -217,8 +210,8 @@ describe('handleBrowse', () => {
             createdAt: '2025-06-15T12:00:00.000Z',
           },
         ],
-      },
-    });
+      })
+    );
 
     const context = createMockContext('luna', null);
     await handleBrowse(context);
@@ -237,10 +230,7 @@ describe('handleBrowse', () => {
   });
 
   it('should handle empty results', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: { settings: [] },
-    });
+    stub.listUserChannels.mockResolvedValue(ok({ settings: [] }));
 
     const context = createMockContext();
     await handleBrowse(context);
@@ -252,11 +242,7 @@ describe('handleBrowse', () => {
   });
 
   it('should handle API error', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      status: 500,
-      error: 'Internal error',
-    });
+    stub.listUserChannels.mockResolvedValue(err(500, 'Internal error'));
 
     const context = createMockContext();
     await handleBrowse(context);
@@ -267,7 +253,7 @@ describe('handleBrowse', () => {
   });
 
   it('should handle unexpected errors', async () => {
-    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+    stub.listUserChannels.mockRejectedValue(new Error('Network error'));
 
     const context = createMockContext();
     await handleBrowse(context);
@@ -279,17 +265,16 @@ describe('handleBrowse', () => {
 describe('handleBrowsePagination', () => {
   const mockDeferUpdate = vi.fn();
   const mockEditReply = vi.fn();
+  let stub: StubClient;
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    // Reset isBotOwner mock to default (false)
     const { isBotOwner } = await import('@tzurot/common-types');
     vi.mocked(isBotOwner).mockReturnValue(false);
 
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: { settings: [] },
-    });
+    stub = createStubClient();
+    stub.listUserChannels.mockResolvedValue(ok({ settings: [] }));
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
   });
 
   function createMockButtonInteraction(customId: string) {
@@ -313,9 +298,8 @@ describe('handleBrowsePagination', () => {
   });
 
   it('should refresh data on pagination', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.listUserChannels.mockResolvedValue(
+      ok({
         settings: [
           {
             channelId: 'channel-1',
@@ -326,23 +310,13 @@ describe('handleBrowsePagination', () => {
             createdAt: '2025-06-15T12:00:00.000Z',
           },
         ],
-      },
-    });
+      })
+    );
 
     const mockInteraction = createMockButtonInteraction('channel::browse::1::current::date::');
     await handleBrowsePagination(mockInteraction, 'guild-123');
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      expect.stringContaining('/user/channel/list'),
-      expect.objectContaining({
-        user: {
-          discordId: '123456789',
-          username: 'testuser',
-          displayName: 'testuser',
-        },
-        method: 'GET',
-      })
-    );
+    expect(stub.listUserChannels).toHaveBeenCalledWith({ guildId: 'guild-123' });
     expect(mockEditReply).toHaveBeenCalled();
   });
 
@@ -351,7 +325,7 @@ describe('handleBrowsePagination', () => {
     await handleBrowsePagination(mockInteraction, 'guild-123');
 
     expect(mockDeferUpdate).not.toHaveBeenCalled();
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(stub.listUserChannels).not.toHaveBeenCalled();
   });
 
   it('should reject all filter for non-bot-owners', async () => {
@@ -359,28 +333,24 @@ describe('handleBrowsePagination', () => {
     await handleBrowsePagination(mockInteraction, 'guild-123');
 
     expect(mockDeferUpdate).toHaveBeenCalled();
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(stub.listUserChannels).not.toHaveBeenCalled();
   });
 
   it('should allow all filter for bot owners', async () => {
     const { isBotOwner } = await import('@tzurot/common-types');
     vi.mocked(isBotOwner).mockReturnValue(true);
 
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: { settings: [] },
-    });
+    stub.listUserChannels.mockResolvedValue(ok({ settings: [] }));
 
     const mockInteraction = createMockButtonInteraction('channel::browse::1::all::date::');
     await handleBrowsePagination(mockInteraction, null);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/channel/list', expect.any(Object));
+    expect(stub.listUserChannels).toHaveBeenCalledWith({});
   });
 
   it('should apply sort from custom ID', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.listUserChannels.mockResolvedValue(
+      ok({
         settings: [
           {
             channelId: 'channel-1',
@@ -391,8 +361,8 @@ describe('handleBrowsePagination', () => {
             createdAt: '2025-06-15T12:00:00.000Z',
           },
         ],
-      },
-    });
+      })
+    );
 
     const mockInteraction = createMockButtonInteraction('channel::browse::0::current::name::');
     await handleBrowsePagination(mockInteraction, 'guild-123');
@@ -412,9 +382,8 @@ describe('handleBrowsePagination', () => {
   });
 
   it('should apply query filter from custom ID', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.listUserChannels.mockResolvedValue(
+      ok({
         settings: [
           {
             channelId: 'channel-1',
@@ -433,8 +402,8 @@ describe('handleBrowsePagination', () => {
             createdAt: '2025-06-15T12:00:00.000Z',
           },
         ],
-      },
-    });
+      })
+    );
 
     const mockInteraction = createMockButtonInteraction('channel::browse::0::current::date::luna');
     await handleBrowsePagination(mockInteraction, 'guild-123');
@@ -452,11 +421,7 @@ describe('handleBrowsePagination', () => {
   });
 
   it('should handle API error silently (keep existing content)', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      status: 500,
-      error: 'Internal error',
-    });
+    stub.listUserChannels.mockResolvedValue(err(500, 'Internal error'));
 
     const mockInteraction = createMockButtonInteraction('channel::browse::1::current::date::');
     await handleBrowsePagination(mockInteraction, 'guild-123');
@@ -466,14 +431,12 @@ describe('handleBrowsePagination', () => {
   });
 
   it('should handle unexpected errors gracefully', async () => {
-    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+    stub.listUserChannels.mockRejectedValue(new Error('Network error'));
 
     const mockInteraction = createMockButtonInteraction('channel::browse::1::current::date::');
 
-    // Should not throw
     await expect(handleBrowsePagination(mockInteraction, 'guild-123')).resolves.not.toThrow();
 
-    // Should not call editReply on error (keeps existing content)
     expect(mockEditReply).not.toHaveBeenCalled();
   });
 });
@@ -481,12 +444,15 @@ describe('handleBrowsePagination', () => {
 describe('backfillMissingGuildIds', () => {
   const mockEditReply = vi.fn();
   const mockChannelsFetch = vi.fn();
+  let stub: StubClient;
 
   beforeEach(async () => {
     vi.clearAllMocks();
     const { isBotOwner } = await import('@tzurot/common-types');
     vi.mocked(isBotOwner).mockReturnValue(false);
     mockRequireManageMessagesContext.mockResolvedValue(true);
+    stub = createStubClient();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
   });
 
   function createMockContextWithFetch(channelFetchFn: typeof mockChannelsFetch) {
@@ -494,6 +460,7 @@ describe('backfillMissingGuildIds', () => {
       user: { id: '123456789', username: 'testuser' },
       guildId: 'guild-123',
       interaction: {
+        user: { id: '123456789', username: 'testuser' },
         client: {
           channels: {
             cache: new Map(),
@@ -511,53 +478,35 @@ describe('backfillMissingGuildIds', () => {
   }
 
   it('should backfill missing guildId for channels', async () => {
-    // API returns activation with null guildId
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.listUserChannels.mockResolvedValue(
+      ok({
         settings: [
           {
             channelId: 'channel-1',
-            guildId: null, // Missing guildId triggers backfill
+            guildId: null,
             personalityId: 'personality-1',
             personalityName: 'Test',
             personalitySlug: 'test',
             createdAt: '2025-06-15T12:00:00.000Z',
           },
         ],
-      },
-    });
-
-    // Mock channel fetch to return channel with guild
-    mockChannelsFetch.mockResolvedValue({
-      guild: { id: 'backfilled-guild-123' },
-    });
+      })
+    );
+    stub.updateChannelGuild.mockResolvedValue(ok({ updated: true }));
+    mockChannelsFetch.mockResolvedValue({ guild: { id: 'backfilled-guild-123' } });
 
     const context = createMockContextWithFetch(mockChannelsFetch);
     await handleBrowse(context);
 
-    // Verify backfill API was called
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/channel/update-guild',
-      expect.objectContaining({
-        user: {
-          discordId: '123456789',
-          username: 'testuser',
-          displayName: 'testuser',
-        },
-        method: 'PATCH',
-        body: {
-          channelId: 'channel-1',
-          guildId: 'backfilled-guild-123',
-        },
-      })
-    );
+    expect(stub.updateChannelGuild).toHaveBeenCalledWith({
+      channelId: 'channel-1',
+      guildId: 'backfilled-guild-123',
+    });
   });
 
   it('should skip backfill when channel fetch returns null', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.listUserChannels.mockResolvedValue(
+      ok({
         settings: [
           {
             channelId: 'deleted-channel',
@@ -568,32 +517,23 @@ describe('backfillMissingGuildIds', () => {
             createdAt: '2025-06-15T12:00:00.000Z',
           },
         ],
-      },
-    });
-
-    // Channel doesn't exist anymore
+      })
+    );
     mockChannelsFetch.mockResolvedValue(null);
 
     const context = createMockContextWithFetch(mockChannelsFetch);
     await handleBrowse(context);
 
-    // Should still complete without error
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: expect.any(Array),
       components: expect.any(Array),
     });
-
-    // Backfill API should NOT be called (channel was null)
-    const updateGuildCalls = mockCallGatewayApi.mock.calls.filter(
-      call => call[0] === '/user/channel/update-guild'
-    );
-    expect(updateGuildCalls).toHaveLength(0);
+    expect(stub.updateChannelGuild).not.toHaveBeenCalled();
   });
 
   it('should handle backfill errors gracefully', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.listUserChannels.mockResolvedValue(
+      ok({
         settings: [
           {
             channelId: 'error-channel',
@@ -604,16 +544,13 @@ describe('backfillMissingGuildIds', () => {
             createdAt: '2025-06-15T12:00:00.000Z',
           },
         ],
-      },
-    });
-
-    // Channel fetch throws error
+      })
+    );
     mockChannelsFetch.mockRejectedValue(new Error('Channel not accessible'));
 
     const context = createMockContextWithFetch(mockChannelsFetch);
     await handleBrowse(context);
 
-    // Should still complete and show results (even empty)
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: expect.any(Array),
       components: expect.any(Array),
@@ -621,9 +558,8 @@ describe('backfillMissingGuildIds', () => {
   });
 
   it('should skip channels without guild property during backfill', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.listUserChannels.mockResolvedValue(
+      ok({
         settings: [
           {
             channelId: 'dm-channel',
@@ -634,34 +570,29 @@ describe('backfillMissingGuildIds', () => {
             createdAt: '2025-06-15T12:00:00.000Z',
           },
         ],
-      },
-    });
-
-    // DM channel has no guild property
-    mockChannelsFetch.mockResolvedValue({
-      id: 'dm-channel',
-      // No guild property - simulating DM channel
-    });
+      })
+    );
+    // DM channel has no guild property.
+    mockChannelsFetch.mockResolvedValue({ id: 'dm-channel' });
 
     const context = createMockContextWithFetch(mockChannelsFetch);
     await handleBrowse(context);
 
-    // Backfill API should NOT be called (no guild property)
-    const updateGuildCalls = mockCallGatewayApi.mock.calls.filter(
-      call => call[0] === '/user/channel/update-guild'
-    );
-    expect(updateGuildCalls).toHaveLength(0);
+    expect(stub.updateChannelGuild).not.toHaveBeenCalled();
   });
 });
 
 describe('buildGuildPages (all-servers view)', () => {
   const mockEditReply = vi.fn();
+  let stub: StubClient;
 
   beforeEach(async () => {
     vi.clearAllMocks();
     const { isBotOwner } = await import('@tzurot/common-types');
-    vi.mocked(isBotOwner).mockReturnValue(true); // Bot owner for all-servers
+    vi.mocked(isBotOwner).mockReturnValue(true);
     mockRequireManageMessagesContext.mockResolvedValue(true);
+    stub = createStubClient();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
   });
 
   function createMockContext(filter: string | null = 'all') {
@@ -669,6 +600,7 @@ describe('buildGuildPages (all-servers view)', () => {
       user: { id: '123456789', username: 'testuser' },
       guildId: 'guild-123',
       interaction: {
+        user: { id: '123456789', username: 'testuser' },
         client: {
           channels: { cache: new Map() },
           guilds: {
@@ -694,9 +626,8 @@ describe('buildGuildPages (all-servers view)', () => {
   }
 
   it('should group channels by guild in all-servers view', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.listUserChannels.mockResolvedValue(
+      ok({
         settings: [
           {
             channelId: 'channel-1',
@@ -715,8 +646,8 @@ describe('buildGuildPages (all-servers view)', () => {
             createdAt: '2025-06-16T12:00:00.000Z',
           },
         ],
-      },
-    });
+      })
+    );
 
     const context = createMockContext('all');
     await handleBrowse(context);
@@ -734,21 +665,20 @@ describe('buildGuildPages (all-servers view)', () => {
   });
 
   it('should handle unknown guildId in all-servers view', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.listUserChannels.mockResolvedValue(
+      ok({
         settings: [
           {
             channelId: 'channel-orphan',
-            guildId: null, // Unknown guild
+            guildId: null,
             personalityId: 'p1',
             personalityName: 'Test',
             personalitySlug: 'test',
             createdAt: '2025-06-15T12:00:00.000Z',
           },
         ],
-      },
-    });
+      })
+    );
 
     const context = createMockContext('all');
     await handleBrowse(context);

@@ -890,8 +890,8 @@ export class UserClient {
   /**
    * @safeRead Server-side has no observable mutation — safe to cache client-side.
    */
-  async listUserChannels(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listUserChannels.output>>> {
-    const fullPath = '/api/user/channel/list';
+  async listUserChannels(options: { guildId?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listUserChannels.output>>> {
+    const fullPath = '/api/user/channel/list' + buildQueryString([['guildId', options.guildId]]);
     return callGateway({
       baseUrl: this.baseUrl,
       serviceSecret: this.serviceSecret,
@@ -925,7 +925,7 @@ export class UserClient {
     });
   }
 
-  async updateChannelGuild(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updateChannelGuild.output>>> {
+  async updateChannelGuild(input: z.infer<typeof ROUTE_MANIFEST.updateChannelGuild.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updateChannelGuild.output>>> {
     const fullPath = '/api/user/channel/update-guild';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -937,6 +937,7 @@ export class UserClient {
         'X-User-Username': encodeURIComponent(this.user.username),
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
+      body: input,
       outputSchema: ROUTE_MANIFEST.updateChannelGuild.output,
     });
   }
