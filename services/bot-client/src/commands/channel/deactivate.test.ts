@@ -8,33 +8,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { PermissionFlagsBits } from 'discord.js';
 import type { PermissionsBitField, GuildMember } from 'discord.js';
+import type { GatewayResult, UserClient } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { handleDeactivate } from './deactivate.js';
 
-// Mock gateway client
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: vi.fn(),
-  };
-});
-
-// Mock GatewayClient for cache invalidation
 vi.mock('../../utils/GatewayClient.js', () => ({
   invalidateChannelSettingsCache: vi.fn(),
 }));
 
-// Mock service registry
 vi.mock('../../services/serviceRegistry.js', () => ({
   getChannelActivationCacheInvalidationService: vi.fn().mockReturnValue({
     invalidateChannel: vi.fn(),
   }),
 }));
 
-// Mock logger
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
@@ -48,14 +35,34 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
+
+interface StubClient {
+  deactivateChannel: ReturnType<typeof vi.fn>;
+}
+
+function createStubClient(): StubClient {
+  return { deactivateChannel: vi.fn() };
+}
+
+function asUserClient(stub: StubClient): UserClient {
+  return stub as unknown as UserClient;
+}
+
+function ok<T>(data: T): GatewayResult<T> {
+  return { ok: true, data };
+}
+
+function err(status: number, message = 'fail'): GatewayResult<never> {
+  return { ok: false, error: message, status };
+}
 
 describe('/channel deactivate', () => {
-  const mockCallGatewayApi = vi.mocked(callGatewayApi);
+  let stub: StubClient;
 
-  /**
-   * Create a mock DeferredCommandContext for testing.
-   */
   function createMockContext(options: {
     channelId?: string;
     guildId?: string | null;
@@ -76,14 +83,14 @@ describe('/channel deactivate', () => {
       }),
     } as unknown as PermissionsBitField;
 
-    const mockMember = {
-      permissions: mockPermissions,
-    } as GuildMember;
-
+    const mockMember = { permissions: mockPermissions } as GuildMember;
     const mockEditReply = vi.fn().mockResolvedValue(undefined);
 
     return {
-      interaction: { editReply: mockEditReply },
+      interaction: {
+        editReply: mockEditReply,
+        user: { id: 'user-123', username: 'testuser' },
+      },
       user: { id: 'user-123', username: 'testuser' },
       guild: guildId !== null ? { id: guildId } : null,
       member: guildId !== null ? mockMember : null,
@@ -104,31 +111,19 @@ describe('/channel deactivate', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = createStubClient();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
   });
 
   it('should deactivate a channel successfully', async () => {
     const context = createMockContext({});
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
-        deactivated: true,
-        personalityName: 'Test Personality',
-      },
-    });
+    stub.deactivateChannel.mockResolvedValue(
+      ok({ deactivated: true, personalityName: 'Test Personality' })
+    );
 
     await handleDeactivate(context);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/channel/deactivate', {
-      user: {
-        discordId: 'user-123',
-        username: 'testuser',
-        displayName: 'testuser',
-      },
-      method: 'DELETE',
-      body: {
-        channelId: '123456789012345678',
-      },
-    });
+    expect(stub.deactivateChannel).toHaveBeenCalledWith({ channelId: '123456789012345678' });
     expect(context.editReply).toHaveBeenCalledWith(
       expect.stringContaining('Deactivated **Test Personality**')
     );
@@ -136,12 +131,7 @@ describe('/channel deactivate', () => {
 
   it('should handle when no activation exists', async () => {
     const context = createMockContext({});
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
-        deactivated: false,
-      },
-    });
+    stub.deactivateChannel.mockResolvedValue(ok({ deactivated: false }));
 
     await handleDeactivate(context);
 
@@ -155,10 +145,11 @@ describe('/channel deactivate', () => {
 
     await handleDeactivate(context);
 
+    // requireManageMessagesContext rejects first when guildId is null.
     expect(context.editReply).toHaveBeenCalledWith({
-      content: '❌ This command can only be used in a server.',
+      content: expect.stringContaining('server'),
     });
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(stub.deactivateChannel).not.toHaveBeenCalled();
   });
 
   it('should reject when user lacks ManageMessages permission', async () => {
@@ -167,18 +158,14 @@ describe('/channel deactivate', () => {
     await handleDeactivate(context);
 
     expect(context.editReply).toHaveBeenCalledWith({
-      content: '❌ You need the "Manage Messages" permission to use this command.',
+      content: expect.stringContaining('Manage Messages'),
     });
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(stub.deactivateChannel).not.toHaveBeenCalled();
   });
 
   it('should handle API errors', async () => {
     const context = createMockContext({});
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      error: 'Database error',
-      status: 500,
-    });
+    stub.deactivateChannel.mockResolvedValue(err(500, 'Database error'));
 
     await handleDeactivate(context);
 
@@ -187,7 +174,7 @@ describe('/channel deactivate', () => {
 
   it('should handle unexpected errors', async () => {
     const context = createMockContext({});
-    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+    stub.deactivateChannel.mockRejectedValue(new Error('Network error'));
 
     await handleDeactivate(context);
 

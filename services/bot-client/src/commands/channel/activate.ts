@@ -9,17 +9,13 @@
  * because the parent command uses deferralMode: 'ephemeral'.
  */
 
-import {
-  createLogger,
-  type ActivateChannelResponse,
-  channelActivateOptions,
-} from '@tzurot/common-types';
+import { createLogger, channelActivateOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
   AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
   isAutocompleteErrorSentinel,
 } from '../../utils/apiCheck.js';
-import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import { requireManageMessagesContext } from '../../utils/permissions.js';
 import { invalidateChannelSettingsCache } from '../../utils/GatewayClient.js';
 import { getChannelActivationCacheInvalidationService } from '../../services/serviceRegistry.js';
@@ -67,14 +63,11 @@ export async function handleActivate(context: DeferredCommandContext): Promise<v
   }
 
   try {
-    const result = await callGatewayApi<ActivateChannelResponse>('/user/channel/activate', {
-      user: toGatewayUser(context.user),
-      method: 'POST',
-      body: {
-        channelId,
-        personalitySlug,
-        guildId,
-      },
+    const { userClient } = clientsFor(context.interaction);
+    const result = await userClient.activateChannel({
+      channelId,
+      personalitySlug,
+      guildId,
     });
 
     if (!result.ok) {
