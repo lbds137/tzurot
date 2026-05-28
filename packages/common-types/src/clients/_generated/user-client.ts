@@ -853,6 +853,23 @@ export class UserClient {
     });
   }
 
+  async createPersonaOverride(personalityId: string, input: z.infer<typeof ROUTE_MANIFEST.createPersonaOverride.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.createPersonaOverride.output>>> {
+    const fullPath = `/api/user/persona/override/by-id/${encodeURIComponent(personalityId)}`;
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.createPersonaOverride.output,
+    });
+  }
+
   async activateChannel(input: z.infer<typeof ROUTE_MANIFEST.activateChannel.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.activateChannel.output>>> {
     const fullPath = '/api/user/channel/activate';
     return callGateway({

@@ -82,11 +82,12 @@ interface MockPrismaClient {
     update: ReturnType<typeof vi.fn>;
     delete: ReturnType<typeof vi.fn>;
   };
+  $transaction: ReturnType<typeof vi.fn>;
 }
 
 /** Create mock Prisma client for testing - includes UserService dependencies */
 export function createMockPrisma(): MockPrismaClient {
-  return {
+  const mock: MockPrismaClient = {
     user: {
       findFirst: vi.fn(),
       findUnique: vi.fn().mockResolvedValue({
@@ -116,5 +117,11 @@ export function createMockPrisma(): MockPrismaClient {
       update: vi.fn(),
       delete: vi.fn(),
     },
+    // Pass-through transaction: the callback runs against the same mock,
+    // so individual model calls (persona.create, userPersonalityConfig.upsert)
+    // remain configurable per-test via the normal mockResolvedValue path.
+    $transaction: vi.fn(),
   };
+  mock.$transaction.mockImplementation((cb: (tx: MockPrismaClient) => unknown) => cb(mock));
+  return mock;
 }

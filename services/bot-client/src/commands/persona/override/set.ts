@@ -28,35 +28,9 @@ import {
   AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
   isAutocompleteErrorSentinel,
 } from '../../../utils/apiCheck.js';
-import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
 import { clientsFor } from '../../../utils/gatewayClients.js';
 
 const logger = createLogger('persona-override-set');
-
-/**
- * Response type for creating persona and setting as override.
- * Local interface because the underlying POST endpoint
- * `/user/persona/override/by-id/:personalityId` is not in the route
- * manifest (and may not exist on the gateway — see backlog/deferred.md
- * entry tracking this gap). Until the endpoint is verified or rebuilt
- * as two calls (createPersona + setPersonaOverride), this callsite
- * stays on the legacy `callGatewayApi` path.
- */
-interface CreateOverrideResponse {
-  success: boolean;
-  persona: {
-    id: string;
-    name: string;
-    preferredName: string | null;
-    description: string | null;
-    pronouns: string | null;
-    content: string | null;
-  };
-  personality: {
-    name: string;
-    displayName: string | null;
-  };
-}
 
 /** Map API error to user-friendly message, or null if no specific mapping */
 function mapOverrideError(error: string | undefined, personalitySlug: string): string | null {
@@ -220,25 +194,17 @@ export async function handleOverrideCreateModalSubmit(
       return;
     }
 
-    // Create persona and set as override via gateway (using personality ID in path)
-    const result = await callGatewayApi<CreateOverrideResponse>(
-      `/user/persona/override/by-id/${encodeURIComponent(personalityId)}`,
-      {
-        user: toGatewayUser(interaction.user),
-        method: 'POST',
-        body: {
-          name: personaName,
-          description,
-          preferredName,
-          pronouns,
-          content: content ?? '',
-          username: interaction.user.username,
-        },
-      }
-    );
+    const { userClient } = clientsFor(interaction);
+    const result = await userClient.createPersonaOverride(personalityId, {
+      name: personaName,
+      description,
+      preferredName,
+      pronouns,
+      content: content ?? '',
+    });
 
     if (!result.ok) {
-      if (result.error?.includes('User not found')) {
+      if (result.error.includes('User not found')) {
         await interaction.reply({
           content: '❌ User not found.',
           flags: MessageFlags.Ephemeral,

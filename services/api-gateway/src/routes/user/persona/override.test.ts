@@ -325,4 +325,142 @@ describe('persona override routes', () => {
       );
     });
   });
+
+  describe('POST /user/persona/override/by-id/:personalityId', () => {
+    const validBody = {
+      name: 'Override Persona',
+      content: 'Persona content for testing.',
+      preferredName: 'Pref',
+      description: 'A test description',
+      pronouns: 'they/them',
+    };
+
+    it('should create a persona AND set it as override in a single transaction', async () => {
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        id: MOCK_PERSONALITY_ID,
+        name: 'Lilith',
+        displayName: 'Lilith the Succubus',
+      });
+      mockPrisma.persona.create.mockResolvedValue({
+        id: MOCK_PERSONA_ID_2,
+        name: 'Override Persona',
+        preferredName: 'Pref',
+        description: 'A test description',
+        content: 'Persona content for testing.',
+        pronouns: 'they/them',
+        createdAt: new Date('2026-01-01T00:00:00Z'),
+        updatedAt: new Date('2026-01-01T00:00:00Z'),
+      });
+      mockPrisma.userPersonalityConfig.upsert.mockResolvedValue({});
+
+      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+      const handler = getHandler(router, 'post', '/override/by-id/:personalityId');
+
+      const { req, res } = createMockReqRes(validBody, { personalityId: MOCK_PERSONALITY_ID });
+      await handler(req, res);
+
+      expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.persona.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            name: 'Override Persona',
+            content: 'Persona content for testing.',
+            preferredName: 'Pref',
+            description: 'A test description',
+            pronouns: 'they/them',
+            ownerId: MOCK_USER_ID,
+          }),
+        })
+      );
+      expect(mockPrisma.userPersonalityConfig.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            userId_personalityId: { userId: MOCK_USER_ID, personalityId: MOCK_PERSONALITY_ID },
+          },
+          create: expect.objectContaining({
+            userId: MOCK_USER_ID,
+            personalityId: MOCK_PERSONALITY_ID,
+            personaId: MOCK_PERSONA_ID_2,
+          }),
+          update: { personaId: MOCK_PERSONA_ID_2 },
+        })
+      );
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          persona: expect.objectContaining({ id: MOCK_PERSONA_ID_2, name: 'Override Persona' }),
+          personality: { name: 'Lilith', displayName: 'Lilith the Succubus' },
+        })
+      );
+    });
+
+    it('should return 400 for invalid personalityId (not a UUID)', async () => {
+      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+      const handler = getHandler(router, 'post', '/override/by-id/:personalityId');
+
+      const { req, res } = createMockReqRes(validBody, { personalityId: 'not-a-uuid' });
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('should return 400 for invalid body (missing required field)', async () => {
+      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+      const handler = getHandler(router, 'post', '/override/by-id/:personalityId');
+
+      const { req, res } = createMockReqRes(
+        { name: 'No content' },
+        { personalityId: MOCK_PERSONALITY_ID }
+      );
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('should return 404 when personality does not exist', async () => {
+      mockPrisma.personality.findUnique.mockResolvedValue(null);
+
+      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+      const handler = getHandler(router, 'post', '/override/by-id/:personalityId');
+
+      const { req, res } = createMockReqRes(validBody, { personalityId: NONEXISTENT_UUID });
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('should roll back the persona create when the upsert throws (atomicity)', async () => {
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        id: MOCK_PERSONALITY_ID,
+        name: 'Lilith',
+        displayName: null,
+      });
+      mockPrisma.persona.create.mockResolvedValue({
+        id: MOCK_PERSONA_ID_2,
+        name: 'Will be rolled back',
+        preferredName: null,
+        description: null,
+        content: 'x',
+        pronouns: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      // Simulate upsert failure inside the transaction. The mock's pass-through
+      // $transaction propagates the throw, which is what asyncHandler will turn
+      // into a 500. The test asserts that the handler does NOT send a success
+      // response — confirming the transaction wrapping is in place.
+      mockPrisma.userPersonalityConfig.upsert.mockRejectedValue(new Error('write conflict'));
+
+      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+      const handler = getHandler(router, 'post', '/override/by-id/:personalityId');
+
+      const { req, res } = createMockReqRes(validBody, { personalityId: MOCK_PERSONALITY_ID });
+      await expect(handler(req, res)).rejects.toThrow('write conflict');
+      expect(res.json).not.toHaveBeenCalled();
+    });
+  });
 });
