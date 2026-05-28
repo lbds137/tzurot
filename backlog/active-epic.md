@@ -32,7 +32,9 @@ End-state: the only legal way to call the gateway is through generated, scoped, 
 - ✅ **PR-2b** (merged 2026-05-27): `commands/channel/{activate,deactivate,browse}` migrated to userClient. `settings.ts` deferred (4 manifest gaps).
 - ✅ **PR-2c** (#1104, merged 2026-05-27): `commands/admin/*` migrated to ownerClient. Surfaced manifest correctness fixes (AdminUsageStatsSchema `period` field reclassification). Burn-down: adminFetch 32 → 26 (-6).
 - ✅ **PR-2d** (#1105, merged 2026-05-28): `commands/shapes/*` migrated to userClient (-27 callGatewayApi callsites). Two backlog-deferred items absorbed inline: shared `gatewayClientStubs.ts` test helpers + `normalizeDateTime`/`normalizeDateTimeNullable` promotion to common-types. Manifest fixes: `query.slug?` declared on `listShapes(Import|Export)Jobs`; `ShapesExportJobSummarySchema.expiresAt` tightened to non-nullable. **Pre-existing fixes**: 3-second-ack-rule violation in `showDetailView` AND sibling `handleBrowsePage` both fixed inline (defer-first + editReply + nested-router guard); shared `safelyReportUnexpectedError` helper extracted to handle deferred-or-not error paths. Burn-down: callGatewayApi 207 → 180 (-27).
-- ⏳ **PR-2e…j**: per-area bot-client migrations sequenced by domain (memory / character / persona / voice / wallet / etc.). Burn-down gate enforces strict-monotonic decrease per category. Three backlog items still tracked under this trigger:
+- ✅ **PR-2e** (#1106, merged 2026-05-28): `commands/persona/*` migrated to userClient (-21 callGatewayApi callsites). `createRefreshHandler` shared-infra signature cleaned up to remove `userGatewayClient` coupling. Burn-down: callGatewayApi 180 → 159 (-21).
+- ✅ **PR-2e-followup** (#1108, merged 2026-05-28): implemented the missing `POST /user/persona/override/by-id/:personalityId` endpoint that was 404-ing silently in production. Atomicity via `prisma.$transaction` (no orphaned persona on upsert failure). Eliminates the last `callGatewayApi` callsite in `commands/persona/`. Persona-create modal `content` field tightened to `setRequired(true)` so Discord catches empty submissions client-side. 5 new gateway tests + bot-client tests fully migrated. Burn-down: callGatewayApi 159 → 156 (-3).
+- ⏳ **PR-2f…j**: per-area bot-client migrations sequenced by domain (memory / character / voice / wallet / etc.). Burn-down gate enforces strict-monotonic decrease per category. Three backlog items still tracked under this trigger:
   - Wallet rate-limiter middleware re-application (`quick-wins.md`) — partially addressed in PR-2a (path-scoped at gateway). Remaining: confirm coverage in PR-2 wallet slice.
   - Coordinated bot-client `/wallet/set` → `setWalletKey` typed-client migration (called out in PR #1097 round-8 review)
   - Re-check common-types export count post-PR-2 against the 50-export / 3000-line `xray` thresholds; propose `@tzurot/routes` or `@tzurot/clients` extraction if over (`deferred.md`)
@@ -53,7 +55,9 @@ Council-vetted 9-PR sequence (GLM 5.1, Kimi K2.6, Qwen 3.7 Max all converged):
 - ✅ **PR-2b**: channel commands activate/deactivate/browse → userClient (shipped 2026-05-27)
 - ✅ **PR-2c**: admin commands → ownerClient (shipped #1104)
 - ✅ **PR-2d**: shapes commands → userClient (shipped #1105)
-- ⏳ **PR-2e…i** (~5 PRs): per-area bot-client migrations at 15–25 callsites each. Burn-down gate enforces monotonic decrease per category.
+- ✅ **PR-2e**: persona commands → userClient (shipped #1106)
+- ✅ **PR-2e-followup**: implemented missing `createPersonaOverride` atomic endpoint (shipped #1108)
+- ⏳ **PR-2f…i** (~4 PRs): per-area bot-client migrations at 15–25 callsites each. Burn-down gate enforces monotonic decrease per category.
 - ⏳ **PR-2j**: legacy deletion final pass. Delete `adminApiClient.ts`, `userGatewayClient.ts`, the legacy `/admin /user /internal` mounts in `index.ts`, the `legacy:count` gate, and the baseline file. Counts must be zero at this point.
 
 The atomic-cutover option (single PR replaces mounts + all 243 callsites) was rejected because Railway deploys api-gateway and bot-client independently — there's no way to flip both prefixes simultaneously. Dual-mount avoids the race entirely.
