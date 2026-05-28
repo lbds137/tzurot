@@ -252,3 +252,47 @@ export const ClearPersonalityConfigOverridesResponseSchema = z.object({
 export type ClearPersonalityConfigOverridesResponse = z.infer<
   typeof ClearPersonalityConfigOverridesResponseSchema
 >;
+
+// ============================================================================
+// Channel-tier overrides (/user/channel/:channelId/config-overrides)
+// ============================================================================
+
+/** Response for GET /user/channel/:channelId/config-overrides — raw JSONB (or null if no row). */
+export const GetChannelConfigOverridesResponseSchema = z.object({
+  configOverrides: z.record(z.string(), z.unknown()).nullable(),
+});
+export type GetChannelConfigOverridesResponse = z.infer<
+  typeof GetChannelConfigOverridesResponseSchema
+>;
+
+/**
+ * Request for PATCH /user/channel/:channelId/config-overrides — partial merge.
+ * Bare record (not `ConfigOverridesSchema.partial()`) because the wire format
+ * accepts `null` for ANY field to clear it (dashboard "auto" buttons), not
+ * just the schema's `.nullable()` fields. The gateway-side
+ * `handleUpdateChannelConfigOverrides` handler runs `mergeConfigOverrides`
+ * which normalizes null → undefined and validates against
+ * `ConfigOverridesSchema.partial()` — that's where the real type check happens.
+ * Caller-side typo protection on field names lives upstream in the dashboard
+ * config layer (typed `settingId → apiField` map).
+ */
+export const UpdateChannelConfigOverridesRequestSchema = z.record(z.string(), z.unknown());
+export type UpdateChannelConfigOverridesRequest = z.infer<
+  typeof UpdateChannelConfigOverridesRequestSchema
+>;
+
+/** Response for PATCH /user/channel/:channelId/config-overrides — merged result echoed back. */
+export const UpdateChannelConfigOverridesResponseSchema = z.object({
+  configOverrides: z.record(z.string(), z.unknown()),
+});
+export type UpdateChannelConfigOverridesResponse = z.infer<
+  typeof UpdateChannelConfigOverridesResponseSchema
+>;
+
+/** Response for DELETE /user/channel/:channelId/config-overrides — bare success ack. */
+export const ClearChannelConfigOverridesResponseSchema = z.object({
+  success: z.literal(true),
+});
+export type ClearChannelConfigOverridesResponse = z.infer<
+  typeof ClearChannelConfigOverridesResponseSchema
+>;
