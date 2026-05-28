@@ -59,7 +59,10 @@ export async function handleCreateModalSubmit(interaction: ModalSubmitInteractio
     const description = interaction.fields.getTextInputValue('description').trim() || null;
     const preferredName = interaction.fields.getTextInputValue('preferredName').trim() || null;
     const pronouns = interaction.fields.getTextInputValue('pronouns').trim() || null;
-    const content = interaction.fields.getTextInputValue('content').trim() || null;
+    // Modal sets `.setRequired(true)` on content, so Discord guarantees a
+    // non-empty value here. Whitespace-only edge cases fall through to the
+    // gateway's PersonaCreateSchema.content.min(1) validator.
+    const content = interaction.fields.getTextInputValue('content').trim();
 
     // Persona name is required
     if (personaName.length === 0) {
@@ -76,7 +79,7 @@ export async function handleCreateModalSubmit(interaction: ModalSubmitInteractio
       description,
       preferredName,
       pronouns,
-      content: content ?? '',
+      content,
     });
 
     if (!result.ok) {

@@ -441,11 +441,17 @@ export default tseslint.config(
   // These ARE the canonical creation sites — the ban exists to funnel every
   // other caller through them. Logger rules still apply via PINO_LOGGER_RULES.
   // Must come AFTER the routes-scoped identity override above so this
-  // exemption wins for persona/crud.ts.
+  // exemption wins for persona/crud.ts. `persona/override.ts` is included
+  // for the create-persona-and-set-as-override flow: the work must run in
+  // a single prisma.$transaction for atomicity, so factoring the persona
+  // create out to UserService would split the transaction. The
+  // deterministic-UUID invariant is still enforced by the explicit
+  // `generatePersonaUuid(name, user.id)` call.
   {
     files: [
       'packages/common-types/src/services/UserService.ts',
       'services/api-gateway/src/routes/user/persona/crud.ts',
+      'services/api-gateway/src/routes/user/persona/override.ts',
     ],
     rules: {
       'no-restricted-syntax': ['error', ...PINO_LOGGER_RULES],

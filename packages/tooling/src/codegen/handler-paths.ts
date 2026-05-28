@@ -164,6 +164,7 @@ const PATH_MAP: Readonly<Record<string, string>> = {
   // User persona
   clearPersonaOverride: USER_PERSONA_OVERRIDE,
   createPersona: USER_PERSONA_CRUD,
+  createPersonaOverride: USER_PERSONA_OVERRIDE,
   deletePersona: USER_PERSONA_CRUD,
   getPersona: USER_PERSONA_CRUD,
   getPersonaOverride: USER_PERSONA_OVERRIDE,

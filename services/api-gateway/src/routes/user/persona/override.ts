@@ -4,12 +4,18 @@
  * - GET /override/:personalitySlug - Get personality info for override modal
  * - PUT /override/:personalitySlug - Set persona override for a personality
  * - DELETE /override/:personalitySlug - Clear persona override
+ * - POST /override/by-id/:personalityId - Create persona + set as override
+ *     (single transaction; atomic)
  */
 
 import { Router, type Response, type RequestHandler } from 'express';
+import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
+  generatePersonaUuid,
   generateUserPersonalityConfigUuid,
+  PERSONA_SELECT,
+  PersonaCreateSchema,
   type PrismaClient,
   SetPersonaOverrideSchema,
 } from '@tzurot/common-types';
@@ -18,7 +24,7 @@ import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { sendZodError } from '../../../utils/zodHelpers.js';
-import { validateSlug } from '../../../utils/validators.js';
+import { validateSlug, validateUuid } from '../../../utils/validators.js';
 import { getParam } from '../../../utils/requestParams.js';
 import type { ProvisionedRequest } from '../../../types.js';
 import type { PersonaOverrideSummary } from './types.js';
@@ -219,9 +225,99 @@ export const handleClearPersonaOverride = (deps: RouteDeps): RequestHandler => {
   });
 };
 
+/**
+ * Create a new persona AND set it as override for a personality, atomically.
+ *
+ * Path uses personality ID (not slug) because the create-for-override flow
+ * has already resolved the personality via `GET /override/:slug` before
+ * showing the modal — passing the UUID back avoids re-validating the slug.
+ *
+ * Atomicity is via `prisma.$transaction`: if the override-upsert fails
+ * (concurrent write, constraint violation, etc.), the persona create rolls
+ * back atomically — no orphaned persona row is left in the database.
+ */
+export const handleCreatePersonaOverride = (deps: RouteDeps): RequestHandler => {
+  const { prisma } = deps;
+  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
+    const personalityId = getParam(req.params.personalityId);
+    const personalityIdValidation = validateUuid(personalityId, 'personalityId');
+    if (!personalityIdValidation.valid) {
+      return sendError(res, personalityIdValidation.error);
+    }
+
+    const parseResult = PersonaCreateSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return sendZodError(res, parseResult.error);
+    }
+    const { name, content, preferredName, description, pronouns } = parseResult.data;
+
+    const user = getOrCreateInternalUser(req);
+
+    const personality = await prisma.personality.findUnique({
+      where: { id: personalityId },
+      select: { id: true, name: true, displayName: true },
+    });
+
+    if (personality === null) {
+      return sendError(res, ErrorResponses.notFound('Personality'));
+    }
+
+    const created = await prisma.$transaction(async tx => {
+      const persona = await tx.persona.create({
+        data: {
+          id: generatePersonaUuid(name, user.id),
+          name,
+          preferredName: preferredName ?? null,
+          description: description ?? null,
+          content,
+          pronouns: pronouns ?? null,
+          ownerId: user.id,
+        },
+        select: PERSONA_SELECT,
+      });
+
+      await tx.userPersonalityConfig.upsert({
+        where: { userId_personalityId: { userId: user.id, personalityId: personality.id } },
+        create: {
+          id: generateUserPersonalityConfigUuid(user.id, personality.id),
+          userId: user.id,
+          personalityId: personality.id,
+          personaId: persona.id,
+        },
+        update: { personaId: persona.id },
+      });
+
+      return persona;
+    });
+
+    logger.info(
+      { userId: user.id, personalityId: personality.id, personaId: created.id },
+      'Created persona and set as override'
+    );
+
+    sendCustomSuccess(
+      res,
+      {
+        success: true,
+        persona: {
+          id: created.id,
+          name: created.name,
+          preferredName: created.preferredName,
+          description: created.description,
+          pronouns: created.pronouns,
+          content: created.content,
+        },
+        personality: { name: personality.name, displayName: personality.displayName },
+      },
+      StatusCodes.CREATED
+    );
+  });
+};
+
 // --- Main Route Setup ---
 
 const OVERRIDE_BY_SLUG = '/override/:personalitySlug';
+const OVERRIDE_BY_ID_FOR_PERSONALITY = '/override/by-id/:personalityId';
 
 export function addOverrideRoutes(router: Router, prisma: PrismaClient): void {
   const deps: RouteDeps = { prisma };
@@ -248,5 +344,11 @@ export function addOverrideRoutes(router: Router, prisma: PrismaClient): void {
     requireUserAuth(),
     requireProvisionedUser(prisma),
     handleClearPersonaOverride(deps)
+  );
+  router.post(
+    OVERRIDE_BY_ID_FOR_PERSONALITY,
+    requireUserAuth(),
+    requireProvisionedUser(prisma),
+    handleCreatePersonaOverride(deps)
   );
 }

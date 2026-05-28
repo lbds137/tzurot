@@ -1,16 +1,6 @@
 /**
  * Tests for Override Set Handler
- * Tests gateway API calls for setting per-character persona overrides.
- *
- * Uses validated mock factories from @tzurot/common-types to ensure
- * test mocks match actual gateway API responses.
- *
- * NOTE: `handleOverrideCreateModalSubmit` still uses the legacy
- * `callGatewayApi` path because its endpoint
- * (`POST /user/persona/override/by-id/:personalityId`) is not yet in the
- * route manifest. That handler retains the old mock pattern below.
- * `handleOverrideSet` uses the typed `userClient` and is wired through
- * the `gatewayClientStubs` helpers.
+ * Tests typed-client calls for setting per-character persona overrides.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -23,19 +13,6 @@ import {
   mockCreateOverrideResponse,
 } from '@tzurot/common-types';
 import { makeOk, makeErr, asUserClient } from '../../../test/gatewayClientStubs.js';
-
-// Mock gateway client for the legacy callGatewayApi path
-// (handleOverrideCreateModalSubmit only).
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../../utils/userGatewayClient.js')>(
-    '../../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
 
 const clientsForMock = vi.hoisted(() => vi.fn());
 vi.mock('../../../utils/gatewayClients.js', () => ({
@@ -52,7 +29,6 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
-    // Ensure truncateText is available (in case of build cache issues)
     truncateText: (text: string, maxLength: number, ellipsis = '…') => {
       if (!text) return '';
       if (text.length <= maxLength) return text;
@@ -64,12 +40,14 @@ vi.mock('@tzurot/common-types', async () => {
 interface PersonaClientStub {
   setPersonaOverride: ReturnType<typeof vi.fn>;
   getPersonaOverride: ReturnType<typeof vi.fn>;
+  createPersonaOverride: ReturnType<typeof vi.fn>;
 }
 
 function makeStub(): PersonaClientStub {
   return {
     setPersonaOverride: vi.fn(),
     getPersonaOverride: vi.fn(),
+    createPersonaOverride: vi.fn(),
   };
 }
 
@@ -205,16 +183,14 @@ describe('handleOverrideSet', () => {
   });
 });
 
-// handleOverrideCreateModalSubmit still uses the legacy callGatewayApi
-// path because the `POST /user/persona/override/by-id/:personalityId`
-// endpoint isn't in the route manifest yet. Once that endpoint is added,
-// migrate this describe to the userClient pattern (createPersona +
-// setPersonaOverride, or a dedicated method).
 describe('handleOverrideCreateModalSubmit', () => {
   const mockReply = vi.fn();
+  let stub: PersonaClientStub;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = makeStub();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
   });
 
   function createMockModalInteraction(fields: Record<string, string>) {
@@ -224,26 +200,27 @@ describe('handleOverrideCreateModalSubmit', () => {
         getTextInputValue: (name: string) => fields[name] ?? '',
       },
       reply: mockReply,
-    } as any;
+    } as unknown as Parameters<typeof handleOverrideCreateModalSubmit>[0];
   }
 
   it('should create new persona and set as override', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockCreateOverrideResponse({
-        persona: {
-          name: 'Lilith Persona',
-          preferredName: 'Alice',
-          description: 'For Lilith only',
-          pronouns: 'she/her',
-          content: 'Special content for Lilith',
-        },
-        personality: {
-          name: 'Lilith',
-          displayName: 'Lilith',
-        },
-      }),
-    });
+    stub.createPersonaOverride.mockResolvedValue(
+      makeOk(
+        mockCreateOverrideResponse({
+          persona: {
+            name: 'Lilith Persona',
+            preferredName: 'Alice',
+            description: 'For Lilith only',
+            pronouns: 'she/her',
+            content: 'Special content for Lilith',
+          },
+          personality: {
+            name: 'Lilith',
+            displayName: 'Lilith',
+          },
+        })
+      )
+    );
 
     await handleOverrideCreateModalSubmit(
       createMockModalInteraction({
@@ -256,25 +233,13 @@ describe('handleOverrideCreateModalSubmit', () => {
       'personality-uuid'
     );
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/persona/override/by-id/personality-uuid',
-      {
-        user: {
-          discordId: '123456789',
-          username: 'testuser',
-          displayName: 'testuser',
-        },
-        method: 'POST',
-        body: {
-          name: 'Lilith Persona',
-          description: 'For Lilith only',
-          preferredName: 'Alice',
-          pronouns: 'she/her',
-          content: 'Special content for Lilith',
-          username: 'testuser',
-        },
-      }
-    );
+    expect(stub.createPersonaOverride).toHaveBeenCalledWith('personality-uuid', {
+      name: 'Lilith Persona',
+      description: 'For Lilith only',
+      preferredName: 'Alice',
+      pronouns: 'she/her',
+      content: 'Special content for Lilith',
+    });
     expect(mockReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Persona "Lilith Persona" created'),
       flags: MessageFlags.Ephemeral,
@@ -297,14 +262,11 @@ describe('handleOverrideCreateModalSubmit', () => {
       content: expect.stringContaining('Persona name is required'),
       flags: MessageFlags.Ephemeral,
     });
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(stub.createPersonaOverride).not.toHaveBeenCalled();
   });
 
   it('should error if user not found', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      error: 'User not found',
-    });
+    stub.createPersonaOverride.mockResolvedValue(makeErr(404, 'User not found'));
 
     await handleOverrideCreateModalSubmit(
       createMockModalInteraction({
@@ -324,7 +286,7 @@ describe('handleOverrideCreateModalSubmit', () => {
   });
 
   it('should handle gateway errors gracefully', async () => {
-    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+    stub.createPersonaOverride.mockRejectedValue(new Error('Network error'));
 
     await handleOverrideCreateModalSubmit(
       createMockModalInteraction({

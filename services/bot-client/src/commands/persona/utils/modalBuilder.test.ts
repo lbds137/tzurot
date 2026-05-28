@@ -40,14 +40,24 @@ describe('buildPersonaModalFields', () => {
       expect(nameInput.data.required).toBe(true);
     });
 
-    it('should set other fields as not required', () => {
+    it('should set optional fields as not required (description, preferredName, pronouns)', () => {
       const rows = buildPersonaModalFields();
 
-      // Skip first row (name), check rest are not required
-      for (let i = 1; i < rows.length; i++) {
+      // Rows 1-3 are description, preferredName, pronouns — all optional.
+      // Row 0 (name) and the last row (content) are required and tested
+      // separately.
+      for (let i = 1; i < rows.length - 1; i++) {
         const input = rows[i].components[0];
         expect(input.data.required).toBe(false);
       }
+    });
+
+    it('should set content as required (matches PersonaCreateSchema.content.min(1))', () => {
+      const rows = buildPersonaModalFields();
+      const contentRow = rows[rows.length - 1];
+      const contentInput = contentRow.components[0];
+
+      expect(contentInput.data.required).toBe(true);
     });
 
     it('should use paragraph style for content field', () => {

@@ -112,6 +112,7 @@ import { handleListPersonaOverrides } from '../user/persona/override.js';
 import { handleGetPersonaOverride } from '../user/persona/override.js';
 import { handleSetPersonaOverride } from '../user/persona/override.js';
 import { handleClearPersonaOverride } from '../user/persona/override.js';
+import { handleCreatePersonaOverride } from '../user/persona/override.js';
 import { handleActivateChannel } from '../user/channel/activate.js';
 import { handleDeactivateChannel } from '../user/channel/deactivate.js';
 import { handleListUserChannels } from '../user/channel/list.js';
@@ -304,6 +305,7 @@ export function mountUserRoutes(app: Express, deps: RouteDeps): void {
   app.get('/api/user/persona/override/:personalitySlug', requireUserAuth(), requireProvisionedUser(deps.prisma), handleGetPersonaOverride(deps));
   app.put('/api/user/persona/override/:personalitySlug', requireUserAuth(), requireProvisionedUser(deps.prisma), handleSetPersonaOverride(deps));
   app.delete('/api/user/persona/override/:personalitySlug', requireUserAuth(), requireProvisionedUser(deps.prisma), handleClearPersonaOverride(deps));
+  app.post('/api/user/persona/override/by-id/:personalityId', requireUserAuth(), requireProvisionedUser(deps.prisma), handleCreatePersonaOverride(deps));
   app.get('/api/user/channel/:channelId', requireUserAuth(), requireProvisionedUser(deps.prisma), handleGetUserChannel(deps));
   app.get('/api/user/channel/:channelId/config-overrides', requireUserAuth(), requireProvisionedUser(deps.prisma), handleGetChannelConfigOverrides(deps));
   app.delete('/api/user/wallet/:provider', requireUserAuth(), requireProvisionedUser(deps.prisma), handleRemoveWalletKey(deps));
