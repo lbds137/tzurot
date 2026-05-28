@@ -7,14 +7,9 @@
 
 import { EmbedBuilder } from 'discord.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
-import { createLogger, DISCORD_COLORS, type ListPersonasResponse } from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS, type UserClient } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import {
-  callGatewayApi,
-  GATEWAY_TIMEOUTS,
-  toGatewayUser,
-  type GatewayUser,
-} from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import {
   buildDashboardEmbed,
   buildDashboardComponents,
@@ -35,8 +30,6 @@ import {
 } from '../../utils/browse/index.js';
 import { createListComparator } from '../../utils/listSorting.js';
 
-/** API endpoint for persona list operations */
-const PERSONA_LIST_ENDPOINT = '/user/persona';
 import {
   PERSONA_DASHBOARD_CONFIG,
   flattenPersonaData,
@@ -200,11 +193,8 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
   const userId = context.user.id;
 
   try {
-    // Fetch user's personas via gateway API
-    const result = await callGatewayApi<ListPersonasResponse>(PERSONA_LIST_ENDPOINT, {
-      user: toGatewayUser(context.user),
-      timeout: GATEWAY_TIMEOUTS.DEFERRED,
-    });
+    const { userClient } = clientsFor(context.interaction);
+    const result = await userClient.listPersonas();
 
     if (!result.ok) {
       logger.warn({ userId, error: result.error }, 'Failed to fetch personas');
@@ -214,7 +204,6 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
       return;
     }
 
-    // Build first page
     const { embed, components } = buildBrowsePage(result.data.personas, 0, DEFAULT_SORT);
 
     await context.editReply({ embeds: [embed], components });
@@ -242,11 +231,8 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
     const page = parsed.page;
     const sort = parsed.sort;
 
-    // Fetch fresh data
-    const result = await callGatewayApi<ListPersonasResponse>(PERSONA_LIST_ENDPOINT, {
-      user: toGatewayUser(interaction.user),
-      timeout: GATEWAY_TIMEOUTS.DEFERRED,
-    });
+    const { userClient } = clientsFor(interaction);
+    const result = await userClient.listPersonas();
 
     if (!result.ok) {
       logger.warn({ userId, error: result.error }, 'Failed to fetch personas for pagination');
@@ -276,8 +262,8 @@ export async function handleBrowseSelect(interaction: StringSelectMenuInteractio
   await interaction.deferUpdate();
 
   try {
-    // Fetch the persona with full data
-    const persona = await fetchPersona(personaId, toGatewayUser(interaction.user));
+    const { userClient } = clientsFor(interaction);
+    const persona = await fetchPersona(personaId, userClient, userId);
 
     if (!persona) {
       await interaction.editReply({
@@ -352,20 +338,15 @@ export function isPersonaBrowseSelectInteraction(customId: string): boolean {
  * Fetches personas and builds the embed/components for a given page/sort
  */
 export async function buildBrowseResponse(
-  user: GatewayUser,
+  userClient: UserClient,
+  userId: string,
   page: number,
   sort: BrowseSortType
 ): Promise<{ embed: EmbedBuilder; components: BrowseActionRow[] } | null> {
-  const result = await callGatewayApi<ListPersonasResponse>(PERSONA_LIST_ENDPOINT, {
-    user,
-    timeout: GATEWAY_TIMEOUTS.DEFERRED,
-  });
+  const result = await userClient.listPersonas();
 
   if (!result.ok) {
-    logger.warn(
-      { userId: user.discordId, error: result.error },
-      'Failed to fetch personas for back navigation'
-    );
+    logger.warn({ userId, error: result.error }, 'Failed to fetch personas for back navigation');
     return null;
   }
 
@@ -378,8 +359,10 @@ export async function buildBrowseResponse(
 // See `utils/dashboard/browseRebuilderRegistry.ts` for why the registry lives
 // in module memory rather than on the session.
 registerBrowseRebuilder('persona', async (interaction, browseContext, successBanner) => {
+  const { userClient } = clientsFor(interaction);
   const result = await buildBrowseResponse(
-    toGatewayUser(interaction.user),
+    userClient,
+    interaction.user.id,
     browseContext.page,
     (browseContext.sort ?? DEFAULT_SORT) as BrowseSortType
   );

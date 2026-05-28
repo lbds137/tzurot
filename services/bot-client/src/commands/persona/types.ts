@@ -54,11 +54,3 @@ export interface FlattenedPersonaData {
   /** Browse context when opened from browse (for back navigation) */
   browseContext?: PersonaBrowseContext;
 }
-
-/**
- * API response type for creating/updating a persona
- */
-export interface SavePersonaResponse {
-  success: boolean;
-  persona: PersonaDetails;
-}

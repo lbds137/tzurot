@@ -7,18 +7,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleCreatePersona, handleCreateModalSubmit } from './create.js';
 import { MessageFlags } from 'discord.js';
 import { mockCreatePersonaResponse } from '@tzurot/common-types';
+import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
-// Mock gateway client
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
 
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
@@ -32,6 +26,16 @@ vi.mock('@tzurot/common-types', async () => {
     }),
   };
 });
+
+interface PersonaClientStub {
+  createPersona: ReturnType<typeof vi.fn>;
+}
+
+function makeStub(): PersonaClientStub {
+  return {
+    createPersona: vi.fn(),
+  };
+}
 
 describe('handleCreatePersona', () => {
   const mockShowModal = vi.fn();
@@ -71,9 +75,12 @@ describe('handleCreatePersona', () => {
 
 describe('handleCreateModalSubmit', () => {
   const mockReply = vi.fn();
+  let stub: PersonaClientStub;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = makeStub();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
   });
 
   function createMockModalInteraction(fields: Record<string, string>) {
@@ -87,18 +94,19 @@ describe('handleCreateModalSubmit', () => {
   }
 
   it('should create new persona via gateway', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockCreatePersonaResponse({
-        persona: {
-          name: 'Work Persona',
-          description: 'For work stuff',
-          preferredName: 'Alice',
-          pronouns: 'she/her',
-          content: 'I am professional',
-        },
-      }),
-    });
+    stub.createPersona.mockResolvedValue(
+      makeOk(
+        mockCreatePersonaResponse({
+          persona: {
+            name: 'Work Persona',
+            description: 'For work stuff',
+            preferredName: 'Alice',
+            pronouns: 'she/her',
+            content: 'I am professional',
+          },
+        })
+      )
+    );
 
     await handleCreateModalSubmit(
       createMockModalInteraction({
@@ -110,21 +118,12 @@ describe('handleCreateModalSubmit', () => {
       })
     );
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona', {
-      user: {
-        discordId: '123456789',
-        username: 'testuser',
-        displayName: 'testuser',
-      },
-      method: 'POST',
-      body: {
-        name: 'Work Persona',
-        description: 'For work stuff',
-        preferredName: 'Alice',
-        pronouns: 'she/her',
-        content: 'I am professional',
-        username: 'testuser',
-      },
+    expect(stub.createPersona).toHaveBeenCalledWith({
+      name: 'Work Persona',
+      description: 'For work stuff',
+      preferredName: 'Alice',
+      pronouns: 'she/her',
+      content: 'I am professional',
     });
     expect(mockReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Persona "Work Persona" created'),
@@ -147,22 +146,23 @@ describe('handleCreateModalSubmit', () => {
       content: expect.stringContaining('Persona name is required'),
       flags: MessageFlags.Ephemeral,
     });
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(stub.createPersona).not.toHaveBeenCalled();
   });
 
   it('should handle empty optional fields', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockCreatePersonaResponse({
-        persona: {
-          name: 'Minimal Persona',
-          description: null,
-          preferredName: null,
-          pronouns: null,
-          content: '',
-        },
-      }),
-    });
+    stub.createPersona.mockResolvedValue(
+      makeOk(
+        mockCreatePersonaResponse({
+          persona: {
+            name: 'Minimal Persona',
+            description: null,
+            preferredName: null,
+            pronouns: null,
+            content: '',
+          },
+        })
+      )
+    );
 
     await handleCreateModalSubmit(
       createMockModalInteraction({
@@ -174,37 +174,29 @@ describe('handleCreateModalSubmit', () => {
       })
     );
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona', {
-      user: {
-        discordId: '123456789',
-        username: 'testuser',
-        displayName: 'testuser',
-      },
-      method: 'POST',
-      body: {
-        name: 'Minimal Persona',
-        description: null,
-        preferredName: null,
-        pronouns: null,
-        content: '',
-        username: 'testuser',
-      },
+    expect(stub.createPersona).toHaveBeenCalledWith({
+      name: 'Minimal Persona',
+      description: null,
+      preferredName: null,
+      pronouns: null,
+      content: '',
     });
   });
 
   it('should trim whitespace from fields', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockCreatePersonaResponse({
-        persona: {
-          name: 'Work Persona',
-          description: 'For work',
-          preferredName: 'Alice',
-          pronouns: 'she/her',
-          content: 'content',
-        },
-      }),
-    });
+    stub.createPersona.mockResolvedValue(
+      makeOk(
+        mockCreatePersonaResponse({
+          persona: {
+            name: 'Work Persona',
+            description: 'For work',
+            preferredName: 'Alice',
+            pronouns: 'she/her',
+            content: 'content',
+          },
+        })
+      )
+    );
 
     await handleCreateModalSubmit(
       createMockModalInteraction({
@@ -216,29 +208,17 @@ describe('handleCreateModalSubmit', () => {
       })
     );
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona', {
-      user: {
-        discordId: '123456789',
-        username: 'testuser',
-        displayName: 'testuser',
-      },
-      method: 'POST',
-      body: {
-        name: 'Work Persona',
-        description: 'For work',
-        preferredName: 'Alice',
-        pronouns: 'she/her',
-        content: 'content',
-        username: 'testuser',
-      },
+    expect(stub.createPersona).toHaveBeenCalledWith({
+      name: 'Work Persona',
+      description: 'For work',
+      preferredName: 'Alice',
+      pronouns: 'she/her',
+      content: 'content',
     });
   });
 
   it('should handle gateway API errors gracefully', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      error: 'Gateway error',
-    });
+    stub.createPersona.mockResolvedValue(makeErr(500, 'Gateway error'));
 
     await handleCreateModalSubmit(
       createMockModalInteraction({
@@ -257,7 +237,7 @@ describe('handleCreateModalSubmit', () => {
   });
 
   it('should handle network errors gracefully', async () => {
-    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+    stub.createPersona.mockRejectedValue(new Error('Network error'));
 
     await handleCreateModalSubmit(
       createMockModalInteraction({

@@ -83,11 +83,10 @@ describe('refreshHandler', () => {
       await handler(interaction, 'entity-abc');
 
       expect(interaction.deferUpdate).toHaveBeenCalled();
-      expect(fetchFn).toHaveBeenCalledWith('entity-abc', {
-        discordId: 'user-123',
-        username: 'testuser',
-        displayName: 'Test User',
-      });
+      // fetchFn now receives the live ButtonInteraction so it can mint the
+      // right typed client via `clientsFor`; previously it received a
+      // `GatewayUser` shape directly.
+      expect(fetchFn).toHaveBeenCalledWith('entity-abc', interaction);
       expect(transformFn).toHaveBeenCalledWith(rawData);
       expect(mockSessionManager.set).toHaveBeenCalledWith({
         userId: 'user-123',

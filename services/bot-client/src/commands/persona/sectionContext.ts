@@ -24,7 +24,7 @@ import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js'
 import { type DashboardConfig, type SectionDefinition } from '../../utils/dashboard/types.js';
 import { fetchOrCreateSession } from '../../utils/dashboard/sessionHelpers.js';
 import { DASHBOARD_MESSAGES } from '../../utils/dashboard/messages.js';
-import { toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import {
   PERSONA_DASHBOARD_CONFIG,
   type FlattenedPersonaData,
@@ -80,11 +80,13 @@ export async function loadPersonaSectionData(
   entityId: string,
   sync: PersonaSectionSync
 ): Promise<PersonaSectionContext | null> {
+  const { userClient } = clientsFor(interaction);
+  const userId = interaction.user.id;
   const result = await fetchOrCreateSession<FlattenedPersonaData, PersonaDetails>({
-    userId: interaction.user.id,
+    userId,
     entityType: 'persona',
     entityId,
-    fetchFn: () => fetchPersona(entityId, toGatewayUser(interaction.user)),
+    fetchFn: () => fetchPersona(entityId, userClient, userId),
     transformFn: flattenPersonaData,
     interaction,
   });

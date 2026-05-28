@@ -12,18 +12,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleOverrideClear } from './clear.js';
 import { mockClearOverrideResponse } from '@tzurot/common-types';
+import { makeOk, makeErr, asUserClient } from '../../../test/gatewayClientStubs.js';
 
-// Mock gateway client
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../../utils/userGatewayClient.js')>(
-    '../../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
 
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
@@ -38,17 +32,31 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
+interface PersonaClientStub {
+  clearPersonaOverride: ReturnType<typeof vi.fn>;
+}
+
+function makeStub(): PersonaClientStub {
+  return {
+    clearPersonaOverride: vi.fn(),
+  };
+}
+
 describe('handleOverrideClear', () => {
   const mockEditReply = vi.fn();
+  let stub: PersonaClientStub;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = makeStub();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
   });
 
   function createMockContext(personalitySlug: string) {
     return {
       user: { id: '123456789', username: 'testuser' },
       interaction: {
+        user: { id: '123456789', username: 'testuser' },
         options: {
           getString: (name: string) => {
             if (name === 'character') return personalitySlug;
@@ -61,39 +69,32 @@ describe('handleOverrideClear', () => {
   }
 
   it('should clear override successfully', async () => {
-    // Use validated factory - ensures mock matches actual gateway response
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockClearOverrideResponse({
-        personality: { name: 'Lilith', displayName: 'Lilith' },
-        hadOverride: true,
-      }),
-    });
+    stub.clearPersonaOverride.mockResolvedValue(
+      makeOk(
+        mockClearOverrideResponse({
+          personality: { name: 'Lilith', displayName: 'Lilith' },
+          hadOverride: true,
+        })
+      )
+    );
 
     await handleOverrideClear(createMockContext('lilith'));
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona/override/lilith', {
-      user: {
-        discordId: '123456789',
-        username: 'testuser',
-        displayName: 'testuser',
-      },
-      method: 'DELETE',
-    });
+    expect(stub.clearPersonaOverride).toHaveBeenCalledWith('lilith');
     expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Persona override cleared'),
     });
   });
 
   it('should inform user if no override exists', async () => {
-    // Use validated factory with hadOverride: false
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockClearOverrideResponse({
-        personality: { name: 'Lilith', displayName: 'Lilith' },
-        hadOverride: false,
-      }),
-    });
+    stub.clearPersonaOverride.mockResolvedValue(
+      makeOk(
+        mockClearOverrideResponse({
+          personality: { name: 'Lilith', displayName: 'Lilith' },
+          hadOverride: false,
+        })
+      )
+    );
 
     await handleOverrideClear(createMockContext('lilith'));
 
@@ -103,10 +104,7 @@ describe('handleOverrideClear', () => {
   });
 
   it('should error if personality not found', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      error: 'Personality not found',
-    });
+    stub.clearPersonaOverride.mockResolvedValue(makeErr(404, 'Personality not found'));
 
     await handleOverrideClear(createMockContext('nonexistent'));
 
@@ -116,10 +114,7 @@ describe('handleOverrideClear', () => {
   });
 
   it('should error if user not found', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      error: 'User has no account yet',
-    });
+    stub.clearPersonaOverride.mockResolvedValue(makeErr(404, 'User has no account yet'));
 
     await handleOverrideClear(createMockContext('lilith'));
 
@@ -129,7 +124,7 @@ describe('handleOverrideClear', () => {
   });
 
   it('should handle gateway errors gracefully', async () => {
-    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+    stub.clearPersonaOverride.mockRejectedValue(new Error('Network error'));
 
     await handleOverrideClear(createMockContext('lilith'));
 
@@ -141,7 +136,7 @@ describe('handleOverrideClear', () => {
   it('rejects the autocomplete-error sentinel before calling the gateway', async () => {
     await handleOverrideClear(createMockContext('__autocomplete_error__'));
 
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(stub.clearPersonaOverride).not.toHaveBeenCalled();
     expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Autocomplete was unavailable'),
     });

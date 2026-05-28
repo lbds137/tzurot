@@ -23,7 +23,7 @@ import {
   buildPersonaDashboardOptions,
   type FlattenedPersonaData,
 } from './config.js';
-import { toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import { fetchPersona, fetchDefaultPersona } from './api.js';
 
 const logger = createLogger('persona-edit');
@@ -42,11 +42,11 @@ export async function handleEditPersona(
   const userId = context.user.id;
 
   try {
+    const { userClient } = clientsFor(context.interaction);
     let persona;
 
     if (personaId !== null && personaId !== undefined) {
-      // Fetch specific persona
-      persona = await fetchPersona(personaId, toGatewayUser(context.user));
+      persona = await fetchPersona(personaId, userClient, userId);
 
       if (!persona) {
         await context.editReply({
@@ -55,8 +55,7 @@ export async function handleEditPersona(
         return;
       }
     } else {
-      // Fetch default persona
-      persona = await fetchDefaultPersona(toGatewayUser(context.user));
+      persona = await fetchDefaultPersona(userClient, userId);
 
       if (!persona) {
         await context.editReply({

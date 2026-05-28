@@ -6,7 +6,6 @@
 
 import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
-import { toGatewayUser, type GatewayUser } from '../userGatewayClient.js';
 import { getSessionManager } from './SessionManager.js';
 import {
   buildDashboardEmbed,
@@ -32,8 +31,13 @@ interface RefreshHandlerOptions<TData, TRaw = TData> {
   entityType: BrowseCapableEntityType;
   /** Dashboard configuration */
   dashboardConfig: DashboardConfig<TData>;
-  /** Function to fetch fresh data */
-  fetchFn: (entityId: string, user: GatewayUser) => Promise<TRaw | null>;
+  /**
+   * Function to fetch fresh data. Receives the live `ButtonInteraction` so
+   * implementations can mint the right typed client via `clientsFor` without
+   * the shared infra needing to know which client (user / owner / service)
+   * the entity lives on.
+   */
+  fetchFn: (entityId: string, interaction: ButtonInteraction) => Promise<TRaw | null>;
   /** Function to transform raw data to dashboard format (optional if same) */
   transformFn?: (raw: TRaw) => TData;
   /** Function to build action button options from data (optional) */
@@ -93,7 +97,7 @@ export function createRefreshHandler<TData, TRaw = TData>(
       ? (existingBrowseContextRaw as BrowseContext)
       : undefined;
 
-    const rawData = await fetchFn(entityId, toGatewayUser(interaction.user));
+    const rawData = await fetchFn(entityId, interaction);
 
     if (rawData === null) {
       // Entity gone (deleted elsewhere). If the user came from /browse,

@@ -8,24 +8,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleEditPersona } from './edit.js';
 import { mockGetPersonaResponse, mockListPersonasResponse } from '@tzurot/common-types';
+import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
 // Valid UUIDs for tests
 const TEST_PERSONA_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
 const DEFAULT_PERSONA_ID = 'b2c3d4e5-f6a7-8901-bcde-f12345678901';
 
-// Mock gateway client
-// Note: Tests use objectContaining for API call assertions to focus on the essential
-// userId parameter while ignoring implementation details like timeout values.
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
 
 // Mock dashboard utilities
 const mockBuildDashboardEmbed = vi.fn();
@@ -52,11 +44,26 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
+interface PersonaClientStub {
+  listPersonas: ReturnType<typeof vi.fn>;
+  getPersona: ReturnType<typeof vi.fn>;
+}
+
+function makeStub(): PersonaClientStub {
+  return {
+    listPersonas: vi.fn(),
+    getPersona: vi.fn(),
+  };
+}
+
 describe('handleEditPersona', () => {
   const mockEditReply = vi.fn();
+  let stub: PersonaClientStub;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = makeStub();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
     mockBuildDashboardEmbed.mockReturnValue({ title: 'Test Embed' });
     mockBuildDashboardComponents.mockReturnValue([]);
     mockEditReply.mockResolvedValue({ id: 'message-123' });
@@ -65,6 +72,7 @@ describe('handleEditPersona', () => {
   function createMockContext() {
     return {
       user: { id: '123456789', username: 'testuser' },
+      interaction: { user: { id: '123456789', username: 'testuser' } },
       channelId: 'channel-123',
       editReply: mockEditReply,
     } as unknown as Parameters<typeof handleEditPersona>[0];
@@ -72,28 +80,24 @@ describe('handleEditPersona', () => {
 
   describe('when personaId is provided', () => {
     it('should fetch specific persona and show dashboard', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: mockGetPersonaResponse({
-          persona: {
-            id: TEST_PERSONA_ID,
-            name: 'Test Persona',
-            preferredName: 'Tester',
-            pronouns: 'they/them',
-            content: 'Test content',
-            description: 'Test description',
-          },
-        }),
-      });
+      stub.getPersona.mockResolvedValue(
+        makeOk(
+          mockGetPersonaResponse({
+            persona: {
+              id: TEST_PERSONA_ID,
+              name: 'Test Persona',
+              preferredName: 'Tester',
+              pronouns: 'they/them',
+              content: 'Test content',
+              description: 'Test description',
+            },
+          })
+        )
+      );
 
       await handleEditPersona(createMockContext(), TEST_PERSONA_ID);
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        `/user/persona/${TEST_PERSONA_ID}`,
-        expect.objectContaining({
-          user: { discordId: '123456789', username: 'testuser', displayName: 'testuser' },
-        })
-      );
+      expect(stub.getPersona).toHaveBeenCalledWith(TEST_PERSONA_ID);
       expect(mockBuildDashboardEmbed).toHaveBeenCalled();
       expect(mockBuildDashboardComponents).toHaveBeenCalled();
       expect(mockEditReply).toHaveBeenCalledWith({
@@ -104,10 +108,7 @@ describe('handleEditPersona', () => {
     });
 
     it('should show error when specific persona not found', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: false,
-        error: 'Persona not found',
-      });
+      stub.getPersona.mockResolvedValue(makeErr(404, 'Persona not found'));
 
       await handleEditPersona(createMockContext(), TEST_PERSONA_ID);
 
@@ -120,46 +121,38 @@ describe('handleEditPersona', () => {
 
   describe('when personaId is not provided', () => {
     it('should fetch default persona and show dashboard', async () => {
-      // First call: list personas to find default
-      mockCallGatewayApi.mockResolvedValueOnce({
-        ok: true,
-        data: mockListPersonasResponse([
-          { id: DEFAULT_PERSONA_ID, name: 'Default Persona', isDefault: true },
-        ]),
-      });
-      // Second call: fetch persona details
-      mockCallGatewayApi.mockResolvedValueOnce({
-        ok: true,
-        data: mockGetPersonaResponse({
-          persona: {
-            id: DEFAULT_PERSONA_ID,
-            name: 'Default Persona',
-            isDefault: true,
-            preferredName: null,
-            pronouns: null,
-            content: '',
-            description: null,
-          },
-        }),
-      });
+      stub.listPersonas.mockResolvedValue(
+        makeOk(
+          mockListPersonasResponse([
+            { id: DEFAULT_PERSONA_ID, name: 'Default Persona', isDefault: true },
+          ])
+        )
+      );
+      stub.getPersona.mockResolvedValue(
+        makeOk(
+          mockGetPersonaResponse({
+            persona: {
+              id: DEFAULT_PERSONA_ID,
+              name: 'Default Persona',
+              isDefault: true,
+              preferredName: null,
+              pronouns: null,
+              content: '',
+              description: null,
+            },
+          })
+        )
+      );
 
       await handleEditPersona(createMockContext(), null);
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/persona',
-        expect.objectContaining({
-          user: { discordId: '123456789', username: 'testuser', displayName: 'testuser' },
-        })
-      );
+      expect(stub.listPersonas).toHaveBeenCalled();
       expect(mockBuildDashboardEmbed).toHaveBeenCalled();
       expect(mockEditReply).toHaveBeenCalled();
     });
 
     it('should show error when user has no personas', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: false,
-        error: 'No default persona',
-      });
+      stub.listPersonas.mockResolvedValue(makeErr(500, 'No default persona'));
 
       await handleEditPersona(createMockContext(), null);
 
@@ -171,7 +164,7 @@ describe('handleEditPersona', () => {
 
   describe('error handling', () => {
     it('should handle network errors gracefully', async () => {
-      mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+      stub.getPersona.mockRejectedValue(new Error('Network error'));
 
       await handleEditPersona(createMockContext(), TEST_PERSONA_ID);
 

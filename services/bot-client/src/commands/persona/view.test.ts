@@ -10,18 +10,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MessageFlags } from 'discord.js';
 import { handleViewPersona, handleExpandContent } from './view.js';
 import { mockListPersonasResponse, mockGetPersonaResponse } from '@tzurot/common-types';
+import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
-// Mock gateway client
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
 
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
@@ -36,25 +30,38 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
+interface PersonaClientStub {
+  listPersonas: ReturnType<typeof vi.fn>;
+  getPersona: ReturnType<typeof vi.fn>;
+}
+
+function makeStub(): PersonaClientStub {
+  return {
+    listPersonas: vi.fn(),
+    getPersona: vi.fn(),
+  };
+}
+
 describe('handleViewPersona', () => {
   const mockEditReply = vi.fn();
+  let stub: PersonaClientStub;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = makeStub();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
   });
 
   function createMockContext() {
     return {
       user: { id: '123456789' },
+      interaction: { user: { id: '123456789' } },
       editReply: mockEditReply,
     } as unknown as Parameters<typeof handleViewPersona>[0];
   }
 
   it('should show error when user has no personas', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockListPersonasResponse([]),
-    });
+    stub.listPersonas.mockResolvedValue(makeOk(mockListPersonasResponse([])));
 
     await handleViewPersona(createMockContext());
 
@@ -64,13 +71,14 @@ describe('handleViewPersona', () => {
   });
 
   it('should show error when no default persona is set', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockListPersonasResponse([
-        { name: 'Test', isDefault: false },
-        { name: 'Other', isDefault: false },
-      ]),
-    });
+    stub.listPersonas.mockResolvedValue(
+      makeOk(
+        mockListPersonasResponse([
+          { name: 'Test', isDefault: false },
+          { name: 'Other', isDefault: false },
+        ])
+      )
+    );
 
     await handleViewPersona(createMockContext());
 
@@ -80,24 +88,22 @@ describe('handleViewPersona', () => {
   });
 
   it('should display persona with all fields', async () => {
-    // First call returns persona list
-    mockCallGatewayApi.mockResolvedValueOnce({
-      ok: true,
-      data: mockListPersonasResponse([{ name: 'Test Profile', isDefault: true }]),
-    });
-    // Second call returns persona details
-    mockCallGatewayApi.mockResolvedValueOnce({
-      ok: true,
-      data: mockGetPersonaResponse({
-        persona: {
-          name: 'Test Profile',
-          preferredName: 'TestUser',
-          pronouns: 'they/them',
-          content: 'I am a test user who loves programming',
-          description: 'Test description',
-        },
-      }),
-    });
+    stub.listPersonas.mockResolvedValue(
+      makeOk(mockListPersonasResponse([{ name: 'Test Profile', isDefault: true }]))
+    );
+    stub.getPersona.mockResolvedValue(
+      makeOk(
+        mockGetPersonaResponse({
+          persona: {
+            name: 'Test Profile',
+            preferredName: 'TestUser',
+            pronouns: 'they/them',
+            content: 'I am a test user who loves programming',
+            description: 'Test description',
+          },
+        })
+      )
+    );
 
     await handleViewPersona(createMockContext());
 
@@ -114,10 +120,7 @@ describe('handleViewPersona', () => {
   });
 
   it('should handle gateway API errors gracefully', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      error: 'Gateway error',
-    });
+    stub.listPersonas.mockResolvedValue(makeErr(500, 'Gateway error'));
 
     await handleViewPersona(createMockContext());
 
@@ -127,7 +130,7 @@ describe('handleViewPersona', () => {
   });
 
   it('should handle network errors gracefully', async () => {
-    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+    stub.listPersonas.mockRejectedValue(new Error('Network error'));
 
     await handleViewPersona(createMockContext());
 
@@ -138,24 +141,22 @@ describe('handleViewPersona', () => {
 
   it('should show expand button for long content', async () => {
     const longContent = 'A'.repeat(1500); // Longer than CONTENT_PREVIEW_LENGTH
-    // First call returns persona list
-    mockCallGatewayApi.mockResolvedValueOnce({
-      ok: true,
-      data: mockListPersonasResponse([{ name: 'Test Profile', isDefault: true }]),
-    });
-    // Second call returns persona details with long content
-    mockCallGatewayApi.mockResolvedValueOnce({
-      ok: true,
-      data: mockGetPersonaResponse({
-        persona: {
-          name: 'Test Profile',
-          preferredName: null,
-          pronouns: null,
-          content: longContent,
-          description: null,
-        },
-      }),
-    });
+    stub.listPersonas.mockResolvedValue(
+      makeOk(mockListPersonasResponse([{ name: 'Test Profile', isDefault: true }]))
+    );
+    stub.getPersona.mockResolvedValue(
+      makeOk(
+        mockGetPersonaResponse({
+          persona: {
+            name: 'Test Profile',
+            preferredName: null,
+            pronouns: null,
+            content: longContent,
+            description: null,
+          },
+        })
+      )
+    );
 
     await handleViewPersona(createMockContext());
 
@@ -166,16 +167,10 @@ describe('handleViewPersona', () => {
   });
 
   it('should handle error when fetching details fails', async () => {
-    // First call returns persona list
-    mockCallGatewayApi.mockResolvedValueOnce({
-      ok: true,
-      data: mockListPersonasResponse([{ name: 'Test Profile', isDefault: true }]),
-    });
-    // Second call fails
-    mockCallGatewayApi.mockResolvedValueOnce({
-      ok: false,
-      error: 'Failed to fetch details',
-    });
+    stub.listPersonas.mockResolvedValue(
+      makeOk(mockListPersonasResponse([{ name: 'Test Profile', isDefault: true }]))
+    );
+    stub.getPersona.mockResolvedValue(makeErr(500, 'Failed to fetch details'));
 
     await handleViewPersona(createMockContext());
 
@@ -189,11 +184,14 @@ describe('handleExpandContent', () => {
   const mockDeferReply = vi.fn();
   const mockEditReply = vi.fn();
   const mockFollowUp = vi.fn();
+  let stub: PersonaClientStub;
 
   const TEST_PERSONA_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = makeStub();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
     mockDeferReply.mockResolvedValue(undefined);
   });
 
@@ -207,16 +205,17 @@ describe('handleExpandContent', () => {
   }
 
   it('should show full content when short', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockGetPersonaResponse({
-        persona: {
-          id: TEST_PERSONA_ID,
-          name: 'Test',
-          content: 'Short content',
-        },
-      }),
-    });
+    stub.getPersona.mockResolvedValue(
+      makeOk(
+        mockGetPersonaResponse({
+          persona: {
+            id: TEST_PERSONA_ID,
+            name: 'Test',
+            content: 'Short content',
+          },
+        })
+      )
+    );
 
     await handleExpandContent(createMockButtonInteraction(), TEST_PERSONA_ID, 'content');
 
@@ -226,16 +225,17 @@ describe('handleExpandContent', () => {
   });
 
   it('should show not set message when content is empty', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockGetPersonaResponse({
-        persona: {
-          id: TEST_PERSONA_ID,
-          name: 'Test',
-          content: '',
-        },
-      }),
-    });
+    stub.getPersona.mockResolvedValue(
+      makeOk(
+        mockGetPersonaResponse({
+          persona: {
+            id: TEST_PERSONA_ID,
+            name: 'Test',
+            content: '',
+          },
+        })
+      )
+    );
 
     await handleExpandContent(createMockButtonInteraction(), TEST_PERSONA_ID, 'content');
 
@@ -243,9 +243,8 @@ describe('handleExpandContent', () => {
   });
 
   it('should show not set message when content is null', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.getPersona.mockResolvedValue(
+      makeOk({
         persona: {
           id: TEST_PERSONA_ID,
           name: 'Test',
@@ -255,8 +254,8 @@ describe('handleExpandContent', () => {
           description: null,
           isDefault: false,
         },
-      },
-    });
+      })
+    );
 
     await handleExpandContent(createMockButtonInteraction(), TEST_PERSONA_ID, 'content');
 
@@ -266,16 +265,17 @@ describe('handleExpandContent', () => {
   it('should split very long content into multiple messages', async () => {
     // Create content longer than Discord's message limit
     const veryLongContent = 'A'.repeat(3000);
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockGetPersonaResponse({
-        persona: {
-          id: TEST_PERSONA_ID,
-          name: 'Test',
-          content: veryLongContent,
-        },
-      }),
-    });
+    stub.getPersona.mockResolvedValue(
+      makeOk(
+        mockGetPersonaResponse({
+          persona: {
+            id: TEST_PERSONA_ID,
+            name: 'Test',
+            content: veryLongContent,
+          },
+        })
+      )
+    );
 
     await handleExpandContent(createMockButtonInteraction(), TEST_PERSONA_ID, 'content');
 
@@ -284,10 +284,7 @@ describe('handleExpandContent', () => {
   });
 
   it('should handle error when persona not found', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      error: 'Persona not found',
-    });
+    stub.getPersona.mockResolvedValue(makeErr(404, 'Persona not found'));
 
     await handleExpandContent(createMockButtonInteraction(), TEST_PERSONA_ID, 'content');
 
@@ -295,7 +292,7 @@ describe('handleExpandContent', () => {
   });
 
   it('should handle network errors gracefully', async () => {
-    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+    stub.getPersona.mockRejectedValue(new Error('Network error'));
 
     await handleExpandContent(createMockButtonInteraction(), TEST_PERSONA_ID, 'content');
 

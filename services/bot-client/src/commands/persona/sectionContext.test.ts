@@ -32,6 +32,15 @@ vi.mock('../../utils/dashboard/sessionHelpers.js', async importOriginal => {
   };
 });
 
+// sectionContext.ts now calls `clientsFor(interaction)` to mint a userClient
+// before delegating to fetchPersona. The fetchPersona mock above intercepts
+// any actual client usage, but clientsFor itself must be stubbed because it
+// reads INTERNAL_SERVICE_SECRET from config at construction time.
+const clientsForMock = vi.hoisted(() => vi.fn(() => ({ userClient: {} })));
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
+
 const { findPersonaSection, loadPersonaSectionData, resolvePersonaSectionContext } =
   await import('./sectionContext.js');
 

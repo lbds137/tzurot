@@ -14,11 +14,10 @@
 import { MessageFlags, ModalBuilder } from 'discord.js';
 import type { ModalSubmitInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
-import type { CreatePersonaResponse } from '@tzurot/common-types';
 import type { ModalCommandContext } from '../../utils/commandContext/types.js';
 import { buildPersonaModalFields } from './utils/modalBuilder.js';
 import { PersonaCustomIds } from '../../utils/customIds.js';
-import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 
 const logger = createLogger('persona-create');
 
@@ -71,19 +70,13 @@ export async function handleCreateModalSubmit(interaction: ModalSubmitInteractio
       return;
     }
 
-    // Create persona via gateway API
-    const result = await callGatewayApi<CreatePersonaResponse>('/user/persona', {
-      user: toGatewayUser(interaction.user),
-      method: 'POST',
-      body: {
-        name: personaName,
-        description,
-        preferredName,
-        pronouns,
-        content: content ?? '',
-        // Pass username for user creation if needed
-        username: interaction.user.username,
-      },
+    const { userClient } = clientsFor(interaction);
+    const result = await userClient.createPersona({
+      name: personaName,
+      description,
+      preferredName,
+      pronouns,
+      content: content ?? '',
     });
 
     if (!result.ok) {
