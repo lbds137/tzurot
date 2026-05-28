@@ -9,18 +9,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleSetDefaultPersona } from './default.js';
 import { mockSetDefaultPersonaResponse } from '@tzurot/common-types';
+import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
-// Mock gateway client
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
 
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
@@ -35,17 +29,31 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
+interface PersonaClientStub {
+  setPersonaDefault: ReturnType<typeof vi.fn>;
+}
+
+function makeStub(): PersonaClientStub {
+  return {
+    setPersonaDefault: vi.fn(),
+  };
+}
+
 describe('handleSetDefaultPersona', () => {
   const mockEditReply = vi.fn();
+  let stub: PersonaClientStub;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = makeStub();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
   });
 
   function createMockContext(personaId: string) {
     return {
       user: { id: '123456789', username: 'testuser' },
       interaction: {
+        user: { id: '123456789', username: 'testuser' },
         options: {
           getString: (name: string) => {
             if (name === 'persona') return personaId;
@@ -58,27 +66,21 @@ describe('handleSetDefaultPersona', () => {
   }
 
   it('should set persona as default', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockSetDefaultPersonaResponse({
-        persona: {
-          name: 'Work Persona',
-          preferredName: 'Alice',
-        },
-        alreadyDefault: false,
-      }),
-    });
+    stub.setPersonaDefault.mockResolvedValue(
+      makeOk(
+        mockSetDefaultPersonaResponse({
+          persona: {
+            name: 'Work Persona',
+            preferredName: 'Alice',
+          },
+          alreadyDefault: false,
+        })
+      )
+    );
 
     await handleSetDefaultPersona(createMockContext('persona-123'));
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona/persona-123/default', {
-      user: {
-        discordId: '123456789',
-        username: 'testuser',
-        displayName: 'testuser',
-      },
-      method: 'PATCH',
-    });
+    expect(stub.setPersonaDefault).toHaveBeenCalledWith('persona-123');
     expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Alice'),
     });
@@ -88,16 +90,17 @@ describe('handleSetDefaultPersona', () => {
   });
 
   it('should use persona name if no preferredName', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockSetDefaultPersonaResponse({
-        persona: {
-          name: 'Work Persona',
-          preferredName: null,
-        },
-        alreadyDefault: false,
-      }),
-    });
+    stub.setPersonaDefault.mockResolvedValue(
+      makeOk(
+        mockSetDefaultPersonaResponse({
+          persona: {
+            name: 'Work Persona',
+            preferredName: null,
+          },
+          alreadyDefault: false,
+        })
+      )
+    );
 
     await handleSetDefaultPersona(createMockContext('persona-123'));
 
@@ -107,10 +110,7 @@ describe('handleSetDefaultPersona', () => {
   });
 
   it('should error if persona not found', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      error: 'Persona not found',
-    });
+    stub.setPersonaDefault.mockResolvedValue(makeErr(404, 'Persona not found'));
 
     await handleSetDefaultPersona(createMockContext('nonexistent-persona'));
 
@@ -120,16 +120,17 @@ describe('handleSetDefaultPersona', () => {
   });
 
   it('should inform user if persona is already default', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockSetDefaultPersonaResponse({
-        persona: {
-          name: 'My Persona',
-          preferredName: 'Alice',
-        },
-        alreadyDefault: true,
-      }),
-    });
+    stub.setPersonaDefault.mockResolvedValue(
+      makeOk(
+        mockSetDefaultPersonaResponse({
+          persona: {
+            name: 'My Persona',
+            preferredName: 'Alice',
+          },
+          alreadyDefault: true,
+        })
+      )
+    );
 
     await handleSetDefaultPersona(createMockContext('persona-123'));
 
@@ -139,10 +140,7 @@ describe('handleSetDefaultPersona', () => {
   });
 
   it('should handle gateway API errors gracefully', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      error: 'Gateway error',
-    });
+    stub.setPersonaDefault.mockResolvedValue(makeErr(500, 'Gateway error'));
 
     await handleSetDefaultPersona(createMockContext('persona-123'));
 
@@ -152,7 +150,7 @@ describe('handleSetDefaultPersona', () => {
   });
 
   it('should handle network errors gracefully', async () => {
-    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+    stub.setPersonaDefault.mockRejectedValue(new Error('Network error'));
 
     await handleSetDefaultPersona(createMockContext('persona-123'));
 
@@ -164,7 +162,7 @@ describe('handleSetDefaultPersona', () => {
   it('rejects the autocomplete-error sentinel before calling the gateway', async () => {
     await handleSetDefaultPersona(createMockContext('__autocomplete_error__'));
 
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(stub.setPersonaDefault).not.toHaveBeenCalled();
     expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Autocomplete was unavailable'),
     });

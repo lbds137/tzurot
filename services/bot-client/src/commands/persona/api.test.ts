@@ -1,6 +1,5 @@
 /**
  * Tests for Persona API Helpers
- * Tests fetch, update, and delete functions.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -12,26 +11,11 @@ import {
   isDefaultPersona,
 } from './api.js';
 import { mockGetPersonaResponse, mockListPersonasResponse } from '@tzurot/common-types';
+import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
-// Valid UUIDs for tests
 const TEST_PERSONA_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
 const OTHER_PERSONA_ID = 'b2c3d4e5-f6a7-8901-bcde-f12345678901';
 const TEST_USER_ID = '123456789';
-const TEST_USER = { discordId: TEST_USER_ID, username: 'testuser', displayName: 'testuser' };
-
-// Mock gateway client
-// Note: Tests use objectContaining for API call assertions to focus on the essential
-// userId parameter while ignoring implementation details like timeout values.
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
 
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
@@ -46,105 +30,111 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
+interface PersonaClientStub {
+  getPersona: ReturnType<typeof vi.fn>;
+  listPersonas: ReturnType<typeof vi.fn>;
+  updatePersona: ReturnType<typeof vi.fn>;
+  deletePersona: ReturnType<typeof vi.fn>;
+}
+
+function makeStub(): PersonaClientStub {
+  return {
+    getPersona: vi.fn(),
+    listPersonas: vi.fn(),
+    updatePersona: vi.fn(),
+    deletePersona: vi.fn(),
+  };
+}
+
 describe('fetchPersona', () => {
+  let stub: PersonaClientStub;
+
   beforeEach(() => {
-    vi.clearAllMocks();
+    stub = makeStub();
   });
 
   it('should return persona when found', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockGetPersonaResponse({
-        persona: { id: TEST_PERSONA_ID, name: 'Test Persona' },
-      }),
-    });
-
-    const result = await fetchPersona(TEST_PERSONA_ID, TEST_USER);
-
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      `/user/persona/${TEST_PERSONA_ID}`,
-      expect.objectContaining({ user: expect.objectContaining({ discordId: TEST_USER_ID }) })
+    stub.getPersona.mockResolvedValue(
+      makeOk(mockGetPersonaResponse({ persona: { id: TEST_PERSONA_ID, name: 'Test Persona' } }))
     );
+
+    const result = await fetchPersona(TEST_PERSONA_ID, asUserClient(stub), TEST_USER_ID);
+
+    expect(stub.getPersona).toHaveBeenCalledWith(TEST_PERSONA_ID);
     expect(result).not.toBeNull();
     expect(result?.name).toBe('Test Persona');
   });
 
   it('should return null when not found', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      error: 'Persona not found',
-    });
+    stub.getPersona.mockResolvedValue(makeErr(404, 'Persona not found'));
 
-    const result = await fetchPersona(TEST_PERSONA_ID, TEST_USER);
+    const result = await fetchPersona(TEST_PERSONA_ID, asUserClient(stub), TEST_USER_ID);
 
     expect(result).toBeNull();
   });
 });
 
 describe('fetchDefaultPersona', () => {
+  let stub: PersonaClientStub;
+
   beforeEach(() => {
-    vi.clearAllMocks();
+    stub = makeStub();
   });
 
   it('should return default persona when exists', async () => {
-    // First call - list personas
-    mockCallGatewayApi.mockResolvedValueOnce({
-      ok: true,
-      data: mockListPersonasResponse([
-        { id: TEST_PERSONA_ID, name: 'Default', isDefault: true },
-        { id: OTHER_PERSONA_ID, name: 'Other', isDefault: false },
-      ]),
-    });
-    // Second call - get persona details
-    mockCallGatewayApi.mockResolvedValueOnce({
-      ok: true,
-      data: mockGetPersonaResponse({
-        persona: { id: TEST_PERSONA_ID, name: 'Default', isDefault: true },
-      }),
-    });
-
-    const result = await fetchDefaultPersona(TEST_USER);
-
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/persona',
-      expect.objectContaining({ user: expect.objectContaining({ discordId: TEST_USER_ID }) })
+    stub.listPersonas.mockResolvedValue(
+      makeOk(
+        mockListPersonasResponse([
+          { id: TEST_PERSONA_ID, name: 'Default', isDefault: true },
+          { id: OTHER_PERSONA_ID, name: 'Other', isDefault: false },
+        ])
+      )
     );
+    stub.getPersona.mockResolvedValue(
+      makeOk(
+        mockGetPersonaResponse({
+          persona: { id: TEST_PERSONA_ID, name: 'Default', isDefault: true },
+        })
+      )
+    );
+
+    const result = await fetchDefaultPersona(asUserClient(stub), TEST_USER_ID);
+
+    expect(stub.listPersonas).toHaveBeenCalled();
     expect(result).not.toBeNull();
     expect(result?.name).toBe('Default');
   });
 
   it('should return null when no default persona', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockListPersonasResponse([{ id: TEST_PERSONA_ID, name: 'Test', isDefault: false }]),
-    });
+    stub.listPersonas.mockResolvedValue(
+      makeOk(mockListPersonasResponse([{ id: TEST_PERSONA_ID, name: 'Test', isDefault: false }]))
+    );
 
-    const result = await fetchDefaultPersona(TEST_USER);
+    const result = await fetchDefaultPersona(asUserClient(stub), TEST_USER_ID);
 
     expect(result).toBeNull();
   });
 
   it('should return null when list fails', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      error: 'Failed to fetch',
-    });
+    stub.listPersonas.mockResolvedValue(makeErr(500, 'Failed to fetch'));
 
-    const result = await fetchDefaultPersona(TEST_USER);
+    const result = await fetchDefaultPersona(asUserClient(stub), TEST_USER_ID);
 
     expect(result).toBeNull();
   });
 });
 
 describe('updatePersona', () => {
+  let stub: PersonaClientStub;
+
   beforeEach(() => {
-    vi.clearAllMocks();
+    stub = makeStub();
   });
 
   it('should return updated persona on success', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.updatePersona.mockResolvedValue(
+      makeOk({
+        success: true,
         persona: {
           id: TEST_PERSONA_ID,
           name: 'Updated Name',
@@ -153,71 +143,74 @@ describe('updatePersona', () => {
           description: null,
           content: 'About me',
           isDefault: false,
+          createdAt: '2026-01-01T00:00:00Z',
+          updatedAt: '2026-01-02T00:00:00Z',
         },
-      },
-    });
+      })
+    );
 
     const result = await updatePersona(
       TEST_PERSONA_ID,
-      { name: 'Updated Name', preferredName: 'Tester' },
-      TEST_USER
+      {
+        name: 'Updated Name',
+        content: undefined,
+        preferredName: 'Tester',
+        description: undefined,
+        pronouns: undefined,
+      },
+      asUserClient(stub),
+      TEST_USER_ID
     );
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      `/user/persona/${TEST_PERSONA_ID}`,
-      expect.objectContaining({
-        method: 'PUT',
-        user: expect.objectContaining({ discordId: TEST_USER_ID }),
-        body: { name: 'Updated Name', preferredName: 'Tester' },
-      })
+    expect(stub.updatePersona).toHaveBeenCalledWith(
+      TEST_PERSONA_ID,
+      expect.objectContaining({ name: 'Updated Name', preferredName: 'Tester' })
     );
     expect(result).not.toBeNull();
     expect(result?.name).toBe('Updated Name');
   });
 
   it('should return null on failure', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      error: 'Update failed',
-    });
+    stub.updatePersona.mockResolvedValue(makeErr(500, 'Update failed'));
 
-    const result = await updatePersona(TEST_PERSONA_ID, { name: 'Test' }, TEST_USER);
+    const result = await updatePersona(
+      TEST_PERSONA_ID,
+      {
+        name: 'Test',
+        content: undefined,
+        preferredName: undefined,
+        description: undefined,
+        pronouns: undefined,
+      },
+      asUserClient(stub),
+      TEST_USER_ID
+    );
 
     expect(result).toBeNull();
   });
 });
 
 describe('deletePersona', () => {
+  let stub: PersonaClientStub;
+
   beforeEach(() => {
-    vi.clearAllMocks();
+    stub = makeStub();
   });
 
   it('should return success on successful delete', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: { message: 'Persona deleted' },
-    });
+    stub.deletePersona.mockResolvedValue(makeOk({ message: 'Persona deleted' }));
 
-    const result = await deletePersona(TEST_PERSONA_ID, TEST_USER);
+    const result = await deletePersona(TEST_PERSONA_ID, asUserClient(stub), TEST_USER_ID);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      `/user/persona/${TEST_PERSONA_ID}`,
-      expect.objectContaining({
-        method: 'DELETE',
-        user: expect.objectContaining({ discordId: TEST_USER_ID }),
-      })
-    );
+    expect(stub.deletePersona).toHaveBeenCalledWith(TEST_PERSONA_ID);
     expect(result.success).toBe(true);
     expect(result.error).toBeUndefined();
   });
 
   it('should return error on failure', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      error: 'Cannot delete default persona',
-    });
+    stub.deletePersona.mockResolvedValue(makeErr(400, 'Cannot delete default persona'));
 
-    const result = await deletePersona(TEST_PERSONA_ID, TEST_USER);
+    const result = await deletePersona(TEST_PERSONA_ID, asUserClient(stub), TEST_USER_ID);
 
     expect(result.success).toBe(false);
     expect(result.error).toBe('Cannot delete default persona');
@@ -225,53 +218,51 @@ describe('deletePersona', () => {
 });
 
 describe('isDefaultPersona', () => {
+  let stub: PersonaClientStub;
+
   beforeEach(() => {
-    vi.clearAllMocks();
+    stub = makeStub();
   });
 
   it('should return true for default persona', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockListPersonasResponse([
-        { id: TEST_PERSONA_ID, name: 'Default', isDefault: true },
-        { id: OTHER_PERSONA_ID, name: 'Other', isDefault: false },
-      ]),
-    });
+    stub.listPersonas.mockResolvedValue(
+      makeOk(
+        mockListPersonasResponse([
+          { id: TEST_PERSONA_ID, name: 'Default', isDefault: true },
+          { id: OTHER_PERSONA_ID, name: 'Other', isDefault: false },
+        ])
+      )
+    );
 
-    const result = await isDefaultPersona(TEST_PERSONA_ID, TEST_USER);
+    const result = await isDefaultPersona(TEST_PERSONA_ID, asUserClient(stub));
 
     expect(result).toBe(true);
   });
 
   it('should return false for non-default persona', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockListPersonasResponse([{ id: TEST_PERSONA_ID, name: 'Test', isDefault: false }]),
-    });
+    stub.listPersonas.mockResolvedValue(
+      makeOk(mockListPersonasResponse([{ id: TEST_PERSONA_ID, name: 'Test', isDefault: false }]))
+    );
 
-    const result = await isDefaultPersona(TEST_PERSONA_ID, TEST_USER);
+    const result = await isDefaultPersona(TEST_PERSONA_ID, asUserClient(stub));
 
     expect(result).toBe(false);
   });
 
   it('should return false when persona not in list', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockListPersonasResponse([{ id: OTHER_PERSONA_ID, name: 'Other', isDefault: true }]),
-    });
+    stub.listPersonas.mockResolvedValue(
+      makeOk(mockListPersonasResponse([{ id: OTHER_PERSONA_ID, name: 'Other', isDefault: true }]))
+    );
 
-    const result = await isDefaultPersona(TEST_PERSONA_ID, TEST_USER);
+    const result = await isDefaultPersona(TEST_PERSONA_ID, asUserClient(stub));
 
     expect(result).toBe(false);
   });
 
   it('should return false on API failure', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      error: 'Failed',
-    });
+    stub.listPersonas.mockResolvedValue(makeErr(500, 'Failed'));
 
-    const result = await isDefaultPersona(TEST_PERSONA_ID, TEST_USER);
+    const result = await isDefaultPersona(TEST_PERSONA_ID, asUserClient(stub));
 
     expect(result).toBe(false);
   });

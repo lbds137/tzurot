@@ -29,34 +29,19 @@ import {
   isAutocompleteErrorSentinel,
 } from '../../../utils/apiCheck.js';
 import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
+import { clientsFor } from '../../../utils/gatewayClients.js';
 
 const logger = createLogger('persona-override-set');
 
-/** Response type for setting override */
-interface SetOverrideResponse {
-  success: boolean;
-  personality: {
-    id: string;
-    name: string;
-    displayName: string | null;
-  };
-  persona: {
-    id: string;
-    name: string;
-    preferredName: string | null;
-  };
-}
-
-/** Response type for getting override info (for modal) */
-interface OverrideInfoResponse {
-  personality: {
-    id: string;
-    name: string;
-    displayName: string | null;
-  };
-}
-
-/** Response type for creating persona and setting as override */
+/**
+ * Response type for creating persona and setting as override.
+ * Local interface because the underlying POST endpoint
+ * `/user/persona/override/by-id/:personalityId` is not in the route
+ * manifest (and may not exist on the gateway — see backlog/deferred.md
+ * entry tracking this gap). Until the endpoint is verified or rebuilt
+ * as two calls (createPersona + setPersonaOverride), this callsite
+ * stays on the legacy `callGatewayApi` path.
+ */
 interface CreateOverrideResponse {
   success: boolean;
   persona: {
@@ -97,10 +82,8 @@ async function showCreateOverrideModal(
   discordId: string,
   personalitySlug: string
 ): Promise<void> {
-  const infoResult = await callGatewayApi<OverrideInfoResponse>(
-    `/user/persona/override/${encodeURIComponent(personalitySlug)}`,
-    { user: toGatewayUser(context.user) }
-  );
+  const { userClient } = clientsFor(context.interaction);
+  const infoResult = await userClient.getPersonaOverride(personalitySlug);
 
   if (!infoResult.ok) {
     const errorMsg = mapOverrideError(infoResult.error, personalitySlug);
@@ -143,10 +126,8 @@ async function setExistingOverride(
   personalitySlug: string,
   personaId: string
 ): Promise<void> {
-  const result = await callGatewayApi<SetOverrideResponse>(
-    `/user/persona/override/${encodeURIComponent(personalitySlug)}`,
-    { user: toGatewayUser(context.user), method: 'PUT', body: { personaId } }
-  );
+  const { userClient } = clientsFor(context.interaction);
+  const result = await userClient.setPersonaOverride(personalitySlug, { personaId });
 
   if (!result.ok) {
     const errorMsg = mapOverrideError(result.error, personalitySlug);

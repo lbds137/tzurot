@@ -22,7 +22,7 @@ import type { ButtonInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { PersonaCustomIds } from '../../utils/customIds.js';
-import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import { sendChunkedReply } from '../../utils/chunkedReply.js';
 
 const logger = createLogger('persona-view');
@@ -107,9 +107,8 @@ export async function handleViewPersona(context: DeferredCommandContext): Promis
   const discordId = context.user.id;
 
   try {
-    const result = await callGatewayApi<{ personas: PersonaSummary[] }>('/user/persona', {
-      user: toGatewayUser(context.user),
-    });
+    const { userClient } = clientsFor(context.interaction);
+    const result = await userClient.listPersonas();
 
     if (!result.ok) {
       logger.warn({ userId: discordId, error: result.error }, 'Failed to fetch personas');
@@ -129,10 +128,7 @@ export async function handleViewPersona(context: DeferredCommandContext): Promis
       return;
     }
 
-    const detailsResult = await callGatewayApi<{ persona: PersonaDetails }>(
-      `/user/persona/${encodeURIComponent(persona.id)}`,
-      { user: toGatewayUser(context.user) }
-    );
+    const detailsResult = await userClient.getPersona(persona.id);
 
     if (!detailsResult.ok) {
       logger.warn(
@@ -145,7 +141,7 @@ export async function handleViewPersona(context: DeferredCommandContext): Promis
       return;
     }
 
-    const { embed, components } = buildPersonaEmbed(detailsResult.data.persona);
+    const { embed, components } = buildPersonaEmbed(detailsResult.data.persona as PersonaDetails);
     await context.editReply({ embeds: [embed], components });
     logger.info({ userId: discordId }, 'User viewed their persona');
   } catch (error) {
@@ -169,13 +165,8 @@ export async function handleExpandContent(
   const discordId = interaction.user.id;
 
   try {
-    // Fetch persona details via gateway (also verifies ownership)
-    const result = await callGatewayApi<{ persona: PersonaDetails }>(
-      `/user/persona/${encodeURIComponent(personaId)}`,
-      {
-        user: toGatewayUser(interaction.user),
-      }
-    );
+    const { userClient } = clientsFor(interaction);
+    const result = await userClient.getPersona(personaId);
 
     if (!result.ok) {
       logger.warn(

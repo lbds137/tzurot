@@ -13,20 +13,9 @@ import {
   AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
   isAutocompleteErrorSentinel,
 } from '../../utils/apiCheck.js';
-import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 
 const logger = createLogger('persona-default');
-
-/** Response type for setting default persona */
-interface SetDefaultResponse {
-  success: boolean;
-  persona: {
-    id: string;
-    name: string;
-    preferredName: string | null;
-  };
-  alreadyDefault?: boolean;
-}
 
 /**
  * Handle /persona default <persona> command
@@ -42,18 +31,11 @@ export async function handleSetDefaultPersona(context: DeferredCommandContext): 
   }
 
   try {
-    // Set default via gateway API
-    const result = await callGatewayApi<SetDefaultResponse>(
-      `/user/persona/${encodeURIComponent(personaId)}/default`,
-      {
-        user: toGatewayUser(context.user),
-        method: 'PATCH',
-      }
-    );
+    const { userClient } = clientsFor(context.interaction);
+    const result = await userClient.setPersonaDefault(personaId);
 
     if (!result.ok) {
-      // Handle specific error cases
-      if (result.error?.includes('not found') || result.error?.includes('Not found')) {
+      if (result.error.includes('not found') || result.error.includes('Not found')) {
         await context.editReply({
           content: '❌ Persona not found. Use `/persona browse` to see your personas.',
         });
@@ -70,8 +52,7 @@ export async function handleSetDefaultPersona(context: DeferredCommandContext): 
     const { persona, alreadyDefault } = result.data;
     const displayName = persona.preferredName ?? persona.name;
 
-    // Check if already default
-    if (alreadyDefault === true) {
+    if (alreadyDefault) {
       await context.editReply({
         content: `ℹ️ **${displayName}** is already your default persona.`,
       });

@@ -13,20 +13,9 @@ import {
   AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
   isAutocompleteErrorSentinel,
 } from '../../../utils/apiCheck.js';
-import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
+import { clientsFor } from '../../../utils/gatewayClients.js';
 
 const logger = createLogger('persona-override-clear');
-
-/** Response type for clearing override */
-interface ClearOverrideResponse {
-  success: boolean;
-  personality: {
-    id: string;
-    name: string;
-    displayName: string | null;
-  };
-  hadOverride: boolean;
-}
 
 /**
  * Handle /persona override clear <personality> - Remove override
@@ -42,25 +31,18 @@ export async function handleOverrideClear(context: DeferredCommandContext): Prom
   }
 
   try {
-    // Clear override via gateway
-    const result = await callGatewayApi<ClearOverrideResponse>(
-      `/user/persona/override/${encodeURIComponent(personalitySlug)}`,
-      {
-        user: toGatewayUser(context.user),
-        method: 'DELETE',
-      }
-    );
+    const { userClient } = clientsFor(context.interaction);
+    const result = await userClient.clearPersonaOverride(personalitySlug);
 
     if (!result.ok) {
-      // Handle specific errors
-      if (result.error?.includes('Personality not found') || result.error?.includes('not found')) {
+      if (result.error.includes('Personality not found') || result.error.includes('not found')) {
         await context.editReply({
           content: `❌ Personality "${personalitySlug}" not found.`,
         });
         return;
       }
 
-      if (result.error?.includes('no account') || result.error?.includes('User')) {
+      if (result.error.includes('no account') || result.error.includes('User')) {
         await context.editReply({
           content:
             "❌ You don't have an account yet. Send a message to any personality to create one!",

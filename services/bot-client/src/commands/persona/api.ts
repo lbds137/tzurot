@@ -1,16 +1,12 @@
 /**
  * Persona API Helpers
  *
- * Functions for fetching, updating, and deleting personas via the gateway API.
+ * Functions for fetching, updating, and deleting personas via the typed
+ * gateway client.
  */
 
-import { createLogger, type ListPersonasResponse } from '@tzurot/common-types';
-import {
-  callGatewayApi,
-  GATEWAY_TIMEOUTS,
-  type GatewayUser,
-} from '../../utils/userGatewayClient.js';
-import type { PersonaDetails, PersonaSummary, SavePersonaResponse } from './types.js';
+import { createLogger, type PersonaUpdateInput, type UserClient } from '@tzurot/common-types';
+import type { PersonaDetails, PersonaSummary } from './types.js';
 
 const logger = createLogger('persona-api');
 
@@ -19,21 +15,13 @@ const logger = createLogger('persona-api');
  */
 export async function fetchPersona(
   personaId: string,
-  user: GatewayUser
+  userClient: UserClient,
+  userId: string
 ): Promise<PersonaDetails | null> {
-  const result = await callGatewayApi<{ persona: PersonaDetails }>(
-    `/user/persona/${encodeURIComponent(personaId)}`,
-    {
-      user,
-      timeout: GATEWAY_TIMEOUTS.DEFERRED,
-    }
-  );
+  const result = await userClient.getPersona(personaId);
 
   if (!result.ok) {
-    logger.warn(
-      { userId: user.discordId, personaId, error: result.error },
-      'Failed to fetch persona'
-    );
+    logger.warn({ userId, personaId, error: result.error }, 'Failed to fetch persona');
     return null;
   }
 
@@ -43,17 +31,14 @@ export async function fetchPersona(
 /**
  * Fetch the user's default persona
  */
-export async function fetchDefaultPersona(user: GatewayUser): Promise<PersonaDetails | null> {
-  const listResult = await callGatewayApi<ListPersonasResponse>('/user/persona', {
-    user,
-    timeout: GATEWAY_TIMEOUTS.DEFERRED,
-  });
+export async function fetchDefaultPersona(
+  userClient: UserClient,
+  userId: string
+): Promise<PersonaDetails | null> {
+  const listResult = await userClient.listPersonas();
 
   if (!listResult.ok) {
-    logger.warn(
-      { userId: user.discordId, error: listResult.error },
-      'Failed to fetch persona list'
-    );
+    logger.warn({ userId, error: listResult.error }, 'Failed to fetch persona list');
     return null;
   }
 
@@ -62,7 +47,7 @@ export async function fetchDefaultPersona(user: GatewayUser): Promise<PersonaDet
     return null;
   }
 
-  return fetchPersona(defaultPersona.id, user);
+  return fetchPersona(defaultPersona.id, userClient, userId);
 }
 
 /**
@@ -70,24 +55,14 @@ export async function fetchDefaultPersona(user: GatewayUser): Promise<PersonaDet
  */
 export async function updatePersona(
   personaId: string,
-  data: Record<string, unknown>,
-  user: GatewayUser
+  data: PersonaUpdateInput,
+  userClient: UserClient,
+  userId: string
 ): Promise<PersonaDetails | null> {
-  const result = await callGatewayApi<SavePersonaResponse>(
-    `/user/persona/${encodeURIComponent(personaId)}`,
-    {
-      method: 'PUT',
-      user,
-      body: data,
-      timeout: GATEWAY_TIMEOUTS.DEFERRED,
-    }
-  );
+  const result = await userClient.updatePersona(personaId, data);
 
   if (!result.ok) {
-    logger.warn(
-      { userId: user.discordId, personaId, error: result.error },
-      'Failed to update persona'
-    );
+    logger.warn({ userId, personaId, error: result.error }, 'Failed to update persona');
     return null;
   }
 
@@ -99,22 +74,13 @@ export async function updatePersona(
  */
 export async function deletePersona(
   personaId: string,
-  user: GatewayUser
+  userClient: UserClient,
+  userId: string
 ): Promise<{ success: boolean; error?: string }> {
-  const result = await callGatewayApi<{ message: string }>(
-    `/user/persona/${encodeURIComponent(personaId)}`,
-    {
-      method: 'DELETE',
-      user,
-      timeout: GATEWAY_TIMEOUTS.DEFERRED,
-    }
-  );
+  const result = await userClient.deletePersona(personaId);
 
   if (!result.ok) {
-    logger.warn(
-      { userId: user.discordId, personaId, error: result.error },
-      'Failed to delete persona'
-    );
+    logger.warn({ userId, personaId, error: result.error }, 'Failed to delete persona');
     return { success: false, error: result.error };
   }
 
@@ -124,11 +90,11 @@ export async function deletePersona(
 /**
  * Check if a persona is the default persona
  */
-export async function isDefaultPersona(personaId: string, user: GatewayUser): Promise<boolean> {
-  const listResult = await callGatewayApi<ListPersonasResponse>('/user/persona', {
-    user,
-    timeout: GATEWAY_TIMEOUTS.DEFERRED,
-  });
+export async function isDefaultPersona(
+  personaId: string,
+  userClient: UserClient
+): Promise<boolean> {
+  const listResult = await userClient.listPersonas();
 
   if (!listResult.ok) {
     return false;

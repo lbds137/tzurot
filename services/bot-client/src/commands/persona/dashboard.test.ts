@@ -15,21 +15,15 @@ import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
 import { buildDeleteConfirmation } from '../../utils/dashboard/deleteConfirmation.js';
 import { DASHBOARD_MESSAGES, formatSessionExpiredMessage } from '../../utils/dashboard/messages.js';
 import { mockGetPersonaResponse, mockListPersonasResponse } from '@tzurot/common-types';
+import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
 // Valid UUIDs for tests
 const TEST_PERSONA_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
 
-// Mock gateway client
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
 
 // Mock dashboard utilities
 const mockBuildDashboardEmbed = vi.fn();
@@ -304,14 +298,33 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
+interface PersonaClientStub {
+  listPersonas: ReturnType<typeof vi.fn>;
+  getPersona: ReturnType<typeof vi.fn>;
+  updatePersona: ReturnType<typeof vi.fn>;
+  deletePersona: ReturnType<typeof vi.fn>;
+}
+
+function makeStub(): PersonaClientStub {
+  return {
+    listPersonas: vi.fn(),
+    getPersona: vi.fn(),
+    updatePersona: vi.fn(),
+    deletePersona: vi.fn(),
+  };
+}
+
 describe('handleModalSubmit', () => {
   const mockDeferUpdate = vi.fn();
   const mockEditReply = vi.fn();
   const mockFollowUp = vi.fn();
   const mockReply = vi.fn();
+  let stub: PersonaClientStub;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = makeStub();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
     mockDeferUpdate.mockResolvedValue(undefined);
     mockBuildDashboardEmbed.mockReturnValue({ title: 'Test' });
     mockBuildDashboardComponents.mockReturnValue([]);
@@ -336,31 +349,22 @@ describe('handleModalSubmit', () => {
       data: { name: 'Test Persona', preferredName: 'Tester' },
     });
     mockExtractModalValues.mockReturnValue({ name: 'Updated Name' });
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockGetPersonaResponse({
-        persona: { id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890', name: 'Updated Name' },
-      }),
-    });
+    stub.updatePersona.mockResolvedValue(
+      makeOk(
+        mockGetPersonaResponse({
+          persona: { id: TEST_PERSONA_ID, name: 'Updated Name' },
+        })
+      )
+    );
 
     await handleModalSubmit(
-      createMockModalInteraction('persona::modal::a1b2c3d4-e5f6-7890-abcd-ef1234567890::identity', {
+      createMockModalInteraction(`persona::modal::${TEST_PERSONA_ID}::identity`, {
         name: 'Updated Name',
       })
     );
 
     expect(mockDeferUpdate).toHaveBeenCalled();
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      `/user/persona/${TEST_PERSONA_ID}`,
-      expect.objectContaining({
-        method: 'PUT',
-        user: {
-          discordId: '123456789',
-          username: 'testuser',
-          displayName: 'testuser',
-        },
-      })
-    );
+    expect(stub.updatePersona).toHaveBeenCalledWith(TEST_PERSONA_ID, expect.any(Object));
   });
 
   it('should handle unknown modal submissions', async () => {
@@ -378,12 +382,13 @@ describe('handleModalSubmit', () => {
       data: { name: 'Test Persona', preferredName: 'Tester', browseContext },
     });
     mockExtractModalValues.mockReturnValue({ name: 'Updated Name' });
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockGetPersonaResponse({
-        persona: { id: TEST_PERSONA_ID, name: 'Updated Name' },
-      }),
-    });
+    stub.updatePersona.mockResolvedValue(
+      makeOk(
+        mockGetPersonaResponse({
+          persona: { id: TEST_PERSONA_ID, name: 'Updated Name' },
+        })
+      )
+    );
 
     await handleModalSubmit(
       createMockModalInteraction(`persona::modal::${TEST_PERSONA_ID}::identity`, {
@@ -406,9 +411,12 @@ describe('handleModalSubmit', () => {
 describe('handleSelectMenu', () => {
   const mockShowModal = vi.fn();
   const mockReply = vi.fn();
+  let stub: PersonaClientStub;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = makeStub();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
     mockShowModal.mockResolvedValue(undefined);
     mockBuildSectionModal.mockReturnValue({ title: 'Edit Section' });
     mockSessionGet.mockResolvedValue({
@@ -430,10 +438,7 @@ describe('handleSelectMenu', () => {
 
   it('should show edit modal when section selected', async () => {
     await handleSelectMenu(
-      createMockSelectInteraction(
-        'persona::menu::a1b2c3d4-e5f6-7890-abcd-ef1234567890',
-        'edit-identity'
-      )
+      createMockSelectInteraction(`persona::menu::${TEST_PERSONA_ID}`, 'edit-identity')
     );
 
     expect(mockShowModal).toHaveBeenCalled();
@@ -441,10 +446,7 @@ describe('handleSelectMenu', () => {
 
   it('should show error for unknown section', async () => {
     await handleSelectMenu(
-      createMockSelectInteraction(
-        'persona::menu::a1b2c3d4-e5f6-7890-abcd-ef1234567890',
-        'edit-nonexistent'
-      )
+      createMockSelectInteraction(`persona::menu::${TEST_PERSONA_ID}`, 'edit-nonexistent')
     );
 
     expect(mockReply).toHaveBeenCalledWith({
@@ -460,10 +462,7 @@ describe('handleSelectMenu', () => {
     // sectionContext error reply is the only side effect; the rest of
     // the function must short-circuit cleanly.
     await handleSelectMenu(
-      createMockSelectInteraction(
-        'persona::menu::a1b2c3d4-e5f6-7890-abcd-ef1234567890',
-        'edit-nonexistent'
-      )
+      createMockSelectInteraction(`persona::menu::${TEST_PERSONA_ID}`, 'edit-nonexistent')
     );
 
     expect(mockShowModal).not.toHaveBeenCalled();
@@ -494,10 +493,7 @@ describe('handleSelectMenu', () => {
     });
 
     await handleSelectMenu(
-      createMockSelectInteraction(
-        'persona::menu::a1b2c3d4-e5f6-7890-abcd-ef1234567890',
-        'edit-identity'
-      )
+      createMockSelectInteraction(`persona::menu::${TEST_PERSONA_ID}`, 'edit-identity')
     );
 
     expect(mockShowModal).not.toHaveBeenCalled();
@@ -559,10 +555,7 @@ describe('handleSelectMenu', () => {
     });
 
     await handleSelectMenu(
-      createMockSelectInteraction(
-        'persona::menu::a1b2c3d4-e5f6-7890-abcd-ef1234567890',
-        'edit-identity'
-      )
+      createMockSelectInteraction(`persona::menu::${TEST_PERSONA_ID}`, 'edit-identity')
     );
 
     expect(mockShowModal).toHaveBeenCalled();
@@ -574,9 +567,12 @@ describe('handleButton', () => {
   const mockDeferUpdate = vi.fn();
   const mockEditReply = vi.fn();
   const mockReply = vi.fn();
+  let stub: PersonaClientStub;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = makeStub();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
     mockUpdate.mockResolvedValue(undefined);
     mockDeferUpdate.mockResolvedValue(undefined);
     mockBuildDashboardEmbed.mockReturnValue({ title: 'Test' });
@@ -620,16 +616,14 @@ describe('handleButton', () => {
   }
 
   it('should delegate to shared close handler on close button', async () => {
-    const mockInteraction = createMockButtonInteraction(
-      'persona::close::a1b2c3d4-e5f6-7890-abcd-ef1234567890'
-    );
+    const mockInteraction = createMockButtonInteraction(`persona::close::${TEST_PERSONA_ID}`);
     await handleButton(mockInteraction);
 
     // Verify delegation to shared handler
     expect(handleDashboardClose).toHaveBeenCalledWith(
       expect.anything(),
       'persona',
-      'a1b2c3d4-e5f6-7890-abcd-ef1234567890'
+      TEST_PERSONA_ID
     );
   });
 
@@ -637,13 +631,12 @@ describe('handleButton', () => {
     mockSessionGet.mockResolvedValue({
       data: { name: 'Test Persona', isDefault: false },
     });
-    // isDefaultPersona calls /user/persona to check if persona is default
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockListPersonasResponse([
-        { id: TEST_PERSONA_ID, name: 'Test Persona', isDefault: false },
-      ]),
-    });
+    // isDefaultPersona calls listPersonas to check if persona is default
+    stub.listPersonas.mockResolvedValue(
+      makeOk(
+        mockListPersonasResponse([{ id: TEST_PERSONA_ID, name: 'Test Persona', isDefault: false }])
+      )
+    );
 
     await handleButton(createMockButtonInteraction(`persona::delete::${TEST_PERSONA_ID}`));
 
@@ -661,13 +654,14 @@ describe('handleButton', () => {
     mockSessionGet.mockResolvedValue({
       data: { name: 'Default Persona', isDefault: true },
     });
-    // isDefaultPersona returns true
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockListPersonasResponse([
-        { id: TEST_PERSONA_ID, name: 'Default Persona', isDefault: true },
-      ]),
-    });
+    // isDefaultPersona returns true via listPersonas
+    stub.listPersonas.mockResolvedValue(
+      makeOk(
+        mockListPersonasResponse([
+          { id: TEST_PERSONA_ID, name: 'Default Persona', isDefault: true },
+        ])
+      )
+    );
 
     await handleButton(createMockButtonInteraction(`persona::delete::${TEST_PERSONA_ID}`));
 
@@ -693,18 +687,12 @@ describe('handleButton', () => {
     mockSessionGet.mockResolvedValue({
       data: { name: 'Test Persona' },
     });
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: { message: 'Deleted' },
-    });
+    stub.deletePersona.mockResolvedValue(makeOk({ message: 'Deleted' }));
 
     await handleButton(createMockButtonInteraction(`persona::confirm-delete::${TEST_PERSONA_ID}`));
 
     expect(mockDeferUpdate).toHaveBeenCalled();
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      `/user/persona/${TEST_PERSONA_ID}`,
-      expect.objectContaining({ method: 'DELETE' })
-    );
+    expect(stub.deletePersona).toHaveBeenCalledWith(TEST_PERSONA_ID);
     // Success routes through renderPostActionScreen with a formatted banner.
     // The helper decides success-with-rebuild vs clean-terminal based on
     // the session's browseContext; tested independently.
@@ -727,10 +715,7 @@ describe('handleButton', () => {
     mockSessionGet.mockResolvedValue({
       data: { name: 'Test Persona', browseContext },
     });
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: { message: 'Deleted' },
-    });
+    stub.deletePersona.mockResolvedValue(makeOk({ message: 'Deleted' }));
 
     await handleButton(createMockButtonInteraction(`persona::confirm-delete::${TEST_PERSONA_ID}`));
 
@@ -745,10 +730,7 @@ describe('handleButton', () => {
     mockSessionGet.mockResolvedValue({
       data: { name: 'Test Persona' },
     });
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      error: 'Delete failed',
-    });
+    stub.deletePersona.mockResolvedValue(makeErr(500, 'Delete failed'));
 
     await handleButton(createMockButtonInteraction(`persona::confirm-delete::${TEST_PERSONA_ID}`));
 

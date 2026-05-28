@@ -13,7 +13,7 @@ import type {
   ButtonInteraction,
   ModalSubmitInteraction,
 } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, type PersonaUpdateInput } from '@tzurot/common-types';
 import { buildDeleteConfirmation } from '../../utils/dashboard/deleteConfirmation.js';
 import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
 import { createRefreshHandler, refreshDashboardUI } from '../../utils/dashboard/refreshHandler.js';
@@ -28,7 +28,7 @@ import {
   renderPostActionScreen,
   handleSharedBackButton,
 } from '../../utils/dashboard/index.js';
-import { toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import {
   PERSONA_DASHBOARD_CONFIG,
   type FlattenedPersonaData,
@@ -119,11 +119,15 @@ async function handleSectionModalSubmit(
     // Convert to API format
     const updatePayload = unflattenPersonaData(extracted.merged);
 
-    // Update persona via API
+    const { userClient } = clientsFor(interaction);
     const updatedPersona = await updatePersona(
       entityId,
-      updatePayload,
-      toGatewayUser(interaction.user)
+      // Cast: unflattenPersonaData omits fields the user didn't touch
+      // (signals "preserve") while PersonaUpdateInput's shape allows
+      // undefined for each field — semantically equivalent on the wire.
+      updatePayload as PersonaUpdateInput,
+      userClient,
+      interaction.user.id
     );
 
     if (!updatedPersona) {
@@ -240,7 +244,10 @@ async function handleCloseButton(interaction: ButtonInteraction, entityId: strin
 const handleRefreshButton = createRefreshHandler({
   entityType: 'persona',
   dashboardConfig: PERSONA_DASHBOARD_CONFIG,
-  fetchFn: fetchPersona,
+  fetchFn: (entityId, interaction) => {
+    const { userClient } = clientsFor(interaction);
+    return fetchPersona(entityId, userClient, interaction.user.id);
+  },
   transformFn: flattenPersonaData,
   buildOptions: buildPersonaDashboardOptions,
 });
@@ -255,8 +262,8 @@ async function handleDeleteButton(interaction: ButtonInteraction, entityId: stri
     return;
   }
 
-  // Check if this is the default persona
-  const isDefault = await isDefaultPersona(entityId, toGatewayUser(interaction.user));
+  const { userClient } = clientsFor(interaction);
+  const isDefault = await isDefaultPersona(entityId, userClient);
   if (isDefault) {
     await interaction.reply({
       content:
@@ -309,7 +316,8 @@ async function handleConfirmDeleteButton(
     browseContext: session?.data.browseContext,
   };
 
-  const result = await deletePersona(entityId, toGatewayUser(interaction.user));
+  const { userClient } = clientsFor(interaction);
+  const result = await deletePersona(entityId, userClient, interaction.user.id);
 
   if (!result.success) {
     await renderPostActionScreen({

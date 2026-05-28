@@ -39,6 +39,11 @@ export function flattenPersonaData(data: PersonaDetails): FlattenedPersonaData {
  * Convert flattened form data back to API update payload
  */
 export function unflattenPersonaData(flat: Partial<FlattenedPersonaData>): Record<string, unknown> {
+  // Return type intentionally `Record<string, unknown>` rather than
+  // `PersonaUpdateInput`: omitted fields signal "leave unchanged" to the
+  // server (Zod 4 strips undefineds → handler treats absent as no-op),
+  // whereas PersonaUpdateInput would force every field to be present.
+  // Cast at the call site in dashboard.ts handles the impedance.
   const result: Record<string, unknown> = {};
 
   if (flat.name !== undefined && flat.name.length > 0) {

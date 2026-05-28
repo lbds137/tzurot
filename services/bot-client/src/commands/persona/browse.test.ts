@@ -15,23 +15,15 @@ import {
 } from './browse.js';
 import { registerBrowseRebuilder } from '../../utils/dashboard/index.js';
 import { mockListPersonasResponse, mockGetPersonaResponse } from '@tzurot/common-types';
+import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
 // Valid UUIDs for tests
 const TEST_PERSONA_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
 
-// Mock gateway client
-// Note: Tests use objectContaining for API call assertions to focus on the essential
-// userId parameter while ignoring implementation details like timeout values.
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
 
 // Mock dashboard utilities
 const mockBuildDashboardEmbed = vi.fn();
@@ -62,11 +54,26 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
+interface PersonaClientStub {
+  listPersonas: ReturnType<typeof vi.fn>;
+  getPersona: ReturnType<typeof vi.fn>;
+}
+
+function makeStub(): PersonaClientStub {
+  return {
+    listPersonas: vi.fn(),
+    getPersona: vi.fn(),
+  };
+}
+
 describe('handleBrowse', () => {
   const mockEditReply = vi.fn();
+  let stub: PersonaClientStub;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = makeStub();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
     mockBuildDashboardEmbed.mockReturnValue({ title: 'Test' });
     mockBuildDashboardComponents.mockReturnValue([]);
   });
@@ -74,27 +81,24 @@ describe('handleBrowse', () => {
   function createMockContext() {
     return {
       user: { id: '123456789', username: 'testuser' },
+      interaction: { user: { id: '123456789', username: 'testuser' } },
       editReply: mockEditReply,
     } as unknown as Parameters<typeof handleBrowse>[0];
   }
 
   it('should display personas in paginated format', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockListPersonasResponse([
-        { name: 'Persona A', isDefault: true, preferredName: 'Alice' },
-        { name: 'Persona B', isDefault: false, preferredName: null },
-      ]),
-    });
+    stub.listPersonas.mockResolvedValue(
+      makeOk(
+        mockListPersonasResponse([
+          { name: 'Persona A', isDefault: true, preferredName: 'Alice' },
+          { name: 'Persona B', isDefault: false, preferredName: null },
+        ])
+      )
+    );
 
     await handleBrowse(createMockContext());
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/persona',
-      expect.objectContaining({
-        user: { discordId: '123456789', username: 'testuser', displayName: 'testuser' },
-      })
-    );
+    expect(stub.listPersonas).toHaveBeenCalled();
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [expect.any(Object)],
       components: expect.any(Array),
@@ -102,10 +106,7 @@ describe('handleBrowse', () => {
   });
 
   it('should show empty state when user has no personas', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockListPersonasResponse([]),
-    });
+    stub.listPersonas.mockResolvedValue(makeOk(mockListPersonasResponse([])));
 
     await handleBrowse(createMockContext());
 
@@ -115,10 +116,7 @@ describe('handleBrowse', () => {
   });
 
   it('should handle gateway errors gracefully', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      error: 'Gateway error',
-    });
+    stub.listPersonas.mockResolvedValue(makeErr(500, 'Gateway error'));
 
     await handleBrowse(createMockContext());
 
@@ -128,7 +126,7 @@ describe('handleBrowse', () => {
   });
 
   it('should handle network errors gracefully', async () => {
-    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+    stub.listPersonas.mockRejectedValue(new Error('Network error'));
 
     await handleBrowse(createMockContext());
 
@@ -139,9 +137,12 @@ describe('handleBrowse', () => {
 describe('handleBrowsePagination', () => {
   const mockDeferUpdate = vi.fn();
   const mockEditReply = vi.fn();
+  let stub: PersonaClientStub;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = makeStub();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
     mockDeferUpdate.mockResolvedValue(undefined);
   });
 
@@ -155,23 +156,19 @@ describe('handleBrowsePagination', () => {
   }
 
   it('should fetch and display requested page', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockListPersonasResponse([
-        { name: 'Persona A', isDefault: true },
-        { name: 'Persona B', isDefault: false },
-      ]),
-    });
+    stub.listPersonas.mockResolvedValue(
+      makeOk(
+        mockListPersonasResponse([
+          { name: 'Persona A', isDefault: true },
+          { name: 'Persona B', isDefault: false },
+        ])
+      )
+    );
 
     await handleBrowsePagination(createMockButtonInteraction('persona::browse::1::all::name::'));
 
     expect(mockDeferUpdate).toHaveBeenCalled();
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/persona',
-      expect.objectContaining({
-        user: { discordId: '123456789', username: 'testuser', displayName: 'testuser' },
-      })
-    );
+    expect(stub.listPersonas).toHaveBeenCalled();
     expect(mockEditReply).toHaveBeenCalled();
   });
 
@@ -185,9 +182,12 @@ describe('handleBrowsePagination', () => {
 describe('handleBrowseSelect', () => {
   const mockDeferUpdate = vi.fn();
   const mockEditReply = vi.fn();
+  let stub: PersonaClientStub;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = makeStub();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
     mockDeferUpdate.mockResolvedValue(undefined);
     mockBuildDashboardEmbed.mockReturnValue({ title: 'Test' });
     mockBuildDashboardComponents.mockReturnValue([]);
@@ -206,39 +206,32 @@ describe('handleBrowseSelect', () => {
   }
 
   it('should open dashboard for selected persona', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockGetPersonaResponse({
-        persona: {
-          id: TEST_PERSONA_ID,
-          name: 'Test Persona',
-          isDefault: false,
-          preferredName: null,
-          pronouns: null,
-          content: '',
-          description: null,
-        },
-      }),
-    });
+    stub.getPersona.mockResolvedValue(
+      makeOk(
+        mockGetPersonaResponse({
+          persona: {
+            id: TEST_PERSONA_ID,
+            name: 'Test Persona',
+            isDefault: false,
+            preferredName: null,
+            pronouns: null,
+            content: '',
+            description: null,
+          },
+        })
+      )
+    );
 
     await handleBrowseSelect(createMockSelectInteraction(TEST_PERSONA_ID));
 
     expect(mockDeferUpdate).toHaveBeenCalled();
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      `/user/persona/${TEST_PERSONA_ID}`,
-      expect.objectContaining({
-        user: { discordId: '123456789', username: 'testuser', displayName: 'testuser' },
-      })
-    );
+    expect(stub.getPersona).toHaveBeenCalledWith(TEST_PERSONA_ID);
     expect(mockBuildDashboardEmbed).toHaveBeenCalled();
     expect(mockSessionSet).toHaveBeenCalled();
   });
 
   it('should show error when persona not found', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      error: 'Persona not found',
-    });
+    stub.getPersona.mockResolvedValue(makeErr(404, 'Persona not found'));
 
     await handleBrowseSelect(createMockSelectInteraction(TEST_PERSONA_ID));
 
@@ -286,6 +279,14 @@ if (personaRebuilderCall === undefined) {
 const personaRebuilder = personaRebuilderCall[1];
 
 describe('registered browse rebuilder', () => {
+  let stub: PersonaClientStub;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stub = makeStub();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
+  });
+
   function createMockInteraction() {
     return { user: { id: '123456789', username: 'testuser' } } as unknown as Parameters<
       typeof personaRebuilder
@@ -293,10 +294,9 @@ describe('registered browse rebuilder', () => {
   }
 
   it('returns rebuilt view with banner on success', async () => {
-    mockCallGatewayApi.mockResolvedValueOnce({
-      ok: true,
-      data: mockListPersonasResponse([{ name: 'Persona A', isDefault: true }]),
-    });
+    stub.listPersonas.mockResolvedValueOnce(
+      makeOk(mockListPersonasResponse([{ name: 'Persona A', isDefault: true }]))
+    );
 
     const result = await personaRebuilder(
       createMockInteraction(),
@@ -313,7 +313,7 @@ describe('registered browse rebuilder', () => {
   });
 
   it('returns null when gateway fetch fails', async () => {
-    mockCallGatewayApi.mockResolvedValueOnce({ ok: false, error: 'Network' });
+    stub.listPersonas.mockResolvedValueOnce(makeErr(500, 'Network'));
 
     const result = await personaRebuilder(
       createMockInteraction(),
