@@ -19,6 +19,7 @@ import {
   handleChannelSettingsModal,
   isChannelSettingsInteraction,
 } from './settings.js';
+import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
 // Mock dependencies
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -34,16 +35,10 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
 
 // Mock GatewayClient - use vi.hoisted() for proper mock hoisting
 const { mockGetChannelSettings, mockInvalidateChannelSettingsCache } = vi.hoisted(() => ({
@@ -72,7 +67,58 @@ vi.mock('../../utils/dashboard/SessionManager.js', () => ({
   },
 }));
 
+interface UserClientStub {
+  getChannelConfigOverrides: ReturnType<typeof vi.fn>;
+  updateChannelConfigOverrides: ReturnType<typeof vi.fn>;
+  resolveCascade: ReturnType<typeof vi.fn>;
+  resolveUserDefaults: ReturnType<typeof vi.fn>;
+}
+
+function createStub(): UserClientStub {
+  return {
+    getChannelConfigOverrides: vi.fn(),
+    updateChannelConfigOverrides: vi.fn(),
+    resolveCascade: vi.fn(),
+    resolveUserDefaults: vi.fn(),
+  };
+}
+
+/**
+ * Default hardcoded-source resolved data shape used by most tests that
+ * don't otherwise care about cascade values.
+ */
+function defaultResolvedData() {
+  return {
+    maxMessages: 50,
+    maxAge: null,
+    maxImages: 10,
+    memoryScoreThreshold: 0.5,
+    memoryLimit: 20,
+    focusModeEnabled: false,
+    crossChannelHistoryEnabled: false,
+    shareLtmAcrossPersonalities: false,
+    showModelFooter: true,
+    voiceResponseMode: 'always',
+    voiceTranscriptionEnabled: true,
+    sources: {
+      maxMessages: 'hardcoded',
+      maxAge: 'hardcoded',
+      maxImages: 'hardcoded',
+      memoryScoreThreshold: 'hardcoded',
+      memoryLimit: 'hardcoded',
+      focusModeEnabled: 'hardcoded',
+      crossChannelHistoryEnabled: 'hardcoded',
+      shareLtmAcrossPersonalities: 'hardcoded',
+      showModelFooter: 'hardcoded',
+      voiceResponseMode: 'hardcoded',
+      voiceTranscriptionEnabled: 'hardcoded',
+    },
+  };
+}
+
 describe('Channel Settings Dashboard', () => {
+  let stub: UserClientStub;
+
   const mockChannelSettings = {
     settings: {
       activatedPersonalityId: 'personality-123',
@@ -96,12 +142,13 @@ describe('Channel Settings Dashboard', () => {
       deferred: true,
       replied: false,
       editReply: mockEditReply,
+      user: { id: '123456789' },
     };
 
     // Create mock context that mirrors DeferredCommandContext
     return {
       interaction: mockInteraction,
-      user: { id: 'user-456' },
+      user: { id: '123456789' },
       guild: null,
       member: {
         permissions: {
@@ -126,32 +173,14 @@ describe('Channel Settings Dashboard', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // Default: resolve endpoint returns hardcoded defaults
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
-        maxMessages: 50,
-        maxAge: null,
-        maxImages: 10,
-        memoryScoreThreshold: 0.5,
-        memoryLimit: 20,
-        focusModeEnabled: false,
-        crossChannelHistoryEnabled: false,
-        shareLtmAcrossPersonalities: false,
-        showModelFooter: true,
-        sources: {
-          maxMessages: 'hardcoded',
-          maxAge: 'hardcoded',
-          maxImages: 'hardcoded',
-          memoryScoreThreshold: 'hardcoded',
-          memoryLimit: 'hardcoded',
-          focusModeEnabled: 'hardcoded',
-          crossChannelHistoryEnabled: 'hardcoded',
-          shareLtmAcrossPersonalities: 'hardcoded',
-          showModelFooter: 'hardcoded',
-        },
-      },
-    });
+    stub = createStub();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
+
+    // Default: resolve endpoints return hardcoded defaults
+    stub.resolveCascade.mockResolvedValue(makeOk(defaultResolvedData()));
+    stub.resolveUserDefaults.mockResolvedValue(makeOk(defaultResolvedData()));
+    stub.getChannelConfigOverrides.mockResolvedValue(makeOk({ configOverrides: null }));
+    stub.updateChannelConfigOverrides.mockResolvedValue(makeOk({ configOverrides: {} }));
   });
 
   describe('handleChannelSettings', () => {
@@ -240,11 +269,9 @@ describe('Channel Settings Dashboard', () => {
 
       await handleChannelSettings(context);
 
-      // Should call resolve-defaults as fallback (not full resolve which needs personalityId)
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/config-overrides/resolve-defaults',
-        expect.objectContaining({ method: 'GET' })
-      );
+      // Should call resolveUserDefaults as fallback (not resolveCascade which needs personalityId)
+      expect(stub.resolveUserDefaults).toHaveBeenCalled();
+      expect(stub.resolveCascade).not.toHaveBeenCalled();
 
       // Should still display the dashboard
       expect(context.editReply).toHaveBeenCalledWith(
@@ -259,38 +286,40 @@ describe('Channel Settings Dashboard', () => {
       const context = createMockContext(true);
       // No personality activated
       mockGetChannelSettings.mockResolvedValue({ settings: {} });
-      // resolvePromise is created first (resolve-defaults), then channel overrides inside Promise.all
-      mockCallGatewayApi
-        .mockResolvedValueOnce({
-          ok: true,
-          data: {
-            maxMessages: 75,
-            maxAge: null,
-            maxImages: 10,
-            memoryScoreThreshold: 0.5,
-            memoryLimit: 20,
-            focusModeEnabled: false,
-            crossChannelHistoryEnabled: false,
-            shareLtmAcrossPersonalities: false,
-            showModelFooter: true,
-            sources: {
-              maxMessages: 'admin',
-              maxAge: 'hardcoded',
-              maxImages: 'hardcoded',
-              memoryScoreThreshold: 'hardcoded',
-              memoryLimit: 'hardcoded',
-              focusModeEnabled: 'hardcoded',
-              crossChannelHistoryEnabled: 'hardcoded',
-              shareLtmAcrossPersonalities: 'hardcoded',
-              showModelFooter: 'hardcoded',
-            },
-            userOverrides: null,
+      // resolveUserDefaults returns admin-sourced maxMessages
+      stub.resolveUserDefaults.mockResolvedValue(
+        makeOk({
+          maxMessages: 75,
+          maxAge: null,
+          maxImages: 10,
+          memoryScoreThreshold: 0.5,
+          memoryLimit: 20,
+          focusModeEnabled: false,
+          crossChannelHistoryEnabled: false,
+          shareLtmAcrossPersonalities: false,
+          showModelFooter: true,
+          voiceResponseMode: 'always',
+          voiceTranscriptionEnabled: true,
+          sources: {
+            maxMessages: 'admin',
+            maxAge: 'hardcoded',
+            maxImages: 'hardcoded',
+            memoryScoreThreshold: 'hardcoded',
+            memoryLimit: 'hardcoded',
+            focusModeEnabled: 'hardcoded',
+            crossChannelHistoryEnabled: 'hardcoded',
+            shareLtmAcrossPersonalities: 'hardcoded',
+            showModelFooter: 'hardcoded',
+            voiceResponseMode: 'hardcoded',
+            voiceTranscriptionEnabled: 'hardcoded',
           },
+          userOverrides: null,
         })
-        .mockResolvedValueOnce({
-          ok: true,
-          data: { configOverrides: { maxMessages: 25 } },
-        });
+      );
+      // Channel has its own local override of maxMessages
+      stub.getChannelConfigOverrides.mockResolvedValue(
+        makeOk({ configOverrides: { maxMessages: 25 } })
+      );
 
       await handleChannelSettings(context);
 
@@ -320,7 +349,8 @@ describe('Channel Settings Dashboard', () => {
       const context = createMockContext(true);
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
       // Resolve endpoint returns error
-      mockCallGatewayApi.mockResolvedValue({ ok: false, error: 'Not found' });
+      stub.resolveCascade.mockResolvedValue(makeErr(404, 'Not found'));
+      stub.getChannelConfigOverrides.mockResolvedValue(makeErr(404, 'Not found'));
 
       await handleChannelSettings(context);
 
@@ -385,7 +415,7 @@ describe('Channel Settings Dashboard', () => {
     it('should handle API failure gracefully', async () => {
       const interaction = {
         customId: 'channel-settings::set::channel-123::maxMessages:auto',
-        user: { id: 'user-456' },
+        user: { id: '123456789' },
         reply: vi.fn(),
         update: vi.fn(),
         showModal: vi.fn(),
@@ -394,7 +424,7 @@ describe('Channel Settings Dashboard', () => {
       mockSessionManager.get.mockReturnValue({
         data: {
           user: {
-            discordId: 'user-456',
+            discordId: '123456789',
             username: 'testuser',
             displayName: 'testuser',
           },
@@ -409,10 +439,7 @@ describe('Channel Settings Dashboard', () => {
         },
       });
 
-      mockCallGatewayApi.mockResolvedValue({
-        ok: false,
-        error: 'Server error',
-      });
+      stub.updateChannelConfigOverrides.mockResolvedValue(makeErr(500, 'Server error'));
 
       await handleChannelSettingsButton(interaction as unknown as ButtonInteraction);
 
@@ -424,7 +451,7 @@ describe('Channel Settings Dashboard', () => {
   describe('handleChannelSettingsModal', () => {
     const createMockModalInteraction = (customId: string, inputValue: string) => ({
       customId,
-      user: { id: 'user-456' },
+      user: { id: '123456789' },
       fields: {
         getTextInputValue: vi.fn().mockReturnValue(inputValue),
       },
@@ -437,7 +464,7 @@ describe('Channel Settings Dashboard', () => {
     const createSessionWithSetting = (settingId: string) => ({
       data: {
         user: {
-          discordId: 'user-456',
+          discordId: '123456789',
           username: 'testuser',
           displayName: 'testuser',
         },
@@ -459,19 +486,15 @@ describe('Channel Settings Dashboard', () => {
       );
 
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxMessages'));
-      mockCallGatewayApi.mockResolvedValue({ ok: true });
+      stub.updateChannelConfigOverrides.mockResolvedValue(makeOk({ configOverrides: {} }));
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
 
       await handleChannelSettingsModal(interaction as never);
 
-      // Should use new config-overrides endpoint with flat body shape
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/channel/channel-123/config-overrides',
-        expect.objectContaining({
-          method: 'PATCH',
-          body: { maxMessages: 75 },
-        })
-      );
+      // Should use the typed userClient method with channelId + flat body
+      expect(stub.updateChannelConfigOverrides).toHaveBeenCalledWith('channel-123', {
+        maxMessages: 75,
+      });
     });
 
     it('should update maxAge setting with duration string (2h)', async () => {
@@ -481,18 +504,14 @@ describe('Channel Settings Dashboard', () => {
       );
 
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxAge'));
-      mockCallGatewayApi.mockResolvedValue({ ok: true });
+      stub.updateChannelConfigOverrides.mockResolvedValue(makeOk({ configOverrides: {} }));
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
 
       await handleChannelSettingsModal(interaction as never);
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/channel/channel-123/config-overrides',
-        expect.objectContaining({
-          method: 'PATCH',
-          body: { maxAge: 7200 },
-        })
-      );
+      expect(stub.updateChannelConfigOverrides).toHaveBeenCalledWith('channel-123', {
+        maxAge: 7200,
+      });
     });
 
     it('should update maxAge setting to "off" (disabled)', async () => {
@@ -502,19 +521,15 @@ describe('Channel Settings Dashboard', () => {
       );
 
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxAge'));
-      mockCallGatewayApi.mockResolvedValue({ ok: true });
+      stub.updateChannelConfigOverrides.mockResolvedValue(makeOk({ configOverrides: {} }));
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
 
       await handleChannelSettingsModal(interaction as never);
 
       // "off" maps to -1 in the modal, mapSettingToApiUpdate converts -1 → null
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/channel/channel-123/config-overrides',
-        expect.objectContaining({
-          method: 'PATCH',
-          body: { maxAge: null },
-        })
-      );
+      expect(stub.updateChannelConfigOverrides).toHaveBeenCalledWith('channel-123', {
+        maxAge: null,
+      });
     });
 
     it('should update maxImages setting', async () => {
@@ -524,18 +539,14 @@ describe('Channel Settings Dashboard', () => {
       );
 
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxImages'));
-      mockCallGatewayApi.mockResolvedValue({ ok: true });
+      stub.updateChannelConfigOverrides.mockResolvedValue(makeOk({ configOverrides: {} }));
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
 
       await handleChannelSettingsModal(interaction as never);
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/channel/channel-123/config-overrides',
-        expect.objectContaining({
-          method: 'PATCH',
-          body: { maxImages: 10 },
-        })
-      );
+      expect(stub.updateChannelConfigOverrides).toHaveBeenCalledWith('channel-123', {
+        maxImages: 10,
+      });
     });
 
     it('should invalidate cache after successful update', async () => {
@@ -545,7 +556,7 @@ describe('Channel Settings Dashboard', () => {
       );
 
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxMessages'));
-      mockCallGatewayApi.mockResolvedValue({ ok: true });
+      stub.updateChannelConfigOverrides.mockResolvedValue(makeOk({ configOverrides: {} }));
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
 
       await handleChannelSettingsModal(interaction as never);
@@ -560,7 +571,7 @@ describe('Channel Settings Dashboard', () => {
       );
 
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxMessages'));
-      mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+      stub.updateChannelConfigOverrides.mockRejectedValue(new Error('Network error'));
 
       await handleChannelSettingsModal(interaction as never);
 
@@ -575,8 +586,8 @@ describe('Channel Settings Dashboard', () => {
       );
 
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxMessages'));
-      // First call is PATCH (returns error), second would be resolve (not called)
-      mockCallGatewayApi.mockResolvedValue({ ok: false, error: 'Validation failed' });
+      // PATCH returns error
+      stub.updateChannelConfigOverrides.mockResolvedValue(makeErr(400, 'Validation failed'));
 
       await handleChannelSettingsModal(interaction as never);
 

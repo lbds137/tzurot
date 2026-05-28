@@ -118,6 +118,8 @@ import { handleDeactivateChannel } from '../user/channel/deactivate.js';
 import { handleListUserChannels } from '../user/channel/list.js';
 import { handleUpdateChannelGuild } from '../user/channel/updateGuild.js';
 import { handleGetChannelConfigOverrides } from '../user/channel/configOverrides.js';
+import { handleUpdateChannelConfigOverrides } from '../user/channel/configOverrides.js';
+import { handleClearChannelConfigOverrides } from '../user/channel/configOverrides.js';
 import { handleGetUserUsage } from '../user/usage.js';
 import { handleClearHistory } from '../user/history.js';
 import { handleUndoHistory } from '../user/history.js';
@@ -308,6 +310,8 @@ export function mountUserRoutes(app: Express, deps: RouteDeps): void {
   app.post('/api/user/persona/override/by-id/:personalityId', requireUserAuth(), requireProvisionedUser(deps.prisma), handleCreatePersonaOverride(deps));
   app.get('/api/user/channel/:channelId', requireUserAuth(), requireProvisionedUser(deps.prisma), handleGetUserChannel(deps));
   app.get('/api/user/channel/:channelId/config-overrides', requireUserAuth(), requireProvisionedUser(deps.prisma), handleGetChannelConfigOverrides(deps));
+  app.patch('/api/user/channel/:channelId/config-overrides', requireUserAuth(), requireProvisionedUser(deps.prisma), handleUpdateChannelConfigOverrides(deps));
+  app.delete('/api/user/channel/:channelId/config-overrides', requireUserAuth(), requireProvisionedUser(deps.prisma), handleClearChannelConfigOverrides(deps));
   app.delete('/api/user/wallet/:provider', requireUserAuth(), requireProvisionedUser(deps.prisma), handleRemoveWalletKey(deps));
   app.get('/api/user/memory/:id', requireUserAuth(), requireProvisionedUser(deps.prisma), handleGetMemory(deps));
   app.patch('/api/user/memory/:id', requireUserAuth(), requireProvisionedUser(deps.prisma), handleUpdateMemory(deps));

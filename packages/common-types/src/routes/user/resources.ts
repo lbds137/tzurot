@@ -20,7 +20,11 @@ import {
   GetChannelActivationResponseSchema,
   UpdateChannelGuildRequestSchema,
   UpdateChannelGuildResponseSchema,
-  ChannelSettingsSchema,
+  // Channel config-overrides (PATCH/DELETE wire the dashboard)
+  GetChannelConfigOverridesResponseSchema,
+  UpdateChannelConfigOverridesRequestSchema,
+  UpdateChannelConfigOverridesResponseSchema,
+  ClearChannelConfigOverridesResponseSchema,
   // Wallet
   ListWalletKeysResponseSchema,
   RemoveWalletKeyResponseSchema,
@@ -51,6 +55,8 @@ import {
   DeleteVoiceResponseSchema,
 } from '../../schemas/api/index.js';
 import type { RouteDef } from '../types.js';
+
+const CHANNEL_CONFIG_OVERRIDES_PATH = '/channel/:channelId/config-overrides';
 
 export const userResourceRoutes = {
   // ============================================================================
@@ -112,12 +118,35 @@ export const userResourceRoutes = {
   getChannelConfigOverrides: {
     audience: 'user',
     method: 'get',
-    path: '/channel/:channelId/config-overrides',
+    path: CHANNEL_CONFIG_OVERRIDES_PATH,
     id: 'getChannelConfigOverrides',
     params: { channelId: z.string() },
-    output: ChannelSettingsSchema,
+    output: GetChannelConfigOverridesResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
+  },
+
+  updateChannelConfigOverrides: {
+    audience: 'user',
+    method: 'patch',
+    path: CHANNEL_CONFIG_OVERRIDES_PATH,
+    id: 'updateChannelConfigOverrides',
+    params: { channelId: z.string() },
+    input: UpdateChannelConfigOverridesRequestSchema,
+    output: UpdateChannelConfigOverridesResponseSchema,
+    requiresProvisionedUser: true,
+    meta: { idempotent: true },
+  },
+
+  clearChannelConfigOverrides: {
+    audience: 'user',
+    method: 'delete',
+    path: CHANNEL_CONFIG_OVERRIDES_PATH,
+    id: 'clearChannelConfigOverrides',
+    params: { channelId: z.string() },
+    output: ClearChannelConfigOverridesResponseSchema,
+    requiresProvisionedUser: true,
+    meta: { idempotent: true },
   },
 
   // ============================================================================

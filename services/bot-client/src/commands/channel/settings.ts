@@ -18,10 +18,10 @@ import type { DeferredCommandContext } from '../../utils/commandContext/types.js
 import {
   createLogger,
   DISCORD_COLORS,
-  GATEWAY_TIMEOUTS,
   type ResolvedConfigOverrides,
+  type UserClient,
 } from '@tzurot/common-types';
-import { callGatewayApi, toGatewayUser, type GatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import { GatewayClient, invalidateChannelSettingsCache } from '../../utils/GatewayClient.js';
 import {
   type SettingsDashboardConfig,
@@ -93,12 +93,8 @@ export async function handleChannelSettings(context: DeferredCommandContext): Pr
     const channelSettings = await gatewayClient.getChannelSettings(channelId);
     const personalityId = channelSettings?.settings?.activatedPersonalityId ?? undefined;
 
-    // Fetch resolved config with channel tier
-    const data = await fetchAndConvertSettingsData(
-      toGatewayUser(context.user),
-      personalityId,
-      channelId
-    );
+    const { userClient } = clientsFor(interaction);
+    const data = await fetchAndConvertSettingsData(userClient, personalityId, channelId);
 
     // When no personality is activated, resolve-defaults is used as fallback,
     // so admin and user-default overrides are visible. Only personality-tier is missing.
@@ -168,7 +164,7 @@ export const isChannelSettingsInteraction = channelSettingsHandlers.isInteractio
  * admin → user-default) so admin overrides are still visible.
  */
 async function fetchAndConvertSettingsData(
-  user: GatewayUser,
+  userClient: UserClient,
   personalityId: string | undefined,
   channelId: string
 ): Promise<SettingsData> {
@@ -176,21 +172,11 @@ async function fetchAndConvertSettingsData(
   // When no personality is activated, use resolve-defaults for admin/user cascade.
   const resolvePromise =
     personalityId !== undefined
-      ? callGatewayApi<ResolvedConfigOverrides>(
-          `/user/config-overrides/resolve/${encodeURIComponent(personalityId)}?channelId=${encodeURIComponent(channelId)}`,
-          { method: 'GET', user, timeout: GATEWAY_TIMEOUTS.DEFERRED }
-        )
-      : callGatewayApi<ResolveDefaultsResponse>('/user/config-overrides/resolve-defaults', {
-          method: 'GET',
-          user,
-          timeout: GATEWAY_TIMEOUTS.DEFERRED,
-        });
+      ? userClient.resolveCascade(personalityId, { channelId })
+      : userClient.resolveUserDefaults();
 
   const [channelOverridesResult, resolvedResult] = await Promise.all([
-    callGatewayApi<{ configOverrides: Record<string, unknown> | null }>(
-      `/user/channel/${encodeURIComponent(channelId)}/config-overrides`,
-      { method: 'GET', user, timeout: GATEWAY_TIMEOUTS.DEFERRED }
-    ),
+    userClient.getChannelConfigOverrides(channelId),
     resolvePromise,
   ]);
 
@@ -239,16 +225,8 @@ async function handleSettingUpdate(
       return { success: false, error: 'Unknown setting' };
     }
 
-    // Send update to channel config-overrides endpoint
-    const result = await callGatewayApi(
-      `/user/channel/${encodeURIComponent(channelId)}/config-overrides`,
-      {
-        method: 'PATCH',
-        body,
-        user: toGatewayUser(interaction.user),
-        timeout: GATEWAY_TIMEOUTS.DEFERRED,
-      }
-    );
+    const { userClient } = clientsFor(interaction);
+    const result = await userClient.updateChannelConfigOverrides(channelId, body);
 
     if (!result.ok) {
       logger.warn({ settingId, error: result.error, channelId }, 'Update failed');
@@ -262,11 +240,7 @@ async function handleSettingUpdate(
     const gatewayClient = new GatewayClient();
     const channelSettings = await gatewayClient.getChannelSettings(channelId);
     const personalityId = channelSettings?.settings?.activatedPersonalityId ?? undefined;
-    const newData = await fetchAndConvertSettingsData(
-      toGatewayUser(interaction.user),
-      personalityId,
-      channelId
-    );
+    const newData = await fetchAndConvertSettingsData(userClient, personalityId, channelId);
 
     logger.info({ settingId, newValue, channelId, userId }, 'Setting updated');
 

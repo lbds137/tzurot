@@ -28,6 +28,7 @@ const ADMIN_LLM_CONFIG = '../admin/llm-config.js';
 const ADMIN_SETTINGS = '../admin/settings.js';
 const ADMIN_TTS_CONFIG = '../admin/tts-config.js';
 const USER_CHANNEL_GET = '../user/channel/get.js';
+const USER_CHANNEL_CONFIG_OVERRIDES = '../user/channel/configOverrides.js';
 const USER_HISTORY = '../user/history.js';
 const USER_LLM_CONFIG = '../user/llm-config.js';
 const USER_MEMORY = '../user/memory.js';
@@ -55,7 +56,9 @@ const PATH_MAP: Readonly<Record<string, string>> = {
   // Channel
   activateChannel: '../user/channel/activate.js',
   deactivateChannel: '../user/channel/deactivate.js',
-  getChannelConfigOverrides: '../user/channel/configOverrides.js',
+  getChannelConfigOverrides: USER_CHANNEL_CONFIG_OVERRIDES,
+  updateChannelConfigOverrides: USER_CHANNEL_CONFIG_OVERRIDES,
+  clearChannelConfigOverrides: USER_CHANNEL_CONFIG_OVERRIDES,
   getChannelSettings: USER_CHANNEL_GET,
   getUserChannel: USER_CHANNEL_GET,
   listUserChannels: '../user/channel/list.js',

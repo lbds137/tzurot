@@ -979,6 +979,45 @@ export class UserClient {
   }
 
   /**
+   * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
+   */
+  async updateChannelConfigOverrides(channelId: string, input: z.infer<typeof ROUTE_MANIFEST.updateChannelConfigOverrides.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updateChannelConfigOverrides.output>>> {
+    const fullPath = `/api/user/channel/${encodeURIComponent(channelId)}/config-overrides`;
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'PATCH',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.updateChannelConfigOverrides.output,
+    });
+  }
+
+  /**
+   * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
+   */
+  async clearChannelConfigOverrides(channelId: string): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.clearChannelConfigOverrides.output>>> {
+    const fullPath = `/api/user/channel/${encodeURIComponent(channelId)}/config-overrides`;
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'DELETE',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+      },
+      outputSchema: ROUTE_MANIFEST.clearChannelConfigOverrides.output,
+    });
+  }
+
+  /**
    * @safeRead Server-side has no observable mutation — safe to cache client-side.
    */
   async getUserUsage(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getUserUsage.output>>> {

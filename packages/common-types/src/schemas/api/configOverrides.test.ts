@@ -14,6 +14,10 @@ import {
   ClearUserConfigDefaultsResponseSchema,
   UpdatePersonalityConfigOverridesResponseSchema,
   ClearPersonalityConfigOverridesResponseSchema,
+  GetChannelConfigOverridesResponseSchema,
+  UpdateChannelConfigOverridesRequestSchema,
+  UpdateChannelConfigOverridesResponseSchema,
+  ClearChannelConfigOverridesResponseSchema,
   CONFIG_OVERRIDES_KEYS,
 } from './configOverrides.js';
 
@@ -344,6 +348,67 @@ describe('Config-Overrides Response Schemas', () => {
       expect(
         ClearPersonalityConfigOverridesResponseSchema.safeParse({ success: true }).success
       ).toBe(true);
+    });
+  });
+
+  describe('GetChannelConfigOverridesResponseSchema', () => {
+    it('accepts populated configOverrides', () => {
+      const data = { configOverrides: { maxMessages: 30 } };
+      expect(GetChannelConfigOverridesResponseSchema.safeParse(data).success).toBe(true);
+    });
+
+    it('accepts null configOverrides (no row yet)', () => {
+      expect(
+        GetChannelConfigOverridesResponseSchema.safeParse({ configOverrides: null }).success
+      ).toBe(true);
+    });
+
+    it('rejects missing configOverrides field', () => {
+      expect(GetChannelConfigOverridesResponseSchema.safeParse({}).success).toBe(false);
+    });
+  });
+
+  describe('UpdateChannelConfigOverridesRequestSchema', () => {
+    it('accepts a partial overrides record', () => {
+      const data = { maxMessages: 50, focusModeEnabled: true };
+      expect(UpdateChannelConfigOverridesRequestSchema.safeParse(data).success).toBe(true);
+    });
+
+    it('accepts an empty object (no-op patch)', () => {
+      expect(UpdateChannelConfigOverridesRequestSchema.safeParse({}).success).toBe(true);
+    });
+
+    it('accepts null field values (used to clear individual settings)', () => {
+      expect(UpdateChannelConfigOverridesRequestSchema.safeParse({ maxAge: null }).success).toBe(
+        true
+      );
+    });
+  });
+
+  describe('UpdateChannelConfigOverridesResponseSchema', () => {
+    it('accepts merged configOverrides', () => {
+      const data = { configOverrides: { maxMessages: 30, focusModeEnabled: true } };
+      expect(UpdateChannelConfigOverridesResponseSchema.safeParse(data).success).toBe(true);
+    });
+
+    it('rejects null configOverrides (PATCH always returns merged object)', () => {
+      expect(
+        UpdateChannelConfigOverridesResponseSchema.safeParse({ configOverrides: null }).success
+      ).toBe(false);
+    });
+  });
+
+  describe('ClearChannelConfigOverridesResponseSchema', () => {
+    it('accepts { success: true }', () => {
+      expect(ClearChannelConfigOverridesResponseSchema.safeParse({ success: true }).success).toBe(
+        true
+      );
+    });
+
+    it('rejects success=false', () => {
+      expect(ClearChannelConfigOverridesResponseSchema.safeParse({ success: false }).success).toBe(
+        false
+      );
     });
   });
 });
