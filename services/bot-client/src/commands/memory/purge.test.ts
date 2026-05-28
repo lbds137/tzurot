@@ -14,6 +14,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handlePurge, handlePurgeButton, handlePurgeModal, MEMORY_PURGE_PREFIX } from './purge.js';
 import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
+import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
@@ -28,16 +29,10 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
 
 vi.mock('../../utils/commandHelpers.js', () => ({
   createDangerEmbed: vi.fn((_title: string, _description: string) => {
@@ -61,10 +56,27 @@ const PERSONALITY_ID = 'personality-uuid-123';
 const PERSONALITY_NAME = 'Lilith';
 const EXPECTED_PHRASE = 'DELETE LILITH MEMORIES';
 
+interface MemoryClientStub {
+  getStats: ReturnType<typeof vi.fn>;
+  issuePurgeToken: ReturnType<typeof vi.fn>;
+  purge: ReturnType<typeof vi.fn>;
+}
+
+function createStub(): MemoryClientStub {
+  return {
+    getStats: vi.fn(),
+    issuePurgeToken: vi.fn(),
+    purge: vi.fn(),
+  };
+}
+
+let stub: MemoryClientStub;
+
 function createMockContext(personality = 'lilith') {
   return {
     user: { id: 'user-123', username: 'testuser', globalName: 'testuser' },
     interaction: {
+      user: { id: 'user-123', username: 'testuser' },
       options: {
         getString: (name: string, _required?: boolean) =>
           name === 'character' ? personality : null,
@@ -120,7 +132,7 @@ function createMockModalInteraction(
   const messageEdit = vi.fn().mockResolvedValue(undefined);
   return {
     customId,
-    user: { id: opts.userId ?? 'user-123' },
+    user: { id: opts.userId ?? 'user-123', username: 'testuser' },
     fields: {
       getTextInputValue: vi.fn((_fieldId: string) => phrase),
     },
@@ -146,6 +158,8 @@ function createMockModalInteraction(
 
 beforeEach(() => {
   vi.clearAllMocks();
+  stub = createStub();
+  clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
 });
 
 describe('handlePurge (slash command entry)', () => {
@@ -162,7 +176,7 @@ describe('handlePurge (slash command entry)', () => {
 
   it('shows error when stats API fails', async () => {
     mockResolvePersonalityId.mockResolvedValue(PERSONALITY_ID);
-    mockCallGatewayApi.mockResolvedValue({ ok: false, status: 500, error: 'Server error' });
+    stub.getStats.mockResolvedValue(makeErr(500, 'Server error'));
     const context = createMockContext();
 
     await handlePurge(context);
@@ -174,7 +188,7 @@ describe('handlePurge (slash command entry)', () => {
 
   it('shows 404 message when personality not in stats', async () => {
     mockResolvePersonalityId.mockResolvedValue(PERSONALITY_ID);
-    mockCallGatewayApi.mockResolvedValue({ ok: false, status: 404, error: 'Not found' });
+    stub.getStats.mockResolvedValue(makeErr(404, 'Not found'));
     const context = createMockContext();
 
     await handlePurge(context);
@@ -186,16 +200,18 @@ describe('handlePurge (slash command entry)', () => {
 
   it('shows "no memories" message when nothing to purge', async () => {
     mockResolvePersonalityId.mockResolvedValue(PERSONALITY_ID);
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.getStats.mockResolvedValue(
+      makeOk({
         personalityId: PERSONALITY_ID,
         personalityName: PERSONALITY_NAME,
         personaId: 'persona-123',
         totalCount: 0,
         lockedCount: 0,
-      },
-    });
+        oldestMemory: null,
+        newestMemory: null,
+        focusModeEnabled: false,
+      })
+    );
     const context = createMockContext();
 
     await handlePurge(context);
@@ -207,16 +223,18 @@ describe('handlePurge (slash command entry)', () => {
 
   it('renders warning embed + buttons (does NOT awaitMessageComponent)', async () => {
     mockResolvePersonalityId.mockResolvedValue(PERSONALITY_ID);
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.getStats.mockResolvedValue(
+      makeOk({
         personalityId: PERSONALITY_ID,
         personalityName: PERSONALITY_NAME,
         personaId: 'persona-123',
         totalCount: 10,
         lockedCount: 2,
-      },
-    });
+        oldestMemory: null,
+        newestMemory: null,
+        focusModeEnabled: false,
+      })
+    );
     const context = createMockContext();
 
     await handlePurge(context);
@@ -333,32 +351,30 @@ describe('handlePurgeModal (modal submission)', () => {
     expect(interaction.reply).toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining('did not match') })
     );
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(stub.issuePurgeToken).not.toHaveBeenCalled();
+    expect(stub.purge).not.toHaveBeenCalled();
   });
 
   it('accepts case-mismatched confirmation phrase (case-insensitive compare matches API)', async () => {
     // Case-insensitive compare matches the api-gateway's own .toUpperCase()
     // validation. A user typing the phrase in lowercase shouldn't fail the
     // client gate when the server would accept it.
-    mockCallGatewayApi
-      .mockResolvedValueOnce({
-        ok: true,
-        data: {
-          purgeToken: 'purge_test0000test0002',
-          personalityId: PERSONALITY_ID,
-          personalityName: PERSONALITY_NAME,
-        },
+    stub.issuePurgeToken.mockResolvedValueOnce(
+      makeOk({
+        purgeToken: 'purge_test0000test0002',
+        personalityId: PERSONALITY_ID,
+        personalityName: PERSONALITY_NAME,
       })
-      .mockResolvedValueOnce({
-        ok: true,
-        data: {
-          deletedCount: 0,
-          lockedPreserved: 0,
-          personalityId: PERSONALITY_ID,
-          personalityName: PERSONALITY_NAME,
-          message: 'ok',
-        },
-      });
+    );
+    stub.purge.mockResolvedValueOnce(
+      makeOk({
+        deletedCount: 0,
+        lockedPreserved: 0,
+        personalityId: PERSONALITY_ID,
+        personalityName: PERSONALITY_NAME,
+        message: 'ok',
+      })
+    );
 
     const interaction = createMockModalInteraction('delete lilith memories');
     await handlePurgeModal(interaction);
@@ -367,62 +383,54 @@ describe('handlePurgeModal (modal submission)', () => {
     expect(interaction.reply).not.toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining('did not match') })
     );
-    expect(mockCallGatewayApi).toHaveBeenCalledTimes(2);
+    expect(stub.issuePurgeToken).toHaveBeenCalledTimes(1);
+    expect(stub.purge).toHaveBeenCalledTimes(1);
   });
 
   it('trims whitespace before validating and forwards trimmed phrase to /purge/token', async () => {
-    mockCallGatewayApi
-      .mockResolvedValueOnce({
-        ok: true,
-        data: {
-          purgeToken: 'purge_test0000test0001',
-          personalityId: PERSONALITY_ID,
-          personalityName: PERSONALITY_NAME,
-        },
+    stub.issuePurgeToken.mockResolvedValueOnce(
+      makeOk({
+        purgeToken: 'purge_test0000test0001',
+        personalityId: PERSONALITY_ID,
+        personalityName: PERSONALITY_NAME,
       })
-      .mockResolvedValueOnce({
-        ok: true,
-        data: {
-          deletedCount: 5,
-          lockedPreserved: 0,
-          personalityId: PERSONALITY_ID,
-          personalityName: PERSONALITY_NAME,
-          message: 'ok',
-        },
-      });
+    );
+    stub.purge.mockResolvedValueOnce(
+      makeOk({
+        deletedCount: 5,
+        lockedPreserved: 0,
+        personalityId: PERSONALITY_ID,
+        personalityName: PERSONALITY_NAME,
+        message: 'ok',
+      })
+    );
     const interaction = createMockModalInteraction(`  ${EXPECTED_PHRASE}  `);
 
     await handlePurgeModal(interaction);
 
-    expect(mockCallGatewayApi).toHaveBeenNthCalledWith(
-      1,
-      '/user/memory/purge/token',
-      expect.objectContaining({
-        body: expect.objectContaining({ confirmationPhrase: EXPECTED_PHRASE }),
-      })
-    );
+    expect(stub.issuePurgeToken).toHaveBeenCalledWith({
+      personalityId: PERSONALITY_ID,
+      confirmationPhrase: EXPECTED_PHRASE,
+    });
   });
 
   it('performs purge as token-handshake (issue → consume) and reports success', async () => {
-    mockCallGatewayApi
-      .mockResolvedValueOnce({
-        ok: true,
-        data: {
-          purgeToken: 'purge_test0000test0001',
-          personalityId: PERSONALITY_ID,
-          personalityName: PERSONALITY_NAME,
-        },
+    stub.issuePurgeToken.mockResolvedValueOnce(
+      makeOk({
+        purgeToken: 'purge_test0000test0001',
+        personalityId: PERSONALITY_ID,
+        personalityName: PERSONALITY_NAME,
       })
-      .mockResolvedValueOnce({
-        ok: true,
-        data: {
-          deletedCount: 8,
-          lockedPreserved: 2,
-          personalityId: PERSONALITY_ID,
-          personalityName: PERSONALITY_NAME,
-          message: 'ok',
-        },
-      });
+    );
+    stub.purge.mockResolvedValueOnce(
+      makeOk({
+        deletedCount: 8,
+        lockedPreserved: 2,
+        personalityId: PERSONALITY_ID,
+        personalityName: PERSONALITY_NAME,
+        message: 'ok',
+      })
+    );
     const interaction = createMockModalInteraction(EXPECTED_PHRASE);
 
     await handlePurgeModal(interaction);
@@ -430,32 +438,18 @@ describe('handlePurgeModal (modal submission)', () => {
     expect(interaction.update).toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining('Purging') })
     );
-    expect(mockCallGatewayApi).toHaveBeenNthCalledWith(
-      1,
-      '/user/memory/purge/token',
-      expect.objectContaining({
-        method: 'POST',
-        body: expect.objectContaining({
-          personalityId: PERSONALITY_ID,
-          confirmationPhrase: EXPECTED_PHRASE,
-        }),
-      })
-    );
-    expect(mockCallGatewayApi).toHaveBeenNthCalledWith(
-      2,
-      '/user/memory/purge',
-      expect.objectContaining({
-        method: 'POST',
-        body: { purgeToken: 'purge_test0000test0001' },
-      })
-    );
+    expect(stub.issuePurgeToken).toHaveBeenCalledWith({
+      personalityId: PERSONALITY_ID,
+      confirmationPhrase: EXPECTED_PHRASE,
+    });
+    expect(stub.purge).toHaveBeenCalledWith({ purgeToken: 'purge_test0000test0001' });
     expect(interaction.editReply).toHaveBeenCalledWith(
       expect.objectContaining({ embeds: expect.any(Array) })
     );
   });
 
   it('reports failure when token issuance fails (confirmation rejected server-side)', async () => {
-    mockCallGatewayApi.mockResolvedValueOnce({ ok: false, error: 'Confirmation required' });
+    stub.issuePurgeToken.mockResolvedValueOnce(makeErr(400, 'Confirmation required'));
     const interaction = createMockModalInteraction(EXPECTED_PHRASE);
 
     await handlePurgeModal(interaction);
@@ -464,20 +458,19 @@ describe('handlePurgeModal (modal submission)', () => {
       expect.objectContaining({ content: expect.stringContaining('Failed to confirm') })
     );
     // Only the token-issue call should have run; no execute attempt.
-    expect(mockCallGatewayApi).toHaveBeenCalledTimes(1);
+    expect(stub.issuePurgeToken).toHaveBeenCalledTimes(1);
+    expect(stub.purge).not.toHaveBeenCalled();
   });
 
   it('reports failure when execute step fails after token issuance', async () => {
-    mockCallGatewayApi
-      .mockResolvedValueOnce({
-        ok: true,
-        data: {
-          purgeToken: 'purge_test0000test0001',
-          personalityId: PERSONALITY_ID,
-          personalityName: PERSONALITY_NAME,
-        },
+    stub.issuePurgeToken.mockResolvedValueOnce(
+      makeOk({
+        purgeToken: 'purge_test0000test0001',
+        personalityId: PERSONALITY_ID,
+        personalityName: PERSONALITY_NAME,
       })
-      .mockResolvedValueOnce({ ok: false, error: 'Database error' });
+    );
+    stub.purge.mockResolvedValueOnce(makeErr(500, 'Database error'));
     const interaction = createMockModalInteraction(EXPECTED_PHRASE);
 
     await handlePurgeModal(interaction);
@@ -522,7 +515,7 @@ describe('handlePurgeModal (modal submission)', () => {
         content: expect.stringContaining('Only the person who ran this command'),
       })
     );
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(stub.issuePurgeToken).not.toHaveBeenCalled();
   });
 });
 

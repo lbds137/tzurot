@@ -15,12 +15,12 @@ import {
   handleDeleteConfirm,
   handleViewFullButton,
   MEMORY_DETAIL_PREFIX,
-  type MemoryItem,
 } from './detail.js';
+import type { MemoryItem } from '@tzurot/common-types';
 import { CUSTOM_ID_DELIMITER } from '../../utils/customIds.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
+import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
-// Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
   return {
@@ -39,26 +39,36 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-// Mock userGatewayClient
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
 
-// Mock customIds
 vi.mock('../../utils/customIds.js', () => ({
   CUSTOM_ID_DELIMITER: '::',
 }));
 
+interface MemoryClientStub {
+  getMemory: ReturnType<typeof vi.fn>;
+  setMemoryLock: ReturnType<typeof vi.fn>;
+  deleteMemory: ReturnType<typeof vi.fn>;
+}
+
+function createStub(): MemoryClientStub {
+  return {
+    getMemory: vi.fn(),
+    setMemoryLock: vi.fn(),
+    deleteMemory: vi.fn(),
+  };
+}
+
 describe('Memory Detail', () => {
+  let stub: MemoryClientStub;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = createStub();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
   });
 
   const createMockMemory = (overrides: Partial<MemoryItem> = {}): MemoryItem => ({
@@ -240,17 +250,14 @@ describe('Memory Detail', () => {
   describe('handleMemorySelect', () => {
     it('should show detail view on select', async () => {
       const memory = createMockMemory();
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: { memory },
-      });
+      stub.getMemory.mockResolvedValue(makeOk({ memory }));
 
       const mockDeferUpdate = vi.fn();
       const mockFollowUp = vi.fn();
       const mockEditReply = vi.fn();
 
       const interaction = {
-        user: { id: 'user-123' },
+        user: { id: 'user-123', username: 'testuser' },
         values: ['memory-123'],
         deferUpdate: mockDeferUpdate,
         followUp: mockFollowUp,
@@ -267,16 +274,13 @@ describe('Memory Detail', () => {
     });
 
     it('should show error if memory not found', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: false,
-        error: 'Not found',
-      });
+      stub.getMemory.mockResolvedValue(makeErr(404, 'Not found'));
 
       const mockDeferUpdate = vi.fn();
       const mockFollowUp = vi.fn();
 
       const interaction = {
-        user: { id: 'user-123' },
+        user: { id: 'user-123', username: 'testuser' },
         values: ['memory-123'],
         deferUpdate: mockDeferUpdate,
         followUp: mockFollowUp,
@@ -295,17 +299,14 @@ describe('Memory Detail', () => {
   describe('handleLockButton', () => {
     it('should toggle lock and update view', async () => {
       const memory = createMockMemory({ isLocked: true });
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: { memory },
-      });
+      stub.setMemoryLock.mockResolvedValue(makeOk({ memory }));
 
       const mockDeferUpdate = vi.fn();
       const mockFollowUp = vi.fn();
       const mockEditReply = vi.fn();
 
       const interaction = {
-        user: { id: 'user-123' },
+        user: { id: 'user-123', username: 'testuser' },
         deferUpdate: mockDeferUpdate,
         followUp: mockFollowUp,
         editReply: mockEditReply,
@@ -318,16 +319,13 @@ describe('Memory Detail', () => {
     });
 
     it('should show error on lock failure', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: false,
-        error: 'Lock failed',
-      });
+      stub.setMemoryLock.mockResolvedValue(makeErr(500, 'Lock failed'));
 
       const mockDeferUpdate = vi.fn();
       const mockFollowUp = vi.fn();
 
       const interaction = {
-        user: { id: 'user-123' },
+        user: { id: 'user-123', username: 'testuser' },
         deferUpdate: mockDeferUpdate,
         followUp: mockFollowUp,
       } as unknown as ButtonInteraction;
@@ -343,10 +341,10 @@ describe('Memory Detail', () => {
 
     it('forwards desiredState=false to setMemoryLock for unlock flow', async () => {
       const memory = createMockMemory({ isLocked: false });
-      mockCallGatewayApi.mockResolvedValue({ ok: true, data: { memory } });
+      stub.setMemoryLock.mockResolvedValue(makeOk({ memory }));
 
       const interaction = {
-        user: { id: 'user-123' },
+        user: { id: 'user-123', username: 'testuser' },
         deferUpdate: vi.fn(),
         followUp: vi.fn(),
         editReply: vi.fn(),
@@ -354,27 +352,21 @@ describe('Memory Detail', () => {
 
       await handleLockButton(interaction, 'memory-123', false);
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        expect.stringContaining('/lock'),
-        expect.objectContaining({ method: 'PUT', body: { locked: false } })
-      );
+      expect(stub.setMemoryLock).toHaveBeenCalledWith('memory-123', { locked: false });
     });
   });
 
   describe('handleDeleteButton', () => {
     it('should show delete confirmation', async () => {
       const memory = createMockMemory();
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: { memory },
-      });
+      stub.getMemory.mockResolvedValue(makeOk({ memory }));
 
       const mockDeferUpdate = vi.fn();
       const mockFollowUp = vi.fn();
       const mockEditReply = vi.fn();
 
       const interaction = {
-        user: { id: 'user-123' },
+        user: { id: 'user-123', username: 'testuser' },
         deferUpdate: mockDeferUpdate,
         followUp: mockFollowUp,
         editReply: mockEditReply,
@@ -397,16 +389,13 @@ describe('Memory Detail', () => {
     });
 
     it('should show error if memory not found', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: false,
-        error: 'Not found',
-      });
+      stub.getMemory.mockResolvedValue(makeErr(404, 'Not found'));
 
       const mockDeferUpdate = vi.fn();
       const mockFollowUp = vi.fn();
 
       const interaction = {
-        user: { id: 'user-123' },
+        user: { id: 'user-123', username: 'testuser' },
         deferUpdate: mockDeferUpdate,
         followUp: mockFollowUp,
       } as unknown as ButtonInteraction;
@@ -423,16 +412,13 @@ describe('Memory Detail', () => {
 
   describe('handleDeleteConfirm', () => {
     it('should delete memory and return true', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: { success: true },
-      });
+      stub.deleteMemory.mockResolvedValue(makeOk({ success: true }));
 
       const mockDeferUpdate = vi.fn();
       const mockFollowUp = vi.fn();
 
       const interaction = {
-        user: { id: 'user-123' },
+        user: { id: 'user-123', username: 'testuser' },
         deferUpdate: mockDeferUpdate,
         followUp: mockFollowUp,
       } as unknown as ButtonInteraction;
@@ -444,16 +430,13 @@ describe('Memory Detail', () => {
     });
 
     it('should show error and return false on failure', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: false,
-        error: 'Delete failed',
-      });
+      stub.deleteMemory.mockResolvedValue(makeErr(500, 'Delete failed'));
 
       const mockDeferUpdate = vi.fn();
       const mockFollowUp = vi.fn();
 
       const interaction = {
-        user: { id: 'user-123' },
+        user: { id: 'user-123', username: 'testuser' },
         deferUpdate: mockDeferUpdate,
         followUp: mockFollowUp,
       } as unknown as ButtonInteraction;
@@ -473,16 +456,13 @@ describe('Memory Detail', () => {
       // path (ack-first rule) without handleDeleteConfirm double-acking.
       // Without the guard, Discord rejects the second deferUpdate and the
       // user sees "This interaction failed."
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: { success: true },
-      });
+      stub.deleteMemory.mockResolvedValue(makeOk({ success: true }));
 
       const mockDeferUpdate = vi.fn();
       const mockFollowUp = vi.fn();
 
       const interaction = {
-        user: { id: 'user-123' },
+        user: { id: 'user-123', username: 'testuser' },
         deferUpdate: mockDeferUpdate,
         followUp: mockFollowUp,
         deferred: true, // ← pre-deferred by caller
@@ -500,16 +480,13 @@ describe('Memory Detail', () => {
     it('should send full memory content as file attachment', async () => {
       const longContent = 'x'.repeat(5000);
       const memory = createMockMemory({ content: longContent });
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: { memory },
-      });
+      stub.getMemory.mockResolvedValue(makeOk({ memory }));
 
       const mockDeferReply = vi.fn();
       const mockEditReply = vi.fn();
 
       const interaction = {
-        user: { id: 'user-123' },
+        user: { id: 'user-123', username: 'testuser' },
         deferReply: mockDeferReply,
         editReply: mockEditReply,
       } as unknown as ButtonInteraction;
@@ -532,16 +509,13 @@ describe('Memory Detail', () => {
     });
 
     it('should show error if memory not found', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: false,
-        error: 'Not found',
-      });
+      stub.getMemory.mockResolvedValue(makeErr(404, 'Not found'));
 
       const mockDeferReply = vi.fn();
       const mockEditReply = vi.fn();
 
       const interaction = {
-        user: { id: 'user-123' },
+        user: { id: 'user-123', username: 'testuser' },
         deferReply: mockDeferReply,
         editReply: mockEditReply,
       } as unknown as ButtonInteraction;

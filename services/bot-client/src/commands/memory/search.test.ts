@@ -12,9 +12,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
 const {
-  mockCallGatewayApi,
+  clientsForMock,
   mockResolveOptionalPersonality,
   mockHandleMemorySelect,
   mockHandleMemoryDetailAction,
@@ -22,7 +23,7 @@ const {
   mockFindMemoryListSessionByMessage,
   mockUpdateMemoryListSessionPage,
 } = vi.hoisted(() => ({
-  mockCallGatewayApi: vi.fn(),
+  clientsForMock: vi.fn(),
   mockResolveOptionalPersonality: vi.fn(),
   mockHandleMemorySelect: vi.fn(),
   mockHandleMemoryDetailAction: vi.fn(),
@@ -50,15 +51,9 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
 
 vi.mock('./resolveHelpers.js', () => ({
   resolveOptionalPersonality: (...args: unknown[]) => mockResolveOptionalPersonality(...args),
@@ -113,6 +108,7 @@ const TEST_QUERY = 'love and loss';
 const sampleResult = {
   id: 'mem-1',
   content: 'A memory about love',
+  personalityId: TEST_PERSONALITY_ID,
   personalityName: 'Test',
   isLocked: false,
   createdAt: '2026-01-01T00:00:00Z',
@@ -127,21 +123,32 @@ const sampleSemanticResponse = {
   searchType: 'semantic' as const,
 };
 
+interface MemoryClientStub {
+  search: ReturnType<typeof vi.fn>;
+}
+
+function createStub(): MemoryClientStub {
+  return { search: vi.fn() };
+}
+
+let stub: MemoryClientStub;
+
 interface MockDeferredContext {
   interaction: {
+    user: { id: string; username: string };
     options: {
       getString: ReturnType<typeof vi.fn>;
       getInteger: ReturnType<typeof vi.fn>;
     };
   };
-  user: { id: string };
+  user: { id: string; username: string };
   editReply: ReturnType<typeof vi.fn>;
 }
 
 interface MockButtonInteraction {
   customId: string;
   message: { id: string };
-  user: { id: string };
+  user: { id: string; username: string };
   deferUpdate: ReturnType<typeof vi.fn>;
   editReply: ReturnType<typeof vi.fn>;
   followUp: ReturnType<typeof vi.fn>;
@@ -163,6 +170,7 @@ function createDeferredContext(
 ): MockDeferredContext {
   return {
     interaction: {
+      user: { id: TEST_USER_ID, username: 'testuser' },
       options: {
         getString: vi.fn((name: string) =>
           name === 'query' ? query : name === 'character' ? null : null
@@ -170,7 +178,7 @@ function createDeferredContext(
         getInteger: vi.fn((name: string) => (name === 'limit' ? limit : null)),
       },
     },
-    user: { id: TEST_USER_ID },
+    user: { id: TEST_USER_ID, username: 'testuser' },
     editReply: vi.fn().mockResolvedValue({ id: TEST_MESSAGE_ID, channelId: TEST_CHANNEL_ID }),
   };
 }
@@ -179,7 +187,7 @@ function createButtonInteraction(customId: string): MockButtonInteraction {
   return {
     customId,
     message: { id: TEST_MESSAGE_ID },
-    user: { id: TEST_USER_ID },
+    user: { id: TEST_USER_ID, username: 'testuser' },
     deferUpdate: vi.fn().mockResolvedValue(undefined),
     editReply: vi.fn().mockResolvedValue({ id: TEST_MESSAGE_ID }),
     followUp: vi.fn().mockResolvedValue(undefined),
@@ -201,8 +209,10 @@ function createSelectInteraction(customId: string): MockSelectInteraction {
 describe('handleSearch', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    stub = createStub();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
     mockResolveOptionalPersonality.mockResolvedValue(TEST_PERSONALITY_ID);
-    mockCallGatewayApi.mockResolvedValue({ ok: true, data: sampleSemanticResponse });
+    stub.search.mockResolvedValue(makeOk(sampleSemanticResponse));
   });
 
   it('fetches semantic results and saves a search session', async () => {
@@ -210,11 +220,12 @@ describe('handleSearch', () => {
 
     await handleSearch(context as unknown as DeferredCommandContext);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/memory/search',
+    expect(stub.search).toHaveBeenCalledWith(
       expect.objectContaining({
-        method: 'POST',
-        body: expect.objectContaining({ query: TEST_QUERY, limit: 5, offset: 0 }),
+        query: TEST_QUERY,
+        limit: 5,
+        offset: 0,
+        personalityId: TEST_PERSONALITY_ID,
       })
     );
     expect(mockSaveMemoryListSession).toHaveBeenCalledWith(
@@ -237,12 +248,7 @@ describe('handleSearch', () => {
 
     await handleSearch(context as unknown as DeferredCommandContext);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/memory/search',
-      expect.objectContaining({
-        body: expect.objectContaining({ limit: 8 }),
-      })
-    );
+    expect(stub.search).toHaveBeenCalledWith(expect.objectContaining({ limit: 8 }));
     expect(mockSaveMemoryListSession).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ kind: 'search', pageSize: 8 }),
@@ -251,10 +257,9 @@ describe('handleSearch', () => {
   });
 
   it('handles text fallback searches and persists searchType in session', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: { ...sampleSemanticResponse, searchType: 'text' as const },
-    });
+    stub.search.mockResolvedValue(
+      makeOk({ ...sampleSemanticResponse, searchType: 'text' as const })
+    );
     const context = createDeferredContext();
 
     await handleSearch(context as unknown as DeferredCommandContext);
@@ -278,13 +283,13 @@ describe('handleSearch', () => {
 
     await handleSearch(context as unknown as DeferredCommandContext);
 
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(stub.search).not.toHaveBeenCalled();
     // handleSearch should NOT double-reply — the helper already did
     expect(context.editReply).not.toHaveBeenCalled();
   });
 
   it('shows error when API call fails', async () => {
-    mockCallGatewayApi.mockResolvedValue({ ok: false, error: 'Server error' });
+    stub.search.mockResolvedValue(makeErr(500, 'Server error'));
     const context = createDeferredContext();
 
     await handleSearch(context as unknown as DeferredCommandContext);
@@ -296,7 +301,7 @@ describe('handleSearch', () => {
   });
 
   it('handles unexpected errors', async () => {
-    mockCallGatewayApi.mockRejectedValue(new Error('network'));
+    stub.search.mockRejectedValue(new Error('network'));
     const context = createDeferredContext();
 
     await handleSearch(context as unknown as DeferredCommandContext);
@@ -310,6 +315,8 @@ describe('handleSearch', () => {
 describe('handleSearchPagination', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    stub = createStub();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
   });
 
   it('re-runs search with new page when session exists', async () => {
@@ -322,21 +329,15 @@ describe('handleSearchPagination', () => {
         pageSize: 5,
       },
     });
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: { ...sampleSemanticResponse, hasMore: true },
-    });
+    stub.search.mockResolvedValue(makeOk({ ...sampleSemanticResponse, hasMore: true }));
 
     const interaction = createButtonInteraction(searchHelpers.build(1, 'all', 'date', null));
 
     await handleSearchPagination(interaction as unknown as ButtonInteraction);
 
     expect(interaction.deferUpdate).toHaveBeenCalled();
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/memory/search',
-      expect.objectContaining({
-        body: expect.objectContaining({ query: TEST_QUERY, offset: 5 }),
-      })
+    expect(stub.search).toHaveBeenCalledWith(
+      expect.objectContaining({ query: TEST_QUERY, offset: 5 })
     );
     expect(mockUpdateMemoryListSessionPage).toHaveBeenCalledWith(
       expect.objectContaining({ newPage: 1, kind: 'search' })
@@ -355,21 +356,15 @@ describe('handleSearchPagination', () => {
         pageSize: 8,
       },
     });
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: { ...sampleSemanticResponse, hasMore: false },
-    });
+    stub.search.mockResolvedValue(makeOk({ ...sampleSemanticResponse, hasMore: false }));
 
     const interaction = createButtonInteraction(searchHelpers.build(2, 'all', 'date', null));
 
     await handleSearchPagination(interaction as unknown as ButtonInteraction);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/memory/search',
-      expect.objectContaining({
-        // Page 2 of 8-per-page → offset 16, limit 8
-        body: expect.objectContaining({ offset: 16, limit: 8 }),
-      })
+    expect(stub.search).toHaveBeenCalledWith(
+      // Page 2 of 8-per-page → offset 16, limit 8
+      expect.objectContaining({ offset: 16, limit: 8 })
     );
   });
 
@@ -387,21 +382,13 @@ describe('handleSearchPagination', () => {
         searchType: 'text',
       },
     });
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: { ...sampleSemanticResponse, hasMore: false },
-    });
+    stub.search.mockResolvedValue(makeOk({ ...sampleSemanticResponse, hasMore: false }));
 
     const interaction = createButtonInteraction(searchHelpers.build(1, 'all', 'date', null));
 
     await handleSearchPagination(interaction as unknown as ButtonInteraction);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/memory/search',
-      expect.objectContaining({
-        body: expect.objectContaining({ preferTextSearch: true }),
-      })
-    );
+    expect(stub.search).toHaveBeenCalledWith(expect.objectContaining({ preferTextSearch: true }));
   });
 
   it('omits preferTextSearch when session searchType is semantic', async () => {
@@ -415,10 +402,7 @@ describe('handleSearchPagination', () => {
         searchType: 'semantic',
       },
     });
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: { ...sampleSemanticResponse, hasMore: false },
-    });
+    stub.search.mockResolvedValue(makeOk({ ...sampleSemanticResponse, hasMore: false }));
 
     const interaction = createButtonInteraction(searchHelpers.build(1, 'all', 'date', null));
 
@@ -426,11 +410,8 @@ describe('handleSearchPagination', () => {
 
     // fetchSearchResults only sets preferTextSearch in the body when true,
     // so a semantic session must NOT include the field at all.
-    const [, callOptions] = mockCallGatewayApi.mock.calls[0] as [
-      string,
-      { body: Record<string, unknown> },
-    ];
-    expect(callOptions.body).not.toHaveProperty('preferTextSearch');
+    const callArgs = stub.search.mock.calls[0][0] as Record<string, unknown>;
+    expect(callArgs).not.toHaveProperty('preferTextSearch');
   });
 
   it('defers immediately and shows expired message via followUp when session is missing', async () => {
@@ -446,7 +427,7 @@ describe('handleSearchPagination', () => {
     expect(interaction.followUp).toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining('expired') })
     );
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(stub.search).not.toHaveBeenCalled();
   });
 
   it('shows expired message when session kind is browse', async () => {
@@ -498,6 +479,8 @@ describe('handleSearchSelect', () => {
 describe('refreshSearchList', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    stub = createStub();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
   });
 
   it('re-fetches and updates message using session state', async () => {
@@ -510,17 +493,14 @@ describe('refreshSearchList', () => {
         pageSize: 5,
       },
     });
-    mockCallGatewayApi.mockResolvedValue({ ok: true, data: sampleSemanticResponse });
+    stub.search.mockResolvedValue(makeOk(sampleSemanticResponse));
 
     const interaction = createButtonInteraction('memory-detail::back');
 
     await refreshSearchList(interaction as unknown as ButtonInteraction);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/memory/search',
-      expect.objectContaining({
-        body: expect.objectContaining({ query: TEST_QUERY, offset: 5 }),
-      })
+    expect(stub.search).toHaveBeenCalledWith(
+      expect.objectContaining({ query: TEST_QUERY, offset: 5 })
     );
     expect(interaction.editReply).toHaveBeenCalled();
   });
@@ -535,15 +515,15 @@ describe('refreshSearchList', () => {
         pageSize: 5,
       },
     });
-    mockCallGatewayApi
-      .mockResolvedValueOnce({ ok: true, data: { results: [], count: 0, hasMore: false } })
-      .mockResolvedValueOnce({ ok: true, data: sampleSemanticResponse });
+    stub.search
+      .mockResolvedValueOnce(makeOk({ results: [], count: 0, hasMore: false }))
+      .mockResolvedValueOnce(makeOk(sampleSemanticResponse));
 
     const interaction = createButtonInteraction('memory-detail::back');
 
     await refreshSearchList(interaction as unknown as ButtonInteraction);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledTimes(2);
+    expect(stub.search).toHaveBeenCalledTimes(2);
     expect(mockUpdateMemoryListSessionPage).toHaveBeenCalledWith(
       expect.objectContaining({ newPage: 1 })
     );
@@ -555,7 +535,7 @@ describe('refreshSearchList', () => {
 
     await refreshSearchList(interaction as unknown as ButtonInteraction);
 
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(stub.search).not.toHaveBeenCalled();
   });
 
   it('no-ops when session kind is browse', async () => {
@@ -566,7 +546,7 @@ describe('refreshSearchList', () => {
 
     await refreshSearchList(interaction as unknown as ButtonInteraction);
 
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(stub.search).not.toHaveBeenCalled();
   });
 
   // Note: a "search session without searchQuery" test was deleted along with

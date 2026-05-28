@@ -4,9 +4,9 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fetchMemory, updateMemory, setMemoryLock, deleteMemory } from './detailApi.js';
-import type { MemoryItem } from './detailApi.js';
+import type { MemoryItem } from '@tzurot/common-types';
+import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
-// Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
   return {
@@ -20,27 +20,28 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-// Mock userGatewayClient
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+interface MemoryClientStub {
+  getMemory: ReturnType<typeof vi.fn>;
+  updateMemory: ReturnType<typeof vi.fn>;
+  deleteMemory: ReturnType<typeof vi.fn>;
+  setMemoryLock: ReturnType<typeof vi.fn>;
+}
 
-const TEST_USER = {
-  discordId: 'user-123',
-  username: 'testuser',
-  displayName: 'testuser',
-} as const;
+function createStub(): MemoryClientStub {
+  return {
+    getMemory: vi.fn(),
+    updateMemory: vi.fn(),
+    deleteMemory: vi.fn(),
+    setMemoryLock: vi.fn(),
+  };
+}
 
 describe('Memory Detail API', () => {
+  let stub: MemoryClientStub;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = createStub();
   });
 
   const createMockMemory = (overrides: Partial<MemoryItem> = {}): MemoryItem => ({
@@ -57,31 +58,18 @@ describe('Memory Detail API', () => {
   describe('fetchMemory', () => {
     it('should fetch memory successfully', async () => {
       const memory = createMockMemory();
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: { memory },
-      });
+      stub.getMemory.mockResolvedValue(makeOk({ memory }));
 
-      const result = await fetchMemory(TEST_USER, 'memory-123');
+      const result = await fetchMemory(asUserClient(stub), 'memory-123', 'user-123');
 
       expect(result).toEqual(memory);
-      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/memory-123', {
-        user: {
-          discordId: 'user-123',
-          username: 'testuser',
-          displayName: 'testuser',
-        },
-        method: 'GET',
-      });
+      expect(stub.getMemory).toHaveBeenCalledWith('memory-123');
     });
 
     it('should return null on API error', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: false,
-        error: 'Not found',
-      });
+      stub.getMemory.mockResolvedValue(makeErr(404, 'Not found'));
 
-      const result = await fetchMemory(TEST_USER, 'memory-123');
+      const result = await fetchMemory(asUserClient(stub), 'memory-123', 'user-123');
 
       expect(result).toBeNull();
     });
@@ -90,32 +78,23 @@ describe('Memory Detail API', () => {
   describe('updateMemory', () => {
     it('should update memory successfully', async () => {
       const memory = createMockMemory({ content: 'Updated content' });
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: { memory },
-      });
+      stub.updateMemory.mockResolvedValue(makeOk({ memory }));
 
-      const result = await updateMemory(TEST_USER, 'memory-123', 'Updated content');
+      const result = await updateMemory(
+        asUserClient(stub),
+        'memory-123',
+        'Updated content',
+        'user-123'
+      );
 
       expect(result).toEqual(memory);
-      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/memory-123', {
-        user: {
-          discordId: 'user-123',
-          username: 'testuser',
-          displayName: 'testuser',
-        },
-        method: 'PATCH',
-        body: { content: 'Updated content' },
-      });
+      expect(stub.updateMemory).toHaveBeenCalledWith('memory-123', { content: 'Updated content' });
     });
 
     it('should return null on API error', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: false,
-        error: 'Update failed',
-      });
+      stub.updateMemory.mockResolvedValue(makeErr(500, 'Update failed'));
 
-      const result = await updateMemory(TEST_USER, 'memory-123', 'New content');
+      const result = await updateMemory(asUserClient(stub), 'memory-123', 'New content');
 
       expect(result).toBeNull();
     });
@@ -124,47 +103,27 @@ describe('Memory Detail API', () => {
   describe('setMemoryLock', () => {
     it('sets the lock state explicitly with PUT + { locked }', async () => {
       const memory = createMockMemory({ isLocked: true });
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: { memory },
-      });
+      stub.setMemoryLock.mockResolvedValue(makeOk({ memory }));
 
-      const result = await setMemoryLock(TEST_USER, 'memory-123', true);
+      const result = await setMemoryLock(asUserClient(stub), 'memory-123', true, 'user-123');
 
       expect(result).toEqual(memory);
-      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/memory-123/lock', {
-        user: {
-          discordId: 'user-123',
-          username: 'testuser',
-          displayName: 'testuser',
-        },
-        method: 'PUT',
-        body: { locked: true },
-      });
+      expect(stub.setMemoryLock).toHaveBeenCalledWith('memory-123', { locked: true });
     });
 
     it('passes locked=false through to the API for unlock', async () => {
       const memory = createMockMemory({ isLocked: false });
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: { memory },
-      });
+      stub.setMemoryLock.mockResolvedValue(makeOk({ memory }));
 
-      await setMemoryLock(TEST_USER, 'memory-123', false);
+      await setMemoryLock(asUserClient(stub), 'memory-123', false);
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/memory/memory-123/lock',
-        expect.objectContaining({ method: 'PUT', body: { locked: false } })
-      );
+      expect(stub.setMemoryLock).toHaveBeenCalledWith('memory-123', { locked: false });
     });
 
     it('returns null on API error', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: false,
-        error: 'Lock failed',
-      });
+      stub.setMemoryLock.mockResolvedValue(makeErr(500, 'Lock failed'));
 
-      const result = await setMemoryLock(TEST_USER, 'memory-123', true);
+      const result = await setMemoryLock(asUserClient(stub), 'memory-123', true);
 
       expect(result).toBeNull();
     });
@@ -172,31 +131,18 @@ describe('Memory Detail API', () => {
 
   describe('deleteMemory', () => {
     it('should delete memory successfully', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: { success: true },
-      });
+      stub.deleteMemory.mockResolvedValue(makeOk({ success: true }));
 
-      const result = await deleteMemory(TEST_USER, 'memory-123');
+      const result = await deleteMemory(asUserClient(stub), 'memory-123', 'user-123');
 
       expect(result).toBe(true);
-      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/memory-123', {
-        user: {
-          discordId: 'user-123',
-          username: 'testuser',
-          displayName: 'testuser',
-        },
-        method: 'DELETE',
-      });
+      expect(stub.deleteMemory).toHaveBeenCalledWith('memory-123');
     });
 
     it('should return false on API error', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: false,
-        error: 'Delete failed',
-      });
+      stub.deleteMemory.mockResolvedValue(makeErr(500, 'Delete failed'));
 
-      const result = await deleteMemory(TEST_USER, 'memory-123');
+      const result = await deleteMemory(asUserClient(stub), 'memory-123');
 
       expect(result).toBe(false);
     });

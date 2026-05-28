@@ -1,47 +1,30 @@
 /**
  * Memory Detail API Client
- * API functions for single memory operations
+ * API functions for single memory operations.
+ *
+ * The trailing optional `userId?: string` parameter on each helper is for
+ * structured-logging context only — it never affects request shape or
+ * routing. Production call sites in `detail.ts` / `detailModals.ts` all
+ * pass it; the optionality exists so tests stubbing `UserClient` directly
+ * don't have to thread a userId through.
  */
 
-import { createLogger } from '@tzurot/common-types';
-import { callGatewayApi, type GatewayUser } from '../../utils/userGatewayClient.js';
-
-/**
- * Memory item structure from API
- */
-export interface MemoryItem {
-  id: string;
-  content: string;
-  createdAt: string;
-  updatedAt: string;
-  personalityId: string;
-  personalityName: string;
-  isLocked: boolean;
-}
+import { createLogger, type MemoryItem, type UserClient } from '@tzurot/common-types';
 
 const logger = createLogger('memory-detail-api');
-
-interface SingleMemoryResponse {
-  memory: MemoryItem;
-}
 
 /**
  * Fetch a single memory by ID
  */
-export async function fetchMemory(user: GatewayUser, memoryId: string): Promise<MemoryItem | null> {
-  const result = await callGatewayApi<SingleMemoryResponse>(
-    `/user/memory/${encodeURIComponent(memoryId)}`,
-    {
-      user,
-      method: 'GET',
-    }
-  );
+export async function fetchMemory(
+  userClient: UserClient,
+  memoryId: string,
+  userId?: string
+): Promise<MemoryItem | null> {
+  const result = await userClient.getMemory(memoryId);
 
   if (!result.ok) {
-    logger.warn(
-      { userId: user.discordId, memoryId, error: result.error },
-      'Failed to fetch memory'
-    );
+    logger.warn({ userId, memoryId, error: result.error }, 'Failed to fetch memory');
     return null;
   }
 
@@ -52,24 +35,15 @@ export async function fetchMemory(user: GatewayUser, memoryId: string): Promise<
  * Update memory content
  */
 export async function updateMemory(
-  user: GatewayUser,
+  userClient: UserClient,
   memoryId: string,
-  content: string
+  content: string,
+  userId?: string
 ): Promise<MemoryItem | null> {
-  const result = await callGatewayApi<SingleMemoryResponse>(
-    `/user/memory/${encodeURIComponent(memoryId)}`,
-    {
-      user,
-      method: 'PATCH',
-      body: { content },
-    }
-  );
+  const result = await userClient.updateMemory(memoryId, { content });
 
   if (!result.ok) {
-    logger.warn(
-      { userId: user.discordId, memoryId, error: result.error },
-      'Failed to update memory'
-    );
+    logger.warn({ userId, memoryId, error: result.error }, 'Failed to update memory');
     return null;
   }
 
@@ -82,24 +56,15 @@ export async function updateMemory(
  * unlock something the previous attempt locked.
  */
 export async function setMemoryLock(
-  user: GatewayUser,
+  userClient: UserClient,
   memoryId: string,
-  locked: boolean
+  locked: boolean,
+  userId?: string
 ): Promise<MemoryItem | null> {
-  const result = await callGatewayApi<SingleMemoryResponse>(
-    `/user/memory/${encodeURIComponent(memoryId)}/lock`,
-    {
-      user,
-      method: 'PUT',
-      body: { locked },
-    }
-  );
+  const result = await userClient.setMemoryLock(memoryId, { locked });
 
   if (!result.ok) {
-    logger.warn(
-      { userId: user.discordId, memoryId, locked, error: result.error },
-      'Failed to set memory lock'
-    );
+    logger.warn({ userId, memoryId, locked, error: result.error }, 'Failed to set memory lock');
     return null;
   }
 
@@ -109,20 +74,15 @@ export async function setMemoryLock(
 /**
  * Delete a memory
  */
-export async function deleteMemory(user: GatewayUser, memoryId: string): Promise<boolean> {
-  const result = await callGatewayApi<{ success: boolean }>(
-    `/user/memory/${encodeURIComponent(memoryId)}`,
-    {
-      user,
-      method: 'DELETE',
-    }
-  );
+export async function deleteMemory(
+  userClient: UserClient,
+  memoryId: string,
+  userId?: string
+): Promise<boolean> {
+  const result = await userClient.deleteMemory(memoryId);
 
   if (!result.ok) {
-    logger.warn(
-      { userId: user.discordId, memoryId, error: result.error },
-      'Failed to delete memory'
-    );
+    logger.warn({ userId, memoryId, error: result.error }, 'Failed to delete memory');
     return false;
   }
 

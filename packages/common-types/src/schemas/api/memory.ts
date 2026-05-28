@@ -206,7 +206,11 @@ export const BatchDeletePreviewResponseSchema = z.object({
   personalityId: z.string(),
   personalityName: z.string(),
   timeframe: z.string(),
-  previewToken: z.string(),
+  // Brand here so the round-trip preview-token → batchDelete call site is
+  // type-checked end-to-end: the response carries a `PreviewToken`, and
+  // BatchDeleteSchema's input expects the same brand. Plain `z.string()`
+  // would let a caller paste any string into the next call.
+  previewToken: PreviewTokenSchema,
 });
 export type BatchDeletePreviewResponse = z.infer<typeof BatchDeletePreviewResponseSchema>;
 
@@ -222,7 +226,9 @@ export type BatchDeleteResponse = z.infer<typeof BatchDeleteResponseSchema>;
 
 /** POST /user/memory/purge/token */
 export const IssuePurgeTokenResponseSchema = z.object({
-  purgeToken: z.string(),
+  // Branded so the round-trip purge-token → purge call site is type-checked
+  // end-to-end (mirrors the batchDelete/previewToken pair above).
+  purgeToken: PurgeTokenSchema,
   personalityId: z.string(),
   personalityName: z.string(),
 });

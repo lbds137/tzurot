@@ -11,9 +11,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
 const {
-  mockCallGatewayApi,
+  clientsForMock,
   mockResolveOptionalPersonality,
   mockHandleMemorySelect,
   mockHandleMemoryDetailAction,
@@ -21,7 +22,7 @@ const {
   mockFindMemoryListSessionByMessage,
   mockUpdateMemoryListSessionPage,
 } = vi.hoisted(() => ({
-  mockCallGatewayApi: vi.fn(),
+  clientsForMock: vi.fn(),
   mockResolveOptionalPersonality: vi.fn(),
   mockHandleMemorySelect: vi.fn(),
   mockHandleMemoryDetailAction: vi.fn(),
@@ -42,15 +43,9 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
 
 vi.mock('./resolveHelpers.js', () => ({
   resolveOptionalPersonality: (...args: unknown[]) => mockResolveOptionalPersonality(...args),
@@ -105,6 +100,7 @@ const TEST_PERSONALITY_ID = '00000000-0000-0000-0000-000000000001';
 const sampleMemory = {
   id: 'mem-1',
   content: 'Test memory content',
+  personalityId: TEST_PERSONALITY_ID,
   personalityName: 'Test Personality',
   isLocked: false,
   createdAt: '2026-01-01T00:00:00Z',
@@ -119,16 +115,29 @@ const sampleResponse = {
   hasMore: false,
 };
 
+interface MemoryClientStub {
+  list: ReturnType<typeof vi.fn>;
+}
+
+function createStub(): MemoryClientStub {
+  return { list: vi.fn() };
+}
+
+let stub: MemoryClientStub;
+
 interface MockDeferredContext {
-  interaction: { options: { getString: ReturnType<typeof vi.fn> } };
-  user: { id: string };
+  interaction: {
+    user: { id: string; username: string };
+    options: { getString: ReturnType<typeof vi.fn> };
+  };
+  user: { id: string; username: string };
   editReply: ReturnType<typeof vi.fn>;
 }
 
 interface MockButtonInteraction {
   customId: string;
   message: { id: string };
-  user: { id: string };
+  user: { id: string; username: string };
   deferUpdate: ReturnType<typeof vi.fn>;
   editReply: ReturnType<typeof vi.fn>;
   followUp: ReturnType<typeof vi.fn>;
@@ -147,11 +156,12 @@ interface MockSelectInteraction {
 function createDeferredContext(): MockDeferredContext {
   return {
     interaction: {
+      user: { id: TEST_USER_ID, username: 'testuser' },
       options: {
         getString: vi.fn((name: string) => (name === 'character' ? null : null)),
       },
     },
-    user: { id: TEST_USER_ID },
+    user: { id: TEST_USER_ID, username: 'testuser' },
     editReply: vi.fn().mockResolvedValue({ id: TEST_MESSAGE_ID, channelId: TEST_CHANNEL_ID }),
   };
 }
@@ -160,7 +170,7 @@ function createButtonInteraction(customId: string): MockButtonInteraction {
   return {
     customId,
     message: { id: TEST_MESSAGE_ID },
-    user: { id: TEST_USER_ID },
+    user: { id: TEST_USER_ID, username: 'testuser' },
     deferUpdate: vi.fn().mockResolvedValue(undefined),
     editReply: vi.fn().mockResolvedValue({ id: TEST_MESSAGE_ID }),
     followUp: vi.fn().mockResolvedValue(undefined),
@@ -182,8 +192,10 @@ function createSelectInteraction(customId: string): MockSelectInteraction {
 describe('handleBrowse', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    stub = createStub();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
     mockResolveOptionalPersonality.mockResolvedValue(TEST_PERSONALITY_ID);
-    mockCallGatewayApi.mockResolvedValue({ ok: true, data: sampleResponse });
+    stub.list.mockResolvedValue(makeOk(sampleResponse));
   });
 
   it('fetches memories and saves a browse session', async () => {
@@ -191,11 +203,13 @@ describe('handleBrowse', () => {
 
     await handleBrowse(context as unknown as DeferredCommandContext);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      expect.stringContaining('/user/memory/list'),
+    expect(stub.list).toHaveBeenCalledWith(
       expect.objectContaining({
-        method: 'GET',
-        user: expect.objectContaining({ discordId: TEST_USER_ID }),
+        limit: '10',
+        offset: '0',
+        sort: 'createdAt',
+        order: 'desc',
+        personalityId: TEST_PERSONALITY_ID,
       })
     );
     expect(context.editReply).toHaveBeenCalledWith(
@@ -222,14 +236,14 @@ describe('handleBrowse', () => {
 
     await handleBrowse(context as unknown as DeferredCommandContext);
 
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(stub.list).not.toHaveBeenCalled();
     expect(mockSaveMemoryListSession).not.toHaveBeenCalled();
     // handleBrowse should NOT double-reply — the helper already did
     expect(context.editReply).not.toHaveBeenCalled();
   });
 
   it('shows error when API call fails', async () => {
-    mockCallGatewayApi.mockResolvedValue({ ok: false, error: 'Server error' });
+    stub.list.mockResolvedValue(makeErr(500, 'Server error'));
     const context = createDeferredContext();
 
     await handleBrowse(context as unknown as DeferredCommandContext);
@@ -241,7 +255,7 @@ describe('handleBrowse', () => {
   });
 
   it('handles unexpected errors gracefully', async () => {
-    mockCallGatewayApi.mockRejectedValue(new Error('network'));
+    stub.list.mockRejectedValue(new Error('network'));
     const context = createDeferredContext();
 
     await handleBrowse(context as unknown as DeferredCommandContext);
@@ -255,6 +269,8 @@ describe('handleBrowse', () => {
 describe('handleBrowsePagination', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    stub = createStub();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
   });
 
   it('fetches new page and updates message when session exists', async () => {
@@ -262,10 +278,9 @@ describe('handleBrowsePagination', () => {
       data: { kind: 'browse', personalityId: TEST_PERSONALITY_ID, currentPage: 0 },
     });
     // Need a large enough total for page 1 to be valid (itemsPerPage=10)
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: { memories: [sampleMemory], total: 25, limit: 10, offset: 10, hasMore: true },
-    });
+    stub.list.mockResolvedValue(
+      makeOk({ memories: [sampleMemory], total: 25, limit: 10, offset: 10, hasMore: true })
+    );
 
     const customId = browseHelpers.build(1, 'all', 'date', null);
     const interaction = createButtonInteraction(customId);
@@ -273,10 +288,7 @@ describe('handleBrowsePagination', () => {
     await handleBrowsePagination(interaction as unknown as ButtonInteraction);
 
     expect(interaction.deferUpdate).toHaveBeenCalled();
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      expect.stringContaining('offset=10'),
-      expect.any(Object)
-    );
+    expect(stub.list).toHaveBeenCalledWith(expect.objectContaining({ offset: '10' }));
     expect(interaction.editReply).toHaveBeenCalled();
     expect(mockUpdateMemoryListSessionPage).toHaveBeenCalledWith(
       expect.objectContaining({ newPage: 1, kind: 'browse' })
@@ -296,7 +308,7 @@ describe('handleBrowsePagination', () => {
     expect(interaction.followUp).toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining('expired') })
     );
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(stub.list).not.toHaveBeenCalled();
   });
 
   it('ignores interactions with non-browse custom IDs', async () => {
@@ -305,7 +317,7 @@ describe('handleBrowsePagination', () => {
     await handleBrowsePagination(interaction as unknown as ButtonInteraction);
 
     expect(mockFindMemoryListSessionByMessage).not.toHaveBeenCalled();
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(stub.list).not.toHaveBeenCalled();
   });
 
   it('does not update session when session kind is search', async () => {
@@ -350,22 +362,21 @@ describe('handleBrowseSelect', () => {
 describe('refreshBrowseList', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    stub = createStub();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
   });
 
   it('re-fetches and updates message on refresh', async () => {
     mockFindMemoryListSessionByMessage.mockResolvedValue({
       data: { kind: 'browse', personalityId: TEST_PERSONALITY_ID, currentPage: 1 },
     });
-    mockCallGatewayApi.mockResolvedValue({ ok: true, data: sampleResponse });
+    stub.list.mockResolvedValue(makeOk(sampleResponse));
 
     const interaction = createButtonInteraction('memory-detail::back');
 
     await refreshBrowseList(interaction as unknown as ButtonInteraction);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      expect.stringContaining('offset=10'),
-      expect.any(Object)
-    );
+    expect(stub.list).toHaveBeenCalledWith(expect.objectContaining({ offset: '10' }));
     expect(interaction.editReply).toHaveBeenCalled();
   });
 
@@ -373,18 +384,17 @@ describe('refreshBrowseList', () => {
     mockFindMemoryListSessionByMessage.mockResolvedValue({
       data: { kind: 'browse', personalityId: TEST_PERSONALITY_ID, currentPage: 2 },
     });
-    mockCallGatewayApi
-      .mockResolvedValueOnce({
-        ok: true,
-        data: { memories: [], total: 0, limit: 10, offset: 20, hasMore: false },
-      })
-      .mockResolvedValueOnce({ ok: true, data: sampleResponse });
+    stub.list
+      .mockResolvedValueOnce(
+        makeOk({ memories: [], total: 0, limit: 10, offset: 20, hasMore: false })
+      )
+      .mockResolvedValueOnce(makeOk(sampleResponse));
 
     const interaction = createButtonInteraction('memory-detail::back');
 
     await refreshBrowseList(interaction as unknown as ButtonInteraction);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledTimes(2);
+    expect(stub.list).toHaveBeenCalledTimes(2);
     expect(mockUpdateMemoryListSessionPage).toHaveBeenCalledWith(
       expect.objectContaining({ newPage: 1 })
     );
@@ -396,7 +406,7 @@ describe('refreshBrowseList', () => {
 
     await refreshBrowseList(interaction as unknown as ButtonInteraction);
 
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(stub.list).not.toHaveBeenCalled();
     expect(interaction.editReply).not.toHaveBeenCalled();
   });
 
@@ -408,7 +418,7 @@ describe('refreshBrowseList', () => {
 
     await refreshBrowseList(interaction as unknown as ButtonInteraction);
 
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(stub.list).not.toHaveBeenCalled();
   });
 });
 

@@ -16,14 +16,11 @@ import {
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS, formatDateTimeCompact } from '@tzurot/common-types';
 import { CUSTOM_ID_DELIMITER } from '../../utils/customIds.js';
-import { toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 
 import { fetchMemory, setMemoryLock, deleteMemory } from './detailApi.js';
-import type { MemoryItem } from './detailApi.js';
+import type { MemoryItem } from '@tzurot/common-types';
 import { EMBED_DESCRIPTION_SAFE_LIMIT } from './formatters.js';
-
-// Re-export MemoryItem so callers can import it alongside handleMemorySelect.
-export type { MemoryItem } from './detailApi.js';
 
 const logger = createLogger('memory-detail');
 
@@ -217,7 +214,8 @@ export async function handleMemorySelect(interaction: StringSelectMenuInteractio
 
   await interaction.deferUpdate();
 
-  const memory = await fetchMemory(toGatewayUser(interaction.user), memoryId);
+  const { userClient } = clientsFor(interaction);
+  const memory = await fetchMemory(userClient, memoryId, interaction.user.id);
   if (memory === null) {
     await interaction.followUp({
       content: '❌ Failed to load memory details. It may have been deleted.',
@@ -253,11 +251,8 @@ export async function handleLockButton(
 
   await interaction.deferUpdate();
 
-  const updatedMemory = await setMemoryLock(
-    toGatewayUser(interaction.user),
-    memoryId,
-    desiredState
-  );
+  const { userClient } = clientsFor(interaction);
+  const updatedMemory = await setMemoryLock(userClient, memoryId, desiredState, userId);
   if (updatedMemory === null) {
     await interaction.followUp({
       content: '❌ Failed to update lock status. Please try again.',
@@ -287,7 +282,8 @@ export async function handleDeleteButton(
 ): Promise<void> {
   await interaction.deferUpdate();
 
-  const memory = await fetchMemory(toGatewayUser(interaction.user), memoryId);
+  const { userClient } = clientsFor(interaction);
+  const memory = await fetchMemory(userClient, memoryId, interaction.user.id);
   if (memory === null) {
     await interaction.followUp({
       content: '❌ Failed to load memory. It may have already been deleted.',
@@ -332,7 +328,8 @@ export async function handleDeleteConfirm(
     await interaction.deferUpdate();
   }
 
-  const success = await deleteMemory(toGatewayUser(interaction.user), memoryId);
+  const { userClient } = clientsFor(interaction);
+  const success = await deleteMemory(userClient, memoryId, userId);
   if (!success) {
     await interaction.followUp({
       content: '❌ Failed to delete memory. Please try again.',
@@ -356,7 +353,8 @@ export async function handleViewFullButton(
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-  const memory = await fetchMemory(toGatewayUser(interaction.user), memoryId);
+  const { userClient } = clientsFor(interaction);
+  const memory = await fetchMemory(userClient, memoryId, userId);
   if (memory === null) {
     await interaction.editReply({
       content: '❌ Failed to load memory. It may have been deleted.',

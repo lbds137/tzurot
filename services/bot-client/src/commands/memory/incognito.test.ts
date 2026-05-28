@@ -14,8 +14,8 @@ import {
   handleIncognitoStatus,
   handleIncognitoForget,
 } from './incognito.js';
+import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
-// Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
   return {
@@ -29,19 +29,11 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-// Mock userGatewayClient
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
 
-// Mock commandHelpers - embeds return empty objects for test simplicity
 const mockCreateSuccessEmbed = vi.fn(() => ({ type: 'success' }));
 const mockCreateInfoEmbed = vi.fn(() => ({ type: 'info' }));
 const mockCreateWarningEmbed = vi.fn(() => ({ type: 'warning' }));
@@ -54,7 +46,6 @@ vi.mock('../../utils/commandHelpers.js', () => ({
     mockCreateWarningEmbed(...(args as Parameters<typeof mockCreateWarningEmbed>)),
 }));
 
-// Mock autocomplete
 const mockResolvePersonalityId = vi.fn();
 const mockGetPersonalityName = vi.fn();
 vi.mock('./autocomplete.js', () => ({
@@ -62,14 +53,32 @@ vi.mock('./autocomplete.js', () => ({
   getPersonalityName: (...args: unknown[]) => mockGetPersonalityName(...args),
 }));
 
+interface MemoryClientStub {
+  getIncognitoStatus: ReturnType<typeof vi.fn>;
+  enableIncognito: ReturnType<typeof vi.fn>;
+  disableIncognito: ReturnType<typeof vi.fn>;
+  incognitoForget: ReturnType<typeof vi.fn>;
+}
+
+function createStub(): MemoryClientStub {
+  return {
+    getIncognitoStatus: vi.fn(),
+    enableIncognito: vi.fn(),
+    disableIncognito: vi.fn(),
+    incognitoForget: vi.fn(),
+  };
+}
+
 describe('Memory Incognito Handlers', () => {
   const mockEditReply = vi.fn();
+  let stub: MemoryClientStub;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = createStub();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
   });
 
-  // Helper to create mock DeferredCommandContext with different options
   function createMockContext(options: {
     character?: string;
     duration?: string;
@@ -78,6 +87,7 @@ describe('Memory Incognito Handlers', () => {
     return {
       user: { id: '123456789', username: 'testuser' },
       interaction: {
+        user: { id: '123456789', username: 'testuser' },
         options: {
           getString: (name: string, _required?: boolean) => {
             if (name === 'character') return options.character ?? 'lilith';
@@ -95,9 +105,8 @@ describe('Memory Incognito Handlers', () => {
     it('should enable incognito mode for specific personality', async () => {
       mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
       mockGetPersonalityName.mockResolvedValue('Lilith');
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: {
+      stub.enableIncognito.mockResolvedValue(
+        makeOk({
           session: {
             user: {
               discordId: '123456789',
@@ -112,20 +121,15 @@ describe('Memory Incognito Handlers', () => {
           timeRemaining: '1h remaining',
           wasAlreadyActive: false,
           message: 'Incognito mode enabled for Lilith (1 hour)',
-        },
-      });
+        })
+      );
 
       const context = createMockContext({ character: 'lilith', duration: '1h' });
       await handleIncognitoEnable(context);
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/incognito', {
-        user: {
-          discordId: '123456789',
-          username: 'testuser',
-          displayName: 'testuser',
-        },
-        method: 'POST',
-        body: { personalityId: 'personality-uuid-123', duration: '1h' },
+      expect(stub.enableIncognito).toHaveBeenCalledWith({
+        personalityId: 'personality-uuid-123',
+        duration: '1h',
       });
       expect(mockCreateSuccessEmbed).toHaveBeenCalledWith(
         '👻 Incognito Mode Enabled',
@@ -136,9 +140,8 @@ describe('Memory Incognito Handlers', () => {
 
     it('should enable incognito mode for all personalities', async () => {
       // 'all' is handled specially - no resolvePersonalityId call
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: {
+      stub.enableIncognito.mockResolvedValue(
+        makeOk({
           session: {
             user: {
               discordId: '123456789',
@@ -153,21 +156,16 @@ describe('Memory Incognito Handlers', () => {
           timeRemaining: 'Until manually disabled',
           wasAlreadyActive: false,
           message: 'Incognito mode enabled for all personalities',
-        },
-      });
+        })
+      );
 
       const context = createMockContext({ character: 'all', duration: 'forever' });
       await handleIncognitoEnable(context);
 
       expect(mockResolvePersonalityId).not.toHaveBeenCalled();
-      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/incognito', {
-        user: {
-          discordId: '123456789',
-          username: 'testuser',
-          displayName: 'testuser',
-        },
-        method: 'POST',
-        body: { personalityId: 'all', duration: 'forever' },
+      expect(stub.enableIncognito).toHaveBeenCalledWith({
+        personalityId: 'all',
+        duration: 'forever',
       });
       expect(mockCreateSuccessEmbed).toHaveBeenCalled();
     });
@@ -175,9 +173,8 @@ describe('Memory Incognito Handlers', () => {
     it('should show info embed when already active', async () => {
       mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
       mockGetPersonalityName.mockResolvedValue('Lilith');
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: {
+      stub.enableIncognito.mockResolvedValue(
+        makeOk({
           session: {
             user: {
               discordId: '123456789',
@@ -192,8 +189,8 @@ describe('Memory Incognito Handlers', () => {
           timeRemaining: '30m remaining',
           wasAlreadyActive: true,
           message: 'Incognito mode is already active for Lilith',
-        },
-      });
+        })
+      );
 
       const context = createMockContext({ character: 'lilith' });
       await handleIncognitoEnable(context);
@@ -213,17 +210,13 @@ describe('Memory Incognito Handlers', () => {
       expect(mockEditReply).toHaveBeenCalledWith({
         content: expect.stringContaining('unknown'),
       });
-      expect(mockCallGatewayApi).not.toHaveBeenCalled();
+      expect(stub.enableIncognito).not.toHaveBeenCalled();
     });
 
     it('should handle API error', async () => {
       mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
       mockGetPersonalityName.mockResolvedValue('Lilith');
-      mockCallGatewayApi.mockResolvedValue({
-        ok: false,
-        status: 500,
-        error: 'Server error',
-      });
+      stub.enableIncognito.mockResolvedValue(makeErr(500, 'Server error'));
 
       const context = createMockContext({ character: 'lilith' });
       await handleIncognitoEnable(context);
@@ -250,7 +243,7 @@ describe('Memory Incognito Handlers', () => {
       await handleIncognitoEnable(context);
 
       expect(mockResolvePersonalityId).not.toHaveBeenCalled();
-      expect(mockCallGatewayApi).not.toHaveBeenCalled();
+      expect(stub.enableIncognito).not.toHaveBeenCalled();
       expect(mockEditReply).toHaveBeenCalledWith({
         content: expect.stringContaining('Autocomplete was unavailable'),
       });
@@ -261,25 +254,18 @@ describe('Memory Incognito Handlers', () => {
     it('should disable incognito mode successfully', async () => {
       mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
       mockGetPersonalityName.mockResolvedValue('Lilith');
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: {
+      stub.disableIncognito.mockResolvedValue(
+        makeOk({
           disabled: true,
           message: 'Incognito mode disabled for Lilith',
-        },
-      });
+        })
+      );
 
       const context = createMockContext({ character: 'lilith' });
       await handleIncognitoDisable(context);
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/incognito', {
-        user: {
-          discordId: '123456789',
-          username: 'testuser',
-          displayName: 'testuser',
-        },
-        method: 'DELETE',
-        body: { personalityId: 'personality-uuid-123' },
+      expect(stub.disableIncognito).toHaveBeenCalledWith({
+        personalityId: 'personality-uuid-123',
       });
       expect(mockCreateSuccessEmbed).toHaveBeenCalledWith(
         '👻 Incognito Mode Disabled',
@@ -288,39 +274,29 @@ describe('Memory Incognito Handlers', () => {
     });
 
     it('should disable incognito for all personalities', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: {
+      stub.disableIncognito.mockResolvedValue(
+        makeOk({
           disabled: true,
           message: 'Incognito mode disabled for all personalities',
-        },
-      });
+        })
+      );
 
       const context = createMockContext({ character: 'all' });
       await handleIncognitoDisable(context);
 
       expect(mockResolvePersonalityId).not.toHaveBeenCalled();
-      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/incognito', {
-        user: {
-          discordId: '123456789',
-          username: 'testuser',
-          displayName: 'testuser',
-        },
-        method: 'DELETE',
-        body: { personalityId: 'all' },
-      });
+      expect(stub.disableIncognito).toHaveBeenCalledWith({ personalityId: 'all' });
     });
 
     it('should show info when incognito was not active', async () => {
       mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
       mockGetPersonalityName.mockResolvedValue('Lilith');
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: {
+      stub.disableIncognito.mockResolvedValue(
+        makeOk({
           disabled: false,
           message: 'Incognito mode was not active for Lilith',
-        },
-      });
+        })
+      );
 
       const context = createMockContext({ character: 'lilith' });
       await handleIncognitoDisable(context);
@@ -344,11 +320,7 @@ describe('Memory Incognito Handlers', () => {
 
     it('should handle API error', async () => {
       mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
-      mockCallGatewayApi.mockResolvedValue({
-        ok: false,
-        status: 500,
-        error: 'Server error',
-      });
+      stub.disableIncognito.mockResolvedValue(makeErr(500, 'Server error'));
 
       const context = createMockContext({ character: 'lilith' });
       await handleIncognitoDisable(context);
@@ -375,7 +347,7 @@ describe('Memory Incognito Handlers', () => {
       await handleIncognitoDisable(context);
 
       expect(mockResolvePersonalityId).not.toHaveBeenCalled();
-      expect(mockCallGatewayApi).not.toHaveBeenCalled();
+      expect(stub.disableIncognito).not.toHaveBeenCalled();
       expect(mockEditReply).toHaveBeenCalledWith({
         content: expect.stringContaining('Autocomplete was unavailable'),
       });
@@ -384,13 +356,12 @@ describe('Memory Incognito Handlers', () => {
 
   describe('handleIncognitoStatus', () => {
     it('should show inactive status when no sessions', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: {
+      stub.getIncognitoStatus.mockResolvedValue(
+        makeOk({
           active: false,
           sessions: [],
-        },
-      });
+        })
+      );
 
       const context = createMockContext({});
       await handleIncognitoStatus(context);
@@ -403,9 +374,8 @@ describe('Memory Incognito Handlers', () => {
 
     it('should show active status with single session', async () => {
       mockGetPersonalityName.mockResolvedValue('Lilith');
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: {
+      stub.getIncognitoStatus.mockResolvedValue(
+        makeOk({
           active: true,
           sessions: [
             {
@@ -421,8 +391,8 @@ describe('Memory Incognito Handlers', () => {
               timeRemaining: '1h remaining',
             },
           ],
-        },
-      });
+        })
+      );
 
       const context = createMockContext({});
       await handleIncognitoStatus(context);
@@ -435,9 +405,8 @@ describe('Memory Incognito Handlers', () => {
 
     it('should show active status with multiple sessions', async () => {
       mockGetPersonalityName.mockResolvedValueOnce('Lilith').mockResolvedValueOnce('Sarcastic');
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: {
+      stub.getIncognitoStatus.mockResolvedValue(
+        makeOk({
           active: true,
           sessions: [
             {
@@ -465,8 +434,8 @@ describe('Memory Incognito Handlers', () => {
               timeRemaining: '3h 30m remaining',
             },
           ],
-        },
-      });
+        })
+      );
 
       const context = createMockContext({});
       await handleIncognitoStatus(context);
@@ -476,9 +445,8 @@ describe('Memory Incognito Handlers', () => {
     });
 
     it('should handle global "all" session', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: {
+      stub.getIncognitoStatus.mockResolvedValue(
+        makeOk({
           active: true,
           sessions: [
             {
@@ -494,8 +462,8 @@ describe('Memory Incognito Handlers', () => {
               timeRemaining: 'Until manually disabled',
             },
           ],
-        },
-      });
+        })
+      );
 
       const context = createMockContext({});
       await handleIncognitoStatus(context);
@@ -509,11 +477,7 @@ describe('Memory Incognito Handlers', () => {
     });
 
     it('should handle API error', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: false,
-        status: 500,
-        error: 'Server error',
-      });
+      stub.getIncognitoStatus.mockResolvedValue(makeErr(500, 'Server error'));
 
       const context = createMockContext({});
       await handleIncognitoStatus(context);
@@ -525,7 +489,7 @@ describe('Memory Incognito Handlers', () => {
 
     it('should handle exceptions', async () => {
       const error = new Error('Network error');
-      mockCallGatewayApi.mockRejectedValue(error);
+      stub.getIncognitoStatus.mockRejectedValue(error);
 
       const context = createMockContext({});
       await handleIncognitoStatus(context);
@@ -540,26 +504,20 @@ describe('Memory Incognito Handlers', () => {
     it('should delete recent memories successfully', async () => {
       mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
       mockGetPersonalityName.mockResolvedValue('Lilith');
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: {
+      stub.incognitoForget.mockResolvedValue(
+        makeOk({
           deletedCount: 5,
           personalities: ['Lilith'],
           message: 'Deleted 5 memories from the last 15m',
-        },
-      });
+        })
+      );
 
       const context = createMockContext({ character: 'lilith', timeframe: '15m' });
       await handleIncognitoForget(context);
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/incognito/forget', {
-        user: {
-          discordId: '123456789',
-          username: 'testuser',
-          displayName: 'testuser',
-        },
-        method: 'POST',
-        body: { personalityId: 'personality-uuid-123', timeframe: '15m' },
+      expect(stub.incognitoForget).toHaveBeenCalledWith({
+        personalityId: 'personality-uuid-123',
+        timeframe: '15m',
       });
       expect(mockCreateSuccessEmbed).toHaveBeenCalledWith(
         '🗑️ Memories Deleted',
@@ -568,41 +526,34 @@ describe('Memory Incognito Handlers', () => {
     });
 
     it('should delete memories for all personalities', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: {
+      stub.incognitoForget.mockResolvedValue(
+        makeOk({
           deletedCount: 12,
           personalities: ['Lilith', 'Sarcastic', 'Sage'],
           message: 'Deleted 12 memories from the last 1h',
-        },
-      });
+        })
+      );
 
       const context = createMockContext({ character: 'all', timeframe: '1h' });
       await handleIncognitoForget(context);
 
       expect(mockResolvePersonalityId).not.toHaveBeenCalled();
-      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/incognito/forget', {
-        user: {
-          discordId: '123456789',
-          username: 'testuser',
-          displayName: 'testuser',
-        },
-        method: 'POST',
-        body: { personalityId: 'all', timeframe: '1h' },
+      expect(stub.incognitoForget).toHaveBeenCalledWith({
+        personalityId: 'all',
+        timeframe: '1h',
       });
     });
 
     it('should show info when no memories found', async () => {
       mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
       mockGetPersonalityName.mockResolvedValue('Lilith');
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: {
+      stub.incognitoForget.mockResolvedValue(
+        makeOk({
           deletedCount: 0,
           personalities: [],
           message: 'No memories found in the last 5m',
-        },
-      });
+        })
+      );
 
       const context = createMockContext({ character: 'lilith', timeframe: '5m' });
       await handleIncognitoForget(context);
@@ -622,16 +573,12 @@ describe('Memory Incognito Handlers', () => {
       expect(mockEditReply).toHaveBeenCalledWith({
         content: expect.stringContaining('unknown'),
       });
-      expect(mockCallGatewayApi).not.toHaveBeenCalled();
+      expect(stub.incognitoForget).not.toHaveBeenCalled();
     });
 
     it('should handle API error', async () => {
       mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
-      mockCallGatewayApi.mockResolvedValue({
-        ok: false,
-        status: 500,
-        error: 'Server error',
-      });
+      stub.incognitoForget.mockResolvedValue(makeErr(500, 'Server error'));
 
       const context = createMockContext({ character: 'lilith' });
       await handleIncognitoForget(context);
@@ -658,7 +605,7 @@ describe('Memory Incognito Handlers', () => {
       await handleIncognitoForget(context);
 
       expect(mockResolvePersonalityId).not.toHaveBeenCalled();
-      expect(mockCallGatewayApi).not.toHaveBeenCalled();
+      expect(stub.incognitoForget).not.toHaveBeenCalled();
       expect(mockEditReply).toHaveBeenCalledWith({
         content: expect.stringContaining('Autocomplete was unavailable'),
       });

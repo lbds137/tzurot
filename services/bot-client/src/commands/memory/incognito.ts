@@ -17,15 +17,16 @@ import {
   memoryIncognitoEnableOptions,
   memoryIncognitoDisableOptions,
   memoryIncognitoForgetOptions,
-  type IncognitoSession,
   type IncognitoDuration,
+  type IncognitoSessionWithRemaining,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
   AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
   isAutocompleteErrorSentinel,
 } from '../../utils/apiCheck.js';
-import { callGatewayApi, toGatewayUser, type GatewayUser } from '../../utils/userGatewayClient.js';
+import { toGatewayUser, type GatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import {
   createSuccessEmbed,
   createInfoEmbed,
@@ -39,35 +40,10 @@ const logger = createLogger('memory-incognito');
 const UNEXPECTED_ERROR_LOG_MESSAGE = 'Unexpected error';
 
 const ALL_PERSONALITIES_LABEL = 'all characters';
-const INCOGNITO_API_PATH = '/user/memory/incognito';
 const UNEXPECTED_ERROR_MESSAGE = '❌ An unexpected error occurred. Please try again.';
 
-interface SessionWithTime extends IncognitoSession {
-  timeRemaining: string;
-}
-
-interface IncognitoStatusResponse {
-  active: boolean;
-  sessions: SessionWithTime[];
-}
-
-interface IncognitoEnableResponse {
-  session: IncognitoSession;
-  timeRemaining: string;
-  wasAlreadyActive: boolean;
-  message: string;
-}
-
-interface IncognitoDisableResponse {
-  disabled: boolean;
-  message: string;
-}
-
-interface IncognitoForgetResponse {
-  deletedCount: number;
-  personalities: string[];
-  message: string;
-}
+/** Local alias for the schema-derived session-with-time-remaining shape. */
+type SessionWithTime = IncognitoSessionWithRemaining;
 
 /**
  * Format session info for display
@@ -105,6 +81,7 @@ async function resolvePersonalityOrAll(
 export async function handleIncognitoEnable(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
   const user = toGatewayUser(context.user);
+  const { userClient } = clientsFor(context.interaction);
   const options = memoryIncognitoEnableOptions(context.interaction);
   const personalityInput = options.character();
   const duration = options.duration() as IncognitoDuration;
@@ -124,11 +101,7 @@ export async function handleIncognitoEnable(context: DeferredCommandContext): Pr
       return;
     }
 
-    const result = await callGatewayApi<IncognitoEnableResponse>(INCOGNITO_API_PATH, {
-      user,
-      method: 'POST',
-      body: { personalityId: resolved.id, duration },
-    });
+    const result = await userClient.enableIncognito({ personalityId: resolved.id, duration });
 
     if (!result.ok) {
       logger.warn({ userId, personalityInput, duration, status: result.status }, 'Enable failed');
@@ -166,6 +139,7 @@ export async function handleIncognitoEnable(context: DeferredCommandContext): Pr
 export async function handleIncognitoDisable(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
   const user = toGatewayUser(context.user);
+  const { userClient } = clientsFor(context.interaction);
   const options = memoryIncognitoDisableOptions(context.interaction);
   const personalityInput = options.character();
 
@@ -184,11 +158,7 @@ export async function handleIncognitoDisable(context: DeferredCommandContext): P
       return;
     }
 
-    const result = await callGatewayApi<IncognitoDisableResponse>(INCOGNITO_API_PATH, {
-      user,
-      method: 'DELETE',
-      body: { personalityId: resolved.id },
-    });
+    const result = await userClient.disableIncognito({ personalityId: resolved.id });
 
     if (!result.ok) {
       logger.warn({ userId, personalityInput, status: result.status }, 'Disable failed');
@@ -225,12 +195,10 @@ export async function handleIncognitoDisable(context: DeferredCommandContext): P
 export async function handleIncognitoStatus(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
   const user = toGatewayUser(context.user);
+  const { userClient } = clientsFor(context.interaction);
 
   try {
-    const result = await callGatewayApi<IncognitoStatusResponse>(INCOGNITO_API_PATH, {
-      user,
-      method: 'GET',
-    });
+    const result = await userClient.getIncognitoStatus();
 
     if (!result.ok) {
       logger.warn({ userId, status: result.status }, 'Status check failed');
@@ -282,6 +250,7 @@ export async function handleIncognitoStatus(context: DeferredCommandContext): Pr
 export async function handleIncognitoForget(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
   const user = toGatewayUser(context.user);
+  const { userClient } = clientsFor(context.interaction);
   const options = memoryIncognitoForgetOptions(context.interaction);
   const personalityInput = options.character();
   const timeframe = options.timeframe();
@@ -301,10 +270,12 @@ export async function handleIncognitoForget(context: DeferredCommandContext): Pr
       return;
     }
 
-    const result = await callGatewayApi<IncognitoForgetResponse>('/user/memory/incognito/forget', {
-      user,
-      method: 'POST',
-      body: { personalityId: resolved.id, timeframe },
+    // Discord slash-command `choices` constrains the runtime value to one of
+    // these three; the generated `commandOptions` typing is plain `string`,
+    // so we narrow at the boundary to match the schema's enum.
+    const result = await userClient.incognitoForget({
+      personalityId: resolved.id,
+      timeframe: timeframe as '5m' | '15m' | '1h',
     });
 
     if (!result.ok) {

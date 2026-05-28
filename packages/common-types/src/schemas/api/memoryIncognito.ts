@@ -14,10 +14,14 @@
 import { z } from 'zod';
 import { IncognitoSessionSchema } from '../../types/incognito.js';
 
-/** A session enriched with `timeRemaining` (ms) computed at response time. */
+/**
+ * A session enriched with `timeRemaining` (human-formatted string) computed
+ * at response time. The handler emits one of: "<n> minutes/hours/days/...",
+ * "Until manually disabled" (for `duration: 'forever'`), or "Expired"
+ * (when the session is past expiry but hasn't been swept yet).
+ */
 export const IncognitoSessionWithRemainingSchema = IncognitoSessionSchema.extend({
-  /** Milliseconds until expiry; null if `duration: 'forever'`. */
-  timeRemaining: z.number().nullable(),
+  timeRemaining: z.string().min(1),
 });
 export type IncognitoSessionWithRemaining = z.infer<typeof IncognitoSessionWithRemainingSchema>;
 
@@ -38,7 +42,12 @@ export type GetIncognitoStatusResponse = z.infer<typeof GetIncognitoStatusRespon
 
 export const EnableIncognitoResponseSchema = z.object({
   session: IncognitoSessionSchema,
-  timeRemaining: z.number().nullable(),
+  /**
+   * Human-formatted string computed by `IncognitoSessionManager.getTimeRemaining`;
+   * never a raw millisecond count. One of "<n> minutes/hours/days/...",
+   * "Until manually disabled" (for `duration: 'forever'`), or "Expired".
+   */
+  timeRemaining: z.string().min(1),
   wasAlreadyActive: z.boolean(),
   message: z.string(),
 });

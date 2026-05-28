@@ -20,17 +20,20 @@ const sampleSession = {
 };
 
 describe('IncognitoSessionWithRemainingSchema', () => {
-  it('accepts session enriched with numeric timeRemaining', () => {
-    const data = { ...sampleSession, timeRemaining: 1000 };
+  // `timeRemaining` is a human-formatted string the handler computes via
+  // `IncognitoSessionManager.getTimeRemaining` — emits "1 hour", "30 minutes",
+  // "Until manually disabled", or "Expired".
+  it('accepts session enriched with a human-formatted timeRemaining string', () => {
+    const data = { ...sampleSession, timeRemaining: '1 hour' };
     expect(IncognitoSessionWithRemainingSchema.safeParse(data).success).toBe(true);
   });
 
-  it('accepts null timeRemaining (forever session)', () => {
+  it('accepts the "Until manually disabled" sentinel for forever sessions', () => {
     const data = {
       ...sampleSession,
       duration: 'forever' as const,
       expiresAt: null,
-      timeRemaining: null,
+      timeRemaining: 'Until manually disabled',
     };
     expect(IncognitoSessionWithRemainingSchema.safeParse(data).success).toBe(true);
   });
@@ -48,19 +51,24 @@ describe('Memory Incognito API Contract Tests', () => {
       ).toBe(true);
     });
 
-    it('accepts active state with sessions + timeRemaining', () => {
+    it('accepts active state with sessions + formatted timeRemaining', () => {
       const data = {
         active: true,
-        sessions: [{ ...sampleSession, timeRemaining: 1_800_000 }],
+        sessions: [{ ...sampleSession, timeRemaining: '30 minutes' }],
       };
       expect(GetIncognitoStatusResponseSchema.safeParse(data).success).toBe(true);
     });
 
-    it('accepts null timeRemaining (forever sessions)', () => {
+    it('accepts forever-session sentinel string', () => {
       const data = {
         active: true,
         sessions: [
-          { ...sampleSession, duration: 'forever' as const, expiresAt: null, timeRemaining: null },
+          {
+            ...sampleSession,
+            duration: 'forever' as const,
+            expiresAt: null,
+            timeRemaining: 'Until manually disabled',
+          },
         ],
       };
       expect(GetIncognitoStatusResponseSchema.safeParse(data).success).toBe(true);
@@ -71,7 +79,7 @@ describe('Memory Incognito API Contract Tests', () => {
     it('accepts newly-enabled response', () => {
       const data = {
         session: sampleSession,
-        timeRemaining: 3_600_000,
+        timeRemaining: '1 hour',
         wasAlreadyActive: false,
         message: 'Incognito mode enabled.',
       };
@@ -81,7 +89,7 @@ describe('Memory Incognito API Contract Tests', () => {
     it('accepts already-active response', () => {
       const data = {
         session: sampleSession,
-        timeRemaining: 1_800_000,
+        timeRemaining: '30 minutes',
         wasAlreadyActive: true,
         message: 'Already active.',
       };

@@ -4,8 +4,8 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleFocusEnable, handleFocusDisable, handleFocusStatus } from './focus.js';
+import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
-// Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
   return {
@@ -19,19 +19,11 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-// Mock userGatewayClient
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
 
-// Mock commandHelpers
 const mockCreateSuccessEmbed = vi.fn(() => ({}));
 const mockCreateInfoEmbed = vi.fn(() => ({}));
 vi.mock('../../utils/commandHelpers.js', () => ({
@@ -41,7 +33,6 @@ vi.mock('../../utils/commandHelpers.js', () => ({
     mockCreateInfoEmbed(...(args as Parameters<typeof mockCreateInfoEmbed>)),
 }));
 
-// Mock autocomplete
 const mockResolvePersonalityId = vi.fn();
 const mockGetPersonalityName = vi.fn();
 vi.mock('./autocomplete.js', () => ({
@@ -49,17 +40,33 @@ vi.mock('./autocomplete.js', () => ({
   getPersonalityName: (...args: unknown[]) => mockGetPersonalityName(...args),
 }));
 
+interface MemoryClientStub {
+  getFocus: ReturnType<typeof vi.fn>;
+  setFocus: ReturnType<typeof vi.fn>;
+}
+
+function createStub(): MemoryClientStub {
+  return {
+    getFocus: vi.fn(),
+    setFocus: vi.fn(),
+  };
+}
+
 describe('Memory Focus Handlers', () => {
   const mockEditReply = vi.fn();
+  let stub: MemoryClientStub;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = createStub();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
   });
 
   function createMockContext(personalitySlug: string = 'lilith') {
     return {
       user: { id: '123456789', username: 'testuser' },
       interaction: {
+        user: { id: '123456789', username: 'testuser' },
         options: {
           getString: (name: string, _required?: boolean) => {
             if (name === 'character') return personalitySlug;
@@ -74,26 +81,21 @@ describe('Memory Focus Handlers', () => {
   describe('handleFocusEnable', () => {
     it('should enable focus mode successfully', async () => {
       mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: {
+      stub.setFocus.mockResolvedValue(
+        makeOk({
           personalityId: 'personality-uuid-123',
           personalityName: 'Lilith',
           focusModeEnabled: true,
-        },
-      });
+          message: 'Focus mode enabled',
+        })
+      );
 
       const context = createMockContext();
       await handleFocusEnable(context);
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/focus', {
-        user: {
-          discordId: '123456789',
-          username: 'testuser',
-          displayName: 'testuser',
-        },
-        method: 'POST',
-        body: { personalityId: 'personality-uuid-123', enabled: true },
+      expect(stub.setFocus).toHaveBeenCalledWith({
+        personalityId: 'personality-uuid-123',
+        enabled: true,
       });
       expect(mockCreateSuccessEmbed).toHaveBeenCalledWith(
         'Focus Mode Enabled',
@@ -111,16 +113,12 @@ describe('Memory Focus Handlers', () => {
       expect(mockEditReply).toHaveBeenCalledWith({
         content: expect.stringContaining('unknown'),
       });
-      expect(mockCallGatewayApi).not.toHaveBeenCalled();
+      expect(stub.setFocus).not.toHaveBeenCalled();
     });
 
     it('should handle API error', async () => {
       mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
-      mockCallGatewayApi.mockResolvedValue({
-        ok: false,
-        status: 500,
-        error: 'Server error',
-      });
+      stub.setFocus.mockResolvedValue(makeErr(500, 'Server error'));
 
       const context = createMockContext();
       await handleFocusEnable(context);
@@ -145,26 +143,21 @@ describe('Memory Focus Handlers', () => {
   describe('handleFocusDisable', () => {
     it('should disable focus mode successfully', async () => {
       mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: {
+      stub.setFocus.mockResolvedValue(
+        makeOk({
           personalityId: 'personality-uuid-123',
           personalityName: 'Lilith',
           focusModeEnabled: false,
-        },
-      });
+          message: 'Focus mode disabled',
+        })
+      );
 
       const context = createMockContext();
       await handleFocusDisable(context);
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/focus', {
-        user: {
-          discordId: '123456789',
-          username: 'testuser',
-          displayName: 'testuser',
-        },
-        method: 'POST',
-        body: { personalityId: 'personality-uuid-123', enabled: false },
+      expect(stub.setFocus).toHaveBeenCalledWith({
+        personalityId: 'personality-uuid-123',
+        enabled: false,
       });
       expect(mockCreateSuccessEmbed).toHaveBeenCalledWith(
         'Focus Mode Disabled',
@@ -181,7 +174,7 @@ describe('Memory Focus Handlers', () => {
       expect(mockEditReply).toHaveBeenCalledWith({
         content: expect.stringContaining('unknown'),
       });
-      expect(mockCallGatewayApi).not.toHaveBeenCalled();
+      expect(stub.setFocus).not.toHaveBeenCalled();
     });
   });
 
@@ -189,24 +182,17 @@ describe('Memory Focus Handlers', () => {
     it('should show status when focus mode is enabled', async () => {
       mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
       mockGetPersonalityName.mockResolvedValue('Lilith');
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: {
+      stub.getFocus.mockResolvedValue(
+        makeOk({
           personalityId: 'personality-uuid-123',
           focusModeEnabled: true,
-        },
-      });
+        })
+      );
 
       const context = createMockContext();
       await handleFocusStatus(context);
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/memory/focus?personalityId=personality-uuid-123',
-        {
-          user: { discordId: '123456789', username: 'testuser', displayName: 'testuser' },
-          method: 'GET',
-        }
-      );
+      expect(stub.getFocus).toHaveBeenCalledWith({ personalityId: 'personality-uuid-123' });
       expect(mockCreateInfoEmbed).toHaveBeenCalledWith(
         'Focus Mode Status',
         expect.stringContaining('enabled')
@@ -216,13 +202,12 @@ describe('Memory Focus Handlers', () => {
     it('should show status when focus mode is disabled', async () => {
       mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
       mockGetPersonalityName.mockResolvedValue('Lilith');
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: {
+      stub.getFocus.mockResolvedValue(
+        makeOk({
           personalityId: 'personality-uuid-123',
           focusModeEnabled: false,
-        },
-      });
+        })
+      );
 
       const context = createMockContext();
       await handleFocusStatus(context);
@@ -236,13 +221,12 @@ describe('Memory Focus Handlers', () => {
     it('should use personality slug when name not found', async () => {
       mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
       mockGetPersonalityName.mockResolvedValue(null);
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: {
+      stub.getFocus.mockResolvedValue(
+        makeOk({
           personalityId: 'personality-uuid-123',
           focusModeEnabled: false,
-        },
-      });
+        })
+      );
 
       const context = createMockContext('lilith');
       await handleFocusStatus(context);
@@ -262,16 +246,12 @@ describe('Memory Focus Handlers', () => {
       expect(mockEditReply).toHaveBeenCalledWith({
         content: expect.stringContaining('unknown'),
       });
-      expect(mockCallGatewayApi).not.toHaveBeenCalled();
+      expect(stub.getFocus).not.toHaveBeenCalled();
     });
 
     it('should handle API error', async () => {
       mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
-      mockCallGatewayApi.mockResolvedValue({
-        ok: false,
-        status: 500,
-        error: 'Server error',
-      });
+      stub.getFocus.mockResolvedValue(makeErr(500, 'Server error'));
 
       const context = createMockContext();
       await handleFocusStatus(context);

@@ -9,10 +9,10 @@ import {
   handleEditModalSubmit,
   MAX_MODAL_CONTENT_LENGTH,
 } from './detailModals.js';
-import type { MemoryItem } from './detailApi.js';
+import type { MemoryItem } from '@tzurot/common-types';
 import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
+import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
-// Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
   return {
@@ -31,26 +31,34 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-// Mock userGatewayClient
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
 
-// Mock customIds
 vi.mock('../../utils/customIds.js', () => ({
   CUSTOM_ID_DELIMITER: '::',
 }));
 
+interface MemoryClientStub {
+  getMemory: ReturnType<typeof vi.fn>;
+  updateMemory: ReturnType<typeof vi.fn>;
+}
+
+function createStub(): MemoryClientStub {
+  return {
+    getMemory: vi.fn(),
+    updateMemory: vi.fn(),
+  };
+}
+
 describe('Memory Detail Modals', () => {
+  let stub: MemoryClientStub;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = createStub();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
   });
 
   const createMockMemory = (overrides: Partial<MemoryItem> = {}): MemoryItem => ({
@@ -84,16 +92,13 @@ describe('Memory Detail Modals', () => {
   describe('handleEditButton', () => {
     it('should show modal on edit click', async () => {
       const memory = createMockMemory();
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: { memory },
-      });
+      stub.getMemory.mockResolvedValue(makeOk({ memory }));
 
       const mockShowModal = vi.fn();
       const mockReply = vi.fn();
 
       const interaction = {
-        user: { id: 'user-123' },
+        user: { id: 'user-123', username: 'testuser' },
         showModal: mockShowModal,
         reply: mockReply,
       } as unknown as ButtonInteraction;
@@ -104,16 +109,13 @@ describe('Memory Detail Modals', () => {
     });
 
     it('should show error if memory not found', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: false,
-        error: 'Not found',
-      });
+      stub.getMemory.mockResolvedValue(makeErr(404, 'Not found'));
 
       const mockShowModal = vi.fn();
       const mockReply = vi.fn();
 
       const interaction = {
-        user: { id: 'user-123' },
+        user: { id: 'user-123', username: 'testuser' },
         showModal: mockShowModal,
         reply: mockReply,
       } as unknown as ButtonInteraction;
@@ -132,10 +134,7 @@ describe('Memory Detail Modals', () => {
   describe('handleEditModalSubmit', () => {
     it('should update memory and show detail view', async () => {
       const memory = createMockMemory({ content: 'Updated content' });
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: { memory },
-      });
+      stub.updateMemory.mockResolvedValue(makeOk({ memory }));
 
       const mockDeferUpdate = vi.fn();
       const mockFollowUp = vi.fn();
@@ -143,7 +142,7 @@ describe('Memory Detail Modals', () => {
       const mockGetTextInputValue = vi.fn().mockReturnValue('Updated content');
 
       const interaction = {
-        user: { id: 'user-123' },
+        user: { id: 'user-123', username: 'testuser' },
         fields: { getTextInputValue: mockGetTextInputValue },
         deferUpdate: mockDeferUpdate,
         followUp: mockFollowUp,
@@ -157,17 +156,14 @@ describe('Memory Detail Modals', () => {
     });
 
     it('should show error on update failure', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: false,
-        error: 'Update failed',
-      });
+      stub.updateMemory.mockResolvedValue(makeErr(500, 'Update failed'));
 
       const mockDeferUpdate = vi.fn();
       const mockFollowUp = vi.fn();
       const mockGetTextInputValue = vi.fn().mockReturnValue('Updated content');
 
       const interaction = {
-        user: { id: 'user-123' },
+        user: { id: 'user-123', username: 'testuser' },
         fields: { getTextInputValue: mockGetTextInputValue },
         deferUpdate: mockDeferUpdate,
         followUp: mockFollowUp,
