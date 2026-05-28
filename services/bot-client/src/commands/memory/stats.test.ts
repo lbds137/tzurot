@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleStats } from './stats.js';
+import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -19,17 +20,10 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-// Mock userGatewayClient
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
 
 // Mock commandHelpers
 const mockCreateInfoEmbed = vi.fn(() => ({
@@ -46,17 +40,29 @@ vi.mock('./autocomplete.js', () => ({
   resolvePersonalityId: (...args: unknown[]) => mockResolvePersonalityId(...args),
 }));
 
+interface MemoryClientStub {
+  getStats: ReturnType<typeof vi.fn>;
+}
+
+function createStub(): MemoryClientStub {
+  return { getStats: vi.fn() };
+}
+
 describe('handleStats', () => {
   const mockEditReply = vi.fn();
+  let stub: MemoryClientStub;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = createStub();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
   });
 
   function createMockContext(personalitySlug: string = 'lilith') {
     return {
       user: { id: '123456789', username: 'testuser', globalName: 'testuser' },
       interaction: {
+        user: { id: '123456789', username: 'testuser' },
         options: {
           getString: (name: string, _required?: boolean) => {
             if (name === 'character') return personalitySlug;
@@ -70,9 +76,8 @@ describe('handleStats', () => {
 
   it('should get stats successfully', async () => {
     mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.getStats.mockResolvedValue(
+      makeOk({
         personalityId: 'personality-uuid-123',
         personalityName: 'Lilith',
         personaId: 'persona-123',
@@ -81,8 +86,8 @@ describe('handleStats', () => {
         oldestMemory: '2025-01-01T00:00:00.000Z',
         newestMemory: '2025-06-15T12:00:00.000Z',
         focusModeEnabled: false,
-      },
-    });
+      })
+    );
 
     const context = createMockContext();
     await handleStats(context);
@@ -91,13 +96,7 @@ describe('handleStats', () => {
       { discordId: '123456789', username: 'testuser', displayName: 'testuser' },
       'lilith'
     );
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/memory/stats?personalityId=personality-uuid-123',
-      {
-        user: { discordId: '123456789', username: 'testuser', displayName: 'testuser' },
-        method: 'GET',
-      }
-    );
+    expect(stub.getStats).toHaveBeenCalledWith({ personalityId: 'personality-uuid-123' });
     expect(mockCreateInfoEmbed).toHaveBeenCalledWith(
       'Memory Statistics',
       expect.stringContaining('Lilith')
@@ -110,9 +109,8 @@ describe('handleStats', () => {
     mockCreateInfoEmbed.mockReturnValue(mockEmbed);
     mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
 
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.getStats.mockResolvedValue(
+      makeOk({
         personalityId: 'personality-uuid-123',
         personalityName: 'Lilith',
         personaId: 'persona-123',
@@ -121,8 +119,8 @@ describe('handleStats', () => {
         oldestMemory: '2025-01-01T00:00:00.000Z',
         newestMemory: '2025-06-15T12:00:00.000Z',
         focusModeEnabled: true,
-      },
-    });
+      })
+    );
 
     const context = createMockContext();
     await handleStats(context);
@@ -138,9 +136,8 @@ describe('handleStats', () => {
     mockCreateInfoEmbed.mockReturnValue(mockEmbed);
     mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
 
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.getStats.mockResolvedValue(
+      makeOk({
         personalityId: 'personality-uuid-123',
         personalityName: 'Lilith',
         personaId: null,
@@ -149,8 +146,8 @@ describe('handleStats', () => {
         oldestMemory: null,
         newestMemory: null,
         focusModeEnabled: false,
-      },
-    });
+      })
+    );
 
     const context = createMockContext();
     await handleStats(context);
@@ -179,16 +176,12 @@ describe('handleStats', () => {
     expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('unknown'),
     });
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(stub.getStats).not.toHaveBeenCalled();
   });
 
   it('should handle personality not found (404)', async () => {
     mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      status: 404,
-      error: 'Not found',
-    });
+    stub.getStats.mockResolvedValue(makeErr(404, 'Not found'));
 
     const context = createMockContext('unknown');
     await handleStats(context);
@@ -200,11 +193,7 @@ describe('handleStats', () => {
 
   it('should handle generic API error', async () => {
     mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      status: 500,
-      error: 'Server error',
-    });
+    stub.getStats.mockResolvedValue(makeErr(500, 'Server error'));
 
     const context = createMockContext();
     await handleStats(context);

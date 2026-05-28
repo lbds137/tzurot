@@ -26,9 +26,15 @@ import {
   type ButtonInteraction,
   type ModalSubmitInteraction,
 } from 'discord.js';
-import { createLogger, memoryPurgeOptions } from '@tzurot/common-types';
+import {
+  createLogger,
+  memoryPurgeOptions,
+  type PurgeMemoriesResponse,
+  type UserClient,
+} from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
+import { toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import { createDangerEmbed, createSuccessEmbed } from '../../utils/commandHelpers.js';
 import { resolveRequiredPersonality } from './resolveHelpers.js';
 
@@ -46,28 +52,6 @@ const FOOTER_PREFIX = 'Personality: ';
 
 /** Buffer for confirmation phrase input to allow minor whitespace. */
 const CONFIRMATION_PHRASE_LENGTH_BUFFER = 5;
-
-interface StatsResponse {
-  personalityId: string;
-  personalityName: string;
-  personaId: string | null;
-  totalCount: number;
-  lockedCount: number;
-}
-
-interface PurgeResponse {
-  deletedCount: number;
-  lockedPreserved: number;
-  personalityId: string;
-  personalityName: string;
-  message: string;
-}
-
-interface PurgeTokenResponse {
-  purgeToken: string;
-  personalityId: string;
-  personalityName: string;
-}
 
 /** Build the confirmation phrase the user must type to confirm the purge. */
 function getConfirmationPhrase(personalityName: string): string {
@@ -123,6 +107,7 @@ async function assertInvokerOwnership(
 export async function handlePurge(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
   const user = toGatewayUser(context.user);
+  const { userClient } = clientsFor(context.interaction);
   const options = memoryPurgeOptions(context.interaction);
   const personalityInput = options.character();
 
@@ -132,10 +117,7 @@ export async function handlePurge(context: DeferredCommandContext): Promise<void
       return;
     }
 
-    const statsResult = await callGatewayApi<StatsResponse>(
-      `/user/memory/stats?personalityId=${encodeURIComponent(personalityId)}`,
-      { user, method: 'GET' }
-    );
+    const statsResult = await userClient.getStats({ personalityId });
 
     if (!statsResult.ok) {
       const errorMessage =
@@ -285,15 +267,14 @@ export async function handlePurgeButton(interaction: ButtonInteraction): Promise
  * `interaction.editReply`).
  */
 async function executePurgeHandshake(
-  user: ReturnType<typeof toGatewayUser>,
+  userClient: UserClient,
   personalityId: string,
   enteredPhrase: string,
   interaction: ModalSubmitInteraction
-): Promise<PurgeResponse | null> {
-  const tokenResult = await callGatewayApi<PurgeTokenResponse>('/user/memory/purge/token', {
-    user,
-    method: 'POST',
-    body: { personalityId, confirmationPhrase: enteredPhrase },
+): Promise<PurgeMemoriesResponse | null> {
+  const tokenResult = await userClient.issuePurgeToken({
+    personalityId,
+    confirmationPhrase: enteredPhrase,
   });
 
   if (!tokenResult.ok) {
@@ -305,11 +286,7 @@ async function executePurgeHandshake(
     return null;
   }
 
-  const purgeResult = await callGatewayApi<PurgeResponse>('/user/memory/purge', {
-    user,
-    method: 'POST',
-    body: { purgeToken: tokenResult.data.purgeToken },
-  });
+  const purgeResult = await userClient.purge({ purgeToken: tokenResult.data.purgeToken });
 
   if (!purgeResult.ok) {
     await interaction.editReply({
@@ -401,8 +378,13 @@ export async function handlePurgeModal(interaction: ModalSubmitInteraction): Pro
     components: [],
   });
 
-  const user = toGatewayUser(interaction.user);
-  const purgeResult = await executePurgeHandshake(user, personalityId, enteredPhrase, interaction);
+  const { userClient } = clientsFor(interaction);
+  const purgeResult = await executePurgeHandshake(
+    userClient,
+    personalityId,
+    enteredPhrase,
+    interaction
+  );
   if (purgeResult === null) {
     return;
   }

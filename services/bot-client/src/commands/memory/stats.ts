@@ -6,22 +6,12 @@
 import { escapeMarkdown } from 'discord.js';
 import { createLogger, memoryStatsOptions, formatDateTimeCompact } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
+import { toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import { createInfoEmbed } from '../../utils/commandHelpers.js';
 import { resolveRequiredPersonality } from './resolveHelpers.js';
 
 const logger = createLogger('memory-stats');
-
-interface StatsResponse {
-  personalityId: string;
-  personalityName: string;
-  personaId: string | null;
-  totalCount: number;
-  lockedCount: number;
-  oldestMemory: string | null;
-  newestMemory: string | null;
-  focusModeEnabled: boolean;
-}
 
 /** Format date or return 'N/A' for null */
 function formatDateOrNA(dateStr: string | null): string {
@@ -34,6 +24,7 @@ function formatDateOrNA(dateStr: string | null): string {
 export async function handleStats(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
   const user = toGatewayUser(context.user);
+  const { userClient } = clientsFor(context.interaction);
   const options = memoryStatsOptions(context.interaction);
   const personalityInput = options.character();
 
@@ -44,13 +35,7 @@ export async function handleStats(context: DeferredCommandContext): Promise<void
       return;
     }
 
-    const result = await callGatewayApi<StatsResponse>(
-      `/user/memory/stats?personalityId=${encodeURIComponent(personalityId)}`,
-      {
-        user,
-        method: 'GET',
-      }
-    );
+    const result = await userClient.getStats({ personalityId });
 
     if (!result.ok) {
       const errorMessage =

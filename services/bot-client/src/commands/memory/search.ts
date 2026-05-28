@@ -24,9 +24,11 @@ import {
   DISCORD_COLORS,
   memorySearchOptions,
   formatDateShort,
+  type UserClient,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi, toGatewayUser, type GatewayUser } from '../../utils/userGatewayClient.js';
+import { toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import {
   createBrowseCustomIdHelpers,
   buildBrowseButtons as buildSharedBrowseButtons,
@@ -35,7 +37,8 @@ import {
   formatPageIndicator,
 } from '../../utils/browse/index.js';
 import { resolveOptionalPersonality } from './resolveHelpers.js';
-import { buildMemoryActionId, handleMemorySelect, type MemoryItem } from './detail.js';
+import { buildMemoryActionId, handleMemorySelect } from './detail.js';
+import type { MemoryItem } from '@tzurot/common-types';
 import { handleMemoryDetailAction } from './detailActionRouter.js';
 import { formatSimilarity, truncateContent } from './formatters.js';
 import {
@@ -224,7 +227,7 @@ function buildSearchView(opts: {
 }
 
 interface FetchSearchOptions {
-  user: GatewayUser;
+  userClient: UserClient;
   query: string;
   personalityId?: string;
   offset: number;
@@ -237,27 +240,15 @@ interface FetchSearchOptions {
  * Fetch search results from API
  */
 async function fetchSearchResults(options: FetchSearchOptions): Promise<SearchResponse | null> {
-  const { user, query, personalityId, offset, limit, preferTextSearch } = options;
+  const { userClient, query, personalityId, offset, limit, preferTextSearch } = options;
 
-  const requestBody: Record<string, unknown> = {
+  const result = await userClient.search({
     query,
     limit,
     offset,
-  };
-
-  if (personalityId !== undefined) {
-    requestBody.personalityId = personalityId;
-  }
-
-  // Optimization: skip semantic search attempt if we know first page fell back to text
-  if (preferTextSearch === true) {
-    requestBody.preferTextSearch = true;
-  }
-
-  const result = await callGatewayApi<SearchResponse>('/user/memory/search', {
-    user,
-    method: 'POST',
-    body: requestBody,
+    ...(personalityId !== undefined && { personalityId }),
+    // Optimization: skip semantic search attempt if we know first page fell back to text
+    ...(preferTextSearch === true && { preferTextSearch: true }),
   });
 
   if (!result.ok) {
@@ -273,6 +264,7 @@ async function fetchSearchResults(options: FetchSearchOptions): Promise<SearchRe
 export async function handleSearch(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
   const user = toGatewayUser(context.user);
+  const { userClient } = clientsFor(context.interaction);
   const options = memorySearchOptions(context.interaction);
   const query = options.query();
   const personalityInput = options.character();
@@ -292,7 +284,7 @@ export async function handleSearch(context: DeferredCommandContext): Promise<voi
 
     // Fetch first page
     const data = await fetchSearchResults({
-      user,
+      userClient,
       query,
       personalityId,
       offset: 0,
@@ -398,9 +390,10 @@ export async function handleSearchPagination(interaction: ButtonInteraction): Pr
 
   const userId = interaction.user.id;
   const newPage = parsed.page;
+  const { userClient } = clientsFor(interaction);
 
   const data = await fetchSearchResults({
-    user: toGatewayUser(interaction.user),
+    userClient,
     query: searchQuery,
     personalityId,
     offset: newPage * pageSize,
@@ -472,13 +465,13 @@ export async function refreshSearchList(interaction: ButtonInteraction): Promise
   const { personalityId, searchQuery, pageSize, searchType } = session.data;
 
   const userId = interaction.user.id;
-  const user = toGatewayUser(interaction.user);
+  const { userClient } = clientsFor(interaction);
 
   const result = await fetchPageWithEmptyFallback({
     currentPage: session.data.currentPage,
     fetchPage: page =>
       fetchSearchResults({
-        user,
+        userClient,
         query: searchQuery,
         personalityId,
         offset: page * pageSize,

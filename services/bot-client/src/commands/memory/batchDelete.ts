@@ -23,7 +23,8 @@ import {
   AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
   isAutocompleteErrorSentinel,
 } from '../../utils/apiCheck.js';
-import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
+import { toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import { createWarningEmbed, createSuccessEmbed } from '../../utils/commandHelpers.js';
 import { resolvePersonalityId } from './autocomplete.js';
 
@@ -31,24 +32,6 @@ const logger = createLogger('memory-batch-delete');
 
 /** Timeout for confirmation buttons (60 seconds) */
 const CONFIRMATION_TIMEOUT = 60_000;
-
-interface PreviewResponse {
-  wouldDelete: number;
-  lockedWouldSkip: number;
-  personalityId: string;
-  personalityName: string;
-  timeframe: string;
-  /** Short-lived token bound to the filter that produced this preview. */
-  previewToken: string;
-}
-
-interface DeleteResponse {
-  deletedCount: number;
-  skippedLocked: number;
-  personalityId: string;
-  personalityName: string;
-  message: string;
-}
 
 /** Format timeframe for display using shared Duration class */
 function formatTimeframe(timeframe: string | null): string {
@@ -76,6 +59,7 @@ function formatTimeframe(timeframe: string | null): string {
 export async function handleBatchDelete(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
   const user = toGatewayUser(context.user);
+  const { userClient } = clientsFor(context.interaction);
   const options = memoryDeleteOptions(context.interaction);
   const personalityInput = options.character();
   const timeframe = options.timeframe();
@@ -100,13 +84,9 @@ export async function handleBatchDelete(context: DeferredCommandContext): Promis
     // execute call below sends ONLY the token — server-side reads the
     // filter back from Redis under the token key, so the execute path
     // is guaranteed to match what the user previewed.
-    const previewResult = await callGatewayApi<PreviewResponse>(`/user/memory/delete/preview`, {
-      user,
-      method: 'POST',
-      body: {
-        personalityId,
-        ...(timeframe !== null ? { timeframe } : {}),
-      },
+    const previewResult = await userClient.batchDeletePreview({
+      personalityId,
+      ...(timeframe !== null && { timeframe }),
     });
 
     if (!previewResult.ok) {
@@ -191,11 +171,7 @@ export async function handleBatchDelete(context: DeferredCommandContext): Promis
       // User confirmed - perform deletion
       await buttonInteraction.deferUpdate();
 
-      const deleteResult = await callGatewayApi<DeleteResponse>('/user/memory/delete', {
-        user,
-        method: 'POST',
-        body: { previewToken: preview.previewToken },
-      });
+      const deleteResult = await userClient.batchDelete({ previewToken: preview.previewToken });
 
       if (!deleteResult.ok) {
         await buttonInteraction.editReply({
@@ -208,8 +184,13 @@ export async function handleBatchDelete(context: DeferredCommandContext): Promis
 
       const result = deleteResult.data;
 
-      // Show success
-      let successDescription = `Deleted **${result.deletedCount}** memories for **${escapeMarkdown(result.personalityName)}**`;
+      // Show success. `personalityName` is schema-optional because the gateway
+      // returns the 0-result shape without it when nothing matched; in this
+      // branch the preview already confirmed >0 deletions, so the fallback is
+      // a defense-in-depth guard against the rare preview-to-execute race
+      // (memories deleted by another session between preview and execute).
+      const displayName = result.personalityName ?? preview.personalityName;
+      let successDescription = `Deleted **${result.deletedCount}** memories for **${escapeMarkdown(displayName)}**`;
 
       if (timeframe !== null) {
         successDescription += ` from the last **${timeframeDisplay}**`;

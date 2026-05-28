@@ -16,10 +16,10 @@ import {
 import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import { buildMemoryActionId, buildDetailEmbed, buildDetailButtons } from './detail.js';
-import { toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import { showModalWithTimeoutCatch } from '../../utils/dashboard/showModalWithTimeoutCatch.js';
 import { fetchMemory, updateMemory } from './detailApi.js';
-import type { MemoryItem } from './detailApi.js';
+import type { MemoryItem } from '@tzurot/common-types';
 
 const logger = createLogger('memory-detail-modals');
 
@@ -100,7 +100,8 @@ export async function handleEditButton(
   interaction: ButtonInteraction,
   memoryId: string
 ): Promise<void> {
-  const memory = await fetchMemory(toGatewayUser(interaction.user), memoryId);
+  const { userClient } = clientsFor(interaction);
+  const memory = await fetchMemory(userClient, memoryId, interaction.user.id);
   if (memory === null) {
     await interaction.reply({
       content: '❌ Failed to load memory. It may have been deleted.',
@@ -147,7 +148,8 @@ export async function handleEditTruncatedButton(
   interaction: ButtonInteraction,
   memoryId: string
 ): Promise<void> {
-  const memory = await fetchMemory(toGatewayUser(interaction.user), memoryId);
+  const { userClient } = clientsFor(interaction);
+  const memory = await fetchMemory(userClient, memoryId, interaction.user.id);
   if (memory === null) {
     await interaction.update({
       content: '❌ Failed to load memory. It may have been deleted.',
@@ -215,7 +217,8 @@ export async function handleEditModalSubmit(
     return;
   }
 
-  const updatedMemory = await updateMemory(toGatewayUser(interaction.user), memoryId, newContent);
+  const { userClient } = clientsFor(interaction);
+  const updatedMemory = await updateMemory(userClient, memoryId, newContent, userId);
   if (updatedMemory === null) {
     await interaction.followUp({
       content: '❌ Failed to update memory. Please try again.',

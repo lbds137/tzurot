@@ -14,19 +14,13 @@ import {
   memoryFocusStatusOptions,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
+import { toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import { createSuccessEmbed, createInfoEmbed } from '../../utils/commandHelpers.js';
 import { getPersonalityName } from './autocomplete.js';
 import { resolveRequiredPersonality } from './resolveHelpers.js';
 
 const logger = createLogger('memory-focus');
-
-interface FocusResponse {
-  personalityId: string;
-  personalityName: string;
-  focusModeEnabled: boolean;
-  message?: string;
-}
 
 /**
  * Handle /memory focus enable
@@ -48,6 +42,7 @@ export async function handleFocusDisable(context: DeferredCommandContext): Promi
 export async function handleFocusStatus(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
   const user = toGatewayUser(context.user);
+  const { userClient } = clientsFor(context.interaction);
   const options = memoryFocusStatusOptions(context.interaction);
   const personalityInput = options.character();
 
@@ -58,13 +53,7 @@ export async function handleFocusStatus(context: DeferredCommandContext): Promis
       return;
     }
 
-    const result = await callGatewayApi<FocusResponse>(
-      `/user/memory/focus?personalityId=${encodeURIComponent(personalityId)}`,
-      {
-        user,
-        method: 'GET',
-      }
-    );
+    const result = await userClient.getFocus({ personalityId });
 
     if (!result.ok) {
       logger.warn({ userId, personalityInput, status: result.status }, 'Status check failed');
@@ -102,6 +91,7 @@ export async function handleFocusStatus(context: DeferredCommandContext): Promis
 async function setFocusMode(context: DeferredCommandContext, enabled: boolean): Promise<void> {
   const userId = context.user.id;
   const user = toGatewayUser(context.user);
+  const { userClient } = clientsFor(context.interaction);
   // Both enable and disable use the same option schema
   const options = enabled
     ? memoryFocusEnableOptions(context.interaction)
@@ -115,11 +105,7 @@ async function setFocusMode(context: DeferredCommandContext, enabled: boolean): 
       return;
     }
 
-    const result = await callGatewayApi<FocusResponse>('/user/memory/focus', {
-      user,
-      method: 'POST',
-      body: { personalityId, enabled },
-    });
+    const result = await userClient.setFocus({ personalityId, enabled });
 
     if (!result.ok) {
       logger.warn(

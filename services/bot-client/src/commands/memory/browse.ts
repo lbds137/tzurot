@@ -22,9 +22,13 @@ import {
   DISCORD_COLORS,
   memoryBrowseOptions,
   formatDateShort,
+  type MemoryItem,
+  type MemoryListResponse,
+  type UserClient,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi, toGatewayUser, type GatewayUser } from '../../utils/userGatewayClient.js';
+import { toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import {
   createBrowseCustomIdHelpers,
   buildBrowseButtons as buildSharedBrowseButtons,
@@ -39,7 +43,6 @@ import {
 import { resolveOptionalPersonality } from './resolveHelpers.js';
 import { buildMemoryActionId, handleMemorySelect } from './detail.js';
 import { handleMemoryDetailAction } from './detailActionRouter.js';
-import type { MemoryItem } from './detailApi.js';
 import { truncateContent } from './formatters.js';
 import {
   saveMemoryListSession,
@@ -79,13 +82,8 @@ export function isMemoryBrowsePagination(customId: string): boolean {
   return browseHelpers.isBrowse(customId);
 }
 
-interface BrowseResponse {
-  memories: MemoryItem[];
-  total: number;
-  limit: number;
-  offset: number;
-  hasMore: boolean;
-}
+/** Schema-derived response type; mirrors `MemoryListResponseSchema`. */
+type BrowseResponse = MemoryListResponse;
 
 interface BuildBrowseViewOptions {
   memories: MemoryItem[];
@@ -184,28 +182,18 @@ function buildBrowseComponents(
  * Fetch memories from API
  */
 async function fetchMemories(
-  user: GatewayUser,
+  userClient: UserClient,
   personalityId: string | undefined,
   offset: number,
   limit: number
 ): Promise<BrowseResponse | null> {
-  const queryParams = new URLSearchParams();
-  queryParams.set('limit', limit.toString());
-  queryParams.set('offset', offset.toString());
-  queryParams.set('sort', 'createdAt');
-  queryParams.set('order', 'desc');
-
-  if (personalityId !== undefined) {
-    queryParams.set('personalityId', personalityId);
-  }
-
-  const result = await callGatewayApi<BrowseResponse>(
-    `/user/memory/list?${queryParams.toString()}`,
-    {
-      user,
-      method: 'GET',
-    }
-  );
+  const result = await userClient.list({
+    limit: limit.toString(),
+    offset: offset.toString(),
+    sort: 'createdAt',
+    order: 'desc',
+    ...(personalityId !== undefined && { personalityId }),
+  });
 
   if (!result.ok) {
     return null;
@@ -220,6 +208,7 @@ async function fetchMemories(
 export async function handleBrowse(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
   const user = toGatewayUser(context.user);
+  const { userClient } = clientsFor(context.interaction);
   const options = memoryBrowseOptions(context.interaction);
   const personalityInput = options.character();
 
@@ -233,7 +222,7 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
     }
 
     // Fetch first page
-    const data = await fetchMemories(user, personalityId, 0, MEMORIES_PER_PAGE);
+    const data = await fetchMemories(userClient, personalityId, 0, MEMORIES_PER_PAGE);
 
     if (data === null) {
       logger.warn({ userId }, 'Browse failed');
@@ -318,9 +307,10 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
   const userId = interaction.user.id;
   const { personalityId } = session.data;
   const newPage = parsed.page;
+  const { userClient } = clientsFor(interaction);
 
   const data = await fetchMemories(
-    toGatewayUser(interaction.user),
+    userClient,
     personalityId,
     newPage * MEMORIES_PER_PAGE,
     MEMORIES_PER_PAGE
@@ -384,13 +374,13 @@ export async function refreshBrowseList(interaction: ButtonInteraction): Promise
   }
 
   const userId = interaction.user.id;
-  const user = toGatewayUser(interaction.user);
+  const { userClient } = clientsFor(interaction);
   const { personalityId } = session.data;
 
   const result = await fetchPageWithEmptyFallback({
     currentPage: session.data.currentPage,
     fetchPage: page =>
-      fetchMemories(user, personalityId, page * MEMORIES_PER_PAGE, MEMORIES_PER_PAGE),
+      fetchMemories(userClient, personalityId, page * MEMORIES_PER_PAGE, MEMORIES_PER_PAGE),
     isEmpty: d => d.memories.length === 0,
   });
   if (result === null) {

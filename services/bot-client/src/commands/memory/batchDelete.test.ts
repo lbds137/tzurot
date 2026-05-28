@@ -11,8 +11,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleBatchDelete } from './batchDelete.js';
 import type { ButtonInteraction } from 'discord.js';
+import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
-// Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
   return {
@@ -26,19 +26,11 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-// Mock userGatewayClient
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
 
-// Mock commandHelpers
 const mockReplyWithError = vi.fn();
 const mockHandleCommandError = vi.fn();
 vi.mock('../../utils/commandHelpers.js', () => ({
@@ -52,18 +44,32 @@ vi.mock('../../utils/commandHelpers.js', () => ({
   })),
 }));
 
-// Mock autocomplete
 const mockResolvePersonalityId = vi.fn();
 vi.mock('./autocomplete.js', () => ({
   resolvePersonalityId: (...args: unknown[]) => mockResolvePersonalityId(...args),
 }));
 
+interface MemoryClientStub {
+  batchDeletePreview: ReturnType<typeof vi.fn>;
+  batchDelete: ReturnType<typeof vi.fn>;
+}
+
+function createStub(): MemoryClientStub {
+  return {
+    batchDeletePreview: vi.fn(),
+    batchDelete: vi.fn(),
+  };
+}
+
 describe('handleBatchDelete', () => {
   const mockEditReply = vi.fn();
   const mockAwaitMessageComponent = vi.fn();
+  let stub: MemoryClientStub;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = createStub();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
     // Default: editReply returns message with awaitMessageComponent
     mockEditReply.mockResolvedValue({
       awaitMessageComponent: mockAwaitMessageComponent,
@@ -74,6 +80,7 @@ describe('handleBatchDelete', () => {
     return {
       user: { id: 'user-123', username: 'testuser', globalName: 'testuser' },
       interaction: {
+        user: { id: 'user-123', username: 'testuser' },
         options: {
           getString: (name: string, _required?: boolean) => {
             if (name === 'character') return personality;
@@ -114,16 +121,16 @@ describe('handleBatchDelete', () => {
 
     it('should resolve personality slug to ID', async () => {
       mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: {
+      stub.batchDeletePreview.mockResolvedValue(
+        makeOk({
           wouldDelete: 0,
           lockedWouldSkip: 0,
           personalityId: 'personality-uuid-123',
           personalityName: 'Lilith',
           timeframe: 'all',
-        },
-      });
+          previewToken: 'preview_test0000test0001',
+        })
+      );
 
       const context = createMockContext('lilith');
       await handleBatchDelete(context);
@@ -132,12 +139,8 @@ describe('handleBatchDelete', () => {
         { discordId: 'user-123', username: 'testuser', displayName: 'testuser' },
         'lilith'
       );
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/memory/delete/preview',
-        expect.objectContaining({
-          method: 'POST',
-          body: expect.objectContaining({ personalityId: 'personality-uuid-123' }),
-        })
+      expect(stub.batchDeletePreview).toHaveBeenCalledWith(
+        expect.objectContaining({ personalityId: 'personality-uuid-123' })
       );
     });
   });
@@ -148,11 +151,7 @@ describe('handleBatchDelete', () => {
     });
 
     it('should show error when preview API fails', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: false,
-        status: 500,
-        error: 'Server error',
-      });
+      stub.batchDeletePreview.mockResolvedValue(makeErr(500, 'Server error'));
 
       const context = createMockContext();
       await handleBatchDelete(context);
@@ -163,11 +162,7 @@ describe('handleBatchDelete', () => {
     });
 
     it('should show 404 message when personality not found in API', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: false,
-        status: 404,
-        error: 'Not found',
-      });
+      stub.batchDeletePreview.mockResolvedValue(makeErr(404, 'Not found'));
 
       const context = createMockContext();
       await handleBatchDelete(context);
@@ -178,16 +173,16 @@ describe('handleBatchDelete', () => {
     });
 
     it('should show "no memories" message when nothing to delete', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: {
+      stub.batchDeletePreview.mockResolvedValue(
+        makeOk({
           wouldDelete: 0,
           lockedWouldSkip: 0,
           personalityId: 'personality-uuid-123',
           personalityName: 'Lilith',
           timeframe: 'all',
-        },
-      });
+          previewToken: 'preview_test0000test0001',
+        })
+      );
 
       const context = createMockContext();
       await handleBatchDelete(context);
@@ -198,26 +193,22 @@ describe('handleBatchDelete', () => {
     });
 
     it('should include timeframe in preview request when provided', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: {
+      stub.batchDeletePreview.mockResolvedValue(
+        makeOk({
           wouldDelete: 0,
           lockedWouldSkip: 0,
           personalityId: 'personality-uuid-123',
           personalityName: 'Lilith',
           timeframe: '7d',
-        },
-      });
+          previewToken: 'preview_test0000test0002',
+        })
+      );
 
       const context = createMockContext('lilith', '7d');
       await handleBatchDelete(context);
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/memory/delete/preview',
-        expect.objectContaining({
-          method: 'POST',
-          body: expect.objectContaining({ timeframe: '7d' }),
-        })
+      expect(stub.batchDeletePreview).toHaveBeenCalledWith(
+        expect.objectContaining({ timeframe: '7d' })
       );
     });
   });
@@ -225,17 +216,16 @@ describe('handleBatchDelete', () => {
   describe('confirmation dialog', () => {
     beforeEach(() => {
       mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: {
+      stub.batchDeletePreview.mockResolvedValue(
+        makeOk({
           wouldDelete: 5,
           lockedWouldSkip: 1,
           personalityId: 'personality-uuid-123',
           personalityName: 'Lilith',
           timeframe: 'all',
           previewToken: 'preview_test0000test0001',
-        },
-      });
+        })
+      );
     });
 
     it('should show confirmation embed with memory count', async () => {
@@ -286,30 +276,25 @@ describe('handleBatchDelete', () => {
     });
 
     it('should perform deletion using the previewToken when user confirms', async () => {
-      // Preview response — now carries the token bound to the filter
-      mockCallGatewayApi
-        .mockResolvedValueOnce({
-          ok: true,
-          data: {
-            wouldDelete: 5,
-            lockedWouldSkip: 1,
-            personalityId: 'personality-uuid-123',
-            personalityName: 'Lilith',
-            timeframe: 'all',
-            previewToken: 'preview_test0000test0001',
-          },
+      stub.batchDeletePreview.mockResolvedValue(
+        makeOk({
+          wouldDelete: 5,
+          lockedWouldSkip: 1,
+          personalityId: 'personality-uuid-123',
+          personalityName: 'Lilith',
+          timeframe: 'all',
+          previewToken: 'preview_test0000test0001',
         })
-        // Delete response
-        .mockResolvedValueOnce({
-          ok: true,
-          data: {
-            deletedCount: 5,
-            skippedLocked: 1,
-            personalityId: 'personality-uuid-123',
-            personalityName: 'Lilith',
-            message: 'Deleted 5 memories. 1 locked memories were skipped.',
-          },
-        });
+      );
+      stub.batchDelete.mockResolvedValue(
+        makeOk({
+          deletedCount: 5,
+          skippedLocked: 1,
+          personalityId: 'personality-uuid-123',
+          personalityName: 'Lilith',
+          message: 'Deleted 5 memories. 1 locked memories were skipped.',
+        })
+      );
 
       const buttonInteraction = createMockButtonInteraction('memory-batch-delete::confirm');
       mockAwaitMessageComponent.mockResolvedValue(buttonInteraction);
@@ -319,13 +304,7 @@ describe('handleBatchDelete', () => {
 
       // Delete API is invoked with ONLY the previewToken — the filter
       // never crosses the wire on the execute path.
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/memory/delete',
-        expect.objectContaining({
-          method: 'POST',
-          body: { previewToken: 'preview_test0000test0001' },
-        })
-      );
+      expect(stub.batchDelete).toHaveBeenCalledWith({ previewToken: 'preview_test0000test0001' });
 
       expect(buttonInteraction.editReply).toHaveBeenCalledWith({
         embeds: expect.any(Array),
@@ -334,28 +313,25 @@ describe('handleBatchDelete', () => {
     });
 
     it('should include timeframe only in the preview body — execute uses the token', async () => {
-      mockCallGatewayApi
-        .mockResolvedValueOnce({
-          ok: true,
-          data: {
-            wouldDelete: 3,
-            lockedWouldSkip: 0,
-            personalityId: 'personality-uuid-123',
-            personalityName: 'Lilith',
-            timeframe: '7d',
-            previewToken: 'preview_test0000test0002',
-          },
+      stub.batchDeletePreview.mockResolvedValue(
+        makeOk({
+          wouldDelete: 3,
+          lockedWouldSkip: 0,
+          personalityId: 'personality-uuid-123',
+          personalityName: 'Lilith',
+          timeframe: '7d',
+          previewToken: 'preview_test0000test0002',
         })
-        .mockResolvedValueOnce({
-          ok: true,
-          data: {
-            deletedCount: 3,
-            skippedLocked: 0,
-            personalityId: 'personality-uuid-123',
-            personalityName: 'Lilith',
-            message: 'Deleted 3 memories.',
-          },
-        });
+      );
+      stub.batchDelete.mockResolvedValue(
+        makeOk({
+          deletedCount: 3,
+          skippedLocked: 0,
+          personalityId: 'personality-uuid-123',
+          personalityName: 'Lilith',
+          message: 'Deleted 3 memories.',
+        })
+      );
 
       const buttonInteraction = createMockButtonInteraction('memory-batch-delete::confirm');
       mockAwaitMessageComponent.mockResolvedValue(buttonInteraction);
@@ -364,42 +340,25 @@ describe('handleBatchDelete', () => {
       await handleBatchDelete(context);
 
       // Preview includes timeframe …
-      expect(mockCallGatewayApi).toHaveBeenNthCalledWith(
-        1,
-        '/user/memory/delete/preview',
-        expect.objectContaining({
-          method: 'POST',
-          body: expect.objectContaining({ timeframe: '7d' }),
-        })
+      expect(stub.batchDeletePreview).toHaveBeenCalledWith(
+        expect.objectContaining({ timeframe: '7d' })
       );
       // … execute is token-only.
-      expect(mockCallGatewayApi).toHaveBeenNthCalledWith(
-        2,
-        '/user/memory/delete',
-        expect.objectContaining({
-          method: 'POST',
-          body: { previewToken: 'preview_test0000test0002' },
-        })
-      );
+      expect(stub.batchDelete).toHaveBeenCalledWith({ previewToken: 'preview_test0000test0002' });
     });
 
     it('should show error when delete API fails', async () => {
-      mockCallGatewayApi
-        .mockResolvedValueOnce({
-          ok: true,
-          data: {
-            wouldDelete: 5,
-            lockedWouldSkip: 0,
-            personalityId: 'personality-uuid-123',
-            personalityName: 'Lilith',
-            timeframe: 'all',
-            previewToken: 'preview_test0000test0001',
-          },
+      stub.batchDeletePreview.mockResolvedValue(
+        makeOk({
+          wouldDelete: 5,
+          lockedWouldSkip: 0,
+          personalityId: 'personality-uuid-123',
+          personalityName: 'Lilith',
+          timeframe: 'all',
+          previewToken: 'preview_test0000test0001',
         })
-        .mockResolvedValueOnce({
-          ok: false,
-          error: 'Database error',
-        });
+      );
+      stub.batchDelete.mockResolvedValue(makeErr(500, 'Database error'));
 
       const buttonInteraction = createMockButtonInteraction('memory-batch-delete::confirm');
       mockAwaitMessageComponent.mockResolvedValue(buttonInteraction);
@@ -415,28 +374,25 @@ describe('handleBatchDelete', () => {
     });
 
     it('should defer update before making API call', async () => {
-      mockCallGatewayApi
-        .mockResolvedValueOnce({
-          ok: true,
-          data: {
-            wouldDelete: 2,
-            lockedWouldSkip: 0,
-            personalityId: 'personality-uuid-123',
-            personalityName: 'Lilith',
-            timeframe: 'all',
-            previewToken: 'preview_test0000test0001',
-          },
+      stub.batchDeletePreview.mockResolvedValue(
+        makeOk({
+          wouldDelete: 2,
+          lockedWouldSkip: 0,
+          personalityId: 'personality-uuid-123',
+          personalityName: 'Lilith',
+          timeframe: 'all',
+          previewToken: 'preview_test0000test0001',
         })
-        .mockResolvedValueOnce({
-          ok: true,
-          data: {
-            deletedCount: 2,
-            skippedLocked: 0,
-            personalityId: 'personality-uuid-123',
-            personalityName: 'Lilith',
-            message: 'Deleted 2 memories.',
-          },
-        });
+      );
+      stub.batchDelete.mockResolvedValue(
+        makeOk({
+          deletedCount: 2,
+          skippedLocked: 0,
+          personalityId: 'personality-uuid-123',
+          personalityName: 'Lilith',
+          message: 'Deleted 2 memories.',
+        })
+      );
 
       const buttonInteraction = createMockButtonInteraction('memory-batch-delete::confirm');
       mockAwaitMessageComponent.mockResolvedValue(buttonInteraction);
@@ -466,7 +422,7 @@ describe('handleBatchDelete', () => {
       await handleBatchDelete(context);
 
       expect(mockResolvePersonalityId).not.toHaveBeenCalled();
-      expect(mockCallGatewayApi).not.toHaveBeenCalled();
+      expect(stub.batchDeletePreview).not.toHaveBeenCalled();
       expect(mockEditReply).toHaveBeenCalledWith({
         content: expect.stringContaining('Autocomplete was unavailable'),
       });
