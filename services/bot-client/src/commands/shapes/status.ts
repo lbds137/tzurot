@@ -7,22 +7,15 @@
 import { EmbedBuilder } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi, GATEWAY_TIMEOUTS, toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import {
   formatImportJobStatus,
   formatExportJobStatus,
-  type ImportJobsResponse,
-  type ExportJobsResponse,
+  adaptImportJob,
+  adaptExportJob,
 } from './statusFormatters.js';
 
 const logger = createLogger('shapes-status');
-
-interface AuthStatusResponse {
-  hasCredentials: boolean;
-  service: string;
-  storedAt?: string;
-  lastUsedAt?: string;
-}
 
 /**
  * Handle /shapes status subcommand
@@ -33,20 +26,11 @@ export async function handleStatus(context: DeferredCommandContext): Promise<voi
 
   try {
     // Fetch auth status, import history, and export history in parallel
-    const user = toGatewayUser(context.user);
+    const { userClient } = clientsFor(context.interaction);
     const [authResult, importJobsResult, exportJobsResult] = await Promise.all([
-      callGatewayApi<AuthStatusResponse>('/user/shapes/auth/status', {
-        user,
-        timeout: GATEWAY_TIMEOUTS.DEFERRED,
-      }),
-      callGatewayApi<ImportJobsResponse>('/user/shapes/import/jobs', {
-        user,
-        timeout: GATEWAY_TIMEOUTS.DEFERRED,
-      }),
-      callGatewayApi<ExportJobsResponse>('/user/shapes/export/jobs', {
-        user,
-        timeout: GATEWAY_TIMEOUTS.DEFERRED,
-      }),
+      userClient.getShapesAuthStatus(),
+      userClient.listShapesImportJobs(),
+      userClient.listShapesExportJobs(),
     ]);
 
     const hasCredentials = authResult.ok && authResult.data.hasCredentials;
@@ -64,7 +48,10 @@ export async function handleStatus(context: DeferredCommandContext): Promise<voi
 
     // Import history
     if (importJobsResult.ok && importJobsResult.data.jobs.length > 0) {
-      const jobLines = importJobsResult.data.jobs.slice(0, 5).map(formatImportJobStatus);
+      const jobLines = importJobsResult.data.jobs
+        .slice(0, 5)
+        .map(adaptImportJob)
+        .map(formatImportJobStatus);
       embed.addFields({
         name: `Import History (${importJobsResult.data.jobs.length})`,
         value: jobLines.join('\n\n'),
@@ -78,7 +65,10 @@ export async function handleStatus(context: DeferredCommandContext): Promise<voi
 
     // Export history
     if (exportJobsResult.ok && exportJobsResult.data.jobs.length > 0) {
-      const jobLines = exportJobsResult.data.jobs.slice(0, 5).map(formatExportJobStatus);
+      const jobLines = exportJobsResult.data.jobs
+        .slice(0, 5)
+        .map(adaptExportJob)
+        .map(formatExportJobStatus);
       embed.addFields({
         name: `Export History (${exportJobsResult.data.jobs.length})`,
         value: jobLines.join('\n\n'),

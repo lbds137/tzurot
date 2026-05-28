@@ -9,6 +9,7 @@
  * the handler short-circuits with 503 when the queue is unavailable.
  */
 
+import { z } from 'zod';
 import {
   StoreShapesAuthInputSchema,
   StoreShapesAuthResponseSchema,
@@ -93,6 +94,7 @@ export const userShapesRoutes = {
     method: 'get',
     path: `${BASE}/import/jobs`,
     id: 'listShapesImportJobs',
+    query: { slug: z.string().optional() },
     output: ListShapesImportJobsResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
@@ -117,6 +119,7 @@ export const userShapesRoutes = {
     method: 'get',
     path: `${BASE}/export/jobs`,
     id: 'listShapesExportJobs',
+    query: { slug: z.string().optional() },
     output: ListShapesExportJobsResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },

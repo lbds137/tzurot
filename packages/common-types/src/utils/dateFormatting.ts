@@ -21,6 +21,30 @@ function parseTimestamp(input: Date | string | number): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 
+/**
+ * Normalize a `string | Date` field to an ISO 8601 string. Used at API
+ * boundaries where the schema declares `z.union([z.string(), z.date()])`
+ * because Express serializes Date → string on the wire but tests can
+ * construct payloads with Date objects directly. Callers downstream of
+ * this helper can rely on a `string` contract.
+ *
+ * Returns the input unchanged if already a string; converts via
+ * `toISOString()` if a Date.
+ */
+export function normalizeDateTime(value: string | Date): string {
+  return typeof value === 'string' ? value : value.toISOString();
+}
+
+/** Same as `normalizeDateTime` but passes through null/undefined unchanged. */
+export function normalizeDateTimeNullable<T extends string | Date | null | undefined>(
+  value: T
+): T extends string | Date ? string : T {
+  if (value === null || value === undefined) {
+    return value as T extends string | Date ? string : T;
+  }
+  return normalizeDateTime(value) as T extends string | Date ? string : T;
+}
+
 /** Resolve an optional timezone to a concrete IANA string. */
 function resolveTimezone(timezone?: string): string {
   return timezone ?? APP_SETTINGS.TIMEZONE;

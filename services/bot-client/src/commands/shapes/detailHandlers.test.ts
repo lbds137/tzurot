@@ -16,8 +16,8 @@ import {
   handleImportCancel,
   handleImportConfirm,
 } from './detailHandlers.js';
+import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
-// Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
   return {
@@ -31,28 +31,35 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-// Mock gateway client
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
 
-// Mock error sanitization
 vi.mock('../../utils/errorSanitization.js', () => ({
   sanitizeErrorForDiscord: (msg: string) => msg,
 }));
 
 const mockUpdate = vi.fn();
 const mockEditReply = vi.fn();
+const mockDeferUpdate = vi.fn();
+
+let stub: {
+  listShapesImportJobs: ReturnType<typeof vi.fn>;
+  listShapesExportJobs: ReturnType<typeof vi.fn>;
+  startShapesImport: ReturnType<typeof vi.fn>;
+  startShapesExport: ReturnType<typeof vi.fn>;
+};
 
 beforeEach(() => {
   vi.resetAllMocks();
+  stub = {
+    listShapesImportJobs: vi.fn().mockResolvedValue(makeOk({ jobs: [] })),
+    listShapesExportJobs: vi.fn().mockResolvedValue(makeOk({ jobs: [] })),
+    startShapesImport: vi.fn(),
+    startShapesExport: vi.fn(),
+  };
+  clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
 });
 
 function createMockButtonInteraction(customId: string, embedFooter?: string): ButtonInteraction {
@@ -61,6 +68,9 @@ function createMockButtonInteraction(customId: string, embedFooter?: string): Bu
     user: { id: '123456789' },
     update: mockUpdate,
     editReply: mockEditReply,
+    deferUpdate: mockDeferUpdate,
+    deferred: false,
+    replied: false,
     message: {
       embeds: embedFooter !== undefined ? [{ footer: { text: embedFooter } }] : [],
     },
@@ -150,35 +160,28 @@ describe('parseSlugFromFooter', () => {
 });
 
 describe('showDetailView', () => {
-  it('should fetch and display detail embed', async () => {
-    mockCallGatewayApi
-      .mockResolvedValueOnce({ ok: true, data: { jobs: [] } })
-      .mockResolvedValueOnce({ ok: true, data: { jobs: [] } });
-
+  it('should defer first, then edit reply with detail embed', async () => {
     const interaction = createMockButtonInteraction('test', 'slug:test-slug');
     await showDetailView(
       interaction as unknown as ButtonInteraction & StringSelectMenuInteraction,
       'test-slug'
     );
 
-    expect(mockUpdate).toHaveBeenCalledTimes(1);
-    const updateArgs = mockUpdate.mock.calls[0][0];
-    expect(updateArgs.embeds[0].data.title).toContain('test-slug');
+    expect(mockDeferUpdate).toHaveBeenCalledTimes(1);
+    expect(mockEditReply).toHaveBeenCalledTimes(1);
+    const args = mockEditReply.mock.calls[0][0];
+    expect(args.embeds[0].data.title).toContain('test-slug');
   });
 
   it('should clear content text to prevent bleed-through', async () => {
-    mockCallGatewayApi
-      .mockResolvedValueOnce({ ok: true, data: { jobs: [] } })
-      .mockResolvedValueOnce({ ok: true, data: { jobs: [] } });
-
     const interaction = createMockButtonInteraction('test', 'slug:test-slug');
     await showDetailView(
       interaction as unknown as ButtonInteraction & StringSelectMenuInteraction,
       'test-slug'
     );
 
-    const updateArgs = mockUpdate.mock.calls[0][0];
-    expect(updateArgs.content).toBe('');
+    const args = mockEditReply.mock.calls[0][0];
+    expect(args.content).toBe('');
   });
 });
 
@@ -194,7 +197,6 @@ describe('handleDetailImport', () => {
     const updateArgs = mockUpdate.mock.calls[0][0];
     expect(updateArgs.embeds[0].data.footer.text).toBe('slug:test-slug|sort:date::detail');
     expect(updateArgs.components[0].components).toHaveLength(2);
-    // Should also clear content
     expect(updateArgs.content).toBe('');
   });
 
@@ -212,13 +214,9 @@ describe('handleDetailImport', () => {
 
 describe('handleDetailExport', () => {
   it('should start export and show detail view on success', async () => {
-    mockCallGatewayApi
-      .mockResolvedValueOnce({
-        ok: true,
-        data: { exportJobId: 'exp-1', sourceSlug: 'test-slug', format: 'json', status: 'pending' },
-      })
-      .mockResolvedValueOnce({ ok: true, data: { jobs: [] } })
-      .mockResolvedValueOnce({ ok: true, data: { jobs: [] } });
+    stub.startShapesExport.mockResolvedValue(
+      makeOk({ exportJobId: 'exp-1', sourceSlug: 'test-slug', format: 'json', status: 'pending' })
+    );
 
     const interaction = createMockButtonInteraction(
       'shapes::detail-export::json',
@@ -231,16 +229,10 @@ describe('handleDetailExport', () => {
   });
 
   it('should show fallback message when detail refresh fails after successful export', async () => {
-    mockCallGatewayApi
-      .mockResolvedValueOnce({
-        ok: true,
-        data: { exportJobId: 'exp-1', sourceSlug: 'test-slug', format: 'json', status: 'pending' },
-      })
-      // buildShapeDetailEmbed's internal calls succeed (it catches errors internally)
-      .mockResolvedValueOnce({ ok: true, data: { jobs: [] } })
-      .mockResolvedValueOnce({ ok: true, data: { jobs: [] } });
+    stub.startShapesExport.mockResolvedValue(
+      makeOk({ exportJobId: 'exp-1', sourceSlug: 'test-slug', format: 'json', status: 'pending' })
+    );
 
-    // First editReply (detail view refresh) throws, triggering fallback
     mockEditReply
       .mockRejectedValueOnce(new Error('Discord API error'))
       .mockResolvedValueOnce(undefined);
@@ -251,7 +243,6 @@ describe('handleDetailExport', () => {
     );
     await handleDetailExport(interaction, 'json');
 
-    // 2 editReply calls: failed detail refresh + successful fallback
     expect(mockEditReply).toHaveBeenCalledTimes(2);
     const fallbackArgs = mockEditReply.mock.calls[1][0];
     expect(fallbackArgs.content).toContain('Export started');
@@ -262,14 +253,12 @@ describe('handleDetailExport', () => {
 
 describe('handleDetailRefresh', () => {
   it('should re-fetch and show detail view', async () => {
-    mockCallGatewayApi.mockResolvedValue({ ok: true, data: { jobs: [] } });
-
     const interaction = createMockButtonInteraction('shapes::detail-refresh', 'slug:test-slug');
     await handleDetailRefresh(interaction);
 
-    expect(mockUpdate).toHaveBeenCalledTimes(1);
-    const updateArgs = mockUpdate.mock.calls[0][0];
-    expect(updateArgs.embeds[0].data.title).toContain('test-slug');
+    expect(mockEditReply).toHaveBeenCalledTimes(1);
+    const args = mockEditReply.mock.calls[0][0];
+    expect(args.embeds[0].data.title).toContain('test-slug');
   });
 });
 
@@ -286,33 +275,28 @@ describe('handleImportCancel', () => {
   });
 
   it('should return to detail view when from detail flow', async () => {
-    mockCallGatewayApi
-      .mockResolvedValueOnce({ ok: true, data: { jobs: [] } })
-      .mockResolvedValueOnce({ ok: true, data: { jobs: [] } });
-
     const interaction = createMockButtonInteraction(
       'shapes::import-cancel',
       'slug:test-slug::detail'
     );
     await handleImportCancel(interaction);
 
-    expect(mockUpdate).toHaveBeenCalledTimes(1);
-    const updateArgs = mockUpdate.mock.calls[0][0];
-    expect(updateArgs.embeds[0].data.title).toContain('test-slug');
+    expect(mockEditReply).toHaveBeenCalledTimes(1);
+    const args = mockEditReply.mock.calls[0][0];
+    expect(args.embeds[0].data.title).toContain('test-slug');
   });
 });
 
 describe('handleImportConfirm', () => {
   it('should start import on valid state', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.startShapesImport.mockResolvedValue(
+      makeOk({
         importJobId: 'job-1',
         sourceSlug: 'test-slug',
         importType: 'full',
         status: 'pending',
-      },
-    });
+      })
+    );
 
     const interaction = createMockButtonInteraction(
       'shapes::import-confirm::full',
@@ -326,20 +310,14 @@ describe('handleImportConfirm', () => {
     });
 
     expect(mockUpdate).toHaveBeenCalledTimes(1);
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/shapes/import',
-      expect.objectContaining({
-        body: expect.objectContaining({ sourceSlug: 'test-slug', importType: 'full' }),
-      })
-    );
+    expect(stub.startShapesImport).toHaveBeenCalledWith({
+      sourceSlug: 'test-slug',
+      importType: 'full',
+    });
   });
 
   it('should NOT overwrite error with detail view when import fails', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      status: 409,
-      error: 'Import already in progress',
-    });
+    stub.startShapesImport.mockResolvedValue(makeErr(409, 'Import already in progress'));
 
     const interaction = createMockButtonInteraction(
       'shapes::import-confirm::full',
@@ -352,29 +330,21 @@ describe('handleImportConfirm', () => {
       exportFormat: undefined,
     });
 
-    // startImport calls update() then editReply() for error — no detail view overwrite
     expect(mockEditReply).toHaveBeenCalledTimes(1);
     const editArgs = mockEditReply.mock.calls[0][0];
     expect(editArgs.embeds[0].data.title).toContain('Import Failed');
   });
 
   it('should show fallback message when detail refresh fails after successful import', async () => {
-    // Import API call succeeds
-    mockCallGatewayApi
-      .mockResolvedValueOnce({
-        ok: true,
-        data: {
-          importJobId: 'job-1',
-          sourceSlug: 'test-slug',
-          importType: 'full',
-          status: 'pending',
-        },
+    stub.startShapesImport.mockResolvedValue(
+      makeOk({
+        importJobId: 'job-1',
+        sourceSlug: 'test-slug',
+        importType: 'full',
+        status: 'pending',
       })
-      // buildShapeDetailEmbed's internal calls succeed (it catches errors internally)
-      .mockResolvedValueOnce({ ok: true, data: { jobs: [] } })
-      .mockResolvedValueOnce({ ok: true, data: { jobs: [] } });
+    );
 
-    // First editReply (detail view refresh) throws, triggering fallback
     mockEditReply
       .mockRejectedValueOnce(new Error('Discord API error'))
       .mockResolvedValueOnce(undefined);
@@ -390,7 +360,6 @@ describe('handleImportConfirm', () => {
       exportFormat: undefined,
     });
 
-    // 2 editReply calls: failed detail refresh + successful fallback
     expect(mockEditReply).toHaveBeenCalledTimes(2);
     const fallbackArgs = mockEditReply.mock.calls[1][0];
     expect(fallbackArgs.content).toContain('Import started');

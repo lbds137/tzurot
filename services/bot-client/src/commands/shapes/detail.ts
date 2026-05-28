@@ -7,21 +7,16 @@
  */
 
 import { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
-import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
-import {
-  callGatewayApi,
-  GATEWAY_TIMEOUTS,
-  type GatewayUser,
-} from '../../utils/userGatewayClient.js';
+import { createLogger, DISCORD_COLORS, type UserClient } from '@tzurot/common-types';
 import { ShapesCustomIds } from '../../utils/customIds.js';
 import type { BrowseSortType } from '../../utils/browse/constants.js';
 import {
   formatCompactImportStatus,
   formatCompactExportStatus,
+  adaptImportJob,
+  adaptExportJob,
   type ImportJob,
   type ExportJob,
-  type ImportJobsResponse,
-  type ExportJobsResponse,
 } from './statusFormatters.js';
 
 const logger = createLogger('shapes-detail');
@@ -32,21 +27,20 @@ interface JobStatus {
 }
 
 /** Fetch the latest import and export job for a specific slug (server-side filtered). */
-async function fetchJobStatusForSlug(user: GatewayUser, slug: string): Promise<JobStatus> {
-  const slugParam = encodeURIComponent(slug);
+async function fetchJobStatusForSlug(userClient: UserClient, slug: string): Promise<JobStatus> {
   const [importResult, exportResult] = await Promise.all([
-    callGatewayApi<ImportJobsResponse>(`/user/shapes/import/jobs?slug=${slugParam}`, {
-      user,
-      timeout: GATEWAY_TIMEOUTS.DEFERRED,
-    }),
-    callGatewayApi<ExportJobsResponse>(`/user/shapes/export/jobs?slug=${slugParam}`, {
-      user,
-      timeout: GATEWAY_TIMEOUTS.DEFERRED,
-    }),
+    userClient.listShapesImportJobs({ slug }),
+    userClient.listShapesExportJobs({ slug }),
   ]);
 
-  const latestImport = importResult.ok ? (importResult.data.jobs[0] ?? null) : null;
-  const latestExport = exportResult.ok ? (exportResult.data.jobs[0] ?? null) : null;
+  const latestImport =
+    importResult.ok && importResult.data.jobs[0] !== undefined
+      ? adaptImportJob(importResult.data.jobs[0])
+      : null;
+  const latestExport =
+    exportResult.ok && exportResult.data.jobs[0] !== undefined
+      ? adaptExportJob(exportResult.data.jobs[0])
+      : null;
 
   return { latestImport, latestExport };
 }
@@ -111,15 +105,16 @@ function buildDetailButtons(): ActionRowBuilder<ButtonBuilder>[] {
  * @returns Embed and component rows ready for interaction.update() or editReply()
  */
 export async function buildShapeDetailEmbed(
-  user: GatewayUser,
+  userClient: UserClient,
+  userId: string,
   slug: string,
   sort: BrowseSortType = 'name'
 ): Promise<{ embed: EmbedBuilder; components: ActionRowBuilder<ButtonBuilder>[] }> {
   let jobStatus: JobStatus;
   try {
-    jobStatus = await fetchJobStatusForSlug(user, slug);
+    jobStatus = await fetchJobStatusForSlug(userClient, slug);
   } catch (error) {
-    logger.error({ err: error, userId: user.discordId, slug }, 'Failed to fetch job status');
+    logger.error({ err: error, userId, slug }, 'Failed to fetch job status');
     jobStatus = { latestImport: null, latestExport: null };
   }
 

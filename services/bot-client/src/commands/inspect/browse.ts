@@ -27,6 +27,7 @@ import {
   createLogger,
   DISCORD_COLORS,
   formatRelativeTime,
+  normalizeDateTime,
   type UserClient,
 } from '@tzurot/common-types';
 import {
@@ -89,7 +90,7 @@ export async function fetchRecentLogs(
   return {
     logs: result.data.logs.map(log => ({
       ...log,
-      createdAt: typeof log.createdAt === 'string' ? log.createdAt : log.createdAt.toISOString(),
+      createdAt: normalizeDateTime(log.createdAt),
     })),
     count: result.data.count,
   };

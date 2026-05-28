@@ -8,13 +8,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleBrowse, buildBrowsePage, fetchShapesList, type ShapeItem } from './browse.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import type { GatewayUser } from '../../utils/userGatewayClient.js';
+import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
-function mkUser(discordId = 'user-123'): GatewayUser {
-  return { discordId, username: 'test-user', displayName: 'Test User' };
-}
-
-// Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
   return {
@@ -28,17 +23,10 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-// Mock gateway client
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
 
 function makeShape(i: number): ShapeItem {
   return {
@@ -52,9 +40,12 @@ function makeShape(i: number): ShapeItem {
 
 describe('handleBrowse', () => {
   const mockEditReply = vi.fn();
+  let stub: { listShapes: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     vi.resetAllMocks();
+    stub = { listShapes: vi.fn() };
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
   });
 
   function createMockContext(): DeferredCommandContext {
@@ -72,34 +63,23 @@ describe('handleBrowse', () => {
       getSubcommand: vi.fn().mockReturnValue('browse'),
       getSubcommandGroup: vi.fn().mockReturnValue(null),
       interaction: {
+        user: { id: '123456789', username: 'testuser' },
         options: { getString: vi.fn() },
       },
     } as unknown as DeferredCommandContext;
   }
 
   it('should fetch shapes list from gateway', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: { shapes: [], total: 0 },
-    });
+    stub.listShapes.mockResolvedValue(makeOk({ shapes: [], total: 0 }));
 
     const context = createMockContext();
     await handleBrowse(context);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/shapes/list',
-      expect.objectContaining({
-        user: { discordId: '123456789', username: 'testuser', displayName: 'testuser' },
-      })
-    );
+    expect(stub.listShapes).toHaveBeenCalled();
   });
 
   it('should show auth prompt when no credentials', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      status: 401,
-      error: 'No credentials',
-    });
+    stub.listShapes.mockResolvedValue(makeErr(401, 'No credentials'));
 
     const context = createMockContext();
     await handleBrowse(context);
@@ -110,13 +90,7 @@ describe('handleBrowse', () => {
   });
 
   it('should display shapes in embed when found', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
-        shapes: [makeShape(0), makeShape(1)],
-        total: 2,
-      },
-    });
+    stub.listShapes.mockResolvedValue(makeOk({ shapes: [makeShape(0), makeShape(1)], total: 2 }));
 
     const context = createMockContext();
     await handleBrowse(context);
@@ -136,10 +110,7 @@ describe('handleBrowse', () => {
   });
 
   it('should show empty message when no shapes', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: { shapes: [], total: 0 },
-    });
+    stub.listShapes.mockResolvedValue(makeOk({ shapes: [], total: 0 }));
 
     const context = createMockContext();
     await handleBrowse(context);
@@ -158,7 +129,7 @@ describe('handleBrowse', () => {
   });
 
   it('should handle network errors gracefully', async () => {
-    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+    stub.listShapes.mockRejectedValue(new Error('Network error'));
 
     const context = createMockContext();
     await handleBrowse(context);
@@ -178,18 +149,15 @@ describe('buildBrowsePage', () => {
     expect(embed.data.title).toContain('Characters');
     expect(embed.data.footer?.text).toContain('Page 1 of 2');
 
-    // Select menu + pagination/sort row
     expect(components).toHaveLength(2);
   });
 
   it('should use shapes::browse custom ID prefix for components', () => {
     const { components } = buildBrowsePage(shapes, 0, 'name');
 
-    // Select menu
     const selectMenu = components[0].components[0] as { data: { custom_id: string } };
     expect(selectMenu.data.custom_id).toMatch(/^shapes::browse-select::/);
 
-    // Pagination buttons contain shapes::browse::
     const buttons = components[1].components as { data: { custom_id: string } }[];
     expect(buttons[0].data.custom_id).toMatch(/^shapes::browse::/);
   });
@@ -224,7 +192,6 @@ describe('buildBrowsePage', () => {
     const fewShapes = shapes.slice(0, 3);
     const { components } = buildBrowsePage(fewShapes, 0, 'name');
 
-    // Should have select menu row + button row (with sort toggle even for single page)
     expect(components).toHaveLength(2);
     const buttons = components[1].components as { data: { label: string } }[];
     const sortButton = buttons.find(
@@ -235,30 +202,26 @@ describe('buildBrowsePage', () => {
 });
 
 describe('fetchShapesList', () => {
+  let stub: { listShapes: ReturnType<typeof vi.fn> };
+
   beforeEach(() => {
     vi.resetAllMocks();
+    stub = { listShapes: vi.fn() };
   });
 
   it('should return shapes on success', async () => {
     const mockShapes = [makeShape(0)];
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: { shapes: mockShapes, total: 1 },
-    });
+    stub.listShapes.mockResolvedValue(makeOk({ shapes: mockShapes, total: 1 }));
 
-    const result = await fetchShapesList(mkUser());
+    const result = await fetchShapesList(asUserClient(stub));
 
     expect(result).toEqual({ ok: true, shapes: mockShapes });
   });
 
   it('should return error on failure', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      status: 401,
-      error: 'No credentials',
-    });
+    stub.listShapes.mockResolvedValue(makeErr(401, 'No credentials'));
 
-    const result = await fetchShapesList(mkUser());
+    const result = await fetchShapesList(asUserClient(stub));
 
     expect(result).toEqual({ ok: false, status: 401, error: 'No credentials' });
   });

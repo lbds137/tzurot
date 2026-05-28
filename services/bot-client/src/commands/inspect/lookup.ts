@@ -15,6 +15,7 @@
 
 import {
   createLogger,
+  normalizeDateTime,
   type DiagnosticLog as ApiDiagnosticLog,
   type DiagnosticPayload,
   type UserClient,
@@ -63,7 +64,7 @@ function adaptLog(log: ApiDiagnosticLog): DiagnosticLog {
     model: log.model,
     provider: log.provider,
     durationMs: log.durationMs,
-    createdAt: typeof log.createdAt === 'string' ? log.createdAt : log.createdAt.toISOString(),
+    createdAt: normalizeDateTime(log.createdAt),
     data: log.data as DiagnosticPayload,
   };
 }

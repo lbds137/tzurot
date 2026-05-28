@@ -9,14 +9,9 @@
  */
 
 import { EmbedBuilder, ActionRowBuilder, type ButtonBuilder } from 'discord.js';
-import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS, type UserClient } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import {
-  callGatewayApi,
-  GATEWAY_TIMEOUTS,
-  toGatewayUser,
-  type GatewayUser,
-} from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import {
   createBrowseCustomIdHelpers,
   buildBrowseButtons,
@@ -38,11 +33,6 @@ export interface ShapeItem {
   username: string;
   avatar: string;
   createdAt: string | null;
-}
-
-export interface ShapesListResponse {
-  shapes: ShapeItem[];
-  total: number;
 }
 
 /** Browse custom ID helpers — pagination uses shapes::browse::... format */
@@ -153,12 +143,9 @@ export function buildBrowsePage(
  * Exported for reuse by interactionHandlers (stateless pagination)
  */
 export async function fetchShapesList(
-  user: GatewayUser
+  userClient: UserClient
 ): Promise<{ ok: true; shapes: ShapeItem[] } | { ok: false; status: number; error: string }> {
-  const result = await callGatewayApi<ShapesListResponse>('/user/shapes/list', {
-    user,
-    timeout: GATEWAY_TIMEOUTS.DEFERRED,
-  });
+  const result = await userClient.listShapes();
 
   if (!result.ok) {
     return { ok: false, status: result.status, error: result.error };
@@ -176,7 +163,8 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
   const userId = context.user.id;
 
   try {
-    const result = await fetchShapesList(toGatewayUser(context.user));
+    const { userClient } = clientsFor(context.interaction);
+    const result = await fetchShapesList(userClient);
 
     if (!result.ok) {
       if (result.status === 401) {

@@ -9,6 +9,8 @@ import {
   formatPromptTimestamp,
   formatDateShort,
   formatDateTimeCompact,
+  normalizeDateTime,
+  normalizeDateTimeNullable,
 } from './dateFormatting.js';
 
 describe('dateFormatting', () => {
@@ -371,6 +373,44 @@ describe('dateFormatting', () => {
       const date = new Date('2025-01-15T15:45:00Z');
       const result = formatDateTimeCompact(date, 'America/New_York');
       expect(result).toContain('10:45 AM');
+    });
+  });
+
+  describe('normalizeDateTime', () => {
+    it('returns string input unchanged', () => {
+      expect(normalizeDateTime('2026-01-01T00:00:00.000Z')).toBe('2026-01-01T00:00:00.000Z');
+    });
+
+    it('converts Date input to ISO string', () => {
+      const d = new Date('2026-01-01T00:00:00.000Z');
+      expect(normalizeDateTime(d)).toBe('2026-01-01T00:00:00.000Z');
+    });
+
+    it('preserves the round-trip Date → ISO → Date equality', () => {
+      const original = new Date('2026-06-15T12:34:56.789Z');
+      const roundTripped = new Date(normalizeDateTime(original));
+      expect(roundTripped.getTime()).toBe(original.getTime());
+    });
+  });
+
+  describe('normalizeDateTimeNullable', () => {
+    it('passes through null unchanged', () => {
+      expect(normalizeDateTimeNullable(null)).toBe(null);
+    });
+
+    it('passes through undefined unchanged', () => {
+      expect(normalizeDateTimeNullable(undefined)).toBe(undefined);
+    });
+
+    it('normalizes Date to ISO string', () => {
+      const d = new Date('2026-01-01T00:00:00.000Z');
+      expect(normalizeDateTimeNullable(d)).toBe('2026-01-01T00:00:00.000Z');
+    });
+
+    it('returns string input unchanged', () => {
+      expect(normalizeDateTimeNullable('2026-01-01T00:00:00.000Z')).toBe(
+        '2026-01-01T00:00:00.000Z'
+      );
     });
   });
 });

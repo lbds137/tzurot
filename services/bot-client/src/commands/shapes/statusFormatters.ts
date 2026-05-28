@@ -5,7 +5,11 @@
  * Used by both the /shapes status subcommand and the detail view.
  */
 
-import { formatDateShort } from '@tzurot/common-types';
+import {
+  formatDateShort,
+  normalizeDateTime,
+  normalizeDateTimeNullable,
+} from '@tzurot/common-types';
 
 export interface ImportJob {
   id: string;
@@ -36,12 +40,45 @@ export interface ExportJob {
   downloadUrl: string | null;
 }
 
-export interface ImportJobsResponse {
-  jobs: ImportJob[];
+/**
+ * Adapt the Zod-validated import-job shape (which has
+ * `createdAt: string | Date` etc. because Express's JSON serializer
+ * stringifies Date but tests can pass Date directly) into the local
+ * `ImportJob` type that downstream formatters consume.
+ *
+ * The `[key: string]: unknown` input + `as ImportJob` cast are deliberate:
+ * the local `ImportJob` type narrows the date fields to `string`, but the
+ * Zod-derived type (ShapesImportJobSummary) keeps them as `string | Date`.
+ * The adapter is precisely the boundary that narrows them. Accepting the
+ * Zod type directly would force every formatter to handle the union
+ * everywhere downstream. The cost is that adding a new required non-date
+ * field to ImportJob without updating callers won't surface here — the
+ * regression would show up in formatter output instead.
+ */
+export function adaptImportJob(job: {
+  createdAt: string | Date;
+  completedAt: string | Date | null;
+  [key: string]: unknown;
+}): ImportJob {
+  return {
+    ...job,
+    createdAt: normalizeDateTime(job.createdAt),
+    completedAt: normalizeDateTimeNullable(job.completedAt),
+  } as ImportJob;
 }
 
-export interface ExportJobsResponse {
-  jobs: ExportJob[];
+export function adaptExportJob(job: {
+  createdAt: string | Date;
+  completedAt: string | Date | null;
+  expiresAt: string | Date;
+  [key: string]: unknown;
+}): ExportJob {
+  return {
+    ...job,
+    createdAt: normalizeDateTime(job.createdAt),
+    completedAt: normalizeDateTimeNullable(job.completedAt),
+    expiresAt: normalizeDateTime(job.expiresAt),
+  } as ExportJob;
 }
 
 export const STATUS_EMOJI: Record<string, string> = {

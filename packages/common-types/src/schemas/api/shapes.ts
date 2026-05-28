@@ -167,7 +167,12 @@ export const ShapesExportJobSummarySchema = z
     fileSizeBytes: z.number().int().nullable(),
     createdAt: z.union([z.string(), z.date()]),
     completedAt: z.union([z.string(), z.date()]).nullable(),
-    expiresAt: z.union([z.string(), z.date()]).nullable(),
+    // expiresAt is non-nullable: the Prisma column is `DateTime` (not
+    // `DateTime?`) and the export handler always populates it with
+    // `new Date(Date.now() + EXPORT_EXPIRY_HOURS * 60 * 60 * 1000)`.
+    // Pinning it non-nullable lets bot-client formatters call
+    // `new Date(job.expiresAt)` unconditionally.
+    expiresAt: z.union([z.string(), z.date()]),
     errorMessage: z.string().nullable(),
     exportMetadata: z.unknown(),
     downloadUrl: z.string().nullable(),

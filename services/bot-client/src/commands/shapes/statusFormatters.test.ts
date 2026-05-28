@@ -10,6 +10,8 @@ import {
   formatCompactExportStatus,
   formatFileSize,
   STATUS_EMOJI,
+  adaptImportJob,
+  adaptExportJob,
   type ImportJob,
   type ExportJob,
 } from './statusFormatters.js';
@@ -34,6 +36,93 @@ describe('formatFileSize', () => {
 
   it('should format megabytes', () => {
     expect(formatFileSize(1048576)).toBe('1.0MB');
+  });
+});
+
+describe('adaptImportJob', () => {
+  const baseImportJob = {
+    id: 'job-1',
+    sourceSlug: 'test-shape',
+    status: 'completed',
+    importType: 'full',
+    memoriesImported: 5,
+    memoriesFailed: 0,
+    errorMessage: null,
+    importMetadata: null,
+  };
+
+  it('passes through string createdAt unchanged', () => {
+    const job = { ...baseImportJob, createdAt: '2026-01-01T00:00:00.000Z', completedAt: null };
+    expect(adaptImportJob(job).createdAt).toBe('2026-01-01T00:00:00.000Z');
+  });
+
+  it('normalizes Date createdAt to ISO string', () => {
+    const d = new Date('2026-01-01T00:00:00.000Z');
+    const job = { ...baseImportJob, createdAt: d, completedAt: null };
+    expect(adaptImportJob(job).createdAt).toBe('2026-01-01T00:00:00.000Z');
+  });
+
+  it('preserves null completedAt', () => {
+    const job = { ...baseImportJob, createdAt: '2026-01-01T00:00:00.000Z', completedAt: null };
+    expect(adaptImportJob(job).completedAt).toBeNull();
+  });
+
+  it('normalizes Date completedAt to ISO string', () => {
+    const d = new Date('2026-01-15T00:01:00.000Z');
+    const job = {
+      ...baseImportJob,
+      createdAt: '2026-01-15T00:00:00.000Z',
+      completedAt: d,
+    };
+    expect(adaptImportJob(job).completedAt).toBe('2026-01-15T00:01:00.000Z');
+  });
+
+  it('preserves non-date fields verbatim', () => {
+    const job = { ...baseImportJob, createdAt: '2026-01-01T00:00:00.000Z', completedAt: null };
+    const result = adaptImportJob(job);
+    expect(result.id).toBe('job-1');
+    expect(result.sourceSlug).toBe('test-shape');
+    expect(result.memoriesImported).toBe(5);
+  });
+});
+
+describe('adaptExportJob', () => {
+  const baseExportJob = {
+    id: 'exp-1',
+    sourceSlug: 'test-shape',
+    status: 'completed',
+    format: 'json',
+    fileName: 'test.json',
+    fileSizeBytes: 1024,
+    errorMessage: null,
+    downloadUrl: 'https://example.com/exp-1',
+  };
+
+  it('normalizes string fields verbatim and Date expiresAt to ISO string', () => {
+    const expires = new Date('2026-02-17T00:00:00.000Z');
+    const job = {
+      ...baseExportJob,
+      createdAt: '2026-02-16T00:00:00.000Z',
+      completedAt: '2026-02-16T00:05:00.000Z',
+      expiresAt: expires,
+    };
+    const result = adaptExportJob(job);
+    expect(result.createdAt).toBe('2026-02-16T00:00:00.000Z');
+    expect(result.completedAt).toBe('2026-02-16T00:05:00.000Z');
+    expect(result.expiresAt).toBe('2026-02-17T00:00:00.000Z');
+  });
+
+  it('preserves null completedAt while still normalizing expiresAt', () => {
+    const job = {
+      ...baseExportJob,
+      createdAt: new Date('2026-02-16T00:00:00.000Z'),
+      completedAt: null,
+      expiresAt: '2026-02-17T00:00:00.000Z',
+    };
+    const result = adaptExportJob(job);
+    expect(result.completedAt).toBeNull();
+    expect(result.expiresAt).toBe('2026-02-17T00:00:00.000Z');
+    expect(result.createdAt).toBe('2026-02-16T00:00:00.000Z');
   });
 });
 
