@@ -8,10 +8,16 @@
 
 import { EmbedBuilder, escapeMarkdown } from 'discord.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
-import { createLogger, isBotOwner, DISCORD_COLORS, formatDateShort } from '@tzurot/common-types';
+import {
+  createLogger,
+  isBotOwner,
+  DISCORD_COLORS,
+  formatDateShort,
+  type OwnerClient,
+} from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { requireBotOwnerContext } from '../../utils/commandContext/index.js';
-import { adminFetch } from '../../utils/adminApiClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import {
   buildBrowseButtons,
   buildBrowseSelectMenu,
@@ -180,15 +186,16 @@ function buildBrowsePage(
   return { embed, components };
 }
 
-/** Fetch denylist entries from admin API */
-export async function fetchEntries(userId: string): Promise<DenylistEntryResponse[] | null> {
+/** Fetch denylist entries via the typed owner client */
+export async function fetchEntries(
+  ownerClient: OwnerClient
+): Promise<DenylistEntryResponse[] | null> {
   try {
-    const response = await adminFetch('/admin/denylist', { userId });
-    if (!response.ok) {
+    const result = await ownerClient.listDenylistEntries();
+    if (!result.ok) {
       return null;
     }
-    const data = (await response.json()) as { entries: DenylistEntryResponse[] };
-    return data.entries;
+    return result.data.entries;
   } catch (error) {
     logger.error({ err: error }, 'Failed to fetch denylist entries');
     return null;
@@ -220,7 +227,8 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
   const filter: DenyBrowseFilter =
     filterOption === 'user' || filterOption === 'guild' ? filterOption : 'all';
 
-  const entries = await fetchEntries(context.user.id);
+  const { ownerClient } = clientsFor(context.interaction);
+  const entries = await fetchEntries(ownerClient);
   if (entries === null) {
     await context.editReply('\u274C Failed to fetch denylist entries.');
     return;
@@ -249,7 +257,8 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
 
   const { page, filter, sort } = parsed;
 
-  const entries = await fetchEntries(interaction.user.id);
+  const { ownerClient } = clientsFor(interaction);
+  const entries = await fetchEntries(ownerClient);
   if (entries === null) {
     return;
   }
@@ -281,7 +290,8 @@ export async function handleBrowseSelect(interaction: StringSelectMenuInteractio
   }
 
   // Fetch entries to find the selected one
-  const entries = await fetchEntries(interaction.user.id);
+  const { ownerClient } = clientsFor(interaction);
+  const entries = await fetchEntries(ownerClient);
   if (entries === null) {
     return;
   }

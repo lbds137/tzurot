@@ -7,7 +7,7 @@
 
 import { createLogger } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { adminPostJson } from '../../utils/adminApiClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import { checkDenyPermission } from './permissions.js';
 import { stripMention } from './mentionUtils.js';
 
@@ -35,22 +35,18 @@ export async function handleAdd(context: DeferredCommandContext): Promise<void> 
   }
 
   try {
-    const response = await adminPostJson(
-      '/admin/denylist',
-      {
-        type,
-        discordId: target,
-        scope,
-        scopeId: perm.scopeId,
-        mode,
-        reason: reason ?? undefined,
-      },
-      context.user.id
-    );
+    const { ownerClient } = clientsFor(context.interaction);
+    const result = await ownerClient.addDenylistEntry({
+      type: type as 'USER' | 'GUILD',
+      discordId: target,
+      scope: scope as 'BOT' | 'GUILD' | 'CHANNEL' | 'PERSONALITY',
+      scopeId: perm.scopeId,
+      mode: mode as 'BLOCK' | 'MUTE',
+      reason: reason ?? undefined,
+    });
 
-    if (!response.ok) {
-      const body = (await response.json()) as { message?: string };
-      await context.editReply(`❌ Failed: ${body.message ?? 'Unknown error'}`);
+    if (!result.ok) {
+      await context.editReply(`❌ Failed: ${result.error}`);
       return;
     }
 

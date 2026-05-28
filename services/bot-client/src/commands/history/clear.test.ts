@@ -8,6 +8,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { handleClear } from './clear.js';
+import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -23,17 +24,10 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-// Mock userGatewayClient
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
 
 // Mock commandHelpers
 const mockCreateSuccessEmbed = vi.fn(() => ({
@@ -44,9 +38,21 @@ vi.mock('../../utils/commandHelpers.js', () => ({
     mockCreateSuccessEmbed(...(args as Parameters<typeof mockCreateSuccessEmbed>)),
 }));
 
+interface StubClient {
+  clearHistory: ReturnType<typeof vi.fn>;
+}
+
+function createStubClient(): StubClient {
+  return { clearHistory: vi.fn() };
+}
+
 describe('handleClear', () => {
+  let stub: StubClient;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = createStubClient();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
   });
 
   /**
@@ -60,6 +66,7 @@ describe('handleClear', () => {
 
     return {
       interaction: {
+        user: { id: '123456789' },
         options: {
           getString: vi.fn((name: string) => {
             if (name === 'character') return personalitySlug;
@@ -95,28 +102,19 @@ describe('handleClear', () => {
   }
 
   it('should clear history successfully', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.clearHistory.mockResolvedValue(
+      makeOk({
         success: true,
         epoch: '2025-12-13T10:30:00.000Z',
         canUndo: false,
         message: 'Context cleared',
-      },
-    });
+      })
+    );
 
     const context = createMockContext();
     await handleClear(context);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/history/clear', {
-      user: {
-        discordId: '123456789',
-        username: 'testuser',
-        displayName: 'testuser',
-      },
-      method: 'POST',
-      body: { personalitySlug: 'lilith' },
-    });
+    expect(stub.clearHistory).toHaveBeenCalledWith({ personalitySlug: 'lilith' });
     expect(mockCreateSuccessEmbed).toHaveBeenCalledWith(
       'Context Cleared',
       expect.stringContaining('lilith')
@@ -124,19 +122,37 @@ describe('handleClear', () => {
     expect(context.editReply).toHaveBeenCalledWith({ embeds: [expect.any(Object)] });
   });
 
+  it('should pass personaId when provided', async () => {
+    stub.clearHistory.mockResolvedValue(
+      makeOk({
+        success: true,
+        epoch: '2025-12-13T10:30:00.000Z',
+        canUndo: false,
+        message: 'Context cleared',
+      })
+    );
+
+    const context = createMockContext('lilith', 'persona-xyz');
+    await handleClear(context);
+
+    expect(stub.clearHistory).toHaveBeenCalledWith({
+      personalitySlug: 'lilith',
+      personaId: 'persona-xyz',
+    });
+  });
+
   it('should show undo available when canUndo is true', async () => {
     const mockEmbed = { addFields: vi.fn().mockReturnThis() };
     mockCreateSuccessEmbed.mockReturnValue(mockEmbed);
 
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.clearHistory.mockResolvedValue(
+      makeOk({
         success: true,
         epoch: '2025-12-13T10:30:00.000Z',
         canUndo: true,
         message: 'Context cleared',
-      },
-    });
+      })
+    );
 
     const context = createMockContext();
     await handleClear(context);
@@ -152,15 +168,14 @@ describe('handleClear', () => {
     const mockEmbed = { addFields: vi.fn().mockReturnThis() };
     mockCreateSuccessEmbed.mockReturnValue(mockEmbed);
 
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.clearHistory.mockResolvedValue(
+      makeOk({
         success: true,
         epoch: '2025-12-13T10:30:00.000Z',
         canUndo: false,
         message: 'Context cleared',
-      },
-    });
+      })
+    );
 
     const context = createMockContext();
     await handleClear(context);
@@ -173,11 +188,7 @@ describe('handleClear', () => {
   });
 
   it('should handle personality not found (404)', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      status: 404,
-      error: 'Not found',
-    });
+    stub.clearHistory.mockResolvedValue(makeErr(404, 'Not found'));
 
     const context = createMockContext('unknown');
     await handleClear(context);
@@ -188,11 +199,7 @@ describe('handleClear', () => {
   });
 
   it('should handle generic API error', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      status: 500,
-      error: 'Server error',
-    });
+    stub.clearHistory.mockResolvedValue(makeErr(500, 'Server error'));
 
     const context = createMockContext();
     await handleClear(context);
@@ -203,8 +210,7 @@ describe('handleClear', () => {
   });
 
   it('should handle exceptions', async () => {
-    const error = new Error('Network error');
-    mockCallGatewayApi.mockRejectedValue(error);
+    stub.clearHistory.mockRejectedValue(new Error('Network error'));
 
     const context = createMockContext();
     await handleClear(context);
@@ -218,7 +224,7 @@ describe('handleClear', () => {
     const context = createMockContext('__autocomplete_error__');
     await handleClear(context);
 
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(stub.clearHistory).not.toHaveBeenCalled();
     expect(context.editReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Autocomplete was unavailable'),
     });
@@ -228,7 +234,7 @@ describe('handleClear', () => {
     const context = createMockContext('lilith', '__autocomplete_error__');
     await handleClear(context);
 
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(stub.clearHistory).not.toHaveBeenCalled();
     expect(context.editReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Autocomplete was unavailable'),
     });

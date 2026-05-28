@@ -13,33 +13,10 @@ import {
   AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
   isAutocompleteErrorSentinel,
 } from '../../utils/apiCheck.js';
-import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import { createInfoEmbed } from '../../utils/commandHelpers.js';
 
 const logger = createLogger('history-stats');
-
-interface StatsResponse {
-  channelId: string;
-  personalitySlug: string;
-  personaId: string;
-  personaName: string;
-  visible: {
-    totalMessages: number;
-    userMessages: number;
-    assistantMessages: number;
-    oldestMessage: string | null;
-    newestMessage: string | null;
-  };
-  hidden: {
-    count: number;
-  };
-  total: {
-    totalMessages: number;
-    oldestMessage: string | null;
-  };
-  contextEpoch: string | null;
-  canUndo: boolean;
-}
 
 /** Format a date string or return 'N/A' for null */
 function formatDate(dateStr: string | null): string {
@@ -65,21 +42,15 @@ export async function handleStats(context: DeferredCommandContext): Promise<void
   }
 
   try {
-    // Build query params
-    const params = new URLSearchParams({
+    const { userClient } = clientsFor(context.interaction);
+    const query: { personalitySlug: string; channelId: string; personaId?: string } = {
       personalitySlug,
       channelId,
-    });
-
-    // Add optional personaId if explicitly provided
+    };
     if (personaId !== null && personaId.length > 0) {
-      params.set('personaId', personaId);
+      query.personaId = personaId;
     }
-
-    const result = await callGatewayApi<StatsResponse>(`/user/history/stats?${params.toString()}`, {
-      user: toGatewayUser(context.user),
-      method: 'GET',
-    });
+    const result = await userClient.getHistoryStats(query);
 
     if (!result.ok) {
       const errorMessage =

@@ -7,17 +7,10 @@
  * because `browse.ts` lazily imports `detail.ts` to show the
  * detail view on select-menu clicks, while the detail files
  * previously re-imported the response shape from `browse.ts`.
+ *
+ * `DenylistEntryResponse` re-exports the schema-derived type to keep
+ * the existing import surface stable. The schema lives in
+ * `@tzurot/common-types/schemas/api/denylist.ts`.
  */
 
-/** Response shape from GET /admin/denylist */
-export interface DenylistEntryResponse {
-  id: string;
-  type: string;
-  discordId: string;
-  scope: string;
-  scopeId: string;
-  mode: string;
-  reason: string | null;
-  addedAt: string;
-  addedBy: string;
-}
+export type { DenylistEntry as DenylistEntryResponse } from '@tzurot/common-types';

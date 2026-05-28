@@ -9,6 +9,7 @@
 import { createLogger } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { requireBotOwnerContext } from '../../utils/commandContext/index.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import { fetchEntries } from './browse.js';
 import type { DenylistEntryResponse } from './browseTypes.js';
 import { showDetailView } from './detail.js';
@@ -29,7 +30,8 @@ export async function handleView(context: DeferredCommandContext): Promise<void>
 
   const typeFilter = context.getOption<string>('type') ?? undefined;
 
-  const entries = await fetchEntries(context.user.id);
+  const { ownerClient } = clientsFor(context.interaction);
+  const entries = await fetchEntries(ownerClient);
   if (entries === null) {
     await context.editReply('\u274C Failed to fetch denylist entries.');
     return;

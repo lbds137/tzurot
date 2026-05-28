@@ -1,18 +1,28 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleView } from './view.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
+import { asOwnerClient } from '../../test/gatewayClientStubs.js';
 
-vi.mock('@tzurot/common-types', () => ({
-  createLogger: vi.fn(() => ({
-    info: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-    warn: vi.fn(),
-  })),
-}));
+vi.mock('@tzurot/common-types', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+  return {
+    ...actual,
+    createLogger: vi.fn(() => ({
+      info: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+      warn: vi.fn(),
+    })),
+  };
+});
 
 vi.mock('../../utils/commandContext/index.js', () => ({
   requireBotOwnerContext: vi.fn(),
+}));
+
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
 }));
 
 vi.mock('./browse.js', () => ({
@@ -31,7 +41,9 @@ function createMockContext(options: Record<string, unknown> = {}): DeferredComma
   const optionMap = new Map(Object.entries(options));
   return {
     user: { id: 'owner-1' },
-    interaction: {},
+    interaction: {
+      user: { id: 'owner-1' },
+    },
     getOption: vi.fn((name: string) => optionMap.get(name) ?? null),
     editReply: vi.fn(),
   } as unknown as DeferredCommandContext;
@@ -39,31 +51,34 @@ function createMockContext(options: Record<string, unknown> = {}): DeferredComma
 
 const ENTRY_USER = {
   id: 'entry-1',
-  type: 'USER',
+  type: 'USER' as const,
   discordId: '999888777',
-  scope: 'BOT',
+  scope: 'BOT' as const,
   scopeId: '*',
-  mode: 'BLOCK',
+  mode: 'BLOCK' as const,
   reason: 'spam',
-  addedAt: '2026-01-01T00:00:00Z',
+  addedAt: new Date('2026-01-01T00:00:00Z'),
   addedBy: 'owner-1',
 };
 
 const ENTRY_GUILD = {
   id: 'entry-2',
-  type: 'GUILD',
+  type: 'GUILD' as const,
   discordId: '999888777',
-  scope: 'BOT',
+  scope: 'BOT' as const,
   scopeId: '*',
-  mode: 'BLOCK',
+  mode: 'BLOCK' as const,
   reason: null,
-  addedAt: '2026-01-02T00:00:00Z',
+  addedAt: new Date('2026-01-02T00:00:00Z'),
   addedBy: 'owner-1',
 };
 
 describe('handleView', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    clientsForMock.mockReturnValue({
+      ownerClient: asOwnerClient({ listDenylistEntries: vi.fn() }),
+    });
     vi.mocked(requireBotOwnerContext).mockResolvedValue(true);
   });
 

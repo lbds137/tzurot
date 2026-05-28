@@ -715,9 +715,15 @@ describe('Personality API Contract Tests', () => {
     };
 
     it('should validate get response', () => {
-      const data = { personality: validFull };
+      const data = { personality: validFull, canEdit: true };
       const result = GetPersonalityResponseSchema.safeParse(data);
       expect(result.success).toBe(true);
+    });
+
+    it('should reject missing canEdit', () => {
+      const data = { personality: validFull };
+      const result = GetPersonalityResponseSchema.safeParse(data);
+      expect(result.success).toBe(false);
     });
 
     it('should reject missing personality', () => {

@@ -87,6 +87,10 @@ export type CreatePersonalityResponse = z.infer<typeof CreatePersonalityResponse
 
 export const GetPersonalityResponseSchema = z.object({
   personality: PersonalityFullSchema,
+  // The GET /user/personality/:slug handler computes `canEdit` via
+  // `canUserEditPersonality()` (owner OR bot-admin) and always returns it.
+  // Required for callers that gate edit-only UI on the requester's permission.
+  canEdit: z.boolean(),
 });
 export type GetPersonalityResponse = z.infer<typeof GetPersonalityResponseSchema>;
 

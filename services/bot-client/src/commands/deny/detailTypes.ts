@@ -6,26 +6,37 @@
  */
 
 import { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
-import { DISCORD_COLORS, formatDateShort } from '@tzurot/common-types';
+import {
+  DISCORD_COLORS,
+  formatDateShort,
+  type DenylistEntityType,
+  type DenylistScope,
+  type DenylistMode,
+} from '@tzurot/common-types';
 import type { BrowseContext } from '../../utils/dashboard/types.js';
 import type { DenylistEntryResponse } from './browseTypes.js';
 
 /** Entity type key for Redis session storage */
 export const ENTITY_TYPE = 'deny';
 
-/** Valid scope values for denylist entries */
-export const VALID_SCOPES = ['BOT', 'GUILD', 'CHANNEL', 'PERSONALITY'] as const;
+/** Valid scope values; `satisfies` makes sync with schema's DenylistScope compiler-enforced. */
+export const VALID_SCOPES = [
+  'BOT',
+  'GUILD',
+  'CHANNEL',
+  'PERSONALITY',
+] as const satisfies readonly DenylistScope[];
 
 /** Session data stored in Redis */
 export interface DenyDetailSession {
   id: string;
-  type: string;
+  type: DenylistEntityType;
   discordId: string;
-  scope: string;
+  scope: DenylistScope;
   scopeId: string;
-  mode: string;
+  mode: DenylistMode;
   reason: string | null;
-  addedAt: string;
+  addedAt: string; // ISO string in Redis; Date on fetch — buildDetailEmbed accepts both
   addedBy: string;
   /**
    * Browse context for the dashboard's Back-to-Browse path. `null` when the
@@ -37,8 +48,10 @@ export interface DenyDetailSession {
   guildId: string | null;
 }
 
-/** Build the detail embed for an entry */
-export function buildDetailEmbed(entry: DenylistEntryResponse): EmbedBuilder {
+/** Accepts Date (fresh fetch) or string (Redis-rehydrated session) for addedAt. */
+export function buildDetailEmbed(
+  entry: Omit<DenylistEntryResponse, 'addedAt'> & { addedAt: Date | string }
+): EmbedBuilder {
   const target =
     entry.type === 'USER'
       ? `<@${entry.discordId}> (\`${entry.discordId}\`)`

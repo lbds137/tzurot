@@ -9,27 +9,31 @@ import {
 } from './browse.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
+import { makeOk, makeErr, asOwnerClient } from '../../test/gatewayClientStubs.js';
 
 // Mock dependencies
-vi.mock('@tzurot/common-types', () => ({
-  isBotOwner: vi.fn(),
-  GATEWAY_TIMEOUTS: { DEFERRED: 10000 },
-  getConfig: vi.fn(() => ({ BOT_OWNER_ID: 'owner-1' })),
-  DISCORD_COLORS: { ERROR: 0xff0000 },
-  formatDateShort: vi.fn((date: string | Date) => {
-    const d = typeof date === 'string' ? new Date(date) : date;
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
-  }),
-  createLogger: vi.fn(() => ({
-    info: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-    warn: vi.fn(),
-  })),
-}));
+vi.mock('@tzurot/common-types', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+  return {
+    ...actual,
+    isBotOwner: vi.fn(),
+    DISCORD_COLORS: { ERROR: 0xff0000 },
+    formatDateShort: vi.fn((date: string | Date) => {
+      const d = typeof date === 'string' ? new Date(date) : date;
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
+    }),
+    createLogger: vi.fn(() => ({
+      info: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+      warn: vi.fn(),
+    })),
+  };
+});
 
-vi.mock('../../utils/adminApiClient.js', () => ({
-  adminFetch: vi.fn(),
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
 }));
 
 vi.mock('../../utils/commandContext/index.js', () => ({
@@ -135,9 +139,16 @@ vi.mock('./detail.js', () => ({
 }));
 
 import { isBotOwner } from '@tzurot/common-types';
-import { adminFetch } from '../../utils/adminApiClient.js';
 import { requireBotOwnerContext } from '../../utils/commandContext/index.js';
 import { showDetailView } from './detail.js';
+
+interface OwnerStub {
+  listDenylistEntries: ReturnType<typeof vi.fn>;
+}
+
+function createStub(): OwnerStub {
+  return { listDenylistEntries: vi.fn() };
+}
 
 function createMockContext(options: Record<string, unknown> = {}): DeferredCommandContext {
   const optionMap = new Map(Object.entries(options));
@@ -145,6 +156,7 @@ function createMockContext(options: Record<string, unknown> = {}): DeferredComma
     user: { id: 'user-123' },
     guildId: 'guild-456',
     interaction: {
+      user: { id: 'user-123' },
       options: {
         getChannel: vi.fn().mockReturnValue(options.channel ?? null),
       },
@@ -153,14 +165,6 @@ function createMockContext(options: Record<string, unknown> = {}): DeferredComma
     getRequiredOption: vi.fn((name: string) => optionMap.get(name)),
     editReply: vi.fn(),
   } as unknown as DeferredCommandContext;
-}
-
-function mockOkResponse(data: unknown): Response {
-  return { ok: true, status: 200, json: () => Promise.resolve(data) } as Response;
-}
-
-function mockErrorResponse(status: number, data: unknown): Response {
-  return { ok: false, status, json: () => Promise.resolve(data) } as Response;
 }
 
 function createMockButtonInteraction(customId: string): ButtonInteraction {
@@ -191,35 +195,35 @@ function createMockSelectInteraction(
 const sampleEntries = [
   {
     id: 'entry-1',
-    type: 'USER',
+    type: 'USER' as const,
     discordId: '111222333444555666',
-    scope: 'BOT',
+    scope: 'BOT' as const,
     scopeId: '*',
-    mode: 'BLOCK',
+    mode: 'BLOCK' as const,
     reason: 'Spamming',
-    addedAt: '2026-01-15T00:00:00.000Z',
+    addedAt: new Date('2026-01-15T00:00:00.000Z'),
     addedBy: 'owner-1',
   },
   {
     id: 'entry-2',
-    type: 'GUILD',
+    type: 'GUILD' as const,
     discordId: '999888777666555444',
-    scope: 'BOT',
+    scope: 'BOT' as const,
     scopeId: '*',
-    mode: 'BLOCK',
+    mode: 'BLOCK' as const,
     reason: null,
-    addedAt: '2026-01-10T00:00:00.000Z',
+    addedAt: new Date('2026-01-10T00:00:00.000Z'),
     addedBy: 'owner-1',
   },
   {
     id: 'entry-3',
-    type: 'USER',
+    type: 'USER' as const,
     discordId: '555666777888999000',
-    scope: 'CHANNEL',
+    scope: 'CHANNEL' as const,
     scopeId: '123456789',
-    mode: 'MUTE',
+    mode: 'MUTE' as const,
     reason: 'Abusive behavior',
-    addedAt: '2026-01-05T00:00:00.000Z',
+    addedAt: new Date('2026-01-05T00:00:00.000Z'),
     addedBy: 'owner-1',
   },
 ];
@@ -253,18 +257,22 @@ describe('isDenyBrowseSelectInteraction', () => {
 });
 
 describe('handleBrowse', () => {
+  let stub: OwnerStub;
+
   beforeEach(() => {
     vi.resetAllMocks();
+    stub = createStub();
+    clientsForMock.mockReturnValue({ ownerClient: asOwnerClient(stub) });
     vi.mocked(requireBotOwnerContext).mockResolvedValue(true);
   });
 
   it('should display entries in an embed with components', async () => {
-    vi.mocked(adminFetch).mockResolvedValue(mockOkResponse({ entries: sampleEntries }));
+    stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: sampleEntries }));
     const context = createMockContext();
 
     await handleBrowse(context);
 
-    expect(adminFetch).toHaveBeenCalledWith('/admin/denylist', { userId: 'user-123' });
+    expect(stub.listDenylistEntries).toHaveBeenCalled();
     expect(context.editReply).toHaveBeenCalledWith({
       embeds: expect.any(Array),
       components: expect.any(Array),
@@ -272,7 +280,7 @@ describe('handleBrowse', () => {
   });
 
   it('should show empty message when no entries', async () => {
-    vi.mocked(adminFetch).mockResolvedValue(mockOkResponse({ entries: [] }));
+    stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: [] }));
     const context = createMockContext();
 
     await handleBrowse(context);
@@ -296,11 +304,11 @@ describe('handleBrowse', () => {
 
     await handleBrowse(context);
 
-    expect(adminFetch).not.toHaveBeenCalled();
+    expect(stub.listDenylistEntries).not.toHaveBeenCalled();
   });
 
   it('should filter by user type', async () => {
-    vi.mocked(adminFetch).mockResolvedValue(mockOkResponse({ entries: sampleEntries }));
+    stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: sampleEntries }));
     const context = createMockContext({ filter: 'user' });
 
     await handleBrowse(context);
@@ -312,7 +320,7 @@ describe('handleBrowse', () => {
   });
 
   it('should filter by guild type', async () => {
-    vi.mocked(adminFetch).mockResolvedValue(mockOkResponse({ entries: sampleEntries }));
+    stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: sampleEntries }));
     const context = createMockContext({ filter: 'guild' });
 
     await handleBrowse(context);
@@ -324,7 +332,7 @@ describe('handleBrowse', () => {
   });
 
   it('should default to all filter', async () => {
-    vi.mocked(adminFetch).mockResolvedValue(mockOkResponse({ entries: sampleEntries }));
+    stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: sampleEntries }));
     const context = createMockContext();
 
     await handleBrowse(context);
@@ -336,7 +344,7 @@ describe('handleBrowse', () => {
   });
 
   it('should handle API error', async () => {
-    vi.mocked(adminFetch).mockResolvedValue(mockErrorResponse(500, { message: 'Error' }));
+    stub.listDenylistEntries.mockResolvedValue(makeErr(500, 'Error'));
     const context = createMockContext();
 
     await handleBrowse(context);
@@ -345,7 +353,7 @@ describe('handleBrowse', () => {
   });
 
   it('should handle fetch exception', async () => {
-    vi.mocked(adminFetch).mockRejectedValue(new Error('Network error'));
+    stub.listDenylistEntries.mockRejectedValue(new Error('Network error'));
     const context = createMockContext();
 
     await handleBrowse(context);
@@ -354,11 +362,7 @@ describe('handleBrowse', () => {
   });
 
   it('should include entry details in embed description', async () => {
-    vi.mocked(adminFetch).mockResolvedValue(
-      mockOkResponse({
-        entries: [sampleEntries[0]],
-      })
-    );
+    stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: [sampleEntries[0]] }));
     const context = createMockContext();
 
     await handleBrowse(context);
@@ -373,11 +377,7 @@ describe('handleBrowse', () => {
   });
 
   it('should show MUTE badge for MUTE-mode entries', async () => {
-    vi.mocked(adminFetch).mockResolvedValue(
-      mockOkResponse({
-        entries: [sampleEntries[2]],
-      })
-    );
+    stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: [sampleEntries[2]] }));
     const context = createMockContext();
 
     await handleBrowse(context);
@@ -389,11 +389,7 @@ describe('handleBrowse', () => {
   });
 
   it('should not show mode badge for BLOCK-mode entries', async () => {
-    vi.mocked(adminFetch).mockResolvedValue(
-      mockOkResponse({
-        entries: [sampleEntries[0]],
-      })
-    );
+    stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: [sampleEntries[0]] }));
     const context = createMockContext();
 
     await handleBrowse(context);
@@ -406,11 +402,7 @@ describe('handleBrowse', () => {
   });
 
   it('should show scope details for non-BOT scopes', async () => {
-    vi.mocked(adminFetch).mockResolvedValue(
-      mockOkResponse({
-        entries: [sampleEntries[2]],
-      })
-    );
+    stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: [sampleEntries[2]] }));
     const context = createMockContext();
 
     await handleBrowse(context);
@@ -422,7 +414,7 @@ describe('handleBrowse', () => {
   });
 
   it('should include select menu in components when entries exist', async () => {
-    vi.mocked(adminFetch).mockResolvedValue(mockOkResponse({ entries: sampleEntries }));
+    stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: sampleEntries }));
     const context = createMockContext();
 
     await handleBrowse(context);
@@ -435,7 +427,7 @@ describe('handleBrowse', () => {
   });
 
   it('should not include select menu when no entries', async () => {
-    vi.mocked(adminFetch).mockResolvedValue(mockOkResponse({ entries: [] }));
+    stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: [] }));
     const context = createMockContext();
 
     await handleBrowse(context);
@@ -449,13 +441,17 @@ describe('handleBrowse', () => {
 });
 
 describe('handleBrowsePagination', () => {
+  let stub: OwnerStub;
+
   beforeEach(() => {
     vi.resetAllMocks();
+    stub = createStub();
+    clientsForMock.mockReturnValue({ ownerClient: asOwnerClient(stub) });
     vi.mocked(isBotOwner).mockReturnValue(true);
   });
 
   it('should defer update and rebuild page', async () => {
-    vi.mocked(adminFetch).mockResolvedValue(mockOkResponse({ entries: sampleEntries }));
+    stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: sampleEntries }));
     const interaction = createMockButtonInteraction('deny::browse::1::all::date::');
 
     await handleBrowsePagination(interaction);
@@ -474,7 +470,7 @@ describe('handleBrowsePagination', () => {
     await handleBrowsePagination(interaction);
 
     expect(interaction.deferUpdate).not.toHaveBeenCalled();
-    expect(adminFetch).not.toHaveBeenCalled();
+    expect(stub.listDenylistEntries).not.toHaveBeenCalled();
   });
 
   it('should return early for invalid custom ID', async () => {
@@ -483,11 +479,11 @@ describe('handleBrowsePagination', () => {
     await handleBrowsePagination(interaction);
 
     expect(interaction.deferUpdate).not.toHaveBeenCalled();
-    expect(adminFetch).not.toHaveBeenCalled();
+    expect(stub.listDenylistEntries).not.toHaveBeenCalled();
   });
 
   it('should apply sort from custom ID', async () => {
-    vi.mocked(adminFetch).mockResolvedValue(mockOkResponse({ entries: sampleEntries }));
+    stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: sampleEntries }));
     const interaction = createMockButtonInteraction('deny::browse::0::all::name::');
 
     await handleBrowsePagination(interaction);
@@ -499,7 +495,7 @@ describe('handleBrowsePagination', () => {
   });
 
   it('should apply filter from custom ID', async () => {
-    vi.mocked(adminFetch).mockResolvedValue(mockOkResponse({ entries: sampleEntries }));
+    stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: sampleEntries }));
     const interaction = createMockButtonInteraction('deny::browse::0::user::date::');
 
     await handleBrowsePagination(interaction);
@@ -511,7 +507,7 @@ describe('handleBrowsePagination', () => {
   });
 
   it('should silently handle API error', async () => {
-    vi.mocked(adminFetch).mockResolvedValue(mockErrorResponse(500, { message: 'Error' }));
+    stub.listDenylistEntries.mockResolvedValue(makeErr(500, 'Error'));
     const interaction = createMockButtonInteraction('deny::browse::1::all::date::');
 
     await handleBrowsePagination(interaction);
@@ -522,13 +518,17 @@ describe('handleBrowsePagination', () => {
 });
 
 describe('handleBrowseSelect', () => {
+  let stub: OwnerStub;
+
   beforeEach(() => {
     vi.resetAllMocks();
+    stub = createStub();
+    clientsForMock.mockReturnValue({ ownerClient: asOwnerClient(stub) });
     vi.mocked(isBotOwner).mockReturnValue(true);
   });
 
   it('should find selected entry and show detail view', async () => {
-    vi.mocked(adminFetch).mockResolvedValue(mockOkResponse({ entries: sampleEntries }));
+    stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: sampleEntries }));
     const interaction = createMockSelectInteraction('deny::browse-select::0::all::date::', [
       'entry-1',
     ]);
@@ -553,11 +553,11 @@ describe('handleBrowseSelect', () => {
     await handleBrowseSelect(interaction);
 
     expect(interaction.deferUpdate).not.toHaveBeenCalled();
-    expect(adminFetch).not.toHaveBeenCalled();
+    expect(stub.listDenylistEntries).not.toHaveBeenCalled();
   });
 
   it('should handle entry not found', async () => {
-    vi.mocked(adminFetch).mockResolvedValue(mockOkResponse({ entries: sampleEntries }));
+    stub.listDenylistEntries.mockResolvedValue(makeOk({ entries: sampleEntries }));
     const interaction = createMockSelectInteraction('deny::browse-select::0::all::date::', [
       'nonexistent-id',
     ]);
@@ -580,7 +580,7 @@ describe('handleBrowseSelect', () => {
   });
 
   it('should handle API error gracefully', async () => {
-    vi.mocked(adminFetch).mockResolvedValue(mockErrorResponse(500, { message: 'Error' }));
+    stub.listDenylistEntries.mockResolvedValue(makeErr(500, 'Error'));
     const interaction = createMockSelectInteraction('deny::browse-select::0::all::date::', [
       'entry-1',
     ]);

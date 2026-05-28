@@ -14,7 +14,7 @@
 
 import { EmbedBuilder } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
-import { adminFetch } from '../../utils/adminApiClient.js';
+import { serviceFetch } from '../../utils/serviceFetch.js';
 import { formatDuration } from '../../utils/formatting.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
@@ -41,7 +41,7 @@ export async function handleMetrics(context: DeferredCommandContext): Promise<vo
   const embed = new EmbedBuilder().setTitle('📊 System Metrics').setColor(DISCORD_COLORS.BLURPLE);
 
   try {
-    const response = await adminFetch('/metrics');
+    const response = await serviceFetch('/metrics');
 
     if (!response.ok) {
       embed.addFields({

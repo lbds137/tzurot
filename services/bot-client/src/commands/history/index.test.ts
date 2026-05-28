@@ -98,17 +98,11 @@ vi.mock('../../utils/destructiveConfirmation.js', () => ({
     mockCreateHardDeleteConfig(...(args as Parameters<typeof mockCreateHardDeleteConfig>)),
 }));
 
-// Mock userGatewayClient
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+// Mock typed gateway clients
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
 
 // Mock commandHelpers
 vi.mock('../../utils/commandHelpers.js', () => ({
@@ -210,9 +204,8 @@ describe('handleModal', () => {
       personalitySlug: 'lilith',
       channelId: 'channel-123',
     });
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: { success: true, deletedCount: 5, message: 'Deleted' },
+    clientsForMock.mockReturnValue({
+      userClient: { hardDeleteHistory: vi.fn() },
     });
 
     const mockInteraction = {
@@ -241,6 +234,78 @@ describe('handleModal', () => {
     expect(mockReply).toHaveBeenCalledWith({
       content: 'Error: Invalid entity ID format.',
       ephemeral: true,
+    });
+  });
+
+  // Coverage for the closure built by `buildHardDeleteOperation`. The closure
+  // is passed as the 3rd arg to `handleDestructiveModalSubmit` and stored for
+  // the confirm-button click — exercising it here mirrors what production
+  // would do on confirm, without the Discord button round-trip.
+  describe('buildHardDeleteOperation callback', () => {
+    async function setupAndExtractCallback(
+      hardDeleteHistoryStub: ReturnType<typeof vi.fn>
+    ): Promise<() => Promise<unknown>> {
+      mockParseHardDeleteEntityId.mockReturnValue({
+        personalitySlug: 'lilith',
+        channelId: 'channel-123',
+      });
+      clientsForMock.mockReturnValue({
+        userClient: { hardDeleteHistory: hardDeleteHistoryStub },
+      });
+
+      await handleModal({
+        customId: 'history::destructive::modal_submit::hard-delete::lilith_channel-123',
+        user: { id: '123456789' },
+        reply: vi.fn(),
+      } as never);
+
+      expect(mockHandleDestructiveModalSubmit).toHaveBeenCalled();
+      return mockHandleDestructiveModalSubmit.mock.calls[0][2] as () => Promise<unknown>;
+    }
+
+    it('returns success with deleted count on a successful hardDeleteHistory', async () => {
+      const hardDeleteHistory = vi.fn().mockResolvedValue({
+        ok: true,
+        data: { success: true, deletedCount: 5, message: 'Deleted 5 messages' },
+      });
+      const callback = await setupAndExtractCallback(hardDeleteHistory);
+
+      const result = (await callback()) as { success: boolean; successEmbed?: unknown };
+
+      expect(hardDeleteHistory).toHaveBeenCalledWith({
+        personalitySlug: 'lilith',
+        channelId: 'channel-123',
+      });
+      expect(result.success).toBe(true);
+      expect(result.successEmbed).toBeDefined();
+    });
+
+    it('returns the 404 personality-not-found message on status 404', async () => {
+      const hardDeleteHistory = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        error: 'Personality not found',
+      });
+      const callback = await setupAndExtractCallback(hardDeleteHistory);
+
+      const result = (await callback()) as { success: boolean; errorMessage?: string };
+
+      expect(result.success).toBe(false);
+      expect(result.errorMessage).toContain('Personality "lilith" not found');
+    });
+
+    it('returns the generic failure message on other error statuses', async () => {
+      const hardDeleteHistory = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        error: 'Internal error',
+      });
+      const callback = await setupAndExtractCallback(hardDeleteHistory);
+
+      const result = (await callback()) as { success: boolean; errorMessage?: string };
+
+      expect(result.success).toBe(false);
+      expect(result.errorMessage).toContain('Failed to delete history');
     });
   });
 });

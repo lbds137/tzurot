@@ -21,9 +21,9 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-const mockAdminFetch = vi.fn();
-vi.mock('../../utils/adminApiClient.js', () => ({
-  adminFetch: (...args: unknown[]) => mockAdminFetch(...args),
+const mockServiceFetch = vi.fn();
+vi.mock('../../utils/serviceFetch.js', () => ({
+  serviceFetch: (...args: unknown[]) => mockServiceFetch(...args),
 }));
 
 function createMockGuildsCache(): Collection<string, Guild> {
@@ -69,22 +69,23 @@ describe('handleHealth', () => {
   });
 
   it('should display full health embed when gateway is healthy', async () => {
-    mockAdminFetch.mockResolvedValue({
-      ok: true,
-      json: () =>
-        Promise.resolve({
+    mockServiceFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
           status: 'healthy',
           services: { redis: true, queue: true, avatarStorage: true },
           avatars: { status: 'ok', count: 156 },
           timestamp: new Date().toISOString(),
           uptime: 86400_000,
         }),
-    });
+        { status: 200 }
+      )
+    );
 
     const context = createMockContext();
     await handleHealth(context);
 
-    expect(mockAdminFetch).toHaveBeenCalledWith('/health');
+    expect(mockServiceFetch).toHaveBeenCalledWith('/health');
     expect(context.editReply).toHaveBeenCalledWith({
       embeds: [
         expect.objectContaining({
@@ -116,7 +117,7 @@ describe('handleHealth', () => {
   });
 
   it('should show warning when gateway is unreachable', async () => {
-    mockAdminFetch.mockRejectedValue(new Error('Connection refused'));
+    mockServiceFetch.mockRejectedValue(new Error('Connection refused'));
 
     const context = createMockContext();
     await handleHealth(context);
@@ -136,10 +137,7 @@ describe('handleHealth', () => {
   });
 
   it('should handle non-OK gateway response', async () => {
-    mockAdminFetch.mockResolvedValue({
-      ok: false,
-      status: 503,
-    });
+    mockServiceFetch.mockResolvedValue(new Response(null, { status: 503 }));
 
     const context = createMockContext();
     await handleHealth(context);

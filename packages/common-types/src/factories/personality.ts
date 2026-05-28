@@ -72,10 +72,12 @@ export function mockCreatePersonalityResponse(
  * @throws ZodError if the resulting mock doesn't match the schema
  */
 export function mockGetPersonalityResponse(
-  overrides?: Partial<PersonalityFull>
+  overrides?: Partial<PersonalityFull> & { canEdit?: boolean }
 ): GetPersonalityResponse {
+  const { canEdit = true, ...personalityOverrides } = overrides ?? {};
   return GetPersonalityResponseSchema.parse({
-    personality: createBasePersonality(overrides),
+    personality: createBasePersonality(personalityOverrides),
+    canEdit,
   });
 }
 

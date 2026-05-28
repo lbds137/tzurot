@@ -1,16 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleEdit, handleEditModal } from './detailEdit.js';
 import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
+import { makeOk, makeErr, asOwnerClient } from '../../test/gatewayClientStubs.js';
 
-vi.mock('@tzurot/common-types', () => ({
-  DISCORD_COLORS: { ERROR: 0xff0000, WARNING: 0xffaa00 },
-  createLogger: vi.fn(() => ({
-    info: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-    warn: vi.fn(),
-  })),
-}));
+vi.mock('@tzurot/common-types', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+  return {
+    ...actual,
+    DISCORD_COLORS: { ERROR: 0xff0000, WARNING: 0xffaa00 },
+    createLogger: vi.fn(() => ({
+      info: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+      warn: vi.fn(),
+    })),
+  };
+});
 
 const mockSessionManager = {
   set: vi.fn(),
@@ -30,9 +35,9 @@ vi.mock('../../utils/dashboard/messages.js', () => ({
   },
 }));
 
-vi.mock('../../utils/adminApiClient.js', () => ({
-  adminPostJson: vi.fn(),
-  adminFetch: vi.fn(),
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
 }));
 
 // Mock detailTypes so we don't construct Discord.js builders
@@ -43,23 +48,34 @@ vi.mock('./detailTypes.js', () => ({
   buildDetailButtons: vi.fn(() => [{ type: 'action-row' }]),
 }));
 
-import { adminPostJson, adminFetch } from '../../utils/adminApiClient.js';
+interface OwnerStub {
+  addDenylistEntry: ReturnType<typeof vi.fn>;
+  removeDenylistEntry: ReturnType<typeof vi.fn>;
+}
+
+function createStub(): OwnerStub {
+  return {
+    addDenylistEntry: vi.fn(),
+    removeDenylistEntry: vi.fn(),
+  };
+}
 
 const sampleEntry = {
   id: 'entry-uuid-1234',
-  type: 'USER',
+  type: 'USER' as const,
   discordId: '111222333444555666',
-  scope: 'BOT',
+  scope: 'BOT' as const,
   scopeId: '*',
-  mode: 'BLOCK',
+  mode: 'BLOCK' as const,
   reason: 'Spamming',
-  addedAt: '2026-01-15T00:00:00.000Z',
+  addedAt: new Date('2026-01-15T00:00:00.000Z'),
   addedBy: 'owner-1',
 };
 
 const sampleSession = {
   data: {
     ...sampleEntry,
+    addedAt: '2026-01-15T00:00:00.000Z', // serialized to ISO string by session storage
     browseContext: { source: 'browse' as const, page: 0, filter: 'all', sort: 'date' },
     guildId: 'guild-456',
   },
@@ -71,14 +87,6 @@ const sampleSession = {
   createdAt: new Date(),
   lastActivityAt: new Date(),
 };
-
-function mockOkResponse(data: unknown): Response {
-  return { ok: true, status: 200, json: () => Promise.resolve(data) } as Response;
-}
-
-function mockErrorResponse(status: number, data: unknown): Response {
-  return { ok: false, status, json: () => Promise.resolve(data) } as Response;
-}
 
 function createMockButtonInteraction(customId: string): ButtonInteraction {
   return {
@@ -145,15 +153,19 @@ describe('handleEdit', () => {
 });
 
 describe('handleEditModal', () => {
+  let stub: OwnerStub;
+
   beforeEach(() => {
     vi.resetAllMocks();
+    stub = createStub();
+    clientsForMock.mockReturnValue({ ownerClient: asOwnerClient(stub) });
   });
 
   it('should update reason via modal', async () => {
     mockSessionManager.get.mockResolvedValue(sampleSession);
     mockSessionManager.update.mockResolvedValue(sampleSession);
-    vi.mocked(adminPostJson).mockResolvedValue(
-      mockOkResponse({ entry: { ...sampleEntry, reason: 'New reason' } })
+    stub.addDenylistEntry.mockResolvedValue(
+      makeOk({ entry: { ...sampleEntry, reason: 'New reason' } })
     );
     const interaction = createMockModalInteraction('deny::modal::entry-uuid-1234::edit', {
       scope: 'BOT',
@@ -164,22 +176,20 @@ describe('handleEditModal', () => {
     await handleEditModal(interaction, 'entry-uuid-1234');
 
     expect(interaction.deferUpdate).toHaveBeenCalled();
-    expect(adminPostJson).toHaveBeenCalledWith(
-      '/admin/denylist',
-      expect.objectContaining({ reason: 'New reason', scope: 'BOT', scopeId: '*' }),
-      'user-123'
+    expect(stub.addDenylistEntry).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'New reason', scope: 'BOT', scopeId: '*' })
     );
-    // Should NOT call adminFetch for delete since scope didn't change
-    expect(adminFetch).not.toHaveBeenCalled();
+    // Should NOT call removeDenylistEntry since scope didn't change
+    expect(stub.removeDenylistEntry).not.toHaveBeenCalled();
   });
 
   it('should handle scope change — create new + delete old', async () => {
     mockSessionManager.get.mockResolvedValue(sampleSession);
     mockSessionManager.update.mockResolvedValue(sampleSession);
-    vi.mocked(adminPostJson).mockResolvedValue(
-      mockOkResponse({ entry: { ...sampleEntry, scope: 'CHANNEL', scopeId: 'chan-999' } })
+    stub.addDenylistEntry.mockResolvedValue(
+      makeOk({ entry: { ...sampleEntry, scope: 'CHANNEL', scopeId: 'chan-999' } })
     );
-    vi.mocked(adminFetch).mockResolvedValue(mockOkResponse({ success: true }));
+    stub.removeDenylistEntry.mockResolvedValue(makeOk({ success: true }));
     const interaction = createMockModalInteraction('deny::modal::entry-uuid-1234::edit', {
       scope: 'CHANNEL',
       scopeId: 'chan-999',
@@ -188,15 +198,10 @@ describe('handleEditModal', () => {
 
     await handleEditModal(interaction, 'entry-uuid-1234');
 
-    expect(adminPostJson).toHaveBeenCalledWith(
-      '/admin/denylist',
-      expect.objectContaining({ scope: 'CHANNEL', scopeId: 'chan-999' }),
-      'user-123'
+    expect(stub.addDenylistEntry).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: 'CHANNEL', scopeId: 'chan-999' })
     );
-    expect(adminFetch).toHaveBeenCalledWith('/admin/denylist/USER/111222333444555666/BOT/*', {
-      method: 'DELETE',
-      userId: 'user-123',
-    });
+    expect(stub.removeDenylistEntry).toHaveBeenCalledWith('USER', '111222333444555666', 'BOT', '*');
   });
 
   it('should reject invalid scope', async () => {
@@ -212,7 +217,7 @@ describe('handleEditModal', () => {
     expect(interaction.editReply).toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining('Invalid scope') })
     );
-    expect(adminPostJson).not.toHaveBeenCalled();
+    expect(stub.addDenylistEntry).not.toHaveBeenCalled();
   });
 
   it('should reject non-* scopeId for BOT scope', async () => {
@@ -228,7 +233,7 @@ describe('handleEditModal', () => {
     expect(interaction.editReply).toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining('BOT scope requires') })
     );
-    expect(adminPostJson).not.toHaveBeenCalled();
+    expect(stub.addDenylistEntry).not.toHaveBeenCalled();
   });
 
   it('should handle session expiry', async () => {
@@ -248,7 +253,7 @@ describe('handleEditModal', () => {
 
   it('should handle API error on edit', async () => {
     mockSessionManager.get.mockResolvedValue(sampleSession);
-    vi.mocked(adminPostJson).mockResolvedValue(mockErrorResponse(400, { message: 'Bad request' }));
+    stub.addDenylistEntry.mockResolvedValue(makeErr(400, 'Bad request'));
     const interaction = createMockModalInteraction('deny::modal::entry-uuid-1234::edit', {
       scope: 'BOT',
       scopeId: '*',
@@ -276,13 +281,13 @@ describe('handleEditModal', () => {
     expect(interaction.editReply).toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining('Reason too long') })
     );
-    expect(adminPostJson).not.toHaveBeenCalled();
+    expect(stub.addDenylistEntry).not.toHaveBeenCalled();
   });
 
   it('should clear reason when empty string submitted', async () => {
     mockSessionManager.get.mockResolvedValue(sampleSession);
     mockSessionManager.update.mockResolvedValue(sampleSession);
-    vi.mocked(adminPostJson).mockResolvedValue(mockOkResponse({ entry: sampleEntry }));
+    stub.addDenylistEntry.mockResolvedValue(makeOk({ entry: sampleEntry }));
     const interaction = createMockModalInteraction('deny::modal::entry-uuid-1234::edit', {
       scope: 'BOT',
       scopeId: '*',
@@ -291,10 +296,6 @@ describe('handleEditModal', () => {
 
     await handleEditModal(interaction, 'entry-uuid-1234');
 
-    expect(adminPostJson).toHaveBeenCalledWith(
-      '/admin/denylist',
-      expect.not.objectContaining({ reason: '' }),
-      'user-123'
-    );
+    expect(stub.addDenylistEntry).toHaveBeenCalledWith(expect.not.objectContaining({ reason: '' }));
   });
 });

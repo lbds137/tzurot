@@ -8,6 +8,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { handleUndo } from './undo.js';
+import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -23,17 +24,10 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-// Mock userGatewayClient
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
 
 // Mock commandHelpers
 const mockCreateSuccessEmbed = vi.fn(() => ({}));
@@ -42,9 +36,21 @@ vi.mock('../../utils/commandHelpers.js', () => ({
     mockCreateSuccessEmbed(...(args as Parameters<typeof mockCreateSuccessEmbed>)),
 }));
 
+interface StubClient {
+  undoHistory: ReturnType<typeof vi.fn>;
+}
+
+function createStubClient(): StubClient {
+  return { undoHistory: vi.fn() };
+}
+
 describe('handleUndo', () => {
+  let stub: StubClient;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = createStubClient();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
   });
 
   /**
@@ -58,6 +64,7 @@ describe('handleUndo', () => {
 
     return {
       interaction: {
+        user: { id: '123456789' },
         options: {
           getString: vi.fn((name: string) => {
             if (name === 'character') return personalitySlug;
@@ -93,27 +100,18 @@ describe('handleUndo', () => {
   }
 
   it('should undo clear successfully', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.undoHistory.mockResolvedValue(
+      makeOk({
         success: true,
         restoredEpoch: '2025-12-12T08:00:00.000Z',
         message: 'Context restored',
-      },
-    });
+      })
+    );
 
     const context = createMockContext();
     await handleUndo(context);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/history/undo', {
-      user: {
-        discordId: '123456789',
-        username: 'testuser',
-        displayName: 'testuser',
-      },
-      method: 'POST',
-      body: { personalitySlug: 'lilith' },
-    });
+    expect(stub.undoHistory).toHaveBeenCalledWith({ personalitySlug: 'lilith' });
     expect(mockCreateSuccessEmbed).toHaveBeenCalledWith(
       'Context Restored',
       expect.stringContaining('lilith')
@@ -121,12 +119,26 @@ describe('handleUndo', () => {
     expect(context.editReply).toHaveBeenCalledWith({ embeds: [expect.any(Object)] });
   });
 
-  it('should handle personality not found (404)', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      status: 404,
-      error: 'Not found',
+  it('should pass personaId when provided', async () => {
+    stub.undoHistory.mockResolvedValue(
+      makeOk({
+        success: true,
+        restoredEpoch: '2025-12-12T08:00:00.000Z',
+        message: 'Context restored',
+      })
+    );
+
+    const context = createMockContext('lilith', 'persona-xyz');
+    await handleUndo(context);
+
+    expect(stub.undoHistory).toHaveBeenCalledWith({
+      personalitySlug: 'lilith',
+      personaId: 'persona-xyz',
     });
+  });
+
+  it('should handle personality not found (404)', async () => {
+    stub.undoHistory.mockResolvedValue(makeErr(404, 'Not found'));
 
     const context = createMockContext('unknown');
     await handleUndo(context);
@@ -137,11 +149,7 @@ describe('handleUndo', () => {
   });
 
   it('should handle no previous context (400)', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      status: 400,
-      error: 'No previous context',
-    });
+    stub.undoHistory.mockResolvedValue(makeErr(400, 'No previous context'));
 
     const context = createMockContext();
     await handleUndo(context);
@@ -152,11 +160,7 @@ describe('handleUndo', () => {
   });
 
   it('should handle generic API error', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      status: 500,
-      error: 'Server error',
-    });
+    stub.undoHistory.mockResolvedValue(makeErr(500, 'Server error'));
 
     const context = createMockContext();
     await handleUndo(context);
@@ -167,8 +171,7 @@ describe('handleUndo', () => {
   });
 
   it('should handle exceptions', async () => {
-    const error = new Error('Network error');
-    mockCallGatewayApi.mockRejectedValue(error);
+    stub.undoHistory.mockRejectedValue(new Error('Network error'));
 
     const context = createMockContext();
     await handleUndo(context);
@@ -182,7 +185,7 @@ describe('handleUndo', () => {
     const context = createMockContext('__autocomplete_error__');
     await handleUndo(context);
 
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(stub.undoHistory).not.toHaveBeenCalled();
     expect(context.editReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Autocomplete was unavailable'),
     });
@@ -192,7 +195,7 @@ describe('handleUndo', () => {
     const context = createMockContext('lilith', '__autocomplete_error__');
     await handleUndo(context);
 
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(stub.undoHistory).not.toHaveBeenCalled();
     expect(context.editReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Autocomplete was unavailable'),
     });
