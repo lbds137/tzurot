@@ -20,9 +20,9 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-const mockAdminFetch = vi.fn();
-vi.mock('../../utils/adminApiClient.js', () => ({
-  adminFetch: (...args: unknown[]) => mockAdminFetch(...args),
+const mockServiceFetch = vi.fn();
+vi.mock('../../utils/serviceFetch.js', () => ({
+  serviceFetch: (...args: unknown[]) => mockServiceFetch(...args),
 }));
 
 function createMockContext(): DeferredCommandContext {
@@ -64,21 +64,22 @@ describe('handleMetrics', () => {
   });
 
   it('renders the queue / cache / uptime fields when the gateway responds OK', async () => {
-    mockAdminFetch.mockResolvedValue({
-      ok: true,
-      json: () =>
-        Promise.resolve({
+    mockServiceFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
           queue: { waiting: 3, active: 1, completed: 4200, failed: 17, total: 4 },
           cache: { size: 256 },
           uptime: 7200_000, // 2h in ms
           timestamp: '2026-05-20T12:00:00.000Z',
         }),
-    });
+        { status: 200 }
+      )
+    );
 
     const context = createMockContext();
     await handleMetrics(context);
 
-    expect(mockAdminFetch).toHaveBeenCalledWith('/metrics');
+    expect(mockServiceFetch).toHaveBeenCalledWith('/metrics');
 
     const fields = fieldsFromCall(context);
 
@@ -101,16 +102,17 @@ describe('handleMetrics', () => {
   });
 
   it('attaches the snapshot timestamp as the embed footer', async () => {
-    mockAdminFetch.mockResolvedValue({
-      ok: true,
-      json: () =>
-        Promise.resolve({
+    mockServiceFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
           queue: { waiting: 0, active: 0, completed: 0, failed: 0, total: 0 },
           cache: { size: 0 },
           uptime: 0,
           timestamp: '2026-05-20T12:00:00.000Z',
         }),
-    });
+        { status: 200 }
+      )
+    );
 
     const context = createMockContext();
     await handleMetrics(context);
@@ -122,10 +124,7 @@ describe('handleMetrics', () => {
   });
 
   it('renders a warning embed when the gateway responds with non-OK', async () => {
-    mockAdminFetch.mockResolvedValue({
-      ok: false,
-      status: 503,
-    });
+    mockServiceFetch.mockResolvedValue(new Response(null, { status: 503 }));
 
     const context = createMockContext();
     await handleMetrics(context);
@@ -135,8 +134,8 @@ describe('handleMetrics', () => {
     expect(errorField?.value).toContain('503');
   });
 
-  it('renders a warning embed when adminFetch throws (gateway unreachable)', async () => {
-    mockAdminFetch.mockRejectedValue(new Error('Connection refused'));
+  it('renders a warning embed when serviceFetch throws (gateway unreachable)', async () => {
+    mockServiceFetch.mockRejectedValue(new Error('Connection refused'));
 
     const context = createMockContext();
     await handleMetrics(context);
@@ -153,10 +152,7 @@ describe('handleMetrics', () => {
     // interaction expired), the outer catch overwrote the warning fields
     // with the "unreachable" message — wrong attribution. The refactored
     // shape dispatches exactly once at the bottom for every branch.
-    mockAdminFetch.mockResolvedValue({
-      ok: false,
-      status: 503,
-    });
+    mockServiceFetch.mockResolvedValue(new Response(null, { status: 503 }));
 
     const context = createMockContext();
     await handleMetrics(context);

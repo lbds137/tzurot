@@ -7,7 +7,7 @@
 
 import { createLogger } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { adminFetch } from '../../utils/adminApiClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import { checkDenyPermission } from './permissions.js';
 import { stripMention } from './mentionUtils.js';
 
@@ -27,16 +27,14 @@ export async function handleRemove(context: DeferredCommandContext): Promise<voi
   }
 
   try {
-    const segments = [type, target, scope, perm.scopeId].map(encodeURIComponent);
-    const path = `/admin/denylist/${segments.join('/')}`;
-    const response = await adminFetch(path, { method: 'DELETE', userId: context.user.id });
+    const { ownerClient } = clientsFor(context.interaction);
+    const result = await ownerClient.removeDenylistEntry(type, target, scope, perm.scopeId);
 
-    if (!response.ok) {
-      if (response.status === 404) {
+    if (!result.ok) {
+      if (result.status === 404) {
         await context.editReply('❌ No matching denial entry found.');
       } else {
-        const body = (await response.json()) as { message?: string };
-        await context.editReply(`❌ Failed: ${body.message ?? 'Unknown error'}`);
+        await context.editReply(`❌ Failed: ${result.error}`);
       }
       return;
     }

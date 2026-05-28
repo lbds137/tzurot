@@ -12,18 +12,10 @@ import {
   AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
   isAutocompleteErrorSentinel,
 } from '../../utils/apiCheck.js';
-import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import { createSuccessEmbed } from '../../utils/commandHelpers.js';
 
 const logger = createLogger('history-clear');
-
-interface ClearResponse {
-  success: boolean;
-  epoch: string;
-  personaId: string;
-  canUndo: boolean;
-  message: string;
-}
 
 /**
  * Handle /history clear
@@ -43,17 +35,12 @@ export async function handleClear(context: DeferredCommandContext): Promise<void
   }
 
   try {
-    // Build request body, only include personaId if explicitly provided
+    const { userClient } = clientsFor(context.interaction);
     const body: { personalitySlug: string; personaId?: string } = { personalitySlug };
     if (personaId !== null && personaId.length > 0) {
       body.personaId = personaId;
     }
-
-    const result = await callGatewayApi<ClearResponse>('/user/history/clear', {
-      user: toGatewayUser(context.user),
-      method: 'POST',
-      body,
-    });
+    const result = await userClient.clearHistory(body);
 
     if (!result.ok) {
       const errorMessage =

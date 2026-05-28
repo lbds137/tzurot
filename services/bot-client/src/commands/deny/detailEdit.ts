@@ -18,8 +18,9 @@ import { createLogger } from '@tzurot/common-types';
 import { getSessionManager } from '../../utils/dashboard/SessionManager.js';
 import { showModalWithTimeoutCatch } from '../../utils/dashboard/showModalWithTimeoutCatch.js';
 import { DASHBOARD_MESSAGES } from '../../utils/dashboard/messages.js';
-import { adminPostJson, adminFetch } from '../../utils/adminApiClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import type { DenylistEntryResponse } from './browseTypes.js';
+import type { DenylistScope } from '@tzurot/common-types';
 import type { DenyDetailSession } from './detailTypes.js';
 import { ENTITY_TYPE, VALID_SCOPES, buildDetailEmbed, buildDetailButtons } from './detailTypes.js';
 
@@ -134,11 +135,11 @@ export async function handleEditModal(
   await interaction.deferUpdate();
 
   const data = session.data;
-  const newScope = interaction.fields.getTextInputValue('scope').trim().toUpperCase();
+  const newScopeRaw = interaction.fields.getTextInputValue('scope').trim().toUpperCase();
   const newScopeId = interaction.fields.getTextInputValue('scopeId').trim();
   const newReason = interaction.fields.getTextInputValue('reason').trim() || null;
 
-  const validationError = validateEditInput(newScope, newScopeId, newReason);
+  const validationError = validateEditInput(newScopeRaw, newScopeId, newReason);
   if (validationError !== null) {
     // intentionally-raw: deny uses manual re-render for back-to-browse (see
     // detail.ts file-top comment). Validation error is terminal; session
@@ -147,49 +148,41 @@ export async function handleEditModal(
     return;
   }
 
+  // Validation above narrowed `newScopeRaw` to a member of VALID_SCOPES,
+  // which is the same set as the schema's DenylistScope literal union.
+  const newScope = newScopeRaw as DenylistScope;
+
   try {
     const scopeChanged = newScope !== data.scope || newScopeId !== data.scopeId;
+    const { ownerClient } = clientsFor(interaction);
 
-    const upsertResponse = await adminPostJson(
-      '/admin/denylist',
-      {
-        type: data.type,
-        discordId: data.discordId,
-        scope: newScope,
-        scopeId: newScopeId,
-        mode: data.mode,
-        reason: newReason ?? undefined,
-      },
-      interaction.user.id
-    );
+    const upsertResult = await ownerClient.addDenylistEntry({
+      type: data.type,
+      discordId: data.discordId,
+      scope: newScope,
+      scopeId: newScopeId,
+      mode: data.mode,
+      reason: newReason ?? undefined,
+    });
 
-    if (!upsertResponse.ok) {
-      const body = (await upsertResponse.json()) as { message?: string };
-      // Edit-API-failure terminal path; deny doesn't use the Back-to-Browse
-      // button pattern (see detail.ts file-top comment).
+    if (!upsertResult.ok) {
       await interaction.editReply({
-        content: `\u274C Failed to update: ${body.message ?? 'Unknown error'}`,
+        content: `\u274C Failed to update: ${upsertResult.error}`,
         embeds: [],
-        // intentionally-raw: see block comment above.
+        // intentionally-raw: deny uses manual re-render for back-to-browse
+        // (see detail.ts file-top comment). Edit-API-failure terminal path.
         components: [],
       });
       return;
     }
 
-    // If scope changed, delete the old entry
+    // If scope changed, delete the old entry (the upsert created a new one
+    // at the new scope; this removes the stale entry at the prior scope).
     if (scopeChanged) {
-      const segments = [data.type, data.discordId, data.scope, data.scopeId].map(
-        encodeURIComponent
-      );
-      await adminFetch(`/admin/denylist/${segments.join('/')}`, {
-        method: 'DELETE',
-        userId: interaction.user.id,
-      });
+      await ownerClient.removeDenylistEntry(data.type, data.discordId, data.scope, data.scopeId);
     }
 
-    const responseBody = (await upsertResponse.json().catch(() => ({}))) as {
-      entry?: DenylistEntryResponse;
-    };
+    const responseBody = upsertResult.data as { entry?: DenylistEntryResponse };
 
     const updatedData: Partial<DenyDetailSession> = {
       scope: newScope,
@@ -207,7 +200,10 @@ export async function handleEditModal(
       updatedData
     );
 
-    const updatedEntry: DenylistEntryResponse = {
+    // `data.addedAt` is a string (session storage); `buildDetailEmbed`
+    // accepts string | Date, so leave the type inferred rather than forcing
+    // it through DenylistEntryResponse (which has addedAt: Date).
+    const updatedEntry = {
       ...data,
       scope: newScope,
       scopeId: newScopeId,

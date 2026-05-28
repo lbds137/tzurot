@@ -1,24 +1,28 @@
 import { describe, it, expect, vi } from 'vitest';
+import { makeOk, makeErr, asOwnerClient } from '../../test/gatewayClientStubs.js';
 
-vi.mock('@tzurot/common-types', () => ({
-  isBotOwner: vi.fn(),
-  GATEWAY_TIMEOUTS: { DEFERRED: 10000 },
-  getConfig: vi.fn(() => ({ BOT_OWNER_ID: 'owner-1' })),
-  DISCORD_COLORS: { ERROR: 0xff0000 },
-  formatDateShort: vi.fn((date: string | Date) => {
-    const d = typeof date === 'string' ? new Date(date) : date;
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
-  }),
-  createLogger: vi.fn(() => ({
-    info: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-    warn: vi.fn(),
-  })),
-}));
+vi.mock('@tzurot/common-types', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+  return {
+    ...actual,
+    isBotOwner: vi.fn(),
+    DISCORD_COLORS: { ERROR: 0xff0000 },
+    formatDateShort: vi.fn((date: string | Date) => {
+      const d = typeof date === 'string' ? new Date(date) : date;
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
+    }),
+    createLogger: vi.fn(() => ({
+      info: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+      warn: vi.fn(),
+    })),
+  };
+});
 
-vi.mock('../../utils/adminApiClient.js', () => ({
-  adminFetch: vi.fn(),
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
 }));
 
 vi.mock('../../utils/commandContext/index.js', () => ({
@@ -77,26 +81,21 @@ vi.mock('../../utils/dashboard/index.js', () => ({
 // module-load time. Pulling it through a side-effect import keeps the test's
 // subject-under-test explicit.
 import './browseRebuilder.js';
-import { adminFetch } from '../../utils/adminApiClient.js';
 import { registerBrowseRebuilder } from '../../utils/dashboard/index.js';
 
 const sampleEntries = [
   {
     id: 'entry-1',
-    type: 'USER',
+    type: 'USER' as const,
     discordId: '111222333444555666',
-    scope: 'BOT',
+    scope: 'BOT' as const,
     scopeId: '*',
-    mode: 'BLOCK',
+    mode: 'BLOCK' as const,
     reason: 'Spamming',
-    addedAt: '2026-01-15T00:00:00.000Z',
+    addedAt: new Date('2026-01-15T00:00:00.000Z'),
     addedBy: 'owner-1',
   },
 ];
-
-function mockOkResponse(data: unknown): Response {
-  return { ok: true, status: 200, json: () => Promise.resolve(data) } as Response;
-}
 
 // Capture the rebuilder callback registered at module-load BEFORE any
 // `vi.clearAllMocks()` wipes the call history.
@@ -112,7 +111,11 @@ describe('deny browse rebuilder', () => {
   }
 
   it('returns rebuilt view with banner on success', async () => {
-    vi.mocked(adminFetch).mockResolvedValue(mockOkResponse({ entries: sampleEntries }));
+    clientsForMock.mockReturnValue({
+      ownerClient: asOwnerClient({
+        listDenylistEntries: vi.fn().mockResolvedValue(makeOk({ entries: sampleEntries })),
+      }),
+    });
 
     const result = await denyRebuilder(
       createMockInteraction(),
@@ -128,12 +131,12 @@ describe('deny browse rebuilder', () => {
     });
   });
 
-  it('returns null when fetchEntries returns null (admin API fails)', async () => {
-    vi.mocked(adminFetch).mockResolvedValue({
-      ok: false,
-      status: 500,
-      json: () => Promise.resolve({}),
-    } as Response);
+  it('returns null when fetchEntries returns null (owner API fails)', async () => {
+    clientsForMock.mockReturnValue({
+      ownerClient: asOwnerClient({
+        listDenylistEntries: vi.fn().mockResolvedValue(makeErr(500, 'Error')),
+      }),
+    });
 
     const result = await denyRebuilder(
       createMockInteraction(),

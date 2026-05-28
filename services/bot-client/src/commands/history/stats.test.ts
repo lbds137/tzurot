@@ -8,6 +8,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { handleStats } from './stats.js';
+import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -23,17 +24,10 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-// Mock userGatewayClient
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
 
 // Mock commandHelpers
 const mockCreateInfoEmbed = vi.fn(() => ({
@@ -44,9 +38,21 @@ vi.mock('../../utils/commandHelpers.js', () => ({
     mockCreateInfoEmbed(...(args as Parameters<typeof mockCreateInfoEmbed>)),
 }));
 
+interface StubClient {
+  getHistoryStats: ReturnType<typeof vi.fn>;
+}
+
+function createStubClient(): StubClient {
+  return { getHistoryStats: vi.fn() };
+}
+
 describe('handleStats', () => {
+  let stub: StubClient;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = createStubClient();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
   });
 
   /**
@@ -61,6 +67,7 @@ describe('handleStats', () => {
 
     return {
       interaction: {
+        user: { id: '123456789' },
         options: {
           getString: vi.fn((name: string) => {
             if (name === 'character') return personalitySlug;
@@ -96,9 +103,8 @@ describe('handleStats', () => {
   }
 
   it('should get stats successfully', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.getHistoryStats.mockResolvedValue(
+      makeOk({
         channelId: 'channel-123',
         personalitySlug: 'lilith',
         personaId: 'persona-123',
@@ -114,19 +120,16 @@ describe('handleStats', () => {
         total: { totalMessages: 13, oldestMessage: '2025-12-01T08:00:00.000Z' },
         contextEpoch: null,
         canUndo: false,
-      },
-    });
+      })
+    );
 
     const context = createMockContext();
     await handleStats(context);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/history/stats?personalitySlug=lilith&channelId=channel-123',
-      {
-        user: { discordId: '123456789', username: 'testuser', displayName: 'testuser' },
-        method: 'GET',
-      }
-    );
+    expect(stub.getHistoryStats).toHaveBeenCalledWith({
+      personalitySlug: 'lilith',
+      channelId: 'channel-123',
+    });
     expect(mockCreateInfoEmbed).toHaveBeenCalledWith(
       'Conversation Statistics',
       expect.stringContaining('lilith')
@@ -134,13 +137,43 @@ describe('handleStats', () => {
     expect(context.editReply).toHaveBeenCalledWith({ embeds: [expect.any(Object)] });
   });
 
+  it('should pass personaId when provided', async () => {
+    stub.getHistoryStats.mockResolvedValue(
+      makeOk({
+        channelId: 'channel-123',
+        personalitySlug: 'lilith',
+        personaId: 'persona-xyz',
+        personaName: 'My Profile',
+        visible: {
+          totalMessages: 0,
+          userMessages: 0,
+          assistantMessages: 0,
+          oldestMessage: null,
+          newestMessage: null,
+        },
+        hidden: { count: 0 },
+        total: { totalMessages: 0, oldestMessage: null },
+        contextEpoch: null,
+        canUndo: false,
+      })
+    );
+
+    const context = createMockContext('lilith', 'channel-123', 'persona-xyz');
+    await handleStats(context);
+
+    expect(stub.getHistoryStats).toHaveBeenCalledWith({
+      personalitySlug: 'lilith',
+      channelId: 'channel-123',
+      personaId: 'persona-xyz',
+    });
+  });
+
   it('should show hidden messages indicator when epoch is set', async () => {
     const mockEmbed = { addFields: vi.fn().mockReturnThis() };
     mockCreateInfoEmbed.mockReturnValue(mockEmbed);
 
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.getHistoryStats.mockResolvedValue(
+      makeOk({
         channelId: 'channel-123',
         personalitySlug: 'lilith',
         personaId: 'persona-123',
@@ -156,8 +189,8 @@ describe('handleStats', () => {
         total: { totalMessages: 10, oldestMessage: '2025-12-01T08:00:00.000Z' },
         contextEpoch: '2025-12-10T08:00:00.000Z',
         canUndo: true,
-      },
-    });
+      })
+    );
 
     const context = createMockContext();
     await handleStats(context);
@@ -172,9 +205,8 @@ describe('handleStats', () => {
     const mockEmbed = { addFields: vi.fn().mockReturnThis() };
     mockCreateInfoEmbed.mockReturnValue(mockEmbed);
 
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.getHistoryStats.mockResolvedValue(
+      makeOk({
         channelId: 'channel-123',
         personalitySlug: 'lilith',
         personaId: 'persona-123',
@@ -190,8 +222,8 @@ describe('handleStats', () => {
         total: { totalMessages: 10, oldestMessage: '2025-12-10T08:00:00.000Z' },
         contextEpoch: null,
         canUndo: false,
-      },
-    });
+      })
+    );
 
     const context = createMockContext();
     await handleStats(context);
@@ -210,9 +242,8 @@ describe('handleStats', () => {
     const mockEmbed = { addFields: vi.fn().mockReturnThis() };
     mockCreateInfoEmbed.mockReturnValue(mockEmbed);
 
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.getHistoryStats.mockResolvedValue(
+      makeOk({
         channelId: 'channel-123',
         personalitySlug: 'lilith',
         personaId: 'persona-123',
@@ -228,8 +259,8 @@ describe('handleStats', () => {
         total: { totalMessages: 10, oldestMessage: '2025-12-01T08:00:00.000Z' },
         contextEpoch: '2025-12-12T08:00:00.000Z',
         canUndo: true,
-      },
-    });
+      })
+    );
 
     const context = createMockContext();
     await handleStats(context);
@@ -247,9 +278,8 @@ describe('handleStats', () => {
     const mockEmbed = { addFields: vi.fn().mockReturnThis() };
     mockCreateInfoEmbed.mockReturnValue(mockEmbed);
 
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.getHistoryStats.mockResolvedValue(
+      makeOk({
         channelId: 'channel-123',
         personalitySlug: 'lilith',
         personaId: 'persona-123',
@@ -265,8 +295,8 @@ describe('handleStats', () => {
         total: { totalMessages: 0, oldestMessage: null },
         contextEpoch: null,
         canUndo: false,
-      },
-    });
+      })
+    );
 
     const context = createMockContext();
     await handleStats(context);
@@ -282,11 +312,7 @@ describe('handleStats', () => {
   });
 
   it('should handle personality not found (404)', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      status: 404,
-      error: 'Not found',
-    });
+    stub.getHistoryStats.mockResolvedValue(makeErr(404, 'Not found'));
 
     const context = createMockContext('unknown');
     await handleStats(context);
@@ -297,11 +323,7 @@ describe('handleStats', () => {
   });
 
   it('should handle generic API error', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      status: 500,
-      error: 'Server error',
-    });
+    stub.getHistoryStats.mockResolvedValue(makeErr(500, 'Server error'));
 
     const context = createMockContext();
     await handleStats(context);
@@ -312,8 +334,7 @@ describe('handleStats', () => {
   });
 
   it('should handle exceptions', async () => {
-    const error = new Error('Network error');
-    mockCallGatewayApi.mockRejectedValue(error);
+    stub.getHistoryStats.mockRejectedValue(new Error('Network error'));
 
     const context = createMockContext();
     await handleStats(context);
@@ -327,7 +348,7 @@ describe('handleStats', () => {
     const context = createMockContext('__autocomplete_error__');
     await handleStats(context);
 
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(stub.getHistoryStats).not.toHaveBeenCalled();
     expect(context.editReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Autocomplete was unavailable'),
     });
@@ -337,7 +358,7 @@ describe('handleStats', () => {
     const context = createMockContext('lilith', 'channel-123', '__autocomplete_error__');
     await handleStats(context);
 
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(stub.getHistoryStats).not.toHaveBeenCalled();
     expect(context.editReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Autocomplete was unavailable'),
     });

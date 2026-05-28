@@ -1,30 +1,40 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleRemove } from './remove.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
+import { makeOk, makeErr, asOwnerClient } from '../../test/gatewayClientStubs.js';
 
 // Mock dependencies
-vi.mock('@tzurot/common-types', () => ({
-  isBotOwner: vi.fn(),
-  GATEWAY_TIMEOUTS: { DEFERRED: 10000 },
-  getConfig: vi.fn(() => ({ BOT_OWNER_ID: 'owner-1' })),
-  createLogger: vi.fn(() => ({
-    info: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-    warn: vi.fn(),
-  })),
-}));
+vi.mock('@tzurot/common-types', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+  return {
+    ...actual,
+    createLogger: vi.fn(() => ({
+      info: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+      warn: vi.fn(),
+    })),
+  };
+});
 
 vi.mock('./permissions.js', () => ({
   checkDenyPermission: vi.fn(),
 }));
 
-vi.mock('../../utils/adminApiClient.js', () => ({
-  adminFetch: vi.fn(),
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
 }));
 
 import { checkDenyPermission } from './permissions.js';
-import { adminFetch } from '../../utils/adminApiClient.js';
+
+interface OwnerStub {
+  removeDenylistEntry: ReturnType<typeof vi.fn>;
+}
+
+function createStub(): OwnerStub {
+  return { removeDenylistEntry: vi.fn() };
+}
 
 function createMockContext(options: Record<string, unknown> = {}): DeferredCommandContext {
   const optionMap = new Map(Object.entries(options));
@@ -32,6 +42,7 @@ function createMockContext(options: Record<string, unknown> = {}): DeferredComma
     user: { id: 'user-123' },
     guildId: 'guild-456',
     interaction: {
+      user: { id: 'user-123' },
       options: {
         getChannel: vi.fn().mockReturnValue(options.channel ?? null),
       },
@@ -42,30 +53,23 @@ function createMockContext(options: Record<string, unknown> = {}): DeferredComma
   } as unknown as DeferredCommandContext;
 }
 
-function mockOkResponse(data: unknown): Response {
-  return { ok: true, status: 200, json: () => Promise.resolve(data) } as Response;
-}
-
-function mockErrorResponse(status: number, data: unknown): Response {
-  return { ok: false, status, json: () => Promise.resolve(data) } as Response;
-}
-
 describe('handleRemove', () => {
+  let stub: OwnerStub;
+
   beforeEach(() => {
     vi.resetAllMocks();
+    stub = createStub();
+    clientsForMock.mockReturnValue({ ownerClient: asOwnerClient(stub) });
   });
 
   it('should remove a denial entry', async () => {
     vi.mocked(checkDenyPermission).mockResolvedValue({ allowed: true, scopeId: '*' });
-    vi.mocked(adminFetch).mockResolvedValue(mockOkResponse({ success: true }));
+    stub.removeDenylistEntry.mockResolvedValue(makeOk({ success: true }));
     const context = createMockContext({ target: '999888777', type: 'USER', scope: 'BOT' });
 
     await handleRemove(context);
 
-    expect(adminFetch).toHaveBeenCalledWith('/admin/denylist/USER/999888777/BOT/*', {
-      method: 'DELETE',
-      userId: 'user-123',
-    });
+    expect(stub.removeDenylistEntry).toHaveBeenCalledWith('USER', '999888777', 'BOT', '*');
     expect(context.editReply).toHaveBeenCalledWith(
       '✅ Denial removed for <@999888777> (`999888777`) (bot scope).'
     );
@@ -73,7 +77,7 @@ describe('handleRemove', () => {
 
   it('should handle not found', async () => {
     vi.mocked(checkDenyPermission).mockResolvedValue({ allowed: true, scopeId: '*' });
-    vi.mocked(adminFetch).mockResolvedValue(mockErrorResponse(404, { message: 'Not found' }));
+    stub.removeDenylistEntry.mockResolvedValue(makeErr(404, 'Not found'));
     const context = createMockContext({ target: '999888777' });
 
     await handleRemove(context);
@@ -83,15 +87,12 @@ describe('handleRemove', () => {
 
   it('should strip Discord mention wrapper from target', async () => {
     vi.mocked(checkDenyPermission).mockResolvedValue({ allowed: true, scopeId: '*' });
-    vi.mocked(adminFetch).mockResolvedValue(mockOkResponse({ success: true }));
+    stub.removeDenylistEntry.mockResolvedValue(makeOk({ success: true }));
     const context = createMockContext({ target: '<@999888777>' });
 
     await handleRemove(context);
 
-    expect(adminFetch).toHaveBeenCalledWith('/admin/denylist/USER/999888777/BOT/*', {
-      method: 'DELETE',
-      userId: 'user-123',
-    });
+    expect(stub.removeDenylistEntry).toHaveBeenCalledWith('USER', '999888777', 'BOT', '*');
   });
 
   it('should stop when permission denied', async () => {
@@ -100,6 +101,6 @@ describe('handleRemove', () => {
 
     await handleRemove(context);
 
-    expect(adminFetch).not.toHaveBeenCalled();
+    expect(stub.removeDenylistEntry).not.toHaveBeenCalled();
   });
 });

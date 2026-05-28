@@ -1,36 +1,42 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { checkDenyPermission } from './permissions.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
+import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
 // Mock dependencies
-vi.mock('@tzurot/common-types', () => ({
-  isBotOwner: vi.fn(),
-  GATEWAY_TIMEOUTS: { DEFERRED: 10000 },
-  createLogger: vi.fn(() => ({
-    info: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-    warn: vi.fn(),
-  })),
-}));
+vi.mock('@tzurot/common-types', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+  return {
+    ...actual,
+    isBotOwner: vi.fn(),
+    createLogger: vi.fn(() => ({
+      info: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+      warn: vi.fn(),
+    })),
+  };
+});
 
 vi.mock('../../utils/permissions.js', () => ({
   requireManageMessagesContext: vi.fn(),
 }));
 
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: vi.fn(),
-  };
-});
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
 
 import { isBotOwner } from '@tzurot/common-types';
 import { requireManageMessagesContext } from '../../utils/permissions.js';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+
+interface UserStub {
+  getPersonality: ReturnType<typeof vi.fn>;
+}
+
+function createStub(): UserStub {
+  return { getPersonality: vi.fn() };
+}
 
 function createMockContext(
   overrides: Partial<DeferredCommandContext> = {}
@@ -40,6 +46,7 @@ function createMockContext(
     guildId: 'guild-456',
     member: { permissions: { has: vi.fn().mockReturnValue(true) } },
     interaction: {
+      user: { id: 'user-123' },
       options: { getChannel: vi.fn().mockReturnValue(null) },
     },
     editReply: vi.fn(),
@@ -48,8 +55,12 @@ function createMockContext(
 }
 
 describe('checkDenyPermission', () => {
+  let stub: UserStub;
+
   beforeEach(() => {
     vi.resetAllMocks();
+    stub = createStub();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
     vi.mocked(isBotOwner).mockReturnValue(false);
     vi.mocked(requireManageMessagesContext).mockResolvedValue(true);
   });
@@ -159,10 +170,9 @@ describe('checkDenyPermission', () => {
   describe('PERSONALITY scope', () => {
     it('should allow bot owner and resolve personality ID', async () => {
       vi.mocked(isBotOwner).mockReturnValue(true);
-      vi.mocked(callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: { personality: { id: 'pers-uuid-123' }, canEdit: true },
-      });
+      stub.getPersonality.mockResolvedValue(
+        makeOk({ personality: { id: 'pers-uuid-123' }, canEdit: true })
+      );
       const context = createMockContext();
 
       const result = await checkDenyPermission(context, 'PERSONALITY', null, 'my-character');
@@ -171,10 +181,9 @@ describe('checkDenyPermission', () => {
     });
 
     it('should allow character creator with canEdit', async () => {
-      vi.mocked(callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: { personality: { id: 'pers-uuid-456' }, canEdit: true },
-      });
+      stub.getPersonality.mockResolvedValue(
+        makeOk({ personality: { id: 'pers-uuid-456' }, canEdit: true })
+      );
       const context = createMockContext();
 
       const result = await checkDenyPermission(context, 'PERSONALITY', null, 'their-character');
@@ -183,10 +192,9 @@ describe('checkDenyPermission', () => {
     });
 
     it('should deny user without canEdit', async () => {
-      vi.mocked(callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: { personality: { id: 'pers-uuid-789' }, canEdit: false },
-      });
+      stub.getPersonality.mockResolvedValue(
+        makeOk({ personality: { id: 'pers-uuid-789' }, canEdit: false })
+      );
       const context = createMockContext();
 
       const result = await checkDenyPermission(context, 'PERSONALITY', null, 'other-character');
@@ -198,11 +206,7 @@ describe('checkDenyPermission', () => {
     });
 
     it('should deny when personality not found', async () => {
-      vi.mocked(callGatewayApi).mockResolvedValue({
-        ok: false,
-        error: 'Not found',
-        status: 404,
-      });
+      stub.getPersonality.mockResolvedValue(makeErr(404, 'Not found'));
       const context = createMockContext();
 
       const result = await checkDenyPermission(context, 'PERSONALITY', null, 'missing-character');
@@ -233,7 +237,7 @@ describe('checkDenyPermission', () => {
       );
 
       expect(result.allowed).toBe(false);
-      expect(callGatewayApi).not.toHaveBeenCalled();
+      expect(stub.getPersonality).not.toHaveBeenCalled();
       expect(context.editReply).toHaveBeenCalledWith({
         content: expect.stringContaining('Autocomplete was unavailable'),
       });

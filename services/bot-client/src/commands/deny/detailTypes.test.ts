@@ -12,11 +12,11 @@ vi.mock('@tzurot/common-types', () => ({
 
 const sampleEntry = {
   id: 'entry-uuid-1234',
-  type: 'USER',
+  type: 'USER' as const,
   discordId: '111222333444555666',
-  scope: 'BOT',
+  scope: 'BOT' as const,
   scopeId: '*',
-  mode: 'BLOCK',
+  mode: 'BLOCK' as const,
   reason: 'Spamming',
   addedAt: '2026-01-15T00:00:00.000Z',
   addedBy: 'owner-1',
@@ -54,7 +54,7 @@ describe('buildDetailEmbed', () => {
   });
 
   it('should build embed for GUILD MUTE entry', () => {
-    const entry = { ...sampleEntry, type: 'GUILD', mode: 'MUTE', reason: null };
+    const entry = { ...sampleEntry, type: 'GUILD' as const, mode: 'MUTE' as const, reason: null };
     const embed = buildDetailEmbed(entry);
 
     expect(embed.data.color).toBe(0xffaa00);
@@ -71,7 +71,7 @@ describe('buildDetailEmbed', () => {
   });
 
   it('should show scope detail for non-BOT scopes', () => {
-    const entry = { ...sampleEntry, scope: 'CHANNEL', scopeId: '123456789' };
+    const entry = { ...sampleEntry, scope: 'CHANNEL' as const, scopeId: '123456789' };
     const embed = buildDetailEmbed(entry);
 
     expect(embed.data.fields).toEqual(

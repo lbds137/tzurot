@@ -12,17 +12,10 @@ import {
   AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
   isAutocompleteErrorSentinel,
 } from '../../utils/apiCheck.js';
-import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import { createSuccessEmbed } from '../../utils/commandHelpers.js';
 
 const logger = createLogger('history-undo');
-
-interface UndoResponse {
-  success: boolean;
-  restoredEpoch: string | null;
-  personaId: string;
-  message: string;
-}
 
 /**
  * Handle /history undo
@@ -42,17 +35,12 @@ export async function handleUndo(context: DeferredCommandContext): Promise<void>
   }
 
   try {
-    // Build request body, only include personaId if explicitly provided
+    const { userClient } = clientsFor(context.interaction);
     const body: { personalitySlug: string; personaId?: string } = { personalitySlug };
     if (personaId !== null && personaId.length > 0) {
       body.personaId = personaId;
     }
-
-    const result = await callGatewayApi<UndoResponse>('/user/history/undo', {
-      user: toGatewayUser(context.user),
-      method: 'POST',
-      body,
-    });
+    const result = await userClient.undoHistory(body);
 
     if (!result.ok) {
       let errorMessage: string;

@@ -20,10 +20,12 @@
 
 import { registerBrowseRebuilder } from '../../utils/dashboard/index.js';
 import type { BrowseSortType } from '../../utils/browse/index.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import { fetchEntries, buildBrowseResponse, type DenyBrowseFilter } from './browse.js';
 
 registerBrowseRebuilder('deny', async (interaction, browseContext, successBanner) => {
-  const entries = await fetchEntries(interaction.user.id);
+  const { ownerClient } = clientsFor(interaction);
+  const entries = await fetchEntries(ownerClient);
   if (entries === null) {
     return null;
   }

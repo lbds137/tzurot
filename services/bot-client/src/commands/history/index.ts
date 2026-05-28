@@ -35,7 +35,8 @@ import {
   createHardDeleteConfig,
   type DestructiveOperationResult,
 } from '../../utils/destructiveConfirmation.js';
-import { callGatewayApi, toGatewayUser, type GatewayUser } from '../../utils/userGatewayClient.js';
+import { type UserClient } from '@tzurot/common-types';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import { createSuccessEmbed } from '../../utils/commandHelpers.js';
 
 const logger = createLogger('history-command');
@@ -70,26 +71,17 @@ async function execute(ctx: SafeCommandContext): Promise<void> {
  * Build the hard-delete execution callback for modal submission
  */
 function buildHardDeleteOperation(
-  user: GatewayUser,
+  userClient: UserClient,
+  userId: string,
   personalitySlug: string,
   channelId: string
 ): () => Promise<DestructiveOperationResult> {
   return async (): Promise<DestructiveOperationResult> => {
-    interface HardDeleteResponse {
-      success: boolean;
-      deletedCount: number;
-      message: string;
-    }
-
-    const result = await callGatewayApi<HardDeleteResponse>('/user/history/hard-delete', {
-      user,
-      method: 'DELETE',
-      body: { personalitySlug, channelId },
-    });
+    const result = await userClient.hardDeleteHistory({ personalitySlug, channelId });
 
     if (!result.ok) {
       logger.error(
-        { userId: user.discordId, personalitySlug, channelId, error: result.error },
+        { userId, personalitySlug, channelId, error: result.error },
         'Hard-delete API failed'
       );
       return {
@@ -103,10 +95,7 @@ function buildHardDeleteOperation(
 
     const { deletedCount } = result.data;
 
-    logger.info(
-      { userId: user.discordId, personalitySlug, channelId, deletedCount },
-      'Hard-delete completed'
-    );
+    logger.info({ userId, personalitySlug, channelId, deletedCount }, 'Hard-delete completed');
 
     return {
       success: true,
@@ -146,8 +135,10 @@ async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
       }
 
       const { personalitySlug, channelId } = entityInfo;
+      const { userClient } = clientsFor(interaction);
       const executeOperation = buildHardDeleteOperation(
-        toGatewayUser(interaction.user),
+        userClient,
+        interaction.user.id,
         personalitySlug,
         channelId
       );

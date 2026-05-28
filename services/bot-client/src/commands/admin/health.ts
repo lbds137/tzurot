@@ -8,7 +8,7 @@
 
 import { EmbedBuilder } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
-import { adminFetch } from '../../utils/adminApiClient.js';
+import { serviceFetch } from '../../utils/serviceFetch.js';
 import { formatDuration } from '../../utils/formatting.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
@@ -56,7 +56,7 @@ export async function handleHealth(context: DeferredCommandContext): Promise<voi
 
   // Gateway section
   try {
-    const response = await adminFetch('/health');
+    const response = await serviceFetch('/health');
 
     if (response.ok) {
       const health = (await response.json()) as GatewayHealthResponse;

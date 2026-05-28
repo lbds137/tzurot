@@ -1,18 +1,23 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { showDetailView, handleDetailButton, handleDetailModal } from './detail.js';
 import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
+import { makeOk, makeErr, asOwnerClient } from '../../test/gatewayClientStubs.js';
 
 // Mock dependencies
-vi.mock('@tzurot/common-types', () => ({
-  isBotOwner: vi.fn(),
-  DISCORD_COLORS: { ERROR: 0xff0000, WARNING: 0xffaa00 },
-  createLogger: vi.fn(() => ({
-    info: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-    warn: vi.fn(),
-  })),
-}));
+vi.mock('@tzurot/common-types', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+  return {
+    ...actual,
+    isBotOwner: vi.fn(),
+    DISCORD_COLORS: { ERROR: 0xff0000, WARNING: 0xffaa00 },
+    createLogger: vi.fn(() => ({
+      info: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+      warn: vi.fn(),
+    })),
+  };
+});
 
 const mockSessionManager = {
   set: vi.fn(),
@@ -66,9 +71,9 @@ vi.mock('../../utils/dashboard/types.js', () => ({
   }),
 }));
 
-vi.mock('../../utils/adminApiClient.js', () => ({
-  adminPostJson: vi.fn(),
-  adminFetch: vi.fn(),
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
 }));
 
 vi.mock('./browse.js', () => ({
@@ -92,25 +97,37 @@ vi.mock('./detailEdit.js', () => ({
 }));
 
 import { isBotOwner } from '@tzurot/common-types';
-import { adminPostJson, adminFetch } from '../../utils/adminApiClient.js';
 import { buildDeleteConfirmation } from '../../utils/dashboard/deleteConfirmation.js';
 import { handleEdit, handleEditModal } from './detailEdit.js';
 
+interface OwnerStub {
+  addDenylistEntry: ReturnType<typeof vi.fn>;
+  removeDenylistEntry: ReturnType<typeof vi.fn>;
+}
+
+function createStub(): OwnerStub {
+  return {
+    addDenylistEntry: vi.fn(),
+    removeDenylistEntry: vi.fn(),
+  };
+}
+
 const sampleEntry = {
   id: 'entry-uuid-1234',
-  type: 'USER',
+  type: 'USER' as const,
   discordId: '111222333444555666',
-  scope: 'BOT',
+  scope: 'BOT' as const,
   scopeId: '*',
-  mode: 'BLOCK',
+  mode: 'BLOCK' as const,
   reason: 'Spamming',
-  addedAt: '2026-01-15T00:00:00.000Z',
+  addedAt: new Date('2026-01-15T00:00:00.000Z'),
   addedBy: 'owner-1',
 };
 
 const sampleSession = {
   data: {
     ...sampleEntry,
+    addedAt: '2026-01-15T00:00:00.000Z', // serialized to ISO string by session storage
     browseContext: { source: 'browse' as const, page: 0, filter: 'all', sort: 'date' },
     guildId: 'guild-456',
   },
@@ -122,14 +139,6 @@ const sampleSession = {
   createdAt: new Date(),
   lastActivityAt: new Date(),
 };
-
-function mockOkResponse(data: unknown): Response {
-  return { ok: true, status: 200, json: () => Promise.resolve(data) } as Response;
-}
-
-function mockErrorResponse(status: number, data: unknown): Response {
-  return { ok: false, status, json: () => Promise.resolve(data) } as Response;
-}
 
 function createMockButtonInteraction(customId: string): ButtonInteraction {
   return {
@@ -182,8 +191,12 @@ describe('showDetailView', () => {
 });
 
 describe('handleDetailButton', () => {
+  let stub: OwnerStub;
+
   beforeEach(() => {
     vi.resetAllMocks();
+    stub = createStub();
+    clientsForMock.mockReturnValue({ ownerClient: asOwnerClient(stub) });
     vi.mocked(isBotOwner).mockReturnValue(true);
   });
 
@@ -201,17 +214,13 @@ describe('handleDetailButton', () => {
     it('should flip BLOCK to MUTE', async () => {
       mockSessionManager.get.mockResolvedValue(sampleSession);
       mockSessionManager.update.mockResolvedValue(sampleSession);
-      vi.mocked(adminPostJson).mockResolvedValue(mockOkResponse({ success: true }));
+      stub.addDenylistEntry.mockResolvedValue(makeOk({ success: true }));
       const interaction = createMockButtonInteraction('deny::mode::entry-uuid-1234');
 
       await handleDetailButton(interaction);
 
       expect(interaction.deferUpdate).toHaveBeenCalled();
-      expect(adminPostJson).toHaveBeenCalledWith(
-        '/admin/denylist',
-        expect.objectContaining({ mode: 'MUTE' }),
-        'user-123'
-      );
+      expect(stub.addDenylistEntry).toHaveBeenCalledWith(expect.objectContaining({ mode: 'MUTE' }));
       expect(mockSessionManager.update).toHaveBeenCalledWith(
         'user-123',
         'deny',
@@ -223,19 +232,17 @@ describe('handleDetailButton', () => {
     it('should flip MUTE to BLOCK', async () => {
       const muteSession = {
         ...sampleSession,
-        data: { ...sampleSession.data, mode: 'MUTE' },
+        data: { ...sampleSession.data, mode: 'MUTE' as const },
       };
       mockSessionManager.get.mockResolvedValue(muteSession);
       mockSessionManager.update.mockResolvedValue(muteSession);
-      vi.mocked(adminPostJson).mockResolvedValue(mockOkResponse({ success: true }));
+      stub.addDenylistEntry.mockResolvedValue(makeOk({ success: true }));
       const interaction = createMockButtonInteraction('deny::mode::entry-uuid-1234');
 
       await handleDetailButton(interaction);
 
-      expect(adminPostJson).toHaveBeenCalledWith(
-        '/admin/denylist',
-        expect.objectContaining({ mode: 'BLOCK' }),
-        'user-123'
+      expect(stub.addDenylistEntry).toHaveBeenCalledWith(
+        expect.objectContaining({ mode: 'BLOCK' })
       );
     });
 
@@ -252,7 +259,7 @@ describe('handleDetailButton', () => {
 
     it('should handle API error', async () => {
       mockSessionManager.get.mockResolvedValue(sampleSession);
-      vi.mocked(adminPostJson).mockResolvedValue(mockErrorResponse(500, { message: 'Error' }));
+      stub.addDenylistEntry.mockResolvedValue(makeErr(500, 'Error'));
       const interaction = createMockButtonInteraction('deny::mode::entry-uuid-1234');
 
       await handleDetailButton(interaction);
@@ -292,15 +299,17 @@ describe('handleDetailButton', () => {
 
     it('should route delete success through renderPostActionScreen', async () => {
       mockSessionManager.get.mockResolvedValue(sampleSession);
-      vi.mocked(adminFetch).mockResolvedValue(mockOkResponse({ success: true }));
+      stub.removeDenylistEntry.mockResolvedValue(makeOk({ success: true }));
       const interaction = createMockButtonInteraction('deny::confirm-del::entry-uuid-1234');
 
       await handleDetailButton(interaction);
 
-      expect(adminFetch).toHaveBeenCalledWith('/admin/denylist/USER/111222333444555666/BOT/*', {
-        method: 'DELETE',
-        userId: 'user-123',
-      });
+      expect(stub.removeDenylistEntry).toHaveBeenCalledWith(
+        'USER',
+        '111222333444555666',
+        'BOT',
+        '*'
+      );
       // Delete + browse rebuild + session cleanup are owned by the shared
       // renderPostActionScreen helper + the browse rebuilder registered in
       // browse.ts. Assert the handler routes correctly with the right shape.
@@ -338,7 +347,7 @@ describe('handleDetailButton', () => {
 
     it('should route delete API errors through renderPostActionScreen as an error outcome', async () => {
       mockSessionManager.get.mockResolvedValue(sampleSession);
-      vi.mocked(adminFetch).mockResolvedValue(mockErrorResponse(500, { message: 'Error' }));
+      stub.removeDenylistEntry.mockResolvedValue(makeErr(500, 'Error'));
       const interaction = createMockButtonInteraction('deny::confirm-del::entry-uuid-1234');
 
       await handleDetailButton(interaction);

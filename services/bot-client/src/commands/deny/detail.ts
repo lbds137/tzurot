@@ -30,7 +30,7 @@ import { DASHBOARD_MESSAGES, formatSuccessBanner } from '../../utils/dashboard/m
 import { parseDashboardCustomId } from '../../utils/dashboard/types.js';
 import { renderPostActionScreen } from '../../utils/dashboard/postActionScreen.js';
 import { handleSharedBackButton } from '../../utils/dashboard/sharedBackButtonHandler.js';
-import { adminPostJson, adminFetch } from '../../utils/adminApiClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import type { BrowseContext } from '../../utils/dashboard/types.js';
 import type { DenylistEntryResponse } from './browseTypes.js';
 import type { DenyDetailSession } from './detailTypes.js';
@@ -94,7 +94,7 @@ export async function showDetailView(
     scopeId: entry.scopeId,
     mode: entry.mode,
     reason: entry.reason,
-    addedAt: entry.addedAt,
+    addedAt: entry.addedAt.toISOString(), // sessions persist as JSON; Date → string
     addedBy: entry.addedBy,
     browseContext,
     guildId: interaction.guildId ?? null,
@@ -126,20 +126,17 @@ async function handleModeToggle(interaction: ButtonInteraction, entryId: string)
   const newMode = data.mode === 'BLOCK' ? 'MUTE' : 'BLOCK';
 
   try {
-    const response = await adminPostJson(
-      '/admin/denylist',
-      {
-        type: data.type,
-        discordId: data.discordId,
-        scope: data.scope,
-        scopeId: data.scopeId,
-        mode: newMode,
-        reason: data.reason ?? undefined,
-      },
-      interaction.user.id
-    );
+    const { ownerClient } = clientsFor(interaction);
+    const result = await ownerClient.addDenylistEntry({
+      type: data.type,
+      discordId: data.discordId,
+      scope: data.scope,
+      scopeId: data.scopeId,
+      mode: newMode,
+      reason: data.reason ?? undefined,
+    });
 
-    if (!response.ok) {
+    if (!result.ok) {
       // intentionally-raw: deny uses manual re-render for back-to-browse (see
       // file-top comment); terminal error path, session remains for retry.
       await interaction.editReply({
@@ -206,13 +203,15 @@ async function handleConfirmDelete(interaction: ButtonInteraction, entryId: stri
   };
 
   try {
-    const segments = [data.type, data.discordId, data.scope, data.scopeId].map(encodeURIComponent);
-    const response = await adminFetch(`/admin/denylist/${segments.join('/')}`, {
-      method: 'DELETE',
-      userId: interaction.user.id,
-    });
+    const { ownerClient } = clientsFor(interaction);
+    const result = await ownerClient.removeDenylistEntry(
+      data.type,
+      data.discordId,
+      data.scope,
+      data.scopeId
+    );
 
-    if (!response.ok && response.status !== 404) {
+    if (!result.ok && result.status !== 404) {
       await renderPostActionScreen({
         interaction,
         session: postActionSession,

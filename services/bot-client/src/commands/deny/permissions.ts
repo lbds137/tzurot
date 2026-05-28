@@ -7,14 +7,14 @@
  * 3. Character creators: PERSONALITY scope for characters they own
  */
 
-import { isBotOwner, GATEWAY_TIMEOUTS } from '@tzurot/common-types';
+import { isBotOwner } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { requireManageMessagesContext } from '../../utils/permissions.js';
 import {
   AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
   isAutocompleteErrorSentinel,
 } from '../../utils/apiCheck.js';
-import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 
 interface PermissionResult {
   allowed: boolean;
@@ -98,10 +98,8 @@ async function checkPersonalityPermission(
     return DENIED;
   }
 
-  const result = await callGatewayApi<{ personality: { id: string }; canEdit: boolean }>(
-    `/user/personality/${encodeURIComponent(personalitySlug)}`,
-    { user: toGatewayUser(context.user), timeout: GATEWAY_TIMEOUTS.DEFERRED }
-  );
+  const { userClient } = clientsFor(context.interaction);
+  const result = await userClient.getPersonality(personalitySlug);
 
   if (!result.ok) {
     await context.editReply(`❌ Character "${personalitySlug}" not found.`);
