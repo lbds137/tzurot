@@ -15,7 +15,7 @@ import {
 } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi, GATEWAY_TIMEOUTS, toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import { ShapesCustomIds } from '../../utils/customIds.js';
 import {
   AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
@@ -25,19 +25,6 @@ import { sanitizeErrorForDiscord } from '../../utils/errorSanitization.js';
 import { buildBackToBrowseRow } from './errorRecovery.js';
 
 const logger = createLogger('shapes-import');
-
-interface AuthStatusResponse {
-  hasCredentials: boolean;
-  service: string;
-}
-
-interface ImportResponse {
-  success: boolean;
-  importJobId: string;
-  sourceSlug: string;
-  importType: string;
-  status: string;
-}
 
 export interface ImportParams {
   slug: string;
@@ -66,12 +53,8 @@ export async function startImport(
     components: [],
   });
 
-  const importResult = await callGatewayApi<ImportResponse>('/user/shapes/import', {
-    method: 'POST',
-    user: toGatewayUser(buttonInteraction.user),
-    body: { sourceSlug: slug, importType },
-    timeout: GATEWAY_TIMEOUTS.DEFERRED,
-  });
+  const { userClient } = clientsFor(buttonInteraction);
+  const importResult = await userClient.startShapesImport({ sourceSlug: slug, importType });
 
   if (!importResult.ok) {
     const errorMsg =
@@ -133,10 +116,8 @@ export async function handleImport(context: DeferredCommandContext): Promise<voi
 
   try {
     // 1. Check credentials exist
-    const authResult = await callGatewayApi<AuthStatusResponse>('/user/shapes/auth/status', {
-      user: toGatewayUser(context.user),
-      timeout: GATEWAY_TIMEOUTS.DEFERRED,
-    });
+    const { userClient } = clientsFor(context.interaction);
+    const authResult = await userClient.getShapesAuthStatus();
 
     if (!authResult.ok || !authResult.data.hasCredentials) {
       await context.editReply({

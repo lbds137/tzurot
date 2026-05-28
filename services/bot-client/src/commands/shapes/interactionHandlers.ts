@@ -20,7 +20,7 @@ import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js'
 import { ButtonBuilder, ActionRowBuilder } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { ShapesCustomIds } from '../../utils/customIds.js';
-import { toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import { buildBrowsePage, fetchShapesList, shapesBrowseIds } from './browse.js';
 import type { BrowseSortType } from '../../utils/browse/constants.js';
 import { buildAuthModal } from './auth.js';
@@ -35,6 +35,27 @@ import {
 } from './detailHandlers.js';
 
 const logger = createLogger('shapes-interactions');
+
+const UNEXPECTED_ERROR_PAYLOAD = {
+  content: '❌ An unexpected error occurred.',
+  embeds: [],
+  components: [],
+} as const;
+
+/**
+ * Send an error message that's safe to call from any handler state — if a
+ * downstream handler already acked (e.g. via deferUpdate), use editReply;
+ * otherwise update() does the first ack itself.
+ */
+async function safelyReportUnexpectedError(
+  interaction: ButtonInteraction | StringSelectMenuInteraction
+): Promise<void> {
+  if (interaction.deferred || interaction.replied) {
+    await interaction.editReply(UNEXPECTED_ERROR_PAYLOAD);
+  } else {
+    await interaction.update(UNEXPECTED_ERROR_PAYLOAD);
+  }
+}
 
 /** Map HTTP status codes to user-friendly hints */
 function httpStatusHint(status: number): string {
@@ -131,11 +152,7 @@ export async function handleShapesButton(interaction: ButtonInteraction): Promis
   } catch (error) {
     logger.error({ err: error, customId }, 'Button handler error');
     try {
-      await interaction.update({
-        content: '\u274C An unexpected error occurred.',
-        embeds: [],
-        components: [],
-      });
+      await safelyReportUnexpectedError(interaction);
     } catch {
       // Interaction already acknowledged or token expired
     }
@@ -170,11 +187,7 @@ export async function handleShapesSelectMenu(
   } catch (error) {
     logger.error({ err: error, customId }, 'Select menu handler error');
     try {
-      await interaction.update({
-        content: '\u274C An unexpected error occurred.',
-        embeds: [],
-        components: [],
-      });
+      await safelyReportUnexpectedError(interaction);
     } catch {
       // Interaction already acknowledged or token expired
     }
@@ -205,10 +218,17 @@ async function handleBrowsePage(
   page: number,
   sort: BrowseSortType
 ): Promise<void> {
-  const result = await fetchShapesList(toGatewayUser(interaction.user));
+  // Ack first to honor the 3-second Discord budget; fetchShapesList makes
+  // a gateway call that cannot be allowed to consume the budget. Guard the
+  // defer per the nested-router pattern (.claude/rules/04-discord.md).
+  if (!interaction.deferred && !interaction.replied) {
+    await interaction.deferUpdate();
+  }
+  const { userClient } = clientsFor(interaction);
+  const result = await fetchShapesList(userClient);
 
   if (!result.ok) {
-    await interaction.update({
+    await interaction.editReply({
       content:
         result.status === 401
           ? '\u274C Session expired. Use `/shapes auth` to re-authenticate.'
@@ -220,7 +240,7 @@ async function handleBrowsePage(
   }
 
   const { embed, components } = buildBrowsePage(result.shapes, page, sort);
-  await interaction.update({
+  await interaction.editReply({
     embeds: [embed],
     components: components as ActionRowBuilder<ButtonBuilder>[],
   });

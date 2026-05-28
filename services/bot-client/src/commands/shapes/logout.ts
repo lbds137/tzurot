@@ -7,7 +7,7 @@
 import { EmbedBuilder } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi, GATEWAY_TIMEOUTS, toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 
 const logger = createLogger('shapes-logout');
 
@@ -19,11 +19,8 @@ export async function handleLogout(context: DeferredCommandContext): Promise<voi
   const userId = context.user.id;
 
   try {
-    const result = await callGatewayApi<void>('/user/shapes/auth', {
-      method: 'DELETE',
-      user: toGatewayUser(context.user),
-      timeout: GATEWAY_TIMEOUTS.DEFERRED,
-    });
+    const { userClient } = clientsFor(context.interaction);
+    const result = await userClient.deleteShapesAuth();
 
     if (!result.ok) {
       if (result.status === 404) {

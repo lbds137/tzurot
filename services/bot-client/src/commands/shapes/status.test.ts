@@ -5,8 +5,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleStatus } from './status.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
+import type { GatewayResult } from '@tzurot/common-types';
+import { makeOk, asUserClient } from '../../test/gatewayClientStubs.js';
 
-// Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
   return {
@@ -20,23 +21,27 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-// Mock gateway client
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
 
 describe('handleStatus', () => {
   const mockEditReply = vi.fn();
+  let stub: {
+    getShapesAuthStatus: ReturnType<typeof vi.fn>;
+    listShapesImportJobs: ReturnType<typeof vi.fn>;
+    listShapesExportJobs: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = {
+      getShapesAuthStatus: vi.fn(),
+      listShapesImportJobs: vi.fn(),
+      listShapesExportJobs: vi.fn(),
+    };
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
   });
 
   function createMockContext(): DeferredCommandContext {
@@ -54,19 +59,22 @@ describe('handleStatus', () => {
       getSubcommand: vi.fn().mockReturnValue('status'),
       getSubcommandGroup: vi.fn().mockReturnValue(null),
       interaction: {
+        user: { id: '123456789', username: 'testuser' },
         options: { getString: vi.fn() },
       },
     } as unknown as DeferredCommandContext;
   }
 
-  /** Set up default mock responses for all 3 parallel calls */
-  function setupDefaultMocks(overrides?: { auth?: unknown; imports?: unknown; exports?: unknown }) {
-    mockCallGatewayApi
-      .mockResolvedValueOnce(
-        overrides?.auth ?? { ok: true, data: { hasCredentials: true, service: 'shapes_inc' } }
-      )
-      .mockResolvedValueOnce(overrides?.imports ?? { ok: true, data: { jobs: [] } })
-      .mockResolvedValueOnce(overrides?.exports ?? { ok: true, data: { jobs: [] } });
+  function setupDefaultMocks(overrides?: {
+    auth?: GatewayResult<unknown>;
+    imports?: GatewayResult<unknown>;
+    exports?: GatewayResult<unknown>;
+  }) {
+    stub.getShapesAuthStatus.mockResolvedValue(
+      overrides?.auth ?? makeOk({ hasCredentials: true, service: 'shapes_inc' })
+    );
+    stub.listShapesImportJobs.mockResolvedValue(overrides?.imports ?? makeOk({ jobs: [] }));
+    stub.listShapesExportJobs.mockResolvedValue(overrides?.exports ?? makeOk({ jobs: [] }));
   }
 
   it('should fetch auth status, import jobs, and export jobs in parallel', async () => {
@@ -75,25 +83,9 @@ describe('handleStatus', () => {
     const context = createMockContext();
     await handleStatus(context);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledTimes(3);
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/shapes/auth/status',
-      expect.objectContaining({
-        user: { discordId: '123456789', username: 'testuser', displayName: 'testuser' },
-      })
-    );
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/shapes/import/jobs',
-      expect.objectContaining({
-        user: { discordId: '123456789', username: 'testuser', displayName: 'testuser' },
-      })
-    );
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/shapes/export/jobs',
-      expect.objectContaining({
-        user: { discordId: '123456789', username: 'testuser', displayName: 'testuser' },
-      })
-    );
+    expect(stub.getShapesAuthStatus).toHaveBeenCalledTimes(1);
+    expect(stub.listShapesImportJobs).toHaveBeenCalledTimes(1);
+    expect(stub.listShapesExportJobs).toHaveBeenCalledTimes(1);
   });
 
   it('should show authenticated status when credentials exist', async () => {
@@ -115,7 +107,7 @@ describe('handleStatus', () => {
 
   it('should show unauthenticated status when no credentials', async () => {
     setupDefaultMocks({
-      auth: { ok: true, data: { hasCredentials: false, service: 'shapes_inc' } },
+      auth: makeOk({ hasCredentials: false, service: 'shapes_inc' }),
     });
 
     const context = createMockContext();
@@ -139,24 +131,21 @@ describe('handleStatus', () => {
 
   it('should display import history when jobs exist', async () => {
     setupDefaultMocks({
-      imports: {
-        ok: true,
-        data: {
-          jobs: [
-            {
-              id: 'job-1',
-              sourceSlug: 'test-char',
-              status: 'completed',
-              importType: 'full',
-              memoriesImported: 42,
-              memoriesFailed: 0,
-              createdAt: '2026-01-15T00:00:00.000Z',
-              completedAt: '2026-01-15T00:01:00.000Z',
-              errorMessage: null,
-            },
-          ],
-        },
-      },
+      imports: makeOk({
+        jobs: [
+          {
+            id: 'job-1',
+            sourceSlug: 'test-char',
+            status: 'completed',
+            importType: 'full',
+            memoriesImported: 42,
+            memoriesFailed: 0,
+            createdAt: '2026-01-15T00:00:00.000Z',
+            completedAt: '2026-01-15T00:01:00.000Z',
+            errorMessage: null,
+          },
+        ],
+      }),
     });
 
     const context = createMockContext();
@@ -180,26 +169,23 @@ describe('handleStatus', () => {
 
   it('should display export history with download links', async () => {
     setupDefaultMocks({
-      exports: {
-        ok: true,
-        data: {
-          jobs: [
-            {
-              id: 'export-1',
-              sourceSlug: 'test-char',
-              status: 'completed',
-              format: 'json',
-              fileName: 'test-char-export.json',
-              fileSizeBytes: 1048576,
-              createdAt: '2026-02-16T00:00:00.000Z',
-              completedAt: '2026-02-16T00:05:00.000Z',
-              expiresAt: new Date(Date.now() + 86400000).toISOString(),
-              errorMessage: null,
-              downloadUrl: 'https://gateway.example.com/exports/export-1',
-            },
-          ],
-        },
-      },
+      exports: makeOk({
+        jobs: [
+          {
+            id: 'export-1',
+            sourceSlug: 'test-char',
+            status: 'completed',
+            format: 'json',
+            fileName: 'test-char-export.json',
+            fileSizeBytes: 1048576,
+            createdAt: '2026-02-16T00:00:00.000Z',
+            completedAt: '2026-02-16T00:05:00.000Z',
+            expiresAt: new Date(Date.now() + 86400000).toISOString(),
+            errorMessage: null,
+            downloadUrl: 'https://gateway.example.com/exports/export-1',
+          },
+        ],
+      }),
     });
 
     const context = createMockContext();
@@ -266,7 +252,9 @@ describe('handleStatus', () => {
   });
 
   it('should handle network errors gracefully', async () => {
-    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+    stub.getShapesAuthStatus.mockRejectedValue(new Error('Network error'));
+    stub.listShapesImportJobs.mockRejectedValue(new Error('Network error'));
+    stub.listShapesExportJobs.mockRejectedValue(new Error('Network error'));
 
     const context = createMockContext();
     await handleStatus(context);

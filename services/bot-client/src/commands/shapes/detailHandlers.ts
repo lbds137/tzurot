@@ -15,7 +15,7 @@ import { ShapesCustomIds } from '../../utils/customIds.js';
 import type { BrowseSortType } from '../../utils/browse/constants.js';
 import { startImport } from './import.js';
 import { startExport } from './export.js';
-import { toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import { buildShapeDetailEmbed } from './detail.js';
 
 const logger = createLogger('shapes-detail-handlers');
@@ -63,12 +63,21 @@ export async function showDetailView(
   slug: string,
   sort: BrowseSortType = 'name'
 ): Promise<void> {
+  // Ack first to honor the 3-second Discord budget; buildShapeDetailEmbed
+  // makes two parallel gateway calls and we cannot let them consume the
+  // budget. Some callers may already have acked (nested-router pattern
+  // per .claude/rules/04-discord.md), so guard the defer.
+  if (!interaction.deferred && !interaction.replied) {
+    await interaction.deferUpdate();
+  }
+  const { userClient } = clientsFor(interaction);
   const { embed, components } = await buildShapeDetailEmbed(
-    toGatewayUser(interaction.user),
+    userClient,
+    interaction.user.id,
     slug,
     sort
   );
-  await interaction.update({
+  await interaction.editReply({
     content: '',
     embeds: [embed],
     components,
@@ -157,11 +166,8 @@ export async function handleDetailExport(
   if (success) {
     // Show detail view with updated job status
     try {
-      const { embed, components } = await buildShapeDetailEmbed(
-        toGatewayUser(interaction.user),
-        slug,
-        sort
-      );
+      const { userClient } = clientsFor(interaction);
+      const { embed, components } = await buildShapeDetailEmbed(userClient, userId, slug, sort);
       await interaction.editReply({
         embeds: [embed],
         components,
@@ -240,11 +246,8 @@ export async function handleImportConfirm(
   // If triggered from detail view and import succeeded, show detail view with job status
   if (isFromDetail && success) {
     try {
-      const { embed, components } = await buildShapeDetailEmbed(
-        toGatewayUser(interaction.user),
-        slug,
-        sort
-      );
+      const { userClient } = clientsFor(interaction);
+      const { embed, components } = await buildShapeDetailEmbed(userClient, userId, slug, sort);
       await interaction.editReply({
         embeds: [embed],
         components,

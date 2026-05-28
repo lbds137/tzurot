@@ -5,6 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MessageFlags } from 'discord.js';
 import { handleShapesModalSubmit } from './modal.js';
+import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
 // Mock common-types — keep parseShapesSessionCookieInput real so we test the
 // integration between modal handler and parser.
@@ -21,17 +22,10 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-// Mock gateway client
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
 
 // A long-enough alphanumeric token that passes the parser's shape + length check.
 const VALID_TOKEN = 'abcdefghijklmnopqrstuvwxyz0123456789.ABCDEF';
@@ -42,9 +36,12 @@ describe('handleShapesModalSubmit', () => {
   const mockReply = vi.fn();
   const mockDeferReply = vi.fn();
   const mockEditReply = vi.fn();
+  let stub: { storeShapesAuth: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = { storeShapesAuth: vi.fn() };
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
   });
 
   function createMockInteraction(customId: string, cookieValue: string = VALID_TOKEN) {
@@ -101,7 +98,7 @@ describe('handleShapesModalSubmit', () => {
       expect(mockEditReply).toHaveBeenCalledWith(
         expect.stringContaining("doesn't look like the right cookie")
       );
-      expect(mockCallGatewayApi).not.toHaveBeenCalled();
+      expect(stub.storeShapesAuth).not.toHaveBeenCalled();
     });
 
     it('should reject input that looks like a full Cookie: header paste without the expected cookie', async () => {
@@ -114,7 +111,7 @@ describe('handleShapesModalSubmit', () => {
       expect(mockEditReply).toHaveBeenCalledWith(
         expect.stringContaining("doesn't look like the right cookie")
       );
-      expect(mockCallGatewayApi).not.toHaveBeenCalled();
+      expect(stub.storeShapesAuth).not.toHaveBeenCalled();
     });
 
     it('should reject a bare token value that fails the shape/length check', async () => {
@@ -122,62 +119,41 @@ describe('handleShapesModalSubmit', () => {
       await handleShapesModalSubmit(interaction);
 
       expect(mockEditReply).toHaveBeenCalledWith(expect.stringContaining('malformed'));
-      expect(mockCallGatewayApi).not.toHaveBeenCalled();
+      expect(stub.storeShapesAuth).not.toHaveBeenCalled();
     });
   });
 
   describe('Gateway API interaction', () => {
     it('should send a normalized cookie to the gateway when given a bare token value', async () => {
-      mockCallGatewayApi.mockResolvedValue({ ok: true, data: { success: true } });
+      stub.storeShapesAuth.mockResolvedValue(makeOk({ success: true }));
 
       const interaction = createMockInteraction('shapes::auth', VALID_TOKEN);
       await handleShapesModalSubmit(interaction);
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/shapes/auth',
-        expect.objectContaining({
-          method: 'POST',
-          user: {
-            discordId: '123456789',
-            username: 'testuser',
-            displayName: 'testuser',
-          },
-          body: { sessionCookie: NORMALIZED_COOKIE },
-        })
-      );
+      expect(stub.storeShapesAuth).toHaveBeenCalledWith({ sessionCookie: NORMALIZED_COOKIE });
     });
 
     it('should send a normalized cookie when the user pastes name=value form', async () => {
-      mockCallGatewayApi.mockResolvedValue({ ok: true, data: { success: true } });
+      stub.storeShapesAuth.mockResolvedValue(makeOk({ success: true }));
 
       const interaction = createMockInteraction('shapes::auth', NORMALIZED_COOKIE);
       await handleShapesModalSubmit(interaction);
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/shapes/auth',
-        expect.objectContaining({
-          body: { sessionCookie: NORMALIZED_COOKIE },
-        })
-      );
+      expect(stub.storeShapesAuth).toHaveBeenCalledWith({ sessionCookie: NORMALIZED_COOKIE });
     });
 
     it('should extract the session cookie from a full Cookie: header paste', async () => {
-      mockCallGatewayApi.mockResolvedValue({ ok: true, data: { success: true } });
+      stub.storeShapesAuth.mockResolvedValue(makeOk({ success: true }));
 
       const fullHeader = `_ga=GA1.1.123; ${NORMALIZED_COOKIE}; theme=dark`;
       const interaction = createMockInteraction('shapes::auth', fullHeader);
       await handleShapesModalSubmit(interaction);
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/shapes/auth',
-        expect.objectContaining({
-          body: { sessionCookie: NORMALIZED_COOKIE },
-        })
-      );
+      expect(stub.storeShapesAuth).toHaveBeenCalledWith({ sessionCookie: NORMALIZED_COOKIE });
     });
 
     it('should show success embed on successful storage', async () => {
-      mockCallGatewayApi.mockResolvedValue({ ok: true, data: { success: true } });
+      stub.storeShapesAuth.mockResolvedValue(makeOk({ success: true }));
 
       const interaction = createMockInteraction('shapes::auth');
       await handleShapesModalSubmit(interaction);
@@ -194,7 +170,7 @@ describe('handleShapesModalSubmit', () => {
     });
 
     it('should handle a 400 invalid-cookie error from the gateway', async () => {
-      mockCallGatewayApi.mockResolvedValue({ ok: false, status: 400, error: 'Validation error' });
+      stub.storeShapesAuth.mockResolvedValue(makeErr(400, 'Validation error'));
 
       const interaction = createMockInteraction('shapes::auth');
       await handleShapesModalSubmit(interaction);
@@ -203,7 +179,7 @@ describe('handleShapesModalSubmit', () => {
     });
 
     it('should handle a 500 server error from the gateway', async () => {
-      mockCallGatewayApi.mockResolvedValue({ ok: false, status: 500, error: 'Internal error' });
+      stub.storeShapesAuth.mockResolvedValue(makeErr(500, 'Internal error'));
 
       const interaction = createMockInteraction('shapes::auth');
       await handleShapesModalSubmit(interaction);
@@ -212,7 +188,7 @@ describe('handleShapesModalSubmit', () => {
     });
 
     it('should handle a network error gracefully', async () => {
-      mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+      stub.storeShapesAuth.mockRejectedValue(new Error('Network error'));
 
       const interaction = createMockInteraction('shapes::auth');
       await handleShapesModalSubmit(interaction);

@@ -9,8 +9,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { MessageComponentInteraction } from 'discord.js';
 import { handleImport, startImport } from './import.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
+import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
-// Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
   return {
@@ -24,30 +24,31 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-// Mock gateway client
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
 
 describe('handleImport', () => {
   const mockEditReply = vi.fn();
   const mockGetString = vi.fn();
+  let stub: {
+    getShapesAuthStatus: ReturnType<typeof vi.fn>;
+    startShapesImport: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
     vi.resetAllMocks();
-    // Return different values based on option name
     mockGetString.mockImplementation((name: string) => {
       if (name === 'slug') return 'test-character';
       if (name === 'import_type') return null;
       return null;
     });
+    stub = {
+      getShapesAuthStatus: vi.fn(),
+      startShapesImport: vi.fn(),
+    };
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
   });
 
   function createMockContext(): DeferredCommandContext {
@@ -65,34 +66,25 @@ describe('handleImport', () => {
       getSubcommand: vi.fn().mockReturnValue('import'),
       getSubcommandGroup: vi.fn().mockReturnValue(null),
       interaction: {
+        user: { id: '123456789', username: 'testuser' },
         options: { getString: mockGetString },
       },
     } as unknown as DeferredCommandContext;
   }
 
   it('should check credentials before importing', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      status: 401,
-      data: { hasCredentials: false },
-    });
+    stub.getShapesAuthStatus.mockResolvedValue(makeErr(401, 'No credentials'));
 
     const context = createMockContext();
     await handleImport(context);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/shapes/auth/status',
-      expect.objectContaining({
-        user: { discordId: '123456789', username: 'testuser', displayName: 'testuser' },
-      })
-    );
+    expect(stub.getShapesAuthStatus).toHaveBeenCalled();
   });
 
   it('should show auth prompt when no credentials exist', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: { hasCredentials: false },
-    });
+    stub.getShapesAuthStatus.mockResolvedValue(
+      makeOk({ hasCredentials: false, service: 'shapes_inc' })
+    );
 
     const context = createMockContext();
     await handleImport(context);
@@ -103,10 +95,9 @@ describe('handleImport', () => {
   });
 
   it('should show confirmation embed with correct custom IDs', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: { hasCredentials: true, service: 'shapes_inc' },
-    });
+    stub.getShapesAuthStatus.mockResolvedValue(
+      makeOk({ hasCredentials: true, service: 'shapes_inc' })
+    );
 
     const context = createMockContext();
     await handleImport(context);
@@ -124,7 +115,6 @@ describe('handleImport', () => {
       })
     );
 
-    // Verify custom IDs use shapes:: prefix
     const replyArgs = mockEditReply.mock.calls[0][0];
     const buttons = replyArgs.components[0].components;
     expect(buttons[0].data.custom_id).toMatch(/^shapes::import-confirm::/);
@@ -132,20 +122,17 @@ describe('handleImport', () => {
   });
 
   it('should encode import type in custom ID and slug in embed footer', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: { hasCredentials: true, service: 'shapes_inc' },
-    });
+    stub.getShapesAuthStatus.mockResolvedValue(
+      makeOk({ hasCredentials: true, service: 'shapes_inc' })
+    );
 
     const context = createMockContext();
     await handleImport(context);
 
     const replyArgs = mockEditReply.mock.calls[0][0];
     const confirmButton = replyArgs.components[0].components[0];
-    // Slug is NOT in custom ID — it's in the embed footer to avoid 100-char limit
     expect(confirmButton.data.custom_id).toBe('shapes::import-confirm::full');
 
-    // Slug is stored in the embed footer for extraction at click time
     const embed = replyArgs.embeds[0];
     expect(embed.data.footer.text).toBe('slug:test-character');
   });
@@ -155,21 +142,19 @@ describe('handleImport', () => {
       if (name === 'slug') return '  Test-Character  ';
       return null;
     });
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: { hasCredentials: true, service: 'shapes_inc' },
-    });
+    stub.getShapesAuthStatus.mockResolvedValue(
+      makeOk({ hasCredentials: true, service: 'shapes_inc' })
+    );
 
     const context = createMockContext();
     await handleImport(context);
 
-    // The slug in the embed footer should be trimmed + lowercased
     const replyArgs = mockEditReply.mock.calls[0][0];
     expect(replyArgs.embeds[0].data.footer.text).toBe('slug:test-character');
   });
 
   it('should handle network errors gracefully', async () => {
-    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+    stub.getShapesAuthStatus.mockRejectedValue(new Error('Network error'));
 
     const context = createMockContext();
     await handleImport(context);
@@ -188,7 +173,7 @@ describe('handleImport', () => {
     const context = createMockContext();
     await handleImport(context);
 
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(stub.getShapesAuthStatus).not.toHaveBeenCalled();
     expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Autocomplete was unavailable'),
     });
@@ -198,9 +183,12 @@ describe('handleImport', () => {
 describe('startImport', () => {
   const mockUpdate = vi.fn();
   const mockEditReply = vi.fn();
+  let stub: { startShapesImport: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     vi.resetAllMocks();
+    stub = { startShapesImport: vi.fn() };
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
   });
 
   function createMockButtonInteraction() {
@@ -212,10 +200,9 @@ describe('startImport', () => {
   }
 
   it('should call gateway import API with correct params', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: { importJobId: 'job-123', sourceSlug: 'test', importType: 'full', status: 'pending' },
-    });
+    stub.startShapesImport.mockResolvedValue(
+      makeOk({ importJobId: 'job-123', sourceSlug: 'test', importType: 'full', status: 'pending' })
+    );
 
     const interaction = createMockButtonInteraction();
     await startImport(interaction, '123456789', {
@@ -223,25 +210,16 @@ describe('startImport', () => {
       importType: 'full',
     });
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/shapes/import',
-      expect.objectContaining({
-        method: 'POST',
-        user: {
-          discordId: '123456789',
-          username: 'testuser',
-          displayName: 'testuser',
-        },
-        body: { sourceSlug: 'test-shape', importType: 'full' },
-      })
-    );
+    expect(stub.startShapesImport).toHaveBeenCalledWith({
+      sourceSlug: 'test-shape',
+      importType: 'full',
+    });
   });
 
   it('should show success embed on successful import', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: { importJobId: 'job-123', sourceSlug: 'test', importType: 'full', status: 'pending' },
-    });
+    stub.startShapesImport.mockResolvedValue(
+      makeOk({ importJobId: 'job-123', sourceSlug: 'test', importType: 'full', status: 'pending' })
+    );
 
     const interaction = createMockButtonInteraction();
     await startImport(interaction, '123456789', {
@@ -263,11 +241,7 @@ describe('startImport', () => {
   });
 
   it('should show conflict error for 409', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      status: 409,
-      error: 'Already running',
-    });
+    stub.startShapesImport.mockResolvedValue(makeErr(409, 'Already running'));
 
     const interaction = createMockButtonInteraction();
     await startImport(interaction, '123456789', {

@@ -224,12 +224,30 @@ describe('Shapes API Contract Tests', () => {
         fileSizeBytes: null,
         createdAt: '2026-05-25T00:00:00.000Z',
         completedAt: null,
-        expiresAt: null,
+        expiresAt: '2026-05-26T00:00:00.000Z',
         errorMessage: null,
         exportMetadata: null,
         downloadUrl: null,
       };
       expect(ShapesExportJobSummarySchema.safeParse(data).success).toBe(true);
+    });
+
+    it('rejects null expiresAt (handler always populates it; Prisma DateTime not nullable)', () => {
+      const data = {
+        id: 'job-2',
+        sourceSlug: 'alice',
+        status: 'pending',
+        format: 'json',
+        fileName: null,
+        fileSizeBytes: null,
+        createdAt: '2026-05-25T00:00:00.000Z',
+        completedAt: null,
+        expiresAt: null,
+        errorMessage: null,
+        exportMetadata: null,
+        downloadUrl: null,
+      };
+      expect(ShapesExportJobSummarySchema.safeParse(data).success).toBe(false);
     });
   });
 

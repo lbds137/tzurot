@@ -12,7 +12,7 @@
 import { EmbedBuilder, type MessageComponentInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi, GATEWAY_TIMEOUTS, toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import {
   AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
   isAutocompleteErrorSentinel,
@@ -21,15 +21,6 @@ import { sanitizeErrorForDiscord } from '../../utils/errorSanitization.js';
 import { buildBackToBrowseRow } from './errorRecovery.js';
 
 const logger = createLogger('shapes-export');
-
-interface ExportJobResponse {
-  success: boolean;
-  exportJobId: string;
-  sourceSlug: string;
-  format: string;
-  status: string;
-  downloadUrl: string;
-}
 
 export interface ExportParams {
   slug: string;
@@ -60,12 +51,8 @@ export async function startExport(
     components: [],
   });
 
-  const result = await callGatewayApi<ExportJobResponse>('/user/shapes/export', {
-    method: 'POST',
-    user: toGatewayUser(interaction.user),
-    body: { slug, format },
-    timeout: GATEWAY_TIMEOUTS.DEFERRED,
-  });
+  const { userClient } = clientsFor(interaction);
+  const result = await userClient.startShapesExport({ slug, format });
 
   if (!result.ok) {
     let message: string;
@@ -104,12 +91,8 @@ export async function handleExport(context: DeferredCommandContext): Promise<voi
   const format = formatRaw === 'markdown' ? 'markdown' : 'json';
 
   try {
-    const result = await callGatewayApi<ExportJobResponse>('/user/shapes/export', {
-      method: 'POST',
-      user: toGatewayUser(context.user),
-      body: { slug, format },
-      timeout: GATEWAY_TIMEOUTS.DEFERRED,
-    });
+    const { userClient } = clientsFor(context.interaction);
+    const result = await userClient.startShapesExport({ slug, format });
 
     if (!result.ok) {
       await handleExportError(context, result, slug);
@@ -144,7 +127,7 @@ interface ErrorResult {
   error: string;
 }
 
-function handleExportError(
+async function handleExportError(
   context: DeferredCommandContext,
   result: ErrorResult,
   slug: string
@@ -161,5 +144,5 @@ function handleExportError(
     message = `\u274C Export failed: ${sanitizeErrorForDiscord(result.error)}`;
   }
 
-  return context.editReply({ embeds: [], content: message }).then(() => undefined);
+  await context.editReply({ embeds: [], content: message });
 }

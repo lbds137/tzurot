@@ -1811,8 +1811,8 @@ export class UserClient {
   /**
    * @safeRead Server-side has no observable mutation — safe to cache client-side.
    */
-  async listShapesImportJobs(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listShapesImportJobs.output>>> {
-    const fullPath = '/api/user/shapes/import/jobs';
+  async listShapesImportJobs(options: { slug?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listShapesImportJobs.output>>> {
+    const fullPath = '/api/user/shapes/import/jobs' + buildQueryString([['slug', options.slug]]);
     return callGateway({
       baseUrl: this.baseUrl,
       serviceSecret: this.serviceSecret,
@@ -1847,8 +1847,8 @@ export class UserClient {
   /**
    * @safeRead Server-side has no observable mutation — safe to cache client-side.
    */
-  async listShapesExportJobs(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listShapesExportJobs.output>>> {
-    const fullPath = '/api/user/shapes/export/jobs';
+  async listShapesExportJobs(options: { slug?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listShapesExportJobs.output>>> {
+    const fullPath = '/api/user/shapes/export/jobs' + buildQueryString([['slug', options.slug]]);
     return callGateway({
       baseUrl: this.baseUrl,
       serviceSecret: this.serviceSecret,

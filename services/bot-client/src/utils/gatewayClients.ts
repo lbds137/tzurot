@@ -20,9 +20,8 @@
 
 import type {
   ChatInputCommandInteraction,
-  ButtonInteraction,
+  MessageComponentInteraction,
   ModalSubmitInteraction,
-  StringSelectMenuInteraction,
   User as DiscordUser,
 } from 'discord.js';
 import {
@@ -37,12 +36,17 @@ import {
 import { getValidatedServiceSecret } from '../startup.js';
 import { toGatewayUser } from './userGatewayClient.js';
 
-/** Union of every Discord interaction shape that carries a `user`. */
+/**
+ * Union of every Discord interaction shape that carries a `user`.
+ * `MessageComponentInteraction` is the base class for `ButtonInteraction`
+ * and `StringSelectMenuInteraction`, so both are covered without
+ * enumerating them. The factory only reads `interaction.user`, which is
+ * defined on the base.
+ */
 export type ClientCarryingInteraction =
   | ChatInputCommandInteraction
-  | ButtonInteraction
-  | ModalSubmitInteraction
-  | StringSelectMenuInteraction;
+  | MessageComponentInteraction
+  | ModalSubmitInteraction;
 
 /**
  * All three clients are minted eagerly even when a caller only needs

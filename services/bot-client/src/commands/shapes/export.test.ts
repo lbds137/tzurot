@@ -5,8 +5,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleExport } from './export.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
+import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
-// Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
   return {
@@ -20,26 +20,22 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-// Mock gateway client
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
 
 describe('handleExport', () => {
   const mockEditReply = vi.fn();
   const mockGetString = vi.fn();
+  let stub: { startShapesExport: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetString.mockReturnValue('test-character');
     mockEditReply.mockResolvedValue(undefined);
+    stub = { startShapesExport: vi.fn() };
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
   });
 
   function createMockContext(): DeferredCommandContext {
@@ -57,53 +53,39 @@ describe('handleExport', () => {
       getSubcommand: vi.fn().mockReturnValue('export'),
       getSubcommandGroup: vi.fn().mockReturnValue(null),
       interaction: {
+        user: { id: '123456789', username: 'testuser' },
         options: { getString: mockGetString },
       },
     } as unknown as DeferredCommandContext;
   }
 
   it('should call async export endpoint and show confirmation', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.startShapesExport.mockResolvedValue(
+      makeOk({
         success: true,
         exportJobId: 'job-uuid-123',
         sourceSlug: 'test-character',
         format: 'json',
         status: 'pending',
         downloadUrl: 'https://gateway.example.com/exports/job-uuid-123',
-      },
-    });
+      })
+    );
 
     const context = createMockContext();
     await handleExport(context);
 
-    // Should call POST endpoint with slug and format
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/shapes/export',
-      expect.objectContaining({
-        method: 'POST',
-        user: {
-          discordId: '123456789',
-          username: 'testuser',
-          displayName: 'testuser',
-        },
-        body: { slug: 'test-character', format: 'json' },
-      })
-    );
+    expect(stub.startShapesExport).toHaveBeenCalledWith({
+      slug: 'test-character',
+      format: 'json',
+    });
 
-    // Should show "Export Started" embed
     const lastCall = mockEditReply.mock.calls[mockEditReply.mock.calls.length - 1][0];
     expect(lastCall.embeds[0].data.title).toContain('Export Started');
     expect(lastCall.embeds[0].data.description).toContain('/shapes status');
   });
 
   it('should show auth prompt when no credentials', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      status: 403,
-      error: 'No credentials',
-    });
+    stub.startShapesExport.mockResolvedValue(makeErr(403, 'No credentials'));
 
     const context = createMockContext();
     await handleExport(context);
@@ -113,11 +95,7 @@ describe('handleExport', () => {
   });
 
   it('should show in-progress message for 409 conflict', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      status: 409,
-      error: 'Already in progress',
-    });
+    stub.startShapesExport.mockResolvedValue(makeErr(409, 'Already in progress'));
 
     const context = createMockContext();
     await handleExport(context);
@@ -127,7 +105,7 @@ describe('handleExport', () => {
   });
 
   it('should handle network errors gracefully', async () => {
-    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+    stub.startShapesExport.mockRejectedValue(new Error('Network error'));
 
     const context = createMockContext();
     await handleExport(context);
@@ -142,7 +120,7 @@ describe('handleExport', () => {
     const context = createMockContext();
     await handleExport(context);
 
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(stub.startShapesExport).not.toHaveBeenCalled();
     expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Autocomplete was unavailable'),
     });
