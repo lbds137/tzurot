@@ -20,6 +20,7 @@ import {
   PersonaCreateSchema,
   PersonaUpdateSchema,
   CreatePersonaResponseSchema,
+  CreateOverrideResponseSchema,
   UpdatePersonaResponseSchema,
   DeletePersonaResponseSchema,
   GetPersonaResponseSchema,
@@ -217,6 +218,24 @@ export const userOwnershipRoutes = {
     id: 'clearPersonaOverride',
     params: { personalitySlug: z.string() },
     output: ClearOverrideResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
+  // Create a new persona AND set it as override for a personality in a single
+  // transaction. The path uses personality ID (not slug) because this entry
+  // point is invoked from the create-persona modal where the personality
+  // has already been resolved by the GET /override/:slug pre-flight, and
+  // sending the resolved UUID back is cheaper than re-validating the slug.
+  // Atomicity is server-side via prisma.$transaction — either both rows
+  // land or neither does (no orphaned persona on upsert failure).
+  createPersonaOverride: {
+    audience: 'user',
+    method: 'post',
+    path: '/persona/override/by-id/:personalityId',
+    id: 'createPersonaOverride',
+    params: { personalityId: z.string().uuid() },
+    input: PersonaCreateSchema,
+    output: CreateOverrideResponseSchema,
     requiresProvisionedUser: true,
   },
 } as const satisfies Record<string, RouteDef>;

@@ -33,6 +33,7 @@
  * - GET /user/persona/override - List persona overrides
  * - PUT /user/persona/override/:personalitySlug - Set persona override
  * - DELETE /user/persona/override/:personalitySlug - Clear persona override
+ * - POST /user/persona/override/by-id/:personalityId - Create persona + set as override (atomic)
  * - POST /user/history/clear - Clear context (set epoch timestamp)
  * - POST /user/history/undo - Restore previous context epoch
  * - GET /user/history/stats - Get conversation history statistics

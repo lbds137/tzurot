@@ -13,6 +13,8 @@
  * - GET /user/persona/override/:personalitySlug - Get personality info for override
  * - PUT /user/persona/override/:personalitySlug - Set persona override for a personality
  * - DELETE /user/persona/override/:personalitySlug - Clear persona override
+ * - POST /user/persona/override/by-id/:personalityId - Create persona + set
+ *     as override (atomic, single transaction)
  */
 
 import { Router } from 'express';

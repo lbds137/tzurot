@@ -1,8 +1,9 @@
 /**
  * Persona Modal Builder Utilities
  *
- * Shared utilities for building persona modals across commands.
- * Used by: create, edit, and override commands.
+ * Shared utilities for building persona-create modals. Used by `/persona create`
+ * and the create-new-persona-for-override flow. The edit/dashboard path uses
+ * the generic ModalFactory instead.
  */
 
 import { TextInputBuilder, TextInputStyle, ActionRowBuilder } from 'discord.js';
@@ -135,14 +136,18 @@ export function buildPersonaModalFields(
   setValueIfExists(pronounsInput, existingData?.pronouns);
   rows.push(new ActionRowBuilder<TextInputBuilder>().addComponents(pronounsInput));
 
-  // Content input (longer text) - may need truncation
+  // Content input (longer text) - required because PersonaCreateSchema
+  // validates `content` with `.min(1, 'Content is required')`. Without this
+  // flag, Discord would accept blank submissions and the gateway would
+  // reject them with an opaque 400 instead of Discord's native field-level
+  // error.
   const contentInput = new TextInputBuilder()
     .setCustomId('content')
     .setLabel(opts.contentLabel)
     .setPlaceholder(opts.contentPlaceholder)
     .setStyle(TextInputStyle.Paragraph)
     .setMaxLength(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH)
-    .setRequired(false);
+    .setRequired(true);
 
   if (hasValue(existingData?.content)) {
     const truncatedContent =
