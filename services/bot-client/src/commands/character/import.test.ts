@@ -132,8 +132,8 @@ function createValidCharacterData(
 }
 
 /**
- * Mock callGatewayApi for create scenario (character doesn't exist)
- * First call (GET) returns 404, second call (POST) returns success
+ * Stub the typed client for the create scenario (character doesn't exist)
+ * First call (getPersonality) returns 404, second (createPersonality) succeeds
  */
 function mockCreateScenario(createResponse: {
   ok: boolean;
@@ -146,7 +146,7 @@ function mockCreateScenario(createResponse: {
 }
 
 /**
- * Mock callGatewayApi for update scenario (character exists and user owns it)
+ * Stub the typed client for the update scenario (character exists and user owns it)
  */
 function mockUpdateScenario(
   canEdit: boolean,
@@ -926,7 +926,7 @@ describe('handleImport', () => {
         ok: true,
         text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
       });
-      // Make callGatewayApi throw an unexpected exception (not return error result)
+      // Make the typed client throw an unexpected exception (not return error result)
       stub.getPersonality.mockRejectedValue(new Error('Unexpected network failure'));
 
       await handleImport(context, mockConfig);

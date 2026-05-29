@@ -88,22 +88,6 @@ export function registerDevCommands(cli: CAC): void {
 
   registerSchemaAuditCommand(cli);
   registerComplexityReportCommand(cli);
-  registerLegacyCountCommand(cli);
-}
-
-function registerLegacyCountCommand(cli: CAC): void {
-  cli
-    .command(
-      'legacy:count',
-      'Burn-down gate for adminFetch / callGatewayApi callsites — fails if either count rises above baseline'
-    )
-    .option('--update', 'Refresh the baseline file with current counts')
-    .example('ops legacy:count')
-    .example('ops legacy:count --update')
-    .action(async (options: { update?: boolean }) => {
-      const { runLegacyCount } = await import('../dev/run-legacy-count.js');
-      await runLegacyCount({ update: options.update });
-    });
 }
 
 function registerComplexityReportCommand(cli: CAC): void {

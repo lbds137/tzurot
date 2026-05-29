@@ -35,10 +35,6 @@ import {
 
 // Routes
 import { createAIRouter } from './routes/ai/index.js';
-import { createAdminRouter } from './routes/admin/index.js';
-import { createWalletRouter } from './routes/wallet/index.js';
-import { createUserRouter } from './routes/user/index.js';
-import { createInternalRouter } from './routes/internal/index.js';
 import { createModelsRouter } from './routes/models/index.js';
 import {
   mountInternalRoutes,
@@ -288,58 +284,17 @@ function registerRoutes(app: Express, prisma: PrismaClient, services: ServicesCo
   app.use('/ai', createAIRouter({ prisma, aiQueue, queueEvents }));
   logger.info('AI routes registered');
 
-  app.use('/wallet', createWalletRouter(prisma, cacheRedis, apiKeyCacheInvalidation));
-  logger.info('Wallet routes registered (Redis rate limiting)');
-
-  app.use(
-    '/user',
-    createUserRouter({
-      prisma,
-      llmConfigCacheInvalidation,
-      ttsConfigCacheInvalidation,
-      cacheInvalidationService,
-      redis: cacheRedis,
-      modelCache,
-      cascadeInvalidation,
-      cascadeResolver,
-      aiQueue,
-      sttResolverCacheInvalidation,
-    })
-  );
-  logger.info('User routes registered (with personality cache invalidation, incognito)');
-
   app.use('/models', createModelsRouter(modelCache));
   logger.info('Models routes registered');
 
-  app.use('/internal', createInternalRouter({ prisma }));
-  logger.info('Internal routes registered');
-
-  app.use(
-    '/admin',
-    createAdminRouter({
-      prisma,
-      cacheInvalidationService,
-      llmConfigCacheInvalidation,
-      ttsConfigCacheInvalidation,
-      retentionService,
-      modelCache,
-      denylistInvalidation,
-      cascadeInvalidation,
-      redis: cacheRedis,
-    })
-  );
-  logger.info('Admin routes registered');
-
   // ---- Codegen-mounted /api/{internal,admin,user} routes ------------------
   //
-  // Mounted alongside the legacy /admin, /user, /internal mounts above.
-  // bot-client migrates callsite-by-callsite from the legacy adminFetch /
-  // callGatewayApi helpers to the generated typed clients (which target the
-  // /api/* prefixes). Once every callsite has moved, the legacy mounts and
-  // their `createXxxRouter` aggregators are deleted in a follow-up PR.
+  // The sole bot-client → api-gateway surface. The legacy /admin /user
+  // /internal /wallet aggregator mounts were removed once every bot-client
+  // callsite migrated to the generated typed clients (which target /api/*).
   //
-  // Wallet rate-limiter is path-scoped here so /api/user/wallet/* gets the
-  // same protection the legacy /wallet/* mount has via createWalletRouter.
+  // Wallet rate-limiter is path-scoped here so /api/user/wallet/* keeps the
+  // Redis rate limiting the legacy /wallet/* mount applied at the router level.
 
   const routeDeps: RouteDeps = {
     prisma,
