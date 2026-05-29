@@ -9,10 +9,13 @@ import {
   AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
 } from '../../utils/apiCheck.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import type { GatewayUser } from '../../utils/userGatewayClient.js';
+import type { UserClient } from '@tzurot/common-types';
 
-function mkUser(discordId = 'user-123'): GatewayUser {
-  return { discordId, username: 'test-user', displayName: 'Test User' };
+function mkUser(discordId = 'user-123'): UserClient {
+  // Cache-key only — `actor` is the only field resolvePersonalityId reads via
+  // the mocked autocomplete module. Cast through unknown to bypass the full
+  // typed-client surface.
+  return { actor: discordId } as unknown as UserClient;
 }
 
 // Mock the autocomplete module
