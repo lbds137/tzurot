@@ -32,34 +32,24 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 interface StubUserClient {
   getPersonality: ReturnType<typeof vi.fn>;
   resolvePersonalityCascade: ReturnType<typeof vi.fn>;
+  updatePersonalityConfigDefaults: ReturnType<typeof vi.fn>;
 }
 
 const stub: StubUserClient = {
   getPersonality: vi.fn(),
   resolvePersonalityCascade: vi.fn(),
+  updatePersonalityConfigDefaults: vi.fn(),
 };
 
-// `handleSettings` (the slash-command entry point) calls these two typed
-// methods through `clientsFor`. The button/modal handlers go through the
-// shared `createSettingsCommandHandlers` factory which still uses the
-// legacy `callGatewayApi` transport — that factory migration is out of scope
-// here, so we mock both transports.
+// `handleSettings` (entry) calls `getPersonality` + `resolvePersonalityCascade`
+// via `clientsFor`. Button/modal handlers funnel through `settingsUpdateFactory`,
+// which now also uses `clientsFor` to call `updatePersonalityConfigDefaults` +
+// `resolvePersonalityCascade`. Single transport mocked.
 vi.mock('../../utils/gatewayClients.js', () => ({
   clientsFor: vi.fn(() => ({
     userClient: stub as unknown as import('@tzurot/common-types').UserClient,
   })),
 }));
-
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
 
 // Mock the session manager
 const mockSessionManager = {
@@ -157,6 +147,7 @@ describe('Character Settings Dashboard', () => {
     vi.clearAllMocks();
     stub.getPersonality.mockReset();
     stub.resolvePersonalityCascade.mockReset();
+    stub.updatePersonalityConfigDefaults.mockReset();
   });
 
   describe('handleSettings', () => {
@@ -358,19 +349,17 @@ describe('Character Settings Dashboard', () => {
         },
       });
 
-      mockCallGatewayApi
-        .mockResolvedValueOnce({ ok: true }) // PATCH config-overrides
-        .mockResolvedValueOnce({ ok: true, data: mockResolvedOverrides }); // GET resolve
+      stub.updatePersonalityConfigDefaults.mockResolvedValueOnce({ ok: true });
+      stub.resolvePersonalityCascade.mockResolvedValueOnce({
+        ok: true,
+        data: mockResolvedOverrides,
+      });
 
       await handleCharacterSettingsButton(interaction as unknown as ButtonInteraction);
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/config-overrides/personality/personality-123',
-        expect.objectContaining({
-          method: 'PATCH',
-          body: { crossChannelHistoryEnabled: true },
-        })
-      );
+      expect(stub.updatePersonalityConfigDefaults).toHaveBeenCalledWith('personality-123', {
+        crossChannelHistoryEnabled: true,
+      });
     });
 
     it('should update shareLtmAcrossPersonalities via set button', async () => {
@@ -406,19 +395,17 @@ describe('Character Settings Dashboard', () => {
         },
       });
 
-      mockCallGatewayApi
-        .mockResolvedValueOnce({ ok: true }) // PATCH config-overrides
-        .mockResolvedValueOnce({ ok: true, data: mockResolvedOverrides }); // GET resolve
+      stub.updatePersonalityConfigDefaults.mockResolvedValueOnce({ ok: true });
+      stub.resolvePersonalityCascade.mockResolvedValueOnce({
+        ok: true,
+        data: mockResolvedOverrides,
+      });
 
       await handleCharacterSettingsButton(interaction as unknown as ButtonInteraction);
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/config-overrides/personality/personality-123',
-        expect.objectContaining({
-          method: 'PATCH',
-          body: { shareLtmAcrossPersonalities: true },
-        })
-      );
+      expect(stub.updatePersonalityConfigDefaults).toHaveBeenCalledWith('personality-123', {
+        shareLtmAcrossPersonalities: true,
+      });
     });
 
     it('should handle permission denied (401) response', async () => {
@@ -445,7 +432,7 @@ describe('Character Settings Dashboard', () => {
         },
       });
 
-      mockCallGatewayApi.mockResolvedValue({
+      stub.updatePersonalityConfigDefaults.mockResolvedValue({
         ok: false,
         status: 401,
         error: 'Unauthorized',
@@ -484,7 +471,7 @@ describe('Character Settings Dashboard', () => {
         },
       });
 
-      mockCallGatewayApi.mockResolvedValue({
+      stub.updatePersonalityConfigDefaults.mockResolvedValue({
         ok: false,
         status: 404,
         error: 'Not found',
@@ -536,20 +523,18 @@ describe('Character Settings Dashboard', () => {
       );
 
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxMessages'));
-      mockCallGatewayApi
-        .mockResolvedValueOnce({ ok: true }) // PATCH config-overrides
-        .mockResolvedValueOnce({ ok: true, data: mockResolvedOverrides }); // GET resolve
+      stub.updatePersonalityConfigDefaults.mockResolvedValueOnce({ ok: true });
+      stub.resolvePersonalityCascade.mockResolvedValueOnce({
+        ok: true,
+        data: mockResolvedOverrides,
+      });
 
       await handleCharacterSettingsModal(interaction as never);
 
-      // Should call PATCH on cascade endpoint with correct field
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/config-overrides/personality/personality-123',
-        expect.objectContaining({
-          method: 'PATCH',
-          body: { maxMessages: 75 },
-        })
-      );
+      // Should call the typed-client method with the correct field
+      expect(stub.updatePersonalityConfigDefaults).toHaveBeenCalledWith('personality-123', {
+        maxMessages: 75,
+      });
     });
 
     it('should update maxAge setting with duration string (2h)', async () => {
@@ -559,19 +544,17 @@ describe('Character Settings Dashboard', () => {
       );
 
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxAge'));
-      mockCallGatewayApi
-        .mockResolvedValueOnce({ ok: true })
-        .mockResolvedValueOnce({ ok: true, data: mockResolvedOverrides });
+      stub.updatePersonalityConfigDefaults.mockResolvedValueOnce({ ok: true });
+      stub.resolvePersonalityCascade.mockResolvedValueOnce({
+        ok: true,
+        data: mockResolvedOverrides,
+      });
 
       await handleCharacterSettingsModal(interaction as never);
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/config-overrides/personality/personality-123',
-        expect.objectContaining({
-          method: 'PATCH',
-          body: { maxAge: 7200 },
-        })
-      );
+      expect(stub.updatePersonalityConfigDefaults).toHaveBeenCalledWith('personality-123', {
+        maxAge: 7200,
+      });
     });
 
     it('should update maxAge setting to "off" (disabled)', async () => {
@@ -581,20 +564,18 @@ describe('Character Settings Dashboard', () => {
       );
 
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxAge'));
-      mockCallGatewayApi
-        .mockResolvedValueOnce({ ok: true })
-        .mockResolvedValueOnce({ ok: true, data: mockResolvedOverrides });
+      stub.updatePersonalityConfigDefaults.mockResolvedValueOnce({ ok: true });
+      stub.resolvePersonalityCascade.mockResolvedValueOnce({
+        ok: true,
+        data: mockResolvedOverrides,
+      });
 
       await handleCharacterSettingsModal(interaction as never);
 
       // "off" maps to null in cascade config overrides
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/config-overrides/personality/personality-123',
-        expect.objectContaining({
-          method: 'PATCH',
-          body: { maxAge: null },
-        })
-      );
+      expect(stub.updatePersonalityConfigDefaults).toHaveBeenCalledWith('personality-123', {
+        maxAge: null,
+      });
     });
 
     it('should set maxAge to auto (null) when auto selected', async () => {
@@ -604,20 +585,18 @@ describe('Character Settings Dashboard', () => {
       );
 
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxAge'));
-      mockCallGatewayApi
-        .mockResolvedValueOnce({ ok: true })
-        .mockResolvedValueOnce({ ok: true, data: mockResolvedOverrides });
+      stub.updatePersonalityConfigDefaults.mockResolvedValueOnce({ ok: true });
+      stub.resolvePersonalityCascade.mockResolvedValueOnce({
+        ok: true,
+        data: mockResolvedOverrides,
+      });
 
       await handleCharacterSettingsModal(interaction as never);
 
       // "auto" means inherit (null) — inherit from lower cascade tier
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/config-overrides/personality/personality-123',
-        expect.objectContaining({
-          method: 'PATCH',
-          body: { maxAge: null },
-        })
-      );
+      expect(stub.updatePersonalityConfigDefaults).toHaveBeenCalledWith('personality-123', {
+        maxAge: null,
+      });
     });
 
     it('should update maxImages setting via cascade endpoint', async () => {
@@ -627,19 +606,17 @@ describe('Character Settings Dashboard', () => {
       );
 
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxImages'));
-      mockCallGatewayApi
-        .mockResolvedValueOnce({ ok: true })
-        .mockResolvedValueOnce({ ok: true, data: mockResolvedOverrides });
+      stub.updatePersonalityConfigDefaults.mockResolvedValueOnce({ ok: true });
+      stub.resolvePersonalityCascade.mockResolvedValueOnce({
+        ok: true,
+        data: mockResolvedOverrides,
+      });
 
       await handleCharacterSettingsModal(interaction as never);
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/config-overrides/personality/personality-123',
-        expect.objectContaining({
-          method: 'PATCH',
-          body: { maxImages: 10 },
-        })
-      );
+      expect(stub.updatePersonalityConfigDefaults).toHaveBeenCalledWith('personality-123', {
+        maxImages: 10,
+      });
     });
 
     it('should handle refresh failure after update', async () => {
@@ -649,9 +626,8 @@ describe('Character Settings Dashboard', () => {
       );
 
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxMessages'));
-      mockCallGatewayApi
-        .mockResolvedValueOnce({ ok: true }) // PATCH succeeds
-        .mockResolvedValueOnce({ ok: false, error: 'Fetch failed' }); // resolve fails
+      stub.updatePersonalityConfigDefaults.mockResolvedValueOnce({ ok: true });
+      stub.resolvePersonalityCascade.mockResolvedValueOnce({ ok: false, error: 'Fetch failed' });
 
       await handleCharacterSettingsModal(interaction as never);
 
@@ -666,7 +642,7 @@ describe('Character Settings Dashboard', () => {
       );
 
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxMessages'));
-      mockCallGatewayApi.mockRejectedValueOnce(new Error('Network error'));
+      stub.updatePersonalityConfigDefaults.mockRejectedValueOnce(new Error('Network error'));
 
       await handleCharacterSettingsModal(interaction as never);
 

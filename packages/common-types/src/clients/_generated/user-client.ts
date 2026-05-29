@@ -214,6 +214,7 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.listUserTtsConfigs.output,
+      timeoutMs: ROUTE_MANIFEST.listUserTtsConfigs.timeoutMs,
     });
   }
 
@@ -1248,6 +1249,7 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.listVoices.output,
+      timeoutMs: ROUTE_MANIFEST.listVoices.timeoutMs,
     });
   }
 
@@ -1725,6 +1727,7 @@ export class UserClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.updatePersonalityOverrides.output,
+      timeoutMs: ROUTE_MANIFEST.updatePersonalityOverrides.timeoutMs,
     });
   }
 
@@ -1778,6 +1781,7 @@ export class UserClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.updatePersonalityConfigDefaults.output,
+      timeoutMs: ROUTE_MANIFEST.updatePersonalityConfigDefaults.timeoutMs,
     });
   }
 

@@ -216,6 +216,7 @@ describe('handleVoiceClearButton', () => {
 describe('handleVoiceClearModal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    stub.clearVoices.mockReset();
   });
 
   it('should handle modal submit', async () => {
@@ -227,5 +228,28 @@ describe('handleVoiceClearModal', () => {
     await handleVoiceClearModal(interaction);
 
     expect(mockHandleDestructiveModalSubmit).toHaveBeenCalled();
+  });
+
+  it('invokes clearVoices via the typed client when the destructive callback runs', async () => {
+    // The handler delegates to `handleDestructiveModalSubmit`, which decides
+    // whether to run the inner callback. Drive the mock to invoke the
+    // callback so the userClient.clearVoices closure is exercised.
+    mockHandleDestructiveModalSubmit.mockImplementationOnce(
+      async (_interaction, _word, callback) => {
+        await callback();
+      }
+    );
+    stub.clearVoices.mockResolvedValue({
+      ok: true,
+      data: { deleted: 3, total: 3 },
+    });
+    const interaction = {
+      customId: `voice::destructive::modal_submit::${VOICE_CLEAR_OPERATION}::all`,
+      user: { id: 'user-123' },
+    } as unknown as ModalSubmitInteraction;
+
+    await handleVoiceClearModal(interaction);
+
+    expect(stub.clearVoices).toHaveBeenCalled();
   });
 });

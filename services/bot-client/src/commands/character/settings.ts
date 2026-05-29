@@ -34,6 +34,7 @@ import {
 import {
   createSettingsUpdateHandler,
   convertCascadeToSettingsData,
+  type SettingUpdateConfig,
 } from '../../utils/dashboard/settings/settingsUpdateFactory.js';
 
 const logger = createLogger('character-settings');
@@ -130,11 +131,10 @@ export async function handleSettings(
 }
 
 /** Config for the character settings update handler (3-tier cascade, creator-only) */
-const CHARACTER_SETTINGS_UPDATE_CONFIG = {
-  patchEndpoint: (id: string) => `/user/config-overrides/personality/${encodeURIComponent(id)}`,
-  resolveEndpoint: (id: string) =>
-    `/user/config-overrides/resolve-personality/${encodeURIComponent(id)}`,
-  sourceTier: 'personality' as const,
+const CHARACTER_SETTINGS_UPDATE_CONFIG: SettingUpdateConfig = {
+  patchFn: (uc, id, body) => uc.updatePersonalityConfigDefaults(id, body),
+  resolveFn: (uc, id) => uc.resolvePersonalityCascade(id),
+  sourceTier: 'personality',
   logContext: '[Character Settings]',
 };
 

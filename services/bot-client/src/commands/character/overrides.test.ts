@@ -32,32 +32,22 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 interface StubUserClient {
   getPersonality: ReturnType<typeof vi.fn>;
   resolveCascade: ReturnType<typeof vi.fn>;
+  updatePersonalityOverrides: ReturnType<typeof vi.fn>;
 }
 
 const stub: StubUserClient = {
   getPersonality: vi.fn(),
   resolveCascade: vi.fn(),
+  updatePersonalityOverrides: vi.fn(),
 };
 
+// Single transport: `handleOverrides` (entry) calls `getPersonality` +
+// `resolveCascade` via `clientsFor`. Button/modal handlers funnel through
+// `settingsUpdateFactory`, which also uses `clientsFor` to call
+// `updatePersonalityOverrides` + `resolveCascade`.
 vi.mock('../../utils/gatewayClients.js', () => ({
   clientsFor: vi.fn(() => ({ userClient: stub as unknown as UserClient })),
 }));
-
-// The button/modal handlers go through the shared `createSettingsCommandHandlers`
-// factory, which still uses the legacy `callGatewayApi` transport for PATCH +
-// resolve calls. Migrating that factory is out of scope (factory shared with
-// channel/settings, etc.). Mocking it here keeps factory-driven tests working
-// without forcing the factory migration in.
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
 
 // Mock the session manager
 const mockSessionManager = {
@@ -155,6 +145,7 @@ describe('Character Overrides Dashboard', () => {
     vi.clearAllMocks();
     stub.getPersonality.mockReset();
     stub.resolveCascade.mockReset();
+    stub.updatePersonalityOverrides.mockReset();
   });
 
   describe('handleOverrides', () => {
@@ -332,20 +323,14 @@ describe('Character Overrides Dashboard', () => {
         },
       });
 
-      mockCallGatewayApi
-        .mockResolvedValueOnce({ ok: true }) // PATCH config-overrides
-        .mockResolvedValueOnce({ ok: true, data: mockResolvedOverrides }); // GET resolve
+      stub.updatePersonalityOverrides.mockResolvedValueOnce({ ok: true });
+      stub.resolveCascade.mockResolvedValueOnce({ ok: true, data: mockResolvedOverrides });
 
       await handleCharacterOverridesButton(interaction as unknown as ButtonInteraction);
 
-      // Factory still uses callGatewayApi (out of scope here (see file header)).
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/config-overrides/personality-123',
-        expect.objectContaining({
-          method: 'PATCH',
-          body: { crossChannelHistoryEnabled: true },
-        })
-      );
+      expect(stub.updatePersonalityOverrides).toHaveBeenCalledWith('personality-123', {
+        crossChannelHistoryEnabled: true,
+      });
     });
   });
 
@@ -383,20 +368,14 @@ describe('Character Overrides Dashboard', () => {
       );
 
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxMessages'));
-      mockCallGatewayApi
-        .mockResolvedValueOnce({ ok: true }) // PATCH config-overrides
-        .mockResolvedValueOnce({ ok: true, data: mockResolvedOverrides }); // GET resolve
+      stub.updatePersonalityOverrides.mockResolvedValueOnce({ ok: true });
+      stub.resolveCascade.mockResolvedValueOnce({ ok: true, data: mockResolvedOverrides });
 
       await handleCharacterOverridesModal(interaction as never);
 
-      // Factory still uses callGatewayApi (out of scope here (see file header)).
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/config-overrides/personality-123',
-        expect.objectContaining({
-          method: 'PATCH',
-          body: { maxMessages: 75 },
-        })
-      );
+      expect(stub.updatePersonalityOverrides).toHaveBeenCalledWith('personality-123', {
+        maxMessages: 75,
+      });
     });
   });
 });

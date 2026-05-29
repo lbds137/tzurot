@@ -172,6 +172,10 @@ export const userConfigRoutes = {
     output: ListTtsConfigsResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
+    // Same dual-use as listVoices: autocomplete and deferred-context
+    // BYOK probe (guestModeValidation). Longer budget protects the
+    // deferred caller.
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   getUserTtsConfig: {
