@@ -11,7 +11,7 @@
 import { createLogger, type LoadedPersonality } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { getCachedPersonalities } from '../../utils/autocomplete/autocompleteCache.js';
-import { toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 
 const logger = createLogger('character-random-pick');
 
@@ -49,7 +49,8 @@ export async function resolveCharacterSlug(
     return { kind: 'slug', slug: providedSlug, randomPick: false };
   }
 
-  const result = await getCachedPersonalities(toGatewayUser(context.user));
+  const { userClient } = clientsFor(context.interaction);
+  const result = await getCachedPersonalities(userClient);
   if (result.kind === 'error') {
     // Log so a systematic gateway failure leaves a server-side trace; the
     // user-facing message alone gives no signal in Railway logs.

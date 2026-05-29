@@ -63,17 +63,11 @@ vi.mock('../../utils/autocomplete/autocompleteCache.js', () => ({
   getCachedPersonalities: (...args: unknown[]) => mockGetCachedPersonalities(...args),
 }));
 
-vi.mock('../../utils/userGatewayClient.js', async importOriginal => {
-  const actual = (await importOriginal()) as Record<string, unknown>;
-  return {
-    ...actual,
-    toGatewayUser: vi.fn((user: { id: string; displayName: string }) => ({
-      discordId: user.id,
-      username: user.displayName,
-      displayName: user.displayName,
-    })),
-  };
-});
+// Mock clientsFor — the cache + persona resolution mocks return data
+// directly, so a structurally empty userClient stub suffices.
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: {} })),
+}));
 
 vi.mock('../../redis.js', () => ({
   redisService: { storeWebhookMessage: vi.fn() },

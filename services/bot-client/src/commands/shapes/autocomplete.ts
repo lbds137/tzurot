@@ -10,7 +10,7 @@
 import type { AutocompleteInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { getCachedShapes } from '../../utils/autocomplete/autocompleteCache.js';
-import { toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import { truncateForSelect } from '../../utils/browse/truncation.js';
 import { AUTOCOMPLETE_ERROR_SENTINEL } from '../../utils/apiCheck.js';
 
@@ -29,7 +29,8 @@ export async function handleShapesSlugAutocomplete(
   const userId = interaction.user.id;
 
   try {
-    const result = await getCachedShapes(toGatewayUser(interaction.user));
+    const { userClient } = clientsFor(interaction);
+    const result = await getCachedShapes(userClient);
     if (result.kind === 'error') {
       // Backend failed AND no stale cache to fall back on. Render a visible
       // error choice instead of an empty list — an empty list reads as

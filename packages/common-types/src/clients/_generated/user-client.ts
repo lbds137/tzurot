@@ -41,8 +41,8 @@ export interface UserClientOptions {
 export class UserClient {
   private readonly baseUrl: string;
   private readonly serviceSecret: string;
-  private readonly actor: ActorDiscordId;
-  private readonly user: GatewayUser;
+  readonly actor: ActorDiscordId;
+  readonly user: GatewayUser;
 
   constructor(options: UserClientOptions) {
     this.baseUrl = options.baseUrl;
@@ -580,6 +580,7 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.listPersonalities.output,
+      timeoutMs: ROUTE_MANIFEST.listPersonalities.timeoutMs,
     });
   }
 
@@ -689,6 +690,7 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.listPersonas.output,
+      timeoutMs: ROUTE_MANIFEST.listPersonas.timeoutMs,
     });
   }
 
@@ -1847,6 +1849,7 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.listShapes.output,
+      timeoutMs: ROUTE_MANIFEST.listShapes.timeoutMs,
     });
   }
 

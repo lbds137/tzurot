@@ -119,11 +119,11 @@ function buildClassDecl(className: string, flavor: ClientFlavor): string {
   ];
 
   if (flavor === 'owner' || flavor === 'user') {
-    fields.push(`  private readonly actor: ActorDiscordId;`);
+    fields.push(`  readonly actor: ActorDiscordId;`);
     ctorAssigns.push(`    this.actor = options.actor;`);
   }
   if (flavor === 'user') {
-    fields.push(`  private readonly user: GatewayUser;`);
+    fields.push(`  readonly user: GatewayUser;`);
     ctorAssigns.push(`    this.user = options.user;`);
   }
 

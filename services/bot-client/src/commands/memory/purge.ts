@@ -33,7 +33,6 @@ import {
   type UserClient,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { toGatewayUser } from '../../utils/userGatewayClient.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { createDangerEmbed, createSuccessEmbed } from '../../utils/commandHelpers.js';
 import { resolveRequiredPersonality } from './resolveHelpers.js';
@@ -106,13 +105,12 @@ async function assertInvokerOwnership(
  */
 export async function handlePurge(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const user = toGatewayUser(context.user);
   const { userClient } = clientsFor(context.interaction);
   const options = memoryPurgeOptions(context.interaction);
   const personalityInput = options.character();
 
   try {
-    const personalityId = await resolveRequiredPersonality(context, user, personalityInput);
+    const personalityId = await resolveRequiredPersonality(context, userClient, personalityInput);
     if (personalityId === null) {
       return;
     }

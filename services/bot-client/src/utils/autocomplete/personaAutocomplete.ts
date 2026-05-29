@@ -13,7 +13,7 @@ import {
   formatAutocompleteOption,
 } from '@tzurot/common-types';
 import { getCachedPersonas } from './autocompleteCache.js';
-import { toGatewayUser } from '../userGatewayClient.js';
+import { clientsFor } from '../gatewayClients.js';
 import { AUTOCOMPLETE_ERROR_SENTINEL } from '../apiCheck.js';
 
 const logger = createLogger('persona-autocomplete');
@@ -62,7 +62,8 @@ export async function handlePersonaAutocomplete(
 
   try {
     // Use cached data to avoid HTTP requests on every keystroke
-    const result = await getCachedPersonas(toGatewayUser(interaction.user));
+    const { userClient } = clientsFor(interaction);
+    const result = await getCachedPersonas(userClient);
     if (result.kind === 'error') {
       // Backend failed AND no stale cache to fall back on — render a visible
       // error choice rather than an empty list that reads as "you have no personas."

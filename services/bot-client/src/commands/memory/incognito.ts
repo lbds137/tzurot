@@ -25,7 +25,7 @@ import {
   AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
   isAutocompleteErrorSentinel,
 } from '../../utils/apiCheck.js';
-import { toGatewayUser, type GatewayUser } from '../../utils/userGatewayClient.js';
+import type { UserClient } from '@tzurot/common-types';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import {
   createSuccessEmbed,
@@ -59,19 +59,19 @@ function formatSessionInfo(session: SessionWithTime, personalityName?: string): 
  * @returns { id: personality UUID or 'all', name: display name or null }
  */
 async function resolvePersonalityOrAll(
-  user: GatewayUser,
+  userClient: UserClient,
   personalityInput: string
 ): Promise<{ id: string; name: string | null } | null> {
   if (personalityInput.toLowerCase() === 'all') {
     return { id: 'all', name: ALL_PERSONALITIES_LABEL };
   }
 
-  const personalityId = await resolvePersonalityId(user, personalityInput);
+  const personalityId = await resolvePersonalityId(userClient, personalityInput);
   if (personalityId === null) {
     return null;
   }
 
-  const name = await getPersonalityName(user, personalityId);
+  const name = await getPersonalityName(userClient, personalityId);
   return { id: personalityId, name };
 }
 
@@ -80,7 +80,6 @@ async function resolvePersonalityOrAll(
  */
 export async function handleIncognitoEnable(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const user = toGatewayUser(context.user);
   const { userClient } = clientsFor(context.interaction);
   const options = memoryIncognitoEnableOptions(context.interaction);
   const personalityInput = options.character();
@@ -92,7 +91,7 @@ export async function handleIncognitoEnable(context: DeferredCommandContext): Pr
   }
 
   try {
-    const resolved = await resolvePersonalityOrAll(user, personalityInput);
+    const resolved = await resolvePersonalityOrAll(userClient, personalityInput);
 
     if (resolved === null) {
       await context.editReply({
@@ -138,7 +137,6 @@ export async function handleIncognitoEnable(context: DeferredCommandContext): Pr
  */
 export async function handleIncognitoDisable(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const user = toGatewayUser(context.user);
   const { userClient } = clientsFor(context.interaction);
   const options = memoryIncognitoDisableOptions(context.interaction);
   const personalityInput = options.character();
@@ -149,7 +147,7 @@ export async function handleIncognitoDisable(context: DeferredCommandContext): P
   }
 
   try {
-    const resolved = await resolvePersonalityOrAll(user, personalityInput);
+    const resolved = await resolvePersonalityOrAll(userClient, personalityInput);
 
     if (resolved === null) {
       await context.editReply({
@@ -194,7 +192,6 @@ export async function handleIncognitoDisable(context: DeferredCommandContext): P
  */
 export async function handleIncognitoStatus(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const user = toGatewayUser(context.user);
   const { userClient } = clientsFor(context.interaction);
 
   try {
@@ -225,7 +222,7 @@ export async function handleIncognitoStatus(context: DeferredCommandContext): Pr
         if (session.personalityId === 'all') {
           return formatSessionInfo(session, ALL_PERSONALITIES_LABEL);
         }
-        const name = await getPersonalityName(user, session.personalityId);
+        const name = await getPersonalityName(userClient, session.personalityId);
         return formatSessionInfo(session, name ?? session.personalityId);
       })
     );
@@ -249,7 +246,6 @@ export async function handleIncognitoStatus(context: DeferredCommandContext): Pr
  */
 export async function handleIncognitoForget(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const user = toGatewayUser(context.user);
   const { userClient } = clientsFor(context.interaction);
   const options = memoryIncognitoForgetOptions(context.interaction);
   const personalityInput = options.character();
@@ -261,7 +257,7 @@ export async function handleIncognitoForget(context: DeferredCommandContext): Pr
   }
 
   try {
-    const resolved = await resolvePersonalityOrAll(user, personalityInput);
+    const resolved = await resolvePersonalityOrAll(userClient, personalityInput);
 
     if (resolved === null) {
       await context.editReply({

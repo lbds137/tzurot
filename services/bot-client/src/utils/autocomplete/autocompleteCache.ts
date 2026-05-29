@@ -40,8 +40,12 @@
  *     empty list.
  */
 
-import { createLogger, TTLCache, type PersonalitySummary } from '@tzurot/common-types';
-import { callGatewayApi, type GatewayUser } from '../userGatewayClient.js';
+import {
+  createLogger,
+  TTLCache,
+  type PersonalitySummary,
+  type UserClient,
+} from '@tzurot/common-types';
 import { isTransientHttpStatus, type ApiCheck } from '../apiCheck.js';
 
 const logger = createLogger('autocomplete-cache');
@@ -181,9 +185,9 @@ function fallbackToStale<K extends keyof UserAutocompleteData>(
  * Get cached personalities for a user. Cache miss triggers a gateway fetch.
  */
 export async function getCachedPersonalities(
-  user: GatewayUser
+  userClient: UserClient
 ): Promise<ApiCheck<PersonalitySummary[]>> {
-  const userId = user.discordId;
+  const userId = userClient.actor;
   const cached = freshCache.get(userId);
   if (cached?.personalities !== undefined) {
     logger.debug({ userId }, 'Personality cache hit');
@@ -193,10 +197,7 @@ export async function getCachedPersonalities(
   logger.debug({ userId }, 'Personality cache miss, fetching');
 
   try {
-    const result = await callGatewayApi<{ personalities: PersonalitySummary[] }>(
-      '/user/personality',
-      { user }
-    );
+    const result = await userClient.listPersonalities();
 
     if (result.ok) {
       commitFetchedField(userId, 'personalities', result.data.personalities);
@@ -223,8 +224,10 @@ export async function getCachedPersonalities(
 /**
  * Get cached personas for a user. Cache miss triggers a gateway fetch.
  */
-export async function getCachedPersonas(user: GatewayUser): Promise<ApiCheck<PersonaSummary[]>> {
-  const userId = user.discordId;
+export async function getCachedPersonas(
+  userClient: UserClient
+): Promise<ApiCheck<PersonaSummary[]>> {
+  const userId = userClient.actor;
   const cached = freshCache.get(userId);
   if (cached?.personas !== undefined) {
     logger.debug({ userId }, 'Persona cache hit');
@@ -234,9 +237,7 @@ export async function getCachedPersonas(user: GatewayUser): Promise<ApiCheck<Per
   logger.debug({ userId }, 'Persona cache miss, fetching');
 
   try {
-    const result = await callGatewayApi<{ personas: PersonaSummary[] }>('/user/persona', {
-      user,
-    });
+    const result = await userClient.listPersonas();
 
     if (result.ok) {
       commitFetchedField(userId, 'personas', result.data.personas);
@@ -260,9 +261,12 @@ export async function getCachedPersonas(user: GatewayUser): Promise<ApiCheck<Per
 
 /**
  * Get cached shapes for a user. Cache miss triggers a gateway fetch.
+ *
+ * Default route timeout (AUTOCOMPLETE = 2500ms) fits inside Discord's
+ * 3-second autocomplete budget.
  */
-export async function getCachedShapes(user: GatewayUser): Promise<ApiCheck<ShapesSummary[]>> {
-  const userId = user.discordId;
+export async function getCachedShapes(userClient: UserClient): Promise<ApiCheck<ShapesSummary[]>> {
+  const userId = userClient.actor;
   const cached = freshCache.get(userId);
   if (cached?.shapes !== undefined) {
     logger.debug({ userId }, 'Shapes cache hit');
@@ -272,11 +276,7 @@ export async function getCachedShapes(user: GatewayUser): Promise<ApiCheck<Shape
   logger.debug({ userId }, 'Shapes cache miss, fetching');
 
   try {
-    const result = await callGatewayApi<{ shapes: ShapesSummary[] }>('/user/shapes/list', {
-      user,
-      // Implicit: callGatewayApi defaults to AUTOCOMPLETE timeout (2500ms),
-      // which fits inside Discord's 3-second autocomplete budget.
-    });
+    const result = await userClient.listShapes();
 
     if (result.ok) {
       commitFetchedField(userId, 'shapes', result.data.shapes);

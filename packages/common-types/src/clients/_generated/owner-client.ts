@@ -38,7 +38,7 @@ export interface OwnerClientOptions {
 export class OwnerClient {
   private readonly baseUrl: string;
   private readonly serviceSecret: string;
-  private readonly actor: ActorDiscordId;
+  readonly actor: ActorDiscordId;
 
   constructor(options: OwnerClientOptions) {
     this.baseUrl = options.baseUrl;

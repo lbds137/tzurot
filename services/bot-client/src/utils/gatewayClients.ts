@@ -19,6 +19,7 @@
  */
 
 import type {
+  AutocompleteInteraction,
   ChatInputCommandInteraction,
   MessageComponentInteraction,
   ModalSubmitInteraction,
@@ -44,6 +45,7 @@ import { toGatewayUser } from './userGatewayClient.js';
  * defined on the base.
  */
 export type ClientCarryingInteraction =
+  | AutocompleteInteraction
   | ChatInputCommandInteraction
   | MessageComponentInteraction
   | ModalSubmitInteraction;

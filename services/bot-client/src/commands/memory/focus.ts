@@ -14,7 +14,6 @@ import {
   memoryFocusStatusOptions,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { toGatewayUser } from '../../utils/userGatewayClient.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { createSuccessEmbed, createInfoEmbed } from '../../utils/commandHelpers.js';
 import { getPersonalityName } from './autocomplete.js';
@@ -41,14 +40,13 @@ export async function handleFocusDisable(context: DeferredCommandContext): Promi
  */
 export async function handleFocusStatus(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const user = toGatewayUser(context.user);
   const { userClient } = clientsFor(context.interaction);
   const options = memoryFocusStatusOptions(context.interaction);
   const personalityInput = options.character();
 
   try {
     // Resolve personality slug to ID
-    const personalityId = await resolveRequiredPersonality(context, user, personalityInput);
+    const personalityId = await resolveRequiredPersonality(context, userClient, personalityInput);
     if (personalityId === null) {
       return;
     }
@@ -64,7 +62,7 @@ export async function handleFocusStatus(context: DeferredCommandContext): Promis
     }
 
     const data = result.data;
-    const personalityName = await getPersonalityName(user, personalityId);
+    const personalityName = await getPersonalityName(userClient, personalityId);
 
     const embed = createInfoEmbed(
       'Focus Mode Status',
@@ -90,7 +88,6 @@ export async function handleFocusStatus(context: DeferredCommandContext): Promis
  */
 async function setFocusMode(context: DeferredCommandContext, enabled: boolean): Promise<void> {
   const userId = context.user.id;
-  const user = toGatewayUser(context.user);
   const { userClient } = clientsFor(context.interaction);
   // Both enable and disable use the same option schema
   const options = enabled
@@ -100,7 +97,7 @@ async function setFocusMode(context: DeferredCommandContext, enabled: boolean): 
 
   try {
     // Resolve personality slug to ID
-    const personalityId = await resolveRequiredPersonality(context, user, personalityInput);
+    const personalityId = await resolveRequiredPersonality(context, userClient, personalityInput);
     if (personalityId === null) {
       return;
     }

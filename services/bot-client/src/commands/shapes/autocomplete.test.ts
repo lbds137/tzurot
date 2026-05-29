@@ -27,6 +27,12 @@ vi.mock('../../utils/autocomplete/autocompleteCache.js', () => ({
   getCachedShapes: (...args: unknown[]) => mockGetCachedShapes(...args),
 }));
 
+// Mock clientsFor — the cache mock above doesn't care about the userClient
+// identity, so a structurally-empty stub suffices.
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: {} })),
+}));
+
 describe('handleShapesSlugAutocomplete', () => {
   const mockRespond = vi.fn();
 

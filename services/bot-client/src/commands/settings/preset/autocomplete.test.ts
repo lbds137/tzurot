@@ -38,6 +38,12 @@ vi.mock('../../../utils/autocomplete/autocompleteCache.js', () => ({
   getCachedPersonalities: (...args: unknown[]) => mockGetCachedPersonalities(...args),
 }));
 
+// Mock clientsFor — the cache mock returns ok directly, so a structurally
+// empty userClient stub suffices.
+vi.mock('../../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: {} })),
+}));
+
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 import { UNLOCK_MODELS_VALUE } from './autocomplete.js';
 import type { PersonalitySummary } from '@tzurot/common-types';
@@ -138,11 +144,9 @@ describe('handleAutocomplete', () => {
 
       await handleAutocomplete(mockInteraction);
 
-      expect(mockGetCachedPersonalities).toHaveBeenCalledWith({
-        discordId: 'user-123',
-        username: 'testuser',
-        displayName: 'testuser',
-      });
+      // Identity carried at the clientsFor boundary; see gatewayClients.test.ts
+      // for the brand-binding contract.
+      expect(mockGetCachedPersonalities).toHaveBeenCalledWith(expect.any(Object));
       // 🔒 = owned + private, includes slug in parentheses, value is id (model override API expects ID)
       expect(mockInteraction.respond).toHaveBeenCalledWith([
         { name: '🔒 Test Bot (testbot)', value: 'p1' },
