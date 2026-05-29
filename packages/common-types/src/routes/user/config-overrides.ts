@@ -56,6 +56,9 @@ export const userConfigOverrideRoutes = {
     output: ResolveUserConfigDefaultsResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
+    // 2-tier user-default cascade resolve; same multi-read cost as
+    // the personality cascades.
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   getUserDefaults: {
@@ -76,6 +79,8 @@ export const userConfigOverrideRoutes = {
     input: ConfigOverridesSchema,
     output: UpdateConfigDefaultsResponseSchema,
     requiresProvisionedUser: true,
+    // PATCH + resolve handshake (paired with resolveUserDefaults).
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   clearUserDefaults: {

@@ -17,15 +17,10 @@ import {
   createLogger,
   DISCORD_COLORS,
   AUTOCOMPLETE_BADGES,
-  type ListWalletKeysResponse,
   type WalletKey,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import {
-  callGatewayApi,
-  GATEWAY_TIMEOUTS,
-  toGatewayUser,
-} from '../../../utils/userGatewayClient.js';
+import { clientsFor } from '../../../utils/gatewayClients.js';
 import { getProviderDisplayName } from '../../../utils/providers.js';
 
 const logger = createLogger('settings-apikey-browse');
@@ -103,10 +98,8 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
   const userId = context.user.id;
 
   try {
-    const result = await callGatewayApi<ListWalletKeysResponse>('/wallet/list', {
-      user: toGatewayUser(context.user),
-      timeout: GATEWAY_TIMEOUTS.DEFERRED,
-    });
+    const { userClient } = clientsFor(context.interaction);
+    const result = await userClient.listWalletKeys();
 
     if (!result.ok) {
       await context.editReply({ content: `❌ Failed to retrieve wallet info: ${result.error}` });

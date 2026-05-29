@@ -254,6 +254,7 @@ export const userResourceRoutes = {
     output: ListWalletKeysResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   setWalletKey: {
@@ -264,6 +265,7 @@ export const userResourceRoutes = {
     input: SetWalletKeySchema,
     output: SetWalletKeyResponseSchema,
     requiresProvisionedUser: true,
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   removeWalletKey: {
@@ -274,6 +276,7 @@ export const userResourceRoutes = {
     params: { provider: z.string() },
     output: RemoveWalletKeyResponseSchema,
     requiresProvisionedUser: true,
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   testWalletKey: {
@@ -284,6 +287,11 @@ export const userResourceRoutes = {
     input: TestWalletKeySchema,
     output: TestWalletKeyResponseSchema,
     requiresProvisionedUser: true,
+    // Post-defer dashboard action (not a slash-command hot path), and the
+    // gateway handler synchronously probes the provider's auth/credits
+    // endpoint before responding — so the gateway's own response is slow.
+    // DEFERRED gives the bot→gateway hop enough headroom for that probe.
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   // ============================================================================

@@ -7,6 +7,8 @@ import type { ChatInputCommandInteraction } from 'discord.js';
 import { handleRemoveKey } from './remove.js';
 import { mockRemoveWalletKeyResponse, AIProvider } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
+import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
+import type { UserClient } from '@tzurot/common-types';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -22,17 +24,13 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-// Mock userGatewayClient
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../../utils/userGatewayClient.js')>(
-    '../../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+const stub = {
+  removeWalletKey: vi.fn(),
+};
+
+vi.mock('../../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: stub as unknown as UserClient })),
+}));
 
 // Mock providers
 vi.mock('../../../utils/providers.js', () => ({
@@ -49,6 +47,7 @@ describe('handleRemoveKey', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub.removeWalletKey.mockReset();
   });
 
   function createMockContext(provider: string = 'openrouter'): DeferredCommandContext {
@@ -84,24 +83,14 @@ describe('handleRemoveKey', () => {
   }
 
   it('should remove key successfully', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockRemoveWalletKeyResponse({
-        provider: AIProvider.OpenRouter,
-      }),
-    });
+    stub.removeWalletKey.mockResolvedValue(
+      makeOk(mockRemoveWalletKeyResponse({ provider: AIProvider.OpenRouter }))
+    );
 
     const context = createMockContext('openrouter');
     await handleRemoveKey(context);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith('/wallet/openrouter', {
-      method: 'DELETE',
-      user: {
-        discordId: '123456789',
-        username: 'testuser',
-        displayName: 'testuser',
-      },
-    });
+    expect(stub.removeWalletKey).toHaveBeenCalledWith('openrouter');
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
         expect.objectContaining({
@@ -115,11 +104,7 @@ describe('handleRemoveKey', () => {
   });
 
   it('should handle 404 key not found', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      status: 404,
-      error: 'Not found',
-    });
+    stub.removeWalletKey.mockResolvedValue(makeErr(404, 'Not found'));
 
     const context = createMockContext('openrouter');
     await handleRemoveKey(context);
@@ -130,11 +115,7 @@ describe('handleRemoveKey', () => {
   });
 
   it('should handle generic API error', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      status: 500,
-      error: 'Internal error',
-    });
+    stub.removeWalletKey.mockResolvedValue(makeErr(500, 'Internal error'));
 
     const context = createMockContext('openrouter');
     await handleRemoveKey(context);
@@ -145,8 +126,7 @@ describe('handleRemoveKey', () => {
   });
 
   it('should handle exceptions', async () => {
-    const error = new Error('Network error');
-    mockCallGatewayApi.mockRejectedValue(error);
+    stub.removeWalletKey.mockRejectedValue(new Error('Network error'));
 
     const context = createMockContext();
     await handleRemoveKey(context);

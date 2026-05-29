@@ -9,9 +9,9 @@ import {
   settingsTimezoneSetOptions,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
+import { clientsFor } from '../../../utils/gatewayClients.js';
 import { createSuccessEmbed } from '../../../utils/commandHelpers.js';
-import { getCurrentTimeInTimezone, type TimezoneResponse } from './utils.js';
+import { getCurrentTimeInTimezone } from './utils.js';
 
 const logger = createLogger('timezone-set');
 
@@ -24,11 +24,8 @@ export async function handleTimezoneSet(context: DeferredCommandContext): Promis
   const timezone = options.timezone();
 
   try {
-    const result = await callGatewayApi<TimezoneResponse>('/user/timezone', {
-      method: 'PUT',
-      user: toGatewayUser(context.user),
-      body: { timezone },
-    });
+    const { userClient } = clientsFor(context.interaction);
+    const result = await userClient.setTimezone({ timezone });
 
     if (!result.ok) {
       logger.warn({ userId, timezone, status: result.status }, 'Failed to set timezone');

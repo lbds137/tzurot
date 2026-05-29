@@ -81,6 +81,9 @@ export const userConfigRoutes = {
     output: GetTimezoneResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
+    // Read post-defer in the settings dashboard; the autocomplete budget
+    // is too tight for the slowest paths.
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   setTimezone: {
@@ -92,6 +95,7 @@ export const userConfigRoutes = {
     output: SetTimezoneResponseSchema,
     requiresProvisionedUser: true,
     meta: { idempotent: true },
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   // ============================================================================

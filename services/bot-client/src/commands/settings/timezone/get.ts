@@ -5,13 +5,9 @@
 
 import { createLogger, TIMEZONE_DISCORD_CHOICES } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import {
-  callGatewayApi,
-  GATEWAY_TIMEOUTS,
-  toGatewayUser,
-} from '../../../utils/userGatewayClient.js';
+import { clientsFor } from '../../../utils/gatewayClients.js';
 import { createInfoEmbed } from '../../../utils/commandHelpers.js';
-import { getCurrentTimeInTimezone, type TimezoneResponse } from './utils.js';
+import { getCurrentTimeInTimezone } from './utils.js';
 
 const logger = createLogger('timezone-get');
 
@@ -22,10 +18,8 @@ export async function handleTimezoneGet(context: DeferredCommandContext): Promis
   const userId = context.user.id;
 
   try {
-    const result = await callGatewayApi<TimezoneResponse>('/user/timezone', {
-      user: toGatewayUser(context.user),
-      timeout: GATEWAY_TIMEOUTS.DEFERRED,
-    });
+    const { userClient } = clientsFor(context.interaction);
+    const result = await userClient.getTimezone();
 
     if (!result.ok) {
       logger.warn({ userId, status: result.status }, 'Failed to get timezone');

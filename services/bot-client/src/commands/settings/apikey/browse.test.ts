@@ -7,6 +7,8 @@ import type { ChatInputCommandInteraction } from 'discord.js';
 import { handleBrowse } from './browse.js';
 import { mockListWalletKeysResponse, AIProvider } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
+import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
+import type { UserClient } from '@tzurot/common-types';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -22,19 +24,13 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-// Mock userGatewayClient
-// Note: Tests use objectContaining for API call assertions to focus on the essential
-// userId parameter while ignoring implementation details like timeout values.
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../../utils/userGatewayClient.js')>(
-    '../../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+const stub = {
+  listWalletKeys: vi.fn(),
+};
+
+vi.mock('../../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: stub as unknown as UserClient })),
+}));
 
 // Mock providers
 vi.mock('../../../utils/providers.js', () => ({
@@ -80,27 +76,23 @@ describe('handleBrowse', () => {
   }
 
   it('should browse keys successfully', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockListWalletKeysResponse([
-        {
-          provider: AIProvider.OpenRouter,
-          isActive: true,
-          createdAt: '2025-01-01T00:00:00Z',
-          lastUsedAt: '2025-01-15T12:00:00Z',
-        },
-      ]),
-    });
+    stub.listWalletKeys.mockResolvedValue(
+      makeOk(
+        mockListWalletKeysResponse([
+          {
+            provider: AIProvider.OpenRouter,
+            isActive: true,
+            createdAt: '2025-01-01T00:00:00Z',
+            lastUsedAt: '2025-01-15T12:00:00Z',
+          },
+        ])
+      )
+    );
 
     const context = createMockContext();
     await handleBrowse(context);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/wallet/list',
-      expect.objectContaining({
-        user: { discordId: '123456789', username: 'testuser', displayName: 'testuser' },
-      })
-    );
+    expect(stub.listWalletKeys).toHaveBeenCalled();
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
         expect.objectContaining({
@@ -113,10 +105,7 @@ describe('handleBrowse', () => {
   });
 
   it('should show empty state when no keys configured', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockListWalletKeysResponse([]),
-    });
+    stub.listWalletKeys.mockResolvedValue(makeOk(mockListWalletKeysResponse([])));
 
     const context = createMockContext();
     await handleBrowse(context);
@@ -134,11 +123,7 @@ describe('handleBrowse', () => {
   });
 
   it('should handle API error', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      status: 500,
-      error: 'Server error',
-    });
+    stub.listWalletKeys.mockResolvedValue(makeErr(500, 'Server error'));
 
     const context = createMockContext();
     await handleBrowse(context);
@@ -149,8 +134,7 @@ describe('handleBrowse', () => {
   });
 
   it('should handle exceptions', async () => {
-    const error = new Error('Network error');
-    mockCallGatewayApi.mockRejectedValue(error);
+    stub.listWalletKeys.mockRejectedValue(new Error('Network error'));
 
     const context = createMockContext();
     await handleBrowse(context);
@@ -161,17 +145,18 @@ describe('handleBrowse', () => {
   });
 
   it('should show active badge for active keys', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockListWalletKeysResponse([
-        {
-          provider: AIProvider.OpenRouter,
-          isActive: true,
-          createdAt: '2025-01-01T00:00:00Z',
-          lastUsedAt: '2025-01-15T12:00:00Z',
-        },
-      ]),
-    });
+    stub.listWalletKeys.mockResolvedValue(
+      makeOk(
+        mockListWalletKeysResponse([
+          {
+            provider: AIProvider.OpenRouter,
+            isActive: true,
+            createdAt: '2025-01-01T00:00:00Z',
+            lastUsedAt: '2025-01-15T12:00:00Z',
+          },
+        ])
+      )
+    );
 
     const context = createMockContext();
     await handleBrowse(context);

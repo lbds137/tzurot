@@ -18,18 +18,13 @@ import type {
   ModalSubmitInteraction,
 } from 'discord.js';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import { createLogger, DISCORD_COLORS, GATEWAY_TIMEOUTS } from '@tzurot/common-types';
-import {
-  callGatewayApi,
-  toGatewayUser,
-  type GatewayUser,
-} from '../../../utils/userGatewayClient.js';
+import { createLogger, DISCORD_COLORS, type UserClient } from '@tzurot/common-types';
+import { clientsFor } from '../../../utils/gatewayClients.js';
 import {
   type SettingsDashboardConfig,
   type SettingsDashboardSession,
   type SettingUpdateResult,
   type SettingsData,
-  type ResolveDefaultsResponse,
   createSettingsDashboard,
   handleSettingsSelectMenu,
   handleSettingsButton,
@@ -80,7 +75,8 @@ export async function handleDefaultsEdit(context: DeferredCommandContext): Promi
   logger.debug({ userId }, 'Opening dashboard');
 
   try {
-    const data = await fetchAndConvertSettingsData(toGatewayUser(context.user));
+    const { userClient } = clientsFor(context.interaction);
+    const data = await fetchAndConvertSettingsData(userClient);
 
     await createSettingsDashboard(context.interaction, {
       config: USER_DEFAULTS_CONFIG,
@@ -148,11 +144,8 @@ export function isUserDefaultsInteraction(customId: string): boolean {
 /**
  * Fetch resolved config from API and convert to dashboard SettingsData format.
  */
-async function fetchAndConvertSettingsData(user: GatewayUser): Promise<SettingsData> {
-  const result = await callGatewayApi<ResolveDefaultsResponse>(
-    '/user/config-overrides/resolve-defaults',
-    { method: 'GET', user, timeout: GATEWAY_TIMEOUTS.DEFERRED }
-  );
+async function fetchAndConvertSettingsData(userClient: UserClient): Promise<SettingsData> {
+  const result = await userClient.resolveUserDefaults();
 
   if (!result.ok) {
     logger.warn({ error: result.error }, 'Failed to fetch resolve-defaults');
@@ -184,13 +177,8 @@ async function handleSettingUpdate(
       return { success: false, error: 'Unknown setting' };
     }
 
-    const user = toGatewayUser(interaction.user);
-    const result = await callGatewayApi('/user/config-overrides/defaults', {
-      method: 'PATCH',
-      body,
-      user,
-      timeout: GATEWAY_TIMEOUTS.DEFERRED,
-    });
+    const { userClient } = clientsFor(interaction);
+    const result = await userClient.updateUserDefaults(body);
 
     if (!result.ok) {
       logger.warn({ settingId, error: result.error }, 'Update failed');
@@ -198,7 +186,7 @@ async function handleSettingUpdate(
     }
 
     // Re-fetch resolved data to get updated effective values and sources
-    const newData = await fetchAndConvertSettingsData(user);
+    const newData = await fetchAndConvertSettingsData(userClient);
 
     logger.info({ settingId, newValue, userId }, 'Setting updated');
 
