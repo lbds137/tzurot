@@ -7,6 +7,8 @@ import type { ChatInputCommandInteraction } from 'discord.js';
 import { handleTestKey } from './test.js';
 import { mockTestWalletKeyResponse, AIProvider } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
+import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
+import type { UserClient } from '@tzurot/common-types';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -22,17 +24,13 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-// Mock userGatewayClient
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../../utils/userGatewayClient.js')>(
-    '../../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+const stub = {
+  testWalletKey: vi.fn(),
+};
+
+vi.mock('../../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: stub as unknown as UserClient })),
+}));
 
 // Mock providers
 vi.mock('../../../utils/providers.js', () => ({
@@ -49,6 +47,7 @@ describe('handleTestKey', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub.testWalletKey.mockReset();
   });
 
   function createMockContext(provider: string = 'openrouter'): DeferredCommandContext {
@@ -84,27 +83,20 @@ describe('handleTestKey', () => {
   }
 
   it('should test key successfully with credits', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockTestWalletKeyResponse({
-        valid: true,
-        provider: AIProvider.OpenRouter,
-        credits: 12.5,
-      }),
-    });
+    stub.testWalletKey.mockResolvedValue(
+      makeOk(
+        mockTestWalletKeyResponse({
+          valid: true,
+          provider: AIProvider.OpenRouter,
+          credits: 12.5,
+        })
+      )
+    );
 
     const context = createMockContext('openrouter');
     await handleTestKey(context);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith('/wallet/test', {
-      method: 'POST',
-      user: {
-        discordId: '123456789',
-        username: 'testuser',
-        displayName: 'testuser',
-      },
-      body: { provider: 'openrouter' },
-    });
+    expect(stub.testWalletKey).toHaveBeenCalledWith({ provider: 'openrouter' });
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
         expect.objectContaining({
@@ -118,13 +110,14 @@ describe('handleTestKey', () => {
   });
 
   it('should test key successfully without credits info', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockTestWalletKeyResponse({
-        valid: true,
-        provider: AIProvider.OpenRouter,
-      }),
-    });
+    stub.testWalletKey.mockResolvedValue(
+      makeOk(
+        mockTestWalletKeyResponse({
+          valid: true,
+          provider: AIProvider.OpenRouter,
+        })
+      )
+    );
 
     const context = createMockContext('openrouter');
     await handleTestKey(context);
@@ -141,11 +134,7 @@ describe('handleTestKey', () => {
   });
 
   it('should handle 404 key not found', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      status: 404,
-      error: 'Not found',
-    });
+    stub.testWalletKey.mockResolvedValue(makeErr(404, 'Not found'));
 
     const context = createMockContext('openrouter');
     await handleTestKey(context);
@@ -156,11 +145,7 @@ describe('handleTestKey', () => {
   });
 
   it('should handle validation failure', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      status: 401,
-      error: 'Invalid API key',
-    });
+    stub.testWalletKey.mockResolvedValue(makeErr(401, 'Invalid API key'));
 
     const context = createMockContext('openrouter');
     await handleTestKey(context);
@@ -177,8 +162,7 @@ describe('handleTestKey', () => {
   });
 
   it('should handle exceptions', async () => {
-    const error = new Error('Network error');
-    mockCallGatewayApi.mockRejectedValue(error);
+    stub.testWalletKey.mockRejectedValue(new Error('Network error'));
 
     const context = createMockContext();
     await handleTestKey(context);

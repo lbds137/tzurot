@@ -5,6 +5,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MessageFlags } from 'discord.js';
 import { handleApikeyModalSubmit } from './modal.js';
+import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
+import type { UserClient } from '@tzurot/common-types';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -23,6 +25,14 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
+const stub = {
+  setWalletKey: vi.fn(),
+};
+
+vi.mock('../../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: stub as unknown as UserClient })),
+}));
+
 // Mock providers utility
 vi.mock('../../../utils/providers.js', () => ({
   getProviderDisplayName: (provider: string) => {
@@ -31,10 +41,6 @@ vi.mock('../../../utils/providers.js', () => ({
   },
 }));
 
-// Mock global fetch
-const mockFetch = vi.fn();
-global.fetch = mockFetch;
-
 describe('handleApikeyModalSubmit', () => {
   const mockReply = vi.fn();
   const mockDeferReply = vi.fn();
@@ -42,6 +48,7 @@ describe('handleApikeyModalSubmit', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub.setWalletKey.mockReset();
   });
 
   function createMockInteraction(customId: string, apiKey: string = 'sk-or-valid-key') {
@@ -118,7 +125,7 @@ describe('handleApikeyModalSubmit', () => {
       // z.ai keys have no documented strict prefix, so the client-side
       // validateKeyFormat returns null. Validation happens server-side via
       // the chat-completions probe in api-gateway.
-      mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
+      stub.setWalletKey.mockResolvedValue(makeOk({ success: true }));
 
       const interaction = createMockInteraction(
         'settings::apikey::set::zai-coding',
@@ -128,25 +135,16 @@ describe('handleApikeyModalSubmit', () => {
 
       // Should NOT show a client-side format error — request flows through to gateway
       expect(mockEditReply).not.toHaveBeenCalledWith(expect.stringContaining('Invalid'));
-      expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:3000/wallet/set',
-        expect.objectContaining({
-          method: 'POST',
-          body: JSON.stringify({
-            provider: 'zai-coding',
-            apiKey: 'arbitrary-zai-key-format',
-          }),
-        })
-      );
+      expect(stub.setWalletKey).toHaveBeenCalledWith({
+        provider: 'zai-coding',
+        apiKey: 'arbitrary-zai-key-format',
+      });
     });
   });
 
   describe('Gateway API interaction', () => {
     it('should send valid key to gateway', async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({}),
-      });
+      stub.setWalletKey.mockResolvedValue(makeOk({ success: true }));
 
       const interaction = createMockInteraction(
         'settings::apikey::set::openrouter',
@@ -154,23 +152,14 @@ describe('handleApikeyModalSubmit', () => {
       );
       await handleApikeyModalSubmit(interaction);
 
-      expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:3000/wallet/set',
-        expect.objectContaining({
-          method: 'POST',
-          body: JSON.stringify({
-            provider: 'openrouter',
-            apiKey: 'sk-or-valid-key-here',
-          }),
-        })
-      );
+      expect(stub.setWalletKey).toHaveBeenCalledWith({
+        provider: 'openrouter',
+        apiKey: 'sk-or-valid-key-here',
+      });
     });
 
     it('should trim whitespace from API key before sending', async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({}),
-      });
+      stub.setWalletKey.mockResolvedValue(makeOk({ success: true }));
 
       const interaction = createMockInteraction(
         'settings::apikey::set::openrouter',
@@ -178,22 +167,14 @@ describe('handleApikeyModalSubmit', () => {
       );
       await handleApikeyModalSubmit(interaction);
 
-      expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:3000/wallet/set',
-        expect.objectContaining({
-          body: JSON.stringify({
-            provider: 'openrouter',
-            apiKey: 'sk-or-valid-key-here',
-          }),
-        })
-      );
+      expect(stub.setWalletKey).toHaveBeenCalledWith({
+        provider: 'openrouter',
+        apiKey: 'sk-or-valid-key-here',
+      });
     });
 
     it('should handle successful key storage', async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({}),
-      });
+      stub.setWalletKey.mockResolvedValue(makeOk({ success: true }));
 
       const interaction = createMockInteraction(
         'settings::apikey::set::openrouter',
@@ -213,11 +194,7 @@ describe('handleApikeyModalSubmit', () => {
     });
 
     it('should handle 401 invalid key error', async () => {
-      mockFetch.mockResolvedValue({
-        ok: false,
-        status: 401,
-        json: () => Promise.resolve({ error: 'Invalid API key' }),
-      });
+      stub.setWalletKey.mockResolvedValue(makeErr(401, 'Invalid API key'));
 
       const interaction = createMockInteraction(
         'settings::apikey::set::openrouter',
@@ -229,11 +206,7 @@ describe('handleApikeyModalSubmit', () => {
     });
 
     it('should handle 402 insufficient credits error', async () => {
-      mockFetch.mockResolvedValue({
-        ok: false,
-        status: 402,
-        json: () => Promise.resolve({ error: 'Insufficient credits' }),
-      });
+      stub.setWalletKey.mockResolvedValue(makeErr(402, 'Insufficient credits'));
 
       const interaction = createMockInteraction(
         'settings::apikey::set::openrouter',
@@ -245,11 +218,7 @@ describe('handleApikeyModalSubmit', () => {
     });
 
     it('should handle generic gateway error', async () => {
-      mockFetch.mockResolvedValue({
-        ok: false,
-        status: 500,
-        json: () => Promise.resolve({ error: 'Internal error' }),
-      });
+      stub.setWalletKey.mockResolvedValue(makeErr(500, 'Internal error'));
 
       const interaction = createMockInteraction(
         'settings::apikey::set::openrouter',
@@ -261,7 +230,7 @@ describe('handleApikeyModalSubmit', () => {
     });
 
     it('should handle network errors', async () => {
-      mockFetch.mockRejectedValue(new Error('Network error'));
+      stub.setWalletKey.mockRejectedValue(new Error('Network error'));
 
       const interaction = createMockInteraction(
         'settings::apikey::set::openrouter',
@@ -273,15 +242,9 @@ describe('handleApikeyModalSubmit', () => {
     });
 
     it('should show descriptive error for missing permissions (400)', async () => {
-      mockFetch.mockResolvedValue({
-        ok: false,
-        status: 400,
-        json: () =>
-          Promise.resolve({
-            error: 'VALIDATION_ERROR',
-            message: 'Your ElevenLabs API key is valid but missing required permissions.',
-          }),
-      });
+      stub.setWalletKey.mockResolvedValue(
+        makeErr(400, 'Your ElevenLabs API key is valid but missing required permissions.')
+      );
 
       const interaction = createMockInteraction(
         'settings::apikey::set::elevenlabs',

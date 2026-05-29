@@ -32,16 +32,16 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../../utils/userGatewayClient.js')>(
-    '../../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+const stub = {
+  resolveUserDefaults: vi.fn(),
+  updateUserDefaults: vi.fn(),
+};
+
+vi.mock('../../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({
+    userClient: stub as unknown as import('@tzurot/common-types').UserClient,
+  })),
+}));
 
 // Mock the session manager
 const mockSessionManager = {
@@ -172,22 +172,11 @@ describe('User Default Settings Dashboard', () => {
   describe('handleDefaultsEdit', () => {
     it('should display settings dashboard embed', async () => {
       const context = createMockContext();
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: mockResolveDefaultsResponse,
-      });
+      stub.resolveUserDefaults.mockResolvedValue({ ok: true, data: mockResolveDefaultsResponse });
 
       await handleDefaultsEdit(context);
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/config-overrides/resolve-defaults', {
-        method: 'GET',
-        user: {
-          discordId: 'user-456',
-          username: 'testuser',
-          displayName: 'testuser',
-        },
-        timeout: 10000,
-      });
+      expect(stub.resolveUserDefaults).toHaveBeenCalled();
       expect(context.editReply).toHaveBeenCalledWith(
         expect.objectContaining({
           embeds: expect.any(Array),
@@ -198,10 +187,7 @@ describe('User Default Settings Dashboard', () => {
 
     it('should include "Your Default Settings" title in embed', async () => {
       const context = createMockContext();
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: mockResolveDefaultsResponse,
-      });
+      stub.resolveUserDefaults.mockResolvedValue({ ok: true, data: mockResolveDefaultsResponse });
 
       await handleDefaultsEdit(context);
 
@@ -214,10 +200,7 @@ describe('User Default Settings Dashboard', () => {
 
     it('should include all 10 settings fields', async () => {
       const context = createMockContext();
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: mockResolveDefaultsResponse,
-      });
+      stub.resolveUserDefaults.mockResolvedValue({ ok: true, data: mockResolveDefaultsResponse });
 
       await handleDefaultsEdit(context);
 
@@ -243,10 +226,7 @@ describe('User Default Settings Dashboard', () => {
 
     it('should include select menu and close button', async () => {
       const context = createMockContext();
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: mockResolveDefaultsResponse,
-      });
+      stub.resolveUserDefaults.mockResolvedValue({ ok: true, data: mockResolveDefaultsResponse });
 
       await handleDefaultsEdit(context);
 
@@ -256,10 +236,7 @@ describe('User Default Settings Dashboard', () => {
 
     it('should display description note about defaults', async () => {
       const context = createMockContext();
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: mockResolveDefaultsResponse,
-      });
+      stub.resolveUserDefaults.mockResolvedValue({ ok: true, data: mockResolveDefaultsResponse });
 
       await handleDefaultsEdit(context);
 
@@ -272,11 +249,7 @@ describe('User Default Settings Dashboard', () => {
 
     it('should handle API failure with fallback data', async () => {
       const context = createMockContext();
-      mockCallGatewayApi.mockResolvedValue({
-        ok: false,
-        error: 'Server error',
-        status: 500,
-      });
+      stub.resolveUserDefaults.mockResolvedValue({ ok: false, error: 'Server error', status: 500 });
 
       await handleDefaultsEdit(context);
 
@@ -291,7 +264,7 @@ describe('User Default Settings Dashboard', () => {
 
     it('should handle unexpected errors gracefully', async () => {
       const context = createMockContext();
-      mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+      stub.resolveUserDefaults.mockRejectedValue(new Error('Network error'));
 
       await handleDefaultsEdit(context);
 
@@ -306,7 +279,7 @@ describe('User Default Settings Dashboard', () => {
         get: () => true,
         configurable: true,
       });
-      mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+      stub.resolveUserDefaults.mockRejectedValue(new Error('Network error'));
 
       await handleDefaultsEdit(context);
 
@@ -315,7 +288,7 @@ describe('User Default Settings Dashboard', () => {
 
     it('should correctly map user overrides to localValue', async () => {
       const context = createMockContext();
-      mockCallGatewayApi.mockResolvedValue({
+      stub.resolveUserDefaults.mockResolvedValue({
         ok: true,
         data: {
           ...mockResolveDefaultsResponse,
@@ -392,11 +365,7 @@ describe('User Default Settings Dashboard', () => {
         },
       });
 
-      mockCallGatewayApi.mockResolvedValue({
-        ok: false,
-        error: 'Server error',
-        status: 500,
-      });
+      stub.updateUserDefaults.mockResolvedValue({ ok: false, error: 'Server error', status: 500 });
 
       await handleUserDefaultsButton(interaction as unknown as ButtonInteraction);
 
@@ -500,22 +469,18 @@ describe('User Default Settings Dashboard', () => {
       );
 
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxMessages'));
-      mockCallGatewayApi
-        .mockResolvedValueOnce({ ok: true, data: { configDefaults: { maxMessages: 30 } } })
-        .mockResolvedValueOnce({ ok: true, data: mockResolveDefaultsResponse });
+      stub.updateUserDefaults.mockResolvedValueOnce({
+        ok: true,
+        data: { configDefaults: { maxMessages: 30 } },
+      });
+      stub.resolveUserDefaults.mockResolvedValueOnce({
+        ok: true,
+        data: mockResolveDefaultsResponse,
+      });
 
       await handleUserDefaultsModal(interaction as never);
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/config-overrides/defaults', {
-        method: 'PATCH',
-        body: { maxMessages: 30 },
-        user: {
-          discordId: 'user-456',
-          username: 'testuser',
-          displayName: 'testuser',
-        },
-        timeout: 10000,
-      });
+      expect(stub.updateUserDefaults).toHaveBeenCalledWith({ maxMessages: 30 });
     });
 
     it('should update maxAge setting with duration string', async () => {
@@ -525,22 +490,18 @@ describe('User Default Settings Dashboard', () => {
       );
 
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxAge'));
-      mockCallGatewayApi
-        .mockResolvedValueOnce({ ok: true, data: { configDefaults: { maxAge: 7200 } } })
-        .mockResolvedValueOnce({ ok: true, data: mockResolveDefaultsResponse });
+      stub.updateUserDefaults.mockResolvedValueOnce({
+        ok: true,
+        data: { configDefaults: { maxAge: 7200 } },
+      });
+      stub.resolveUserDefaults.mockResolvedValueOnce({
+        ok: true,
+        data: mockResolveDefaultsResponse,
+      });
 
       await handleUserDefaultsModal(interaction as never);
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/config-overrides/defaults', {
-        method: 'PATCH',
-        body: { maxAge: 7200 },
-        user: {
-          discordId: 'user-456',
-          username: 'testuser',
-          displayName: 'testuser',
-        },
-        timeout: 10000,
-      });
+      expect(stub.updateUserDefaults).toHaveBeenCalledWith({ maxAge: 7200 });
     });
 
     it('should clear override when set to "auto"', async () => {
@@ -550,22 +511,15 @@ describe('User Default Settings Dashboard', () => {
       );
 
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxMessages'));
-      mockCallGatewayApi
-        .mockResolvedValueOnce({ ok: true, data: { configDefaults: null } })
-        .mockResolvedValueOnce({ ok: true, data: mockResolveDefaultsResponse });
+      stub.updateUserDefaults.mockResolvedValueOnce({ ok: true, data: { configDefaults: null } });
+      stub.resolveUserDefaults.mockResolvedValueOnce({
+        ok: true,
+        data: mockResolveDefaultsResponse,
+      });
 
       await handleUserDefaultsModal(interaction as never);
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/config-overrides/defaults', {
-        method: 'PATCH',
-        body: { maxMessages: null },
-        user: {
-          discordId: 'user-456',
-          username: 'testuser',
-          displayName: 'testuser',
-        },
-        timeout: 10000,
-      });
+      expect(stub.updateUserDefaults).toHaveBeenCalledWith({ maxMessages: null });
     });
 
     it('should handle network error gracefully', async () => {
@@ -575,12 +529,12 @@ describe('User Default Settings Dashboard', () => {
       );
 
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxMessages'));
-      mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+      stub.updateUserDefaults.mockRejectedValue(new Error('Network error'));
 
       // Should not throw
       await handleUserDefaultsModal(interaction as never);
 
-      expect(mockCallGatewayApi).toHaveBeenCalled();
+      expect(stub.updateUserDefaults).toHaveBeenCalled();
       expect(interaction.editReply).not.toHaveBeenCalled();
     });
   });

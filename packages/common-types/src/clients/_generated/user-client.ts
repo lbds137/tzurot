@@ -67,6 +67,7 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.getTimezone.output,
+      timeoutMs: ROUTE_MANIFEST.getTimezone.timeoutMs,
     });
   }
 
@@ -87,6 +88,7 @@ export class UserClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.setTimezone.output,
+      timeoutMs: ROUTE_MANIFEST.setTimezone.timeoutMs,
     });
   }
 
@@ -1168,6 +1170,7 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.listWalletKeys.output,
+      timeoutMs: ROUTE_MANIFEST.listWalletKeys.timeoutMs,
     });
   }
 
@@ -1185,6 +1188,7 @@ export class UserClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.setWalletKey.output,
+      timeoutMs: ROUTE_MANIFEST.setWalletKey.timeoutMs,
     });
   }
 
@@ -1201,6 +1205,7 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.removeWalletKey.output,
+      timeoutMs: ROUTE_MANIFEST.removeWalletKey.timeoutMs,
     });
   }
 
@@ -1218,6 +1223,7 @@ export class UserClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.testWalletKey.output,
+      timeoutMs: ROUTE_MANIFEST.testWalletKey.timeoutMs,
     });
   }
 
@@ -1648,6 +1654,7 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.resolveUserDefaults.output,
+      timeoutMs: ROUTE_MANIFEST.resolveUserDefaults.timeoutMs,
     });
   }
 
@@ -1684,6 +1691,7 @@ export class UserClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.updateUserDefaults.output,
+      timeoutMs: ROUTE_MANIFEST.updateUserDefaults.timeoutMs,
     });
   }
 

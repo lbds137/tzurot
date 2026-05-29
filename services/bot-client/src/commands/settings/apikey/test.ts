@@ -15,18 +15,10 @@ import {
   settingsApikeyTestOptions,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
+import { clientsFor } from '../../../utils/gatewayClients.js';
 import { getProviderDisplayName } from '../../../utils/providers.js';
 
 const logger = createLogger('settings-apikey-test');
-
-interface WalletTestResponse {
-  valid: boolean;
-  provider: AIProvider;
-  credits?: number;
-  error?: string;
-  errorCode?: string;
-}
 
 /**
  * Handle /wallet test <provider> subcommand
@@ -41,11 +33,8 @@ export async function handleTestKey(context: DeferredCommandContext): Promise<vo
   const provider = options.provider() as AIProvider;
 
   try {
-    const result = await callGatewayApi<WalletTestResponse>('/wallet/test', {
-      method: 'POST',
-      user: toGatewayUser(context.user),
-      body: { provider },
-    });
+    const { userClient } = clientsFor(context.interaction);
+    const result = await userClient.testWalletKey({ provider });
 
     if (!result.ok) {
       if (result.status === 404) {

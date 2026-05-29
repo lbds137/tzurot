@@ -8,6 +8,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleTimezoneGet } from './get.js';
 import { mockGetTimezoneResponse } from '@tzurot/common-types';
+import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
+import type { UserClient } from '@tzurot/common-types';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -23,19 +25,13 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-// Mock userGatewayClient
-// Note: Tests use objectContaining for API call assertions to focus on the essential
-// userId parameter while ignoring implementation details like timeout values.
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../../utils/userGatewayClient.js')>(
-    '../../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+const stub = {
+  getTimezone: vi.fn(),
+};
+
+vi.mock('../../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: stub as unknown as UserClient })),
+}));
 
 // Create mock EmbedBuilder-like objects
 function createMockEmbed(title: string, description?: string) {
@@ -74,6 +70,7 @@ describe('handleTimezoneGet', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub.getTimezone.mockReset();
     mockCreateInfoEmbed.mockImplementation((title: string, description?: string) =>
       createMockEmbed(title, description)
     );
@@ -82,24 +79,19 @@ describe('handleTimezoneGet', () => {
   function createMockContext() {
     return {
       user: { id: '123456789', username: 'testuser' },
+      interaction: {} as never,
       editReply: mockEditReply,
     } as unknown as Parameters<typeof handleTimezoneGet>[0];
   }
 
   it('should get timezone successfully', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockGetTimezoneResponse({ timezone: 'America/New_York', isDefault: false }),
-    });
+    stub.getTimezone.mockResolvedValue(
+      makeOk(mockGetTimezoneResponse({ timezone: 'America/New_York', isDefault: false }))
+    );
 
     await handleTimezoneGet(createMockContext());
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/timezone',
-      expect.objectContaining({
-        user: { discordId: '123456789', username: 'testuser', displayName: 'testuser' },
-      })
-    );
+    expect(stub.getTimezone).toHaveBeenCalled();
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
         expect.objectContaining({ data: expect.objectContaining({ title: '⏰ Your Timezone' }) }),
@@ -108,10 +100,9 @@ describe('handleTimezoneGet', () => {
   });
 
   it('should show default timezone message when using default', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockGetTimezoneResponse({ timezone: 'UTC', isDefault: true }),
-    });
+    stub.getTimezone.mockResolvedValue(
+      makeOk(mockGetTimezoneResponse({ timezone: 'UTC', isDefault: true }))
+    );
 
     await handleTimezoneGet(createMockContext());
 
@@ -127,11 +118,7 @@ describe('handleTimezoneGet', () => {
   });
 
   it('should handle API error', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      status: 500,
-      error: 'Server error',
-    });
+    stub.getTimezone.mockResolvedValue(makeErr(500, 'Server error'));
 
     await handleTimezoneGet(createMockContext());
 
@@ -141,7 +128,7 @@ describe('handleTimezoneGet', () => {
   });
 
   it('should handle exceptions', async () => {
-    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+    stub.getTimezone.mockRejectedValue(new Error('Network error'));
 
     await handleTimezoneGet(createMockContext());
 
