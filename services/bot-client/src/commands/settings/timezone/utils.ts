@@ -6,15 +6,6 @@
 import { formatFullDateTime } from '@tzurot/common-types';
 
 /**
- * Response type for timezone API calls
- */
-export interface TimezoneResponse {
-  timezone: string;
-  label?: string;
-  isDefault?: boolean;
-}
-
-/**
  * Get the current time in a timezone using centralized formatting
  */
 export function getCurrentTimeInTimezone(timezone: string): string {
