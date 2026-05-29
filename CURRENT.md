@@ -7,17 +7,17 @@
 
 ## Next Session Goal
 
-**Active epic**: **Route Manifest Scaffold + Typed-Client Codegen** ([active-epic.md](backlog/active-epic.md)) — Phase 4 nearly complete. **PR-2k shipped** (PR #1114, merged 2026-05-29): settings (timezone/apikey/defaults/preset) + commands/preset + services (nsfwVerification, PersonalityChatManager, StartupDMPrewarmer). Burn-down: **callGatewayApi 55 → 1, adminFetch 15 → 7** — and all remaining counts are inside the legacy clients themselves (`userGatewayClient.ts` / `adminApiClient.ts`); **zero load-bearing consumers remain**. All of PR-2a through PR-2k are done (see active-epic.md for the per-PR log).
+**Typed-Client epic is ✅ COMPLETE** (PR-2a→PR-2l, closed 2026-05-29 with PR #1115). Every bot-client → api-gateway callsite is on the generated typed clients; the legacy `callGatewayApi`/`adminFetch` transport, the legacy `/admin /user /internal /wallet` mounts, and the `legacy:count` gate are all deleted. **Zero legacy gateway callsites remain.** Plus the env IPv4-loopback test fix (#1116). Both merged to develop → auto-deploying to dev.
 
-**Next under the epic — the final slice**:
+**Next: human smoke-test on dev, then beta release.** None of the epic has been human-exercised in the real Discord path (only unit + claude-review + CI-integration). The reduced high-leverage sweep (generated-transport uniformity means one-per-shape proves the rest):
 
-**PR-2l: legacy deletion pass** (closes the epic). With every production consumer migrated, this is the mechanical teardown:
+- **Request-shape coverage**: `/timezone get`+`set` (user GET/POST) · `/preset browse`→open (path-param GET) · `/preset global set-default <id>`+`free-default <id>` (PR-2l's brand-new owner PUT) · `/settings apikey` add+test+remove (wallet/rate-limited path)
+- **Behaviorally-nuanced** (unit tests can't fully vouch): @mention a personality → reply (AI-chat hot path: `resolveConfig`→`resolveUserLlmConfig`, 2.5s timeout) · DM from unverified account (NSFW verify/check) · restart dev bot → watch StartupDMPrewarmer logs (`serviceClient.recentUsers`)
+- If anything breaks, generated-transport structure means it likely breaks _uniformly_ → fast to pin down.
 
-- Delete `services/bot-client/src/utils/adminApiClient.ts` and `userGatewayClient.ts` (+ their tests)
-- Remove the legacy `/admin` `/user` `/internal` mounts in api-gateway `index.ts` (keep only the `/api/*` mounts)
-- Remove the `pnpm ops legacy:count` gate + its baseline file (`.github/baselines/legacy-count-baseline.json` or similar)
-- Verify counts are zero; `pnpm test && pnpm quality` green
-- Fold in the `LlmConfigSummarySchema` tightening + `updatePreset`/`updateGlobalPreset` typed-input work if scope allows (filed in [inbox.md](backlog/inbox.md), companion to the `DbSyncResponseSchema` item)
+**Backlog after release**: PR-2m (3 items in [inbox.md](backlog/inbox.md)) — unravel the runtime-dead persona/shapes legacy route-registration layer; `LlmConfigSummarySchema` + `updatePreset`/`updateGlobalPreset` typed-input tightening (companion to `DbSyncResponseSchema`); extract `@tzurot/clients` from common-types (over the 50-export/3000-line threshold).
+
+**Backlog hygiene note**: `active-epic.md` still holds the closed typed-client epic as its historical phase log — a future session should promote the next theme into the Active Epic slot per the `06-backlog.md` rotation procedure.
 
 **Other candidates** (off-epic):
 
