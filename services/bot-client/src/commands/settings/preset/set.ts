@@ -10,19 +10,10 @@ import {
   AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
   isAutocompleteErrorSentinel,
 } from '../../../utils/apiCheck.js';
-import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
+import { clientsFor } from '../../../utils/gatewayClients.js';
 import { handleUnlockModelsUpsell, checkGuestModePremiumAccess } from './guestModeValidation.js';
 
 const logger = createLogger('settings-preset-set');
-
-interface SetResponse {
-  override: {
-    personalityId: string;
-    personalityName: string;
-    configId: string | null;
-    configName: string | null;
-  };
-}
 
 /**
  * Handle /settings preset set
@@ -43,18 +34,14 @@ export async function handleSet(context: DeferredCommandContext): Promise<void> 
   }
 
   try {
-    const user = toGatewayUser(context.user);
-    const outcome = await checkGuestModePremiumAccess(context, configId, user);
+    const { userClient } = clientsFor(context.interaction);
+    const outcome = await checkGuestModePremiumAccess(context, configId, userClient);
     if (outcome.blocked) {
       return;
     }
     const { reason } = outcome;
 
-    const result = await callGatewayApi<SetResponse>('/user/model-override', {
-      method: 'PUT',
-      user,
-      body: { personalityId, configId },
-    });
+    const result = await userClient.setModelOverride({ personalityId, configId });
 
     if (!result.ok) {
       logger.warn(

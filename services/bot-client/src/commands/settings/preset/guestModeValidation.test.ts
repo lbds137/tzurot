@@ -1,22 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import * as gatewayClient from '../../../utils/userGatewayClient.js';
 import { handleUnlockModelsUpsell, checkGuestModePremiumAccess } from './guestModeValidation.js';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import type { GatewayUser } from '../../../utils/userGatewayClient.js';
+import { makeOk, makeErr, asUserClient } from '../../../test/gatewayClientStubs.js';
 
-function mkUser(discordId = 'user-1'): GatewayUser {
-  return { discordId, username: 'test-user', displayName: 'Test User' };
+const stub = {
+  actor: 'user-1',
+  listWalletKeys: vi.fn(),
+  listUserLlmConfigs: vi.fn(),
+};
+
+function userClient(actorId = 'user-1') {
+  return asUserClient({ ...stub, actor: actorId });
 }
-
-vi.mock('../../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../../utils/userGatewayClient.js')>(
-    '../../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: vi.fn(),
-  };
-});
 
 vi.mock('./autocomplete.js', () => ({
   UNLOCK_MODELS_VALUE: '__UNLOCK_ALL_MODELS__',
@@ -48,12 +43,8 @@ describe('guestModeValidation', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // Reset the queue — after the serial-fetch refactor, the paid-user path
-    // consumes only one `callGatewayApi` mock (wallet) instead of two
-    // (wallet + configs). Without a full reset between tests, leftover
-    // `mockResolvedValueOnce` entries would bleed across tests and mis-mock
-    // later calls. `mockReset()` clears both call history and the queue.
-    vi.mocked(gatewayClient.callGatewayApi).mockReset();
+    stub.listWalletKeys.mockReset();
+    stub.listUserLlmConfigs.mockReset();
   });
 
   describe('handleUnlockModelsUpsell', () => {
@@ -76,103 +67,88 @@ describe('guestModeValidation', () => {
 
   describe('checkGuestModePremiumAccess', () => {
     it('should not block when user has active wallet keys', async () => {
-      vi.mocked(gatewayClient.callGatewayApi).mockResolvedValueOnce({
-        ok: true,
-        data: { keys: [{ provider: 'openrouter', isActive: true }] },
-      } as never);
+      stub.listWalletKeys.mockResolvedValue(
+        makeOk({ keys: [{ provider: 'openrouter', isActive: true }] })
+      );
 
-      const result = await checkGuestModePremiumAccess(createMockContext(), 'config-1', mkUser());
+      const result = await checkGuestModePremiumAccess(
+        createMockContext(),
+        'config-1',
+        userClient()
+      );
       expect(result.blocked).toBe(false);
       expect(result).toMatchObject({ blocked: false, reason: 'paid' });
-      // Guard against accidental revert to Promise.all — paid path should
-      // short-circuit after wallet fetch and never call `/user/llm-config`.
-      expect(vi.mocked(gatewayClient.callGatewayApi)).toHaveBeenCalledTimes(1);
+      // Paid path: configs not fetched
+      expect(stub.listUserLlmConfigs).not.toHaveBeenCalled();
     });
 
     it('should not block guest user selecting free model', async () => {
-      vi.mocked(gatewayClient.callGatewayApi)
-        .mockResolvedValueOnce({ ok: true, data: { keys: [] } } as never)
-        .mockResolvedValueOnce({
-          ok: true,
-          data: { configs: [{ id: 'config-1', name: 'Free Config', model: 'free-gpt' }] },
-        } as never);
+      stub.listWalletKeys.mockResolvedValue(makeOk({ keys: [] }));
+      stub.listUserLlmConfigs.mockResolvedValue(
+        makeOk({ configs: [{ id: 'config-1', name: 'Free Config', model: 'free-gpt' }] })
+      );
 
-      const result = await checkGuestModePremiumAccess(createMockContext(), 'config-1', mkUser());
+      const result = await checkGuestModePremiumAccess(
+        createMockContext(),
+        'config-1',
+        userClient()
+      );
       expect(result.blocked).toBe(false);
       expect(result).toMatchObject({ blocked: false, reason: 'guest-free-model' });
     });
 
     it('should block guest user selecting premium model', async () => {
-      vi.mocked(gatewayClient.callGatewayApi)
-        .mockResolvedValueOnce({ ok: true, data: { keys: [] } } as never)
-        .mockResolvedValueOnce({
-          ok: true,
-          data: {
-            configs: [{ id: 'config-1', name: 'Premium Config', model: 'claude-sonnet' }],
-          },
-        } as never);
+      stub.listWalletKeys.mockResolvedValue(makeOk({ keys: [] }));
+      stub.listUserLlmConfigs.mockResolvedValue(
+        makeOk({ configs: [{ id: 'config-1', name: 'Premium Config', model: 'claude-sonnet' }] })
+      );
 
-      const result = await checkGuestModePremiumAccess(createMockContext(), 'config-1', mkUser());
+      const result = await checkGuestModePremiumAccess(
+        createMockContext(),
+        'config-1',
+        userClient()
+      );
       expect(result.blocked).toBe(true);
       expect(mockEditReply).toHaveBeenCalled();
     });
 
     it('should not block when config is not found', async () => {
-      vi.mocked(gatewayClient.callGatewayApi)
-        .mockResolvedValueOnce({ ok: true, data: { keys: [] } } as never)
-        .mockResolvedValueOnce({
-          ok: true,
-          data: { configs: [{ id: 'other-config', name: 'Other', model: 'claude-sonnet' }] },
-        } as never);
+      stub.listWalletKeys.mockResolvedValue(makeOk({ keys: [] }));
+      stub.listUserLlmConfigs.mockResolvedValue(
+        makeOk({ configs: [{ id: 'other-config', name: 'Other', model: 'claude-sonnet' }] })
+      );
 
       const result = await checkGuestModePremiumAccess(
         createMockContext(),
         'config-not-found',
-        mkUser()
+        userClient()
       );
       expect(result.blocked).toBe(false);
       expect(result).toMatchObject({ blocked: false, reason: 'guest-free-model' });
     });
 
     it('should fail-open with reason=check-failed when configs API fails in guest mode', async () => {
-      // Wallet succeeded as "no keys" → we're in guest mode. But configs
-      // endpoint failed, so we can't decide if the selected config is
-      // premium or free. Fail-open with the accurate `check-failed` reason,
-      // not the misleading `guest-free-model` that the fallthrough used to
-      // produce.
-      vi.mocked(gatewayClient.callGatewayApi)
-        .mockResolvedValueOnce({ ok: true, data: { keys: [] } } as never)
-        .mockResolvedValueOnce({
-          ok: false,
-          error: 'Gateway timeout',
-          status: 504,
-        } as never);
+      stub.listWalletKeys.mockResolvedValue(makeOk({ keys: [] }));
+      stub.listUserLlmConfigs.mockResolvedValue(makeErr(504, 'Gateway timeout'));
 
-      const result = await checkGuestModePremiumAccess(createMockContext(), 'config-1', mkUser());
+      const result = await checkGuestModePremiumAccess(
+        createMockContext(),
+        'config-1',
+        userClient()
+      );
       expect(result.blocked).toBe(false);
       expect(result).toMatchObject({ blocked: false, reason: 'check-failed' });
       expect(mockEditReply).not.toHaveBeenCalled();
     });
 
     it('should fail-open when wallet API fails (ai-worker will enforce authoritatively)', async () => {
-      // Simulate a transient /wallet/list failure. The historic bug was that
-      // this was treated identically to "no keys", locking out users with
-      // active paid keys. Fix: fail-open with a warn log, trust the
-      // downstream ai-worker gate.
-      vi.mocked(gatewayClient.callGatewayApi)
-        .mockResolvedValueOnce({
-          ok: false,
-          error: 'Gateway timeout',
-          status: 504,
-        } as never)
-        .mockResolvedValueOnce({
-          ok: true,
-          data: {
-            configs: [{ id: 'config-1', name: 'Premium Config', model: 'claude-sonnet' }],
-          },
-        } as never);
+      stub.listWalletKeys.mockResolvedValue(makeErr(504, 'Gateway timeout'));
 
-      const result = await checkGuestModePremiumAccess(createMockContext(), 'config-1', mkUser());
+      const result = await checkGuestModePremiumAccess(
+        createMockContext(),
+        'config-1',
+        userClient()
+      );
       expect(result.blocked).toBe(false);
       expect(result).toMatchObject({ blocked: false, reason: 'check-failed' });
       // Critically: we must NOT have shown the "Premium Model Not Available"

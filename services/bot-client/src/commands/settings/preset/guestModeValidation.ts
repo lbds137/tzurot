@@ -7,26 +7,11 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import {
-  createLogger,
-  DISCORD_COLORS,
-  isFreeModel,
-  type ListWalletKeysResponse,
-  type LlmConfigSummary,
-} from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS, isFreeModel, type UserClient } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import {
-  callGatewayApi,
-  GATEWAY_TIMEOUTS,
-  type GatewayUser,
-} from '../../../utils/userGatewayClient.js';
 import { UNLOCK_MODELS_VALUE } from './autocomplete.js';
 
 const logger = createLogger('settings-preset-guest-mode');
-
-interface ConfigListResponse {
-  configs: LlmConfigSummary[];
-}
 
 /**
  * Show the "Unlock All Models" upsell embed when a guest user selects the upsell option.
@@ -85,20 +70,18 @@ export type GuestModeCheckOutcome =
 export async function checkGuestModePremiumAccess(
   context: DeferredCommandContext,
   configId: string,
-  user: GatewayUser
+  userClient: UserClient
 ): Promise<GuestModeCheckOutcome> {
+  const userId = userClient.actor;
   // Serial fetch: paid users (the common path) return early after only the
   // wallet check. The configs endpoint is only needed on the guest-mode
   // branch to decide free-vs-premium, so fetching it upfront in parallel
   // wasted a gateway round-trip per paid-user interaction.
-  const walletResult = await callGatewayApi<ListWalletKeysResponse>('/wallet/list', {
-    user,
-    timeout: GATEWAY_TIMEOUTS.DEFERRED,
-  });
+  const walletResult = await userClient.listWalletKeys();
 
   if (!walletResult.ok) {
     logger.warn(
-      { userId: user.discordId, configId, error: walletResult.error },
+      { userId, configId, error: walletResult.error },
       'Wallet check failed — failing open, ai-worker will enforce'
     );
     return { blocked: false, reason: 'check-failed' };
@@ -115,14 +98,11 @@ export async function checkGuestModePremiumAccess(
   // unable to decide free-vs-premium — fail-open with an accurate
   // `check-failed` reason rather than mislabeling the outcome as
   // `guest-free-model`.
-  const configsResult = await callGatewayApi<ConfigListResponse>('/user/llm-config', {
-    user,
-    timeout: GATEWAY_TIMEOUTS.DEFERRED,
-  });
+  const configsResult = await userClient.listUserLlmConfigs();
 
   if (!configsResult.ok) {
     logger.warn(
-      { userId: user.discordId, configId, error: configsResult.error },
+      { userId, configId, error: configsResult.error },
       'Config list check failed — failing open, ai-worker will enforce'
     );
     return { blocked: false, reason: 'check-failed' };
@@ -143,7 +123,7 @@ export async function checkGuestModePremiumAccess(
 
     await context.editReply({ embeds: [embed] });
     logger.info(
-      { userId: user.discordId, configId, configName: selectedConfig.name },
+      { userId, configId, configName: selectedConfig.name },
       'Guest mode user tried to select premium model'
     );
     return { blocked: true, reason: 'guest-premium' };

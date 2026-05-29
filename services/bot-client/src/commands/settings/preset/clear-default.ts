@@ -5,13 +5,9 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import {
-  createLogger,
-  DISCORD_COLORS,
-  type ClearDefaultConfigResponse,
-} from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
+import { clientsFor } from '../../../utils/gatewayClients.js';
 
 const logger = createLogger('settings-preset-clear-default');
 
@@ -22,13 +18,8 @@ export async function handleClearDefault(context: DeferredCommandContext): Promi
   const userId = context.user.id;
 
   try {
-    const result = await callGatewayApi<ClearDefaultConfigResponse>(
-      '/user/model-override/default',
-      {
-        method: 'DELETE',
-        user: toGatewayUser(context.user),
-      }
-    );
+    const { userClient } = clientsFor(context.interaction);
+    const result = await userClient.clearDefaultModelConfig();
 
     if (!result.ok) {
       logger.warn({ userId, status: result.status }, 'Failed to clear default');

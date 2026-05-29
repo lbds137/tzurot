@@ -11,17 +11,10 @@ import {
   settingsPresetSetDefaultOptions,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
+import { clientsFor } from '../../../utils/gatewayClients.js';
 import { handleUnlockModelsUpsell, checkGuestModePremiumAccess } from './guestModeValidation.js';
 
 const logger = createLogger('settings-preset-set-default');
-
-interface SetDefaultResponse {
-  default: {
-    configId: string;
-    configName: string;
-  };
-}
 
 /**
  * Handle /settings preset set-default
@@ -36,21 +29,14 @@ export async function handleSetDefault(context: DeferredCommandContext): Promise
   }
 
   try {
-    const outcome = await checkGuestModePremiumAccess(
-      context,
-      configId,
-      toGatewayUser(context.user)
-    );
+    const { userClient } = clientsFor(context.interaction);
+    const outcome = await checkGuestModePremiumAccess(context, configId, userClient);
     if (outcome.blocked) {
       return;
     }
     const { reason } = outcome;
 
-    const result = await callGatewayApi<SetDefaultResponse>('/user/model-override/default', {
-      method: 'PUT',
-      user: toGatewayUser(context.user),
-      body: { configId },
-    });
+    const result = await userClient.setDefaultModelConfig({ configId });
 
     if (!result.ok) {
       logger.warn({ userId, status: result.status, configId }, 'Failed to set default');

@@ -91,6 +91,8 @@ export type ClearDefaultConfigResponse = z.infer<typeof ClearDefaultConfigRespon
 
 export const DeleteModelOverrideResponseSchema = z.object({
   deleted: z.literal(true),
+  /** Handler emits `false` when no override existed; omitted when one was removed. */
+  wasSet: z.boolean().optional(),
 });
 export type DeleteModelOverrideResponse = z.infer<typeof DeleteModelOverrideResponseSchema>;
 

@@ -8,19 +8,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleClearDefault } from './clear-default.js';
 import { mockClearDefaultConfigResponse } from '@tzurot/common-types';
+import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
+import type { UserClient } from '@tzurot/common-types';
 
-// Mock userGatewayClient
-vi.mock('../../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../../utils/userGatewayClient.js')>(
-    '../../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: vi.fn(),
-  };
-});
+const stub = {
+  clearDefaultModelConfig: vi.fn(),
+};
 
-import { callGatewayApi } from '../../../utils/userGatewayClient.js';
+vi.mock('../../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: stub as unknown as UserClient })),
+}));
 
 // Mock logger
 vi.mock('@tzurot/common-types', async () => {
@@ -41,39 +38,28 @@ describe('handleClearDefault', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub.clearDefaultModelConfig.mockReset();
     mockEditReply.mockResolvedValue(undefined);
   });
 
   function createMockContext() {
     return {
       user: { id: '123456789', username: 'testuser' },
+      interaction: {} as never,
       editReply: mockEditReply,
     } as unknown as Parameters<typeof handleClearDefault>[0];
   }
 
-  it('should call gateway API with DELETE method', async () => {
-    vi.mocked(callGatewayApi).mockResolvedValue({
-      ok: true,
-      data: mockClearDefaultConfigResponse(),
-    });
+  it('should call clearDefaultModelConfig on the typed client', async () => {
+    stub.clearDefaultModelConfig.mockResolvedValue(makeOk(mockClearDefaultConfigResponse()));
 
     await handleClearDefault(createMockContext());
 
-    expect(callGatewayApi).toHaveBeenCalledWith('/user/model-override/default', {
-      method: 'DELETE',
-      user: {
-        discordId: '123456789',
-        username: 'testuser',
-        displayName: 'testuser',
-      },
-    });
+    expect(stub.clearDefaultModelConfig).toHaveBeenCalled();
   });
 
   it('should show success embed when config cleared', async () => {
-    vi.mocked(callGatewayApi).mockResolvedValue({
-      ok: true,
-      data: mockClearDefaultConfigResponse(),
-    });
+    stub.clearDefaultModelConfig.mockResolvedValue(makeOk(mockClearDefaultConfigResponse()));
 
     await handleClearDefault(createMockContext());
 
@@ -89,12 +75,13 @@ describe('handleClearDefault', () => {
   });
 
   it('should render the new effective default name when one exists', async () => {
-    vi.mocked(callGatewayApi).mockResolvedValue({
-      ok: true,
-      data: mockClearDefaultConfigResponse({
-        newEffectiveDefault: { id: 'free-id', name: 'gpt-4-free' },
-      }),
-    });
+    stub.clearDefaultModelConfig.mockResolvedValue(
+      makeOk(
+        mockClearDefaultConfigResponse({
+          newEffectiveDefault: { id: 'free-id', name: 'gpt-4-free' },
+        })
+      )
+    );
 
     await handleClearDefault(createMockContext());
 
@@ -110,10 +97,9 @@ describe('handleClearDefault', () => {
   });
 
   it('should render hardcoded-fallback notice when no system default is configured', async () => {
-    vi.mocked(callGatewayApi).mockResolvedValue({
-      ok: true,
-      data: mockClearDefaultConfigResponse({ newEffectiveDefault: null }),
-    });
+    stub.clearDefaultModelConfig.mockResolvedValue(
+      makeOk(mockClearDefaultConfigResponse({ newEffectiveDefault: null }))
+    );
 
     await handleClearDefault(createMockContext());
 
@@ -129,11 +115,7 @@ describe('handleClearDefault', () => {
   });
 
   it('should show error when API fails', async () => {
-    vi.mocked(callGatewayApi).mockResolvedValue({
-      ok: false,
-      status: 500,
-      error: 'Internal server error',
-    });
+    stub.clearDefaultModelConfig.mockResolvedValue(makeErr(500, 'Internal server error'));
 
     await handleClearDefault(createMockContext());
 
@@ -143,7 +125,7 @@ describe('handleClearDefault', () => {
   });
 
   it('should handle exceptions', async () => {
-    vi.mocked(callGatewayApi).mockRejectedValue(new Error('Network error'));
+    stub.clearDefaultModelConfig.mockRejectedValue(new Error('Network error'));
 
     await handleClearDefault(createMockContext());
 

@@ -12,6 +12,8 @@ import {
   mockListWalletKeysResponse,
   mockListLlmConfigsResponse,
 } from '@tzurot/common-types';
+import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
+import type { UserClient } from '@tzurot/common-types';
 
 // Mock logger
 vi.mock('@tzurot/common-types', async () => {
@@ -27,24 +29,24 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
-// Mock the gateway client
-vi.mock('../../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../../utils/userGatewayClient.js')>(
-    '../../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: vi.fn(),
-  };
-});
+const stub = {
+  listWalletKeys: vi.fn(),
+  listUserLlmConfigs: vi.fn(),
+  setDefaultModelConfig: vi.fn(),
+};
 
-import { callGatewayApi } from '../../../utils/userGatewayClient.js';
+vi.mock('../../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: stub as unknown as UserClient })),
+}));
 
 describe('handleSetDefault', () => {
   const mockEditReply = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub.listWalletKeys.mockReset();
+    stub.listUserLlmConfigs.mockReset();
+    stub.setDefaultModelConfig.mockReset();
     mockEditReply.mockResolvedValue(undefined);
   });
 
@@ -60,48 +62,28 @@ describe('handleSetDefault', () => {
     } as unknown as Parameters<typeof handleSetDefault>[0];
   }
 
-  // Helper to mock all API calls for a non-guest user with free config
+  // Helper to mock all stubs for a non-guest user with free config
   function mockNonGuestUserApis(configId: string, configName: string) {
-    vi.mocked(callGatewayApi).mockImplementation(((path: string) => {
-      if (path === '/wallet/list') {
-        return Promise.resolve({
-          ok: true as const,
-          data: mockListWalletKeysResponse([{ isActive: true }]),
-        });
-      }
-      if (path === '/user/llm-config') {
-        return Promise.resolve({
-          ok: true as const,
-          data: mockListLlmConfigsResponse([
-            { id: configId, name: configName, model: 'openai/gpt-4o-mini' },
-          ]),
-        });
-      }
-      if (path === '/user/model-override/default') {
-        return Promise.resolve({
-          ok: true as const,
-          data: mockSetDefaultConfigResponse({
-            default: { configId, configName },
-          }),
-        });
-      }
-      return Promise.resolve({ ok: false as const, error: 'Unknown path' });
-    }) as never);
+    stub.listWalletKeys.mockResolvedValue(makeOk(mockListWalletKeysResponse([{ isActive: true }])));
+    stub.listUserLlmConfigs.mockResolvedValue(
+      makeOk(
+        mockListLlmConfigsResponse([
+          { id: configId, name: configName, model: 'openai/gpt-4o-mini' },
+        ])
+      )
+    );
+    stub.setDefaultModelConfig.mockResolvedValue(
+      makeOk(mockSetDefaultConfigResponse({ default: { configId, configName } }))
+    );
   }
 
-  it('should call API with correct parameters', async () => {
+  it('should call setDefaultModelConfig with correct parameters', async () => {
     mockNonGuestUserApis('00000000-0000-4000-8000-000000000456', 'Test Config');
 
     await handleSetDefault(createMockContext('00000000-0000-4000-8000-000000000456'));
 
-    expect(callGatewayApi).toHaveBeenCalledWith('/user/model-override/default', {
-      method: 'PUT',
-      user: {
-        discordId: 'user-123',
-        username: 'testuser',
-        displayName: 'testuser',
-      },
-      body: { configId: '00000000-0000-4000-8000-000000000456' },
+    expect(stub.setDefaultModelConfig).toHaveBeenCalledWith({
+      configId: '00000000-0000-4000-8000-000000000456',
     });
   });
 
@@ -122,35 +104,20 @@ describe('handleSetDefault', () => {
   });
 
   it('should show error when API returns error', async () => {
-    vi.mocked(callGatewayApi).mockImplementation(((path: string) => {
-      if (path === '/wallet/list') {
-        return Promise.resolve({
-          ok: true as const,
-          data: mockListWalletKeysResponse([{ isActive: true }]),
-        });
-      }
-      if (path === '/user/llm-config') {
-        return Promise.resolve({
-          ok: true as const,
-          data: mockListLlmConfigsResponse([
-            {
-              id: '00000000-0000-4000-8000-000000000123',
-              name: 'Test',
-              model: 'openai/gpt-4o-mini',
-              provider: 'openrouter',
-            },
-          ]),
-        });
-      }
-      if (path === '/user/model-override/default') {
-        return Promise.resolve({
-          ok: false,
-          error: 'Config not found',
-          status: 404,
-        });
-      }
-      return Promise.resolve({ ok: false as const, error: 'Unknown path' });
-    }) as never);
+    stub.listWalletKeys.mockResolvedValue(makeOk(mockListWalletKeysResponse([{ isActive: true }])));
+    stub.listUserLlmConfigs.mockResolvedValue(
+      makeOk(
+        mockListLlmConfigsResponse([
+          {
+            id: '00000000-0000-4000-8000-000000000123',
+            name: 'Test',
+            model: 'openai/gpt-4o-mini',
+            provider: 'openrouter',
+          },
+        ])
+      )
+    );
+    stub.setDefaultModelConfig.mockResolvedValue(makeErr(404, 'Config not found'));
 
     await handleSetDefault(createMockContext('00000000-0000-4000-8000-000000000123'));
 
@@ -160,7 +127,7 @@ describe('handleSetDefault', () => {
   });
 
   it('should handle network errors', async () => {
-    vi.mocked(callGatewayApi).mockRejectedValue(new Error('Network error'));
+    stub.listWalletKeys.mockRejectedValue(new Error('Network error'));
 
     await handleSetDefault(createMockContext('00000000-0000-4000-8000-000000000123'));
 
@@ -170,39 +137,23 @@ describe('handleSetDefault', () => {
   });
 
   it('should show error when guest user tries to set premium model as default', async () => {
-    vi.mocked(callGatewayApi).mockImplementation(((path: string) => {
-      if (path === '/wallet/list') {
-        // No active wallet keys = guest mode
-        return Promise.resolve({
-          ok: true as const,
-          data: mockListWalletKeysResponse([]),
-        });
-      }
-      if (path === '/user/llm-config') {
-        return Promise.resolve({
-          ok: true as const,
-          data: mockListLlmConfigsResponse([
-            {
-              id: '00000000-0000-4000-8000-000000000100',
-              name: 'Premium Config',
-              model: 'openai/gpt-4o',
-              provider: 'openrouter',
-            },
-          ]),
-        });
-      }
-      return Promise.resolve({ ok: false as const, error: 'Should not be called' });
-    }) as never);
+    stub.listWalletKeys.mockResolvedValue(makeOk(mockListWalletKeysResponse([])));
+    stub.listUserLlmConfigs.mockResolvedValue(
+      makeOk(
+        mockListLlmConfigsResponse([
+          {
+            id: '00000000-0000-4000-8000-000000000100',
+            name: 'Premium Config',
+            model: 'openai/gpt-4o',
+            provider: 'openrouter',
+          },
+        ])
+      )
+    );
 
     await handleSetDefault(createMockContext('00000000-0000-4000-8000-000000000100'));
 
-    // Should NOT call the set-default API
-    expect(callGatewayApi).not.toHaveBeenCalledWith(
-      '/user/model-override/default',
-      expect.anything()
-    );
-
-    // Should show error embed
+    expect(stub.setDefaultModelConfig).not.toHaveBeenCalled();
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
         expect.objectContaining({
@@ -215,55 +166,32 @@ describe('handleSetDefault', () => {
   });
 
   it('should allow guest user to set free model as default', async () => {
-    vi.mocked(callGatewayApi).mockImplementation(((path: string) => {
-      if (path === '/wallet/list') {
-        // No active wallet keys = guest mode
-        return Promise.resolve({
-          ok: true as const,
-          data: mockListWalletKeysResponse([]),
-        });
-      }
-      if (path === '/user/llm-config') {
-        return Promise.resolve({
-          ok: true as const,
-          data: mockListLlmConfigsResponse([
-            {
-              id: '00000000-0000-4000-8000-000000000f00',
-              name: 'Free Config',
-              model: 'meta-llama/llama-3.3-70b-instruct:free',
-              provider: 'openrouter',
-            },
-          ]),
-        });
-      }
-      if (path === '/user/model-override/default') {
-        return Promise.resolve({
-          ok: true as const,
-          data: mockSetDefaultConfigResponse({
-            default: {
-              configId: '00000000-0000-4000-8000-000000000f00',
-              configName: 'Free Config',
-            },
-          }),
-        });
-      }
-      return Promise.resolve({ ok: false as const, error: 'Unknown path' });
-    }) as never);
+    stub.listWalletKeys.mockResolvedValue(makeOk(mockListWalletKeysResponse([])));
+    stub.listUserLlmConfigs.mockResolvedValue(
+      makeOk(
+        mockListLlmConfigsResponse([
+          {
+            id: '00000000-0000-4000-8000-000000000f00',
+            name: 'Free Config',
+            model: 'meta-llama/llama-3.3-70b-instruct:free',
+            provider: 'openrouter',
+          },
+        ])
+      )
+    );
+    stub.setDefaultModelConfig.mockResolvedValue(
+      makeOk(
+        mockSetDefaultConfigResponse({
+          default: { configId: '00000000-0000-4000-8000-000000000f00', configName: 'Free Config' },
+        })
+      )
+    );
 
     await handleSetDefault(createMockContext('00000000-0000-4000-8000-000000000f00'));
 
-    // Should call the set-default API
-    expect(callGatewayApi).toHaveBeenCalledWith('/user/model-override/default', {
-      method: 'PUT',
-      user: {
-        discordId: 'user-123',
-        username: 'testuser',
-        displayName: 'testuser',
-      },
-      body: { configId: '00000000-0000-4000-8000-000000000f00' },
+    expect(stub.setDefaultModelConfig).toHaveBeenCalledWith({
+      configId: '00000000-0000-4000-8000-000000000f00',
     });
-
-    // Should show success embed
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
         expect.objectContaining({

@@ -21,30 +21,23 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
-// Mock the gateway client
-vi.mock('../../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../../utils/userGatewayClient.js')>(
-    '../../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: vi.fn(),
-  };
-});
-
 // Mock the autocomplete cache
 const mockGetCachedPersonalities = vi.fn();
 vi.mock('../../../utils/autocomplete/autocompleteCache.js', () => ({
   getCachedPersonalities: (...args: unknown[]) => mockGetCachedPersonalities(...args),
 }));
 
-// Mock clientsFor — the cache mock returns ok directly, so a structurally
-// empty userClient stub suffices.
+const stub = {
+  listUserLlmConfigs: vi.fn(),
+  listWalletKeys: vi.fn(),
+};
+
 vi.mock('../../../utils/gatewayClients.js', () => ({
-  clientsFor: vi.fn(() => ({ userClient: {} })),
+  clientsFor: vi.fn(() => ({
+    userClient: stub as unknown as import('@tzurot/common-types').UserClient,
+  })),
 }));
 
-import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 import { UNLOCK_MODELS_VALUE } from './autocomplete.js';
 import type { PersonalitySummary } from '@tzurot/common-types';
 
@@ -70,17 +63,10 @@ function mockConfigApis(
   configs: ReturnType<typeof mockLlmConfigSummary>[],
   hasActiveWallet: boolean
 ) {
-  vi.mocked(callGatewayApi).mockImplementation((path: string) => {
-    if (path === '/user/llm-config') {
-      return Promise.resolve({ ok: true, data: { configs } });
-    }
-    if (path === '/wallet/list') {
-      return Promise.resolve({
-        ok: true,
-        data: mockListWalletKeysResponse(hasActiveWallet ? [{ isActive: true }] : []),
-      });
-    }
-    return Promise.resolve({ ok: false, error: 'Unknown path', status: 404 });
+  stub.listUserLlmConfigs.mockResolvedValue({ ok: true, data: { configs } });
+  stub.listWalletKeys.mockResolvedValue({
+    ok: true,
+    data: mockListWalletKeysResponse(hasActiveWallet ? [{ isActive: true }] : []),
   });
 }
 
@@ -311,9 +297,7 @@ describe('handleAutocomplete', () => {
 
       await handleAutocomplete(mockInteraction);
 
-      expect(callGatewayApi).toHaveBeenCalledWith('/user/llm-config', {
-        user: { discordId: 'user-123', username: 'testuser', displayName: 'testuser' },
-      });
+      expect(stub.listUserLlmConfigs).toHaveBeenCalled();
       expect(mockInteraction.respond).toHaveBeenCalledWith([
         {
           name: '🌐⭐ Claude Config · claude-sonnet-4',
@@ -400,11 +384,8 @@ describe('handleAutocomplete', () => {
         name: 'preset',
         value: 'test',
       } as unknown as string);
-      vi.mocked(callGatewayApi).mockResolvedValue({
-        ok: false,
-        error: 'API error',
-        status: 500,
-      });
+      stub.listUserLlmConfigs.mockResolvedValue({ ok: false, error: 'API error', status: 500 });
+      stub.listWalletKeys.mockResolvedValue({ ok: true, data: { keys: [] } });
 
       await handleAutocomplete(mockInteraction);
 
@@ -525,37 +506,30 @@ describe('handleAutocomplete', () => {
         name: 'preset',
         value: '',
       } as unknown as string);
-      vi.mocked(callGatewayApi).mockImplementation((path: string) => {
-        if (path === '/user/llm-config') {
-          return Promise.resolve({
-            ok: true,
-            data: {
-              configs: [
-                mockLlmConfigSummary({
-                  id: '00000000-0000-4000-8000-0000000000c1',
-                  name: 'Claude Pro',
-                  model: 'anthropic/claude-sonnet-4',
-                  provider: 'openrouter',
-                  isGlobal: true,
-                  isOwned: false,
-                }),
-                mockLlmConfigSummary({
-                  id: '00000000-0000-4000-8000-0000000000c2',
-                  name: 'Grok Free',
-                  model: 'x-ai/grok-4.1-fast:free',
-                  provider: 'openrouter',
-                  isGlobal: true,
-                  isOwned: false,
-                }),
-              ],
-            },
-          });
-        }
-        if (path === '/wallet/list') {
-          return Promise.resolve({ ok: false, error: 'Gateway timeout', status: 504 });
-        }
-        return Promise.resolve({ ok: false, error: 'Unknown path', status: 404 });
+      stub.listUserLlmConfigs.mockResolvedValue({
+        ok: true,
+        data: {
+          configs: [
+            mockLlmConfigSummary({
+              id: '00000000-0000-4000-8000-0000000000c1',
+              name: 'Claude Pro',
+              model: 'anthropic/claude-sonnet-4',
+              provider: 'openrouter',
+              isGlobal: true,
+              isOwned: false,
+            }),
+            mockLlmConfigSummary({
+              id: '00000000-0000-4000-8000-0000000000c2',
+              name: 'Grok Free',
+              model: 'x-ai/grok-4.1-fast:free',
+              provider: 'openrouter',
+              isGlobal: true,
+              isOwned: false,
+            }),
+          ],
+        },
       });
+      stub.listWalletKeys.mockResolvedValue({ ok: false, error: 'Gateway timeout', status: 504 });
 
       await handleAutocomplete(mockInteraction);
 
@@ -618,7 +592,7 @@ describe('handleAutocomplete', () => {
         name: 'character',
         value: 'test',
       } as unknown as string);
-      vi.mocked(callGatewayApi).mockRejectedValue(new Error('Network error'));
+      mockGetCachedPersonalities.mockRejectedValue(new Error('Network error'));
 
       await handleAutocomplete(mockInteraction);
 
