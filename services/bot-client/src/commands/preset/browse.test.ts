@@ -3,19 +3,11 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { ButtonInteraction } from 'discord.js';
-import {
-  handleBrowse,
-  handleBrowsePagination,
-  handleBrowseSelect,
-  isPresetBrowseInteraction,
-  isPresetBrowseSelectInteraction,
-} from './browse.js';
-import { registerBrowseRebuilder } from '../../utils/dashboard/index.js';
-import type { StringSelectMenuInteraction } from 'discord.js';
+import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import { mockListLlmConfigsResponse, mockListWalletKeysResponse } from '@tzurot/common-types';
+import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
+import { registerBrowseRebuilder } from '../../utils/dashboard/index.js';
 
-// Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
   return {
@@ -29,17 +21,10 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-// Mock userGatewayClient
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
 
 // Mock dashboard utilities
 const mockBuildDashboardEmbed = vi.fn(() => ({ toJSON: () => ({ title: 'Dashboard' }) }));
@@ -75,11 +60,42 @@ vi.mock('./config.js', () => ({
   }),
 }));
 
+const {
+  handleBrowse,
+  handleBrowsePagination,
+  handleBrowseSelect,
+  isPresetBrowseInteraction,
+  isPresetBrowseSelectInteraction,
+} = await import('./browse.js');
+
+interface UserClientStub {
+  listUserLlmConfigs: ReturnType<typeof vi.fn>;
+  listWalletKeys: ReturnType<typeof vi.fn>;
+}
+
+function createStub(): UserClientStub {
+  return { listUserLlmConfigs: vi.fn(), listWalletKeys: vi.fn() };
+}
+
+function configurePresets(
+  stub: UserClientStub,
+  presets: Parameters<typeof mockListLlmConfigsResponse>[0],
+  hasWallet = true
+): void {
+  stub.listUserLlmConfigs.mockResolvedValue(makeOk(mockListLlmConfigsResponse(presets)));
+  stub.listWalletKeys.mockResolvedValue(
+    makeOk(mockListWalletKeysResponse(hasWallet ? [{ isActive: true }] : []))
+  );
+}
+
 describe('handleBrowse', () => {
   const mockEditReply = vi.fn();
+  let stub: UserClientStub;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = createStub();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
   });
 
   function createMockContext(query: string | null = null, filter: string | null = null) {
@@ -98,29 +114,8 @@ describe('handleBrowse', () => {
     } as unknown as Parameters<typeof handleBrowse>[0];
   }
 
-  function mockPresetApis(
-    presets: Parameters<typeof mockListLlmConfigsResponse>[0],
-    hasWallet = true
-  ) {
-    mockCallGatewayApi.mockImplementation((path: string) => {
-      if (path === '/user/llm-config') {
-        return Promise.resolve({
-          ok: true,
-          data: mockListLlmConfigsResponse(presets),
-        });
-      }
-      if (path === '/wallet/list') {
-        return Promise.resolve({
-          ok: true,
-          data: mockListWalletKeysResponse(hasWallet ? [{ isActive: true }] : []),
-        });
-      }
-      return Promise.resolve({ ok: false, error: 'Unknown path' });
-    });
-  }
-
   it('should browse presets with default settings (no filter, no query)', async () => {
-    mockPresetApis([
+    configurePresets(stub, [
       {
         id: '00000000-0000-4000-8000-000000000001',
         name: 'Default',
@@ -144,14 +139,7 @@ describe('handleBrowse', () => {
     const context = createMockContext();
     await handleBrowse(context);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/llm-config', {
-      user: {
-        discordId: '123456789',
-        username: 'testuser',
-        displayName: 'testuser',
-      },
-      timeout: 10000,
-    });
+    expect(stub.listUserLlmConfigs).toHaveBeenCalled();
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
         expect.objectContaining({
@@ -163,15 +151,13 @@ describe('handleBrowse', () => {
       components: expect.any(Array), // Select menu for choosing preset
     });
 
-    // Verify components include select menu (no pagination buttons for small lists)
     const components = mockEditReply.mock.calls[0][0].components;
     expect(components).toHaveLength(1); // Just select menu, no pagination
-    // Custom ID now includes browse context: preset::browse-select::page::filter::query
     expect(components[0].components[0].data.custom_id).toBe('preset::browse-select::0::all::');
   });
 
   it('should filter by global presets', async () => {
-    mockPresetApis([
+    configurePresets(stub, [
       {
         id: '00000000-0000-4000-8000-000000000001',
         name: 'Default',
@@ -194,13 +180,12 @@ describe('handleBrowse', () => {
     await handleBrowse(context);
 
     const embedData = mockEditReply.mock.calls[0][0].embeds[0].data;
-    // Should only show global presets
     expect(embedData.description).toContain('Default');
     expect(embedData.description).not.toContain('MyPreset');
   });
 
   it('should filter by owned presets', async () => {
-    mockPresetApis([
+    configurePresets(stub, [
       {
         id: '00000000-0000-4000-8000-000000000001',
         name: 'Default',
@@ -223,13 +208,12 @@ describe('handleBrowse', () => {
     await handleBrowse(context);
 
     const embedData = mockEditReply.mock.calls[0][0].embeds[0].data;
-    // Should only show owned presets
     expect(embedData.description).not.toContain('Default');
     expect(embedData.description).toContain('MyPreset');
   });
 
   it('should filter by free presets', async () => {
-    mockPresetApis([
+    configurePresets(stub, [
       {
         id: '00000000-0000-4000-8000-000000000001',
         name: 'Paid Model',
@@ -252,13 +236,12 @@ describe('handleBrowse', () => {
     await handleBrowse(context);
 
     const embedData = mockEditReply.mock.calls[0][0].embeds[0].data;
-    // Should only show free presets
     expect(embedData.description).not.toContain('Paid Model');
     expect(embedData.description).toContain('Free Model');
   });
 
   it('should search by query', async () => {
-    mockPresetApis([
+    configurePresets(stub, [
       {
         id: '00000000-0000-4000-8000-000000000001',
         name: 'Claude Default',
@@ -281,14 +264,14 @@ describe('handleBrowse', () => {
     await handleBrowse(context);
 
     const embedData = mockEditReply.mock.calls[0][0].embeds[0].data;
-    // Should only show matching presets
     expect(embedData.description).toContain('Claude Default');
     expect(embedData.description).not.toContain('GPT Config');
     expect(embedData.description).toContain('Searching: "claude"');
   });
 
   it('should show guest mode warning when no active wallet', async () => {
-    mockPresetApis(
+    configurePresets(
+      stub,
       [
         {
           id: '00000000-0000-4000-8000-000000000001',
@@ -299,7 +282,7 @@ describe('handleBrowse', () => {
           isOwned: false,
         },
       ],
-      false // No wallet
+      false
     );
 
     const context = createMockContext();
@@ -310,7 +293,7 @@ describe('handleBrowse', () => {
   });
 
   it('should show no results message when filter produces empty results', async () => {
-    mockPresetApis([
+    configurePresets(stub, [
       {
         id: '00000000-0000-4000-8000-000000000001',
         name: 'Global Only',
@@ -329,11 +312,8 @@ describe('handleBrowse', () => {
   });
 
   it('should handle API error', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      status: 500,
-      error: 'Server error',
-    });
+    stub.listUserLlmConfigs.mockResolvedValue(makeErr(500, 'Server error'));
+    stub.listWalletKeys.mockResolvedValue(makeErr(500, 'Server error'));
 
     const context = createMockContext();
     await handleBrowse(context);
@@ -344,7 +324,8 @@ describe('handleBrowse', () => {
   });
 
   it('should handle exceptions', async () => {
-    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+    stub.listUserLlmConfigs.mockRejectedValue(new Error('Network error'));
+    stub.listWalletKeys.mockRejectedValue(new Error('Network error'));
 
     const context = createMockContext();
     await handleBrowse(context);
@@ -358,9 +339,12 @@ describe('handleBrowse', () => {
 describe('handleBrowsePagination', () => {
   const mockDeferUpdate = vi.fn();
   const mockEditReply = vi.fn();
+  let stub: UserClientStub;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = createStub();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
   });
 
   function createMockButtonInteraction(customId: string) {
@@ -372,37 +356,16 @@ describe('handleBrowsePagination', () => {
     } as unknown as ButtonInteraction;
   }
 
-  function mockPresetApis(
-    presets: Parameters<typeof mockListLlmConfigsResponse>[0],
-    hasWallet = true
-  ) {
-    mockCallGatewayApi.mockImplementation((path: string) => {
-      if (path === '/user/llm-config') {
-        return Promise.resolve({
-          ok: true,
-          data: mockListLlmConfigsResponse(presets),
-        });
-      }
-      if (path === '/wallet/list') {
-        return Promise.resolve({
-          ok: true,
-          data: mockListWalletKeysResponse(hasWallet ? [{ isActive: true }] : []),
-        });
-      }
-      return Promise.resolve({ ok: false, error: 'Unknown path' });
-    });
-  }
-
   it('should return early for invalid custom ID', async () => {
     const mockInteraction = createMockButtonInteraction('invalid::custom::id');
     await handleBrowsePagination(mockInteraction);
 
     expect(mockDeferUpdate).not.toHaveBeenCalled();
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(stub.listUserLlmConfigs).not.toHaveBeenCalled();
   });
 
   it('should defer update on pagination', async () => {
-    mockPresetApis([
+    configurePresets(stub, [
       {
         id: '00000000-0000-4000-8000-000000000001',
         name: 'Default',
@@ -419,7 +382,7 @@ describe('handleBrowsePagination', () => {
   });
 
   it('should refresh data and update reply', async () => {
-    mockPresetApis([
+    configurePresets(stub, [
       {
         id: '00000000-0000-4000-8000-000000000001',
         name: 'Default',
@@ -432,14 +395,7 @@ describe('handleBrowsePagination', () => {
     const mockInteraction = createMockButtonInteraction('preset::browse::0::all::');
     await handleBrowsePagination(mockInteraction);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/llm-config', {
-      user: {
-        discordId: '123456789',
-        username: 'testuser',
-        displayName: 'testuser',
-      },
-      timeout: 10000,
-    });
+    expect(stub.listUserLlmConfigs).toHaveBeenCalled();
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: expect.any(Array),
       components: expect.any(Array),
@@ -447,7 +403,7 @@ describe('handleBrowsePagination', () => {
   });
 
   it('should apply filter from custom ID', async () => {
-    mockPresetApis([
+    configurePresets(stub, [
       {
         id: '00000000-0000-4000-8000-000000000001',
         name: 'Global',
@@ -475,7 +431,7 @@ describe('handleBrowsePagination', () => {
   });
 
   it('should apply query from custom ID', async () => {
-    mockPresetApis([
+    configurePresets(stub, [
       {
         id: '00000000-0000-4000-8000-000000000001',
         name: 'Claude Config',
@@ -501,11 +457,8 @@ describe('handleBrowsePagination', () => {
   });
 
   it('should handle API error silently (keep existing content)', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      status: 500,
-      error: 'Server error',
-    });
+    stub.listUserLlmConfigs.mockResolvedValue(makeErr(500, 'Server error'));
+    stub.listWalletKeys.mockResolvedValue(makeErr(500, 'Server error'));
 
     const mockInteraction = createMockButtonInteraction('preset::browse::1::all::');
     await handleBrowsePagination(mockInteraction);
@@ -515,11 +468,11 @@ describe('handleBrowsePagination', () => {
   });
 
   it('should handle exceptions gracefully', async () => {
-    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+    stub.listUserLlmConfigs.mockRejectedValue(new Error('Network error'));
+    stub.listWalletKeys.mockRejectedValue(new Error('Network error'));
 
     const mockInteraction = createMockButtonInteraction('preset::browse::1::all::');
 
-    // Should not throw
     await expect(handleBrowsePagination(mockInteraction)).resolves.not.toThrow();
     expect(mockEditReply).not.toHaveBeenCalled();
   });
@@ -552,9 +505,12 @@ describe('isPresetBrowseSelectInteraction', () => {
 describe('handleBrowseSelect', () => {
   const mockDeferUpdate = vi.fn();
   const mockEditReply = vi.fn();
+  let stub: UserClientStub;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = createStub();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
   });
 
   function createMockSelectInteraction(presetId: string) {
@@ -583,11 +539,7 @@ describe('handleBrowseSelect', () => {
     await handleBrowseSelect(mockInteraction);
 
     expect(mockDeferUpdate).toHaveBeenCalled();
-    expect(mockFetchPreset).toHaveBeenCalledWith('preset-123', {
-      discordId: '123456789',
-      username: 'testuser',
-      displayName: 'testuser',
-    });
+    expect(mockFetchPreset).toHaveBeenCalledWith('preset-123', expect.anything());
     expect(mockBuildDashboardEmbed).toHaveBeenCalled();
     expect(mockBuildDashboardComponents).toHaveBeenCalled();
     expect(mockEditReply).toHaveBeenCalled();
@@ -640,6 +592,14 @@ if (presetRebuilderCall === undefined) {
 const presetRebuilder = presetRebuilderCall[1];
 
 describe('registered browse rebuilder', () => {
+  let stub: UserClientStub;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stub = createStub();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
+  });
+
   function createMockInteraction() {
     return { user: { id: '123456789', username: 'testuser' } } as unknown as Parameters<
       typeof presetRebuilder
@@ -647,30 +607,16 @@ describe('registered browse rebuilder', () => {
   }
 
   it('returns rebuilt view with banner on success', async () => {
-    mockCallGatewayApi.mockImplementation((path: string) => {
-      if (path === '/user/llm-config') {
-        return Promise.resolve({
-          ok: true,
-          data: mockListLlmConfigsResponse([
-            {
-              id: '00000000-0000-4000-8000-000000000001',
-              name: 'Default',
-              model: 'anthropic/claude-sonnet-4',
-              provider: 'openrouter',
-              isGlobal: true,
-              isOwned: false,
-            },
-          ]),
-        });
-      }
-      if (path === '/wallet/list') {
-        return Promise.resolve({
-          ok: true,
-          data: mockListWalletKeysResponse([{ isActive: true }]),
-        });
-      }
-      return Promise.resolve({ ok: false, error: 'Unknown' });
-    });
+    configurePresets(stub, [
+      {
+        id: '00000000-0000-4000-8000-000000000001',
+        name: 'Default',
+        model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
+        isGlobal: true,
+        isOwned: false,
+      },
+    ]);
 
     const result = await presetRebuilder(
       createMockInteraction(),
@@ -687,7 +633,8 @@ describe('registered browse rebuilder', () => {
   });
 
   it('returns null when gateway fetch fails', async () => {
-    mockCallGatewayApi.mockResolvedValue({ ok: false, error: 'Server error' });
+    stub.listUserLlmConfigs.mockResolvedValue(makeErr(500, 'Server error'));
+    stub.listWalletKeys.mockResolvedValue(makeErr(500, 'Server error'));
 
     const result = await presetRebuilder(
       createMockInteraction(),

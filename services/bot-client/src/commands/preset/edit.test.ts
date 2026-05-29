@@ -30,6 +30,12 @@ vi.mock('./api.js', () => ({
   fetchPreset: (...args: unknown[]) => mockFetchPreset(...args),
 }));
 
+// Sentinel userClient flowing from `clientsFor(interaction)` into `fetchPreset`.
+const TEST_USER_CLIENT = { actor: 'user-456' };
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: TEST_USER_CLIENT, ownerClient: { actor: 'owner' } })),
+}));
+
 // Mock dashboard utilities
 const mockBuildDashboardEmbed = vi.fn().mockReturnValue({ title: 'Test Embed' });
 const mockBuildDashboardComponents = vi.fn().mockReturnValue([]);
@@ -90,11 +96,7 @@ describe('handleEdit', () => {
     await handleEdit(createMockContext());
 
     // Note: deferReply is now called at the framework level, not in the handler
-    expect(mockFetchPreset).toHaveBeenCalledWith('preset-123', {
-      discordId: 'user-456',
-      username: 'testuser',
-      displayName: 'testuser',
-    });
+    expect(mockFetchPreset).toHaveBeenCalledWith('preset-123', TEST_USER_CLIENT);
     expect(mockBuildDashboardEmbed).toHaveBeenCalled();
     // Uses buildPresetDashboardOptions for consistent button configuration
     expect(mockBuildDashboardComponents).toHaveBeenCalledWith(

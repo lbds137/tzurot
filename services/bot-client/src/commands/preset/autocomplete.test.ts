@@ -3,11 +3,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { handleAutocomplete } from './autocomplete.js';
 import type { AutocompleteInteraction, User } from 'discord.js';
 import { mockListLlmConfigsResponse, mockLlmConfigSummary } from '@tzurot/common-types';
+import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
-// Mock logger - use importOriginal pattern for async mock factories
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
   return {
@@ -21,25 +20,38 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-// Mock the gateway client
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: vi.fn(),
-  };
-});
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
 
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+const { handleAutocomplete, __resetGlobalConfigCacheForTests } = await import('./autocomplete.js');
+
+interface UserClientStub {
+  listUserLlmConfigs: ReturnType<typeof vi.fn>;
+}
+
+interface OwnerClientStub {
+  listGlobalLlmConfigs: ReturnType<typeof vi.fn>;
+}
+
+function createStub(): UserClientStub {
+  return { listUserLlmConfigs: vi.fn() };
+}
+
+function createOwnerStub(): OwnerClientStub {
+  return { listGlobalLlmConfigs: vi.fn() };
+}
 
 describe('handleAutocomplete', () => {
   let mockInteraction: AutocompleteInteraction;
   let mockUser: User;
+  let stub: UserClientStub;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = createStub();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
 
     mockUser = {
       id: 'user-123',
@@ -69,33 +81,32 @@ describe('handleAutocomplete', () => {
         name: 'preset',
         value: '',
       } as unknown as string);
-      vi.mocked(callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: mockListLlmConfigsResponse([
-          mockLlmConfigSummary({
-            id: '00000000-0000-4000-8000-0000000000c1',
-            name: 'My Preset',
-            model: 'anthropic/claude-sonnet-4',
-            provider: 'openrouter',
-            isGlobal: false,
-            isOwned: true,
-          }),
-          mockLlmConfigSummary({
-            id: '00000000-0000-4000-8000-0000000000c2',
-            name: 'Global Preset',
-            model: 'openai/gpt-4',
-            provider: 'openrouter',
-            isGlobal: true,
-            isOwned: false,
-          }),
-        ]),
-      });
+      stub.listUserLlmConfigs.mockResolvedValue(
+        makeOk(
+          mockListLlmConfigsResponse([
+            mockLlmConfigSummary({
+              id: '00000000-0000-4000-8000-0000000000c1',
+              name: 'My Preset',
+              model: 'anthropic/claude-sonnet-4',
+              provider: 'openrouter',
+              isGlobal: false,
+              isOwned: true,
+            }),
+            mockLlmConfigSummary({
+              id: '00000000-0000-4000-8000-0000000000c2',
+              name: 'Global Preset',
+              model: 'openai/gpt-4',
+              provider: 'openrouter',
+              isGlobal: true,
+              isOwned: false,
+            }),
+          ])
+        )
+      );
 
       await handleAutocomplete(mockInteraction);
 
-      expect(callGatewayApi).toHaveBeenCalledWith('/user/llm-config', {
-        user: { discordId: 'user-123', username: 'testuser', displayName: 'testuser' },
-      });
+      expect(stub.listUserLlmConfigs).toHaveBeenCalledWith();
       // Should only return owned presets
       expect(mockInteraction.respond).toHaveBeenCalledWith([
         { name: 'My Preset · claude-sonnet-4', value: '00000000-0000-4000-8000-0000000000c1' },
@@ -107,27 +118,28 @@ describe('handleAutocomplete', () => {
         name: 'preset',
         value: 'fast',
       } as unknown as string);
-      vi.mocked(callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: mockListLlmConfigsResponse([
-          mockLlmConfigSummary({
-            id: '00000000-0000-4000-8000-0000000000c1',
-            name: 'Fast Preset',
-            model: 'anthropic/claude-sonnet-4',
-            provider: 'openrouter',
-            isGlobal: false,
-            isOwned: true,
-          }),
-          mockLlmConfigSummary({
-            id: '00000000-0000-4000-8000-0000000000c2',
-            name: 'Slow Preset',
-            model: 'openai/gpt-4',
-            provider: 'openrouter',
-            isGlobal: false,
-            isOwned: true,
-          }),
-        ]),
-      });
+      stub.listUserLlmConfigs.mockResolvedValue(
+        makeOk(
+          mockListLlmConfigsResponse([
+            mockLlmConfigSummary({
+              id: '00000000-0000-4000-8000-0000000000c1',
+              name: 'Fast Preset',
+              model: 'anthropic/claude-sonnet-4',
+              provider: 'openrouter',
+              isGlobal: false,
+              isOwned: true,
+            }),
+            mockLlmConfigSummary({
+              id: '00000000-0000-4000-8000-0000000000c2',
+              name: 'Slow Preset',
+              model: 'openai/gpt-4',
+              provider: 'openrouter',
+              isGlobal: false,
+              isOwned: true,
+            }),
+          ])
+        )
+      );
 
       await handleAutocomplete(mockInteraction);
 
@@ -141,27 +153,28 @@ describe('handleAutocomplete', () => {
         name: 'preset',
         value: 'gpt',
       } as unknown as string);
-      vi.mocked(callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: mockListLlmConfigsResponse([
-          mockLlmConfigSummary({
-            id: '00000000-0000-4000-8000-0000000000c1',
-            name: 'Claude Preset',
-            model: 'anthropic/claude-sonnet-4',
-            provider: 'openrouter',
-            isGlobal: false,
-            isOwned: true,
-          }),
-          mockLlmConfigSummary({
-            id: '00000000-0000-4000-8000-0000000000c2',
-            name: 'GPT Preset',
-            model: 'openai/gpt-4',
-            provider: 'openrouter',
-            isGlobal: false,
-            isOwned: true,
-          }),
-        ]),
-      });
+      stub.listUserLlmConfigs.mockResolvedValue(
+        makeOk(
+          mockListLlmConfigsResponse([
+            mockLlmConfigSummary({
+              id: '00000000-0000-4000-8000-0000000000c1',
+              name: 'Claude Preset',
+              model: 'anthropic/claude-sonnet-4',
+              provider: 'openrouter',
+              isGlobal: false,
+              isOwned: true,
+            }),
+            mockLlmConfigSummary({
+              id: '00000000-0000-4000-8000-0000000000c2',
+              name: 'GPT Preset',
+              model: 'openai/gpt-4',
+              provider: 'openrouter',
+              isGlobal: false,
+              isOwned: true,
+            }),
+          ])
+        )
+      );
 
       await handleAutocomplete(mockInteraction);
 
@@ -175,29 +188,30 @@ describe('handleAutocomplete', () => {
         name: 'preset',
         value: 'cheap',
       } as unknown as string);
-      vi.mocked(callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: mockListLlmConfigsResponse([
-          mockLlmConfigSummary({
-            id: '00000000-0000-4000-8000-0000000000c1',
-            name: 'Preset A',
-            description: 'Fast and cheap',
-            model: 'anthropic/claude-sonnet-4',
-            provider: 'openrouter',
-            isGlobal: false,
-            isOwned: true,
-          }),
-          mockLlmConfigSummary({
-            id: '00000000-0000-4000-8000-0000000000c2',
-            name: 'Preset B',
-            description: 'Expensive but good',
-            model: 'openai/gpt-4',
-            provider: 'openrouter',
-            isGlobal: false,
-            isOwned: true,
-          }),
-        ]),
-      });
+      stub.listUserLlmConfigs.mockResolvedValue(
+        makeOk(
+          mockListLlmConfigsResponse([
+            mockLlmConfigSummary({
+              id: '00000000-0000-4000-8000-0000000000c1',
+              name: 'Preset A',
+              description: 'Fast and cheap',
+              model: 'anthropic/claude-sonnet-4',
+              provider: 'openrouter',
+              isGlobal: false,
+              isOwned: true,
+            }),
+            mockLlmConfigSummary({
+              id: '00000000-0000-4000-8000-0000000000c2',
+              name: 'Preset B',
+              description: 'Expensive but good',
+              model: 'openai/gpt-4',
+              provider: 'openrouter',
+              isGlobal: false,
+              isOwned: true,
+            }),
+          ])
+        )
+      );
 
       await handleAutocomplete(mockInteraction);
 
@@ -211,11 +225,7 @@ describe('handleAutocomplete', () => {
         name: 'preset',
         value: 'test',
       } as unknown as string);
-      vi.mocked(callGatewayApi).mockResolvedValue({
-        ok: false,
-        error: 'API error',
-        status: 500,
-      });
+      stub.listUserLlmConfigs.mockResolvedValue(makeErr(500, 'API error'));
 
       await handleAutocomplete(mockInteraction);
 
@@ -237,10 +247,7 @@ describe('handleAutocomplete', () => {
           isOwned: true,
         })
       );
-      vi.mocked(callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: { configs: manyPresets },
-      });
+      stub.listUserLlmConfigs.mockResolvedValue(makeOk({ configs: manyPresets }));
 
       await handleAutocomplete(mockInteraction);
 
@@ -262,13 +269,105 @@ describe('handleAutocomplete', () => {
     });
   });
 
+  describe('global config autocomplete (owner-only)', () => {
+    // `handleGlobalConfigAutocomplete` reads through a module-level TTLCache
+    // that survives `vi.clearAllMocks()` (it's module state, not a vi mock).
+    // Each test resets it via the test-only `__resetGlobalConfigCacheForTests`
+    // export so every case exercises the cold-fetch path independently — no
+    // ordering dependency between `it()` blocks (per 02-code-standards.md).
+    let ownerStub: OwnerClientStub;
+    const cacheableFixture = makeOk({
+      configs: [
+        {
+          id: 'g-claude',
+          name: 'Global Claude',
+          model: 'anthropic/claude-sonnet-4',
+          isGlobal: true,
+          isDefault: true,
+        },
+        {
+          id: 'g-gpt',
+          name: 'Global GPT',
+          model: 'openai/gpt-4',
+          isGlobal: true,
+          isDefault: false,
+        },
+        {
+          id: 'g-free',
+          name: 'Global Free',
+          model: 'x-ai/grok-4.1-fast:free',
+          isGlobal: true,
+          isDefault: false,
+        },
+      ],
+    });
+
+    beforeEach(() => {
+      __resetGlobalConfigCacheForTests();
+      ownerStub = createOwnerStub();
+      clientsForMock.mockReturnValue({
+        userClient: asUserClient(stub),
+        ownerClient: ownerStub as never,
+      });
+      vi.mocked(mockInteraction.options.getSubcommandGroup).mockReturnValue('global');
+    });
+
+    it('responds with empty list when the admin endpoint fails', async () => {
+      vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
+        name: 'config',
+        value: '',
+      } as unknown as string);
+      vi.mocked(mockInteraction.options.getSubcommand).mockReturnValue('set-default');
+      ownerStub.listGlobalLlmConfigs.mockResolvedValue(makeErr(403, 'forbidden'));
+
+      await handleAutocomplete(mockInteraction);
+
+      expect(mockInteraction.respond).toHaveBeenCalledWith([]);
+    });
+
+    it('lists global presets filtered by query, attaches GLOBAL + DEFAULT badges', async () => {
+      vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
+        name: 'config',
+        value: 'claude',
+      } as unknown as string);
+      vi.mocked(mockInteraction.options.getSubcommand).mockReturnValue('set-default');
+      ownerStub.listGlobalLlmConfigs.mockResolvedValue(cacheableFixture);
+
+      await handleAutocomplete(mockInteraction);
+
+      const respondCall = vi.mocked(mockInteraction.respond).mock.calls[0][0];
+      expect(respondCall).toEqual([
+        expect.objectContaining({
+          value: 'g-claude',
+          // Owner-only autocomplete attaches scope (🌐) + default (⭐) badges
+          name: expect.stringContaining('Global Claude'),
+        }),
+      ]);
+    });
+
+    it('restricts to free models when subcommand is free-default', async () => {
+      vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
+        name: 'config',
+        value: '',
+      } as unknown as string);
+      vi.mocked(mockInteraction.options.getSubcommand).mockReturnValue('free-default');
+      ownerStub.listGlobalLlmConfigs.mockResolvedValue(cacheableFixture);
+
+      await handleAutocomplete(mockInteraction);
+
+      const respondCall = vi.mocked(mockInteraction.respond).mock.calls[0][0];
+      // Only the :free-suffixed model survives the freeOnly filter
+      expect(respondCall).toEqual([expect.objectContaining({ value: 'g-free' })]);
+    });
+  });
+
   describe('error handling', () => {
     it('should respond with empty array on exception', async () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
         name: 'preset',
         value: 'test',
       } as unknown as string);
-      vi.mocked(callGatewayApi).mockRejectedValue(new Error('Network error'));
+      stub.listUserLlmConfigs.mockRejectedValue(new Error('Network error'));
 
       await handleAutocomplete(mockInteraction);
 

@@ -9,20 +9,8 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AttachmentBuilder } from 'discord.js';
-import { handleExport } from './export.js';
-import * as userGatewayClient from '../../utils/userGatewayClient.js';
+import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-
-// Mock dependencies
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: vi.fn(),
-  };
-});
 
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal();
@@ -47,7 +35,24 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
+
+const { handleExport } = await import('./export.js');
+
+interface UserClientStub {
+  getUserLlmConfig: ReturnType<typeof vi.fn>;
+}
+
+function createStub(): UserClientStub {
+  return { getUserLlmConfig: vi.fn() };
+}
+
 describe('Preset Export', () => {
+  let stub: UserClientStub;
+
   const createMockContext = (userId = 'user-123') =>
     ({
       user: { id: userId, username: 'testuser' },
@@ -79,6 +84,8 @@ describe('Preset Export', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = createStub();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
   });
 
   afterEach(() => {
@@ -87,10 +94,7 @@ describe('Preset Export', () => {
 
   describe('handleExport', () => {
     it('should export preset as JSON attachment', async () => {
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: { config: mockPresetData },
-      });
+      stub.getUserLlmConfig.mockResolvedValue(makeOk({ config: mockPresetData }));
 
       const mockContext = createMockContext();
 
@@ -105,10 +109,7 @@ describe('Preset Export', () => {
     });
 
     it('should include only non-null fields in exported JSON', async () => {
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: { config: mockPresetData },
-      });
+      stub.getUserLlmConfig.mockResolvedValue(makeOk({ config: mockPresetData }));
 
       const mockContext = createMockContext();
 
@@ -136,10 +137,7 @@ describe('Preset Export', () => {
         },
       };
 
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: { config: presetWithAdvancedParams },
-      });
+      stub.getUserLlmConfig.mockResolvedValue(makeOk({ config: presetWithAdvancedParams }));
 
       const mockContext = createMockContext();
 
@@ -154,10 +152,7 @@ describe('Preset Export', () => {
         contextWindowTokens: 65536,
       };
 
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: { config: presetWithCustomCtx },
-      });
+      stub.getUserLlmConfig.mockResolvedValue(makeOk({ config: presetWithCustomCtx }));
 
       const mockContext = createMockContext();
 
@@ -171,11 +166,7 @@ describe('Preset Export', () => {
     });
 
     it('should handle preset not found (404)', async () => {
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
-        ok: false,
-        status: 404,
-        error: 'Not found',
-      });
+      stub.getUserLlmConfig.mockResolvedValue(makeErr(404, 'Not found'));
 
       const mockContext = createMockContext();
 
@@ -185,11 +176,7 @@ describe('Preset Export', () => {
     });
 
     it('should handle access denied (403)', async () => {
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
-        ok: false,
-        status: 403,
-        error: 'Forbidden',
-      });
+      stub.getUserLlmConfig.mockResolvedValue(makeErr(403, 'Forbidden'));
 
       const mockContext = createMockContext();
 
@@ -207,10 +194,7 @@ describe('Preset Export', () => {
         permissions: { canEdit: false, canDelete: false },
       };
 
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: { config: presetNotOwned },
-      });
+      stub.getUserLlmConfig.mockResolvedValue(makeOk({ config: presetNotOwned }));
 
       const mockContext = createMockContext();
 
@@ -228,10 +212,7 @@ describe('Preset Export', () => {
         permissions: { canEdit: false, canDelete: false },
       };
 
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: { config: presetNotOwned },
-      });
+      stub.getUserLlmConfig.mockResolvedValue(makeOk({ config: presetNotOwned }));
 
       const mockContext = createMockContext('bot-owner-id');
 
@@ -246,11 +227,7 @@ describe('Preset Export', () => {
     });
 
     it('should handle API errors gracefully', async () => {
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
-        ok: false,
-        status: 500,
-        error: 'Internal server error',
-      });
+      stub.getUserLlmConfig.mockResolvedValue(makeErr(500, 'Internal server error'));
 
       const mockContext = createMockContext();
 
@@ -262,7 +239,7 @@ describe('Preset Export', () => {
     });
 
     it('should handle network errors gracefully', async () => {
-      vi.mocked(userGatewayClient.callGatewayApi).mockRejectedValue(new Error('Network error'));
+      stub.getUserLlmConfig.mockRejectedValue(new Error('Network error'));
 
       const mockContext = createMockContext();
 
@@ -273,27 +250,18 @@ describe('Preset Export', () => {
       );
     });
 
-    it('should fetch preset using correct API call', async () => {
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: { config: mockPresetData },
-      });
+    it('should fetch preset using typed client', async () => {
+      stub.getUserLlmConfig.mockResolvedValue(makeOk({ config: mockPresetData }));
 
       const mockContext = createMockContext();
 
       await handleExport(mockContext);
 
-      expect(userGatewayClient.callGatewayApi).toHaveBeenCalledWith(
-        '/user/llm-config/test-preset-id',
-        { user: { discordId: 'user-123', username: 'testuser', displayName: 'testuser' } }
-      );
+      expect(stub.getUserLlmConfig).toHaveBeenCalledWith('test-preset-id');
     });
 
     it('should include import instructions in response', async () => {
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: { config: mockPresetData },
-      });
+      stub.getUserLlmConfig.mockResolvedValue(makeOk({ config: mockPresetData }));
 
       const mockContext = createMockContext();
 
@@ -312,10 +280,7 @@ describe('Preset Export', () => {
         name: 'Test **Bold** Preset',
       };
 
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: { config: presetWithMarkdown },
-      });
+      stub.getUserLlmConfig.mockResolvedValue(makeOk({ config: presetWithMarkdown }));
 
       const mockContext = createMockContext();
 

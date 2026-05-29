@@ -197,6 +197,21 @@ describe('StartupDMPrewarmer', () => {
     expect(mockClient.users.fetch).not.toHaveBeenCalled();
   });
 
+  it('skips warming when api-gateway returns malformed body (status 0, treated as fatal)', async () => {
+    // The typed client's outputSchema.safeParse failure returns
+    // { ok: false, status: 0 } — not 404, not >= 500, so fetchOnce()
+    // routes it through the fatal branch. Equivalent to the pre-migration
+    // RecentUsersResponseSchema.safeParse path that returned kind: 'fatal'.
+    // Guards against a future change where transport.ts starts throwing
+    // instead of returning {ok:false} on schema validation failure.
+    mockRecentUsers.mockResolvedValue({ ok: false, status: 0, error: 'schema failed' });
+
+    await prewarmer.run();
+
+    expect(mockClient.users.fetch).not.toHaveBeenCalled();
+    expect(mockRecentUsers).toHaveBeenCalledTimes(1); // no retry
+  });
+
   it('returns silently when the recent-users list is empty', async () => {
     mockAdminFetch.mockResolvedValue(mockJsonResponse({ discordIds: [], sinceDays: 30 }));
 

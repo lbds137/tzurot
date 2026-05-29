@@ -11,29 +11,35 @@ import {
   extractApiErrorMessage,
   createPreset,
 } from './api.js';
-import { GatewayApiError } from '../../utils/userGatewayClient.js';
+import { GatewayApiError } from '@tzurot/common-types';
+import { makeOk, makeErr, asUserClient, asOwnerClient } from '../../test/gatewayClientStubs.js';
 import type { PresetData } from './config.js';
 
-// Mock userGatewayClient. importActual preserves GatewayApiError so the
-// createPreset error-path test can assert on `instanceof GatewayApiError`.
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+interface UserClientStub {
+  getUserLlmConfig: ReturnType<typeof vi.fn>;
+  updateUserLlmConfig: ReturnType<typeof vi.fn>;
+  createUserLlmConfig: ReturnType<typeof vi.fn>;
+}
 
-// Mock adminApiClient
-const mockAdminFetch = vi.fn();
-const mockAdminPutJson = vi.fn();
-vi.mock('../../utils/adminApiClient.js', () => ({
-  adminFetch: (...args: unknown[]) => mockAdminFetch(...args),
-  adminPutJson: (...args: unknown[]) => mockAdminPutJson(...args),
-}));
+interface OwnerClientStub {
+  getGlobalLlmConfig: ReturnType<typeof vi.fn>;
+  updateGlobalLlmConfig: ReturnType<typeof vi.fn>;
+}
+
+function createUserStub(): UserClientStub {
+  return {
+    getUserLlmConfig: vi.fn(),
+    updateUserLlmConfig: vi.fn(),
+    createUserLlmConfig: vi.fn(),
+  };
+}
+
+function createOwnerStub(): OwnerClientStub {
+  return {
+    getGlobalLlmConfig: vi.fn(),
+    updateGlobalLlmConfig: vi.fn(),
+  };
+}
 
 const mockPresetData: PresetData = {
   id: 'preset-123',
@@ -53,85 +59,45 @@ const mockPresetData: PresetData = {
 };
 
 describe('fetchPreset', () => {
+  let stub: UserClientStub;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = createUserStub();
   });
 
   it('should fetch preset successfully', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: { config: mockPresetData },
-    });
+    stub.getUserLlmConfig.mockResolvedValue(makeOk({ config: mockPresetData }));
 
-    const result = await fetchPreset('preset-123', {
-      discordId: 'user-456',
-      username: 'testuser',
-      displayName: 'testuser',
-    });
+    const result = await fetchPreset('preset-123', asUserClient(stub));
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/llm-config/preset-123', {
-      user: {
-        discordId: 'user-456',
-        username: 'testuser',
-        displayName: 'testuser',
-      },
-    });
+    expect(stub.getUserLlmConfig).toHaveBeenCalledWith('preset-123');
     expect(result).toEqual(mockPresetData);
   });
 
   it('should return null on 404', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      status: 404,
-    });
+    stub.getUserLlmConfig.mockResolvedValue(makeErr(404));
 
-    const result = await fetchPreset('missing', {
-      discordId: 'user-456',
-      username: 'testuser',
-      displayName: 'testuser',
-    });
+    const result = await fetchPreset('missing', asUserClient(stub));
 
     expect(result).toBeNull();
   });
 
   it('should throw on other errors', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      status: 500,
-    });
+    stub.getUserLlmConfig.mockResolvedValue(makeErr(500));
 
-    await expect(
-      fetchPreset('preset-123', {
-        discordId: 'user-456',
-        username: 'testuser',
-        displayName: 'testuser',
-      })
-    ).rejects.toThrow('Failed to fetch preset: 500');
-  });
-
-  // Defense in depth for the SSRF-prevention encoding: if someone removes the
-  // encodeURIComponent() from the URL construction, this test fails. Asserts
-  // that slashes + reserved chars in the presetId are percent-encoded before
-  // being interpolated into the path.
-  it('URL-encodes the presetId in the gateway path', async () => {
-    mockCallGatewayApi.mockResolvedValue({ ok: true, data: { config: mockPresetData } });
-
-    await fetchPreset('preset/with/slash?x=1', {
-      discordId: 'user-456',
-      username: 'testuser',
-      displayName: 'testuser',
-    });
-
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/llm-config/preset%2Fwith%2Fslash%3Fx%3D1',
-      expect.any(Object)
+    await expect(fetchPreset('preset-123', asUserClient(stub))).rejects.toThrow(
+      'Failed to fetch preset: 500'
     );
   });
 });
 
 describe('fetchGlobalPreset', () => {
+  let stub: OwnerClientStub;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = createOwnerStub();
   });
 
   it('should fetch global preset successfully', async () => {
@@ -142,14 +108,11 @@ describe('fetchGlobalPreset', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Simulating admin response that lacks user-scoped fields
     delete (adminResponseConfig as any).permissions;
 
-    mockAdminFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({ config: adminResponseConfig }),
-    });
+    stub.getGlobalLlmConfig.mockResolvedValue(makeOk({ config: adminResponseConfig }));
 
-    const result = await fetchGlobalPreset('preset-123');
+    const result = await fetchGlobalPreset('preset-123', asOwnerClient(stub));
 
-    expect(mockAdminFetch).toHaveBeenCalledWith('/admin/llm-config/preset-123');
+    expect(stub.getGlobalLlmConfig).toHaveBeenCalledWith('preset-123');
     // fetchGlobalPreset adds isOwned: true (admin owns global presets) and permissions
     // Admin always has full permissions on global presets
     expect(result).toEqual({
@@ -160,200 +123,95 @@ describe('fetchGlobalPreset', () => {
   });
 
   it('should return null on 404', async () => {
-    mockAdminFetch.mockResolvedValue({
-      ok: false,
-      status: 404,
-    });
+    stub.getGlobalLlmConfig.mockResolvedValue(makeErr(404));
 
-    const result = await fetchGlobalPreset('nonexistent');
+    const result = await fetchGlobalPreset('nonexistent', asOwnerClient(stub));
 
     expect(result).toBeNull();
   });
 
   it('should throw on other errors', async () => {
-    mockAdminFetch.mockResolvedValue({
-      ok: false,
-      status: 500,
-    });
+    stub.getGlobalLlmConfig.mockResolvedValue(makeErr(500));
 
-    await expect(fetchGlobalPreset('preset-123')).rejects.toThrow(
+    await expect(fetchGlobalPreset('preset-123', asOwnerClient(stub))).rejects.toThrow(
       'Failed to fetch global preset: 500'
     );
-  });
-
-  it('URL-encodes the presetId in the admin path', async () => {
-    mockAdminFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({ config: mockPresetData }),
-    });
-
-    await fetchGlobalPreset('preset/with/slash?x=1');
-
-    expect(mockAdminFetch).toHaveBeenCalledWith('/admin/llm-config/preset%2Fwith%2Fslash%3Fx%3D1');
   });
 });
 
 describe('updatePreset', () => {
+  let stub: UserClientStub;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = createUserStub();
   });
 
   it('should update preset successfully', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: { config: mockPresetData },
-    });
+    stub.updateUserLlmConfig.mockResolvedValue(makeOk({ config: mockPresetData }));
 
     const updateData = { name: 'Updated Name' };
-    const result = await updatePreset('preset-123', updateData, {
-      discordId: 'user-456',
-      username: 'testuser',
-      displayName: 'testuser',
-    });
+    const result = await updatePreset('preset-123', updateData, asUserClient(stub));
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/llm-config/preset-123', {
-      method: 'PUT',
-      user: {
-        discordId: 'user-456',
-        username: 'testuser',
-        displayName: 'testuser',
-      },
-      body: updateData,
-    });
+    expect(stub.updateUserLlmConfig).toHaveBeenCalledWith('preset-123', updateData);
     expect(result).toEqual(mockPresetData);
   });
 
   it('should throw on error with message', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      status: 400,
-      error: 'Invalid data',
-    });
+    stub.updateUserLlmConfig.mockResolvedValue(makeErr(400, 'Invalid data'));
 
-    await expect(
-      updatePreset(
-        'preset-123',
-        {},
-        { discordId: 'user-456', username: 'testuser', displayName: 'testuser' }
-      )
-    ).rejects.toThrow('Failed to update preset: 400 - Invalid data');
+    await expect(updatePreset('preset-123', {}, asUserClient(stub))).rejects.toThrow(
+      'Failed to update preset: 400 - Invalid data'
+    );
   });
 
   it('should throw on error without message', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      status: 500,
-    });
+    stub.updateUserLlmConfig.mockResolvedValue({ ok: false, status: 500 } as never);
 
-    await expect(
-      updatePreset(
-        'preset-123',
-        {},
-        { discordId: 'user-456', username: 'testuser', displayName: 'testuser' }
-      )
-    ).rejects.toThrow('Failed to update preset: 500 - Unknown');
-  });
-
-  it('URL-encodes the presetId in the PUT path', async () => {
-    mockCallGatewayApi.mockResolvedValue({ ok: true, data: { config: mockPresetData } });
-
-    await updatePreset(
-      'preset/with/slash',
-      { name: 'x' },
-      { discordId: 'user-456', username: 'testuser', displayName: 'testuser' }
-    );
-
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/llm-config/preset%2Fwith%2Fslash',
-      expect.objectContaining({ method: 'PUT' })
+    await expect(updatePreset('preset-123', {}, asUserClient(stub))).rejects.toThrow(
+      'Failed to update preset: 500 - Unknown'
     );
   });
 });
 
 describe('updateGlobalPreset', () => {
+  let stub: OwnerClientStub;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = createOwnerStub();
   });
 
   it('should update global preset successfully', async () => {
     // Admin API doesn't return isOwned/permissions, so function adds them
     const apiResponse = { ...mockPresetData };
-    mockAdminPutJson.mockResolvedValue({
-      ok: true,
-      json: async () => ({ config: apiResponse }),
-    });
+    stub.updateGlobalLlmConfig.mockResolvedValue(makeOk({ config: apiResponse }));
 
     const updateData = { name: 'Updated Name' };
-    const result = await updateGlobalPreset('preset-123', updateData);
+    const result = await updateGlobalPreset('preset-123', updateData, asOwnerClient(stub));
 
-    expect(mockAdminPutJson).toHaveBeenCalledWith('/admin/llm-config/preset-123', updateData);
-    // Function adds isOwned: true (admin owns global presets) and permissions for dashboard
+    expect(stub.updateGlobalLlmConfig).toHaveBeenCalledWith('preset-123', updateData);
     expect(result).toEqual({
       ...mockPresetData,
-      isOwned: true, // Admin owns global presets
+      isOwned: true,
       permissions: { canEdit: true, canDelete: true },
     });
   });
 
-  it('should extract message from JSON error response', async () => {
-    mockAdminPutJson.mockResolvedValue({
-      ok: false,
-      status: 400,
-      text: async () => JSON.stringify({ message: 'Context window too large' }),
-    });
+  it('throws on failure with gateway error message', async () => {
+    stub.updateGlobalLlmConfig.mockResolvedValue(makeErr(400, 'Context window too large'));
 
-    await expect(updateGlobalPreset('preset-123', {})).rejects.toThrow(
+    await expect(updateGlobalPreset('preset-123', {}, asOwnerClient(stub))).rejects.toThrow(
       'Failed to update global preset: 400 - Context window too large'
     );
   });
 
-  it('should extract error field from JSON error response', async () => {
-    mockAdminPutJson.mockResolvedValue({
-      ok: false,
-      status: 422,
-      text: async () => JSON.stringify({ error: 'VALIDATION_ERROR' }),
-    });
+  it('throws with Unknown when gateway has no error message', async () => {
+    stub.updateGlobalLlmConfig.mockResolvedValue({ ok: false, status: 500 } as never);
 
-    await expect(updateGlobalPreset('preset-123', {})).rejects.toThrow(
-      'Failed to update global preset: 422 - VALIDATION_ERROR'
+    await expect(updateGlobalPreset('preset-123', {}, asOwnerClient(stub))).rejects.toThrow(
+      'Failed to update global preset: 500 - Unknown'
     );
-  });
-
-  it('should fall back to raw text for non-JSON error response', async () => {
-    mockAdminPutJson.mockResolvedValue({
-      ok: false,
-      status: 502,
-      text: async () => '<html>Bad Gateway</html>',
-    });
-
-    await expect(updateGlobalPreset('preset-123', {})).rejects.toThrow(
-      'Failed to update global preset: 502 - <html>Bad Gateway</html>'
-    );
-  });
-
-  it('should use Unknown when JSON has no message or error field', async () => {
-    mockAdminPutJson.mockResolvedValue({
-      ok: false,
-      status: 400,
-      text: async () => JSON.stringify({ detail: 'some other field' }),
-    });
-
-    await expect(updateGlobalPreset('preset-123', {})).rejects.toThrow(
-      'Failed to update global preset: 400 - Unknown'
-    );
-  });
-
-  it('URL-encodes the presetId in the admin PUT path', async () => {
-    mockAdminPutJson.mockResolvedValue({
-      ok: true,
-      json: async () => ({ config: mockPresetData }),
-    });
-
-    await updateGlobalPreset('preset/with/slash', { name: 'x' });
-
-    expect(mockAdminPutJson).toHaveBeenCalledWith('/admin/llm-config/preset%2Fwith%2Fslash', {
-      name: 'x',
-    });
   });
 });
 
@@ -393,46 +251,42 @@ describe('extractApiErrorMessage', () => {
 });
 
 describe('createPreset', () => {
+  let stub: UserClientStub;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = createUserStub();
   });
 
   it('returns the created preset config on success', async () => {
-    mockCallGatewayApi.mockResolvedValueOnce({
-      ok: true,
-      data: { config: mockPresetData },
-    });
+    stub.createUserLlmConfig.mockResolvedValue(makeOk({ config: mockPresetData }));
 
     const result = await createPreset(
       { name: 'Foo', model: 'm', provider: 'p' },
-      { discordId: 'user-1', username: 'testuser', displayName: 'testuser' }
+      asUserClient(stub)
     );
 
-    expect(result).toBe(mockPresetData);
-    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/llm-config', {
-      method: 'POST',
-      user: {
-        discordId: 'user-1',
-        username: 'testuser',
-        displayName: 'testuser',
-      },
-      body: { name: 'Foo', model: 'm', provider: 'p' },
+    expect(result).toEqual(mockPresetData);
+    expect(stub.createUserLlmConfig).toHaveBeenCalledWith({
+      name: 'Foo',
+      model: 'm',
+      provider: 'p',
     });
   });
 
   it('throws GatewayApiError carrying status + code on failure', async () => {
-    mockCallGatewayApi.mockResolvedValueOnce({
+    stub.createUserLlmConfig.mockResolvedValue({
       ok: false,
       error: 'You already have a config named "Foo"',
       status: 400,
       code: 'NAME_COLLISION',
-    });
+    } as never);
 
     // Catch the rejection once so we can inspect class + shape without
     // re-invoking createPreset (which would re-consume the one-shot mock).
     const err = await createPreset(
       { name: 'Foo', model: 'm', provider: 'p' },
-      { discordId: 'user-1', username: 'testuser', displayName: 'testuser' }
+      asUserClient(stub)
     ).catch(e => e);
 
     expect(err).toBeInstanceOf(GatewayApiError);
@@ -441,17 +295,14 @@ describe('createPreset', () => {
   });
 
   it('throws GatewayApiError with undefined code when gateway sends no sub-code', async () => {
-    mockCallGatewayApi.mockResolvedValueOnce({
+    stub.createUserLlmConfig.mockResolvedValue({
       ok: false,
       error: 'Some other failure',
       status: 500,
-    });
+    } as never);
 
     await expect(
-      createPreset(
-        { name: 'Foo', model: 'm', provider: 'p' },
-        { discordId: 'user-1', username: 'testuser', displayName: 'testuser' }
-      )
+      createPreset({ name: 'Foo', model: 'm', provider: 'p' }, asUserClient(stub))
     ).rejects.toMatchObject({
       status: 500,
       code: undefined,
