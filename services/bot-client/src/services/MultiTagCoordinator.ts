@@ -40,7 +40,7 @@ import type { PersonalityChatManager } from './character/PersonalityChatManager.
 import type { JobTracker } from './JobTracker.js';
 import type { ResponseOrderingService } from './ResponseOrderingService.js';
 import type { SlotDeliveryService } from './SlotDeliveryService.js';
-import type { MultiTagPersistence } from './MultiTagPersistence.js';
+import type { MultiTagPersistence, SyntheticTimeoutContext } from './MultiTagPersistence.js';
 import { type ResolvedSlot, type SlotSource } from './SlotResolver.js';
 import type { GatewayClient } from '../utils/GatewayClient.js';
 
@@ -622,8 +622,38 @@ export class MultiTagCoordinator {
     for (const slot of stillPending) {
       slot.status = 'timedout';
       this.deps.jobTracker.completeJob(slot.jobId);
+      // Persist a late-result recovery marker BEFORE flush (deleteEntry wipes
+      // the snapshot + jobId index). If the real result lands within the TTL,
+      // MessageHandler delivers it as a follow-up instead of dropping it.
+      // Best-effort — the helper never throws into this path. The write is not
+      // awaited, so a result arriving in the sub-millisecond window before the
+      // marker lands would miss recovery — identical to pre-fix drop behavior,
+      // and implausible in practice (a late result is seconds-to-minutes late).
+      void this.deps.persistence.markSyntheticTimeout(slot.jobId, {
+        channelId: entry.channel.id,
+        guildId: entry.guildId,
+        clientId: entry.clientId,
+        personalitySlug: slot.personality.slug,
+        recipientUserId: entry.userId,
+        isAutoResponse: slot.isAutoResponse,
+      });
     }
     await this.flushEntry(entry);
+  }
+
+  /**
+   * Read the synthetic-timeout recovery context for a jobId (or null). Proxy
+   * to the persistence layer so MessageHandler can check for a late-result
+   * recovery without taking a direct persistence dependency — mirrors the
+   * `isStale`/`clearStale` proxy pattern.
+   */
+  async getSyntheticTimeout(jobId: string): Promise<SyntheticTimeoutContext | null> {
+    return this.deps.persistence.getSyntheticTimeout(jobId);
+  }
+
+  /** Clear a synthetic-timeout marker after a late result is handled. Proxy. */
+  async clearSyntheticTimeout(jobId: string): Promise<void> {
+    await this.deps.persistence.clearSyntheticTimeout(jobId);
   }
 }
 

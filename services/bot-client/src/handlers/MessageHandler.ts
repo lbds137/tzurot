@@ -6,11 +6,12 @@
  * Implements full dependency injection for testability and flexibility.
  */
 
-import { MessageType, type Message } from 'discord.js';
+import { MessageType, type Client, type Message } from 'discord.js';
 import { createLogger, type LLMGenerationResult, stripErrorSpoiler } from '@tzurot/common-types';
 import { buildErrorContent } from '../utils/buildErrorContent.js';
 import type { IMessageProcessor } from '../processors/IMessageProcessor.js';
 import { isUserContentMessage } from '../utils/messageTypeUtils.js';
+import { fetchTypingChannel } from '../utils/fetchTypingChannel.js';
 import { DiscordResponseSender } from '../services/DiscordResponseSender.js';
 import { ConversationPersistence } from '../services/ConversationPersistence.js';
 import {
@@ -21,6 +22,10 @@ import {
 import { getGatewayClient } from '../services/serviceRegistry.js';
 import type { SlotDeliveryService, SlotDeliveryContext } from '../services/SlotDeliveryService.js';
 import type { MultiTagCoordinator } from '../services/MultiTagCoordinator.js';
+import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
+
+/** Notice prepended to a late-recovered reply so the user knows why it's late. */
+const LATE_RECOVERY_NOTICE = '-# ⏰ This reply took longer than expected to generate.\n\n';
 
 const logger = createLogger('MessageHandler');
 
@@ -34,6 +39,10 @@ export interface MessageHandlerDeps {
   jobTracker: JobTracker;
   slotDelivery: SlotDeliveryService;
   coordinator: MultiTagCoordinator;
+  /** Loads personalities by slug for late-result recovery (access-scoped). */
+  personalityService: IPersonalityLoader;
+  /** Discord client — re-fetches the channel for a late-recovered delivery. */
+  client: Client;
 }
 
 export class MessageHandler {
@@ -43,6 +52,8 @@ export class MessageHandler {
   private readonly jobTracker: JobTracker;
   private readonly slotDelivery: SlotDeliveryService;
   private readonly coordinator: MultiTagCoordinator;
+  private readonly personalityService: IPersonalityLoader;
+  private readonly client: Client;
 
   constructor(deps: MessageHandlerDeps) {
     this.processors = deps.processors;
@@ -51,6 +62,8 @@ export class MessageHandler {
     this.jobTracker = deps.jobTracker;
     this.slotDelivery = deps.slotDelivery;
     this.coordinator = deps.coordinator;
+    this.personalityService = deps.personalityService;
+    this.client = deps.client;
     logger.info({ processorCount: deps.processors.length }, 'Initialized with processor chain');
   }
 
@@ -162,6 +175,12 @@ export class MessageHandler {
     // Single-personality path: JobTracker has the context.
     const jobContext = this.jobTracker.getContext(jobId);
     if (!jobContext) {
+      // Before dropping: a multi-tag slot we already synthetic-timed-out may
+      // have a recovery marker. If so, deliver the real result as a late
+      // follow-up rather than silently dropping it.
+      if (await this.tryRecoverLateResult(jobId, result)) {
+        return;
+      }
       logger.warn({ jobId }, 'Received result for unknown job - ignoring');
       return;
     }
@@ -175,6 +194,117 @@ export class MessageHandler {
     }
 
     await this.handleMessageJobResult(jobId, result, jobContext);
+  }
+
+  /**
+   * Late-result recovery for multi-tag slots that were synthetic-timed-out.
+   * Returns true if this jobId had a recovery marker (i.e. we own the outcome
+   * — delivered, or determined unrecoverable), false if it's a genuinely
+   * unknown job that should drop as before.
+   *
+   * On a marker hit we always confirm delivery + clear the marker so the
+   * Redis stream entry clears and the marker doesn't linger. A successful
+   * result is re-sent as a personality follow-up (prefixed with a "took
+   * longer than expected" notice); a failed/empty late result is dropped
+   * silently since the user already received the synthetic timeout message.
+   *
+   * Note: the follow-up is NOT persisted to conversation history — the marker
+   * deliberately carries minimal context (no personaId/userMessageTime) and
+   * this is a rare >18-min-job edge case. The user sees the reply; it just
+   * won't anchor a subsequent turn's memory. Acceptable for the recovery path.
+   */
+  private async tryRecoverLateResult(jobId: string, result: LLMGenerationResult): Promise<boolean> {
+    const ctx = await this.coordinator.getSyntheticTimeout(jobId);
+    if (ctx === null) {
+      return false; // not a synthetic-timeout job — let the caller drop it
+    }
+
+    // From here we own the outcome. Always confirm + clear (best-effort) so
+    // the stream entry clears and the marker doesn't outlive its usefulness.
+    const finalize = async (): Promise<void> => {
+      // confirmDelivery is fire-and-forget: stream-entry cleanup is best-effort,
+      // and the gateway entry expires on its own TTL if this call never lands.
+      // clearSyntheticTimeout is awaited so the recovery marker doesn't linger
+      // if we crash right after the follow-up send but before its TTL elapses.
+      void getGatewayClient()
+        .confirmDelivery(jobId)
+        .catch(err => logger.warn({ err, jobId }, 'late-recovery: confirmDelivery failed'));
+      await this.coordinator.clearSyntheticTimeout(jobId);
+    };
+
+    // Failed/empty late result: the user already saw the synthetic timeout
+    // error — don't send a second (error) message. Just clean up.
+    if (
+      result.success === false ||
+      typeof result.content !== 'string' ||
+      result.content.length === 0
+    ) {
+      logger.info(
+        { jobId },
+        'Late result for synthetic-timed-out job was unusable — clearing marker, no follow-up'
+      );
+      await finalize();
+      return true;
+    }
+
+    const personality = await this.personalityService.loadPersonality(
+      ctx.personalitySlug,
+      ctx.recipientUserId
+    );
+    if (personality === null) {
+      logger.warn(
+        { jobId, slug: ctx.personalitySlug },
+        'Late recovery: personality no longer loadable — dropping follow-up'
+      );
+      await finalize();
+      return true;
+    }
+
+    const channel = await fetchTypingChannel(this.client, ctx.channelId);
+    if (channel === null) {
+      logger.warn(
+        { jobId, channelId: ctx.channelId },
+        'Late recovery: channel missing or not a typing channel — dropping follow-up'
+      );
+      await finalize();
+      return true;
+    }
+
+    try {
+      await this.responseSender.sendResponse({
+        content: LATE_RECOVERY_NOTICE + result.content,
+        personality,
+        channel,
+        guildId: ctx.guildId,
+        clientId: ctx.clientId,
+        recipientUserId: ctx.recipientUserId,
+        isAutoResponse: ctx.isAutoResponse,
+        modelUsed: result.metadata?.modelUsed,
+        providerUsed: result.metadata?.providerUsed,
+        isGuestMode: result.metadata?.isGuestMode,
+        focusModeEnabled: result.metadata?.focusModeEnabled,
+        incognitoModeActive: result.metadata?.incognitoModeActive,
+        thinkingContent: result.metadata?.thinkingContent,
+        showThinking: result.metadata?.showThinking,
+        showModelFooter: result.metadata?.showModelFooter,
+        ttsAudioKey: result.metadata?.ttsAudioKey,
+        ttsAudioContentType: result.metadata?.ttsAudioContentType,
+        ttsNotices: result.metadata?.ttsNotices,
+      });
+      logger.info(
+        { jobId, personalityId: personality.id },
+        'Late result recovered and delivered as a follow-up'
+      );
+    } catch (err) {
+      logger.error({ err, jobId }, 'Late recovery: follow-up send failed');
+    }
+    // finalize() runs even when the send threw. confirmDelivery is an idempotent
+    // job_results status flip (PENDING_DELIVERY → DELIVERED), and nothing sweeps
+    // PENDING_DELIVERY rows for retry — so confirming after a failed send is
+    // cosmetically imprecise but functionally inert. We still finalize so the
+    // recovery marker clears rather than lingering until its TTL.
+    await finalize();
+    return true;
   }
 
   /**

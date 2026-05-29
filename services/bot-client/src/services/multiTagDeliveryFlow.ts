@@ -189,15 +189,21 @@ export async function deliverGroup(entry: RuntimeEntry, deps: DeliveryFlowDeps):
   }
 
   // Best-effort delivery confirmation (clears Redis stream entries).
+  // Skip slots synthesized on safety-timeout (`status === 'timedout'`):
+  // ai-worker never wrote a JobResult row for them, so confirmDelivery is a
+  // guaranteed 404. Their real confirmation happens via the late-result
+  // recovery path in MessageHandler if/when the result eventually lands.
   await Promise.all(
-    entry.slots.map(slot =>
-      deps.gatewayClient.confirmDelivery(slot.jobId).catch(err => {
-        logger.warn(
-          { err, jobId: slot.jobId, groupId: entry.groupId },
-          'confirmDelivery failed after multi-tag flush'
-        );
-      })
-    )
+    entry.slots
+      .filter(slot => slot.status !== 'timedout')
+      .map(slot =>
+        deps.gatewayClient.confirmDelivery(slot.jobId).catch(err => {
+          logger.warn(
+            { err, jobId: slot.jobId, groupId: entry.groupId },
+            'confirmDelivery failed after multi-tag flush'
+          );
+        })
+      )
   );
 
   // For DM channels, record the new active personality so the next bare

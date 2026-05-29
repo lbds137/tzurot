@@ -90,6 +90,7 @@ describe('MultiTagCoordinator', () => {
     markStale: ReturnType<typeof vi.fn>;
     isStale: ReturnType<typeof vi.fn>;
     clearDMBackfillTried: ReturnType<typeof vi.fn>;
+    markSyntheticTimeout: ReturnType<typeof vi.fn>;
   };
 
   let coordinator: MultiTagCoordinator;
@@ -121,6 +122,7 @@ describe('MultiTagCoordinator', () => {
       markStale: vi.fn().mockResolvedValue(undefined),
       isStale: vi.fn().mockResolvedValue(false),
       clearDMBackfillTried: vi.fn().mockResolvedValue(undefined),
+      markSyntheticTimeout: vi.fn().mockResolvedValue(undefined),
     };
 
     coordinator = new MultiTagCoordinator({
@@ -529,6 +531,31 @@ describe('MultiTagCoordinator', () => {
       // Group flushed: Alice via success path, Bob via error path
       expect(slotDelivery.deliverSuccess).toHaveBeenCalledOnce();
       expect(slotDelivery.deliverError).toHaveBeenCalledOnce();
+    });
+
+    it('writes a synthetic-timeout recovery marker for each timed-out slot', async () => {
+      const a = buildPersonality('Alice');
+      const b = buildPersonality('Bob');
+      const { input } = fanOut([buildResolvedSlot(a), buildResolvedSlot(b)]);
+      await coordinator.startFanOut(input);
+
+      // Only Alice resolves; Bob times out.
+      await coordinator.handleJobResult('job-Alice', {
+        requestId: 'ra',
+        success: true,
+        content: 'A',
+      });
+      await vi.advanceTimersByTimeAsync(MULTI_TAG.COORDINATOR_TIMEOUT_MS + 100);
+
+      // Marker written for the timed-out slot (Bob), not the delivered one (Alice).
+      expect(persistence.markSyntheticTimeout).toHaveBeenCalledTimes(1);
+      const [jobId, ctx] = persistence.markSyntheticTimeout.mock.calls[0];
+      expect(jobId).toBe('job-Bob');
+      expect(ctx).toMatchObject({
+        personalitySlug: b.slug,
+        recipientUserId: 'user-1', // buildMessage author id → entry.userId
+        isAutoResponse: false,
+      });
     });
   });
 

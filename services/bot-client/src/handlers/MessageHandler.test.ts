@@ -14,11 +14,13 @@ import type { DiscordResponseSender } from '../services/DiscordResponseSender.js
 import type { ConversationPersistence } from '../services/ConversationPersistence.js';
 import type { JobTracker } from '../services/JobTracker.js';
 import type { SlotDeliveryService } from '../services/SlotDeliveryService.js';
+import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import type { MultiTagCoordinator } from '../services/MultiTagCoordinator.js';
 
 // Mock serviceRegistry to provide getGatewayClient
 const mockGatewayClient = {
   updateDiagnosticResponseIds: vi.fn().mockResolvedValue(undefined),
+  confirmDelivery: vi.fn().mockResolvedValue(undefined),
 };
 
 vi.mock('../services/serviceRegistry.js', () => ({
@@ -62,9 +64,20 @@ const mockCoordinator = {
   isStale: vi.fn().mockResolvedValue(false),
   handleJobResult: vi.fn().mockResolvedValue(undefined),
   clearStale: vi.fn().mockResolvedValue(undefined),
+  // Late-result recovery: default to "no marker" so unknown jobs drop as before.
+  getSyntheticTimeout: vi.fn().mockResolvedValue(null),
+  clearSyntheticTimeout: vi.fn().mockResolvedValue(undefined),
   get staleCheckNeeded() {
     return mockCoordinatorState.staleCheckNeeded;
   },
+};
+
+const mockPersonalityService = {
+  loadPersonality: vi.fn().mockResolvedValue(null),
+};
+
+const mockClient = {
+  channels: { fetch: vi.fn().mockResolvedValue(null) },
 };
 
 describe('MessageHandler', () => {
@@ -98,6 +111,8 @@ describe('MessageHandler', () => {
       jobTracker: mockJobTracker as unknown as JobTracker,
       slotDelivery: mockSlotDelivery as unknown as SlotDeliveryService,
       coordinator: mockCoordinator as unknown as MultiTagCoordinator,
+      personalityService: mockPersonalityService as unknown as IPersonalityLoader,
+      client: mockClient as unknown as import('discord.js').Client,
     });
 
     // Direct mocks — no threading-through. Tests assert on
@@ -391,7 +406,161 @@ describe('MessageHandler', () => {
       expect(mockSlotDelivery.deliverSuccess).not.toHaveBeenCalled();
       expect(mockSlotDelivery.deliverError).not.toHaveBeenCalled();
     });
+  });
 
+  describe('handleJobResult - late-result recovery (synthetic-timeout marker)', () => {
+    const recoveryCtx = {
+      channelId: 'channel-late',
+      guildId: 'guild-1',
+      clientId: 'bot-1',
+      personalitySlug: 'lila',
+      recipientUserId: 'user-1',
+      isAutoResponse: false,
+    };
+    const lateResult = {
+      requestId: 'req-late',
+      success: true,
+      content: 'The real reply that arrived late',
+      metadata: { modelUsed: 'anthropic/claude-sonnet-4' },
+    } as LLMGenerationResult;
+
+    beforeEach(() => {
+      mockJobTracker.getContext.mockReturnValue(null); // not tracked → recovery path
+    });
+
+    it('delivers a late successful result as a follow-up, then confirms + clears', async () => {
+      mockCoordinator.getSyntheticTimeout.mockResolvedValue(recoveryCtx);
+      mockPersonalityService.loadPersonality.mockResolvedValue({
+        id: 'p-lila',
+        slug: 'lila',
+        displayName: 'Lila',
+      });
+      mockClient.channels.fetch.mockResolvedValue({
+        id: 'channel-late',
+        isTextBased: () => true,
+        isThread: () => false,
+        type: 0, // GuildText — passes isTypingChannel
+      });
+      mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['m1'] });
+
+      await messageHandler.handleJobResult('job-late', lateResult);
+
+      expect(mockResponseSender.sendResponse).toHaveBeenCalledTimes(1);
+      const opts = mockResponseSender.sendResponse.mock.calls[0][0];
+      expect(opts.content).toContain('took longer than expected');
+      expect(opts.content).toContain('The real reply that arrived late');
+      expect(opts.personality.slug).toBe('lila');
+      expect(mockGatewayClient.confirmDelivery).toHaveBeenCalledWith('job-late');
+      expect(mockCoordinator.clearSyntheticTimeout).toHaveBeenCalledWith('job-late');
+    });
+
+    it('clears the marker without a second message when the late result failed', async () => {
+      mockCoordinator.getSyntheticTimeout.mockResolvedValue(recoveryCtx);
+      const failedLate = {
+        requestId: 'req-late',
+        success: false,
+        error: 'boom',
+      } as LLMGenerationResult;
+
+      await messageHandler.handleJobResult('job-late', failedLate);
+
+      expect(mockResponseSender.sendResponse).not.toHaveBeenCalled();
+      expect(mockPersonalityService.loadPersonality).not.toHaveBeenCalled();
+      expect(mockGatewayClient.confirmDelivery).toHaveBeenCalledWith('job-late');
+      expect(mockCoordinator.clearSyntheticTimeout).toHaveBeenCalledWith('job-late');
+    });
+
+    it('clears the marker (no follow-up) when the personality is no longer loadable', async () => {
+      mockCoordinator.getSyntheticTimeout.mockResolvedValue(recoveryCtx);
+      mockPersonalityService.loadPersonality.mockResolvedValue(null);
+
+      await messageHandler.handleJobResult('job-late', lateResult);
+
+      expect(mockResponseSender.sendResponse).not.toHaveBeenCalled();
+      expect(mockGatewayClient.confirmDelivery).toHaveBeenCalledWith('job-late');
+      expect(mockCoordinator.clearSyntheticTimeout).toHaveBeenCalledWith('job-late');
+    });
+
+    it('clears the marker (no follow-up) when the channel is no longer fetchable', async () => {
+      mockCoordinator.getSyntheticTimeout.mockResolvedValue(recoveryCtx);
+      mockPersonalityService.loadPersonality.mockResolvedValue({
+        id: 'p-lila',
+        slug: 'lila',
+        displayName: 'Lila',
+      });
+      mockClient.channels.fetch.mockResolvedValue(null); // channel deleted/inaccessible
+
+      await messageHandler.handleJobResult('job-late', lateResult);
+
+      expect(mockResponseSender.sendResponse).not.toHaveBeenCalled();
+      expect(mockGatewayClient.confirmDelivery).toHaveBeenCalledWith('job-late');
+      expect(mockCoordinator.clearSyntheticTimeout).toHaveBeenCalledWith('job-late');
+    });
+
+    it('drops normally (no recovery) when there is no marker', async () => {
+      mockCoordinator.getSyntheticTimeout.mockResolvedValue(null);
+
+      await messageHandler.handleJobResult('job-late', lateResult);
+
+      expect(mockResponseSender.sendResponse).not.toHaveBeenCalled();
+      expect(mockGatewayClient.confirmDelivery).not.toHaveBeenCalled();
+      expect(mockCoordinator.clearSyntheticTimeout).not.toHaveBeenCalled();
+    });
+
+    it('still confirms + clears when the follow-up send throws (finalize is unconditional)', async () => {
+      mockCoordinator.getSyntheticTimeout.mockResolvedValue(recoveryCtx);
+      mockPersonalityService.loadPersonality.mockResolvedValue({
+        id: 'p-lila',
+        slug: 'lila',
+        displayName: 'Lila',
+      });
+      mockClient.channels.fetch.mockResolvedValue({
+        id: 'channel-late',
+        isTextBased: () => true,
+        isThread: () => false,
+        type: 0,
+      });
+      mockResponseSender.sendResponse.mockRejectedValue(new Error('rate limited'));
+
+      await messageHandler.handleJobResult('job-late', lateResult);
+
+      // Send threw, but finalize() runs anyway: confirmDelivery is an idempotent
+      // status flip with no retry consumer, and the marker must not linger.
+      expect(mockResponseSender.sendResponse).toHaveBeenCalledTimes(1);
+      expect(mockGatewayClient.confirmDelivery).toHaveBeenCalledWith('job-late');
+      expect(mockCoordinator.clearSyntheticTimeout).toHaveBeenCalledWith('job-late');
+    });
+
+    it('recovers once, then drops a duplicate result (marker cleared after first)', async () => {
+      // First call sees the marker; the recovery path clears it, so the second
+      // call sees null and falls through to the normal unknown-job drop.
+      mockCoordinator.getSyntheticTimeout
+        .mockResolvedValueOnce(recoveryCtx)
+        .mockResolvedValue(null);
+      mockPersonalityService.loadPersonality.mockResolvedValue({
+        id: 'p-lila',
+        slug: 'lila',
+        displayName: 'Lila',
+      });
+      mockClient.channels.fetch.mockResolvedValue({
+        id: 'channel-late',
+        isTextBased: () => true,
+        isThread: () => false,
+        type: 0,
+      });
+      mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['m1'] });
+
+      await messageHandler.handleJobResult('job-late', lateResult);
+      await messageHandler.handleJobResult('job-late', lateResult);
+
+      // Delivered exactly once; the duplicate produced no second follow-up.
+      expect(mockResponseSender.sendResponse).toHaveBeenCalledTimes(1);
+      expect(mockGatewayClient.confirmDelivery).toHaveBeenCalledTimes(1);
+      expect(mockCoordinator.clearSyntheticTimeout).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('handleJobResult - Async Job Completion (single-personality path)', () => {
     it('should handle job result without metadata', async () => {
       const jobId = 'job-456';
       const result = {

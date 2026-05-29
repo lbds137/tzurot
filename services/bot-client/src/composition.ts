@@ -39,6 +39,8 @@ import { SlotDeliveryService } from './services/SlotDeliveryService.js';
 import { MultiTagCoordinator } from './services/MultiTagCoordinator.js';
 import { MultiTagPersistence } from './services/MultiTagPersistence.js';
 import { MultiTagRecovery } from './services/MultiTagRecovery.js';
+import { MessageHandler } from './handlers/MessageHandler.js';
+import { DiscordResponseSender } from './services/DiscordResponseSender.js';
 import type { Queue } from 'bullmq';
 import type { Redis } from 'ioredis';
 import type { Client } from 'discord.js';
@@ -205,4 +207,51 @@ export function buildProcessorChain(deps: {
     ),
     new BotMentionProcessor(),
   ];
+}
+
+/**
+ * Build the full message-handling stack: the Chain-of-Responsibility processor
+ * chain + the MessageHandler that drives it and delivers async job results
+ * (including late-result recovery, which needs the personality loader + Discord
+ * client to reconstruct a follow-up send). Bundles both because the processor
+ * chain has exactly one consumer — the handler — so they're a single concern.
+ */
+export function buildMessageHandler(deps: {
+  // Processor-chain deps
+  denylistCache: DenylistCache;
+  voiceTranscription: VoiceTranscriptionService;
+  personalityIdCache: PersonalityIdCache;
+  gatewayClient: GatewayClient;
+  replyResolver: ReplyResolutionService;
+  personalityHandler: PersonalityMessageHandler;
+  multiTagPersistence: MultiTagPersistence;
+  // Handler deps
+  responseSender: DiscordResponseSender;
+  persistence: ConversationPersistence;
+  jobTracker: JobTracker;
+  slotDelivery: SlotDeliveryService;
+  coordinator: MultiTagCoordinator;
+  personalityService: IPersonalityLoader;
+  client: Client;
+}): MessageHandler {
+  const processors = buildProcessorChain({
+    denylistCache: deps.denylistCache,
+    voiceTranscription: deps.voiceTranscription,
+    personalityIdCache: deps.personalityIdCache,
+    gatewayClient: deps.gatewayClient,
+    replyResolver: deps.replyResolver,
+    coordinator: deps.coordinator,
+    personalityHandler: deps.personalityHandler,
+    multiTagPersistence: deps.multiTagPersistence,
+  });
+  return new MessageHandler({
+    processors,
+    responseSender: deps.responseSender,
+    persistence: deps.persistence,
+    jobTracker: deps.jobTracker,
+    slotDelivery: deps.slotDelivery,
+    coordinator: deps.coordinator,
+    personalityService: deps.personalityService,
+    client: deps.client,
+  });
 }

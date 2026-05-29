@@ -90,6 +90,13 @@ export const REDIS_KEY_PREFIXES = {
   /** Prefix for per-slot "already delivered" dedup marker (recovery skips dispatch when present) */
   MULTI_TAG_SLOT_DELIVERED: 'multitag:slot-delivered:',
   /**
+   * Prefix for the synthetic-timeout recovery marker, keyed by jobId. Written
+   * when the coordinator gives up on a slot and delivers a synthetic timeout;
+   * value is JSON delivery context so a late-arriving real result can be sent
+   * as a follow-up instead of dropped. TTL: MULTI_TAG.REDIS_TTL_SEC.
+   */
+  MULTI_TAG_SYNTHETIC_TIMEOUT: 'multitag:synthetic-timeout:',
+  /**
    * Prefix for batch-delete preview tokens. Key: `memory:preview:{userId}:{token}`.
    * Value: JSON-encoded filter that produced the preview. TTL: 5 min.
    * Consumer: `api-gateway/MemoryActionTokenService`.
