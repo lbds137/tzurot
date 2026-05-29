@@ -2,7 +2,29 @@
 
 _Active bugs observed in production. Fix before new features._
 
-_None active. Re-add an entry here if a symptom resurfaces._
+### 🐛 Vision-heavy jobs blow through 10-min safety timeout; late results silently dropped
+
+**Symptom**: User submits a message with attached images. After ~10 min, bot posts a synthetic timeout error. ~1–2 min later the real (correct) reply arrives in the Redis stream but is silently dropped (`Result for unknown job - ignoring`). Log noise: `Failed to confirm delivery: 404 JOB_NOT_FOUND` fires on the synthetic-timeout path.
+
+**Concrete instance** (observed 2026-05-29, ~04:14–04:26 UTC, job `llm-c1fe47b2-140f-4622-9204-0eb8c79b4314`):
+
+- DependencyStep: 5min 30s vision-processing 10 extended-context images (openrouter vision)
+- GenerationStep: 6min 8s on the actual LLM call
+- **Total: 11min 38s**, exceeding the 10-min budget by 98s
+
+**Three sub-bugs**:
+
+1. **Timeout too tight for vision-heavy pipelines.** `MULTI_TAG.COORDINATOR_TIMEOUT_MS` (`packages/common-types/src/constants/message.ts:117`) and `TIMEOUTS.JOB_WAIT` (`packages/common-types/src/constants/timing.ts:35`) are both `10 * 60 * 1000`. The doc comment claims per-job dominates, but they're equal so they fire simultaneously. Either raise the budget when vision steps are detected in the job pipeline, OR split ingest/vision/generation budgets and apply them per-stage.
+2. **`confirmDelivery` 404 on synthetic-timeout paths.** `multiTagDeliveryFlow.ts:194` calls `confirmDelivery` for every slot — including synthesized-timeout slots whose `JobResult` row was never written by ai-worker. Gateway returns 404 (`api-gateway/src/routes/ai/confirmDelivery.ts:46-48`) which surfaces as an error log even though the condition is structurally expected. The intent (`MultiTagCoordinator.ts:23` comment — "confirmDelivery is still called so the Redis stream entry clears") is sound but should gate on whether the slot was synthetic.
+3. **Silent drop of late results.** When the real result arrives after the synthetic timeout fired, `JobTracker` no longer has the job registered → `Result for unknown job - ignoring`. The user was told the request failed; the actual response is then discarded. Recovery would mean: detect "we already published a synthetic timeout for this jobId" → send a follow-up "actually, here's the response" message.
+
+**Fix sketch** (ordered by cost/impact):
+
+- **Short-term**: bump `JOB_WAIT` and `COORDINATOR_TIMEOUT_MS` to `15 * 60 * 1000`. High-confidence user-visible improvement; trades log volume on truly-stuck jobs for fewer false-timeout incidents.
+- **Medium**: silence the `confirmDelivery` 404 when `slot.synthetic === true` (cheap, removes operator-confusion noise).
+- **Long**: late-result recovery — when `MessageHandler.handleResult` receives a result for an unknown job, look up whether we already emitted a synthetic-timeout for that jobId (within a recent window); if yes, send a follow-up via the original channel/webhook context.
+
+**When to fix**: after the typed-client epic completes, before the next beta release. The third sub-bug (late-result recovery) is the most user-impactful but requires preserving channel/webhook context past the synthetic-timeout boundary — possibly via Redis with a short TTL on the synthetic-timeout marker keyed by jobId.
 
 _Cleared 2026-05-23 (on develop, awaiting release):_
 
