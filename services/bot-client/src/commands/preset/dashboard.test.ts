@@ -13,13 +13,19 @@ import {
 import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
 import { DASHBOARD_MESSAGES, formatSessionExpiredMessage } from '../../utils/dashboard/messages.js';
 import type { PresetData } from './config.js';
-import { GatewayApiError } from '../../utils/userGatewayClient.js';
+import { GatewayApiError } from '@tzurot/common-types';
 
-const TEST_USER = {
-  discordId: 'user-456',
-  username: 'testuser',
-  displayName: 'testuser',
-} as const;
+// Sentinel passed by the migrated dashboard handler — `clientsFor(interaction)`
+// returns this stub, which then flows into the mocked api.ts helpers (fetchPreset,
+// updatePreset, etc.). Tests assert calls receive the same sentinel rather than
+// the legacy GatewayUser shape.
+const TEST_USER_CLIENT = { actor: 'user-456' };
+const TEST_OWNER_CLIENT = { actor: 'bot-owner' };
+const TEST_USER = TEST_USER_CLIENT;
+
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: TEST_USER_CLIENT, ownerClient: TEST_OWNER_CLIENT })),
+}));
 
 // Mock common-types logger
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -385,7 +391,11 @@ describe('handleModalSubmit', () => {
 
     await handleModalSubmit(createMockModalInteraction('preset::modal::preset-123::identity'));
 
-    expect(mockUpdateGlobalPreset).toHaveBeenCalledWith('preset-123', expect.any(Object));
+    expect(mockUpdateGlobalPreset).toHaveBeenCalledWith(
+      'preset-123',
+      expect.any(Object),
+      TEST_OWNER_CLIENT
+    );
     expect(mockUpdatePreset).not.toHaveBeenCalled();
   });
 
@@ -697,7 +707,7 @@ describe('handleButton', () => {
     await handleButton(createMockButtonInteraction('preset::refresh::preset-123'));
 
     expect(mockFetchPreset).toHaveBeenCalledWith('preset-123', TEST_USER);
-    expect(mockFetchGlobalPreset).toHaveBeenCalledWith('preset-123');
+    expect(mockFetchGlobalPreset).toHaveBeenCalledWith('preset-123', TEST_OWNER_CLIENT);
   });
 
   it('should show error when preset not found on refresh', async () => {

@@ -31,6 +31,16 @@ vi.mock('./messages.js', () => ({
   },
 }));
 
+// The handler calls `clientsFor(interaction)` to mint a typed userClient before
+// invoking fetchFn. The real factory pulls INTERNAL_SERVICE_SECRET from startup
+// config; tests stub it out with an empty sentinel.
+vi.mock('../gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({
+    userClient: { actor: 'user-123' },
+    ownerClient: { actor: 'owner' },
+  })),
+}));
+
 import { handleDashboardSectionSelect } from './genericSelectMenuHandler.js';
 import type { DashboardConfig } from './types.js';
 

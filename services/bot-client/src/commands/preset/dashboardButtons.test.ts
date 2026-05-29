@@ -20,11 +20,19 @@ import { refreshDashboardUI } from '../../utils/dashboard/refreshHandler.js';
 import { DASHBOARD_MESSAGES, formatSessionExpiredMessage } from '../../utils/dashboard/messages.js';
 import type { FlattenedPresetData } from './config.js';
 
-const TEST_USER = {
-  discordId: 'user-123',
-  username: 'testuser',
-  displayName: 'testuser',
-} as const;
+// Sentinel returned by mocked `clientsFor`; flows through to mocked api.ts helpers
+// so tests assert calls receive the same sentinel rather than a legacy GatewayUser.
+const mockDeleteUserLlmConfig = vi.fn();
+const TEST_USER_CLIENT = {
+  actor: 'user-123',
+  deleteUserLlmConfig: mockDeleteUserLlmConfig,
+};
+const TEST_OWNER_CLIENT = { actor: 'bot-owner' };
+const TEST_USER = TEST_USER_CLIENT;
+
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: TEST_USER_CLIENT, ownerClient: TEST_OWNER_CLIENT })),
+}));
 
 // Mock dependencies
 const mockFetchPreset = vi.fn();
@@ -43,17 +51,6 @@ const mockBuildBrowseResponse = vi.fn();
 vi.mock('./browse.js', () => ({
   buildBrowseResponse: (...args: unknown[]) => mockBuildBrowseResponse(...args),
 }));
-
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
 
 const mockSessionManager = {
   get: vi.fn(),
@@ -434,7 +431,7 @@ describe('Preset Dashboard Buttons', () => {
       // Should try user endpoint first
       expect(mockFetchPreset).toHaveBeenCalledWith('preset-123', TEST_USER);
       // Should fall back to global endpoint
-      expect(mockFetchGlobalPreset).toHaveBeenCalledWith('preset-123');
+      expect(mockFetchGlobalPreset).toHaveBeenCalledWith('preset-123', TEST_OWNER_CLIENT);
     });
 
     it('routes not-found through renderTerminalScreen (preserves back-to-browse)', async () => {
@@ -614,15 +611,12 @@ describe('Preset Dashboard Buttons', () => {
       mockSessionManager.get.mockResolvedValue({
         data: createMockFlattenedPreset({ name: 'Preset To Delete' }),
       });
-      mockCallGatewayApi.mockResolvedValue({ ok: true });
+      mockDeleteUserLlmConfig.mockResolvedValue({ ok: true, data: {} });
 
       await handleConfirmDeleteButton(mockInteraction, 'preset-123');
 
       expect(mockInteraction.deferUpdate).toHaveBeenCalled();
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/llm-config/preset-123',
-        expect.objectContaining({ method: 'DELETE' })
-      );
+      expect(mockDeleteUserLlmConfig).toHaveBeenCalledWith('preset-123');
       // The helper decides success-with-rebuild vs clean-terminal based on
       // the session's browseContext; this suite verifies the handler routes
       // through it with the right outcome shape.
@@ -648,7 +642,7 @@ describe('Preset Dashboard Buttons', () => {
       mockSessionManager.get.mockResolvedValue({
         data: createMockFlattenedPreset({ browseContext: browseCtx }),
       });
-      mockCallGatewayApi.mockResolvedValue({ ok: true });
+      mockDeleteUserLlmConfig.mockResolvedValue({ ok: true, data: {} });
 
       await handleConfirmDeleteButton(mockInteraction, 'preset-123');
 
@@ -665,7 +659,11 @@ describe('Preset Dashboard Buttons', () => {
       mockSessionManager.get.mockResolvedValue({
         data: createMockFlattenedPreset(),
       });
-      mockCallGatewayApi.mockResolvedValue({ ok: false, error: 'Database error' });
+      mockDeleteUserLlmConfig.mockResolvedValue({
+        ok: false,
+        error: 'Database error',
+        status: 500,
+      });
 
       await handleConfirmDeleteButton(mockInteraction, 'preset-123');
 

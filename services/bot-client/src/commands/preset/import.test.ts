@@ -10,22 +10,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { handleImport, REQUIRED_IMPORT_FIELDS, PRESET_JSON_TEMPLATE } from './import.js';
-import * as userGatewayClient from '../../utils/userGatewayClient.js';
 import * as jsonFileUtils from '../../utils/jsonFileUtils.js';
+import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { Attachment } from 'discord.js';
-
-// Mock dependencies
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: vi.fn(),
-  };
-});
 
 vi.mock('../../utils/jsonFileUtils.js', () => ({
   validateAndParseJsonFile: vi.fn(),
@@ -56,7 +44,24 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
+
+const { handleImport, REQUIRED_IMPORT_FIELDS, PRESET_JSON_TEMPLATE } = await import('./import.js');
+
+interface UserClientStub {
+  createUserLlmConfig: ReturnType<typeof vi.fn>;
+}
+
+function createStub(): UserClientStub {
+  return { createUserLlmConfig: vi.fn() };
+}
+
 describe('Preset Import', () => {
+  let stub: UserClientStub;
+
   const createMockAttachment = (): Attachment =>
     ({
       contentType: 'application/json',
@@ -86,6 +91,8 @@ describe('Preset Import', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = createStub();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
   });
 
   afterEach(() => {
@@ -111,10 +118,7 @@ describe('Preset Import', () => {
       vi.mocked(jsonFileUtils.validateAndParseJsonFile).mockResolvedValue({
         data: createValidPresetData(),
       });
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: { id: 'new-preset-id' },
-      });
+      stub.createUserLlmConfig.mockResolvedValue(makeOk({ config: { id: 'new-preset-id' } }));
 
       const mockContext = createMockContext();
 
@@ -193,22 +197,16 @@ describe('Preset Import', () => {
           visionModel: 'anthropic/claude-sonnet-4',
         }),
       });
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: { id: 'new-preset-id' },
-      });
+      stub.createUserLlmConfig.mockResolvedValue(makeOk({ config: { id: 'new-preset-id' } }));
 
       const mockContext = createMockContext();
 
       await handleImport(mockContext);
 
-      expect(userGatewayClient.callGatewayApi).toHaveBeenCalledWith(
-        '/user/llm-config',
+      expect(stub.createUserLlmConfig).toHaveBeenCalledWith(
         expect.objectContaining({
-          body: expect.objectContaining({
-            description: 'A description',
-            visionModel: 'anthropic/claude-sonnet-4',
-          }),
+          description: 'A description',
+          visionModel: 'anthropic/claude-sonnet-4',
         })
       );
     });
@@ -226,29 +224,22 @@ describe('Preset Import', () => {
           },
         }),
       });
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: { id: 'new-preset-id' },
-      });
+      stub.createUserLlmConfig.mockResolvedValue(makeOk({ config: { id: 'new-preset-id' } }));
 
       const mockContext = createMockContext();
 
       await handleImport(mockContext);
 
       // Should make single API call with all fields including advancedParameters
-      expect(userGatewayClient.callGatewayApi).toHaveBeenCalledTimes(1);
-      expect(userGatewayClient.callGatewayApi).toHaveBeenCalledWith(
-        '/user/llm-config',
+      expect(stub.createUserLlmConfig).toHaveBeenCalledTimes(1);
+      expect(stub.createUserLlmConfig).toHaveBeenCalledWith(
         expect.objectContaining({
-          method: 'POST',
-          body: expect.objectContaining({
-            advancedParameters: expect.objectContaining({
-              temperature: 0.8,
-              max_tokens: 4096,
-              reasoning: expect.objectContaining({
-                effort: 'high',
-                enabled: true,
-              }),
+          advancedParameters: expect.objectContaining({
+            temperature: 0.8,
+            max_tokens: 4096,
+            reasoning: expect.objectContaining({
+              effort: 'high',
+              enabled: true,
             }),
           }),
         })
@@ -259,11 +250,7 @@ describe('Preset Import', () => {
       vi.mocked(jsonFileUtils.validateAndParseJsonFile).mockResolvedValue({
         data: createValidPresetData(),
       });
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
-        ok: false as const,
-        error: 'Duplicate name',
-        status: 400,
-      });
+      stub.createUserLlmConfig.mockResolvedValue(makeErr(400, 'Duplicate name'));
 
       const mockContext = createMockContext();
 
@@ -280,21 +267,15 @@ describe('Preset Import', () => {
           contextWindowTokens: 65536,
         }),
       });
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: { id: 'new-preset-id' },
-      });
+      stub.createUserLlmConfig.mockResolvedValue(makeOk({ config: { id: 'new-preset-id' } }));
 
       const mockContext = createMockContext();
 
       await handleImport(mockContext);
 
-      expect(userGatewayClient.callGatewayApi).toHaveBeenCalledWith(
-        '/user/llm-config',
+      expect(stub.createUserLlmConfig).toHaveBeenCalledWith(
         expect.objectContaining({
-          body: expect.objectContaining({
-            contextWindowTokens: 65536,
-          }),
+          contextWindowTokens: 65536,
         })
       );
     });

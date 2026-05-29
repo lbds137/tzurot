@@ -31,6 +31,12 @@ vi.mock('./api.js', async () => {
   };
 });
 
+// Sentinel userClient flowing from `clientsFor(interaction)` into `createPreset`.
+const TEST_USER_CLIENT = { actor: 'user-123' };
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: TEST_USER_CLIENT, ownerClient: { actor: 'owner' } })),
+}));
+
 vi.mock('../../utils/dashboard/index.js', () => ({
   buildDashboardEmbed: vi.fn().mockReturnValue({ data: {} }),
   buildDashboardComponents: vi.fn().mockReturnValue([]),
@@ -204,7 +210,7 @@ describe('Preset Create', () => {
           model: 'anthropic/claude-sonnet-4',
           provider: 'openrouter',
         },
-        expect.objectContaining({ discordId: 'user-123' })
+        TEST_USER_CLIENT
       );
 
       // Dashboard should be built
