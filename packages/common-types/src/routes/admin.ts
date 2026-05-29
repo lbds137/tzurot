@@ -222,6 +222,12 @@ export const adminRoutes = {
     id: 'listGlobalLlmConfigs',
     output: ListLlmConfigsResponseSchema,
     meta: { safeRead: true },
+    // Dual-context: bot-owner autocomplete (3s Discord deadline) and
+    // bot-owner dashboard refresh (post-defer). DEFERRED wins because the
+    // dashboard path needs the longer budget; the autocomplete caller already
+    // caches results, so the rare cold-path call tolerating a slow gateway is
+    // an acceptable trade for not splitting this into two routes.
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   /** GET /api/admin/llm-config/:id — Fetch one global config. */
@@ -233,6 +239,7 @@ export const adminRoutes = {
     params: { id: z.string() },
     output: GetLlmConfigResponseSchema,
     meta: { safeRead: true },
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   /** POST /api/admin/llm-config — Create a new global config. */
@@ -255,6 +262,7 @@ export const adminRoutes = {
     input: LlmConfigUpdateSchema,
     output: UpdateLlmConfigResponseSchema,
     meta: { idempotent: true },
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   /** PUT /api/admin/llm-config/:id/set-default — Promote to paid default. */

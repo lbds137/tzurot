@@ -24,7 +24,7 @@ import {
 } from '../../utils/dashboard/index.js';
 import { handleDashboardSectionSelect } from '../../utils/dashboard/genericSelectMenuHandler.js';
 import { refreshDashboardUI } from '../../utils/dashboard/refreshHandler.js';
-import { toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import {
   PRESET_DASHBOARD_CONFIG,
   type FlattenedPresetData,
@@ -150,9 +150,10 @@ async function handleSectionModalSubmit(
     const isGlobal = session?.data.isGlobal ?? false;
 
     // Update preset via appropriate API
+    const { userClient, ownerClient } = clientsFor(interaction);
     const updatedPreset = isGlobal
-      ? await updateGlobalPreset(entityId, updatePayload)
-      : await updatePreset(entityId, updatePayload, toGatewayUser(interaction.user));
+      ? await updateGlobalPreset(entityId, updatePayload, ownerClient)
+      : await updatePreset(entityId, updatePayload, userClient);
 
     // Flatten the response for dashboard display
     const flattenedData = flattenPresetData(updatedPreset);

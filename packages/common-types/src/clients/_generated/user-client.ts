@@ -128,6 +128,7 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.getUserLlmConfig.output,
+      timeoutMs: ROUTE_MANIFEST.getUserLlmConfig.timeoutMs,
     });
   }
 
@@ -145,6 +146,7 @@ export class UserClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.createUserLlmConfig.output,
+      timeoutMs: ROUTE_MANIFEST.createUserLlmConfig.timeoutMs,
     });
   }
 
@@ -165,6 +167,7 @@ export class UserClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.updateUserLlmConfig.output,
+      timeoutMs: ROUTE_MANIFEST.updateUserLlmConfig.timeoutMs,
     });
   }
 
@@ -181,6 +184,7 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.deleteUserLlmConfig.output,
+      timeoutMs: ROUTE_MANIFEST.deleteUserLlmConfig.timeoutMs,
     });
   }
 

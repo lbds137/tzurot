@@ -11,7 +11,7 @@
 import { MessageFlags } from 'discord.js';
 import type { ButtonInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
-import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import {
   buildDeleteConfirmation,
   handleDashboardClose,
@@ -80,12 +80,13 @@ export async function handleRefreshButton(
   const existingBrowseContext = existingSession?.data.browseContext;
 
   // Try user endpoint first (works for owned presets AND accessible global presets)
-  let preset = await fetchPreset(entityId, toGatewayUser(interaction.user));
+  const { userClient, ownerClient } = clientsFor(interaction);
+  let preset = await fetchPreset(entityId, userClient);
 
   // Fallback: if null and session indicated global, try admin endpoint
   // This handles edge case where preset is still global but user endpoint failed
   if (preset === null && cachedIsGlobal) {
-    preset = await fetchGlobalPreset(entityId);
+    preset = await fetchGlobalPreset(entityId, ownerClient);
   }
 
   if (preset === null) {
@@ -159,7 +160,8 @@ export async function handleToggleGlobalButton(
 
   try {
     // Fetch fresh data to prevent race condition with stale session.data.isGlobal
-    const freshPreset = await fetchPreset(entityId, toGatewayUser(interaction.user));
+    const { userClient } = clientsFor(interaction);
+    const freshPreset = await fetchPreset(entityId, userClient);
     if (freshPreset === null) {
       await interaction.followUp({
         content: DASHBOARD_MESSAGES.NOT_FOUND('Preset'),
@@ -169,11 +171,7 @@ export async function handleToggleGlobalButton(
     }
 
     const newIsGlobal = !freshPreset.isGlobal;
-    const updatedPreset = await updatePreset(
-      entityId,
-      { isGlobal: newIsGlobal },
-      toGatewayUser(interaction.user)
-    );
+    const updatedPreset = await updatePreset(entityId, { isGlobal: newIsGlobal }, userClient);
 
     const flattenedData = flattenPresetData(updatedPreset);
     const sessionManager = getSessionManager();
@@ -280,10 +278,8 @@ export async function handleConfirmDeleteButton(
   };
 
   try {
-    const result = await callGatewayApi<void>(`/user/llm-config/${encodeURIComponent(entityId)}`, {
-      method: 'DELETE',
-      user: toGatewayUser(interaction.user),
-    });
+    const { userClient } = clientsFor(interaction);
+    const result = await userClient.deleteUserLlmConfig(entityId);
 
     if (!result.ok) {
       logger.warn(
@@ -370,7 +366,8 @@ export async function handleCloneButton(
     // exists in the user's library, so cloning the original twice produces
     // the same "(Copy)" candidate both times. Retry with a bumped suffix on
     // the gateway's name-collision validation error; surface anything else.
-    const newPreset = await createClonedPreset(sourceData, toGatewayUser(interaction.user));
+    const { userClient } = clientsFor(interaction);
+    const newPreset = await createClonedPreset(sourceData, userClient);
 
     // Build update payload with all non-basic fields from source
     const updatePayload = unflattenPresetData(sourceData);
@@ -389,11 +386,11 @@ export async function handleCloneButton(
 
     // Apply updates if needed
     if (Object.keys(updatePayload).length > 0) {
-      await updatePreset(newPreset.id, updatePayload, toGatewayUser(interaction.user));
+      await updatePreset(newPreset.id, updatePayload, userClient);
     }
 
     // Fetch the complete cloned preset to get all fields
-    const clonedPreset = await fetchPreset(newPreset.id, toGatewayUser(interaction.user));
+    const clonedPreset = await fetchPreset(newPreset.id, userClient);
     if (clonedPreset === null) {
       throw new Error('Failed to fetch cloned preset');
     }

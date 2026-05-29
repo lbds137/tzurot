@@ -16,15 +16,10 @@ import {
   isFreeModel,
   presetBrowseOptions,
   type LlmConfigSummary,
-  type ListWalletKeysResponse,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import {
-  callGatewayApi,
-  GATEWAY_TIMEOUTS,
-  toGatewayUser,
-  type GatewayUser,
-} from '../../utils/userGatewayClient.js';
+import type { UserClient } from '@tzurot/common-types';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import {
   buildDashboardEmbed,
   buildDashboardComponents,
@@ -63,10 +58,6 @@ const browseHelpers = createBrowseCustomIdHelpers<PresetBrowseFilter>({
   validFilters: VALID_FILTERS,
   includeSort: false,
 });
-
-interface ListResponse {
-  configs: LlmConfigSummary[];
-}
 
 /**
  * Check if custom ID is a preset browse interaction
@@ -317,17 +308,10 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
 
   try {
     // Fetch presets and wallet status in parallel
-    // Use longer timeout since this is a deferred operation
-    const user = toGatewayUser(context.user);
+    const { userClient } = clientsFor(context.interaction);
     const [presetResult, walletResult] = await Promise.all([
-      callGatewayApi<ListResponse>('/user/llm-config', {
-        user,
-        timeout: GATEWAY_TIMEOUTS.DEFERRED,
-      }),
-      callGatewayApi<ListWalletKeysResponse>('/wallet/list', {
-        user,
-        timeout: GATEWAY_TIMEOUTS.DEFERRED,
-      }),
+      userClient.listUserLlmConfigs(),
+      userClient.listWalletKeys(),
     ]);
 
     if (!presetResult.ok) {
@@ -372,7 +356,7 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
  * Reusable for pagination and back-from-dashboard navigation
  */
 export async function buildBrowseResponse(
-  user: GatewayUser,
+  userClient: UserClient,
   browseContext: {
     page: number;
     filter: PresetBrowseFilter;
@@ -381,16 +365,10 @@ export async function buildBrowseResponse(
 ): Promise<{ embed: EmbedBuilder; components: BrowseActionRow[] } | null> {
   const { page, filter, query } = browseContext;
 
-  // Re-fetch data (use longer timeout since this is a deferred operation)
+  // Re-fetch data via typed client
   const [presetResult, walletResult] = await Promise.all([
-    callGatewayApi<ListResponse>('/user/llm-config', {
-      user,
-      timeout: GATEWAY_TIMEOUTS.DEFERRED,
-    }),
-    callGatewayApi<ListWalletKeysResponse>('/wallet/list', {
-      user,
-      timeout: GATEWAY_TIMEOUTS.DEFERRED,
-    }),
+    userClient.listUserLlmConfigs(),
+    userClient.listWalletKeys(),
   ]);
 
   if (!presetResult.ok) {
@@ -408,7 +386,8 @@ export async function buildBrowseResponse(
 // load time. Consumed by `renderPostActionScreen` (destructive-action success
 // → direct re-render) and `handleSharedBackButton` (Back-to-Browse click).
 registerBrowseRebuilder('preset', async (interaction, browseContext, successBanner) => {
-  const result = await buildBrowseResponse(toGatewayUser(interaction.user), {
+  const { userClient } = clientsFor(interaction);
+  const result = await buildBrowseResponse(userClient, {
     page: browseContext.page,
     filter: browseContext.filter as PresetBrowseFilter,
     query: browseContext.query ?? null,
@@ -435,7 +414,8 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
   await interaction.deferUpdate();
 
   try {
-    const result = await buildBrowseResponse(toGatewayUser(interaction.user), parsed);
+    const { userClient } = clientsFor(interaction);
+    const result = await buildBrowseResponse(userClient, parsed);
 
     if (result === null) {
       logger.warn({ userId: interaction.user.id }, 'Failed to fetch presets for pagination');
@@ -466,7 +446,8 @@ export async function handleBrowseSelect(interaction: StringSelectMenuInteractio
 
   try {
     // Fetch the preset
-    const preset = await fetchPreset(presetId, toGatewayUser(interaction.user));
+    const { userClient } = clientsFor(interaction);
+    const preset = await fetchPreset(presetId, userClient);
 
     if (!preset) {
       await interaction.editReply({

@@ -125,6 +125,7 @@ export const userConfigRoutes = {
     output: GetLlmConfigResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   createUserLlmConfig: {
@@ -135,6 +136,7 @@ export const userConfigRoutes = {
     input: LlmConfigCreateSchema,
     output: CreateLlmConfigResponseSchema,
     requiresProvisionedUser: true,
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   updateUserLlmConfig: {
@@ -147,6 +149,7 @@ export const userConfigRoutes = {
     output: UpdateLlmConfigResponseSchema,
     requiresProvisionedUser: true,
     meta: { idempotent: true },
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   deleteUserLlmConfig: {
@@ -157,6 +160,7 @@ export const userConfigRoutes = {
     params: { id: z.string() },
     output: DeleteLlmConfigResponseSchema,
     requiresProvisionedUser: true,
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   resolveUserLlmConfig: {

@@ -16,7 +16,8 @@
 
 import type { StringSelectMenuInteraction } from 'discord.js';
 import { MessageFlags } from 'discord.js';
-import { toGatewayUser, type GatewayUser } from '../userGatewayClient.js';
+import type { UserClient } from '@tzurot/common-types';
+import { clientsFor } from '../gatewayClients.js';
 import { parseDashboardCustomId, type DashboardConfig } from './types.js';
 import { fetchOrCreateSession } from './sessionHelpers.js';
 import { buildSectionModal } from './ModalFactory.js';
@@ -29,8 +30,8 @@ export interface GenericSelectMenuConfig<TFlat extends Record<string, unknown>, 
   entityType: string;
   /** Dashboard config defining the sections and modal fields */
   dashboardConfig: DashboardConfig<TFlat>;
-  /** Fetch the raw entity data from the API */
-  fetchFn: (entityId: string, user: GatewayUser) => Promise<TRaw | null>;
+  /** Fetch the raw entity data via the typed user client */
+  fetchFn: (entityId: string, userClient: UserClient) => Promise<TRaw | null>;
   /** Transform raw API data to the flattened session format */
   transformFn: (raw: TRaw) => TFlat;
   /** Entity name used in user-facing error messages (e.g., 'Persona', 'Preset') */
@@ -77,11 +78,12 @@ export async function handleDashboardSectionSelect<TFlat extends Record<string, 
   }
 
   // Fetch or create the session
+  const { userClient } = clientsFor(interaction);
   const result = await fetchOrCreateSession<TFlat, TRaw>({
     userId: interaction.user.id,
     entityType: config.entityType,
     entityId,
-    fetchFn: () => config.fetchFn(entityId, toGatewayUser(interaction.user)),
+    fetchFn: () => config.fetchFn(entityId, userClient),
     transformFn: config.transformFn,
     interaction,
   });

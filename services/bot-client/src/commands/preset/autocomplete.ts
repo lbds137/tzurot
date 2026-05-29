@@ -15,8 +15,7 @@ import {
   type LlmConfigSummary,
   type AutocompleteBadge,
 } from '@tzurot/common-types';
-import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
-import { adminFetch } from '../../utils/adminApiClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import {
   fetchTextModels,
   fetchVisionModels,
@@ -50,6 +49,15 @@ function getGlobalConfigCache(): TTLCache<GlobalConfigEntry[]> {
     maxSize: 1, // Only one entry needed
   });
   return globalConfigCache;
+}
+
+/**
+ * Reset the module-level global-config cache. Test-only — lets each test
+ * exercise the cold-fetch path without ordering dependencies on prior tests
+ * that may have populated the cache.
+ */
+export function __resetGlobalConfigCacheForTests(): void {
+  globalConfigCache = null;
 }
 
 /**
@@ -158,9 +166,8 @@ async function handlePresetAutocomplete(
 ): Promise<void> {
   const subcommand = interaction.options.getSubcommand(false);
 
-  const result = await callGatewayApi<{ configs: LlmConfigSummary[] }>('/user/llm-config', {
-    user: toGatewayUser(interaction.user),
-  });
+  const { userClient } = clientsFor(interaction);
+  const result = await userClient.listUserLlmConfigs();
 
   if (!result.ok) {
     logger.warn({ userId, error: result.error }, 'Failed to fetch presets');
@@ -226,7 +233,9 @@ const GLOBAL_CONFIG_CACHE_KEY = 'global-configs';
 /**
  * Fetch global configs from API or cache
  */
-async function fetchGlobalConfigs(): Promise<GlobalConfigEntry[] | null> {
+async function fetchGlobalConfigs(
+  interaction: AutocompleteInteraction
+): Promise<GlobalConfigEntry[] | null> {
   const cache = getGlobalConfigCache();
 
   // Check cache first
@@ -236,20 +245,20 @@ async function fetchGlobalConfigs(): Promise<GlobalConfigEntry[] | null> {
     return cached;
   }
 
-  // Cache miss - fetch from API
-  const response = await adminFetch('/admin/llm-config');
+  // Cache miss - fetch via typed admin client
+  const { ownerClient } = clientsFor(interaction);
+  const result = await ownerClient.listGlobalLlmConfigs();
 
-  if (!response.ok) {
+  if (!result.ok) {
     return null;
   }
 
-  const data = (await response.json()) as { configs: GlobalConfigEntry[] };
+  const configs = result.data.configs as GlobalConfigEntry[];
 
-  // Store in cache
-  cache.set(GLOBAL_CONFIG_CACHE_KEY, data.configs);
-  logger.debug({ count: data.configs.length }, 'Cached global configs');
+  cache.set(GLOBAL_CONFIG_CACHE_KEY, configs);
+  logger.debug({ count: configs.length }, 'Cached global configs');
 
-  return data.configs;
+  return configs;
 }
 
 /**
@@ -262,7 +271,7 @@ async function handleGlobalConfigAutocomplete(
   freeOnly = false
 ): Promise<void> {
   try {
-    const configs = await fetchGlobalConfigs();
+    const configs = await fetchGlobalConfigs(interaction);
 
     if (configs === null) {
       await interaction.respond([]);

@@ -9,12 +9,11 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { GatewayApiError } from '../../utils/userGatewayClient.js';
-import type { GatewayUser } from '../../utils/userGatewayClient.js';
+import { GatewayApiError, type UserClient } from '@tzurot/common-types';
 import type { FlattenedPresetData } from './config.js';
 
-function mkUser(discordId = 'user-1'): GatewayUser {
-  return { discordId, username: 'test-user', displayName: 'Test User' };
+function mkUserClient(discordId = 'user-1'): UserClient {
+  return { actor: discordId } as unknown as UserClient;
 }
 
 const mockCreatePreset = vi.fn();
@@ -61,8 +60,8 @@ describe('createClonedPreset', () => {
     const resultPreset = { id: 'new-id', name: 'My Preset (Copy)' };
     mockCreatePreset.mockResolvedValueOnce(resultPreset);
 
-    const user = mkUser();
-    const result = await createClonedPreset(sourceData, user);
+    const userClient = mkUserClient();
+    const result = await createClonedPreset(sourceData, userClient);
 
     expect(result).toBe(resultPreset);
     expect(mockCreatePreset).toHaveBeenCalledTimes(1);
@@ -71,7 +70,7 @@ describe('createClonedPreset', () => {
         name: 'My Preset (Copy)',
         autoSuffixOnCollision: true,
       }),
-      user
+      userClient
     );
   });
 
@@ -82,21 +81,21 @@ describe('createClonedPreset', () => {
     const collision = new GatewayApiError('still colliding', 400, 'NAME_COLLISION');
     mockCreatePreset.mockRejectedValueOnce(collision);
 
-    await expect(createClonedPreset(sourceData, mkUser())).rejects.toBe(collision);
+    await expect(createClonedPreset(sourceData, mkUserClient())).rejects.toBe(collision);
     expect(mockCreatePreset).toHaveBeenCalledTimes(1);
   });
 
   it('propagates GatewayApiErrors with no sub-code immediately', async () => {
     mockCreatePreset.mockRejectedValueOnce(new GatewayApiError('Bad request', 400));
 
-    await expect(createClonedPreset(sourceData, mkUser())).rejects.toThrow('Bad request');
+    await expect(createClonedPreset(sourceData, mkUserClient())).rejects.toThrow('Bad request');
     expect(mockCreatePreset).toHaveBeenCalledTimes(1);
   });
 
   it('propagates plain Errors immediately', async () => {
     mockCreatePreset.mockRejectedValueOnce(new Error('network blip'));
 
-    await expect(createClonedPreset(sourceData, mkUser())).rejects.toThrow('network blip');
+    await expect(createClonedPreset(sourceData, mkUserClient())).rejects.toThrow('network blip');
     expect(mockCreatePreset).toHaveBeenCalledTimes(1);
   });
 });

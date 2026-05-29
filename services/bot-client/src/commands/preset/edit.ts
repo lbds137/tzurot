@@ -19,7 +19,7 @@ import {
   flattenPresetData,
   buildPresetDashboardOptions,
 } from './config.js';
-import { toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import { fetchPreset } from './api.js';
 
 const logger = createLogger('preset-edit');
@@ -35,7 +35,8 @@ export async function handleEdit(context: DeferredCommandContext): Promise<void>
 
   try {
     // Fetch the preset
-    const preset = await fetchPreset(presetId, toGatewayUser(context.user));
+    const { userClient } = clientsFor(context.interaction);
+    const preset = await fetchPreset(presetId, userClient);
 
     if (!preset) {
       await context.editReply({ content: '❌ Preset not found.' });

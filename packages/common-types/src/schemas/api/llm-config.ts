@@ -224,18 +224,25 @@ export const LLM_CONFIG_DEFAULTS = {
  * boundary prevents the "DB accepts, gateway rejects, user stuck"
  * failure class.
  */
-export const LlmConfigSummarySchema = z.object({
-  id: z.string().uuid(),
-  name: z.string(),
-  description: z.string().nullable(),
-  provider: z.string(),
-  model: z.string(),
-  visionModel: z.string().nullable(),
-  isGlobal: z.boolean(),
-  isDefault: z.boolean(),
-  isOwned: z.boolean(),
-  permissions: EntityPermissionsSchema,
-});
+// `.passthrough()` preserves the additional preset fields the gateway
+// emits on GET / PUT / POST (contextWindowTokens, params, modelContextLength,
+// etc.) that the bot-client dashboard reads but the schema doesn't yet
+// declare. Tighten by enumerating those fields explicitly; the dashboard
+// then becomes the authoritative consumer surface.
+export const LlmConfigSummarySchema = z
+  .object({
+    id: z.string().uuid(),
+    name: z.string(),
+    description: z.string().nullable(),
+    provider: z.string(),
+    model: z.string(),
+    visionModel: z.string().nullable(),
+    isGlobal: z.boolean(),
+    isDefault: z.boolean(),
+    isOwned: z.boolean(),
+    permissions: EntityPermissionsSchema,
+  })
+  .passthrough();
 export type LlmConfigSummary = z.infer<typeof LlmConfigSummarySchema>;
 
 // ============================================================================

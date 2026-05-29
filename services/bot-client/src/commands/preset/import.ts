@@ -6,7 +6,8 @@
 import { EmbedBuilder, escapeMarkdown } from 'discord.js';
 import { createLogger, DISCORD_COLORS, presetImportOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi, toGatewayUser, type GatewayUser } from '../../utils/userGatewayClient.js';
+import type { UserClient } from '@tzurot/common-types';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import { validateAndParseJsonFile } from '../../utils/jsonFileUtils.js';
 import {
   getImportedFieldsList,
@@ -173,30 +174,26 @@ function buildImportPayload(data: ImportedPresetData): Record<string, unknown> {
  * Create preset via API
  */
 async function createPresetFromImport(
-  user: GatewayUser,
+  userClient: UserClient,
   payload: Record<string, unknown>
 ): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   // Create preset with all fields - API supports all fields in create endpoint
-  const createResult = await callGatewayApi<{ id: string }>('/user/llm-config', {
-    user,
-    method: 'POST',
-    body: {
-      name: payload.name,
-      model: payload.model,
-      provider: payload.provider,
-      description: payload.description,
-      visionModel: payload.visionModel,
-      contextWindowTokens: payload.contextWindowTokens,
-      advancedParameters: payload.advancedParameters,
-    },
-  });
+  const createResult = await userClient.createUserLlmConfig({
+    name: payload.name,
+    model: payload.model,
+    provider: payload.provider,
+    description: payload.description,
+    visionModel: payload.visionModel,
+    contextWindowTokens: payload.contextWindowTokens,
+    advancedParameters: payload.advancedParameters,
+  } as Parameters<UserClient['createUserLlmConfig']>[0]);
 
   if (!createResult.ok) {
     logger.error({ error: createResult.error }, 'Failed to create preset');
     return { ok: false, error: createResult.error };
   }
 
-  return { ok: true, id: createResult.data.id };
+  return { ok: true, id: createResult.data.config.id };
 }
 
 /**
@@ -248,7 +245,8 @@ export async function handleImport(context: DeferredCommandContext): Promise<voi
     const payload = buildImportPayload(parseResult.data);
 
     // Step 4: Create preset
-    const createResult = await createPresetFromImport(toGatewayUser(context.user), payload);
+    const { userClient } = clientsFor(context.interaction);
+    const createResult = await createPresetFromImport(userClient, payload);
     if (!createResult.ok) {
       await context.editReply(
         `❌ Failed to import preset:\n\`\`\`\n${createResult.error.slice(0, 1500)}\n\`\`\``
