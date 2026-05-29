@@ -4,7 +4,13 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ResponseOrderingService } from './ResponseOrderingService.js';
-import type { LLMGenerationResult } from '@tzurot/common-types';
+import { MULTI_TAG, type LLMGenerationResult } from '@tzurot/common-types';
+
+/** Comfortably past the ordering buffer's safety timeout. */
+const PAST_ORDERING_TIMEOUT_MS = MULTI_TAG.ORDERING_MAX_WAIT_MS + 60 * 1000;
+/** Stale threshold is 1.5x MAX_WAIT; these straddle it. */
+const WITHIN_STALE_MS = MULTI_TAG.ORDERING_MAX_WAIT_MS; // < 1.5x → fresh
+const PAST_STALE_MS = MULTI_TAG.ORDERING_MAX_WAIT_MS * 1.5 + 60 * 1000; // > 1.5x → stale
 
 describe('ResponseOrderingService', () => {
   let service: ResponseOrderingService;
@@ -283,8 +289,8 @@ describe('ResponseOrderingService', () => {
       expect(deliveredResults).toHaveLength(0);
       expect(service.getStats().totalBuffered).toBe(1);
 
-      // Advance time past timeout (10 minutes = 600000ms, + buffer)
-      vi.advanceTimersByTime(11 * 60 * 1000); // 660000ms
+      // Advance time past the ordering buffer's safety timeout
+      vi.advanceTimersByTime(PAST_ORDERING_TIMEOUT_MS);
 
       // Cancel job-1 to trigger queue reprocessing with the new time
       // (In production, this happens when job-1 times out and returns an error)
@@ -309,8 +315,8 @@ describe('ResponseOrderingService', () => {
       await service.handleResult(channelId, 'job-2', createResult('Second'), time2, deliverFn);
       expect(deliveredResults).toHaveLength(0);
 
-      // Advance time past timeout (11 minutes > 10 minute MAX_WAIT_MS = 600000ms)
-      vi.advanceTimersByTime(11 * 60 * 1000);
+      // Advance time past the ordering buffer's safety timeout
+      vi.advanceTimersByTime(PAST_ORDERING_TIMEOUT_MS);
 
       // Register and complete job 3 - this triggers reprocessing
       service.registerJob(channelId, 'job-3', time3);
@@ -559,8 +565,8 @@ describe('ResponseOrderingService', () => {
 
       service.registerJob(channelId, 'job-1', time);
 
-      // Advance time but stay within threshold (10 min * 1.5 = 15 min)
-      vi.advanceTimersByTime(14 * 60 * 1000); // 14 minutes
+      // Advance time but stay within the 1.5x-MAX_WAIT stale threshold
+      vi.advanceTimersByTime(WITHIN_STALE_MS);
 
       const result = service.cleanupStaleJobs();
 
@@ -576,7 +582,7 @@ describe('ResponseOrderingService', () => {
       service.registerJob(channelId, 'job-1', time);
 
       // Advance time past threshold (10 min * 1.5 = 15 min)
-      vi.advanceTimersByTime(16 * 60 * 1000); // 16 minutes
+      vi.advanceTimersByTime(PAST_STALE_MS);
 
       const result = service.cleanupStaleJobs();
 
@@ -593,7 +599,7 @@ describe('ResponseOrderingService', () => {
       service.registerJob('channel-3', 'job-3', time);
 
       // Advance time past threshold
-      vi.advanceTimersByTime(16 * 60 * 1000);
+      vi.advanceTimersByTime(PAST_STALE_MS);
 
       const result = service.cleanupStaleJobs();
 
@@ -610,7 +616,7 @@ describe('ResponseOrderingService', () => {
       service.registerJob(channelId, 'job-old', time);
 
       // Advance time past threshold
-      vi.advanceTimersByTime(16 * 60 * 1000);
+      vi.advanceTimersByTime(PAST_STALE_MS);
 
       // Register new job (after advancing time)
       const newTime = new Date('2024-01-01T10:20:00Z');
@@ -629,7 +635,7 @@ describe('ResponseOrderingService', () => {
       service.registerJob(channelId, 'job-1', time);
 
       // Advance time past threshold
-      vi.advanceTimersByTime(16 * 60 * 1000);
+      vi.advanceTimersByTime(PAST_STALE_MS);
 
       service.cleanupStaleJobs();
 
@@ -651,7 +657,7 @@ describe('ResponseOrderingService', () => {
       expect(deliveredResults).toHaveLength(0);
 
       // Advance time past threshold
-      vi.advanceTimersByTime(16 * 60 * 1000);
+      vi.advanceTimersByTime(PAST_STALE_MS);
 
       // Clean up stale job-1
       service.cleanupStaleJobs();

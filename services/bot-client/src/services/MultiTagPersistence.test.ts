@@ -60,6 +60,7 @@ describe('MultiTagPersistence', () => {
     multi: ReturnType<typeof vi.fn>;
     set: ReturnType<typeof vi.fn>;
     get: ReturnType<typeof vi.fn>;
+    del: ReturnType<typeof vi.fn>;
     scan: ReturnType<typeof vi.fn>;
     mget: ReturnType<typeof vi.fn>;
     sadd: ReturnType<typeof vi.fn>;
@@ -94,6 +95,7 @@ describe('MultiTagPersistence', () => {
       multi: vi.fn(() => fakePipeline),
       set: vi.fn().mockResolvedValue('OK'),
       get: vi.fn(),
+      del: vi.fn().mockResolvedValue(1),
       scan: vi.fn(),
       mget: vi.fn(),
       sadd: vi.fn().mockResolvedValue(1),
@@ -372,6 +374,52 @@ describe('MultiTagPersistence', () => {
       // message. Duplicate is the better failure mode.
       mockRedis.get.mockRejectedValue(new Error('Redis down'));
       expect(await persistence.isSlotDelivered('job-abc')).toBe(false);
+    });
+  });
+
+  describe('synthetic-timeout recovery marker', () => {
+    const ctx = {
+      channelId: 'chan-1',
+      guildId: 'guild-1',
+      clientId: 'bot-1',
+      personalitySlug: 'lila',
+      recipientUserId: 'user-1',
+      isAutoResponse: false,
+    };
+
+    it('markSyntheticTimeout writes the JSON context with a TTL', async () => {
+      await persistence.markSyntheticTimeout('job-1', ctx);
+      expect(mockRedis.set).toHaveBeenCalledWith(
+        'multitag:synthetic-timeout:job-1',
+        JSON.stringify(ctx),
+        'EX',
+        expect.any(Number)
+      );
+    });
+
+    it('getSyntheticTimeout round-trips the context', async () => {
+      mockRedis.get.mockResolvedValue(JSON.stringify(ctx));
+      expect(await persistence.getSyntheticTimeout('job-1')).toEqual(ctx);
+    });
+
+    it('getSyntheticTimeout returns null when no marker exists', async () => {
+      mockRedis.get.mockResolvedValue(null);
+      expect(await persistence.getSyntheticTimeout('job-1')).toBeNull();
+    });
+
+    it('getSyntheticTimeout fails soft (null) on malformed JSON', async () => {
+      mockRedis.get.mockResolvedValue('not-json{');
+      expect(await persistence.getSyntheticTimeout('job-1')).toBeNull();
+    });
+
+    it('clearSyntheticTimeout deletes the marker key', async () => {
+      await persistence.clearSyntheticTimeout('job-1');
+      expect(mockRedis.del).toHaveBeenCalledWith('multitag:synthetic-timeout:job-1');
+    });
+
+    it('markSyntheticTimeout fails soft on Redis error (no throw)', async () => {
+      mockRedis.set.mockRejectedValue(new Error('Redis down'));
+      await expect(persistence.markSyntheticTimeout('job-1', ctx)).resolves.toBeUndefined();
     });
   });
 });

@@ -60,17 +60,17 @@
  * completes — channel/message fetches require an authenticated client.
  */
 
-import type { Client, Message, Channel } from 'discord.js';
+import type { Client, Message } from 'discord.js';
 import type { Queue } from 'bullmq';
 import {
   createLogger,
-  isTypingChannel,
   type LLMGenerationResult,
   type LoadedPersonality,
   type PersonaResolver,
   type TypingChannel,
   MULTI_TAG,
 } from '@tzurot/common-types';
+import { fetchTypingChannel } from '../utils/fetchTypingChannel.js';
 import type { MultiTagCoordinator } from './MultiTagCoordinator.js';
 import type {
   MultiTagPersistence,
@@ -569,21 +569,7 @@ export class MultiTagRecovery {
   }
 
   private async fetchTypingChannel(channelId: string): Promise<TypingChannel | null> {
-    try {
-      const channel: Channel | null = await this.deps.discordClient.channels.fetch(channelId);
-      if (channel === null) {
-        return null;
-      }
-      // `isTypingChannel` expects a Message['channel']-typed value but the
-      // type guard's predicate works structurally — cast through unknown.
-      if (!isTypingChannel(channel as unknown as Message['channel'])) {
-        return null;
-      }
-      return channel as unknown as TypingChannel;
-    } catch (err) {
-      logger.warn({ err, channelId }, 'Recovery: channel fetch failed');
-      return null;
-    }
+    return fetchTypingChannel(this.deps.discordClient, channelId);
   }
 
   private async fetchSourceMessage(

@@ -108,17 +108,34 @@ export const MULTI_TAG = {
    */
   MAX_TAGS: 5,
   /**
-   * Safety-net timeout for the multi-tag coordinator. Per-job timeouts
-   * (TIMEOUTS.JOB_WAIT) dominate; this fires only if a slot's result is
-   * truly lost (gateway disconnect, worker crash without error result).
-   * On fire, the coordinator flushes the slots that did complete and
-   * synthesizes timeout content for the rest.
+   * Safety-net timeout for the multi-tag coordinator. On fire, the
+   * coordinator flushes the slots that did complete and synthesizes
+   * timeout content for the rest.
+   *
+   * Sized at 18 min: vision-heavy jobs (many extended-context images +
+   * a slow model) legitimately run 10–15 min, and the worker lock
+   * (TIMEOUTS.WORKER_LOCK_DURATION) is 20 min — so this sits below the
+   * worker ceiling with headroom while no longer firing on jobs that are
+   * still genuinely processing. A late result that lands after this fires
+   * is recovered (not dropped) by the synthetic-timeout recovery path in
+   * MessageHandler. Keep this >= ORDERING_MAX_WAIT_MS so the per-channel
+   * ordering buffer never force-processes a group before this backstop.
    */
-  COORDINATOR_TIMEOUT_MS: 10 * 60 * 1000,
+  COORDINATOR_TIMEOUT_MS: 18 * 60 * 1000,
+  /**
+   * Max time the per-channel ResponseOrderingService buffers a pending
+   * group before force-processing it. Decoupled from TIMEOUTS.JOB_WAIT
+   * (which is shared with the STT-transcription gateway wait and must stay
+   * short) so the chat ordering buffer can wait as long as the coordinator.
+   * Held equal to COORDINATOR_TIMEOUT_MS: the coordinator is the authoritative
+   * give-up point; the ordering buffer must not fire first.
+   */
+  ORDERING_MAX_WAIT_MS: 18 * 60 * 1000,
   /**
    * TTL for persisted coordinator entries in Redis. Longer than
    * COORDINATOR_TIMEOUT_MS so restart-recovery has a window even if a
-   * timeout was about to fire pre-restart.
+   * timeout was about to fire pre-restart. Also bounds the
+   * synthetic-timeout recovery marker's lifetime.
    */
   REDIS_TTL_SEC: 30 * 60,
 } as const;

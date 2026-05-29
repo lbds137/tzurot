@@ -9,10 +9,11 @@
  * 1. When a job is registered, we record its userMessageTime (chronological order)
  * 2. When a result arrives, we buffer it if older jobs are still pending
  * 3. We deliver results in userMessageTime order, waiting for predecessors
- * 4. Safety timeout (10 min) prevents indefinite blocking if a job is lost
+ * 4. Safety timeout (MULTI_TAG.ORDERING_MAX_WAIT_MS) prevents indefinite
+ *    blocking if a job is lost
  */
 
-import { createLogger, TIMEOUTS, type LLMGenerationResult } from '@tzurot/common-types';
+import { createLogger, MULTI_TAG, type LLMGenerationResult } from '@tzurot/common-types';
 
 const logger = createLogger('ResponseOrderingService');
 
@@ -63,8 +64,13 @@ export class ResponseOrderingService {
   /** Channel-scoped queues (different channels are independent) */
   private channelQueues = new Map<string, ChannelQueue>();
 
-  /** Safety timeout - matches TIMEOUTS.JOB_WAIT (10 min = 600000ms) */
-  private readonly MAX_WAIT_MS = TIMEOUTS.JOB_WAIT;
+  /**
+   * Safety timeout — held equal to MULTI_TAG.COORDINATOR_TIMEOUT_MS (18 min).
+   * Decoupled from TIMEOUTS.JOB_WAIT (shared with the short STT-transcription
+   * gateway wait) so this buffer can wait as long as the coordinator without
+   * force-processing a group before the coordinator's backstop fires.
+   */
+  private readonly MAX_WAIT_MS = MULTI_TAG.ORDERING_MAX_WAIT_MS;
 
   /** Periodic cleanup interval handle */
   private cleanupInterval: ReturnType<typeof setInterval> | null = null;
@@ -353,8 +359,8 @@ export class ResponseOrderingService {
    * Without cleanup, these orphaned jobs would stay in pendingJobs forever,
    * causing a slow memory leak over long uptimes.
    *
-   * Stale threshold: 1.5x MAX_WAIT_MS (15 minutes when MAX_WAIT is 10 min)
-   * This gives plenty of time for normal processing + retries.
+   * Stale threshold: 1.5x MAX_WAIT_MS (27 minutes at the current 18-min
+   * MAX_WAIT). This gives plenty of time for normal processing + retries.
    */
   cleanupStaleJobs(): { cleanedCount: number; channelsCleaned: string[] } {
     const staleThreshold = Date.now() - this.MAX_WAIT_MS * 1.5;

@@ -158,6 +158,23 @@ describe('deliverGroup', () => {
     expect(synthetic.errorInfo.referenceId).toBe(entry.groupId);
   });
 
+  it('skips confirmDelivery for timed-out slots but confirms completed ones', async () => {
+    const entry = buildEntry({
+      slots: [
+        buildSlot('Alice', { slotIndex: 0, jobId: 'job-Alice', status: 'completed' }),
+        buildSlot('Bob', { slotIndex: 1, jobId: 'job-Bob', status: 'timedout', result: undefined }),
+      ],
+    });
+
+    await deliverGroup(entry, deps);
+
+    // Completed slot gets confirmed; timed-out slot does NOT (ai-worker never
+    // wrote its JobResult row → confirmDelivery would be a guaranteed 404).
+    expect(gatewayClient.confirmDelivery).toHaveBeenCalledTimes(1);
+    expect(gatewayClient.confirmDelivery).toHaveBeenCalledWith('job-Alice');
+    expect(gatewayClient.confirmDelivery).not.toHaveBeenCalledWith('job-Bob');
+  });
+
   it('renders the personality error message on safety timeout when configured', async () => {
     const entry = buildEntry({
       slots: [

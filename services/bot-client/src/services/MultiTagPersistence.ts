@@ -71,6 +71,27 @@ const SCAN_COUNT = 100;
 const MAX_ENTRY_BYTES = 64 * 1024;
 
 /**
+ * Delivery context persisted when the coordinator gives up on a slot and
+ * delivers a synthetic timeout. Enough to reconstruct a follow-up send if
+ * the real result lands late — after `deleteEntry` has wiped the snapshot +
+ * jobId index. The personality is re-loaded by slug (access-scoped to
+ * `recipientUserId`) and the channel re-fetched by id; everything else here
+ * feeds `DiscordResponseSender.sendResponse` directly.
+ */
+export interface SyntheticTimeoutContext {
+  channelId: string;
+  guildId: string | null;
+  // `string | undefined` matches the codebase-wide clientId convention (JobTracker,
+  // SlotDeliveryService, DiscordResponseSender). JSON.stringify drops an undefined
+  // key, so it reads back absent rather than null — harmless here, since the consumer
+  // (sendResponse) also takes `string | undefined` and treats both the same.
+  clientId: string | undefined;
+  personalitySlug: string;
+  recipientUserId: string;
+  isAutoResponse: boolean;
+}
+
+/**
  * Serializable snapshot of a single slot. Strips runtime-only fields
  * (personality object, result, timeoutHandle) — the coordinator rehydrates
  * those during recovery.
@@ -276,6 +297,66 @@ export class MultiTagPersistence {
       await this.redis.srem(REDIS_KEY_PREFIXES.MULTI_TAG_STALE_JOBS, jobId);
     } catch (err) {
       logger.warn({ err, jobId }, 'clearStale Redis call failed — stale entry will expire via TTL');
+    }
+  }
+
+  /**
+   * Record that a slot was synthetically timed out, with the delivery context
+   * needed to send the real result as a follow-up if it lands late. Keyed by
+   * jobId, TTL `MULTI_TAG.REDIS_TTL_SEC` (30 min) — past that, a late result
+   * is dropped as before (the observed real-world lateness was ~1 min).
+   *
+   * Fails soft: if the marker write blips, we simply lose late-recovery for
+   * that one job (it drops as it did pre-fix). Never throws into the
+   * safety-timeout path.
+   */
+  async markSyntheticTimeout(jobId: string, ctx: SyntheticTimeoutContext): Promise<void> {
+    const key = `${REDIS_KEY_PREFIXES.MULTI_TAG_SYNTHETIC_TIMEOUT}${jobId}`;
+    try {
+      await this.redis.set(key, JSON.stringify(ctx), 'EX', MULTI_TAG.REDIS_TTL_SEC);
+    } catch (err) {
+      logger.warn(
+        { err, jobId },
+        'markSyntheticTimeout Redis call failed — a late result for this job will be dropped, not recovered'
+      );
+    }
+  }
+
+  /**
+   * Read the synthetic-timeout recovery context for a jobId, or null if none
+   * (not a synthetic-timeout job, or marker expired). Fails soft → null.
+   */
+  async getSyntheticTimeout(jobId: string): Promise<SyntheticTimeoutContext | null> {
+    const key = `${REDIS_KEY_PREFIXES.MULTI_TAG_SYNTHETIC_TIMEOUT}${jobId}`;
+    try {
+      const raw = await this.redis.get(key);
+      // No deep schema validation: we wrote this marker ourselves minutes earlier and
+      // the 30-min TTL keeps any cross-deploy shape drift transient. A structurally
+      // valid but wrong-shaped marker would surface downstream (e.g. sendResponse),
+      // not here — acceptable for a best-effort recovery path.
+      return raw === null ? null : (JSON.parse(raw) as SyntheticTimeoutContext);
+    } catch (err) {
+      logger.warn(
+        { err, jobId },
+        'getSyntheticTimeout failed (Redis or JSON) — treating as no recovery marker'
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Delete the synthetic-timeout marker once a late result has been recovered
+   * (or determined unrecoverable). Fails soft — the marker self-expires via TTL.
+   */
+  async clearSyntheticTimeout(jobId: string): Promise<void> {
+    const key = `${REDIS_KEY_PREFIXES.MULTI_TAG_SYNTHETIC_TIMEOUT}${jobId}`;
+    try {
+      await this.redis.del(key);
+    } catch (err) {
+      logger.warn(
+        { err, jobId },
+        'clearSyntheticTimeout Redis call failed — marker will expire via TTL'
+      );
     }
   }
 

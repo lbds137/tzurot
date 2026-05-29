@@ -31,7 +31,7 @@ import {
   clearAllChannelSettingsCache,
 } from './utils/GatewayClient.js';
 import { WebhookManager } from './utils/WebhookManager.js';
-import { MessageHandler } from './handlers/MessageHandler.js';
+import type { MessageHandler } from './handlers/MessageHandler.js';
 import { CommandHandler } from './handlers/CommandHandler.js';
 import { redis as botRedis, closeRedis } from './redis.js';
 import { deployCommands } from './utils/deployCommands.js';
@@ -59,7 +59,7 @@ import { registerServices } from './services/serviceRegistry.js';
 import {
   buildPersonalityChatPipeline,
   buildMultiTagStack,
-  buildProcessorChain,
+  buildMessageHandler,
 } from './composition.js';
 import {
   startNotificationCacheCleanup,
@@ -294,26 +294,22 @@ function createServices(): Services {
     multiTagCoordinator
   );
 
-  // Processor chain (order matters — see buildProcessorChain doc).
-  const processors = buildProcessorChain({
+  // Message-handling stack: processor chain (order matters) + MessageHandler.
+  const messageHandler = buildMessageHandler({
     denylistCache,
     voiceTranscription,
     personalityIdCache,
     gatewayClient,
     replyResolver,
-    coordinator: multiTagCoordinator,
     personalityHandler,
     multiTagPersistence,
-  });
-
-  // Create MessageHandler with full dependency injection
-  const messageHandler = new MessageHandler({
-    processors,
     responseSender,
     persistence,
     jobTracker,
     slotDelivery,
     coordinator: multiTagCoordinator,
+    personalityService,
+    client,
   });
 
   // Register services for global access (used by slash commands)
