@@ -8,20 +8,26 @@
  *
  * Flow:
  * 1. Map setting ID to API patch body via mapSettingToApiUpdate
- * 2. PATCH to the configured endpoint
- * 3. Re-resolve the cascade via the configured resolve endpoint
+ * 2. PATCH via the configured typed-client method
+ * 3. Re-resolve the cascade via the configured typed-client method
  * 4. Convert resolved cascade back to SettingsData (filtering by source tier)
+ *
+ * Per-route `timeoutMs` on the manifest entries for `updatePersonalityOverrides`,
+ * `updatePersonalityConfigDefaults`, `resolveCascade`, and `resolvePersonalityCascade`
+ * carries `GATEWAY_TIMEOUTS.DEFERRED`, so the factory itself doesn't need to
+ * thread a timeout — it flows through the generated client.
  */
 
 import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
 import {
   createLogger,
-  GATEWAY_TIMEOUTS,
   type ConfigOverrides,
   type ConfigOverrideSource,
+  type GatewayResult,
   type ResolvedConfigOverrides,
+  type UserClient,
 } from '@tzurot/common-types';
-import { callGatewayApi, toGatewayUser } from '../../userGatewayClient.js';
+import { clientsFor } from '../../gatewayClients.js';
 import type {
   SettingsData,
   SettingsDashboardSession,
@@ -35,10 +41,17 @@ const logger = createLogger('settingsUpdateFactory');
 
 /** Configuration for a settings update handler */
 export interface SettingUpdateConfig {
-  /** Function to build the PATCH endpoint from entityId (e.g., personalityId) */
-  patchEndpoint: (entityId: string) => string;
-  /** Function to build the GET resolve endpoint from entityId */
-  resolveEndpoint: (entityId: string) => string;
+  /** Apply the PATCH via a typed-client method bound at config time */
+  patchFn: (
+    userClient: UserClient,
+    entityId: string,
+    body: ConfigOverrides
+  ) => Promise<GatewayResult<unknown>>;
+  /** Re-resolve the cascade via a typed-client method bound at config time */
+  resolveFn: (
+    userClient: UserClient,
+    entityId: string
+  ) => Promise<GatewayResult<ResolvedConfigOverrides>>;
   /** Source tier to treat as "local" when converting the resolved cascade */
   sourceTier: ConfigOverrideSource;
   /** Log context prefix (e.g., '[Character Settings]') */
@@ -86,7 +99,7 @@ export function createSettingsUpdateHandler(
     newValue: unknown
   ): Promise<SettingUpdateResult> => {
     const userId = interaction.user.id;
-    const user = toGatewayUser(interaction.user);
+    const { userClient } = clientsFor(interaction);
 
     logger.debug(
       { settingId, newValue, entityId, userId },
@@ -100,13 +113,8 @@ export function createSettingsUpdateHandler(
         return { success: false, error: 'Unknown setting' };
       }
 
-      // Write the patch to the configured endpoint
-      const result = await callGatewayApi(config.patchEndpoint(entityId), {
-        method: 'PATCH',
-        body,
-        user,
-        timeout: GATEWAY_TIMEOUTS.DEFERRED,
-      });
+      // Write the patch via the typed-client method
+      const result = await config.patchFn(userClient, entityId, body);
 
       if (!result.ok) {
         logger.warn(
@@ -117,10 +125,7 @@ export function createSettingsUpdateHandler(
       }
 
       // Re-resolve cascade to get updated effective values
-      const cascadeResult = await callGatewayApi<ResolvedConfigOverrides>(
-        config.resolveEndpoint(entityId),
-        { method: 'GET', user, timeout: GATEWAY_TIMEOUTS.DEFERRED }
-      );
+      const cascadeResult = await config.resolveFn(userClient, entityId);
 
       if (!cascadeResult.ok) {
         return { success: false, error: 'Failed to fetch updated settings' };

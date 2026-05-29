@@ -1,19 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { UserClient } from '@tzurot/common-types';
 
-const { mockCallGatewayApi, mockMapSettingToApiUpdate } = vi.hoisted(() => ({
-  mockCallGatewayApi: vi.fn(),
+const { mockPatchFn, mockResolveFn, mockMapSettingToApiUpdate } = vi.hoisted(() => ({
+  mockPatchFn: vi.fn(),
+  mockResolveFn: vi.fn(),
   mockMapSettingToApiUpdate: vi.fn(),
 }));
 
-vi.mock('../../userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../userGatewayClient.js')>(
-    '../../userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: mockCallGatewayApi,
-  };
-});
+const stubUserClient = {} as unknown as UserClient;
+
+vi.mock('../../gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: stubUserClient })),
+}));
 
 vi.mock('./settingsUpdate.js', () => ({
   mapSettingToApiUpdate: mockMapSettingToApiUpdate,
@@ -26,8 +24,8 @@ import {
 } from './settingsUpdateFactory.js';
 
 const TEST_CONFIG: SettingUpdateConfig = {
-  patchEndpoint: id => `/test/patch/${id}`,
-  resolveEndpoint: id => `/test/resolve/${id}`,
+  patchFn: mockPatchFn,
+  resolveFn: mockResolveFn,
   sourceTier: 'personality',
   logContext: '[Test]',
 };
@@ -87,35 +85,25 @@ describe('createSettingsUpdateHandler', () => {
     mockMapSettingToApiUpdate.mockReturnValue({ maxMessages: 50 });
   });
 
-  it('uses the configured patch endpoint', async () => {
-    mockCallGatewayApi
-      .mockResolvedValueOnce({ ok: true, status: 200, data: {} })
-      .mockResolvedValueOnce({ ok: true, status: 200, data: fullResolvedCascade });
+  it('forwards the entityId and mapped body to patchFn', async () => {
+    mockPatchFn.mockResolvedValueOnce({ ok: true, status: 200, data: {} });
+    mockResolveFn.mockResolvedValueOnce({ ok: true, status: 200, data: fullResolvedCascade });
 
     const handler = createSettingsUpdateHandler(TEST_ENTITY_ID, TEST_CONFIG);
     const result = await handler(mockInteraction, mockSession, 'maxMessages', 50);
 
     expect(result.success).toBe(true);
-    expect(mockCallGatewayApi).toHaveBeenNthCalledWith(
-      1,
-      `/test/patch/${TEST_ENTITY_ID}`,
-      expect.objectContaining({ method: 'PATCH', body: { maxMessages: 50 } })
-    );
+    expect(mockPatchFn).toHaveBeenCalledWith(stubUserClient, TEST_ENTITY_ID, { maxMessages: 50 });
   });
 
-  it('uses the configured resolve endpoint on success', async () => {
-    mockCallGatewayApi
-      .mockResolvedValueOnce({ ok: true, status: 200, data: {} })
-      .mockResolvedValueOnce({ ok: true, status: 200, data: fullResolvedCascade });
+  it('forwards the entityId to resolveFn on successful PATCH', async () => {
+    mockPatchFn.mockResolvedValueOnce({ ok: true, status: 200, data: {} });
+    mockResolveFn.mockResolvedValueOnce({ ok: true, status: 200, data: fullResolvedCascade });
 
     const handler = createSettingsUpdateHandler(TEST_ENTITY_ID, TEST_CONFIG);
     await handler(mockInteraction, mockSession, 'maxMessages', 50);
 
-    expect(mockCallGatewayApi).toHaveBeenNthCalledWith(
-      2,
-      `/test/resolve/${TEST_ENTITY_ID}`,
-      expect.objectContaining({ method: 'GET' })
-    );
+    expect(mockResolveFn).toHaveBeenCalledWith(stubUserClient, TEST_ENTITY_ID);
   });
 
   it('returns error when mapSettingToApiUpdate returns null (unknown setting)', async () => {
@@ -125,24 +113,24 @@ describe('createSettingsUpdateHandler', () => {
     const result = await handler(mockInteraction, mockSession, 'bogus-setting', 'value');
 
     expect(result).toEqual({ success: false, error: 'Unknown setting' });
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(mockPatchFn).not.toHaveBeenCalled();
+    expect(mockResolveFn).not.toHaveBeenCalled();
   });
 
   it('returns error when PATCH call fails', async () => {
-    mockCallGatewayApi.mockResolvedValueOnce({ ok: false, status: 500, error: 'Server error' });
+    mockPatchFn.mockResolvedValueOnce({ ok: false, status: 500, error: 'Server error' });
 
     const handler = createSettingsUpdateHandler(TEST_ENTITY_ID, TEST_CONFIG);
     const result = await handler(mockInteraction, mockSession, 'maxMessages', 50);
 
     expect(result).toEqual({ success: false, error: 'Server error' });
     // Should not have called resolve endpoint
-    expect(mockCallGatewayApi).toHaveBeenCalledTimes(1);
+    expect(mockResolveFn).not.toHaveBeenCalled();
   });
 
   it('returns error when resolve call fails after successful PATCH', async () => {
-    mockCallGatewayApi
-      .mockResolvedValueOnce({ ok: true, status: 200, data: {} })
-      .mockResolvedValueOnce({ ok: false, status: 500, error: 'Resolve error' });
+    mockPatchFn.mockResolvedValueOnce({ ok: true, status: 200, data: {} });
+    mockResolveFn.mockResolvedValueOnce({ ok: false, status: 500, error: 'Resolve error' });
 
     const handler = createSettingsUpdateHandler(TEST_ENTITY_ID, TEST_CONFIG);
     const result = await handler(mockInteraction, mockSession, 'maxMessages', 50);
@@ -151,8 +139,8 @@ describe('createSettingsUpdateHandler', () => {
     expect(result).toMatchObject({ error: 'Failed to fetch updated settings' });
   });
 
-  it('handles unexpected exceptions', async () => {
-    mockCallGatewayApi.mockRejectedValueOnce(new Error('Network down'));
+  it('handles unexpected exceptions thrown from patchFn', async () => {
+    mockPatchFn.mockRejectedValueOnce(new Error('Network down'));
 
     const handler = createSettingsUpdateHandler(TEST_ENTITY_ID, TEST_CONFIG);
     const result = await handler(mockInteraction, mockSession, 'maxMessages', 50);
@@ -161,9 +149,8 @@ describe('createSettingsUpdateHandler', () => {
   });
 
   it('returns newData derived from the configured sourceTier', async () => {
-    mockCallGatewayApi
-      .mockResolvedValueOnce({ ok: true, status: 200, data: {} })
-      .mockResolvedValueOnce({ ok: true, status: 200, data: fullResolvedCascade });
+    mockPatchFn.mockResolvedValueOnce({ ok: true, status: 200, data: {} });
+    mockResolveFn.mockResolvedValueOnce({ ok: true, status: 200, data: fullResolvedCascade });
 
     const handler = createSettingsUpdateHandler(TEST_ENTITY_ID, TEST_CONFIG);
     const result = await handler(mockInteraction, mockSession, 'maxMessages', 50);

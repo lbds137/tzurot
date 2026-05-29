@@ -34,6 +34,7 @@ import {
 import {
   createSettingsUpdateHandler,
   convertCascadeToSettingsData,
+  type SettingUpdateConfig,
 } from '../../utils/dashboard/settings/settingsUpdateFactory.js';
 
 const logger = createLogger('character-overrides');
@@ -131,10 +132,10 @@ export async function handleOverrides(
 }
 
 /** Config for the character overrides update handler (full user-personality cascade) */
-const CHARACTER_OVERRIDES_UPDATE_CONFIG = {
-  patchEndpoint: (id: string) => `/user/config-overrides/${encodeURIComponent(id)}`,
-  resolveEndpoint: (id: string) => `/user/config-overrides/resolve/${encodeURIComponent(id)}`,
-  sourceTier: 'user-personality' as const,
+const CHARACTER_OVERRIDES_UPDATE_CONFIG: SettingUpdateConfig = {
+  patchFn: (uc, id, body) => uc.updatePersonalityOverrides(id, body),
+  resolveFn: (uc, id) => uc.resolveCascade(id),
+  sourceTier: 'user-personality',
   logContext: '[Character Overrides]',
 };
 

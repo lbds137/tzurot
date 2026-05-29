@@ -314,6 +314,11 @@ export const userResourceRoutes = {
     output: ListVoicesResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
+    // Called from both autocomplete (clientside has the 3s Discord budget)
+    // and deferred contexts (voice browse / clear / guestModeValidation
+    // probe). The longer budget protects the deferred callers; autocomplete
+    // calls die at 3s via Discord regardless.
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   listVoiceModels: {
