@@ -30,6 +30,16 @@ vi.mock('../utils/nsfwVerification.js', () => ({
   NSFW_VERIFICATION_CHECK_FAILED_MESSAGE: "⚠️ Couldn't verify your age status right now.",
 }));
 
+// The processor mints a UserClient via `clientsForUser(message.author)` to pass
+// into checkNsfwVerification. The real factory needs INTERNAL_SERVICE_SECRET
+// from startup config; the test stubs it with a sentinel.
+vi.mock('../utils/gatewayClients.js', () => ({
+  clientsForUser: vi.fn(() => ({
+    userClient: { actor: 'mock-user' },
+    ownerClient: { actor: 'mock-owner' },
+  })),
+}));
+
 import { VoiceMessageProcessor } from './VoiceMessageProcessor.js';
 import {
   isDMChannel,

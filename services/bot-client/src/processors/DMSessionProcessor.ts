@@ -26,7 +26,7 @@ import {
   checkNsfwVerification,
   NSFW_VERIFICATION_CHECK_FAILED_MESSAGE,
 } from '../utils/nsfwVerification.js';
-import { toGatewayUser } from '../utils/userGatewayClient.js';
+import { clientsForUser } from '../utils/gatewayClients.js';
 import { getEffectiveContent } from '../utils/messageTypeUtils.js';
 import type { MultiTagPersistence } from '../services/MultiTagPersistence.js';
 
@@ -72,7 +72,7 @@ export class DMSessionProcessor implements IMessageProcessor {
     // Tri-state: verified / unverified / check-failed. Fail-closed on
     // check-failed with a distinct "try again" message so a transient gateway
     // blip doesn't re-onboard previously-verified users.
-    const check = await checkNsfwVerification(toGatewayUser(message.author));
+    const check = await checkNsfwVerification(clientsForUser(message.author).userClient);
     if (check.kind === 'error') {
       logger.warn({ userId, error: check.error }, 'NSFW check failed — surfacing retry message');
       try {

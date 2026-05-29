@@ -13,8 +13,8 @@ import {
   type Message,
   type SendableChannels,
 } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
-import { callGatewayApi, toGatewayUser, type GatewayUser } from './userGatewayClient.js';
+import { createLogger, type UserClient } from '@tzurot/common-types';
+import { clientsForUser } from './gatewayClients.js';
 import { redis } from '../redis.js';
 import { storePendingVerificationMessage } from './pendingVerificationMessages.js';
 import { cleanupVerificationMessagesForUser } from '../services/VerificationCleanupService.js';
@@ -42,15 +42,12 @@ interface NsfwVerifyResponse {
  * transient gateway failure into `{ nsfwVerified: false }` would falsely
  * block previously-verified users from DMs during gateway outages.
  */
-export async function checkNsfwVerification(user: GatewayUser): Promise<ApiCheck<NsfwStatus>> {
-  const result = await callGatewayApi<NsfwStatus>('/user/nsfw', {
-    method: 'GET',
-    user,
-  });
+export async function checkNsfwVerification(userClient: UserClient): Promise<ApiCheck<NsfwStatus>> {
+  const result = await userClient.getNsfwStatus();
 
   if (!result.ok) {
     logger.warn(
-      { userId: user.discordId, error: result.error },
+      { userId: userClient.actor, error: result.error },
       'Failed to check verification status'
     );
     return { kind: 'error', error: result.error };
@@ -63,12 +60,9 @@ export async function checkNsfwVerification(user: GatewayUser): Promise<ApiCheck
  * Mark a user as NSFW verified
  * Called when user interacts with the bot in an NSFW Discord channel
  */
-export async function verifyNsfwUser(user: GatewayUser): Promise<NsfwVerifyResponse | null> {
-  const userId = user.discordId;
-  const result = await callGatewayApi<NsfwVerifyResponse>('/user/nsfw/verify', {
-    method: 'POST',
-    user,
-  });
+export async function verifyNsfwUser(userClient: UserClient): Promise<NsfwVerifyResponse | null> {
+  const userId = userClient.actor;
+  const result = await userClient.verifyNsfw();
 
   if (!result.ok) {
     logger.warn({ userId, error: result.error }, 'Failed to verify user');
@@ -230,19 +224,19 @@ export async function sendNsfwVerificationMessage(message: Message): Promise<voi
  */
 export async function handleNsfwVerification(message: Message): Promise<NsfwVerificationResult> {
   const userId = message.author.id;
-  const user = toGatewayUser(message.author);
+  const { userClient } = clientsForUser(message.author);
   const { channel } = message;
 
   // If in NSFW channel, auto-verify and continue
   if (isNsfwChannel(channel)) {
-    const verifyResult = await verifyNsfwUser(user);
+    const verifyResult = await verifyNsfwUser(userClient);
     // wasNewVerification is true if verify succeeded AND user wasn't already verified
     const wasNewVerification = verifyResult !== null && !verifyResult.alreadyVerified;
     return { allowed: true, wasNewVerification };
   }
 
   // For all other channels (DMs and non-NSFW guild channels), check verification
-  const check = await checkNsfwVerification(user);
+  const check = await checkNsfwVerification(userClient);
   if (check.kind === 'error') {
     // Fail-closed with a DISTINCT message: NSFW is a compliance gate, so we
     // can't let the user through, but we also shouldn't re-onboard a

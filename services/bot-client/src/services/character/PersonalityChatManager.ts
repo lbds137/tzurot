@@ -21,8 +21,9 @@ import type {
   SettingSource,
 } from '@tzurot/common-types';
 import { createLogger, isBotOwner, isTypingChannel, MESSAGE_LIMITS } from '@tzurot/common-types';
+import type { UserClient } from '@tzurot/common-types';
 import { GatewayClient } from '../../utils/GatewayClient.js';
-import { callGatewayApi, GATEWAY_TIMEOUTS, toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsForUser } from '../../utils/gatewayClients.js';
 import { MessageContextBuilder } from '../MessageContextBuilder.js';
 import { ConversationPersistence } from '../ConversationPersistence.js';
 import { ReferenceEnrichmentService } from '../ReferenceEnrichmentService.js';
@@ -86,24 +87,19 @@ export class PersonalityChatManager {
    * blip degrades gracefully rather than failing the request.
    */
   private async resolveConfig(
-    user: ReturnType<typeof toGatewayUser>,
+    userClient: UserClient,
     personality: LoadedPersonality,
     channelId?: string
   ): Promise<ConfigResolutionResult> {
-    const result = await callGatewayApi<ConfigResolutionResult>('/user/llm-config/resolve', {
-      method: 'POST',
-      user,
-      body: {
-        personalityId: personality.id,
-        personalityConfig: personality,
-        channelId,
-      },
-      timeout: GATEWAY_TIMEOUTS.AUTOCOMPLETE,
+    const result = await userClient.resolveUserLlmConfig({
+      personalityId: personality.id,
+      personalityConfig: personality,
+      channelId,
     });
 
     if (!result.ok) {
       logger.warn(
-        { userId: user.discordId, personalityId: personality.id, error: result.error },
+        { userId: userClient.actor, personalityId: personality.id, error: result.error },
         'Failed to resolve config, using personality defaults'
       );
       return {
@@ -117,7 +113,10 @@ export class PersonalityChatManager {
       };
     }
 
-    return result.data;
+    // Cast bridges the runtime ConfigResolutionResult shape (declared on the
+    // server, in services/LlmConfigResolver.ts) and the schema's narrower
+    // declared response (only required fields, rest .passthrough()).
+    return result.data as unknown as ConfigResolutionResult;
   }
 
   /**
@@ -222,11 +221,8 @@ export class PersonalityChatManager {
       return { kind: 'denied', reason: 'unsupported-channel' };
     }
 
-    const resolvedConfig = await this.resolveConfig(
-      toGatewayUser(message.author),
-      personality,
-      message.channel.id
-    );
+    const { userClient } = clientsForUser(message.author);
+    const resolvedConfig = await this.resolveConfig(userClient, personality, message.channel.id);
 
     const extendedContextSettings = this.buildExtendedContextSettings(resolvedConfig);
 

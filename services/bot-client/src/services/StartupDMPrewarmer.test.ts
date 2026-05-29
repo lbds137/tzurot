@@ -3,9 +3,9 @@ import type { Client, User } from 'discord.js';
 import { StartupDMPrewarmer } from './StartupDMPrewarmer.js';
 import type { DMCacheWarmer } from './DMCacheWarmer.js';
 
-const mockAdminFetch = vi.fn();
-vi.mock('../utils/adminApiClient.js', () => ({
-  adminFetch: (...args: unknown[]) => mockAdminFetch(...args),
+const mockRecentUsers = vi.fn();
+vi.mock('../utils/gatewayClients.js', () => ({
+  getServiceClient: () => ({ recentUsers: mockRecentUsers }),
 }));
 
 vi.mock('@tzurot/common-types', async () => {
@@ -16,12 +16,12 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
-function mockJsonResponse(body: unknown, ok = true, status = 200): Response {
-  return {
-    ok,
-    status,
-    json: () => Promise.resolve(body),
-  } as unknown as Response;
+function okResult(body: { discordIds: string[]; sinceDays: number }) {
+  return { ok: true, data: body };
+}
+
+function errResult(status: number) {
+  return { ok: false, error: 'fail', status };
 }
 
 function mockUser(id: string): User {
@@ -36,7 +36,7 @@ describe('StartupDMPrewarmer', () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
-    mockAdminFetch.mockReset();
+    mockRecentUsers.mockReset();
     mockClient = { users: { fetch: vi.fn() } };
     mockWarmer = { warm: vi.fn() };
     mockSleep = vi.fn<(ms: number) => Promise<void>>().mockResolvedValue(undefined);
@@ -52,8 +52,8 @@ describe('StartupDMPrewarmer', () => {
   });
 
   it('warms each user returned by the recent-users endpoint', async () => {
-    mockAdminFetch.mockResolvedValue(
-      mockJsonResponse({
+    mockRecentUsers.mockResolvedValue(
+      okResult({
         discordIds: ['111111111111111111', '222222222222222222'],
         sinceDays: 30,
       })
@@ -72,8 +72,8 @@ describe('StartupDMPrewarmer', () => {
   });
 
   it('rate-limits with 1000ms sleep between fetches (N-1 sleeps for N users)', async () => {
-    mockAdminFetch.mockResolvedValue(
-      mockJsonResponse({
+    mockRecentUsers.mockResolvedValue(
+      okResult({
         discordIds: ['111111111111111111', '222222222222222222', '333333333333333333'],
         sinceDays: 30,
       })
@@ -88,8 +88,8 @@ describe('StartupDMPrewarmer', () => {
   });
 
   it('does not sleep at all for a single-user list', async () => {
-    mockAdminFetch.mockResolvedValue(
-      mockJsonResponse({ discordIds: ['111111111111111111'], sinceDays: 30 })
+    mockRecentUsers.mockResolvedValue(
+      okResult({ discordIds: ['111111111111111111'], sinceDays: 30 })
     );
     mockClient.users.fetch.mockResolvedValue(mockUser('111111111111111111'));
 
@@ -100,8 +100,8 @@ describe('StartupDMPrewarmer', () => {
   });
 
   it('continues when a single user fetch fails (e.g. deleted account)', async () => {
-    mockAdminFetch.mockResolvedValue(
-      mockJsonResponse({
+    mockRecentUsers.mockResolvedValue(
+      okResult({
         discordIds: ['111111111111111111', '222222222222222222', '333333333333333333'],
         sinceDays: 30,
       })
@@ -118,61 +118,57 @@ describe('StartupDMPrewarmer', () => {
   });
 
   it('skips warming entirely when api-gateway fetch fails on every retry (network errors)', async () => {
-    mockAdminFetch.mockRejectedValue(new Error('connect ECONNREFUSED'));
+    mockRecentUsers.mockRejectedValue(new Error('connect ECONNREFUSED'));
 
     await prewarmer.run();
 
     expect(mockClient.users.fetch).not.toHaveBeenCalled();
     expect(mockWarmer.warm).not.toHaveBeenCalled();
     // 1 initial attempt + 3 retries = 4 total calls
-    expect(mockAdminFetch).toHaveBeenCalledTimes(4);
+    expect(mockRecentUsers).toHaveBeenCalledTimes(4);
   });
 
   it('skips warming entirely when api-gateway returns 404 on every retry (status-based exhaustion)', async () => {
     // Different code path from network-error exhaustion: this exercises the
     // status-based retry branch in fetchOnce() rather than the catch block.
-    mockAdminFetch.mockResolvedValue(mockJsonResponse({}, false, 404));
+    mockRecentUsers.mockResolvedValue(errResult(404));
 
     await prewarmer.run();
 
     expect(mockClient.users.fetch).not.toHaveBeenCalled();
     expect(mockWarmer.warm).not.toHaveBeenCalled();
-    expect(mockAdminFetch).toHaveBeenCalledTimes(4);
+    expect(mockRecentUsers).toHaveBeenCalledTimes(4);
     // Sleep called once per retry delay (3 retries → 3 sleeps; no sleep
     // before the initial attempt or after the final failure).
     expect(mockSleep).toHaveBeenCalledTimes(3);
   });
 
   it('retries on 404 and succeeds when api-gateway becomes ready', async () => {
-    // Simulates the empirical race observed on first dev deploy of PR #917:
+    // Simulates the empirical race observed on first dev deploy:
     // api-gateway routes weren't yet mounted when bot-client's ClientReady
     // fired, so the first call got 404. With retry-with-backoff, the second
     // call (after the api-gateway finishes startup) succeeds.
-    mockAdminFetch
-      .mockResolvedValueOnce(mockJsonResponse({}, false, 404))
-      .mockResolvedValueOnce(
-        mockJsonResponse({ discordIds: ['111111111111111111'], sinceDays: 30 })
-      );
+    mockRecentUsers
+      .mockResolvedValueOnce(errResult(404))
+      .mockResolvedValueOnce(okResult({ discordIds: ['111111111111111111'], sinceDays: 30 }));
     mockClient.users.fetch.mockResolvedValue(mockUser('111111111111111111'));
 
     await prewarmer.run();
 
-    expect(mockAdminFetch).toHaveBeenCalledTimes(2);
+    expect(mockRecentUsers).toHaveBeenCalledTimes(2);
     expect(mockWarmer.warm).toHaveBeenCalledTimes(1);
     expect(mockSleep).toHaveBeenCalledWith(5000); // first retry delay
   });
 
   it('retries on 5xx responses (gateway still starting)', async () => {
-    mockAdminFetch
-      .mockResolvedValueOnce(mockJsonResponse({}, false, 503))
-      .mockResolvedValueOnce(
-        mockJsonResponse({ discordIds: ['111111111111111111'], sinceDays: 30 })
-      );
+    mockRecentUsers
+      .mockResolvedValueOnce(errResult(503))
+      .mockResolvedValueOnce(okResult({ discordIds: ['111111111111111111'], sinceDays: 30 }));
     mockClient.users.fetch.mockResolvedValue(mockUser('111111111111111111'));
 
     await prewarmer.run();
 
-    expect(mockAdminFetch).toHaveBeenCalledTimes(2);
+    expect(mockRecentUsers).toHaveBeenCalledTimes(2);
     expect(mockWarmer.warm).toHaveBeenCalledTimes(1);
   });
 
@@ -181,19 +177,11 @@ describe('StartupDMPrewarmer', () => {
     [403, 'forbidden'],
     [400, 'bad request'],
   ])("does NOT retry on %d (%s — won't fix itself)", async (status: number) => {
-    mockAdminFetch.mockResolvedValue(mockJsonResponse({}, false, status));
+    mockRecentUsers.mockResolvedValue(errResult(status));
 
     await prewarmer.run();
 
-    expect(mockAdminFetch).toHaveBeenCalledTimes(1);
-    expect(mockClient.users.fetch).not.toHaveBeenCalled();
-  });
-
-  it('skips warming when api-gateway returns malformed body', async () => {
-    mockAdminFetch.mockResolvedValue(mockJsonResponse({ wrong: 'shape' }));
-
-    await prewarmer.run();
-
+    expect(mockRecentUsers).toHaveBeenCalledTimes(1);
     expect(mockClient.users.fetch).not.toHaveBeenCalled();
   });
 
@@ -213,7 +201,7 @@ describe('StartupDMPrewarmer', () => {
   });
 
   it('returns silently when the recent-users list is empty', async () => {
-    mockAdminFetch.mockResolvedValue(mockJsonResponse({ discordIds: [], sinceDays: 30 }));
+    mockRecentUsers.mockResolvedValue(okResult({ discordIds: [], sinceDays: 30 }));
 
     await prewarmer.run();
 
@@ -222,10 +210,10 @@ describe('StartupDMPrewarmer', () => {
   });
 
   it('calls the recent-users endpoint with sinceDays=30', async () => {
-    mockAdminFetch.mockResolvedValue(mockJsonResponse({ discordIds: [], sinceDays: 30 }));
+    mockRecentUsers.mockResolvedValue(okResult({ discordIds: [], sinceDays: 30 }));
 
     await prewarmer.run();
 
-    expect(mockAdminFetch).toHaveBeenCalledWith('/internal/users/recent?sinceDays=30');
+    expect(mockRecentUsers).toHaveBeenCalledWith({ sinceDays: '30' });
   });
 });

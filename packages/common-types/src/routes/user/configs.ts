@@ -171,6 +171,11 @@ export const userConfigRoutes = {
     input: ResolveLlmConfigInputSchema,
     output: ResolveLlmConfigResponseSchema,
     requiresProvisionedUser: true,
+    // Called in the message-handling hot path (before any deferReply), so the
+    // budget is the tight 2500ms AUTOCOMPLETE cap rather than DEFERRED — a slow
+    // gateway must degrade to personality defaults fast, not stall the pipeline.
+    // (This was the transport default already; declaring it pins the intent.)
+    timeoutMs: GATEWAY_TIMEOUTS.AUTOCOMPLETE,
   },
 
   // ============================================================================
