@@ -9,10 +9,12 @@ import {
   getPersonalityName,
 } from './autocomplete.js';
 import type { AutocompleteInteraction } from 'discord.js';
-import type { GatewayUser } from '../../utils/userGatewayClient.js';
+import type { UserClient } from '@tzurot/common-types';
 
-function mkUser(discordId = 'user-123'): GatewayUser {
-  return { discordId, username: 'test-user', displayName: 'Test User' };
+function mkUser(discordId = 'user-123'): UserClient {
+  // Cache-key only — `actor` is the field getCachedPersonalities reads via
+  // the mocked autocompleteCache module.
+  return { actor: discordId } as unknown as UserClient;
 }
 
 // Mock shared autocomplete utility
