@@ -14,7 +14,6 @@ export {
   type SettingUpdateHandler,
   type SettingUpdateResult,
   type SettingValue,
-  type PersonalityResponse,
   parseSettingsCustomId,
   isSettingsInteraction,
 } from './types.js';

@@ -29,6 +29,12 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
+// Mock gatewayClients so production's `clientsFor(interaction)` returns a
+// stub userClient. The mocked `./api.js` helpers ignore that argument.
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: {} })),
+}));
+
 // Mock api module
 vi.mock('./api.js', () => ({
   fetchUserCharacters: vi.fn(),
@@ -136,14 +142,8 @@ describe('handleBrowse', () => {
     const context = createMockContext();
     await handleBrowse(context, mockConfig);
 
-    expect(api.fetchUserCharacters).toHaveBeenCalledWith(
-      expect.objectContaining({ discordId: '123456789' }),
-      mockConfig
-    );
-    expect(api.fetchPublicCharacters).toHaveBeenCalledWith(
-      expect.objectContaining({ discordId: '123456789' }),
-      mockConfig
-    );
+    expect(api.fetchUserCharacters).toHaveBeenCalledWith(expect.any(Object), mockConfig);
+    expect(api.fetchPublicCharacters).toHaveBeenCalledWith(expect.any(Object), mockConfig);
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
         expect.objectContaining({
@@ -573,14 +573,8 @@ describe('handleBrowsePagination', () => {
     const mockInteraction = createMockButtonInteraction('character::browse::1::all::date::');
     await handleBrowsePagination(mockInteraction, mockConfig);
 
-    expect(api.fetchUserCharacters).toHaveBeenCalledWith(
-      expect.objectContaining({ discordId: '123456789' }),
-      mockConfig
-    );
-    expect(api.fetchPublicCharacters).toHaveBeenCalledWith(
-      expect.objectContaining({ discordId: '123456789' }),
-      mockConfig
-    );
+    expect(api.fetchUserCharacters).toHaveBeenCalledWith(expect.any(Object), mockConfig);
+    expect(api.fetchPublicCharacters).toHaveBeenCalledWith(expect.any(Object), mockConfig);
   });
 
   it('should handle errors gracefully without crashing', async () => {
@@ -839,11 +833,7 @@ describe('handleBrowseSelect', () => {
     await handleBrowseSelect(interaction, mockConfig);
 
     expect(interaction.deferUpdate).toHaveBeenCalled();
-    expect(api.fetchCharacter).toHaveBeenCalledWith(
-      'luna',
-      mockConfig,
-      expect.objectContaining({ discordId: '123456789' })
-    );
+    expect(api.fetchCharacter).toHaveBeenCalledWith('luna', mockConfig, expect.any(Object));
   });
 
   it('should open dashboard when character is found', async () => {

@@ -30,6 +30,7 @@ import {
   UpdatePersonalityConfigOverridesResponseSchema,
   ClearPersonalityConfigOverridesResponseSchema,
 } from '../../schemas/api/index.js';
+import { GATEWAY_TIMEOUTS } from '../../constants/discord.js';
 import type { RouteDef } from '../types.js';
 
 const BASE = '/config-overrides';
@@ -96,6 +97,11 @@ export const userConfigOverrideRoutes = {
     output: ResolvedConfigOverridesSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
+    // 5-tier cascade resolution can chain several Prisma reads on a slow
+    // day; the autocomplete-budget transport default (2500ms) is too tight
+    // for the slash-command callers (handleSettings / handleOverrides /
+    // fetchAndConvertSettingsData) that drive dashboards post-defer.
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   updatePersonalityOverrides: {
@@ -141,6 +147,9 @@ export const userConfigOverrideRoutes = {
     output: ResolvedConfigOverridesSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
+    // See timeout note on `resolveCascade` above — same multi-tier resolve
+    // cost applies to the 3-tier creator path.
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   updatePersonalityConfigDefaults: {

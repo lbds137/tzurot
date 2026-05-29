@@ -14,6 +14,10 @@ import type { StringSelectMenuInteraction } from 'discord.js';
 import { MessageFlags } from 'discord.js';
 import type { FetchedCharacter } from './api.js';
 
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: {} })),
+}));
+
 vi.mock('./api.js', () => ({
   fetchCharacter: vi.fn(),
   updateCharacter: vi.fn(),
@@ -115,10 +119,13 @@ describe('Dashboard Actions', () => {
       await handleAction(mockInteraction, 'test-char', 'visibility', mockConfig);
 
       expect(mockInteraction.deferUpdate).toHaveBeenCalled();
+      // Third arg is the `userClient` stub minted by the mocked `clientsFor`.
+      // Auth identity now flows through the brand on `userClient`, not the
+      // per-call payload, so the assertion is intentionally loose here.
       expect(api.toggleVisibility).toHaveBeenCalledWith(
         'test-char',
         true,
-        expect.objectContaining({ discordId: 'user-123' }),
+        expect.any(Object),
         mockConfig
       );
       expect(mockInteraction.editReply).toHaveBeenCalled();
@@ -187,7 +194,7 @@ describe('Dashboard Actions', () => {
       expect(api.updateCharacter).toHaveBeenCalledWith(
         'test-char',
         { voiceEnabled: false },
-        expect.objectContaining({ discordId: 'user-123' }),
+        expect.any(Object),
         expect.any(Object)
       );
       expect(mockInteraction.editReply).toHaveBeenCalled();

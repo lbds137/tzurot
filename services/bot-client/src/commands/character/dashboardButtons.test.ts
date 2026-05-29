@@ -9,6 +9,10 @@ import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
 import { formatSessionExpiredMessage } from '../../utils/dashboard/messages.js';
 
 // Mock dependencies
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: {} })),
+}));
+
 const mockFetchCharacter = vi.fn();
 vi.mock('./api.js', () => ({
   fetchCharacter: (...args: unknown[]) => mockFetchCharacter(...args),

@@ -31,7 +31,7 @@ import {
   buildCharacterDashboardOptions,
   type CharacterSessionData,
 } from './config.js';
-import { toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import { updateCharacter } from './api.js';
 import { handleAction } from './dashboardActions.js';
 import { handleSeedModalSubmit } from './create.js';
@@ -143,13 +143,9 @@ async function handleSectionModalSubmit(
   }
 
   try {
+    const { userClient } = clientsFor(interaction);
     // Update character via API (entityId is the slug)
-    const updated = await updateCharacter(
-      entityId,
-      extracted.merged,
-      toGatewayUser(interaction.user),
-      config
-    );
+    const updated = await updateCharacter(entityId, extracted.merged, userClient, config);
 
     // Build session data (preserve _isAdmin flag and browseContext)
     const sessionData: CharacterSessionData = {

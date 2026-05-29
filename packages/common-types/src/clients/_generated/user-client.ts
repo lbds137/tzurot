@@ -599,6 +599,7 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.getPersonality.output,
+      timeoutMs: ROUTE_MANIFEST.getPersonality.timeoutMs,
     });
   }
 
@@ -1704,6 +1705,7 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.resolveCascade.output,
+      timeoutMs: ROUTE_MANIFEST.resolveCascade.timeoutMs,
     });
   }
 
@@ -1756,6 +1758,7 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.resolvePersonalityCascade.output,
+      timeoutMs: ROUTE_MANIFEST.resolvePersonalityCascade.timeoutMs,
     });
   }
 

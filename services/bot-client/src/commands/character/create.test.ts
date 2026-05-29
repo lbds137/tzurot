@@ -22,6 +22,10 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: {} })),
+}));
+
 vi.mock('./api.js', () => ({
   createCharacter: vi.fn(),
 }));
@@ -270,7 +274,7 @@ describe('Character Create', () => {
           personalityTraits: 'Personality traits',
           isPublic: false,
         },
-        expect.objectContaining({ discordId: 'user-123' }),
+        expect.any(Object),
         mockConfig
       );
     });

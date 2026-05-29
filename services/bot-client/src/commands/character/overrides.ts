@@ -14,18 +14,16 @@
 import {
   createLogger,
   DISCORD_COLORS,
-  GATEWAY_TIMEOUTS,
   type EnvConfig,
   type ResolvedConfigOverrides,
   characterSettingsOptions,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import {
   type SettingsData,
   type SettingsDashboardConfig,
   type SettingUpdateHandler,
-  type PersonalityResponse,
   createSettingsDashboard,
   createSettingsCommandHandlers,
   EXTENDED_CONTEXT_SETTINGS,
@@ -78,15 +76,10 @@ export async function handleOverrides(
   logger.debug({ characterSlug, userId }, 'Opening dashboard');
 
   try {
+    const { userClient } = clientsFor(context.interaction);
+
     // Fetch current character data from API gateway
-    const result = await callGatewayApi<PersonalityResponse>(
-      `/user/personality/${encodeURIComponent(characterSlug)}`,
-      {
-        method: 'GET',
-        user: toGatewayUser(context.user),
-        timeout: GATEWAY_TIMEOUTS.DEFERRED,
-      }
-    );
+    const result = await userClient.getPersonality(characterSlug);
 
     if (!result.ok) {
       if (result.status === 404) {
@@ -105,10 +98,7 @@ export async function handleOverrides(
     const personality = result.data.personality;
 
     // Resolve full cascade overrides for this user+personality
-    const cascadeResult = await callGatewayApi<ResolvedConfigOverrides>(
-      `/user/config-overrides/resolve/${encodeURIComponent(personality.id)}`,
-      { method: 'GET', user: toGatewayUser(context.user), timeout: GATEWAY_TIMEOUTS.DEFERRED }
-    );
+    const cascadeResult = await userClient.resolveCascade(personality.id);
 
     if (!cascadeResult.ok) {
       await context.editReply({

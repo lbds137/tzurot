@@ -10,20 +10,20 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { handleExport } from './export.js';
-import * as userGatewayClient from '../../utils/userGatewayClient.js';
-import type { EnvConfig } from '@tzurot/common-types';
+import type { EnvConfig, UserClient } from '@tzurot/common-types';
 import { AttachmentBuilder } from 'discord.js';
 
-// Mock dependencies
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: vi.fn(),
-  };
-});
+interface StubUserClient {
+  getPersonality: ReturnType<typeof vi.fn>;
+}
+
+const stub: StubUserClient = {
+  getPersonality: vi.fn(),
+};
+
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: stub as unknown as UserClient })),
+}));
 
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal();
@@ -76,13 +76,21 @@ describe('Character Export', () => {
     conversationalGoals: null,
     conversationalExamples: null,
     errorMessage: null,
+    birthMonth: null,
+    birthDay: null,
+    birthYear: null,
+    voiceEnabled: false,
+    imageEnabled: false,
     hasAvatar: false,
     hasVoiceReference: false,
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z',
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
     mockFetch.mockReset();
+    stub.getPersonality.mockReset();
   });
 
   afterEach(() => {
@@ -90,16 +98,13 @@ describe('Character Export', () => {
   });
 
   describe('handleExport', () => {
-    // Note: deferReply is handled by top-level interactionCreate handler
-
     it('should export character as JSON attachment', async () => {
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
+      stub.getPersonality.mockResolvedValue({
         ok: true,
         data: { personality: mockCharacterData, canEdit: true },
       });
 
       const mockContext = createMockContext();
-
       await handleExport(mockContext, mockConfig);
 
       expect(mockContext.editReply).toHaveBeenCalledWith(
@@ -109,7 +114,6 @@ describe('Character Export', () => {
         })
       );
 
-      // Verify only one file (JSON only, no avatar)
       const editReplyArgs = vi.mocked(mockContext.editReply).mock.calls[0][0] as {
         files: AttachmentBuilder[];
       };
@@ -117,33 +121,24 @@ describe('Character Export', () => {
     });
 
     it('should include only non-null fields in exported JSON', async () => {
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
+      stub.getPersonality.mockResolvedValue({
         ok: true,
         data: { personality: mockCharacterData, canEdit: true },
       });
 
       const mockContext = createMockContext();
-
       await handleExport(mockContext, mockConfig);
 
-      // The JSON should include only non-null fields
-      // We can't easily inspect the buffer contents, but we verified the flow works
       expect(mockContext.editReply).toHaveBeenCalled();
     });
 
     it('should use character name when displayName is null', async () => {
-      const characterWithoutDisplayName = {
-        ...mockCharacterData,
-        displayName: null,
-      };
-
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
+      stub.getPersonality.mockResolvedValue({
         ok: true,
-        data: { personality: characterWithoutDisplayName, canEdit: true },
+        data: { personality: { ...mockCharacterData, displayName: null }, canEdit: true },
       });
 
       const mockContext = createMockContext();
-
       await handleExport(mockContext, mockConfig);
 
       expect(mockContext.editReply).toHaveBeenCalledWith(
@@ -154,17 +149,11 @@ describe('Character Export', () => {
     });
 
     it('should export avatar as separate PNG file when hasAvatar is true', async () => {
-      const characterWithAvatar = {
-        ...mockCharacterData,
-        hasAvatar: true,
-      };
-
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
+      stub.getPersonality.mockResolvedValue({
         ok: true,
-        data: { personality: characterWithAvatar, canEdit: true },
+        data: { personality: { ...mockCharacterData, hasAvatar: true }, canEdit: true },
       });
 
-      // Mock successful avatar fetch
       const mockAvatarBuffer = new ArrayBuffer(100);
       mockFetch.mockResolvedValue({
         ok: true,
@@ -172,20 +161,14 @@ describe('Character Export', () => {
       });
 
       const mockContext = createMockContext();
-
       await handleExport(mockContext, mockConfig);
 
-      // Verify avatar was fetched
       expect(mockFetch).toHaveBeenCalledWith('http://localhost:3000/avatars/test-character.png');
-
-      // Verify response includes avatar message
       expect(mockContext.editReply).toHaveBeenCalledWith(
         expect.objectContaining({
           content: expect.stringContaining('Avatar image included'),
         })
       );
-
-      // Verify two files (JSON + avatar)
       const editReplyArgs = vi.mocked(mockContext.editReply).mock.calls[0][0] as {
         files: AttachmentBuilder[];
       };
@@ -193,31 +176,20 @@ describe('Character Export', () => {
     });
 
     it('should show warning when avatar fetch fails', async () => {
-      const characterWithAvatar = {
-        ...mockCharacterData,
-        hasAvatar: true,
-      };
-
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
+      stub.getPersonality.mockResolvedValue({
         ok: true,
-        data: { personality: characterWithAvatar, canEdit: true },
+        data: { personality: { ...mockCharacterData, hasAvatar: true }, canEdit: true },
       });
-
-      // Mock failed avatar fetch (network error)
       mockFetch.mockRejectedValue(new Error('Network error'));
 
       const mockContext = createMockContext();
-
       await handleExport(mockContext, mockConfig);
 
-      // Verify warning message is shown
       expect(mockContext.editReply).toHaveBeenCalledWith(
         expect.objectContaining({
           content: expect.stringContaining('Avatar could not be exported'),
         })
       );
-
-      // Verify only JSON file (no avatar)
       const editReplyArgs = vi.mocked(mockContext.editReply).mock.calls[0][0] as {
         files: AttachmentBuilder[];
       };
@@ -225,27 +197,15 @@ describe('Character Export', () => {
     });
 
     it('should show warning when avatar returns 404', async () => {
-      const characterWithAvatar = {
-        ...mockCharacterData,
-        hasAvatar: true,
-      };
-
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
+      stub.getPersonality.mockResolvedValue({
         ok: true,
-        data: { personality: characterWithAvatar, canEdit: true },
+        data: { personality: { ...mockCharacterData, hasAvatar: true }, canEdit: true },
       });
-
-      // Mock 404 response for avatar
-      mockFetch.mockResolvedValue({
-        ok: false,
-        status: 404,
-      });
+      mockFetch.mockResolvedValue({ ok: false, status: 404 });
 
       const mockContext = createMockContext();
-
       await handleExport(mockContext, mockConfig);
 
-      // Verify warning message is shown
       expect(mockContext.editReply).toHaveBeenCalledWith(
         expect.objectContaining({
           content: expect.stringContaining('Avatar could not be exported'),
@@ -254,14 +214,13 @@ describe('Character Export', () => {
     });
 
     it('should handle character not found (404)', async () => {
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
+      stub.getPersonality.mockResolvedValue({
         ok: false,
         status: 404,
         error: 'Not found',
       });
 
       const mockContext = createMockContext();
-
       await handleExport(mockContext, mockConfig);
 
       expect(mockContext.editReply).toHaveBeenCalledWith(
@@ -270,14 +229,13 @@ describe('Character Export', () => {
     });
 
     it('should handle access denied (403)', async () => {
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
+      stub.getPersonality.mockResolvedValue({
         ok: false,
         status: 403,
         error: 'Forbidden',
       });
 
       const mockContext = createMockContext();
-
       await handleExport(mockContext, mockConfig);
 
       expect(mockContext.editReply).toHaveBeenCalledWith(
@@ -286,14 +244,13 @@ describe('Character Export', () => {
     });
 
     it('should handle API errors gracefully', async () => {
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
+      stub.getPersonality.mockResolvedValue({
         ok: false,
         status: 500,
         error: 'Internal server error',
       });
 
       const mockContext = createMockContext();
-
       await handleExport(mockContext, mockConfig);
 
       expect(mockContext.editReply).toHaveBeenCalledWith(
@@ -302,10 +259,9 @@ describe('Character Export', () => {
     });
 
     it('should handle network errors gracefully', async () => {
-      vi.mocked(userGatewayClient.callGatewayApi).mockRejectedValue(new Error('Network error'));
+      stub.getPersonality.mockRejectedValue(new Error('Network error'));
 
       const mockContext = createMockContext();
-
       await handleExport(mockContext, mockConfig);
 
       expect(mockContext.editReply).toHaveBeenCalledWith(
@@ -313,30 +269,25 @@ describe('Character Export', () => {
       );
     });
 
-    it('should fetch character using correct API call', async () => {
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
+    it('should fetch character using userClient.getPersonality', async () => {
+      stub.getPersonality.mockResolvedValue({
         ok: true,
         data: { personality: mockCharacterData, canEdit: true },
       });
 
       const mockContext = createMockContext();
-
       await handleExport(mockContext, mockConfig);
 
-      expect(userGatewayClient.callGatewayApi).toHaveBeenCalledWith(
-        '/user/personality/test-character',
-        { user: { discordId: 'user-123', username: 'testuser', displayName: 'testuser' } }
-      );
+      expect(stub.getPersonality).toHaveBeenCalledWith('test-character');
     });
 
     it('should include import instructions in response', async () => {
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
+      stub.getPersonality.mockResolvedValue({
         ok: true,
         data: { personality: mockCharacterData, canEdit: true },
       });
 
       const mockContext = createMockContext();
-
       await handleExport(mockContext, mockConfig);
 
       expect(mockContext.editReply).toHaveBeenCalledWith(

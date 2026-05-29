@@ -29,6 +29,27 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
+interface StubUserClient {
+  getPersonality: ReturnType<typeof vi.fn>;
+  resolvePersonalityCascade: ReturnType<typeof vi.fn>;
+}
+
+const stub: StubUserClient = {
+  getPersonality: vi.fn(),
+  resolvePersonalityCascade: vi.fn(),
+};
+
+// `handleSettings` (the slash-command entry point) calls these two typed
+// methods through `clientsFor`. The button/modal handlers go through the
+// shared `createSettingsCommandHandlers` factory which still uses the
+// legacy `callGatewayApi` transport — that factory migration is out of scope
+// here, so we mock both transports.
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({
+    userClient: stub as unknown as import('@tzurot/common-types').UserClient,
+  })),
+}));
+
 const mockCallGatewayApi = vi.fn();
 vi.mock('../../utils/userGatewayClient.js', async () => {
   const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
@@ -134,36 +155,20 @@ describe('Character Settings Dashboard', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub.getPersonality.mockReset();
+    stub.resolvePersonalityCascade.mockReset();
   });
 
   describe('handleSettings', () => {
     it('should display settings dashboard embed', async () => {
       const context = createMockContext();
-      mockCallGatewayApi
-        .mockResolvedValueOnce({ ok: true, data: mockPersonality })
-        .mockResolvedValueOnce({ ok: true, data: mockResolvedOverrides });
+      stub.getPersonality.mockResolvedValue({ ok: true, data: mockPersonality });
+      stub.resolvePersonalityCascade.mockResolvedValue({ ok: true, data: mockResolvedOverrides });
 
       await handleSettings(context, mockConfig);
 
-      // First call: fetch personality
-      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/personality/aurora', {
-        method: 'GET',
-        user: {
-          discordId: 'user-456',
-          username: 'testuser',
-          displayName: 'testuser',
-        },
-        timeout: 10000,
-      });
-      // Second call: resolve 3-tier cascade (hardcoded → admin → personality)
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/config-overrides/resolve-personality/personality-123',
-        {
-          method: 'GET',
-          user: { discordId: 'user-456', username: 'testuser', displayName: 'testuser' },
-          timeout: 10000,
-        }
-      );
+      expect(stub.getPersonality).toHaveBeenCalledWith('aurora');
+      expect(stub.resolvePersonalityCascade).toHaveBeenCalledWith('personality-123');
       expect(context.editReply).toHaveBeenCalledWith(
         expect.objectContaining({
           embeds: expect.any(Array),
@@ -174,9 +179,8 @@ describe('Character Settings Dashboard', () => {
 
     it('should include Character Settings title in embed', async () => {
       const context = createMockContext();
-      mockCallGatewayApi
-        .mockResolvedValueOnce({ ok: true, data: mockPersonality })
-        .mockResolvedValueOnce({ ok: true, data: mockResolvedOverrides });
+      stub.getPersonality.mockResolvedValue({ ok: true, data: mockPersonality });
+      stub.resolvePersonalityCascade.mockResolvedValue({ ok: true, data: mockResolvedOverrides });
 
       await handleSettings(context, mockConfig);
 
@@ -189,9 +193,8 @@ describe('Character Settings Dashboard', () => {
 
     it('should include character name in embed description', async () => {
       const context = createMockContext();
-      mockCallGatewayApi
-        .mockResolvedValueOnce({ ok: true, data: mockPersonality })
-        .mockResolvedValueOnce({ ok: true, data: mockResolvedOverrides });
+      stub.getPersonality.mockResolvedValue({ ok: true, data: mockPersonality });
+      stub.resolvePersonalityCascade.mockResolvedValue({ ok: true, data: mockResolvedOverrides });
 
       await handleSettings(context, mockConfig);
 
@@ -203,9 +206,8 @@ describe('Character Settings Dashboard', () => {
 
     it('should include all 10 settings fields', async () => {
       const context = createMockContext();
-      mockCallGatewayApi
-        .mockResolvedValueOnce({ ok: true, data: mockPersonality })
-        .mockResolvedValueOnce({ ok: true, data: mockResolvedOverrides });
+      stub.getPersonality.mockResolvedValue({ ok: true, data: mockPersonality });
+      stub.resolvePersonalityCascade.mockResolvedValue({ ok: true, data: mockResolvedOverrides });
 
       await handleSettings(context, mockConfig);
 
@@ -225,9 +227,11 @@ describe('Character Settings Dashboard', () => {
           maxMessages: 'personality',
         },
       };
-      mockCallGatewayApi
-        .mockResolvedValueOnce({ ok: true, data: mockPersonality })
-        .mockResolvedValueOnce({ ok: true, data: resolvedWithPersonalityOverride });
+      stub.getPersonality.mockResolvedValue({ ok: true, data: mockPersonality });
+      stub.resolvePersonalityCascade.mockResolvedValue({
+        ok: true,
+        data: resolvedWithPersonalityOverride,
+      });
 
       await handleSettings(context, mockConfig);
 
@@ -243,11 +247,7 @@ describe('Character Settings Dashboard', () => {
 
     it('should handle character not found', async () => {
       const context = createMockContext();
-      mockCallGatewayApi.mockResolvedValue({
-        ok: false,
-        status: 404,
-        error: 'Not found',
-      });
+      stub.getPersonality.mockResolvedValue({ ok: false, status: 404, error: 'Not found' });
 
       await handleSettings(context, mockConfig);
 
@@ -258,11 +258,7 @@ describe('Character Settings Dashboard', () => {
 
     it('should handle API errors gracefully', async () => {
       const context = createMockContext();
-      mockCallGatewayApi.mockResolvedValue({
-        ok: false,
-        status: 500,
-        error: 'Server error',
-      });
+      stub.getPersonality.mockResolvedValue({ ok: false, status: 500, error: 'Server error' });
 
       await handleSettings(context, mockConfig);
 
@@ -273,9 +269,8 @@ describe('Character Settings Dashboard', () => {
 
     it('should handle cascade resolve failure', async () => {
       const context = createMockContext();
-      mockCallGatewayApi
-        .mockResolvedValueOnce({ ok: true, data: mockPersonality })
-        .mockResolvedValueOnce({ ok: false, error: 'Cascade error' });
+      stub.getPersonality.mockResolvedValue({ ok: true, data: mockPersonality });
+      stub.resolvePersonalityCascade.mockResolvedValue({ ok: false, error: 'Cascade error' });
 
       await handleSettings(context, mockConfig);
 
@@ -286,7 +281,7 @@ describe('Character Settings Dashboard', () => {
 
     it('should handle unexpected errors gracefully', async () => {
       const context = createMockContext();
-      mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+      stub.getPersonality.mockRejectedValue(new Error('Network error'));
 
       await handleSettings(context, mockConfig);
 
@@ -297,7 +292,7 @@ describe('Character Settings Dashboard', () => {
 
     it('should show error message on network failure', async () => {
       const context = createMockContext();
-      mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+      stub.getPersonality.mockRejectedValue(new Error('Network error'));
 
       await handleSettings(context, mockConfig);
 

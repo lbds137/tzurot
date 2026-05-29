@@ -13,7 +13,8 @@ import {
   PersonalityCreateSchema,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi, toGatewayUser, type GatewayUser } from '../../utils/userGatewayClient.js';
+import type { UserClient } from '@tzurot/common-types';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import { validateJsonFile, downloadAndParseJson } from '../../utils/jsonFileUtils.js';
 import { validateDiscordCdnUrl } from '../../utils/discordCdnGuard.js';
 import {
@@ -302,39 +303,51 @@ function buildImportPayload(
  */
 async function checkExistingCharacter(
   slug: string,
-  user: GatewayUser
+  userClient: UserClient
 ): Promise<{ exists: false } | { exists: true; canEdit: boolean }> {
-  const result = await callGatewayApi<{
-    personality: { id: string };
-    canEdit: boolean;
-  }>(`/user/personality/${encodeURIComponent(slug)}`, {
-    user,
-    method: 'GET',
-  });
+  const result = await userClient.getPersonality(slug);
 
-  if (!result.ok) {
+  if (result.ok) {
+    return { exists: true, canEdit: result.data.canEdit };
+  }
+
+  // 404 means the slug genuinely isn't claimed in the caller's view —
+  // either it doesn't exist or it's private and owned by someone else,
+  // which the gateway represents the same way for security reasons.
+  // Either way the caller proceeds to create, and the gateway's unique
+  // constraint catches the slug-already-claimed-by-another-user case
+  // with a 409 on the create call.
+  if (result.status === 404) {
     return { exists: false };
   }
-  return { exists: true, canEdit: result.data.canEdit };
+
+  // Any other status (500, network failure, schema-validation failure)
+  // shouldn't silently look like "doesn't exist" — that would let a
+  // transient gateway error masquerade as a missing record and trigger
+  // a create attempt. Surface the error to the caller so the user sees
+  // a clearer diagnostic than a downstream 409 unique-constraint reject.
+  throw new Error(`Failed to check existing character: ${result.status} - ${result.error}`);
 }
 
 /**
- * Create or update character via API
+ * Create or update character via API. The payload is widened to
+ * `Record<string, unknown>` because the import builder produces a
+ * dynamically-shaped body (only includes fields that were present in
+ * the imported JSON); the gateway's Zod parser is the authoritative
+ * validation gate.
  */
 async function saveCharacter(
   slug: string,
-  user: GatewayUser,
+  userClient: UserClient,
   payload: Record<string, unknown>,
   isUpdate: boolean
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const result = await callGatewayApi<{ id: string }>(
-    isUpdate ? `/user/personality/${encodeURIComponent(slug)}` : '/user/personality',
-    {
-      user,
-      method: isUpdate ? 'PUT' : 'POST',
-      body: payload,
-    }
-  );
+  const result = isUpdate
+    ? await userClient.updatePersonality(
+        slug,
+        payload as Parameters<UserClient['updatePersonality']>[1]
+      )
+    : await userClient.createPersonality(payload as Parameters<UserClient['createPersonality']>[0]);
 
   if (!result.ok) {
     logger.error({ error: result.error, isUpdate }, 'Failed to import');
@@ -423,8 +436,10 @@ export async function handleImport(
       return;
     }
 
+    const { userClient } = clientsFor(context.interaction);
+
     // Step 6: Check if character already exists
-    const existingCheck = await checkExistingCharacter(slug, toGatewayUser(context.user));
+    const existingCheck = await checkExistingCharacter(slug, userClient);
     if (existingCheck.exists && !existingCheck.canEdit) {
       await context.editReply(
         `❌ A character with the slug \`${slug}\` already exists and you don't own it.\n` +
@@ -434,12 +449,7 @@ export async function handleImport(
     }
 
     // Step 7: Create or update character
-    const saveResult = await saveCharacter(
-      slug,
-      toGatewayUser(context.user),
-      payload,
-      existingCheck.exists
-    );
+    const saveResult = await saveCharacter(slug, userClient, payload, existingCheck.exists);
     if (!saveResult.ok) {
       await context.editReply(
         `❌ Failed to ${existingCheck.exists ? 'update' : 'import'} character:\n` +

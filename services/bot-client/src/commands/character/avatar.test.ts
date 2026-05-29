@@ -23,7 +23,16 @@ import type { FetchedCharacter } from './api.js';
 import type { Attachment } from 'discord.js';
 import type { EnvConfig } from '@tzurot/common-types';
 
-// Mock dependencies
+// Mock dependencies. The api.js helpers (fetchCharacter / updateCharacter)
+// are stubbed directly, so the userClient that production passes to them
+// is never actually exercised — but production code still calls
+// `clientsFor(context.interaction)` to obtain it, which would otherwise
+// hit the real env-var validation. Returning an empty stub here is enough
+// because the mocked api.js helpers ignore their userClient argument.
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: {} })),
+}));
+
 vi.mock('./api.js', () => ({
   fetchCharacter: vi.fn(),
   updateCharacter: vi.fn(),
@@ -242,7 +251,7 @@ describe('Character Avatar Handler', () => {
       expect(api.updateCharacter).toHaveBeenCalledWith(
         'my-char',
         { avatarData: expect.any(String) },
-        expect.objectContaining({ discordId: 'user-123' }),
+        expect.any(Object), // userClient stub from clientsFor mock
         mockConfig
       );
       expect(mockContext.editReply).toHaveBeenCalledWith(expect.stringContaining('Avatar updated'));

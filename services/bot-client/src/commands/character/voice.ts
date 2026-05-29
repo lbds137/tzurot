@@ -15,7 +15,8 @@ import {
   AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
   isAutocompleteErrorSentinel,
 } from '../../utils/apiCheck.js';
-import { toGatewayUser, type GatewayUser } from '../../utils/userGatewayClient.js';
+import type { UserClient } from '@tzurot/common-types';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import { validateDiscordCdnUrl } from '../../utils/discordCdnGuard.js';
 import { fetchCharacter, updateCharacter, type FetchedCharacter } from './api.js';
 
@@ -37,10 +38,10 @@ const MAX_UPLOAD_MB = MAX_UPLOAD_BYTES / (1024 * 1024);
 async function fetchEditableCharacter(
   slug: string,
   config: EnvConfig,
-  user: GatewayUser,
+  userClient: UserClient,
   context: DeferredCommandContext
 ): Promise<FetchedCharacter | null> {
-  const character = await fetchCharacter(slug, config, user);
+  const character = await fetchCharacter(slug, config, userClient);
   if (!character) {
     await context.editReply(
       `❌ Character \`${escapeMarkdown(slug)}\` not found or not accessible.`
@@ -99,14 +100,11 @@ async function handleVoiceUpload(
     return;
   }
 
+  const { userClient } = clientsFor(context.interaction);
+
   try {
     // Check permissions
-    const character = await fetchEditableCharacter(
-      slug,
-      config,
-      toGatewayUser(context.user),
-      context
-    );
+    const character = await fetchEditableCharacter(slug, config, userClient, context);
     if (!character) {
       return;
     }
@@ -132,7 +130,7 @@ async function handleVoiceUpload(
     await updateCharacter(
       slug,
       { voiceReferenceData: base64Audio, voiceEnabled: true },
-      toGatewayUser(context.user),
+      userClient,
       config
     );
 
@@ -162,14 +160,11 @@ async function handleVoiceClear(context: DeferredCommandContext, config: EnvConf
   }
   const userId = context.user.id;
 
+  const { userClient } = clientsFor(context.interaction);
+
   try {
     // Check permissions
-    const character = await fetchEditableCharacter(
-      slug,
-      config,
-      toGatewayUser(context.user),
-      context
-    );
+    const character = await fetchEditableCharacter(slug, config, userClient, context);
     if (!character) {
       return;
     }
@@ -178,7 +173,7 @@ async function handleVoiceClear(context: DeferredCommandContext, config: EnvConf
     await updateCharacter(
       slug,
       { voiceReferenceData: null, voiceEnabled: false },
-      toGatewayUser(context.user),
+      userClient,
       config
     );
 

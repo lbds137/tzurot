@@ -20,6 +20,10 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: {} })),
+}));
+
 vi.mock('./api.js', () => ({
   fetchCharacter: vi.fn(),
   updateCharacter: vi.fn(),
@@ -141,13 +145,16 @@ describe('handleVoice', () => {
 
       await handleVoice(context, mockConfig);
 
+      // Third arg is the `userClient` stub minted by the mocked `clientsFor`.
+      // Auth identity now flows through the brand on `userClient`, not the
+      // per-call payload, so the assertion is intentionally loose here.
       expect(updateCharacter).toHaveBeenCalledWith(
         'test-char',
         {
           voiceReferenceData: expect.stringContaining('data:audio/wav;base64,'),
           voiceEnabled: true,
         },
-        { discordId: 'user-123', username: 'testuser', displayName: 'testuser' },
+        expect.any(Object),
         mockConfig
       );
       expect(context.editReply).toHaveBeenCalledWith(
@@ -281,7 +288,7 @@ describe('handleVoice', () => {
       expect(updateCharacter).toHaveBeenCalledWith(
         'test-char',
         { voiceReferenceData: null, voiceEnabled: false },
-        { discordId: 'user-123', username: 'testuser', displayName: 'testuser' },
+        expect.any(Object),
         mockConfig
       );
       expect(context.editReply).toHaveBeenCalledWith(

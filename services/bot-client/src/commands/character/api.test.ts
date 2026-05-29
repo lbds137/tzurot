@@ -1,10 +1,11 @@
 /**
  * Tests for Character API Client Functions
  *
- * These tests verify the API client functions properly:
- * 1. Handle authentication via callGatewayApi
- * 2. Process responses correctly
- * 3. Return canEdit flag from server-side permission checks
+ * Verifies that the typed `userClient` is called correctly and the
+ * response is shaped into bot-client `CharacterData` (including the
+ * `characterInfo`/`personalityTraits` nullable→empty-string coercion
+ * and `avatarData: null` default — see `api.ts:toCharacterData` for
+ * the divergence rationale).
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -17,121 +18,194 @@ import {
   updateCharacter,
   toggleVisibility,
   fetchUsernames,
+  toCharacterData,
 } from './api.js';
-import * as userGatewayClient from '../../utils/userGatewayClient.js';
-import type { EnvConfig } from '@tzurot/common-types';
+import type { EnvConfig, UserClient } from '@tzurot/common-types';
 
-// Mock the gateway client
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
+interface StubUserClient {
+  getPersonality: ReturnType<typeof vi.fn>;
+  listPersonalities: ReturnType<typeof vi.fn>;
+  createPersonality: ReturnType<typeof vi.fn>;
+  updatePersonality: ReturnType<typeof vi.fn>;
+  setPersonalityVisibility: ReturnType<typeof vi.fn>;
+}
+
+function makeStub(): StubUserClient {
   return {
-    ...actual,
-    callGatewayApi: vi.fn(),
+    getPersonality: vi.fn(),
+    listPersonalities: vi.fn(),
+    createPersonality: vi.fn(),
+    updatePersonality: vi.fn(),
+    setPersonalityVisibility: vi.fn(),
   };
-});
+}
+
+function asClient(stub: StubUserClient): UserClient {
+  return stub as unknown as UserClient;
+}
+
+/**
+ * Build a minimal `PersonalityFull`-shaped object with sensible defaults.
+ * Tests can override fields they care about.
+ */
+function makePersonality(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    id: 'char-uuid-1',
+    name: 'Test Character',
+    slug: 'test-character',
+    displayName: 'Test Display',
+    characterInfo: 'Info',
+    personalityTraits: 'Traits',
+    personalityTone: null,
+    personalityAge: null,
+    personalityAppearance: null,
+    personalityLikes: null,
+    personalityDislikes: null,
+    conversationalGoals: null,
+    conversationalExamples: null,
+    errorMessage: null,
+    birthMonth: null,
+    birthDay: null,
+    birthYear: null,
+    isPublic: false,
+    voiceEnabled: false,
+    imageEnabled: false,
+    ownerId: 'owner-uuid-1',
+    hasAvatar: false,
+    hasVoiceReference: false,
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z',
+    ...overrides,
+  };
+}
 
 describe('Character API Client', () => {
   const mockConfig = {
     GATEWAY_URL: 'http://localhost:3000',
   } as EnvConfig;
 
-  const mockUser = { discordId: 'discord-user-123', username: 'testuser', displayName: 'testuser' };
+  let stub: StubUserClient;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = makeStub();
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
+  // Pure unit tests for the schema/local-type bridge. The fixtures used by
+  // the API-helper tests below always provide non-null `characterInfo` /
+  // `personalityTraits` and never assert `avatarData`, so the load-bearing
+  // null-coercion behavior would otherwise be untested.
+  describe('toCharacterData', () => {
+    it('coerces null characterInfo and personalityTraits to empty string', () => {
+      const result = toCharacterData({
+        characterInfo: null,
+        personalityTraits: null,
+      });
+      expect(result.characterInfo).toBe('');
+      expect(result.personalityTraits).toBe('');
+    });
+
+    it('preserves non-null values', () => {
+      const result = toCharacterData({
+        characterInfo: 'Bio',
+        personalityTraits: 'Calm',
+      });
+      expect(result.characterInfo).toBe('Bio');
+      expect(result.personalityTraits).toBe('Calm');
+    });
+
+    it('always sets avatarData to null regardless of input', () => {
+      const result = toCharacterData({
+        characterInfo: 'X',
+        personalityTraits: 'Y',
+      });
+      expect(result.avatarData).toBeNull();
+    });
+
+    it('preserves additional schema fields like hasAvatar untouched', () => {
+      const result = toCharacterData({
+        characterInfo: null,
+        personalityTraits: null,
+        hasAvatar: true,
+        slug: 'test',
+      });
+      expect(result.hasAvatar).toBe(true);
+      expect(result.slug).toBe('test');
+    });
+  });
+
   describe('fetchCharacter', () => {
     it('should fetch character and include canEdit from API response', async () => {
-      const mockResponse = {
-        ok: true as const,
+      stub.getPersonality.mockResolvedValue({
+        ok: true,
         data: {
-          personality: {
-            id: 'char-uuid-1',
-            name: 'Test Character',
-            slug: 'test-character',
-            displayName: 'Test Display',
-            isPublic: false,
-            ownerId: 'owner-uuid-1',
-          },
+          personality: makePersonality({ slug: 'test-character' }),
           canEdit: true,
         },
-      };
+      });
 
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue(mockResponse);
+      const result = await fetchCharacter('test-character', mockConfig, asClient(stub));
 
-      const result = await fetchCharacter('test-character', mockConfig, mockUser);
-
-      expect(userGatewayClient.callGatewayApi).toHaveBeenCalledWith(
-        '/user/personality/test-character',
-        { user: mockUser }
-      );
-
+      expect(stub.getPersonality).toHaveBeenCalledWith('test-character');
       expect(result).not.toBeNull();
       expect(result!.slug).toBe('test-character');
       expect(result!.canEdit).toBe(true);
     });
 
     it('should return canEdit false when user does not own character', async () => {
-      const mockResponse = {
-        ok: true as const,
+      stub.getPersonality.mockResolvedValue({
+        ok: true,
         data: {
-          personality: {
-            id: 'char-uuid-1',
-            name: 'Other Character',
+          personality: makePersonality({
             slug: 'other-character',
             isPublic: true,
             ownerId: 'other-owner-uuid',
-          },
+          }),
           canEdit: false,
         },
-      };
+      });
 
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue(mockResponse);
-
-      const result = await fetchCharacter('other-character', mockConfig, mockUser);
+      const result = await fetchCharacter('other-character', mockConfig, asClient(stub));
 
       expect(result!.canEdit).toBe(false);
     });
 
     it('should return null for 404 response', async () => {
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
+      stub.getPersonality.mockResolvedValue({
         ok: false,
         status: 404,
         error: 'Not found',
       });
 
-      const result = await fetchCharacter('nonexistent', mockConfig, mockUser);
+      const result = await fetchCharacter('nonexistent', mockConfig, asClient(stub));
 
       expect(result).toBeNull();
     });
 
     it('should return null for 403 response', async () => {
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
+      stub.getPersonality.mockResolvedValue({
         ok: false,
         status: 403,
         error: 'Forbidden',
       });
 
-      const result = await fetchCharacter('private-char', mockConfig, mockUser);
+      const result = await fetchCharacter('private-char', mockConfig, asClient(stub));
 
       expect(result).toBeNull();
     });
 
     it('should throw error for other error statuses', async () => {
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
+      stub.getPersonality.mockResolvedValue({
         ok: false,
         status: 500,
         error: 'Internal server error',
       });
 
-      await expect(fetchCharacter('test', mockConfig, mockUser)).rejects.toThrow(
+      await expect(fetchCharacter('test', mockConfig, asClient(stub))).rejects.toThrow(
         'Failed to fetch character: 500'
       );
     });
@@ -139,8 +213,8 @@ describe('Character API Client', () => {
 
   describe('fetchAllCharacters', () => {
     it('should separate owned and public characters', async () => {
-      const mockResponse = {
-        ok: true as const,
+      stub.listPersonalities.mockResolvedValue({
+        ok: true,
         data: {
           personalities: [
             {
@@ -151,7 +225,8 @@ describe('Character API Client', () => {
               isOwned: true,
               isPublic: false,
               ownerId: 'owner-1',
-              ownerDiscordId: 'discord-user-123', // Matches mockUserId - should be in "owned"
+              ownerDiscordId: 'discord-user-123',
+              permissions: { canEdit: true, canDelete: true },
             },
             {
               id: 'char-2',
@@ -161,15 +236,14 @@ describe('Character API Client', () => {
               isOwned: false,
               isPublic: true,
               ownerId: 'owner-2',
-              ownerDiscordId: 'other-discord-id', // Different - should be in "publicOthers"
+              ownerDiscordId: 'other-discord-id',
+              permissions: { canEdit: false, canDelete: false },
             },
           ],
         },
-      };
+      });
 
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue(mockResponse);
-
-      const result = await fetchAllCharacters(mockUser, mockConfig);
+      const result = await fetchAllCharacters(asClient(stub), mockConfig);
 
       expect(result.owned).toHaveLength(1);
       expect(result.owned[0].slug).toBe('my-char');
@@ -179,13 +253,13 @@ describe('Character API Client', () => {
     });
 
     it('should throw error on API failure', async () => {
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
+      stub.listPersonalities.mockResolvedValue({
         ok: false,
         status: 500,
         error: 'Server error',
       });
 
-      await expect(fetchAllCharacters(mockUser, mockConfig)).rejects.toThrow(
+      await expect(fetchAllCharacters(asClient(stub), mockConfig)).rejects.toThrow(
         'Failed to fetch characters: 500'
       );
     });
@@ -193,8 +267,8 @@ describe('Character API Client', () => {
 
   describe('fetchUserCharacters', () => {
     it('should return only owned characters', async () => {
-      const mockResponse = {
-        ok: true as const,
+      stub.listPersonalities.mockResolvedValue({
+        ok: true,
         data: {
           personalities: [
             {
@@ -205,7 +279,8 @@ describe('Character API Client', () => {
               isOwned: true,
               isPublic: false,
               ownerId: 'owner-1',
-              ownerDiscordId: 'discord-user-123', // Matches mockUserId
+              ownerDiscordId: 'discord-user-123',
+              permissions: { canEdit: true, canDelete: true },
             },
             {
               id: 'char-2',
@@ -216,14 +291,13 @@ describe('Character API Client', () => {
               isPublic: true,
               ownerId: 'owner-2',
               ownerDiscordId: 'other-discord-id',
+              permissions: { canEdit: false, canDelete: false },
             },
           ],
         },
-      };
+      });
 
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue(mockResponse);
-
-      const result = await fetchUserCharacters(mockUser, mockConfig);
+      const result = await fetchUserCharacters(asClient(stub), mockConfig);
 
       expect(result).toHaveLength(1);
       expect(result[0].slug).toBe('my-char');
@@ -232,8 +306,8 @@ describe('Character API Client', () => {
 
   describe('fetchPublicCharacters', () => {
     it('should return only public characters from others', async () => {
-      const mockResponse = {
-        ok: true as const,
+      stub.listPersonalities.mockResolvedValue({
+        ok: true,
         data: {
           personalities: [
             {
@@ -244,7 +318,8 @@ describe('Character API Client', () => {
               isOwned: true,
               isPublic: false,
               ownerId: 'owner-1',
-              ownerDiscordId: 'discord-user-123', // Matches mockUserId - should be in "owned"
+              ownerDiscordId: 'discord-user-123',
+              permissions: { canEdit: true, canDelete: true },
             },
             {
               id: 'char-2',
@@ -254,15 +329,14 @@ describe('Character API Client', () => {
               isOwned: false,
               isPublic: true,
               ownerId: 'owner-2',
-              ownerDiscordId: 'other-discord-id', // Different - should be in "publicOthers"
+              ownerDiscordId: 'other-discord-id',
+              permissions: { canEdit: false, canDelete: false },
             },
           ],
         },
-      };
+      });
 
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue(mockResponse);
-
-      const result = await fetchPublicCharacters(mockUser, mockConfig);
+      const result = await fetchPublicCharacters(asClient(stub), mockConfig);
 
       expect(result).toHaveLength(1);
       expect(result[0].slug).toBe('other-char');
@@ -271,50 +345,32 @@ describe('Character API Client', () => {
 
   describe('createCharacter', () => {
     it('should create character via API', async () => {
-      const mockResponse = {
-        ok: true as const,
+      stub.createPersonality.mockResolvedValue({
+        ok: true,
         data: {
           success: true,
-          personality: {
+          personality: makePersonality({
             id: 'new-char-uuid',
             name: 'New Character',
             slug: 'new-character',
-            characterInfo: 'Info',
-            personalityTraits: 'Traits',
-            isPublic: false,
-          },
-        },
-      };
-
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue(mockResponse);
-
-      const result = await createCharacter(
-        {
-          name: 'New Character',
-          slug: 'new-character',
-          characterInfo: 'Info',
-          personalityTraits: 'Traits',
-        },
-        mockUser,
-        mockConfig
-      );
-
-      expect(userGatewayClient.callGatewayApi).toHaveBeenCalledWith('/user/personality', {
-        method: 'POST',
-        user: mockUser,
-        body: {
-          name: 'New Character',
-          slug: 'new-character',
-          characterInfo: 'Info',
-          personalityTraits: 'Traits',
+          }),
         },
       });
 
+      const input = {
+        name: 'New Character',
+        slug: 'new-character',
+        characterInfo: 'Info',
+        personalityTraits: 'Traits',
+      };
+      const result = await createCharacter(input, asClient(stub), mockConfig);
+
+      expect(stub.createPersonality).toHaveBeenCalledWith(input);
       expect(result.slug).toBe('new-character');
     });
 
     it('should throw error on creation failure', async () => {
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
+      stub.createPersonality.mockResolvedValue({
         ok: false,
         status: 409,
         error: 'Slug already exists',
@@ -328,7 +384,7 @@ describe('Character API Client', () => {
             characterInfo: 'Info',
             personalityTraits: 'Traits',
           },
-          mockUser,
+          asClient(stub),
           mockConfig
         )
       ).rejects.toThrow('Failed to create character: 409 - Slug already exists');
@@ -337,53 +393,42 @@ describe('Character API Client', () => {
 
   describe('updateCharacter', () => {
     it('should update character via API', async () => {
-      const mockResponse = {
-        ok: true as const,
+      stub.updatePersonality.mockResolvedValue({
+        ok: true,
         data: {
           success: true,
-          personality: {
-            id: 'char-uuid',
-            name: 'Updated Name',
-            slug: 'test-char',
-          },
+          personality: makePersonality({ name: 'Updated Name', slug: 'test-char' }),
         },
-      };
-
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue(mockResponse);
+      });
 
       const result = await updateCharacter(
         'test-char',
         { name: 'Updated Name' },
-        mockUser,
+        asClient(stub),
         mockConfig
       );
 
-      expect(userGatewayClient.callGatewayApi).toHaveBeenCalledWith('/user/personality/test-char', {
-        method: 'PUT',
-        user: mockUser,
-        body: { name: 'Updated Name' },
-      });
-
+      expect(stub.updatePersonality).toHaveBeenCalledWith('test-char', { name: 'Updated Name' });
       expect(result.name).toBe('Updated Name');
     });
 
     it('should throw error on update failure', async () => {
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
+      stub.updatePersonality.mockResolvedValue({
         ok: false,
         status: 403,
         error: 'Not authorized',
       });
 
       await expect(
-        updateCharacter('test-char', { name: 'New Name' }, mockUser, mockConfig)
+        updateCharacter('test-char', { name: 'New Name' }, asClient(stub), mockConfig)
       ).rejects.toThrow('Failed to update character: 403 - Not authorized');
     });
   });
 
   describe('toggleVisibility', () => {
     it('should toggle visibility via API', async () => {
-      const mockResponse = {
-        ok: true as const,
+      stub.setPersonalityVisibility.mockResolvedValue({
+        ok: true,
         data: {
           success: true,
           personality: {
@@ -392,21 +437,11 @@ describe('Character API Client', () => {
             isPublic: true,
           },
         },
-      };
+      });
 
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue(mockResponse);
+      const result = await toggleVisibility('test-char', true, asClient(stub), mockConfig);
 
-      const result = await toggleVisibility('test-char', true, mockUser, mockConfig);
-
-      expect(userGatewayClient.callGatewayApi).toHaveBeenCalledWith(
-        '/user/personality/test-char/visibility',
-        {
-          method: 'PATCH',
-          user: mockUser,
-          body: { isPublic: true },
-        }
-      );
-
+      expect(stub.setPersonalityVisibility).toHaveBeenCalledWith('test-char', { isPublic: true });
       expect(result.isPublic).toBe(true);
     });
   });

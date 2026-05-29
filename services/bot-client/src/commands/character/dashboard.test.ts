@@ -31,16 +31,31 @@ vi.mock('./api.js', () => ({
   toggleVisibility: vi.fn(),
 }));
 
-// Mock userGatewayClient (transitive dep via dashboardDeleteHandlers)
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: vi.fn(),
-  };
-});
+// Mock `clientsFor` so production code's `clientsFor(interaction)` call
+// returns a stub userClient. The mocked `./api.js` helpers and the
+// dashboardDeleteHandlers stub below ignore the userClient argument,
+// but the call still has to succeed (otherwise the real `clientsFor`
+// hits env-var validation and throws).
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({
+    userClient: {
+      deletePersonality: vi.fn().mockResolvedValue({
+        ok: true,
+        data: {
+          deletedCounts: {
+            conversationHistory: 0,
+            memories: 0,
+            pendingMemories: 0,
+            channelSettings: 0,
+            aliases: 0,
+          },
+          deletedName: 'stub',
+          deletedSlug: 'stub',
+        },
+      }),
+    },
+  })),
+}));
 
 vi.mock('./create.js', () => ({
   handleSeedModalSubmit: vi.fn(),
@@ -431,7 +446,7 @@ describe('Character Dashboard', () => {
       expect(api.toggleVisibility).toHaveBeenCalledWith(
         'test-char',
         true,
-        expect.objectContaining({ discordId: 'user-123' }),
+        expect.any(Object),
         mockConfig
       );
     });
@@ -532,7 +547,7 @@ describe('Character Dashboard', () => {
       expect(api.updateCharacter).toHaveBeenCalledWith(
         'test-char',
         { voiceEnabled: false },
-        expect.objectContaining({ discordId: 'user-123' }),
+        expect.any(Object),
         expect.any(Object)
       );
       // Dashboard should be rebuilt with updated state
@@ -677,7 +692,7 @@ describe('Character Dashboard', () => {
       expect(api.fetchCharacter).toHaveBeenCalledWith(
         'test-char',
         expect.any(Object),
-        expect.objectContaining({ discordId: 'user-123' })
+        expect.any(Object)
       );
       expect(mockInteraction.editReply).toHaveBeenCalled();
     });

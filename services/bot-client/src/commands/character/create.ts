@@ -35,7 +35,7 @@ import {
   characterSeedFields,
   buildCharacterDashboardOptions,
 } from './config.js';
-import { toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import { createCharacter } from './api.js';
 
 const logger = createLogger('character-create');
@@ -98,6 +98,7 @@ export async function handleSeedModalSubmit(
   );
 
   try {
+    const { userClient } = clientsFor(interaction);
     // Create character via API
     const character = await createCharacter(
       {
@@ -107,7 +108,7 @@ export async function handleSeedModalSubmit(
         personalityTraits: values.personalityTraits,
         isPublic: false, // Default to private
       },
-      toGatewayUser(interaction.user),
+      userClient,
       config
     );
 

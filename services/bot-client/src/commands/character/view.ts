@@ -20,11 +20,13 @@ import {
   TEXT_LIMITS,
   characterViewOptions,
   formatDateShort,
+  type UserClient,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { CharacterData } from './characterTypes.js';
 import { CharacterCustomIds } from '../../utils/customIds.js';
-import { callGatewayApi, toGatewayUser, type GatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
+import { toCharacterData } from './api.js';
 import { VIEW_TOTAL_PAGES, VIEW_PAGE_TITLES, EXPANDABLE_FIELDS } from './viewTypes.js';
 import { sendChunkedReply } from '../../utils/chunkedReply.js';
 
@@ -42,12 +44,6 @@ interface FieldInfo {
 interface ViewPageResult {
   embed: EmbedBuilder;
   truncatedFields: string[];
-}
-
-/** API response type for personality endpoint */
-interface PersonalityResponse {
-  personality: CharacterData;
-  canEdit: boolean;
 }
 
 // ============================================================================
@@ -338,15 +334,16 @@ function buildViewComponents(
 // ============================================================================
 
 /**
- * Fetch a character by slug
+ * Fetch a character by slug. Local helper (separate from `api.ts`'s
+ * `fetchCharacter`) because the view command only needs the response shape
+ * and intentionally discards the `canEdit` field. Coercion goes through
+ * `api.ts:toCharacterData` so the schema/local-type bridge stays in one place.
  */
-async function fetchCharacter(slug: string, user: GatewayUser): Promise<CharacterData | null> {
-  const result = await callGatewayApi<PersonalityResponse>(
-    `/user/personality/${encodeURIComponent(slug)}`,
-    {
-      user,
-    }
-  );
+async function fetchCharacterForView(
+  slug: string,
+  userClient: UserClient
+): Promise<CharacterData | null> {
+  const result = await userClient.getPersonality(slug);
 
   if (!result.ok) {
     if (result.status === 404 || result.status === 403) {
@@ -355,7 +352,7 @@ async function fetchCharacter(slug: string, user: GatewayUser): Promise<Characte
     throw new Error(`Failed to fetch character: ${result.status}`);
   }
 
-  return result.data.personality;
+  return toCharacterData(result.data.personality);
 }
 
 // ============================================================================
@@ -373,7 +370,8 @@ export async function handleView(
   const slug = options.character();
 
   try {
-    const character = await fetchCharacter(slug, toGatewayUser(context.user));
+    const { userClient } = clientsFor(context.interaction);
+    const character = await fetchCharacterForView(slug, userClient);
     if (!character) {
       await context.editReply(`❌ Character \`${slug}\` not found or not accessible.`);
       return;
@@ -402,7 +400,8 @@ export async function handleViewPagination(
   await interaction.deferUpdate();
 
   try {
-    const character = await fetchCharacter(slug, toGatewayUser(interaction.user));
+    const { userClient } = clientsFor(interaction);
+    const character = await fetchCharacterForView(slug, userClient);
     if (!character) {
       await interaction.editReply({
         content: '❌ Character not found.',
@@ -435,7 +434,8 @@ export async function handleExpandField(
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   try {
-    const character = await fetchCharacter(slug, toGatewayUser(interaction.user));
+    const { userClient } = clientsFor(interaction);
+    const character = await fetchCharacterForView(slug, userClient);
     if (!character) {
       await interaction.editReply('❌ Character not found.');
       return;

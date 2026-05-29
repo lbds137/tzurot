@@ -2,22 +2,26 @@
  * Character Command - API Client Functions
  *
  * Handles communication with the API gateway for character operations.
- * All functions use callGatewayApi which properly sets auth headers.
+ * Each helper takes a typed `userClient` (minted at the interaction boundary
+ * via `clientsFor`) so the wire shape, auth headers, and response validation
+ * all flow through the route manifest.
+ *
+ * Schema drift note: `CharacterData` is a bot-client display shape that
+ * predates the typed client. Two fields don't round-trip cleanly with
+ * `PersonalityFullSchema`:
+ *   - `characterInfo` / `personalityTraits` are non-nullable on
+ *     `CharacterData` but nullable in the schema (the gateway can return
+ *     null for newly-created characters before the user fills the modal).
+ *     Coerced with `?? ''` at the spread boundary here.
+ *   - `avatarData` is a bot-client convenience field (used during
+ *     create/update flows in import.ts); the gateway response carries
+ *     `hasAvatar: boolean` instead. Defaulted to `null` on incoming data
+ *     and populated separately on the create/update paths.
  */
 
 import type { ChatInputCommandInteraction } from 'discord.js';
-import type { EnvConfig } from '@tzurot/common-types';
-import { callGatewayApi, type GatewayUser } from '../../utils/userGatewayClient.js';
+import type { EnvConfig, UserClient } from '@tzurot/common-types';
 import type { CharacterData } from './characterTypes.js';
-
-/**
- * API response type for personality endpoint
- * Note: canEdit is computed server-side using internal User UUIDs, not Discord IDs
- */
-interface PersonalityResponse {
-  personality: CharacterData;
-  canEdit: boolean;
-}
 
 /**
  * Extended character data that includes canEdit flag from API
@@ -27,22 +31,26 @@ export interface FetchedCharacter extends CharacterData {
 }
 
 /**
- * API response type for personality list endpoint
+ * Coerce a `PersonalityFull`-shaped object into the bot-client `CharacterData`
+ * shape, filling in the two fields the schema doesn't surface
+ * (`characterInfo`/`personalityTraits` coerced from nullable; `avatarData`
+ * defaulted to null since the response only carries `hasAvatar`).
  */
-interface PersonalityListResponse {
-  personalities: {
-    id: string;
-    name: string;
-    displayName: string | null;
-    slug: string;
-    /** Truthful: did the requesting user create this? */
-    isOwned: boolean;
-    isPublic: boolean;
-    ownerId: string;
-    ownerDiscordId: string;
-    /** Server-computed permissions */
-    permissions: { canEdit: boolean; canDelete: boolean };
-  }[];
+export function toCharacterData<
+  T extends { characterInfo: string | null; personalityTraits: string | null },
+>(
+  p: T
+): Omit<T, 'characterInfo' | 'personalityTraits'> & {
+  characterInfo: string;
+  personalityTraits: string;
+  avatarData: string | null;
+} {
+  return {
+    ...p,
+    characterInfo: p.characterInfo ?? '',
+    personalityTraits: p.personalityTraits ?? '',
+    avatarData: null,
+  };
 }
 
 /**
@@ -53,14 +61,9 @@ interface PersonalityListResponse {
 export async function fetchCharacter(
   slugOrId: string,
   _config: EnvConfig,
-  user: GatewayUser
+  userClient: UserClient
 ): Promise<FetchedCharacter | null> {
-  const result = await callGatewayApi<PersonalityResponse>(
-    `/user/personality/${encodeURIComponent(slugOrId)}`,
-    {
-      user,
-    }
-  );
+  const result = await userClient.getPersonality(slugOrId);
 
   if (!result.ok) {
     if (result.status === 404 || result.status === 403) {
@@ -69,9 +72,8 @@ export async function fetchCharacter(
     throw new Error(`Failed to fetch character: ${result.status}`);
   }
 
-  // Include canEdit from API response - this is the authoritative permission check
   return {
-    ...result.data.personality,
+    ...toCharacterData(result.data.personality),
     canEdit: result.data.canEdit,
   };
 }
@@ -81,12 +83,10 @@ export async function fetchCharacter(
  * Returns two arrays: user's owned characters and public characters from others
  */
 export async function fetchAllCharacters(
-  user: GatewayUser,
+  userClient: UserClient,
   _config: EnvConfig
 ): Promise<{ owned: CharacterData[]; publicOthers: CharacterData[] }> {
-  const result = await callGatewayApi<PersonalityListResponse>('/user/personality', {
-    user,
-  });
+  const result = await userClient.listPersonalities();
 
   if (!result.ok) {
     throw new Error(`Failed to fetch characters: ${result.status}`);
@@ -145,10 +145,10 @@ export async function fetchAllCharacters(
  * Fetch characters owned by user (wrapper for fetchAllCharacters)
  */
 export async function fetchUserCharacters(
-  user: GatewayUser,
+  userClient: UserClient,
   config: EnvConfig
 ): Promise<CharacterData[]> {
-  const { owned } = await fetchAllCharacters(user, config);
+  const { owned } = await fetchAllCharacters(userClient, config);
   return owned;
 }
 
@@ -156,10 +156,10 @@ export async function fetchUserCharacters(
  * Fetch public characters from others (wrapper for fetchAllCharacters)
  */
 export async function fetchPublicCharacters(
-  user: GatewayUser,
+  userClient: UserClient,
   config: EnvConfig
 ): Promise<CharacterData[]> {
-  const { publicOthers } = await fetchAllCharacters(user, config);
+  const { publicOthers } = await fetchAllCharacters(userClient, config);
   return publicOthers;
 }
 
@@ -187,7 +187,16 @@ export async function fetchUsernames(
 }
 
 /**
- * Create a new character
+ * Create a new character.
+ *
+ * The body type is widened to `Record<string, unknown>` at the typed-client
+ * boundary because the bot-client's `Partial<CharacterData>` and the
+ * gateway's `PersonalityCreateSchema` overlap but aren't structurally
+ * identical (CharacterData's `[key: string]: unknown` index signature
+ * widens the field types, and `Partial<>` can't express the
+ * "name/slug/characterInfo/personalityTraits required" constraint that
+ * the schema enforces at parse time). The gateway-side Zod parser is
+ * the authoritative validation gate.
  */
 export async function createCharacter(
   data: Partial<CharacterData> & {
@@ -196,48 +205,39 @@ export async function createCharacter(
     characterInfo: string;
     personalityTraits: string;
   },
-  user: GatewayUser,
+  userClient: UserClient,
   _config: EnvConfig
 ): Promise<CharacterData> {
-  const result = await callGatewayApi<{ success: boolean; personality: CharacterData }>(
-    '/user/personality',
-    {
-      method: 'POST',
-      user,
-      body: data,
-    }
+  const result = await userClient.createPersonality(
+    data as Parameters<UserClient['createPersonality']>[0]
   );
 
   if (!result.ok) {
     throw new Error(`Failed to create character: ${result.status} - ${result.error}`);
   }
 
-  return result.data.personality;
+  return toCharacterData(result.data.personality);
 }
 
 /**
- * Update a character
+ * Update a character. Same boundary-cast rationale as `createCharacter`.
  */
 export async function updateCharacter(
   slug: string,
   data: Partial<CharacterData>,
-  user: GatewayUser,
+  userClient: UserClient,
   _config: EnvConfig
 ): Promise<CharacterData> {
-  const result = await callGatewayApi<{ success: boolean; personality: CharacterData }>(
-    `/user/personality/${encodeURIComponent(slug)}`,
-    {
-      method: 'PUT',
-      user,
-      body: data,
-    }
+  const result = await userClient.updatePersonality(
+    slug,
+    data as Parameters<UserClient['updatePersonality']>[1]
   );
 
   if (!result.ok) {
     throw new Error(`Failed to update character: ${result.status} - ${result.error}`);
   }
 
-  return result.data.personality;
+  return toCharacterData(result.data.personality);
 }
 
 /**
@@ -246,17 +246,10 @@ export async function updateCharacter(
 export async function toggleVisibility(
   slug: string,
   isPublic: boolean,
-  user: GatewayUser,
+  userClient: UserClient,
   _config: EnvConfig
 ): Promise<{ id: string; slug: string; isPublic: boolean }> {
-  const result = await callGatewayApi<{
-    success: boolean;
-    personality: { id: string; slug: string; isPublic: boolean };
-  }>(`/user/personality/${encodeURIComponent(slug)}/visibility`, {
-    method: 'PATCH',
-    user,
-    body: { isPublic },
-  });
+  const result = await userClient.setPersonalityVisibility(slug, { isPublic });
 
   if (!result.ok) {
     throw new Error(`Failed to toggle visibility: ${result.status} - ${result.error}`);
