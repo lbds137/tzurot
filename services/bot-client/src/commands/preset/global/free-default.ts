@@ -16,7 +16,7 @@ export async function handleGlobalSetFreeDefault(context: DeferredCommandContext
   const configId = options.config();
 
   await handleGlobalPresetUpdate(context, configId, {
-    apiPath: `/admin/llm-config/${configId}/set-free-default`,
+    promote: (ownerClient, id) => ownerClient.setGlobalLlmConfigFreeDefault(id),
     embedTitle: 'Free Tier Default Preset Updated',
     embedDescription: (configName: string) =>
       `**${configName}** is now the free tier default preset.\n\n` +

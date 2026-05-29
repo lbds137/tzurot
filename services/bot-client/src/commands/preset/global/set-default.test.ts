@@ -7,16 +7,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { handleGlobalSetDefault } from './set-default.js';
-import * as adminApiClient from '../../../utils/adminApiClient.js';
 import { EmbedBuilder } from 'discord.js';
-
-// Mock dependencies
-vi.mock('../../../utils/adminApiClient.js', () => ({
-  adminPutJson: vi.fn(),
-}));
-
-// Note: Handlers now use context.editReply() directly, not commandHelpers
+import { makeOk, makeErr, asOwnerClient } from '../../../test/gatewayClientStubs.js';
 
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal();
@@ -31,13 +23,26 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
+
+const { handleGlobalSetDefault } = await import('./set-default.js');
+
+interface OwnerClientStub {
+  setGlobalLlmConfigDefault: ReturnType<typeof vi.fn>;
+}
+
 describe('Preset Global Set Default Handler', () => {
   const mockEditReply = vi.fn();
+  let stub: OwnerClientStub;
 
   const createMockContext = (configId: string) =>
     ({
       user: { id: 'owner-123' },
       interaction: {
+        user: { id: 'owner-123' },
         options: {
           getString: vi.fn((_name: string, _required?: boolean) => configId),
         },
@@ -47,6 +52,8 @@ describe('Preset Global Set Default Handler', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = { setGlobalLlmConfigDefault: vi.fn() };
+    clientsForMock.mockReturnValue({ ownerClient: asOwnerClient(stub) });
   });
 
   afterEach(() => {
@@ -56,28 +63,20 @@ describe('Preset Global Set Default Handler', () => {
   describe('handleGlobalSetDefault', () => {
     it('should successfully set system default', async () => {
       const context = createMockContext('config-123');
-
-      vi.mocked(adminApiClient.adminPutJson).mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({ configName: 'Claude Opus' }),
-      } as unknown as Response);
+      stub.setGlobalLlmConfigDefault.mockResolvedValue(
+        makeOk({ success: true, configName: 'Claude Opus' })
+      );
 
       await handleGlobalSetDefault(context);
 
-      expect(adminApiClient.adminPutJson).toHaveBeenCalledWith(
-        '/admin/llm-config/config-123/set-default',
-        {}
-      );
+      expect(stub.setGlobalLlmConfigDefault).toHaveBeenCalledWith('config-123');
 
       expect(mockEditReply).toHaveBeenCalledWith({
         embeds: expect.arrayContaining([expect.any(EmbedBuilder)]),
       });
 
-      const embedCall = mockEditReply.mock.calls[0][0] as {
-        embeds: EmbedBuilder[];
-      };
-      const embed = embedCall.embeds[0];
-      const embedData = embed.toJSON();
+      const embedCall = mockEditReply.mock.calls[0][0] as { embeds: EmbedBuilder[] };
+      const embedData = embedCall.embeds[0].toJSON();
 
       expect(embedData.title).toBe('System Default Preset Updated');
       expect(embedData.description).toContain('Claude Opus');
@@ -86,40 +85,16 @@ describe('Preset Global Set Default Handler', () => {
 
     it('should handle API error response', async () => {
       const context = createMockContext('invalid-config');
-
-      vi.mocked(adminApiClient.adminPutJson).mockResolvedValue({
-        ok: false,
-        status: 404,
-        json: vi.fn().mockResolvedValue({ error: 'Config not found' }),
-      } as unknown as Response);
+      stub.setGlobalLlmConfigDefault.mockResolvedValue(makeErr(404, 'Config not found'));
 
       await handleGlobalSetDefault(context);
 
-      expect(mockEditReply).toHaveBeenCalledWith({
-        content: '❌ Config not found',
-      });
-    });
-
-    it('should handle API error without message', async () => {
-      const context = createMockContext('config-123');
-
-      vi.mocked(adminApiClient.adminPutJson).mockResolvedValue({
-        ok: false,
-        status: 500,
-        json: vi.fn().mockResolvedValue({}),
-      } as unknown as Response);
-
-      await handleGlobalSetDefault(context);
-
-      expect(mockEditReply).toHaveBeenCalledWith({
-        content: '❌ HTTP 500',
-      });
+      expect(mockEditReply).toHaveBeenCalledWith({ content: '❌ Config not found' });
     });
 
     it('should handle network errors', async () => {
       const context = createMockContext('config-123');
-
-      vi.mocked(adminApiClient.adminPutJson).mockRejectedValue(new Error('Connection timeout'));
+      stub.setGlobalLlmConfigDefault.mockRejectedValue(new Error('Connection timeout'));
 
       await handleGlobalSetDefault(context);
 

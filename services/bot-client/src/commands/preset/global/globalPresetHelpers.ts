@@ -3,20 +3,33 @@
  *
  * Shared logic for /preset global commands that set a config as a default.
  * Both free-default and set-default follow the same pattern:
- * admin PUT → error handling → success embed with configName.
+ * ownerClient PUT → error handling → success embed with configName.
  */
 
 import { EmbedBuilder } from 'discord.js';
-import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import {
+  createLogger,
+  DISCORD_COLORS,
+  type GatewayResult,
+  type OwnerClient,
+  type SetDefaultLlmConfigResponse,
+} from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import { adminPutJson } from '../../../utils/adminApiClient.js';
+import { clientsFor } from '../../../utils/gatewayClients.js';
 
 const logger = createLogger('preset-global-helpers');
 
 /** Configuration for a global preset update operation */
 export interface GlobalPresetUpdateConfig {
-  /** API endpoint path (e.g. '/admin/llm-config/{id}/set-default') */
-  apiPath: string;
+  /**
+   * Bound owner-client promotion call. Each caller picks the typed method
+   * (`setGlobalLlmConfigDefault` vs `setGlobalLlmConfigFreeDefault`) so the
+   * shared helper stays transport-agnostic.
+   */
+  promote: (
+    ownerClient: OwnerClient,
+    configId: string
+  ) => Promise<GatewayResult<SetDefaultLlmConfigResponse>>;
   /** Title for the success embed */
   embedTitle: string;
   /** Description template — receives configName as parameter */
@@ -28,7 +41,7 @@ export interface GlobalPresetUpdateConfig {
 }
 
 /**
- * Execute a global preset update: admin PUT → error handling → success embed.
+ * Execute a global preset update: ownerClient PUT → error handling → success embed.
  */
 export async function handleGlobalPresetUpdate(
   context: DeferredCommandContext,
@@ -36,25 +49,23 @@ export async function handleGlobalPresetUpdate(
   config: GlobalPresetUpdateConfig
 ): Promise<void> {
   try {
-    const response = await adminPutJson(config.apiPath, {});
+    const { ownerClient } = clientsFor(context.interaction);
+    const result = await config.promote(ownerClient, configId);
 
-    if (!response.ok) {
-      const errorData = (await response.json()) as { error?: string };
-      await context.editReply({ content: `❌ ${errorData.error ?? `HTTP ${response.status}`}` });
+    if (!result.ok) {
+      await context.editReply({ content: `❌ ${result.error}` });
       return;
     }
-
-    const data = (await response.json()) as { configName: string };
 
     const embed = new EmbedBuilder()
       .setTitle(config.embedTitle)
       .setColor(DISCORD_COLORS.SUCCESS)
-      .setDescription(config.embedDescription(data.configName))
+      .setDescription(config.embedDescription(result.data.configName))
       .setTimestamp();
 
     await context.editReply({ embeds: [embed] });
 
-    logger.info({ configId, configName: data.configName }, config.logMessage);
+    logger.info({ configId, configName: result.data.configName }, config.logMessage);
   } catch (error) {
     logger.error({ err: error, userId: context.user.id }, config.errorLogMessage);
     await context.editReply({ content: '❌ An error occurred. Please try again later.' });

@@ -1,7 +1,0 @@
-{
-  "version": 1,
-  "lastUpdated": "2026-05-27T04:10:46.049Z",
-  "adminFetch": 32,
-  "callGatewayApi": 207,
-  "notes": "Burn-down gate for the route-manifest cutover. Counts shrink monotonically as migration steps move bot-client callsites from adminFetch/callGatewayApi to the generated ServiceClient/OwnerClient/UserClient. Deleted (with this baseline) once both counts reach zero."
-}
