@@ -57,6 +57,7 @@ import {
   ClearDefaultConfigResponseSchema,
   DeleteModelOverrideResponseSchema,
 } from '../../schemas/api/index.js';
+import { GATEWAY_TIMEOUTS } from '../../constants/discord.js';
 import type { RouteDef } from '../types.js';
 
 // Shared CRUD-detail path constants — GET/PUT/DELETE on the same :id share
@@ -172,9 +173,9 @@ export const userConfigRoutes = {
     output: ListTtsConfigsResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
-    // Same dual-use as listVoices: autocomplete and deferred-context
-    // BYOK probe (guestModeValidation). Longer budget protects the
-    // deferred caller.
+    // Dual-context route: autocomplete clients are bounded by Discord's
+    // own 3s deadline, so the longer budget exists for the BYOK-probe
+    // path where a list fetch precedes downstream gating logic.
     timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
@@ -233,6 +234,7 @@ export const userConfigRoutes = {
     output: ListTtsOverridesResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   setTtsOverride: {
@@ -244,6 +246,7 @@ export const userConfigRoutes = {
     output: SetTtsOverrideResponseSchema,
     requiresProvisionedUser: true,
     meta: { idempotent: true },
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   deleteTtsOverride: {
@@ -254,6 +257,7 @@ export const userConfigRoutes = {
     params: { personalityId: z.string() },
     output: DeleteTtsOverrideResponseSchema,
     requiresProvisionedUser: true,
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   getTtsDefaultConfig: {
@@ -275,6 +279,7 @@ export const userConfigRoutes = {
     output: SetTtsDefaultConfigResponseSchema,
     requiresProvisionedUser: true,
     meta: { idempotent: true },
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   clearTtsDefaultConfig: {
@@ -284,6 +289,7 @@ export const userConfigRoutes = {
     id: 'clearTtsDefaultConfig',
     output: ClearTtsDefaultConfigResponseSchema,
     requiresProvisionedUser: true,
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   // ============================================================================
@@ -309,6 +315,7 @@ export const userConfigRoutes = {
     output: SetSttDefaultProviderResponseSchema,
     requiresProvisionedUser: true,
     meta: { idempotent: true },
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   clearSttDefaultProvider: {
@@ -318,6 +325,7 @@ export const userConfigRoutes = {
     id: 'clearSttDefaultProvider',
     output: ClearSttDefaultProviderResponseSchema,
     requiresProvisionedUser: true,
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   // ============================================================================

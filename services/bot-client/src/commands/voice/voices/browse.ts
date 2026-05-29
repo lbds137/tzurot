@@ -8,11 +8,7 @@ import { EmbedBuilder } from 'discord.js';
 import type { ButtonInteraction, ActionRowBuilder, ButtonBuilder } from 'discord.js';
 import { createLogger, DISCORD_COLORS, type AudioProviderId } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import {
-  callGatewayApi,
-  GATEWAY_TIMEOUTS,
-  toGatewayUser,
-} from '../../../utils/userGatewayClient.js';
+import { clientsFor } from '../../../utils/gatewayClients.js';
 import {
   ITEMS_PER_PAGE,
   createBrowseCustomIdHelpers,
@@ -162,10 +158,8 @@ export async function handleBrowseVoices(context: DeferredCommandContext): Promi
   const userId = context.user.id;
 
   try {
-    const result = await callGatewayApi<VoicesListResponse>('/user/voices', {
-      user: toGatewayUser(context.user),
-      timeout: GATEWAY_TIMEOUTS.DEFERRED,
-    });
+    const { userClient } = clientsFor(context.interaction);
+    const result = await userClient.listVoices();
 
     if (!result.ok) {
       await context.editReply({ content: `❌ ${result.error}` });
@@ -200,10 +194,8 @@ export async function handleVoiceBrowsePagination(interaction: ButtonInteraction
   const userId = interaction.user.id;
 
   try {
-    const result = await callGatewayApi<VoicesListResponse>('/user/voices', {
-      user: toGatewayUser(interaction.user),
-      timeout: GATEWAY_TIMEOUTS.DEFERRED,
-    });
+    const { userClient } = clientsFor(interaction);
+    const result = await userClient.listVoices();
 
     if (!result.ok) {
       await interaction.editReply({ content: `❌ ${result.error}`, embeds: [], components: [] });

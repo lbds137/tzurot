@@ -11,17 +11,10 @@ import {
   AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
   isAutocompleteErrorSentinel,
 } from '../../../utils/apiCheck.js';
-import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
+import { clientsFor } from '../../../utils/gatewayClients.js';
 import { checkTtsByokAccess } from './guestModeValidation.js';
 
 const logger = createLogger('voice-tts-set-default');
-
-interface SetDefaultResponse {
-  default: {
-    configId: string;
-    configName: string;
-  };
-}
 
 /** Handle /voice tts set-default */
 export async function handleTtsSetDefault(context: DeferredCommandContext): Promise<void> {
@@ -38,21 +31,17 @@ export async function handleTtsSetDefault(context: DeferredCommandContext): Prom
   }
 
   try {
-    const user = toGatewayUser(context.user);
+    const { userClient } = clientsFor(context.interaction);
 
     // BYOK gate: block at command time if config requires a provider key
     // the user hasn't configured. Self-hosted always allowed; mistral and
     // elevenlabs require BYOK keys.
-    const outcome = await checkTtsByokAccess(context, configId, user);
+    const outcome = await checkTtsByokAccess(context, configId, userClient);
     if (outcome.blocked) {
       return;
     }
 
-    const result = await callGatewayApi<SetDefaultResponse>('/user/tts-override/default', {
-      method: 'PUT',
-      user,
-      body: { configId },
-    });
+    const result = await userClient.setTtsDefaultConfig({ configId });
 
     if (!result.ok) {
       logger.warn({ userId, status: result.status, configId }, 'Failed to set default TTS');

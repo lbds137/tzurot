@@ -4,15 +4,19 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
+import type { UserClient } from '@tzurot/common-types';
 
-const { mockCallGatewayApi, mockCheckTtsByokAccess } = vi.hoisted(() => ({
-  mockCallGatewayApi: vi.fn(),
+const { mockCheckTtsByokAccess } = vi.hoisted(() => ({
   mockCheckTtsByokAccess: vi.fn(),
 }));
 
-vi.mock('../../../utils/userGatewayClient.js', () => ({
-  callGatewayApi: mockCallGatewayApi,
-  toGatewayUser: vi.fn(user => ({ id: user.id })),
+const stub = {
+  setTtsOverride: vi.fn(),
+};
+
+vi.mock('../../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: stub as unknown as UserClient })),
 }));
 
 vi.mock('./guestModeValidation.js', () => ({
@@ -54,6 +58,7 @@ function makeContext() {
 describe('handleTtsSet', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    stub.setTtsOverride.mockReset();
   });
 
   it('blocks at command time when BYOK gate fails', async () => {
@@ -61,33 +66,29 @@ describe('handleTtsSet', () => {
     const context = makeContext();
 
     await handleSet(context as never);
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(stub.setTtsOverride).not.toHaveBeenCalled();
   });
 
-  it('PUTs /user/tts-override on happy path', async () => {
+  it('calls setTtsOverride on happy path', async () => {
     mockCheckTtsByokAccess.mockResolvedValue({ blocked: false, reason: 'has-key' });
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.setTtsOverride.mockResolvedValue(
+      makeOk({
         override: {
           personalityId: 'personality-uuid-1',
           personalityName: 'Alice',
           configId: 'cfg-uuid-1',
           configName: 'kyutai-self-hosted',
         },
-      },
-    });
+      })
+    );
     const context = makeContext();
 
     await handleSet(context as never);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/tts-override',
-      expect.objectContaining({
-        method: 'PUT',
-        body: { personalityId: 'personality-uuid-1', configId: 'cfg-uuid-1' },
-      })
-    );
+    expect(stub.setTtsOverride).toHaveBeenCalledWith({
+      personalityId: 'personality-uuid-1',
+      configId: 'cfg-uuid-1',
+    });
     expect(context.editReply).toHaveBeenCalledWith(
       expect.objectContaining({
         embeds: [
@@ -101,7 +102,7 @@ describe('handleTtsSet', () => {
 
   it('shows error embed on gateway failure', async () => {
     mockCheckTtsByokAccess.mockResolvedValue({ blocked: false, reason: 'has-key' });
-    mockCallGatewayApi.mockResolvedValue({ ok: false, status: 500, error: 'INTERNAL_ERROR' });
+    stub.setTtsOverride.mockResolvedValue(makeErr(500, 'INTERNAL_ERROR'));
     const context = makeContext();
 
     await handleSet(context as never);

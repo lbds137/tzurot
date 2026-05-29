@@ -3,14 +3,15 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
+import type { UserClient } from '@tzurot/common-types';
 
-const { mockCallGatewayApi } = vi.hoisted(() => ({
-  mockCallGatewayApi: vi.fn(),
-}));
+const stub = {
+  setSttDefaultProvider: vi.fn(),
+};
 
-vi.mock('../../../utils/userGatewayClient.js', () => ({
-  callGatewayApi: mockCallGatewayApi,
-  toGatewayUser: vi.fn(user => ({ id: user.id })),
+vi.mock('../../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: stub as unknown as UserClient })),
 }));
 
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -35,31 +36,27 @@ function makeContext() {
 }
 
 describe('handleSttSet', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stub.setSttDefaultProvider.mockReset();
+  });
 
-  it('PUTs /user/stt-override with the provider and shows the success embed', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: { default: { providerId: 'voice-engine' } },
-    });
+  it('calls setSttDefaultProvider with the provider and shows the success embed', async () => {
+    stub.setSttDefaultProvider.mockResolvedValue(
+      makeOk({ default: { providerId: 'voice-engine' } })
+    );
     const context = makeContext();
 
     await handleSttSet(context as never);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/stt-override',
-      expect.objectContaining({
-        method: 'PUT',
-        body: { providerId: 'voice-engine' },
-      })
-    );
+    expect(stub.setSttDefaultProvider).toHaveBeenCalledWith({ providerId: 'voice-engine' });
     expect(context.editReply).toHaveBeenCalledWith(
       expect.objectContaining({ embeds: expect.any(Array) })
     );
   });
 
   it('reports gateway error', async () => {
-    mockCallGatewayApi.mockResolvedValue({ ok: false, status: 500, error: 'oops' });
+    stub.setSttDefaultProvider.mockResolvedValue(makeErr(500, 'oops'));
     const context = makeContext();
 
     await handleSttSet(context as never);

@@ -3,14 +3,15 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
+import type { UserClient } from '@tzurot/common-types';
 
-const { mockCallGatewayApi } = vi.hoisted(() => ({
-  mockCallGatewayApi: vi.fn(),
-}));
+const stub = {
+  clearSttDefaultProvider: vi.fn(),
+};
 
-vi.mock('../../../utils/userGatewayClient.js', () => ({
-  callGatewayApi: mockCallGatewayApi,
-  toGatewayUser: vi.fn(user => ({ id: user.id })),
+vi.mock('../../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: stub as unknown as UserClient })),
 }));
 
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -32,21 +33,21 @@ function makeContext() {
 }
 
 describe('handleSttClear', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stub.clearSttDefaultProvider.mockReset();
+  });
 
-  it('DELETEs /user/stt-override', async () => {
-    mockCallGatewayApi.mockResolvedValue({ ok: true, data: { deleted: true, wasSet: true } });
+  it('calls clearSttDefaultProvider', async () => {
+    stub.clearSttDefaultProvider.mockResolvedValue(makeOk({ deleted: true, wasSet: true }));
 
     await handleSttClear(makeContext() as never);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/stt-override',
-      expect.objectContaining({ method: 'DELETE' })
-    );
+    expect(stub.clearSttDefaultProvider).toHaveBeenCalled();
   });
 
   it('reports gateway error', async () => {
-    mockCallGatewayApi.mockResolvedValue({ ok: false, status: 500, error: 'oh no' });
+    stub.clearSttDefaultProvider.mockResolvedValue(makeErr(500, 'oh no'));
     const context = makeContext();
 
     await handleSttClear(context as never);

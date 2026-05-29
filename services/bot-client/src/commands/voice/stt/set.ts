@@ -11,11 +11,10 @@ import {
   DISCORD_COLORS,
   voiceSttSetOptions,
   sttProviderDisplayName,
-  type SetSttDefaultProviderResponse,
   type SttProvider,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
+import { clientsFor } from '../../../utils/gatewayClients.js';
 
 const logger = createLogger('voice-stt-set');
 
@@ -26,11 +25,8 @@ export async function handleSttSet(context: DeferredCommandContext): Promise<voi
   const providerId = options.provider() as SttProvider;
 
   try {
-    const result = await callGatewayApi<SetSttDefaultProviderResponse>('/user/stt-override', {
-      method: 'PUT',
-      user: toGatewayUser(context.user),
-      body: { providerId },
-    });
+    const { userClient } = clientsFor(context.interaction);
+    const result = await userClient.setSttDefaultProvider({ providerId });
 
     if (!result.ok) {
       logger.warn(

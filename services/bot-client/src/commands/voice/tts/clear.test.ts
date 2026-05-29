@@ -4,14 +4,15 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
+import type { UserClient } from '@tzurot/common-types';
 
-const { mockCallGatewayApi } = vi.hoisted(() => ({
-  mockCallGatewayApi: vi.fn(),
-}));
+const stub = {
+  deleteTtsOverride: vi.fn(),
+};
 
-vi.mock('../../../utils/userGatewayClient.js', () => ({
-  callGatewayApi: mockCallGatewayApi,
-  toGatewayUser: vi.fn(user => ({ id: user.id })),
+vi.mock('../../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: stub as unknown as UserClient })),
 }));
 
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -48,18 +49,16 @@ function makeContext() {
 describe('handleTtsClear', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    stub.deleteTtsOverride.mockReset();
   });
 
   it('shows success embed when an override was actually removed', async () => {
-    mockCallGatewayApi.mockResolvedValue({ ok: true, data: { deleted: true } });
+    stub.deleteTtsOverride.mockResolvedValue(makeOk({ deleted: true }));
     const context = makeContext();
 
     await handleClear(context as never);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      expect.stringContaining('/user/tts-override/'),
-      expect.objectContaining({ method: 'DELETE' })
-    );
+    expect(stub.deleteTtsOverride).toHaveBeenCalledWith('personality-uuid-1');
     expect(context.editReply).toHaveBeenCalledWith(
       expect.objectContaining({
         embeds: [
@@ -72,10 +71,7 @@ describe('handleTtsClear', () => {
   });
 
   it('shows info embed when no override was set (wasSet: false)', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: { deleted: true, wasSet: false },
-    });
+    stub.deleteTtsOverride.mockResolvedValue(makeOk({ deleted: true, wasSet: false }));
     const context = makeContext();
 
     await handleClear(context as never);
@@ -92,7 +88,7 @@ describe('handleTtsClear', () => {
   });
 
   it('shows error message on gateway failure', async () => {
-    mockCallGatewayApi.mockResolvedValue({ ok: false, status: 500, error: 'INTERNAL_ERROR' });
+    stub.deleteTtsOverride.mockResolvedValue(makeErr(500, 'INTERNAL_ERROR'));
     const context = makeContext();
 
     await handleClear(context as never);

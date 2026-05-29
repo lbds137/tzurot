@@ -17,23 +17,10 @@ import {
   type AudioProviderId,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import {
-  callGatewayApi,
-  GATEWAY_TIMEOUTS,
-  toGatewayUser,
-} from '../../../utils/userGatewayClient.js';
-import type { VoicesListResponse } from './types.js';
+import { clientsFor } from '../../../utils/gatewayClients.js';
 import { getCachedVoices, setCachedVoices, invalidateVoiceCache } from './voiceCache.js';
 
 const logger = createLogger('voice-voices-delete');
-
-interface VoiceDeleteResponse {
-  deleted: boolean;
-  provider: AudioProviderId;
-  voiceId: string;
-  name: string;
-  slug: string;
-}
 
 /** Parse the autocomplete value (`${provider}:${voiceId}`) into its parts.
  *  Returns null if the format is unexpected — caller surfaces an error.
@@ -70,14 +57,8 @@ export async function handleDeleteVoice(context: DeferredCommandContext): Promis
   }
 
   try {
-    const result = await callGatewayApi<VoiceDeleteResponse>(
-      `/user/voices/${parsed.provider}/${encodeURIComponent(parsed.voiceId)}`,
-      {
-        method: 'DELETE',
-        user: toGatewayUser(context.user),
-        timeout: GATEWAY_TIMEOUTS.DEFERRED,
-      }
-    );
+    const { userClient } = clientsFor(context.interaction);
+    const result = await userClient.deleteVoice(parsed.provider, parsed.voiceId);
 
     if (!result.ok) {
       await context.editReply({ content: `❌ ${result.error}` });
@@ -118,10 +99,8 @@ export async function handleVoiceAutocomplete(interaction: AutocompleteInteracti
     let voices = getCachedVoices(userId);
 
     if (voices === null) {
-      const result = await callGatewayApi<VoicesListResponse>('/user/voices', {
-        user: toGatewayUser(interaction.user),
-        timeout: GATEWAY_TIMEOUTS.AUTOCOMPLETE,
-      });
+      const { userClient } = clientsFor(interaction);
+      const result = await userClient.listVoices();
 
       if (!result.ok) {
         await interaction.respond([]);

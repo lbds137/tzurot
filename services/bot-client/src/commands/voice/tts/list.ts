@@ -8,29 +8,19 @@
  */
 
 import { EmbedBuilder, escapeMarkdown } from 'discord.js';
-import { createLogger, DISCORD_COLORS, type TtsOverrideSummary } from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import {
-  callGatewayApi,
-  GATEWAY_TIMEOUTS,
-  toGatewayUser,
-} from '../../../utils/userGatewayClient.js';
+import { clientsFor } from '../../../utils/gatewayClients.js';
 
 const logger = createLogger('voice-tts-browse');
-
-interface ListResponse {
-  overrides: TtsOverrideSummary[];
-}
 
 /** Handle /voice tts list */
 export async function handleTtsListOverrides(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
 
   try {
-    const result = await callGatewayApi<ListResponse>('/user/tts-override', {
-      user: toGatewayUser(context.user),
-      timeout: GATEWAY_TIMEOUTS.DEFERRED,
-    });
+    const { userClient } = clientsFor(context.interaction);
+    const result = await userClient.listTtsOverrides();
 
     if (!result.ok) {
       logger.warn({ userId, status: result.status }, 'Failed to list TTS overrides');

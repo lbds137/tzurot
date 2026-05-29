@@ -6,13 +6,9 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import {
-  createLogger,
-  DISCORD_COLORS,
-  type ClearSttDefaultProviderResponse,
-} from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
+import { clientsFor } from '../../../utils/gatewayClients.js';
 
 const logger = createLogger('voice-stt-clear');
 
@@ -21,10 +17,8 @@ export async function handleSttClear(context: DeferredCommandContext): Promise<v
   const userId = context.user.id;
 
   try {
-    const result = await callGatewayApi<ClearSttDefaultProviderResponse>('/user/stt-override', {
-      method: 'DELETE',
-      user: toGatewayUser(context.user),
-    });
+    const { userClient } = clientsFor(context.interaction);
+    const result = await userClient.clearSttDefaultProvider();
 
     if (!result.ok) {
       logger.warn({ userId, status: result.status }, 'Failed to clear transcription preference');

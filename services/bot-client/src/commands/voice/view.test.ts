@@ -6,14 +6,15 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { makeOk, makeErr } from '../../test/gatewayClientStubs.js';
+import type { UserClient } from '@tzurot/common-types';
 
-const { mockCallGatewayApi } = vi.hoisted(() => ({
-  mockCallGatewayApi: vi.fn(),
-}));
+const stub = {
+  getVoiceResolution: vi.fn(),
+};
 
-vi.mock('../../utils/userGatewayClient.js', () => ({
-  callGatewayApi: mockCallGatewayApi,
-  toGatewayUser: vi.fn(user => ({ id: user.id })),
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: stub as unknown as UserClient })),
 }));
 
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -43,12 +44,14 @@ function makeContext() {
 }
 
 describe('handleVoiceView', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stub.getVoiceResolution.mockReset();
+  });
 
-  it('GETs /user/voice-resolution with the encoded personalityId', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+  it('calls userClient.getVoiceResolution with the picked personalityId', async () => {
+    stub.getVoiceResolution.mockResolvedValue(
+      makeOk({
         personalityName: 'Test Character',
         tts: {
           configId: 'cfg-1',
@@ -58,15 +61,12 @@ describe('handleVoiceView', () => {
         },
         stt: { provider: 'voice-engine', source: 'hardcoded' },
         voices: { tzurotCount: 0, totalVoices: 0, previewSlugs: [] },
-      },
-    });
+      })
+    );
 
     await handleVoiceView(makeContext() as never);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/voice-resolution?personalityId=personality-uuid-1',
-      expect.objectContaining({ method: 'GET' })
-    );
+    expect(stub.getVoiceResolution).toHaveBeenCalledWith({ personalityId: 'personality-uuid-1' });
   });
 
   it('renders an embed scoped to the resolved character (title + TTS + STT)', async () => {
@@ -74,9 +74,8 @@ describe('handleVoiceView', () => {
     // the embed title MUST name the character so the view doesn't read like
     // global state. Cloned-voice library is intentionally NOT shown — that's
     // user-scoped and lives in /voice voices browse.
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.getVoiceResolution.mockResolvedValue(
+      makeOk({
         personalityName: 'Lila',
         tts: {
           configId: 'cfg-1',
@@ -90,8 +89,8 @@ describe('handleVoiceView', () => {
           totalVoices: 3,
           previewSlugs: ['alice', 'bob', 'carol'],
         },
-      },
-    });
+      })
+    );
     const context = makeContext();
 
     await handleVoiceView(context as never);
@@ -123,9 +122,8 @@ describe('handleVoiceView', () => {
       // Pins each cascade-source branch in the label switch — without this,
       // a future cascade-source addition that forgets a `case` arm would
       // silently produce `undefined` in the embed body.
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: {
+      stub.getVoiceResolution.mockResolvedValue(
+        makeOk({
           personalityName: 'Char',
           tts: {
             configId: null,
@@ -135,8 +133,8 @@ describe('handleVoiceView', () => {
           },
           stt: { provider: 'voice-engine', source: sttSource },
           voices: { tzurotCount: 0, totalVoices: 0, previewSlugs: [] },
-        },
-      });
+        })
+      );
       const context = makeContext();
       await handleVoiceView(context as never);
 
@@ -151,7 +149,7 @@ describe('handleVoiceView', () => {
   );
 
   it('reports gateway error', async () => {
-    mockCallGatewayApi.mockResolvedValue({ ok: false, status: 500, error: 'oops' });
+    stub.getVoiceResolution.mockResolvedValue(makeErr(500, 'oops'));
     const context = makeContext();
 
     await handleVoiceView(context as never);
@@ -167,6 +165,6 @@ describe('handleVoiceView', () => {
 
     await handleVoiceView(makeContext() as never);
 
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(stub.getVoiceResolution).not.toHaveBeenCalled();
   });
 });
