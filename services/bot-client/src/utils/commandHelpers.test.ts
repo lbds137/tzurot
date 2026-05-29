@@ -25,9 +25,8 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
-vi.mock('./userGatewayClient.js', async () => {
-  const actual =
-    await vi.importActual<typeof import('./userGatewayClient.js')>('./userGatewayClient.js');
+vi.mock('./gatewayClients.js', async () => {
+  const actual = await vi.importActual<typeof import('./gatewayClients.js')>('./gatewayClients.js');
   return {
     ...actual,
     isGatewayConfigured: vi.fn().mockReturnValue(true),
@@ -45,7 +44,7 @@ import {
   createWarningEmbed,
   createSafeHandler,
 } from './commandHelpers.js';
-import { isGatewayConfigured } from './userGatewayClient.js';
+import { isGatewayConfigured } from './gatewayClients.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
 
 describe('commandHelpers', () => {

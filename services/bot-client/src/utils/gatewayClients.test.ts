@@ -28,7 +28,13 @@ vi.mock('../startup.js', () => ({
   getValidatedServiceSecret: () => 'test-service-secret',
 }));
 
-import { clientsFor, clientsForUser, getServiceClient } from './gatewayClients.js';
+import {
+  clientsFor,
+  clientsForUser,
+  getServiceClient,
+  toGatewayUser,
+  isGatewayConfigured,
+} from './gatewayClients.js';
 
 function makeUser(overrides: Record<string, unknown> = {}): DiscordUser {
   // Cast through unknown — DiscordUser has a template-literal `toString()`
@@ -139,6 +145,48 @@ describe('getServiceClient', () => {
     }));
     const mod = await import('./gatewayClients.js');
     expect(() => mod.getServiceClient()).toThrow('GATEWAY_URL');
+    vi.doUnmock('@tzurot/common-types');
+    vi.doUnmock('../startup.js');
+  });
+});
+
+describe('toGatewayUser', () => {
+  // Centralizes the globalName ?? username fallback. Relocated here from the
+  // deleted userGatewayClient module — this is the only consumer's home.
+  it('uses globalName as displayName when present', () => {
+    expect(toGatewayUser(makeUser({ id: 'u1', username: 'alice', globalName: 'Alice' }))).toEqual({
+      discordId: 'u1',
+      username: 'alice',
+      displayName: 'Alice',
+    });
+  });
+
+  it('falls back to username when globalName is null', () => {
+    expect(toGatewayUser(makeUser({ id: 'u2', username: 'bob', globalName: null }))).toEqual({
+      discordId: 'u2',
+      username: 'bob',
+      displayName: 'bob',
+    });
+  });
+});
+
+describe('isGatewayConfigured', () => {
+  // Non-throwing preflight check used by commandHelpers.
+  it('returns true when GATEWAY_URL is configured', () => {
+    expect(isGatewayConfigured()).toBe(true);
+  });
+
+  it('returns false when GATEWAY_URL is missing', async () => {
+    vi.resetModules();
+    vi.doMock('@tzurot/common-types', async () => {
+      const actual = await vi.importActual('@tzurot/common-types');
+      return { ...actual, getConfig: () => ({ GATEWAY_URL: '' }) };
+    });
+    vi.doMock('../startup.js', () => ({
+      getValidatedServiceSecret: () => 'test-service-secret',
+    }));
+    const mod = await import('./gatewayClients.js');
+    expect(mod.isGatewayConfigured()).toBe(false);
     vi.doUnmock('@tzurot/common-types');
     vi.doUnmock('../startup.js');
   });
