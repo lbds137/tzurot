@@ -13,7 +13,7 @@ import {
   handleCharacterOverridesModal,
   isCharacterOverridesInteraction,
 } from './overrides.js';
-import type { EnvConfig, ResolvedConfigOverrides } from '@tzurot/common-types';
+import type { EnvConfig, ResolvedConfigOverrides, UserClient } from '@tzurot/common-types';
 
 // Mock dependencies
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -29,6 +29,25 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
+interface StubUserClient {
+  getPersonality: ReturnType<typeof vi.fn>;
+  resolveCascade: ReturnType<typeof vi.fn>;
+}
+
+const stub: StubUserClient = {
+  getPersonality: vi.fn(),
+  resolveCascade: vi.fn(),
+};
+
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: stub as unknown as UserClient })),
+}));
+
+// The button/modal handlers go through the shared `createSettingsCommandHandlers`
+// factory, which still uses the legacy `callGatewayApi` transport for PATCH +
+// resolve calls. Migrating that factory is out of scope (factory shared with
+// channel/settings, etc.). Mocking it here keeps factory-driven tests working
+// without forcing the factory migration in.
 const mockCallGatewayApi = vi.fn();
 vi.mock('../../utils/userGatewayClient.js', async () => {
   const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
@@ -134,36 +153,20 @@ describe('Character Overrides Dashboard', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub.getPersonality.mockReset();
+    stub.resolveCascade.mockReset();
   });
 
   describe('handleOverrides', () => {
     it('should display overrides dashboard embed', async () => {
       const context = createMockContext();
-      mockCallGatewayApi
-        .mockResolvedValueOnce({ ok: true, data: mockPersonality })
-        .mockResolvedValueOnce({ ok: true, data: mockResolvedOverrides });
+      stub.getPersonality.mockResolvedValue({ ok: true, data: mockPersonality });
+      stub.resolveCascade.mockResolvedValue({ ok: true, data: mockResolvedOverrides });
 
       await handleOverrides(context, mockConfig);
 
-      // First call: fetch personality
-      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/personality/aurora', {
-        method: 'GET',
-        user: {
-          discordId: 'user-456',
-          username: 'testuser',
-          displayName: 'testuser',
-        },
-        timeout: 10000,
-      });
-      // Second call: resolve full cascade overrides
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/config-overrides/resolve/personality-123',
-        {
-          method: 'GET',
-          user: { discordId: 'user-456', username: 'testuser', displayName: 'testuser' },
-          timeout: 10000,
-        }
-      );
+      expect(stub.getPersonality).toHaveBeenCalledWith('aurora');
+      expect(stub.resolveCascade).toHaveBeenCalledWith('personality-123');
       expect(context.editReply).toHaveBeenCalledWith(
         expect.objectContaining({
           embeds: expect.any(Array),
@@ -174,30 +177,26 @@ describe('Character Overrides Dashboard', () => {
 
     it('should include Character Override Settings title in embed', async () => {
       const context = createMockContext();
-      mockCallGatewayApi
-        .mockResolvedValueOnce({ ok: true, data: mockPersonality })
-        .mockResolvedValueOnce({ ok: true, data: mockResolvedOverrides });
+      stub.getPersonality.mockResolvedValue({ ok: true, data: mockPersonality });
+      stub.resolveCascade.mockResolvedValue({ ok: true, data: mockResolvedOverrides });
 
       await handleOverrides(context, mockConfig);
 
       const editReplyCall = context.editReply.mock.calls[0][0];
       expect(editReplyCall.embeds).toHaveLength(1);
-
       const embedJson = editReplyCall.embeds[0].toJSON();
       expect(embedJson.title).toBe('Character Override Settings');
     });
 
     it('should include character name in embed description', async () => {
       const context = createMockContext();
-      mockCallGatewayApi
-        .mockResolvedValueOnce({ ok: true, data: mockPersonality })
-        .mockResolvedValueOnce({ ok: true, data: mockResolvedOverrides });
+      stub.getPersonality.mockResolvedValue({ ok: true, data: mockPersonality });
+      stub.resolveCascade.mockResolvedValue({ ok: true, data: mockResolvedOverrides });
 
       await handleOverrides(context, mockConfig);
 
       const editReplyCall = context.editReply.mock.calls[0][0];
       const embedJson = editReplyCall.embeds[0].toJSON();
-
       expect(embedJson.description).toContain('Aurora');
     });
 
@@ -211,9 +210,8 @@ describe('Character Overrides Dashboard', () => {
           maxMessages: 'user-personality',
         },
       };
-      mockCallGatewayApi
-        .mockResolvedValueOnce({ ok: true, data: mockPersonality })
-        .mockResolvedValueOnce({ ok: true, data: resolvedWithUserOverride });
+      stub.getPersonality.mockResolvedValue({ ok: true, data: mockPersonality });
+      stub.resolveCascade.mockResolvedValue({ ok: true, data: resolvedWithUserOverride });
 
       await handleOverrides(context, mockConfig);
 
@@ -222,14 +220,12 @@ describe('Character Overrides Dashboard', () => {
       const maxMessagesField = embedJson.fields?.find((f: { name: string }) =>
         f.name?.includes('Max Messages')
       );
-
-      // user-personality source should show as Override (localValue extracted)
       expect(maxMessagesField?.value).toContain('Override');
     });
 
     it('should handle character not found', async () => {
       const context = createMockContext();
-      mockCallGatewayApi.mockResolvedValue({
+      stub.getPersonality.mockResolvedValue({
         ok: false,
         status: 404,
         error: 'Not found',
@@ -244,7 +240,7 @@ describe('Character Overrides Dashboard', () => {
 
     it('should handle API errors gracefully', async () => {
       const context = createMockContext();
-      mockCallGatewayApi.mockResolvedValue({
+      stub.getPersonality.mockResolvedValue({
         ok: false,
         status: 500,
         error: 'Server error',
@@ -259,9 +255,8 @@ describe('Character Overrides Dashboard', () => {
 
     it('should handle cascade resolve failure', async () => {
       const context = createMockContext();
-      mockCallGatewayApi
-        .mockResolvedValueOnce({ ok: true, data: mockPersonality })
-        .mockResolvedValueOnce({ ok: false, error: 'Cascade error' });
+      stub.getPersonality.mockResolvedValue({ ok: true, data: mockPersonality });
+      stub.resolveCascade.mockResolvedValue({ ok: false, error: 'Cascade error' });
 
       await handleOverrides(context, mockConfig);
 
@@ -272,7 +267,7 @@ describe('Character Overrides Dashboard', () => {
 
     it('should handle unexpected errors gracefully', async () => {
       const context = createMockContext();
-      mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+      stub.getPersonality.mockRejectedValue(new Error('Network error'));
 
       await handleOverrides(context, mockConfig);
 
@@ -343,7 +338,7 @@ describe('Character Overrides Dashboard', () => {
 
       await handleCharacterOverridesButton(interaction as unknown as ButtonInteraction);
 
-      // Should use user-personality endpoint (not personality-tier)
+      // Factory still uses callGatewayApi (out of scope here (see file header)).
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
         '/user/config-overrides/personality-123',
         expect.objectContaining({
@@ -394,7 +389,7 @@ describe('Character Overrides Dashboard', () => {
 
       await handleCharacterOverridesModal(interaction as never);
 
-      // Should call PATCH on user-personality cascade endpoint
+      // Factory still uses callGatewayApi (out of scope here (see file header)).
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
         '/user/config-overrides/personality-123',
         expect.objectContaining({

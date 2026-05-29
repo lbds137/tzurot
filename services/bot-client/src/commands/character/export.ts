@@ -13,24 +13,19 @@ import {
   characterExportOptions,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
+import { toCharacterData } from './api.js';
 import type { CharacterData } from './characterTypes.js';
 
 const logger = createLogger('character-export');
 
 /**
- * Extended character data that includes hasAvatar flag from API
+ * Character shape used by the export builder. Same as `CharacterData` minus
+ * `avatarData` (avatar is exported as a separate image file) plus the
+ * schema-emitted `hasAvatar` boolean for the conditional file attachment.
  */
 interface ExportCharacterData extends Omit<CharacterData, 'avatarData'> {
   hasAvatar: boolean;
-}
-
-/**
- * API response type for personality endpoint
- */
-interface PersonalityResponse {
-  personality: ExportCharacterData;
-  canEdit: boolean;
 }
 
 /**
@@ -130,13 +125,9 @@ export async function handleExport(
   const userId = context.user.id;
 
   try {
+    const { userClient } = clientsFor(context.interaction);
     // Fetch character data
-    const result = await callGatewayApi<PersonalityResponse>(
-      `/user/personality/${encodeURIComponent(slug)}`,
-      {
-        user: toGatewayUser(context.user),
-      }
-    );
+    const result = await userClient.getPersonality(slug);
 
     if (!result.ok) {
       if (result.status === 404) {
@@ -150,9 +141,18 @@ export async function handleExport(
       throw new Error(`API error: ${result.status}`);
     }
 
-    const character = result.data.personality;
+    // Coerce schema-derived `personality` into the `ExportCharacterData` shape
+    // via the shared `toCharacterData` helper. `ExportCharacterData` omits
+    // `avatarData` (avatar is exported as a separate image file) — the helper
+    // still sets it to `null`, which is harmlessly stripped by the
+    // `EXPORT_FIELDS` allow-list during `buildExportData`. Explicit `hasAvatar`
+    // narrowing keeps the type dependency on the schema field visible (rather
+    // than relying on `as unknown as` to paper over the structural mismatch).
+    const raw = toCharacterData(result.data.personality);
+    const character: ExportCharacterData = { ...raw, hasAvatar: raw.hasAvatar };
     const canEdit = result.data.canEdit;
-    // Cast needed - Omit with index signature loses specific property types
+    // Cast string fields explicitly — CharacterData's index signature widens
+    // their type to `unknown` at lookup.
     const displayName = (character.displayName ?? character.name) as string;
 
     // Check ownership - only character owner or bot owner can export

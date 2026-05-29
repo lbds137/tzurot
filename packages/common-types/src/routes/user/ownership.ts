@@ -32,6 +32,7 @@ import {
   OverrideInfoResponseSchema,
   ListPersonaOverridesResponseSchema,
 } from '../../schemas/api/index.js';
+import { GATEWAY_TIMEOUTS } from '../../constants/discord.js';
 import type { RouteDef } from '../types.js';
 
 const PERSONALITY_DETAIL_PATH = '/personality/:slug';
@@ -62,6 +63,11 @@ export const userOwnershipRoutes = {
     output: GetPersonalityResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
+    // Called as the first leg of settings/overrides dashboards (alongside
+    // resolveCascade/resolvePersonalityCascade) post-defer. The 2500ms
+    // autocomplete-budget default can time out under slow-DB conditions
+    // before the cascade is even attempted; match the cascade routes.
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   createPersonality: {

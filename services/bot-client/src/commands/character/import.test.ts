@@ -28,18 +28,23 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: vi.fn(),
-  };
-});
+interface StubUserClient {
+  getPersonality: ReturnType<typeof vi.fn>;
+  createPersonality: ReturnType<typeof vi.fn>;
+  updatePersonality: ReturnType<typeof vi.fn>;
+}
 
-// Import mocked modules
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+const stub: StubUserClient = {
+  getPersonality: vi.fn(),
+  createPersonality: vi.fn(),
+  updatePersonality: vi.fn(),
+};
+
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({
+    userClient: stub as unknown as import('@tzurot/common-types').UserClient,
+  })),
+}));
 
 // Mock global fetch
 const mockFetch = vi.fn();
@@ -136,9 +141,8 @@ function mockCreateScenario(createResponse: {
   error?: string;
   status?: number;
 }) {
-  (callGatewayApi as Mock)
-    .mockResolvedValueOnce({ ok: false, error: 'Not found', status: 404 }) // GET returns 404
-    .mockResolvedValueOnce(createResponse); // POST
+  stub.getPersonality.mockResolvedValueOnce({ ok: false, error: 'Not found', status: 404 });
+  stub.createPersonality.mockResolvedValueOnce(createResponse);
 }
 
 /**
@@ -152,12 +156,9 @@ function mockUpdateScenario(
     ok: true,
     data: { personality: { id: 'existing-id' }, canEdit },
   };
+  stub.getPersonality.mockResolvedValueOnce(getResponse);
   if (updateResponse) {
-    (callGatewayApi as Mock)
-      .mockResolvedValueOnce(getResponse) // GET returns existing
-      .mockResolvedValueOnce(updateResponse); // PUT
-  } else {
-    (callGatewayApi as Mock).mockResolvedValueOnce(getResponse); // GET only (for canEdit: false case)
+    stub.updatePersonality.mockResolvedValueOnce(updateResponse);
   }
 }
 
@@ -216,7 +217,9 @@ describe('handleImport', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFetch.mockReset();
-    (callGatewayApi as Mock).mockReset();
+    stub.getPersonality.mockReset();
+    stub.createPersonality.mockReset();
+    stub.updatePersonality.mockReset();
   });
 
   describe('basic flow', () => {
@@ -235,7 +238,7 @@ describe('handleImport', () => {
       await handleImport(context, mockConfig);
 
       // Should proceed to call API (not blocked)
-      expect(callGatewayApi).toHaveBeenCalled();
+      expect(stub.getPersonality).toHaveBeenCalled();
     });
   });
 
@@ -297,7 +300,9 @@ describe('handleImport', () => {
       const editReplyArg = (context.editReply as Mock).mock.calls[0][0];
       expect(editReplyArg).toContain('❌ Invalid file URL.');
       expect(mockFetch).not.toHaveBeenCalled();
-      expect(callGatewayApi).not.toHaveBeenCalled();
+      expect(stub.getPersonality).not.toHaveBeenCalled();
+      expect(stub.createPersonality).not.toHaveBeenCalled();
+      expect(stub.updatePersonality).not.toHaveBeenCalled();
     });
 
     it('should reject avatar URLs not on the Discord CDN', async () => {
@@ -560,7 +565,7 @@ describe('handleImport', () => {
 
       await handleImport(context, mockConfig);
 
-      expect(callGatewayApi).toHaveBeenCalled();
+      expect(stub.getPersonality).toHaveBeenCalled();
     });
   });
 
@@ -637,21 +642,21 @@ describe('handleImport', () => {
 
       await handleImport(context, mockConfig);
 
-      expect(callGatewayApi).toHaveBeenCalledWith('/user/personality', {
-        user: {
-          discordId: 'owner-123',
-          username: 'testowner',
-          displayName: 'testowner',
-        },
-        method: 'POST',
-        body: expect.objectContaining({
+      expect(stub.createPersonality).toHaveBeenCalledWith(
+        expect.objectContaining({
           name: 'Test Character',
           slug: 'test-character',
-        }),
-      });
+        })
+      );
     });
 
     it('should include user ID in API call', async () => {
+      // Auth model shift: user identity is now carried at the `clientsFor`
+      // boundary (which binds the actor brand from `interaction.user.id` once
+      // per request), not in the per-call payload. The typed client emits
+      // `X-User-Id` headers from the bound actor — this test asserts only
+      // that the create endpoint was hit; user-scoping is verified at the
+      // `clientsFor` factory layer (see `gatewayClients.test.ts`).
       const context = createMockContext();
       (context.user as any).id = 'user-789';
       mockFetch.mockResolvedValue({
@@ -662,16 +667,7 @@ describe('handleImport', () => {
 
       await handleImport(context, mockConfig);
 
-      expect(callGatewayApi).toHaveBeenCalledWith(
-        '/user/personality',
-        expect.objectContaining({
-          user: {
-            discordId: 'user-789',
-            username: 'testowner',
-            displayName: 'testowner',
-          },
-        })
-      );
+      expect(stub.createPersonality).toHaveBeenCalled();
     });
 
     it('should show success embed with character name and slug', async () => {
@@ -767,12 +763,9 @@ describe('handleImport', () => {
 
       await handleImport(context, mockConfig);
 
-      expect(callGatewayApi).toHaveBeenCalledWith(
-        '/user/personality',
+      expect(stub.createPersonality).toHaveBeenCalledWith(
         expect.objectContaining({
-          body: expect.objectContaining({
-            isPublic: false,
-          }),
+          isPublic: false,
         })
       );
 
@@ -798,12 +791,9 @@ describe('handleImport', () => {
 
       await handleImport(context, mockConfig);
 
-      expect(callGatewayApi).toHaveBeenCalledWith(
-        '/user/personality',
+      expect(stub.createPersonality).toHaveBeenCalledWith(
         expect.objectContaining({
-          body: expect.objectContaining({
-            isPublic: true,
-          }),
+          isPublic: true,
         })
       );
 
@@ -829,12 +819,9 @@ describe('handleImport', () => {
 
       await handleImport(context, mockConfig);
 
-      expect(callGatewayApi).toHaveBeenCalledWith(
-        '/user/personality',
+      expect(stub.createPersonality).toHaveBeenCalledWith(
         expect.objectContaining({
-          body: expect.objectContaining({
-            isPublic: false,
-          }),
+          isPublic: false,
         })
       );
     });
@@ -856,12 +843,9 @@ describe('handleImport', () => {
 
       await handleImport(context, mockConfig);
 
-      expect(callGatewayApi).toHaveBeenCalledWith(
-        '/user/personality',
+      expect(stub.createPersonality).toHaveBeenCalledWith(
         expect.objectContaining({
-          body: expect.objectContaining({
-            isPublic: false,
-          }),
+          isPublic: false,
         })
       );
     });
@@ -893,16 +877,9 @@ describe('handleImport', () => {
       await handleImport(context, mockConfig);
 
       // Verify the normalized slug is used in the POST payload
-      expect(callGatewayApi).toHaveBeenCalledWith(
-        '/user/personality',
+      expect(stub.createPersonality).toHaveBeenCalledWith(
         expect.objectContaining({
-          user: expect.objectContaining({
-            discordId: 'regular-user-456',
-          }),
-          method: 'POST',
-          body: expect.objectContaining({
-            slug: 'test-character-cooluser', // Username appended
-          }),
+          slug: 'test-character-cooluser', // Username appended
         })
       );
     });
@@ -920,13 +897,7 @@ describe('handleImport', () => {
       await handleImport(context, mockConfig);
 
       // First call should check with normalized slug
-      expect(callGatewayApi).toHaveBeenNthCalledWith(
-        1,
-        '/user/personality/test-character-testuser', // Normalized slug in URL
-        expect.objectContaining({
-          method: 'GET',
-        })
-      );
+      expect(stub.getPersonality).toHaveBeenNthCalledWith(1, 'test-character-testuser');
     });
 
     it('should show normalized slug in success message', async () => {
@@ -956,7 +927,7 @@ describe('handleImport', () => {
         text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
       });
       // Make callGatewayApi throw an unexpected exception (not return error result)
-      (callGatewayApi as Mock).mockRejectedValue(new Error('Unexpected network failure'));
+      stub.getPersonality.mockRejectedValue(new Error('Unexpected network failure'));
 
       await handleImport(context, mockConfig);
 
@@ -978,29 +949,16 @@ describe('handleImport', () => {
 
       await handleImport(context, mockConfig);
 
-      // First call should be GET to check existence
-      expect(callGatewayApi).toHaveBeenNthCalledWith(1, '/user/personality/test-character', {
-        user: {
-          discordId: 'owner-123',
-          username: 'testowner',
-          displayName: 'testowner',
-        },
-        method: 'GET',
-      });
+      // checkExistingCharacter must look up the right slug before updating
+      expect(stub.getPersonality).toHaveBeenCalledWith('test-character');
 
-      // Second call should be PUT to update
-      expect(callGatewayApi).toHaveBeenNthCalledWith(2, '/user/personality/test-character', {
-        user: {
-          discordId: 'owner-123',
-          username: 'testowner',
-          displayName: 'testowner',
-        },
-        method: 'PUT',
-        body: expect.objectContaining({
+      expect(stub.updatePersonality).toHaveBeenCalledWith(
+        'test-character',
+        expect.objectContaining({
           name: 'Test Character',
           slug: 'test-character',
-        }),
-      });
+        })
+      );
     });
 
     it('should show "Updated" in success message when updating', async () => {
@@ -1031,7 +989,9 @@ describe('handleImport', () => {
       await handleImport(context, mockConfig);
 
       // Should only make one call (GET), not try to update
-      expect(callGatewayApi).toHaveBeenCalledTimes(1);
+      expect(stub.getPersonality).toHaveBeenCalledTimes(1);
+      expect(stub.updatePersonality).not.toHaveBeenCalled();
+      expect(stub.createPersonality).not.toHaveBeenCalled();
 
       const editReplyArg = (context.editReply as Mock).mock.calls[0][0];
       expect(editReplyArg).toContain('already exists');
@@ -1055,6 +1015,35 @@ describe('handleImport', () => {
       const editReplyArg = (context.editReply as Mock).mock.calls[0][0];
       expect(editReplyArg).toContain('❌ Failed to update character');
       expect(editReplyArg).toContain('Database error');
+    });
+
+    it('should not silently treat a 500 on the existence-check GET as "does not exist"', async () => {
+      // Regression guard: a transient gateway error during the
+      // `checkExistingCharacter` GET used to silently look like
+      // `{ exists: false }`, which would then proceed to POST a create
+      // and surface the resulting 409 unique-constraint error. The
+      // current implementation throws on non-404 status so the user
+      // gets a clearer "unexpected error" message instead of a
+      // misleading creation-collision diagnostic.
+      const context = createMockContext();
+      mockFetch.mockResolvedValue({
+        ok: true,
+        text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
+      });
+      stub.getPersonality.mockResolvedValueOnce({
+        ok: false,
+        error: 'Gateway timeout',
+        status: 500,
+      });
+
+      await handleImport(context, mockConfig);
+
+      // No create or update should fire when the existence check failed
+      // ambiguously — we don't know whether the character exists.
+      expect(stub.createPersonality).not.toHaveBeenCalled();
+      expect(stub.updatePersonality).not.toHaveBeenCalled();
+      const editReplyArg = (context.editReply as Mock).mock.calls[0][0];
+      expect(editReplyArg).toContain('unexpected error');
     });
   });
 });

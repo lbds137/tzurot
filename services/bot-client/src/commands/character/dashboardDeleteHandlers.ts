@@ -8,18 +8,14 @@
 
 import { MessageFlags } from 'discord.js';
 import type { ButtonInteraction } from 'discord.js';
-import {
-  createLogger,
-  DeletePersonalityResponseSchema,
-  type EnvConfig,
-} from '@tzurot/common-types';
+import { createLogger, type EnvConfig } from '@tzurot/common-types';
 import { buildDeleteConfirmation } from '../../utils/dashboard/deleteConfirmation.js';
 import { DASHBOARD_MESSAGES, formatSuccessBanner } from '../../utils/dashboard/messages.js';
 import { getSessionManager } from '../../utils/dashboard/SessionManager.js';
 import { renderPostActionScreen } from '../../utils/dashboard/postActionScreen.js';
 import { CharacterCustomIds } from '../../utils/customIds.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import { fetchCharacter } from './api.js';
-import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
 import type { CharacterData } from './characterTypes.js';
 
 const logger = createLogger('character-dashboard');
@@ -39,8 +35,9 @@ export async function handleDeleteAction(
 ): Promise<void> {
   await interaction.deferUpdate();
 
+  const { userClient } = clientsFor(interaction);
   // Re-fetch to verify current state and permissions
-  const character = await fetchCharacter(slug, config, toGatewayUser(interaction.user));
+  const character = await fetchCharacter(slug, config, userClient);
   if (!character) {
     await interaction.followUp({
       content: DASHBOARD_MESSAGES.NOT_FOUND('Character'),
@@ -137,10 +134,8 @@ export async function handleDeleteButton(
   // (fetch throws, timeout, DNS failure) don't propagate up to CommandHandler's
   // generic error reply. Matches the preset pattern.
   try {
-    const result = await callGatewayApi<unknown>(`/user/personality/${encodeURIComponent(slug)}`, {
-      method: 'DELETE',
-      user: toGatewayUser(interaction.user),
-    });
+    const { userClient } = clientsFor(interaction);
+    const result = await userClient.deletePersonality(slug);
 
     if (!result.ok) {
       logger.error({ slug, error: result.error }, 'Delete API failed');
@@ -152,23 +147,9 @@ export async function handleDeleteButton(
       return;
     }
 
-    // Validate response against schema (contract validation)
-    const parseResult = DeletePersonalityResponseSchema.safeParse(result.data);
-    if (!parseResult.success) {
-      logger.error(
-        { slug, parseError: parseResult.error.message },
-        'Response schema validation failed'
-      );
-      // Still consider it a success since the API returned 200
-      await renderPostActionScreen({
-        interaction,
-        session: postActionSession,
-        outcome: { kind: 'success', banner: formatSuccessBanner('Deleted character', slug) },
-      });
-      return;
-    }
-
-    const { deletedCounts: counts, deletedName, deletedSlug } = parseResult.data;
+    // Response shape is already validated by the typed client against
+    // DeletePersonalityResponseSchema (route manifest's `output`).
+    const { deletedCounts: counts, deletedName, deletedSlug } = result.data;
 
     // Build the secondary detail block (deletion counts) shown below the
     // banner in the success content. Filter out zero counts for terseness.

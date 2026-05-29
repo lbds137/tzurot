@@ -29,6 +29,10 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: {} })),
+}));
+
 const mockFetchCharacter = vi.fn();
 vi.mock('./api.js', () => ({
   fetchCharacter: (...args: unknown[]) => mockFetchCharacter(...args),

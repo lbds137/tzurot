@@ -19,7 +19,8 @@ import {
   getConfig,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { toGatewayUser, type GatewayUser } from '../../utils/userGatewayClient.js';
+import type { UserClient } from '@tzurot/common-types';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import {
   fetchUserCharacters,
   fetchPublicCharacters,
@@ -235,7 +236,7 @@ export async function handleBrowse(
   config: EnvConfig
 ): Promise<void> {
   const userId = context.user.id;
-  const user = toGatewayUser(context.user);
+  const { userClient } = clientsFor(context.interaction);
   const options = characterBrowseOptions(context.interaction);
   const query = options.query();
   const filter = (options.filter() ?? 'all') as CharacterBrowseFilter;
@@ -243,8 +244,8 @@ export async function handleBrowse(
   try {
     // Fetch user's own characters and all public characters
     const [ownCharacters, publicCharacters] = await Promise.all([
-      fetchUserCharacters(user, config),
-      fetchPublicCharacters(user, config),
+      fetchUserCharacters(userClient, config),
+      fetchPublicCharacters(userClient, config),
     ]);
 
     // Apply filter and query
@@ -290,7 +291,8 @@ export async function handleBrowse(
  * Reusable for pagination and back-from-dashboard navigation
  */
 export async function buildBrowseResponse(
-  user: GatewayUser,
+  userClient: UserClient,
+  userId: string,
   client: ButtonInteraction['client'],
   config: EnvConfig,
   browseContext: {
@@ -304,18 +306,12 @@ export async function buildBrowseResponse(
 
   // Re-fetch character data
   const [ownCharacters, publicCharacters] = await Promise.all([
-    fetchUserCharacters(user, config),
-    fetchPublicCharacters(user, config),
+    fetchUserCharacters(userClient, config),
+    fetchPublicCharacters(userClient, config),
   ]);
 
   // Apply filter and query
-  const { own, others } = filterCharacters(
-    ownCharacters,
-    publicCharacters,
-    user.discordId,
-    filter,
-    query
-  );
+  const { own, others } = filterCharacters(ownCharacters, publicCharacters, userId, filter, query);
 
   // Fetch creator usernames
   const creatorIds = [...new Set(others.map(c => c.ownerId).filter(Boolean))] as string[];
@@ -348,8 +344,10 @@ export async function buildBrowseResponse(
 // and the static getConfig() — neither is stored in the session.
 registerBrowseRebuilder('character', async (interaction, browseContext, successBanner) => {
   try {
+    const { userClient } = clientsFor(interaction);
     const result = await buildBrowseResponse(
-      toGatewayUser(interaction.user),
+      userClient,
+      interaction.user.id,
       interaction.client,
       getConfig(),
       {
@@ -385,8 +383,10 @@ export async function handleBrowsePagination(
   await interaction.deferUpdate();
 
   try {
+    const { userClient } = clientsFor(interaction);
     const { embed, components } = await buildBrowseResponse(
-      toGatewayUser(interaction.user),
+      userClient,
+      interaction.user.id,
       interaction.client,
       config,
       parsed
@@ -418,8 +418,9 @@ export async function handleBrowseSelect(
   await interaction.deferUpdate();
 
   try {
+    const { userClient } = clientsFor(interaction);
     // Fetch the character with full data
-    const character = await fetchCharacter(slug, config, toGatewayUser(interaction.user));
+    const character = await fetchCharacter(slug, config, userClient);
 
     if (!character) {
       await interaction.editReply({

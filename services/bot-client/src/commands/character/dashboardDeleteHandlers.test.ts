@@ -7,23 +7,24 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MessageFlags } from 'discord.js';
 import type { ButtonInteraction } from 'discord.js';
-import type { EnvConfig } from '@tzurot/common-types';
+import type { EnvConfig, UserClient } from '@tzurot/common-types';
 
 // Mock dependencies
 vi.mock('./api.js', () => ({
   fetchCharacter: vi.fn(),
 }));
 
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+interface StubUserClient {
+  deletePersonality: ReturnType<typeof vi.fn>;
+}
+
+const stub: StubUserClient = {
+  deletePersonality: vi.fn(),
+};
+
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: stub as unknown as UserClient })),
+}));
 
 vi.mock('../../utils/dashboard/deleteConfirmation.js', () => ({
   buildDeleteConfirmation: vi.fn().mockReturnValue({
@@ -71,22 +72,6 @@ vi.mock('@tzurot/common-types', async importOriginal => {
       error: vi.fn(),
       debug: vi.fn(),
     }),
-    DeletePersonalityResponseSchema: {
-      safeParse: vi.fn().mockReturnValue({
-        success: true,
-        data: {
-          deletedCounts: {
-            conversationHistory: 5,
-            memories: 3,
-            pendingMemories: 0,
-            channelSettings: 1,
-            aliases: 0,
-          },
-          deletedName: 'Test Character',
-          deletedSlug: 'test-char',
-        },
-      }),
-    },
   };
 });
 
@@ -113,7 +98,7 @@ describe('dashboardDeleteHandlers', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockCallGatewayApi.mockReset();
+    stub.deletePersonality.mockReset();
     mockSessionGet.mockReset();
     mockRenderPostActionScreen.mockReset();
     // Default: no session (simulates dashboard opened via /character view with
@@ -184,11 +169,11 @@ describe('dashboardDeleteHandlers', () => {
         embeds: [],
         components: [],
       });
-      expect(mockCallGatewayApi).not.toHaveBeenCalled();
+      expect(stub.deletePersonality).not.toHaveBeenCalled();
     });
 
     it('should delete character when confirmed', async () => {
-      mockCallGatewayApi.mockResolvedValue({
+      stub.deletePersonality.mockResolvedValue({
         ok: true,
         data: {
           deletedCounts: {
@@ -208,14 +193,7 @@ describe('dashboardDeleteHandlers', () => {
 
       // Ack via deferUpdate (no intermediate progress message).
       expect(interaction.deferUpdate).toHaveBeenCalled();
-      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/personality/test-char', {
-        method: 'DELETE',
-        user: {
-          discordId: 'user-123',
-          username: 'testuser',
-          displayName: 'testuser',
-        },
-      });
+      expect(stub.deletePersonality).toHaveBeenCalledWith('test-char');
       // Success goes through renderPostActionScreen — the helper decides
       // success-with-rebuild vs clean-terminal based on browseContext.
       expect(mockRenderPostActionScreen).toHaveBeenCalledWith(
@@ -236,7 +214,7 @@ describe('dashboardDeleteHandlers', () => {
     it('should carry browseContext from session into the post-action screen', async () => {
       const browseContext = { page: 2, filter: 'all', sort: 'date' };
       mockSessionGet.mockResolvedValue({ data: { browseContext } });
-      mockCallGatewayApi.mockResolvedValue({
+      stub.deletePersonality.mockResolvedValue({
         ok: true,
         data: {
           deletedCounts: {
@@ -262,7 +240,7 @@ describe('dashboardDeleteHandlers', () => {
     });
 
     it('should show error on API failure', async () => {
-      mockCallGatewayApi.mockResolvedValue({
+      stub.deletePersonality.mockResolvedValue({
         ok: false,
         error: 'Character not found',
       });
@@ -280,39 +258,19 @@ describe('dashboardDeleteHandlers', () => {
       );
     });
 
-    // Covers the review gap from PR #842 — the schema-validation fallback
-    // branch (safeParse returns { success: false }) had no explicit test.
-    // Imports `DeletePersonalityResponseSchema` from the mocked module-level
-    // object so we can override safeParse for this single case.
-    it('should render success via fallback banner when schema validation fails', async () => {
-      const { DeletePersonalityResponseSchema } = await import('@tzurot/common-types');
-      vi.mocked(DeletePersonalityResponseSchema.safeParse).mockReturnValueOnce({
-        success: false,
-        error: { message: 'schema drift' } as never,
-      } as never);
+    // Schema validation is now performed inside the typed client (against
+    // DeletePersonalityResponseSchema in the route manifest), not at the
+    // handler level. If the gateway returns a malformed response the typed
+    // client surfaces it as `result.ok === false`, exercised by the API
+    // failure test above. The handler no longer has a
+    // safeParse fallback branch — removed when the migration eliminated
+    // the local `DeletePersonalityResponseSchema.safeParse` call.
 
-      mockCallGatewayApi.mockResolvedValue({ ok: true, data: { unexpected: 'shape' } });
-      const interaction = createMockButtonInteraction();
-
-      await handleDeleteButton(interaction, 'test-char', true);
-
-      expect(mockRenderPostActionScreen).toHaveBeenCalledWith(
-        expect.objectContaining({
-          outcome: expect.objectContaining({
-            kind: 'success',
-            // Fallback banner uses the slug since deletedName isn't
-            // available from the malformed response.
-            banner: expect.stringContaining('test-char'),
-          }),
-        })
-      );
-    });
-
-    // Covers the try/catch review note — when callGatewayApi throws
-    // (network-level failure), the handler should render a graceful error
-    // rather than propagating to CommandHandler's generic reply.
-    it('should render graceful error when callGatewayApi throws', async () => {
-      mockCallGatewayApi.mockRejectedValueOnce(new Error('network down'));
+    // A network-level throw from inside `callGateway` (DNS failure, abort)
+    // surfaces as a graceful error message, not an unhandled rejection
+    // bubbling out to CommandHandler's generic reply.
+    it('should render graceful error when typed client throws', async () => {
+      stub.deletePersonality.mockRejectedValueOnce(new Error('network down'));
       const interaction = createMockButtonInteraction();
 
       await handleDeleteButton(interaction, 'test-char', true);

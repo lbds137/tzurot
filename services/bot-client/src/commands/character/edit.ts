@@ -21,7 +21,7 @@ import {
   buildCharacterDashboardOptions,
   type CharacterSessionData,
 } from './config.js';
-import { toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import { fetchCharacter } from './api.js';
 
 const logger = createLogger('character-edit');
@@ -38,8 +38,9 @@ export async function handleEdit(
   const userId = context.user.id;
 
   try {
+    const { userClient } = clientsFor(context.interaction);
     // Fetch character data from API
-    const character = await fetchCharacter(slug, config, toGatewayUser(context.user));
+    const character = await fetchCharacter(slug, config, userClient);
     if (!character) {
       await context.editReply({ content: `❌ Character \`${slug}\` not found or not accessible.` });
       return;

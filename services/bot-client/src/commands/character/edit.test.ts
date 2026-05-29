@@ -16,7 +16,14 @@ import * as dashboardUtils from '../../utils/dashboard/index.js';
 import { EmbedBuilder, ActionRowBuilder } from 'discord.js';
 import type { EnvConfig } from '@tzurot/common-types';
 
-// Mock dependencies
+// Mock dependencies. `clientsFor` runs in production code to mint the
+// userClient, but the mocked `./api.js` helpers ignore that argument —
+// returning an empty stub here keeps the env-var-reading real `clientsFor`
+// from firing in test setup.
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: {} })),
+}));
+
 vi.mock('./api.js', () => ({
   fetchCharacter: vi.fn(),
 }));

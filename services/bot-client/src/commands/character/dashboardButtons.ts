@@ -21,7 +21,7 @@ import {
   type CharacterSessionData,
 } from './config.js';
 import type { CharacterData } from './characterTypes.js';
-import { toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import { fetchCharacter } from './api.js';
 
 /**
@@ -43,7 +43,8 @@ export async function handleRefreshButton(
   );
   const existingBrowseContext = existingSession?.data.browseContext;
 
-  const character = await fetchCharacter(entityId, config, toGatewayUser(interaction.user));
+  const { userClient } = clientsFor(interaction);
+  const character = await fetchCharacter(entityId, config, userClient);
   if (!character) {
     // Character gone (deleted elsewhere). If the user came from /character
     // browse, renderTerminalScreen preserves Back-to-Browse so they're not

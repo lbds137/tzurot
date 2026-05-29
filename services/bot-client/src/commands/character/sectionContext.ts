@@ -35,7 +35,7 @@ import { fetchOrCreateSession } from '../../utils/dashboard/sessionHelpers.js';
 import { DASHBOARD_MESSAGES } from '../../utils/dashboard/messages.js';
 import { getCharacterDashboardConfig, type CharacterSessionData } from './config.js';
 import type { CharacterData } from './characterTypes.js';
-import { toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import { fetchCharacter } from './api.js';
 
 /**
@@ -104,11 +104,12 @@ export async function loadCharacterSectionData(
   config: EnvConfig,
   sync: CharacterSectionSync
 ): Promise<CharacterSectionContext | null> {
+  const { userClient } = clientsFor(interaction);
   const result = await fetchOrCreateSession<CharacterSessionData, CharacterData>({
     userId: interaction.user.id,
     entityType: 'character',
     entityId,
-    fetchFn: () => fetchCharacter(entityId, config, toGatewayUser(interaction.user)),
+    fetchFn: () => fetchCharacter(entityId, config, userClient),
     transformFn: (character: CharacterData) => ({ ...character, _isAdmin: sync.isAdmin }),
     interaction,
   });

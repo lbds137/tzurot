@@ -236,16 +236,3 @@ export function parseSettingsCustomId(customId: string): {
 export function isSettingsInteraction(customId: string, entityType: string): boolean {
   return customId.startsWith(`${entityType}${SETTINGS_CUSTOM_ID_DELIMITER}`);
 }
-
-/**
- * Response shape from the personality API used by character dashboards.
- * Shared by /character settings and /character overrides.
- */
-export interface PersonalityResponse {
-  personality: {
-    id: string;
-    name: string;
-    slug: string;
-    ownerId: string;
-  };
-}
