@@ -5,9 +5,9 @@
  */
 
 import type { AutocompleteInteraction } from 'discord.js';
+import type { UserClient } from '@tzurot/common-types';
 import { handlePersonalityAutocomplete as sharedPersonalityAutocomplete } from '../../utils/autocomplete/personalityAutocomplete.js';
 import { getCachedPersonalities } from '../../utils/autocomplete/autocompleteCache.js';
-import { type GatewayUser } from '../../utils/userGatewayClient.js';
 
 /**
  * Handle personality autocomplete for memory commands
@@ -28,15 +28,15 @@ export async function handlePersonalityAutocomplete(
  * Resolve a personality slug to its UUID
  * Uses the autocomplete cache for performance
  *
- * @param userId - Discord user ID (for cache lookup)
+ * @param userClient - Typed gateway client bound to the caller (for cache lookup)
  * @param slugOrId - Personality slug or ID from user input
  * @returns Personality UUID or null if not found
  */
 export async function resolvePersonalityId(
-  user: GatewayUser,
+  userClient: UserClient,
   slugOrId: string
 ): Promise<string | null> {
-  const result = await getCachedPersonalities(user);
+  const result = await getCachedPersonalities(userClient);
   if (result.kind === 'error') {
     return null;
   }
@@ -66,15 +66,15 @@ export async function resolvePersonalityId(
 /**
  * Get a personality's display name by ID
  *
- * @param userId - Discord user ID (for cache lookup)
+ * @param userClient - Typed gateway client bound to the caller (for cache lookup)
  * @param personalityId - Personality UUID
  * @returns Personality display name or null if not found
  */
 export async function getPersonalityName(
-  user: GatewayUser,
+  userClient: UserClient,
   personalityId: string
 ): Promise<string | null> {
-  const result = await getCachedPersonalities(user);
+  const result = await getCachedPersonalities(userClient);
   if (result.kind === 'error') {
     return null;
   }

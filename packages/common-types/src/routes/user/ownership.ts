@@ -52,6 +52,10 @@ export const userOwnershipRoutes = {
     output: ListPersonalitiesResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
+    // Called only from autocomplete via getCachedPersonalities. Pinned at
+    // the manifest level so a future transport.ts default change can't
+    // silently shift the budget past Discord's 3s autocomplete deadline.
+    timeoutMs: GATEWAY_TIMEOUTS.AUTOCOMPLETE,
   },
 
   getPersonality: {
@@ -125,6 +129,8 @@ export const userOwnershipRoutes = {
     output: ListPersonasResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
+    // Same autocomplete-only pinning as listPersonalities.
+    timeoutMs: GATEWAY_TIMEOUTS.AUTOCOMPLETE,
   },
 
   getPersona: {

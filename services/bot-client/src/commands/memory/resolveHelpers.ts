@@ -10,7 +10,7 @@ import {
   AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
   isAutocompleteErrorSentinel,
 } from '../../utils/apiCheck.js';
-import { type GatewayUser } from '../../utils/userGatewayClient.js';
+import type { UserClient } from '@tzurot/common-types';
 import { resolvePersonalityId } from './autocomplete.js';
 
 /**
@@ -33,7 +33,7 @@ import { resolvePersonalityId } from './autocomplete.js';
  */
 export async function resolveOptionalPersonality(
   context: DeferredCommandContext,
-  user: GatewayUser,
+  userClient: UserClient,
   personalityInput: string | null
 ): Promise<string | undefined | null> {
   if (personalityInput === null || personalityInput.length === 0) {
@@ -45,7 +45,7 @@ export async function resolveOptionalPersonality(
     return null;
   }
 
-  const resolved = await resolvePersonalityId(user, personalityInput);
+  const resolved = await resolvePersonalityId(userClient, personalityInput);
   if (resolved === null) {
     await context.editReply({
       content: `❌ Personality "${personalityInput}" not found. Use autocomplete to select a valid personality.`,
@@ -69,7 +69,7 @@ export async function resolveOptionalPersonality(
  */
 export async function resolveRequiredPersonality(
   context: DeferredCommandContext,
-  user: GatewayUser,
+  userClient: UserClient,
   personalityInput: string
 ): Promise<string | null> {
   if (isAutocompleteErrorSentinel(personalityInput)) {
@@ -77,7 +77,7 @@ export async function resolveRequiredPersonality(
     return null;
   }
 
-  const resolved = await resolvePersonalityId(user, personalityInput);
+  const resolved = await resolvePersonalityId(userClient, personalityInput);
   if (resolved === null) {
     await context.editReply({
       content: `❌ Personality "${personalityInput}" not found. Use autocomplete to select a valid personality.`,

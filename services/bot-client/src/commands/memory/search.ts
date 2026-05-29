@@ -27,7 +27,6 @@ import {
   type UserClient,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { toGatewayUser } from '../../utils/userGatewayClient.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import {
   createBrowseCustomIdHelpers,
@@ -263,7 +262,6 @@ async function fetchSearchResults(options: FetchSearchOptions): Promise<SearchRe
  */
 export async function handleSearch(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const user = toGatewayUser(context.user);
   const { userClient } = clientsFor(context.interaction);
   const options = memorySearchOptions(context.interaction);
   const query = options.query();
@@ -277,7 +275,7 @@ export async function handleSearch(context: DeferredCommandContext): Promise<voi
     // Resolve personality if provided. Contract: null means the helper
     // already sent an error reply via editReply, so we must return early
     // without sending another reply (Discord would reject the double-reply).
-    const personalityId = await resolveOptionalPersonality(context, user, personalityInput);
+    const personalityId = await resolveOptionalPersonality(context, userClient, personalityInput);
     if (personalityId === null) {
       return;
     }

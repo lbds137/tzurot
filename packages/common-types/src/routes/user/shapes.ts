@@ -23,6 +23,7 @@ import {
   StartShapesExportResponseSchema,
   ListShapesExportJobsResponseSchema,
 } from '../../schemas/api/index.js';
+import { GATEWAY_TIMEOUTS } from '../../constants/discord.js';
 import type { RouteDef } from '../types.js';
 
 const BASE = '/shapes';
@@ -73,6 +74,10 @@ export const userShapesRoutes = {
     output: ListShapesResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
+    // Pin to the 3s Discord autocomplete budget at the manifest level so a
+    // future transport.ts default change can't silently shift it. Called
+    // only from autocomplete via getCachedShapes.
+    timeoutMs: GATEWAY_TIMEOUTS.AUTOCOMPLETE,
   },
 
   // ============================================================================

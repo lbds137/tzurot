@@ -92,10 +92,9 @@ describe('handleStats', () => {
     const context = createMockContext();
     await handleStats(context);
 
-    expect(mockResolvePersonalityId).toHaveBeenCalledWith(
-      { discordId: '123456789', username: 'testuser', displayName: 'testuser' },
-      'lilith'
-    );
+    // Identity carried at the clientsFor boundary; first arg is the bound
+    // userClient stub. See gatewayClients.test.ts for the brand-binding contract.
+    expect(mockResolvePersonalityId).toHaveBeenCalledWith(expect.any(Object), 'lilith');
     expect(stub.getStats).toHaveBeenCalledWith({ personalityId: 'personality-uuid-123' });
     expect(mockCreateInfoEmbed).toHaveBeenCalledWith(
       'Memory Statistics',

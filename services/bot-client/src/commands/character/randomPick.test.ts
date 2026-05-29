@@ -26,17 +26,11 @@ vi.mock('../../utils/autocomplete/autocompleteCache.js', () => ({
   getCachedPersonalities: (...args: unknown[]) => mockGetCachedPersonalities(...args),
 }));
 
-vi.mock('../../utils/userGatewayClient.js', async importOriginal => {
-  const actual = (await importOriginal()) as Record<string, unknown>;
-  return {
-    ...actual,
-    toGatewayUser: vi.fn((user: { id: string; displayName: string }) => ({
-      discordId: user.id,
-      username: user.displayName,
-      displayName: user.displayName,
-    })),
-  };
-});
+// Mock clientsFor — the cache mock above doesn't care about the userClient
+// identity, so a structurally-empty stub suffices.
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: {} })),
+}));
 
 import { resolveCharacterSlug, finalizeDeferredReply } from './randomPick.js';
 

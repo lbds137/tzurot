@@ -23,7 +23,6 @@ import {
   AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
   isAutocompleteErrorSentinel,
 } from '../../utils/apiCheck.js';
-import { toGatewayUser } from '../../utils/userGatewayClient.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { createWarningEmbed, createSuccessEmbed } from '../../utils/commandHelpers.js';
 import { resolvePersonalityId } from './autocomplete.js';
@@ -58,7 +57,6 @@ function formatTimeframe(timeframe: string | null): string {
 // eslint-disable-next-line max-lines-per-function, max-statements -- Discord command handler with sequential UI flow
 export async function handleBatchDelete(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const user = toGatewayUser(context.user);
   const { userClient } = clientsFor(context.interaction);
   const options = memoryDeleteOptions(context.interaction);
   const personalityInput = options.character();
@@ -71,7 +69,7 @@ export async function handleBatchDelete(context: DeferredCommandContext): Promis
 
   try {
     // Resolve personality slug to ID
-    const personalityId = await resolvePersonalityId(user, personalityInput);
+    const personalityId = await resolvePersonalityId(userClient, personalityInput);
 
     if (personalityId === null) {
       await context.editReply({

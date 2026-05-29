@@ -19,6 +19,12 @@ vi.mock('./autocompleteCache.js', () => ({
   getCachedPersonas: (...args: unknown[]) => mockGetCachedPersonas(...args),
 }));
 
+// Mock clientsFor — the cache mock above doesn't care about the userClient
+// identity, so a structurally-empty stub suffices.
+vi.mock('../gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: {} })),
+}));
+
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
@@ -107,17 +113,16 @@ describe('handlePersonaAutocomplete', () => {
   });
 
   describe('cache usage', () => {
-    it('should call cache with correct user ID', async () => {
+    it('should fetch cached personas via the bound userClient', async () => {
+      // Identity is now carried at the `clientsFor` boundary, not the cache
+      // call signature. See `gatewayClients.test.ts` for the brand-binding
+      // contract.
       mockGetCachedPersonas.mockResolvedValue({ kind: 'ok', value: [] });
 
       const interaction = createMockInteraction('profile', '');
       await handlePersonaAutocomplete(interaction);
 
-      expect(mockGetCachedPersonas).toHaveBeenCalledWith({
-        discordId: '123456789',
-        username: 'testuser',
-        displayName: 'Test User',
-      });
+      expect(mockGetCachedPersonas).toHaveBeenCalledWith(expect.any(Object));
     });
 
     it('should return empty array when cache returns empty', async () => {

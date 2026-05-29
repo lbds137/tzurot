@@ -135,10 +135,9 @@ describe('handleBatchDelete', () => {
       const context = createMockContext('lilith');
       await handleBatchDelete(context);
 
-      expect(mockResolvePersonalityId).toHaveBeenCalledWith(
-        { discordId: 'user-123', username: 'testuser', displayName: 'testuser' },
-        'lilith'
-      );
+      // Identity carried at the clientsFor boundary; first arg is the bound
+      // userClient stub. See gatewayClients.test.ts for the brand-binding contract.
+      expect(mockResolvePersonalityId).toHaveBeenCalledWith(expect.any(Object), 'lilith');
       expect(stub.batchDeletePreview).toHaveBeenCalledWith(
         expect.objectContaining({ personalityId: 'personality-uuid-123' })
       );

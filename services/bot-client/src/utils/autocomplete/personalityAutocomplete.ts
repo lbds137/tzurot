@@ -18,7 +18,7 @@ import {
   formatAutocompleteOption,
 } from '@tzurot/common-types';
 import { getCachedPersonalities } from './autocompleteCache.js';
-import { toGatewayUser } from '../userGatewayClient.js';
+import { clientsFor } from '../gatewayClients.js';
 import { AUTOCOMPLETE_ERROR_SENTINEL } from '../apiCheck.js';
 
 const logger = createLogger('personality-autocomplete');
@@ -76,7 +76,8 @@ export async function handlePersonalityAutocomplete(
 
   try {
     // Use cached data to avoid HTTP requests on every keystroke
-    const result = await getCachedPersonalities(toGatewayUser(interaction.user));
+    const { userClient } = clientsFor(interaction);
+    const result = await getCachedPersonalities(userClient);
     if (result.kind === 'error') {
       // Backend failed AND no stale cache to fall back on — render a visible
       // error choice rather than an empty list that reads as "you have no personalities."
