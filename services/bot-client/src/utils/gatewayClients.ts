@@ -35,7 +35,33 @@ import {
   type GatewayUser,
 } from '@tzurot/common-types';
 import { getValidatedServiceSecret } from '../startup.js';
-import { toGatewayUser } from './userGatewayClient.js';
+
+/**
+ * Build a `GatewayUser` from a Discord.js `User` object. Centralizes the
+ * `globalName ?? username` fallback — callers never decide locally. Works
+ * for both `interaction.user` and `message.author` (both are `User`).
+ */
+export function toGatewayUser(user: DiscordUser): GatewayUser {
+  return {
+    discordId: user.id,
+    username: user.username,
+    displayName: user.globalName ?? user.username,
+  };
+}
+
+/**
+ * Non-throwing check that the gateway base URL is configured. Used by
+ * command preflight (e.g. `commandHelpers`) to surface a friendly
+ * "not configured" message instead of letting `getGatewayBaseUrl` throw.
+ */
+export function isGatewayConfigured(): boolean {
+  try {
+    getGatewayBaseUrl();
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Union of every Discord interaction shape that carries a `user`.
