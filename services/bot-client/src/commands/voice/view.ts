@@ -20,7 +20,6 @@ import {
   voiceViewOptions,
   sttProviderDisplayName,
   isSttProvider,
-  type GetVoiceResolutionResponse,
   type SttResolutionSource,
   type TtsResolutionSource,
 } from '@tzurot/common-types';
@@ -29,7 +28,7 @@ import {
   AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
   isAutocompleteErrorSentinel,
 } from '../../utils/apiCheck.js';
-import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 
 const logger = createLogger('voice-view');
 
@@ -85,10 +84,8 @@ export async function handleVoiceView(context: DeferredCommandContext): Promise<
   }
 
   try {
-    const result = await callGatewayApi<GetVoiceResolutionResponse>(
-      `/user/voice-resolution?personalityId=${encodeURIComponent(personalityId)}`,
-      { method: 'GET', user: toGatewayUser(context.user) }
-    );
+    const { userClient } = clientsFor(context.interaction);
+    const result = await userClient.getVoiceResolution({ personalityId });
 
     if (!result.ok) {
       logger.warn({ userId, personalityId, status: result.status }, 'Failed to resolve voice view');

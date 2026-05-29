@@ -52,9 +52,9 @@ export const userOwnershipRoutes = {
     output: ListPersonalitiesResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
-    // Called only from autocomplete via getCachedPersonalities. Pinned at
-    // the manifest level so a future transport.ts default change can't
-    // silently shift the budget past Discord's 3s autocomplete deadline.
+    // Autocomplete-only consumer; pinned at the manifest so a future
+    // transport-default change can't silently overshoot Discord's 3s
+    // autocomplete deadline.
     timeoutMs: GATEWAY_TIMEOUTS.AUTOCOMPLETE,
   },
 

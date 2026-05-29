@@ -10,19 +10,10 @@ import {
   AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
   isAutocompleteErrorSentinel,
 } from '../../../utils/apiCheck.js';
-import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
+import { clientsFor } from '../../../utils/gatewayClients.js';
 import { checkTtsByokAccess } from './guestModeValidation.js';
 
 const logger = createLogger('voice-tts-set');
-
-interface SetResponse {
-  override: {
-    personalityId: string;
-    personalityName: string;
-    configId: string | null;
-    configName: string | null;
-  };
-}
 
 /** Handle /voice tts set */
 export async function handleTtsSet(context: DeferredCommandContext): Promise<void> {
@@ -37,18 +28,14 @@ export async function handleTtsSet(context: DeferredCommandContext): Promise<voi
   }
 
   try {
-    const user = toGatewayUser(context.user);
+    const { userClient } = clientsFor(context.interaction);
 
-    const outcome = await checkTtsByokAccess(context, configId, user);
+    const outcome = await checkTtsByokAccess(context, configId, userClient);
     if (outcome.blocked) {
       return;
     }
 
-    const result = await callGatewayApi<SetResponse>('/user/tts-override', {
-      method: 'PUT',
-      user,
-      body: { personalityId, configId },
-    });
+    const result = await userClient.setTtsOverride({ personalityId, configId });
 
     if (!result.ok) {
       logger.warn(

@@ -306,6 +306,7 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.listTtsOverrides.output,
+      timeoutMs: ROUTE_MANIFEST.listTtsOverrides.timeoutMs,
     });
   }
 
@@ -326,6 +327,7 @@ export class UserClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.setTtsOverride.output,
+      timeoutMs: ROUTE_MANIFEST.setTtsOverride.timeoutMs,
     });
   }
 
@@ -342,6 +344,7 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.deleteTtsOverride.output,
+      timeoutMs: ROUTE_MANIFEST.deleteTtsOverride.timeoutMs,
     });
   }
 
@@ -381,6 +384,7 @@ export class UserClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.setTtsDefaultConfig.output,
+      timeoutMs: ROUTE_MANIFEST.setTtsDefaultConfig.timeoutMs,
     });
   }
 
@@ -397,6 +401,7 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.clearTtsDefaultConfig.output,
+      timeoutMs: ROUTE_MANIFEST.clearTtsDefaultConfig.timeoutMs,
     });
   }
 
@@ -436,6 +441,7 @@ export class UserClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.setSttDefaultProvider.output,
+      timeoutMs: ROUTE_MANIFEST.setSttDefaultProvider.timeoutMs,
     });
   }
 
@@ -452,6 +458,7 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.clearSttDefaultProvider.output,
+      timeoutMs: ROUTE_MANIFEST.clearSttDefaultProvider.timeoutMs,
     });
   }
 
@@ -1230,6 +1237,7 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.getVoiceResolution.output,
+      timeoutMs: ROUTE_MANIFEST.getVoiceResolution.timeoutMs,
     });
   }
 
@@ -1285,6 +1293,7 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.clearVoices.output,
+      timeoutMs: ROUTE_MANIFEST.clearVoices.timeoutMs,
     });
   }
 
@@ -1301,6 +1310,7 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.deleteVoice.output,
+      timeoutMs: ROUTE_MANIFEST.deleteVoice.timeoutMs,
     });
   }
 

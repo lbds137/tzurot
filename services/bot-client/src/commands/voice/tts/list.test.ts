@@ -4,15 +4,15 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
+import type { UserClient } from '@tzurot/common-types';
 
-const { mockCallGatewayApi } = vi.hoisted(() => ({
-  mockCallGatewayApi: vi.fn(),
-}));
+const stub = {
+  listTtsOverrides: vi.fn(),
+};
 
-vi.mock('../../../utils/userGatewayClient.js', () => ({
-  callGatewayApi: mockCallGatewayApi,
-  toGatewayUser: vi.fn(user => ({ id: user.id })),
-  GATEWAY_TIMEOUTS: { DEFERRED: 30000 },
+vi.mock('../../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: stub as unknown as UserClient })),
 }));
 
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -33,6 +33,7 @@ const { handleTtsListOverrides: handleListOverrides } = await import('./list.js'
 function makeContext() {
   return {
     user: { id: 'discord-user-1' },
+    interaction: {} as never,
     editReply: vi.fn(),
   };
 }
@@ -40,10 +41,11 @@ function makeContext() {
 describe('handleListOverrides', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    stub.listTtsOverrides.mockReset();
   });
 
   it('shows empty-state guidance when no overrides', async () => {
-    mockCallGatewayApi.mockResolvedValue({ ok: true, data: { overrides: [] } });
+    stub.listTtsOverrides.mockResolvedValue(makeOk({ overrides: [] }));
     const context = makeContext();
 
     await handleListOverrides(context as never);
@@ -62,9 +64,8 @@ describe('handleListOverrides', () => {
   });
 
   it('renders override list with personality+config names', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.listTtsOverrides.mockResolvedValue(
+      makeOk({
         overrides: [
           {
             personalityId: 'p1',
@@ -73,8 +74,8 @@ describe('handleListOverrides', () => {
             configName: 'kyutai-self-hosted',
           },
         ],
-      },
-    });
+      })
+    );
     const context = makeContext();
 
     await handleListOverrides(context as never);
@@ -93,7 +94,7 @@ describe('handleListOverrides', () => {
   });
 
   it('shows error message on gateway failure', async () => {
-    mockCallGatewayApi.mockResolvedValue({ ok: false, status: 500, error: 'INTERNAL_ERROR' });
+    stub.listTtsOverrides.mockResolvedValue(makeErr(500, 'INTERNAL_ERROR'));
     const context = makeContext();
 
     await handleListOverrides(context as never);

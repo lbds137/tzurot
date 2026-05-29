@@ -74,9 +74,9 @@ export const userShapesRoutes = {
     output: ListShapesResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
-    // Pin to the 3s Discord autocomplete budget at the manifest level so a
-    // future transport.ts default change can't silently shift it. Called
-    // only from autocomplete via getCachedShapes.
+    // Autocomplete-only consumer; pinned at the manifest so a future
+    // transport-default change can't silently overshoot Discord's 3s
+    // autocomplete deadline.
     timeoutMs: GATEWAY_TIMEOUTS.AUTOCOMPLETE,
   },
 

@@ -4,15 +4,19 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
+import type { UserClient } from '@tzurot/common-types';
 
-const { mockCallGatewayApi, mockCheckTtsByokAccess } = vi.hoisted(() => ({
-  mockCallGatewayApi: vi.fn(),
+const { mockCheckTtsByokAccess } = vi.hoisted(() => ({
   mockCheckTtsByokAccess: vi.fn(),
 }));
 
-vi.mock('../../../utils/userGatewayClient.js', () => ({
-  callGatewayApi: mockCallGatewayApi,
-  toGatewayUser: vi.fn(user => ({ id: user.id })),
+const stub = {
+  setTtsDefaultConfig: vi.fn(),
+};
+
+vi.mock('../../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: stub as unknown as UserClient })),
 }));
 
 vi.mock('./guestModeValidation.js', () => ({
@@ -48,6 +52,7 @@ function makeContext() {
 describe('handleSetDefault', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    stub.setTtsDefaultConfig.mockReset();
   });
 
   it('blocks at command time when BYOK gate fails', async () => {
@@ -56,26 +61,19 @@ describe('handleSetDefault', () => {
 
     await handleSetDefault(context as never);
 
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(stub.setTtsDefaultConfig).not.toHaveBeenCalled();
   });
 
-  it('PUTs /user/tts-override/default on happy path', async () => {
+  it('calls setTtsDefaultConfig on happy path', async () => {
     mockCheckTtsByokAccess.mockResolvedValue({ blocked: false, reason: 'self-hosted' });
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: { default: { configId: 'cfg-uuid-1', configName: 'kyutai-self-hosted' } },
-    });
+    stub.setTtsDefaultConfig.mockResolvedValue(
+      makeOk({ default: { configId: 'cfg-uuid-1', configName: 'kyutai-self-hosted' } })
+    );
     const context = makeContext();
 
     await handleSetDefault(context as never);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/tts-override/default',
-      expect.objectContaining({
-        method: 'PUT',
-        body: { configId: 'cfg-uuid-1' },
-      })
-    );
+    expect(stub.setTtsDefaultConfig).toHaveBeenCalledWith({ configId: 'cfg-uuid-1' });
     expect(context.editReply).toHaveBeenCalledWith(
       expect.objectContaining({
         embeds: [
@@ -89,7 +87,7 @@ describe('handleSetDefault', () => {
 
   it('shows error embed on gateway failure', async () => {
     mockCheckTtsByokAccess.mockResolvedValue({ blocked: false, reason: 'has-key' });
-    mockCallGatewayApi.mockResolvedValue({ ok: false, status: 500, error: 'INTERNAL_ERROR' });
+    stub.setTtsDefaultConfig.mockResolvedValue(makeErr(500, 'INTERNAL_ERROR'));
     const context = makeContext();
 
     await handleSetDefault(context as never);

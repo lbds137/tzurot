@@ -20,11 +20,9 @@ import {
   DISCORD_COLORS,
   isSelfHostedTtsProvider,
   type TtsConfigSummary,
-  type ListTtsConfigsResponse,
+  type UserClient,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import type { GatewayUser } from '../../../utils/userGatewayClient.js';
-import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 
 const logger = createLogger('voice-tts-byok-validation');
 
@@ -66,15 +64,13 @@ export interface ByokAccessOutcome {
 export async function checkTtsByokAccess(
   context: DeferredCommandContext,
   configId: string,
-  user: GatewayUser
+  userClient: UserClient
 ): Promise<ByokAccessOutcome> {
   const userId = context.user.id;
 
   // Fetch the user's visible TTS configs (globals + user-owned). This
   // validates that the configId is real AND surfaces the provider field.
-  const configsResult = await callGatewayApi<ListTtsConfigsResponse>('/user/tts-config', {
-    user,
-  });
+  const configsResult = await userClient.listUserTtsConfigs();
   if (!configsResult.ok) {
     logger.warn(
       { userId, status: configsResult.status },
@@ -103,7 +99,7 @@ export async function checkTtsByokAccess(
   // voices endpoint. 404 = no ElevenLabs key configured → block at command
   // time so the user gets immediate feedback. Other errors fail-open.
   if (config.provider === 'elevenlabs') {
-    const keysResult = await callGatewayApi<{ totalVoices?: number }>('/user/voices', { user });
+    const keysResult = await userClient.listVoices();
     if (!keysResult.ok) {
       if (keysResult.status === 404) {
         const embed = new EmbedBuilder()

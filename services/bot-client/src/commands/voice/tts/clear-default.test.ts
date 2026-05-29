@@ -4,14 +4,15 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
+import type { UserClient } from '@tzurot/common-types';
 
-const { mockCallGatewayApi } = vi.hoisted(() => ({
-  mockCallGatewayApi: vi.fn(),
-}));
+const stub = {
+  clearTtsDefaultConfig: vi.fn(),
+};
 
-vi.mock('../../../utils/userGatewayClient.js', () => ({
-  callGatewayApi: mockCallGatewayApi,
-  toGatewayUser: vi.fn(user => ({ id: user.id })),
+vi.mock('../../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: stub as unknown as UserClient })),
 }));
 
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -34,6 +35,7 @@ const { handleTtsClearDefault: handleClearDefault } = await import('./clear-defa
 function makeContext() {
   return {
     user: { id: 'discord-user-1' },
+    interaction: {} as never,
     editReply: vi.fn(),
   };
 }
@@ -41,21 +43,16 @@ function makeContext() {
 describe('handleClearDefault', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    stub.clearTtsDefaultConfig.mockReset();
   });
 
-  it('hits DELETE /user/tts-override/default and shows success embed', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockClearTtsDefaultConfigResponse(),
-    });
+  it('calls clearTtsDefaultConfig and shows success embed', async () => {
+    stub.clearTtsDefaultConfig.mockResolvedValue(makeOk(mockClearTtsDefaultConfigResponse()));
     const context = makeContext();
 
     await handleClearDefault(context as never);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/tts-override/default',
-      expect.objectContaining({ method: 'DELETE' })
-    );
+    expect(stub.clearTtsDefaultConfig).toHaveBeenCalled();
     expect(context.editReply).toHaveBeenCalledWith(
       expect.objectContaining({
         embeds: [
@@ -68,12 +65,13 @@ describe('handleClearDefault', () => {
   });
 
   it('renders the new effective default name when one exists', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockClearTtsDefaultConfigResponse({
-        newEffectiveDefault: { id: 'free-id', name: 'kyutai-self-hosted' },
-      }),
-    });
+    stub.clearTtsDefaultConfig.mockResolvedValue(
+      makeOk(
+        mockClearTtsDefaultConfigResponse({
+          newEffectiveDefault: { id: 'free-id', name: 'kyutai-self-hosted' },
+        })
+      )
+    );
     const context = makeContext();
 
     await handleClearDefault(context as never);
@@ -92,10 +90,9 @@ describe('handleClearDefault', () => {
   });
 
   it('renders hardcoded-fallback notice when newEffectiveDefault is null', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockClearTtsDefaultConfigResponse({ newEffectiveDefault: null }),
-    });
+    stub.clearTtsDefaultConfig.mockResolvedValue(
+      makeOk(mockClearTtsDefaultConfigResponse({ newEffectiveDefault: null }))
+    );
     const context = makeContext();
 
     await handleClearDefault(context as never);
@@ -114,7 +111,7 @@ describe('handleClearDefault', () => {
   });
 
   it('shows error message on gateway failure', async () => {
-    mockCallGatewayApi.mockResolvedValue({ ok: false, status: 500, error: 'INTERNAL_ERROR' });
+    stub.clearTtsDefaultConfig.mockResolvedValue(makeErr(500, 'INTERNAL_ERROR'));
     const context = makeContext();
 
     await handleClearDefault(context as never);
@@ -125,7 +122,7 @@ describe('handleClearDefault', () => {
   });
 
   it('catches and reports unexpected errors', async () => {
-    mockCallGatewayApi.mockRejectedValue(new Error('network down'));
+    stub.clearTtsDefaultConfig.mockRejectedValue(new Error('network down'));
     const context = makeContext();
 
     await handleClearDefault(context as never);

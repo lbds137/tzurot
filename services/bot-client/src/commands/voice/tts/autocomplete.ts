@@ -18,10 +18,9 @@ import {
   DISCORD_LIMITS,
   AUTOCOMPLETE_BADGES,
   formatAutocompleteOption,
-  type TtsConfigSummary,
   type AutocompleteBadge,
 } from '@tzurot/common-types';
-import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
+import { clientsFor } from '../../../utils/gatewayClients.js';
 import { handlePersonalityAutocomplete } from '../../../utils/autocomplete/index.js';
 
 const logger = createLogger('voice-tts-autocomplete');
@@ -66,10 +65,8 @@ async function handleTtsConfigAutocomplete(
   query: string,
   userId: string
 ): Promise<void> {
-  const user = toGatewayUser(interaction.user);
-  const result = await callGatewayApi<{ configs: TtsConfigSummary[] }>('/user/tts-config', {
-    user,
-  });
+  const { userClient } = clientsFor(interaction);
+  const result = await userClient.listUserTtsConfigs();
 
   if (!result.ok) {
     logger.warn({ userId, error: result.error }, 'Failed to fetch TTS configs');

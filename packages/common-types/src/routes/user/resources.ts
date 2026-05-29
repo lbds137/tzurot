@@ -54,6 +54,7 @@ import {
   ClearVoicesResponseSchema,
   DeleteVoiceResponseSchema,
 } from '../../schemas/api/index.js';
+import { GATEWAY_TIMEOUTS } from '../../constants/discord.js';
 import type { RouteDef } from '../types.js';
 
 const CHANNEL_CONFIG_OVERRIDES_PATH = '/channel/:channelId/config-overrides';
@@ -300,6 +301,9 @@ export const userResourceRoutes = {
     output: GetVoiceResolutionResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
+    // Cascade resolution can chain multiple Prisma reads — the autocomplete
+    // default isn't enough headroom for the slowest legs.
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   // ============================================================================
@@ -314,10 +318,9 @@ export const userResourceRoutes = {
     output: ListVoicesResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
-    // Called from both autocomplete (clientside has the 3s Discord budget)
-    // and deferred contexts (voice browse / clear / guestModeValidation
-    // probe). The longer budget protects the deferred callers; autocomplete
-    // calls die at 3s via Discord regardless.
+    // Dual-context route: autocomplete callers are bounded by Discord's
+    // own 3s deadline, so the longer budget exists for the deferred-handler
+    // paths where a list fetch may run alongside other Prisma work.
     timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
@@ -338,6 +341,9 @@ export const userResourceRoutes = {
     id: 'clearVoices',
     output: ClearVoicesResponseSchema,
     requiresProvisionedUser: true,
+    // Iterates per-voice DELETEs against the third-party audio provider;
+    // a user with many cloned voices can exceed the DEFERRED budget.
+    timeoutMs: GATEWAY_TIMEOUTS.BULK_OPERATION,
   },
 
   deleteVoice: {
@@ -348,5 +354,6 @@ export const userResourceRoutes = {
     params: { provider: z.string(), voiceId: z.string() },
     output: DeleteVoiceResponseSchema,
     requiresProvisionedUser: true,
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 } as const satisfies Record<string, RouteDef>;

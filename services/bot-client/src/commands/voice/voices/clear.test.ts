@@ -15,6 +15,8 @@ import {
   VOICE_CLEAR_OPERATION,
 } from './clear.js';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
+import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
+import type { UserClient } from '@tzurot/common-types';
 
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
@@ -29,16 +31,14 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../../utils/userGatewayClient.js')>(
-    '../../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+const stub = {
+  listVoices: vi.fn(),
+  clearVoices: vi.fn(),
+};
+
+vi.mock('../../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: stub as unknown as UserClient })),
+}));
 
 const mockBuildDestructiveWarning = vi.fn().mockReturnValue({ embeds: [], components: [] });
 const mockHandleDestructiveConfirmButton = vi.fn();
@@ -73,6 +73,8 @@ describe('handleClearVoices', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub.listVoices.mockReset();
+    stub.clearVoices.mockReset();
   });
 
   function createMockContext(): DeferredCommandContext {
@@ -102,17 +104,16 @@ describe('handleClearVoices', () => {
   }
 
   it('should show destructive warning when voices exist', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.listVoices.mockResolvedValue(
+      makeOk({
         voices: [
           { voiceId: 'v1', name: 'tzurot-alice', slug: 'alice' },
           { voiceId: 'v2', name: 'tzurot-bob', slug: 'bob' },
         ],
         totalVoices: 10,
         tzurotCount: 2,
-      },
-    });
+      })
+    );
 
     await handleClearVoices(createMockContext());
 
@@ -126,17 +127,16 @@ describe('handleClearVoices', () => {
   });
 
   it('warning entityName does not include a numeric count (avoids snapshot drift)', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.listVoices.mockResolvedValue(
+      makeOk({
         voices: [
           { voiceId: 'v1', name: 'tzurot-alice', slug: 'alice' },
           { voiceId: 'v2', name: 'tzurot-bob', slug: 'bob' },
         ],
         totalVoices: 10,
         tzurotCount: 2,
-      },
-    });
+      })
+    );
 
     await handleClearVoices(createMockContext());
 
@@ -149,10 +149,7 @@ describe('handleClearVoices', () => {
   });
 
   it('should show message when no voices to clear', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: { voices: [], totalVoices: 5, tzurotCount: 0 },
-    });
+    stub.listVoices.mockResolvedValue(makeOk({ voices: [], totalVoices: 5, tzurotCount: 0 }));
 
     await handleClearVoices(createMockContext());
 
@@ -163,11 +160,7 @@ describe('handleClearVoices', () => {
   });
 
   it('should handle API error', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      status: 404,
-      error: 'ElevenLabs API key not found',
-    });
+    stub.listVoices.mockResolvedValue(makeErr(404, 'ElevenLabs API key not found'));
 
     await handleClearVoices(createMockContext());
 
@@ -177,7 +170,7 @@ describe('handleClearVoices', () => {
   });
 
   it('should handle exceptions', async () => {
-    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+    stub.listVoices.mockRejectedValue(new Error('Network error'));
 
     await handleClearVoices(createMockContext());
 

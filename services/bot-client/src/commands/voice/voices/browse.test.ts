@@ -11,6 +11,8 @@ import {
 } from './browse.js';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import type { VoiceEntry } from './types.js';
+import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
+import type { UserClient } from '@tzurot/common-types';
 
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
@@ -25,16 +27,13 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../../utils/userGatewayClient.js')>(
-    '../../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+const stub = {
+  listVoices: vi.fn(),
+};
+
+vi.mock('../../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: stub as unknown as UserClient })),
+}));
 
 /** Generate N voice entries for pagination tests */
 function generateVoices(count: number): VoiceEntry[] {
@@ -51,6 +50,7 @@ describe('handleBrowseVoices', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub.listVoices.mockReset();
   });
 
   function createMockContext(): DeferredCommandContext {
@@ -80,26 +80,20 @@ describe('handleBrowseVoices', () => {
   }
 
   it('should list voices successfully with no pagination buttons for small lists', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.listVoices.mockResolvedValue(
+      makeOk({
         voices: [
           { provider: 'elevenlabs', voiceId: 'v1', name: 'tzurot-alice', slug: 'alice' },
           { provider: 'mistral', voiceId: 'v2', name: 'tzurot-bob', slug: 'bob' },
         ],
         totalVoices: 10,
         tzurotCount: 2,
-      },
-    });
+      })
+    );
 
     await handleBrowseVoices(createMockContext());
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/voices',
-      expect.objectContaining({
-        user: { discordId: 'user-123', username: 'testuser', displayName: 'testuser' },
-      })
-    );
+    expect(stub.listVoices).toHaveBeenCalled();
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
         expect.objectContaining({
@@ -116,14 +110,13 @@ describe('handleBrowseVoices', () => {
   it('should show pagination buttons when voices exceed page size', async () => {
     const voices = generateVoices(12); // 12 voices = 2 pages at 10/page
 
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.listVoices.mockResolvedValue(
+      makeOk({
         voices,
         totalVoices: 30,
         tzurotCount: 12,
-      },
-    });
+      })
+    );
 
     await handleBrowseVoices(createMockContext());
 
@@ -147,14 +140,13 @@ describe('handleBrowseVoices', () => {
   });
 
   it('should show management hints on first page only', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.listVoices.mockResolvedValue(
+      makeOk({
         voices: [{ provider: 'elevenlabs', voiceId: 'v1', name: 'tzurot-alice', slug: 'alice' }],
         totalVoices: 5,
         tzurotCount: 1,
-      },
-    });
+      })
+    );
 
     await handleBrowseVoices(createMockContext());
 
@@ -170,14 +162,13 @@ describe('handleBrowseVoices', () => {
   });
 
   it('should show empty state when no voices', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.listVoices.mockResolvedValue(
+      makeOk({
         voices: [],
         totalVoices: 5,
         tzurotCount: 0,
-      },
-    });
+      })
+    );
 
     await handleBrowseVoices(createMockContext());
 
@@ -194,15 +185,14 @@ describe('handleBrowseVoices', () => {
   });
 
   it('should render warnings field above voices when gateway surfaces provider failures', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.listVoices.mockResolvedValue(
+      makeOk({
         voices: generateVoices(2),
         totalVoices: 2,
         tzurotCount: 2,
         warnings: [{ provider: 'mistral', message: 'API key invalid or expired' }],
-      },
-    });
+      })
+    );
 
     await handleBrowseVoices(createMockContext());
 
@@ -225,15 +215,14 @@ describe('handleBrowseVoices', () => {
   });
 
   it('uses correct display name for elevenlabs warnings (regression for ternary mislabeling)', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.listVoices.mockResolvedValue(
+      makeOk({
         voices: generateVoices(2),
         totalVoices: 2,
         tzurotCount: 2,
         warnings: [{ provider: 'elevenlabs', message: 'Provider temporarily unavailable' }],
-      },
-    });
+      })
+    );
 
     await handleBrowseVoices(createMockContext());
 
@@ -255,11 +244,7 @@ describe('handleBrowseVoices', () => {
   });
 
   it('should handle API error', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      status: 404,
-      error: 'ElevenLabs API key not found',
-    });
+    stub.listVoices.mockResolvedValue(makeErr(404, 'ElevenLabs API key not found'));
 
     await handleBrowseVoices(createMockContext());
 
@@ -269,7 +254,7 @@ describe('handleBrowseVoices', () => {
   });
 
   it('should handle exceptions', async () => {
-    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+    stub.listVoices.mockRejectedValue(new Error('Network error'));
 
     await handleBrowseVoices(createMockContext());
 
@@ -300,6 +285,7 @@ describe('handleVoiceBrowsePagination', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub.listVoices.mockReset();
   });
 
   function createMockButtonInteraction(customId: string): ButtonInteraction {
@@ -314,10 +300,7 @@ describe('handleVoiceBrowsePagination', () => {
   it('should navigate to requested page', async () => {
     const voices = generateVoices(12);
 
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: { voices, totalVoices: 30, tzurotCount: 12 },
-    });
+    stub.listVoices.mockResolvedValue(makeOk({ voices, totalVoices: 30, tzurotCount: 12 }));
 
     // Click "next" to go to page 1
     await handleVoiceBrowsePagination(
@@ -346,14 +329,11 @@ describe('handleVoiceBrowsePagination', () => {
     await handleVoiceBrowsePagination(createMockButtonInteraction('garbage-custom-id'));
 
     expect(mockDeferUpdate).not.toHaveBeenCalled();
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(stub.listVoices).not.toHaveBeenCalled();
   });
 
   it('should handle API error during pagination', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      error: 'ElevenLabs key expired',
-    });
+    stub.listVoices.mockResolvedValue(makeErr(500, 'ElevenLabs key expired'));
 
     await handleVoiceBrowsePagination(
       createMockButtonInteraction('voice-voices::browse::1::all::')
@@ -368,7 +348,7 @@ describe('handleVoiceBrowsePagination', () => {
   });
 
   it('should keep existing content on fetch exception', async () => {
-    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+    stub.listVoices.mockRejectedValue(new Error('Network error'));
 
     await handleVoiceBrowsePagination(
       createMockButtonInteraction('voice-voices::browse::1::all::')

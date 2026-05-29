@@ -113,10 +113,8 @@ export const userConfigOverrideRoutes = {
     input: ConfigOverridesSchema,
     output: UpdatePersonalityConfigOverridesResponseSchema,
     requiresProvisionedUser: true,
-    // Called from settingsUpdateFactory in a deferred dashboard context;
-    // mirrors the resolve-side timeout so PATCH+resolve handshakes have a
-    // consistent budget. Replaces the per-call timeout the legacy
-    // callGatewayApi callsite threaded through.
+    // PATCH + resolve form a paired handshake; consistent budget across
+    // both prevents the resolve from timing out after a successful PATCH.
     timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
@@ -166,8 +164,7 @@ export const userConfigOverrideRoutes = {
     input: ConfigOverridesSchema,
     output: UpdateConfigDefaultsResponseSchema,
     requiresProvisionedUser: true,
-    // Same deferred-context callers as updatePersonalityOverrides; the
-    // personality-tier PATCH+resolve handshake needs the longer budget.
+    // Same PATCH + resolve handshake invariant as updatePersonalityOverrides.
     timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 } as const satisfies Record<string, RouteDef>;

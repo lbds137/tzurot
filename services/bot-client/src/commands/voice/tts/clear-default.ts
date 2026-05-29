@@ -7,13 +7,9 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import {
-  createLogger,
-  DISCORD_COLORS,
-  type ClearTtsDefaultConfigResponse,
-} from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
+import { clientsFor } from '../../../utils/gatewayClients.js';
 
 const logger = createLogger('voice-tts-clear-default');
 
@@ -22,13 +18,8 @@ export async function handleTtsClearDefault(context: DeferredCommandContext): Pr
   const userId = context.user.id;
 
   try {
-    const result = await callGatewayApi<ClearTtsDefaultConfigResponse>(
-      '/user/tts-override/default',
-      {
-        method: 'DELETE',
-        user: toGatewayUser(context.user),
-      }
-    );
+    const { userClient } = clientsFor(context.interaction);
+    const result = await userClient.clearTtsDefaultConfig();
 
     if (!result.ok) {
       logger.warn({ userId, status: result.status }, 'Failed to clear default TTS');

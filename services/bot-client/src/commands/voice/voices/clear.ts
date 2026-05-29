@@ -13,11 +13,7 @@ import { EmbedBuilder } from 'discord.js';
 import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import {
-  callGatewayApi,
-  GATEWAY_TIMEOUTS,
-  toGatewayUser,
-} from '../../../utils/userGatewayClient.js';
+import { clientsFor } from '../../../utils/gatewayClients.js';
 import {
   buildDestructiveWarning,
   createHardDeleteConfig,
@@ -26,20 +22,12 @@ import {
   handleDestructiveModalSubmit,
 } from '../../../utils/destructiveConfirmation.js';
 import { DestructiveCustomIds } from '../../../utils/customIds.js';
-import type { VoicesListResponse } from './types.js';
 import { invalidateVoiceCache } from './voiceCache.js';
 
 const logger = createLogger('voice-voices-clear');
 
 /** Operation name for destructive confirmation custom IDs */
 export const VOICE_CLEAR_OPERATION = 'voice-clear';
-
-interface VoiceClearResponse {
-  deleted: number;
-  total: number;
-  message?: string;
-  errors?: string[];
-}
 
 /**
  * Handle /voice voices clear
@@ -49,10 +37,8 @@ export async function handleClearVoices(context: DeferredCommandContext): Promis
   const userId = context.user.id;
 
   try {
-    const result = await callGatewayApi<VoicesListResponse>('/user/voices', {
-      user: toGatewayUser(context.user),
-      timeout: GATEWAY_TIMEOUTS.DEFERRED,
-    });
+    const { userClient } = clientsFor(context.interaction);
+    const result = await userClient.listVoices();
 
     if (!result.ok) {
       await context.editReply({ content: `❌ ${result.error}` });
@@ -118,11 +104,8 @@ export async function handleVoiceClearModalSubmit(
   const userId = interaction.user.id;
 
   await handleDestructiveModalSubmit(interaction, 'DELETE', async () => {
-    const result = await callGatewayApi<VoiceClearResponse>('/user/voices/clear', {
-      method: 'POST',
-      user: toGatewayUser(interaction.user),
-      timeout: GATEWAY_TIMEOUTS.BULK_OPERATION,
-    });
+    const { userClient } = clientsFor(interaction);
+    const result = await userClient.clearVoices();
 
     if (!result.ok) {
       return { success: false, errorMessage: `❌ ${result.error}` };

@@ -4,15 +4,19 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
+import type { UserClient } from '@tzurot/common-types';
 
-const { mockCallGatewayApi, mockHandlePersonalityAutocomplete } = vi.hoisted(() => ({
-  mockCallGatewayApi: vi.fn(),
+const { mockHandlePersonalityAutocomplete } = vi.hoisted(() => ({
   mockHandlePersonalityAutocomplete: vi.fn(),
 }));
 
-vi.mock('../../../utils/userGatewayClient.js', () => ({
-  callGatewayApi: mockCallGatewayApi,
-  toGatewayUser: vi.fn(user => ({ id: user.id })),
+const stub = {
+  listUserTtsConfigs: vi.fn(),
+};
+
+vi.mock('../../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: stub as unknown as UserClient })),
 }));
 
 vi.mock('../../../utils/autocomplete/index.js', () => ({
@@ -50,6 +54,7 @@ function makeInteraction(focusedName: string, focusedValue: string) {
 describe('handleAutocomplete', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    stub.listUserTtsConfigs.mockReset();
   });
 
   it('routes character option to handlePersonalityAutocomplete', async () => {
@@ -63,10 +68,9 @@ describe('handleAutocomplete', () => {
     );
   });
 
-  it('queries /user/tts-config for tts option and formats with provider badge', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+  it('queries listUserTtsConfigs for tts option and formats with provider badge', async () => {
+    stub.listUserTtsConfigs.mockResolvedValue(
+      makeOk({
         configs: [
           {
             id: 'c1',
@@ -80,20 +84,20 @@ describe('handleAutocomplete', () => {
             permissions: { canEdit: false, canDelete: false },
           },
         ],
-      },
-    });
+      })
+    );
     const interaction = makeInteraction('tts', 'kyutai');
 
     await handleAutocomplete(interaction as never);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/tts-config', expect.any(Object));
+    expect(stub.listUserTtsConfigs).toHaveBeenCalled();
     expect(interaction.respond).toHaveBeenCalledWith(
       expect.arrayContaining([expect.objectContaining({ value: 'c1' })])
     );
   });
 
   it('responds empty list on gateway failure', async () => {
-    mockCallGatewayApi.mockResolvedValue({ ok: false, error: 'INTERNAL_ERROR' });
+    stub.listUserTtsConfigs.mockResolvedValue(makeErr(500, 'INTERNAL_ERROR'));
     const interaction = makeInteraction('tts', '');
 
     await handleAutocomplete(interaction as never);
@@ -110,9 +114,8 @@ describe('handleAutocomplete', () => {
   });
 
   it('filters tts configs by query against name + provider + modelId', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
+    stub.listUserTtsConfigs.mockResolvedValue(
+      makeOk({
         configs: [
           {
             id: 'c1',
@@ -137,8 +140,8 @@ describe('handleAutocomplete', () => {
             permissions: { canEdit: false, canDelete: false },
           },
         ],
-      },
-    });
+      })
+    );
     const interaction = makeInteraction('tts', 'mistral');
 
     await handleAutocomplete(interaction as never);
