@@ -202,6 +202,7 @@ export class UserClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.resolveUserLlmConfig.output,
+      timeoutMs: ROUTE_MANIFEST.resolveUserLlmConfig.timeoutMs,
     });
   }
 

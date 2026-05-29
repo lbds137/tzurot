@@ -4,7 +4,28 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ChannelType, GuildNSFWLevel } from 'discord.js';
-import {
+import { makeOk, makeErr, asUserClient } from '../test/gatewayClientStubs.js';
+
+interface UserClientStub {
+  actor: string;
+  getNsfwStatus: ReturnType<typeof vi.fn>;
+  verifyNsfw: ReturnType<typeof vi.fn>;
+}
+
+function createStub(discordId = 'user123'): UserClientStub {
+  return {
+    actor: discordId,
+    getNsfwStatus: vi.fn(),
+    verifyNsfw: vi.fn(),
+  };
+}
+
+const clientsForUserMock = vi.hoisted(() => vi.fn());
+vi.mock('./gatewayClients.js', () => ({
+  clientsForUser: clientsForUserMock,
+}));
+
+const {
   checkNsfwVerification,
   verifyNsfwUser,
   isNsfwChannel,
@@ -14,22 +35,15 @@ import {
   handleNsfwVerification,
   sendNsfwVerificationMessage,
   sendVerificationConfirmation,
-} from './nsfwVerification.js';
-import * as userGatewayClient from './userGatewayClient.js';
-
-// Mock the gateway client
-vi.mock('./userGatewayClient.js', async () => {
-  const actual =
-    await vi.importActual<typeof import('./userGatewayClient.js')>('./userGatewayClient.js');
-  return {
-    ...actual,
-    callGatewayApi: vi.fn(),
-  };
-});
+} = await import('./nsfwVerification.js');
 
 describe('NSFW Verification Utilities', () => {
+  let stub: UserClientStub;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = createStub('user-123');
+    clientsForUserMock.mockReturnValue({ userClient: asUserClient(stub) });
   });
 
   afterEach(() => {
@@ -38,19 +52,14 @@ describe('NSFW Verification Utilities', () => {
 
   describe('checkNsfwVerification', () => {
     it('should return kind=ok with verified status when API returns success', async () => {
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: {
+      stub.getNsfwStatus.mockResolvedValue(
+        makeOk({
           nsfwVerified: true,
           nsfwVerifiedAt: '2024-01-15T10:00:00.000Z',
-        },
-      });
+        })
+      );
 
-      const result = await checkNsfwVerification({
-        discordId: 'user123',
-        username: 'testuser',
-        displayName: 'testuser',
-      });
+      const result = await checkNsfwVerification(asUserClient(stub));
 
       expect(result).toEqual({
         kind: 'ok',
@@ -59,28 +68,13 @@ describe('NSFW Verification Utilities', () => {
           nsfwVerifiedAt: '2024-01-15T10:00:00.000Z',
         },
       });
-      expect(userGatewayClient.callGatewayApi).toHaveBeenCalledWith('/user/nsfw', {
-        method: 'GET',
-        user: {
-          discordId: 'user123',
-          username: 'testuser',
-          displayName: 'testuser',
-        },
-      });
+      expect(stub.getNsfwStatus).toHaveBeenCalled();
     });
 
     it('should return kind=error when API fails (distinguishable from unverified)', async () => {
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
-        ok: false,
-        error: 'Server error',
-        status: 500,
-      });
+      stub.getNsfwStatus.mockResolvedValue(makeErr(500, 'Server error'));
 
-      const result = await checkNsfwVerification({
-        discordId: 'user123',
-        username: 'testuser',
-        displayName: 'testuser',
-      });
+      const result = await checkNsfwVerification(asUserClient(stub));
 
       expect(result).toEqual({
         kind: 'error',
@@ -91,48 +85,28 @@ describe('NSFW Verification Utilities', () => {
 
   describe('verifyNsfwUser', () => {
     it('should return verification response on success', async () => {
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: {
+      stub.verifyNsfw.mockResolvedValue(
+        makeOk({
           nsfwVerified: true,
           nsfwVerifiedAt: '2024-01-15T10:00:00.000Z',
           alreadyVerified: false,
-        },
-      });
+        })
+      );
 
-      const result = await verifyNsfwUser({
-        discordId: 'user123',
-        username: 'testuser',
-        displayName: 'testuser',
-      });
+      const result = await verifyNsfwUser(asUserClient(stub));
 
       expect(result).toEqual({
         nsfwVerified: true,
         nsfwVerifiedAt: '2024-01-15T10:00:00.000Z',
         alreadyVerified: false,
       });
-      expect(userGatewayClient.callGatewayApi).toHaveBeenCalledWith('/user/nsfw/verify', {
-        method: 'POST',
-        user: {
-          discordId: 'user123',
-          username: 'testuser',
-          displayName: 'testuser',
-        },
-      });
+      expect(stub.verifyNsfw).toHaveBeenCalled();
     });
 
     it('should return null when API fails', async () => {
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
-        ok: false,
-        error: 'Server error',
-        status: 500,
-      });
+      stub.verifyNsfw.mockResolvedValue(makeErr(500, 'Server error'));
 
-      const result = await verifyNsfwUser({
-        discordId: 'user123',
-        username: 'testuser',
-        displayName: 'testuser',
-      });
+      const result = await verifyNsfwUser(asUserClient(stub));
 
       expect(result).toBeNull();
     });
@@ -165,7 +139,6 @@ describe('NSFW Verification Utilities', () => {
       });
 
       it('should return false for channel in server with Explicit nsfwLevel (content filter, not age gate)', () => {
-        // GuildNSFWLevel.Explicit is about content filtering, NOT age restriction
         const channel = {
           type: ChannelType.GuildText,
           nsfw: false,
@@ -358,8 +331,8 @@ describe('NSFW Verification Utilities', () => {
       expect(NSFW_VERIFICATION_MESSAGE).toContain('@personality_name');
       expect(NSFW_VERIFICATION_MESSAGE).toContain('18+');
       // Both verification paths must be documented: personality ping AND direct bot ping.
-      // The direct-ping path was added 2026-04-16 when BotMentionProcessor started
-      // wiring handleNsfwVerification, making the bot-ping flow viable.
+      // The direct-ping path is what BotMentionProcessor's handleNsfwVerification wiring
+      // produces; the personality ping is the original webhook trigger.
       expect(NSFW_VERIFICATION_MESSAGE).toContain('ping me directly');
     });
   });
@@ -392,14 +365,13 @@ describe('NSFW Verification Utilities', () => {
 
   describe('handleNsfwVerification', () => {
     it('should auto-verify in NSFW channel and return allowed=true', async () => {
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: {
+      stub.verifyNsfw.mockResolvedValue(
+        makeOk({
           nsfwVerified: true,
           nsfwVerifiedAt: '2024-01-15T10:00:00.000Z',
           alreadyVerified: false,
-        },
-      });
+        })
+      );
 
       const mockMessage = {
         author: { id: 'user-123', username: 'testuser' },
@@ -413,25 +385,17 @@ describe('NSFW Verification Utilities', () => {
       const result = await handleNsfwVerification(mockMessage);
 
       expect(result).toEqual({ allowed: true, wasNewVerification: true });
-      expect(userGatewayClient.callGatewayApi).toHaveBeenCalledWith('/user/nsfw/verify', {
-        method: 'POST',
-        user: {
-          discordId: 'user-123',
-          username: 'testuser',
-          displayName: 'testuser',
-        },
-      });
+      expect(stub.verifyNsfw).toHaveBeenCalled();
     });
 
     it('should return wasNewVerification=false when already verified', async () => {
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: {
+      stub.verifyNsfw.mockResolvedValue(
+        makeOk({
           nsfwVerified: true,
           nsfwVerifiedAt: '2024-01-15T10:00:00.000Z',
           alreadyVerified: true,
-        },
-      });
+        })
+      );
 
       const mockMessage = {
         author: { id: 'user-123', username: 'testuser' },
@@ -448,13 +412,12 @@ describe('NSFW Verification Utilities', () => {
     });
 
     it('should allow verified user in non-NSFW channel', async () => {
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: {
+      stub.getNsfwStatus.mockResolvedValue(
+        makeOk({
           nsfwVerified: true,
           nsfwVerifiedAt: '2024-01-15T10:00:00.000Z',
-        },
-      });
+        })
+      );
 
       const mockMessage = {
         author: { id: 'user-123', username: 'testuser' },
@@ -468,22 +431,11 @@ describe('NSFW Verification Utilities', () => {
       const result = await handleNsfwVerification(mockMessage);
 
       expect(result).toEqual({ allowed: true, wasNewVerification: false });
-      expect(userGatewayClient.callGatewayApi).toHaveBeenCalledWith('/user/nsfw', {
-        method: 'GET',
-        user: {
-          discordId: 'user-123',
-          username: 'testuser',
-          displayName: 'testuser',
-        },
-      });
+      expect(stub.getNsfwStatus).toHaveBeenCalled();
     });
 
     it('should block with distinct retry message when NSFW check fails (fail-closed)', async () => {
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
-        ok: false,
-        error: 'Gateway timeout',
-        status: 504,
-      });
+      stub.getNsfwStatus.mockResolvedValue(makeErr(504, 'Gateway timeout'));
 
       const mockReply = { id: 'reply-retry', channelId: 'channel-789' };
       const mockMessage = {
@@ -505,13 +457,12 @@ describe('NSFW Verification Utilities', () => {
     });
 
     it('should block unverified user in non-NSFW channel and send message', async () => {
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: {
+      stub.getNsfwStatus.mockResolvedValue(
+        makeOk({
           nsfwVerified: false,
           nsfwVerifiedAt: null,
-        },
-      });
+        })
+      );
 
       const mockReply = { id: 'reply-123', channelId: 'channel-456' };
       const mockMessage = {
@@ -530,14 +481,13 @@ describe('NSFW Verification Utilities', () => {
     });
 
     it('should auto-verify in thread with NSFW parent', async () => {
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: {
+      stub.verifyNsfw.mockResolvedValue(
+        makeOk({
           nsfwVerified: true,
           nsfwVerifiedAt: '2024-01-15T10:00:00.000Z',
           alreadyVerified: false,
-        },
-      });
+        })
+      );
 
       const mockMessage = {
         author: { id: 'user-123', username: 'testuser' },

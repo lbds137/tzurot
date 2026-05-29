@@ -23,8 +23,8 @@
  */
 
 import type { Client } from 'discord.js';
-import { createLogger, RecentUsersResponseSchema } from '@tzurot/common-types';
-import { adminFetch } from '../utils/adminApiClient.js';
+import { createLogger } from '@tzurot/common-types';
+import { getServiceClient } from '../utils/gatewayClients.js';
 import type { DMCacheWarmer } from './DMCacheWarmer.js';
 
 const logger = createLogger('StartupDMPrewarmer');
@@ -162,25 +162,17 @@ export class StartupDMPrewarmer {
     | { kind: 'fatal'; err: Error }
   > {
     try {
-      const response = await adminFetch(`/internal/users/recent?sinceDays=${SINCE_DAYS}`);
-      if (response.ok) {
-        const json: unknown = await response.json();
-        const parsed = RecentUsersResponseSchema.safeParse(json);
-        if (!parsed.success) {
-          return {
-            kind: 'fatal',
-            err: new Error(`Invalid recent-users response: ${parsed.error.message}`),
-          };
-        }
-        return { kind: 'success', ids: parsed.data.discordIds };
+      const result = await getServiceClient().recentUsers({ sinceDays: String(SINCE_DAYS) });
+      if (result.ok) {
+        return { kind: 'success', ids: result.data.discordIds };
       }
-      if (response.status === 404 || response.status >= 500) {
+      if (result.status === 404 || result.status >= 500) {
         return {
           kind: 'retry',
-          err: new Error(`api-gateway returned ${response.status} (transient)`),
+          err: new Error(`api-gateway returned ${result.status} (transient)`),
         };
       }
-      return { kind: 'fatal', err: new Error(`api-gateway returned ${response.status}`) };
+      return { kind: 'fatal', err: new Error(`api-gateway returned ${result.status}`) };
     } catch (err) {
       // Network errors (ECONNREFUSED, DNS failures, etc.) are retry-able.
       return { kind: 'retry', err: err instanceof Error ? err : new Error(String(err)) };

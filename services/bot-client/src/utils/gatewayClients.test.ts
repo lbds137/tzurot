@@ -28,7 +28,7 @@ vi.mock('../startup.js', () => ({
   getValidatedServiceSecret: () => 'test-service-secret',
 }));
 
-import { clientsFor } from './gatewayClients.js';
+import { clientsFor, clientsForUser, getServiceClient } from './gatewayClients.js';
 
 function makeUser(overrides: Record<string, unknown> = {}): DiscordUser {
   // Cast through unknown — DiscordUser has a template-literal `toString()`
@@ -99,6 +99,46 @@ describe('clientsFor', () => {
     }));
     const mod = await import('./gatewayClients.js');
     expect(() => mod.clientsFor(makeInteraction(makeUser()))).toThrow('GATEWAY_URL');
+    vi.doUnmock('@tzurot/common-types');
+    vi.doUnmock('../startup.js');
+  });
+});
+
+describe('clientsForUser', () => {
+  // Used by message-handler / startup contexts where there's no interaction
+  // to read `.user` from — caller passes the DiscordUser directly.
+  it('builds the same shape as clientsFor when given the same user', () => {
+    const user = makeUser({ id: 'u-direct', username: 'direct', globalName: 'Direct' });
+
+    const fromInteraction = clientsFor(makeInteraction(user));
+    const direct = clientsForUser(user);
+
+    expect(direct.actor).toBe(fromInteraction.actor);
+    expect(direct.user).toEqual(fromInteraction.user);
+    expect(direct.serviceClient).toBeInstanceOf(ServiceClient);
+    expect(direct.ownerClient).toBeInstanceOf(OwnerClient);
+    expect(direct.userClient).toBeInstanceOf(UserClient);
+  });
+});
+
+describe('getServiceClient', () => {
+  // No-actor factory for startup services (e.g., DM prewarmer) that hit
+  // `/api/internal/*` before any Discord interaction exists.
+  it('returns a ServiceClient without requiring a Discord user', () => {
+    expect(getServiceClient()).toBeInstanceOf(ServiceClient);
+  });
+
+  it('throws when GATEWAY_URL is missing (same defense as clientsFor)', async () => {
+    vi.resetModules();
+    vi.doMock('@tzurot/common-types', async () => {
+      const actual = await vi.importActual('@tzurot/common-types');
+      return { ...actual, getConfig: () => ({ GATEWAY_URL: '' }) };
+    });
+    vi.doMock('../startup.js', () => ({
+      getValidatedServiceSecret: () => 'test-service-secret',
+    }));
+    const mod = await import('./gatewayClients.js');
+    expect(() => mod.getServiceClient()).toThrow('GATEWAY_URL');
     vi.doUnmock('@tzurot/common-types');
     vi.doUnmock('../startup.js');
   });

@@ -19,30 +19,31 @@ vi.mock('../../utils/nsfwVerification.js', () => ({
     .mockResolvedValue({ kind: 'ok', value: { nsfwVerified: true, nsfwVerifiedAt: null } }),
 }));
 
-// Mock the gateway-config-resolve API; defaults to LlmConfig defaults
-vi.mock('../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
-    '../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: vi.fn().mockResolvedValue({
-      ok: true,
-      data: {
-        config: {
-          model: 'test-model',
-          provider: 'openrouter',
-          maxMessages: 50,
-          maxAge: null,
-          maxImages: 10,
-        },
-        source: 'personality',
-      },
-    }),
-  };
+// Stub the resolveUserLlmConfig method on userClient; defaults to LlmConfig defaults.
+const mockResolveUserLlmConfig = vi.fn().mockResolvedValue({
+  ok: true,
+  data: {
+    config: {
+      model: 'test-model',
+      provider: 'openrouter',
+      maxMessages: 50,
+      maxAge: null,
+      maxImages: 10,
+    },
+    source: 'personality',
+  },
 });
 
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsForUser: vi.fn(() => ({
+    userClient: {
+      actor: 'user-123',
+      resolveUserLlmConfig: mockResolveUserLlmConfig,
+    },
+    ownerClient: { actor: 'mock-owner' },
+  })),
+}));
+
 import * as nsfwVerification from '../../utils/nsfwVerification.js';
 
 describe('PersonalityChatManager', () => {
@@ -220,7 +221,7 @@ describe('PersonalityChatManager', () => {
 
   describe('submitChatJob - config resolve fallback', () => {
     it('falls back to personality defaults on resolve failure', async () => {
-      vi.mocked(callGatewayApi).mockResolvedValueOnce({
+      mockResolveUserLlmConfig.mockResolvedValueOnce({
         ok: false,
         error: 'resolve unavailable',
       } as never);
@@ -279,7 +280,7 @@ describe('PersonalityChatManager', () => {
     });
 
     it('prefers cascade overrides over LlmConfig values', async () => {
-      vi.mocked(callGatewayApi).mockResolvedValueOnce({
+      mockResolveUserLlmConfig.mockResolvedValueOnce({
         ok: true,
         data: {
           config: { model: 'm', maxMessages: 50, maxAge: null, maxImages: 10 },
@@ -324,7 +325,7 @@ describe('PersonalityChatManager', () => {
     });
 
     it('threads crossChannelHistoryEnabled through from cascade override', async () => {
-      vi.mocked(callGatewayApi).mockResolvedValueOnce({
+      mockResolveUserLlmConfig.mockResolvedValueOnce({
         ok: true,
         data: {
           config: { model: 'm', maxMessages: 50, maxAge: null, maxImages: 10 },
@@ -364,11 +365,8 @@ describe('PersonalityChatManager', () => {
         content: 'Hi',
       });
 
-      expect(callGatewayApi).toHaveBeenCalledWith(
-        '/user/llm-config/resolve',
-        expect.objectContaining({
-          body: expect.objectContaining({ channelId: 'channel-123' }),
-        })
+      expect(mockResolveUserLlmConfig).toHaveBeenCalledWith(
+        expect.objectContaining({ channelId: 'channel-123' })
       );
     });
   });

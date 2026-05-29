@@ -99,3 +99,25 @@ function buildClients(discordUser: DiscordUser): BoundGatewayClients {
 export function clientsFor(interaction: ClientCarryingInteraction): BoundGatewayClients {
   return buildClients(interaction.user);
 }
+
+/**
+ * Build the typed clients for a Discord user directly. Use this in
+ * non-interaction contexts (message handlers, processors, startup
+ * services) where there is no `interaction.user` to read from but the
+ * Discord user is available some other way.
+ */
+export function clientsForUser(discordUser: DiscordUser): BoundGatewayClients {
+  return buildClients(discordUser);
+}
+
+/**
+ * Build a `ServiceClient` for `/api/internal/*` calls that don't carry
+ * a Discord actor. Used by startup services (e.g., DM prewarmer) and
+ * other infrastructure paths where there's no user context yet.
+ */
+export function getServiceClient(): ServiceClient {
+  return new ServiceClient({
+    baseUrl: getGatewayBaseUrl(),
+    serviceSecret: getValidatedServiceSecret(),
+  });
+}
