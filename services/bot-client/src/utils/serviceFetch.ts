@@ -29,7 +29,7 @@ import { getValidatedServiceSecret } from '../startup.js';
 export type InfraPath = '/health' | '/metrics';
 const ALLOWED_PATHS: ReadonlySet<InfraPath> = new Set<InfraPath>(['/health', '/metrics']);
 
-/** Default timeout for infrastructure fetches (matches the prior adminFetch budget) */
+/** Default timeout for infrastructure fetches (10s — matches the DEFERRED gateway budget) */
 const SERVICE_FETCH_TIMEOUT_MS = 10_000;
 
 /**
