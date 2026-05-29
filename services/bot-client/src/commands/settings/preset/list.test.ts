@@ -8,17 +8,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleListOverrides } from './list.js';
 import { EmbedBuilder } from 'discord.js';
+import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
+import type { UserClient } from '@tzurot/common-types';
 
-// Mock dependencies
-vi.mock('../../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../../utils/userGatewayClient.js')>(
-    '../../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: vi.fn(),
-  };
-});
+const stub = {
+  listModelOverrides: vi.fn(),
+};
+
+vi.mock('../../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: stub as unknown as UserClient })),
+}));
 
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal();
@@ -33,28 +32,25 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-import { callGatewayApi } from '../../../utils/userGatewayClient.js';
-
 describe('Settings Preset Browse Handler', () => {
   const mockEditReply = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub.listModelOverrides.mockReset();
   });
 
   function createMockContext() {
     return {
       user: { id: 'user-123' },
+      interaction: {} as never,
       editReply: mockEditReply,
     } as unknown as Parameters<typeof handleListOverrides>[0];
   }
 
   describe('handleListOverrides', () => {
     it('should show empty state when no overrides', async () => {
-      vi.mocked(callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: { overrides: [] },
-      });
+      stub.listModelOverrides.mockResolvedValue(makeOk({ overrides: [] }));
 
       await handleListOverrides(createMockContext());
 
@@ -71,15 +67,14 @@ describe('Settings Preset Browse Handler', () => {
     });
 
     it('should list overrides when present', async () => {
-      vi.mocked(callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: {
+      stub.listModelOverrides.mockResolvedValue(
+        makeOk({
           overrides: [
             { personalityName: 'Lilith', configName: 'Fast Claude' },
             { personalityName: 'Bob', configName: 'GPT-4 Turbo' },
           ],
-        },
-      });
+        })
+      );
 
       await handleListOverrides(createMockContext());
 
@@ -95,12 +90,11 @@ describe('Settings Preset Browse Handler', () => {
     });
 
     it('should handle unknown config name', async () => {
-      vi.mocked(callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: {
+      stub.listModelOverrides.mockResolvedValue(
+        makeOk({
           overrides: [{ personalityName: 'Test', configName: null }],
-        },
-      });
+        })
+      );
 
       await handleListOverrides(createMockContext());
 
@@ -112,11 +106,7 @@ describe('Settings Preset Browse Handler', () => {
     });
 
     it('should handle API error', async () => {
-      vi.mocked(callGatewayApi).mockResolvedValue({
-        ok: false,
-        status: 500,
-        error: 'Internal error',
-      });
+      stub.listModelOverrides.mockResolvedValue(makeErr(500, 'Internal error'));
 
       await handleListOverrides(createMockContext());
 
@@ -126,7 +116,7 @@ describe('Settings Preset Browse Handler', () => {
     });
 
     it('should handle network errors', async () => {
-      vi.mocked(callGatewayApi).mockRejectedValue(new Error('Network error'));
+      stub.listModelOverrides.mockRejectedValue(new Error('Network error'));
 
       await handleListOverrides(createMockContext());
 

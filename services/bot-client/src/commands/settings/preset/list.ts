@@ -4,19 +4,11 @@
  */
 
 import { EmbedBuilder, escapeMarkdown } from 'discord.js';
-import { createLogger, DISCORD_COLORS, type ModelOverrideSummary } from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import {
-  callGatewayApi,
-  GATEWAY_TIMEOUTS,
-  toGatewayUser,
-} from '../../../utils/userGatewayClient.js';
+import { clientsFor } from '../../../utils/gatewayClients.js';
 
 const logger = createLogger('settings-preset-browse');
-
-interface ListResponse {
-  overrides: ModelOverrideSummary[];
-}
 
 /**
  * Handle /settings preset list
@@ -25,10 +17,8 @@ export async function handleListOverrides(context: DeferredCommandContext): Prom
   const userId = context.user.id;
 
   try {
-    const result = await callGatewayApi<ListResponse>('/user/model-override', {
-      user: toGatewayUser(context.user),
-      timeout: GATEWAY_TIMEOUTS.DEFERRED,
-    });
+    const { userClient } = clientsFor(context.interaction);
+    const result = await userClient.listModelOverrides();
 
     if (!result.ok) {
       logger.warn({ userId, status: result.status }, 'Failed to list overrides');

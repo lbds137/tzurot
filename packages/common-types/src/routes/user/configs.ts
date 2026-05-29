@@ -110,6 +110,10 @@ export const userConfigRoutes = {
     output: ListLlmConfigsResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
+    // Dual-context route: autocomplete callers bounded by Discord's 3s
+    // deadline; deferred-context callers (guestModeValidation) need the
+    // longer budget.
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   getUserLlmConfig: {
@@ -344,6 +348,7 @@ export const userConfigRoutes = {
     output: ListModelOverridesResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   setModelOverride: {
@@ -355,6 +360,7 @@ export const userConfigRoutes = {
     output: SetModelOverrideResponseSchema,
     requiresProvisionedUser: true,
     meta: { idempotent: true },
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   deleteModelOverride: {
@@ -365,6 +371,7 @@ export const userConfigRoutes = {
     params: { personalityId: z.string() },
     output: DeleteModelOverrideResponseSchema,
     requiresProvisionedUser: true,
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   getDefaultModelConfig: {
@@ -386,6 +393,7 @@ export const userConfigRoutes = {
     output: SetDefaultConfigResponseSchema,
     requiresProvisionedUser: true,
     meta: { idempotent: true },
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   clearDefaultModelConfig: {
@@ -395,5 +403,6 @@ export const userConfigRoutes = {
     id: 'clearDefaultModelConfig',
     output: ClearDefaultConfigResponseSchema,
     requiresProvisionedUser: true,
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 } as const satisfies Record<string, RouteDef>;

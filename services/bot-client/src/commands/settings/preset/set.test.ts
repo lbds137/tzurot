@@ -8,17 +8,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleSet } from './set.js';
 import { EmbedBuilder } from 'discord.js';
+import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
+import type { UserClient } from '@tzurot/common-types';
 
-// Mock dependencies
-vi.mock('../../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../../utils/userGatewayClient.js')>(
-    '../../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: vi.fn(),
-  };
-});
+const stub = {
+  listWalletKeys: vi.fn(),
+  listUserLlmConfigs: vi.fn(),
+  setModelOverride: vi.fn(),
+};
+
+vi.mock('../../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: stub as unknown as UserClient })),
+}));
 
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal();
@@ -33,18 +34,14 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-import { callGatewayApi } from '../../../utils/userGatewayClient.js';
-
 describe('Me Preset Set Handler', () => {
   const mockEditReply = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // Fully reset the callGatewayApi mock queue — the paid-user path now
-    // consumes only wallet (serial fetch), so leftover `.mockResolvedValueOnce`
-    // entries from prior tests would mis-mock later calls. `mockReset()`
-    // clears both call history and the queue.
-    vi.mocked(callGatewayApi).mockReset();
+    stub.listWalletKeys.mockReset();
+    stub.listUserLlmConfigs.mockReset();
+    stub.setModelOverride.mockReset();
   });
 
   function createMockContext(personalityId: string, presetId: string) {
@@ -79,43 +76,33 @@ describe('Me Preset Set Handler', () => {
       expect(embedData.description).toContain('Guest Mode');
       expect(embedData.description).toContain('/settings apikey set');
 
-      // Should not call any API
-      expect(callGatewayApi).not.toHaveBeenCalled();
+      // Should not call the gateway
+      expect(stub.listWalletKeys).not.toHaveBeenCalled();
+      expect(stub.setModelOverride).not.toHaveBeenCalled();
     });
 
-    it('should successfully set model override', async () => {
-      // Paid user: serial fetch skips the configs call, so only wallet + set-override mocks queued.
-      vi.mocked(callGatewayApi)
-        .mockResolvedValueOnce({
-          ok: true,
-          data: { keys: [{ provider: 'openrouter', isActive: true }] },
-        }) // wallet
-        .mockResolvedValueOnce({
-          ok: true,
-          data: {
-            override: {
-              personalityId: 'personality-1',
-              personalityName: 'Test Bot',
-              configId: 'config-1',
-              configName: 'Fast Claude',
-            },
+    it('should successfully set model override (paid user, short-circuits config fetch)', async () => {
+      stub.listWalletKeys.mockResolvedValue(
+        makeOk({ keys: [{ provider: 'openrouter', isActive: true }] })
+      );
+      stub.setModelOverride.mockResolvedValue(
+        makeOk({
+          override: {
+            personalityId: 'personality-1',
+            personalityName: 'Test Bot',
+            configId: 'config-1',
+            configName: 'Fast Claude',
           },
-        });
+        })
+      );
 
       await handleSet(createMockContext('personality-1', 'config-1'));
 
-      // Verify set override API call
-      expect(callGatewayApi).toHaveBeenCalledWith('/user/model-override', {
-        method: 'PUT',
-        user: {
-          discordId: 'user-123',
-          username: 'testuser',
-          displayName: 'testuser',
-        },
-        body: { personalityId: 'personality-1', configId: 'config-1' },
+      expect(stub.setModelOverride).toHaveBeenCalledWith({
+        personalityId: 'personality-1',
+        configId: 'config-1',
       });
 
-      // Verify success embed
       const embedCall = mockEditReply.mock.calls[0][0] as { embeds: EmbedBuilder[] };
       const embed = embedCall.embeds[0];
       const embedData = embed.toJSON();
@@ -124,34 +111,28 @@ describe('Me Preset Set Handler', () => {
       expect(embedData.description).toContain('Test Bot');
       expect(embedData.description).toContain('Fast Claude');
 
-      // Guard against accidental revert to Promise.all in guestModeValidation:
-      // paid path should short-circuit after wallet, so only wallet + the
-      // set-override PUT should fire (2 calls total, not 3).
-      expect(callGatewayApi).toHaveBeenCalledTimes(2);
+      // Paid path: wallet check short-circuits, configs not fetched
+      expect(stub.listUserLlmConfigs).not.toHaveBeenCalled();
     });
 
     it('should block guest mode users from using premium models', async () => {
-      vi.mocked(callGatewayApi)
-        .mockResolvedValueOnce({ ok: true, data: { keys: [] } }) // wallet - no active keys = guest mode
-        .mockResolvedValueOnce({
-          ok: true,
-          data: {
-            configs: [
-              {
-                id: 'premium-config',
-                name: 'Premium Config',
-                model: 'anthropic/claude-sonnet-4', // Not a free model
-              },
-            ],
-          },
-        }); // configs
+      stub.listWalletKeys.mockResolvedValue(makeOk({ keys: [] }));
+      stub.listUserLlmConfigs.mockResolvedValue(
+        makeOk({
+          configs: [
+            {
+              id: 'premium-config',
+              name: 'Premium Config',
+              model: 'anthropic/claude-sonnet-4', // Not a free model
+            },
+          ],
+        })
+      );
 
       await handleSet(createMockContext('personality-1', 'premium-config'));
 
-      // Should NOT call the set override API
-      expect(callGatewayApi).toHaveBeenCalledTimes(2); // Only wallet and configs
+      expect(stub.setModelOverride).not.toHaveBeenCalled();
 
-      // Should show error embed
       const embedCall = mockEditReply.mock.calls[0][0] as { embeds: EmbedBuilder[] };
       const embed = embedCall.embeds[0];
       const embedData = embed.toJSON();
@@ -162,58 +143,42 @@ describe('Me Preset Set Handler', () => {
     });
 
     it('should allow guest mode users to use free models', async () => {
-      vi.mocked(callGatewayApi)
-        .mockResolvedValueOnce({ ok: true, data: { keys: [] } }) // wallet - guest mode
-        .mockResolvedValueOnce({
-          ok: true,
-          data: {
-            configs: [
-              {
-                id: 'free-config',
-                name: 'Free Config',
-                model: 'google/gemini-2.0-flash-exp:free', // Free model
-              },
-            ],
-          },
-        }) // configs
-        .mockResolvedValueOnce({
-          ok: true,
-          data: {
-            override: {
-              personalityId: 'personality-1',
-              personalityName: 'Test Bot',
-              configId: 'free-config',
-              configName: 'Free Config',
+      stub.listWalletKeys.mockResolvedValue(makeOk({ keys: [] }));
+      stub.listUserLlmConfigs.mockResolvedValue(
+        makeOk({
+          configs: [
+            {
+              id: 'free-config',
+              name: 'Free Config',
+              model: 'google/gemini-2.0-flash-exp:free',
             },
+          ],
+        })
+      );
+      stub.setModelOverride.mockResolvedValue(
+        makeOk({
+          override: {
+            personalityId: 'personality-1',
+            personalityName: 'Test Bot',
+            configId: 'free-config',
+            configName: 'Free Config',
           },
-        });
+        })
+      );
 
       await handleSet(createMockContext('personality-1', 'free-config'));
 
-      // Should call the set override API
-      expect(callGatewayApi).toHaveBeenCalledWith('/user/model-override', {
-        method: 'PUT',
-        user: {
-          discordId: 'user-123',
-          username: 'testuser',
-          displayName: 'testuser',
-        },
-        body: { personalityId: 'personality-1', configId: 'free-config' },
+      expect(stub.setModelOverride).toHaveBeenCalledWith({
+        personalityId: 'personality-1',
+        configId: 'free-config',
       });
     });
 
     it('should handle API error when setting override', async () => {
-      // Paid user (has active keys): serial fetch skips configs. Wallet + set-override only.
-      vi.mocked(callGatewayApi)
-        .mockResolvedValueOnce({
-          ok: true,
-          data: { keys: [{ provider: 'openrouter', isActive: true }] },
-        })
-        .mockResolvedValueOnce({
-          ok: false,
-          status: 404,
-          error: 'Personality not found',
-        });
+      stub.listWalletKeys.mockResolvedValue(
+        makeOk({ keys: [{ provider: 'openrouter', isActive: true }] })
+      );
+      stub.setModelOverride.mockResolvedValue(makeErr(404, 'Personality not found'));
 
       await handleSet(createMockContext('personality-1', 'config-1'));
 
@@ -223,7 +188,7 @@ describe('Me Preset Set Handler', () => {
     });
 
     it('should handle generic errors', async () => {
-      vi.mocked(callGatewayApi).mockRejectedValue(new Error('Network error'));
+      stub.listWalletKeys.mockRejectedValue(new Error('Network error'));
 
       await handleSet(createMockContext('personality-1', 'config-1'));
 
@@ -233,28 +198,24 @@ describe('Me Preset Set Handler', () => {
     });
 
     it('should handle wallet having inactive keys as guest mode', async () => {
-      vi.mocked(callGatewayApi)
-        .mockResolvedValueOnce({
-          ok: true,
-          data: { keys: [{ provider: 'openrouter', isActive: false }] }, // Key exists but inactive
+      stub.listWalletKeys.mockResolvedValue(
+        makeOk({ keys: [{ provider: 'openrouter', isActive: false }] })
+      );
+      stub.listUserLlmConfigs.mockResolvedValue(
+        makeOk({
+          configs: [
+            {
+              id: 'premium-config',
+              name: 'Premium Config',
+              model: 'anthropic/claude-sonnet-4',
+              provider: 'openrouter',
+            },
+          ],
         })
-        .mockResolvedValueOnce({
-          ok: true,
-          data: {
-            configs: [
-              {
-                id: 'premium-config',
-                name: 'Premium Config',
-                model: 'anthropic/claude-sonnet-4',
-                provider: 'openrouter',
-              },
-            ],
-          },
-        });
+      );
 
       await handleSet(createMockContext('personality-1', 'premium-config'));
 
-      // Should block premium model (user is in guest mode despite having key)
       const embedCall = mockEditReply.mock.calls[0][0] as { embeds: EmbedBuilder[] };
       const embed = embedCall.embeds[0];
       const embedData = embed.toJSON();
@@ -262,33 +223,29 @@ describe('Me Preset Set Handler', () => {
       expect(embedData.title).toContain('Premium Model Not Available');
     });
 
-    it('should handle wallet API failure gracefully', async () => {
-      vi.mocked(callGatewayApi)
-        .mockResolvedValueOnce({ ok: false, status: 500, error: 'Internal error' }) // wallet fails
-        .mockResolvedValueOnce({ ok: true, data: { configs: [] } }) // configs
-        .mockResolvedValueOnce({
-          ok: true,
-          data: {
-            override: {
-              personalityId: 'personality-1',
-              personalityName: 'Test Bot',
-              configId: 'config-1',
-              configName: 'Test Config',
-            },
+    it('should handle wallet API failure gracefully (fail-open)', async () => {
+      stub.listWalletKeys.mockResolvedValue(makeErr(500, 'Internal error'));
+      stub.setModelOverride.mockResolvedValue(
+        makeOk({
+          override: {
+            personalityId: 'personality-1',
+            personalityName: 'Test Bot',
+            configId: 'config-1',
+            configName: 'Test Config',
           },
-        });
+        })
+      );
 
       await handleSet(createMockContext('personality-1', 'config-1'));
 
-      // When wallet check fails, hasActiveWallet will be false (treated as guest mode)
-      // But since config check also needs to find the config, it will proceed
+      // When wallet check fails, we fail-open — setModelOverride is invoked.
       expect(mockEditReply).toHaveBeenCalled();
     });
 
     it('rejects the autocomplete-error sentinel before calling the gateway', async () => {
       await handleSet(createMockContext('__autocomplete_error__', 'config-1'));
 
-      expect(callGatewayApi).not.toHaveBeenCalled();
+      expect(stub.setModelOverride).not.toHaveBeenCalled();
       expect(mockEditReply).toHaveBeenCalledWith({
         content: expect.stringContaining('Autocomplete was unavailable'),
       });

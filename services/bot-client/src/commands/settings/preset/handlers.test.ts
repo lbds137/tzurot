@@ -16,6 +16,8 @@ import {
   mockListWalletKeysResponse,
   mockListLlmConfigsResponse,
 } from '@tzurot/common-types';
+import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
+import type { UserClient } from '@tzurot/common-types';
 
 // Test UUIDs (RFC 4122 compliant)
 const PERSONALITY_ID_1 = '11111111-1111-5111-8111-111111111111';
@@ -37,19 +39,17 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-// Mock userGatewayClient
-// Note: Tests use objectContaining for API call assertions to focus on the essential
-// userId parameter while ignoring implementation details like timeout values.
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../../utils/userGatewayClient.js')>(
-    '../../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  };
-});
+const stub = {
+  listModelOverrides: vi.fn(),
+  listWalletKeys: vi.fn(),
+  listUserLlmConfigs: vi.fn(),
+  setModelOverride: vi.fn(),
+  deleteModelOverride: vi.fn(),
+};
+
+vi.mock('../../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: stub as unknown as UserClient })),
+}));
 
 // Mock commandHelpers (only used by reset for createSuccessEmbed/createInfoEmbed)
 const mockCreateSuccessEmbed = vi.fn().mockReturnValue({ data: { title: 'Success' } });
@@ -64,43 +64,45 @@ describe('Preset Command Handlers', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub.listModelOverrides.mockReset();
+    stub.listWalletKeys.mockReset();
+    stub.listUserLlmConfigs.mockReset();
+    stub.setModelOverride.mockReset();
+    stub.deleteModelOverride.mockReset();
   });
 
   describe('handleListOverrides', () => {
     function createMockContext() {
       return {
         user: { id: '123456789', username: 'testuser' },
+        interaction: {} as never,
         editReply: mockEditReply,
       } as unknown as Parameters<typeof handleListOverrides>[0];
     }
 
     it('should list overrides', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: mockListModelOverridesResponse([
-          {
-            personalityId: PERSONALITY_ID_1,
-            personalityName: 'Lilith',
-            configId: CONFIG_ID_1,
-            configName: 'Fast',
-          },
-          {
-            personalityId: PERSONALITY_ID_2,
-            personalityName: 'Sarcastic',
-            configId: CONFIG_ID_2,
-            configName: 'GPT-4',
-          },
-        ]),
-      });
+      stub.listModelOverrides.mockResolvedValue(
+        makeOk(
+          mockListModelOverridesResponse([
+            {
+              personalityId: PERSONALITY_ID_1,
+              personalityName: 'Lilith',
+              configId: CONFIG_ID_1,
+              configName: 'Fast',
+            },
+            {
+              personalityId: PERSONALITY_ID_2,
+              personalityName: 'Sarcastic',
+              configId: CONFIG_ID_2,
+              configName: 'GPT-4',
+            },
+          ])
+        )
+      );
 
       await handleListOverrides(createMockContext());
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/model-override',
-        expect.objectContaining({
-          user: { discordId: '123456789', username: 'testuser', displayName: 'testuser' },
-        })
-      );
+      expect(stub.listModelOverrides).toHaveBeenCalled();
       expect(mockEditReply).toHaveBeenCalledWith({
         embeds: [
           expect.objectContaining({
@@ -114,10 +116,7 @@ describe('Preset Command Handlers', () => {
     });
 
     it('should show empty message when no overrides', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: mockListModelOverridesResponse([]),
-      });
+      stub.listModelOverrides.mockResolvedValue(makeOk(mockListModelOverridesResponse([])));
 
       await handleListOverrides(createMockContext());
 
@@ -133,7 +132,7 @@ describe('Preset Command Handlers', () => {
     });
 
     it('should handle API error', async () => {
-      mockCallGatewayApi.mockResolvedValue({ ok: false, status: 500, error: 'Error' });
+      stub.listModelOverrides.mockResolvedValue(makeErr(500, 'Error'));
 
       await handleListOverrides(createMockContext());
 
@@ -161,52 +160,35 @@ describe('Preset Command Handlers', () => {
     }
 
     it('should set model override', async () => {
-      // Mock responses based on API path
-      mockCallGatewayApi.mockImplementation((path: string, options?: { method?: string }) => {
-        if (path === '/wallet/list') {
-          return Promise.resolve({
-            ok: true,
-            data: mockListWalletKeysResponse([{ isActive: true }]),
-          });
-        }
-        if (path === '/user/llm-config') {
-          return Promise.resolve({
-            ok: true,
-            data: mockListLlmConfigsResponse([
-              { id: CONFIG_ID_1, name: 'Fast', model: 'openai/gpt-4o-mini' },
-            ]),
-          });
-        }
-        if (path === '/user/model-override' && options?.method === 'PUT') {
-          return Promise.resolve({
-            ok: true,
-            data: mockSetModelOverrideResponse({
-              override: {
-                personalityId: PERSONALITY_ID_1,
-                personalityName: 'Lilith',
-                configId: CONFIG_ID_1,
-                configName: 'Fast',
-              },
-            }),
-          });
-        }
-        return Promise.resolve({ ok: false, error: 'Unknown path' });
-      });
+      stub.listWalletKeys.mockResolvedValue(
+        makeOk(mockListWalletKeysResponse([{ isActive: true }]))
+      );
+      stub.listUserLlmConfigs.mockResolvedValue(
+        makeOk(
+          mockListLlmConfigsResponse([
+            { id: CONFIG_ID_1, name: 'Fast', model: 'openai/gpt-4o-mini' },
+          ])
+        )
+      );
+      stub.setModelOverride.mockResolvedValue(
+        makeOk(
+          mockSetModelOverrideResponse({
+            override: {
+              personalityId: PERSONALITY_ID_1,
+              personalityName: 'Lilith',
+              configId: CONFIG_ID_1,
+              configName: 'Fast',
+            },
+          })
+        )
+      );
 
       await handleSet(createMockContext());
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/model-override',
-        expect.objectContaining({
-          method: 'PUT',
-          user: {
-            discordId: '123456789',
-            username: 'testuser',
-            displayName: 'testuser',
-          },
-          body: { personalityId: PERSONALITY_ID_1, configId: CONFIG_ID_1 },
-        })
-      );
+      expect(stub.setModelOverride).toHaveBeenCalledWith({
+        personalityId: PERSONALITY_ID_1,
+        configId: CONFIG_ID_1,
+      });
       expect(mockEditReply).toHaveBeenCalledWith({
         embeds: [
           expect.objectContaining({
@@ -219,11 +201,10 @@ describe('Preset Command Handlers', () => {
     });
 
     it('should handle not found error', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: false,
-        status: 404,
-        error: 'Personality not found',
-      });
+      stub.listWalletKeys.mockResolvedValue(
+        makeOk(mockListWalletKeysResponse([{ isActive: true }]))
+      );
+      stub.setModelOverride.mockResolvedValue(makeErr(404, 'Personality not found'));
 
       await handleSet(createMockContext('invalid', 'c1'));
 
@@ -250,24 +231,11 @@ describe('Preset Command Handlers', () => {
     }
 
     it('should clear model override', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: mockDeleteModelOverrideResponse(),
-      });
+      stub.deleteModelOverride.mockResolvedValue(makeOk(mockDeleteModelOverrideResponse()));
 
       await handleClear(createMockContext());
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        `/user/model-override/${PERSONALITY_ID_1}`,
-        expect.objectContaining({
-          method: 'DELETE',
-          user: {
-            discordId: '123456789',
-            username: 'testuser',
-            displayName: 'testuser',
-          },
-        })
-      );
+      expect(stub.deleteModelOverride).toHaveBeenCalledWith(PERSONALITY_ID_1);
       expect(mockCreateSuccessEmbed).toHaveBeenCalledWith(
         '🔄 Preset Override Removed',
         'The personality will now use its default preset.'
@@ -275,11 +243,7 @@ describe('Preset Command Handlers', () => {
     });
 
     it('should handle not found error', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: false,
-        status: 404,
-        error: 'No override found',
-      });
+      stub.deleteModelOverride.mockResolvedValue(makeErr(404, 'No override found'));
 
       await handleClear(createMockContext());
 
@@ -289,7 +253,7 @@ describe('Preset Command Handlers', () => {
     });
 
     it('should handle exceptions', async () => {
-      mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+      stub.deleteModelOverride.mockRejectedValue(new Error('Network error'));
 
       await handleClear(createMockContext());
 

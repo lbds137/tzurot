@@ -7,17 +7,16 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleClear } from './clear.js';
+import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
+import type { UserClient } from '@tzurot/common-types';
 
-// Mock dependencies
-vi.mock('../../../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../../../utils/userGatewayClient.js')>(
-    '../../../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: vi.fn(),
-  };
-});
+const stub = {
+  deleteModelOverride: vi.fn(),
+};
+
+vi.mock('../../../utils/gatewayClients.js', () => ({
+  clientsFor: vi.fn(() => ({ userClient: stub as unknown as UserClient })),
+}));
 
 // Create mock EmbedBuilder-like objects
 function createMockEmbed(title: string, description?: string) {
@@ -53,13 +52,12 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-import { callGatewayApi } from '../../../utils/userGatewayClient.js';
-
 describe('Preset Clear Handler', () => {
   const mockEditReply = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub.deleteModelOverride.mockReset();
     mockCreateSuccessEmbed.mockImplementation((title: string, description: string) =>
       createMockEmbed(title, description)
     );
@@ -82,21 +80,11 @@ describe('Preset Clear Handler', () => {
 
   describe('handleClear', () => {
     it('should successfully clear model override when one exists', async () => {
-      vi.mocked(callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: { deleted: true }, // wasSet defaults to true when not specified
-      });
+      stub.deleteModelOverride.mockResolvedValue(makeOk({ deleted: true }));
 
       await handleClear(createMockContext('personality-123'));
 
-      expect(callGatewayApi).toHaveBeenCalledWith('/user/model-override/personality-123', {
-        method: 'DELETE',
-        user: {
-          discordId: 'user-123',
-          username: 'testuser',
-          displayName: 'testuser',
-        },
-      });
+      expect(stub.deleteModelOverride).toHaveBeenCalledWith('personality-123');
 
       expect(mockCreateSuccessEmbed).toHaveBeenCalledWith(
         '🔄 Preset Override Removed',
@@ -109,10 +97,7 @@ describe('Preset Clear Handler', () => {
     });
 
     it('should show info message when no override was set', async () => {
-      vi.mocked(callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: { deleted: true, wasSet: false },
-      });
+      stub.deleteModelOverride.mockResolvedValue(makeOk({ deleted: true, wasSet: false }));
 
       await handleClear(createMockContext('personality-123'));
 
@@ -127,11 +112,7 @@ describe('Preset Clear Handler', () => {
     });
 
     it('should handle API error', async () => {
-      vi.mocked(callGatewayApi).mockResolvedValue({
-        ok: false,
-        status: 404,
-        error: 'Override not found',
-      });
+      stub.deleteModelOverride.mockResolvedValue(makeErr(404, 'Override not found'));
 
       await handleClear(createMockContext('nonexistent'));
 
@@ -141,7 +122,7 @@ describe('Preset Clear Handler', () => {
     });
 
     it('should handle network errors', async () => {
-      vi.mocked(callGatewayApi).mockRejectedValue(new Error('Connection refused'));
+      stub.deleteModelOverride.mockRejectedValue(new Error('Connection refused'));
 
       await handleClear(createMockContext('personality-123'));
 
@@ -153,7 +134,7 @@ describe('Preset Clear Handler', () => {
     it('rejects the autocomplete-error sentinel before calling the gateway', async () => {
       await handleClear(createMockContext('__autocomplete_error__'));
 
-      expect(callGatewayApi).not.toHaveBeenCalled();
+      expect(stub.deleteModelOverride).not.toHaveBeenCalled();
       expect(mockEditReply).toHaveBeenCalledWith({
         content: expect.stringContaining('Autocomplete was unavailable'),
       });

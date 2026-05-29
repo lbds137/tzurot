@@ -9,15 +9,10 @@ import {
   AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
   isAutocompleteErrorSentinel,
 } from '../../../utils/apiCheck.js';
-import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
+import { clientsFor } from '../../../utils/gatewayClients.js';
 import { createSuccessEmbed, createInfoEmbed } from '../../../utils/commandHelpers.js';
 
 const logger = createLogger('settings-preset-clear');
-
-interface ClearResponse {
-  deleted: boolean;
-  wasSet?: boolean; // false if no override existed
-}
 
 /**
  * Handle /settings preset clear
@@ -33,13 +28,8 @@ export async function handleClear(context: DeferredCommandContext): Promise<void
   }
 
   try {
-    const result = await callGatewayApi<ClearResponse>(
-      `/user/model-override/${encodeURIComponent(personalityId)}`,
-      {
-        method: 'DELETE',
-        user: toGatewayUser(context.user),
-      }
-    );
+    const { userClient } = clientsFor(context.interaction);
+    const result = await userClient.deleteModelOverride(personalityId);
 
     if (!result.ok) {
       logger.warn({ userId, status: result.status, personalityId }, 'Failed to clear override');

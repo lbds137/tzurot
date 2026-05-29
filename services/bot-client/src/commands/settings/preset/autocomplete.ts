@@ -10,11 +10,9 @@ import {
   isFreeModel,
   AUTOCOMPLETE_BADGES,
   formatAutocompleteOption,
-  type LlmConfigSummary,
-  type ListWalletKeysResponse,
   type AutocompleteBadge,
 } from '@tzurot/common-types';
-import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
+import { clientsFor } from '../../../utils/gatewayClients.js';
 import { handlePersonalityAutocomplete } from '../../../utils/autocomplete/index.js';
 
 /**
@@ -73,10 +71,10 @@ async function handlePresetAutocomplete(
   userId: string
 ): Promise<void> {
   // Fetch configs and wallet status in parallel
-  const user = toGatewayUser(interaction.user);
+  const { userClient } = clientsFor(interaction);
   const [configResult, walletResult] = await Promise.all([
-    callGatewayApi<{ configs: LlmConfigSummary[] }>('/user/llm-config', { user }),
-    callGatewayApi<ListWalletKeysResponse>('/wallet/list', { user }),
+    userClient.listUserLlmConfigs(),
+    userClient.listWalletKeys(),
   ]);
 
   if (!configResult.ok) {
