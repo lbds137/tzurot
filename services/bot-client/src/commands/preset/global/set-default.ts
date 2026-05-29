@@ -16,7 +16,7 @@ export async function handleGlobalSetDefault(context: DeferredCommandContext): P
   const configId = options.config();
 
   await handleGlobalPresetUpdate(context, configId, {
-    apiPath: `/admin/llm-config/${configId}/set-default`,
+    promote: (ownerClient, id) => ownerClient.setGlobalLlmConfigDefault(id),
     embedTitle: 'System Default Preset Updated',
     embedDescription: (configName: string) =>
       `**${configName}** is now the system default preset.\n\n` +

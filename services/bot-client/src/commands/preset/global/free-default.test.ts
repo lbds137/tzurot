@@ -7,16 +7,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { handleGlobalSetFreeDefault } from './free-default.js';
-import * as adminApiClient from '../../../utils/adminApiClient.js';
 import { EmbedBuilder } from 'discord.js';
-
-// Mock dependencies
-vi.mock('../../../utils/adminApiClient.js', () => ({
-  adminPutJson: vi.fn(),
-}));
-
-// Note: Handlers now use context.editReply() directly, not commandHelpers
+import { makeOk, makeErr, asOwnerClient } from '../../../test/gatewayClientStubs.js';
 
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal();
@@ -31,13 +23,26 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
+const clientsForMock = vi.hoisted(() => vi.fn());
+vi.mock('../../../utils/gatewayClients.js', () => ({
+  clientsFor: clientsForMock,
+}));
+
+const { handleGlobalSetFreeDefault } = await import('./free-default.js');
+
+interface OwnerClientStub {
+  setGlobalLlmConfigFreeDefault: ReturnType<typeof vi.fn>;
+}
+
 describe('Preset Global Set Free Default Handler', () => {
   const mockEditReply = vi.fn();
+  let stub: OwnerClientStub;
 
   const createMockContext = (configId: string) =>
     ({
       user: { id: 'owner-123' },
       interaction: {
+        user: { id: 'owner-123' },
         options: {
           getString: vi.fn((_name: string, _required?: boolean) => configId),
         },
@@ -47,6 +52,8 @@ describe('Preset Global Set Free Default Handler', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stub = { setGlobalLlmConfigFreeDefault: vi.fn() };
+    clientsForMock.mockReturnValue({ ownerClient: asOwnerClient(stub) });
   });
 
   afterEach(() => {
@@ -56,28 +63,20 @@ describe('Preset Global Set Free Default Handler', () => {
   describe('handleGlobalSetFreeDefault', () => {
     it('should successfully set free tier default', async () => {
       const context = createMockContext('config-456');
-
-      vi.mocked(adminApiClient.adminPutJson).mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({ configName: 'Gemini Flash Free' }),
-      } as unknown as Response);
+      stub.setGlobalLlmConfigFreeDefault.mockResolvedValue(
+        makeOk({ success: true, configName: 'Gemini Flash Free' })
+      );
 
       await handleGlobalSetFreeDefault(context);
 
-      expect(adminApiClient.adminPutJson).toHaveBeenCalledWith(
-        '/admin/llm-config/config-456/set-free-default',
-        {}
-      );
+      expect(stub.setGlobalLlmConfigFreeDefault).toHaveBeenCalledWith('config-456');
 
       expect(mockEditReply).toHaveBeenCalledWith({
         embeds: expect.arrayContaining([expect.any(EmbedBuilder)]),
       });
 
-      const embedCall = mockEditReply.mock.calls[0][0] as {
-        embeds: EmbedBuilder[];
-      };
-      const embed = embedCall.embeds[0];
-      const embedData = embed.toJSON();
+      const embedCall = mockEditReply.mock.calls[0][0] as { embeds: EmbedBuilder[] };
+      const embedData = embedCall.embeds[0].toJSON();
 
       expect(embedData.title).toBe('Free Tier Default Preset Updated');
       expect(embedData.description).toContain('Gemini Flash Free');
@@ -86,40 +85,18 @@ describe('Preset Global Set Free Default Handler', () => {
 
     it('should handle API error response', async () => {
       const context = createMockContext('invalid-config');
-
-      vi.mocked(adminApiClient.adminPutJson).mockResolvedValue({
-        ok: false,
-        status: 400,
-        json: vi.fn().mockResolvedValue({ error: 'Config must be a free model' }),
-      } as unknown as Response);
+      stub.setGlobalLlmConfigFreeDefault.mockResolvedValue(
+        makeErr(400, 'Config must be a free model')
+      );
 
       await handleGlobalSetFreeDefault(context);
 
-      expect(mockEditReply).toHaveBeenCalledWith({
-        content: '❌ Config must be a free model',
-      });
-    });
-
-    it('should handle API error without message', async () => {
-      const context = createMockContext('config-123');
-
-      vi.mocked(adminApiClient.adminPutJson).mockResolvedValue({
-        ok: false,
-        status: 503,
-        json: vi.fn().mockResolvedValue({}),
-      } as unknown as Response);
-
-      await handleGlobalSetFreeDefault(context);
-
-      expect(mockEditReply).toHaveBeenCalledWith({
-        content: '❌ HTTP 503',
-      });
+      expect(mockEditReply).toHaveBeenCalledWith({ content: '❌ Config must be a free model' });
     });
 
     it('should handle network errors', async () => {
       const context = createMockContext('config-123');
-
-      vi.mocked(adminApiClient.adminPutJson).mockRejectedValue(new Error('DNS resolution failed'));
+      stub.setGlobalLlmConfigFreeDefault.mockRejectedValue(new Error('DNS resolution failed'));
 
       await handleGlobalSetFreeDefault(context);
 
