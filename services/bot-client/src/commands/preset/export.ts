@@ -6,9 +6,9 @@
 import { escapeMarkdown } from 'discord.js';
 import { createLogger, isBotOwner, presetExportOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import { createJsonAttachment } from '../../utils/jsonFileUtils.js';
-import type { PresetData, PresetResponse } from './types.js';
+import type { PresetData } from './types.js';
 
 const logger = createLogger('preset-export');
 
@@ -124,12 +124,8 @@ export async function handleExport(context: DeferredCommandContext): Promise<voi
 
   try {
     // Fetch preset data
-    const result = await callGatewayApi<PresetResponse>(
-      `/user/llm-config/${encodeURIComponent(presetId)}`,
-      {
-        user: toGatewayUser(context.user),
-      }
-    );
+    const { userClient } = clientsFor(context.interaction);
+    const result = await userClient.getUserLlmConfig(presetId);
 
     if (!result.ok) {
       if (result.status === 404) {
@@ -143,7 +139,10 @@ export async function handleExport(context: DeferredCommandContext): Promise<voi
       throw new Error(`API error: ${result.status}`);
     }
 
-    const preset = result.data.config;
+    // Schema-vs-PresetData drift bridge (mirrors api.ts:toPresetData). The
+    // schema's `.passthrough()` preserves the extra fields at runtime, but
+    // TS narrowing only carries the explicitly-declared properties.
+    const preset = result.data.config as unknown as PresetData;
 
     // Check ownership - only preset owner or bot owner can export
     if (!preset.permissions.canEdit && !isBotOwner(userId)) {

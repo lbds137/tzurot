@@ -31,7 +31,7 @@ import {
   presetSeedFields,
   buildPresetDashboardOptions,
 } from './config.js';
-import { toGatewayUser } from '../../utils/userGatewayClient.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
 import { createPreset, extractApiErrorMessage } from './api.js';
 
 const logger = createLogger('preset-create');
@@ -87,13 +87,14 @@ export async function handleSeedModalSubmit(interaction: ModalSubmitInteraction)
 
   try {
     // Create preset via API (API uses AI_DEFAULTS for sensible defaults)
+    const { userClient } = clientsFor(interaction);
     const preset = await createPreset(
       {
         name: values.name.trim(),
         model: values.model.trim(),
         provider: 'openrouter', // Default provider
       },
-      toGatewayUser(interaction.user)
+      userClient
     );
 
     // Flatten the data for dashboard display

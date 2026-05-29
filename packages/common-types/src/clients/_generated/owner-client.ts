@@ -183,6 +183,7 @@ export class OwnerClient {
         'X-User-Id': this.actor,
       },
       outputSchema: ROUTE_MANIFEST.listGlobalLlmConfigs.output,
+      timeoutMs: ROUTE_MANIFEST.listGlobalLlmConfigs.timeoutMs,
     });
   }
 
@@ -200,6 +201,7 @@ export class OwnerClient {
         'X-User-Id': this.actor,
       },
       outputSchema: ROUTE_MANIFEST.getGlobalLlmConfig.output,
+      timeoutMs: ROUTE_MANIFEST.getGlobalLlmConfig.timeoutMs,
     });
   }
 
@@ -233,6 +235,7 @@ export class OwnerClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.updateGlobalLlmConfig.output,
+      timeoutMs: ROUTE_MANIFEST.updateGlobalLlmConfig.timeoutMs,
     });
   }
 

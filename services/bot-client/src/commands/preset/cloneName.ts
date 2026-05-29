@@ -13,8 +13,7 @@
  * (shown to the user in confirmation UX).
  */
 
-import { generateClonedName } from '@tzurot/common-types';
-import type { GatewayUser } from '../../utils/userGatewayClient.js';
+import { generateClonedName, type UserClient } from '@tzurot/common-types';
 import { createPreset } from './api.js';
 import type { FlattenedPresetData } from './config.js';
 import type { PresetData } from './types.js';
@@ -36,7 +35,7 @@ export { generateClonedName };
  */
 export async function createClonedPreset(
   sourceData: FlattenedPresetData,
-  user: GatewayUser
+  userClient: UserClient
 ): Promise<PresetData> {
   const initialName = generateClonedName(sourceData.name);
   return createPreset(
@@ -54,6 +53,6 @@ export async function createClonedPreset(
           : undefined,
       autoSuffixOnCollision: true,
     },
-    user
+    userClient
   );
 }
