@@ -58,3 +58,13 @@ Surfaced 2026-05-27 by PR #1105 round-1 claude-bot review. Promoted from deferre
 **Fix shape**: declare the full response shape in the schema (mirror `AdminCleanupResponseSchema`'s tightening done in PR-2c) — `stats` becomes `z.record(z.string(), z.object({ devToProd: z.number().optional(), prodToDev: z.number().optional(), conflicts: z.number().optional() }))`, `warnings`/`info` become `z.array(z.string()).optional()`, etc. Drop `.passthrough()` and the `as SyncResult` cast in the bot-client. ~25 LOC schema + drop the cast + the local `SyncResult` interface.
 
 Surfaced 2026-05-27 by PR #1104 round-3 claude-bot review. Promoted from deferred 2026-05-29.
+
+### `[LIFT]` Tighten `LlmConfigSummarySchema` + drop `updatePreset`/`updateGlobalPreset` `Record<string,unknown>` casts
+
+`packages/common-types/src/schemas/api/llm-config.ts` declares `LlmConfigSummarySchema` with `.passthrough()` because the gateway emits preset fields the bot-client dashboard reads (`contextWindowTokens`, `params`, `modelContextLength`) that the schema doesn't declare. The `toPresetData`/`toAdminPresetData` bridges in `services/bot-client/src/commands/preset/api.ts` then cast `config as PresetData`, and `updatePreset`/`updateGlobalPreset` take `data: Record<string, unknown>` cast to `Parameters<UserClient['updateUserLlmConfig']>[1]` — both bypass compile-time checking.
+
+**Fix shape** (mirrors the `DbSyncResponseSchema` tightening above): enumerate the full preset shape in `LlmConfigSummarySchema` — `contextWindowTokens: z.number()`, `modelContextLength: z.number().optional()`, `params: <the sampling/reasoning object the dashboard reads>` — and drop `.passthrough()`. Then export named input types from common-types (`LlmConfigCreateInput`, `LlmConfigUpdateInput`) and retype `updatePreset`/`updateGlobalPreset`/`createPreset` to accept those instead of `Record<string, unknown>`, removing the `Parameters<...>` casts. Capture in the PR exactly which fields the dashboard reads vs. what the schema declares so the gap is closed precisely.
+
+Note: SSRF path-encoding coverage for the LlmConfig client methods is NOT a gap — `packages/common-types/src/clients/generated-encoding.test.ts` sweeps `getUserLlmConfig`/`getGlobalLlmConfig` and the codegen template guarantees uniform `encodeURIComponent` on every `:param`. The consumer-layer URL-encoding tests removed in PR-2k were genuinely redundant.
+
+Surfaced 2026-05-29 by PR #1114 claude-bot review (rounds 1–6). Natural companion to the `DbSyncResponseSchema` tightening and a good fit to fold into PR-2l's cleanup pass.

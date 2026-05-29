@@ -7,11 +7,17 @@
 
 ## Next Session Goal
 
-**Active epic**: **Route Manifest Scaffold + Typed-Client Codegen** ([active-epic.md](backlog/active-epic.md)) — Phase 4 IN PROGRESS. **PR-2a shipped to develop** (PR #1102, merged 2026-05-27) — dual-mount `/api/{internal,admin,user}/*` alongside legacy prefixes; `clientsFor(interaction)` factory mints actor+user brand once at boundary; `commands/inspect` migrated as PoC (4 callsites: 3 lookup + 1 browse); `pnpm ops legacy:count` burn-down CI gate added with baseline (adminFetch=32, callGatewayApi=207). Council-vetted dual-mount strategy avoids Railway's independent-deploy race. 10 review rounds, 24 unit tests added, all converging clean.
+**Active epic**: **Route Manifest Scaffold + Typed-Client Codegen** ([active-epic.md](backlog/active-epic.md)) — Phase 4 nearly complete. **PR-2k shipped** (PR #1114, merged 2026-05-29): settings (timezone/apikey/defaults/preset) + commands/preset + services (nsfwVerification, PersonalityChatManager, StartupDMPrewarmer). Burn-down: **callGatewayApi 55 → 1, adminFetch 15 → 7** — and all remaining counts are inside the legacy clients themselves (`userGatewayClient.ts` / `adminApiClient.ts`); **zero load-bearing consumers remain**. All of PR-2a through PR-2k are done (see active-epic.md for the per-PR log).
 
-**Next under the epic — Phase 4 continues**:
+**Next under the epic — the final slice**:
 
-**PR-2b: first per-area migration**. Pick a self-contained domain (~15–25 callsites) and migrate it from `adminFetch` / `callGatewayApi` to the typed clients. The burn-down gate enforces strict-monotonic decrease per category, so PR-2b must drop at least one count. Candidates by surface area (rough): `commands/wallet` (small, ~10 callsites, paired with the deferred wallet rate-limiter follow-up); `commands/timezone` (tiny, 2 routes); `commands/admin/*` (the rest of the adminFetch surface — ~28 callsites); `commands/memory` (large, ~30 callsites including the preview/purge token flows). User direction: keep plugging away — open the next PR after PR-2a settles.
+**PR-2l: legacy deletion pass** (closes the epic). With every production consumer migrated, this is the mechanical teardown:
+
+- Delete `services/bot-client/src/utils/adminApiClient.ts` and `userGatewayClient.ts` (+ their tests)
+- Remove the legacy `/admin` `/user` `/internal` mounts in api-gateway `index.ts` (keep only the `/api/*` mounts)
+- Remove the `pnpm ops legacy:count` gate + its baseline file (`.github/baselines/legacy-count-baseline.json` or similar)
+- Verify counts are zero; `pnpm test && pnpm quality` green
+- Fold in the `LlmConfigSummarySchema` tightening + `updatePreset`/`updateGlobalPreset` typed-input work if scope allows (filed in [inbox.md](backlog/inbox.md), companion to the `DbSyncResponseSchema` item)
 
 **Other candidates** (off-epic):
 
