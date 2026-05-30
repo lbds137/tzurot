@@ -6,7 +6,7 @@
  */
 
 import type { Message, MessageMentionOptions } from 'discord.js';
-import { GatewayClient } from '../utils/GatewayClient.js';
+import { transcribe } from '../utils/gatewayServiceCalls.js';
 import {
   splitMessage,
   createLogger,
@@ -194,8 +194,6 @@ interface VoiceTranscriptionResult {
  * Handles voice message transcription and caching
  */
 export class VoiceTranscriptionService {
-  constructor(private readonly gatewayClient: GatewayClient) {}
-
   /**
    * Check if message contains voice attachment (in direct attachments or forwarded message snapshots)
    * Uses centralized utilities from forwardedMessageUtils.ts for consistent forwarded message handling.
@@ -298,7 +296,7 @@ export class VoiceTranscriptionService {
       }
 
       // Send transcribe job to api-gateway (include userId for BYOK key resolution)
-      const response = await this.gatewayClient.transcribe(attachments, message.author.id);
+      const response = await transcribe(attachments, message.author.id);
 
       if (!response?.content) {
         throw new Error('No transcript returned from transcription service');

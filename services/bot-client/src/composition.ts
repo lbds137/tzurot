@@ -26,7 +26,6 @@ import { BotMentionProcessor } from './processors/BotMentionProcessor.js';
 import { DenylistCache } from './services/DenylistCache.js';
 import { VoiceTranscriptionService } from './services/VoiceTranscriptionService.js';
 import { PersonalityIdCache } from './services/PersonalityIdCache.js';
-import { GatewayClient } from './utils/GatewayClient.js';
 import { ReplyResolutionService } from './services/ReplyResolutionService.js';
 import { PersonalityMessageHandler } from './services/PersonalityMessageHandler.js';
 import { PersonalityChatManager } from './services/character/PersonalityChatManager.js';
@@ -54,7 +53,6 @@ import type { IPersonalityLoader } from './types/IPersonalityLoader.js';
  * tracks the resulting job with JobTracker).
  */
 export function buildPersonalityChatPipeline(deps: {
-  gatewayClient: GatewayClient;
   contextBuilder: MessageContextBuilder;
   persistence: ConversationPersistence;
   referenceEnricher: ReferenceEnrichmentService;
@@ -65,7 +63,6 @@ export function buildPersonalityChatPipeline(deps: {
   personalityHandler: PersonalityMessageHandler;
 } {
   const personalityChatManager = new PersonalityChatManager({
-    gatewayClient: deps.gatewayClient,
     contextBuilder: deps.contextBuilder,
     persistence: deps.persistence,
     referenceEnricher: deps.referenceEnricher,
@@ -86,7 +83,6 @@ export function buildPersonalityChatPipeline(deps: {
 export function buildMultiTagCoordinator(deps: {
   redis: Redis;
   chatManager: PersonalityChatManager;
-  gatewayClient: GatewayClient;
   jobTracker: JobTracker;
   orderingService: ResponseOrderingService;
   slotDelivery: SlotDeliveryService;
@@ -94,7 +90,6 @@ export function buildMultiTagCoordinator(deps: {
   const persistence = new MultiTagPersistence(deps.redis);
   const coordinator = new MultiTagCoordinator({
     chatManager: deps.chatManager,
-    gatewayClient: deps.gatewayClient,
     jobTracker: deps.jobTracker,
     orderingService: deps.orderingService,
     slotDelivery: deps.slotDelivery,
@@ -136,7 +131,6 @@ export function buildMultiTagRecovery(deps: {
 export function buildMultiTagStack(deps: {
   redis: Redis;
   chatManager: PersonalityChatManager;
-  gatewayClient: GatewayClient;
   jobTracker: JobTracker;
   orderingService: ResponseOrderingService;
   slotDelivery: SlotDeliveryService;
@@ -152,7 +146,6 @@ export function buildMultiTagStack(deps: {
   const { coordinator, persistence } = buildMultiTagCoordinator({
     redis: deps.redis,
     chatManager: deps.chatManager,
-    gatewayClient: deps.gatewayClient,
     jobTracker: deps.jobTracker,
     orderingService: deps.orderingService,
     slotDelivery: deps.slotDelivery,
@@ -182,7 +175,6 @@ export function buildProcessorChain(deps: {
   denylistCache: DenylistCache;
   voiceTranscription: VoiceTranscriptionService;
   personalityIdCache: PersonalityIdCache;
-  gatewayClient: GatewayClient;
   replyResolver: ReplyResolutionService;
   coordinator: MultiTagCoordinator;
   personalityHandler: PersonalityMessageHandler;
@@ -192,15 +184,13 @@ export function buildProcessorChain(deps: {
     new BotMessageFilter(),
     new DenylistFilter(deps.denylistCache),
     new EmptyMessageFilter(),
-    new VoiceMessageProcessor(deps.voiceTranscription, deps.personalityIdCache, deps.gatewayClient),
+    new VoiceMessageProcessor(deps.voiceTranscription, deps.personalityIdCache),
     new PersonalityTriggerProcessor({
       personalityService: deps.personalityIdCache,
       replyResolver: deps.replyResolver,
-      gatewayClient: deps.gatewayClient,
       coordinator: deps.coordinator,
     }),
     new DMSessionProcessor(
-      deps.gatewayClient,
       deps.personalityIdCache,
       deps.personalityHandler,
       deps.multiTagPersistence
@@ -221,7 +211,6 @@ export function buildMessageHandler(deps: {
   denylistCache: DenylistCache;
   voiceTranscription: VoiceTranscriptionService;
   personalityIdCache: PersonalityIdCache;
-  gatewayClient: GatewayClient;
   replyResolver: ReplyResolutionService;
   personalityHandler: PersonalityMessageHandler;
   multiTagPersistence: MultiTagPersistence;
@@ -238,7 +227,6 @@ export function buildMessageHandler(deps: {
     denylistCache: deps.denylistCache,
     voiceTranscription: deps.voiceTranscription,
     personalityIdCache: deps.personalityIdCache,
-    gatewayClient: deps.gatewayClient,
     replyResolver: deps.replyResolver,
     coordinator: deps.coordinator,
     personalityHandler: deps.personalityHandler,

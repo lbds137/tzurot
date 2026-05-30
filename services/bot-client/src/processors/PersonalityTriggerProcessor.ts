@@ -27,7 +27,7 @@ import { createLogger, getConfig, type LoadedPersonality } from '@tzurot/common-
 import type { IMessageProcessor } from './IMessageProcessor.js';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import type { ReplyResolutionService } from '../services/ReplyResolutionService.js';
-import type { GatewayClient } from '../utils/GatewayClient.js';
+import { getChannelSettingsCached } from '../utils/gatewayServiceCalls.js';
 import type { MultiTagCoordinator } from '../services/MultiTagCoordinator.js';
 import { resolveSlots } from '../services/SlotResolver.js';
 import { findPersonalityMentions } from '../utils/personalityMentionParser.js';
@@ -43,7 +43,6 @@ const logger = createLogger('PersonalityTriggerProcessor');
 export interface PersonalityTriggerProcessorDeps {
   personalityService: IPersonalityLoader;
   replyResolver: ReplyResolutionService;
-  gatewayClient: GatewayClient;
   coordinator: MultiTagCoordinator;
 }
 
@@ -191,7 +190,7 @@ export class PersonalityTriggerProcessor implements IMessageProcessor {
   ): Promise<LoadedPersonality | null> {
     const channelId = message.channelId;
 
-    let channelSettings = await this.deps.gatewayClient.getChannelSettings(channelId);
+    let channelSettings = await getChannelSettingsCached(channelId);
 
     // Fall back to parent channel only when the thread has NO settings row
     // at all. A thread with an explicit settings row + null personality
@@ -200,7 +199,7 @@ export class PersonalityTriggerProcessor implements IMessageProcessor {
     if (channelSettings?.hasSettings !== true) {
       const parentId = getThreadParentId(message.channel);
       if (parentId !== null) {
-        channelSettings = await this.deps.gatewayClient.getChannelSettings(parentId);
+        channelSettings = await getChannelSettingsCached(parentId);
       }
     }
 

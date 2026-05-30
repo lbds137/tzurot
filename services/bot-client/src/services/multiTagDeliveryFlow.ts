@@ -31,7 +31,7 @@ import { pickNewDMActivePersonality } from './SlotResolver.js';
 import { buildSlotContext, toSnapshot } from './multiTagCoordinatorHelpers.js';
 import type { RuntimeEntry, RuntimeSlot } from './multiTagCoordinatorHelpers.js';
 import type { SlotDeliveryService } from './SlotDeliveryService.js';
-import type { GatewayClient } from '../utils/GatewayClient.js';
+import { confirmDelivery, setDmSessionPersonality } from '../utils/gatewayServiceCalls.js';
 import type { MultiTagPersistence } from './MultiTagPersistence.js';
 
 /**
@@ -42,7 +42,6 @@ import type { MultiTagPersistence } from './MultiTagPersistence.js';
  */
 export interface DeliveryFlowDeps {
   slotDelivery: SlotDeliveryService;
-  gatewayClient: GatewayClient;
   persistence: MultiTagPersistence;
 }
 
@@ -197,7 +196,7 @@ export async function deliverGroup(entry: RuntimeEntry, deps: DeliveryFlowDeps):
     entry.slots
       .filter(slot => slot.status !== 'timedout')
       .map(slot =>
-        deps.gatewayClient.confirmDelivery(slot.jobId).catch(err => {
+        confirmDelivery(slot.jobId).catch(err => {
           logger.warn(
             { err, jobId: slot.jobId, groupId: entry.groupId },
             'confirmDelivery failed after multi-tag flush'
@@ -229,7 +228,7 @@ export async function deliverGroup(entry: RuntimeEntry, deps: DeliveryFlowDeps):
       // mean a setDmSessionPersonality throw would prevent the sentinel
       // clear from firing (next line is unreachable on throw), which is
       // surprising behavior.
-      void deps.gatewayClient.setDmSessionPersonality(entry.channel.id, newActive.slug);
+      void setDmSessionPersonality(entry.channel.id, newActive.slug);
       void deps.persistence.clearDMBackfillTried(entry.channel.id);
     }
   }

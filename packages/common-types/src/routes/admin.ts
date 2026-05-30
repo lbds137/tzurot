@@ -374,12 +374,13 @@ export const adminRoutes = {
   // ============================================================================
 
   /**
-   * GET /api/admin/settings — Read the singleton admin-settings row.
-   * Uses isAuthorizedForRead in the handler — allows service-only callers too
-   * (audience is admin so requireOwnerAuth at prefix, but the singleton-read
-   * is also reachable by services that need the same defaults). The manifest
-   * keeps it admin-audience; service callers route through the legacy URL
-   * until the architectural refactor finishes the unification.
+   * GET /api/admin/settings — Read the singleton admin-settings row (owner).
+   * Owner-guarded at the prefix (requireUserAuth + requireOwnerAuth), which
+   * rejects service-only callers before the handler's isAuthorizedForRead
+   * check can run. Service callers (no Discord actor) read the same singleton
+   * via the internal alias `getAdminSettingsInternal` (GET
+   * /api/internal/admin-settings), which shares this handler but mounts under
+   * the service-auth prefix.
    */
   getAdminSettings: {
     audience: 'admin',
