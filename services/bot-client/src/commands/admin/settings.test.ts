@@ -36,6 +36,11 @@ vi.mock('../../utils/gatewayClients.js', () => ({
   clientsFor: clientsForMock,
 }));
 
+const invalidateAdminSettingsCacheMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/gatewayServiceCalls.js', () => ({
+  invalidateAdminSettingsCache: invalidateAdminSettingsCacheMock,
+}));
+
 const mockSessionManager = {
   set: vi.fn(),
   get: vi.fn(),
@@ -343,6 +348,9 @@ describe('Admin Settings Dashboard', () => {
           content: expect.stringContaining('Permission denied'),
         })
       );
+      // On a failed update the cache must NOT be invalidated — the old values
+      // are still authoritative.
+      expect(invalidateAdminSettingsCacheMock).not.toHaveBeenCalled();
     });
 
     it('should handle unknown setting ID', async () => {
@@ -443,6 +451,9 @@ describe('Admin Settings Dashboard', () => {
       await handleAdminSettingsModal(interaction as never);
 
       expect(stub.updateAdminSettings).toHaveBeenCalledWith({ maxMessages: 75 });
+      // Service-read cache is invalidated on a successful update so readers
+      // (e.g. VoiceMessageProcessor) pick up the new defaults promptly.
+      expect(invalidateAdminSettingsCacheMock).toHaveBeenCalled();
     });
 
     it('should update maxAge setting with duration string (2h)', async () => {
