@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-03-09'
+lastUpdated: '2026-05-30'
 ---
 
 # Git Workflow Procedures
@@ -190,6 +190,33 @@ gh pr merge <number> --rebase
 # ❌ FORBIDDEN - Would delete develop!
 gh pr merge <number> --rebase --delete-branch
 ```
+
+#### Fallback for large PRs: fast-forward when rebase-merge chokes
+
+GitHub's "Rebase and merge" replays every PR commit onto `main` as **new** commits. On a release PR with a large commit range (observed failing at ~200 commits, beta.126 / PR #1120), the API rejects the merge and the web UI falsely reports merge conflicts — even though `gh pr view <N> --json mergeable,mergeStateStatus` returns `MERGEABLE` / `CLEAN`. `--admin` does **not** help; this is a mechanical rebase failure, not a branch-protection block. The error to grep this skill for when you hit it:
+
+```
+GraphQL: This branch can't be rebased (mergePullRequest)
+```
+
+When this happens, fast-forward `main` to `develop` instead. Because every release leaves `main` an ancestor of `develop` (step 6 rebases develop onto main, and all new work piles onto develop), this is a clean fast-forward — and it's actually _cleaner_ than the button: it keeps develop's original SHAs, so `main` and `develop` end byte-identical and **step 6's `release:finalize` becomes a no-op** (no SHA divergence to repair).
+
+**Two guardrails are mandatory — do not skip either:**
+
+1. **Attempt `gh pr merge <N> --rebase` FIRST**, even when you expect it to fail. That command fires the `pr-merge-review-check.sh` PreToolUse gate (`00-critical.md`), which forces the latest `claude-review` into context before any merge. **Distinguish the two failure modes**: the gate blocks _once_ by injecting the review into stderr and exiting non-zero — engage with the review and retry the same command; if that retry _also_ fails with the `can't be rebased` error above, the merge has failed mechanically and you proceed to the FF. A bare `git push` to `main` does **not** trigger that gate, so the FF is only safe _after_ the gate has been satisfied by a real `gh pr merge` attempt in the same session. (If the session restarts between the failed attempt and the FF push, re-attempt `gh pr merge --rebase` once more first — the acked comment-id persists, so the hook won't re-block, but the re-attempt re-establishes that the review is in context.)
+2. **Verify `main` is an ancestor of `develop`** — `git merge --ff-only` refuses (loudly, no side effects) if `main` has diverged (e.g. a hotfix landed directly on main). If it refuses, do NOT force anything: rebase develop onto main first (`git checkout develop && git rebase origin/main && git push --force-with-lease`), then retry the FF.
+
+```bash
+# Only after `gh pr merge --rebase` has fired the review gate AND failed mechanically:
+git fetch --all                            # REQUIRED: refresh origin/develop — `git pull origin main`
+                                           # below does NOT fetch it, so the FF could land a stale develop
+git checkout main && git pull origin main
+git merge --ff-only origin/develop         # fast-forward; refuses if main diverged
+git push origin main                       # FF push — NOT a force-push
+# GitHub auto-closes the PR as MERGED once its head commits land on main.
+```
+
+This is a **permitted, documented merge path** for the large-PR case — not a workaround to reach for casually. For normal-sized release PRs, `gh pr merge --rebase` remains the default (it's contributor-agnostic and fires the gate directly). Reserve the FF for when rebase-merge mechanically fails.
 
 ### 5. Run Prisma Migration (if release includes one)
 
