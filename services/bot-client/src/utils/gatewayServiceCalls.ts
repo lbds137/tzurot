@@ -261,6 +261,9 @@ export async function confirmDelivery(jobId: string): Promise<void> {
 // ---------------------------------------------------------------------------
 
 const TRANSIENT_NETWORK_CODES = new Set(['UND_ERR_SOCKET', 'ECONNRESET', 'ECONNREFUSED']);
+// Total attempts = (MAX - 1) loop iterations + one final attempt outside the
+// loop, so MAX=3 means three tries. The final attempt is split out so its
+// failure can log the exhausted-retries context before re-throwing.
 const TRANSCRIBE_MAX_ATTEMPTS = 3;
 const TRANSCRIBE_RETRY_BASE_DELAY_MS = 500;
 
