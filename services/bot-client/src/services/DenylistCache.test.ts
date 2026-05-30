@@ -1,5 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { DenylistCache } from './DenylistCache.js';
+import { getServiceClient } from '../utils/gatewayClients.js';
+
+// hydrate() mints a ServiceClient internally and reads getDenylistCache().
+const mockGetDenylistCache = vi.hoisted(() => vi.fn());
+vi.mock('../utils/gatewayClients.js', () => ({
+  getServiceClient: vi.fn(() => ({ getDenylistCache: mockGetDenylistCache })),
+}));
 
 // Mock logger
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -19,13 +26,18 @@ describe('DenylistCache', () => {
   let cache: DenylistCache;
 
   beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getServiceClient).mockReturnValue({
+      getDenylistCache: mockGetDenylistCache,
+    } as unknown as ReturnType<typeof getServiceClient>);
     cache = new DenylistCache();
   });
 
   describe('hydrate', () => {
     it('should populate cache from gateway response', async () => {
-      const mockGateway = {
-        getDenylistEntries: vi.fn().mockResolvedValue({
+      mockGetDenylistCache.mockResolvedValue({
+        ok: true,
+        data: {
           entries: [
             { type: 'USER', discordId: 'user1', scope: 'BOT', scopeId: '*', mode: 'BLOCK' },
             { type: 'GUILD', discordId: 'guild1', scope: 'BOT', scopeId: '*', mode: 'BLOCK' },
@@ -38,10 +50,10 @@ describe('DenylistCache', () => {
               mode: 'MUTE',
             },
           ],
-        }),
-      };
+        },
+      });
 
-      await cache.hydrate(mockGateway as never);
+      await cache.hydrate();
 
       expect(cache.isBotDenied('user1')).toBe(true);
       expect(cache.isBotDenied('', 'guild1')).toBe(true);
@@ -50,24 +62,23 @@ describe('DenylistCache', () => {
     });
 
     it('should default mode to BLOCK for entries without mode', async () => {
-      const mockGateway = {
-        getDenylistEntries: vi.fn().mockResolvedValue({
+      mockGetDenylistCache.mockResolvedValue({
+        ok: true,
+        data: {
           entries: [{ type: 'USER', discordId: 'user1', scope: 'BOT', scopeId: '*' }],
-        }),
-      };
+        },
+      });
 
-      await cache.hydrate(mockGateway as never);
+      await cache.hydrate();
 
       expect(cache.isBotDenied('user1')).toBe(true);
       expect(cache.isBlocked('user1')).toBe(true);
     });
 
     it('should start with empty cache on hydration failure', async () => {
-      const mockGateway = {
-        getDenylistEntries: vi.fn().mockRejectedValue(new Error('Network error')),
-      };
+      mockGetDenylistCache.mockRejectedValue(new Error('Network error'));
 
-      await cache.hydrate(mockGateway as never);
+      await cache.hydrate();
 
       expect(cache.isBotDenied('user1')).toBe(false);
     });

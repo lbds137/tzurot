@@ -12,7 +12,7 @@ import type { GatewayResult, UserClient } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { handleDeactivate } from './deactivate.js';
 
-vi.mock('../../utils/GatewayClient.js', () => ({
+vi.mock('../../utils/gatewayServiceCalls.js', () => ({
   invalidateChannelSettingsCache: vi.fn(),
 }));
 

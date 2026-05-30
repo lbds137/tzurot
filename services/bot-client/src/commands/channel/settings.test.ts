@@ -40,16 +40,14 @@ vi.mock('../../utils/gatewayClients.js', () => ({
   clientsFor: clientsForMock,
 }));
 
-// Mock GatewayClient - use vi.hoisted() for proper mock hoisting
+// Mock gateway service calls - use vi.hoisted() for proper mock hoisting
 const { mockGetChannelSettings, mockInvalidateChannelSettingsCache } = vi.hoisted(() => ({
   mockGetChannelSettings: vi.fn(),
   mockInvalidateChannelSettingsCache: vi.fn(),
 }));
 
-vi.mock('../../utils/GatewayClient.js', () => ({
-  GatewayClient: class MockGatewayClient {
-    getChannelSettings = mockGetChannelSettings;
-  },
+vi.mock('../../utils/gatewayServiceCalls.js', () => ({
+  getChannelSettingsCached: mockGetChannelSettings,
   invalidateChannelSettingsCache: mockInvalidateChannelSettingsCache,
 }));
 

@@ -9,7 +9,11 @@ import type { LLMGenerationResult, LoadedPersonality, TypingChannel } from '@tzu
 import { SlotDeliveryService, type SlotDeliveryContext } from './SlotDeliveryService.js';
 import type { DiscordResponseSender } from './DiscordResponseSender.js';
 import type { ConversationPersistence } from './ConversationPersistence.js';
-import type { GatewayClient } from '../utils/GatewayClient.js';
+import { updateDiagnosticResponseIds } from '../utils/gatewayServiceCalls.js';
+
+vi.mock('../utils/gatewayServiceCalls.js', () => ({
+  updateDiagnosticResponseIds: vi.fn(),
+}));
 
 const personality = {
   id: 'pid-1',
@@ -57,9 +61,10 @@ describe('SlotDeliveryService', () => {
     updateUserMessage: ReturnType<typeof vi.fn>;
     saveAssistantMessage: ReturnType<typeof vi.fn>;
   };
-  let gatewayClient: { updateDiagnosticResponseIds: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(updateDiagnosticResponseIds).mockResolvedValue(undefined);
     responseSender = {
       sendResponse: vi.fn().mockResolvedValue({ chunkMessageIds: ['chunk-1'] }),
     };
@@ -67,13 +72,9 @@ describe('SlotDeliveryService', () => {
       updateUserMessage: vi.fn().mockResolvedValue(undefined),
       saveAssistantMessage: vi.fn().mockResolvedValue(undefined),
     };
-    gatewayClient = {
-      updateDiagnosticResponseIds: vi.fn().mockResolvedValue(undefined),
-    };
     service = new SlotDeliveryService({
       responseSender: responseSender as unknown as DiscordResponseSender,
       persistence: persistence as unknown as ConversationPersistence,
-      gatewayClient: gatewayClient as unknown as GatewayClient,
     });
   });
 
@@ -111,7 +112,7 @@ describe('SlotDeliveryService', () => {
       );
       // Diagnostic update is fire-and-forget — let microtasks settle.
       await Promise.resolve();
-      expect(gatewayClient.updateDiagnosticResponseIds).toHaveBeenCalledWith('req-1', ['chunk-1']);
+      expect(vi.mocked(updateDiagnosticResponseIds)).toHaveBeenCalledWith('req-1', ['chunk-1']);
     });
 
     it('skips diagnostic update when no chunks were sent', async () => {
@@ -121,7 +122,7 @@ describe('SlotDeliveryService', () => {
 
       await service.deliverSuccess(result, slot);
 
-      expect(gatewayClient.updateDiagnosticResponseIds).not.toHaveBeenCalled();
+      expect(vi.mocked(updateDiagnosticResponseIds)).not.toHaveBeenCalled();
     });
 
     it('throws on empty content (caller is expected to route through deliverError instead)', async () => {

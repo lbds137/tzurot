@@ -44,9 +44,14 @@ vi.mock('./notificationCache.js', () => ({
   shouldNotifyUser: vi.fn().mockReturnValue(true),
 }));
 
+vi.mock('../utils/gatewayServiceCalls.js', () => ({
+  getChannelSettingsCached: vi.fn(),
+}));
+
 import { findPersonalityMentions } from '../utils/personalityMentionParser.js';
 import { isForwardedMessage } from '../utils/forwardedMessageUtils.js';
 import { getThreadParentId } from '../utils/discordChannelTypes.js';
+import { getChannelSettingsCached } from '../utils/gatewayServiceCalls.js';
 
 function buildPersonality(name: string): LoadedPersonality {
   return {
@@ -75,7 +80,6 @@ function buildMessage(overrides: Record<string, unknown> = {}): Message {
 describe('PersonalityTriggerProcessor', () => {
   let personalityService: { loadPersonality: ReturnType<typeof vi.fn> };
   let replyResolver: { resolvePersonality: ReturnType<typeof vi.fn> };
-  let gatewayClient: { getChannelSettings: ReturnType<typeof vi.fn> };
   let coordinator: { startFanOut: ReturnType<typeof vi.fn> };
   let processor: PersonalityTriggerProcessor;
 
@@ -83,16 +87,15 @@ describe('PersonalityTriggerProcessor', () => {
     vi.clearAllMocks();
     personalityService = { loadPersonality: vi.fn() };
     replyResolver = { resolvePersonality: vi.fn().mockResolvedValue(null) };
-    gatewayClient = {
-      getChannelSettings: vi.fn().mockResolvedValue({ hasSettings: false }),
-    };
+    vi.mocked(getChannelSettingsCached).mockResolvedValue({
+      hasSettings: false,
+    } as Awaited<ReturnType<typeof getChannelSettingsCached>>);
     coordinator = { startFanOut: vi.fn().mockResolvedValue(undefined) };
     vi.mocked(findPersonalityMentions).mockResolvedValue([]);
     vi.mocked(isForwardedMessage).mockReturnValue(false);
     processor = new PersonalityTriggerProcessor({
       personalityService: personalityService as never,
       replyResolver: replyResolver as never,
-      gatewayClient: gatewayClient as never,
       coordinator: coordinator as never,
     });
   });
@@ -222,10 +225,10 @@ describe('PersonalityTriggerProcessor', () => {
     it('puts the activated personality in slot 1 with isAutoResponse=true', async () => {
       const ambient = buildPersonality('Ambient');
       const alice = buildPersonality('Alice');
-      gatewayClient.getChannelSettings.mockResolvedValue({
+      vi.mocked(getChannelSettingsCached).mockResolvedValue({
         hasSettings: true,
         settings: { personalitySlug: 'ambient', personalityName: 'Ambient' },
-      });
+      } as Awaited<ReturnType<typeof getChannelSettingsCached>>);
       personalityService.loadPersonality.mockResolvedValue(ambient);
       vi.mocked(findPersonalityMentions).mockResolvedValue([{ personality: alice, startIndex: 0 }]);
 
@@ -256,10 +259,10 @@ describe('PersonalityTriggerProcessor', () => {
       // dedup logic; this is the integration check that the trigger
       // processor wires the inputs correctly.
       const alice = buildPersonality('Alice');
-      gatewayClient.getChannelSettings.mockResolvedValue({
+      vi.mocked(getChannelSettingsCached).mockResolvedValue({
         hasSettings: true,
         settings: { personalitySlug: 'alice', personalityName: 'Alice' },
-      });
+      } as Awaited<ReturnType<typeof getChannelSettingsCached>>);
       personalityService.loadPersonality.mockResolvedValue(alice);
       vi.mocked(findPersonalityMentions).mockResolvedValue([{ personality: alice, startIndex: 0 }]);
 
@@ -279,10 +282,10 @@ describe('PersonalityTriggerProcessor', () => {
     it('does not include activated personality in DM channels', async () => {
       // DM channels have no guild → activation lookup is skipped.
       const alice = buildPersonality('Alice');
-      gatewayClient.getChannelSettings.mockResolvedValue({
+      vi.mocked(getChannelSettingsCached).mockResolvedValue({
         hasSettings: true,
         settings: { personalitySlug: 'ambient', personalityName: 'Ambient' },
-      });
+      } as Awaited<ReturnType<typeof getChannelSettingsCached>>);
       vi.mocked(findPersonalityMentions).mockResolvedValue([{ personality: alice, startIndex: 0 }]);
 
       await processor.process(
@@ -293,17 +296,17 @@ describe('PersonalityTriggerProcessor', () => {
       );
 
       // The processor shouldn't have called getChannelSettings at all
-      expect(gatewayClient.getChannelSettings).not.toHaveBeenCalled();
+      expect(vi.mocked(getChannelSettingsCached)).not.toHaveBeenCalled();
       const arg = coordinator.startFanOut.mock.calls[0][0];
       expect(arg.slots).toHaveLength(1);
       expect(arg.slots[0].source).toBe('mention');
     });
 
     it('sends notice + omits slot when activated personality is inaccessible', async () => {
-      gatewayClient.getChannelSettings.mockResolvedValue({
+      vi.mocked(getChannelSettingsCached).mockResolvedValue({
         hasSettings: true,
         settings: { personalitySlug: 'private', personalityName: 'Private' },
-      });
+      } as Awaited<ReturnType<typeof getChannelSettingsCached>>);
       personalityService.loadPersonality.mockResolvedValue(null);
       const alice = buildPersonality('Alice');
       vi.mocked(findPersonalityMentions).mockResolvedValue([{ personality: alice, startIndex: 0 }]);
@@ -327,10 +330,10 @@ describe('PersonalityTriggerProcessor', () => {
       // owns the response policy.
       vi.mocked(isForwardedMessage).mockReturnValue(true);
       const ambient = buildPersonality('Ambient');
-      gatewayClient.getChannelSettings.mockResolvedValue({
+      vi.mocked(getChannelSettingsCached).mockResolvedValue({
         hasSettings: true,
         settings: { personalitySlug: 'ambient', personalityName: 'Ambient' },
-      });
+      } as Awaited<ReturnType<typeof getChannelSettingsCached>>);
       personalityService.loadPersonality.mockResolvedValue(ambient);
 
       const result = await processor.process(buildMessage({ content: '' }));
@@ -353,10 +356,10 @@ describe('PersonalityTriggerProcessor', () => {
       // to avoid spurious slot population.
       vi.mocked(isForwardedMessage).mockReturnValue(true);
       const ambient = buildPersonality('Ambient');
-      gatewayClient.getChannelSettings.mockResolvedValue({
+      vi.mocked(getChannelSettingsCached).mockResolvedValue({
         hasSettings: true,
         settings: { personalitySlug: 'ambient', personalityName: 'Ambient' },
-      });
+      } as Awaited<ReturnType<typeof getChannelSettingsCached>>);
       personalityService.loadPersonality.mockResolvedValue(ambient);
 
       await processor.process(buildMessage({ reference: { messageId: 'origin-msg' } }));
@@ -371,7 +374,9 @@ describe('PersonalityTriggerProcessor', () => {
       vi.mocked(findPersonalityMentions).mockResolvedValue([{ personality: alice, startIndex: 0 }]);
       // No activation either — the forwarded message should fall through to
       // the next processor since neither activation nor mention applies.
-      gatewayClient.getChannelSettings.mockResolvedValue({ hasSettings: false });
+      vi.mocked(getChannelSettingsCached).mockResolvedValue({ hasSettings: false } as Awaited<
+        ReturnType<typeof getChannelSettingsCached>
+      >);
 
       const result = await processor.process(buildMessage({ content: '@Alice forwarded' }));
 
@@ -385,13 +390,15 @@ describe('PersonalityTriggerProcessor', () => {
     it('falls back to parent channel when the thread has NO settings row', async () => {
       const parentAmbient = buildPersonality('ParentAmbient');
       // Thread has no settings — should fall back to parent
-      gatewayClient.getChannelSettings
-        .mockResolvedValueOnce({ hasSettings: false }) // thread
+      vi.mocked(getChannelSettingsCached)
+        .mockResolvedValueOnce({ hasSettings: false } as Awaited<
+          ReturnType<typeof getChannelSettingsCached>
+        >) // thread
         .mockResolvedValueOnce({
           // parent
           hasSettings: true,
           settings: { personalitySlug: 'parentambient', personalityName: 'ParentAmbient' },
-        });
+        } as Awaited<ReturnType<typeof getChannelSettingsCached>>);
       personalityService.loadPersonality.mockResolvedValue(parentAmbient);
       vi.mocked(getThreadParentId).mockReturnValueOnce('parent-channel-1');
 
@@ -402,23 +409,23 @@ describe('PersonalityTriggerProcessor', () => {
       expect(arg.slots).toHaveLength(1);
       expect(arg.slots[0]).toMatchObject({ source: 'activation', isAutoResponse: true });
       // Parent's getChannelSettings call must have fired.
-      expect(gatewayClient.getChannelSettings).toHaveBeenCalledTimes(2);
-      expect(gatewayClient.getChannelSettings).toHaveBeenNthCalledWith(2, 'parent-channel-1');
+      expect(vi.mocked(getChannelSettingsCached)).toHaveBeenCalledTimes(2);
+      expect(vi.mocked(getChannelSettingsCached)).toHaveBeenNthCalledWith(2, 'parent-channel-1');
     });
 
     it('does NOT fall back when the thread is explicitly deactivated', async () => {
       // Thread has a settings row but no activated personality — explicit
       // empty beats parent inheritance per the inherited contract.
-      gatewayClient.getChannelSettings.mockResolvedValueOnce({
+      vi.mocked(getChannelSettingsCached).mockResolvedValueOnce({
         hasSettings: true,
         settings: { personalitySlug: null, personalityName: null },
-      });
+      } as Awaited<ReturnType<typeof getChannelSettingsCached>>);
       vi.mocked(getThreadParentId).mockReturnValue('parent-channel-1');
 
       await processor.process(buildMessage({ content: 'hi' }));
 
       // Only the thread was queried — parent never consulted.
-      expect(gatewayClient.getChannelSettings).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(getChannelSettingsCached)).toHaveBeenCalledTimes(1);
       // No slots → coordinator not invoked.
       expect(coordinator.startFanOut).not.toHaveBeenCalled();
     });
@@ -429,7 +436,7 @@ describe('PersonalityTriggerProcessor', () => {
       const alice = buildPersonality('Alice');
       const bob = buildPersonality('Bob');
       replyResolver.resolvePersonality.mockResolvedValue(alice);
-      gatewayClient.getChannelSettings.mockRejectedValue(new Error('gateway 503'));
+      vi.mocked(getChannelSettingsCached).mockRejectedValue(new Error('gateway 503'));
       vi.mocked(findPersonalityMentions).mockResolvedValue([{ personality: bob, startIndex: 0 }]);
 
       await processor.process(
@@ -448,10 +455,10 @@ describe('PersonalityTriggerProcessor', () => {
       const alice = buildPersonality('Alice');
       const ambient = buildPersonality('Ambient');
       replyResolver.resolvePersonality.mockResolvedValue(alice);
-      gatewayClient.getChannelSettings.mockResolvedValue({
+      vi.mocked(getChannelSettingsCached).mockResolvedValue({
         hasSettings: true,
         settings: { personalitySlug: 'ambient', personalityName: 'Ambient' },
-      });
+      } as Awaited<ReturnType<typeof getChannelSettingsCached>>);
       personalityService.loadPersonality.mockResolvedValue(ambient);
       vi.mocked(findPersonalityMentions).mockRejectedValue(new Error('db error'));
 

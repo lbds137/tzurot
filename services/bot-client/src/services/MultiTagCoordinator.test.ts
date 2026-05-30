@@ -18,6 +18,12 @@ import {
   type RuntimeEntry,
 } from './MultiTagCoordinator.js';
 import type { ResolvedSlot } from './SlotResolver.js';
+import { confirmDelivery, setDmSessionPersonality } from '../utils/gatewayServiceCalls.js';
+
+vi.mock('../utils/gatewayServiceCalls.js', () => ({
+  confirmDelivery: vi.fn(),
+  setDmSessionPersonality: vi.fn(),
+}));
 
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal();
@@ -67,10 +73,6 @@ describe('MultiTagCoordinator', () => {
   let chatManager: {
     submitChatJob: ReturnType<typeof vi.fn>;
   };
-  let gatewayClient: {
-    confirmDelivery: ReturnType<typeof vi.fn>;
-    setDmSessionPersonality: ReturnType<typeof vi.fn>;
-  };
   let jobTracker: {
     trackJob: ReturnType<typeof vi.fn>;
     completeJob: ReturnType<typeof vi.fn>;
@@ -97,11 +99,10 @@ describe('MultiTagCoordinator', () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
+    vi.clearAllMocks();
+    vi.mocked(confirmDelivery).mockResolvedValue(undefined);
+    vi.mocked(setDmSessionPersonality).mockResolvedValue(undefined);
     chatManager = { submitChatJob: vi.fn() };
-    gatewayClient = {
-      confirmDelivery: vi.fn().mockResolvedValue(undefined),
-      setDmSessionPersonality: vi.fn().mockResolvedValue(undefined),
-    };
     jobTracker = { trackJob: vi.fn(), completeJob: vi.fn() };
     orderingService = {
       registerJob: vi.fn(),
@@ -127,7 +128,6 @@ describe('MultiTagCoordinator', () => {
 
     coordinator = new MultiTagCoordinator({
       chatManager: chatManager as unknown as MultiTagCoordinatorDeps['chatManager'],
-      gatewayClient: gatewayClient as unknown as MultiTagCoordinatorDeps['gatewayClient'],
       jobTracker: jobTracker as unknown as MultiTagCoordinatorDeps['jobTracker'],
       orderingService: orderingService as unknown as MultiTagCoordinatorDeps['orderingService'],
       slotDelivery: slotDelivery as unknown as MultiTagCoordinatorDeps['slotDelivery'],
@@ -346,8 +346,8 @@ describe('MultiTagCoordinator', () => {
       // Persistence cleanup
       expect(persistence.deleteEntry).toHaveBeenCalledOnce();
       // confirmDelivery for both slot jobIds
-      expect(gatewayClient.confirmDelivery).toHaveBeenCalledWith('job-Alice');
-      expect(gatewayClient.confirmDelivery).toHaveBeenCalledWith('job-Bob');
+      expect(vi.mocked(confirmDelivery)).toHaveBeenCalledWith('job-Alice');
+      expect(vi.mocked(confirmDelivery)).toHaveBeenCalledWith('job-Bob');
       // ownsJob is false after flush
       expect(coordinator.ownsJob('job-Alice')).toBe(false);
       expect(coordinator.ownsJob('job-Bob')).toBe(false);
@@ -446,8 +446,8 @@ describe('MultiTagCoordinator', () => {
       // Both attempts fired — Alice threw, Bob succeeded.
       expect(slotDelivery.deliverSuccess).toHaveBeenCalledTimes(2);
       // Group still cleaned up (confirmDelivery for both).
-      expect(gatewayClient.confirmDelivery).toHaveBeenCalledWith('job-Alice');
-      expect(gatewayClient.confirmDelivery).toHaveBeenCalledWith('job-Bob');
+      expect(vi.mocked(confirmDelivery)).toHaveBeenCalledWith('job-Alice');
+      expect(vi.mocked(confirmDelivery)).toHaveBeenCalledWith('job-Bob');
       // Entry deleted from in-memory map even though one slot threw.
       expect(coordinator.ownsJob('job-Alice')).toBe(false);
       expect(coordinator.ownsJob('job-Bob')).toBe(false);
@@ -581,8 +581,8 @@ describe('MultiTagCoordinator', () => {
       });
 
       // Bob (slot 1, textually-last mention) becomes the new active session
-      expect(gatewayClient.setDmSessionPersonality).toHaveBeenCalledOnce();
-      expect(gatewayClient.setDmSessionPersonality).toHaveBeenCalledWith(
+      expect(vi.mocked(setDmSessionPersonality)).toHaveBeenCalledOnce();
+      expect(vi.mocked(setDmSessionPersonality)).toHaveBeenCalledWith(
         input.channel.id,
         'bob' // slug
       );
@@ -597,7 +597,7 @@ describe('MultiTagCoordinator', () => {
         success: true,
         content: 'A',
       });
-      expect(gatewayClient.setDmSessionPersonality).not.toHaveBeenCalled();
+      expect(vi.mocked(setDmSessionPersonality)).not.toHaveBeenCalled();
     });
   });
 

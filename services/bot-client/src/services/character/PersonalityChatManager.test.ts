@@ -44,11 +44,15 @@ vi.mock('../../utils/gatewayClients.js', () => ({
   })),
 }));
 
+vi.mock('../../utils/gatewayServiceCalls.js', () => ({
+  generate: vi.fn(),
+}));
+
 import * as nsfwVerification from '../../utils/nsfwVerification.js';
+import { generate } from '../../utils/gatewayServiceCalls.js';
 
 describe('PersonalityChatManager', () => {
   let manager: PersonalityChatManager;
-  let mockGatewayClient: { generate: ReturnType<typeof vi.fn> };
   let mockContextBuilder: { buildContext: ReturnType<typeof vi.fn> };
   let mockPersistence: { saveUserMessage: ReturnType<typeof vi.fn> };
   let mockReferenceEnricher: { enrichWithPersonaNames: ReturnType<typeof vi.fn> };
@@ -57,7 +61,7 @@ describe('PersonalityChatManager', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    mockGatewayClient = { generate: vi.fn().mockResolvedValue({ jobId: 'job-123' }) };
+    vi.mocked(generate).mockResolvedValue({ jobId: 'job-123', requestId: 'req-123' });
     mockContextBuilder = {
       buildContext: vi.fn().mockResolvedValue({
         context: {
@@ -76,7 +80,6 @@ describe('PersonalityChatManager', () => {
     mockDenylistCache = { isPersonalityDenied: vi.fn().mockReturnValue(false) };
 
     manager = new PersonalityChatManager({
-      gatewayClient: mockGatewayClient as any,
       contextBuilder: mockContextBuilder as any,
       persistence: mockPersistence as any,
       referenceEnricher: mockReferenceEnricher as any,
@@ -108,7 +111,7 @@ describe('PersonalityChatManager', () => {
       expect(result.trackingContext.clientId).toBe('bot-123');
       expect(result.trackingContext.channel).toBe(message.channel);
 
-      expect(mockGatewayClient.generate).toHaveBeenCalledWith(
+      expect(vi.mocked(generate)).toHaveBeenCalledWith(
         personality,
         expect.objectContaining({
           triggerMessageId: 'message-123',
@@ -166,7 +169,7 @@ describe('PersonalityChatManager', () => {
       expect(result.kind).toBe('denied');
       if (result.kind !== 'denied') return;
       expect(result.reason).toBe('denylisted');
-      expect(mockGatewayClient.generate).not.toHaveBeenCalled();
+      expect(vi.mocked(generate)).not.toHaveBeenCalled();
     });
 
     it('returns nsfw-blocked when verification disallows', async () => {
@@ -215,7 +218,7 @@ describe('PersonalityChatManager', () => {
       expect(result.kind).toBe('denied');
       if (result.kind !== 'denied') return;
       expect(result.reason).toBe('unsupported-channel');
-      expect(mockGatewayClient.generate).not.toHaveBeenCalled();
+      expect(vi.mocked(generate)).not.toHaveBeenCalled();
     });
   });
 

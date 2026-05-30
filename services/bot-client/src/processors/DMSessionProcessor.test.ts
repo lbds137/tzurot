@@ -9,7 +9,6 @@ import { ChannelType, Collection } from 'discord.js';
 import { DMSessionProcessor } from './DMSessionProcessor.js';
 import type { Message, DMChannel, Client } from 'discord.js';
 import type { LoadedPersonality } from '@tzurot/common-types';
-import type { GatewayClient } from '../utils/GatewayClient.js';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import type { PersonalityMessageHandler } from '../services/PersonalityMessageHandler.js';
 
@@ -18,6 +17,13 @@ vi.mock('./VoiceMessageProcessor.js', () => ({
   VoiceMessageProcessor: {
     getVoiceTranscript: vi.fn(),
   },
+}));
+
+// Mock the module-level gateway service calls the processor uses.
+vi.mock('../utils/gatewayServiceCalls.js', () => ({
+  getChannelSettingsCached: vi.fn(),
+  setDmSessionPersonality: vi.fn(),
+  lookupPersonalityFromMessage: vi.fn(),
 }));
 
 // Mock nsfwVerification
@@ -47,6 +53,11 @@ import {
   sendNsfwVerificationMessage,
   trackPendingVerificationMessage,
 } from '../utils/nsfwVerification.js';
+import {
+  getChannelSettingsCached,
+  setDmSessionPersonality,
+  lookupPersonalityFromMessage,
+} from '../utils/gatewayServiceCalls.js';
 
 function createMockDMChannel(overrides: Partial<DMChannel> = {}): DMChannel {
   const messagesCollection = new Collection<string, Message>();
@@ -115,11 +126,6 @@ const mockLilithPersonality = {
 
 describe('DMSessionProcessor', () => {
   let processor: DMSessionProcessor;
-  let mockGatewayClient: {
-    lookupPersonalityFromConversation: ReturnType<typeof vi.fn>;
-    getChannelSettings: ReturnType<typeof vi.fn>;
-    setDmSessionPersonality: ReturnType<typeof vi.fn>;
-  };
   let mockMultiTagPersistence: {
     wasDMBackfillTried: ReturnType<typeof vi.fn>;
     markDMBackfillTried: ReturnType<typeof vi.fn>;
@@ -151,16 +157,16 @@ describe('DMSessionProcessor', () => {
     // (DMSessionProcessor no longer parses mentions itself — PersonalityTriggerProcessor
     // earlier in the chain handles tagged messages.)
 
-    mockGatewayClient = {
-      lookupPersonalityFromConversation: vi.fn(),
-      // Default: no DM-session row in channel_settings — tests exercise the
-      // history-scan fallback. Tests that want to validate the fast path
-      // override this per-case.
-      getChannelSettings: vi.fn().mockResolvedValue({ hasSettings: false }),
-      // Lazy-backfill write — best-effort, fire-and-forget. Default to
-      // resolved-undefined; specific tests can assert it was called.
-      setDmSessionPersonality: vi.fn().mockResolvedValue(undefined),
-    };
+    // Default: no DM-session row in channel_settings — tests exercise the
+    // history-scan fallback. Tests that want to validate the fast path
+    // override this per-case.
+    vi.mocked(getChannelSettingsCached).mockResolvedValue({
+      hasSettings: false,
+    } as Awaited<ReturnType<typeof getChannelSettingsCached>>);
+    // Lazy-backfill write — best-effort, fire-and-forget. Default to
+    // resolved-undefined; specific tests can assert it was called.
+    vi.mocked(setDmSessionPersonality).mockResolvedValue(undefined);
+    vi.mocked(lookupPersonalityFromMessage).mockResolvedValue(null);
 
     mockPersonalityService = {
       loadPersonality: vi.fn(),
@@ -179,7 +185,6 @@ describe('DMSessionProcessor', () => {
     };
 
     processor = new DMSessionProcessor(
-      mockGatewayClient as unknown as GatewayClient,
       mockPersonalityService as unknown as IPersonalityLoader,
       mockPersonalityHandler as unknown as PersonalityMessageHandler,
       mockMultiTagPersistence as never
@@ -198,7 +203,7 @@ describe('DMSessionProcessor', () => {
       const result = await processor.process(message);
 
       expect(result).toBe(false);
-      expect(mockGatewayClient.lookupPersonalityFromConversation).not.toHaveBeenCalled();
+      expect(vi.mocked(lookupPersonalityFromMessage)).not.toHaveBeenCalled();
     });
 
     it('should process DM channels', async () => {
@@ -231,7 +236,7 @@ describe('DMSessionProcessor', () => {
       const message = createMockMessage({ channel, botId });
       vi.mocked(isDMChannel).mockReturnValue(true);
 
-      mockGatewayClient.lookupPersonalityFromConversation.mockResolvedValue({
+      vi.mocked(lookupPersonalityFromMessage).mockResolvedValue({
         personalityId: 'lilith-id',
       });
       mockPersonalityService.loadPersonality.mockResolvedValue(mockLilithPersonality);
@@ -239,9 +244,7 @@ describe('DMSessionProcessor', () => {
       const result = await processor.process(message);
 
       expect(result).toBe(true);
-      expect(mockGatewayClient.lookupPersonalityFromConversation).toHaveBeenCalledWith(
-        'bot-msg-123'
-      );
+      expect(vi.mocked(lookupPersonalityFromMessage)).toHaveBeenCalledWith('bot-msg-123');
       expect(mockPersonalityService.loadPersonality).toHaveBeenCalledWith('lilith-id', 'user-123');
       expect(mockPersonalityHandler.handleMessage).toHaveBeenCalledWith(
         message,
@@ -252,10 +255,7 @@ describe('DMSessionProcessor', () => {
       // Lazy-backfill write: after a successful history scan, the discovered
       // personality is recorded in channel_settings so the next bare DM hits
       // the fast (cached) path instead of re-scanning Discord history.
-      expect(mockGatewayClient.setDmSessionPersonality).toHaveBeenCalledWith(
-        message.channelId,
-        'lilith'
-      );
+      expect(vi.mocked(setDmSessionPersonality)).toHaveBeenCalledWith(message.channelId, 'lilith');
     });
 
     it('should skip bot messages without personality prefix', async () => {
@@ -286,7 +286,7 @@ describe('DMSessionProcessor', () => {
       const message = createMockMessage({ channel, botId });
       vi.mocked(isDMChannel).mockReturnValue(true);
 
-      mockGatewayClient.lookupPersonalityFromConversation.mockResolvedValue({
+      vi.mocked(lookupPersonalityFromMessage).mockResolvedValue({
         personalityId: 'lilith-id',
       });
       mockPersonalityService.loadPersonality.mockResolvedValue(mockLilithPersonality);
@@ -294,9 +294,7 @@ describe('DMSessionProcessor', () => {
       await processor.process(message);
 
       // Should have skipped ephemeral message and found personality message
-      expect(mockGatewayClient.lookupPersonalityFromConversation).toHaveBeenCalledWith(
-        'personality-msg'
-      );
+      expect(vi.mocked(lookupPersonalityFromMessage)).toHaveBeenCalledWith('personality-msg');
       expect(mockPersonalityHandler.handleMessage).toHaveBeenCalled();
     });
 
@@ -327,7 +325,7 @@ describe('DMSessionProcessor', () => {
       const message = createMockMessage({ channel, botId });
       vi.mocked(isDMChannel).mockReturnValue(true);
 
-      mockGatewayClient.lookupPersonalityFromConversation.mockResolvedValue({
+      vi.mocked(lookupPersonalityFromMessage).mockResolvedValue({
         personalityId: 'lilith-id',
       });
       mockPersonalityService.loadPersonality.mockResolvedValue(mockLilithPersonality);
@@ -335,10 +333,8 @@ describe('DMSessionProcessor', () => {
       await processor.process(message);
 
       // Should only look up bot message, not user message
-      expect(mockGatewayClient.lookupPersonalityFromConversation).toHaveBeenCalledWith('bot-msg');
-      expect(mockGatewayClient.lookupPersonalityFromConversation).not.toHaveBeenCalledWith(
-        'user-msg'
-      );
+      expect(vi.mocked(lookupPersonalityFromMessage)).toHaveBeenCalledWith('bot-msg');
+      expect(vi.mocked(lookupPersonalityFromMessage)).not.toHaveBeenCalledWith('user-msg');
     });
 
     it('should try next message if conversation lookup returns null', async () => {
@@ -368,7 +364,7 @@ describe('DMSessionProcessor', () => {
       vi.mocked(isDMChannel).mockReturnValue(true);
 
       // First lookup (recent) returns null, second (old) returns personality
-      mockGatewayClient.lookupPersonalityFromConversation
+      vi.mocked(lookupPersonalityFromMessage)
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce({ personalityId: 'old-personality-id' });
 
@@ -381,7 +377,7 @@ describe('DMSessionProcessor', () => {
 
       await processor.process(message);
 
-      expect(mockGatewayClient.lookupPersonalityFromConversation).toHaveBeenCalledTimes(2);
+      expect(vi.mocked(lookupPersonalityFromMessage)).toHaveBeenCalledTimes(2);
       expect(mockPersonalityService.loadPersonality).toHaveBeenCalledWith(
         'old-personality-id',
         'user-123'
@@ -424,7 +420,7 @@ describe('DMSessionProcessor', () => {
       const message = createMockMessage({ channel, botId });
       vi.mocked(isDMChannel).mockReturnValue(true);
 
-      mockGatewayClient.lookupPersonalityFromConversation.mockResolvedValue({
+      vi.mocked(lookupPersonalityFromMessage).mockResolvedValue({
         personalityId: 'private-id',
       });
       // User doesn't have access
@@ -511,7 +507,7 @@ describe('DMSessionProcessor', () => {
       vi.mocked(isDMChannel).mockReturnValue(true);
       vi.mocked(VoiceMessageProcessor.getVoiceTranscript).mockReturnValue('Voice transcript text');
 
-      mockGatewayClient.lookupPersonalityFromConversation.mockResolvedValue({
+      vi.mocked(lookupPersonalityFromMessage).mockResolvedValue({
         personalityId: 'lilith-id',
       });
       mockPersonalityService.loadPersonality.mockResolvedValue(mockLilithPersonality);
@@ -580,7 +576,7 @@ describe('DMSessionProcessor', () => {
       const message = createMockMessage({ channel, botId });
       vi.mocked(isDMChannel).mockReturnValue(true);
 
-      mockGatewayClient.lookupPersonalityFromConversation.mockResolvedValue({
+      vi.mocked(lookupPersonalityFromMessage).mockResolvedValue({
         personalityId: 'lilith-id',
       });
       mockPersonalityService.loadPersonality.mockResolvedValue(mockLilithPersonality);
@@ -604,7 +600,9 @@ describe('DMSessionProcessor', () => {
       vi.mocked(isDMChannel).mockReturnValue(true);
 
       // No channel_settings row exists.
-      mockGatewayClient.getChannelSettings.mockResolvedValue({ hasSettings: false });
+      vi.mocked(getChannelSettingsCached).mockResolvedValue({
+        hasSettings: false,
+      } as Awaited<ReturnType<typeof getChannelSettingsCached>>);
       // Sentinel says we already tried; the history scan should NOT run.
       mockMultiTagPersistence.wasDMBackfillTried.mockResolvedValue(true);
 
@@ -633,7 +631,9 @@ describe('DMSessionProcessor', () => {
         channelId: 'channel-empty',
       });
       vi.mocked(isDMChannel).mockReturnValue(true);
-      mockGatewayClient.getChannelSettings.mockResolvedValue({ hasSettings: false });
+      vi.mocked(getChannelSettingsCached).mockResolvedValue({
+        hasSettings: false,
+      } as Awaited<ReturnType<typeof getChannelSettingsCached>>);
       mockMultiTagPersistence.wasDMBackfillTried.mockResolvedValue(false);
 
       await processor.process(message);
@@ -663,7 +663,7 @@ describe('DMSessionProcessor', () => {
       const message = createMockMessage({ channel, botId, content: 'just a normal message' });
       vi.mocked(isDMChannel).mockReturnValue(true);
 
-      mockGatewayClient.lookupPersonalityFromConversation.mockResolvedValue({
+      vi.mocked(lookupPersonalityFromMessage).mockResolvedValue({
         personalityId: 'lilith-id',
       });
       mockPersonalityService.loadPersonality.mockResolvedValue(mockLilithPersonality);
@@ -689,7 +689,7 @@ describe('DMSessionProcessor', () => {
       const message = createMockMessage({ channel, botId: 'bot-123', content: 'follow-up' });
       vi.mocked(isDMChannel).mockReturnValue(true);
 
-      mockGatewayClient.getChannelSettings.mockResolvedValue({
+      vi.mocked(getChannelSettingsCached).mockResolvedValue({
         hasSettings: true,
         settings: {
           activatedPersonalityId: 'lilith-id',
@@ -697,7 +697,7 @@ describe('DMSessionProcessor', () => {
           personalityName: 'Lilith',
           autoRespond: true,
         },
-      });
+      } as Awaited<ReturnType<typeof getChannelSettingsCached>>);
       mockPersonalityService.loadPersonality.mockResolvedValue(mockLilithPersonality);
 
       const result = await processor.process(message);
@@ -741,7 +741,7 @@ describe('DMSessionProcessor', () => {
       expect(result).toBe(true); // Consumed message
       expect(sendNsfwVerificationMessage).toHaveBeenCalledWith(message);
       // Should NOT check for active session or send help message
-      expect(mockGatewayClient.lookupPersonalityFromConversation).not.toHaveBeenCalled();
+      expect(vi.mocked(lookupPersonalityFromMessage)).not.toHaveBeenCalled();
     });
 
     it('should surface distinct retry message when NSFW check fails (fail-closed)', async () => {
@@ -762,7 +762,7 @@ describe('DMSessionProcessor', () => {
       // Must NOT re-onboard a previously-verified user through the full
       // education embed — that's the bug this path is fixing.
       expect(sendNsfwVerificationMessage).not.toHaveBeenCalled();
-      expect(mockGatewayClient.lookupPersonalityFromConversation).not.toHaveBeenCalled();
+      expect(vi.mocked(lookupPersonalityFromMessage)).not.toHaveBeenCalled();
     });
 
     it('should allow verified users to continue', async () => {
@@ -811,7 +811,7 @@ describe('DMSessionProcessor', () => {
         },
       });
 
-      mockGatewayClient.lookupPersonalityFromConversation.mockResolvedValue({
+      vi.mocked(lookupPersonalityFromMessage).mockResolvedValue({
         personalityId: 'lilith-id',
       });
       mockPersonalityService.loadPersonality.mockResolvedValue(mockLilithPersonality);

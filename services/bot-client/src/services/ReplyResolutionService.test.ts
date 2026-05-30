@@ -7,9 +7,12 @@ import { ChannelType } from 'discord.js';
 import { ReplyResolutionService } from './ReplyResolutionService.js';
 import type { Message, MessageReference } from 'discord.js';
 import type { LoadedPersonality } from '@tzurot/common-types';
-import type { GatewayClient } from '../utils/GatewayClient.js';
 
 // Mock dependencies
+vi.mock('../utils/gatewayServiceCalls.js', () => ({
+  lookupPersonalityFromMessage: vi.fn(),
+}));
+
 vi.mock('../redis.js', () => ({
   redisService: {
     getWebhookPersonality: vi.fn(),
@@ -28,14 +31,12 @@ vi.mock('@tzurot/common-types', async () => {
 });
 
 import { redisService } from '../redis.js';
+import { lookupPersonalityFromMessage } from '../utils/gatewayServiceCalls.js';
 
 describe('ReplyResolutionService', () => {
   let service: ReplyResolutionService;
   let mockPersonalityService: {
     loadPersonality: ReturnType<typeof vi.fn>;
-  };
-  let mockGatewayClient: {
-    lookupPersonalityFromConversation: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(() => {
@@ -45,17 +46,12 @@ describe('ReplyResolutionService', () => {
       loadPersonality: vi.fn(),
     };
 
-    mockGatewayClient = {
-      // Default to null so tests not explicitly exercising tier-2 DB lookup
-      // get a clean miss (rather than `undefined`, which would crash the
-      // `if (dbResult !== null)` branch in lookupPersonalityIdentifier).
-      lookupPersonalityFromConversation: vi.fn().mockResolvedValue(null),
-    };
+    // Default to null so tests not explicitly exercising tier-2 DB lookup
+    // get a clean miss (rather than `undefined`, which would crash the
+    // `if (dbResult !== null)` branch in lookupPersonalityIdentifier).
+    vi.mocked(lookupPersonalityFromMessage).mockResolvedValue(null);
 
-    service = new ReplyResolutionService(
-      mockPersonalityService as any,
-      mockGatewayClient as unknown as GatewayClient
-    );
+    service = new ReplyResolutionService(mockPersonalityService as any);
   });
 
   describe('resolvePersonality', () => {
@@ -316,16 +312,14 @@ describe('ReplyResolutionService', () => {
       });
 
       (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
-      mockGatewayClient.lookupPersonalityFromConversation.mockResolvedValue({
+      vi.mocked(lookupPersonalityFromMessage).mockResolvedValue({
         personalityId: 'pers-weaver',
       });
       mockPersonalityService.loadPersonality.mockResolvedValue(mockPersonality);
 
       const result = await service.resolvePersonality(message, 'user-123');
 
-      expect(mockGatewayClient.lookupPersonalityFromConversation).toHaveBeenCalledWith(
-        'ref-old-message'
-      );
+      expect(vi.mocked(lookupPersonalityFromMessage)).toHaveBeenCalledWith('ref-old-message');
       expect(mockPersonalityService.loadPersonality).toHaveBeenCalledWith(
         'pers-weaver',
         'user-123'
@@ -456,7 +450,7 @@ describe('ReplyResolutionService', () => {
       const result = await service.resolvePersonality(message, 'user-123');
 
       expect(redisService.getWebhookPersonality).toHaveBeenCalledWith('ref-123');
-      expect(mockGatewayClient.lookupPersonalityFromConversation).not.toHaveBeenCalled();
+      expect(vi.mocked(lookupPersonalityFromMessage)).not.toHaveBeenCalled();
       expect(mockPersonalityService.loadPersonality).toHaveBeenCalledWith(
         'pers-uuid-123',
         'user-123'
@@ -495,7 +489,7 @@ describe('ReplyResolutionService', () => {
       // Redis miss (tier 1)
       (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
       // Database lookup succeeds (tier 2)
-      mockGatewayClient.lookupPersonalityFromConversation.mockResolvedValue({
+      vi.mocked(lookupPersonalityFromMessage).mockResolvedValue({
         personalityId: 'pers-uuid-456',
         personalityName: 'Lilith',
       });
@@ -504,7 +498,7 @@ describe('ReplyResolutionService', () => {
       const result = await service.resolvePersonality(message, 'user-123');
 
       expect(redisService.getWebhookPersonality).toHaveBeenCalledWith('ref-123');
-      expect(mockGatewayClient.lookupPersonalityFromConversation).toHaveBeenCalledWith('ref-123');
+      expect(vi.mocked(lookupPersonalityFromMessage)).toHaveBeenCalledWith('ref-123');
       expect(mockPersonalityService.loadPersonality).toHaveBeenCalledWith(
         'pers-uuid-456',
         'user-123'
@@ -543,14 +537,14 @@ describe('ReplyResolutionService', () => {
       // Redis miss (tier 1)
       (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
       // Database miss (tier 2)
-      mockGatewayClient.lookupPersonalityFromConversation.mockResolvedValue(null);
+      vi.mocked(lookupPersonalityFromMessage).mockResolvedValue(null);
       // Display name parsing succeeds (tier 3)
       mockPersonalityService.loadPersonality.mockResolvedValue(mockPersonality);
 
       const result = await service.resolvePersonality(message, 'user-123');
 
       expect(redisService.getWebhookPersonality).toHaveBeenCalledWith('ref-123');
-      expect(mockGatewayClient.lookupPersonalityFromConversation).toHaveBeenCalledWith('ref-123');
+      expect(vi.mocked(lookupPersonalityFromMessage)).toHaveBeenCalledWith('ref-123');
       // Should extract "Lilith" from "**Lilith:** Hello there!"
       expect(mockPersonalityService.loadPersonality).toHaveBeenCalledWith('Lilith', 'user-123');
       expect(result).toBe(mockPersonality);
@@ -574,7 +568,7 @@ describe('ReplyResolutionService', () => {
       const result = await service.resolvePersonality(message, 'user-123');
 
       expect(redisService.getWebhookPersonality).not.toHaveBeenCalled();
-      expect(mockGatewayClient.lookupPersonalityFromConversation).not.toHaveBeenCalled();
+      expect(vi.mocked(lookupPersonalityFromMessage)).not.toHaveBeenCalled();
       expect(mockPersonalityService.loadPersonality).not.toHaveBeenCalled();
       expect(result).toBeNull();
     });
@@ -596,7 +590,7 @@ describe('ReplyResolutionService', () => {
 
       // All tiers miss
       (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
-      mockGatewayClient.lookupPersonalityFromConversation.mockResolvedValue(null);
+      vi.mocked(lookupPersonalityFromMessage).mockResolvedValue(null);
 
       const result = await service.resolvePersonality(message, 'user-123');
 
@@ -604,10 +598,7 @@ describe('ReplyResolutionService', () => {
       expect(result).toBeNull();
     });
 
-    it('should work without gatewayClient (tier 2 skipped)', async () => {
-      // Create service without gateway client
-      const serviceWithoutGateway = new ReplyResolutionService(mockPersonalityService as any);
-
+    it('should fall through to tier 3 when both Redis and the DB lookup miss', async () => {
       const mockPersonality: LoadedPersonality = {
         id: 'pers-uuid-123',
         name: 'lilith',
@@ -635,14 +626,15 @@ describe('ReplyResolutionService', () => {
         channelType: ChannelType.DM,
       });
 
-      // Redis miss - should skip tier 2 and go to tier 3
+      // Redis miss (tier 1) and DB miss (tier 2, default mock returns null) —
+      // resolution must fall through to tier-3 display-name parsing.
       (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
       mockPersonalityService.loadPersonality.mockResolvedValue(mockPersonality);
 
-      const result = await serviceWithoutGateway.resolvePersonality(message, 'user-123');
+      const result = await service.resolvePersonality(message, 'user-123');
 
-      // Tier 2 (database) should be skipped
-      expect(mockGatewayClient.lookupPersonalityFromConversation).not.toHaveBeenCalled();
+      // Tier 2 (database) runs but misses
+      expect(vi.mocked(lookupPersonalityFromMessage)).toHaveBeenCalledWith('ref-123');
       // Should fall through to tier 3 (display name parsing)
       expect(mockPersonalityService.loadPersonality).toHaveBeenCalledWith('Lilith', 'user-123');
       expect(result).toBe(mockPersonality);
