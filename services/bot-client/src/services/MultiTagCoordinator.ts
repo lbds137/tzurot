@@ -42,7 +42,6 @@ import type { ResponseOrderingService } from './ResponseOrderingService.js';
 import type { SlotDeliveryService } from './SlotDeliveryService.js';
 import type { MultiTagPersistence, SyntheticTimeoutContext } from './MultiTagPersistence.js';
 import { type ResolvedSlot, type SlotSource } from './SlotResolver.js';
-import type { GatewayClient } from '../utils/GatewayClient.js';
 
 const logger = createLogger('MultiTagCoordinator');
 
@@ -74,7 +73,6 @@ export interface StartFanOutInput {
 
 export interface MultiTagCoordinatorDeps {
   chatManager: PersonalityChatManager;
-  gatewayClient: GatewayClient;
   jobTracker: JobTracker;
   orderingService: ResponseOrderingService;
   slotDelivery: SlotDeliveryService;

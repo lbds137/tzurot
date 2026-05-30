@@ -26,10 +26,11 @@ import {
   createBullMQRedisConfig,
 } from '@tzurot/common-types';
 import {
-  GatewayClient,
   invalidateChannelSettingsCache,
   clearAllChannelSettingsCache,
-} from './utils/GatewayClient.js';
+  confirmDelivery,
+  healthCheck,
+} from './utils/gatewayServiceCalls.js';
 import { WebhookManager } from './utils/WebhookManager.js';
 import type { MessageHandler } from './handlers/MessageHandler.js';
 import { CommandHandler } from './handlers/CommandHandler.js';
@@ -134,7 +135,6 @@ const client = new Client({
  */
 interface Services {
   messageHandler: MessageHandler;
-  gatewayClient: GatewayClient;
   jobTracker: JobTracker;
   resultsListener: ResultsListener;
   jobFailureListener: JobFailureListener;
@@ -192,7 +192,6 @@ function createServices(): Services {
   const cacheRedis = buildCacheRedis();
 
   // Core infrastructure
-  const gatewayClient = new GatewayClient(config.gatewayUrl);
   const webhookManager = new WebhookManager(client);
   const responseOrderingService = new ResponseOrderingService();
   const jobTracker = new JobTracker(responseOrderingService);
@@ -232,13 +231,12 @@ function createServices(): Services {
   const responseSender = new DiscordResponseSender(webhookManager);
   const contextBuilder = new MessageContextBuilder(prisma, personaResolver, denylistCache);
   const persistence = new ConversationPersistence(prisma);
-  const voiceTranscription = new VoiceTranscriptionService(gatewayClient);
+  const voiceTranscription = new VoiceTranscriptionService();
   const referenceEnricher = new ReferenceEnrichmentService(userService, personaResolver);
-  const replyResolver = new ReplyResolutionService(personalityIdCache, gatewayClient);
+  const replyResolver = new ReplyResolutionService(personalityIdCache);
 
   // Personality chat pipeline (manager + Discord-shape adapter).
   const { personalityChatManager, personalityHandler } = buildPersonalityChatPipeline({
-    gatewayClient,
     contextBuilder,
     persistence,
     referenceEnricher,
@@ -251,7 +249,6 @@ function createServices(): Services {
   const slotDelivery = new SlotDeliveryService({
     responseSender,
     persistence,
-    gatewayClient,
   });
 
   // BullMQ Queue handle for MultiTagRecovery's state polling. Constructed
@@ -274,7 +271,6 @@ function createServices(): Services {
   } = buildMultiTagStack({
     redis: botRedis,
     chatManager: personalityChatManager,
-    gatewayClient,
     jobTracker,
     orderingService: responseOrderingService,
     slotDelivery,
@@ -299,7 +295,6 @@ function createServices(): Services {
     denylistCache,
     voiceTranscription,
     personalityIdCache,
-    gatewayClient,
     replyResolver,
     personalityHandler,
     multiTagPersistence,
@@ -316,7 +311,6 @@ function createServices(): Services {
   registerServices({
     jobTracker,
     webhookManager,
-    gatewayClient,
     personalityService,
     conversationHistoryService,
     personaResolver,
@@ -328,7 +322,6 @@ function createServices(): Services {
 
   return {
     messageHandler,
-    gatewayClient,
     jobTracker,
     resultsListener,
     jobFailureListener,
@@ -672,7 +665,7 @@ async function startResultsListener(): Promise<void> {
         // Job not tracked (shouldn't happen in normal flow)
         logger.warn({ jobId }, 'Result for unknown job - delivering immediately');
         await services.messageHandler.handleJobResult(jobId, result);
-        await services.gatewayClient.confirmDelivery(jobId);
+        await confirmDelivery(jobId);
         return;
       }
 
@@ -684,7 +677,7 @@ async function startResultsListener(): Promise<void> {
         context.userMessageTime,
         async (jId, res) => {
           await services.messageHandler.handleJobResult(jId, res);
-          await services.gatewayClient.confirmDelivery(jId);
+          await confirmDelivery(jId);
         }
       );
     } catch (error) {
@@ -732,7 +725,7 @@ async function subscribeToCacheInvalidation(): Promise<void> {
   await services.denylistCacheInvalidationService.subscribe(event => {
     if (event.type === 'all') {
       // Full reload — re-hydrate from gateway
-      void services.denylistCache.hydrate(services.gatewayClient).catch(err => {
+      void services.denylistCache.hydrate().catch(err => {
         logger.error({ err }, 'Failed to re-hydrate denylist cache');
       });
       logger.info('Denylist cache full reload triggered');
@@ -804,7 +797,7 @@ async function start(): Promise<void> {
     logger.info('All services initialized');
 
     // Hydrate denylist cache from gateway
-    await services.denylistCache.hydrate(services.gatewayClient);
+    await services.denylistCache.hydrate();
     logger.info('Denylist cache hydrated');
 
     // Start notification cache cleanup timer
@@ -816,7 +809,7 @@ async function start(): Promise<void> {
 
     // Health check gateway
     logger.info('Checking gateway health...');
-    const isHealthy = await services.gatewayClient.healthCheck();
+    const isHealthy = await healthCheck();
     logGatewayHealthStatus(isHealthy);
 
     // Login to Discord

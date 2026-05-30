@@ -21,7 +21,7 @@ import { ChannelType, type Message } from 'discord.js';
 import { createLogger, isUuidFormat } from '@tzurot/common-types';
 import type { LoadedPersonality } from '@tzurot/common-types';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
-import type { GatewayClient } from '../utils/GatewayClient.js';
+import { lookupPersonalityFromMessage } from '../utils/gatewayServiceCalls.js';
 import { redisService } from '../redis.js';
 import { deriveBotSuffix, stripBotSuffix } from '../utils/webhookNaming.js';
 
@@ -46,10 +46,7 @@ function isExpectedDiscordError(error: unknown): boolean {
  * Resolves personality from replied-to messages
  */
 export class ReplyResolutionService {
-  constructor(
-    private readonly personalityService: IPersonalityLoader,
-    private readonly gatewayClient?: GatewayClient
-  ) {}
+  constructor(private readonly personalityService: IPersonalityLoader) {}
 
   /**
    * Validate that the replied-to message is from a personality.
@@ -169,10 +166,8 @@ export class ReplyResolutionService {
     // expired (>7d) or was never stored (transient failure), tier 2 is what
     // keeps the reply slot populated and preserves slot-0 ordering in
     // multi-tag fan-outs.
-    if (!isValidIdentifier(identifier) && this.gatewayClient !== undefined) {
-      const dbResult = await this.gatewayClient.lookupPersonalityFromConversation(
-        referencedMessage.id
-      );
+    if (!isValidIdentifier(identifier)) {
+      const dbResult = await lookupPersonalityFromMessage(referencedMessage.id);
       if (dbResult !== null) {
         identifier = dbResult.personalityId;
         logger.debug(

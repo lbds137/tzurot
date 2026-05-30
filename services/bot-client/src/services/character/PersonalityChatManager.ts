@@ -22,7 +22,7 @@ import type {
 } from '@tzurot/common-types';
 import { createLogger, isBotOwner, isTypingChannel, MESSAGE_LIMITS } from '@tzurot/common-types';
 import type { UserClient } from '@tzurot/common-types';
-import { GatewayClient } from '../../utils/GatewayClient.js';
+import { generate } from '../../utils/gatewayServiceCalls.js';
 import { clientsForUser } from '../../utils/gatewayClients.js';
 import { MessageContextBuilder } from '../MessageContextBuilder.js';
 import { ConversationPersistence } from '../ConversationPersistence.js';
@@ -37,7 +37,6 @@ import type { MessageJobContext } from '../JobTracker.js';
 const logger = createLogger('PersonalityChatManager');
 
 export interface PersonalityChatManagerDeps {
-  gatewayClient: GatewayClient;
   contextBuilder: MessageContextBuilder;
   persistence: ConversationPersistence;
   referenceEnricher: ReferenceEnrichmentService;
@@ -67,14 +66,12 @@ export type SubmitChatJobResult =
     };
 
 export class PersonalityChatManager {
-  private readonly gatewayClient: GatewayClient;
   private readonly contextBuilder: MessageContextBuilder;
   private readonly persistence: ConversationPersistence;
   private readonly referenceEnricher: ReferenceEnrichmentService;
   private readonly denylistCache?: DenylistCache;
 
   constructor(deps: PersonalityChatManagerDeps) {
-    this.gatewayClient = deps.gatewayClient;
     this.contextBuilder = deps.contextBuilder;
     this.persistence = deps.persistence;
     this.referenceEnricher = deps.referenceEnricher;
@@ -269,7 +266,7 @@ export class PersonalityChatManager {
 
     const userMessageTime = new Date();
 
-    const { jobId } = await this.gatewayClient.generate(personality, {
+    const { jobId } = await generate(personality, {
       ...context,
       triggerMessageId: message.id,
     });

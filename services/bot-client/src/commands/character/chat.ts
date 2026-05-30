@@ -33,13 +33,13 @@ import {
 import type { EnvConfig, LoadedPersonality } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
-  getGatewayClient,
   getPersonalityService,
   getMessageContextBuilder,
   getConversationPersistence,
   getPersonaResolver,
   getJobTracker,
 } from '../../services/serviceRegistry.js';
+import { generate } from '../../utils/gatewayServiceCalls.js';
 import type { MessageContext } from '../../types.js';
 import { resolveCharacterSlug, finalizeDeferredReply } from './randomPick.js';
 
@@ -292,7 +292,7 @@ async function submitAndTrackJob(params: SubmitJobParams): Promise<void> {
     userId,
   } = params;
 
-  const { jobId, requestId } = await getGatewayClient().generate(personality, context);
+  const { jobId, requestId } = await generate(personality, context);
   logger.info({ jobId, requestId, characterSlug, isWeighInMode }, 'Slash job submitted');
 
   getJobTracker().trackJob(jobId, {

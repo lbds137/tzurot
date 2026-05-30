@@ -16,7 +16,6 @@ import type {
   PersonaResolver,
   ChannelActivationCacheInvalidationService,
 } from '@tzurot/common-types';
-import type { GatewayClient } from '../utils/GatewayClient.js';
 import type { JobTracker } from './JobTracker.js';
 import type { WebhookManager } from '../utils/WebhookManager.js';
 import type { MessageContextBuilder } from './MessageContextBuilder.js';
@@ -26,7 +25,6 @@ import type { DenylistCache } from './DenylistCache.js';
 // Service references - set during app initialization
 let jobTracker: JobTracker | undefined;
 let webhookManager: WebhookManager | undefined;
-let gatewayClient: GatewayClient | undefined;
 let personalityService: PersonalityService | undefined;
 let conversationHistoryService: ConversationHistoryService | undefined;
 let personaResolver: PersonaResolver | undefined;
@@ -43,7 +41,6 @@ let denylistCache: DenylistCache | undefined;
 interface RegisteredServices {
   jobTracker: JobTracker;
   webhookManager: WebhookManager;
-  gatewayClient: GatewayClient;
   personalityService: PersonalityService;
   conversationHistoryService: ConversationHistoryService;
   personaResolver: PersonaResolver;
@@ -60,7 +57,6 @@ interface RegisteredServices {
 export function registerServices(services: RegisteredServices): void {
   jobTracker = services.jobTracker;
   webhookManager = services.webhookManager;
-  gatewayClient = services.gatewayClient;
   personalityService = services.personalityService;
   conversationHistoryService = services.conversationHistoryService;
   personaResolver = services.personaResolver;
@@ -90,17 +86,6 @@ export function getWebhookManager(): WebhookManager {
     throw new Error('WebhookManager not registered. Call registerServices() first.');
   }
   return webhookManager;
-}
-
-/**
- * Get the GatewayClient instance
- * @throws Error if services not registered
- */
-export function getGatewayClient(): GatewayClient {
-  if (gatewayClient === undefined) {
-    throw new Error('GatewayClient not registered. Call registerServices() first.');
-  }
-  return gatewayClient;
 }
 
 /**
@@ -181,7 +166,6 @@ export function areServicesRegistered(): boolean {
   return (
     jobTracker !== undefined &&
     webhookManager !== undefined &&
-    gatewayClient !== undefined &&
     personalityService !== undefined &&
     conversationHistoryService !== undefined &&
     personaResolver !== undefined &&
@@ -204,7 +188,6 @@ export function areServicesRegistered(): boolean {
 export function resetServices(): void {
   jobTracker = undefined;
   webhookManager = undefined;
-  gatewayClient = undefined;
   personalityService = undefined;
   conversationHistoryService = undefined;
   personaResolver = undefined;

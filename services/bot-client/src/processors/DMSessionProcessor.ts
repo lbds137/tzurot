@@ -17,7 +17,11 @@ import type { Message, DMChannel } from 'discord.js';
 import { createLogger, type LoadedPersonality } from '@tzurot/common-types';
 import type { IMessageProcessor } from './IMessageProcessor.js';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
-import { GatewayClient } from '../utils/GatewayClient.js';
+import {
+  getChannelSettingsCached,
+  setDmSessionPersonality,
+  lookupPersonalityFromMessage,
+} from '../utils/gatewayServiceCalls.js';
 import { PersonalityMessageHandler } from '../services/PersonalityMessageHandler.js';
 import { VoiceMessageProcessor } from './VoiceMessageProcessor.js';
 import {
@@ -51,7 +55,6 @@ const HELP_MESSAGE_DELETE_DELAY = 30_000;
 
 export class DMSessionProcessor implements IMessageProcessor {
   constructor(
-    private readonly gatewayClient: GatewayClient,
     private readonly personalityService: IPersonalityLoader,
     private readonly personalityHandler: PersonalityMessageHandler,
     private readonly multiTagPersistence: MultiTagPersistence
@@ -147,7 +150,7 @@ export class DMSessionProcessor implements IMessageProcessor {
    * Resolve the active DM personality with cache-first lookup + lazy backfill.
    *
    * Priority order:
-   *   1. channel_settings (single Redis-cached lookup via GatewayClient) —
+   *   1. channel_settings (single Redis-cached lookup via getChannelSettingsCached) —
    *      this is the steady-state path, written by MultiTagCoordinator
    *      after every multi-tag DM fan-out.
    *   2. History scan (existing logic) — only when no settings row exists
@@ -166,7 +169,7 @@ export class DMSessionProcessor implements IMessageProcessor {
   ): Promise<{ personalityId: string; personality: LoadedPersonality | null } | null> {
     const channelId = message.channelId;
 
-    const channelSettings = await this.gatewayClient.getChannelSettings(channelId);
+    const channelSettings = await getChannelSettingsCached(channelId);
     if (
       channelSettings?.hasSettings === true &&
       channelSettings.settings?.activatedPersonalityId !== undefined &&
@@ -199,7 +202,7 @@ export class DMSessionProcessor implements IMessageProcessor {
         // Fire-and-forget — best-effort, doesn't block the response.
         // Also clear the backfill-tried sentinel (this scan just succeeded
         // so any prior negative-cache marker should not survive).
-        void this.gatewayClient.setDmSessionPersonality(channelId, personality.slug);
+        void setDmSessionPersonality(channelId, personality.slug);
         void this.multiTagPersistence.clearDMBackfillTried(channelId);
       }
       return { personalityId, personality };
@@ -251,7 +254,7 @@ export class DMSessionProcessor implements IMessageProcessor {
         }
 
         // Look up this message in conversation history
-        const historyEntry = await this.gatewayClient.lookupPersonalityFromConversation(msg.id);
+        const historyEntry = await lookupPersonalityFromMessage(msg.id);
         if (historyEntry?.personalityId !== undefined && historyEntry.personalityId.length > 0) {
           logger.debug(
             { messageId: msg.id, personalityId: historyEntry.personalityId },

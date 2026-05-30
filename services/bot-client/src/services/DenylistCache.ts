@@ -23,7 +23,7 @@ import {
   type DenylistCacheResponse,
   type DenylistMode,
 } from '@tzurot/common-types';
-import type { GatewayClient } from '../utils/GatewayClient.js';
+import { getServiceClient } from '../utils/gatewayClients.js';
 
 const logger = createLogger('DenylistCache');
 
@@ -50,10 +50,13 @@ export class DenylistCache {
    * At current scale this is more than sufficient, but if the denylist grows
    * significantly, pagination or streaming would be needed.
    */
-  async hydrate(gatewayClient: GatewayClient): Promise<void> {
+  async hydrate(): Promise<void> {
     try {
-      const response = await gatewayClient.getDenylistEntries();
-      this.loadEntries(response);
+      const result = await getServiceClient().getDenylistCache();
+      if (!result.ok) {
+        throw new Error(`Denylist cache fetch failed: ${result.status} ${result.error}`);
+      }
+      this.loadEntries(result.data);
       logger.info(
         {
           botUsers: this.botUsers.size,

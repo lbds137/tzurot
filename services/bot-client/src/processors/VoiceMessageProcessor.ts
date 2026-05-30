@@ -10,7 +10,7 @@ import { createLogger, getConfig, HARDCODED_CONFIG_DEFAULTS } from '@tzurot/comm
 import type { IMessageProcessor } from './IMessageProcessor.js';
 import { VoiceTranscriptionService } from '../services/VoiceTranscriptionService.js';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
-import type { GatewayClient } from '../utils/GatewayClient.js';
+import { getAdminSettingsCached } from '../utils/gatewayServiceCalls.js';
 import { findPersonalityMentions } from '../utils/personalityMentionParser.js';
 
 const logger = createLogger('VoiceMessageProcessor');
@@ -24,8 +24,7 @@ const VOICE_TRANSCRIPT_KEY = Symbol('voiceTranscript');
 export class VoiceMessageProcessor implements IMessageProcessor {
   constructor(
     private readonly voiceService: VoiceTranscriptionService,
-    private readonly personalityService: IPersonalityLoader,
-    private readonly gatewayClient: GatewayClient
+    private readonly personalityService: IPersonalityLoader
   ) {}
 
   async process(message: Message): Promise<boolean> {
@@ -37,10 +36,10 @@ export class VoiceMessageProcessor implements IMessageProcessor {
     }
 
     // Check if auto-transcription is enabled via config cascade (admin-level toggle).
-    // GatewayClient.getAdminSettings() is TTL-cached (30s), so this is a fast cache hit.
+    // getAdminSettingsCached() is TTL-cached (60s), so this is a fast cache hit.
     let voiceTranscriptionEnabled: boolean = HARDCODED_CONFIG_DEFAULTS.voiceTranscriptionEnabled;
     try {
-      const adminSettings = await this.gatewayClient.getAdminSettings();
+      const adminSettings = await getAdminSettingsCached();
       voiceTranscriptionEnabled =
         adminSettings?.configDefaults?.voiceTranscriptionEnabled ?? voiceTranscriptionEnabled;
     } catch (err) {

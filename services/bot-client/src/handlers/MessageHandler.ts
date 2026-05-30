@@ -19,7 +19,7 @@ import {
   type MessageJobContext,
   type SlashJobContext,
 } from '../services/JobTracker.js';
-import { getGatewayClient } from '../services/serviceRegistry.js';
+import { confirmDelivery, updateDiagnosticResponseIds } from '../utils/gatewayServiceCalls.js';
 import type { SlotDeliveryService, SlotDeliveryContext } from '../services/SlotDeliveryService.js';
 import type { MultiTagCoordinator } from '../services/MultiTagCoordinator.js';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
@@ -153,14 +153,12 @@ export class MessageHandler {
       // jobId from the stale SET so it doesn't accumulate across the bot's
       // lifetime (each graceful shutdown adds N entries; without cleanup the
       // SET grows monotonically).
-      void getGatewayClient()
-        .confirmDelivery(jobId)
-        .catch(err =>
-          logger.warn(
-            { err, jobId },
-            'stale-discard: confirmDelivery failed — Redis stream entry may not clear'
-          )
-        );
+      void confirmDelivery(jobId).catch(err =>
+        logger.warn(
+          { err, jobId },
+          'stale-discard: confirmDelivery failed — Redis stream entry may not clear'
+        )
+      );
       void this.coordinator
         .clearStale(jobId)
         .catch(err =>
@@ -226,9 +224,9 @@ export class MessageHandler {
       // and the gateway entry expires on its own TTL if this call never lands.
       // clearSyntheticTimeout is awaited so the recovery marker doesn't linger
       // if we crash right after the follow-up send but before its TTL elapses.
-      void getGatewayClient()
-        .confirmDelivery(jobId)
-        .catch(err => logger.warn({ err, jobId }, 'late-recovery: confirmDelivery failed'));
+      void confirmDelivery(jobId).catch(err =>
+        logger.warn({ err, jobId }, 'late-recovery: confirmDelivery failed')
+      );
       await this.coordinator.clearSyntheticTimeout(jobId);
     };
 
@@ -450,11 +448,9 @@ export class MessageHandler {
       }
 
       if (chunkMessageIds.length > 0) {
-        void getGatewayClient()
-          .updateDiagnosticResponseIds(result.requestId, chunkMessageIds)
-          .catch(err => {
-            logger.warn({ err }, 'Failed to update diagnostic response IDs (slash)');
-          });
+        void updateDiagnosticResponseIds(result.requestId, chunkMessageIds).catch(err => {
+          logger.warn({ err }, 'Failed to update diagnostic response IDs (slash)');
+        });
       }
 
       logger.info(
@@ -516,11 +512,9 @@ export class MessageHandler {
       }
 
       if (chunkMessageIds.length > 0) {
-        void getGatewayClient()
-          .updateDiagnosticResponseIds(result.requestId, chunkMessageIds)
-          .catch(err => {
-            logger.warn({ err }, 'Failed to update diagnostic response IDs for slash error');
-          });
+        void updateDiagnosticResponseIds(result.requestId, chunkMessageIds).catch(err => {
+          logger.warn({ err }, 'Failed to update diagnostic response IDs for slash error');
+        });
       }
     } catch (sendError) {
       logger.error(

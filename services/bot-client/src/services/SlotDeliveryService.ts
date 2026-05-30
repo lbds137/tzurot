@@ -29,7 +29,7 @@ import {
 } from '@tzurot/common-types';
 import type { DiscordResponseSender } from './DiscordResponseSender.js';
 import type { ConversationPersistence } from './ConversationPersistence.js';
-import type { GatewayClient } from '../utils/GatewayClient.js';
+import { updateDiagnosticResponseIds } from '../utils/gatewayServiceCalls.js';
 
 const logger = createLogger('SlotDeliveryService');
 
@@ -67,7 +67,6 @@ export interface SlotDeliveryContext {
 export interface SlotDeliveryServiceDeps {
   responseSender: DiscordResponseSender;
   persistence: ConversationPersistence;
-  gatewayClient: GatewayClient;
 }
 
 /**
@@ -77,12 +76,10 @@ export interface SlotDeliveryServiceDeps {
 export class SlotDeliveryService {
   private readonly responseSender: DiscordResponseSender;
   private readonly persistence: ConversationPersistence;
-  private readonly gatewayClient: GatewayClient;
 
   constructor(deps: SlotDeliveryServiceDeps) {
     this.responseSender = deps.responseSender;
     this.persistence = deps.persistence;
-    this.gatewayClient = deps.gatewayClient;
   }
 
   /**
@@ -165,11 +162,9 @@ export class SlotDeliveryService {
     }
 
     if (chunkMessageIds.length > 0) {
-      void this.gatewayClient
-        .updateDiagnosticResponseIds(result.requestId, chunkMessageIds)
-        .catch(err => {
-          logger.warn({ err }, 'Failed to update diagnostic response IDs');
-        });
+      void updateDiagnosticResponseIds(result.requestId, chunkMessageIds).catch(err => {
+        logger.warn({ err }, 'Failed to update diagnostic response IDs');
+      });
     }
 
     return { chunkMessageIds };
@@ -251,11 +246,9 @@ export class SlotDeliveryService {
     }
 
     if (chunkMessageIds.length > 0) {
-      void this.gatewayClient
-        .updateDiagnosticResponseIds(result.requestId, chunkMessageIds)
-        .catch(err => {
-          logger.warn({ err }, 'Failed to update diagnostic response IDs for error');
-        });
+      void updateDiagnosticResponseIds(result.requestId, chunkMessageIds).catch(err => {
+        logger.warn({ err }, 'Failed to update diagnostic response IDs for error');
+      });
     }
   }
 }
