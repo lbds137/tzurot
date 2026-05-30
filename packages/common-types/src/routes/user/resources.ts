@@ -340,6 +340,10 @@ export const userResourceRoutes = {
     output: ListVoiceModelsResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
+    // Restores the DEFERRED budget: fetches the provider's available-models
+    // catalog (third-party round-trip) for the post-defer voice dashboard;
+    // the 2500ms autocomplete default is too tight for the upstream call.
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   clearVoices: {
