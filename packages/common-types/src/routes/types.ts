@@ -279,9 +279,8 @@ export interface RouteDef<
    * If a route comfortably fits the 2500ms default, do NOT just omit this
    * field — also register its id in `DEFAULT_TIMEOUT_OK` in `manifest.test.ts`.
    * That test enforces that relying on the default is a conscious "this op is
-   * fast" decision rather than a silent fallback (the omission is what caused
-   * the beta.126 timeout regressions). Omit + register, or set timeoutMs — never
-   * silently omit.
+   * fast" decision rather than a silent fallback. Omit + register, or set
+   * timeoutMs — never silently omit.
    */
   readonly timeoutMs?: number;
 }
