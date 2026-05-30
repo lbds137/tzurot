@@ -17,14 +17,18 @@ import type { SlotDeliveryService } from '../services/SlotDeliveryService.js';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import type { MultiTagCoordinator } from '../services/MultiTagCoordinator.js';
 
-// Mock serviceRegistry to provide getGatewayClient
+// confirmDelivery + updateDiagnosticResponseIds moved off GatewayClient to the
+// gatewayServiceCalls module; route them to a holder so the existing
+// assertions keep working unchanged.
 const mockGatewayClient = {
   updateDiagnosticResponseIds: vi.fn().mockResolvedValue(undefined),
   confirmDelivery: vi.fn().mockResolvedValue(undefined),
 };
 
-vi.mock('../services/serviceRegistry.js', () => ({
-  getGatewayClient: () => mockGatewayClient,
+vi.mock('../utils/gatewayServiceCalls.js', () => ({
+  confirmDelivery: (...args: unknown[]) => mockGatewayClient.confirmDelivery(...args),
+  updateDiagnosticResponseIds: (...args: unknown[]) =>
+    mockGatewayClient.updateDiagnosticResponseIds(...args),
 }));
 
 // Mock dependencies

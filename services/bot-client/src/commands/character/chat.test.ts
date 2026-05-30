@@ -50,12 +50,17 @@ const mockPersonaResolver = {
 };
 
 vi.mock('../../services/serviceRegistry.js', () => ({
-  getGatewayClient: () => mockGatewayClient,
   getPersonalityService: () => mockPersonalityService,
   getMessageContextBuilder: () => mockMessageContextBuilder,
   getConversationPersistence: () => mockConversationPersistence,
   getPersonaResolver: () => mockPersonaResolver,
   getJobTracker: () => mockJobTracker,
+}));
+
+// `generate` moved off GatewayClient to the gatewayServiceCalls module; route
+// it to the same holder so the existing assertions keep working unchanged.
+vi.mock('../../utils/gatewayServiceCalls.js', () => ({
+  generate: (...args: unknown[]) => mockGatewayClient.generate(...args),
 }));
 
 const mockGetCachedPersonalities = vi.fn();
