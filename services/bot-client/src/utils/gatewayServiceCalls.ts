@@ -216,6 +216,18 @@ export async function generate(
   personality: LoadedPersonality,
   context: MessageContext
 ): Promise<{ jobId: string; requestId: string }> {
+  // Attachment-payload context — kept because the gateway downloads
+  // extended-context attachments synchronously before responding, so this is
+  // the first place to look if the heavy-attachment submit timeout recurs.
+  logger.debug(
+    {
+      hasReferencedMessages:
+        context.referencedMessages !== undefined && context.referencedMessages !== null,
+      referencedCount: context.referencedMessages?.length ?? 0,
+      contextKeys: Object.keys(context),
+    },
+    'Submitting generation context'
+  );
   const result = await getServiceClient().aiGenerate({
     personality,
     message: context.messageContent,

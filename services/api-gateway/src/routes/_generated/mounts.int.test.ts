@@ -70,6 +70,15 @@ describe('mounts.ts — audience-prefix routing', () => {
       const res = await request(app).post('/api/internal/ai/generate').send({});
       expect(res.status).not.toBe(404);
     });
+
+    it('exposes GET /api/internal/admin-settings at the expected prefix', async () => {
+      // The service-read alias for AdminSettings (getAdminSettingsInternal),
+      // reachable without a Discord actor unlike the owner /api/admin/settings
+      // route. Handler reads via prisma only (no Redis); ≠ 404 confirms the
+      // mount — handler behavior is covered in admin/settings.test.ts.
+      const res = await request(app).get('/api/internal/admin-settings');
+      expect(res.status).not.toBe(404);
+    });
   });
 
   describe('admin routes — require user + owner auth', () => {
