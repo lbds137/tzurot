@@ -58,7 +58,7 @@ export const internalRoutes = {
     serviceOnly: true,
     // api-gateway downloads extended-context attachments synchronously inside
     // the handler before responding, so submit time scales with payload size
-    // (observed >10s for ~12-attachment requests). 60s accommodates heavy cases.
+    // and can exceed 10s on large attachment payloads. 60s accommodates that.
     timeoutMs: TIMEOUTS.AI_GENERATE_SUBMIT,
   },
 
