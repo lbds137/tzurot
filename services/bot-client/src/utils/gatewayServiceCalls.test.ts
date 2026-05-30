@@ -225,3 +225,65 @@ describe('raw-fetch helpers (allow-listed)', () => {
     expect(await healthCheck()).toBe(false);
   });
 });
+
+describe('transcribe — transient-network retry', () => {
+  const completedResponse = {
+    ok: true,
+    json: async () => ({
+      jobId: 'jt-1',
+      status: JobStatus.Completed,
+      result: { content: 'recovered transcript' },
+    }),
+  } as Response;
+
+  const transientError = (code: string): Error =>
+    Object.assign(new Error(`socket ${code}`), { cause: { code } });
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('retries on a transient network error and succeeds on a later attempt', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValueOnce(transientError('ECONNRESET'))
+      .mockResolvedValueOnce(completedResponse);
+
+    const promise = transcribe([{ url: 'a', contentType: 'audio/ogg' }], 'user-1');
+    await vi.runAllTimersAsync();
+    const result = await promise;
+
+    expect(result.content).toBe('recovered transcript');
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('rethrows after exhausting all attempts on persistent transient errors', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(transientError('UND_ERR_SOCKET'));
+
+    const promise = transcribe([{ url: 'a', contentType: 'audio/ogg' }], 'user-1');
+    const assertion = expect(promise).rejects.toThrow();
+    await vi.runAllTimersAsync();
+    await assertion;
+
+    // TRANSCRIBE_MAX_ATTEMPTS = 3 → two loop iterations + one final attempt.
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+  });
+
+  it('does NOT retry a non-transient error (no transient cause code)', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('400 validation failed'));
+
+    const promise = transcribe([{ url: 'a', contentType: 'audio/ogg' }], 'user-1');
+    const assertion = expect(promise).rejects.toThrow('400 validation failed');
+    await vi.runAllTimersAsync();
+    await assertion;
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+});
