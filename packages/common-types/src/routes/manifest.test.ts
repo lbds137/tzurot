@@ -21,6 +21,9 @@ const entries = Object.entries(ROUTE_MANIFEST) as [string, AnyRouteDef][];
  */
 const DEFAULT_TIMEOUT_OK = new Set<string>([
   // ---- internal (service-to-service single lookups / job introspection) ----
+  // aiTranscribe is a sync STT wait (up to 240s) but is invoked via the raw-fetch
+  // path in gatewayServiceCalls.ts (its own AbortSignal/retry), never the typed
+  // service-client — so the 2500ms manifest default is never applied to it.
   'aiTranscribe',
   'aiJobStatus',
   'recentUsers',
