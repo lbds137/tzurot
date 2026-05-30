@@ -73,7 +73,10 @@ describe('raw gateway fetch guard', () => {
     const calls = collectSourceFiles(SRC_ROOT)
       .flatMap(file => readFileSync(file, 'utf8').split('\n'))
       .filter(line => RAW_GATEWAY_FETCH.test(line));
-    // transcribe + healthCheck in gatewayServiceCalls.ts.
-    expect(calls.length).toBeGreaterThanOrEqual(2);
+    // Exactly transcribe + healthCheck in gatewayServiceCalls.ts — no more, no
+    // less. `toBe(2)` (not `>=2`) also fails if the two exceptions are ever
+    // reformatted so the regex stops matching them (which would silently turn
+    // the guard above into a no-op that always passes).
+    expect(calls.length).toBe(2);
   });
 });

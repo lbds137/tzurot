@@ -316,6 +316,11 @@ async function retryTranscribeOnTransientNetworkError<T>(fn: () => Promise<T>): 
   }
 }
 
+// Bot-client-side shapes (NOT the common-types route schema). The wire
+// contract is validated server-side against TranscribeRequestSchema; these
+// describe what bot-client builds from Discord attachments / reads off the
+// raw transcribe response, so they intentionally live here rather than being
+// imported.
 interface TranscribeAttachment {
   url: string;
   contentType: string;
