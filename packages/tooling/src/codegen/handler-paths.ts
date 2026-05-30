@@ -89,6 +89,8 @@ const PATH_MAP: Readonly<Record<string, string>> = {
   clearAdminSettings: ADMIN_SETTINGS,
   getAdminSettings: ADMIN_SETTINGS,
   updateAdminSettings: ADMIN_SETTINGS,
+  // Internal service-read alias for AdminSettings — reuses the admin handler.
+  getAdminSettingsInternal: ADMIN_SETTINGS,
 
   // Admin diagnostic
   getDiagnosticByMessage: ADMIN_DIAGNOSTIC,
@@ -260,13 +262,17 @@ const PATH_MAP: Readonly<Record<string, string>> = {
  * alias false-positives can be avoided). Each key is the route id whose
  * default-derived export name should be replaced by the value.
  *
- * Currently the only entry is the internal `getChannelSettings` route, which
- * shares its handler with the user-tier `getUserChannel` route — both mount
- * the same implementation, differentiated only by the audience-level
- * middleware applied at the prefix.
+ * `getChannelSettings` (internal) shares its handler with the user-tier
+ * `getUserChannel` route — both mount the same implementation, differentiated
+ * only by the audience-level middleware applied at the prefix.
+ *
+ * `getAdminSettingsInternal` (internal) shares the admin-tier
+ * `getAdminSettings` handler: the service-read alias and the owner read both
+ * mount `handleGetAdminSettings`, differentiated only by the prefix's auth.
  */
 const EXPORT_NAME_OVERRIDES: Readonly<Record<string, string>> = {
   getChannelSettings: 'handleGetUserChannel',
+  getAdminSettingsInternal: 'handleGetAdminSettings',
 };
 
 /**

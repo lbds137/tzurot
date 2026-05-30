@@ -28,11 +28,13 @@ import {
   DiagnosticUpdateResponseSchema,
   GetChannelSettingsResponseSchema,
   TranscribeRequestSchema,
+  AdminSettingsSchema,
 } from '../schemas/api/index.js';
 // generateRequestSchema lives under the `types/schemas/` module rather than
 // the `schemas/api/` barrel (it predates the API-schema reorganization). The
 // route-manifest treats them uniformly via the import below.
 import { generateRequestSchema } from '../types/schemas/generation.js';
+import { TIMEOUTS } from '../constants/timing.js';
 import type { RouteDef } from './types.js';
 
 /**
@@ -54,6 +56,10 @@ export const internalRoutes = {
     input: generateRequestSchema,
     output: AiGenerateResponseSchema,
     serviceOnly: true,
+    // api-gateway downloads extended-context attachments synchronously inside
+    // the handler before responding, so submit time scales with payload size
+    // (observed >10s for ~12-attachment requests). 60s accommodates heavy cases.
+    timeoutMs: TIMEOUTS.AI_GENERATE_SUBMIT,
   },
 
   /**
@@ -97,6 +103,7 @@ export const internalRoutes = {
     params: { jobId: z.string() },
     output: AiConfirmDeliveryResponseSchema,
     serviceOnly: true,
+    timeoutMs: TIMEOUTS.GATEWAY_RPC,
   },
 
   /**
@@ -112,6 +119,7 @@ export const internalRoutes = {
     input: DmSessionSetRequestSchema,
     output: DmSessionSetResponseSchema,
     serviceOnly: true,
+    timeoutMs: TIMEOUTS.GATEWAY_RPC,
   },
 
   /**
@@ -132,6 +140,7 @@ export const internalRoutes = {
     output: MessagePersonalityResponseSchema,
     serviceOnly: true,
     meta: { safeRead: true },
+    timeoutMs: TIMEOUTS.GATEWAY_RPC,
   },
 
   /**
@@ -167,6 +176,9 @@ export const internalRoutes = {
     output: DenylistCacheResponseSchema,
     serviceOnly: true,
     meta: { safeRead: true },
+    // Startup bulk hydration of the full denylist — larger budget than a
+    // single-row RPC.
+    timeoutMs: TIMEOUTS.GATEWAY_BULK_FETCH,
   },
 
   /**
@@ -189,6 +201,7 @@ export const internalRoutes = {
     input: DiagnosticUpdateSchema,
     output: DiagnosticUpdateResponseSchema,
     serviceOnly: true,
+    timeoutMs: TIMEOUTS.GATEWAY_RPC,
   },
 
   /**
@@ -206,6 +219,30 @@ export const internalRoutes = {
     output: GetChannelSettingsResponseSchema,
     serviceOnly: true,
     meta: { safeRead: true },
+    timeoutMs: TIMEOUTS.GATEWAY_RPC,
+  },
+
+  /**
+   * GET /api/internal/admin-settings
+   * Service-to-service read of the AdminSettings singleton (e.g. bot-client
+   * checking whether auto-transcription is enabled at runtime). The owner-
+   * facing read/write of the same data lives at /api/admin/settings
+   * (audience 'admin', owner-guarded). This internal alias exists because the
+   * owner route's requireUserAuth mount hard-rejects service calls (no
+   * X-User-Id) before the handler's service-or-owner check can run, so a
+   * service caller has no way to read it via the admin route. Reuses the same
+   * handleGetAdminSettings handler (service-safe via its isAuthorizedForRead
+   * check) — wired through EXPORT_NAME_OVERRIDES in handler-paths.ts.
+   */
+  getAdminSettingsInternal: {
+    audience: 'internal',
+    method: 'get',
+    path: '/admin-settings',
+    id: 'getAdminSettingsInternal',
+    output: AdminSettingsSchema,
+    serviceOnly: true,
+    meta: { safeRead: true },
+    timeoutMs: TIMEOUTS.GATEWAY_RPC,
   },
 } as const satisfies Record<string, RouteDef>;
 
