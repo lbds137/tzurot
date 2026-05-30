@@ -98,10 +98,9 @@ export const adminRoutes = {
     input: DbSyncSchema,
     output: DbSyncResponseSchema,
     // db-sync scans every table + flushes writes, so its duration scales with
-    // data — observed ~11s, which overran the 10s DEFERRED budget and made the
-    // client report a false timeout on a sync that actually completed. 30s
-    // (bulk-operation tier) restores headroom. If it ever approaches 30s the
-    // right fix is to make db-sync an async job, not to keep raising this.
+    // data and can exceed the DEFERRED budget under real load. If it ever
+    // approaches the bulk-operation budget, make db-sync an async job rather
+    // than raising this further.
     timeoutMs: GATEWAY_TIMEOUTS.BULK_OPERATION,
   },
 

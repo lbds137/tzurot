@@ -69,7 +69,7 @@ export const userConfigOverrideRoutes = {
     output: GetUserConfigDefaultsResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
-    // Restores the DEFERRED budget: read post-defer in the settings dashboard
+    // DEFERRED budget: read post-defer in the settings dashboard
     // alongside the cascade resolves; the 2500ms autocomplete default is too
     // tight under slow-DB conditions. Paired-handshake consistency with the
     // PATCH/DELETE on the same /defaults path.
@@ -95,7 +95,7 @@ export const userConfigOverrideRoutes = {
     id: 'clearUserDefaults',
     output: ClearUserConfigDefaultsResponseSchema,
     requiresProvisionedUser: true,
-    // Restores the DEFERRED budget: clear-then-resolve handshake in the
+    // DEFERRED budget: clear-then-resolve handshake in the
     // settings dashboard; consistent budget with the GET/PATCH on the same
     // /defaults path prevents the follow-up resolve from timing out.
     timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,

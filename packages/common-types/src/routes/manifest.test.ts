@@ -14,25 +14,10 @@ import type { AnyRouteDef } from './types.js';
 const entries = Object.entries(ROUTE_MANIFEST) as [string, AnyRouteDef][];
 
 /**
- * Registry of route IDs for which the transport default timeout
- * (`GATEWAY_TIMEOUTS.AUTOCOMPLETE` = 2500ms) is acceptable — i.e. "this op is
- * genuinely fast, the 2500ms default is fine."
- *
- * A route belongs here ONLY if its handler is a single-row CRUD by indexed
- * key, a toggle, a single lookup, or a simple insert — work that comfortably
- * completes inside the autocomplete budget even under slow-DB conditions.
- *
- * Slow, external (third-party round-trip), bulk, multi-tier-cascade, or
- * aggregate routes must NOT be added here. They must declare an explicit
- * `timeoutMs` (typically `GATEWAY_TIMEOUTS.DEFERRED` = 10s, or
- * `BULK_OPERATION` = 30s) instead. The typed-client transport defaults
- * `timeoutMs` to AUTOCOMPLETE, so a slow route with no explicit value
- * silently regresses to 2500ms and reports false "Request timeout (HTTP 0)"
- * failures on operations that actually succeeded server-side — the exact
- * regression this allowlist + the test below exist to prevent.
- *
- * To add a route here, you are asserting the op is fast. If it is NOT fast,
- * add `timeoutMs` to the RouteDef instead of registering it here.
+ * Route IDs asserting "this op is fast, the 2500ms transport default is fine"
+ * (single-row CRUD, toggles, single lookups). Slow / external / bulk /
+ * aggregate routes must NOT be listed — they declare an explicit `timeoutMs`
+ * (DEFERRED/BULK), else they silently fall back to 2500ms and false-timeout.
  */
 const DEFAULT_TIMEOUT_OK = new Set<string>([
   // ---- internal (service-to-service single lookups / job introspection) ----
@@ -234,11 +219,9 @@ describe('central route manifest', () => {
     // round-trips, multi-tier cascade, bulk work) but forgets an explicit
     // `timeoutMs` silently falls back to 2500ms and reports false
     // "Request timeout (HTTP 0)" failures on operations that actually
-    // completed server-side (observed on /admin db-sync and shapes import
-    // during the route-manifest typed-client migration). This test makes the
-    // fall-back a CONSCIOUS decision: a route with no explicit timeoutMs must
-    // be explicitly registered in DEFAULT_TIMEOUT_OK above (asserting "this op
-    // is fast, 2500ms is fine").
+    // completed server-side. This test makes the fall-back a CONSCIOUS
+    // decision: a route with no explicit timeoutMs must be registered in
+    // DEFAULT_TIMEOUT_OK above (asserting "this op is fast, 2500ms is fine").
     for (const [key, route] of entries) {
       const ok = route.timeoutMs !== undefined || DEFAULT_TIMEOUT_OK.has(key);
       expect(

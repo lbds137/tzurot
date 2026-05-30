@@ -391,7 +391,7 @@ export const userConfigRoutes = {
     output: SetDefaultConfigResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
-    // Restores the DEFERRED budget: read post-defer in the model-settings
+    // DEFERRED budget: read post-defer in the model-settings
     // dashboard; matches the set/clear siblings on the same default path so
     // the read leg doesn't time out where the writes don't.
     timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
