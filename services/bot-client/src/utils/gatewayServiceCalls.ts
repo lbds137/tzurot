@@ -1,0 +1,401 @@
+/**
+ * Service-to-service gateway calls (typed-client backed).
+ *
+ * These wrap the generated `ServiceClient` for the bot's own infrastructure
+ * calls — channel/admin-settings reads, DM-session writes, conversation
+ * personality lookup, diagnostic response-id updates. They previously lived as
+ * hand-written `fetch()` methods on `GatewayClient`; they were migrated here so
+ * their paths are codegen'd from the route manifest (and so can never drift out
+ * of sync with the gateway mounts again).
+ *
+ * Each helper preserves the old method's ergonomics — bot-side TTL caching for
+ * the hot reads, null-on-error for safe reads, and fire-and-forget (log, never
+ * throw) for the best-effort writes — so call sites only swap the import, not
+ * their control flow. The `ServiceClient` is minted per-call via the cheap,
+ * stateless `getServiceClient()` factory.
+ */
+
+import {
+  createLogger,
+  getConfig,
+  CONTENT_TYPES,
+  JobStatus,
+  TIMEOUTS,
+  TTLCache,
+  type GetChannelSettingsResponse,
+  type GetAdminSettingsResponse,
+  type SttProvider,
+} from '@tzurot/common-types';
+import type { LoadedPersonality, MessageContext, TranscribeResponse } from '../types.js';
+import { getValidatedServiceSecret } from '../startup.js';
+import { getServiceClient } from './gatewayClients.js';
+
+const logger = createLogger('gatewayServiceCalls');
+
+/**
+ * Channel settings lookups. 30s TTL balances per-message performance with
+ * responsiveness to activation changes; 1000-entry cap bounds memory.
+ */
+const channelSettingsCache = new TTLCache<GetChannelSettingsResponse>({
+  ttl: 30 * 1000,
+  maxSize: 1000,
+});
+
+/**
+ * AdminSettings singleton. Longer TTL (changes rarely, admin-only); single
+ * entry since it's a singleton.
+ */
+const adminSettingsCache = new TTLCache<GetAdminSettingsResponse>({
+  ttl: 60 * 1000,
+  maxSize: 1,
+});
+
+const ADMIN_SETTINGS_CACHE_KEY = 'admin-settings';
+
+/**
+ * Invalidate channel settings cache for a specific channel.
+ * Call when a channel is activated, deactivated, or its settings change.
+ */
+export function invalidateChannelSettingsCache(channelId: string): void {
+  channelSettingsCache.delete(channelId);
+  logger.debug({ channelId }, 'Invalidated channel settings cache');
+}
+
+/**
+ * Clear all channel settings cache entries.
+ * Used by pub/sub invalidation for 'all' events and for testing.
+ */
+export function clearAllChannelSettingsCache(): void {
+  channelSettingsCache.clear();
+}
+
+/**
+ * Invalidate the admin settings cache. Call when admin settings are updated.
+ */
+export function invalidateAdminSettingsCache(): void {
+  adminSettingsCache.delete(ADMIN_SETTINGS_CACHE_KEY);
+  logger.debug('Invalidated admin settings cache');
+}
+
+/** @internal For testing only. */
+export function _clearAdminSettingsCacheForTesting(): void {
+  adminSettingsCache.clear();
+}
+
+/**
+ * Channel settings (activation + override state) for a channel. Cached 30s.
+ * Returns null on any gateway error so callers can treat "unknown" as
+ * "not activated" without a try/catch. Used per-message by the auto-response
+ * processors, so the cache matters.
+ */
+export async function getChannelSettingsCached(
+  channelId: string
+): Promise<GetChannelSettingsResponse | null> {
+  const cached = channelSettingsCache.get(channelId);
+  if (cached !== null) {
+    logger.debug({ channelId }, 'Channel settings cache hit');
+    return cached;
+  }
+
+  const result = await getServiceClient().getChannelSettings(channelId);
+  if (!result.ok) {
+    logger.warn({ channelId, status: result.status }, 'Channel settings check failed');
+    return null;
+  }
+
+  // Cache the result (including "no settings" responses).
+  channelSettingsCache.set(channelId, result.data);
+  logger.debug({ channelId, hasSettings: result.data.hasSettings }, 'Cached channel settings');
+  return result.data;
+}
+
+/**
+ * AdminSettings singleton. Cached 60s; null on error. Reads the service-only
+ * `/api/internal/admin-settings` alias (the owner `/api/admin/settings` route
+ * hard-rejects service callers via requireUserAuth before the handler's
+ * service-or-owner check can run).
+ */
+export async function getAdminSettingsCached(): Promise<GetAdminSettingsResponse | null> {
+  const cached = adminSettingsCache.get(ADMIN_SETTINGS_CACHE_KEY);
+  if (cached !== null) {
+    logger.debug('Admin settings cache hit');
+    return cached;
+  }
+
+  const result = await getServiceClient().getAdminSettingsInternal();
+  if (!result.ok) {
+    logger.warn({ status: result.status }, 'Admin settings fetch failed');
+    return null;
+  }
+
+  adminSettingsCache.set(ADMIN_SETTINGS_CACHE_KEY, result.data);
+  logger.debug('Admin settings fetched and cached');
+  return result.data;
+}
+
+/**
+ * Record the active personality in a DM channel after a multi-tag fan-out.
+ * Idempotent; best-effort (logs on failure, never throws — a transient gateway
+ * hiccup must not break the delivery itself).
+ *
+ * On success, invalidates the 30s channel-settings cache so the next bare DM
+ * message sees the newly-recorded active personality instead of the stale
+ * previous-session one for up to 30s.
+ */
+export async function setDmSessionPersonality(
+  channelId: string,
+  personalitySlug: string
+): Promise<void> {
+  const result = await getServiceClient().setDmSession({ channelId, personalitySlug });
+  if (!result.ok) {
+    logger.error(
+      { status: result.status, channelId, personalitySlug },
+      'Failed to record DM session'
+    );
+    return;
+  }
+  invalidateChannelSettingsCache(channelId);
+  logger.debug({ channelId, personalitySlug }, 'DM session personality recorded');
+}
+
+/**
+ * Look up which personality sent a message by Discord message ID (the tier-2
+ * DB fallback for reply resolution when the Redis cache misses). Returns null
+ * when no message is found (404) or on any error. Works for DMs and guild
+ * channels — the query is keyed on `discordMessageId` only.
+ */
+export async function lookupPersonalityFromMessage(
+  discordMessageId: string
+): Promise<{ personalityId: string; personalityName?: string } | null> {
+  const result = await getServiceClient().lookupPersonalityFromMessage({ discordMessageId });
+  if (!result.ok) {
+    // 404 (no message) and other errors both resolve to "not found" here.
+    logger.debug(
+      { discordMessageId, status: result.status },
+      'No personality found for Discord message ID'
+    );
+    return null;
+  }
+  logger.debug(
+    { discordMessageId, personalityId: result.data.personalityId },
+    'Found personality via conversation lookup'
+  );
+  // Normalize null → undefined to preserve the original method's contract
+  // (the route schema permits null; callers only ever expected string | undefined).
+  return {
+    personalityId: result.data.personalityId,
+    personalityName: result.data.personalityName ?? undefined,
+  };
+}
+
+/**
+ * Link a diagnostic log with the Discord message IDs of its response chunks so
+ * future /inspect lookups by response-message-ID resolve. Fire-and-forget:
+ * logs on failure, never throws.
+ */
+export async function updateDiagnosticResponseIds(
+  requestId: string,
+  responseMessageIds: string[]
+): Promise<void> {
+  const result = await getServiceClient().updateDiagnosticResponseIds(requestId, {
+    responseMessageIds,
+  });
+  if (!result.ok) {
+    logger.warn({ requestId, status: result.status }, 'Failed to update diagnostic response IDs');
+    return;
+  }
+  logger.debug({ requestId, responseMessageIds }, 'Updated diagnostic response IDs');
+}
+
+/**
+ * Submit an async AI generation job. Returns the job/request IDs immediately;
+ * the result is delivered later via the Redis result stream (JobTracker).
+ * Throws on failure — the chat path needs to surface submission errors.
+ */
+export async function generate(
+  personality: LoadedPersonality,
+  context: MessageContext
+): Promise<{ jobId: string; requestId: string }> {
+  const result = await getServiceClient().aiGenerate({
+    personality,
+    message: context.messageContent,
+    context: {
+      ...context,
+      conversationHistory: context.conversationHistory ?? [],
+    },
+  });
+  if (!result.ok) {
+    logger.error({ status: result.status, error: result.error }, 'Failed to submit job');
+    throw new Error(`Gateway request failed: ${result.status} ${result.error}`);
+  }
+  logger.info({ jobId: result.data.jobId }, 'Job submitted successfully');
+  return { jobId: result.data.jobId, requestId: result.data.requestId };
+}
+
+/**
+ * Confirm a job result was delivered to Discord (PENDING_DELIVERY → DELIVERED).
+ * Best-effort: logs on failure, never throws — the cleanup job eventually
+ * removes unconfirmed results.
+ */
+export async function confirmDelivery(jobId: string): Promise<void> {
+  const result = await getServiceClient().aiConfirmDelivery(jobId);
+  if (!result.ok) {
+    logger.error({ status: result.status, jobId }, 'Failed to confirm delivery');
+    return;
+  }
+  logger.debug({ jobId }, 'Delivery confirmed');
+}
+
+// ---------------------------------------------------------------------------
+// Raw-fetch helpers (the two sanctioned exceptions to typed-client usage).
+//
+//   transcribe — a synchronous job-wait (`?wait=true`) that can legitimately
+//     run up to STT_GATEWAY (240s), exceeding the route-manifest's 60s
+//     timeoutMs cap. It's a long-poll job pattern, not RPC, so it stays a raw
+//     call with its own timeout + transient-network retry.
+//   healthCheck — `/health` is a public root-level liveness probe, not part of
+//     the gateway's typed `/api/*` contract.
+//
+// Both are allow-listed in gatewayFetchGuard.test.ts via the
+// `raw-fetch-allowed:` marker on their fetch lines.
+// ---------------------------------------------------------------------------
+
+const TRANSIENT_NETWORK_CODES = new Set(['UND_ERR_SOCKET', 'ECONNRESET', 'ECONNREFUSED']);
+const TRANSCRIBE_MAX_ATTEMPTS = 3;
+const TRANSCRIBE_RETRY_BASE_DELAY_MS = 500;
+
+function isTransientNetworkError(err: unknown): boolean {
+  if (!(err instanceof Error)) {
+    return false;
+  }
+  const cause = (err as Error & { cause?: { code?: string } }).cause;
+  return cause?.code !== undefined && TRANSIENT_NETWORK_CODES.has(cause.code);
+}
+
+async function retryTranscribeOnTransientNetworkError<T>(fn: () => Promise<T>): Promise<T> {
+  for (let attempt = 1; attempt < TRANSCRIBE_MAX_ATTEMPTS; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (!isTransientNetworkError(err)) {
+        throw err;
+      }
+      const delayMs = TRANSCRIBE_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1);
+      logger.warn(
+        { err, attempt, nextDelayMs: delayMs },
+        'Transient network error during transcribe; retrying'
+      );
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+  // Final attempt — log on failure before re-throwing so attempt-count context
+  // survives propagation to the caller's error handler.
+  try {
+    return await fn();
+  } catch (err) {
+    logger.warn(
+      { err, attempt: TRANSCRIBE_MAX_ATTEMPTS },
+      'Transcribe failed on final attempt; no more retries'
+    );
+    throw err;
+  }
+}
+
+interface TranscribeAttachment {
+  url: string;
+  contentType: string;
+  name?: string;
+  size?: number;
+  isVoiceMessage?: boolean;
+  duration?: number;
+  waveform?: string;
+}
+
+interface TranscribeResult {
+  content: string;
+  /** Which STT provider produced the transcript; surfaced as user-visible attribution. */
+  provider?: SttProvider;
+  /**
+   * User's resolved `showModelFooter` default. `false` ⇒ suppress the
+   * `-# Transcribed by X` footer; `undefined`/`true` ⇒ render it.
+   */
+  showModelFooter?: boolean;
+  metadata?: { processingTimeMs?: number };
+}
+
+async function transcribeOnce(
+  attachments: TranscribeAttachment[],
+  userId: string | undefined
+): Promise<TranscribeResult> {
+  // raw-fetch-allowed: synchronous STT job-wait (up to 240s) exceeds the typed
+  // client's 60s timeoutMs cap — long-poll job pattern, not RPC.
+  const response = await fetch(`${getConfig().GATEWAY_URL}/ai/transcribe?wait=true`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': CONTENT_TYPES.JSON,
+      'X-Service-Auth': getValidatedServiceSecret(),
+    },
+    body: JSON.stringify({
+      attachments,
+      ...(userId !== undefined && { userId }),
+    }),
+    signal: AbortSignal.timeout(TIMEOUTS.STT_GATEWAY),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Transcription request failed: ${response.status} ${errorText}`);
+  }
+
+  const data = (await response.json()) as TranscribeResponse;
+
+  if (data.status !== JobStatus.Completed) {
+    throw new Error(`Transcription job ${data.jobId} status: ${data.status}`);
+  }
+  if (
+    data.result?.content === undefined ||
+    data.result.content === null ||
+    data.result.content.length === 0
+  ) {
+    throw new Error('No transcript in job result');
+  }
+
+  logger.info({ jobId: data.jobId }, 'Transcription completed');
+  return {
+    content: data.result.content,
+    provider: data.result.provider,
+    showModelFooter: data.result.showModelFooter,
+    metadata: data.result.metadata,
+  };
+}
+
+/**
+ * Request voice transcription (synchronous). Retries on transient network
+ * errors (api-gateway container swap during Railway deploy surfaces as
+ * `UND_ERR_SOCKET`/`ECONNRESET`/`ECONNREFUSED`); idempotent because the
+ * ai-worker job is keyed by requestId. HTTP-level errors are NOT retried.
+ */
+export async function transcribe(
+  attachments: TranscribeAttachment[],
+  userId?: string
+): Promise<TranscribeResult> {
+  try {
+    return await retryTranscribeOnTransientNetworkError(() => transcribeOnce(attachments, userId));
+  } catch (error) {
+    logger.error({ err: error }, 'Transcription failed');
+    throw error;
+  }
+}
+
+/** Liveness probe against the gateway's public /health endpoint. */
+export async function healthCheck(): Promise<boolean> {
+  try {
+    // raw-fetch-allowed: /health is a public root-level liveness probe, not part
+    // of the typed /api/* contract.
+    const response = await fetch(`${getConfig().GATEWAY_URL}/health`);
+    return response.ok;
+  } catch (error) {
+    logger.error({ err: error }, 'Health check failed');
+    return false;
+  }
+}

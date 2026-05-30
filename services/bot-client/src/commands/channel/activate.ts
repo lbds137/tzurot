@@ -17,7 +17,7 @@ import {
 } from '../../utils/apiCheck.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { requireManageMessagesContext } from '../../utils/permissions.js';
-import { invalidateChannelSettingsCache } from '../../utils/GatewayClient.js';
+import { invalidateChannelSettingsCache } from '../../utils/gatewayServiceCalls.js';
 import { getChannelActivationCacheInvalidationService } from '../../services/serviceRegistry.js';
 
 const logger = createLogger('channel-activate');

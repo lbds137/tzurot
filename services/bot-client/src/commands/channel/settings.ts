@@ -22,7 +22,10 @@ import {
   type UserClient,
 } from '@tzurot/common-types';
 import { clientsFor } from '../../utils/gatewayClients.js';
-import { GatewayClient, invalidateChannelSettingsCache } from '../../utils/GatewayClient.js';
+import {
+  getChannelSettingsCached,
+  invalidateChannelSettingsCache,
+} from '../../utils/gatewayServiceCalls.js';
 import {
   type SettingsDashboardConfig,
   type SettingsDashboardSession,
@@ -89,8 +92,7 @@ export async function handleChannelSettings(context: DeferredCommandContext): Pr
 
   try {
     // Get the activated personality for this channel (needed for resolve endpoint)
-    const gatewayClient = new GatewayClient();
-    const channelSettings = await gatewayClient.getChannelSettings(channelId);
+    const channelSettings = await getChannelSettingsCached(channelId);
     const personalityId = channelSettings?.settings?.activatedPersonalityId ?? undefined;
 
     const { userClient } = clientsFor(interaction);
@@ -237,8 +239,7 @@ async function handleSettingUpdate(
     invalidateChannelSettingsCache(channelId);
 
     // Fetch fresh data with resolved values
-    const gatewayClient = new GatewayClient();
-    const channelSettings = await gatewayClient.getChannelSettings(channelId);
+    const channelSettings = await getChannelSettingsCached(channelId);
     const personalityId = channelSettings?.settings?.activatedPersonalityId ?? undefined;
     const newData = await fetchAndConvertSettingsData(userClient, personalityId, channelId);
 

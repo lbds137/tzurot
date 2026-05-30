@@ -50,6 +50,7 @@ export class ServiceClient {
       path: fullPath,
       body: input,
       outputSchema: ROUTE_MANIFEST.aiGenerate.output,
+      timeoutMs: ROUTE_MANIFEST.aiGenerate.timeoutMs,
     });
   }
 
@@ -87,6 +88,7 @@ export class ServiceClient {
       method: 'POST',
       path: fullPath,
       outputSchema: ROUTE_MANIFEST.aiConfirmDelivery.output,
+      timeoutMs: ROUTE_MANIFEST.aiConfirmDelivery.timeoutMs,
     });
   }
 
@@ -99,6 +101,7 @@ export class ServiceClient {
       path: fullPath,
       body: input,
       outputSchema: ROUTE_MANIFEST.setDmSession.output,
+      timeoutMs: ROUTE_MANIFEST.setDmSession.timeoutMs,
     });
   }
 
@@ -113,6 +116,7 @@ export class ServiceClient {
       method: 'GET',
       path: fullPath,
       outputSchema: ROUTE_MANIFEST.lookupPersonalityFromMessage.output,
+      timeoutMs: ROUTE_MANIFEST.lookupPersonalityFromMessage.timeoutMs,
     });
   }
 
@@ -141,6 +145,7 @@ export class ServiceClient {
       method: 'GET',
       path: fullPath,
       outputSchema: ROUTE_MANIFEST.getDenylistCache.output,
+      timeoutMs: ROUTE_MANIFEST.getDenylistCache.timeoutMs,
     });
   }
 
@@ -153,6 +158,7 @@ export class ServiceClient {
       path: fullPath,
       body: input,
       outputSchema: ROUTE_MANIFEST.updateDiagnosticResponseIds.output,
+      timeoutMs: ROUTE_MANIFEST.updateDiagnosticResponseIds.timeoutMs,
     });
   }
 
@@ -167,6 +173,22 @@ export class ServiceClient {
       method: 'GET',
       path: fullPath,
       outputSchema: ROUTE_MANIFEST.getChannelSettings.output,
+      timeoutMs: ROUTE_MANIFEST.getChannelSettings.timeoutMs,
+    });
+  }
+
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
+  async getAdminSettingsInternal(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getAdminSettingsInternal.output>>> {
+    const fullPath = '/api/internal/admin-settings';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'GET',
+      path: fullPath,
+      outputSchema: ROUTE_MANIFEST.getAdminSettingsInternal.output,
+      timeoutMs: ROUTE_MANIFEST.getAdminSettingsInternal.timeoutMs,
     });
   }
 }
