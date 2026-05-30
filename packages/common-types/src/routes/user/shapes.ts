@@ -41,7 +41,7 @@ export const userShapesRoutes = {
     input: StoreShapesAuthInputSchema,
     output: StoreShapesAuthResponseSchema,
     requiresProvisionedUser: true,
-    // Restores the DEFERRED budget: the gateway validates the supplied
+    // DEFERRED budget: the gateway validates the supplied
     // shapes.inc session cookie against the external service before storing,
     // so the gateway's own response is slow — well past the 2500ms default.
     timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
@@ -54,7 +54,7 @@ export const userShapesRoutes = {
     id: 'deleteShapesAuth',
     output: DeleteShapesAuthResponseSchema,
     requiresProvisionedUser: true,
-    // Restores the DEFERRED budget: post-defer credential-management action,
+    // DEFERRED budget: post-defer credential-management action,
     // consistent with the store/status siblings on the same /auth path.
     timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
@@ -67,7 +67,7 @@ export const userShapesRoutes = {
     output: ShapesAuthStatusResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
-    // Restores the DEFERRED budget: the status check probes the external
+    // DEFERRED budget: the status check probes the external
     // shapes.inc session for validity, so the upstream round-trip can exceed
     // the 2500ms autocomplete default.
     timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
@@ -104,7 +104,7 @@ export const userShapesRoutes = {
     input: StartShapesImportInputSchema,
     output: StartShapesImportResponseSchema,
     requiresProvisionedUser: true,
-    // Restores the DEFERRED budget: the start handler fetches shape data from
+    // DEFERRED budget: the start handler fetches shape data from
     // the external shapes.inc service before enqueueing the import job, so the
     // submit response is slow — past the 2500ms autocomplete default.
     timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
@@ -119,7 +119,7 @@ export const userShapesRoutes = {
     output: ListShapesImportJobsResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
-    // Restores the DEFERRED budget: post-defer job-status poll in the import
+    // DEFERRED budget: post-defer job-status poll in the import
     // dashboard, consistent with the import-start budget.
     timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
@@ -136,7 +136,7 @@ export const userShapesRoutes = {
     input: StartShapesExportInputSchema,
     output: StartShapesExportResponseSchema,
     requiresProvisionedUser: true,
-    // Restores the DEFERRED budget: export submit runs from a post-defer
+    // DEFERRED budget: export submit runs from a post-defer
     // dashboard action and may do non-trivial setup before enqueueing the
     // job — past the 2500ms autocomplete default.
     timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
@@ -151,7 +151,7 @@ export const userShapesRoutes = {
     output: ListShapesExportJobsResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
-    // Restores the DEFERRED budget: post-defer job-status poll in the export
+    // DEFERRED budget: post-defer job-status poll in the export
     // dashboard, consistent with the export-start budget.
     timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
