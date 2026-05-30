@@ -544,6 +544,7 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.getDefaultModelConfig.output,
+      timeoutMs: ROUTE_MANIFEST.getDefaultModelConfig.timeoutMs,
     });
   }
 
@@ -731,6 +732,7 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.getPersona.output,
+      timeoutMs: ROUTE_MANIFEST.getPersona.timeoutMs,
     });
   }
 
@@ -748,6 +750,7 @@ export class UserClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.createPersona.output,
+      timeoutMs: ROUTE_MANIFEST.createPersona.timeoutMs,
     });
   }
 
@@ -768,6 +771,7 @@ export class UserClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.updatePersona.output,
+      timeoutMs: ROUTE_MANIFEST.updatePersona.timeoutMs,
     });
   }
 
@@ -784,6 +788,7 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.deletePersona.output,
+      timeoutMs: ROUTE_MANIFEST.deletePersona.timeoutMs,
     });
   }
 
@@ -800,6 +805,7 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.setPersonaDefault.output,
+      timeoutMs: ROUTE_MANIFEST.setPersonaDefault.timeoutMs,
     });
   }
 
@@ -819,6 +825,7 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.listPersonaOverrides.output,
+      timeoutMs: ROUTE_MANIFEST.listPersonaOverrides.timeoutMs,
     });
   }
 
@@ -838,6 +845,7 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.getPersonaOverride.output,
+      timeoutMs: ROUTE_MANIFEST.getPersonaOverride.timeoutMs,
     });
   }
 
@@ -858,6 +866,7 @@ export class UserClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.setPersonaOverride.output,
+      timeoutMs: ROUTE_MANIFEST.setPersonaOverride.timeoutMs,
     });
   }
 
@@ -874,6 +883,7 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.clearPersonaOverride.output,
+      timeoutMs: ROUTE_MANIFEST.clearPersonaOverride.timeoutMs,
     });
   }
 
@@ -891,6 +901,7 @@ export class UserClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.createPersonaOverride.output,
+      timeoutMs: ROUTE_MANIFEST.createPersonaOverride.timeoutMs,
     });
   }
 
@@ -1294,6 +1305,7 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.listVoiceModels.output,
+      timeoutMs: ROUTE_MANIFEST.listVoiceModels.timeoutMs,
     });
   }
 
@@ -1685,6 +1697,7 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.getUserDefaults.output,
+      timeoutMs: ROUTE_MANIFEST.getUserDefaults.timeoutMs,
     });
   }
 
@@ -1719,6 +1732,7 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.clearUserDefaults.output,
+      timeoutMs: ROUTE_MANIFEST.clearUserDefaults.timeoutMs,
     });
   }
 
@@ -1828,6 +1842,7 @@ export class UserClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.storeShapesAuth.output,
+      timeoutMs: ROUTE_MANIFEST.storeShapesAuth.timeoutMs,
     });
   }
 
@@ -1844,6 +1859,7 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.deleteShapesAuth.output,
+      timeoutMs: ROUTE_MANIFEST.deleteShapesAuth.timeoutMs,
     });
   }
 
@@ -1863,6 +1879,7 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.getShapesAuthStatus.output,
+      timeoutMs: ROUTE_MANIFEST.getShapesAuthStatus.timeoutMs,
     });
   }
 
@@ -1900,6 +1917,7 @@ export class UserClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.startShapesImport.output,
+      timeoutMs: ROUTE_MANIFEST.startShapesImport.timeoutMs,
     });
   }
 
@@ -1919,6 +1937,7 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.listShapesImportJobs.output,
+      timeoutMs: ROUTE_MANIFEST.listShapesImportJobs.timeoutMs,
     });
   }
 
@@ -1936,6 +1955,7 @@ export class UserClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.startShapesExport.output,
+      timeoutMs: ROUTE_MANIFEST.startShapesExport.timeoutMs,
     });
   }
 
@@ -1955,6 +1975,7 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.listShapesExportJobs.output,
+      timeoutMs: ROUTE_MANIFEST.listShapesExportJobs.timeoutMs,
     });
   }
 

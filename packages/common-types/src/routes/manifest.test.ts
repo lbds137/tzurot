@@ -13,6 +13,112 @@ import type { AnyRouteDef } from './types.js';
 
 const entries = Object.entries(ROUTE_MANIFEST) as [string, AnyRouteDef][];
 
+/**
+ * Registry of route IDs for which the transport default timeout
+ * (`GATEWAY_TIMEOUTS.AUTOCOMPLETE` = 2500ms) is acceptable — i.e. "this op is
+ * genuinely fast, the 2500ms default is fine."
+ *
+ * A route belongs here ONLY if its handler is a single-row CRUD by indexed
+ * key, a toggle, a single lookup, or a simple insert — work that comfortably
+ * completes inside the autocomplete budget even under slow-DB conditions.
+ *
+ * Slow, external (third-party round-trip), bulk, multi-tier-cascade, or
+ * aggregate routes must NOT be added here. They must declare an explicit
+ * `timeoutMs` (typically `GATEWAY_TIMEOUTS.DEFERRED` = 10s, or
+ * `BULK_OPERATION` = 30s) instead. The typed-client transport defaults
+ * `timeoutMs` to AUTOCOMPLETE, so a slow route with no explicit value
+ * silently regresses to 2500ms and reports false "Request timeout (HTTP 0)"
+ * failures on operations that actually succeeded server-side — the exact
+ * regression this allowlist + the test below exist to prevent.
+ *
+ * To add a route here, you are asserting the op is fast. If it is NOT fast,
+ * add `timeoutMs` to the RouteDef instead of registering it here.
+ */
+const DEFAULT_TIMEOUT_OK = new Set<string>([
+  // ---- internal (service-to-service single lookups / job introspection) ----
+  'aiTranscribe',
+  'aiJobStatus',
+  'recentUsers',
+  // ---- admin (single-row CRUD / toggles / singleton reads) ----
+  'invalidateCache',
+  'createGlobalPersonality',
+  'updateGlobalPersonality',
+  'addDenylistEntry',
+  'listDenylistEntries',
+  'removeDenylistEntry',
+  'createGlobalLlmConfig',
+  'setGlobalLlmConfigDefault',
+  'setGlobalLlmConfigFreeDefault',
+  'deleteGlobalLlmConfig',
+  'listGlobalTtsConfigs',
+  'getGlobalTtsConfig',
+  'createGlobalTtsConfig',
+  'updateGlobalTtsConfig',
+  'setGlobalTtsConfigDefault',
+  'setGlobalTtsConfigFreeDefault',
+  'deleteGlobalTtsConfig',
+  'getAdminSettings',
+  'updateAdminSettings',
+  'clearAdminSettings',
+  'getStopSequencesStats',
+  'getAdminUsageStats',
+  // ---- user: TTS config / STT default (single-row CRUD by indexed key) ----
+  'getUserTtsConfig',
+  'createUserTtsConfig',
+  'updateUserTtsConfig',
+  'deleteUserTtsConfig',
+  'getTtsDefaultConfig',
+  'getSttDefaultProvider',
+  // ---- user: personality CRUD (single-row by slug) ----
+  'createPersonality',
+  'updatePersonality',
+  'setPersonalityVisibility',
+  'deletePersonality',
+  // ---- user: channel activation + per-channel overrides (single-row) ----
+  'activateChannel',
+  'deactivateChannel',
+  'listUserChannels',
+  'getUserChannel',
+  'updateChannelGuild',
+  'getChannelConfigOverrides',
+  'updateChannelConfigOverrides',
+  'clearChannelConfigOverrides',
+  // ---- user: usage + history (single-key reads / scoped deletes) ----
+  'getUserUsage',
+  'clearHistory',
+  'undoHistory',
+  'getHistoryStats',
+  'hardDeleteHistory',
+  // ---- user: NSFW verification (single-row toggle/read) ----
+  'getNsfwStatus',
+  'verifyNsfw',
+  // ---- user: memory CRUD + batch (single-row ops + token-gated batches) ----
+  'getStats',
+  'list',
+  'getFocus',
+  'setFocus',
+  'search',
+  'batchDeletePreview',
+  'batchDelete',
+  'issuePurgeToken',
+  'purge',
+  'getMemory',
+  'updateMemory',
+  'deleteMemory',
+  'setMemoryLock',
+  'getIncognitoStatus',
+  'enableIncognito',
+  'disableIncognito',
+  'incognitoForget',
+  // ---- user: single-tier config-override clear ----
+  'clearPersonalityOverrides',
+  // ---- user: diagnostic lookups (single-row by indexed key) ----
+  'getRecentDiagnostics',
+  'getDiagnosticByMessage',
+  'getDiagnosticByResponse',
+  'getDiagnosticByRequestId',
+]);
+
 describe('central route manifest', () => {
   it('has at least one entry from each audience', () => {
     expect(Object.keys(internalRoutes).length).toBeGreaterThan(0);
@@ -118,6 +224,49 @@ describe('central route manifest', () => {
         expect(route.timeoutMs, `${key} timeoutMs >= 1000`).toBeGreaterThanOrEqual(1000);
         expect(route.timeoutMs, `${key} timeoutMs <= 60_000`).toBeLessThanOrEqual(60_000);
       }
+    }
+  });
+
+  it('every route either declares timeoutMs or is registered as default-timeout-OK', () => {
+    // Forcing function against the "silent 2500ms regression" class: the
+    // typed-client transport defaults `timeoutMs` to GATEWAY_TIMEOUTS.AUTOCOMPLETE
+    // (2500ms). A migrated route that legitimately needs more (external
+    // round-trips, multi-tier cascade, bulk work) but forgets an explicit
+    // `timeoutMs` silently falls back to 2500ms and reports false
+    // "Request timeout (HTTP 0)" failures on operations that actually
+    // completed server-side (observed on /admin db-sync and shapes import
+    // during the route-manifest typed-client migration). This test makes the
+    // fall-back a CONSCIOUS decision: a route with no explicit timeoutMs must
+    // be explicitly registered in DEFAULT_TIMEOUT_OK above (asserting "this op
+    // is fast, 2500ms is fine").
+    for (const [key, route] of entries) {
+      const ok = route.timeoutMs !== undefined || DEFAULT_TIMEOUT_OK.has(key);
+      expect(
+        ok,
+        `${key} has neither an explicit timeoutMs nor an entry in DEFAULT_TIMEOUT_OK. ` +
+          `If this op is slow / external / bulk / multi-tier, add a timeoutMs ` +
+          `(e.g. GATEWAY_TIMEOUTS.DEFERRED). If it is genuinely fast (single-row ` +
+          `CRUD by indexed key, toggle, single lookup, simple insert), register ` +
+          `its id in DEFAULT_TIMEOUT_OK. Do NOT leave it to silently fall back ` +
+          `to the 2500ms transport default.`
+      ).toBe(true);
+    }
+  });
+
+  it('DEFAULT_TIMEOUT_OK contains no stale entries (every id exists and lacks timeoutMs)', () => {
+    // Guard the inverse drift: an id removed from the manifest, or one that
+    // later gained an explicit timeoutMs, should not linger in the allowlist.
+    const manifestIds = new Set(entries.map(([key]) => key));
+    for (const id of DEFAULT_TIMEOUT_OK) {
+      expect(
+        manifestIds.has(id),
+        `DEFAULT_TIMEOUT_OK lists "${id}" but it is not in the manifest`
+      ).toBe(true);
+      const route = ROUTE_MANIFEST[id as keyof typeof ROUTE_MANIFEST] as AnyRouteDef | undefined;
+      expect(
+        route?.timeoutMs,
+        `DEFAULT_TIMEOUT_OK lists "${id}" but it now declares an explicit timeoutMs — drop it from the allowlist`
+      ).toBeUndefined();
     }
   });
 
