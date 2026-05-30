@@ -1,35 +1,29 @@
 # Current
 
-> **Version**: v3.0.0-beta.125 (released 2026-05-22) — Railway prod auto-deploys on main merge. Bundles 8 PRs across schema-audit tooling (#1076), LlmConfig schema tightening + migration (#1077), fixture cleanup (#1078), pre-release admin auth fixes (#1080 isFreeDefault guard + SSRF defense-in-depth, #1081 X-User-Id unification).
+> **Version**: v3.0.0-beta.126 (released 2026-05-30) — Railway prod auto-deploys on main merge. Closes the **Route Manifest Scaffold + Typed-Client Codegen** epic (central `ROUTE_MANIFEST` → generated `userClient`/`ownerClient`/`serviceClient` + Express mounts; hand-written `GatewayClient` fully dissolved). Plus the vision-heavy job timeout fix (#1117), the gateway timeout-regression restore + `DEFAULT_TIMEOUT_OK` structural guard (#1119), the `/inspect` server-side-auth rearchitecture (#1087), and the Layers 1–3 audit-enforcement infrastructure (#1082–#1085). No migrations. Merged via fast-forward (#1120) — GitHub's rebase-merge choked on the 203-commit range.
 > **🚧 Release freeze status**: LIFTED. No release in progress.
 
 ---
 
 ## Next Session Goal
 
-**Typed-Client epic is ✅ COMPLETE** (PR-2a→PR-2l, closed 2026-05-29 with PR #1115). Every bot-client → api-gateway callsite is on the generated typed clients; the legacy `callGatewayApi`/`adminFetch` transport, the legacy `/admin /user /internal /wallet` mounts, and the `legacy:count` gate are all deleted. **Zero legacy gateway callsites remain.** Plus the env IPv4-loopback test fix (#1116). Both merged to develop → auto-deploying to dev.
+**beta.126 is shipped and live on prod.** The typed-client epic is closed; there is **no active epic**. First task next session: promote a next theme into the Active Epic slot — `next-theme.md` is open, and `active-epic.md` still holds the closed epic's phase log as historical reference (rotate per `06-backlog.md`).
 
-**Next: human smoke-test on dev, then beta release.** None of the epic has been human-exercised in the real Discord path (only unit + claude-review + CI-integration). The reduced high-leverage sweep (generated-transport uniformity means one-per-shape proves the rest):
-
-- **Request-shape coverage**: `/timezone get`+`set` (user GET/POST) · `/preset browse`→open (path-param GET) · `/preset global set-default <id>`+`free-default <id>` (PR-2l's brand-new owner PUT) · `/settings apikey` add+test+remove (wallet/rate-limited path)
-- **Behaviorally-nuanced** (unit tests can't fully vouch): @mention a personality → reply (AI-chat hot path: `resolveConfig`→`resolveUserLlmConfig`, 2.5s timeout) · DM from unverified account (NSFW verify/check) · restart dev bot → watch StartupDMPrewarmer logs (`serviceClient.recentUsers`)
-- If anything breaks, generated-transport structure means it likely breaks _uniformly_ → fast to pin down.
-
-**Backlog after release**: PR-2m (3 items in [inbox.md](backlog/inbox.md)) — unravel the runtime-dead persona/shapes legacy route-registration layer; `LlmConfigSummarySchema` + `updatePreset`/`updateGlobalPreset` typed-input tightening (companion to `DbSyncResponseSchema`); extract `@tzurot/clients` from common-types (over the 50-export/3000-line threshold).
-
-**Backlog hygiene note**: `active-epic.md` still holds the closed typed-client epic as its historical phase log — a future session should promote the next theme into the Active Epic slot per the `06-backlog.md` rotation procedure.
-
-**Other candidates** (off-epic):
+**Candidate next themes** (user picks; each gets a council pass before plan-mode):
 
 - **Self-Hosted TTS + BYOK Re-Eval — Step 0 BYOK probes** ([future-themes.md](backlog/future-themes.md)) — Cartesia / Fish Audio / PlayHT / Resemble pricing-and-quality pass.
+- **PR-2m follow-ups** ([inbox.md](backlog/inbox.md)) — unravel the runtime-dead persona/shapes legacy route-registration layer; `LlmConfigSummarySchema` + `updatePreset`/`updateGlobalPreset` typed-input tightening; extract `@tzurot/clients` from common-types (over the 50-export/3000-line threshold).
 - **Adjacent CPD Follow-Up Campaigns** ([future-themes.md](backlog/future-themes.md)) — four independently-pickable mini-epics from the 2026-05-16 CPD campaign close-out.
-- **Quick-win: migrate `/admin/db-sync` + `/admin/cleanup` from body ownerId to X-User-Id header** ([quick-wins.md](backlog/quick-wins.md)) — closes the remaining two-codepath shape in `extractOwnerId`. Surfaced by PR #1081 review.
-- **Deferred items with named triggers** ([deferred.md](backlog/deferred.md)) — many are gated on "next time you touch X."
+
+**Post-release loose ends**:
+
+- **shapes import/export unverified** ([deferred.md](backlog/deferred.md)) — the beta.126 dev smoke skipped the shapes.inc round-trip (needs a desktop Chrome session for the auth cookie). The timeout fix restored these routes to the `DEFERRED` budget (= beta.125), so confidence is high; verify next time at a desktop.
+- **4 beta.126 review nits** ([quick-wins.md](backlog/quick-wins.md)) — optional doc/observability polish from PR #1120 claude-review.
 
 **Verify on prod (low priority, fix shipped)**:
 
-- Multi-personality ping race (shipped in PR #1049 / beta.123) — entry retired from production-issues.md since the fix is live. Ping 2-3 personalities in quick succession with different prompts; each should reply with its own content. Re-add the entry only if the symptom resurfaces.
-- `google/gemma-4-31b-it:free` is a real slug (confirmed via preset screenshot 2026-05-19; verify guest-mode vision works in prod for paranoia).
+- Multi-personality ping race (shipped in PR #1049 / beta.123) — ping 2-3 personalities in quick succession with different prompts; each should reply with its own content. Re-add the production-issues entry only if the symptom resurfaces.
+- `google/gemma-4-31b-it:free` is a real slug (confirmed 2026-05-19; verify guest-mode vision works in prod for paranoia).
 
 ---
 
