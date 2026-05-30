@@ -9,8 +9,8 @@ import { MessageReferenceType } from 'discord.js';
 import { CONTENT_TYPES } from '@tzurot/common-types';
 
 // Mock dependencies
-vi.mock('../utils/GatewayClient.js', () => ({
-  GatewayClient: vi.fn(),
+vi.mock('../utils/gatewayServiceCalls.js', () => ({
+  transcribe: vi.fn(),
 }));
 
 vi.mock('../redis.js', () => ({
@@ -37,22 +37,16 @@ vi.mock('@tzurot/common-types', async () => {
 
 import { splitMessage } from '@tzurot/common-types';
 import { voiceTranscriptCache } from '../redis.js';
+import { transcribe } from '../utils/gatewayServiceCalls.js';
 
 describe('VoiceTranscriptionService', () => {
   let service: VoiceTranscriptionService;
-  let mockGatewayClient: {
-    transcribe: ReturnType<typeof vi.fn>;
-  };
 
   beforeEach(() => {
     vi.useFakeTimers();
     vi.clearAllMocks();
 
-    mockGatewayClient = {
-      transcribe: vi.fn(),
-    };
-
-    service = new VoiceTranscriptionService(mockGatewayClient as any);
+    service = new VoiceTranscriptionService();
   });
 
   afterEach(() => {
@@ -212,7 +206,7 @@ describe('VoiceTranscriptionService', () => {
       const result = await service.transcribe(message, false, false);
 
       expect(result).toBeNull();
-      expect(mockGatewayClient.transcribe).not.toHaveBeenCalled();
+      expect(vi.mocked(transcribe)).not.toHaveBeenCalled();
     });
 
     it('should transcribe voice message and send to Discord', async () => {
@@ -229,7 +223,7 @@ describe('VoiceTranscriptionService', () => {
         ],
       });
 
-      mockGatewayClient.transcribe.mockResolvedValue({
+      vi.mocked(transcribe).mockResolvedValue({
         content: 'This is the transcribed text',
       });
 
@@ -244,7 +238,7 @@ describe('VoiceTranscriptionService', () => {
       expect((message.channel as { sendTyping?: unknown }).sendTyping).toHaveBeenCalledOnce();
 
       // Should call gateway transcribe with attachment metadata and userId
-      expect(mockGatewayClient.transcribe).toHaveBeenCalledWith(
+      expect(vi.mocked(transcribe)).toHaveBeenCalledWith(
         [
           {
             url: 'https://cdn.discord.com/voice/123.ogg',
@@ -285,7 +279,7 @@ describe('VoiceTranscriptionService', () => {
           },
         ],
       });
-      mockGatewayClient.transcribe.mockResolvedValue({
+      vi.mocked(transcribe).mockResolvedValue({
         content: 'Hello there',
         provider: 'mistral',
       });
@@ -311,7 +305,7 @@ describe('VoiceTranscriptionService', () => {
           },
         ],
       });
-      mockGatewayClient.transcribe.mockResolvedValue({
+      vi.mocked(transcribe).mockResolvedValue({
         content: 'Hello there',
         // no provider field
       });
@@ -336,7 +330,7 @@ describe('VoiceTranscriptionService', () => {
           },
         ],
       });
-      mockGatewayClient.transcribe.mockResolvedValue({
+      vi.mocked(transcribe).mockResolvedValue({
         content: 'Hello there',
         provider: 'mistral',
         showModelFooter: false, // explicit user-default opt-out
@@ -362,7 +356,7 @@ describe('VoiceTranscriptionService', () => {
           },
         ],
       });
-      mockGatewayClient.transcribe.mockResolvedValue({
+      vi.mocked(transcribe).mockResolvedValue({
         content: 'Hello there',
         provider: 'mistral',
         showModelFooter: true,
@@ -391,7 +385,7 @@ describe('VoiceTranscriptionService', () => {
           },
         ],
       });
-      mockGatewayClient.transcribe.mockResolvedValue({
+      vi.mocked(transcribe).mockResolvedValue({
         content: 'Hello there',
         provider: 'mistral',
         // showModelFooter intentionally omitted
@@ -418,7 +412,7 @@ describe('VoiceTranscriptionService', () => {
         ],
       });
 
-      mockGatewayClient.transcribe.mockResolvedValue({
+      vi.mocked(transcribe).mockResolvedValue({
         content: 'Transcript with mention',
       });
 
@@ -440,7 +434,7 @@ describe('VoiceTranscriptionService', () => {
         ],
       });
 
-      mockGatewayClient.transcribe.mockResolvedValue({
+      vi.mocked(transcribe).mockResolvedValue({
         content: 'Transcript as reply',
       });
 
@@ -464,7 +458,7 @@ describe('VoiceTranscriptionService', () => {
 
       // Long transcript that will be chunked
       const longTranscript = 'x'.repeat(3000);
-      mockGatewayClient.transcribe.mockResolvedValue({
+      vi.mocked(transcribe).mockResolvedValue({
         content: longTranscript,
       });
 
@@ -494,7 +488,7 @@ describe('VoiceTranscriptionService', () => {
       // on the last chunk would yield 2045+ chars, tripping Discord's 50035
       // error. Verify the helper falls back to a separate follow-up reply.
       const longTranscript = 'x'.repeat(4000);
-      mockGatewayClient.transcribe.mockResolvedValue({
+      vi.mocked(transcribe).mockResolvedValue({
         content: longTranscript,
         provider: 'voice-engine', // longest display name → worst-case overflow
       });
@@ -530,7 +524,7 @@ describe('VoiceTranscriptionService', () => {
       // attribution rides only on the final chunk so future loop changes
       // can't silently put it on every chunk or skip it entirely.
       const longTranscript = 'x'.repeat(3000);
-      mockGatewayClient.transcribe.mockResolvedValue({
+      vi.mocked(transcribe).mockResolvedValue({
         content: longTranscript,
         provider: 'mistral',
       });
@@ -563,14 +557,14 @@ describe('VoiceTranscriptionService', () => {
         ],
       });
 
-      mockGatewayClient.transcribe.mockResolvedValue({
+      vi.mocked(transcribe).mockResolvedValue({
         content: 'Transcribed text',
       });
 
       await service.transcribe(message, false, false);
 
       // Should use CONTENT_TYPES.BINARY as fallback
-      const call = mockGatewayClient.transcribe.mock.calls[0][0];
+      const call = vi.mocked(transcribe).mock.calls[0][0];
       expect(call[0].contentType).toBe(CONTENT_TYPES.BINARY);
     });
 
@@ -587,7 +581,7 @@ describe('VoiceTranscriptionService', () => {
         ],
       });
 
-      mockGatewayClient.transcribe.mockRejectedValue(new Error('Transcription failed'));
+      vi.mocked(transcribe).mockRejectedValue(new Error('Transcription failed'));
 
       const result = await service.transcribe(message, false, false);
 
@@ -616,7 +610,7 @@ describe('VoiceTranscriptionService', () => {
         'The operation was aborted due to timeout',
         'TimeoutError'
       );
-      mockGatewayClient.transcribe.mockRejectedValue(timeoutError);
+      vi.mocked(transcribe).mockRejectedValue(timeoutError);
 
       const result = await service.transcribe(message, false, false);
 
@@ -640,7 +634,9 @@ describe('VoiceTranscriptionService', () => {
         ],
       });
 
-      mockGatewayClient.transcribe.mockResolvedValue(null);
+      vi.mocked(transcribe).mockResolvedValue(
+        null as unknown as Awaited<ReturnType<typeof transcribe>>
+      );
 
       const result = await service.transcribe(message, false, false);
 
@@ -664,7 +660,7 @@ describe('VoiceTranscriptionService', () => {
         ],
       });
 
-      mockGatewayClient.transcribe.mockResolvedValue({ content: '' });
+      vi.mocked(transcribe).mockResolvedValue({ content: '' });
 
       const result = await service.transcribe(message, false, false);
 
@@ -684,7 +680,7 @@ describe('VoiceTranscriptionService', () => {
         ],
       });
 
-      mockGatewayClient.transcribe.mockRejectedValue(new Error('Transcription failed'));
+      vi.mocked(transcribe).mockRejectedValue(new Error('Transcription failed'));
       (message.reply as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Channel deleted'));
 
       // Should not throw
@@ -706,7 +702,7 @@ describe('VoiceTranscriptionService', () => {
       });
 
       // Make transcription take time so intervals fire
-      mockGatewayClient.transcribe.mockImplementation(
+      vi.mocked(transcribe).mockImplementation(
         () =>
           new Promise(resolve => {
             // Resolve after timers advance
@@ -747,7 +743,7 @@ describe('VoiceTranscriptionService', () => {
         ],
       });
 
-      mockGatewayClient.transcribe.mockResolvedValue({
+      vi.mocked(transcribe).mockResolvedValue({
         content: 'Transcript',
       });
 
@@ -772,7 +768,7 @@ describe('VoiceTranscriptionService', () => {
         ],
       });
 
-      mockGatewayClient.transcribe.mockRejectedValue(new Error('Network error'));
+      vi.mocked(transcribe).mockRejectedValue(new Error('Network error'));
 
       await service.transcribe(message, false, false);
 
@@ -796,7 +792,7 @@ describe('VoiceTranscriptionService', () => {
         noTypingSupport: true,
       });
 
-      mockGatewayClient.transcribe.mockResolvedValue({
+      vi.mocked(transcribe).mockResolvedValue({
         content: 'Transcript',
       });
 
@@ -825,7 +821,7 @@ describe('VoiceTranscriptionService', () => {
         ],
       });
 
-      mockGatewayClient.transcribe.mockResolvedValue({
+      vi.mocked(transcribe).mockResolvedValue({
         content: 'Transcribed from forwarded message',
       });
 
@@ -837,7 +833,7 @@ describe('VoiceTranscriptionService', () => {
       });
 
       // Should call gateway transcribe with forwarded attachment metadata and userId
-      expect(mockGatewayClient.transcribe).toHaveBeenCalledWith(
+      expect(vi.mocked(transcribe)).toHaveBeenCalledWith(
         [
           {
             url: 'https://cdn.discord.com/voice/forwarded.ogg',
@@ -878,14 +874,14 @@ describe('VoiceTranscriptionService', () => {
         ],
       });
 
-      mockGatewayClient.transcribe.mockResolvedValue({
+      vi.mocked(transcribe).mockResolvedValue({
         content: 'Transcribed with fallback content type',
       });
 
       await service.transcribe(message, false, false);
 
       // Should use CONTENT_TYPES.BINARY as fallback
-      const call = mockGatewayClient.transcribe.mock.calls[0][0];
+      const call = vi.mocked(transcribe).mock.calls[0][0];
       expect(call[0].contentType).toBe(CONTENT_TYPES.BINARY);
     });
 
@@ -915,14 +911,14 @@ describe('VoiceTranscriptionService', () => {
         ],
       });
 
-      mockGatewayClient.transcribe.mockResolvedValue({
+      vi.mocked(transcribe).mockResolvedValue({
         content: 'Transcribed direct attachment',
       });
 
       await service.transcribe(message, false, false);
 
       // Should use direct attachment, not forwarded
-      const call = mockGatewayClient.transcribe.mock.calls[0][0];
+      const call = vi.mocked(transcribe).mock.calls[0][0];
       expect(call[0].url).toBe('https://cdn.discord.com/voice/direct.ogg');
     });
 
@@ -946,14 +942,14 @@ describe('VoiceTranscriptionService', () => {
         ],
       });
 
-      mockGatewayClient.transcribe.mockResolvedValue({
+      vi.mocked(transcribe).mockResolvedValue({
         content: 'Audio only transcript',
       });
 
       await service.transcribe(message, false, false);
 
       // Should only send the audio attachment, not the image
-      const call = mockGatewayClient.transcribe.mock.calls[0][0];
+      const call = vi.mocked(transcribe).mock.calls[0][0];
       expect(call).toHaveLength(1);
       expect(call[0].url).toBe('https://cdn.discord.com/voice/audio.ogg');
     });
@@ -984,7 +980,7 @@ describe('VoiceTranscriptionService', () => {
 
         const result = await service.transcribe(message, false, false);
 
-        expect(mockGatewayClient.transcribe).not.toHaveBeenCalled();
+        expect(vi.mocked(transcribe)).not.toHaveBeenCalled();
         expect(result?.transcript).toContain('Forwarded voice message');
         expect(result?.transcript).toContain('lila-zot-lilit');
       });
@@ -1085,11 +1081,11 @@ describe('VoiceTranscriptionService', () => {
             },
           ],
         });
-        mockGatewayClient.transcribe.mockResolvedValue({ content: 'transcribed text' });
+        vi.mocked(transcribe).mockResolvedValue({ content: 'transcribed text' });
 
         await service.transcribe(message, false, false);
 
-        expect(mockGatewayClient.transcribe).toHaveBeenCalledTimes(1);
+        expect(vi.mocked(transcribe)).toHaveBeenCalledTimes(1);
       });
 
       it('falls through to normal STT when batch has mixed bot/human attachments', async () => {
@@ -1121,11 +1117,11 @@ describe('VoiceTranscriptionService', () => {
             },
           ],
         });
-        mockGatewayClient.transcribe.mockResolvedValue({ content: 'transcribed text' });
+        vi.mocked(transcribe).mockResolvedValue({ content: 'transcribed text' });
 
         await service.transcribe(message, false, false);
 
-        expect(mockGatewayClient.transcribe).toHaveBeenCalledTimes(1);
+        expect(vi.mocked(transcribe)).toHaveBeenCalledTimes(1);
       });
 
       it('falls through to normal STT when message.client.user is undefined', async () => {
@@ -1153,11 +1149,11 @@ describe('VoiceTranscriptionService', () => {
         });
         // Override the default mock client.user.id to undefined.
         (message as unknown as { client: { user: undefined } }).client = { user: undefined };
-        mockGatewayClient.transcribe.mockResolvedValue({ content: 'transcribed text' });
+        vi.mocked(transcribe).mockResolvedValue({ content: 'transcribed text' });
 
         await service.transcribe(message, false, false);
 
-        expect(mockGatewayClient.transcribe).toHaveBeenCalledTimes(1);
+        expect(vi.mocked(transcribe)).toHaveBeenCalledTimes(1);
       });
 
       it('does NOT skip STT for legacy voice.ogg filenames', async () => {
@@ -1179,11 +1175,11 @@ describe('VoiceTranscriptionService', () => {
             },
           ],
         });
-        mockGatewayClient.transcribe.mockResolvedValue({ content: 'transcribed text' });
+        vi.mocked(transcribe).mockResolvedValue({ content: 'transcribed text' });
 
         await service.transcribe(message, false, false);
 
-        expect(mockGatewayClient.transcribe).toHaveBeenCalledTimes(1);
+        expect(vi.mocked(transcribe)).toHaveBeenCalledTimes(1);
       });
     });
   });

@@ -10,9 +10,12 @@ import { VoiceMessageProcessor } from './VoiceMessageProcessor.js';
 import type { Message } from 'discord.js';
 import type { VoiceTranscriptionService } from '../services/VoiceTranscriptionService.js';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
-import type { GatewayClient } from '../utils/GatewayClient.js';
 
 // Mock dependencies
+vi.mock('../utils/gatewayServiceCalls.js', () => ({
+  getAdminSettingsCached: vi.fn(),
+}));
+
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
@@ -33,6 +36,7 @@ vi.mock('../utils/personalityMentionParser.js', () => ({
 
 import { getConfig } from '@tzurot/common-types';
 import { findPersonalityMentions } from '../utils/personalityMentionParser.js';
+import { getAdminSettingsCached } from '../utils/gatewayServiceCalls.js';
 
 function createMockMessage(overrides: Record<string, unknown> = {}): Message {
   return {
@@ -67,9 +71,6 @@ describe('VoiceMessageProcessor', () => {
   let mockPersonalityService: {
     loadPersonality: ReturnType<typeof vi.fn>;
   };
-  let mockGatewayClient: {
-    getAdminSettings: ReturnType<typeof vi.fn>;
-  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -83,11 +84,9 @@ describe('VoiceMessageProcessor', () => {
       loadPersonality: vi.fn(),
     };
 
-    mockGatewayClient = {
-      getAdminSettings: vi.fn().mockResolvedValue({
-        configDefaults: { voiceTranscriptionEnabled: true },
-      }),
-    };
+    vi.mocked(getAdminSettingsCached).mockResolvedValue({
+      configDefaults: { voiceTranscriptionEnabled: true },
+    } as Awaited<ReturnType<typeof getAdminSettingsCached>>);
 
     (getConfig as ReturnType<typeof vi.fn>).mockReturnValue({
       BOT_MENTION_CHAR: '@',
@@ -95,8 +94,7 @@ describe('VoiceMessageProcessor', () => {
 
     processor = new VoiceMessageProcessor(
       mockVoiceService as unknown as VoiceTranscriptionService,
-      mockPersonalityService as unknown as IPersonalityLoader,
-      mockGatewayClient as unknown as GatewayClient
+      mockPersonalityService as unknown as IPersonalityLoader
     );
   });
 
@@ -109,14 +107,14 @@ describe('VoiceMessageProcessor', () => {
 
       expect(result).toBe(false); // Should continue to next processor
       expect(mockVoiceService.hasVoiceAttachment).toHaveBeenCalledWith(message);
-      expect(mockGatewayClient.getAdminSettings).not.toHaveBeenCalled();
+      expect(vi.mocked(getAdminSettingsCached)).not.toHaveBeenCalled();
     });
 
     it('should continue processing when voiceTranscriptionEnabled is false via admin cascade', async () => {
       mockVoiceService.hasVoiceAttachment.mockReturnValue(true);
-      mockGatewayClient.getAdminSettings.mockResolvedValue({
+      vi.mocked(getAdminSettingsCached).mockResolvedValue({
         configDefaults: { voiceTranscriptionEnabled: false },
-      });
+      } as Awaited<ReturnType<typeof getAdminSettingsCached>>);
 
       const message = createMockMessage();
       const result = await processor.process(message);
@@ -126,7 +124,7 @@ describe('VoiceMessageProcessor', () => {
     });
 
     it('should default to enabled when admin settings are null', async () => {
-      mockGatewayClient.getAdminSettings.mockResolvedValue(null);
+      vi.mocked(getAdminSettingsCached).mockResolvedValue(null);
 
       const message = createMockMessage();
       mockVoiceService.hasVoiceAttachment.mockReturnValue(true);
@@ -145,9 +143,9 @@ describe('VoiceMessageProcessor', () => {
     });
 
     it('should default to enabled when configDefaults is null', async () => {
-      mockGatewayClient.getAdminSettings.mockResolvedValue({
+      vi.mocked(getAdminSettingsCached).mockResolvedValue({
         configDefaults: null,
-      });
+      } as Awaited<ReturnType<typeof getAdminSettingsCached>>);
 
       const message = createMockMessage();
       mockVoiceService.hasVoiceAttachment.mockReturnValue(true);
@@ -165,7 +163,7 @@ describe('VoiceMessageProcessor', () => {
     });
 
     it('should default to enabled when getAdminSettings throws', async () => {
-      mockGatewayClient.getAdminSettings.mockRejectedValue(new Error('Gateway unreachable'));
+      vi.mocked(getAdminSettingsCached).mockRejectedValue(new Error('Gateway unreachable'));
 
       const message = createMockMessage();
       mockVoiceService.hasVoiceAttachment.mockReturnValue(true);

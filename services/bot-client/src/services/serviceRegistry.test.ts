@@ -11,7 +11,6 @@ import type {
   PersonaResolver,
   ChannelActivationCacheInvalidationService,
 } from '@tzurot/common-types';
-import type { GatewayClient } from '../utils/GatewayClient.js';
 import type { JobTracker } from './JobTracker.js';
 import type { WebhookManager } from '../utils/WebhookManager.js';
 import type { MessageContextBuilder } from './MessageContextBuilder.js';
@@ -41,13 +40,6 @@ describe('serviceRegistry', () => {
       const { getWebhookManager } = await import('./serviceRegistry.js');
       expect(() => getWebhookManager()).toThrow(
         'WebhookManager not registered. Call registerServices() first.'
-      );
-    });
-
-    it('should throw when getting GatewayClient before registration', async () => {
-      const { getGatewayClient } = await import('./serviceRegistry.js');
-      expect(() => getGatewayClient()).toThrow(
-        'GatewayClient not registered. Call registerServices() first.'
       );
     });
 
@@ -102,7 +94,6 @@ describe('serviceRegistry', () => {
   describe('after registration', () => {
     const mockJobTracker = { track: vi.fn() } as unknown as JobTracker;
     const mockWebhookManager = { send: vi.fn() } as unknown as WebhookManager;
-    const mockGatewayClient = { generate: vi.fn() } as unknown as GatewayClient;
     const mockPersonalityService = { loadPersonality: vi.fn() } as unknown as PersonalityService;
     const mockConversationHistoryService = {
       getChannelHistory: vi.fn(),
@@ -124,7 +115,6 @@ describe('serviceRegistry', () => {
       registerServices({
         jobTracker: mockJobTracker,
         webhookManager: mockWebhookManager,
-        gatewayClient: mockGatewayClient,
         personalityService: mockPersonalityService,
         conversationHistoryService: mockConversationHistoryService,
         personaResolver: mockPersonaResolver,
@@ -143,7 +133,6 @@ describe('serviceRegistry', () => {
       registerServices({
         jobTracker: mockJobTracker,
         webhookManager: mockWebhookManager,
-        gatewayClient: mockGatewayClient,
         personalityService: mockPersonalityService,
         conversationHistoryService: mockConversationHistoryService,
         personaResolver: mockPersonaResolver,
@@ -156,32 +145,12 @@ describe('serviceRegistry', () => {
       expect(getWebhookManager()).toBe(mockWebhookManager);
     });
 
-    it('should return registered GatewayClient', async () => {
-      const { registerServices, getGatewayClient } = await import('./serviceRegistry.js');
-
-      registerServices({
-        jobTracker: mockJobTracker,
-        webhookManager: mockWebhookManager,
-        gatewayClient: mockGatewayClient,
-        personalityService: mockPersonalityService,
-        conversationHistoryService: mockConversationHistoryService,
-        personaResolver: mockPersonaResolver,
-        channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
-        messageContextBuilder: mockMessageContextBuilder,
-        conversationPersistence: mockConversationPersistence,
-        denylistCache: mockDenylistCache,
-      });
-
-      expect(getGatewayClient()).toBe(mockGatewayClient);
-    });
-
     it('should return registered PersonalityService', async () => {
       const { registerServices, getPersonalityService } = await import('./serviceRegistry.js');
 
       registerServices({
         jobTracker: mockJobTracker,
         webhookManager: mockWebhookManager,
-        gatewayClient: mockGatewayClient,
         personalityService: mockPersonalityService,
         conversationHistoryService: mockConversationHistoryService,
         personaResolver: mockPersonaResolver,
@@ -201,7 +170,6 @@ describe('serviceRegistry', () => {
       registerServices({
         jobTracker: mockJobTracker,
         webhookManager: mockWebhookManager,
-        gatewayClient: mockGatewayClient,
         personalityService: mockPersonalityService,
         conversationHistoryService: mockConversationHistoryService,
         personaResolver: mockPersonaResolver,
@@ -220,7 +188,6 @@ describe('serviceRegistry', () => {
       registerServices({
         jobTracker: mockJobTracker,
         webhookManager: mockWebhookManager,
-        gatewayClient: mockGatewayClient,
         personalityService: mockPersonalityService,
         conversationHistoryService: mockConversationHistoryService,
         personaResolver: mockPersonaResolver,
@@ -240,7 +207,6 @@ describe('serviceRegistry', () => {
       registerServices({
         jobTracker: mockJobTracker,
         webhookManager: mockWebhookManager,
-        gatewayClient: mockGatewayClient,
         personalityService: mockPersonalityService,
         conversationHistoryService: mockConversationHistoryService,
         personaResolver: mockPersonaResolver,
@@ -261,7 +227,6 @@ describe('serviceRegistry', () => {
       registerServices({
         jobTracker: mockJobTracker,
         webhookManager: mockWebhookManager,
-        gatewayClient: mockGatewayClient,
         personalityService: mockPersonalityService,
         conversationHistoryService: mockConversationHistoryService,
         personaResolver: mockPersonaResolver,
@@ -280,7 +245,6 @@ describe('serviceRegistry', () => {
       registerServices({
         jobTracker: mockJobTracker,
         webhookManager: mockWebhookManager,
-        gatewayClient: mockGatewayClient,
         personalityService: mockPersonalityService,
         conversationHistoryService: mockConversationHistoryService,
         personaResolver: mockPersonaResolver,
@@ -299,7 +263,6 @@ describe('serviceRegistry', () => {
       registerServices({
         jobTracker: mockJobTracker,
         webhookManager: mockWebhookManager,
-        gatewayClient: mockGatewayClient,
         personalityService: mockPersonalityService,
         conversationHistoryService: mockConversationHistoryService,
         personaResolver: mockPersonaResolver,
@@ -322,7 +285,6 @@ describe('serviceRegistry', () => {
       const partialServices = {
         jobTracker: { track: vi.fn() } as unknown as JobTracker,
         webhookManager: undefined,
-        gatewayClient: undefined,
         personalityService: undefined,
         conversationHistoryService: undefined,
         personaResolver: undefined,
@@ -333,7 +295,6 @@ describe('serviceRegistry', () => {
       } as unknown as {
         jobTracker: JobTracker;
         webhookManager: WebhookManager;
-        gatewayClient: GatewayClient;
         personalityService: PersonalityService;
         conversationHistoryService: ConversationHistoryService;
         personaResolver: PersonaResolver;
@@ -356,7 +317,6 @@ describe('serviceRegistry', () => {
 
       const mockJobTracker = { track: vi.fn() } as unknown as JobTracker;
       const mockWebhookManager = { send: vi.fn() } as unknown as WebhookManager;
-      const mockGatewayClient = { generate: vi.fn() } as unknown as GatewayClient;
       const mockPersonalityService = { loadPersonality: vi.fn() } as unknown as PersonalityService;
       const mockConversationHistoryService = {
         getChannelHistory: vi.fn(),
@@ -379,7 +339,6 @@ describe('serviceRegistry', () => {
       registerServices({
         jobTracker: mockJobTracker,
         webhookManager: mockWebhookManager,
-        gatewayClient: mockGatewayClient,
         personalityService: mockPersonalityService,
         conversationHistoryService: mockConversationHistoryService,
         personaResolver: mockPersonaResolver,

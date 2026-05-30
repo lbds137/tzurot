@@ -12,6 +12,12 @@ import type { LLMGenerationResult, LoadedPersonality, TypingChannel } from '@tzu
 import { MULTI_TAG } from '@tzurot/common-types';
 import { deliverGroup, type DeliveryFlowDeps } from './multiTagDeliveryFlow.js';
 import type { RuntimeEntry, RuntimeSlot } from './multiTagCoordinatorHelpers.js';
+import { confirmDelivery, setDmSessionPersonality } from '../utils/gatewayServiceCalls.js';
+
+vi.mock('../utils/gatewayServiceCalls.js', () => ({
+  confirmDelivery: vi.fn(),
+  setDmSessionPersonality: vi.fn(),
+}));
 
 function buildPersonality(name: string, errorMessage?: string): LoadedPersonality {
   return {
@@ -75,10 +81,6 @@ describe('deliverGroup', () => {
     deliverSuccess: ReturnType<typeof vi.fn>;
     deliverError: ReturnType<typeof vi.fn>;
   };
-  let gatewayClient: {
-    confirmDelivery: ReturnType<typeof vi.fn>;
-    setDmSessionPersonality: ReturnType<typeof vi.fn>;
-  };
   let persistence: {
     deleteEntry: ReturnType<typeof vi.fn>;
     clearDMBackfillTried: ReturnType<typeof vi.fn>;
@@ -86,13 +88,12 @@ describe('deliverGroup', () => {
   };
 
   beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(confirmDelivery).mockResolvedValue(undefined);
+    vi.mocked(setDmSessionPersonality).mockResolvedValue(undefined);
     slotDelivery = {
       deliverSuccess: vi.fn().mockResolvedValue({ chunkMessageIds: ['m1'] }),
       deliverError: vi.fn().mockResolvedValue(undefined),
-    };
-    gatewayClient = {
-      confirmDelivery: vi.fn().mockResolvedValue(undefined),
-      setDmSessionPersonality: vi.fn().mockResolvedValue(undefined),
     };
     persistence = {
       deleteEntry: vi.fn().mockResolvedValue(undefined),
@@ -101,7 +102,6 @@ describe('deliverGroup', () => {
     };
     deps = {
       slotDelivery: slotDelivery as unknown as DeliveryFlowDeps['slotDelivery'],
-      gatewayClient: gatewayClient as unknown as DeliveryFlowDeps['gatewayClient'],
       persistence: persistence as unknown as DeliveryFlowDeps['persistence'],
     };
   });
@@ -170,9 +170,9 @@ describe('deliverGroup', () => {
 
     // Completed slot gets confirmed; timed-out slot does NOT (ai-worker never
     // wrote its JobResult row → confirmDelivery would be a guaranteed 404).
-    expect(gatewayClient.confirmDelivery).toHaveBeenCalledTimes(1);
-    expect(gatewayClient.confirmDelivery).toHaveBeenCalledWith('job-Alice');
-    expect(gatewayClient.confirmDelivery).not.toHaveBeenCalledWith('job-Bob');
+    expect(vi.mocked(confirmDelivery)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(confirmDelivery)).toHaveBeenCalledWith('job-Alice');
+    expect(vi.mocked(confirmDelivery)).not.toHaveBeenCalledWith('job-Bob');
   });
 
   it('renders the personality error message on safety timeout when configured', async () => {
@@ -370,8 +370,8 @@ describe('deliverGroup', () => {
 
     expect(slotDelivery.deliverSuccess).toHaveBeenCalledTimes(2);
     // Cleanup still runs for both slots.
-    expect(gatewayClient.confirmDelivery).toHaveBeenCalledWith('job-Alice');
-    expect(gatewayClient.confirmDelivery).toHaveBeenCalledWith('job-Bob');
+    expect(vi.mocked(confirmDelivery)).toHaveBeenCalledWith('job-Alice');
+    expect(vi.mocked(confirmDelivery)).toHaveBeenCalledWith('job-Bob');
   });
 
   it('appends a truncation notice when entry.truncated is true', async () => {
@@ -402,8 +402,8 @@ describe('deliverGroup', () => {
 
     await deliverGroup(entry, deps);
 
-    expect(gatewayClient.confirmDelivery).toHaveBeenCalledWith('job-Alice');
-    expect(gatewayClient.confirmDelivery).toHaveBeenCalledWith('job-Bob');
+    expect(vi.mocked(confirmDelivery)).toHaveBeenCalledWith('job-Alice');
+    expect(vi.mocked(confirmDelivery)).toHaveBeenCalledWith('job-Bob');
     expect(persistence.deleteEntry).toHaveBeenCalledOnce();
   });
 
@@ -419,7 +419,7 @@ describe('deliverGroup', () => {
     await deliverGroup(entry, deps);
 
     // Bob is textually-last mention → new active session
-    expect(gatewayClient.setDmSessionPersonality).toHaveBeenCalledWith(entry.channel.id, 'bob');
+    expect(vi.mocked(setDmSessionPersonality)).toHaveBeenCalledWith(entry.channel.id, 'bob');
     // Backfill sentinel cleared so post-activation bare DMs take the fast path
     expect(persistence.clearDMBackfillTried).toHaveBeenCalledWith(entry.channel.id);
   });
@@ -429,7 +429,7 @@ describe('deliverGroup', () => {
 
     await deliverGroup(entry, deps);
 
-    expect(gatewayClient.setDmSessionPersonality).not.toHaveBeenCalled();
+    expect(vi.mocked(setDmSessionPersonality)).not.toHaveBeenCalled();
     expect(persistence.clearDMBackfillTried).not.toHaveBeenCalled();
   });
 
@@ -451,7 +451,7 @@ describe('deliverGroup', () => {
 
     await expect(deliverGroup(entry, deps)).resolves.toBeUndefined();
     // Confirmation cleanup still ran despite the failed notice
-    expect(gatewayClient.confirmDelivery).toHaveBeenCalled();
+    expect(vi.mocked(confirmDelivery)).toHaveBeenCalled();
     expect(persistence.deleteEntry).toHaveBeenCalled();
   });
 });

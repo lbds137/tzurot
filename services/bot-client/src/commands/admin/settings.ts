@@ -29,6 +29,7 @@ import {
   type OwnerClient,
 } from '@tzurot/common-types';
 import { clientsFor } from '../../utils/gatewayClients.js';
+import { invalidateAdminSettingsCache } from '../../utils/gatewayServiceCalls.js';
 import {
   type SettingsData,
   type SettingsDashboardConfig,
@@ -214,6 +215,11 @@ async function handleSettingUpdate(
       logger.warn({ settingId, error: result.error }, 'Update failed');
       return { success: false, error: result.error };
     }
+
+    // Clear the service-read cache so VoiceMessageProcessor (and any other
+    // service-side reader) picks up the new defaults promptly instead of
+    // waiting out the 60s TTL.
+    invalidateAdminSettingsCache();
 
     const newData = convertToSettingsData(result.data);
     logger.info({ settingId, newValue, userId }, 'Setting updated');
