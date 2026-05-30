@@ -271,14 +271,17 @@ export interface RouteDef<
    * overriding the transport default of `GATEWAY_TIMEOUTS.AUTOCOMPLETE`
    * (2500ms — sized for Discord's 3-second autocomplete budget).
    *
-   * Required for slow routes that legitimately exceed 2500ms:
-   *   - `dbSync`, `cleanup` (multi-second Prisma migrations / orphan
-   *     purges; legacy `adminFetch` used `GATEWAY_TIMEOUTS.DEFERRED` =
-   *     10000ms)
-   *   - Future bulk-operation or AI-generation routes
+   * Required for slow routes that legitimately exceed 2500ms — external
+   * round-trips, bulk/aggregate work, multi-second migrations (e.g. `dbSync`,
+   * `cleanup`, the shapes import/export routes). Typically
+   * `GATEWAY_TIMEOUTS.DEFERRED` (10s) or `BULK_OPERATION` (30s).
    *
-   * Omit for routes that comfortably fit the autocomplete budget
-   * (the vast majority).
+   * If a route comfortably fits the 2500ms default, do NOT just omit this
+   * field — also register its id in `DEFAULT_TIMEOUT_OK` in `manifest.test.ts`.
+   * That test enforces that relying on the default is a conscious "this op is
+   * fast" decision rather than a silent fallback (the omission is what caused
+   * the beta.126 timeout regressions). Omit + register, or set timeoutMs — never
+   * silently omit.
    */
   readonly timeoutMs?: number;
 }
