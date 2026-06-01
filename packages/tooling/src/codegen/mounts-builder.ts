@@ -144,8 +144,21 @@ function buildImports(
       importsByName.set(name, handlerPathFor(r.id));
     }
   }
-  const handlerImports = [...importsByName.entries()]
-    .map(([name, path]) => `import { ${name} } from '${path}';`)
+  // Group the deduped handler names by source path so multiple handlers from
+  // the same module merge into a single `import { a, b } from '../foo.js'`
+  // statement instead of one import line per handler. Insertion order (route
+  // manifest order) keeps the output deterministic for the codegen-drift check.
+  const namesByPath = new Map<string, string[]>();
+  for (const [name, path] of importsByName) {
+    const names = namesByPath.get(path);
+    if (names === undefined) {
+      namesByPath.set(path, [name]);
+    } else {
+      names.push(name);
+    }
+  }
+  const handlerImports = [...namesByPath.entries()]
+    .map(([path, names]) => `import { ${names.join(', ')} } from '${path}';`)
     .join('\n');
 
   // Emit only the middleware symbols actually referenced by the
