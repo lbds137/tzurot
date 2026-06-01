@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleStatus } from './status.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { GatewayResult } from '@tzurot/common-types';
-import { makeOk, asUserClient } from '../../test/gatewayClientStubs.js';
+import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
@@ -243,6 +243,50 @@ describe('handleStatus', () => {
               expect.objectContaining({
                 name: 'Export History',
                 value: expect.stringContaining('No exports yet'),
+              }),
+            ]),
+          }),
+        }),
+      ],
+    });
+  });
+
+  it('should show a load-failed message (not "No imports") when import history fetch fails', async () => {
+    setupDefaultMocks({ imports: makeErr(503, 'service unavailable') });
+
+    const context = createMockContext();
+    await handleStatus(context);
+
+    expect(mockEditReply).toHaveBeenCalledWith({
+      embeds: [
+        expect.objectContaining({
+          data: expect.objectContaining({
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                name: 'Import History',
+                value: expect.stringContaining('Could not load import history'),
+              }),
+            ]),
+          }),
+        }),
+      ],
+    });
+  });
+
+  it('should show a load-failed message (not "No exports") when export history fetch fails', async () => {
+    setupDefaultMocks({ exports: makeErr(503, 'service unavailable') });
+
+    const context = createMockContext();
+    await handleStatus(context);
+
+    expect(mockEditReply).toHaveBeenCalledWith({
+      embeds: [
+        expect.objectContaining({
+          data: expect.objectContaining({
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                name: 'Export History',
+                value: expect.stringContaining('Could not load export history'),
               }),
             ]),
           }),
