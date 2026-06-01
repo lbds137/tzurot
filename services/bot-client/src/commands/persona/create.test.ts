@@ -6,7 +6,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleCreatePersona, handleCreateModalSubmit } from './create.js';
 import { MessageFlags } from 'discord.js';
-import { mockCreatePersonaResponse } from '@tzurot/common-types';
+import { mockCreatePersonaResponse, API_ERROR_SUBCODE } from '@tzurot/common-types';
 import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
 const clientsForMock = vi.hoisted(() => vi.fn());
@@ -127,6 +127,24 @@ describe('handleCreateModalSubmit', () => {
     });
     expect(mockReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Persona "Work Persona" created'),
+      flags: MessageFlags.Ephemeral,
+    });
+  });
+
+  it('should surface a name-collision message instead of a generic error', async () => {
+    stub.createPersona.mockResolvedValue(
+      makeErr(400, 'You already have a persona named "Dup".', API_ERROR_SUBCODE.NAME_COLLISION)
+    );
+
+    await handleCreateModalSubmit(
+      createMockModalInteraction({
+        personaName: 'Dup',
+        content: 'whatever',
+      })
+    );
+
+    expect(mockReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('already have a persona named "Dup"'),
       flags: MessageFlags.Ephemeral,
     });
   });

@@ -8,6 +8,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { PrismaClient } from '@tzurot/common-types';
+import { API_ERROR_SUBCODE } from '@tzurot/common-types';
 import {
   createMockPrisma,
   createMockReqRes,
@@ -392,6 +393,28 @@ describe('persona override routes', () => {
           persona: expect.objectContaining({ id: MOCK_PERSONA_ID_2, name: 'Override Persona' }),
           personality: { name: 'Lilith', displayName: 'Lilith the Succubus' },
         })
+      );
+    });
+
+    it('should return NAME_COLLISION when the override persona name is already taken', async () => {
+      // P2002 from the persona insert propagates out of $transaction (which
+      // rolls back), and the handler translates it to a NAME_COLLISION.
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        id: MOCK_PERSONALITY_ID,
+        name: 'Lilith',
+        displayName: 'Lilith the Succubus',
+      });
+      mockPrisma.persona.create.mockRejectedValue({ code: 'P2002' });
+
+      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+      const handler = getHandler(router, 'post', '/override/by-id/:personalityId');
+
+      const { req, res } = createMockReqRes(validBody, { personalityId: MOCK_PERSONALITY_ID });
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ code: API_ERROR_SUBCODE.NAME_COLLISION })
       );
     });
 

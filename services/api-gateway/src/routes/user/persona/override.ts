@@ -23,6 +23,7 @@ import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthM
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
+import { isPrismaUniqueConstraintError } from '../../../utils/prismaErrors.js';
 import { sendZodError } from '../../../utils/zodHelpers.js';
 import { validateSlug, validateUuid } from '../../../utils/validators.js';
 import { getParam } from '../../../utils/requestParams.js';
@@ -262,33 +263,49 @@ export const handleCreatePersonaOverride = (deps: RouteDeps): RequestHandler => 
       return sendError(res, ErrorResponses.notFound('Personality'));
     }
 
-    const created = await prisma.$transaction(async tx => {
-      const persona = await tx.persona.create({
-        data: {
-          id: generatePersonaUuid(name, user.id),
-          name,
-          preferredName: preferredName ?? null,
-          description: description ?? null,
-          content,
-          pronouns: pronouns ?? null,
-          ownerId: user.id,
-        },
-        select: PERSONA_SELECT,
-      });
+    // Deterministic persona UUID of (name, ownerId): a duplicate name for the
+    // same owner trips P2002 on the persona insert. The whole transaction rolls
+    // back (no orphaned persona or override), and we translate to a
+    // NAME_COLLISION rather than an opaque 500 — same contract as the plain
+    // persona-create path.
+    let created;
+    try {
+      created = await prisma.$transaction(async tx => {
+        const persona = await tx.persona.create({
+          data: {
+            id: generatePersonaUuid(name, user.id),
+            name,
+            preferredName: preferredName ?? null,
+            description: description ?? null,
+            content,
+            pronouns: pronouns ?? null,
+            ownerId: user.id,
+          },
+          select: PERSONA_SELECT,
+        });
 
-      await tx.userPersonalityConfig.upsert({
-        where: { userId_personalityId: { userId: user.id, personalityId: personality.id } },
-        create: {
-          id: generateUserPersonalityConfigUuid(user.id, personality.id),
-          userId: user.id,
-          personalityId: personality.id,
-          personaId: persona.id,
-        },
-        update: { personaId: persona.id },
-      });
+        await tx.userPersonalityConfig.upsert({
+          where: { userId_personalityId: { userId: user.id, personalityId: personality.id } },
+          create: {
+            id: generateUserPersonalityConfigUuid(user.id, personality.id),
+            userId: user.id,
+            personalityId: personality.id,
+            personaId: persona.id,
+          },
+          update: { personaId: persona.id },
+        });
 
-      return persona;
-    });
+        return persona;
+      });
+    } catch (err) {
+      if (isPrismaUniqueConstraintError(err)) {
+        return sendError(
+          res,
+          ErrorResponses.nameCollision(`You already have a persona named "${name}".`)
+        );
+      }
+      throw err;
+    }
 
     logger.info(
       { userId: user.id, personalityId: personality.id, personaId: created.id },

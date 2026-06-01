@@ -19,6 +19,7 @@ import {
   DISCORD_LIMITS,
   truncateText,
   personaOverrideSetOptions,
+  API_ERROR_SUBCODE,
 } from '@tzurot/common-types';
 import type { ModalCommandContext } from '../../../utils/commandContext/types.js';
 import { CREATE_NEW_PERSONA_VALUE } from '../autocomplete.js';
@@ -207,6 +208,14 @@ export async function handleOverrideCreateModalSubmit(
     });
 
     if (!result.ok) {
+      if (result.code === API_ERROR_SUBCODE.NAME_COLLISION) {
+        await interaction.reply({
+          content: `❌ You already have a persona named "${personaName}". Pick a different name, or edit the existing one with \`/persona edit\`.`,
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+
       if (result.error.includes('User not found')) {
         await interaction.reply({
           content: '❌ User not found.',
