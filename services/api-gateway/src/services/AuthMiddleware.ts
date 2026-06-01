@@ -19,25 +19,19 @@ import type { AuthenticatedRequest, ProvisionedRequest } from '../types.js';
 const logger = createLogger('auth-middleware');
 
 /**
- * Extract the caller's Discord ID from the `X-User-Id` request header.
+ * Extract the caller's Discord ID for owner-auth purposes.
+ *
+ * Owner identity uses the same `X-User-Id` header as any other user —
+ * `requireOwnerAuth` downstream (`verifyBotOwner`) is what gates that the value
+ * matches the configured bot owner; this just identifies the caller. Delegates
+ * to {@link extractUserId} so the header parsing and empty-header handling live
+ * in one place (a body value is never consulted — it is not a credential).
  *
  * @param req - Express request
- * @returns Owner ID if the header is present, undefined otherwise
+ * @returns Owner ID if the header is a non-empty string, undefined otherwise
  */
 export function extractOwnerId(req: Request): string | undefined {
-  // `X-User-Id` carries the caller's Discord ID and is the ONLY accepted
-  // source. The `requireOwnerAuth` wrapper downstream (`verifyBotOwner`)
-  // gates that only the configured bot-owner ID passes; this header just
-  // identifies the caller. Set uniformly by `requireUserAuth` middleware and
-  // by the generated typed clients (every OwnerClient method sends
-  // `X-User-Id: actor`). A request body is never consulted — a body value is
-  // not a credential.
-  const headerUserId = req.headers['x-user-id'];
-  if (typeof headerUserId === 'string') {
-    return headerUserId;
-  }
-
-  return undefined;
+  return extractUserId(req);
 }
 
 /**
