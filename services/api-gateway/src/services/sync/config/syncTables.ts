@@ -98,12 +98,15 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     // transaction can issue SET CONSTRAINTS … DEFERRED and let Postgres
     // validate the references at COMMIT time, when every cross-table
     // referenced row exists:
-    //   - default_persona_id, default_llm_config_id: DEFERRABLE since
-    //     migration 20260418010642 (the original circular-FK fix).
-    //   - default_tts_config_id: DEFERRABLE since migration 20260504065151
-    //     (added when the TTS feature shipped — the column is NULLABLE
-    //     but that only relaxes the NOT NULL constraint, not the FK
-    //     reference check, so it still needed DEFERRABLE for sync).
+    //   - default_persona_id (NOT NULL), default_llm_config_id (nullable):
+    //     DEFERRABLE since migration 20260418010642 (the original circular-FK fix).
+    //   - default_tts_config_id (nullable): DEFERRABLE since migration
+    //     20260504065151 (added when the TTS feature shipped).
+    // Nullability is orthogonal to DEFERRABLE: deferral controls *when* the FK
+    // reference is validated (at COMMIT, after the referenced row is synced),
+    // not whether the column may be NULL. A non-NULL FK still needs deferral
+    // here because its target row is inserted later in SYNC_TABLE_ORDER; a
+    // nullable column simply skips the check when its value is NULL.
     // Last-write-wins on users.updated_at resolves cross-env conflicts.
   },
   personas: {
@@ -237,17 +240,18 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
  *
  * Dependencies:
  * - system_prompts: no FK deps
- * - users: default_persona_id → personas.id AND default_llm_config_id → llm_configs.id
- *   (both circular NOT NULL). The enclosing sync transaction uses DEFERRABLE
- *   constraints + SET CONSTRAINTS ALL DEFERRED (see migration 20260418010642)
- *   so users inserts can carry real FK values; Postgres validates at COMMIT.
+ * - users: default_persona_id → personas.id (NOT NULL) AND
+ *   default_llm_config_id → llm_configs.id (nullable), both circular. The
+ *   enclosing sync transaction uses DEFERRABLE constraints + SET CONSTRAINTS
+ *   ALL DEFERRED (see migration 20260418010642) so users inserts can carry
+ *   real FK values; Postgres validates at COMMIT.
  * - llm_configs: owner_id → users (NOT NULL, also circular; same deferred handling)
  * - tts_configs: owner_id → users (NOT NULL); users.default_tts_config_id is
- *   NULLABLE (unlike default_llm_config_id which is NOT NULL), but the FK
- *   users_default_tts_config_id_fkey is still DEFERRABLE (migration
- *   20260504065151) — NULLABLE only relaxes the NOT NULL check, not the FK
- *   reference check, so a user with a non-NULL default_tts_config_id would
- *   fail an immediate FK validation during users-sync without DEFERRABLE.
+ *   NULLABLE (like default_llm_config_id; only default_persona_id is NOT NULL),
+ *   but the FK users_default_tts_config_id_fkey is still DEFERRABLE (migration
+ *   20260504065151). Nullability only governs whether the column may be NULL,
+ *   not the FK reference check: a user with a non-NULL default_tts_config_id
+ *   would fail an immediate FK validation during users-sync without DEFERRABLE.
  *   Same deferred handling as the original four FKs.
  * - personas: owner_id → users (NOT NULL, also circular; same deferred handling)
  * - personalities: system_prompt_id → system_prompts, owner_id → users (NOT NULL)

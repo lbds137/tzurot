@@ -16,3 +16,9 @@ pnpm-lock.yaml
 # bodies that contain glob-pattern strings (the asterisks confuse the
 # JSDoc parser), so the codegen output is excluded from formatting.
 _generated/
+
+# Backlog section files are markdown tables whose column widths prettier
+# auto-widens to the longest cell — so a one-line entry addition triggers a
+# whole-table reformat, drowning the real change in alignment noise. Column
+# widths drift naturally and have zero review value, so exclude them.
+backlog/
