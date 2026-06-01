@@ -126,7 +126,10 @@ export function requireUserAuth(customMessage?: string) {
   return (req: Request, res: Response, next: NextFunction): void => {
     const userId = extractUserId(req);
 
-    if (userId === undefined || userId.length === 0) {
+    // extractUserId already returns undefined for a missing/empty header (its
+    // `length > 0` guard), so an undefined check is sufficient — no separate
+    // empty-string arm needed.
+    if (userId === undefined) {
       logger.warn(
         {
           path: req.path,
