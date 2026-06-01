@@ -9,7 +9,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { PrismaClient } from '@tzurot/common-types';
-import { ListPersonasResponseSchema } from '@tzurot/common-types';
+import { ListPersonasResponseSchema, API_ERROR_SUBCODE } from '@tzurot/common-types';
 import {
   createMockPrisma,
   createMockReqRes,
@@ -231,6 +231,27 @@ describe('persona CRUD routes', () => {
         })
       );
       expect(res.status).toHaveBeenCalledWith(201);
+    });
+
+    it('should return NAME_COLLISION when the persona name is already taken', async () => {
+      // Deterministic persona UUID → a duplicate (name, owner) trips P2002 on
+      // the primary key. The handler translates it to a NAME_COLLISION rather
+      // than an opaque 500.
+      mockPrisma.persona.create.mockRejectedValue({ code: 'P2002' });
+
+      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+      const handler = getHandler(router, 'post', '/');
+
+      const { req, res } = createMockReqRes({
+        name: 'Existing Persona',
+        content: 'whatever',
+      });
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ code: API_ERROR_SUBCODE.NAME_COLLISION })
+      );
     });
 
     it('should reject empty name', async () => {

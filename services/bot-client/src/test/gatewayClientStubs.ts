@@ -8,16 +8,26 @@
  * exercise.
  */
 
-import type { GatewayResult, OwnerClient, ServiceClient, UserClient } from '@tzurot/common-types';
+import type {
+  ApiErrorSubcode,
+  GatewayResult,
+  OwnerClient,
+  ServiceClient,
+  UserClient,
+} from '@tzurot/common-types';
 
 /** Build an `ok` GatewayResult. */
 export function makeOk<T>(data: T): GatewayResult<T> {
   return { ok: true, data };
 }
 
-/** Build an `err` GatewayResult with HTTP status + optional message. */
-export function makeErr(status: number, message = 'fail'): GatewayResult<never> {
-  return { ok: false, error: message, status };
+/** Build an `err` GatewayResult with HTTP status + optional message and subcode. */
+export function makeErr(
+  status: number,
+  message = 'fail',
+  code?: ApiErrorSubcode
+): GatewayResult<never> {
+  return { ok: false, error: message, status, ...(code === undefined ? {} : { code }) };
 }
 
 /**

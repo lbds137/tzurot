@@ -11,6 +11,7 @@ import {
   mockSetOverrideResponse,
   mockOverrideInfoResponse,
   mockCreateOverrideResponse,
+  API_ERROR_SUBCODE,
 } from '@tzurot/common-types';
 import { makeOk, makeErr, asUserClient } from '../../../test/gatewayClientStubs.js';
 
@@ -281,6 +282,28 @@ describe('handleOverrideCreateModalSubmit', () => {
 
     expect(mockReply).toHaveBeenCalledWith({
       content: expect.stringContaining('User not found'),
+      flags: MessageFlags.Ephemeral,
+    });
+  });
+
+  it('should surface a name-collision message instead of a generic error', async () => {
+    stub.createPersonaOverride.mockResolvedValue(
+      makeErr(400, 'You already have a persona named "Dup".', API_ERROR_SUBCODE.NAME_COLLISION)
+    );
+
+    await handleOverrideCreateModalSubmit(
+      createMockModalInteraction({
+        personaName: 'Dup',
+        description: '',
+        preferredName: '',
+        pronouns: '',
+        content: 'whatever',
+      }),
+      'personality-uuid'
+    );
+
+    expect(mockReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('already have a persona named "Dup"'),
       flags: MessageFlags.Ephemeral,
     });
   });
