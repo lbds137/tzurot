@@ -603,6 +603,7 @@ describe('Admin Diagnostic Routes', () => {
         where: {
           responseMessageIds: { has: '9999888877776666555' },
         },
+        orderBy: { createdAt: 'desc' },
       });
     });
 
@@ -638,6 +639,7 @@ describe('Admin Diagnostic Routes', () => {
       expect(response.status).toBe(200);
       expect(mockPrisma.llmDiagnosticLog.findFirst).toHaveBeenCalledWith({
         where: { responseMessageIds: { has: 'chunk-2' } },
+        orderBy: { createdAt: 'desc' },
       });
     });
   });
@@ -801,6 +803,7 @@ describe('Admin Diagnostic Routes', () => {
 
       expect(mockPrisma.llmDiagnosticLog.findFirst).toHaveBeenCalledWith({
         where: { responseMessageIds: { has: 'chunk-1' }, userId: 'regular-user-789' },
+        orderBy: { createdAt: 'desc' },
       });
     });
 
@@ -811,6 +814,7 @@ describe('Admin Diagnostic Routes', () => {
 
       expect(mockPrisma.llmDiagnosticLog.findFirst).toHaveBeenCalledWith({
         where: { responseMessageIds: { has: 'chunk-1' } },
+        orderBy: { createdAt: 'desc' },
       });
     });
 
