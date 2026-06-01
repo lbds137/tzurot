@@ -46,8 +46,19 @@ export async function handleStatus(context: DeferredCommandContext): Promise<voi
       : '\u274C Not authenticated \u2014 use `/shapes auth` to connect';
     embed.addFields({ name: 'Credentials', value: credentialStatus });
 
-    // Import history
-    if (importJobsResult.ok && importJobsResult.data.jobs.length > 0) {
+    // Import history — distinguish "fetch failed" from "genuinely empty" so a
+    // transient gateway error (503/auth drop) doesn't masquerade as "no imports
+    // yet" and make a user think their history vanished.
+    if (!importJobsResult.ok) {
+      logger.warn(
+        { userId, status: importJobsResult.status, error: importJobsResult.error },
+        'Failed to load shapes import history'
+      );
+      embed.addFields({
+        name: 'Import History',
+        value: '⚠️ Could not load import history right now. Please try again in a moment.',
+      });
+    } else if (importJobsResult.data.jobs.length > 0) {
       const jobLines = importJobsResult.data.jobs
         .slice(0, 5)
         .map(adaptImportJob)
@@ -63,8 +74,17 @@ export async function handleStatus(context: DeferredCommandContext): Promise<voi
       });
     }
 
-    // Export history
-    if (exportJobsResult.ok && exportJobsResult.data.jobs.length > 0) {
+    // Export history — same fetch-failed vs. empty distinction as imports.
+    if (!exportJobsResult.ok) {
+      logger.warn(
+        { userId, status: exportJobsResult.status, error: exportJobsResult.error },
+        'Failed to load shapes export history'
+      );
+      embed.addFields({
+        name: 'Export History',
+        value: '⚠️ Could not load export history right now. Please try again in a moment.',
+      });
+    } else if (exportJobsResult.data.jobs.length > 0) {
       const jobLines = exportJobsResult.data.jobs
         .slice(0, 5)
         .map(adaptExportJob)

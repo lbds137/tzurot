@@ -181,6 +181,9 @@ describe('handleEditModal', () => {
     );
     // Should NOT call removeDenylistEntry since scope didn't change
     expect(stub.removeDenylistEntry).not.toHaveBeenCalled();
+    // A clean edit must null the content to clear any stale partial-failure
+    // warning a prior edit left on the message (editReply leaves omitted fields).
+    expect(interaction.editReply).toHaveBeenCalledWith(expect.objectContaining({ content: null }));
   });
 
   it('should handle scope change — create new + delete old', async () => {
@@ -202,6 +205,31 @@ describe('handleEditModal', () => {
       expect.objectContaining({ scope: 'CHANNEL', scopeId: 'chan-999' })
     );
     expect(stub.removeDenylistEntry).toHaveBeenCalledWith('USER', '111222333444555666', 'BOT', '*');
+  });
+
+  it('should warn about a stale entry when old-scope removal fails after scope change', async () => {
+    mockSessionManager.get.mockResolvedValue(sampleSession);
+    mockSessionManager.update.mockResolvedValue(sampleSession);
+    stub.addDenylistEntry.mockResolvedValue(
+      makeOk({ entry: { ...sampleEntry, scope: 'CHANNEL', scopeId: 'chan-999' } })
+    );
+    // New-scope upsert succeeds, but removing the old-scope entry fails — both
+    // now exist. The user must be told instead of seeing clean success.
+    stub.removeDenylistEntry.mockResolvedValue(makeErr(500, 'gateway down'));
+    const interaction = createMockModalInteraction('deny::modal::entry-uuid-1234::edit', {
+      scope: 'CHANNEL',
+      scopeId: 'chan-999',
+      reason: 'Spamming',
+    });
+
+    await handleEditModal(interaction, 'entry-uuid-1234');
+
+    expect(stub.removeDenylistEntry).toHaveBeenCalled();
+    expect(interaction.editReply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining('old entry could not be removed'),
+      })
+    );
   });
 
   it('should reject invalid scope', async () => {
