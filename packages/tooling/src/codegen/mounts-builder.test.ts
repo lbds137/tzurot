@@ -80,6 +80,26 @@ describe('buildMountsFile — structural', () => {
     expect(src).not.toMatch(/\n\n\n/);
   });
 
+  it('merges handlers from the same source module into a single import statement', () => {
+    const sharedPath = '../shared/foo.js';
+    const src = buildMountsFile({
+      routesByAudience: {
+        internal: {},
+        admin: {},
+        user: {
+          getFoo: makeRoute({ id: 'getFoo', audience: 'user', method: 'get', path: '/foo' }),
+          updateFoo: makeRoute({ id: 'updateFoo', audience: 'user', method: 'put', path: '/bar' }),
+        },
+      },
+      // Both route handlers resolve to the same module.
+      handlerPathFor: () => sharedPath,
+    });
+
+    // One merged import, not two single-name lines from the same path.
+    expect(src).toMatch(/import \{ handleGetFoo, handleUpdateFoo \} from '\.\.\/shared\/foo\.js';/);
+    expect(src).not.toMatch(/import \{ handleGetFoo \} from '\.\.\/shared\/foo\.js';/);
+  });
+
   it('omits the AuthMiddleware import entirely when no routes use any of its members', () => {
     // Empty manifest → no audience needs auth → import block is omitted
     // to satisfy noUnusedLocals in the generated file.

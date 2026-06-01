@@ -13,9 +13,11 @@ export function registerGuardCommands(cli: CAC): void {
   cli
     .command('guard:boundaries', 'Check for architecture boundary violations')
     .option('--verbose', 'Show detailed output')
+    .option('--summary', SUMMARY_OPTION_DESC)
     .example('ops guard:boundaries')
     .example('ops guard:boundaries --verbose')
-    .action(async (options: { verbose?: boolean }) => {
+    .example('ops guard:boundaries --summary')
+    .action(async (options: { verbose?: boolean; summary?: boolean }) => {
       const { checkBoundaries } = await import('../dev/check-boundaries.js');
       await checkBoundaries(options);
     });
