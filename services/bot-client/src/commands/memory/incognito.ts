@@ -14,6 +14,7 @@ import { escapeMarkdown } from 'discord.js';
 import {
   createLogger,
   getDurationLabel,
+  IncognitoForgetRequestSchema,
   memoryIncognitoEnableOptions,
   memoryIncognitoDisableOptions,
   memoryIncognitoForgetOptions,
@@ -266,12 +267,23 @@ export async function handleIncognitoForget(context: DeferredCommandContext): Pr
       return;
     }
 
-    // Discord slash-command `choices` constrains the runtime value to one of
-    // these three; the generated `commandOptions` typing is plain `string`,
-    // so we narrow at the boundary to match the schema's enum.
+    // Discord slash-command `choices` constrains the runtime value, but the
+    // generated `commandOptions` typing is plain `string`. Narrow via the API
+    // schema itself (the single source of truth) rather than an unchecked cast:
+    // if Discord's choices ever drift from the enum, this fails closed with a
+    // clear error instead of forwarding an invalid value to a 400.
+    const timeframeParse = IncognitoForgetRequestSchema.shape.timeframe.safeParse(timeframe);
+    if (!timeframeParse.success) {
+      logger.warn({ userId, personalityInput, timeframe }, 'Invalid incognito timeframe');
+      await context.editReply({
+        content: '❌ Invalid timeframe. Please pick one of the provided choices.',
+      });
+      return;
+    }
+
     const result = await userClient.incognitoForget({
       personalityId: resolved.id,
-      timeframe: timeframe as '5m' | '15m' | '1h',
+      timeframe: timeframeParse.data,
     });
 
     if (!result.ok) {
