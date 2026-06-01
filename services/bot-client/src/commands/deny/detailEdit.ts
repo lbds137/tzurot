@@ -20,7 +20,7 @@ import { showModalWithTimeoutCatch } from '../../utils/dashboard/showModalWithTi
 import { DASHBOARD_MESSAGES } from '../../utils/dashboard/messages.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import type { DenylistEntryResponse } from './browseTypes.js';
-import type { DenylistScope } from '@tzurot/common-types';
+import type { DenylistScope, OwnerClient } from '@tzurot/common-types';
 import type { DenyDetailSession } from './detailTypes.js';
 import { ENTITY_TYPE, VALID_SCOPES, buildDetailEmbed, buildDetailButtons } from './detailTypes.js';
 
@@ -112,6 +112,35 @@ function validateEditInput(scope: string, scopeId: string, reason: string | null
   return null;
 }
 
+/**
+ * After a scope change, remove the old-scope entry — the upsert already created
+ * the new-scope one. Returns a user-facing warning when removal fails: in that
+ * case BOTH entries now exist (new-scope created, old-scope orphaned), so the
+ * caller must surface it instead of reporting clean success.
+ */
+async function removeStaleEntryAfterScopeChange(
+  ownerClient: OwnerClient,
+  data: DenyDetailSession
+): Promise<string | undefined> {
+  const removeResult = await ownerClient.removeDenylistEntry(
+    data.type,
+    data.discordId,
+    data.scope,
+    data.scopeId
+  );
+  if (removeResult.ok) {
+    return undefined;
+  }
+  logger.warn(
+    { type: data.type, oldScope: data.scope, error: removeResult.error },
+    'Scope change left a stale denylist entry (old-scope removal failed)'
+  );
+  return (
+    '⚠️ Updated to the new scope, but the old entry could not be removed — ' +
+    'both may now exist. Use `/deny browse` to verify and remove the stale one.'
+  );
+}
+
 /** Handle edit modal submission */
 export async function handleEditModal(
   interaction: ModalSubmitInteraction,
@@ -176,11 +205,12 @@ export async function handleEditModal(
       return;
     }
 
-    // If scope changed, delete the old entry (the upsert created a new one
-    // at the new scope; this removes the stale entry at the prior scope).
-    if (scopeChanged) {
-      await ownerClient.removeDenylistEntry(data.type, data.discordId, data.scope, data.scopeId);
-    }
+    // If scope changed, delete the old entry (the upsert created a new one at
+    // the new scope; this removes the stale entry at the prior scope). Returns a
+    // warning when removal fails so we don't report clean success on a partial.
+    const staleEntryWarning = scopeChanged
+      ? await removeStaleEntryAfterScopeChange(ownerClient, data)
+      : undefined;
 
     const responseBody = upsertResult.data as { entry?: DenylistEntryResponse };
 
@@ -217,7 +247,14 @@ export async function handleEditModal(
       updatedEntry.mode,
       data.browseContext !== null
     );
-    await interaction.editReply({ embeds: [embed], components });
+    await interaction.editReply({
+      // `?? null` rather than omitting: editReply leaves omitted fields
+      // unchanged, so a clean edit must explicitly null the content to clear a
+      // stale partial-failure warning left on the message by a prior edit.
+      content: staleEntryWarning ?? null,
+      embeds: [embed],
+      components,
+    });
   } catch (error) {
     logger.error({ err: error }, 'Failed to edit entry');
     // Edit-exception terminal path; deny doesn't use the Back-to-Browse
