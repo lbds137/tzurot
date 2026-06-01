@@ -10,10 +10,13 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import chalk from 'chalk';
+import { emitSummary } from '../audits/summary.js';
 
 interface BoundaryOptions {
   fix?: boolean;
   verbose?: boolean;
+  /** Emit a single-line JSONL AuditSummary instead of human output. */
+  summary?: boolean;
 }
 
 interface Violation {
@@ -236,37 +239,70 @@ function displayFooter(): void {
 }
 
 /**
- * Check architecture boundaries
+ * Scan every boundary rule's service directory and collect violations.
+ * Extracted from checkBoundaries to keep that function under the
+ * cognitive-complexity limit.
  */
-export async function checkBoundaries(options: BoundaryOptions = {}): Promise<void> {
-  const { verbose = false } = options;
-  const rootDir = process.cwd();
-  const servicesDir = join(rootDir, 'services');
-
-  displayHeader();
-
-  const allViolations: Violation[] = [];
-  let totalFilesChecked = 0;
+function collectViolations(
+  servicesDir: string,
+  opts: { verbose: boolean; summary: boolean }
+): { violations: Violation[]; filesChecked: number } {
+  const violations: Violation[] = [];
+  let filesChecked = 0;
 
   for (const rule of BOUNDARY_RULES) {
     const serviceDir = join(servicesDir, rule.service, 'src');
     const files = findTypeScriptFiles(serviceDir);
 
-    if (verbose) {
+    if (opts.verbose && !opts.summary) {
       console.log(chalk.dim(`Checking ${rule.service}: ${files.length} files`));
     }
 
-    totalFilesChecked += files.length;
+    filesChecked += files.length;
 
     for (const file of files) {
-      const violations = checkFile(file, rule);
-      allViolations.push(...violations);
+      violations.push(...checkFile(file, rule));
     }
   }
 
-  console.log(
-    chalk.dim(`Checked ${totalFilesChecked} files across ${BOUNDARY_RULES.length} services`)
-  );
+  return { violations, filesChecked };
+}
+
+/**
+ * Check architecture boundaries
+ */
+export async function checkBoundaries(options: BoundaryOptions = {}): Promise<void> {
+  const { verbose = false, summary = false } = options;
+  const rootDir = process.cwd();
+  const servicesDir = join(rootDir, 'services');
+
+  if (!summary) {
+    displayHeader();
+  }
+
+  const { violations: allViolations, filesChecked } = collectViolations(servicesDir, {
+    verbose,
+    summary,
+  });
+
+  const errorCount = allViolations.filter(v => v.severity === 'error').length;
+
+  if (summary) {
+    // Only error-severity violations are the hard-fail signal (same exit
+    // contract as the human path below); warnings surface as 'warn'.
+    emitSummary({
+      tool: 'guard:boundaries',
+      status: errorCount > 0 ? 'fail' : allViolations.length > 0 ? 'warn' : 'ok',
+      findings: allViolations.length,
+      baseline: 0,
+    });
+    if (errorCount > 0) {
+      process.exitCode = 1;
+    }
+    return;
+  }
+
+  console.log(chalk.dim(`Checked ${filesChecked} files across ${BOUNDARY_RULES.length} services`));
   console.log('');
 
   if (allViolations.length === 0) {

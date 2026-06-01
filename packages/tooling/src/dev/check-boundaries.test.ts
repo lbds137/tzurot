@@ -56,6 +56,54 @@ describe('checkBoundaries', () => {
     });
   });
 
+  describe('--summary mode', () => {
+    it('emits exactly one JSONL audit-summary line and no human output', async () => {
+      await checkBoundaries({ summary: true });
+
+      const lines = consoleLogSpy.mock.calls
+        .map(call => call.join(' '))
+        .filter(line => line.trim().length > 0);
+      // Only the JSONL line — no header/decorative output in summary mode.
+      expect(lines).toHaveLength(1);
+      const parsed = JSON.parse(lines[0]) as Record<string, unknown>;
+      expect(parsed).toMatchObject({ tool: 'guard:boundaries', status: 'ok', findings: 0 });
+    });
+
+    it('reports status:fail (exit 1) when an error-severity violation exists', async () => {
+      vi.mocked(readdirSync).mockImplementation(((dir: unknown) =>
+        String(dir).includes('bot-client/src') ? ['test.ts'] : []) as typeof readdirSync);
+      vi.mocked(statSync).mockReturnValue({ isDirectory: () => false } as ReturnType<
+        typeof statSync
+      >);
+      vi.mocked(readFileSync).mockReturnValue(`import { PrismaClient } from '@prisma/client';`);
+
+      await checkBoundaries({ summary: true });
+
+      const line = consoleLogSpy.mock.calls.map(c => c.join(' ')).find(l => l.trim().length > 0);
+      const parsed = JSON.parse(line ?? '{}') as Record<string, unknown>;
+      expect(parsed).toMatchObject({ tool: 'guard:boundaries', status: 'fail' });
+      expect(parsed.findings as number).toBeGreaterThan(0);
+      expect(process.exitCode).toBe(1);
+    });
+
+    it('reports status:warn (no exit code) when only warning-severity violations exist', async () => {
+      // ai-worker importing discord.js is a warning-severity rule, not an error.
+      vi.mocked(readdirSync).mockImplementation(((dir: unknown) =>
+        String(dir).includes('ai-worker/src') ? ['test.ts'] : []) as typeof readdirSync);
+      vi.mocked(statSync).mockReturnValue({ isDirectory: () => false } as ReturnType<
+        typeof statSync
+      >);
+      vi.mocked(readFileSync).mockReturnValue(`import { Client } from 'discord.js';`);
+
+      await checkBoundaries({ summary: true });
+
+      const line = consoleLogSpy.mock.calls.map(c => c.join(' ')).find(l => l.trim().length > 0);
+      const parsed = JSON.parse(line ?? '{}') as Record<string, unknown>;
+      expect(parsed).toMatchObject({ tool: 'guard:boundaries', status: 'warn' });
+      expect(process.exitCode).toBeUndefined();
+    });
+  });
+
   describe('violation detection', () => {
     it('should detect bot-client importing @prisma/client', async () => {
       // Setup: bot-client has one file
