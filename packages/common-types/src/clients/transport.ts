@@ -70,6 +70,12 @@ export interface TransportOptions {
    * Optional Zod schema for the success-path response. When supplied,
    * `data` is validated and any failure surfaces as `{ ok: false, ... }`
    * with status 0 (no HTTP error, just contract drift).
+   *
+   * WARNING: when omitted, the response body is returned as `data` via an
+   * unchecked `as T` cast — there is NO runtime contract enforcement. Generated
+   * clients always pass `routeDef.output`, so this only bites direct callers of
+   * `callGateway` / `callGatewayOrThrow` that skip the schema. Omit only when
+   * the body is genuinely opaque (e.g. a passthrough proxy); otherwise pass one.
    */
   outputSchema?: z.ZodTypeAny;
   /** Optional logger callback for diagnostics. Avoids hard dep on pino. */

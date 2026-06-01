@@ -1,9 +1,9 @@
 /**
  * Private helpers for memoryBatch.ts handlers.
  *
- * Extracted to a sibling file purely to keep memoryBatch.ts under the
- * max-lines threshold — these helpers are not part of the public API and
- * only have one caller each (the corresponding batch handler).
+ * Extracted to a sibling file to keep memoryBatch.ts under the max-lines
+ * threshold — these helpers are not part of the public API and have exactly
+ * one caller each (the corresponding batch handler).
  */
 
 import type { Response } from 'express';
@@ -61,6 +61,10 @@ export async function resolvePersonaIdForBatch(
     select: { id: true, ownerId: true },
   });
 
+  // Intentional 403/404 conflation: a missing persona (`persona` is null) and a
+  // persona owned by someone else both return the same `forbidden` response.
+  // Distinguishing them would let a caller probe which persona IDs exist
+  // (existence enumeration), so we deliberately collapse both into one 403.
   if (persona?.ownerId !== userId) {
     sendError(res, ErrorResponses.forbidden('Persona not found or does not belong to you'));
     return null;
