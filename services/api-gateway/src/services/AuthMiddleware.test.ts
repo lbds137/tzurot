@@ -109,13 +109,16 @@ describe('authMiddleware', () => {
       expect(extractOwnerId(req)).toBeUndefined();
     });
 
-    it('should handle empty string in header', () => {
+    it('should return undefined for an empty-string header', () => {
+      // Consolidated with extractUserId: an empty header is not a caller ID, so
+      // it resolves to undefined (auth-equivalent — isValidOwner rejects both
+      // '' and undefined, but undefined is the single-sourced contract).
       const req = {
         headers: { 'x-user-id': '' },
         body: {},
       } as unknown as Request;
 
-      expect(extractOwnerId(req)).toBe('');
+      expect(extractOwnerId(req)).toBeUndefined();
     });
 
     it('should ignore an empty-string body ownerId', () => {
