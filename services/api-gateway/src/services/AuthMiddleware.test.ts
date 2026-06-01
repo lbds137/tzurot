@@ -53,16 +53,18 @@ describe('authMiddleware', () => {
       expect(extractOwnerId(req)).toBe('123456789');
     });
 
-    it('should extract owner ID from body when header not present', () => {
+    it('should ignore a body ownerId', () => {
+      // A body `{ ownerId }` is not a credential: with no X-User-Id header,
+      // extractOwnerId resolves to undefined regardless of the body contents.
       const req = {
         headers: {},
         body: { ownerId: '987654321' },
       } as unknown as Request;
 
-      expect(extractOwnerId(req)).toBe('987654321');
+      expect(extractOwnerId(req)).toBeUndefined();
     });
 
-    it('should prefer header over body when both present', () => {
+    it('should read only the header, ignoring any body ownerId', () => {
       const req = {
         headers: { 'x-user-id': 'header-id' },
         body: { ownerId: 'body-id' },
@@ -116,13 +118,13 @@ describe('authMiddleware', () => {
       expect(extractOwnerId(req)).toBe('');
     });
 
-    it('should handle empty string in body', () => {
+    it('should ignore an empty-string body ownerId', () => {
       const req = {
         headers: {},
         body: { ownerId: '' },
       } as unknown as Request;
 
-      expect(extractOwnerId(req)).toBe('');
+      expect(extractOwnerId(req)).toBeUndefined();
     });
   });
 
@@ -274,17 +276,19 @@ describe('authMiddleware', () => {
       );
     });
 
-    it('should work with owner ID in body', () => {
+    it('should NOT authenticate via a body ownerId', () => {
       vi.mocked(commonTypes.getConfig).mockReturnValue({
         BOT_OWNER_ID: 'valid-owner',
       } as any);
 
+      // Only the X-User-Id header authenticates; a body `{ ownerId }`, even the
+      // correct owner's, is not a credential and must be rejected.
       mockReq.body = { ownerId: 'valid-owner' };
 
       const middleware = requireOwnerAuth();
       middleware(mockReq as Request, mockRes as Response, mockNext);
 
-      expect(mockNext).toHaveBeenCalledOnce();
+      expect(mockNext).not.toHaveBeenCalled();
     });
 
     it('should include timestamp in error response', () => {

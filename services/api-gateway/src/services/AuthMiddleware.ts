@@ -19,32 +19,22 @@ import type { AuthenticatedRequest, ProvisionedRequest } from '../types.js';
 const logger = createLogger('auth-middleware');
 
 /**
- * Extract owner ID from request (checks both header and body)
+ * Extract the caller's Discord ID from the `X-User-Id` request header.
  *
  * @param req - Express request
- * @returns Owner ID if found, undefined otherwise
+ * @returns Owner ID if the header is present, undefined otherwise
  */
 export function extractOwnerId(req: Request): string | undefined {
-  // `X-User-Id` carries the caller's Discord ID. The `requireOwnerAuth`
-  // wrapper downstream (`verifyBotOwner`) gates that only the configured
-  // bot-owner ID passes; this header just identifies the caller. Set
-  // uniformly by `requireUserAuth` middleware and by bot-client's
-  // `adminFetch` for admin-route invocations.
+  // `X-User-Id` carries the caller's Discord ID and is the ONLY accepted
+  // source. The `requireOwnerAuth` wrapper downstream (`verifyBotOwner`)
+  // gates that only the configured bot-owner ID passes; this header just
+  // identifies the caller. Set uniformly by `requireUserAuth` middleware and
+  // by the generated typed clients (every OwnerClient method sends
+  // `X-User-Id: actor`). A request body is never consulted — a body value is
+  // not a credential.
   const headerUserId = req.headers['x-user-id'];
   if (typeof headerUserId === 'string') {
     return headerUserId;
-  }
-
-  // Body fallback for endpoints that POST `{ ownerId }` directly
-  // (e.g., `/admin/db-sync`, `/admin/cleanup`) — these routes predate
-  // the unified header convention and still surface ownerId in payload
-  // shape rather than relying on the request header.
-  if (
-    req.body !== null &&
-    req.body !== undefined &&
-    typeof (req.body as Record<string, unknown>).ownerId === 'string'
-  ) {
-    return (req.body as Record<string, string>).ownerId;
   }
 
   return undefined;
