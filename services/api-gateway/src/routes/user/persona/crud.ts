@@ -23,6 +23,7 @@ import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthM
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
+import { isPrismaUniqueConstraintError } from '../../../utils/prismaErrors.js';
 import { sendZodError } from '../../../utils/zodHelpers.js';
 import { validateUuid } from '../../../utils/validators.js';
 import { getParam } from '../../../utils/requestParams.js';
@@ -153,18 +154,33 @@ export const handleCreatePersona = (deps: RouteDeps): RequestHandler => {
 
     const user = getOrCreateInternalUser(req);
 
-    const persona = await prisma.persona.create({
-      data: {
-        id: generatePersonaUuid(name, user.id),
-        name,
-        preferredName: preferredName ?? null,
-        description: description ?? null,
-        content,
-        pronouns: pronouns ?? null,
-        ownerId: user.id,
-      },
-      select: PERSONA_SELECT,
-    });
+    // The persona ID is a deterministic UUID of (name, ownerId), so a duplicate
+    // name for the same owner collides on the primary key (P2002). Translate to
+    // a NAME_COLLISION rather than letting asyncHandler surface an opaque 500 —
+    // mirrors the llm-config create path so bot-client can branch on the subcode.
+    let persona;
+    try {
+      persona = await prisma.persona.create({
+        data: {
+          id: generatePersonaUuid(name, user.id),
+          name,
+          preferredName: preferredName ?? null,
+          description: description ?? null,
+          content,
+          pronouns: pronouns ?? null,
+          ownerId: user.id,
+        },
+        select: PERSONA_SELECT,
+      });
+    } catch (err) {
+      if (isPrismaUniqueConstraintError(err)) {
+        return sendError(
+          res,
+          ErrorResponses.nameCollision(`You already have a persona named "${name}".`)
+        );
+      }
+      throw err;
+    }
 
     logger.info({ userId: user.id, personaId: persona.id }, 'Created new persona');
 

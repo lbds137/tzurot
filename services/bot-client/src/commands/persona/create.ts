@@ -13,7 +13,7 @@
 
 import { MessageFlags, ModalBuilder } from 'discord.js';
 import type { ModalSubmitInteraction } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, API_ERROR_SUBCODE } from '@tzurot/common-types';
 import type { ModalCommandContext } from '../../utils/commandContext/types.js';
 import { buildPersonaModalFields } from './utils/modalBuilder.js';
 import { PersonaCustomIds } from '../../utils/customIds.js';
@@ -83,6 +83,13 @@ export async function handleCreateModalSubmit(interaction: ModalSubmitInteractio
     });
 
     if (!result.ok) {
+      if (result.code === API_ERROR_SUBCODE.NAME_COLLISION) {
+        await interaction.reply({
+          content: `❌ You already have a persona named "${personaName}". Pick a different name, or edit the existing one with \`/persona edit\`.`,
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
       logger.warn(
         { userId: discordId, error: result.error },
         'Failed to create persona via gateway'
