@@ -19,7 +19,7 @@
  *   path for over-length legacy content
  */
 
-import { MessageFlags } from 'discord.js';
+import { replyError } from '../../utils/dashboard/replyError.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import { type DashboardConfig, type SectionDefinition } from '../../utils/dashboard/types.js';
 import { fetchOrCreateSession } from '../../utils/dashboard/sessionHelpers.js';
@@ -114,32 +114,4 @@ export async function resolvePersonaSectionContext(
     return null;
   }
   return loadPersonaSectionData(interaction, entityId, sync);
-}
-
-/**
- * Reply with an ephemeral error, adapting to the interaction's ack state.
- *
- * - `deferred && !replied` → `editReply` fills the deferred slot (replaces
- *   the loading indicator instead of leaving it dangling + spawning a
- *   separate followUp).
- * - `replied` → `followUp` for an additional ephemeral message.
- * - fresh → `reply`.
- *
- * **PRECONDITION (deferred path)**: Callers must have called
- * `deferReply({ flags: MessageFlags.Ephemeral })`. `editReply` inherits
- * the deferred slot's flags; a non-ephemeral defer would expose the
- * error publicly. See `commands/character/sectionContext.ts` for the
- * canonical longer rationale.
- */
-async function replyError(
-  interaction: ButtonInteraction | StringSelectMenuInteraction,
-  content: string
-): Promise<void> {
-  if (interaction.deferred && !interaction.replied) {
-    await interaction.editReply({ content });
-  } else if (interaction.replied) {
-    await interaction.followUp({ content, flags: MessageFlags.Ephemeral });
-  } else {
-    await interaction.reply({ content, flags: MessageFlags.Ephemeral });
-  }
 }

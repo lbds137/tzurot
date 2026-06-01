@@ -103,3 +103,6 @@ export { buildDeleteConfirmation } from './deleteConfirmation.js';
 
 // Permission Checks
 export { checkOwnership } from './permissionChecks.js';
+
+// Interaction error reply (ack-state-adaptive ephemeral error responder)
+export { replyError } from './replyError.js';
