@@ -2,10 +2,26 @@
  * Tests for Character View Page Building
  */
 
-import { describe, it, expect } from 'vitest';
-import { _testExports } from './view.js';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { _testExports, handleView, handleViewPagination } from './view.js';
 import type { CharacterData } from './characterTypes.js';
 import { DISCORD_LIMITS, TEXT_LIMITS } from '@tzurot/common-types';
+import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
+
+// Configurable slug for the mocked characterViewOptions; reset per test.
+const slugMock = vi.hoisted(() => ({ value: 'test-character' }));
+const clientsForMock = vi.hoisted(() => vi.fn());
+
+vi.mock('@tzurot/common-types', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+  return {
+    ...actual,
+    createLogger: () => ({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() }),
+    characterViewOptions: () => ({ character: () => slugMock.value }),
+  };
+});
+
+vi.mock('../../utils/gatewayClients.js', () => ({ clientsFor: clientsForMock }));
 
 const {
   buildCharacterViewPage,
@@ -450,5 +466,77 @@ describe('buildViewComponents', () => {
     const components = buildViewComponents('test-slug', 0, manyTruncatedFields);
 
     expect(components.length).toBeLessThanOrEqual(5);
+  });
+});
+
+describe('handleView / handleViewPagination', () => {
+  const editReply = vi.fn();
+  const deferUpdate = vi.fn();
+  const stub = { getPersonality: vi.fn() };
+  const config = {} as unknown as Parameters<typeof handleView>[1];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    slugMock.value = 'test-character';
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
+  });
+
+  function viewContext() {
+    return { interaction: {}, editReply } as unknown as Parameters<typeof handleView>[0];
+  }
+
+  function paginationInteraction() {
+    return { deferUpdate, editReply } as unknown as Parameters<typeof handleViewPagination>[0];
+  }
+
+  it('renders the embed + components when the character is found', async () => {
+    stub.getPersonality.mockResolvedValue(makeOk({ personality: createTestCharacter() }));
+
+    await handleView(viewContext(), config);
+
+    expect(stub.getPersonality).toHaveBeenCalledWith('test-character');
+    expect(editReply).toHaveBeenCalledWith(
+      expect.objectContaining({ embeds: expect.any(Array), components: expect.any(Array) })
+    );
+  });
+
+  it('shows a not-found message on a 404', async () => {
+    stub.getPersonality.mockResolvedValue(makeErr(404, 'not found'));
+
+    await handleView(viewContext(), config);
+
+    expect(editReply).toHaveBeenCalledWith(expect.stringContaining('not found or not accessible'));
+  });
+
+  it('shows a generic error when the fetch fails with a non-404 status', async () => {
+    // fetchCharacterForView throws on non-404/403 → handleView's catch fires.
+    stub.getPersonality.mockResolvedValue(makeErr(500, 'boom'));
+
+    await handleView(viewContext(), config);
+
+    expect(editReply).toHaveBeenCalledWith(expect.stringContaining('Failed to load character'));
+  });
+
+  it('paginates: defers, re-fetches, and renders the requested page', async () => {
+    stub.getPersonality.mockResolvedValue(makeOk({ personality: createTestCharacter() }));
+
+    await handleViewPagination(paginationInteraction(), 'test-character', 1, config);
+
+    expect(deferUpdate).toHaveBeenCalled();
+    expect(stub.getPersonality).toHaveBeenCalledWith('test-character');
+    expect(editReply).toHaveBeenCalledWith(
+      expect.objectContaining({ embeds: expect.any(Array), components: expect.any(Array) })
+    );
+  });
+
+  it('shows "not found" and clears the view when pagination re-fetch 404s', async () => {
+    stub.getPersonality.mockResolvedValue(makeErr(404, 'gone'));
+
+    await handleViewPagination(paginationInteraction(), 'test-character', 1, config);
+
+    expect(deferUpdate).toHaveBeenCalled();
+    expect(editReply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('Character not found') })
+    );
   });
 });
