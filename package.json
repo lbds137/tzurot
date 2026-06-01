@@ -17,7 +17,7 @@
     "test:int": "vitest run --config vitest.int.config.ts",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "test:all": "pnpm test && pnpm test:int",
-    "test:low-mem": "pnpm --workspace-concurrency=1 --filter './services/*' --filter './packages/*' test",
+    "test:low-mem": "LOW_RESOURCE_MODE=1 NODE_OPTIONS=--max-old-space-size=2048 pnpm --workspace-concurrency=1 --filter './services/*' --filter './packages/*' test",
     "test:failures": "turbo run test --output-logs=errors-only -- --reporter=verbose",
     "test:summary": "pnpm ops dev:test-summary",
     "lint": "turbo run lint",

@@ -73,6 +73,11 @@ if [ -n "$LOW_RESOURCE_MODE" ]; then
     TURBO_ARGS="$TURBO_ARGS --concurrency=1"
     # Cap Node.js memory to 2GB per process
     export NODE_OPTIONS="--max-old-space-size=2048"
+    # Export the flag itself so the vitest subprocess (turbo → pnpm → vitest)
+    # sees it and drops maxWorkers to 1 (see vitest.config.ts). Sourced from
+    # .env above as a local shell var; without this export child processes
+    # never see it and the intra-package thread count stays at 3.
+    export LOW_RESOURCE_MODE
 fi
 
 # 5. Determine filter scope for Turbo
