@@ -276,6 +276,11 @@ export interface RouteDef<
    * `cleanup`, the shapes import/export routes). Typically
    * `GATEWAY_TIMEOUTS.DEFERRED` (10s) or `BULK_OPERATION` (30s).
    *
+   * Upper bound: a value above ~60s is a design smell, not a valid config —
+   * a sync gateway request that needs more than a minute should be a BullMQ
+   * job with push-based result delivery, not a blocking HTTP call. The
+   * manifest invariant test caps timeoutMs at 60_000 to enforce this.
+   *
    * If a route comfortably fits the 2500ms default, do NOT just omit this
    * field — also register its id in `DEFAULT_TIMEOUT_OK` in `manifest.test.ts`.
    * That test enforces that relying on the default is a conscious "this op is

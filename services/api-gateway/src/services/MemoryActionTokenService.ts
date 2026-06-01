@@ -124,7 +124,7 @@ export class MemoryActionTokenService {
       const payload = JSON.parse(raw) as PreviewTokenPayload;
       return payload.filter;
     } catch (error) {
-      logger.warn({ err: error, userId }, 'Failed to parse preview token payload on peek');
+      logger.error({ err: error, userId }, 'Failed to parse preview token payload on peek');
       return null;
     }
   }
@@ -150,7 +150,7 @@ export class MemoryActionTokenService {
       const payload = JSON.parse(raw) as PreviewTokenPayload;
       return payload.filter;
     } catch (error) {
-      logger.warn({ err: error, userId }, 'Failed to parse preview token payload');
+      logger.error({ err: error, userId }, 'Failed to parse preview token payload');
       return null;
     }
   }
@@ -192,7 +192,7 @@ export class MemoryActionTokenService {
       const payload = JSON.parse(raw) as PurgeTokenPayload;
       return { personalityId: payload.personalityId };
     } catch (error) {
-      logger.warn({ err: error, userId }, 'Failed to parse purge token payload on peek');
+      logger.error({ err: error, userId }, 'Failed to parse purge token payload on peek');
       return null;
     }
   }
@@ -216,7 +216,7 @@ export class MemoryActionTokenService {
       const payload = JSON.parse(raw) as PurgeTokenPayload;
       return { personalityId: payload.personalityId };
     } catch (error) {
-      logger.warn({ err: error, userId }, 'Failed to parse purge token payload');
+      logger.error({ err: error, userId }, 'Failed to parse purge token payload');
       return null;
     }
   }
