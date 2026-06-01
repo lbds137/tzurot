@@ -220,6 +220,12 @@ async function runCheckCommand(options: CheckCommandOptions): Promise<void> {
           '`pnpm ops cpd:update-baseline` to refresh against the current config.'
       )
     );
+    console.error(
+      chalk.dim(
+        'If you passed a non-default `--threshold`, that itself causes the drift — ' +
+          "confirm it matches the baseline's `threshold` field rather than refreshing."
+      )
+    );
     process.exit(1);
   }
 

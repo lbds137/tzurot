@@ -362,6 +362,9 @@ export const handleGetDiagnosticByResponse = (deps: RouteDeps): RequestHandler =
         responseMessageIds: { has: messageId },
         ...(ownerAccess ? {} : { userId: callerUserId }),
       },
+      // Deterministic tiebreak: if multiple rows ever share a response message
+      // ID, return the most recent — matches handleGetByMessage's ordering.
+      orderBy: { createdAt: 'desc' },
     });
 
     if (!log) {
