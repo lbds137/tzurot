@@ -2,48 +2,6 @@
 
 _New items go here. Triage to appropriate section weekly._
 
-### `[FIX]` Convert persona-create unique-constraint collision to a 409
-
-Both `handleCreatePersona` in `crud.ts` and `handleCreatePersonaOverride` in `override.ts` derive a deterministic UUID via `generatePersonaUuid(name, user.id)`. If a user already owns a persona with the same name, `persona.create` throws Prisma `P2002` which `asyncHandler` converts to a generic 500 — the bot-client surfaces "❌ Failed to create persona" with no indication that the actual cause is a name collision.
-
-**Fix shape**: catch `Prisma.PrismaClientKnownRequestError` with `code === 'P2002'` in both handlers, map to a 409 conflict response. Bot-client side: update the create flow to surface the 409 with a helpful message ("Pick a different name or edit the existing one with /persona edit").
-
-Surfaced 2026-05-28 by PR #1108 round-2 claude-bot review. Promoted from deferred 2026-05-29 (was parked behind "user complains" — but this is a clear, low-risk fix).
-
-### `[FIX]` Scope-change in deny edit silently drops old entry on partial failure
-
-`services/bot-client/src/commands/deny/detailEdit.ts` handles scope changes by upserting the new entry (line ~155) THEN removing the old one (line ~177). If the new-scope upsert succeeds but the old-scope `removeDenylistEntry` fails (transient gateway error, race, etc.), the user sees a success message but BOTH entries persist — duplicate denials for the same entity. Pre-existing behavior preserved through the PR-2f typed-client migration.
-
-**Fix shape**: check `removeDenylistEntry` result; if `!ok`, either (a) surface a partial-success warning ("New entry created, but failed to remove old entry — use /deny browse to verify") or (b) attempt to roll back the new-scope upsert. Option (a) is honest and small; (b) introduces a third API call that itself can fail.
-
-Surfaced 2026-05-28 by PR #1109 round-3 claude-bot review. Promoted from deferred 2026-05-29.
-
-### `[FIX]` Distinguish "empty history" from "fetch failed" in `/shapes status`
-
-`services/bot-client/src/commands/shapes/status.ts:50-79` displays "No imports yet" / "No exports yet" whenever the import/export job-history fetch returns falsy data — including when `result.ok` is `false` (gateway down, auth dropped, 5xx). A user with 10 past imports who hits a transient 503 sees "No imports yet" and might think their history vanished.
-
-**Fix shape**: branch on `!result.ok` before the empty-list branch; emit `logger.warn({ status, error })` for observability and render "Could not load history (try again)" instead of "No imports yet." Mirror for `exportJobsResult`. ~10 LOC.
-
-Surfaced 2026-05-27 by PR #1105 round-1 claude-bot review. Promoted from deferred 2026-05-29.
-
-### `[LIFT]` Tighten `DbSyncResponseSchema` to drop `.passthrough()`
-
-`packages/common-types/src/schemas/api/admin-operations.ts` declares `DbSyncResponseSchema` with `.passthrough()` because the api-gateway handler spreads an operation-result object with fields that vary per Prisma migration. The bot-client's `db-sync.ts` reads these via `as SyncResult` cast, bypassing compile-time checking.
-
-**Fix shape**: declare the full response shape in the schema (mirror `AdminCleanupResponseSchema`'s tightening done in PR-2c) — `stats` becomes `z.record(z.string(), z.object({ devToProd: z.number().optional(), prodToDev: z.number().optional(), conflicts: z.number().optional() }))`, `warnings`/`info` become `z.array(z.string()).optional()`, etc. Drop `.passthrough()` and the `as SyncResult` cast in the bot-client. ~25 LOC schema + drop the cast + the local `SyncResult` interface.
-
-Surfaced 2026-05-27 by PR #1104 round-3 claude-bot review. Promoted from deferred 2026-05-29.
-
-### `[LIFT]` Tighten `LlmConfigSummarySchema` + drop `updatePreset`/`updateGlobalPreset` `Record<string,unknown>` casts
-
-`packages/common-types/src/schemas/api/llm-config.ts` declares `LlmConfigSummarySchema` with `.passthrough()` because the gateway emits preset fields the bot-client dashboard reads (`contextWindowTokens`, `params`, `modelContextLength`) that the schema doesn't declare. The `toPresetData`/`toAdminPresetData` bridges in `services/bot-client/src/commands/preset/api.ts` then cast `config as PresetData`, and `updatePreset`/`updateGlobalPreset` take `data: Record<string, unknown>` cast to `Parameters<UserClient['updateUserLlmConfig']>[1]` — both bypass compile-time checking.
-
-**Fix shape** (mirrors the `DbSyncResponseSchema` tightening above): enumerate the full preset shape in `LlmConfigSummarySchema` — `contextWindowTokens: z.number()`, `modelContextLength: z.number().optional()`, `params: <the sampling/reasoning object the dashboard reads>` — and drop `.passthrough()`. Then export named input types from common-types (`LlmConfigCreateInput`, `LlmConfigUpdateInput`) and retype `updatePreset`/`updateGlobalPreset`/`createPreset` to accept those instead of `Record<string, unknown>`, removing the `Parameters<...>` casts. Capture in the PR exactly which fields the dashboard reads vs. what the schema declares so the gap is closed precisely.
-
-Note: SSRF path-encoding coverage for the LlmConfig client methods is NOT a gap — `packages/common-types/src/clients/generated-encoding.test.ts` sweeps `getUserLlmConfig`/`getGlobalLlmConfig` and the codegen template guarantees uniform `encodeURIComponent` on every `:param`. The consumer-layer URL-encoding tests removed in PR-2k were genuinely redundant.
-
-Surfaced 2026-05-29 by PR #1114 claude-bot review (rounds 1–6). Natural companion to the `DbSyncResponseSchema` tightening and a good fit to fold into PR-2l's cleanup pass.
-
 ### `[LIFT]` Extract `@tzurot/clients` (or `@tzurot/routes`) from common-types (PR-2m)
 
 `pnpm ops xray --summary common-types` at PR-2l close: **154 files / ~591 declarations**, well over the `01-architecture.md` heuristic (50 exports / 3000 lines). PR-1/PR-2 added the route manifest, transport helpers, and three generated client classes — a self-contained chunk that's the natural extraction candidate.
