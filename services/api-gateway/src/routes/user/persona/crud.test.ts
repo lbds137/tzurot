@@ -74,7 +74,7 @@ describe('persona CRUD routes', () => {
       const handler = handleListPersonas({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes();
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.json).toHaveBeenCalledWith({ personas: [] });
     });
@@ -84,7 +84,7 @@ describe('persona CRUD routes', () => {
       const handler = handleListPersonas({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes();
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.json).toHaveBeenCalledWith({
         personas: [
@@ -104,7 +104,7 @@ describe('persona CRUD routes', () => {
       const handler = handleListPersonas({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes();
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access -- Accessing vitest mock internals for response extraction
       const response = (res.json as ReturnType<typeof vi.fn>).mock.calls[0][0] as unknown;
@@ -130,7 +130,7 @@ describe('persona CRUD routes', () => {
       const handler = handleListPersonas({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes();
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.json).toHaveBeenCalledWith({
         personas: [
@@ -160,7 +160,7 @@ describe('persona CRUD routes', () => {
       const handler = handleGetPersona({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes({}, { id: MOCK_PERSONA_ID });
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.json).toHaveBeenCalledWith({
         persona: expect.objectContaining({
@@ -177,7 +177,7 @@ describe('persona CRUD routes', () => {
       const handler = handleGetPersona({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes({}, { id: NONEXISTENT_UUID });
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(404);
       expect(res.json).toHaveBeenCalledWith(
@@ -191,7 +191,7 @@ describe('persona CRUD routes', () => {
       const handler = handleGetPersona({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes({}, { id: 'invalid-uuid-format' });
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -216,7 +216,7 @@ describe('persona CRUD routes', () => {
         content: 'New persona content',
         preferredName: 'Newbie',
       });
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(mockPrisma.persona.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -242,7 +242,7 @@ describe('persona CRUD routes', () => {
         name: 'Existing Persona',
         content: 'whatever',
       });
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -254,7 +254,7 @@ describe('persona CRUD routes', () => {
       const handler = handleCreatePersona({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes({ name: '', content: 'Valid content' });
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -268,7 +268,7 @@ describe('persona CRUD routes', () => {
       const handler = handleCreatePersona({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes({ name: 'Valid', content: '' });
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(400);
     });
@@ -280,7 +280,7 @@ describe('persona CRUD routes', () => {
         name: 'Valid',
         content: 'x'.repeat(5000), // Exceeds 4000 char limit
       });
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -302,7 +302,7 @@ describe('persona CRUD routes', () => {
       const handler = handleUpdatePersona({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes({ name: 'Updated Name' }, { id: MOCK_PERSONA_ID });
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(mockPrisma.persona.update).toHaveBeenCalled();
       expect(res.json).toHaveBeenCalledWith({
@@ -317,7 +317,7 @@ describe('persona CRUD routes', () => {
       const handler = handleUpdatePersona({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes({ name: 'Updated' }, { id: NONEXISTENT_UUID });
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(404);
     });
@@ -331,7 +331,7 @@ describe('persona CRUD routes', () => {
 
       // Empty name should NOT be included in update (preserves existing)
       const { req, res } = createMockReqRes({ name: '' }, { id: MOCK_PERSONA_ID });
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       // Should succeed and NOT pass name to the update
       expect(res.status).toHaveBeenCalledWith(200);
@@ -346,7 +346,7 @@ describe('persona CRUD routes', () => {
       const handler = handleUpdatePersona({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes({ name: 'Updated' }, { id: 'invalid-uuid' });
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -365,7 +365,7 @@ describe('persona CRUD routes', () => {
 
       // Empty content should NOT be included in update (preserves existing)
       const { req, res } = createMockReqRes({ content: '' }, { id: MOCK_PERSONA_ID });
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       // Should succeed and NOT pass content to the update
       expect(res.status).toHaveBeenCalledWith(200);
@@ -382,7 +382,7 @@ describe('persona CRUD routes', () => {
       const handler = handleUpdatePersona({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes({ content: 'x'.repeat(5000) }, { id: MOCK_PERSONA_ID });
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -411,7 +411,7 @@ describe('persona CRUD routes', () => {
         },
         { id: MOCK_PERSONA_ID }
       );
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(mockPrisma.persona.update).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -436,7 +436,7 @@ describe('persona CRUD routes', () => {
       const handler = handleDeletePersona({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes({}, { id: MOCK_PERSONA_ID_2 });
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(mockPrisma.persona.delete).toHaveBeenCalledWith({ where: { id: MOCK_PERSONA_ID_2 } });
       expect(res.json).toHaveBeenCalledWith({ message: 'Persona deleted' });
@@ -448,7 +448,7 @@ describe('persona CRUD routes', () => {
       const handler = handleDeletePersona({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes({}, { id: MOCK_PERSONA_ID });
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -464,7 +464,7 @@ describe('persona CRUD routes', () => {
       const handler = handleDeletePersona({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes({}, { id: NONEXISTENT_UUID });
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(404);
     });
@@ -473,7 +473,7 @@ describe('persona CRUD routes', () => {
       const handler = handleDeletePersona({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes({}, { id: 'not-a-valid-uuid' });
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(

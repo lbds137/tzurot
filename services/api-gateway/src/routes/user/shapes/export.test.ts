@@ -106,7 +106,7 @@ describe('Shapes Export Routes', () => {
         prisma: mockPrisma as unknown as PrismaClient,
         aiQueue: mockQueue as never,
       });
-      await handler(req, res);
+      await handler(req, res, vi.fn());
       return { req, res };
     }
 
@@ -197,7 +197,7 @@ describe('Shapes Export Routes', () => {
         prisma: mockPrisma as unknown as PrismaClient,
         aiQueue: mockQueue as never,
       });
-      await handler(req, res);
+      await handler(req, res, vi.fn());
       return { req, res };
     }
 
