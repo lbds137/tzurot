@@ -140,7 +140,10 @@ describe('Admin LLM Config Routes', () => {
       expect(response.body.configs).toHaveLength(2);
       expect(response.body.configs[0].name).toBe('Default Config');
       expect(response.body.configs[1].name).toBe('User Config');
-      expect(response.body.configs[1].ownerId).toBe('user-id');
+      // ownerId is an internal column; the list response projects only public
+      // fields via formatConfigSummary, so it must NOT be exposed.
+      expect(response.body.configs[1].ownerId).toBeUndefined();
+      expect(response.body.configs[1].isOwned).toBe(true);
     });
   });
 

@@ -8,6 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   LlmConfigSummarySchema,
+  LlmConfigDetailSchema,
   ListLlmConfigsResponseSchema,
   CreateLlmConfigResponseSchema,
   DeleteLlmConfigResponseSchema,
@@ -34,6 +35,7 @@ describe('LLM Config API Contract Tests', () => {
       visionModel: 'openai/gpt-4o',
       isGlobal: true,
       isDefault: true,
+      isFreeDefault: false,
       isOwned: false,
       permissions: { canEdit: false, canDelete: false },
     };
@@ -125,6 +127,51 @@ describe('LLM Config API Contract Tests', () => {
     });
   });
 
+  describe('LlmConfigDetailSchema', () => {
+    const validDetail = {
+      id: '00000000-0000-4000-8000-000000000009',
+      name: 'Detail Config',
+      description: null,
+      provider: 'openrouter',
+      model: 'openai/gpt-4o-mini',
+      visionModel: null,
+      isGlobal: true,
+      isDefault: false,
+      isFreeDefault: false,
+      isOwned: false,
+      permissions: { canEdit: false, canDelete: false },
+      contextWindowTokens: 8000,
+      params: { temperature: 0.7, reasoning: { effort: 'high' } },
+    };
+
+    it('validates a full detail config', () => {
+      expect(LlmConfigDetailSchema.safeParse(validDetail).success).toBe(true);
+    });
+
+    it('allows optional modelContextLength / contextWindowCap', () => {
+      const withModelContext = {
+        ...validDetail,
+        modelContextLength: 128000,
+        contextWindowCap: 64000,
+      };
+      expect(LlmConfigDetailSchema.safeParse(withModelContext).success).toBe(true);
+    });
+
+    it('requires contextWindowTokens', () => {
+      const { contextWindowTokens: _c, ...withoutCwt } = validDetail;
+      expect(LlmConfigDetailSchema.safeParse(withoutCwt).success).toBe(false);
+    });
+
+    it('requires params', () => {
+      const { params: _p, ...withoutParams } = validDetail;
+      expect(LlmConfigDetailSchema.safeParse(withoutParams).success).toBe(false);
+    });
+
+    it('accepts empty params object (gateway emits {} for no advanced params)', () => {
+      expect(LlmConfigDetailSchema.safeParse({ ...validDetail, params: {} }).success).toBe(true);
+    });
+  });
+
   describe('ListLlmConfigsResponseSchema', () => {
     it('should validate empty configs list', () => {
       const response = { configs: [] };
@@ -145,6 +192,7 @@ describe('LLM Config API Contract Tests', () => {
             visionModel: null,
             isGlobal: true,
             isDefault: true,
+            isFreeDefault: false,
             isOwned: false,
             permissions: { canEdit: false, canDelete: false },
           },
@@ -157,6 +205,7 @@ describe('LLM Config API Contract Tests', () => {
             visionModel: 'anthropic/claude-sonnet-4',
             isGlobal: false,
             isDefault: false,
+            isFreeDefault: false,
             isOwned: true,
             permissions: { canEdit: true, canDelete: true },
           },
@@ -187,8 +236,12 @@ describe('LLM Config API Contract Tests', () => {
           visionModel: null,
           isGlobal: false,
           isDefault: false,
+          isFreeDefault: false,
           isOwned: true,
           permissions: { canEdit: true, canDelete: true },
+          // Detail shape (POST returns the full preset)
+          contextWindowTokens: 8000,
+          params: { temperature: 0.7 },
         },
       };
 
@@ -557,8 +610,8 @@ describe('LLM Config API Contract Tests', () => {
   });
 
   describe('GetLlmConfigResponseSchema', () => {
-    // Mirrors LlmConfigSummarySchema's actual fields (id, name, description,
-    // provider, model, visionModel, isGlobal, isDefault, isOwned, permissions).
+    // GET-by-id returns the DETAIL shape: the summary fields plus the
+    // model-coupled context-window fields and the `params` object.
     const validConfig = {
       id: '00000000-0000-4000-8000-000000000001',
       name: 'cfg',
@@ -568,12 +621,20 @@ describe('LLM Config API Contract Tests', () => {
       visionModel: null,
       isGlobal: true,
       isDefault: false,
+      isFreeDefault: false,
       isOwned: false,
       permissions: { canEdit: false, canDelete: false },
+      contextWindowTokens: 8000,
+      params: {},
     };
 
     it('accepts a single-config wrapper', () => {
       expect(GetLlmConfigResponseSchema.safeParse({ config: validConfig }).success).toBe(true);
+    });
+
+    it('rejects a summary-only config (missing detail fields)', () => {
+      const { contextWindowTokens: _c, params: _p, ...summaryOnly } = validConfig;
+      expect(GetLlmConfigResponseSchema.safeParse({ config: summaryOnly }).success).toBe(false);
     });
 
     it('rejects missing config field', () => {
@@ -582,7 +643,7 @@ describe('LLM Config API Contract Tests', () => {
   });
 
   describe('UpdateLlmConfigResponseSchema', () => {
-    it('mirrors GetLlmConfigResponseSchema (same { config } shape)', () => {
+    it('mirrors GetLlmConfigResponseSchema (same detail { config } shape)', () => {
       const validConfig = {
         id: '00000000-0000-4000-8000-000000000001',
         name: 'cfg',
@@ -592,8 +653,11 @@ describe('LLM Config API Contract Tests', () => {
         visionModel: null,
         isGlobal: true,
         isDefault: false,
+        isFreeDefault: false,
         isOwned: false,
         permissions: { canEdit: false, canDelete: false },
+        contextWindowTokens: 8000,
+        params: {},
       };
       expect(UpdateLlmConfigResponseSchema.safeParse({ config: validConfig }).success).toBe(true);
     });

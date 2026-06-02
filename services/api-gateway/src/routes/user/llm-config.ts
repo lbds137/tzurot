@@ -76,9 +76,12 @@ function createListHandler(service: LlmConfigService) {
 
     const rawConfigs = await service.list(scope);
 
-    // Enrich with ownership and permissions (user-specific)
+    // Enrich with ownership and permissions (user-specific). `formatConfigSummary`
+    // projects only public fields — `c.ownerId` is read here for the ownership
+    // computation but must not leak into the response (it would expose other
+    // users' internal IDs in the global-config rows).
     const configs: LlmConfigSummary[] = rawConfigs.map(c => ({
-      ...c,
+      ...service.formatConfigSummary(c),
       isOwned: c.ownerId === userId,
       permissions: computeLlmConfigPermissions(
         { ownerId: c.ownerId, isGlobal: c.isGlobal },

@@ -79,12 +79,15 @@ function createListHandler(service: TtsConfigService) {
 
     const rawConfigs = await service.list(scope);
 
-    // The DB column is VARCHAR(40); writes are guarded by TtsConfigCreateSchema
-    // (TtsProviderIdSchema refinement) on create and isTtsProviderId at the
-    // service layer on update, so any value reaching this point is a valid
-    // TtsProviderId. The cast bridges the schema/runtime gap.
+    // `formatConfigDetail` projects only public fields (drops the internal
+    // `ownerId` the list select carries; `c.ownerId` is read below for the
+    // ownership computation but must not leak into the response). Same pattern
+    // as the admin TTS list. The DB column is VARCHAR(40); writes are guarded by
+    // TtsConfigCreateSchema (TtsProviderIdSchema refinement) on create and
+    // isTtsProviderId at the service layer on update, so any value reaching this
+    // point is a valid TtsProviderId — the cast bridges the schema/runtime gap.
     const configs: TtsConfigSummary[] = rawConfigs.map(c => ({
-      ...c,
+      ...service.formatConfigDetail({ ...c, advancedParameters: null }),
       provider: c.provider as TtsProviderId,
       isOwned: c.ownerId === userId,
       permissions: computeLlmConfigPermissions(

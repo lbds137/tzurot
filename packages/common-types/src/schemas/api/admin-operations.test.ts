@@ -6,32 +6,41 @@ import {
 } from './admin-operations.js';
 
 describe('DbSyncResponseSchema', () => {
-  it('accepts the minimal success shape', () => {
-    expect(
-      DbSyncResponseSchema.safeParse({ success: true, timestamp: '2026-05-23T12:00:00Z' }).success
-    ).toBe(true);
+  const validResponse = {
+    success: true,
+    timestamp: '2026-05-23T12:00:00Z',
+    schemaVersion: '20260523120000',
+    stats: { users: { devToProd: 2, prodToDev: 0, conflicts: 1 } },
+    warnings: ['table foo skipped'],
+    info: ['table bar excluded by config'],
+  };
+
+  it('accepts the full enumerated sync result', () => {
+    expect(DbSyncResponseSchema.safeParse(validResponse).success).toBe(true);
   });
 
-  it('accepts arbitrary extra fields (passthrough)', () => {
-    const withExtras = {
-      success: true,
-      timestamp: '2026-05-23T12:00:00Z',
-      tablesCreated: 3,
-      indexesCreated: 5,
-      arbitraryFutureField: { nested: 'stuff' },
-    };
-    const parsed = DbSyncResponseSchema.safeParse(withExtras);
-    expect(parsed.success).toBe(true);
-    if (parsed.success) {
-      // Extras survive parsing (passthrough)
-      expect(parsed.data).toMatchObject({ tablesCreated: 3, indexesCreated: 5 });
-    }
+  it('accepts an optional dry-run changes preview', () => {
+    const withChanges = { ...validResponse, changes: { users: { willInsert: 2 } } };
+    expect(DbSyncResponseSchema.safeParse(withChanges).success).toBe(true);
+  });
+
+  it('rejects the old minimal shape (stats/warnings/info now required)', () => {
+    // The schema is tightened: the gateway always spreads the full SyncResult,
+    // so the bare { success, timestamp } shape is no longer a valid contract.
+    expect(
+      DbSyncResponseSchema.safeParse({ success: true, timestamp: '2026-05-23T12:00:00Z' }).success
+    ).toBe(false);
+  });
+
+  it('rejects malformed stats entries', () => {
+    const badStats = { ...validResponse, stats: { users: { devToProd: 'two' } } };
+    expect(DbSyncResponseSchema.safeParse(badStats).success).toBe(false);
   });
 
   it('rejects success: false (literal true required)', () => {
-    expect(
-      DbSyncResponseSchema.safeParse({ success: false, timestamp: '2026-05-23T12:00:00Z' }).success
-    ).toBe(false);
+    expect(DbSyncResponseSchema.safeParse({ ...validResponse, success: false }).success).toBe(
+      false
+    );
   });
 });
 

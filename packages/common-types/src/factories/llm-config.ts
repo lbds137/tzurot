@@ -14,6 +14,7 @@
 
 import {
   LlmConfigSummarySchema,
+  LlmConfigDetailSchema,
   ListLlmConfigsResponseSchema,
   CreateLlmConfigResponseSchema,
   DeleteLlmConfigResponseSchema,
@@ -24,6 +25,7 @@ import {
 import { z } from 'zod';
 
 type LlmConfigSummary = z.infer<typeof LlmConfigSummarySchema>;
+type LlmConfigDetail = z.infer<typeof LlmConfigDetailSchema>;
 
 import { type DeepPartial } from './factoryUtils.js';
 
@@ -47,6 +49,7 @@ const defaultLlmConfigSummary: LlmConfigSummary = {
   visionModel: null,
   isGlobal: true,
   isDefault: true,
+  isFreeDefault: false,
   isOwned: false,
   permissions: { canEdit: false, canDelete: false },
 };
@@ -80,6 +83,35 @@ export function mockLlmConfigSummary(
     permissions,
   };
   return LlmConfigSummarySchema.parse(merged);
+}
+
+/**
+ * Create a validated mock LLM config DETAIL (GET-by-id / POST / PUT shape).
+ *
+ * Extends the summary with the model-coupled `contextWindowTokens` and the
+ * `params` object the dashboard edits. `params` defaults to `{}` (the gateway's
+ * empty-advanced-parameters case).
+ */
+export function mockLlmConfigDetail(overrides: DeepPartial<LlmConfigDetail> = {}): LlmConfigDetail {
+  // Reuse the summary factory for the shared fields + permission derivation,
+  // then layer the detail-only fields on top.
+  const {
+    params: paramsOverride,
+    contextWindowTokens,
+    modelContextLength,
+    contextWindowCap,
+    ...summaryOverrides
+  } = overrides;
+  const summary = mockLlmConfigSummary(summaryOverrides);
+
+  const merged: LlmConfigDetail = {
+    ...summary,
+    contextWindowTokens: contextWindowTokens ?? 8000,
+    ...(modelContextLength !== undefined ? { modelContextLength } : {}),
+    ...(contextWindowCap !== undefined ? { contextWindowCap } : {}),
+    params: (paramsOverride ?? {}) as LlmConfigDetail['params'],
+  };
+  return LlmConfigDetailSchema.parse(merged);
 }
 
 // ============================================================================
@@ -120,10 +152,10 @@ export function mockListLlmConfigsResponse(
  * @throws ZodError if the resulting object doesn't match the schema
  */
 export function mockCreateLlmConfigResponse(
-  overrides: DeepPartial<LlmConfigSummary> = {}
+  overrides: DeepPartial<LlmConfigDetail> = {}
 ): CreateLlmConfigResponse {
   const response: CreateLlmConfigResponse = {
-    config: mockLlmConfigSummary({
+    config: mockLlmConfigDetail({
       isGlobal: false,
       isDefault: false,
       isOwned: true,
