@@ -10,7 +10,7 @@
  * - Never logs or returns actual cookie values
  */
 
-import { Router, type Response, type RequestHandler } from 'express';
+import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
@@ -25,7 +25,6 @@ import {
   isPlausibleShapesTokenValue,
   StoreShapesAuthInputSchema,
 } from '@tzurot/common-types';
-import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js';
@@ -191,24 +190,3 @@ export const handleDeleteShapesAuth = (deps: RouteDeps): RequestHandler =>
 /** GET /api/user/shapes/auth/status — check whether the user has stored credentials. */
 export const handleGetShapesAuthStatus = (deps: RouteDeps): RequestHandler =>
   asyncHandler(createStatusHandler(deps.prisma));
-
-export function createShapesAuthRoutes(prisma: PrismaClient): Router {
-  const router = Router();
-  const deps: RouteDeps = { prisma };
-
-  router.post('/', requireUserAuth(), requireProvisionedUser(prisma), handleStoreShapesAuth(deps));
-  router.delete(
-    '/',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    handleDeleteShapesAuth(deps)
-  );
-  router.get(
-    '/status',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    handleGetShapesAuthStatus(deps)
-  );
-
-  return router;
-}
