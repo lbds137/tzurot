@@ -59,7 +59,7 @@ describe('PATCH /user/persona/:id/default', () => {
     const handler = handleSetPersonaDefault({ prisma: mockPrisma as unknown as PrismaClient });
 
     const { req, res } = createMockReqRes({}, { id: MOCK_PERSONA_ID_2 });
-    await handler(req, res);
+    await handler(req, res, vi.fn());
 
     expect(mockPrisma.user.update).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -84,7 +84,7 @@ describe('PATCH /user/persona/:id/default', () => {
     const handler = handleSetPersonaDefault({ prisma: mockPrisma as unknown as PrismaClient });
 
     const { req, res } = createMockReqRes({}, { id: NONEXISTENT_UUID });
-    await handler(req, res);
+    await handler(req, res, vi.fn());
 
     expect(res.status).toHaveBeenCalledWith(404);
   });

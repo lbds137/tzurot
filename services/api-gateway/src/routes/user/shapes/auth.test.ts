@@ -127,7 +127,7 @@ describe('Shapes Auth Routes', () => {
     ): Promise<{ req: Request & { userId: string }; res: Response }> {
       const { req, res } = createMockReqRes(body);
       const handler = handleStoreShapesAuth({ prisma: prisma as unknown as PrismaClient });
-      await handler(req, res);
+      await handler(req, res, vi.fn());
       return { req, res };
     }
 
@@ -312,7 +312,7 @@ describe('Shapes Auth Routes', () => {
     ): Promise<{ req: Request & { userId: string }; res: Response }> {
       const { req, res } = createMockReqRes();
       const handler = handleDeleteShapesAuth({ prisma: prisma as unknown as PrismaClient });
-      await handler(req, res);
+      await handler(req, res, vi.fn());
       return { req, res };
     }
 
@@ -342,7 +342,7 @@ describe('Shapes Auth Routes', () => {
     ): Promise<{ req: Request & { userId: string }; res: Response }> {
       const { req, res } = createMockReqRes();
       const handler = handleGetShapesAuthStatus({ prisma: prisma as unknown as PrismaClient });
-      await handler(req, res);
+      await handler(req, res, vi.fn());
       return { req, res };
     }
 

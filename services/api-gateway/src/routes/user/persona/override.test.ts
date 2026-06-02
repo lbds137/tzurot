@@ -74,7 +74,7 @@ describe('persona override routes', () => {
       const handler = handleListPersonaOverrides({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes();
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.json).toHaveBeenCalledWith({
         overrides: [
@@ -95,7 +95,7 @@ describe('persona override routes', () => {
       const handler = handleListPersonaOverrides({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes();
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.json).toHaveBeenCalledWith({ overrides: [] });
     });
@@ -112,7 +112,7 @@ describe('persona override routes', () => {
       const handler = handleGetPersonaOverride({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes({}, { personalitySlug: 'lilith' });
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.json).toHaveBeenCalledWith({
         personality: {
@@ -129,7 +129,7 @@ describe('persona override routes', () => {
       const handler = handleGetPersonaOverride({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes({}, { personalitySlug: 'nonexistent' });
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(404);
     });
@@ -155,7 +155,7 @@ describe('persona override routes', () => {
         { personaId: MOCK_PERSONA_ID_2 },
         { personalitySlug: 'lilith' }
       );
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(mockPrisma.userPersonalityConfig.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -194,7 +194,7 @@ describe('persona override routes', () => {
         { personaId: NONEXISTENT_UUID },
         { personalitySlug: 'lilith' }
       );
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(404);
     });
@@ -209,7 +209,7 @@ describe('persona override routes', () => {
         { personaId: MOCK_PERSONA_ID },
         { personalitySlug: 'nonexistent' }
       );
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(404);
     });
@@ -218,7 +218,7 @@ describe('persona override routes', () => {
       const handler = handleSetPersonaOverride({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes({}, { personalitySlug: 'lilith' });
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(400);
     });
@@ -240,7 +240,7 @@ describe('persona override routes', () => {
       const handler = handleClearPersonaOverride({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes({}, { personalitySlug: 'lilith' });
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(mockPrisma.userPersonalityConfig.delete).toHaveBeenCalled();
       expect(res.json).toHaveBeenCalledWith(
@@ -271,7 +271,7 @@ describe('persona override routes', () => {
       const handler = handleClearPersonaOverride({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes({}, { personalitySlug: 'lilith' });
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(mockPrisma.userPersonalityConfig.update).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -288,7 +288,7 @@ describe('persona override routes', () => {
       const handler = handleClearPersonaOverride({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes({}, { personalitySlug: 'nonexistent' });
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(404);
     });
@@ -304,7 +304,7 @@ describe('persona override routes', () => {
       const handler = handleClearPersonaOverride({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes({}, { personalitySlug: 'lilith' });
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -352,7 +352,7 @@ describe('persona override routes', () => {
       });
 
       const { req, res } = createMockReqRes(validBody, { personalityId: MOCK_PERSONALITY_ID });
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
       expect(mockPrisma.persona.create).toHaveBeenCalledWith(
@@ -405,7 +405,7 @@ describe('persona override routes', () => {
       });
 
       const { req, res } = createMockReqRes(validBody, { personalityId: MOCK_PERSONALITY_ID });
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -419,7 +419,7 @@ describe('persona override routes', () => {
       });
 
       const { req, res } = createMockReqRes(validBody, { personalityId: 'not-a-uuid' });
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(mockPrisma.$transaction).not.toHaveBeenCalled();
@@ -434,7 +434,7 @@ describe('persona override routes', () => {
         { name: 'No content' },
         { personalityId: MOCK_PERSONALITY_ID }
       );
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(mockPrisma.$transaction).not.toHaveBeenCalled();
@@ -448,7 +448,7 @@ describe('persona override routes', () => {
       });
 
       const { req, res } = createMockReqRes(validBody, { personalityId: NONEXISTENT_UUID });
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(404);
       expect(mockPrisma.$transaction).not.toHaveBeenCalled();
@@ -486,7 +486,7 @@ describe('persona override routes', () => {
       });
 
       const { req, res } = createMockReqRes(validBody, { personalityId: MOCK_PERSONALITY_ID });
-      await expect(handler(req, res)).rejects.toThrow('write conflict');
+      await expect(handler(req, res, vi.fn())).rejects.toThrow('write conflict');
       expect(res.json).not.toHaveBeenCalled();
     });
   });
