@@ -34,6 +34,7 @@ import {
   findAdminUserOrSendError,
   ensureNoNameCollision,
   shapeDeleteResponse,
+  withAdminOwnership,
 } from './configRouteHelpers.js';
 
 const mockRes = {} as Response;
@@ -390,5 +391,32 @@ describe('shapeDeleteResponse', () => {
 
     expect(result.responseBody).toEqual({ deleted: true, warning: '' });
     expect(result.logFields).toEqual({ configId: 'c1', warning: '' });
+  });
+});
+
+describe('withAdminOwnership', () => {
+  it('attaches isOwned:true and full permissions to a formatted config', () => {
+    const result = withAdminOwnership({ id: 'abc', name: 'Global Preset' });
+
+    expect(result).toEqual({
+      id: 'abc',
+      name: 'Global Preset',
+      isOwned: true,
+      permissions: { canEdit: true, canDelete: true },
+    });
+  });
+
+  it('preserves all formatted fields alongside the ownership fields', () => {
+    const result = withAdminOwnership({
+      id: 'abc',
+      name: 'X',
+      model: 'm',
+      isDefault: true,
+      params: { temperature: 0.7 },
+    });
+
+    expect(result).toMatchObject({ id: 'abc', name: 'X', model: 'm', isDefault: true });
+    expect(result.params).toEqual({ temperature: 0.7 });
+    expect(result.isOwned).toBe(true);
   });
 });

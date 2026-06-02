@@ -43,6 +43,7 @@ import {
   findAdminUserOrSendError,
   ensureNoNameCollision,
   shapeDeleteResponse,
+  withAdminOwnership,
 } from '../../utils/configRouteHelpers.js';
 import type { RouteDeps } from '../routeDeps.js';
 
@@ -64,7 +65,7 @@ function createListHandler(service: TtsConfigService) {
     // `params: {}` for list rows. Detail endpoints surface populated
     // params from the wider DETAIL_SELECT.
     const configs = rawConfigs.map(c =>
-      service.formatConfigDetail({ ...c, advancedParameters: null })
+      withAdminOwnership(service.formatConfigDetail({ ...c, advancedParameters: null }))
     );
     logger.info({ count: configs.length }, 'Listed all TTS configs');
     sendCustomSuccess(res, { configs }, StatusCodes.OK);
@@ -80,7 +81,7 @@ function createGetHandler(service: TtsConfigService) {
     }
     const formatted = service.formatConfigDetail(config);
     logger.debug({ configId }, 'Fetched TTS config');
-    sendCustomSuccess(res, { config: formatted }, StatusCodes.OK);
+    sendCustomSuccess(res, { config: withAdminOwnership(formatted) }, StatusCodes.OK);
   };
 }
 
@@ -115,7 +116,7 @@ function createCreateHandler(service: TtsConfigService, prisma: PrismaClient) {
       { configId: config.id, name: config.name, provider: config.provider },
       'Created global TTS config'
     );
-    sendCustomSuccess(res, { config: formatted }, StatusCodes.CREATED);
+    sendCustomSuccess(res, { config: withAdminOwnership(formatted) }, StatusCodes.CREATED);
   };
 }
 
@@ -177,7 +178,7 @@ function createEditHandler(service: TtsConfigService, prisma: PrismaClient) {
       { configId, name: config.name, updates: Object.keys(body) },
       'Updated global TTS config'
     );
-    sendCustomSuccess(res, { config: formatted }, StatusCodes.OK);
+    sendCustomSuccess(res, { config: withAdminOwnership(formatted) }, StatusCodes.OK);
   };
 }
 

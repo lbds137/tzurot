@@ -37,6 +37,7 @@ import {
   findAdminUserOrSendError,
   ensureNoNameCollision,
   shapeDeleteResponse,
+  withAdminOwnership,
 } from '../../utils/configRouteHelpers.js';
 import type { RouteDeps } from '../routeDeps.js';
 
@@ -51,7 +52,7 @@ const CONFIG_LABEL = 'configs';
 
 function createListHandler(service: LlmConfigService) {
   return async (_req: Request, res: Response) => {
-    const configs = await service.list({ type: 'GLOBAL' });
+    const configs = (await service.list({ type: 'GLOBAL' })).map(withAdminOwnership);
 
     logger.info({ count: configs.length }, 'Listed all configs');
     sendCustomSuccess(res, { configs }, StatusCodes.OK);
@@ -71,7 +72,7 @@ function createGetHandler(service: LlmConfigService, modelCache?: OpenRouterMode
     await enrichWithModelContext(formatted, config.model, modelCache);
 
     logger.debug({ configId }, 'Fetched config');
-    sendCustomSuccess(res, { config: formatted }, StatusCodes.OK);
+    sendCustomSuccess(res, { config: withAdminOwnership(formatted) }, StatusCodes.OK);
   };
 }
 
@@ -112,7 +113,7 @@ function createCreateConfigHandler(
     await enrichWithModelContext(formatted, config.model, modelCache);
 
     logger.info({ configId: config.id, name: config.name }, 'Created global config');
-    sendCustomSuccess(res, { config: formatted }, StatusCodes.CREATED);
+    sendCustomSuccess(res, { config: withAdminOwnership(formatted) }, StatusCodes.CREATED);
   };
 }
 
@@ -177,7 +178,7 @@ function createEditConfigHandler(
       { configId, name: config.name, updates: Object.keys(body) },
       'Updated global config'
     );
-    sendCustomSuccess(res, { config: formatted }, StatusCodes.OK);
+    sendCustomSuccess(res, { config: withAdminOwnership(formatted) }, StatusCodes.OK);
   };
 }
 
