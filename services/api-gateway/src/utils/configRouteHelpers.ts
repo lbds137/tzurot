@@ -15,7 +15,7 @@
 
 import type { Response } from 'express';
 import type { z } from 'zod';
-import type { PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient, EntityPermissions } from '@tzurot/common-types';
 import { sendError } from './responseHelpers.js';
 import { sendZodError } from './zodHelpers.js';
 import { ErrorResponses } from './errorResponses.js';
@@ -245,4 +245,24 @@ export function shapeDeleteResponse(
     responseBody: { deleted: true, warning },
     logFields: { ...baseLogFields, warning },
   };
+}
+
+/**
+ * Attach the ownership/permission fields that the shared config-summary
+ * contract (LlmConfigSummarySchema / TtsConfigSummarySchema) requires on every
+ * config response.
+ *
+ * The admin/global config routes are owner-gated (`requireOwnerAuth`), so the
+ * caller always "owns" the global config and has full edit/delete rights —
+ * these fields are therefore constant rather than per-user computed. They must
+ * still be emitted: the response schema marks `isOwned` and `permissions` as
+ * required, and a config body that omits them fails response validation at the
+ * typed-client boundary. Emitting them here keeps the gateway response honest
+ * against the declared contract instead of relying on the consumer to patch
+ * them in after the fetch.
+ */
+export function withAdminOwnership<T>(
+  formatted: T
+): T & { isOwned: true; permissions: EntityPermissions } {
+  return { ...formatted, isOwned: true, permissions: { canEdit: true, canDelete: true } };
 }
