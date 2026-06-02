@@ -10,14 +10,7 @@
 
 import { describe, it, expect, expectTypeOf } from 'vitest';
 import { z } from 'zod';
-import {
-  asActor,
-  asSubject,
-  resolveQueryShape,
-  createPaginationSchema,
-  PreviewTokenSchema,
-  PurgeTokenSchema,
-} from './types.js';
+import { asActor, asSubject, resolveQueryShape, createPaginationSchema } from './types.js';
 import type { ActorDiscordId, SubjectDiscordId } from './types.js';
 
 describe('asActor', () => {
@@ -171,38 +164,5 @@ describe('createPaginationSchema', () => {
     expectTypeOf<z.infer<typeof schema>['sort']>().toEqualTypeOf<
       'createdAt' | 'updatedAt' | undefined
     >();
-  });
-});
-
-describe('PreviewTokenSchema', () => {
-  it('accepts a properly-formatted token', () => {
-    expect(PreviewTokenSchema.safeParse('preview_test0000test0000test0000').success).toBe(true);
-  });
-
-  it('rejects an arbitrary string', () => {
-    expect(PreviewTokenSchema.safeParse('not-a-token').success).toBe(false);
-    expect(PreviewTokenSchema.safeParse('').success).toBe(false);
-  });
-
-  it('rejects a string lacking the preview_ prefix', () => {
-    expect(PreviewTokenSchema.safeParse('purge_test0000test0000test0000').success).toBe(false);
-  });
-
-  it('rejects a token that is too short (no payload)', () => {
-    expect(PreviewTokenSchema.safeParse('preview_x').success).toBe(false);
-  });
-});
-
-describe('PurgeTokenSchema', () => {
-  it('accepts a properly-formatted token', () => {
-    expect(PurgeTokenSchema.safeParse('purge_test0000test0000test0000').success).toBe(true);
-  });
-
-  it('rejects a preview-prefixed token (distinct brand)', () => {
-    expect(PurgeTokenSchema.safeParse('preview_test0000test0000test0000').success).toBe(false);
-  });
-
-  it('rejects unbranded raw strings', () => {
-    expect(PurgeTokenSchema.safeParse('test0000test0000test0000').success).toBe(false);
   });
 });

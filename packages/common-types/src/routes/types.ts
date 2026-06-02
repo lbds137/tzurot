@@ -356,36 +356,3 @@ export function createPaginationSchema<const TSort extends readonly [string, ...
     order: z.enum(['asc', 'desc'] as const).optional(),
   });
 }
-
-// ============================================================================
-// Branded token types (preview / purge confirmation)
-// ============================================================================
-
-/**
- * Branded type for previewed-then-execute batch operations.
- *
- * `GET /memory/delete/preview` issues a `PreviewToken` (short-lived,
- * server-side Redis-backed) along with the impact summary. `POST
- * /memory/delete` consumes the token — the filter that produced the
- * preview is stored server-side under the token key, so the execute path
- * can't drift from the preview path.
- *
- * Branding means callers can't accidentally pass an arbitrary string —
- * they must obtain a real token from the preview endpoint first.
- */
-export const PreviewTokenSchema = z
-  .string()
-  .regex(/^preview_[A-Za-z0-9_-]{16,64}$/, 'Invalid preview token format')
-  .brand<'PreviewToken'>();
-export type PreviewToken = z.infer<typeof PreviewTokenSchema>;
-
-/**
- * Branded type for purge confirmation. Same shape as `PreviewToken` but
- * a distinct brand so callers can't pass a delete-preview token to a
- * purge endpoint (or vice versa) by accident.
- */
-export const PurgeTokenSchema = z
-  .string()
-  .regex(/^purge_[A-Za-z0-9_-]{16,64}$/, 'Invalid purge token format')
-  .brand<'PurgeToken'>();
-export type PurgeToken = z.infer<typeof PurgeTokenSchema>;
