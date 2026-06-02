@@ -8,7 +8,6 @@ import type { PrismaClient } from '@tzurot/common-types';
 import {
   createMockPrisma,
   createMockReqRes,
-  getHandler,
   mockUser,
   MOCK_USER_ID,
   MOCK_PERSONA_ID_2,
@@ -39,7 +38,7 @@ vi.mock('../../../utils/asyncHandler.js', () => ({
   asyncHandler: vi.fn(fn => fn),
 }));
 
-import { createPersonaRoutes } from './index.js';
+import { handleSetPersonaDefault } from './default.js';
 
 describe('PATCH /user/persona/:id/default', () => {
   const mockPrisma = createMockPrisma();
@@ -57,8 +56,7 @@ describe('PATCH /user/persona/:id/default', () => {
     });
     mockPrisma.user.update.mockResolvedValue({});
 
-    const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
-    const handler = getHandler(router, 'patch', '/:id/default');
+    const handler = handleSetPersonaDefault({ prisma: mockPrisma as unknown as PrismaClient });
 
     const { req, res } = createMockReqRes({}, { id: MOCK_PERSONA_ID_2 });
     await handler(req, res);
@@ -83,8 +81,7 @@ describe('PATCH /user/persona/:id/default', () => {
   it('should return 404 for non-existent persona', async () => {
     mockPrisma.persona.findFirst.mockResolvedValue(null);
 
-    const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
-    const handler = getHandler(router, 'patch', '/:id/default');
+    const handler = handleSetPersonaDefault({ prisma: mockPrisma as unknown as PrismaClient });
 
     const { req, res } = createMockReqRes({}, { id: NONEXISTENT_UUID });
     await handler(req, res);

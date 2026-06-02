@@ -7,7 +7,7 @@
  * - DELETE /:id - Delete a persona
  */
 
-import { Router, type Response, type RequestHandler } from 'express';
+import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
@@ -19,7 +19,6 @@ import {
   type PersonaSummary,
   type PersonaDetails,
 } from '@tzurot/common-types';
-import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
@@ -273,38 +272,3 @@ export const handleDeletePersona = (deps: RouteDeps): RequestHandler => {
     sendCustomSuccess(res, { message: 'Persona deleted' });
   });
 };
-
-// --- Main Route Setup ---
-
-export function addCrudRoutes(router: Router, deps: RouteDeps): void {
-  // Pass the full `deps` object (not just `{ prisma }`) so that if a future
-  // handler change starts reading `deps.redis`, `deps.aiQueue`, etc., this
-  // legacy wiring continues to provide them. The TypeScript compiler can't
-  // catch that drift on its own — `RouteDeps`'s non-prisma fields are all
-  // optional — so the contract is "always pass the full deps".
-  router.get('/', requireUserAuth(), requireProvisionedUser(deps.prisma), handleListPersonas(deps));
-  router.get(
-    '/:id',
-    requireUserAuth(),
-    requireProvisionedUser(deps.prisma),
-    handleGetPersona(deps)
-  );
-  router.post(
-    '/',
-    requireUserAuth(),
-    requireProvisionedUser(deps.prisma),
-    handleCreatePersona(deps)
-  );
-  router.put(
-    '/:id',
-    requireUserAuth(),
-    requireProvisionedUser(deps.prisma),
-    handleUpdatePersona(deps)
-  );
-  router.delete(
-    '/:id',
-    requireUserAuth(),
-    requireProvisionedUser(deps.prisma),
-    handleDeletePersona(deps)
-  );
-}
