@@ -48,9 +48,12 @@ vi.mock('../../../services/ShapesPreflight.js', () => ({
   probeShapesSession: (cookie: string) => mockProbeShapesSession(cookie),
 }));
 
-import { createShapesAuthRoutes } from './auth.js';
+import {
+  handleStoreShapesAuth,
+  handleDeleteShapesAuth,
+  handleGetShapesAuthStatus,
+} from './auth.js';
 import type { PrismaClient } from '@tzurot/common-types';
-import { findRoute, getRouteHandler } from '../../../test/expressRouterUtils.js';
 
 // Mock Prisma
 const mockPrisma = {
@@ -117,30 +120,13 @@ describe('Shapes Auth Routes', () => {
     mockProbeShapesSession.mockResolvedValue('valid');
   });
 
-  describe('route factory', () => {
-    it('should create a router', () => {
-      const router = createShapesAuthRoutes(mockPrisma as unknown as PrismaClient);
-      expect(router).toBeDefined();
-      expect(typeof router).toBe('function');
-    });
-
-    it('should have POST, DELETE, and GET routes', () => {
-      const router = createShapesAuthRoutes(mockPrisma as unknown as PrismaClient);
-
-      expect(findRoute(router, 'post', '/')).toBeDefined();
-      expect(findRoute(router, 'delete', '/')).toBeDefined();
-      expect(findRoute(router, 'get', '/status')).toBeDefined();
-    });
-  });
-
   describe('POST / (store credentials)', () => {
     async function callStoreHandler(
       body: Record<string, unknown>,
       prisma = mockPrisma
     ): Promise<{ req: Request & { userId: string }; res: Response }> {
       const { req, res } = createMockReqRes(body);
-      const router = createShapesAuthRoutes(prisma as unknown as PrismaClient);
-      const handler = getRouteHandler(router, 'post', '/');
+      const handler = handleStoreShapesAuth({ prisma: prisma as unknown as PrismaClient });
       await handler(req, res);
       return { req, res };
     }
@@ -325,8 +311,7 @@ describe('Shapes Auth Routes', () => {
       prisma = mockPrisma
     ): Promise<{ req: Request & { userId: string }; res: Response }> {
       const { req, res } = createMockReqRes();
-      const router = createShapesAuthRoutes(prisma as unknown as PrismaClient);
-      const handler = getRouteHandler(router, 'delete', '/');
+      const handler = handleDeleteShapesAuth({ prisma: prisma as unknown as PrismaClient });
       await handler(req, res);
       return { req, res };
     }
@@ -356,8 +341,7 @@ describe('Shapes Auth Routes', () => {
       prisma = mockPrisma
     ): Promise<{ req: Request & { userId: string }; res: Response }> {
       const { req, res } = createMockReqRes();
-      const router = createShapesAuthRoutes(prisma as unknown as PrismaClient);
-      const handler = getRouteHandler(router, 'get', '/status');
+      const handler = handleGetShapesAuthStatus({ prisma: prisma as unknown as PrismaClient });
       await handler(req, res);
       return { req, res };
     }

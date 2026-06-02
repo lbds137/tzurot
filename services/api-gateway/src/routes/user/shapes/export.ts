@@ -8,7 +8,7 @@
  * Users download completed exports via GET /exports/:jobId (public endpoint).
  */
 
-import { Router, type Response, type RequestHandler } from 'express';
+import { type Response, type RequestHandler } from 'express';
 import type { Queue } from 'bullmq';
 import { StatusCodes } from 'http-status-codes';
 import {
@@ -25,7 +25,6 @@ import {
   Prisma,
   StartShapesExportInputSchema,
 } from '@tzurot/common-types';
-import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js';
@@ -306,23 +305,3 @@ export const handleStartShapesExport = (deps: RouteDeps): RequestHandler => {
 /** GET /api/user/shapes/export/jobs — list export history for the caller. */
 export const handleListShapesExportJobs = (deps: RouteDeps): RequestHandler =>
   asyncHandler(createListExportJobsHandler(deps.prisma, resolveBaseUrl()));
-
-export function createShapesExportRoutes(prisma: PrismaClient, queue: Queue): Router {
-  const router = Router();
-  const deps: RouteDeps = { prisma, aiQueue: queue };
-
-  router.post(
-    '/',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    handleStartShapesExport(deps)
-  );
-  router.get(
-    '/jobs',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    handleListShapesExportJobs(deps)
-  );
-
-  return router;
-}

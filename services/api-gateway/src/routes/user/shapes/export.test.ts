@@ -29,9 +29,8 @@ vi.mock('../../../utils/asyncHandler.js', () => ({
   asyncHandler: vi.fn(fn => fn),
 }));
 
-import { createShapesExportRoutes, handleStartShapesExport } from './export.js';
+import { handleStartShapesExport, handleListShapesExportJobs } from './export.js';
 import type { PrismaClient } from '@tzurot/common-types';
-import { findRoute, getRouteHandler } from '../../../test/expressRouterUtils.js';
 
 /** Mocks for exportJob operations inside $transaction */
 const mockTxExportJob = {
@@ -100,26 +99,13 @@ describe('Shapes Export Routes', () => {
     vi.clearAllMocks();
   });
 
-  describe('route factory', () => {
-    it('should have POST / and GET /jobs routes', () => {
-      const router = createShapesExportRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockQueue as never
-      );
-
-      expect(findRoute(router, 'post', '/')).toBeDefined();
-      expect(findRoute(router, 'get', '/jobs')).toBeDefined();
-    });
-  });
-
   describe('POST / (create export job)', () => {
     async function callExportHandler(body: Record<string, unknown>) {
       const { req, res } = createMockReqRes(body);
-      const router = createShapesExportRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockQueue as never
-      );
-      const handler = getRouteHandler(router, 'post', '/');
+      const handler = handleStartShapesExport({
+        prisma: mockPrisma as unknown as PrismaClient,
+        aiQueue: mockQueue as never,
+      });
       await handler(req, res);
       return { req, res };
     }
@@ -207,11 +193,10 @@ describe('Shapes Export Routes', () => {
   describe('GET /jobs (list export history)', () => {
     async function callListHandler(query: Record<string, string> = {}) {
       const { req, res } = createMockReqRes({}, query);
-      const router = createShapesExportRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockQueue as never
-      );
-      const handler = getRouteHandler(router, 'get', '/jobs');
+      const handler = handleListShapesExportJobs({
+        prisma: mockPrisma as unknown as PrismaClient,
+        aiQueue: mockQueue as never,
+      });
       await handler(req, res);
       return { req, res };
     }

@@ -29,9 +29,8 @@ vi.mock('../../../utils/asyncHandler.js', () => ({
   asyncHandler: vi.fn(fn => fn),
 }));
 
-import { createShapesImportRoutes, handleStartShapesImport } from './import.js';
+import { handleStartShapesImport, handleListShapesImportJobs } from './import.js';
 import type { PrismaClient } from '@tzurot/common-types';
-import { findRoute, getRouteHandler } from '../../../test/expressRouterUtils.js';
 
 // Mock Prisma
 const mockPrisma = {
@@ -92,26 +91,13 @@ describe('Shapes Import Routes', () => {
     vi.clearAllMocks();
   });
 
-  describe('route factory', () => {
-    it('should have POST / and GET /jobs routes', () => {
-      const router = createShapesImportRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockQueue as never
-      );
-
-      expect(findRoute(router, 'post', '/')).toBeDefined();
-      expect(findRoute(router, 'get', '/jobs')).toBeDefined();
-    });
-  });
-
   describe('POST / (create import job)', () => {
     async function callImportHandler(body: Record<string, unknown>) {
       const { req, res } = createMockReqRes(body);
-      const router = createShapesImportRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockQueue as never
-      );
-      const handler = getRouteHandler(router, 'post', '/');
+      const handler = handleStartShapesImport({
+        prisma: mockPrisma as unknown as PrismaClient,
+        aiQueue: mockQueue as never,
+      });
       await handler(req, res);
       return { req, res };
     }
@@ -200,11 +186,10 @@ describe('Shapes Import Routes', () => {
   describe('GET /jobs (list import history)', () => {
     async function callListHandler(query: Record<string, string> = {}) {
       const { req, res } = createMockReqRes({}, query);
-      const router = createShapesImportRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockQueue as never
-      );
-      const handler = getRouteHandler(router, 'get', '/jobs');
+      const handler = handleListShapesImportJobs({
+        prisma: mockPrisma as unknown as PrismaClient,
+        aiQueue: mockQueue as never,
+      });
       await handler(req, res);
       return { req, res };
     }
