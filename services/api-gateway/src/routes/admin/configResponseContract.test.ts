@@ -119,6 +119,8 @@ describe('Admin LLM config response contract', () => {
     expect(res.status).toBe(200);
     expectSatisfiesContract('listGlobalLlmConfigs', res.body);
     expectAdminOwnership(res.body.configs[0]);
+    // Internal column must not leak into the list response.
+    expect(res.body.configs[0].ownerId).toBeUndefined();
   });
 
   it('GET /admin/llm-config/:id satisfies getGlobalLlmConfig output schema', async () => {
@@ -185,6 +187,7 @@ describe('Admin TTS config response contract', () => {
     expect(res.status).toBe(200);
     expectSatisfiesContract('listGlobalTtsConfigs', res.body);
     expectAdminOwnership(res.body.configs[0]);
+    expect(res.body.configs[0].ownerId).toBeUndefined();
   });
 
   it('GET /admin/tts-config/:id satisfies getGlobalTtsConfig output schema', async () => {
@@ -197,7 +200,7 @@ describe('Admin TTS config response contract', () => {
   it('POST /admin/tts-config satisfies createGlobalTtsConfig output schema', async () => {
     const res = await request(app)
       .post('/admin/tts-config')
-      .send({ name: 'New Voice', provider: 'mistral' });
+      .send({ name: 'New Voice', provider: 'elevenlabs' });
     expect(res.status).toBe(201);
     expectSatisfiesContract('createGlobalTtsConfig', res.body);
     expectAdminOwnership(res.body.config);

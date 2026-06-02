@@ -6,7 +6,12 @@
  * operations go through `ownerClient`.
  */
 
-import { GatewayApiError, type OwnerClient, type UserClient } from '@tzurot/common-types';
+import {
+  GatewayApiError,
+  type LlmConfigDetail,
+  type OwnerClient,
+  type UserClient,
+} from '@tzurot/common-types';
 import type { PresetData } from './types.js';
 
 /** Conservative limit — leaves room for the "❌ " prefix and Discord's 2000-char cap */
@@ -32,23 +37,18 @@ export function extractApiErrorMessage(error: unknown): string | null {
   return msg.length > MAX_DISCORD_CONTENT ? msg.slice(0, MAX_DISCORD_CONTENT) + '…' : msg;
 }
 
-/** Adapt the user-scoped LlmConfig payload to the dashboard's PresetData shape.
- * Cast bridges the schema-vs-PresetData drift — the schema's `.passthrough()`
- * preserves the extra fields at runtime, but TS-level the inferred type only
- * carries the explicitly-declared properties. Full schema tightening is
- * tracked in backlog/inbox.md.
+/**
+ * Adapt a fetched LlmConfig detail payload to the dashboard's PresetData shape.
+ *
+ * `LlmConfigDetailSchema` now enumerates every field the dashboard reads
+ * (`contextWindowTokens`, `params`, `modelContextLength`, `contextWindowCap`,
+ * plus the ownership fields the gateway emits for both user and admin scopes),
+ * so the typed response IS structurally a `PresetData` — no cast needed. Admin
+ * and user responses share this shape: the gateway attaches `isOwned`/
+ * `permissions` on both, so there's no longer a separate admin adapter.
  */
-function toPresetData(config: { id: string; name: string }): PresetData {
-  return config as PresetData;
-}
-
-/** Adapt the admin-scoped LlmConfig payload — gateway omits caller-scoped fields. */
-function toAdminPresetData(config: { id: string; name: string }): PresetData {
-  return {
-    ...(config as PresetData),
-    isOwned: true, // Admin owns global presets
-    permissions: { canEdit: true, canDelete: true }, // Admin always has full permissions
-  };
+function toPresetData(config: LlmConfigDetail): PresetData {
+  return config;
 }
 
 /**
@@ -89,7 +89,7 @@ export async function fetchGlobalPreset(
     throw new Error(`Failed to fetch global preset: ${result.status}`);
   }
 
-  return toAdminPresetData(result.data.config);
+  return toPresetData(result.data.config);
 }
 
 /**
@@ -133,7 +133,7 @@ export async function updateGlobalPreset(
     );
   }
 
-  return toAdminPresetData(result.data.config);
+  return toPresetData(result.data.config);
 }
 
 /**

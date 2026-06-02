@@ -224,26 +224,40 @@ export const LLM_CONFIG_DEFAULTS = {
  * boundary prevents the "DB accepts, gateway rejects, user stuck"
  * failure class.
  */
-// `.passthrough()` preserves the additional preset fields the gateway
-// emits on GET / PUT / POST (contextWindowTokens, params, modelContextLength,
-// etc.) that the bot-client dashboard reads but the schema doesn't yet
-// declare. Tighten by enumerating those fields explicitly; the dashboard
-// then becomes the authoritative consumer surface.
-export const LlmConfigSummarySchema = z
-  .object({
-    id: z.string().uuid(),
-    name: z.string(),
-    description: z.string().nullable(),
-    provider: z.string(),
-    model: z.string(),
-    visionModel: z.string().nullable(),
-    isGlobal: z.boolean(),
-    isDefault: z.boolean(),
-    isOwned: z.boolean(),
-    permissions: EntityPermissionsSchema,
-  })
-  .passthrough();
+// The LIST shape: the lean projection the gateway emits for `GET /…/llm-config`
+// (one row per visible config). Strict (no `.passthrough()`) — list rows must
+// NOT carry internal columns like `ownerId`; the gateway projects only these
+// public fields via `LlmConfigService.formatConfigSummary`.
+export const LlmConfigSummarySchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  description: z.string().nullable(),
+  provider: z.string(),
+  model: z.string(),
+  visionModel: z.string().nullable(),
+  isGlobal: z.boolean(),
+  isDefault: z.boolean(),
+  isFreeDefault: z.boolean(),
+  isOwned: z.boolean(),
+  permissions: EntityPermissionsSchema,
+});
 export type LlmConfigSummary = z.infer<typeof LlmConfigSummarySchema>;
+
+// The DETAIL shape: GET-by-id / POST / PUT return the full preset the dashboard
+// edits. Extends the list shape with the model-coupled context-window fields and
+// the sampling/reasoning `params` object (validated by the same
+// `AdvancedParamsSchema` the gateway formats it with). `contextWindowTokens` is
+// required (always emitted by `formatConfigDetail`); `modelContextLength` /
+// `contextWindowCap` are present only when the OpenRouter model lookup resolves,
+// so they're optional. Strict, like the summary — the gateway's extra
+// memory/context-history columns are intentionally not part of this contract.
+export const LlmConfigDetailSchema = LlmConfigSummarySchema.extend({
+  contextWindowTokens: z.number().int(),
+  modelContextLength: z.number().int().optional(),
+  contextWindowCap: z.number().int().optional(),
+  params: AdvancedParamsSchema,
+});
+export type LlmConfigDetail = z.infer<typeof LlmConfigDetailSchema>;
 
 // ============================================================================
 // GET /user/llm-config
@@ -261,7 +275,7 @@ export type ListLlmConfigsResponse = z.infer<typeof ListLlmConfigsResponseSchema
 // ============================================================================
 
 export const CreateLlmConfigResponseSchema = z.object({
-  config: LlmConfigSummarySchema,
+  config: LlmConfigDetailSchema,
 });
 export type CreateLlmConfigResponse = z.infer<typeof CreateLlmConfigResponseSchema>;
 
@@ -281,7 +295,7 @@ export type DeleteLlmConfigResponse = z.infer<typeof DeleteLlmConfigResponseSche
 // ============================================================================
 
 export const GetLlmConfigResponseSchema = z.object({
-  config: LlmConfigSummarySchema,
+  config: LlmConfigDetailSchema,
 });
 export type GetLlmConfigResponse = z.infer<typeof GetLlmConfigResponseSchema>;
 
@@ -291,7 +305,7 @@ export type GetLlmConfigResponse = z.infer<typeof GetLlmConfigResponseSchema>;
 // ============================================================================
 
 export const UpdateLlmConfigResponseSchema = z.object({
-  config: LlmConfigSummarySchema,
+  config: LlmConfigDetailSchema,
 });
 export type UpdateLlmConfigResponse = z.infer<typeof UpdateLlmConfigResponseSchema>;
 

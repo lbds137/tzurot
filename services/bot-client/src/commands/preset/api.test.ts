@@ -101,25 +101,21 @@ describe('fetchGlobalPreset', () => {
   });
 
   it('should fetch global preset successfully', async () => {
-    // Admin endpoint returns config without isOwned/permissions
-    const adminResponseConfig = { ...mockPresetData };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Simulating admin response that lacks user-scoped fields
-    delete (adminResponseConfig as any).isOwned;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Simulating admin response that lacks user-scoped fields
-    delete (adminResponseConfig as any).permissions;
+    // The gateway now emits isOwned/permissions on admin/global responses
+    // (withAdminOwnership), so fetchGlobalPreset returns the typed detail
+    // verbatim — no client-side patching.
+    const adminResponseConfig = {
+      ...mockPresetData,
+      isOwned: true, // Admin owns global presets
+      permissions: { canEdit: true, canDelete: true },
+    };
 
     stub.getGlobalLlmConfig.mockResolvedValue(makeOk({ config: adminResponseConfig }));
 
     const result = await fetchGlobalPreset('preset-123', asOwnerClient(stub));
 
     expect(stub.getGlobalLlmConfig).toHaveBeenCalledWith('preset-123');
-    // fetchGlobalPreset adds isOwned: true (admin owns global presets) and permissions
-    // Admin always has full permissions on global presets
-    expect(result).toEqual({
-      ...mockPresetData,
-      isOwned: true, // Admin owns global presets
-      permissions: { canEdit: true, canDelete: true },
-    });
+    expect(result).toEqual(adminResponseConfig);
   });
 
   it('should return null on 404', async () => {

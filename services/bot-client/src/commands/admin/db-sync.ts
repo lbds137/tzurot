@@ -143,8 +143,11 @@ export async function handleDbSync(context: DeferredCommandContext): Promise<voi
       return;
     }
 
-    // Cast until DbSyncResponseSchema is tightened (deferred: backlog/deferred.md).
-    const result = apiResult.data as SyncResult;
+    // `DbSyncResponse` (now a tightened, enumerated schema) is structurally
+    // assignable to the lenient display interface below — annotated assignment,
+    // no type assertion. SyncResult keeps every field optional so the truthy
+    // guards in buildSyncSummary read naturally.
+    const result: SyncResult = apiResult.data;
 
     // Build result embed
     const embed = new EmbedBuilder()

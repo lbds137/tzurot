@@ -17,19 +17,30 @@
 import { z } from 'zod';
 
 /**
- * Response for POST /admin/db-sync — schema sync between Prisma and PostgreSQL.
- * The `result` spread carries fields like `tablesCreated`, `indexesCreated`,
- * etc., which vary per migration. We don't lock down the exact shape because
- * the operation is single-caller (bot owner via /admin db-sync command) and
- * the bot-client just displays the summary; no programmatic decision branches
- * on individual result fields.
+ * Response for POST /admin/db-sync — schema/data sync between dev and prod.
+ *
+ * The gateway spreads a `SyncResult` into the body: per-table `stats`,
+ * `warnings`/`info` string lists, the `schemaVersion`, and (dry-run only) a
+ * `changes` preview of arbitrary shape. The bot-client renders these into an
+ * embed. Enumerated explicitly so the consumer reads a typed shape instead of
+ * casting; `changes` stays `unknown` (dry-run-only, free-form preview).
  */
-export const DbSyncResponseSchema = z
-  .object({
-    success: z.literal(true),
-    timestamp: z.string(),
-  })
-  .passthrough();
+export const DbSyncResponseSchema = z.object({
+  success: z.literal(true),
+  timestamp: z.string(),
+  schemaVersion: z.string(),
+  stats: z.record(
+    z.string(),
+    z.object({
+      devToProd: z.number(),
+      prodToDev: z.number(),
+      conflicts: z.number(),
+    })
+  ),
+  warnings: z.array(z.string()),
+  info: z.array(z.string()),
+  changes: z.unknown().optional(),
+});
 export type DbSyncResponse = z.infer<typeof DbSyncResponseSchema>;
 
 /**
