@@ -44,14 +44,6 @@ Note: SSRF path-encoding coverage for the LlmConfig client methods is NOT a gap 
 
 Surfaced 2026-05-29 by PR #1114 claude-bot review (rounds 1–6). Natural companion to the `DbSyncResponseSchema` tightening and a good fit to fold into PR-2l's cleanup pass.
 
-### `[LIFT]` Unravel the runtime-dead legacy route-registration layer in api-gateway (PR-2m)
-
-After PR-2l removed the legacy `/admin /user /internal /wallet` mounts, the per-domain **sub-aggregators** that the deleted `createUserRouter` composed are runtime-dead but still test-reachable, so knip doesn't flag them: `routes/user/persona/index.ts` (`createPersonaRoutes`) + the `addCrudRoutes`/`addDefaultRoutes`/`addOverrideRoutes` exports in `persona/{crud,default,override}.ts`, and the `createShapes{Auth,List,Import,Export}Routes` exports in `routes/user/shapes/{auth,list,import,export}.ts`. The `handleXxx(deps)` functions in those files ARE live (the generated mounts import them); only the legacy `addXxxRoutes`/`createShapesXxxRoutes` registration functions + `createPersonaRoutes` are dead.
-
-**Why deferred from PR-2l**: their supertest suites (`crud.test.ts` etc., ~40 persona tests + shapes) exercise the handlers _through_ `createPersonaRoutes` — `mounts.int.test.ts` only smoke-tests auth-gating, not handler behavior. Deleting the registration functions naively would drop that behavioral coverage. The fix is to **migrate those suites to call `handleXxx(deps)` directly** (or assert against the generated mount), then remove the dead registration functions. Coverage-sensitive surgery → its own focused PR.
-
-**Fix shape**: per file, rewrite the supertest `request(app).get(...)` cases to invoke the exported `handleXxx(deps)` against a mock req/res (the pattern the handler unit tests would use), drop the `addXxxRoutes`/`createShapesXxxRoutes` exports + `persona/index.ts`, then `pnpm knip` confirms the layer is gone. Surfaced 2026-05-29 during PR-2l Step 6.
-
 ### `[LIFT]` Extract `@tzurot/clients` (or `@tzurot/routes`) from common-types (PR-2m)
 
 `pnpm ops xray --summary common-types` at PR-2l close: **154 files / ~591 declarations**, well over the `01-architecture.md` heuristic (50 exports / 3000 lines). PR-1/PR-2 added the route manifest, transport helpers, and three generated client classes — a self-contained chunk that's the natural extraction candidate.
