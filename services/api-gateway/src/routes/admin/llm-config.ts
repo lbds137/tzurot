@@ -52,7 +52,9 @@ const CONFIG_LABEL = 'configs';
 
 function createListHandler(service: LlmConfigService) {
   return async (_req: Request, res: Response) => {
-    const configs = (await service.list({ type: 'GLOBAL' })).map(withAdminOwnership);
+    const configs = (await service.list({ type: 'GLOBAL' })).map(raw =>
+      withAdminOwnership(service.formatConfigSummary(raw))
+    );
 
     logger.info({ count: configs.length }, 'Listed all configs');
     sendCustomSuccess(res, { configs }, StatusCodes.OK);

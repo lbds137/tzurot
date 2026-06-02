@@ -28,6 +28,11 @@ import {
 } from '@tzurot/common-types';
 
 import { isPrismaUniqueConstraintErrorOn } from '../utils/prismaErrors.js';
+import { CloneNameExhaustedError, AutoSuffixCollisionError } from './LlmConfigErrors.js';
+
+// Re-exported so route/test importers keep a stable `from './LlmConfigService.js'`
+// path (mirrors TtsConfigService's re-export of its error classes).
+export { CloneNameExhaustedError, AutoSuffixCollisionError };
 
 const logger = createLogger('LlmConfigService');
 
@@ -81,6 +86,22 @@ interface RawConfigDetail extends RawConfigList {
 }
 
 /**
+ * Formatted config for the LIST (summary) response — public fields only,
+ * no internal `ownerId`.
+ */
+interface FormattedConfigSummary {
+  id: string;
+  name: string;
+  description: string | null;
+  provider: string;
+  model: string;
+  visionModel: string | null;
+  isGlobal: boolean;
+  isDefault: boolean;
+  isFreeDefault: boolean;
+}
+
+/**
  * Formatted config for API responses.
  */
 interface FormattedConfigDetail {
@@ -104,51 +125,6 @@ interface FormattedConfigDetail {
   modelContextLength?: number;
   /** 50% cap for contextWindowTokens, set by enrichWithModelContext */
   contextWindowCap?: number;
-}
-
-// ============================================================================
-// Typed errors for the auto-suffix clone path
-// ============================================================================
-
-/**
- * Thrown when {@link LlmConfigService.resolveNonCollidingName} walks its full
- * `MAX_CLONE_NAME_ATTEMPTS` budget without finding a free name. Pathological
- * case (user has ~20 copies of the same base name). The route translates this
- * to a `NAME_COLLISION` with a distinct message so the client sees an
- * actionable error instead of an opaque 500.
- */
-export class CloneNameExhaustedError extends Error {
-  constructor(
-    public readonly baseName: string,
-    public readonly attempts: number
-  ) {
-    super(
-      `Could not resolve a unique clone name starting from "${baseName}" after ${attempts} attempts`
-    );
-    this.name = 'CloneNameExhaustedError';
-  }
-}
-
-/**
- * Thrown when a concurrent insert races past the `resolveNonCollidingName`
- * SELECT and claims the `effectiveName` before our INSERT lands. Carries the
- * bumped name so the caller can surface an accurate error message (the route
- * previously echoed `body.name`, which is wrong when the suffix was bumped).
- *
- * The underlying Prisma P2002 is chained via the ES2022 `cause` option so
- * structured loggers and error aggregators (Sentry, etc.) pick it up through
- * the standard `error.cause` chain rather than a custom property.
- */
-export class AutoSuffixCollisionError extends Error {
-  constructor(
-    public readonly effectiveName: string,
-    cause: unknown
-  ) {
-    super(`Name "${effectiveName}" was taken by a concurrent request after suffix resolution`, {
-      cause,
-    });
-    this.name = 'AutoSuffixCollisionError';
-  }
 }
 
 // ============================================================================
@@ -656,6 +632,30 @@ export class LlmConfigService {
       maxAge: raw.maxAge,
       maxImages: raw.maxImages,
       params: safeValidateAdvancedParams(raw.advancedParameters) ?? {},
+    };
+  }
+
+  /**
+   * Format a raw list row for the summary (list) response.
+   *
+   * Projects only the public list fields and — crucially — EXCLUDES the
+   * internal `ownerId` column that `LLM_CONFIG_LIST_SELECT` carries. Callers
+   * use `raw.ownerId` to compute `isOwned`/`permissions` before formatting,
+   * but `ownerId` must not travel into the HTTP response body (it's an internal
+   * UUID, and the user-facing list would otherwise expose other users' owner
+   * IDs). Mirrors `formatConfigDetail`'s explicit-projection discipline.
+   */
+  formatConfigSummary(raw: RawConfigList): FormattedConfigSummary {
+    return {
+      id: raw.id,
+      name: raw.name,
+      description: raw.description,
+      provider: raw.provider,
+      model: raw.model,
+      visionModel: raw.visionModel,
+      isGlobal: raw.isGlobal,
+      isDefault: raw.isDefault,
+      isFreeDefault: raw.isFreeDefault,
     };
   }
 
