@@ -3,9 +3,8 @@
  * - PATCH /:id/default - Set persona as user's default
  */
 
-import { Router, type Response, type RequestHandler } from 'express';
-import { createLogger, type PrismaClient } from '@tzurot/common-types';
-import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
+import { type Response, type RequestHandler } from 'express';
+import { createLogger } from '@tzurot/common-types';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
@@ -63,12 +62,3 @@ export const handleSetPersonaDefault = (deps: RouteDeps): RequestHandler => {
     });
   });
 };
-
-export function addDefaultRoutes(router: Router, prisma: PrismaClient): void {
-  router.patch(
-    '/:id/default',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    handleSetPersonaDefault({ prisma })
-  );
-}
