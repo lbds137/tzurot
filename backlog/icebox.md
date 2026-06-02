@@ -365,3 +365,11 @@ Define free-tier model allowlist, usage quotas, upgrade prompts.
 **Action**: After 1–2 weeks of prod telemetry, analyze `durationMs` distribution from `[Retry] Image description succeeded on attempt` log entries. Tune `TIMEOUTS.VISION_MODEL` in `packages/common-types/src/constants/timing.ts` to p99 + small headroom.
 
 **Why out of scope now**: Cannot tune without the telemetry the diagnostic bundle installs.
+
+#### `[LIFT]` Kill the common-types root barrel + add `package.json` exports map
+
+**Problem**: The real driver of the 976-export `xray` smell isn't line count — it's the single root `index.ts` barrel re-exporting everything. A 976-export barrel hurts TS-server performance and makes the dependency surface opaque (every consumer can reach every symbol). The 2058-line generated `user-client.ts` inflates line count but is codegen output and should be exempt from the heuristic, not split.
+
+**Action**: Gut the root `index.ts`; add a `package.json` `exports` map exposing specific subpaths (e.g. `@tzurot/common-types/constants`, `@tzurot/common-types/schemas/*`). Codemod all consumer import sites to deep paths.
+
+**Why deferred / out of scope of PR-2m**: Qwen 3.7 Max (council 2026-06-02) flagged this as the higher-leverage fix for the export-count metric, but it's a large cross-service codemod orthogonal to the package extraction. Do the api-contract/api-client extraction first (it removes ~5k lines + the client/route exports from common-types), THEN reassess whether the barrel-kill is still worth the churn on what remains.
