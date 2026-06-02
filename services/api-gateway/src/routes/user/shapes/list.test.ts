@@ -34,9 +34,8 @@ vi.mock('../../../utils/asyncHandler.js', () => ({
   asyncHandler: vi.fn(fn => fn),
 }));
 
-import { createShapesListRoutes } from './list.js';
+import { handleListShapes } from './list.js';
 import type { PrismaClient } from '@tzurot/common-types';
-import { findRoute, getRouteHandler } from '../../../test/expressRouterUtils.js';
 
 const mockPrisma = {
   user: {
@@ -74,21 +73,12 @@ describe('Shapes List Routes', () => {
     vi.clearAllMocks();
   });
 
-  describe('route factory', () => {
-    it('should create a router with GET route', () => {
-      const router = createShapesListRoutes(mockPrisma as unknown as PrismaClient);
-      expect(router).toBeDefined();
-      expect(findRoute(router, 'get', '/')).toBeDefined();
-    });
-  });
-
   describe('GET / (list shapes)', () => {
     async function callListHandler(
       prisma = mockPrisma
     ): Promise<{ req: Request & { userId: string }; res: Response }> {
       const { req, res } = createMockReqRes();
-      const router = createShapesListRoutes(prisma as unknown as PrismaClient);
-      const handler = getRouteHandler(router, 'get', '/');
+      const handler = handleListShapes({ prisma: prisma as unknown as PrismaClient });
       await handler(req, res);
       return { req, res };
     }
