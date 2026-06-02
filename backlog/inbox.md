@@ -2,11 +2,23 @@
 
 _New items go here. Triage to appropriate section weekly._
 
-### `[LIFT]` Extract `@tzurot/clients` (or `@tzurot/routes`) from common-types (PR-2m)
+### `[LIFT]` Extract API contract + client packages from common-types (PR-2m) — IN PROGRESS
 
-`pnpm ops xray --summary common-types` at PR-2l close: **154 files / ~591 declarations**, well over the `01-architecture.md` heuristic (50 exports / 3000 lines). PR-1/PR-2 added the route manifest, transport helpers, and three generated client classes — a self-contained chunk that's the natural extraction candidate.
+`common-types` is at **154 files / 28,763 lines / 976 exports**, well over the `01-architecture.md` heuristic. The route manifest + transport + generated client classes are a self-contained chunk.
 
-**Fix shape**: move `src/routes/` (manifest + types) and `src/clients/` (transport + `_generated/` + `gatewayClientStubs`-adjacent helpers) into a new `@tzurot/clients` package; common-types keeps domain types/constants/utils. Update imports across services (likely large but mechanical — most consumers import from the package root). **Why its own PR**: extraction is a design task (package boundary, circular-dep avoidance, build wiring), not teardown. Surfaced 2026-05-29 by PR-2l Step 6 export audit (the deferred "re-check common-types export count post-PR-2" item, now resolved with this follow-up).
+**Approved design** (council 2026-06-02 — GLM 5.1 / Kimi K2.6 / Qwen 3.7 Max, unanimous): the original single-`@tzurot/clients` plan splits the API contract and creates a circular dep. Split into **two** packages by stability:
+
+- **`@tzurot/api-contract`** — `schemas/api/*` + `routes/` (ROUTE_MANIFEST + types) + the api factories. Consumed by api-gateway, codegen (tooling), and api-client.
+- **`@tzurot/api-client`** — `clients/` (transport, errors, generated `*-client.ts`). Depends on api-contract + common-types (constants/utils). Consumed by bot-client.
+
+**Migration (4 sequential green-CI PRs):**
+
+1. **Back-edge fix** (zero package churn): relocate `PreviewTokenSchema`/`PurgeTokenSchema` from `routes/types.ts` into `schemas/api/memory.ts` (their only consumer). Restores one-way `routes → schemas`.
+2. **Bootstrap `@tzurot/api-contract`**: move `schemas/api/*` + `routes/` + api factories; repoint codegen (`packages/tooling`) + api-gateway imports. **Run depcruise BEFORE the move** — the api factories import `schemas/api/*`, so they must move too or common-types→api-contract reintroduces a cycle.
+3. **Bootstrap `@tzurot/api-client`**: move `clients/`; codemod the ~20 bot-client import sites. **No re-export shims** — clients import `constants`/`types`/`utils` from common-types, so a transitional barrel re-export creates a `common-types → api-client → common-types` cycle. Bulk-rewrite imports instead.
+4. **Prune** common-types; audit remaining surface.
+
+**Why its own epic**: package-boundary design + circular-dep avoidance + build wiring. Surfaced 2026-05-29 by PR-2l Step 6 export audit; design ratified 2026-06-02.
 
 ### `[FEAT]` Enrich forwarded-message context with origin channel/thread (not just forwarding channel)
 
