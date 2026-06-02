@@ -8,7 +8,7 @@
  *     (single transaction; atomic)
  */
 
-import { Router, type Response, type RequestHandler } from 'express';
+import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
@@ -19,7 +19,6 @@ import {
   type PrismaClient,
   SetPersonaOverrideSchema,
 } from '@tzurot/common-types';
-import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
@@ -330,42 +329,3 @@ export const handleCreatePersonaOverride = (deps: RouteDeps): RequestHandler => 
     );
   });
 };
-
-// --- Main Route Setup ---
-
-const OVERRIDE_BY_SLUG = '/override/:personalitySlug';
-const OVERRIDE_BY_ID_FOR_PERSONALITY = '/override/by-id/:personalityId';
-
-export function addOverrideRoutes(router: Router, prisma: PrismaClient): void {
-  const deps: RouteDeps = { prisma };
-  router.get(
-    '/override',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    handleListPersonaOverrides(deps)
-  );
-  router.get(
-    OVERRIDE_BY_SLUG,
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    handleGetPersonaOverride(deps)
-  );
-  router.put(
-    OVERRIDE_BY_SLUG,
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    handleSetPersonaOverride(deps)
-  );
-  router.delete(
-    OVERRIDE_BY_SLUG,
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    handleClearPersonaOverride(deps)
-  );
-  router.post(
-    OVERRIDE_BY_ID_FOR_PERSONALITY,
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    handleCreatePersonaOverride(deps)
-  );
-}

@@ -13,7 +13,6 @@ import { ListPersonasResponseSchema, API_ERROR_SUBCODE } from '@tzurot/common-ty
 import {
   createMockPrisma,
   createMockReqRes,
-  getHandler,
   mockUser,
   mockPersona,
   MOCK_USER_ID,
@@ -46,7 +45,13 @@ vi.mock('../../../utils/asyncHandler.js', () => ({
   asyncHandler: vi.fn(fn => fn),
 }));
 
-import { createPersonaRoutes } from './index.js';
+import {
+  handleListPersonas,
+  handleGetPersona,
+  handleCreatePersona,
+  handleUpdatePersona,
+  handleDeletePersona,
+} from './crud.js';
 
 describe('persona CRUD routes', () => {
   const mockPrisma = createMockPrisma();
@@ -66,8 +71,7 @@ describe('persona CRUD routes', () => {
   describe('GET /user/persona', () => {
     it('should return empty array when user has no personas', async () => {
       mockPrisma.persona.findMany.mockResolvedValue([]);
-      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
-      const handler = getHandler(router, 'get', '/');
+      const handler = handleListPersonas({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes();
       await handler(req, res);
@@ -77,8 +81,7 @@ describe('persona CRUD routes', () => {
 
     it('should return list of personas with isDefault flag', async () => {
       mockPrisma.persona.findMany.mockResolvedValue([mockPersona]);
-      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
-      const handler = getHandler(router, 'get', '/');
+      const handler = handleListPersonas({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes();
       await handler(req, res);
@@ -98,8 +101,7 @@ describe('persona CRUD routes', () => {
       // This test ensures the API response matches the shared contract in common-types
       // If this test fails, the bot-client will break because it uses the same schema
       mockPrisma.persona.findMany.mockResolvedValue([mockPersona]);
-      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
-      const handler = getHandler(router, 'get', '/');
+      const handler = handleListPersonas({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes();
       await handler(req, res);
@@ -125,8 +127,7 @@ describe('persona CRUD routes', () => {
         description: null,
       };
       mockPrisma.persona.findMany.mockResolvedValue([personaWithNulls]);
-      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
-      const handler = getHandler(router, 'get', '/');
+      const handler = handleListPersonas({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes();
       await handler(req, res);
@@ -156,8 +157,7 @@ describe('persona CRUD routes', () => {
   describe('GET /user/persona/:id', () => {
     it('should return persona details', async () => {
       mockPrisma.persona.findFirst.mockResolvedValue(mockPersona);
-      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
-      const handler = getHandler(router, 'get', '/:id');
+      const handler = handleGetPersona({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes({}, { id: MOCK_PERSONA_ID });
       await handler(req, res);
@@ -174,8 +174,7 @@ describe('persona CRUD routes', () => {
 
     it('should return 404 when persona not found', async () => {
       mockPrisma.persona.findFirst.mockResolvedValue(null);
-      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
-      const handler = getHandler(router, 'get', '/:id');
+      const handler = handleGetPersona({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes({}, { id: NONEXISTENT_UUID });
       await handler(req, res);
@@ -189,8 +188,7 @@ describe('persona CRUD routes', () => {
     });
 
     it('should return 400 for invalid UUID format', async () => {
-      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
-      const handler = getHandler(router, 'get', '/:id');
+      const handler = handleGetPersona({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes({}, { id: 'invalid-uuid-format' });
       await handler(req, res);
@@ -211,8 +209,7 @@ describe('persona CRUD routes', () => {
         id: 'e5f6a7b8-c9d0-1234-ef01-345678901234',
       });
 
-      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
-      const handler = getHandler(router, 'post', '/');
+      const handler = handleCreatePersona({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes({
         name: 'New Persona',
@@ -239,8 +236,7 @@ describe('persona CRUD routes', () => {
       // than an opaque 500.
       mockPrisma.persona.create.mockRejectedValue({ code: 'P2002' });
 
-      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
-      const handler = getHandler(router, 'post', '/');
+      const handler = handleCreatePersona({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes({
         name: 'Existing Persona',
@@ -255,8 +251,7 @@ describe('persona CRUD routes', () => {
     });
 
     it('should reject empty name', async () => {
-      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
-      const handler = getHandler(router, 'post', '/');
+      const handler = handleCreatePersona({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes({ name: '', content: 'Valid content' });
       await handler(req, res);
@@ -270,8 +265,7 @@ describe('persona CRUD routes', () => {
     });
 
     it('should reject empty content', async () => {
-      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
-      const handler = getHandler(router, 'post', '/');
+      const handler = handleCreatePersona({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes({ name: 'Valid', content: '' });
       await handler(req, res);
@@ -280,8 +274,7 @@ describe('persona CRUD routes', () => {
     });
 
     it('should reject content exceeding max length', async () => {
-      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
-      const handler = getHandler(router, 'post', '/');
+      const handler = handleCreatePersona({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes({
         name: 'Valid',
@@ -306,8 +299,7 @@ describe('persona CRUD routes', () => {
         name: 'Updated Name',
       });
 
-      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
-      const handler = getHandler(router, 'put', '/:id');
+      const handler = handleUpdatePersona({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes({ name: 'Updated Name' }, { id: MOCK_PERSONA_ID });
       await handler(req, res);
@@ -322,8 +314,7 @@ describe('persona CRUD routes', () => {
     it('should return 404 for non-existent persona', async () => {
       mockPrisma.persona.findFirst.mockResolvedValue(null);
 
-      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
-      const handler = getHandler(router, 'put', '/:id');
+      const handler = handleUpdatePersona({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes({ name: 'Updated' }, { id: NONEXISTENT_UUID });
       await handler(req, res);
@@ -336,8 +327,7 @@ describe('persona CRUD routes', () => {
       mockPrisma.persona.findFirst.mockResolvedValue({ id: MOCK_PERSONA_ID });
       mockPrisma.persona.update.mockResolvedValue(existingPersona);
 
-      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
-      const handler = getHandler(router, 'put', '/:id');
+      const handler = handleUpdatePersona({ prisma: mockPrisma as unknown as PrismaClient });
 
       // Empty name should NOT be included in update (preserves existing)
       const { req, res } = createMockReqRes({ name: '' }, { id: MOCK_PERSONA_ID });
@@ -353,8 +343,7 @@ describe('persona CRUD routes', () => {
     });
 
     it('should return 400 for invalid UUID format', async () => {
-      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
-      const handler = getHandler(router, 'put', '/:id');
+      const handler = handleUpdatePersona({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes({ name: 'Updated' }, { id: 'invalid-uuid' });
       await handler(req, res);
@@ -372,8 +361,7 @@ describe('persona CRUD routes', () => {
       mockPrisma.persona.findFirst.mockResolvedValue({ id: MOCK_PERSONA_ID });
       mockPrisma.persona.update.mockResolvedValue(existingPersona);
 
-      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
-      const handler = getHandler(router, 'put', '/:id');
+      const handler = handleUpdatePersona({ prisma: mockPrisma as unknown as PrismaClient });
 
       // Empty content should NOT be included in update (preserves existing)
       const { req, res } = createMockReqRes({ content: '' }, { id: MOCK_PERSONA_ID });
@@ -391,8 +379,7 @@ describe('persona CRUD routes', () => {
     it('should reject content update exceeding max length', async () => {
       mockPrisma.persona.findFirst.mockResolvedValue({ id: MOCK_PERSONA_ID });
 
-      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
-      const handler = getHandler(router, 'put', '/:id');
+      const handler = handleUpdatePersona({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes({ content: 'x'.repeat(5000) }, { id: MOCK_PERSONA_ID });
       await handler(req, res);
@@ -414,8 +401,7 @@ describe('persona CRUD routes', () => {
         pronouns: 'they/them',
       });
 
-      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
-      const handler = getHandler(router, 'put', '/:id');
+      const handler = handleUpdatePersona({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes(
         {
@@ -447,8 +433,7 @@ describe('persona CRUD routes', () => {
       mockPrisma.persona.findFirst.mockResolvedValue({ id: MOCK_PERSONA_ID_2 });
       mockPrisma.persona.delete.mockResolvedValue({});
 
-      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
-      const handler = getHandler(router, 'delete', '/:id');
+      const handler = handleDeletePersona({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes({}, { id: MOCK_PERSONA_ID_2 });
       await handler(req, res);
@@ -460,8 +445,7 @@ describe('persona CRUD routes', () => {
     it('should prevent deleting default persona', async () => {
       mockPrisma.persona.findFirst.mockResolvedValue({ id: MOCK_PERSONA_ID });
 
-      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
-      const handler = getHandler(router, 'delete', '/:id');
+      const handler = handleDeletePersona({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes({}, { id: MOCK_PERSONA_ID });
       await handler(req, res);
@@ -477,8 +461,7 @@ describe('persona CRUD routes', () => {
     it('should return 404 for non-existent persona', async () => {
       mockPrisma.persona.findFirst.mockResolvedValue(null);
 
-      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
-      const handler = getHandler(router, 'delete', '/:id');
+      const handler = handleDeletePersona({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes({}, { id: NONEXISTENT_UUID });
       await handler(req, res);
@@ -487,8 +470,7 @@ describe('persona CRUD routes', () => {
     });
 
     it('should return 400 for invalid UUID format', async () => {
-      const router = createPersonaRoutes({ prisma: mockPrisma as unknown as PrismaClient });
-      const handler = getHandler(router, 'delete', '/:id');
+      const handler = handleDeletePersona({ prisma: mockPrisma as unknown as PrismaClient });
 
       const { req, res } = createMockReqRes({}, { id: 'not-a-valid-uuid' });
       await handler(req, res);
