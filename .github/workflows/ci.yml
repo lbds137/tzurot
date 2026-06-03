@@ -95,6 +95,9 @@ jobs:
       - name: Check for duplicate export names
         run: pnpm ops guard:duplicate-exports
 
+      - name: Check Dockerfile runner-stage dist copies
+        run: pnpm ops guard:dockerfile-dist
+
       - name: Check for orphan proposal docs
         run: pnpm ops guard:proposal-links
 

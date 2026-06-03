@@ -39,6 +39,19 @@ export function registerGuardCommands(cli: CAC): void {
 
   cli
     .command(
+      'guard:dockerfile-dist',
+      'Check service Dockerfile runner stages copy every runtime workspace dep dist'
+    )
+    .option('--verbose', 'Show per-service results including skips')
+    .example('ops guard:dockerfile-dist')
+    .example('ops guard:dockerfile-dist --verbose')
+    .action(async (options: { verbose?: boolean }) => {
+      const { checkDockerfileDist } = await import('../dev/check-dockerfile-dist.js');
+      await checkDockerfileDist(options);
+    });
+
+  cli
+    .command(
       'guard:proposal-links',
       'Check that every docs/proposals/backlog/*.md has at least one inbound link'
     )
