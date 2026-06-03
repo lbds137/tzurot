@@ -373,3 +373,11 @@ Define free-tier model allowlist, usage quotas, upgrade prompts.
 **Action**: Gut the root `index.ts`; add a `package.json` `exports` map exposing specific subpaths (e.g. `@tzurot/common-types/constants`, `@tzurot/common-types/schemas/*`). Codemod all consumer import sites to deep paths.
 
 **Why deferred / out of scope of PR-2m**: Qwen 3.7 Max (council 2026-06-02) flagged this as the higher-leverage fix for the export-count metric, but it's a large cross-service codemod orthogonal to the package extraction. Do the api-contract/api-client extraction first (it removes ~5k lines + the client/route exports from common-types), THEN reassess whether the barrel-kill is still worth the churn on what remains.
+
+#### `[LIFT]` Enforce `import/no-duplicates` repo-wide
+
+**Problem**: ESLint enforces no rule against duplicate same-module imports, and `eslint-plugin-import` isn't installed. As a result ~162 production files have multiple `import ... from '<same-module>'` statements that could be merged. Surfaced 2026-06-02 when the PR-2m client-extraction codemod briefly introduced 13 such duplicates that lint didn't catch (they were merged before commit, but the gap is real).
+
+**Action**: install `eslint-plugin-import`, enable `import/no-duplicates` (type-aware, `--fix`-able — the core `no-duplicate-imports` rule is weaker and can't merge type+value imports), run `eslint --fix` across the repo (~175-file autofix diff), then add the rule to `eslint.config.js`. Verify the autofix doesn't break any `import type` / inline-`type` groupings via typecheck:spec.
+
+**Why deferred**: repo-wide autofix + a new lint rule is its own focused PR; user explicitly wants it AFTER the PR-2m extraction epic completes (2026-06-02). Pairs naturally with the common-types barrel-kill follow-up above.
