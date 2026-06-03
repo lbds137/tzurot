@@ -17,7 +17,7 @@ import {
   mockListLlmConfigsResponse,
 } from '@tzurot/common-types';
 import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
-import type { UserClient } from '@tzurot/common-types';
+import type { UserClient } from '@tzurot/clients';
 
 // Test UUIDs (RFC 4122 compliant)
 const PERSONALITY_ID_1 = '11111111-1111-5111-8111-111111111111';

@@ -13,7 +13,8 @@ import {
   type Message,
   type SendableChannels,
 } from 'discord.js';
-import { createLogger, type UserClient } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types';
+import { type UserClient } from '@tzurot/clients';
 import { clientsForUser } from './gatewayClients.js';
 import { redis } from '../redis.js';
 import { storePendingVerificationMessage } from './pendingVerificationMessages.js';

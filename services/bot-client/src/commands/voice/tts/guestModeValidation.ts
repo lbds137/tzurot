@@ -20,8 +20,8 @@ import {
   DISCORD_COLORS,
   isSelfHostedTtsProvider,
   type TtsConfigSummary,
-  type UserClient,
 } from '@tzurot/common-types';
+import { type UserClient } from '@tzurot/clients';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 
 const logger = createLogger('voice-tts-byok-validation');

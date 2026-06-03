@@ -10,10 +10,9 @@ import { EmbedBuilder } from 'discord.js';
 import {
   createLogger,
   DISCORD_COLORS,
-  type GatewayResult,
-  type OwnerClient,
   type SetDefaultLlmConfigResponse,
 } from '@tzurot/common-types';
+import { type GatewayResult, type OwnerClient } from '@tzurot/clients';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { clientsFor } from '../../../utils/gatewayClients.js';
 

@@ -8,7 +8,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { PermissionFlagsBits } from 'discord.js';
 import type { PermissionsBitField, GuildMember } from 'discord.js';
-import type { GatewayResult, UserClient } from '@tzurot/common-types';
+import type { GatewayResult, UserClient } from '@tzurot/clients';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { handleActivate } from './activate.js';
 

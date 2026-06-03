@@ -39,7 +39,7 @@ const stub = {
 
 vi.mock('../../../utils/gatewayClients.js', () => ({
   clientsFor: vi.fn(() => ({
-    userClient: stub as unknown as import('@tzurot/common-types').UserClient,
+    userClient: stub as unknown as import('@tzurot/clients').UserClient,
   })),
 }));
 

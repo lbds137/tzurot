@@ -11,50 +11,43 @@
 
 import { z } from 'zod';
 import {
-  // Channel activation
   ActivateChannelRequestSchema,
-  DeactivateChannelRequestSchema,
   ActivateChannelResponseSchema,
-  DeactivateChannelResponseSchema,
-  ListChannelSettingsResponseSchema,
-  GetChannelActivationResponseSchema,
-  UpdateChannelGuildRequestSchema,
-  UpdateChannelGuildResponseSchema,
-  // Channel config-overrides (PATCH/DELETE wire the dashboard)
-  GetChannelConfigOverridesResponseSchema,
-  UpdateChannelConfigOverridesRequestSchema,
-  UpdateChannelConfigOverridesResponseSchema,
   ClearChannelConfigOverridesResponseSchema,
-  // Wallet
-  ListWalletKeysResponseSchema,
-  RemoveWalletKeyResponseSchema,
-  SetWalletKeySchema,
-  SetWalletKeyResponseSchema,
-  TestWalletKeySchema,
-  TestWalletKeyResponseSchema,
-  // Voice resolution
-  GetVoiceResolutionResponseSchema,
-  // Usage
-  UsageStatsSchema,
-  // NSFW verification
-  GetNsfwStatusResponseSchema,
-  VerifyNsfwResponseSchema,
-  // History
+  ClearHistoryResponseSchema,
   ClearHistorySchema,
-  UndoHistorySchema,
+  ClearVoicesResponseSchema,
+  DeactivateChannelRequestSchema,
+  DeactivateChannelResponseSchema,
+  DeleteVoiceResponseSchema,
+  GATEWAY_TIMEOUTS,
+  GetChannelActivationResponseSchema,
+  GetChannelConfigOverridesResponseSchema,
+  GetNsfwStatusResponseSchema,
+  GetVoiceResolutionResponseSchema,
+  HardDeleteHistoryResponseSchema,
   HardDeleteHistorySchema,
   HistoryStatsQuerySchema,
-  ClearHistoryResponseSchema,
-  UndoHistoryResponseSchema,
   HistoryStatsResponseSchema,
-  HardDeleteHistoryResponseSchema,
-  // Voices (cloned voice management)
-  ListVoicesResponseSchema,
+  ListChannelSettingsResponseSchema,
   ListVoiceModelsResponseSchema,
-  ClearVoicesResponseSchema,
-  DeleteVoiceResponseSchema,
-} from '../../schemas/api/index.js';
-import { GATEWAY_TIMEOUTS } from '../../constants/discord.js';
+  ListVoicesResponseSchema,
+  ListWalletKeysResponseSchema,
+  RemoveWalletKeyResponseSchema,
+  SetWalletKeyResponseSchema,
+  SetWalletKeySchema,
+  TestWalletKeyResponseSchema,
+  TestWalletKeySchema,
+  UndoHistoryResponseSchema,
+  UndoHistorySchema,
+  UpdateChannelConfigOverridesRequestSchema,
+  UpdateChannelConfigOverridesResponseSchema,
+  UpdateChannelGuildRequestSchema,
+  UpdateChannelGuildResponseSchema,
+  UsageStatsSchema,
+  VerifyNsfwResponseSchema,
+} from '@tzurot/common-types';
+
 import type { RouteDef } from '../types.js';
 
 const CHANNEL_CONFIG_OVERRIDES_PATH = '/channel/:channelId/config-overrides';

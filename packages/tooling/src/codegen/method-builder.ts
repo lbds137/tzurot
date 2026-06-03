@@ -9,7 +9,7 @@
  */
 
 import { z } from 'zod';
-import { resolveQueryShape, type Audience, type RouteDef } from '@tzurot/common-types';
+import { resolveQueryShape, type Audience, type RouteDef } from '@tzurot/clients';
 
 /**
  * Detect whether a Zod schema is marked optional. `z.string()` is required,

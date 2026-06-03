@@ -10,29 +10,30 @@
 
 import { z } from 'zod';
 import {
+  ClearOverrideResponseSchema,
+  CreateOverrideResponseSchema,
+  CreatePersonalityResponseSchema,
+  CreatePersonaResponseSchema,
+  DeletePersonalityResponseSchema,
+  DeletePersonaResponseSchema,
+  GATEWAY_TIMEOUTS,
+  GetPersonalityResponseSchema,
+  GetPersonaResponseSchema,
+  ListPersonalitiesResponseSchema,
+  ListPersonaOverridesResponseSchema,
+  ListPersonasResponseSchema,
+  OverrideInfoResponseSchema,
+  PersonaCreateSchema,
   PersonalityCreateSchema,
   PersonalityUpdateSchema,
-  CreatePersonalityResponseSchema,
-  GetPersonalityResponseSchema,
-  ListPersonalitiesResponseSchema,
-  DeletePersonalityResponseSchema,
-  SetVisibilitySchema,
-  PersonaCreateSchema,
   PersonaUpdateSchema,
-  CreatePersonaResponseSchema,
-  CreateOverrideResponseSchema,
-  UpdatePersonaResponseSchema,
-  DeletePersonaResponseSchema,
-  GetPersonaResponseSchema,
-  ListPersonasResponseSchema,
   SetDefaultPersonaResponseSchema,
-  SetPersonaOverrideSchema,
   SetOverrideResponseSchema,
-  ClearOverrideResponseSchema,
-  OverrideInfoResponseSchema,
-  ListPersonaOverridesResponseSchema,
-} from '../../schemas/api/index.js';
-import { GATEWAY_TIMEOUTS } from '../../constants/discord.js';
+  SetPersonaOverrideSchema,
+  SetVisibilitySchema,
+  UpdatePersonaResponseSchema,
+} from '@tzurot/common-types';
+
 import type { RouteDef } from '../types.js';
 
 const PERSONALITY_DETAIL_PATH = '/personality/:slug';

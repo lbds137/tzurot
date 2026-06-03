@@ -107,30 +107,9 @@ export * from './services/resolvers/index.js';
 // Use these instead of manually constructing API response mocks
 export * from './factories/index.js';
 
-// Route manifest types — branded ActorDiscordId/SubjectDiscordId, smart
-// constructors, RouteDef descriptor. The audience-scoped registries
-// (internal/admin/user) and the composed ROUTE_MANIFEST are exported by
-// the lines immediately below.
-export * from './routes/types.js';
-// Internal-audience route registry (service-to-service endpoints).
-export * from './routes/internal.js';
-// Admin-audience route registry (bot-owner-only endpoints).
-export * from './routes/admin.js';
-// User-audience route registry (any-authenticated-user endpoints).
-// Composed in routes/user/index.ts from configs + resources sub-manifests.
-export * from './routes/user/index.js';
-// Central route manifest registry — composes all three audiences.
-export * from './routes/manifest.js';
-// Shared gateway client transport + error helpers (lifted from
-// bot-client/utils/userGatewayClient.ts so generated clients can use them).
-export * from './clients/errors.js';
-export * from './clients/transport.js';
-// Generated client classes — re-exported from the package entry point so
-// downstream consumers (bot-client, ai-worker) can import them without
-// reaching into _generated/ paths.
-export { ServiceClient } from './clients/_generated/service-client.js';
-export type { ServiceClientOptions } from './clients/_generated/service-client.js';
-export { OwnerClient } from './clients/_generated/owner-client.js';
-export type { OwnerClientOptions } from './clients/_generated/owner-client.js';
-export { UserClient } from './clients/_generated/user-client.js';
-export type { UserClientOptions } from './clients/_generated/user-client.js';
+// NOTE: the route manifest (`./routes/`) and the typed HTTP clients
+// (`./clients/`) live in the `@tzurot/clients` package. Import
+// `ROUTE_MANIFEST`, `UserClient`/`OwnerClient`/`ServiceClient`, the transport
+// helpers, and the branded actor/subject types from there. common-types keeps
+// the contract schemas (`schemas/api/*`) that the manifest references —
+// `@tzurot/clients` depends on this package one-way.

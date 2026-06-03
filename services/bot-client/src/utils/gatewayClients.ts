@@ -25,15 +25,14 @@ import type {
   ModalSubmitInteraction,
   User as DiscordUser,
 } from 'discord.js';
+import { getConfig, type GatewayUser } from '@tzurot/common-types';
 import {
-  getConfig,
   asActor,
   ServiceClient,
   OwnerClient,
   UserClient,
   type ActorDiscordId,
-  type GatewayUser,
-} from '@tzurot/common-types';
+} from '@tzurot/clients';
 import { getValidatedServiceSecret } from '../startup.js';
 
 /**

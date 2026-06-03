@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleListOverrides } from './list.js';
 import { EmbedBuilder } from 'discord.js';
 import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
-import type { UserClient } from '@tzurot/common-types';
+import type { UserClient } from '@tzurot/clients';
 
 const stub = {
   listModelOverrides: vi.fn(),

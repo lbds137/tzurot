@@ -34,7 +34,7 @@
  *     skip cases (health check, avatars, exports).
  */
 
-import type { Audience, RouteDef } from '@tzurot/common-types';
+import type { Audience, RouteDef } from '@tzurot/clients';
 import { AUTOGEN_HEADER } from './header.js';
 import { capitalizeFirst } from './string-utils.js';
 

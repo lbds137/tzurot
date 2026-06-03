@@ -10,7 +10,7 @@
 
 import { z } from 'zod';
 
-import type { ApiErrorSubcode } from '../constants/error.js';
+import type { ApiErrorSubcode } from '@tzurot/common-types';
 
 /**
  * Wire shape of a gateway error body. Used by {@link parseErrorResponse}

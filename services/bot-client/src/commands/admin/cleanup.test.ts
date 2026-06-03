@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { GatewayResult, OwnerClient } from '@tzurot/common-types';
+import type { GatewayResult, OwnerClient } from '@tzurot/clients';
 import { handleCleanup } from './cleanup.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 

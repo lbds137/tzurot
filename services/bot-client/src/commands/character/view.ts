@@ -20,8 +20,8 @@ import {
   TEXT_LIMITS,
   characterViewOptions,
   formatDateShort,
-  type UserClient,
 } from '@tzurot/common-types';
+import { type UserClient } from '@tzurot/clients';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { CharacterData } from './characterTypes.js';
 import { CharacterCustomIds } from '../../utils/customIds.js';

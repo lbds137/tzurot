@@ -10,7 +10,8 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { handleExport } from './export.js';
-import type { EnvConfig, UserClient } from '@tzurot/common-types';
+import type { EnvConfig } from '@tzurot/common-types';
+import type { UserClient } from '@tzurot/clients';
 import { AttachmentBuilder } from 'discord.js';
 
 interface StubUserClient {

@@ -178,6 +178,7 @@ describe('Project Structure', () => {
       'services/ai-worker/src',
       'services/api-gateway/src',
       'services/bot-client/src',
+      'packages/clients/src',
       'packages/common-types/src',
       'packages/embeddings/src',
       'packages/tooling/src',

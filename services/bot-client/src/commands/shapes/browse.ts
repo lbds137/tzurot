@@ -9,7 +9,8 @@
  */
 
 import { EmbedBuilder, ActionRowBuilder, type ButtonBuilder } from 'discord.js';
-import { createLogger, DISCORD_COLORS, type UserClient } from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import { type UserClient } from '@tzurot/clients';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import {

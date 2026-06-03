@@ -15,7 +15,7 @@ import {
   DiagnosticLogResponseSchema,
   DiagnosticLogsResponseSchema,
   RecentDiagnosticLogsResponseSchema,
-} from '../../schemas/api/index.js';
+} from '@tzurot/common-types';
 import type { RouteDef } from '../types.js';
 
 export const userDiagnosticRoutes = {

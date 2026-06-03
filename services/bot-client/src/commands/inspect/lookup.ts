@@ -18,8 +18,8 @@ import {
   normalizeDateTime,
   type DiagnosticLog as ApiDiagnosticLog,
   type DiagnosticPayload,
-  type UserClient,
 } from '@tzurot/common-types';
+import { type UserClient } from '@tzurot/clients';
 import type { LookupResult, DiagnosticLog } from './types.js';
 
 const logger = createLogger('inspect');

@@ -26,6 +26,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@tzurot/clients": "workspace:*",
     "@tzurot/common-types": "workspace:*",
     "@tzurot/embeddings": "workspace:*",
     "bullmq": "^5.77.3",

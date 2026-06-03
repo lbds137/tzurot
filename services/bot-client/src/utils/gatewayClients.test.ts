@@ -10,7 +10,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { OwnerClient, ServiceClient, UserClient } from '@tzurot/common-types';
+import { OwnerClient, ServiceClient, UserClient } from '@tzurot/clients';
 import type { ChatInputCommandInteraction, User as DiscordUser } from 'discord.js';
 
 vi.mock('@tzurot/common-types', async () => {

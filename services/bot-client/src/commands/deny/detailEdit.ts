@@ -14,13 +14,13 @@ import {
   MessageFlags,
 } from 'discord.js';
 import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, type DenylistScope } from '@tzurot/common-types';
 import { getSessionManager } from '../../utils/dashboard/SessionManager.js';
 import { showModalWithTimeoutCatch } from '../../utils/dashboard/showModalWithTimeoutCatch.js';
 import { DASHBOARD_MESSAGES } from '../../utils/dashboard/messages.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import type { DenylistEntryResponse } from './browseTypes.js';
-import type { DenylistScope, OwnerClient } from '@tzurot/common-types';
+import type { OwnerClient } from '@tzurot/clients';
 import type { DenyDetailSession } from './detailTypes.js';
 import { ENTITY_TYPE, VALID_SCOPES, buildDetailEmbed, buildDetailButtons } from './detailTypes.js';
 

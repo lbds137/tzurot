@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { ButtonInteraction } from 'discord.js';
-import type { GatewayResult, UserClient } from '@tzurot/common-types';
+import type { GatewayResult, UserClient } from '@tzurot/clients';
 import { handleBrowse, handleBrowsePagination, isChannelBrowseInteraction } from './browse.js';
 
 vi.mock('@tzurot/common-types', async importOriginal => {

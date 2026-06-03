@@ -21,7 +21,7 @@ import { resolve, dirname, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readFile } from 'node:fs/promises';
 
-import { ROUTE_MANIFEST } from '@tzurot/common-types';
+import { ROUTE_MANIFEST } from '@tzurot/clients';
 import {
   HANDLER_PATH_MAP,
   HANDLER_EXPORT_NAME_OVERRIDES,

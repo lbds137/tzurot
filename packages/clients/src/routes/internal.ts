@@ -15,26 +15,27 @@
 
 import { z } from 'zod';
 import {
-  AiGenerateResponseSchema,
-  AiTranscribeResponseSchema,
-  AiJobStatusResponseSchema,
+  AdminSettingsSchema,
   AiConfirmDeliveryResponseSchema,
+  AiGenerateResponseSchema,
+  AiJobStatusResponseSchema,
+  AiTranscribeResponseSchema,
+  DenylistCacheResponseSchema,
+  DiagnosticUpdateResponseSchema,
+  DiagnosticUpdateSchema,
   DmSessionSetRequestSchema,
   DmSessionSetResponseSchema,
+  generateRequestSchema,
+  GetChannelSettingsResponseSchema,
   MessagePersonalityResponseSchema,
   RecentUsersResponseSchema,
-  DenylistCacheResponseSchema,
-  DiagnosticUpdateSchema,
-  DiagnosticUpdateResponseSchema,
-  GetChannelSettingsResponseSchema,
+  TIMEOUTS,
   TranscribeRequestSchema,
-  AdminSettingsSchema,
-} from '../schemas/api/index.js';
+} from '@tzurot/common-types';
 // generateRequestSchema lives under the `types/schemas/` module rather than
 // the `schemas/api/` barrel (it predates the API-schema reorganization). The
 // route-manifest treats them uniformly via the import below.
-import { generateRequestSchema } from '../types/schemas/generation.js';
-import { TIMEOUTS } from '../constants/timing.js';
+
 import type { RouteDef } from './types.js';
 
 /**

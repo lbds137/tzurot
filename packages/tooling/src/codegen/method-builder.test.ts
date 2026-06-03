@@ -9,7 +9,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import type { RouteDef } from '@tzurot/common-types';
+import type { RouteDef } from '@tzurot/clients';
 import { buildMethod, extractPathParams, pathPrefixForAudience } from './method-builder.js';
 
 const baseRoute: RouteDef = {

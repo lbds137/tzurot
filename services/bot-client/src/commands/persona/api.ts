@@ -5,7 +5,8 @@
  * gateway client.
  */
 
-import { createLogger, type PersonaUpdateInput, type UserClient } from '@tzurot/common-types';
+import { createLogger, type PersonaUpdateInput } from '@tzurot/common-types';
+import { type UserClient } from '@tzurot/clients';
 import type { PersonaDetails, PersonaSummary } from './types.js';
 
 const logger = createLogger('persona-api');

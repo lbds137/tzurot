@@ -8,7 +8,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleClear } from './clear.js';
 import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
-import type { UserClient } from '@tzurot/common-types';
+import type { UserClient } from '@tzurot/clients';
 
 const stub = {
   deleteModelOverride: vi.fn(),

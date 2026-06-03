@@ -15,10 +15,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type {
   DiagnosticLogResponse,
   DiagnosticPayload,
-  GatewayResult,
   RecentDiagnosticLogsResponse,
-  UserClient,
 } from '@tzurot/common-types';
+import type { GatewayResult, UserClient } from '@tzurot/clients';
 import {
   fetchRecentLogs,
   buildBrowsePage,
