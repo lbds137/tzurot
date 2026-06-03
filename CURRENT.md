@@ -7,7 +7,11 @@
 
 ## Next Session Goal
 
-**beta.126 is shipped and live on prod.** The typed-client epic is closed; there is **no active epic**. First task next session: promote a next theme into the Active Epic slot — `next-theme.md` is open, and `active-epic.md` still holds the closed epic's phase log as historical reference (rotate per `06-backlog.md`).
+**Active epic: Slim `@tzurot/common-types` (PR-2n)** — see [future-themes.md](backlog/future-themes.md). **Phase 1 shipped** (PR #1142, 2026-06-03): the `factories/` mock-builders moved out of common-types into a new `@tzurot/test-factories` package (a dedicated package, NOT test-utils — that would have closed a `common-types ↔ test-utils` build cycle). 21 bot-client consumers repointed; cycle-free; full gate green.
+
+**Next: Phase 2 — extract `common-types/services/`** (`ConversationHistoryService` et al., stateful logic consumed by ai-worker/api-gateway). This is design-bearing, NOT mechanical like Phase 1 — needs a **council design pass first** on "one shared service package vs. relocate each service into its primary consumer" before any code. Phase 3 (barrel-kill, ~1,021 sites) is optional/lowest-urgency, deferred to icebox.
+
+Two PR #1142 follow-ups filed: depcruise dev-only boundary rule ([quick-wins.md](backlog/quick-wins.md)); structural-test growth gap ([deferred.md](backlog/deferred.md)).
 
 **Candidate next themes** (user picks; each gets a council pass before plan-mode):
 
