@@ -20,7 +20,8 @@
  */
 
 import type { ChatInputCommandInteraction } from 'discord.js';
-import type { EnvConfig, UserClient } from '@tzurot/common-types';
+import type { EnvConfig } from '@tzurot/common-types';
+import type { UserClient } from '@tzurot/clients';
 import type { CharacterData } from './characterTypes.js';
 
 /**

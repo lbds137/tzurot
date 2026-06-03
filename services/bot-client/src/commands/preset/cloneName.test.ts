@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { GatewayApiError, type UserClient } from '@tzurot/common-types';
+import { GatewayApiError, type UserClient } from '@tzurot/clients';
 import type { FlattenedPresetData } from './config.js';
 
 function mkUserClient(discordId = 'user-1'): UserClient {

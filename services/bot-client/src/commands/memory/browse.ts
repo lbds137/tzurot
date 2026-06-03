@@ -24,8 +24,8 @@ import {
   formatDateShort,
   type MemoryItem,
   type MemoryListResponse,
-  type UserClient,
 } from '@tzurot/common-types';
+import { type UserClient } from '@tzurot/clients';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import {

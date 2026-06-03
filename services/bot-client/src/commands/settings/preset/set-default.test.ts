@@ -13,7 +13,7 @@ import {
   mockListLlmConfigsResponse,
 } from '@tzurot/common-types';
 import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
-import type { UserClient } from '@tzurot/common-types';
+import type { UserClient } from '@tzurot/clients';
 
 // Mock logger
 vi.mock('@tzurot/common-types', async () => {

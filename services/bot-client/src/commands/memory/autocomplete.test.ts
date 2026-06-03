@@ -9,7 +9,7 @@ import {
   getPersonalityName,
 } from './autocomplete.js';
 import type { AutocompleteInteraction } from 'discord.js';
-import type { UserClient } from '@tzurot/common-types';
+import type { UserClient } from '@tzurot/clients';
 
 function mkUser(discordId = 'user-123'): UserClient {
   // Cache-key only — `actor` is the field getCachedPersonalities reads via

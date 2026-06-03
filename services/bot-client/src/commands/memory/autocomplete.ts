@@ -5,7 +5,7 @@
  */
 
 import type { AutocompleteInteraction } from 'discord.js';
-import type { UserClient } from '@tzurot/common-types';
+import type { UserClient } from '@tzurot/clients';
 import { handlePersonalityAutocomplete as sharedPersonalityAutocomplete } from '../../utils/autocomplete/personalityAutocomplete.js';
 import { getCachedPersonalities } from '../../utils/autocomplete/autocompleteCache.js';
 

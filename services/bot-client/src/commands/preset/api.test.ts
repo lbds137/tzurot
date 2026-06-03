@@ -11,7 +11,7 @@ import {
   extractApiErrorMessage,
   createPreset,
 } from './api.js';
-import { GatewayApiError } from '@tzurot/common-types';
+import { GatewayApiError } from '@tzurot/clients';
 import { makeOk, makeErr, asUserClient, asOwnerClient } from '../../test/gatewayClientStubs.js';
 import type { PresetData } from './config.js';
 

@@ -13,7 +13,8 @@ import {
   handleCharacterOverridesModal,
   isCharacterOverridesInteraction,
 } from './overrides.js';
-import type { EnvConfig, ResolvedConfigOverrides, UserClient } from '@tzurot/common-types';
+import type { EnvConfig, ResolvedConfigOverrides } from '@tzurot/common-types';
+import type { UserClient } from '@tzurot/clients';
 
 // Mock dependencies
 vi.mock('@tzurot/common-types', async importOriginal => {

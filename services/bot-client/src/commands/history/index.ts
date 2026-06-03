@@ -35,7 +35,7 @@ import {
   createHardDeleteConfig,
   type DestructiveOperationResult,
 } from '../../utils/destructiveConfirmation.js';
-import { type UserClient } from '@tzurot/common-types';
+import { type UserClient } from '@tzurot/clients';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { createSuccessEmbed } from '../../utils/commandHelpers.js';
 

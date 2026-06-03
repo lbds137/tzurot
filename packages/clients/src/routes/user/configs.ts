@@ -12,52 +12,47 @@
 
 import { z } from 'zod';
 import {
-  // Timezone
+  ClearDefaultConfigResponseSchema,
+  ClearSttDefaultProviderResponseSchema,
+  ClearTtsDefaultConfigResponseSchema,
+  CreateLlmConfigResponseSchema,
+  CreateTtsConfigResponseSchema,
+  DeleteLlmConfigResponseSchema,
+  DeleteModelOverrideResponseSchema,
+  DeleteTtsConfigResponseSchema,
+  DeleteTtsOverrideResponseSchema,
+  GATEWAY_TIMEOUTS,
+  GetLlmConfigResponseSchema,
   GetTimezoneResponseSchema,
-  SetTimezoneResponseSchema,
-  SetTimezoneInputSchema,
-  // LLM config
+  GetTtsConfigResponseSchema,
+  GetTtsDefaultConfigResponseSchema,
+  ListLlmConfigsResponseSchema,
+  ListModelOverridesResponseSchema,
+  ListTtsConfigsResponseSchema,
+  ListTtsOverridesResponseSchema,
   LlmConfigCreateSchema,
   LlmConfigUpdateSchema,
-  ListLlmConfigsResponseSchema,
-  GetLlmConfigResponseSchema,
-  CreateLlmConfigResponseSchema,
-  UpdateLlmConfigResponseSchema,
-  DeleteLlmConfigResponseSchema,
   ResolveLlmConfigInputSchema,
   ResolveLlmConfigResponseSchema,
-  // TTS config
+  SetDefaultConfigResponseSchema,
+  SetDefaultConfigSchema,
+  SetModelOverrideResponseSchema,
+  SetModelOverrideSchema,
+  SetSttDefaultProviderResponseSchema,
+  SetSttDefaultProviderSchema,
+  SetTimezoneInputSchema,
+  SetTimezoneResponseSchema,
+  SetTtsDefaultConfigResponseSchema,
+  SetTtsDefaultConfigSchema,
+  SetTtsOverrideResponseSchema,
+  SetTtsOverrideSchema,
   TtsConfigCreateSchema,
   TtsConfigUpdateSchema,
-  ListTtsConfigsResponseSchema,
-  GetTtsConfigResponseSchema,
-  CreateTtsConfigResponseSchema,
+  UpdateLlmConfigResponseSchema,
   UpdateTtsConfigResponseSchema,
-  DeleteTtsConfigResponseSchema,
-  // TTS override
-  SetTtsOverrideSchema,
-  SetTtsDefaultConfigSchema,
-  ListTtsOverridesResponseSchema,
-  SetTtsOverrideResponseSchema,
-  GetTtsDefaultConfigResponseSchema,
-  SetTtsDefaultConfigResponseSchema,
-  ClearTtsDefaultConfigResponseSchema,
-  DeleteTtsOverrideResponseSchema,
-  // STT override
-  SetSttDefaultProviderSchema,
   UserDefaultSttProviderSchema,
-  SetSttDefaultProviderResponseSchema,
-  ClearSttDefaultProviderResponseSchema,
-  // Model override
-  SetModelOverrideSchema,
-  SetDefaultConfigSchema,
-  ListModelOverridesResponseSchema,
-  SetModelOverrideResponseSchema,
-  SetDefaultConfigResponseSchema,
-  ClearDefaultConfigResponseSchema,
-  DeleteModelOverrideResponseSchema,
-} from '../../schemas/api/index.js';
-import { GATEWAY_TIMEOUTS } from '../../constants/discord.js';
+} from '@tzurot/common-types';
+
 import type { RouteDef } from '../types.js';
 
 // Shared CRUD-detail path constants — GET/PUT/DELETE on the same :id share

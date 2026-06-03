@@ -14,7 +14,8 @@ import {
   _getCacheSizeForTesting,
   _getStaleCacheSizeForTesting,
 } from './autocompleteCache.js';
-import type { PersonalitySummary, UserClient } from '@tzurot/common-types';
+import type { PersonalitySummary } from '@tzurot/common-types';
+import type { UserClient } from '@tzurot/clients';
 import type { PersonaSummary, ShapesSummary } from './autocompleteCache.js';
 import { makeOk, makeErr } from '../../test/gatewayClientStubs.js';
 

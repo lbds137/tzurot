@@ -7,9 +7,9 @@
  * versions (drift-detection mode for CI).
  *
  * Generated files land in:
- *   packages/common-types/src/clients/_generated/service-client.ts
- *   packages/common-types/src/clients/_generated/owner-client.ts
- *   packages/common-types/src/clients/_generated/user-client.ts
+ *   packages/clients/src/clients/_generated/service-client.ts
+ *   packages/clients/src/clients/_generated/owner-client.ts
+ *   packages/clients/src/clients/_generated/user-client.ts
  *
  * The mounts.ts generator (server-side) is a follow-up commit — it
  * depends on the api-gateway route-handler refactor to expose named
@@ -19,8 +19,8 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
-import { ROUTE_MANIFEST, adminRoutes, internalRoutes, userRoutes } from '@tzurot/common-types';
-import type { Audience, RouteDef } from '@tzurot/common-types';
+import { ROUTE_MANIFEST, adminRoutes, internalRoutes, userRoutes } from '@tzurot/clients';
+import type { Audience, RouteDef } from '@tzurot/clients';
 
 import { buildClientClass } from './client-builder.js';
 import { buildMountsFile } from './mounts-builder.js';
@@ -87,19 +87,19 @@ export function generateAllClients(): Record<string, string> {
   const userByAud = filterByAudience(userRoutes, 'user');
 
   return {
-    'packages/common-types/src/clients/_generated/service-client.ts': buildClientClass({
+    'packages/clients/src/clients/_generated/service-client.ts': buildClientClass({
       className: 'ServiceClient',
       flavor: 'service',
       audience: 'internal',
       routes: internalByAud,
     }),
-    'packages/common-types/src/clients/_generated/owner-client.ts': buildClientClass({
+    'packages/clients/src/clients/_generated/owner-client.ts': buildClientClass({
       className: 'OwnerClient',
       flavor: 'owner',
       audience: 'admin',
       routes: adminByAud,
     }),
-    'packages/common-types/src/clients/_generated/user-client.ts': buildClientClass({
+    'packages/clients/src/clients/_generated/user-client.ts': buildClientClass({
       className: 'UserClient',
       flavor: 'user',
       audience: 'user',

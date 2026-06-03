@@ -21,7 +21,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { asActor, asSubject, type ActorDiscordId } from '../routes/types.js';
-import type { GatewayUser } from '../types/gateway-context.js';
+import type { GatewayUser } from '@tzurot/common-types';
 import { OwnerClient } from './_generated/owner-client.js';
 import { ServiceClient } from './_generated/service-client.js';
 import { UserClient } from './_generated/user-client.js';

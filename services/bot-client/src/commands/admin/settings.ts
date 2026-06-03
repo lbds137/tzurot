@@ -22,12 +22,8 @@ import type {
   ModalSubmitInteraction,
 } from 'discord.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import {
-  createLogger,
-  DISCORD_COLORS,
-  type GetAdminSettingsResponse,
-  type OwnerClient,
-} from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS, type GetAdminSettingsResponse } from '@tzurot/common-types';
+import { type OwnerClient } from '@tzurot/clients';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { invalidateAdminSettingsCache } from '../../utils/gatewayServiceCalls.js';
 import {

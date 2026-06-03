@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ChatInputCommandInteraction } from 'discord.js';
-import type { GatewayResult, OwnerClient } from '@tzurot/common-types';
+import type { GatewayResult, OwnerClient } from '@tzurot/clients';
 import { handleStopSequences } from './stop-sequences.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 

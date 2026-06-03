@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { UserClient } from '@tzurot/common-types';
+import type { UserClient } from '@tzurot/clients';
 
 const { mockPatchFn, mockResolveFn, mockMapSettingToApiUpdate } = vi.hoisted(() => ({
   mockPatchFn: vi.fn(),

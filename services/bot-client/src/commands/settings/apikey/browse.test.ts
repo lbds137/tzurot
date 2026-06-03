@@ -8,7 +8,7 @@ import { handleBrowse } from './browse.js';
 import { mockListWalletKeysResponse, AIProvider } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
-import type { UserClient } from '@tzurot/common-types';
+import type { UserClient } from '@tzurot/clients';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {

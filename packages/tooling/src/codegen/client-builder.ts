@@ -7,7 +7,7 @@
  * which routes are emitted.
  */
 
-import type { Audience, RouteDef } from '@tzurot/common-types';
+import type { Audience, RouteDef } from '@tzurot/clients';
 
 import { AUTOGEN_HEADER } from './header.js';
 import { type ClientFlavor, buildMethod, pathPrefixForAudience } from './method-builder.js';
@@ -51,12 +51,11 @@ export function buildClientClass(options: ClientBuildOptions): string {
 function buildImports(flavor: ClientFlavor, routes: Record<string, RouteDef>): string {
   const hasAcceptsSubject = Object.values(routes).some(r => r.acceptsSubject === true);
 
-  // Generated files import from specific submodules rather than
-  // `../../index.js` to avoid a circular import: the package index now
-  // re-exports the generated classes themselves (for downstream service
-  // imports like `import { UserClient } from '@tzurot/common-types'`),
-  // and depcruise's no-circular-dependencies rule rightly rejects the
-  // self-import shape that creates.
+  // Intra-package symbols (transport, manifest, route types) import via
+  // relative paths rather than the `@tzurot/clients` index to avoid a
+  // self-import cycle: the package index re-exports the generated classes
+  // themselves. Cross-package symbols (GatewayUser) import from
+  // `@tzurot/common-types` — a one-way dependency, no cycle.
   const transportSymbols: string[] = ['callGateway', 'type GatewayResult'];
   const manifestSymbols: string[] = ['ROUTE_MANIFEST'];
   const typeSymbols: string[] = [];
@@ -76,7 +75,7 @@ function buildImports(flavor: ClientFlavor, routes: Record<string, RouteDef>): s
     lines.push(`import { ${typeSymbols.join(', ')} } from '../../routes/types.js';`);
   }
   if (flavor === 'user') {
-    lines.push(`import type { GatewayUser } from '../../types/gateway-context.js';`);
+    lines.push(`import type { GatewayUser } from '@tzurot/common-types';`);
   }
 
   lines.push('');

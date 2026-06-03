@@ -21,16 +21,17 @@
 
 import { z } from 'zod';
 import {
+  ClearPersonalityConfigOverridesResponseSchema,
+  ClearUserConfigDefaultsResponseSchema,
   ConfigOverridesSchema,
+  GATEWAY_TIMEOUTS,
+  GetUserConfigDefaultsResponseSchema,
   ResolvedConfigOverridesSchema,
   ResolveUserConfigDefaultsResponseSchema,
-  GetUserConfigDefaultsResponseSchema,
   UpdateConfigDefaultsResponseSchema,
-  ClearUserConfigDefaultsResponseSchema,
   UpdatePersonalityConfigOverridesResponseSchema,
-  ClearPersonalityConfigOverridesResponseSchema,
-} from '../../schemas/api/index.js';
-import { GATEWAY_TIMEOUTS } from '../../constants/discord.js';
+} from '@tzurot/common-types';
+
 import type { RouteDef } from '../types.js';
 
 const BASE = '/config-overrides';

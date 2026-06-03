@@ -22,10 +22,11 @@ import { escapeMarkdown, EmbedBuilder, MessageFlags } from 'discord.js';
 import {
   createLogger,
   DISCORD_COLORS,
-  memorySearchOptions,
   formatDateShort,
-  type UserClient,
+  type MemoryItem,
+  memorySearchOptions,
 } from '@tzurot/common-types';
+import { type UserClient } from '@tzurot/clients';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import {
@@ -37,7 +38,7 @@ import {
 } from '../../utils/browse/index.js';
 import { resolveOptionalPersonality } from './resolveHelpers.js';
 import { buildMemoryActionId, handleMemorySelect } from './detail.js';
-import type { MemoryItem } from '@tzurot/common-types';
+
 import { handleMemoryDetailAction } from './detailActionRouter.js';
 import { formatSimilarity, truncateContent } from './formatters.js';
 import {

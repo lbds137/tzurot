@@ -8,12 +8,8 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MessageFlags } from 'discord.js';
-import type {
-  DiagnosticLogResponse,
-  DiagnosticPayload,
-  GatewayResult,
-  UserClient,
-} from '@tzurot/common-types';
+import type { DiagnosticLogResponse, DiagnosticPayload } from '@tzurot/common-types';
+import type { GatewayResult, UserClient } from '@tzurot/clients';
 import { InspectCustomIds } from './customIds.js';
 import { DebugViewType } from './types.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';

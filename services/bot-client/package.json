@@ -23,6 +23,7 @@
     "deploy-commands:railway": "railway run --service bot-client pnpm deploy-commands"
   },
   "dependencies": {
+    "@tzurot/clients": "workspace:*",
     "@tzurot/common-types": "workspace:*",
     "bullmq": "^5.77.3",
     "discord.js": "^14.26.4",

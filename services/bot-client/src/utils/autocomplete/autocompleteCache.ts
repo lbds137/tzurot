@@ -40,12 +40,8 @@
  *     empty list.
  */
 
-import {
-  createLogger,
-  TTLCache,
-  type PersonalitySummary,
-  type UserClient,
-} from '@tzurot/common-types';
+import { createLogger, TTLCache, type PersonalitySummary } from '@tzurot/common-types';
+import { type UserClient } from '@tzurot/clients';
 import { isTransientHttpStatus, type ApiCheck } from '../apiCheck.js';
 
 const logger = createLogger('autocomplete-cache');
