@@ -14,8 +14,8 @@ import {
   ActionRowBuilder,
   type ModalActionRowComponentBuilder,
   MessageFlags,
+  type ModalSubmitInteraction,
 } from 'discord.js';
-import type { ModalSubmitInteraction } from 'discord.js';
 import {
   createLogger,
   isBotOwner,

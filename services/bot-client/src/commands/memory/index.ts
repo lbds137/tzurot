@@ -17,8 +17,7 @@
  * - /memory incognito forget <personality> <timeframe> - Retroactively delete recent memories
  */
 
-import { SlashCommandBuilder } from 'discord.js';
-import type { AutocompleteInteraction } from 'discord.js';
+import { SlashCommandBuilder, type AutocompleteInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { defineCommand } from '../../utils/defineCommand.js';
 import type {

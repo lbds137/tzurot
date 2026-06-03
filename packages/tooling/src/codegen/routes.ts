@@ -19,8 +19,14 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
-import { ROUTE_MANIFEST, adminRoutes, internalRoutes, userRoutes } from '@tzurot/clients';
-import type { Audience, RouteDef } from '@tzurot/clients';
+import {
+  ROUTE_MANIFEST,
+  adminRoutes,
+  internalRoutes,
+  userRoutes,
+  type Audience,
+  type RouteDef,
+} from '@tzurot/clients';
 
 import { buildClientClass } from './client-builder.js';
 import { buildMountsFile } from './mounts-builder.js';

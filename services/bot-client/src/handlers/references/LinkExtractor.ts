@@ -4,18 +4,18 @@
  * Extracts referenced messages from Discord message links
  */
 
-import type {
-  Message,
-  Channel,
-  TextChannel,
-  ThreadChannel,
-  DMChannel,
-  NewsChannel,
-  GuildMember,
+import {
+  type Message,
+  type Channel,
+  type TextChannel,
+  type ThreadChannel,
+  type DMChannel,
+  type NewsChannel,
+  type GuildMember,
+  ChannelType,
+  PermissionsBitField,
 } from 'discord.js';
-import { ChannelType, PermissionsBitField } from 'discord.js';
-import { createLogger, INTERVALS } from '@tzurot/common-types';
-import type { ReferencedMessage } from '@tzurot/common-types';
+import { createLogger, INTERVALS, type ReferencedMessage } from '@tzurot/common-types';
 import { MessageLinkParser, type ParsedMessageLink } from '../../utils/MessageLinkParser.js';
 import { MessageFormatter } from './MessageFormatter.js';
 import { SnapshotFormatter } from './SnapshotFormatter.js';

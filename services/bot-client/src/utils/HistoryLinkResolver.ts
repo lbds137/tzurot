@@ -18,8 +18,11 @@
  */
 
 import type { Message, Client } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
-import type { StoredReferencedMessage, AttachmentMetadata } from '@tzurot/common-types';
+import {
+  createLogger,
+  type StoredReferencedMessage,
+  type AttachmentMetadata,
+} from '@tzurot/common-types';
 import { MessageLinkParser, type ParsedMessageLink } from './MessageLinkParser.js';
 import { buildMessageContent } from './MessageContentBuilder.js';
 

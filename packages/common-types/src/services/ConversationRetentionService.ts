@@ -9,8 +9,7 @@
  * Uses tombstones to prevent db-sync from restoring deleted messages.
  */
 
-import type { PrismaClient } from './prisma.js';
-import { Prisma } from './prisma.js';
+import { type PrismaClient, Prisma } from './prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { CLEANUP_DEFAULTS, SYNC_LIMITS } from '../constants/index.js';
 

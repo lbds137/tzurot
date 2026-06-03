@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import sonarjs from 'eslint-plugin-sonarjs';
 import * as regexpPlugin from 'eslint-plugin-regexp';
+import importPlugin from 'eslint-plugin-import-x';
 import tzurotPlugin from './packages/tooling/dist/eslint/index.js';
 
 // Get the directory name of the current module (monorepo root)
@@ -232,6 +233,7 @@ export default tseslint.config(
       '@tzurot': tzurotPlugin,
       sonarjs,
       regexp: regexpPlugin,
+      import: importPlugin,
     },
     languageOptions: {
       ecmaVersion: 2022,
@@ -246,6 +248,12 @@ export default tseslint.config(
       },
     },
     rules: {
+      // Merge multiple imports from the same module into one statement. The core
+      // `no-duplicate-imports` rule can't merge a type-only and a value import
+      // from the same module; `prefer-inline` makes this one do so with inline
+      // `type` markers (without it, the autofix folds the value import into an
+      // `import type {}` block and emits invalid code).
+      'import/no-duplicates': ['error', { 'prefer-inline': true }],
       // TypeScript specific rules
       '@typescript-eslint/explicit-function-return-type': [
         'error',

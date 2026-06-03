@@ -16,8 +16,12 @@
  * in detailHandlers.ts to keep this router under ESLint max-lines.
  */
 
-import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
-import { ButtonBuilder, ActionRowBuilder } from 'discord.js';
+import {
+  type ButtonInteraction,
+  type StringSelectMenuInteraction,
+  ButtonBuilder,
+  ActionRowBuilder,
+} from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { ShapesCustomIds } from '../../utils/customIds.js';
 import { clientsFor } from '../../utils/gatewayClients.js';

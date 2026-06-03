@@ -8,8 +8,12 @@
  * Follows the same mutation pattern as injectImageDescriptions() in RAGUtils.ts.
  */
 
-import type { PrismaClient, StoredReferencedMessage } from '@tzurot/common-types';
-import { createLogger, type VisionDescriptionCache } from '@tzurot/common-types';
+import {
+  type PrismaClient,
+  type StoredReferencedMessage,
+  createLogger,
+  type VisionDescriptionCache,
+} from '@tzurot/common-types';
 import { batchResolveByDiscordIds } from './reference/BatchResolvers.js';
 import type { RawHistoryEntry } from '../jobs/utils/conversationTypes.js';
 

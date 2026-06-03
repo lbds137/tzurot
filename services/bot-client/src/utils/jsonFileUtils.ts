@@ -5,9 +5,8 @@
  * Used by character and preset import/export commands.
  */
 
-import { AttachmentBuilder } from 'discord.js';
+import { AttachmentBuilder, type Attachment } from 'discord.js';
 import { createLogger, DISCORD_LIMITS } from '@tzurot/common-types';
-import type { Attachment } from 'discord.js';
 import { validateDiscordCdnUrl } from './discordCdnGuard.js';
 
 const logger = createLogger('json-file-utils');

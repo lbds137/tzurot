@@ -14,8 +14,8 @@ import {
   ActionRowBuilder,
   type ModalActionRowComponentBuilder,
   MessageFlags,
+  type ModalSubmitInteraction,
 } from 'discord.js';
-import type { ModalSubmitInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import type { ModalCommandContext } from '../../utils/commandContext/types.js';
 import {

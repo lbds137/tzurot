@@ -6,8 +6,7 @@
  */
 
 import { Embed } from 'discord.js';
-import type { AttachmentMetadata } from '@tzurot/common-types';
-import { CONTENT_TYPES, EMBED_NAMING } from '@tzurot/common-types';
+import { type AttachmentMetadata, CONTENT_TYPES, EMBED_NAMING } from '@tzurot/common-types';
 
 /**
  * Extract image and thumbnail URLs from Discord embeds as attachment metadata

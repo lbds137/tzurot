@@ -7,8 +7,7 @@
  * JSONB and are validated per-provider.
  */
 
-import { isTtsProviderId } from './tts/TtsProvider.js';
-import type { TtsAdvancedParams, TtsProviderId } from './tts/TtsProvider.js';
+import { isTtsProviderId, type TtsAdvancedParams, type TtsProviderId } from './tts/TtsProvider.js';
 
 /**
  * Prisma `select` shape used to load a TtsConfig with all fields the resolver

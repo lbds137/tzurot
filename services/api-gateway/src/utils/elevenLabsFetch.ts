@@ -8,8 +8,7 @@
 
 import { z } from 'zod';
 import { createLogger, VALIDATION_TIMEOUTS, AI_ENDPOINTS } from '@tzurot/common-types';
-import type { ErrorResponse } from './errorResponses.js';
-import { ErrorResponses } from './errorResponses.js';
+import { type ErrorResponse, ErrorResponses } from './errorResponses.js';
 
 const logger = createLogger('ElevenLabsFetch');
 

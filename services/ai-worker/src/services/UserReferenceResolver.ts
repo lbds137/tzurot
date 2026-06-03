@@ -14,8 +14,7 @@
  *   live participants come from the chat-log scan and current-message @mentions)
  */
 
-import type { PrismaClient, LoadedPersonality } from '@tzurot/common-types';
-import { createLogger } from '@tzurot/common-types';
+import { type PrismaClient, type LoadedPersonality, createLogger } from '@tzurot/common-types';
 import {
   RESOLVABLE_PERSONALITY_FIELDS,
   setPersonalityField,

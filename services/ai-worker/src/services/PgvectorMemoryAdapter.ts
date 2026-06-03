@@ -3,8 +3,8 @@
  * PostgreSQL + pgvector adapter for memory retrieval and storage
  */
 
-import { type PrismaClient } from '@tzurot/common-types';
 import {
+  type PrismaClient,
   createLogger,
   AI_DEFAULTS,
   splitTextByTokens,

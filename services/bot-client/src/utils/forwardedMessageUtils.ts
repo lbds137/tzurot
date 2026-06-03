@@ -18,8 +18,13 @@
  * This module handles both cases gracefully.
  */
 
-import type { Message, MessageSnapshot, Collection, APIEmbed } from 'discord.js';
-import { MessageReferenceType } from 'discord.js';
+import {
+  type Message,
+  type MessageSnapshot,
+  type Collection,
+  type APIEmbed,
+  MessageReferenceType,
+} from 'discord.js';
 import type { AttachmentMetadata } from '@tzurot/common-types';
 import { extractAttachments } from './attachmentExtractor.js';
 import { extractEmbedImages } from './embedImageExtractor.js';

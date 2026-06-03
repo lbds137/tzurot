@@ -15,8 +15,13 @@
  * because UUIDs can't fit in the filter enum slot.
  */
 
-import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
-import { EmbedBuilder, escapeMarkdown, MessageFlags } from 'discord.js';
+import {
+  type ButtonInteraction,
+  type StringSelectMenuInteraction,
+  EmbedBuilder,
+  escapeMarkdown,
+  MessageFlags,
+} from 'discord.js';
 import {
   createLogger,
   DISCORD_COLORS,

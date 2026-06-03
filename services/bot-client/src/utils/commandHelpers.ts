@@ -8,8 +8,7 @@
  * - Common interaction utilities
  */
 
-import { EmbedBuilder } from 'discord.js';
-import type { ChatInputCommandInteraction } from 'discord.js';
+import { EmbedBuilder, type ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import { isGatewayConfigured } from './gatewayClients.js';
 

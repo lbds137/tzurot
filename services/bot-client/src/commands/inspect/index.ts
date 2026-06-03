@@ -10,8 +10,12 @@
  * - Regular users: see only their own logs
  */
 
-import { SlashCommandBuilder, MessageFlags } from 'discord.js';
-import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
+import {
+  SlashCommandBuilder,
+  MessageFlags,
+  type ButtonInteraction,
+  type StringSelectMenuInteraction,
+} from 'discord.js';
 import { createLogger, inspectOptions } from '@tzurot/common-types';
 import { defineCommand } from '../../utils/defineCommand.js';
 import type {

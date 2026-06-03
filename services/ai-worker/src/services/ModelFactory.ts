@@ -17,8 +17,10 @@ import {
   AI_ENDPOINTS,
 } from '@tzurot/common-types';
 import { isReasoningModel } from '../utils/reasoningModelUtils.js';
-import { createOpenRouterFetch } from './modelFactory/OpenRouterFetch.js';
-import type { OpenRouterExtraParams } from './modelFactory/OpenRouterFetch.js';
+import {
+  createOpenRouterFetch,
+  type OpenRouterExtraParams,
+} from './modelFactory/OpenRouterFetch.js';
 
 // Re-export extracted modules for backward compatibility
 export { getModelCacheKey } from './modelFactory/CacheKeyBuilder.js';

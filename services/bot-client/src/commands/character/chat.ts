@@ -29,8 +29,9 @@ import {
   MESSAGE_LIMITS,
   characterChatOptions,
   type TypingChannel,
+  type EnvConfig,
+  type LoadedPersonality,
 } from '@tzurot/common-types';
-import type { EnvConfig, LoadedPersonality } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
   getPersonalityService,

@@ -14,8 +14,12 @@
  * gate necessary on the persona side.
  */
 
-import { AttachmentBuilder, MessageFlags } from 'discord.js';
-import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
+import {
+  AttachmentBuilder,
+  MessageFlags,
+  type ButtonInteraction,
+  type StringSelectMenuInteraction,
+} from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { type SectionDefinition } from '../../utils/dashboard/types.js';
 import { buildSectionModal } from '../../utils/dashboard/ModalFactory.js';

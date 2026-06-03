@@ -18,8 +18,7 @@
  */
 
 import { ChannelType, type Message } from 'discord.js';
-import { createLogger, isUuidFormat } from '@tzurot/common-types';
-import type { LoadedPersonality } from '@tzurot/common-types';
+import { createLogger, isUuidFormat, type LoadedPersonality } from '@tzurot/common-types';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import { lookupPersonalityFromMessage } from '../utils/gatewayServiceCalls.js';
 import { redisService } from '../redis.js';

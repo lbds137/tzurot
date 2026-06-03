@@ -5,12 +5,14 @@
  * These functions have no dependencies on class instances and can be used standalone.
  */
 
-import { createLogger, AttachmentType, AI_DEFAULTS } from '@tzurot/common-types';
-import type {
-  PrismaClient,
-  VisionDescriptionCache,
-  AttachmentMetadata,
-  StoredReferencedMessage,
+import {
+  createLogger,
+  AttachmentType,
+  AI_DEFAULTS,
+  type PrismaClient,
+  type VisionDescriptionCache,
+  type AttachmentMetadata,
+  type StoredReferencedMessage,
 } from '@tzurot/common-types';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import type { InlineImageDescription } from '../jobs/utils/conversationUtils.js';

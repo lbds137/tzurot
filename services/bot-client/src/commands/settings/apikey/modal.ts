@@ -9,8 +9,7 @@
  * - Never logs or displays the actual API key
  */
 
-import type { ModalSubmitInteraction } from 'discord.js';
-import { MessageFlags, EmbedBuilder } from 'discord.js';
+import { type ModalSubmitInteraction, MessageFlags, EmbedBuilder } from 'discord.js';
 import { createLogger, DISCORD_COLORS, AIProvider, API_KEY_FORMATS } from '@tzurot/common-types';
 import { getProviderDisplayName } from '../../../utils/providers.js';
 import { clientsFor } from '../../../utils/gatewayClients.js';

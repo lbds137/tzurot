@@ -11,8 +11,11 @@
  * - Consistent: All commands handle unknown subcommands the same way
  */
 
-import { MessageFlags } from 'discord.js';
-import type { ChatInputCommandInteraction, ModalSubmitInteraction } from 'discord.js';
+import {
+  MessageFlags,
+  type ChatInputCommandInteraction,
+  type ModalSubmitInteraction,
+} from 'discord.js';
 import type { Logger } from 'pino';
 
 /**

@@ -12,12 +12,12 @@
  * - Consolidated from former /me timezone, /wallet, and /me preset commands
  */
 
-import { SlashCommandBuilder } from 'discord.js';
-import type {
-  ModalSubmitInteraction,
-  AutocompleteInteraction,
-  ButtonInteraction,
-  StringSelectMenuInteraction,
+import {
+  SlashCommandBuilder,
+  type ModalSubmitInteraction,
+  type AutocompleteInteraction,
+  type ButtonInteraction,
+  type StringSelectMenuInteraction,
 } from 'discord.js';
 import {
   createLogger,

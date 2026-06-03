@@ -14,12 +14,12 @@
  * - TypeScript prevents accidental deferReply() calls at compile time
  */
 
-import { SlashCommandBuilder } from 'discord.js';
-import type {
-  AutocompleteInteraction,
-  StringSelectMenuInteraction,
-  ButtonInteraction,
-  ModalSubmitInteraction,
+import {
+  SlashCommandBuilder,
+  type AutocompleteInteraction,
+  type StringSelectMenuInteraction,
+  type ButtonInteraction,
+  type ModalSubmitInteraction,
 } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import {

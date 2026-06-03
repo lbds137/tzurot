@@ -16,8 +16,13 @@
  * On any other error: rethrow so the global handler can surface it.
  */
 
-import { DiscordAPIError, MessageFlags, type ModalBuilder } from 'discord.js';
-import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
+import {
+  DiscordAPIError,
+  MessageFlags,
+  type ModalBuilder,
+  type ButtonInteraction,
+  type StringSelectMenuInteraction,
+} from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 
 const logger = createLogger('show-modal-with-timeout-catch');

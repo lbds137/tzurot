@@ -9,12 +9,12 @@
  * - /voice view <character> — unified TTS+STT+voices dashboard
  */
 
-import { SlashCommandBuilder } from 'discord.js';
-import type {
-  AutocompleteInteraction,
-  ButtonInteraction,
-  ModalSubmitInteraction,
-  StringSelectMenuInteraction,
+import {
+  SlashCommandBuilder,
+  type AutocompleteInteraction,
+  type ButtonInteraction,
+  type ModalSubmitInteraction,
+  type StringSelectMenuInteraction,
 } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { defineCommand } from '../../utils/defineCommand.js';

@@ -18,12 +18,12 @@
  * needing componentPrefixes (unlike the old /me command which needed 'profile').
  */
 
-import { SlashCommandBuilder } from 'discord.js';
-import type {
-  ModalSubmitInteraction,
-  AutocompleteInteraction,
-  ButtonInteraction,
-  StringSelectMenuInteraction,
+import {
+  SlashCommandBuilder,
+  type ModalSubmitInteraction,
+  type AutocompleteInteraction,
+  type ButtonInteraction,
+  type StringSelectMenuInteraction,
 } from 'discord.js';
 import { createLogger, personaEditOptions } from '@tzurot/common-types';
 import { defineCommand } from '../../utils/defineCommand.js';

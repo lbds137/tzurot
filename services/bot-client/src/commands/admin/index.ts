@@ -9,12 +9,12 @@
  * Note: LLM config management has been moved to /preset global commands
  */
 
-import { SlashCommandBuilder } from 'discord.js';
-import type {
-  AutocompleteInteraction,
-  StringSelectMenuInteraction,
-  ButtonInteraction,
-  ModalSubmitInteraction,
+import {
+  SlashCommandBuilder,
+  type AutocompleteInteraction,
+  type StringSelectMenuInteraction,
+  type ButtonInteraction,
+  type ModalSubmitInteraction,
 } from 'discord.js';
 import { createLogger, DISCORD_LIMITS } from '@tzurot/common-types';
 import { defineCommand } from '../../utils/defineCommand.js';

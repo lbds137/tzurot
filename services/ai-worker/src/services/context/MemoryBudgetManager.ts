@@ -14,8 +14,10 @@
 import { countTextTokens, createLogger, AI_DEFAULTS } from '@tzurot/common-types';
 import { formatSingleMemory, getMemoryWrapperOverheadText } from '../prompt/MemoryFormatter.js';
 import type { MemoryDocument } from '../ConversationalRAGTypes.js';
-import type { RawHistoryEntry } from '../../jobs/utils/conversationUtils.js';
-import { formatSingleHistoryEntryAsXml } from '../../jobs/utils/conversationUtils.js';
+import {
+  type RawHistoryEntry,
+  formatSingleHistoryEntryAsXml,
+} from '../../jobs/utils/conversationUtils.js';
 
 const logger = createLogger('MemoryBudgetManager');
 

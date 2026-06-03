@@ -6,8 +6,7 @@
  * - Process confirm/cancel responses
  */
 
-import { MessageFlags } from 'discord.js';
-import type { ButtonInteraction } from 'discord.js';
+import { MessageFlags, type ButtonInteraction } from 'discord.js';
 import { createLogger, type EnvConfig } from '@tzurot/common-types';
 import { buildDeleteConfirmation } from '../../utils/dashboard/deleteConfirmation.js';
 import { DASHBOARD_MESSAGES, formatSuccessBanner } from '../../utils/dashboard/messages.js';

@@ -5,8 +5,13 @@
  * Manages message chunking, model indicators, and webhook storage.
  */
 
-import type { DMChannel } from 'discord.js';
-import { NewsChannel, TextChannel, ThreadChannel, escapeMarkdown } from 'discord.js';
+import {
+  type DMChannel,
+  NewsChannel,
+  TextChannel,
+  ThreadChannel,
+  escapeMarkdown,
+} from 'discord.js';
 import {
   splitMessage,
   createLogger,
@@ -17,8 +22,8 @@ import {
   buildModelInfoUrl,
   isBotOwner,
   type TypingChannel,
+  type LoadedPersonality,
 } from '@tzurot/common-types';
-import type { LoadedPersonality } from '@tzurot/common-types';
 import { WebhookManager } from '../utils/WebhookManager.js';
 import { redisService } from '../redis.js';
 import { buildBotAudioFilename } from '../utils/botAudioClassifier.js';

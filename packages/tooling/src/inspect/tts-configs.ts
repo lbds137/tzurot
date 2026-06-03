@@ -10,8 +10,7 @@
 import chalk from 'chalk';
 import { execFileSync } from 'node:child_process';
 
-import type { Environment } from '../utils/env-runner.js';
-import { getRailwayDatabaseUrl, getRailwayEnvName } from '../utils/env-runner.js';
+import { type Environment, getRailwayDatabaseUrl, getRailwayEnvName } from '../utils/env-runner.js';
 
 interface InspectTtsConfigsOptions {
   env: Environment;

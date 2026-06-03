@@ -12,14 +12,19 @@ import {
   MessageFlags,
   escapeMarkdown,
   AttachmentBuilder,
+  type ButtonInteraction,
+  type StringSelectMenuInteraction,
 } from 'discord.js';
-import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
-import { createLogger, DISCORD_COLORS, formatDateTimeCompact } from '@tzurot/common-types';
+import {
+  createLogger,
+  DISCORD_COLORS,
+  formatDateTimeCompact,
+  type MemoryItem,
+} from '@tzurot/common-types';
 import { CUSTOM_ID_DELIMITER } from '../../utils/customIds.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 
 import { fetchMemory, setMemoryLock, deleteMemory } from './detailApi.js';
-import type { MemoryItem } from '@tzurot/common-types';
 import { EMBED_DESCRIPTION_SAFE_LIMIT } from './formatters.js';
 
 const logger = createLogger('memory-detail');

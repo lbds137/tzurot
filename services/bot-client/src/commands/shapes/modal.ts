@@ -10,8 +10,7 @@
  * - Never logged or displayed
  */
 
-import type { ModalSubmitInteraction } from 'discord.js';
-import { MessageFlags, EmbedBuilder } from 'discord.js';
+import { type ModalSubmitInteraction, MessageFlags, EmbedBuilder } from 'discord.js';
 import { createLogger, DISCORD_COLORS, parseShapesSessionCookieInput } from '@tzurot/common-types';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { ShapesCustomIds } from '../../utils/customIds.js';

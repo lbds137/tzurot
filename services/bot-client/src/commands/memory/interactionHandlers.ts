@@ -11,11 +11,11 @@
  * custom IDs themselves — no inline collectors, fully restart-safe.
  */
 
-import { MessageFlags } from 'discord.js';
-import type {
-  ButtonInteraction,
-  ModalSubmitInteraction,
-  StringSelectMenuInteraction,
+import {
+  MessageFlags,
+  type ButtonInteraction,
+  type ModalSubmitInteraction,
+  type StringSelectMenuInteraction,
 } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { parseMemoryActionId, handleMemorySelect } from './detail.js';

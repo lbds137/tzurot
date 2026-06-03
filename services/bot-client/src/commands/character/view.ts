@@ -9,8 +9,8 @@ import {
   ActionRowBuilder,
   MessageFlags,
   escapeMarkdown,
+  type ButtonInteraction,
 } from 'discord.js';
-import type { ButtonInteraction } from 'discord.js';
 import {
   createLogger,
   type EnvConfig,

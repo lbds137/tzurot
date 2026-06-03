@@ -7,8 +7,7 @@
  * extra round-trip. Gateway accepts `DELETE /user/voices/:provider/:voiceId`.
  */
 
-import { EmbedBuilder } from 'discord.js';
-import type { AutocompleteInteraction } from 'discord.js';
+import { EmbedBuilder, type AutocompleteInteraction } from 'discord.js';
 import {
   createLogger,
   DISCORD_COLORS,

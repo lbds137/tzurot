@@ -4,8 +4,7 @@
  */
 
 import { Router, type Request, type RequestHandler, type Response } from 'express';
-import { createLogger, getConfig, DbSyncSchema } from '@tzurot/common-types';
-import { PrismaClient } from '@tzurot/common-types';
+import { createLogger, getConfig, DbSyncSchema, PrismaClient } from '@tzurot/common-types';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { DatabaseSyncService } from '../../services/DatabaseSyncService.js';
 import { requireOwnerAuth } from '../../services/AuthMiddleware.js';

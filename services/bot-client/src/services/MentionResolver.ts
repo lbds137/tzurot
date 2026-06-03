@@ -2,14 +2,15 @@
  * MentionResolver - Resolves Discord mentions (users, channels, roles) in message content.
  */
 
-import type { PrismaClient, PersonaResolver } from '@tzurot/common-types';
-import type { Collection, User, Guild, Message } from 'discord.js';
 import {
+  type PrismaClient,
+  type PersonaResolver,
   UserService,
   createLogger,
   DISCORD_MENTIONS,
   isValidDiscordId,
 } from '@tzurot/common-types';
+import type { Collection, User, Guild, Message } from 'discord.js';
 import type {
   MentionedUserInfo,
   MentionResolutionResult,

@@ -12,8 +12,7 @@
  * Uses gateway API for all data access (no direct Prisma).
  */
 
-import { MessageFlags, ModalBuilder } from 'discord.js';
-import type { ModalSubmitInteraction } from 'discord.js';
+import { MessageFlags, ModalBuilder, type ModalSubmitInteraction } from 'discord.js';
 import {
   createLogger,
   DISCORD_LIMITS,
