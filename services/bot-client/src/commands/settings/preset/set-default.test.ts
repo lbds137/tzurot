@@ -11,7 +11,7 @@ import {
   mockSetDefaultConfigResponse,
   mockListWalletKeysResponse,
   mockListLlmConfigsResponse,
-} from '@tzurot/common-types';
+} from '@tzurot/test-factories';
 import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
 import type { UserClient } from '@tzurot/clients';
 

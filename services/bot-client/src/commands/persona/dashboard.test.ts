@@ -14,7 +14,7 @@ import {
 import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
 import { buildDeleteConfirmation } from '../../utils/dashboard/deleteConfirmation.js';
 import { DASHBOARD_MESSAGES, formatSessionExpiredMessage } from '../../utils/dashboard/messages.js';
-import { mockGetPersonaResponse, mockListPersonasResponse } from '@tzurot/common-types';
+import { mockGetPersonaResponse, mockListPersonasResponse } from '@tzurot/test-factories';
 import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
 // Valid UUIDs for tests

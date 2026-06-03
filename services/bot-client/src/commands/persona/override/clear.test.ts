@@ -11,7 +11,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleOverrideClear } from './clear.js';
-import { mockClearOverrideResponse } from '@tzurot/common-types';
+import { mockClearOverrideResponse } from '@tzurot/test-factories';
 import { makeOk, makeErr, asUserClient } from '../../../test/gatewayClientStubs.js';
 
 const clientsForMock = vi.hoisted(() => vi.fn());

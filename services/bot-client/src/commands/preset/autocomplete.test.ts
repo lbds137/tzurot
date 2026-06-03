@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { AutocompleteInteraction, User } from 'discord.js';
-import { mockListLlmConfigsResponse, mockLlmConfigSummary } from '@tzurot/common-types';
+import { mockListLlmConfigsResponse, mockLlmConfigSummary } from '@tzurot/test-factories';
 import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
 vi.mock('@tzurot/common-types', async importOriginal => {

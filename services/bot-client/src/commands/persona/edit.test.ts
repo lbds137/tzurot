@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleEditPersona } from './edit.js';
-import { mockGetPersonaResponse, mockListPersonasResponse } from '@tzurot/common-types';
+import { mockGetPersonaResponse, mockListPersonasResponse } from '@tzurot/test-factories';
 import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
 // Valid UUIDs for tests

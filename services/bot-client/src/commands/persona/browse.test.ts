@@ -14,7 +14,7 @@ import {
   isPersonaBrowseSelectInteraction,
 } from './browse.js';
 import { registerBrowseRebuilder } from '../../utils/dashboard/index.js';
-import { mockListPersonasResponse, mockGetPersonaResponse } from '@tzurot/common-types';
+import { mockListPersonasResponse, mockGetPersonaResponse } from '@tzurot/test-factories';
 import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
 // Valid UUIDs for tests

@@ -5,7 +5,7 @@
  * If a test tries to mock an invalid shape, it will CRASH immediately.
  *
  * Usage:
- *   import { mockSetOverrideResponse } from '@tzurot/common-types/factories';
+ *   import { mockSetOverrideResponse } from '@tzurot/test-factories';
  *
  * IMPORTANT: Always use these factories instead of manually constructing
  * mock objects. This ensures your mocks match the actual API contracts.

@@ -13,8 +13,8 @@
  *   });
  */
 
-import { AIProvider } from '../constants/ai.js';
 import {
+  AIProvider,
   ListWalletKeysResponseSchema,
   RemoveWalletKeyResponseSchema,
   TestWalletKeyResponseSchema,
@@ -22,7 +22,7 @@ import {
   type RemoveWalletKeyResponse,
   type TestWalletKeyResponse,
   type WalletKey,
-} from '../schemas/api/wallet.js';
+} from '@tzurot/common-types';
 
 import { type DeepPartial, deepMerge } from './factoryUtils.js';
 

@@ -6,7 +6,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleCreatePersona, handleCreateModalSubmit } from './create.js';
 import { MessageFlags } from 'discord.js';
-import { mockCreatePersonaResponse, API_ERROR_SUBCODE } from '@tzurot/common-types';
+import { API_ERROR_SUBCODE } from '@tzurot/common-types';
+import { mockCreatePersonaResponse } from '@tzurot/test-factories';
 import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
 const clientsForMock = vi.hoisted(() => vi.fn());

@@ -103,9 +103,10 @@ export { VisionDescriptionCache } from './services/VisionDescriptionCache.js';
 // Export resolvers (cascading configuration resolution)
 export * from './services/resolvers/index.js';
 
-// Export factories (validated mock helpers for testing)
-// Use these instead of manually constructing API response mocks
-export * from './factories/index.js';
+// NOTE: validated mock factories live in `@tzurot/test-factories` — they're
+// test-only mock-builders, not runtime types, so they don't belong in the
+// shared type package. Import `mockLlmConfig*`, `mockPersona*`, etc. from
+// `@tzurot/test-factories`.
 
 // NOTE: the route manifest (`./routes/`) and the typed HTTP clients
 // (`./clients/`) live in the `@tzurot/clients` package. Import
