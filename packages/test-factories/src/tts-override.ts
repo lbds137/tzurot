@@ -7,7 +7,7 @@
 import {
   ClearTtsDefaultConfigResponseSchema,
   type ClearTtsDefaultConfigResponse,
-} from '../schemas/api/tts-override.js';
+} from '@tzurot/common-types';
 
 // ============================================================================
 // Clear Default Config (DELETE /user/tts-override/default)

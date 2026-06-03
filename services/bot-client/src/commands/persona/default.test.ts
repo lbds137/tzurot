@@ -8,7 +8,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleSetDefaultPersona } from './default.js';
-import { mockSetDefaultPersonaResponse } from '@tzurot/common-types';
+import { mockSetDefaultPersonaResponse } from '@tzurot/test-factories';
 import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
 const clientsForMock = vi.hoisted(() => vi.fn());

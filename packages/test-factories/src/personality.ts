@@ -13,7 +13,7 @@ import {
   type GetPersonalityResponse,
   type ListPersonalitiesResponse,
   type PersonalityFull,
-} from '../schemas/api/personality.js';
+} from '@tzurot/common-types';
 
 // Default UUIDs for consistent test data (RFC 4122 compliant v5 UUIDs)
 const DEFAULT_PERSONALITY_ID = '33333333-3333-5333-8333-333333333333';

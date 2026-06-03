@@ -5,11 +5,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { handleAutocomplete } from './autocomplete.js';
 import type { AutocompleteInteraction, User } from 'discord.js';
-import {
-  mockListWalletKeysResponse,
-  mockLlmConfigSummary,
-  type PersonalitySummary,
-} from '@tzurot/common-types';
+import { type PersonalitySummary } from '@tzurot/common-types';
+import { mockListWalletKeysResponse, mockLlmConfigSummary } from '@tzurot/test-factories';
 
 // Mock logger
 vi.mock('@tzurot/common-types', async () => {

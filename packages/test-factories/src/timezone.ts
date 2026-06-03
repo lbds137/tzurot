@@ -17,7 +17,7 @@ import {
   SetTimezoneResponseSchema,
   type GetTimezoneResponse,
   type SetTimezoneResponse,
-} from '../schemas/api/timezone.js';
+} from '@tzurot/common-types';
 
 import { type DeepPartial } from './factoryUtils.js';
 

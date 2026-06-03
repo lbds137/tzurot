@@ -40,6 +40,10 @@
     "packages/test-utils": {
       "entry": ["src/**/*.test.ts", "src/**/*.int.test.ts"],
       "includeEntryExports": true
+    },
+    "packages/test-factories": {
+      "entry": ["src/**/*.test.ts"],
+      "includeEntryExports": true
     }
   },
   "ignore": [

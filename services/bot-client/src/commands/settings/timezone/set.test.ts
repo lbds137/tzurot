@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleTimezoneSet } from './set.js';
-import { mockSetTimezoneResponse } from '@tzurot/common-types';
+import { mockSetTimezoneResponse } from '@tzurot/test-factories';
 import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
 import type { UserClient } from '@tzurot/clients';
 

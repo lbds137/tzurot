@@ -28,7 +28,7 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-import { mockClearTtsDefaultConfigResponse } from '@tzurot/common-types';
+import { mockClearTtsDefaultConfigResponse } from '@tzurot/test-factories';
 
 const { handleTtsClearDefault: handleClearDefault } = await import('./clear-default.js');
 

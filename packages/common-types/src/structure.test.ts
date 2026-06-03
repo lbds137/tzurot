@@ -74,8 +74,11 @@ const EXCLUDE_PATTERNS = [
   /\/utils\/.*Helpers\.ts$/,
   /\/utils\/.*Config\.ts$/,
   /\/utils\/.*Formatter\.ts$/,
-  // Factory files (test data creation helpers)
+  // Factory files (test data creation helpers) — both the legacy in-package
+  // `factories/` dirs and the extracted `@tzurot/test-factories` package, whose
+  // per-resource builders are collectively tested by `factories.test.ts`.
   /\/factories\//,
+  /\/test-factories\/src\//,
   // Service singletons and caches (thin wrappers around Prisma/Redis/external APIs)
   /Service\.ts$/,
   /Cache\.ts$/,
@@ -181,6 +184,7 @@ describe('Project Structure', () => {
       'packages/clients/src',
       'packages/common-types/src',
       'packages/embeddings/src',
+      'packages/test-factories/src',
       'packages/tooling/src',
     ];
 
