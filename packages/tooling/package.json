@@ -29,9 +29,9 @@
     "@tzurot/clients": "workspace:*",
     "@tzurot/common-types": "workspace:*",
     "@tzurot/embeddings": "workspace:*",
-    "bullmq": "^5.77.3",
+    "bullmq": "^5.78.0",
     "cac": "^7.0.0",
-    "ioredis": "^5.10.0",
+    "ioredis": "^5.11.0",
     "chalk": "^5.6.2",
     "ts-morph": "^28.0.0"
   },
