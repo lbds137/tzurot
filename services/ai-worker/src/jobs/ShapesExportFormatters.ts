@@ -6,12 +6,12 @@
  * happens in the async job processor, not the Discord command.
  */
 
-import { formatDateOnly } from '@tzurot/common-types';
-import type {
-  ShapesIncPersonalityConfig,
-  ShapesIncMemory,
-  ShapesIncStory,
-  ShapesIncUserPersonalization,
+import {
+  formatDateOnly,
+  type ShapesIncPersonalityConfig,
+  type ShapesIncMemory,
+  type ShapesIncStory,
+  type ShapesIncUserPersonalization,
 } from '@tzurot/common-types';
 
 // ============================================================================

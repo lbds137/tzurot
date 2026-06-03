@@ -28,8 +28,12 @@ import {
 } from '@tzurot/common-types';
 import { buildErrorContent } from '../utils/buildErrorContent.js';
 import { pickNewDMActivePersonality } from './SlotResolver.js';
-import { buildSlotContext, toSnapshot } from './multiTagCoordinatorHelpers.js';
-import type { RuntimeEntry, RuntimeSlot } from './multiTagCoordinatorHelpers.js';
+import {
+  buildSlotContext,
+  toSnapshot,
+  type RuntimeEntry,
+  type RuntimeSlot,
+} from './multiTagCoordinatorHelpers.js';
 import type { SlotDeliveryService } from './SlotDeliveryService.js';
 import { confirmDelivery, setDmSessionPersonality } from '../utils/gatewayServiceCalls.js';
 import type { MultiTagPersistence } from './MultiTagPersistence.js';

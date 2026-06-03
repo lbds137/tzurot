@@ -10,15 +10,17 @@
  * - XML formatting happens only at prompt-building time, NOT in storage
  */
 
-import type { PrismaClient } from '@tzurot/common-types';
-import type { Message } from 'discord.js';
-import { ConversationHistoryService, createLogger, MessageRole } from '@tzurot/common-types';
-import type {
-  LoadedPersonality,
-  ReferencedMessage,
-  MessageMetadata,
-  StoredReferencedMessage,
+import {
+  type PrismaClient,
+  ConversationHistoryService,
+  createLogger,
+  MessageRole,
+  type LoadedPersonality,
+  type ReferencedMessage,
+  type MessageMetadata,
+  type StoredReferencedMessage,
 } from '@tzurot/common-types';
+import type { Message } from 'discord.js';
 import { generateAttachmentPlaceholders } from '../utils/attachmentPlaceholders.js';
 import { isForwardedMessage } from '../utils/forwardedMessageUtils.js';
 import { buildMessageContent } from '../utils/MessageContentBuilder.js';

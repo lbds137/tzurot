@@ -8,8 +8,12 @@
  * control over channels in servers where they may not have admin rights.
  */
 
-import { MessageFlags, PermissionFlagsBits } from 'discord.js';
-import type { ChatInputCommandInteraction, GuildMember } from 'discord.js';
+import {
+  MessageFlags,
+  PermissionFlagsBits,
+  type ChatInputCommandInteraction,
+  type GuildMember,
+} from 'discord.js';
 import { isBotOwner } from '@tzurot/common-types';
 import type { DeferredCommandContext } from './commandContext/types.js';
 

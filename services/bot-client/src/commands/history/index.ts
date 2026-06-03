@@ -9,11 +9,11 @@
  * - /history hard-delete <personality> - Permanently delete conversation history
  */
 
-import { SlashCommandBuilder } from 'discord.js';
-import type {
-  AutocompleteInteraction,
-  ButtonInteraction,
-  ModalSubmitInteraction,
+import {
+  SlashCommandBuilder,
+  type AutocompleteInteraction,
+  type ButtonInteraction,
+  type ModalSubmitInteraction,
 } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { defineCommand } from '../../utils/defineCommand.js';

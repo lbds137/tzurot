@@ -37,20 +37,21 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access -- Mock factory uses any types intentionally for flexible Discord.js test doubles */
 
 import { vi } from 'vitest';
-import { ChannelType, Collection } from 'discord.js';
-import type {
-  Message,
-  TextChannel,
-  DMChannel,
-  ThreadChannel,
-  Guild,
-  User,
-  GuildMember,
-  CategoryChannel,
-  Snowflake,
-  Role,
-  MessageMentions,
-  GuildTextBasedChannel,
+import {
+  ChannelType,
+  Collection,
+  type Message,
+  type TextChannel,
+  type DMChannel,
+  type ThreadChannel,
+  type Guild,
+  type User,
+  type GuildMember,
+  type CategoryChannel,
+  type Snowflake,
+  type Role,
+  type MessageMentions,
+  type GuildTextBasedChannel,
 } from 'discord.js';
 
 /**

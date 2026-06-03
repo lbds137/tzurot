@@ -16,9 +16,6 @@ import {
   TtsConfigResolver,
   SttResolver,
   type ConfigCascadeResolver,
-} from '@tzurot/common-types';
-import { PersonaResolver } from '../services/resolvers/index.js';
-import {
   createLogger,
   AIProvider,
   type AnyJobData,
@@ -35,8 +32,10 @@ import {
   type ShapesExportJobResult,
   generateUsageLogUuid,
   JobType,
+  type PrismaClient,
+  type Prisma,
 } from '@tzurot/common-types';
-import type { PrismaClient, Prisma } from '@tzurot/common-types';
+import { PersonaResolver } from '../services/resolvers/index.js';
 import { redisService } from '../redis.js';
 import { cleanupOldJobResults } from './CleanupJobResults.js';
 import { processAudioTranscriptionJob } from './AudioTranscriptionJob.js';

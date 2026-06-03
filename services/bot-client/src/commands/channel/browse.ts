@@ -10,8 +10,15 @@
  * because the parent command uses deferralMode: 'ephemeral'.
  */
 
-import type { ButtonInteraction, TextChannel, Client } from 'discord.js';
-import { EmbedBuilder, ButtonBuilder, ActionRowBuilder, escapeMarkdown } from 'discord.js';
+import {
+  type ButtonInteraction,
+  type TextChannel,
+  type Client,
+  EmbedBuilder,
+  ButtonBuilder,
+  ActionRowBuilder,
+  escapeMarkdown,
+} from 'discord.js';
 import {
   buildBrowseButtons as buildSharedBrowseButtons,
   createBrowseCustomIdHelpers,

@@ -8,8 +8,12 @@
  * - Pagination support for larger lists
  */
 
-import { EmbedBuilder, escapeMarkdown } from 'discord.js';
-import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
+import {
+  EmbedBuilder,
+  escapeMarkdown,
+  type ButtonInteraction,
+  type StringSelectMenuInteraction,
+} from 'discord.js';
 import {
   createLogger,
   DISCORD_COLORS,

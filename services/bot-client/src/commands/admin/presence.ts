@@ -6,11 +6,10 @@
  * Redis key: bot:presence → JSON { type: ActivityType, text: string }
  */
 
-import { ActivityType } from 'discord.js';
+import { ActivityType, type Client } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { redis } from '../../redis.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import type { Client } from 'discord.js';
 
 const logger = createLogger('admin-presence');
 

@@ -6,14 +6,17 @@
  */
 
 import type { Message } from 'discord.js';
-import { createLogger, MessageRole, CONTENT_TYPES, INTERVALS } from '@tzurot/common-types';
-import type {
-  PrismaClient,
-  LoadedPersonality,
-  MentionedPersona,
-  ReferencedChannel,
-  ReferencedMessage,
-  ConversationMessage,
+import {
+  createLogger,
+  MessageRole,
+  CONTENT_TYPES,
+  INTERVALS,
+  type PrismaClient,
+  type LoadedPersonality,
+  type MentionedPersona,
+  type ReferencedChannel,
+  type ReferencedMessage,
+  type ConversationMessage,
 } from '@tzurot/common-types';
 import { MessageReferenceExtractor } from '../../handlers/MessageReferenceExtractor.js';
 import type { MentionResolver } from '../MentionResolver.js';
@@ -44,7 +47,7 @@ interface ExtractReferencesOptions {
 /**
  * Extract referenced messages and resolve mentions.
  */
- 
+
 export async function extractReferencesAndMentions(
   opts: ExtractReferencesOptions
 ): Promise<ReferencesAndMentionsResult> {

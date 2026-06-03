@@ -6,8 +6,7 @@
  * Shared by memory CLI scripts.
  */
 
-import type { Environment } from '../utils/env-runner.js';
-import { getRailwayDatabaseUrl } from '../utils/env-runner.js';
+import { type Environment, getRailwayDatabaseUrl } from '../utils/env-runner.js';
 import { type PrismaClient } from '@tzurot/common-types';
 
 export interface PrismaEnvConnection {

@@ -1,5 +1,4 @@
-import { MessageFlags } from 'discord.js';
-import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
+import { MessageFlags, type ButtonInteraction, type StringSelectMenuInteraction } from 'discord.js';
 
 /**
  * Reply with an ephemeral error, adapting to the interaction's ack state.

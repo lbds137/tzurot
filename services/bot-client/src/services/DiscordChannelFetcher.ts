@@ -13,14 +13,12 @@ import {
   ConversationSyncService,
   computeHistoryCutoff,
   stripBotFooters,
+  type ConversationMessage,
+  type AttachmentMetadata,
+  type MessageReaction,
+  type StoredReferencedMessage,
 } from '@tzurot/common-types';
 import { INTERNAL_DISCORD_ID_PREFIX } from '../constants/personaId.js';
-import type {
-  ConversationMessage,
-  AttachmentMetadata,
-  MessageReaction,
-  StoredReferencedMessage,
-} from '@tzurot/common-types';
 import { buildMessageContent, hasMessageContent } from '../utils/MessageContentBuilder.js';
 import { isUserContentMessage } from '../utils/messageTypeUtils.js';
 import { resolveHistoryLinks } from '../utils/HistoryLinkResolver.js';

@@ -9,8 +9,7 @@
  * no longer dispatches voice-clear after the /voice consolidation.
  */
 
-import { EmbedBuilder } from 'discord.js';
-import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
+import { EmbedBuilder, type ButtonInteraction, type ModalSubmitInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { clientsFor } from '../../../utils/gatewayClients.js';

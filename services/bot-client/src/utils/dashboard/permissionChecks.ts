@@ -4,8 +4,7 @@
  * Shared utilities for checking and handling permissions in dashboard interactions.
  */
 
-import { MessageFlags } from 'discord.js';
-import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
+import { MessageFlags, type ButtonInteraction, type StringSelectMenuInteraction } from 'discord.js';
 import { DASHBOARD_MESSAGES } from './messages.js';
 
 /**

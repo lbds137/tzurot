@@ -9,11 +9,11 @@
  * Button handlers are extracted to dashboardButtons.ts to keep file under 500 lines.
  */
 
-import { MessageFlags } from 'discord.js';
-import type {
-  StringSelectMenuInteraction,
-  ButtonInteraction,
-  ModalSubmitInteraction,
+import {
+  MessageFlags,
+  type StringSelectMenuInteraction,
+  type ButtonInteraction,
+  type ModalSubmitInteraction,
 } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import {
@@ -21,6 +21,7 @@ import {
   getSessionManager,
   parseDashboardCustomId,
   isDashboardInteraction,
+  handleSharedBackButton,
 } from '../../utils/dashboard/index.js';
 import { handleDashboardSectionSelect } from '../../utils/dashboard/genericSelectMenuHandler.js';
 import { refreshDashboardUI } from '../../utils/dashboard/refreshHandler.js';
@@ -49,7 +50,6 @@ import {
   handleCancelDeleteButton,
   handleCloneButton,
 } from './dashboardButtons.js';
-import { handleSharedBackButton } from '../../utils/dashboard/index.js';
 // Side-effect import: registers the preset browse rebuilder used by
 // renderPostActionScreen + handleSharedBackButton.
 import './browse.js';

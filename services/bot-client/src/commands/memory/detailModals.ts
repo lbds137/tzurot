@@ -12,14 +12,14 @@ import {
   EmbedBuilder,
   ButtonBuilder,
   ButtonStyle,
+  type ButtonInteraction,
+  type ModalSubmitInteraction,
 } from 'discord.js';
-import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
-import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS, type MemoryItem } from '@tzurot/common-types';
 import { buildMemoryActionId, buildDetailEmbed, buildDetailButtons } from './detail.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { showModalWithTimeoutCatch } from '../../utils/dashboard/showModalWithTimeoutCatch.js';
 import { fetchMemory, updateMemory } from './detailApi.js';
-import type { MemoryItem } from '@tzurot/common-types';
 
 const logger = createLogger('memory-detail-modals');
 

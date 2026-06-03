@@ -6,8 +6,7 @@
  * then updated with rich descriptions after vision/transcription processing.
  */
 
-import type { AttachmentMetadata } from '@tzurot/common-types';
-import { CONTENT_TYPES } from '@tzurot/common-types';
+import { type AttachmentMetadata, CONTENT_TYPES } from '@tzurot/common-types';
 
 /**
  * Generate placeholder description for a single attachment

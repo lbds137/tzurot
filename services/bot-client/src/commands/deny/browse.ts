@@ -6,8 +6,12 @@
  * Includes a select menu for viewing entry details.
  */
 
-import { EmbedBuilder, escapeMarkdown } from 'discord.js';
-import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
+import {
+  EmbedBuilder,
+  escapeMarkdown,
+  type ButtonInteraction,
+  type StringSelectMenuInteraction,
+} from 'discord.js';
 import { createLogger, isBotOwner, DISCORD_COLORS, formatDateShort } from '@tzurot/common-types';
 import { type OwnerClient } from '@tzurot/clients';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';

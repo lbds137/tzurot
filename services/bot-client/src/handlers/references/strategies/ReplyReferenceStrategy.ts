@@ -7,8 +7,7 @@
 import { type Message, MessageReferenceType } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import type { IReferenceStrategy } from './IReferenceStrategy.js';
-import type { ReferenceResult } from '../types.js';
-import { ReferenceType } from '../types.js';
+import { type ReferenceResult, ReferenceType } from '../types.js';
 
 const logger = createLogger('ReplyReferenceStrategy');
 

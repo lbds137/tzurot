@@ -6,8 +6,7 @@
  */
 
 import { Collection, Snowflake, Attachment } from 'discord.js';
-import type { AttachmentMetadata } from '@tzurot/common-types';
-import { CONTENT_TYPES } from '@tzurot/common-types';
+import { type AttachmentMetadata, CONTENT_TYPES } from '@tzurot/common-types';
 
 /**
  * Extract attachment metadata from a Discord message's attachments collection

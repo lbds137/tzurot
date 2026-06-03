@@ -24,8 +24,7 @@
  */
 
 import type { Message, APIEmbed } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
-import type { AttachmentMetadata } from '@tzurot/common-types';
+import { createLogger, type AttachmentMetadata } from '@tzurot/common-types';
 import { extractAttachments } from './attachmentExtractor.js';
 import { extractEmbedImages } from './embedImageExtractor.js';
 import { EmbedParser } from './EmbedParser.js';

@@ -13,12 +13,13 @@
  * - /deny view — Look up denylist entries by Discord ID (owner only)
  */
 
-import { ChannelType, SlashCommandBuilder } from 'discord.js';
-import type {
-  AutocompleteInteraction,
-  ButtonInteraction,
-  StringSelectMenuInteraction,
-  ModalSubmitInteraction,
+import {
+  ChannelType,
+  SlashCommandBuilder,
+  type AutocompleteInteraction,
+  type ButtonInteraction,
+  type StringSelectMenuInteraction,
+  type ModalSubmitInteraction,
 } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import {

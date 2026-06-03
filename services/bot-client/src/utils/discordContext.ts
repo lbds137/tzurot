@@ -5,8 +5,12 @@
  * This helps the AI understand the environment of the conversation.
  */
 
-import type { Message, GuildBasedChannel, AnyThreadChannel } from 'discord.js';
-import { ChannelType } from 'discord.js';
+import {
+  type Message,
+  type GuildBasedChannel,
+  type AnyThreadChannel,
+  ChannelType,
+} from 'discord.js';
 import { createLogger, type DiscordEnvironment } from '@tzurot/common-types';
 
 const logger = createLogger('DiscordContext');

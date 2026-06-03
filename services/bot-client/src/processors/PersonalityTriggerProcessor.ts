@@ -23,7 +23,12 @@
  */
 
 import type { Message } from 'discord.js';
-import { createLogger, getConfig, type LoadedPersonality } from '@tzurot/common-types';
+import {
+  createLogger,
+  getConfig,
+  type LoadedPersonality,
+  isTypingChannel,
+} from '@tzurot/common-types';
 import type { IMessageProcessor } from './IMessageProcessor.js';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import type { ReplyResolutionService } from '../services/ReplyResolutionService.js';
@@ -35,7 +40,6 @@ import { VoiceMessageProcessor } from './VoiceMessageProcessor.js';
 import { isForwardedMessage } from '../utils/forwardedMessageUtils.js';
 import { getEffectiveContent } from '../utils/messageTypeUtils.js';
 import { getThreadParentId } from '../utils/discordChannelTypes.js';
-import { isTypingChannel } from '@tzurot/common-types';
 import { shouldNotifyUser } from './notificationCache.js';
 
 const logger = createLogger('PersonalityTriggerProcessor');

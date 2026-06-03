@@ -17,8 +17,10 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ActionRowBuilder,
+  type ButtonInteraction,
+  type StringSelectMenuInteraction,
+  type Guild,
 } from 'discord.js';
-import type { ButtonInteraction, StringSelectMenuInteraction, Guild } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
