@@ -1,22 +1,21 @@
 # Current
 
-> **Version**: v3.0.0-beta.126 (released 2026-05-30) — Railway prod auto-deploys on main merge. Closes the **Route Manifest Scaffold + Typed-Client Codegen** epic (central `ROUTE_MANIFEST` → generated `userClient`/`ownerClient`/`serviceClient` + Express mounts; hand-written `GatewayClient` fully dissolved). Plus the vision-heavy job timeout fix (#1117), the gateway timeout-regression restore + `DEFAULT_TIMEOUT_OK` structural guard (#1119), the `/inspect` server-side-auth rearchitecture (#1087), and the Layers 1–3 audit-enforcement infrastructure (#1082–#1085). No migrations. Merged via fast-forward (#1120) — GitHub's rebase-merge choked on the 203-commit range.
-> **🚧 Release freeze status**: LIFTED. No release in progress.
+> **Version**: v3.0.0-beta.127 (released 2026-06-03, #1146) — Railway prod auto-deploys on main merge. First prod carry of the **`@tzurot/clients` extraction** (PR-2m: route manifest + typed HTTP clients in their own package; 0 legacy gateway callsites) and **common-types slimming Phase 1** (`@tzurot/test-factories`, #1142). Plus api-gateway contract/auth refactors (body-`ownerId` auth-bypass removed; LlmConfig/DbSync contract tightening + `ownerId`-leak fix; `NAME_COLLISION` mapping; `isOwned`/permissions emission), dep bumps (#1137 dev / #1144 prod — pglite held at 0.4.6), `import/no-duplicates` enforcement (#1141), test-utils quality parity (#1143), and the bot-client Docker dist-COPY crash fix (#1145). **No migrations.** Prod-validated: all 3 services deployed clean, bot-client booted with `@tzurot/clients` resolved. Dev smoke covered chat / voice in+out / persona (read+browse+modal) / preset / admin (db-sync + cleanup); only shapes deferred.
+> **🚧 Release freeze status**: LIFTED. No release in progress. Nothing unreleased on develop (SHA-aligned with main post-`release:finalize`).
 
 ---
 
 ## Next Session Goal
 
-**Active epic: Slim `@tzurot/common-types` (PR-2n)** — see [future-themes.md](backlog/future-themes.md). **Phase 1 shipped** (PR #1142, 2026-06-03): the `factories/` mock-builders moved out of common-types into a new `@tzurot/test-factories` package (a dedicated package, NOT test-utils — that would have closed a `common-types ↔ test-utils` build cycle). 21 bot-client consumers repointed; cycle-free; full gate green.
+**Active epic: Slim `@tzurot/common-types` (PR-2n)** — see [active-epic.md](backlog/active-epic.md). **Phase 1 shipped** (#1142): `factories/` → `@tzurot/test-factories` (dedicated package, NOT test-utils — that would close a `common-types ↔ test-utils` build cycle). Shipped to prod in beta.127.
 
-**Next: Phase 2 — extract `common-types/services/`** (`ConversationHistoryService` et al., stateful logic consumed by ai-worker/api-gateway). This is design-bearing, NOT mechanical like Phase 1 — needs a **council design pass first** on "one shared service package vs. relocate each service into its primary consumer" before any code. Phase 3 (barrel-kill, ~1,021 sites) is optional/lowest-urgency, deferred to icebox.
+**Next: Phase 2 — extract `common-types/services/`.** Design is **SETTLED** (council GLM-5.1 + Kimi-K2.6 + Qwen-3.7-max, unanimous Hybrid): relocate single-consumer services to their owner, keep the 2+-consumer core in a small new shared package, split pub/sub publisher/subscriber pairs, evict the `prisma.ts` singleton (constructor-inject). **First code PR is PR-2o** (relocate single-consumer services — ai-worker resolver stack + `ConversationRetentionService` → api-gateway). **Open decision before code: Phase 2.5 (bot-client→Prisma proper fix) before PR-2p (singleton eviction)?** Doing 2.5 first avoids a temporary local-Prisma stopgap. Phase 3 (barrel-kill, ~1,021 sites) deferred to icebox.
 
-Two PR #1142 follow-ups filed: depcruise dev-only boundary rule ([quick-wins.md](backlog/quick-wins.md)); structural-test growth gap ([deferred.md](backlog/deferred.md)).
+Quick-wins available between phases ([quick-wins.md](backlog/quick-wins.md)): `guard:dockerfile-dist` (the gap that crashed bot-client in dev this cycle), remove-dead-`redis`, depcruise test-factories boundary, + 3 others.
 
-**Candidate next themes** (user picks; each gets a council pass before plan-mode):
+**Candidate next themes after PR-2n** (user picks; each gets a council pass before plan-mode):
 
 - **Self-Hosted TTS + BYOK Re-Eval — Step 0 BYOK probes** ([future-themes.md](backlog/future-themes.md)) — Cartesia / Fish Audio / PlayHT / Resemble pricing-and-quality pass.
-- **PR-2m follow-ups** ([inbox.md](backlog/inbox.md)) — unravel the runtime-dead persona/shapes legacy route-registration layer; `LlmConfigSummarySchema` + `updatePreset`/`updateGlobalPreset` typed-input tightening; extract `@tzurot/clients` from common-types (over the 50-export/3000-line threshold).
 - **Adjacent CPD Follow-Up Campaigns** ([future-themes.md](backlog/future-themes.md)) — four independently-pickable mini-epics from the 2026-05-16 CPD campaign close-out.
 
 **Post-release loose ends**:

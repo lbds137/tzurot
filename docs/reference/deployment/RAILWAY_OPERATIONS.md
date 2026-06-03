@@ -319,6 +319,23 @@ When a feature PR merges into `develop`, dev redeploys automatically. When a rel
 
 **Schema changes do not auto-apply.** Prisma migrations must be run manually with `pnpm ops db:migrate --env <dev|prod>` after the deploy lands — see `.claude/rules/03-database.md` and `.claude/rules/05-tooling.md` for the constraint and `pnpm ops` syntax. For the full release procedure (merge → migrate → tag → release sequence), see the `tzurot-git-workflow` skill.
 
+### Watch Paths (per-service redeploy triggers)
+
+Each service has a **Watch Paths** config (Railway dashboard → service → Settings → "Watch Paths") — gitignore-style globs that decide which file changes trigger a redeploy of that service. **This config lives only in the Railway dashboard; it is not in the repo.** That makes it invisible to code review and easy to forget when the monorepo structure changes — so it's documented here. Recorded 2026-06-03 (verified against the dashboard).
+
+| Service        | Watch paths                                                                                                                                  |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bot-client`   | `packages/**`, `services/bot-client/**`, `pnpm-lock.yaml`, `package.json`, `pnpm-workspace.yaml`, `tsconfig.json`, `turbo.json`, `prisma/**` |
+| `api-gateway`  | `packages/**`, `services/api-gateway/**`, + same root files                                                                                  |
+| `ai-worker`    | `packages/**`, `services/ai-worker/**`, + same root files                                                                                    |
+| `voice-engine` | `services/voice-engine/**` only (standalone Python/FastAPI service; no Node-workspace deps; Dockerfile path set explicitly)                  |
+
+**Design intent — `packages/**`is deliberately broad.** The three Node services watch *all* workspace packages rather than enumerating their exact runtime deps. This trades occasional unnecessary redeploys (e.g. a`packages/tooling`change redeploys all three even though none use it at runtime) for **never running stale code**. Erring broad is the correct defensive posture: the alternative — enumerating exact per-service package deps — is fragile and is precisely what caused the bot-client`@tzurot/clients`crash class (a *missing* dependency reference). Because`packages/**` is broad, **extracting a new workspace package needs no watch-path change\*\* — it's covered automatically.
+
+**Per-service Dockerfiles are covered** via `services/<self>/**` (the Dockerfile lives there), so a Dockerfile-only change does trigger that service's redeploy.
+
+**When to revisit:** only on monorepo _structure_ changes that move files out from under these globs — e.g. relocating `prisma/`, adding a new top-level source dir a service depends on, or adding a new service. Adding/removing a package under `packages/` or a service under `services/` needs nothing. Related in-repo gap (the Docker runtime-stage dist COPY, which _is_ manual per-package) is tracked by the `guard:dockerfile-dist` quick-win.
+
 ### GitHub Actions Example
 
 ```yaml
