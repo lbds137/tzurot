@@ -374,16 +374,3 @@ Define free-tier model allowlist, usage quotas, upgrade prompts.
 
 **Why deferred / out of scope of PR-2m**: Qwen 3.7 Max (council 2026-06-02) flagged this as the higher-leverage fix for the export-count metric, but it's a large cross-service codemod orthogonal to the package extraction. **Measured blast radius (2026-06-02, post-clients-extraction): 1,021 import sites** reference `@tzurot/common-types` — converting them to deep subpath imports + designing the `exports` subpath structure is a major epic on the scale of the clients extraction itself, NOT a quick follow-up. Treat as its own planned initiative (likely with a council pass on the subpath taxonomy); reassess whether it's worth 1,021-site churn vs. just accepting the export count now that routes/clients are gone.
 
-#### `[LIFT]` Enforce `import/no-duplicates` repo-wide
-
-**Problem**: ESLint enforces no rule against duplicate same-module imports, and `eslint-plugin-import` isn't installed. As a result ~162 production files have multiple `import ... from '<same-module>'` statements that could be merged. Surfaced 2026-06-02 when the PR-2m client-extraction codemod briefly introduced 13 such duplicates that lint didn't catch (they were merged before commit, but the gap is real).
-
-**Action**: install `eslint-plugin-import`, enable `import/no-duplicates` **with `{ 'prefer-inline': true }`** (REQUIRED — see attempt notes), run `eslint --fix` scoped to ONLY this rule across non-test source, then add the rule to `eslint.config.js`. Verify build + typecheck:spec.
-
-**Attempt notes (2026-06-02, reverted — do these differently next time):**
-
-- **`prefer-inline: true` is mandatory.** The default autofix folds a value import into a same-module `import type {}` block → emits `import type { …, createLogger }`, which is invalid (`createLogger` can't be used as a value; TS1361/TS2206). `prefer-inline` merges into one regular `import { type X, value }` statement instead. With it, the footprint is ~141 non-test source files (more than the ~23 the default touches, because it also consolidates separate type+value imports from the same module).
-- **Scope the `--fix` to ONLY `import/no-duplicates`.** Running a bare `eslint --fix` applies EVERY auto-fixable rule — it rewrote a `@ts-expect-error` detection regex in `xray/file-parser.ts` (introducing a `\x0b` control char that then failed `no-control-regex`) and stripped type casts. Use a throwaway flat config enabling only this rule, and replicate the project's `ignores` (tests, `**/generated/**`, `**/_generated/**`, dist) or it will touch generated Prisma code + eslint-ignored test files.
-- **`pnpm add eslint-plugin-import` churned the lockfile** enough that the Prisma-client regen (postinstall) produced rule-violating generated code, which surfaced as 3265 `consistent-type-definitions` errors once the eslint.config.js change bust the turbo lint cache. Pin/verify the lockfile delta is ONLY the plugin + its deps; re-run `pnpm install` and force-miss `turbo lint` to confirm common-types still passes before committing.
-
-**Why deferred**: it's a fragile, multi-gotcha repo-wide change — its own focused PR, not a quick follow-up. User wants it after the PR-2m epic (done). Pairs with the barrel-kill above.
