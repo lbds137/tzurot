@@ -941,3 +941,15 @@ The campaign-close audit at `docs/reference/CPD_CAMPAIGN_AUDIT.md` classifies th
 **Promote when**: capacity for another DRY-extraction campaign exists, OR opportunistically when next touching the relevant code. Each item gets its own council pass before plan-mode per the project's "consult council before major refactors" rule.
 
 **Start**: read `docs/reference/CPD_CAMPAIGN_AUDIT.md` for the full pair-by-pair classification + `.claude/rules/02-code-standards.md` "Duplication, Helpers, and the CPD Ratchet" section for the 2-callback ceiling rule that governs all future extraction decisions.
+
+### Theme: Slim `@tzurot/common-types` — extract non-type domains (PR-2n)
+
+_Focus: common-types has drifted past "types" into a grab-bag. Post-clients-extraction it's still 137 files / 22.8k lines / 938 exports, including a `factories/` dir (test mock-builders) and a `services/` dir (stateful logic, e.g. `ConversationHistoryService` 588 lines). A types package shouldn't host either. Extract them so the shared surface is actually types/schemas/constants/utils._
+
+**Appraisal (2026-06-03):** the 938-export barrel is *wide*, not *tangled* — 0 internal barrel cycles, modest cross-subdomain coupling (`services/→schemas/` 8 files). So the export count is breadth, not spaghetti. The real architectural drift is non-types (services, factories) living in a types package. Extracting them is higher-leverage than the barrel-kill (which is import hygiene — perf + boundaries — tracked separately in icebox).
+
+**Phase 1 — `factories/ → @tzurot/test-utils` (IN PROGRESS 2026-06-03).** The 8 factory files are validated mock-builders consumed only by tests. Confirmed acyclic: test-utils has no common-types dep today and common-types doesn't depend on test-utils (build graph), so test-utils → common-types is clean one-way. Move the dir, add the common-types dep to test-utils, repoint ~20 test consumers from `@tzurot/common-types` → `@tzurot/test-utils`, drop the `export * from './factories'` barrel line. Low-risk opener; also shrinks the common-types surface before Phase 2.
+
+**Phase 2 — extract `services/` (design-bearing).** `services/` holds stateful logic (`ConversationHistoryService`, etc.) consumed by ai-worker/api-gateway. Needs a design call: shared service package vs. moving each service into its primary consumer. Council pass recommended (mirrors the clients-extraction design loop). Bigger blast radius; do after Phase 1.
+
+**Phase 3 (optional) — barrel-kill / exports-map.** See icebox; import hygiene, 1,021 sites, lowest urgency. Reassess after Phases 1–2 shrink the surface.
