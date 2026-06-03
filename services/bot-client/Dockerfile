@@ -1,8 +1,11 @@
 # =============================================================================
 # Bot Client Dockerfile - Using turbo prune for automatic dependency handling
 # =============================================================================
-# When adding new workspace packages as dependencies, turbo prune automatically
-# includes them - no manual Dockerfile updates needed.
+# `turbo prune` automatically includes new workspace packages in the pruned
+# SOURCE and the build step. BUT the runtime stage copies each package's built
+# `dist` MANUALLY (one COPY per runtime dependency, see Stage 4). When adding a
+# new `@tzurot/*` runtime dependency, you MUST add its dist COPY there too, or
+# the runtime image will be missing it and crash with ERR_MODULE_NOT_FOUND.
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -77,8 +80,13 @@ RUN pnpm install --prod --frozen-lockfile
 # Copy Prisma client from builder (generated in node_modules/.pnpm)
 COPY --from=builder /app/node_modules/.pnpm ./node_modules/.pnpm
 
-# Copy built artifacts from all workspace packages
+# Copy built artifacts from all workspace packages.
+# NOTE: these dist copies are MANUAL — one line per runtime workspace dependency.
+# When bot-client gains a new `@tzurot/*` runtime dependency, add its dist here
+# or the runtime image will be missing it (ERR_MODULE_NOT_FOUND at startup).
+# Keep in sync with the prod `dependencies` in services/bot-client/package.json.
 COPY --from=builder /app/packages/common-types/dist ./packages/common-types/dist
+COPY --from=builder /app/packages/clients/dist ./packages/clients/dist
 COPY --from=builder /app/services/bot-client/dist ./services/bot-client/dist
 
 CMD ["node", "services/bot-client/dist/index.js"]
