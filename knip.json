@@ -8,21 +8,20 @@
       "ignoreDependencies": ["@typescript-eslint/eslint-plugin", "@typescript-eslint/parser"]
     },
     "services/bot-client": {
-      "entry": ["src/**/*.test.ts", "src/**/*.int.test.ts", "src/commands/*/index.ts"],
-      "ignoreDependencies": ["redis"]
+      "entry": ["src/**/*.test.ts", "src/**/*.int.test.ts", "src/commands/*/index.ts"]
     },
     "services/api-gateway": {
       "entry": ["src/**/*.test.ts", "src/**/*.int.test.ts"],
-      "ignoreDependencies": ["openai", "pino", "redis"]
+      "ignoreDependencies": ["openai", "pino"]
     },
     "services/ai-worker": {
       "entry": ["src/**/*.test.ts", "src/**/*.int.test.ts"],
-      "ignoreDependencies": ["langchain", "onnxruntime-node", "redis"]
+      "ignoreDependencies": ["langchain", "onnxruntime-node"]
     },
     "packages/common-types": {
       "entry": ["src/**/*.test.ts", "src/**/*.int.test.ts"],
       "includeEntryExports": true,
-      "ignoreDependencies": ["openai", "pg", "redis"],
+      "ignoreDependencies": ["openai", "pg"],
       "ignoreMembers": ["ECONNRESET", "ETIMEDOUT", "ENOTFOUND", "ECONNREFUSED"]
     },
     "packages/clients": {
