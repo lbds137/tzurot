@@ -7,11 +7,11 @@
  * - Modal submissions for section edits
  */
 
-import { MessageFlags } from 'discord.js';
-import type {
-  StringSelectMenuInteraction,
-  ButtonInteraction,
-  ModalSubmitInteraction,
+import {
+  MessageFlags,
+  type StringSelectMenuInteraction,
+  type ButtonInteraction,
+  type ModalSubmitInteraction,
 } from 'discord.js';
 import { createLogger, getConfig, isBotOwner, type EnvConfig } from '@tzurot/common-types';
 import {
@@ -23,6 +23,7 @@ import {
   getSessionManager,
   parseDashboardCustomId,
   isDashboardInteraction,
+  handleSharedBackButton,
 } from '../../utils/dashboard/index.js';
 import { showModalWithTimeoutCatch } from '../../utils/dashboard/showModalWithTimeoutCatch.js';
 import { CharacterCustomIds } from '../../utils/customIds.js';
@@ -39,7 +40,6 @@ import { handleDeleteAction, handleDeleteButton } from './dashboardDeleteHandler
 // Note: Browse pagination is handled in index.ts via handleBrowsePagination
 import { handleViewPagination, handleExpandField } from './view.js';
 import { handleRefreshButton, handleCloseButton } from './dashboardButtons.js';
-import { handleSharedBackButton } from '../../utils/dashboard/index.js';
 // Side-effect import: registers the character browse rebuilder used by
 // renderPostActionScreen + handleSharedBackButton.
 import './browse.js';

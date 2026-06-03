@@ -12,8 +12,11 @@
  * because the parent command uses deferralMode: 'ephemeral'.
  */
 
-import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
-import { PermissionFlagsBits } from 'discord.js';
+import {
+  type ButtonInteraction,
+  type ModalSubmitInteraction,
+  PermissionFlagsBits,
+} from 'discord.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { createLogger, DISCORD_COLORS, type ResolvedConfigOverrides } from '@tzurot/common-types';
 import { type UserClient } from '@tzurot/clients';

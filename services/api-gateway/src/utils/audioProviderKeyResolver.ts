@@ -19,8 +19,7 @@ import {
   type AudioProviderId,
   type PrismaClient,
 } from '@tzurot/common-types';
-import type { ErrorResponse } from './errorResponses.js';
-import { ErrorResponses } from './errorResponses.js';
+import { type ErrorResponse, ErrorResponses } from './errorResponses.js';
 
 const logger = createLogger('AudioProviderKeyResolver');
 

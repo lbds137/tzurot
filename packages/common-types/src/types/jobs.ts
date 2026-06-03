@@ -9,18 +9,16 @@
  */
 
 import { z } from 'zod';
-import type {
-  LoadedPersonality,
-  MentionedPersona,
-  ReferencedChannel,
-  ReferencedMessage,
-  AttachmentMetadata,
-  CrossChannelHistoryGroupEntry,
-  DiscordEnvironment,
-  LLMGenerationResult,
-  GuildMemberInfo,
-} from './schemas/index.js';
 import {
+  type LoadedPersonality,
+  type MentionedPersona,
+  type ReferencedChannel,
+  type ReferencedMessage,
+  type AttachmentMetadata,
+  type CrossChannelHistoryGroupEntry,
+  type DiscordEnvironment,
+  type LLMGenerationResult,
+  type GuildMemberInfo,
   loadedPersonalitySchema,
   mentionedPersonaSchema,
   referencedChannelSchema,

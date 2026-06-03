@@ -13,8 +13,7 @@
  * use the centralized utilities in forwardedMessageUtils.ts
  */
 
-import type { Message } from 'discord.js';
-import { MessageType } from 'discord.js';
+import { type Message, MessageType } from 'discord.js';
 import { isForwardedMessage as isForwarded } from './forwardedMessageUtils.js';
 
 /**

@@ -5,8 +5,7 @@
  * sending the first as an editReply and the rest as follow-ups.
  */
 
-import { MessageFlags } from 'discord.js';
-import type { ButtonInteraction } from 'discord.js';
+import { MessageFlags, type ButtonInteraction } from 'discord.js';
 import { DISCORD_LIMITS, splitMessage } from '@tzurot/common-types';
 
 export interface ChunkedReplyOptions {

@@ -21,8 +21,8 @@ import {
   elevenLabsListVoices,
   elevenLabsDeleteVoice,
   ElevenLabsApiError,
+  type ElevenLabsVoiceInfo,
 } from './ElevenLabsClient.js';
-import type { ElevenLabsVoiceInfo } from './ElevenLabsClient.js';
 import { fetchVoiceReference } from './voiceReferenceHelper.js';
 
 const logger = createLogger('ElevenLabsVoiceService');

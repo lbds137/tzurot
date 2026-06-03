@@ -17,8 +17,8 @@ import {
   ButtonStyle,
   ActionRowBuilder,
   type MessageActionRowComponentBuilder,
+  type ButtonInteraction,
 } from 'discord.js';
-import type { ButtonInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { PersonaCustomIds } from '../../utils/customIds.js';

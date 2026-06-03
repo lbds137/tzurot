@@ -27,14 +27,17 @@ import { createLogger, isBotOwner } from '@tzurot/common-types';
 import { getSessionManager } from '../../utils/dashboard/SessionManager.js';
 import { buildDeleteConfirmation } from '../../utils/dashboard/deleteConfirmation.js';
 import { DASHBOARD_MESSAGES, formatSuccessBanner } from '../../utils/dashboard/messages.js';
-import { parseDashboardCustomId } from '../../utils/dashboard/types.js';
+import { parseDashboardCustomId, type BrowseContext } from '../../utils/dashboard/types.js';
 import { renderPostActionScreen } from '../../utils/dashboard/postActionScreen.js';
 import { handleSharedBackButton } from '../../utils/dashboard/sharedBackButtonHandler.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
-import type { BrowseContext } from '../../utils/dashboard/types.js';
 import type { DenylistEntryResponse } from './browseTypes.js';
-import type { DenyDetailSession } from './detailTypes.js';
-import { ENTITY_TYPE, buildDetailEmbed, buildDetailButtons } from './detailTypes.js';
+import {
+  type DenyDetailSession,
+  ENTITY_TYPE,
+  buildDetailEmbed,
+  buildDetailButtons,
+} from './detailTypes.js';
 import { handleEdit, handleEditModal } from './detailEdit.js';
 
 const logger = createLogger('deny-detail');

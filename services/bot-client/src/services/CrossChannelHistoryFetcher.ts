@@ -6,8 +6,7 @@
  * has fewer messages than maxMessages.
  */
 
-import type { Client } from 'discord.js';
-import { ChannelType } from 'discord.js';
+import { type Client, ChannelType } from 'discord.js';
 import {
   ConversationHistoryService,
   createLogger,

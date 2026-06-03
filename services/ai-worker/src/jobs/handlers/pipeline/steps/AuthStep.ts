@@ -13,10 +13,10 @@ import {
   type AudioProviderId,
   type SttDispatch,
   type SttResolver,
+  type LlmConfigResolver,
 } from '@tzurot/common-types';
 import type { ApiKeyResolver } from '../../../../services/ApiKeyResolver.js';
 import { ProviderRouter } from '../../../../services/ProviderRouter.js';
-import type { LlmConfigResolver } from '@tzurot/common-types';
 import type { IPipelineStep, GenerationContext } from '../types.js';
 
 const logger = createLogger('AuthStep');

@@ -5,8 +5,13 @@
  * Pure data transformation service with no side effects.
  */
 
-import { UserService, createLogger } from '@tzurot/common-types';
-import type { ConversationMessage, ReferencedMessage, PersonaResolver } from '@tzurot/common-types';
+import {
+  UserService,
+  createLogger,
+  type ConversationMessage,
+  type ReferencedMessage,
+  type PersonaResolver,
+} from '@tzurot/common-types';
 import { redisService } from '../redis.js';
 
 const logger = createLogger('ReferenceEnrichmentService');

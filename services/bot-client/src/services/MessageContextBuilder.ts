@@ -5,16 +5,13 @@
  * Helper modules extracted to contextBuilder/ subdirectory.
  */
 
-import type {
-  PrismaClient,
-  PersonaResolver,
-  LoadedPersonality,
-  ReferencedMessage,
-  ConversationMessage,
-  AttachmentMetadata,
-} from '@tzurot/common-types';
-import type { Message } from 'discord.js';
 import {
+  type PrismaClient,
+  type PersonaResolver,
+  type LoadedPersonality,
+  type ReferencedMessage,
+  type ConversationMessage,
+  type AttachmentMetadata,
   ConversationHistoryService,
   ConversationSyncService,
   UserService,
@@ -22,6 +19,7 @@ import {
   MESSAGE_LIMITS,
   isTypingChannel,
 } from '@tzurot/common-types';
+import type { Message } from 'discord.js';
 import type { MessageContext } from '../types.js';
 import { extractDiscordEnvironment } from '../utils/discordContext.js';
 import { buildMessageContent } from '../utils/MessageContentBuilder.js';

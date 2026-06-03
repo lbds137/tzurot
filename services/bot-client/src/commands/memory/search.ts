@@ -11,14 +11,16 @@
  * - If hasMore is false: current page is the last page
  */
 
-import type {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonInteraction,
-  StringSelectMenuBuilder,
-  StringSelectMenuInteraction,
+import {
+  type ActionRowBuilder,
+  type ButtonBuilder,
+  type ButtonInteraction,
+  type StringSelectMenuBuilder,
+  type StringSelectMenuInteraction,
+  escapeMarkdown,
+  EmbedBuilder,
+  MessageFlags,
 } from 'discord.js';
-import { escapeMarkdown, EmbedBuilder, MessageFlags } from 'discord.js';
 import {
   createLogger,
   DISCORD_COLORS,

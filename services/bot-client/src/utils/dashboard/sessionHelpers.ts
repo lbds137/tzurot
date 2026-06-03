@@ -5,11 +5,11 @@
  * and handling session state across dashboard interactions.
  */
 
-import { MessageFlags } from 'discord.js';
-import type {
-  ButtonInteraction,
-  StringSelectMenuInteraction,
-  ModalSubmitInteraction,
+import {
+  MessageFlags,
+  type ButtonInteraction,
+  type StringSelectMenuInteraction,
+  type ModalSubmitInteraction,
 } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { getSessionManager } from './SessionManager.js';

@@ -5,8 +5,7 @@
  * Shows a paginated list of user's personas with select menu to edit
  */
 
-import { EmbedBuilder } from 'discord.js';
-import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
+import { EmbedBuilder, type ButtonInteraction, type StringSelectMenuInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import { type UserClient } from '@tzurot/clients';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';

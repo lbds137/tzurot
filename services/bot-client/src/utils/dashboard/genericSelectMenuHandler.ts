@@ -14,8 +14,7 @@
  * before the modal opens; only preset still uses it.
  */
 
-import type { StringSelectMenuInteraction } from 'discord.js';
-import { MessageFlags } from 'discord.js';
+import { type StringSelectMenuInteraction, MessageFlags } from 'discord.js';
 import type { UserClient } from '@tzurot/clients';
 import { clientsFor } from '../gatewayClients.js';
 import { parseDashboardCustomId, type DashboardConfig } from './types.js';

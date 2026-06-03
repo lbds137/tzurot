@@ -8,8 +8,7 @@
 import type { Message } from 'discord.js';
 import { createLogger, INTERVALS } from '@tzurot/common-types';
 import type { IReferenceStrategy } from './strategies/IReferenceStrategy.js';
-import type { ReferenceMetadata, ReferenceResult } from './types.js';
-import { ReferenceType } from './types.js';
+import { type ReferenceMetadata, type ReferenceResult, ReferenceType } from './types.js';
 import { LinkExtractor } from './LinkExtractor.js';
 
 const logger = createLogger('ReferenceCrawler');

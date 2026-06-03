@@ -16,12 +16,12 @@
  * Note: Delete functionality is integrated into the dashboard (Edit command)
  */
 
-import { SlashCommandBuilder } from 'discord.js';
-import type {
-  AutocompleteInteraction,
-  StringSelectMenuInteraction,
-  ButtonInteraction,
-  ModalSubmitInteraction,
+import {
+  SlashCommandBuilder,
+  type AutocompleteInteraction,
+  type StringSelectMenuInteraction,
+  type ButtonInteraction,
+  type ModalSubmitInteraction,
 } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { defineCommand } from '../../utils/defineCommand.js';

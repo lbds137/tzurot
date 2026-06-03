@@ -1,5 +1,4 @@
-import { pino } from 'pino';
-import type { Logger, LoggerOptions } from 'pino';
+import { pino, type Logger, type LoggerOptions } from 'pino';
 import { sanitizeLogMessage, sanitizeObject } from './logSanitizer.js';
 
 /**

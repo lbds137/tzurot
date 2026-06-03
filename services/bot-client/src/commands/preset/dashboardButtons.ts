@@ -8,8 +8,7 @@
  * - Delete confirmation flow
  */
 
-import { MessageFlags } from 'discord.js';
-import type { ButtonInteraction } from 'discord.js';
+import { MessageFlags, type ButtonInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import {

@@ -9,8 +9,7 @@
  * - Groups characters by owner for better organization
  */
 
-import { EmbedBuilder } from 'discord.js';
-import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
+import { EmbedBuilder, type ButtonInteraction, type StringSelectMenuInteraction } from 'discord.js';
 import {
   createLogger,
   type EnvConfig,

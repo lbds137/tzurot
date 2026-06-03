@@ -12,8 +12,7 @@
  *   placeholder persona in the same maintenance pass
  */
 
-import type { PrismaClient } from './prisma.js';
-import { Prisma } from './prisma.js';
+import { type PrismaClient, Prisma } from './prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { TTLCache } from '../utils/TTLCache.js';
 import { generateUserUuid, generatePersonaUuid } from '../utils/deterministicUuid.js';

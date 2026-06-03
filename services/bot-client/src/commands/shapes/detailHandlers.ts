@@ -8,8 +8,14 @@
  * within the ESLint max-lines limit.
  */
 
-import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
-import { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
+import {
+  type ButtonInteraction,
+  type StringSelectMenuInteraction,
+  EmbedBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  ActionRowBuilder,
+} from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import { ShapesCustomIds } from '../../utils/customIds.js';
 import type { BrowseSortType } from '../../utils/browse/constants.js';

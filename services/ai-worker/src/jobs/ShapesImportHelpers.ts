@@ -10,8 +10,8 @@ import {
   type PrismaClient,
   type ShapesIncPersonalityConfig,
   SHAPES_USER_AGENT,
+  type Prisma,
 } from '@tzurot/common-types';
-import type { Prisma } from '@tzurot/common-types';
 import {
   mapShapesConfigToPersonality,
   type MappedPersonalityData,

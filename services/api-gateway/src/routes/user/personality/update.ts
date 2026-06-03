@@ -13,8 +13,8 @@ import {
   PersonalityUpdateSchema,
   type PersonalityUpdateInput,
   PERSONALITY_DETAIL_SELECT,
+  Prisma,
 } from '@tzurot/common-types';
-import { Prisma } from '@tzurot/common-types';
 import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';

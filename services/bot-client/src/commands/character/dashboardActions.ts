@@ -10,8 +10,7 @@
  * Extracted from dashboard.ts to keep files under the max-lines limit.
  */
 
-import { MessageFlags } from 'discord.js';
-import type { StringSelectMenuInteraction } from 'discord.js';
+import { MessageFlags, type StringSelectMenuInteraction } from 'discord.js';
 import { createLogger, isBotOwner, type EnvConfig } from '@tzurot/common-types';
 import {
   buildDashboardEmbed,

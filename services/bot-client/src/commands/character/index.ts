@@ -9,12 +9,12 @@
  * 4. On submit → Dashboard refreshes with updated data
  */
 
-import { SlashCommandBuilder } from 'discord.js';
-import type {
-  ModalSubmitInteraction,
-  AutocompleteInteraction,
-  StringSelectMenuInteraction,
-  ButtonInteraction,
+import {
+  SlashCommandBuilder,
+  type ModalSubmitInteraction,
+  type AutocompleteInteraction,
+  type StringSelectMenuInteraction,
+  type ButtonInteraction,
 } from 'discord.js';
 import { createLogger, getConfig } from '@tzurot/common-types';
 import { defineCommand } from '../../utils/defineCommand.js';

@@ -40,8 +40,7 @@ import {
   ApiError,
 } from '../utils/apiErrorParser.js';
 import { recordStopSequenceActivation, inferNonXmlStop } from './StopSequenceTracker.js';
-import type { RateLimitCache } from './RateLimitCache.js';
-import { assertValidCacheKeyId } from './RateLimitCache.js';
+import { type RateLimitCache, assertValidCacheKeyId } from './RateLimitCache.js';
 import type { CreditExhaustionCache } from './CreditExhaustionCache.js';
 import { rateLimitCache, creditExhaustionCache } from '../redis.js';
 import {

@@ -4,8 +4,12 @@
  * providers (ElevenLabs, Mistral) with paginated slot summary.
  */
 
-import { EmbedBuilder } from 'discord.js';
-import type { ButtonInteraction, ActionRowBuilder, ButtonBuilder } from 'discord.js';
+import {
+  EmbedBuilder,
+  type ButtonInteraction,
+  type ActionRowBuilder,
+  type ButtonBuilder,
+} from 'discord.js';
 import { createLogger, DISCORD_COLORS, type AudioProviderId } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { clientsFor } from '../../../utils/gatewayClients.js';

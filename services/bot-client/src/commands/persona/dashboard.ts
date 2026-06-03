@@ -7,11 +7,11 @@
  * - Modal submissions for section edits
  */
 
-import { MessageFlags } from 'discord.js';
-import type {
-  StringSelectMenuInteraction,
-  ButtonInteraction,
-  ModalSubmitInteraction,
+import {
+  MessageFlags,
+  type StringSelectMenuInteraction,
+  type ButtonInteraction,
+  type ModalSubmitInteraction,
 } from 'discord.js';
 import { createLogger, type PersonaUpdateInput } from '@tzurot/common-types';
 import { buildDeleteConfirmation } from '../../utils/dashboard/deleteConfirmation.js';

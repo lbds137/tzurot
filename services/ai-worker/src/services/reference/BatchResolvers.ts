@@ -7,8 +7,7 @@
  * Extracted from UserReferenceResolver to reduce file size.
  */
 
-import type { PrismaClient } from '@tzurot/common-types';
-import { createLogger } from '@tzurot/common-types';
+import { type PrismaClient, createLogger } from '@tzurot/common-types';
 import type { ResolvedPersona } from './UserReferencePatterns.js';
 
 const logger = createLogger('UserReferenceResolver');

@@ -8,8 +8,7 @@
  */
 
 import { createLogger, TTLCache, isTransientNetworkError } from '@tzurot/common-types';
-import { VoiceEngineError } from './VoiceEngineClient.js';
-import type { VoiceEngineClient } from './VoiceEngineClient.js';
+import { VoiceEngineError, type VoiceEngineClient } from './VoiceEngineClient.js';
 import { fetchVoiceReference } from './voiceReferenceHelper.js';
 
 const logger = createLogger('VoiceRegistrationService');

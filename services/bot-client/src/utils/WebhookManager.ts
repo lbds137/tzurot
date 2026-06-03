@@ -6,16 +6,17 @@
  */
 
 import { createLogger, INTERVALS, DISCORD_LIMITS } from '@tzurot/common-types';
-import { ChannelType, Client } from 'discord.js';
-import { deriveBotSuffix } from './webhookNaming.js';
-import type {
-  TextChannel,
-  ThreadChannel,
-  ForumChannel,
-  NewsChannel,
-  Webhook,
-  Message,
+import {
+  ChannelType,
+  Client,
+  type TextChannel,
+  type ThreadChannel,
+  type ForumChannel,
+  type NewsChannel,
+  type Webhook,
+  type Message,
 } from 'discord.js';
+import { deriveBotSuffix } from './webhookNaming.js';
 import type { LoadedPersonality } from '../types.js';
 
 const logger = createLogger('WebhookManager');

@@ -11,8 +11,7 @@
  * Uses gateway API for all data access (no direct Prisma).
  */
 
-import { MessageFlags, ModalBuilder } from 'discord.js';
-import type { ModalSubmitInteraction } from 'discord.js';
+import { MessageFlags, ModalBuilder, type ModalSubmitInteraction } from 'discord.js';
 import { createLogger, API_ERROR_SUBCODE } from '@tzurot/common-types';
 import type { ModalCommandContext } from '../../utils/commandContext/types.js';
 import { buildPersonaModalFields } from './utils/modalBuilder.js';

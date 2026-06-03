@@ -11,12 +11,10 @@ import {
   HARDCODED_CONFIG_DEFAULTS,
   type LoadedPersonality,
   type ConfigOverrideSource,
-} from '@tzurot/common-types';
-import type {
-  LlmConfigResolver,
-  ResolvedLlmConfig,
-  ResolvedConfigOverrides,
-  ConfigCascadeResolver,
+  type LlmConfigResolver,
+  type ResolvedLlmConfig,
+  type ResolvedConfigOverrides,
+  type ConfigCascadeResolver,
 } from '@tzurot/common-types';
 import type { IPipelineStep, GenerationContext, ResolvedConfig } from '../types.js';
 

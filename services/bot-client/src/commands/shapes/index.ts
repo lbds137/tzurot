@@ -11,8 +11,7 @@
  * - /shapes status - View credential status and import history
  */
 
-import { SlashCommandBuilder } from 'discord.js';
-import type { ModalSubmitInteraction } from 'discord.js';
+import { SlashCommandBuilder, type ModalSubmitInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { defineCommand } from '../../utils/defineCommand.js';
 import { createMixedModeSubcommandRouter } from '../../utils/mixedModeSubcommandRouter.js';
