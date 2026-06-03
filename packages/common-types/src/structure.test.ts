@@ -79,6 +79,10 @@ const EXCLUDE_PATTERNS = [
   // per-resource builders are collectively tested by `factories.test.ts`.
   /\/factories\//,
   /\/test-factories\/src\//,
+  // `@tzurot/test-utils` is pure test infrastructure: `seed.ts` (exercised by
+  // `seed.int.test.ts`), `RedisClientMock.ts`, and `setup-pglite.ts` — mocks and
+  // PGLite/Redis setup that the colocated-unit-test rule doesn't apply to.
+  /\/test-utils\/src\//,
   // Service singletons and caches (thin wrappers around Prisma/Redis/external APIs)
   /Service\.ts$/,
   /Cache\.ts$/,
@@ -185,6 +189,7 @@ describe('Project Structure', () => {
       'packages/common-types/src',
       'packages/embeddings/src',
       'packages/test-factories/src',
+      'packages/test-utils/src',
       'packages/tooling/src',
     ];
 

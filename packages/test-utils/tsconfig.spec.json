@@ -1,0 +1,24 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "noEmit": true,
+    // Widen rootDir to the packages dir: the path mapping below resolves
+    // common-types source, which lives outside test-utils/src. Harmless under
+    // noEmit (no output layout to constrain).
+    "rootDir": "..",
+    // `seed.int.test.ts` instantiates the generated PrismaClient, which lives
+    // inside @tzurot/common-types. test-utils cannot declare common-types as a
+    // dependency without recreating the common-types ↔ test-utils Turbo build
+    // cycle (see seed.ts). This path mapping mirrors the runtime alias in
+    // vitest.int.config.ts so tsc can resolve the type for the spec typecheck
+    // only — it does not add a package-graph edge.
+    "paths": {
+      "@tzurot/common-types": ["../common-types/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}
