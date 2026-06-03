@@ -3,10 +3,12 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { _testExports, handleView, handleViewPagination } from './view.js';
+import { MessageFlags } from 'discord.js';
+import { _testExports, handleView, handleViewPagination, handleExpandField } from './view.js';
 import type { CharacterData } from './characterTypes.js';
 import { DISCORD_LIMITS, TEXT_LIMITS } from '@tzurot/common-types';
 import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
+import { sendChunkedReply } from '../../utils/chunkedReply.js';
 
 // Configurable slug for the mocked characterViewOptions; reset per test.
 const slugMock = vi.hoisted(() => ({ value: 'test-character' }));
@@ -22,6 +24,7 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 });
 
 vi.mock('../../utils/gatewayClients.js', () => ({ clientsFor: clientsForMock }));
+vi.mock('../../utils/chunkedReply.js', () => ({ sendChunkedReply: vi.fn() }));
 
 const {
   buildCharacterViewPage,
@@ -538,5 +541,85 @@ describe('handleView / handleViewPagination', () => {
     expect(editReply).toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining('Character not found') })
     );
+  });
+
+  it('keeps the existing view (no editReply) when pagination re-fetch fails with a non-404', async () => {
+    // fetchCharacterForView throws on 500 → the catch logs and intentionally
+    // leaves the current page in place so the user can retry.
+    stub.getPersonality.mockResolvedValue(makeErr(500, 'boom'));
+
+    await handleViewPagination(paginationInteraction(), 'test-character', 1, config);
+
+    expect(deferUpdate).toHaveBeenCalled();
+    expect(editReply).not.toHaveBeenCalled();
+  });
+});
+
+describe('handleExpandField', () => {
+  const editReply = vi.fn();
+  const deferReply = vi.fn();
+  const stub = { getPersonality: vi.fn() };
+  const config = {} as unknown as Parameters<typeof handleExpandField>[3];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
+  });
+
+  function expandInteraction() {
+    return { deferReply, editReply } as unknown as Parameters<typeof handleExpandField>[0];
+  }
+
+  it('defers ephemerally and sends the full field content via chunked reply', async () => {
+    const character = createTestCharacter({ characterInfo: 'Full unabridged background text' });
+    stub.getPersonality.mockResolvedValue(makeOk({ personality: character }));
+
+    await handleExpandField(expandInteraction(), 'test-character', 'characterInfo', config);
+
+    expect(deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
+    expect(sendChunkedReply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: 'Full unabridged background text',
+        header: expect.stringContaining(EXPANDABLE_FIELDS.characterInfo.label),
+      })
+    );
+    expect(editReply).not.toHaveBeenCalled();
+  });
+
+  it('shows "not found" when the character fetch 404s', async () => {
+    stub.getPersonality.mockResolvedValue(makeErr(404, 'gone'));
+
+    await handleExpandField(expandInteraction(), 'test-character', 'characterInfo', config);
+
+    expect(editReply).toHaveBeenCalledWith(expect.stringContaining('Character not found'));
+    expect(sendChunkedReply).not.toHaveBeenCalled();
+  });
+
+  it('shows "Unknown field" for a field name with no expandable definition', async () => {
+    stub.getPersonality.mockResolvedValue(makeOk({ personality: createTestCharacter() }));
+
+    await handleExpandField(expandInteraction(), 'test-character', 'noSuchField', config);
+
+    expect(editReply).toHaveBeenCalledWith(expect.stringContaining('Unknown field'));
+    expect(sendChunkedReply).not.toHaveBeenCalled();
+  });
+
+  it('shows "_Not set_" when the field exists but has no content', async () => {
+    const character = createTestCharacter({ personalityLikes: null });
+    stub.getPersonality.mockResolvedValue(makeOk({ personality: character }));
+
+    await handleExpandField(expandInteraction(), 'test-character', 'personalityLikes', config);
+
+    expect(editReply).toHaveBeenCalledWith(expect.stringContaining('_Not set_'));
+    expect(sendChunkedReply).not.toHaveBeenCalled();
+  });
+
+  it('shows a generic error when the fetch fails with a non-404 status', async () => {
+    stub.getPersonality.mockResolvedValue(makeErr(500, 'boom'));
+
+    await handleExpandField(expandInteraction(), 'test-character', 'characterInfo', config);
+
+    expect(editReply).toHaveBeenCalledWith(expect.stringContaining('Failed to load field content'));
+    expect(sendChunkedReply).not.toHaveBeenCalled();
   });
 });
