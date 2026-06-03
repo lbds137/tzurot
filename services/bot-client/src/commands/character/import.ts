@@ -343,10 +343,7 @@ async function saveCharacter(
   isUpdate: boolean
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const result = isUpdate
-    ? await userClient.updatePersonality(
-        slug,
-        payload as Parameters<UserClient['updatePersonality']>[1]
-      )
+    ? await userClient.updatePersonality(slug, payload)
     : await userClient.createPersonality(payload as Parameters<UserClient['createPersonality']>[0]);
 
   if (!result.ok) {

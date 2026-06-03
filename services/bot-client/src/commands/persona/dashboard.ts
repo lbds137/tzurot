@@ -13,7 +13,7 @@ import {
   type ButtonInteraction,
   type ModalSubmitInteraction,
 } from 'discord.js';
-import { createLogger, type PersonaUpdateInput } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types';
 import { buildDeleteConfirmation } from '../../utils/dashboard/deleteConfirmation.js';
 import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
 import { createRefreshHandler, refreshDashboardUI } from '../../utils/dashboard/refreshHandler.js';
@@ -122,10 +122,7 @@ async function handleSectionModalSubmit(
     const { userClient } = clientsFor(interaction);
     const updatedPersona = await updatePersona(
       entityId,
-      // Cast: unflattenPersonaData omits fields the user didn't touch
-      // (signals "preserve") while PersonaUpdateInput's shape allows
-      // undefined for each field — semantically equivalent on the wire.
-      updatePayload as PersonaUpdateInput,
+      updatePayload,
       userClient,
       interaction.user.id
     );

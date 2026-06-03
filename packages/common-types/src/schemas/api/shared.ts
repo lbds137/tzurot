@@ -78,10 +78,14 @@ export function emptyToNull<T extends z.ZodTypeAny>(schema: T): z.ZodType<z.infe
  * });
  * ```
  */
-export function optionalString(maxLength = 100): z.ZodType<string | undefined> {
+export function optionalString(maxLength = 100): z.ZodOptional<z.ZodType<string | undefined>> {
   // Use union: either undefined (from empty), or a valid string
-  // The preprocess converts empty → undefined, then union accepts either
-  return z.preprocess(
+  // The preprocess converts empty → undefined, then union accepts either.
+  // The outer .optional() doesn't change runtime behavior (undefined already
+  // passes the union) — it marks the KEY optional in z.infer'd object types,
+  // so update-payload types allow omitting fields instead of requiring
+  // explicit `name: undefined` entries.
+  const inner: z.ZodType<string | undefined> = z.preprocess(
     val => {
       if (typeof val === 'string') {
         const trimmed = val.trim();
@@ -99,6 +103,7 @@ export function optionalString(maxLength = 100): z.ZodType<string | undefined> {
     },
     z.union([z.undefined(), z.string().min(1).max(maxLength)])
   );
+  return inner.optional();
 }
 
 /**
@@ -118,9 +123,13 @@ export function optionalString(maxLength = 100): z.ZodType<string | undefined> {
  * });
  * ```
  */
-export function nullableString(maxLength = 500): z.ZodType<string | null | undefined> {
-  // Preprocess converts empty → null, then schema accepts string|null|undefined
-  return z.preprocess(
+export function nullableString(
+  maxLength = 500
+): z.ZodOptional<z.ZodType<string | null | undefined>> {
+  // Preprocess converts empty → null, then schema accepts string|null|undefined.
+  // The outer .optional() marks the KEY optional in z.infer'd object types —
+  // see optionalString above for the rationale; runtime behavior is unchanged.
+  const inner: z.ZodType<string | null | undefined> = z.preprocess(
     val => {
       if (typeof val === 'string') {
         const trimmed = val.trim();
@@ -139,6 +148,7 @@ export function nullableString(maxLength = 500): z.ZodType<string | null | undef
     },
     z.union([z.null(), z.undefined(), z.string().min(1).max(maxLength)])
   );
+  return inner.optional();
 }
 
 // ===========================================

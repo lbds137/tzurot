@@ -5,9 +5,12 @@
  * Uses the Dashboard Framework pattern for consistent UX.
  */
 
+import type { LlmConfigUpdateInput, AdvancedParams } from '@tzurot/common-types';
 import type { DashboardConfig, FieldDefinition } from '../../utils/dashboard/types.js';
 import type { ActionButtonOptions } from '../../utils/dashboard/index.js';
 import type { PresetData, FlattenedPresetData } from './types.js';
+
+type ReasoningConfig = NonNullable<AdvancedParams['reasoning']>;
 
 // Re-export types for backward compatibility
 export type { PresetData, FlattenedPresetData } from './types.js';
@@ -55,31 +58,37 @@ export function flattenPresetData(data: PresetData): FlattenedPresetData {
   };
 }
 
-/** Add string field to result if non-empty */
-function addStringField(
-  result: Record<string, unknown>,
-  key: string,
-  value: string | undefined,
-  nullable = false
-): void {
-  if (value === undefined) {
-    return;
-  }
-  result[key] = value.length > 0 ? value : nullable ? null : undefined;
-  if (result[key] === undefined) {
-    delete result[key];
-  }
-}
+/** Form fields where empty string means "preserve existing value" (omit from payload) */
+const OMIT_WHEN_EMPTY_FIELDS = ['name', 'provider', 'model'] as const;
+
+/** Form fields where empty string means "clear the value" (send null) */
+const NULL_WHEN_EMPTY_FIELDS = ['description', 'visionModel'] as const;
+
+/** Numeric sampling/output params; FlattenedPresetData holds them as form strings */
+const NUMERIC_PARAMS = [
+  'temperature',
+  'top_p',
+  'top_k',
+  'max_tokens',
+  'seed',
+  'frequency_penalty',
+  'presence_penalty',
+  'repetition_penalty',
+  'min_p',
+  'top_a',
+] as const;
+
+type NumericParamKey = (typeof NUMERIC_PARAMS)[number];
 
 /** Parse numeric params from flat data */
-function parseNumericParams(
-  flat: Partial<FlattenedPresetData>,
-  params: readonly string[]
-): { values: Record<string, number>; hasAny: boolean } {
-  const values: Record<string, number> = {};
+function parseNumericParams(flat: Partial<FlattenedPresetData>): {
+  values: Partial<Record<NumericParamKey, number>>;
+  hasAny: boolean;
+} {
+  const values: Partial<Record<NumericParamKey, number>> = {};
   let hasAny = false;
-  for (const param of params) {
-    const value = flat[param as keyof FlattenedPresetData] as string | undefined;
+  for (const param of NUMERIC_PARAMS) {
+    const value = flat[param];
     if (value !== undefined && value.length > 0) {
       const num = parseFloat(value);
       if (!isNaN(num)) {
@@ -91,14 +100,23 @@ function parseNumericParams(
   return { values, hasAny };
 }
 
+const VALID_EFFORTS: readonly NonNullable<ReasoningConfig['effort']>[] = [
+  'xhigh',
+  'high',
+  'medium',
+  'low',
+  'minimal',
+  'none',
+];
+
 /** Parse reasoning params from flat data */
-function parseReasoningParams(flat: Partial<FlattenedPresetData>): Record<string, unknown> | null {
-  const reasoning: Record<string, unknown> = {};
-  const validEfforts = ['xhigh', 'high', 'medium', 'low', 'minimal', 'none'];
+function parseReasoningParams(flat: Partial<FlattenedPresetData>): ReasoningConfig | null {
+  const reasoning: ReasoningConfig = {};
 
   if (flat.reasoning_effort !== undefined && flat.reasoning_effort.length > 0) {
-    const effort = flat.reasoning_effort.toLowerCase();
-    if (validEfforts.includes(effort)) {
+    const effortInput = flat.reasoning_effort.toLowerCase();
+    const effort = VALID_EFFORTS.find(e => e === effortInput);
+    if (effort !== undefined) {
       reasoning.effort = effort;
     }
   }
@@ -127,26 +145,11 @@ function parseOptionalInt(value: string | undefined): number | undefined {
 }
 
 /** Build advancedParameters object from flattened data */
-function buildAdvancedParameters(
-  flat: Partial<FlattenedPresetData>
-): Record<string, unknown> | null {
-  const numericParams = [
-    'temperature',
-    'top_p',
-    'top_k',
-    'max_tokens',
-    'seed',
-    'frequency_penalty',
-    'presence_penalty',
-    'repetition_penalty',
-    'min_p',
-    'top_a',
-  ] as const;
-
-  const { values: samplingParams, hasAny: hasSampling } = parseNumericParams(flat, numericParams);
+function buildAdvancedParameters(flat: Partial<FlattenedPresetData>): AdvancedParams | null {
+  const { values: samplingParams, hasAny: hasSampling } = parseNumericParams(flat);
   const reasoning = parseReasoningParams(flat);
 
-  const advancedParameters: Record<string, unknown> = { ...samplingParams };
+  const advancedParameters: AdvancedParams = { ...samplingParams };
   if (reasoning !== null) {
     advancedParameters.reasoning = reasoning;
   }
@@ -160,15 +163,24 @@ function buildAdvancedParameters(
 }
 
 /** Convert flattened form data back to API update payload */
-export function unflattenPresetData(flat: Partial<FlattenedPresetData>): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
+export function unflattenPresetData(flat: Partial<FlattenedPresetData>): LlmConfigUpdateInput {
+  const result: LlmConfigUpdateInput = {};
 
-  // Basic fields
-  addStringField(result, 'name', flat.name);
-  addStringField(result, 'description', flat.description, true);
-  addStringField(result, 'provider', flat.provider);
-  addStringField(result, 'model', flat.model);
-  addStringField(result, 'visionModel', flat.visionModel, true);
+  // Basic fields — empty string preserves the existing value (field omitted)
+  for (const key of OMIT_WHEN_EMPTY_FIELDS) {
+    const value = flat[key];
+    if (value !== undefined && value.length > 0) {
+      result[key] = value;
+    }
+  }
+
+  // Nullable fields — empty string clears the value (send null)
+  for (const key of NULL_WHEN_EMPTY_FIELDS) {
+    const value = flat[key];
+    if (value !== undefined) {
+      result[key] = value.length > 0 ? value : null;
+    }
+  }
 
   // Context window (model-coupled, stays in LlmConfig)
   const contextWindowTokens = parseOptionalInt(flat.contextWindowTokens);
