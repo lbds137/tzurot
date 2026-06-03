@@ -6,7 +6,7 @@
  * operations go through `ownerClient`.
  */
 
-import { type LlmConfigDetail } from '@tzurot/common-types';
+import { type LlmConfigDetail, type LlmConfigUpdateInput } from '@tzurot/common-types';
 import { GatewayApiError, type OwnerClient, type UserClient } from '@tzurot/clients';
 import type { PresetData } from './types.js';
 
@@ -93,13 +93,10 @@ export async function fetchGlobalPreset(
  */
 export async function updatePreset(
   presetId: string,
-  data: Record<string, unknown>,
+  data: LlmConfigUpdateInput,
   userClient: UserClient
 ): Promise<PresetData> {
-  const result = await userClient.updateUserLlmConfig(
-    presetId,
-    data as Parameters<UserClient['updateUserLlmConfig']>[1]
-  );
+  const result = await userClient.updateUserLlmConfig(presetId, data);
 
   if (!result.ok) {
     throw new Error(`Failed to update preset: ${result.status} - ${result.error ?? 'Unknown'}`);
@@ -115,13 +112,10 @@ export async function updatePreset(
  */
 export async function updateGlobalPreset(
   presetId: string,
-  data: Record<string, unknown>,
+  data: LlmConfigUpdateInput,
   ownerClient: OwnerClient
 ): Promise<PresetData> {
-  const result = await ownerClient.updateGlobalLlmConfig(
-    presetId,
-    data as Parameters<OwnerClient['updateGlobalLlmConfig']>[1]
-  );
+  const result = await ownerClient.updateGlobalLlmConfig(presetId, data);
 
   if (!result.ok) {
     throw new Error(
