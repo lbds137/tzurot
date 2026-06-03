@@ -7,35 +7,34 @@
 
 import { z } from 'zod';
 import {
-  EnableIncognitoRequestSchema,
-  DisableIncognitoRequestSchema,
-  IncognitoForgetRequestSchema,
-} from '../../types/incognito.js';
-import {
-  GetIncognitoStatusResponseSchema,
-  EnableIncognitoResponseSchema,
-  DisableIncognitoResponseSchema,
-  IncognitoForgetResponseSchema,
-  FocusModeSchema,
-  SetMemoryLockSchema,
-  MemoryUpdateSchema,
+  BatchDeletePreviewResponseSchema,
   BatchDeletePreviewSchema,
+  BatchDeleteResponseSchema,
   BatchDeleteSchema,
+  DeleteMemoryResponseSchema,
+  DisableIncognitoRequestSchema,
+  DisableIncognitoResponseSchema,
+  EnableIncognitoRequestSchema,
+  EnableIncognitoResponseSchema,
+  FocusModeSchema,
+  FocusModeStatusResponseSchema,
+  GetIncognitoStatusResponseSchema,
+  IncognitoForgetRequestSchema,
+  IncognitoForgetResponseSchema,
+  IssuePurgeTokenResponseSchema,
   IssuePurgeTokenSchema,
-  PurgeMemoriesSchema,
+  MemoryListResponseSchema,
+  MemorySearchResponseSchema,
   MemorySearchSchema,
   MemoryStatsResponseSchema,
-  MemoryListResponseSchema,
-  FocusModeStatusResponseSchema,
-  SetFocusResponseSchema,
-  MemorySearchResponseSchema,
-  BatchDeletePreviewResponseSchema,
-  BatchDeleteResponseSchema,
-  IssuePurgeTokenResponseSchema,
+  MemoryUpdateSchema,
   PurgeMemoriesResponseSchema,
+  PurgeMemoriesSchema,
+  SetFocusResponseSchema,
+  SetMemoryLockSchema,
   SingleMemoryResponseSchema,
-  DeleteMemoryResponseSchema,
-} from '../../schemas/api/index.js';
+} from '@tzurot/common-types';
+
 import type { RouteDef } from '../types.js';
 
 const MEMORY_INCOGNITO_PATH = '/memory/incognito';

@@ -3,7 +3,7 @@
  *
  * Hoists the URI-encoding rules, `AbortSignal.timeout` composition, and
  * error-shape handling from the legacy `userGatewayClient.callGatewayApi`
- * into common-types so all consumers (bot-client today; ai-worker /
+ * into `@tzurot/clients` so all consumers (bot-client today; ai-worker /
  * api-gateway internal callers tomorrow) share one implementation.
  *
  * Three things this layer is responsible for:
@@ -35,10 +35,13 @@
 
 import type { z } from 'zod';
 
-import { isTimeoutError } from '../utils/errors.js';
+import {
+  type ApiErrorSubcode,
+  CONTENT_TYPES,
+  GATEWAY_TIMEOUTS,
+  isTimeoutError,
+} from '@tzurot/common-types';
 import { GatewayApiError, parseErrorResponse } from './errors.js';
-import { CONTENT_TYPES, GATEWAY_TIMEOUTS } from '../constants/index.js';
-import type { ApiErrorSubcode } from '../constants/error.js';
 
 /** Result envelope mirroring the legacy `callGatewayApi` discriminated union. */
 export type GatewayResult<T> =

@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { makeOk, makeErr } from '../../test/gatewayClientStubs.js';
-import type { UserClient } from '@tzurot/common-types';
+import type { UserClient } from '@tzurot/clients';
 
 const stub = {
   getVoiceResolution: vi.fn(),

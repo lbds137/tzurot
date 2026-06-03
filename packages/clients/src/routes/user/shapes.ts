@@ -11,19 +11,20 @@
 
 import { z } from 'zod';
 import {
-  StoreShapesAuthInputSchema,
-  StoreShapesAuthResponseSchema,
   DeleteShapesAuthResponseSchema,
-  ShapesAuthStatusResponseSchema,
-  ListShapesResponseSchema,
-  StartShapesImportInputSchema,
-  StartShapesImportResponseSchema,
+  GATEWAY_TIMEOUTS,
+  ListShapesExportJobsResponseSchema,
   ListShapesImportJobsResponseSchema,
+  ListShapesResponseSchema,
+  ShapesAuthStatusResponseSchema,
   StartShapesExportInputSchema,
   StartShapesExportResponseSchema,
-  ListShapesExportJobsResponseSchema,
-} from '../../schemas/api/index.js';
-import { GATEWAY_TIMEOUTS } from '../../constants/discord.js';
+  StartShapesImportInputSchema,
+  StartShapesImportResponseSchema,
+  StoreShapesAuthInputSchema,
+  StoreShapesAuthResponseSchema,
+} from '@tzurot/common-types';
+
 import type { RouteDef } from '../types.js';
 
 const BASE = '/shapes';

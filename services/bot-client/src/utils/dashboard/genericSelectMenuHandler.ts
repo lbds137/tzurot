@@ -16,7 +16,7 @@
 
 import type { StringSelectMenuInteraction } from 'discord.js';
 import { MessageFlags } from 'discord.js';
-import type { UserClient } from '@tzurot/common-types';
+import type { UserClient } from '@tzurot/clients';
 import { clientsFor } from '../gatewayClients.js';
 import { parseDashboardCustomId, type DashboardConfig } from './types.js';
 import { fetchOrCreateSession } from './sessionHelpers.js';

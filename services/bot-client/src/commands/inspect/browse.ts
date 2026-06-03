@@ -28,8 +28,8 @@ import {
   DISCORD_COLORS,
   formatRelativeTime,
   normalizeDateTime,
-  type UserClient,
 } from '@tzurot/common-types';
+import { type UserClient } from '@tzurot/clients';
 import {
   ITEMS_PER_PAGE,
   createBrowseCustomIdHelpers,

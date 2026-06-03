@@ -7,7 +7,8 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import { createLogger, DISCORD_COLORS, isFreeModel, type UserClient } from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS, isFreeModel } from '@tzurot/common-types';
+import { type UserClient } from '@tzurot/clients';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { UNLOCK_MODELS_VALUE } from './autocomplete.js';
 

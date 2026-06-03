@@ -9,7 +9,7 @@ import {
   AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
 } from '../../utils/apiCheck.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import type { UserClient } from '@tzurot/common-types';
+import type { UserClient } from '@tzurot/clients';
 
 function mkUser(discordId = 'user-123'): UserClient {
   // Cache-key only — `actor` is the only field resolvePersonalityId reads via

@@ -24,7 +24,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
-import { ROUTE_MANIFEST } from '@tzurot/common-types';
+import { ROUTE_MANIFEST } from '@tzurot/clients';
 import type { PrismaClient } from '@tzurot/common-types';
 
 // Owner-gate passthrough: set an admin Discord ID and continue.

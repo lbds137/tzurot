@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleStatus } from './status.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import type { GatewayResult } from '@tzurot/common-types';
+import type { GatewayResult } from '@tzurot/clients';
 import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
 vi.mock('@tzurot/common-types', async importOriginal => {

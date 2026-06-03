@@ -8,13 +8,8 @@
  * exercise.
  */
 
-import type {
-  ApiErrorSubcode,
-  GatewayResult,
-  OwnerClient,
-  ServiceClient,
-  UserClient,
-} from '@tzurot/common-types';
+import type { ApiErrorSubcode } from '@tzurot/common-types';
+import type { GatewayResult, OwnerClient, ServiceClient, UserClient } from '@tzurot/clients';
 
 /** Build an `ok` GatewayResult. */
 export function makeOk<T>(data: T): GatewayResult<T> {

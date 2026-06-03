@@ -25,6 +25,9 @@
       "ignoreDependencies": ["openai", "pg", "redis"],
       "ignoreMembers": ["ECONNRESET", "ETIMEDOUT", "ENOTFOUND", "ECONNREFUSED"]
     },
+    "packages/clients": {
+      "entry": ["src/**/*.test.ts"]
+    },
     "packages/tooling": {
       "entry": ["src/**/*.test.ts"],
       "ignoreDependencies": ["eslint"]

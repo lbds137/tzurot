@@ -105,7 +105,7 @@ describe('runCodegen (write path)', () => {
     runCodegen({ rootDir: tempRoot });
     // mkdirSync recursive should have created the nested dir
     const generated = readFileSync(
-      join(tempRoot, 'packages/common-types/src/clients/_generated/service-client.ts'),
+      join(tempRoot, 'packages/clients/src/clients/_generated/service-client.ts'),
       'utf-8'
     );
     expect(generated).toContain('export class ServiceClient');
@@ -129,10 +129,7 @@ describe('runCodegen (drift detection)', () => {
 
   it('reports drift only for files that have been hand-edited', () => {
     runCodegen({ rootDir: tempRoot });
-    const ownerPath = join(
-      tempRoot,
-      'packages/common-types/src/clients/_generated/owner-client.ts'
-    );
+    const ownerPath = join(tempRoot, 'packages/clients/src/clients/_generated/owner-client.ts');
     writeFileSync(ownerPath, '// hand-edited content\n');
 
     const checkResult = runCodegen({ rootDir: tempRoot, check: true });
@@ -142,7 +139,7 @@ describe('runCodegen (drift detection)', () => {
 
   it('check mode does not overwrite files even when they drift', () => {
     runCodegen({ rootDir: tempRoot });
-    const userPath = join(tempRoot, 'packages/common-types/src/clients/_generated/user-client.ts');
+    const userPath = join(tempRoot, 'packages/clients/src/clients/_generated/user-client.ts');
     const handEditedContent = '// hand-edited\n';
     writeFileSync(userPath, handEditedContent);
 
@@ -151,13 +148,10 @@ describe('runCodegen (drift detection)', () => {
   });
 
   it('write mode overwrites drifted files (the regen path)', () => {
-    mkdirSync(join(tempRoot, 'packages/common-types/src/clients/_generated'), {
+    mkdirSync(join(tempRoot, 'packages/clients/src/clients/_generated'), {
       recursive: true,
     });
-    const ownerPath = join(
-      tempRoot,
-      'packages/common-types/src/clients/_generated/owner-client.ts'
-    );
+    const ownerPath = join(tempRoot, 'packages/clients/src/clients/_generated/owner-client.ts');
     writeFileSync(ownerPath, '// stale content');
 
     runCodegen({ rootDir: tempRoot });

@@ -6,12 +6,8 @@
  * operations go through `ownerClient`.
  */
 
-import {
-  GatewayApiError,
-  type LlmConfigDetail,
-  type OwnerClient,
-  type UserClient,
-} from '@tzurot/common-types';
+import { type LlmConfigDetail } from '@tzurot/common-types';
+import { GatewayApiError, type OwnerClient, type UserClient } from '@tzurot/clients';
 import type { PresetData } from './types.js';
 
 /** Conservative limit — leaves room for the "❌ " prefix and Discord's 2000-char cap */

@@ -20,7 +20,8 @@ import {
   fetchUsernames,
   toCharacterData,
 } from './api.js';
-import type { EnvConfig, UserClient } from '@tzurot/common-types';
+import type { EnvConfig } from '@tzurot/common-types';
+import type { UserClient } from '@tzurot/clients';
 
 interface StubUserClient {
   getPersonality: ReturnType<typeof vi.fn>;

@@ -23,10 +23,9 @@ import {
   createLogger,
   type ConfigOverrides,
   type ConfigOverrideSource,
-  type GatewayResult,
   type ResolvedConfigOverrides,
-  type UserClient,
 } from '@tzurot/common-types';
+import { type GatewayResult, type UserClient } from '@tzurot/clients';
 import { clientsFor } from '../../gatewayClients.js';
 import type {
   SettingsData,

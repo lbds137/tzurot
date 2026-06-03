@@ -7,7 +7,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MessageFlags } from 'discord.js';
 import type { ButtonInteraction } from 'discord.js';
-import type { EnvConfig, UserClient } from '@tzurot/common-types';
+import type { EnvConfig } from '@tzurot/common-types';
+import type { UserClient } from '@tzurot/clients';
 
 // Mock dependencies
 vi.mock('./api.js', () => ({

@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import type { RouteDef } from '@tzurot/common-types';
+import type { RouteDef } from '@tzurot/clients';
 import { buildClientClass } from './client-builder.js';
 
 const internalRoutes: Record<string, RouteDef> = {
@@ -165,7 +165,7 @@ describe('buildClientClass — UserClient', () => {
     });
     expect(src).toContain(`type ActorDiscordId`);
     expect(src).toContain(`GatewayUser`);
-    expect(src).toContain(`from '../../types/gateway-context.js'`);
+    expect(src).toContain(`from '@tzurot/common-types'`);
     expect(src).not.toContain(`SubjectDiscordId`);
   });
 

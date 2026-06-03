@@ -18,7 +18,8 @@ import type {
   ModalSubmitInteraction,
 } from 'discord.js';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import { createLogger, DISCORD_COLORS, type UserClient } from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import { type UserClient } from '@tzurot/clients';
 import { clientsFor } from '../../../utils/gatewayClients.js';
 import {
   type SettingsDashboardConfig,

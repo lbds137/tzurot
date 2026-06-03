@@ -9,9 +9,8 @@ import type {
   DiagnosticLogResponse,
   DiagnosticLogsResponse,
   DiagnosticPayload,
-  GatewayResult,
-  UserClient,
 } from '@tzurot/common-types';
+import type { GatewayResult, UserClient } from '@tzurot/clients';
 
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');

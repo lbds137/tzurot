@@ -8,7 +8,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
-import type { GatewayResult, OwnerClient } from '@tzurot/common-types';
+import type { GatewayResult, OwnerClient } from '@tzurot/clients';
 import {
   handleSettings,
   handleAdminSettingsButton,

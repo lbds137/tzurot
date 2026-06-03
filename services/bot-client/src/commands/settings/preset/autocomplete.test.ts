@@ -5,7 +5,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { handleAutocomplete } from './autocomplete.js';
 import type { AutocompleteInteraction, User } from 'discord.js';
-import { mockLlmConfigSummary, mockListWalletKeysResponse } from '@tzurot/common-types';
+import {
+  mockListWalletKeysResponse,
+  mockLlmConfigSummary,
+  type PersonalitySummary,
+} from '@tzurot/common-types';
 
 // Mock logger
 vi.mock('@tzurot/common-types', async () => {
@@ -34,12 +38,11 @@ const stub = {
 
 vi.mock('../../../utils/gatewayClients.js', () => ({
   clientsFor: vi.fn(() => ({
-    userClient: stub as unknown as import('@tzurot/common-types').UserClient,
+    userClient: stub as unknown as import('@tzurot/clients').UserClient,
   })),
 }));
 
 import { UNLOCK_MODELS_VALUE } from './autocomplete.js';
-import type { PersonalitySummary } from '@tzurot/common-types';
 
 // Helper to create mock personality with required fields
 function mockPersonality(overrides: Partial<PersonalitySummary>): PersonalitySummary {

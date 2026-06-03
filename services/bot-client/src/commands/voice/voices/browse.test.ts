@@ -12,7 +12,7 @@ import {
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import type { VoiceEntry } from './types.js';
 import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
-import type { UserClient } from '@tzurot/common-types';
+import type { UserClient } from '@tzurot/clients';
 
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();

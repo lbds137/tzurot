@@ -8,13 +8,8 @@
 
 import { EmbedBuilder, escapeMarkdown } from 'discord.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
-import {
-  createLogger,
-  isBotOwner,
-  DISCORD_COLORS,
-  formatDateShort,
-  type OwnerClient,
-} from '@tzurot/common-types';
+import { createLogger, isBotOwner, DISCORD_COLORS, formatDateShort } from '@tzurot/common-types';
+import { type OwnerClient } from '@tzurot/clients';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { requireBotOwnerContext } from '../../utils/commandContext/index.js';
 import { clientsFor } from '../../utils/gatewayClients.js';

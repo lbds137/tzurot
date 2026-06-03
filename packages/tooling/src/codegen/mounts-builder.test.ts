@@ -16,7 +16,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import type { Audience, RouteDef } from '@tzurot/common-types';
+import type { Audience, RouteDef } from '@tzurot/clients';
 import { buildMountsFile, type HandlerPathResolver } from './mounts-builder.js';
 
 const handlerPathFor: HandlerPathResolver = id => `../testHandlers/${id}.js`;

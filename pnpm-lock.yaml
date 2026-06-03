@@ -134,6 +134,19 @@ importers:
         specifier: ^4.1.7
         version: 4.1.7(@types/node@25.9.1)(@vitest/coverage-v8@4.1.7)(vite@8.0.14(@types/node@25.9.1)(esbuild@0.28.0)(jiti@2.7.0)(tsx@4.22.3)(yaml@2.9.0))
 
+  packages/clients:
+    dependencies:
+      '@tzurot/common-types':
+        specifier: workspace:*
+        version: link:../common-types
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: ^25.9.1
+        version: 25.9.1
+
   packages/common-types:
     dependencies:
       '@prisma/adapter-pg':
@@ -226,6 +239,9 @@ importers:
 
   packages/tooling:
     dependencies:
+      '@tzurot/clients':
+        specifier: workspace:*
+        version: link:../clients
       '@tzurot/common-types':
         specifier: workspace:*
         version: link:../common-types
@@ -410,6 +426,9 @@ importers:
       '@types/supertest':
         specifier: ^7.2.0
         version: 7.2.0
+      '@tzurot/clients':
+        specifier: workspace:*
+        version: link:../../packages/clients
       '@tzurot/test-utils':
         specifier: workspace:*
         version: link:../../packages/test-utils
@@ -419,6 +438,9 @@ importers:
 
   services/bot-client:
     dependencies:
+      '@tzurot/clients':
+        specifier: workspace:*
+        version: link:../../packages/clients
       '@tzurot/common-types':
         specifier: workspace:*
         version: link:../../packages/common-types

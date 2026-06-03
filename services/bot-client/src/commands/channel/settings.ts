@@ -15,12 +15,8 @@
 import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
 import { PermissionFlagsBits } from 'discord.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import {
-  createLogger,
-  DISCORD_COLORS,
-  type ResolvedConfigOverrides,
-  type UserClient,
-} from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS, type ResolvedConfigOverrides } from '@tzurot/common-types';
+import { type UserClient } from '@tzurot/clients';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import {
   getChannelSettingsCached,

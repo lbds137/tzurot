@@ -13,7 +13,7 @@ import {
 import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
 import { DASHBOARD_MESSAGES, formatSessionExpiredMessage } from '../../utils/dashboard/messages.js';
 import type { PresetData } from './config.js';
-import { GatewayApiError } from '@tzurot/common-types';
+import { GatewayApiError } from '@tzurot/clients';
 
 // Sentinel passed by the migrated dashboard handler — `clientsFor(interaction)`
 // returns this stub, which then flows into the mocked api.ts helpers (fetchPreset,
