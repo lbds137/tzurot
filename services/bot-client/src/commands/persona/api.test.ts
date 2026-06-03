@@ -10,7 +10,7 @@ import {
   deletePersona,
   isDefaultPersona,
 } from './api.js';
-import { mockGetPersonaResponse, mockListPersonasResponse } from '@tzurot/common-types';
+import { mockGetPersonaResponse, mockListPersonasResponse } from '@tzurot/test-factories';
 import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
 const TEST_PERSONA_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';

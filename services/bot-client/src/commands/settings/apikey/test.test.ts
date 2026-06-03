@@ -5,7 +5,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { handleTestKey } from './test.js';
-import { mockTestWalletKeyResponse, AIProvider } from '@tzurot/common-types';
+import { AIProvider } from '@tzurot/common-types';
+import { mockTestWalletKeyResponse } from '@tzurot/test-factories';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
 import type { UserClient } from '@tzurot/clients';

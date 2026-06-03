@@ -7,12 +7,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleOverrideSet, handleOverrideCreateModalSubmit } from './set.js';
 import { MessageFlags } from 'discord.js';
 import { CREATE_NEW_PERSONA_VALUE } from '../autocomplete.js';
+import { API_ERROR_SUBCODE } from '@tzurot/common-types';
 import {
   mockSetOverrideResponse,
   mockOverrideInfoResponse,
   mockCreateOverrideResponse,
-  API_ERROR_SUBCODE,
-} from '@tzurot/common-types';
+} from '@tzurot/test-factories';
 import { makeOk, makeErr, asUserClient } from '../../../test/gatewayClientStubs.js';
 
 const clientsForMock = vi.hoisted(() => vi.fn());

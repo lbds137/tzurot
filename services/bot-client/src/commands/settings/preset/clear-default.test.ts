@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleClearDefault } from './clear-default.js';
-import { mockClearDefaultConfigResponse } from '@tzurot/common-types';
+import { mockClearDefaultConfigResponse } from '@tzurot/test-factories';
 import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
 import type { UserClient } from '@tzurot/clients';
 

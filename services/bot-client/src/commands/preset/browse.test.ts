@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
-import { mockListLlmConfigsResponse, mockListWalletKeysResponse } from '@tzurot/common-types';
+import { mockListLlmConfigsResponse, mockListWalletKeysResponse } from '@tzurot/test-factories';
 import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 import { registerBrowseRebuilder } from '../../utils/dashboard/index.js';
 

@@ -9,7 +9,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MessageFlags } from 'discord.js';
 import { handleViewPersona, handleExpandContent } from './view.js';
-import { mockListPersonasResponse, mockGetPersonaResponse } from '@tzurot/common-types';
+import { mockListPersonasResponse, mockGetPersonaResponse } from '@tzurot/test-factories';
 import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
 const clientsForMock = vi.hoisted(() => vi.fn());

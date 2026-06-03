@@ -29,6 +29,7 @@
     { "path": "./services/ai-worker" },
     { "path": "./packages/common-types" },
     { "path": "./packages/clients" },
+    { "path": "./packages/test-factories" },
     { "path": "./tests" },
     { "path": "./tsconfig.configs.json" }
   ]

@@ -21,7 +21,7 @@ import {
   type ListLlmConfigsResponse,
   type CreateLlmConfigResponse,
   type DeleteLlmConfigResponse,
-} from '../schemas/api/llm-config.js';
+} from '@tzurot/common-types';
 import { z } from 'zod';
 
 type LlmConfigSummary = z.infer<typeof LlmConfigSummarySchema>;

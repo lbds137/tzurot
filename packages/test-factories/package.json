@@ -1,0 +1,32 @@
+{
+  "name": "@tzurot/test-factories",
+  "version": "3.0.0-beta.126",
+  "private": true,
+  "type": "module",
+  "description": "Validated mock-data factories for Tzurot tests (built on @tzurot/common-types schemas)",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "tsc",
+    "test": "vitest",
+    "lint": "eslint src --max-warnings=0",
+    "lint:fix": "eslint src --fix",
+    "format": "prettier --write .",
+    "typecheck": "tsc --noEmit",
+    "typecheck:spec": "tsc --noEmit --project tsconfig.spec.json"
+  },
+  "dependencies": {
+    "@tzurot/common-types": "workspace:*",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1"
+  }
+}

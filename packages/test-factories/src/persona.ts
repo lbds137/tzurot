@@ -33,7 +33,7 @@ import {
   type CreateOverrideResponse,
   type PersonaDetails,
   type PersonaSummary,
-} from '../schemas/api/persona.js';
+} from '@tzurot/common-types';
 
 // Default UUIDs for consistent test data (RFC 4122 compliant v5 UUIDs)
 const DEFAULT_PERSONALITY_ID = '11111111-1111-5111-8111-111111111111';
