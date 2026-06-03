@@ -10,6 +10,17 @@ module.exports = {
       to: { path: '@prisma/client' },
     },
     {
+      name: 'no-prod-import-test-factories',
+      comment:
+        '@tzurot/test-factories is a test-fixture package — production code must never import it',
+      severity: 'error',
+      from: {
+        path: '^(services|packages)/',
+        pathNot: ['\\.test\\.ts$', '^packages/test-factories/'],
+      },
+      to: { path: '(^|/)@tzurot/test-factories|^packages/test-factories/' },
+    },
+    {
       name: 'no-cross-service-imports',
       comment: 'Services must not import from each other — use common-types or APIs',
       severity: 'error',
