@@ -23,7 +23,7 @@
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.4.6",
-    "ioredis": "^5.10.1"
+    "ioredis": "^5.11.0"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",
