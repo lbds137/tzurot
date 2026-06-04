@@ -818,6 +818,10 @@ User feedback 2026-05-13 (post-NeuTTS-abandon): both self-hosted (Pocket TTS) AN
 
 Same probe pattern as self-hosted, but with API requests instead of local inference. Listen-test against the existing emily / lila / lilith reference + same test text for direct A/B with Mistral output. Pricing-per-1K-chars (or per-minute-of-output) needs to be in the comparison table alongside quality.
 
+**Folded in from the deferred prune (2026-06-03):**
+
+- **TTS Budget Guard decorator** — wrap the provider stack in a `BudgetTtsProvider` reading `MONTHLY_TTS_BUDGET_CENTS`; force-switch to free self-hosted once budget exceeded. Hard safety net for whatever BYOK provider wins the bake-off (originally scoped against Mistral cost, surfaced 2026-05-01 in Kimi K2.6 council review). Build it as part of this theme — it's a decision input for the provider commitment, not a standalone item.
+
 **Required: Step 0 — hands-on probe before promoting any candidate to plan-mode** (lesson learned from NeuTTS Air decision-without-probe). The probe pattern that worked well: SSH dev voice-engine, install candidate in `/tmp` venv, run a 20-line bench script that loads model + synthesizes 5-30s of output + measures elapsed time + RAM peak. Total 30 min, no PR. Decision criteria: RTF < 3.0 OR (constant-time pattern that yields acceptable per-request synth time at the user's actual desired output lengths) AND subjectively-better-than-Pocket-TTS quality. The 2026-05-13 NeuTTS Air probe scripts are a reusable template.
 
 **Candidates re-evaluated 2026-05-14** (council brainstorm via Gemini 3.1 Pro Preview, after dropping the Pocket TTS post-processing sub-track):

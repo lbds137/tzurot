@@ -2,6 +2,12 @@
 
 _Ideas for later. Resist the shiny object._
 
+### Surfaced 2026-06-03 (deferred prune — feature ideas relocated, not defects)
+
+- 🔬 `[FEAT]` **OpenRouter TTS as budget tier (preset voices, no cloning)** — OpenRouter exposes preset-voice TTS at very low cost (Kokoro 82M $0.62/1M chars, GPT-4o Mini TTS $0.60/1M) but doesn't support voice cloning. Could plug into the TTS provider abstraction as a 4th category for users wanting max savings + accepting loss of per-persona voice differentiation. New `OpenRouterTtsProvider` class (stateless — `prepare()` no-op, `synthesize()` POSTs to `/audio/speech`). Originally surfaced 2026-05-01; relocated from deferred (feature idea, not a parked defect).
+
+- 🔬 `[FEAT]` **Buffer-hash → in-memory LRU cache for TTS text recovery** — The forwarded-voice placeholder text (`🔁 *Forwarded voice message originally spoken by ...*`) is sufficient for LLM context but loses fidelity vs the real utterance. Upgrade: hash audio buffer at synthesis → store in LRU; on receive side, look up hash → real text. Requires plumbing across ai-worker → bot-client. Originally surfaced 2026-05-01 (PR #955 follow-up); relocated from deferred (feature idea, not a parked defect).
+
 ### Surfaced 2026-05-22 (proposal-orphan triage pass)
 
 - 🔬 `[TRIAGE-NEEDED]` **shapes.inc auth cookie migration (Auth0 → Better Auth)** — Proposal: [`docs/proposals/backlog/shapes-inc-auth-cookie-migration.md`](../docs/proposals/backlog/shapes-inc-auth-cookie-migration.md). shapes.inc swapped auth libraries; the existing 3-part `appSession` cookie that `ShapesDataFetcher` reassembles no longer exists. New cookie is single `__Secure-better-auth.session_token`. **Promote when**: scraping breaks (we'll know — imports start 401-ing) OR opportunistically alongside other ShapesDataFetcher work. Until then, the rolling-pair parser keeps working against the legacy cookie format if/when sessions are still issued under the old shape.
