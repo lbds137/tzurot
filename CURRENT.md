@@ -9,7 +9,30 @@
 
 **PR-2o is up next** (see Active Epic below) — the quick-wins queue was swept clean on 2026-06-03 (see Last Session), so the path to the epic is clear. Remember the PR-2o opener: re-verify the single-consumer set from VALUE imports before moving any file.
 
-## Last Session — Quick-wins sweep: 3 PRs, queue cleared (2026-06-03)
+## Last Session (evening arc) — Backlog-quality campaign: 2 PRs + deferred/icebox prune + tripwire (2026-06-03)
+
+Continuation of the same day: after the quick-wins sweep below, the session pivoted to backlog quality — auditing trigger-gated items, fixing the ones whose triggers had fired, pruning the rot, and making the "opportunistic" trigger class structural.
+
+| PR    | Title                                                          | Outcome                                                                                                                                                                                |
+| ----- | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #1150 | `fix(bot-client): wrap first-ack error branches against 10062` | New generic `ackWithTimeoutCatch` (showModalWithTimeoutCatch now delegates to it); 5 exposed branches wrapped across memory detailModals + deny detailEdit; closed 4 deferred entries  |
+| #1151 | `feat(tooling): deferred-backlog tripwire`                     | `pnpm ops dev:deferred-refs` parses deferred.md path tokens, matches staged files, prints reminders via pre-commit (never blocks); makes "opportunistic when touching X" triggers fire |
+
+### Backlog-quality results
+
+- **Deferred audit**: all 113 entries read; trigger-quality tiers identified (~40% real gates, ~25% observational, ~35% "opportunistic" = hope). Fired triggers actioned: CPD `graceMargin` locked in as calibrated (~60 PRs, zero false trips → documented in `CPD_CAMPAIGN_AUDIT.md`); detailModals/deny ack-hygiene pair fixed (#1150).
+- **Deferred prune** (user-approved): 8 deleted (incl. both ElevenLabs-canceled-era items), 3 relocated (2 feature ideas → icebox, TTS Budget Guard → BYOK Re-Eval theme). 113 → 101.
+- **Icebox prune** (user-approved): all ~55 entries read; 7 deleted (headline: "Tag multiple bots" had SHIPPED months ago via MultiTagCoordinator), 4 merged into siblings, 2 rewritten to current reality (Reasoning/Thinking Modernization post-`__includeRawResponse`; GatewayClient-retry entry retargeted at the typed transport, which has `meta.idempotent` tags but NO retry layer). Verification saved 2 entries flagged for deletion (incognito mode is real in v3; release-notification side genuinely unbuilt).
+- **Still actionable, not done tonight**: vision `maxAttempts` + `TIMEOUTS.VISION_MODEL` telemetry decisions (gates fired ~6 weeks ago — needs a Railway log-analysis pass); the 3 `TRIAGE-NEEDED` proposal triages (~45 min); `visionProvider` required-param check (needs a Railway warn-log query); Mistral slot-quota prod probe; PostToolUse-hook jq-path narrowing.
+
+### Process notes
+
+- **The tripwire dogfooded itself during its own PR** (no matches on its own files — correct) and its first real catch is pre-wired: the URL-guard follow-up entry in deferred.md references `check-deferred-refs.ts`, so editing the tool surfaces its own backlog.
+- Review-loop convergence pattern was strong tonight: every PR's reviewer produced new smaller nits each round. Rounds 1-2 items were real (the `handleEditModal` sibling exposure catch on #1150 was legitimately in-scope and got fixed); rounds 3+ were dismissible with verification. The 08-review-response dismissal-with-verification discipline (e.g. "factually wrong: the stacked-@internal pattern IS used elsewhere") kept cycles bounded.
+
+---
+
+## Earlier Session — Quick-wins sweep: 3 PRs, queue cleared (2026-06-03)
 
 Full sweep of the quick-wins backlog in three PRs, all merged to develop:
 
