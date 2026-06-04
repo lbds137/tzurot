@@ -20,6 +20,8 @@ import {
   AiGenerateResponseSchema,
   AiJobStatusResponseSchema,
   AiTranscribeResponseSchema,
+  ConversationSyncRequestSchema,
+  ConversationSyncResponseSchema,
   DenylistCacheResponseSchema,
   DiagnosticUpdateResponseSchema,
   DiagnosticUpdateSchema,
@@ -27,7 +29,10 @@ import {
   DmSessionSetResponseSchema,
   generateRequestSchema,
   GetChannelSettingsResponseSchema,
+  LoadPersonalityInternalResponseSchema,
   MessagePersonalityResponseSchema,
+  PersistAssistantMessageRequestSchema,
+  PersistAssistantMessageResponseSchema,
   RecentUsersResponseSchema,
   TIMEOUTS,
   TranscribeRequestSchema,
@@ -139,6 +144,65 @@ export const internalRoutes = {
     id: 'lookupPersonalityFromMessage',
     query: { discordMessageId: z.string() },
     output: MessagePersonalityResponseSchema,
+    serviceOnly: true,
+    meta: { safeRead: true },
+    timeoutMs: TIMEOUTS.GATEWAY_RPC,
+  },
+
+  /**
+   * POST /api/internal/conversation/assistant-message
+   * Bot-client persists the assistant turn after Discord delivery succeeds
+   * (the gateway derives the deterministic row id, +1ms timestamp, and token
+   * count). Idempotent upsert-with-compare — during the dual-write window an
+   * existing row is compared, not overwritten, and `matched: false` is the
+   * divergence signal.
+   */
+  persistAssistantMessage: {
+    audience: 'internal',
+    method: 'post',
+    path: '/conversation/assistant-message',
+    id: 'persistAssistantMessage',
+    input: PersistAssistantMessageRequestSchema,
+    output: PersistAssistantMessageResponseSchema,
+    serviceOnly: true,
+    timeoutMs: TIMEOUTS.GATEWAY_RPC,
+  },
+
+  /**
+   * POST /api/internal/conversation/sync
+   * Opportunistic edit/delete sync: bot-client ships its fetched Discord
+   * snapshot; the gateway diffs against DB state and applies content updates
+   * + soft-deletes with tombstones. Idempotent — an already-applied snapshot
+   * yields { updated: 0, deleted: 0 }.
+   */
+  syncConversation: {
+    audience: 'internal',
+    method: 'post',
+    path: '/conversation/sync',
+    id: 'syncConversation',
+    input: ConversationSyncRequestSchema,
+    output: ConversationSyncResponseSchema,
+    serviceOnly: true,
+    timeoutMs: TIMEOUTS.GATEWAY_RPC,
+  },
+
+  /**
+   * GET /api/internal/personality/load
+   * Routing read: resolves a personality by name/slug/alias/UUID with
+   * loadPersonality's access-control semantics. Pre-job routing paths
+   * (mention parsing, reply resolution, activation) consume this once
+   * bot-client stops reading the DB directly; misses return
+   * { personality: null } with 200 because mention candidates routinely miss.
+   */
+  loadPersonalityInternal: {
+    audience: 'internal',
+    method: 'get',
+    path: '/personality/load',
+    id: 'loadPersonalityInternal',
+    // Caps mirror the handler's enforced schema (varchar(255) name columns,
+    // 32-char snowflake headroom) so the manifest documents the real contract.
+    query: { nameOrId: z.string().min(1).max(255), userId: z.string().max(32).optional() },
+    output: LoadPersonalityInternalResponseSchema,
     serviceOnly: true,
     meta: { safeRead: true },
     timeoutMs: TIMEOUTS.GATEWAY_RPC,

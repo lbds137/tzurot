@@ -13,11 +13,192 @@ import type { PrismaClient } from './prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { countTextTokens } from '../utils/tokenCounter.js';
 import { SYNC_LIMITS } from '../constants/index.js';
+import {
+  collateChunksForSync,
+  contentsDiffer,
+  getOldestObservedTimestamp,
+  type ObservedSyncMessage,
+} from './conversationSyncDiff.js';
 
 const logger = createLogger('ConversationSyncService');
 
+/** Result of a runSync pass. */
+export interface ConversationSyncResult {
+  /** Messages whose content was updated (edit detected). */
+  updated: number;
+  /** Messages soft-deleted (present in DB window, absent from the snapshot). */
+  deleted: number;
+}
+
+/** DB record shape used by the edit-detection pass. */
+interface SyncDbMessage {
+  id: string;
+  content: string;
+  discordMessageId: string[];
+  deletedAt: Date | null;
+  createdAt: Date;
+}
+
+/**
+ * Group observed Discord messages by their DB record — a chunked assistant
+ * reply spans several Discord messages that all map to one row. Soft-deleted
+ * rows are excluded (the delete pass owns those).
+ */
+function groupObservedByDbRecord(
+  observedMessages: ObservedSyncMessage[],
+  dbMessages: Map<string, SyncDbMessage>
+): Map<string, { dbMsg: SyncDbMessage; chunks: ObservedSyncMessage[] }> {
+  const dbRecordToChunks = new Map<
+    string,
+    { dbMsg: SyncDbMessage; chunks: ObservedSyncMessage[] }
+  >();
+  for (const observed of observedMessages) {
+    const dbMsg = dbMessages.get(observed.id);
+    if (dbMsg?.deletedAt === null) {
+      const existing = dbRecordToChunks.get(dbMsg.id);
+      if (existing) {
+        existing.chunks.push(observed);
+      } else {
+        dbRecordToChunks.set(dbMsg.id, { dbMsg, chunks: [observed] });
+      }
+    }
+  }
+  return dbRecordToChunks;
+}
+
 export class ConversationSyncService {
   constructor(private prisma: PrismaClient) {}
+
+  /**
+   * Run the full opportunistic edit/delete sync for one channel+personality
+   * against a snapshot of observed Discord messages.
+   *
+   * This is THE sync algorithm — api-gateway's `/internal/conversation/sync`
+   * endpoint and bot-client's legacy direct path both delegate here, so the
+   * two paths cannot drift during the dual-write window. Idempotent:
+   * re-running an already-applied snapshot finds zero work.
+   *
+   * Errors are swallowed into logs (matching the defensive style of the
+   * individual operations below) — sync is opportunistic and must never fail
+   * the surrounding flow.
+   */
+  async runSync(
+    channelId: string,
+    personalityId: string,
+    observedMessages: ObservedSyncMessage[]
+  ): Promise<ConversationSyncResult> {
+    const result: ConversationSyncResult = { updated: 0, deleted: 0 };
+
+    try {
+      if (observedMessages.length === 0) {
+        return result;
+      }
+
+      result.updated = await this.applyEdits(channelId, personalityId, observedMessages);
+      result.deleted = await this.applyDeletes(channelId, personalityId, observedMessages);
+
+      if (result.updated > 0 || result.deleted > 0) {
+        logger.info(
+          { channelId, personalityId, updated: result.updated, deleted: result.deleted },
+          'Opportunistic sync completed'
+        );
+      }
+
+      return result;
+    } catch (error) {
+      logger.error({ channelId, personalityId, err: error }, 'Sync failed');
+      return result;
+    }
+  }
+
+  /**
+   * Edit-detection pass: group observed messages by their DB record (chunked
+   * assistant replies span several Discord messages), collate, and update
+   * rows whose content genuinely differs.
+   */
+  private async applyEdits(
+    channelId: string,
+    personalityId: string,
+    observedMessages: ObservedSyncMessage[]
+  ): Promise<number> {
+    const dbMessages = await this.getMessagesByDiscordIds(
+      observedMessages.map(m => m.id),
+      channelId,
+      personalityId
+    );
+
+    if (dbMessages.size === 0) {
+      logger.debug(
+        { channelId, observedCount: observedMessages.length },
+        'No matching DB messages for sync'
+      );
+      return 0;
+    }
+
+    const dbRecordToChunks = groupObservedByDbRecord(observedMessages, dbMessages);
+
+    let updated = 0;
+    for (const [dbId, { dbMsg, chunks }] of dbRecordToChunks) {
+      const collatedContent = collateChunksForSync(dbId, dbMsg, chunks);
+      if (collatedContent === null) {
+        continue;
+      }
+
+      if (contentsDiffer(collatedContent, dbMsg.content)) {
+        const didUpdate = await this.updateMessageContent(dbId, collatedContent);
+        if (didUpdate) {
+          updated++;
+          logger.debug({ messageId: dbId, chunkCount: chunks.length }, 'Synced edited message');
+        }
+      }
+    }
+    return updated;
+  }
+
+  /**
+   * Delete-detection pass: DB rows inside the observed time window whose
+   * Discord IDs are all absent from the snapshot were deleted on Discord —
+   * soft-delete them with tombstones.
+   */
+  private async applyDeletes(
+    channelId: string,
+    personalityId: string,
+    observedMessages: ObservedSyncMessage[]
+  ): Promise<number> {
+    const oldestObservedTime = getOldestObservedTimestamp(observedMessages);
+    // Unreachable via runSync (it returns early on an empty snapshot) — kept
+    // as a backstop honoring getOldestObservedTimestamp's null contract so
+    // this method stays safe if it ever gains another caller.
+    if (oldestObservedTime === null) {
+      return 0;
+    }
+
+    const dbMessagesInWindow = await this.getMessagesInTimeWindow(
+      channelId,
+      personalityId,
+      oldestObservedTime
+    );
+
+    const observedIdSet = new Set(observedMessages.map(m => m.id));
+    const deletedMessageIds: string[] = [];
+    for (const dbMsg of dbMessagesInWindow) {
+      const hasMatchingDiscordId = dbMsg.discordMessageId.some(id => observedIdSet.has(id));
+      if (!hasMatchingDiscordId) {
+        deletedMessageIds.push(dbMsg.id);
+      }
+    }
+
+    if (deletedMessageIds.length === 0) {
+      return 0;
+    }
+
+    const deleteCount = await this.softDeleteMessages(deletedMessageIds);
+    logger.info(
+      { channelId, deletedCount: deleteCount },
+      'Soft deleted messages not found in Discord'
+    );
+    return deleteCount;
+  }
 
   /**
    * Soft delete a message by setting deletedAt timestamp

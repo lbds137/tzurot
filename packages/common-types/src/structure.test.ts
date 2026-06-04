@@ -108,7 +108,7 @@ const EXCLUDE_PATTERNS = [
   // Langchain converter (tested via integration)
   /langchainConverter\.ts$/,
   // Channel fetcher utilities (thin wrappers tested via MessageContextBuilder)
-  /\/channelFetcher\/(?:ReactionProcessor|SyncValidator)\.ts$/,
+  /\/channelFetcher\/ReactionProcessor\.ts$/,
   // Participant utils (tested via integration)
   /participantUtils\.ts$/,
   // Async handler (simple express wrapper)
