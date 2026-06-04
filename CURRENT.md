@@ -35,7 +35,7 @@ Full sweep of the quick-wins backlog in three PRs, all merged to develop:
 
 **Next: Phase 2 — extract `common-types/services/`.** Design **SETTLED** (council GLM-5.1 + Kimi-K2.6 + Qwen-3.7-max, unanimous Hybrid): relocate single-consumer services to their owner, keep the 2+-consumer core in a small new shared package, split pub/sub publisher/subscriber pairs, evict the `prisma.ts` singleton (constructor-inject). **Sequencing DECIDED: `PR-2o → Phase 2.5 → PR-2p → PR-2q`** (optimized for no stopgaps — 2.5 makes bot-client Prisma-free before 2p evicts the singleton, so bot-client never needs a temporary local Prisma). **First code PR: PR-2o** (relocate single-consumer services — ai-worker resolver stack + `ConversationRetentionService` → api-gateway). ⚠️ **PR-2o must start by re-verifying the single-consumer set from VALUE imports** (exclude type-only, include tests) — the earlier Explore-agent consumption map was noisy (counted `import type { PersonaResolver }` as usage). Phase 3 (barrel-kill, ~1,021 sites) deferred to icebox. Full design + sequencing rationale in [active-epic.md](backlog/active-epic.md).
 
-Quick-wins available between phases ([quick-wins.md](backlog/quick-wins.md)): `guard:dockerfile-dist` (the gap that crashed bot-client in dev this cycle), remove-dead-`redis`, depcruise test-factories boundary, + 3 others.
+Quick-wins available between phases ([quick-wins.md](backlog/quick-wins.md)): queue swept 2026-06-03 — one item remains (stacked-JSDoc merge in `check-duplicate-exports.ts`).
 
 **Candidate next themes after PR-2n** (user picks; each gets a council pass before plan-mode):
 
@@ -54,7 +54,7 @@ Quick-wins available between phases ([quick-wins.md](backlog/quick-wins.md)): `g
 
 ---
 
-## Last Session — PR-2a: dual-mount + clientsFor + inspect PoC + burn-down gate (2026-05-27)
+## Previous Session — PR-2a: dual-mount + clientsFor + inspect PoC + burn-down gate (2026-05-27)
 
 Phase 4 (PR-2) opening slice. Wires the codegen-generated mount functions into api-gateway alongside the legacy mounts, builds the `clientsFor(interaction)` boundary factory, migrates the first consumer (`commands/inspect`) as a proof of concept, and adds a `pnpm ops legacy:count` burn-down gate so subsequent migration PRs can't regress.
 
