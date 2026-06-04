@@ -10,7 +10,8 @@
  * This eliminates the previous dual-client overhead (node-redis + ioredis).
  */
 
-import { initCoreRedisServices, VisionDescriptionCache } from '@tzurot/common-types';
+import { initCoreRedisServices } from '@tzurot/common-types';
+import { VisionDescriptionCache } from './services/VisionDescriptionCache.js';
 import { RedisService } from './services/RedisService.js';
 import { RateLimitCache } from './services/RateLimitCache.js';
 import { CreditExhaustionCache } from './services/CreditExhaustionCache.js';

@@ -22,14 +22,14 @@
 
 import { createHash } from 'node:crypto';
 import type { Redis } from 'ioredis';
-import { createLogger } from '../utils/logger.js';
 import {
+  createLogger,
   REDIS_KEY_PREFIXES,
   INTERVALS,
   TEXT_LIMITS,
   VISION_FAILURE_CACHE_POLICY,
   ApiErrorCategory,
-} from '../constants/index.js';
+} from '@tzurot/common-types';
 
 const logger = createLogger('VisionDescriptionCache');
 

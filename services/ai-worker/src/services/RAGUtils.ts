@@ -10,10 +10,10 @@ import {
   AttachmentType,
   AI_DEFAULTS,
   type PrismaClient,
-  type VisionDescriptionCache,
   type AttachmentMetadata,
   type StoredReferencedMessage,
 } from '@tzurot/common-types';
+import type { VisionDescriptionCache } from './VisionDescriptionCache.js';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import type { InlineImageDescription } from '../jobs/utils/conversationUtils.js';
 import { hydrateStoredReferences } from './storedReferenceHydrator.js';

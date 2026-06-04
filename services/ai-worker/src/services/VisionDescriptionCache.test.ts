@@ -8,17 +8,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Redis } from 'ioredis';
 import { VisionDescriptionCache } from './VisionDescriptionCache.js';
-import { INTERVALS, REDIS_KEY_PREFIXES, ApiErrorCategory } from '../constants/index.js';
+import { INTERVALS, REDIS_KEY_PREFIXES, ApiErrorCategory } from '@tzurot/common-types';
 
-// Mock logger
-vi.mock('../utils/logger.js', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    debug: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
-}));
+// Silence the real pino logger; nothing here asserts on log output.
+vi.mock('@tzurot/common-types', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+  return {
+    ...actual,
+    createLogger: () => ({
+      info: vi.fn(),
+      debug: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }),
+  };
+});
 
 describe('VisionDescriptionCache', () => {
   let mockRedis: {
