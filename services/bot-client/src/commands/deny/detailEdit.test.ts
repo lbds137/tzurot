@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleEdit, handleEditModal } from './detailEdit.js';
+import { DiscordAPIError } from 'discord.js';
 import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
 import { makeOk, makeErr, asOwnerClient } from '../../test/gatewayClientStubs.js';
 
@@ -116,6 +117,7 @@ function createMockModalInteraction(
     deferUpdate: vi.fn(),
     editReply: vi.fn(),
     reply: vi.fn(),
+    followUp: vi.fn(),
     fields: {
       getTextInputValue: vi.fn((name: string) => fields[name] ?? ''),
     },
@@ -149,6 +151,28 @@ describe('handleEdit', () => {
       expect.objectContaining({ content: expect.stringContaining('Session expired') })
     );
     expect(interaction.followUp).not.toHaveBeenCalled();
+  });
+
+  it('falls back to followUp when the session-expired reply hits 10062 (slow Redis ate the budget)', async () => {
+    mockSessionManager.get.mockResolvedValue(null);
+    const interaction = createMockButtonInteraction('deny::edit::entry-uuid-1234');
+    const timeoutError = new DiscordAPIError(
+      { code: 10062, message: 'Unknown interaction' },
+      10062,
+      404,
+      'POST',
+      '/interactions/x/y/callback',
+      {}
+    );
+    vi.mocked(interaction.reply).mockRejectedValue(timeoutError);
+    // followUp stays the default vi.fn() — resolves undefined, which is all
+    // the wrapper's best-effort fallback needs.
+
+    await expect(handleEdit(interaction, 'entry-uuid-1234')).resolves.toBeUndefined();
+
+    expect(interaction.followUp).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('Session expired') })
+    );
   });
 });
 
@@ -262,6 +286,26 @@ describe('handleEditModal', () => {
       expect.objectContaining({ content: expect.stringContaining('BOT scope requires') })
     );
     expect(stub.addDenylistEntry).not.toHaveBeenCalled();
+  });
+
+  it('falls back to followUp when the session-expired reply hits 10062 (modal submit path)', async () => {
+    mockSessionManager.get.mockResolvedValue(null);
+    const interaction = createMockModalInteraction('deny::modal::entry-uuid-1234::edit', {});
+    const timeoutError = new DiscordAPIError(
+      { code: 10062, message: 'Unknown interaction' },
+      10062,
+      404,
+      'POST',
+      '/interactions/x/y/callback',
+      {}
+    );
+    vi.mocked(interaction.reply).mockRejectedValue(timeoutError);
+
+    await expect(handleEditModal(interaction, 'entry-uuid-1234')).resolves.toBeUndefined();
+
+    expect(interaction.followUp).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('Session expired') })
+    );
   });
 
   it('should handle session expiry', async () => {
