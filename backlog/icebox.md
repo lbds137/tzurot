@@ -14,7 +14,7 @@ _Ideas for later. Resist the shiny object._
 
 - 🔬 `[TRIAGE-NEEDED]` **Message reference parallel-fetch optimization + related follow-ups** — Proposal: [`docs/proposals/backlog/message-reference-follow-ups.md`](../docs/proposals/backlog/message-reference-follow-ups.md). Tracks recommended improvements identified during PR #208 code review (parallel link fetching, ~3x faster for multi-link messages, plus others). **Needs triage**: doc is 6+ months old (created 2025-11), references PR #208 (we're at #1080+); the message reference system has evolved since. Cross-check each suggested improvement against current code before promoting — some may be moot, some may have shipped piecemeal.
 
-- 🔬 `[TRIAGE-NEEDED]` **Slash command architecture redesign (multi-session epic)** — Proposal: [`docs/proposals/backlog/SLASH_COMMAND_ARCHITECTURE.md`](../docs/proposals/backlog/SLASH_COMMAND_ARCHITECTURE.md). Original goals: standardize UX patterns across entity-management commands, unify dashboard framework, consolidate alias-based tagging, enable user self-service for history/memory, prepare for shapes.inc data import. **Needs triage**: doc is from 2025-12; some goals have shipped piecemeal (dashboard framework, shapes import). Cross-check each section against shipped surface to determine remaining scope. **Likely outcome**: extract any still-relevant pieces as smaller individual items; delete the umbrella plan.
+- 🔬 `[TRIAGE-NEEDED]` **Slash command architecture redesign (multi-session epic)** — Proposal: [`docs/proposals/backlog/SLASH_COMMAND_ARCHITECTURE.md`](../docs/proposals/backlog/SLASH_COMMAND_ARCHITECTURE.md). Original goals: standardize UX patterns across entity-management commands, unify dashboard framework, consolidate alias-based tagging, enable user self-service for history/memory, prepare for shapes.inc data import. **Needs triage**: doc is from 2025-12; some goals have shipped piecemeal (dashboard framework, shapes import). Cross-check each section against shipped surface to determine remaining scope. **Likely outcome**: extract any still-relevant pieces as smaller individual items; delete the umbrella plan. _Absorbs the former standalone "Slash Command UX Audit" entry (full audit of slash UI patterns / shared-utility usage / standardization) — same scope, do as one triage._
 
 ### Surfaced 2026-05-14
 
@@ -38,13 +38,11 @@ _Ideas for later. Resist the shiny object._
 
 - 🧹 `[CHORE]` **`AuthStep` constructor — options-object refactor** — `new AuthStep(apiKeyResolver, configResolver, undefined, sttResolver)` passes `undefined` to skip the 3rd positional `providerRouter` slot — readability smell as the constructor approaches the 5-param max. **Fix**: convert to options object `new AuthStep({ apiKeyResolver, configResolver, sttResolver })`, update test fixtures. ~30-50 LOC. **Promote when**: a 5th constructor arg is needed (forces refactor), OR opportunistic during next AuthStep touch.
 
-- ✨ `[FEAT]` **Tag multiple bots in a single message** — Discord supports multiple `@mention`s per message but Tzurot routes to one. Cap at 5 simultaneous mentions (shapes.inc precedent). Decide: shared short-term memory (one job, multi-personality response) or independent (N jobs in parallel)? Independent is simpler. **Promote when**: user-facing demand for multi-personality conversations grows.
-
 - ✨ `[FEAT]` **Character browse: visibility toggle + truncated-field UX** — Two bundled items: (a) per-character `visibility: 'public-chat-public-card' | 'public-chat-private-card' | 'private'` so creators can keep prompts private while chat remains open; non-owner reads return only name/slug/avatar/blurb when set to "private-card". (b) Better "(truncated)" UX — "(truncated, X/Y chars — DM for full)" or inline `view-more` button. Same UX surface, naturally bundles. ~50-100 LOC + new modal. **Promote when**: a creator complains about exposed prompts, OR a user complains about lost content.
 
 - 🔬 `[CHORE]` **Audit budget-allocation sites for residual-vs-additive design assumptions** — The cross-channel-as-residual bug (PR #1011) encoded an implicit design choice that didn't match user mental model. Same shape may exist elsewhere: extended-context attachments vs DB history; memory inclusion vs system-prompt; reasoning vs response tokens. Method: list every `Math.min(remainingX, Y)` / `budget - usedSoFar` site in budget managers; name the implicit assumption per site. **Promote when**: a similar "feature X silently disabled when feature Y is busy" surprise surfaces, OR opportunistic during next budget refactor.
 
-- 🐛 `[FIX]` **`GatewayClient.generate` has the same Railway-deploy exposure as `transcribe`** — Transient-network retry in PR #1009 is scoped to `transcribe` (idempotent via `requestId`). `generate()` is not idempotent at the API level (duplicate AI generation has user-visible side effects), so naive retry isn't safe. **Two paths**: (a) use the same `requestId` keying to make `generate` server-side idempotent then mirror the retry, OR (b) special-case retry to ONLY connection-refused-immediately codes (request never landed). Lower priority — `generate()` has 60s timeout vs transcribe's 120s. **Promote when**: a user reports the deploy-window symptom on non-transcribe path.
+- 🐛 `[FIX]` **No transient-network retry layer in the typed-client transport (Railway deploy-window exposure)** — Originally filed against the dissolved `GatewayClient` (`transcribe` had a transient-network retry via PR #1009; `generate` didn't). The typed-client epic replaced that transport with `@tzurot/clients` `callGateway`, which has **no retry layer at all today** — only the route-manifest `meta.idempotent` tags (`packages/clients/src/routes/types.ts`) that a future retry layer is designed to read. The deploy-window exposure (request fails while api-gateway restarts) now applies uniformly to every route. **Fix shape**: add an opt-in retry layer to `callGateway` that auto-retries idempotent-tagged routes on network-level failures (connection refused / `status: 0`-class), never on non-idempotent ones like generate; generate needs server-side `requestId` idempotency first if it's ever to retry. **Promote when**: a user reports the deploy-window symptom, OR alongside the `GatewayResult.status: 0` disambiguation entry in deferred.md (same transport surface). Originally surfaced pre-dissolution; rewritten 2026-06-03 after verifying the old pointers were dead.
 
 - ✨ `[FEAT]` **Distinct error category for `JobPayloadTooLargeError` ("attachments too large" vs "media not found")** — `LLMGenerationHandler` maps `JobPayloadTooLargeError` to `MEDIA_NOT_FOUND` along with other download failures. Users see "media not found" when they hit aggregate-attachment cap. **Fix**: add `ApiErrorCategory.MEDIA_TOO_LARGE` with distinct user-facing string. ~30-50 LOC. **Promote when**: opportunistic UX-pass on error messages, OR a user reports confusion.
 
@@ -72,7 +70,7 @@ _Ideas for later. Resist the shiny object._
 
 - ✨ `[FEAT]` **Include user ID on memories / historical notes** — User note 2026-04-28. Conversation history already includes user IDs; memories and historical notes (persona context blocks?) may not. Consistency question: should all user-authored context carry a user ID for attribution and potential per-user filtering? Depends on the memory architecture. **Why iceboxed**: research needed, unclear if it enables anything concrete beyond consistency. Promote if per-user memory filtering becomes a feature request. Surfaced 2026-04-28.
 
-- ✨ `[FEAT]` **Segment usage and allocate a chunk to free users (shared API key pool)** — User note 2026-04-29. The bot owner has a z.ai lite coding plan subscription and wants to explore giving free-tier bot users some guaranteed model usage from that plan. Constraints: rate limits, shared pool with owner priority, need to prevent free-tier crowding. **Why iceboxed**: research/exploration phase, complex fair-queue design, depends on z.ai rate-limit specifics. Promote when free-tier strategy becomes a priority. Surfaced 2026-04-29.
+- ✨ `[FEAT]` **Segment usage and allocate a chunk to free users (shared API key pool)** — User note 2026-04-29. The bot owner has a z.ai lite coding plan subscription and wants to explore giving free-tier bot users some guaranteed model usage from that plan. Constraints: rate limits, shared pool with owner priority, need to prevent free-tier crowding. **Why iceboxed**: research/exploration phase, complex fair-queue design, depends on z.ai rate-limit specifics. Promote when free-tier strategy becomes a priority. Surfaced 2026-04-29. _Absorbs the former standalone "Free-Tier Model Strategy" entry (free-tier model allowlist, usage quotas, upgrade prompts) — same strategy decision, design together._
 
 ### Triaged from Inbox 2026-04-26
 
@@ -149,9 +147,7 @@ _Items moved from Inbox during backlog-shrink pass. Full prose preserved — imp
 
 - 🧹 `[CHORE]` **`detail.ts` silent-fail risk if imported in isolation post-PR-#856 refactor** — PR #856 moved the `registerBrowseRebuilder('deny', …)` call out of `browse.ts` into a dedicated `browseRebuilder.ts` that's imported by `deny/index.ts` at startup. Today's entry points (command loader → `index.ts`) all transitively load `browseRebuilder.ts` before any detail handler fires, so the rebuilder is always registered when needed. Residual risk (flagged by claude-bot review on PR #856 but intentionally not blocked): if a future test or code path imports `deny/detail.ts` directly without also loading `deny/index.ts` or `deny/browseRebuilder.ts`, the back-button / post-action rebuild path would silently fail to find a registered rebuilder — the symptom would be a "no rebuilder registered for 'deny'" log (or whatever the registry's miss-behavior is) and the user seeing a stale screen. **Fix shape**: either (a) add a defensive `import './browseRebuilder.js';` side-effect back into `detail.ts` (tradeoff: reintroduces the edge depcruise flagged, so only meaningful if we also teach depcruise to ignore side-effect-only imports, probably not worth it); (b) add a lightweight runtime assertion in the rebuilder-consuming code path (e.g. inside `handleSharedBackButton`) that logs an error if no `'deny'` rebuilder is registered — catches the failure mode without coupling detail.ts to the rebuilder module; (c) write an explicit integration test for the `detail.ts`-only import scenario that asserts the back-button fails cleanly (not silently). Option (b) is cheapest and most broadly useful (protects all four browse-capable commands, not just deny). Not urgent — single entry point today makes this theoretical. **Start**: `services/bot-client/src/utils/dashboard/sharedBackButtonHandler.ts` (or wherever the rebuilder registry is consumed); `services/bot-client/src/commands/deny/browseRebuilder.ts` for the registration-point JSDoc that already calls out this pattern.
 
-- 🧹 `[CHORE]` **Periodic 8-point cleanup-sweep skill** — Inspired by a Shaw tweet (2026-04-20) prescribing an 8-subagent cleanup pass over a codebase: deduplicate/DRY, consolidate types, prune unused code (knip), untangle circular deps, remove weak types (`unknown`/`any`), remove defensive try/catch without purpose, remove deprecated/legacy/fallback code, strip AI-slop comments. We already enforce all 8 concerns **continuously** via CI (CPD, `common-types`, knip, depcruise, `strict: true`, 00-critical rules on error handling and "no backward compatibility", CLAUDE.md comment rules). Continuous enforcement is better for steady state — but it doesn't catch _accumulated drift_ that squeaks past linters (e.g., in-motion narration comments that no linter flags). **Fix shape**: add a `/tzurot-cleanup-sweep` skill under `.claude/skills/` that fans out parallel `Agent` invocations — one per concern — with a "report + implement high-confidence items only" contract. Runs quarterly or between epics as an audit. Keep continuous enforcement in CI; the skill is the explicit periodic deep-clean. **Deliberate divergence from Shaw's prescription**: we DO treat `unknown` as correct at system boundaries when paired with Zod — the skill's "weak types" agent should flag only `unknown` inside internal logic, not at boundary layers. **Start**: `.claude/skills/tzurot-arch-audit/` is the existing audit skill — use as the structural template; differ in that this one fans out to sub-agents and implements fixes rather than only reporting. Surfaced 2026-04-21 via Shaw tweet (@shawmakesmagic).
-
-- 🧹 `[CHORE]` **AI-slop comment explicit hunt — periodic sweep** — Narrative-slop comments like `// Previously this did X`, `// Now updated to Y`, `// As part of PR #123`, `// Refactored from the old version`, or `// TODO(claude)` accumulate invisibly — no linter catches them, and CLAUDE.md's "no in-motion narration" rule depends on author discipline. A grep-based sweep every few releases is low-cost. **Fix shape**: a repo-wide grep for patterns like `// (Previously|Now|Formerly|Refactored|Updated|Changed|As part of|Per PR|Moved from|Extracted from)`, plus `// TODO(claude)` and bare `// AI:` markers. Report hits, hand-review each (some may be legitimate "why" comments that just use the trigger phrases), remove or rewrite the rest. Could live inside the cleanup-sweep skill above (entry #8), or as its own standalone skill/script. Possibly folds into a periodic `pnpm ops xray --comments-audit` subcommand. **First sweep done 2026-04-20** (commit `ca24d6f48`): size was ~24 hits across 19 files, of which 8 were genuine narrative-slop and got rewritten/removed; the rest were legitimate "why" comments using trigger words. Tell that worked: if removing the comment leaves a reader worse off, it earned its place. **Next sweep**: re-run after each release; expect single-digit new accumulations. Surfaced 2026-04-21 via Shaw tweet comparison.
+- 🧹 `[CHORE]` **Periodic 8-point cleanup-sweep skill** — Inspired by a Shaw tweet (2026-04-20) prescribing an 8-subagent cleanup pass over a codebase: deduplicate/DRY, consolidate types, prune unused code (knip), untangle circular deps, remove weak types (`unknown`/`any`), remove defensive try/catch without purpose, remove deprecated/legacy/fallback code, strip AI-slop comments. We already enforce all 8 concerns **continuously** via CI (CPD, `common-types`, knip, depcruise, `strict: true`, 00-critical rules on error handling and "no backward compatibility", CLAUDE.md comment rules). Continuous enforcement is better for steady state — but it doesn't catch _accumulated drift_ that squeaks past linters (e.g., in-motion narration comments that no linter flags). **Fix shape**: add a `/tzurot-cleanup-sweep` skill under `.claude/skills/` that fans out parallel `Agent` invocations — one per concern — with a "report + implement high-confidence items only" contract. Runs quarterly or between epics as an audit. Keep continuous enforcement in CI; the skill is the explicit periodic deep-clean. **Deliberate divergence from Shaw's prescription**: we DO treat `unknown` as correct at system boundaries when paired with Zod — the skill's "weak types" agent should flag only `unknown` inside internal logic, not at boundary layers. **Start**: `.claude/skills/tzurot-arch-audit/` is the existing audit skill — use as the structural template; differ in that this one fans out to sub-agents and implements fixes rather than only reporting. Surfaced 2026-04-21 via Shaw tweet (@shawmakesmagic). _Absorbs the former standalone "AI-slop comment explicit hunt" entry — that's concern #8 of this sweep. Grep patterns: `// (Previously|Now|Formerly|Refactored|Updated|Changed|As part of|Per PR|Moved from|Extracted from)` + `// TODO(claude)` + `// AI:`. First sweep ran 2026-04-20 (commit ca24d6f48): ~24 hits across 19 files, 8 genuine slop rewritten/removed — expect single-digit accumulation per release. Tell that worked: if removing the comment leaves a reader worse off, it earned its place._
 
 - ✨ `[FEAT]` **Bring back v2 `/cleandm` command for removing bot-authored clutter from DM history** — v2 had a `cleandm` command that let users clear bot-posted non-conversation messages from their DM so the channel kept just the actual personality conversations. v3 regressed on this: verification prompts, help messages, error replies, and slash-command error responses accumulate in the DM and clutter the scroll-back. **Fix shape**: new DM-only slash command `/cleandm [scope:recent|all]` that (a) fetches the bot's own messages in the current DM channel (bots can only delete their own messages), (b) filters out any that match the personality-reply prefix `DM_PERSONALITY_PREFIX_REGEX = /^\*\*(.+?):\*\*/` from `DMSessionProcessor.ts`, (c) bulk-deletes the remainder respecting Discord's DM rate limit (~5 deletes/sec). **Architectural fit**: reuse the existing `DM_PERSONALITY_PREFIX_REGEX` as the "is this conversational?" classifier — it's already the rule `DMSessionProcessor` uses to decide session membership, so cleanup logic tracks any future prefix changes for free. **Scope options**: `recent` = last ~100 messages (fast, bounded); `all` = full-history sweep with progress updates and chunked deletion. Default to `recent`. **Start**: new command at `services/bot-client/src/commands/dm/cleandm.ts`. Add `.setContexts(DM)` + `.setIntegrationTypes(UserInstall)` on the SlashCommandBuilder so the command only surfaces in DMs. Surfaced 2026-04-20 during DM-broken investigation.
 
@@ -169,9 +165,7 @@ _Items moved from Inbox during backlog-shrink pass. Full prose preserved — imp
 
 - 🐛 `[FIX]` **LLM duplicate/looping response detection** — GLM-5 observed producing responses with repeated content blocks (same paragraphs appearing twice within one message). Post-processing should detect and deduplicate repeated paragraph-level blocks. Observed 2026-04-05 with `z-ai/glm-5`. **Start**: `services/ai-worker/src/services/ResponsePostProcessor.ts` — add a deduplication step; `services/ai-worker/src/utils/responseArtifacts.ts` — may fit alongside existing cleanup patterns.
 
-- 🏗️ `[LIFT]` **Dynamic free model selection from OpenRouter** — Replace hardcoded `FREE_MODELS` / `VISION_FALLBACK_FREE` with a query layer on `OpenRouterModelCache`. Models go stale when sunset. **Start**: `services/api-gateway/src/services/OpenRouterModelCache.ts`.
-
-<!-- "Inspect command privacy toggle" entry superseded 2026-04-25 by the Inspect UX Hardening mini-epic in Current Focus, which implements default-on redaction for non-owners (no per-personality toggle needed). -->
+- 🏗️ `[LIFT]` **Dynamic model selection from OpenRouter (free models + preset options)** — Replace hardcoded `FREE_MODELS` / `VISION_FALLBACK_FREE` with a query layer on `OpenRouterModelCache`. Models go stale when sunset. The same query layer serves the preset dashboard: fetch the OpenRouter model list dynamically for preset model options instead of hardcoded choices (absorbed from the former standalone "Dynamic Model Selection for Presets" entry). **Start**: `services/api-gateway/src/services/OpenRouterModelCache.ts`.
 
 - ✨ `[FEAT]` **Character import — optional voice file support** — Accept optional voice reference audio alongside character data import.
 
@@ -223,10 +217,6 @@ Open question: when a user joins a guild where the bot is activated in the welco
 
 **Why Latent**: no active user pain; `[FEAT]` investigation that only becomes relevant if a concrete welcome-UX use case appears. Surfaced 2026-04-21.
 
-#### 🐛 Voice engine (Pocket TTS) intermittent failures
-
-_Superseded by TTS engine upgrade epic in Current Focus._ Pocket TTS is being replaced by Chatterbox Turbo (research done 2026-04-12, evaluation in progress). Any fix to Pocket TTS would be throwaway work once the replacement ships. Revisit only if the TTS epic stalls for multi-session reasons.
-
 #### ✨ "Cough fallback" pre-recorded audio for TTS failure (RP immersion)
 
 Even after the Opus transcode + `voice_omitted_too_long.txt` fallback (shipped 2026-04-19), an unrecoverable TTS failure still breaks roleplay fiction — the user sees a text attachment named "voice_omitted_too_long" instead of hearing the character. Council raised the idea (2026-04-19) of a pre-recorded 1-sec neutral audio clip (sigh, static, ambient breath) that plays when voice synth hits a terminal error. Maintains character immersion at the cost of mild ambiguity (user might not realize it's an error state).
@@ -239,9 +229,7 @@ Even after the Opus transcode + `voice_omitted_too_long.txt` fallback (shipped 2
 
 #### 🏗️ Reasoning/Thinking Modernization
 
-Partially done: migrated from `include_reasoning` to modern `reasoning` param via `modelKwargs`. But the custom fetch wrapper in `ModelFactory.ts` that intercepts raw OpenRouter HTTP responses and injects `<reasoning>` tags is still fragile — LangChain's Chat Completions converter silently drops `reasoning` fields, so we intercept before it parses. Needs a cleaner approach (e.g., native Responses API support from OpenRouter, or a LangChain plugin).
-
-**Full details**: `~/.claude/plans/tender-tinkering-stonebraker.md` (Phase 4)
+Two LangChain workarounds remain in the OpenRouter path, both compensating for `@langchain/openai` gaps (rewritten 2026-06-03 to current state; the original transport-layer reasoning-tag injection was replaced via `__includeRawResponse` post-parse extraction): (1) `createOpenRouterFetch(extraParams)` in `services/ai-worker/src/services/modelFactory/OpenRouterFetch.js` is still wired when extra params / reasoning are present (`ModelFactory.ts` `needsCustomFetch`) to inject request params LangChain won't pass through; (2) reasoning extraction reads the raw response via `__includeRawResponse` because LangChain's Chat Completions converter silently drops `message.reasoning`. Both melt away if upstream improves — see the "Upstream LangChain PR" entry above (recognize `message.reasoning` in the converter) and/or native Responses-API support from OpenRouter. **Promote when**: the upstream LangChain fix lands (delete the post-parse bridge), OR a LangChain upgrade breaks either workaround.
 
 #### 🏗️ Prompt Caching (Anthropic)
 
@@ -250,10 +238,6 @@ Add `cache_control` breakpoints to static prompt sections (character profile, re
 #### 🏗️ Streaming Responses
 
 Stream LLM responses to Discord for better UX on long generations.
-
-#### 🏗️ File Naming Convention Audit
-
-Inconsistent casing between services. Low value / high effort.
 
 #### 🏗️ Incognito Mode - Parallel API Calls
 
@@ -301,13 +285,8 @@ Surfaced 2026-04-23.
 
 `handleExportError` (ShapesExportJob.ts) and `handleImportError` (ShapesImportJob.ts) are near-identical: `willRetry` computation, three-way log message, re-throw or mark DB as failed. Extract to a shared helper in `shapesCredentials.ts` or a new `shapesJobHelpers.ts`.
 
-#### 🧹 Audit Existing Tests for Type Violations
-
-Review all `*.test.ts` files to ensure they match their naming convention.
-
 ### Low-Priority Audits
 
-- **Audit API Routes for Zod Validation** — Several routes use manual `typeof` + `isValidDiscordId()` instead of Zod schemas at boundaries. Large scope, no recent production impact. Discovered PR #688.
 - **DB-Sync Deletion Propagation** — Cross-env sync only upserts, so prod deletions get undone on re-sync. Workaround: manual cleanup. Needs design decision (tombstones, deletion log, sync manifest). Low urgency.
 
 ### Nice-to-Have Features
@@ -323,22 +302,6 @@ Review all `*.test.ts` files to ensure they match their naming convention.
 - [ ] CI validation for `commandOptions.ts` schema-handler drift
 - [ ] AST-based parsing for robustness
 - [ ] Channel type refinement
-
-#### 🧹 Railway Ops CLI Enhancements
-
-Low priority quality-of-life improvements.
-
-#### ✨ Dynamic Model Selection for Presets
-
-Fetch OpenRouter model list dynamically instead of hardcoded options.
-
-#### 🏗️ Slash Command UX Audit
-
-Full audit of all slash command UI patterns. Review shared utilities usage, identify gaps/inconsistencies, standardize patterns.
-
-#### 🧹 Free-Tier Model Strategy
-
-Define free-tier model allowlist, usage quotas, upgrade prompts.
 
 #### 🐛 Revisit Vision `maxAttempts` After Telemetry Data
 
