@@ -29,9 +29,9 @@ import {
   DenylistCacheInvalidationService,
   ConfigCascadeCacheInvalidationService,
   ConfigCascadeResolver,
-  ConversationRetentionService,
   type PrismaClient,
 } from '@tzurot/common-types';
+import { ConversationRetentionService } from './services/ConversationRetentionService.js';
 
 // Routes
 import { createAIRouter } from './routes/ai/index.js';

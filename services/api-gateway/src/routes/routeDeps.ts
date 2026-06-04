@@ -33,13 +33,13 @@ import type {
   CacheInvalidationService,
   ConfigCascadeCacheInvalidationService,
   ConfigCascadeResolver,
-  ConversationRetentionService,
   DenylistCacheInvalidationService,
   LlmConfigCacheInvalidationService,
   PrismaClient,
   SttResolverCacheInvalidationService,
   TtsConfigCacheInvalidationService,
 } from '@tzurot/common-types';
+import type { ConversationRetentionService } from '../services/ConversationRetentionService.js';
 import type { OpenRouterModelCache } from '../services/OpenRouterModelCache.js';
 
 export interface RouteDeps {
