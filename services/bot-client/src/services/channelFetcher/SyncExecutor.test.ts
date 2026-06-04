@@ -1,7 +1,10 @@
 /**
  * Tests for SyncExecutor
  *
- * Tests executeDatabaseSync: edit detection, soft deletes, error handling.
+ * The diff algorithm itself is tested in common-types
+ * (ConversationSyncService.runSync + conversationSyncDiff). These tests
+ * cover the discord.js adapter: Collection → ObservedSyncMessage mapping
+ * and delegation.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -9,213 +12,68 @@ import { Collection } from 'discord.js';
 import type { Message } from 'discord.js';
 import type { ConversationSyncService } from '@tzurot/common-types';
 
-// Mock SyncValidator
-vi.mock('./SyncValidator.js', () => ({
-  collateChunksForSync: vi.fn(),
-  contentsDiffer: vi.fn(),
-  getOldestTimestamp: vi.fn(),
+vi.mock('../../utils/gatewayServiceCalls.js', () => ({
+  dualWriteConversationSync: vi.fn().mockResolvedValue(undefined),
 }));
 
-// Mock common-types
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal();
-  return {
-    ...(actual as Record<string, unknown>),
-    createLogger: () => ({
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn(),
-    }),
-  };
+import { executeDatabaseSync, toObservedSyncMessages } from './SyncExecutor.js';
+import { dualWriteConversationSync } from '../../utils/gatewayServiceCalls.js';
+
+function createMockMessage(id: string, content: string, createdAt: Date): Message {
+  return { id, content, createdAt } as unknown as Message;
+}
+
+describe('toObservedSyncMessages', () => {
+  it('maps id, content, and createdAt from each Discord message', () => {
+    const createdAt = new Date('2026-06-01T00:00:00Z');
+    const messages = new Collection<string, Message>();
+    messages.set('d1', createMockMessage('d1', 'hello', createdAt));
+    messages.set('d2', createMockMessage('d2', '', createdAt));
+
+    expect(toObservedSyncMessages(messages)).toEqual([
+      { id: 'd1', content: 'hello', createdAt },
+      { id: 'd2', content: '', createdAt },
+    ]);
+  });
+
+  it('returns an empty array for an empty collection', () => {
+    expect(toObservedSyncMessages(new Collection<string, Message>())).toEqual([]);
+  });
 });
-
-import { executeDatabaseSync } from './SyncExecutor.js';
-import { collateChunksForSync, contentsDiffer, getOldestTimestamp } from './SyncValidator.js';
-
-function createMockMessage(id: string, content: string): Message {
-  return {
-    id,
-    content,
-    createdAt: new Date('2024-01-01'),
-  } as unknown as Message;
-}
-
-function createMockConversationSync(
-  overrides?: Partial<ConversationSyncService>
-): ConversationSyncService {
-  return {
-    getMessagesByDiscordIds: vi.fn().mockResolvedValue(new Map()),
-    updateMessageContent: vi.fn().mockResolvedValue(true),
-    getMessagesInTimeWindow: vi.fn().mockResolvedValue([]),
-    softDeleteMessages: vi.fn().mockResolvedValue(0),
-    ...overrides,
-  } as unknown as ConversationSyncService;
-}
 
 describe('executeDatabaseSync', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('should return zero counts for empty message collection', async () => {
+  it('delegates to ConversationSyncService.runSync with the mapped snapshot', async () => {
+    const createdAt = new Date('2026-06-01T00:00:00Z');
     const messages = new Collection<string, Message>();
-    const sync = createMockConversationSync();
+    messages.set('d1', createMockMessage('d1', 'hello', createdAt));
+
+    const runSync = vi.fn().mockResolvedValue({ updated: 1, deleted: 2 });
+    const sync = { runSync } as unknown as ConversationSyncService;
 
     const result = await executeDatabaseSync(messages, 'ch-1', 'p-1', sync);
 
-    expect(result).toEqual({ updated: 0, deleted: 0 });
-    expect(sync.getMessagesByDiscordIds).not.toHaveBeenCalled();
-  });
-
-  it('should return zero counts when no DB messages match', async () => {
-    const messages = new Collection<string, Message>();
-    messages.set('msg-1', createMockMessage('msg-1', 'Hello'));
-
-    const sync = createMockConversationSync({
-      getMessagesByDiscordIds: vi.fn().mockResolvedValue(new Map()),
-    });
-
-    const result = await executeDatabaseSync(messages, 'ch-1', 'p-1', sync);
-
-    expect(result).toEqual({ updated: 0, deleted: 0 });
-  });
-
-  it('should detect and update edited messages', async () => {
-    const messages = new Collection<string, Message>();
-    messages.set('msg-1', createMockMessage('msg-1', 'Updated content'));
-
-    const dbMessages = new Map([
-      [
-        'msg-1',
-        {
-          id: 'db-1',
-          discordMessageId: ['msg-1'],
-          content: 'Original content',
-          deletedAt: null,
-        },
-      ],
+    expect(result).toEqual({ updated: 1, deleted: 2 });
+    expect(runSync).toHaveBeenCalledWith('ch-1', 'p-1', [
+      { id: 'd1', content: 'hello', createdAt },
     ]);
-
-    const sync = createMockConversationSync({
-      getMessagesByDiscordIds: vi.fn().mockResolvedValue(dbMessages),
-      updateMessageContent: vi.fn().mockResolvedValue(true),
-    });
-
-    vi.mocked(collateChunksForSync).mockReturnValue('Updated content');
-    vi.mocked(contentsDiffer).mockReturnValue(true);
-    vi.mocked(getOldestTimestamp).mockReturnValue(null);
-
-    const result = await executeDatabaseSync(messages, 'ch-1', 'p-1', sync);
-
-    expect(result.updated).toBe(1);
-    expect(sync.updateMessageContent).toHaveBeenCalledWith('db-1', 'Updated content');
   });
 
-  it('should not update when content has not changed', async () => {
+  it('replays the same snapshot to the dual-write helper after the local sync', async () => {
+    const createdAt = new Date('2026-06-01T00:00:00Z');
     const messages = new Collection<string, Message>();
-    messages.set('msg-1', createMockMessage('msg-1', 'Same content'));
+    messages.set('d1', createMockMessage('d1', 'hello', createdAt));
 
-    const dbMessages = new Map([
-      [
-        'msg-1',
-        {
-          id: 'db-1',
-          discordMessageId: ['msg-1'],
-          content: 'Same content',
-          deletedAt: null,
-        },
-      ],
+    const runSync = vi.fn().mockResolvedValue({ updated: 0, deleted: 0 });
+    const sync = { runSync } as unknown as ConversationSyncService;
+
+    await executeDatabaseSync(messages, 'ch-1', 'p-1', sync);
+
+    expect(dualWriteConversationSync).toHaveBeenCalledWith('ch-1', 'p-1', [
+      { id: 'd1', content: 'hello', createdAt },
     ]);
-
-    const sync = createMockConversationSync({
-      getMessagesByDiscordIds: vi.fn().mockResolvedValue(dbMessages),
-    });
-
-    vi.mocked(collateChunksForSync).mockReturnValue('Same content');
-    vi.mocked(contentsDiffer).mockReturnValue(false);
-    vi.mocked(getOldestTimestamp).mockReturnValue(null);
-
-    const result = await executeDatabaseSync(messages, 'ch-1', 'p-1', sync);
-
-    expect(result.updated).toBe(0);
-    expect(sync.updateMessageContent).not.toHaveBeenCalled();
-  });
-
-  it('should soft delete messages not found in Discord', async () => {
-    const messages = new Collection<string, Message>();
-    messages.set('msg-1', createMockMessage('msg-1', 'Still here'));
-
-    const dbMessages = new Map([
-      [
-        'msg-1',
-        {
-          id: 'db-1',
-          discordMessageId: ['msg-1'],
-          content: 'Still here',
-          deletedAt: null,
-        },
-      ],
-    ]);
-
-    const sync = createMockConversationSync({
-      getMessagesByDiscordIds: vi.fn().mockResolvedValue(dbMessages),
-      getMessagesInTimeWindow: vi.fn().mockResolvedValue([
-        { id: 'db-1', discordMessageId: ['msg-1'] },
-        { id: 'db-2', discordMessageId: ['msg-deleted'] }, // Not in Discord
-      ]),
-      softDeleteMessages: vi.fn().mockResolvedValue(1),
-    });
-
-    vi.mocked(collateChunksForSync).mockReturnValue('Still here');
-    vi.mocked(contentsDiffer).mockReturnValue(false);
-    vi.mocked(getOldestTimestamp).mockReturnValue(new Date('2024-01-01'));
-
-    const result = await executeDatabaseSync(messages, 'ch-1', 'p-1', sync);
-
-    expect(result.deleted).toBe(1);
-    expect(sync.softDeleteMessages).toHaveBeenCalledWith(['db-2']);
-  });
-
-  it('should handle errors gracefully and return zero counts', async () => {
-    const messages = new Collection<string, Message>();
-    messages.set('msg-1', createMockMessage('msg-1', 'Hello'));
-
-    const sync = createMockConversationSync({
-      getMessagesByDiscordIds: vi.fn().mockRejectedValue(new Error('DB error')),
-    });
-
-    const result = await executeDatabaseSync(messages, 'ch-1', 'p-1', sync);
-
-    expect(result).toEqual({ updated: 0, deleted: 0 });
-  });
-
-  it('should skip collation null results', async () => {
-    const messages = new Collection<string, Message>();
-    messages.set('msg-1', createMockMessage('msg-1', 'Partial'));
-
-    const dbMessages = new Map([
-      [
-        'msg-1',
-        {
-          id: 'db-1',
-          discordMessageId: ['msg-1', 'msg-2'], // Expects 2 chunks
-          content: 'Full content',
-          deletedAt: null,
-        },
-      ],
-    ]);
-
-    const sync = createMockConversationSync({
-      getMessagesByDiscordIds: vi.fn().mockResolvedValue(dbMessages),
-    });
-
-    vi.mocked(collateChunksForSync).mockReturnValue(null);
-    vi.mocked(getOldestTimestamp).mockReturnValue(null);
-
-    const result = await executeDatabaseSync(messages, 'ch-1', 'p-1', sync);
-
-    expect(result.updated).toBe(0);
-    expect(sync.updateMessageContent).not.toHaveBeenCalled();
   });
 });

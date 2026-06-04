@@ -45,6 +45,12 @@ vi.mock('../utils/MessageContentBuilder.js', () => ({
   }),
 }));
 
+vi.mock('../utils/gatewayServiceCalls.js', () => ({
+  dualWritePersistAssistantMessage: vi.fn().mockResolvedValue(undefined),
+}));
+
+import { dualWritePersistAssistantMessage } from '../utils/gatewayServiceCalls.js';
+
 describe('ConversationPersistence', () => {
   let persistence: ConversationPersistence;
   let mockConversationHistory: {
@@ -497,6 +503,36 @@ describe('ConversationPersistence', () => {
         guildId: 'guild-123',
         discordMessageId: ['chunk-1'],
         timestamp: expectedAssistantTime,
+      });
+    });
+
+    it('fires the dual-write mirror with the original userMessageTime after the local save', async () => {
+      const mockMessage = createMockMessage({
+        id: 'discord-msg-123',
+        channelId: 'channel-123',
+        guildId: 'guild-123',
+      });
+      const userMessageTime = new Date('2025-01-01T10:00:00.000Z');
+
+      await persistence.saveAssistantMessage({
+        message: mockMessage,
+        personality: mockPersonality,
+        personaId: 'persona-uuid-123',
+        content: 'Assistant response',
+        chunkMessageIds: ['chunk-1'],
+        userMessageTime,
+      });
+
+      // The helper receives userMessageTime, NOT the +1ms assistant time —
+      // the gateway derives the +1ms itself.
+      expect(dualWritePersistAssistantMessage).toHaveBeenCalledWith({
+        channelId: 'channel-123',
+        guildId: 'guild-123',
+        personalityId: 'personality-123',
+        personaId: 'persona-uuid-123',
+        content: 'Assistant response',
+        chunkMessageIds: ['chunk-1'],
+        userMessageTime,
       });
     });
 

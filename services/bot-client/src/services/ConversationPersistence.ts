@@ -24,6 +24,7 @@ import type { Message } from 'discord.js';
 import { generateAttachmentPlaceholders } from '../utils/attachmentPlaceholders.js';
 import { isForwardedMessage } from '../utils/forwardedMessageUtils.js';
 import { buildMessageContent } from '../utils/MessageContentBuilder.js';
+import { dualWritePersistAssistantMessage } from '../utils/gatewayServiceCalls.js';
 
 const logger = createLogger('ConversationPersistence');
 
@@ -416,6 +417,21 @@ export class ConversationPersistence {
       guildId,
       discordMessageId: chunkMessageIds,
       timestamp: assistantMessageTime,
+    });
+
+    // Phase 2.5 dual-write: mirror to the gateway endpoint for burn-in
+    // verification. Fire-and-forget, no-op unless CONTEXT_DUAL_WRITE=true.
+    // Sends userMessageTime (not assistantMessageTime) — the gateway derives
+    // the +1ms timestamp itself so the deterministic row id stays a pure
+    // function of what it persists.
+    void dualWritePersistAssistantMessage({
+      channelId,
+      guildId,
+      personalityId: personality.id,
+      personaId,
+      content,
+      chunkMessageIds,
+      userMessageTime,
     });
 
     logger.info({ chunks: chunkMessageIds.length }, 'Saved assistant message');

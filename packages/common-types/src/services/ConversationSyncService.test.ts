@@ -309,4 +309,214 @@ describe('ConversationSyncService', () => {
       expect(result).toEqual([]);
     });
   });
+
+  describe('runSync', () => {
+    const observed = (id: string, content: string, iso = '2026-06-01T00:00:00Z') => ({
+      id,
+      content,
+      createdAt: new Date(iso),
+    });
+
+    const dbRow = (id: string, discordIds: string[], content: string) => ({
+      id,
+      discordMessageId: discordIds,
+      content,
+      deletedAt: null,
+      createdAt: new Date('2026-06-01T00:00:00Z'),
+    });
+
+    it('returns zero counts for an empty snapshot without touching the DB', async () => {
+      const spy = vi.spyOn(service, 'getMessagesByDiscordIds');
+
+      const result = await service.runSync('ch-1', 'p-1', []);
+
+      expect(result).toEqual({ updated: 0, deleted: 0 });
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('returns zero counts when no DB messages match', async () => {
+      vi.spyOn(service, 'getMessagesByDiscordIds').mockResolvedValue(new Map());
+      vi.spyOn(service, 'getMessagesInTimeWindow').mockResolvedValue([]);
+
+      const result = await service.runSync('ch-1', 'p-1', [observed('d1', 'hello')]);
+
+      expect(result).toEqual({ updated: 0, deleted: 0 });
+    });
+
+    it('detects and updates an edited message', async () => {
+      const row = dbRow('db-1', ['d1'], 'original content');
+      vi.spyOn(service, 'getMessagesByDiscordIds').mockResolvedValue(new Map([['d1', row]]));
+      vi.spyOn(service, 'getMessagesInTimeWindow').mockResolvedValue([
+        { id: 'db-1', discordMessageId: ['d1'], createdAt: row.createdAt },
+      ]);
+      const update = vi.spyOn(service, 'updateMessageContent').mockResolvedValue(true);
+      const softDelete = vi.spyOn(service, 'softDeleteMessages');
+
+      const result = await service.runSync('ch-1', 'p-1', [observed('d1', 'edited content')]);
+
+      expect(result).toEqual({ updated: 1, deleted: 0 });
+      expect(update).toHaveBeenCalledWith('db-1', 'edited content');
+      expect(softDelete).not.toHaveBeenCalled();
+    });
+
+    it('does not update when content is unchanged', async () => {
+      const row = dbRow('db-1', ['d1'], 'same content');
+      vi.spyOn(service, 'getMessagesByDiscordIds').mockResolvedValue(new Map([['d1', row]]));
+      vi.spyOn(service, 'getMessagesInTimeWindow').mockResolvedValue([
+        { id: 'db-1', discordMessageId: ['d1'], createdAt: row.createdAt },
+      ]);
+      const update = vi.spyOn(service, 'updateMessageContent');
+
+      const result = await service.runSync('ch-1', 'p-1', [observed('d1', 'same content')]);
+
+      expect(result).toEqual({ updated: 0, deleted: 0 });
+      expect(update).not.toHaveBeenCalled();
+    });
+
+    it('collates multi-chunk records in DB order before comparing', async () => {
+      const row = dbRow('db-1', ['d1', 'd2'], 'part one part two');
+      vi.spyOn(service, 'getMessagesByDiscordIds').mockResolvedValue(
+        new Map([
+          ['d1', row],
+          ['d2', row],
+        ])
+      );
+      vi.spyOn(service, 'getMessagesInTimeWindow').mockResolvedValue([
+        { id: 'db-1', discordMessageId: ['d1', 'd2'], createdAt: row.createdAt },
+      ]);
+      const update = vi.spyOn(service, 'updateMessageContent');
+
+      // Chunks arrive out of order but collate to the stored content — no edit.
+      const result = await service.runSync('ch-1', 'p-1', [
+        observed('d2', ' part two'),
+        observed('d1', 'part one'),
+      ]);
+
+      expect(result.updated).toBe(0);
+      expect(update).not.toHaveBeenCalled();
+    });
+
+    it('skips edit when chunks are missing from the snapshot (partial fetch)', async () => {
+      const row = dbRow('db-1', ['d1', 'd2'], 'part one part two');
+      vi.spyOn(service, 'getMessagesByDiscordIds').mockResolvedValue(new Map([['d1', row]]));
+      vi.spyOn(service, 'getMessagesInTimeWindow').mockResolvedValue([]);
+      const update = vi.spyOn(service, 'updateMessageContent');
+
+      const result = await service.runSync('ch-1', 'p-1', [observed('d1', 'part one EDITED')]);
+
+      expect(result.updated).toBe(0);
+      expect(update).not.toHaveBeenCalled();
+    });
+
+    it('soft deletes DB rows absent from the snapshot window', async () => {
+      const row = dbRow('db-1', ['d1'], 'still here');
+      vi.spyOn(service, 'getMessagesByDiscordIds').mockResolvedValue(new Map([['d1', row]]));
+      vi.spyOn(service, 'getMessagesInTimeWindow').mockResolvedValue([
+        { id: 'db-1', discordMessageId: ['d1'], createdAt: row.createdAt },
+        { id: 'db-2', discordMessageId: ['d-deleted'], createdAt: row.createdAt },
+      ]);
+      const softDelete = vi.spyOn(service, 'softDeleteMessages').mockResolvedValue(1);
+
+      const result = await service.runSync('ch-1', 'p-1', [observed('d1', 'still here')]);
+
+      expect(result).toEqual({ updated: 0, deleted: 1 });
+      expect(softDelete).toHaveBeenCalledWith(['db-2']);
+    });
+
+    it('ignores soft-deleted DB rows in the edit pass', async () => {
+      const row = { ...dbRow('db-1', ['d1'], 'original'), deletedAt: new Date() };
+      vi.spyOn(service, 'getMessagesByDiscordIds').mockResolvedValue(new Map([['d1', row]]));
+      vi.spyOn(service, 'getMessagesInTimeWindow').mockResolvedValue([]);
+      const update = vi.spyOn(service, 'updateMessageContent');
+
+      const result = await service.runSync('ch-1', 'p-1', [observed('d1', 'edited')]);
+
+      expect(result.updated).toBe(0);
+      expect(update).not.toHaveBeenCalled();
+    });
+
+    it('returns zero counts when the first DB call throws (never propagates)', async () => {
+      vi.spyOn(service, 'getMessagesByDiscordIds').mockRejectedValue(new Error('DB down'));
+
+      const result = await service.runSync('ch-1', 'p-1', [observed('d1', 'hello')]);
+
+      expect(result).toEqual({ updated: 0, deleted: 0 });
+    });
+
+    it('strips bot footers from collated chunks before comparing (no false edit)', async () => {
+      const row = dbRow(
+        'db-1',
+        ['d1', 'd2'],
+        'This is the first chunk of a long response. This is the second chunk.'
+      );
+      vi.spyOn(service, 'getMessagesByDiscordIds').mockResolvedValue(
+        new Map([
+          ['d1', row],
+          ['d2', row],
+        ])
+      );
+      vi.spyOn(service, 'getMessagesInTimeWindow').mockResolvedValue([]);
+      const update = vi.spyOn(service, 'updateMessageContent');
+
+      const result = await service.runSync('ch-1', 'p-1', [
+        observed('d1', 'This is the first chunk of a long response. '),
+        observed('d2', 'This is the second chunk.\n-# Model: [test-model](<https://example.com>)'),
+      ]);
+
+      expect(result.updated).toBe(0);
+      expect(update).not.toHaveBeenCalled();
+    });
+
+    it('updates with footer-stripped content when an edited chunk genuinely differs', async () => {
+      const row = dbRow('db-1', ['d1', 'd2'], 'First chunk original. Second chunk unchanged.');
+      vi.spyOn(service, 'getMessagesByDiscordIds').mockResolvedValue(
+        new Map([
+          ['d1', row],
+          ['d2', row],
+        ])
+      );
+      vi.spyOn(service, 'getMessagesInTimeWindow').mockResolvedValue([]);
+      const update = vi.spyOn(service, 'updateMessageContent').mockResolvedValue(true);
+
+      const result = await service.runSync('ch-1', 'p-1', [
+        observed('d1', 'First chunk was EDITED. '),
+        observed('d2', 'Second chunk unchanged.\n-# Model: [test-model](<https://example.com>)'),
+      ]);
+
+      expect(result.updated).toBe(1);
+      expect(update).toHaveBeenCalledWith(
+        'db-1',
+        'First chunk was EDITED. Second chunk unchanged.'
+      );
+    });
+
+    it('strips multi-line footers (model + guest mode) before comparing', async () => {
+      const row = dbRow('db-1', ['d1'], 'Hello world!');
+      vi.spyOn(service, 'getMessagesByDiscordIds').mockResolvedValue(new Map([['d1', row]]));
+      vi.spyOn(service, 'getMessagesInTimeWindow').mockResolvedValue([]);
+      const update = vi.spyOn(service, 'updateMessageContent');
+
+      const result = await service.runSync('ch-1', 'p-1', [
+        observed(
+          'd1',
+          'Hello world!\n-# Model: [meta-llama/llama-3.3-70b-instruct:free](<https://openrouter.ai/meta-llama/llama-3.3-70b-instruct:free>)\n-# 🆓 Using free model (no API key required)'
+        ),
+      ]);
+
+      expect(result.updated).toBe(0);
+      expect(update).not.toHaveBeenCalled();
+    });
+
+    it('does not overwrite non-empty DB content with empty Discord content (voice transcripts)', async () => {
+      const row = dbRow('db-1', ['d1'], 'Voice transcript: Hello this is a test message');
+      vi.spyOn(service, 'getMessagesByDiscordIds').mockResolvedValue(new Map([['d1', row]]));
+      vi.spyOn(service, 'getMessagesInTimeWindow').mockResolvedValue([]);
+      const update = vi.spyOn(service, 'updateMessageContent');
+
+      const result = await service.runSync('ch-1', 'p-1', [observed('d1', '')]);
+
+      expect(result.updated).toBe(0);
+      expect(update).not.toHaveBeenCalled();
+    });
+  });
 });
