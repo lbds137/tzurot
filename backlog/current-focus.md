@@ -4,9 +4,9 @@ _This week's active work. Max 3 items._
 
 ### Active
 
-1. **PR-2n epic — Phase 2 (services extraction)** — see [`active-epic.md`](backlog/active-epic.md). Design SETTLED (council, Hybrid). **Sequencing DECIDED: `PR-2o → Phase 2.5 → PR-2p → PR-2q`** (optimized for no stopgaps — 2.5 lands before the 2p singleton eviction so bot-client never needs a temporary local Prisma). **Next code PR: PR-2o** (relocate single-consumer services — ai-worker resolver stack + `ConversationRetentionService` → api-gateway; lowest-risk opener, no Prisma/bot-client entanglement). Phase 2.5 (make bot-client Prisma-free) is the heavy one and gets a scoping pass when reached.
+1. **PR-2n epic — Phase 2 (services extraction)** — see [`active-epic.md`](backlog/active-epic.md). Design SETTLED (council, Hybrid). Sequencing: `PR-2o ✅ → Phase 2.5 → PR-2p → PR-2q`. **PR-2o shipped 2026-06-04 (#1152)** — retention → api-gateway, vision cache → ai-worker; the resolver stack was falsified as 2-consumer and re-routed to 2p (evidence in active-epic.md). **Next: Phase 2.5 scoping pass** (make bot-client Prisma-free — enumerate bot-client's DB reads, design gateway endpoints, then tighten the depcruise guard). The epic prescribes scoping before code; likely its own mini-epic.
 
-   _v3.0.0-beta.127 shipped 2026-06-03 (#1146) — prod-validated, all 3 services clean. See [CURRENT.md](../CURRENT.md)._
+   _v3.0.0-beta.127 shipped 2026-06-03 (#1146) — prod-validated. See [CURRENT.md](../CURRENT.md)._
 
 ### Quick-wins available between phases
 
