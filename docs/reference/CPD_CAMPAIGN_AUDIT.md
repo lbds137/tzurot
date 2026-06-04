@@ -106,3 +106,7 @@ Each of these would benefit from its own council pass before committing to a dir
 | 3. Viable enforcement mechanism | ✅ Post-filter + differential CI ratchet + documented boundary in `.claude/rules/`                          |
 
 The campaign closes here. Future contributors continuing this work should start with one of the deferred campaigns above, with a fresh council pass.
+
+## Post-campaign calibration confirmation (2026-06-03)
+
+The `graceMargin: 10` value in `.github/baselines/cpd-baseline.json` was provisionally set at close-out with an open question: would 10 lines survive routine feature PRs without false-positive blocks? **Answer: yes.** Across the ~60 PRs merged between 2026-05-16 and 2026-06-03 (the typed-client epic PRs #1087–#1116, the `@tzurot/clients` extraction, common-types slimming Phase 1, the beta.126/127 release cycles, and the 2026-06-03 quick-wins sweep), `cpd:check` never tripped on legitimate code. The value is considered calibrated and locked in; raise it only with a concrete false-positive in hand, per the ratchet rules in `.claude/rules/02-code-standards.md`.
