@@ -84,7 +84,7 @@ bot-client's Prisma usage is **entirely message-pipeline**, in three functional 
 
 #### Proposed PR slicing (adapted from Qwen's sequence + the routing caveat)
 
-1. **2.5a** — ai-worker: `ContextDataSource` interface + Prisma-backed impl + ContextStep refactor to consume it (no behavior change; ai-worker still accepts full payloads). Shadow-verify by hydrating-and-diffing against the bot-client-supplied context in logs.
+1. **2.5a** — ✅ SHIPPED 2026-06-04 (#1153). ai-worker: `ContextDataSource` interface (`services/context/types.ts`) + `PrismaContextDataSource` (wraps the SAME ConversationHistoryService/UserService bot-client uses, row-for-row comparability) + ContextStep gains optional dataSource + `shadowHydrateAndDiff` (fire-and-forget, log-only, tolerant diff). Flag: `CONTEXT_SHADOW_HYDRATION=true` (redeploy to change; documented in `.env.example`). Known burn-in signals: limit-derivation divergence (payload `extendedContext?.maxMessages` vs resolved cascade), cross-channel compare is count-only (wire vs DB type mismatch — 2.5c must unify shapes before deep diff).
 2. **2.5b** — api-gateway: the ~3 internal write endpoints (delivery confirmation, edit sync, delete sync) + the cached routing-read endpoint(s) for `loadPersonality`/alias-list. bot-client dual-writes (POST + legacy Prisma) for verification.
 3. **2.5c** — cutover behind `CONTEXT_MODE`: thin envelopes, ContextStep hydrates, bot-client Prisma writes stop. Burn-in with context-hash diffing.
 4. **2.5d** — delete: legacy paths, `MessageContextBuilder`, bot-client's Prisma injections, the flag; tighten the depcruise guard (below). Unblocks PR-2p.

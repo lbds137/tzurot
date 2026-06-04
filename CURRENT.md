@@ -7,9 +7,22 @@
 
 ## Next Session Goal
 
-**Phase 2.5 scoping pass is up next** (see Active Epic below) — PR-2o shipped 2026-06-04 (#1152). Phase 2.5 = make bot-client Prisma-free: enumerate exactly what bot-client reads from the DB (known entry points: `index.ts:188/:644` `getPrismaClient()` injections into `ConversationPersistence`/`MentionResolver`/`MessageReferenceExtractor`/`PersonalityService`, plus `ConversationSyncService` in `MessageContextBuilder`), design the api-gateway endpoints for those reads, then tighten the depcruise guard to block the re-export path. Likely its own mini-epic; the epic doc prescribes a scoping pass before code.
+**Phase 2.5b is up next** (see Active Epic / [active-epic.md](backlog/active-epic.md) PR slicing) — the api-gateway side: ~3 narrow internal write endpoints (delivery confirmation, edit sync, delete sync) + the cached routing-read endpoint(s) for `loadPersonality`/alias-list (the routing-reads caveat: mention parsing needs personality names/aliases BEFORE any job exists, so those reads can't relocate into the job). bot-client dual-writes (POST + legacy Prisma) for verification. Then 2.5c (cutover behind `CONTEXT_MODE`) → 2.5d (delete legacy + tighten depcruise guard) → PR-2p.
 
-## Last Session — PR-2o: single-consumer relocations + falsified resolver-stack assumption (2026-06-04)
+## Last Session — Phase 2.5 scoping + council + PR 2.5a shipped (2026-06-04)
+
+| PR    | Title                                                                 | Outcome                                                                                                                                                                                               |
+| ----- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #1153 | `feat(ai-worker): add ContextDataSource and shadow context hydration` | `ContextDataSource` interface + `PrismaContextDataSource` (wraps the same shared services bot-client uses) + fire-and-forget `shadowHydrateAndDiff` gated on `CONTEXT_SHADOW_HYDRATION`; 19 new tests |
+
+### Net result
+
+- **Phase 2.5 scoping complete**: bot-client's DB surface enumerated into 3 clusters — (A) per-message context reads, (B) persistence writes, (C) startup `loadAllPersonalities` — evidence + council verdict (Fork 2, unanimous) recorded in active-epic.md, including the routing-reads caveat the council under-weighted.
+- **2.5a shipped**: ai-worker can now re-hydrate DB-derived context per job and diff against the bot-client payload, log-only (`matched` info / `DIVERGED` warn). Tolerant diff by design: `extraInHydrated` = expected timing drift; missing rows / timezone mismatch / fewer cross-channel groups = divergence. Zero production behavior change with the flag off (default).
+- **Known burn-in signals documented in the module JSDoc**: limit-derivation divergence (bot-client `extendedContext?.maxMessages` vs resolved cascade) and count-only cross-channel comparison (wire `CrossChannelHistoryGroupEntry` vs DB `CrossChannelHistoryGroup` shape mismatch — 2.5c must unify).
+- **Post-merge round-5 review triage**: `.env.example` entry applied on develop (this commit); `nullToUndefined` utility dismissed (2 call sites, wrong trade); inline-comment placement nit dismissed.
+
+## Previous Session — PR-2o: single-consumer relocations + falsified resolver-stack assumption (2026-06-04)
 
 | PR    | Title                                                                 | Outcome                                                                                                                                                             |
 | ----- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
