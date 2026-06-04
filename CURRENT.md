@@ -7,7 +7,20 @@
 
 ## Next Session Goal
 
-**Phase 2.5b is up next** (see Active Epic / [active-epic.md](backlog/active-epic.md) PR slicing) — the api-gateway side: ~3 narrow internal write endpoints (delivery confirmation, edit sync, delete sync) + the cached routing-read endpoint(s) for `loadPersonality`/alias-list (the routing-reads caveat: mention parsing needs personality names/aliases BEFORE any job exists, so those reads can't relocate into the job). bot-client dual-writes (POST + legacy Prisma) for verification. Then 2.5c (cutover behind `CONTEXT_MODE`) → 2.5d (delete legacy + tighten depcruise guard) → PR-2p.
+**Phase 2.5c is up next** (see [active-epic.md](backlog/active-epic.md)) — the cutover: `CONTEXT_MODE=legacy|service`, thin envelopes from bot-client, ContextStep hydrates inside the job, bot-client Prisma writes stop (gateway endpoints from 2.5b become the only write path). Prerequisite: **negative caching** in front of the routing read (mention parsing probes many non-personality candidates per message). Optionally first: enable `CONTEXT_SHADOW_HYDRATION` + `CONTEXT_DUAL_WRITE` on dev (Railway redeploy) and read the burn-in logs before writing 2.5c code. Fold-forward nits from #1154 reviews are listed in the epic doc's 2.5c/2.5d entries. Then 2.5d (delete legacy + tighten depcruise guard) → PR-2p.
+
+## Last Session (continued) — PR 2.5b shipped (2026-06-04)
+
+| PR    | Title                                                                       | Outcome                                                                                                                                                                                          |
+| ----- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| #1154 | `feat(api-gateway): PR 2.5b — internal conversation endpoints + dual-write` | 3 internal routes (assistant-message persist, combined edit/delete sync, personality routing read) + bot-client dual-write behind `CONTEXT_DUAL_WRITE`; sync algorithm relocated to common-types |
+
+### Net result
+
+- **Gateway owns the assistant history row on delivery confirmation** (user-approved fork): derives +1ms timestamp/deterministic UUID/token count via the same `addMessage` path bot-client uses — dual-write rows match by construction; existing row → compare-don't-overwrite with `matched: false` as the divergence signal; P2002 race → compare fallback (other errors surface as 500).
+- **Combined sync endpoint** (user-approved fork): diff algorithm relocated from SyncExecutor/SyncValidator into `ConversationSyncService.runSync`; legacy path delegates to the same method — zero drift possible. `SyncValidator` (untested, structure-test-excluded) died; its replacement has a colocated test suite and the exclusion is removed.
+- **Routing read discovery**: mention parsing is candidate-probe (not list-scan) → single lookup endpoint suffices; startup `loadAllPersonalities` is just a connection-check count. 2.5c prerequisite: negative caching (recorded in epic doc).
+- **3 review-respond rounds, converging**: round-1 P2002 guard + log dedup + manifest caps (user-approved); round-2 truncation warn (user-approved); round-3 log field + a reviewer false claim corrected (the "relocation added a DB round-trip" premise was wrong — old code made the same two queries; my round-2 epic-doc echo of it fixed per verify-before-echoing). Final reviews' 4 remaining nits folded forward to 2.5c/2.5d entries.
 
 ## Last Session — Phase 2.5 scoping + council + PR 2.5a shipped (2026-06-04)
 

@@ -4,7 +4,7 @@ _This week's active work. Max 3 items._
 
 ### Active
 
-1. **PR-2n epic — Phase 2 (services extraction)** — see [`active-epic.md`](backlog/active-epic.md). Sequencing: `PR-2o ✅ → Phase 2.5 (a ✅ → b → c → d) → PR-2p → PR-2q`. Phase 2.5 design SETTLED (council 2026-06-04, Fork 2 unanimous + routing-reads caveat; slicing in active-epic.md). **2.5a shipped 2026-06-04 (#1153)** — ContextDataSource + shadow hydration behind `CONTEXT_SHADOW_HYDRATION`. **Next: 2.5b** — api-gateway internal write endpoints (delivery confirmation, edit sync, delete sync) + cached routing-read endpoint(s); bot-client dual-writes for verification.
+1. **PR-2n epic — Phase 2 (services extraction)** — see [`active-epic.md`](backlog/active-epic.md). Sequencing: `PR-2o ✅ → Phase 2.5 (a ✅ → b ✅ → c → d) → PR-2p → PR-2q`. **2.5a shipped (#1153)**: ContextDataSource + shadow hydration (`CONTEXT_SHADOW_HYDRATION`). **2.5b shipped 2026-06-04 (#1154)**: 3 internal gateway endpoints (assistant-message persist, combined sync, personality routing read) + dual-write (`CONTEXT_DUAL_WRITE`). **Next: 2.5c** — cutover behind `CONTEXT_MODE` (thin envelopes, ContextStep hydrates, bot-client Prisma writes stop); prerequisite: negative caching in front of the routing read; fold-forward nits listed in active-epic.md.
 
    _v3.0.0-beta.127 shipped 2026-06-03 (#1146) — prod-validated. See [CURRENT.md](../CURRENT.md)._
 
