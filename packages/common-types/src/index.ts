@@ -85,7 +85,6 @@ export * from './services/tts/TtsProvider.js';
 export * from './services/tts/TtsProviderError.js';
 export * from './services/ConversationHistoryService.js';
 export * from './services/historyCutoff.js';
-export * from './services/ConversationRetentionService.js';
 export * from './services/ConversationSyncService.js';
 export * from './services/UserService.js';
 export * from './services/BaseCacheInvalidationService.js';
@@ -98,7 +97,6 @@ export * from './services/ConfigCascadeResolver.js';
 export * from './services/ConfigCascadeCacheInvalidationService.js';
 export * from './services/DenylistCacheInvalidationService.js';
 export { VoiceTranscriptCache } from './services/VoiceTranscriptCache.js';
-export { VisionDescriptionCache } from './services/VisionDescriptionCache.js';
 
 // Export resolvers (cascading configuration resolution)
 export * from './services/resolvers/index.js';

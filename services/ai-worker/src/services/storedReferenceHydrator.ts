@@ -12,8 +12,8 @@ import {
   type PrismaClient,
   type StoredReferencedMessage,
   createLogger,
-  type VisionDescriptionCache,
 } from '@tzurot/common-types';
+import type { VisionDescriptionCache } from './VisionDescriptionCache.js';
 import { batchResolveByDiscordIds } from './reference/BatchResolvers.js';
 import type { RawHistoryEntry } from '../jobs/utils/conversationTypes.js';
 

@@ -26,11 +26,6 @@ vi.mock('@tzurot/common-types', async () => {
     getHistoryStats = mockGetHistoryStats;
   }
 
-  // Mock ConversationRetentionService class
-  class MockConversationRetentionService {
-    clearHistory = mockClearHistory;
-  }
-
   // Mock PersonaResolver class
   class MockPersonaResolver {
     resolve = mockResolve;
@@ -45,10 +40,16 @@ vi.mock('@tzurot/common-types', async () => {
       error: vi.fn(),
     }),
     ConversationHistoryService: MockConversationHistoryService,
-    ConversationRetentionService: MockConversationRetentionService,
     PersonaResolver: MockPersonaResolver,
   };
 });
+
+// Local service — mock by module path, not via the @tzurot/common-types block above.
+vi.mock('../../services/ConversationRetentionService.js', () => ({
+  ConversationRetentionService: class {
+    clearHistory = mockClearHistory;
+  },
+}));
 
 vi.mock('../../services/AuthMiddleware.js', () => ({
   requireUserAuth: vi.fn(() => vi.fn((_req: unknown, _res: unknown, next: () => void) => next())),

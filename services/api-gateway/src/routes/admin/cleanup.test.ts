@@ -4,7 +4,8 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createCleanupRoute } from './cleanup.js';
-import type { ConversationRetentionService, PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types';
+import type { ConversationRetentionService } from '../../services/ConversationRetentionService.js';
 import type { RouteDeps } from '../routeDeps.js';
 import express from 'express';
 import request from 'supertest';

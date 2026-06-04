@@ -154,19 +154,19 @@ const cache = new TTLCache<ValueType>({
 
 ### Existing Cache Implementations
 
-| Cache              | Location                     | TTL   | Type                     |
-| ------------------ | ---------------------------- | ----- | ------------------------ |
-| Channel Activation | `GatewayClient.ts`           | 30s   | TTLCache + pub/sub       |
-| Admin Settings     | `GatewayClient.ts`           | 30s   | TTLCache (in-memory)     |
-| Personality        | `PersonalityService.ts`      | 5 min | TTLCache + pub/sub       |
-| Personality IDs    | `PersonalityIdCache.ts`      | 5 min | Custom (in-memory)       |
-| Denylist           | `DenylistCache.ts`           | -     | In-memory + pub/sub      |
-| User               | `UserService.ts`             | 5 min | TTLCache (in-memory)     |
-| Autocomplete       | `autocompleteCache.ts`       | 30s   | TTLCache (in-memory)     |
-| OpenRouter Models  | `OpenRouterModelCache.ts`    | 24h   | Redis-backed             |
-| Vision Description | `VisionDescriptionCache.ts`  | 1h    | L1 Redis + L2 PostgreSQL |
-| Voice Transcript   | `VoiceTranscriptCache.ts`    | -     | Custom (in-memory)       |
-| Redis Dedup        | `RedisDeduplicationCache.ts` | TTL   | Redis-backed             |
+| Cache              | Location                     | TTL   | Type                   |
+| ------------------ | ---------------------------- | ----- | ---------------------- |
+| Channel Activation | `GatewayClient.ts`           | 30s   | TTLCache + pub/sub     |
+| Admin Settings     | `GatewayClient.ts`           | 30s   | TTLCache (in-memory)   |
+| Personality        | `PersonalityService.ts`      | 5 min | TTLCache + pub/sub     |
+| Personality IDs    | `PersonalityIdCache.ts`      | 5 min | Custom (in-memory)     |
+| Denylist           | `DenylistCache.ts`           | -     | In-memory + pub/sub    |
+| User               | `UserService.ts`             | 5 min | TTLCache (in-memory)   |
+| Autocomplete       | `autocompleteCache.ts`       | 30s   | TTLCache (in-memory)   |
+| OpenRouter Models  | `OpenRouterModelCache.ts`    | 24h   | Redis-backed           |
+| Vision Description | `VisionDescriptionCache.ts`  | 1h    | Redis-backed (L1 only) |
+| Voice Transcript   | `VoiceTranscriptCache.ts`    | -     | Custom (in-memory)     |
+| Redis Dedup        | `RedisDeduplicationCache.ts` | TTL   | Redis-backed           |
 
 **Cache invalidation services** (Redis pub/sub): `CacheInvalidationService`, `LlmConfigCacheInvalidationService`, `ChannelActivationCacheInvalidationService`, `ApiKeyCacheInvalidationService`, `PersonaCacheInvalidationService`
 

@@ -16,14 +16,12 @@ import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { createTestPGlite, loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
 import { ConversationHistoryService } from './ConversationHistoryService.js';
-import { ConversationRetentionService } from './ConversationRetentionService.js';
 import { MessageRole } from '../constants/index.js';
 
 describe('ConversationHistoryService Component Test', () => {
   let prisma: PrismaClient;
   let pglite: PGlite;
   let service: ConversationHistoryService;
-  let retentionService: ConversationRetentionService;
 
   // Test fixture IDs
   const testUserId = '00000000-0000-0000-0000-000000000001';
@@ -73,7 +71,6 @@ describe('ConversationHistoryService Component Test', () => {
 
     // Create service instances
     service = new ConversationHistoryService(prisma);
-    retentionService = new ConversationRetentionService(prisma);
   }, 30000); // 30 second timeout for PGlite WASM initialization under parallel load
 
   beforeEach(async () => {
@@ -472,40 +469,6 @@ describe('ConversationHistoryService Component Test', () => {
 
       expect(message).not.toBeNull();
       expect(message?.content).toBe('Chunked response');
-    });
-  });
-
-  describe('clearHistory (via RetentionService)', () => {
-    it('should clear all messages for channel + personality', async () => {
-      // Add messages
-      await service.addMessage({
-        channelId: testChannelId,
-        personalityId: testPersonalityId,
-        personaId: testPersonaId,
-        role: MessageRole.User,
-        content: 'Message 1',
-        guildId: testGuildId,
-      });
-      await service.addMessage({
-        channelId: testChannelId,
-        personalityId: testPersonalityId,
-        personaId: testPersonaId,
-        role: MessageRole.Assistant,
-        content: 'Message 2',
-        guildId: testGuildId,
-      });
-
-      const deletedCount = await retentionService.clearHistory(testChannelId, testPersonalityId);
-
-      expect(deletedCount).toBe(2);
-
-      const history = await service.getChannelHistory(testChannelId, 10);
-      expect(history).toEqual([]);
-    });
-
-    it('should return 0 when no messages to clear', async () => {
-      const deletedCount = await retentionService.clearHistory('empty-channel', testPersonalityId);
-      expect(deletedCount).toBe(0);
     });
   });
 
@@ -1002,60 +965,6 @@ describe('ConversationHistoryService Component Test', () => {
       );
 
       expect(result).toEqual([]);
-    });
-  });
-
-  describe('cleanupOldHistory (via RetentionService)', () => {
-    it('should delete messages older than specified days', async () => {
-      // Add a message with explicit old timestamp
-      const oldDate = new Date();
-      oldDate.setDate(oldDate.getDate() - 40); // 40 days ago
-
-      // Insert directly with old timestamp (need explicit id for schema constraints)
-      const oldMessageId = '00000000-0000-0000-0000-000000000099';
-      await prisma.$executeRawUnsafe(`
-        INSERT INTO conversation_history
-        (id, channel_id, guild_id, personality_id, persona_id, role, content, created_at)
-        VALUES ('${oldMessageId}', '${testChannelId}', '${testGuildId}', '${testPersonalityId}', '${testPersonaId}', 'user', 'Old message', '${oldDate.toISOString()}')
-      `);
-
-      // Add a recent message
-      await service.addMessage({
-        channelId: testChannelId,
-        personalityId: testPersonalityId,
-        personaId: testPersonaId,
-        role: MessageRole.User,
-        content: 'Recent message',
-        guildId: testGuildId,
-      });
-
-      // Cleanup messages older than 30 days
-      const deletedCount = await retentionService.cleanupOldHistory(30);
-
-      expect(deletedCount).toBe(1);
-
-      // Recent message should still exist
-      const history = await service.getChannelHistory(testChannelId, 10);
-      expect(history).toHaveLength(1);
-      expect(history[0].content).toBe('Recent message');
-    });
-
-    it('should not delete recent messages', async () => {
-      await service.addMessage({
-        channelId: testChannelId,
-        personalityId: testPersonalityId,
-        personaId: testPersonaId,
-        role: MessageRole.User,
-        content: 'Fresh message',
-        guildId: testGuildId,
-      });
-
-      const deletedCount = await retentionService.cleanupOldHistory(30);
-
-      expect(deletedCount).toBe(0);
-
-      const history = await service.getChannelHistory(testChannelId, 10);
-      expect(history).toHaveLength(1);
     });
   });
 });

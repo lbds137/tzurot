@@ -14,7 +14,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
-import { PrismaClient } from './prisma.js';
+import { PrismaClient } from '@tzurot/common-types';
 import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { ConversationRetentionService } from './ConversationRetentionService.js';
