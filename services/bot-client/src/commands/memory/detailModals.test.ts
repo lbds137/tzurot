@@ -6,10 +6,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   buildEditModal,
   handleEditButton,
+  handleEditTruncatedButton,
   handleEditModalSubmit,
   MAX_MODAL_CONTENT_LENGTH,
 } from './detailModals.js';
 import type { MemoryItem } from '@tzurot/common-types';
+import { DiscordAPIError } from 'discord.js';
 import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
 import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
@@ -127,6 +129,160 @@ describe('Memory Detail Modals', () => {
         expect.objectContaining({
           content: expect.stringContaining('Failed to load'),
         })
+      );
+    });
+
+    it('should show the truncation warning instead of a modal for over-length content', async () => {
+      const memory = createMockMemory({ content: 'x'.repeat(MAX_MODAL_CONTENT_LENGTH + 500) });
+      stub.getMemory.mockResolvedValue(makeOk({ memory }));
+
+      const mockShowModal = vi.fn();
+      const mockReply = vi.fn();
+
+      const interaction = {
+        user: { id: 'user-123', username: 'testuser' },
+        showModal: mockShowModal,
+        reply: mockReply,
+      } as unknown as ButtonInteraction;
+
+      await handleEditButton(interaction, 'memory-123');
+
+      expect(mockShowModal).not.toHaveBeenCalled();
+      expect(mockReply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          embeds: expect.any(Array),
+          components: expect.any(Array),
+        })
+      );
+    });
+
+    it('surfaces a followUp instead of crashing when the truncation-warning reply hits 10062', async () => {
+      const memory = createMockMemory({ content: 'x'.repeat(MAX_MODAL_CONTENT_LENGTH + 500) });
+      stub.getMemory.mockResolvedValue(makeOk({ memory }));
+
+      const timeoutError = new DiscordAPIError(
+        { code: 10062, message: 'Unknown interaction' },
+        10062,
+        404,
+        'POST',
+        '/interactions/x/y/callback',
+        {}
+      );
+      const mockReply = vi.fn().mockRejectedValue(timeoutError);
+      const mockFollowUp = vi.fn().mockResolvedValue(undefined);
+
+      const interaction = {
+        user: { id: 'user-123', username: 'testuser' },
+        showModal: vi.fn(),
+        reply: mockReply,
+        followUp: mockFollowUp,
+      } as unknown as ButtonInteraction;
+
+      await expect(handleEditButton(interaction, 'memory-123')).resolves.toBeUndefined();
+      expect(mockFollowUp).toHaveBeenCalledWith(
+        expect.objectContaining({ content: expect.stringContaining('Took too long') })
+      );
+    });
+
+    it('surfaces a followUp instead of crashing when the error reply hits 10062', async () => {
+      stub.getMemory.mockResolvedValue(makeErr(404, 'Not found'));
+
+      const timeoutError = new DiscordAPIError(
+        { code: 10062, message: 'Unknown interaction' },
+        10062,
+        404,
+        'POST',
+        '/interactions/x/y/callback',
+        {}
+      );
+      const mockReply = vi.fn().mockRejectedValue(timeoutError);
+      const mockFollowUp = vi.fn().mockResolvedValue(undefined);
+
+      const interaction = {
+        user: { id: 'user-123', username: 'testuser' },
+        showModal: vi.fn(),
+        reply: mockReply,
+        followUp: mockFollowUp,
+      } as unknown as ButtonInteraction;
+
+      await expect(handleEditButton(interaction, 'memory-123')).resolves.toBeUndefined();
+      expect(mockFollowUp).toHaveBeenCalledWith(
+        expect.objectContaining({ content: expect.stringContaining('Failed to load') })
+      );
+    });
+  });
+
+  describe('handleEditTruncatedButton', () => {
+    it('shows the modal with content sliced to MAX_MODAL_CONTENT_LENGTH', async () => {
+      const memory = createMockMemory({ content: 'y'.repeat(MAX_MODAL_CONTENT_LENGTH + 1234) });
+      stub.getMemory.mockResolvedValue(makeOk({ memory }));
+
+      const mockShowModal = vi.fn();
+      const mockUpdate = vi.fn();
+
+      const interaction = {
+        user: { id: 'user-123', username: 'testuser' },
+        showModal: mockShowModal,
+        update: mockUpdate,
+      } as unknown as ButtonInteraction;
+
+      await handleEditTruncatedButton(interaction, 'memory-123');
+
+      expect(mockShowModal).toHaveBeenCalledTimes(1);
+      const modal = mockShowModal.mock.calls[0][0] as ReturnType<typeof buildEditModal>;
+      const json = modal.toJSON() as { components: { components: { value?: string }[] }[] };
+      expect(json.components[0].components[0].value).toHaveLength(MAX_MODAL_CONTENT_LENGTH);
+      expect(mockUpdate).not.toHaveBeenCalled();
+    });
+
+    it('updates the warning message with an error when the memory is gone', async () => {
+      stub.getMemory.mockResolvedValue(makeErr(404, 'Not found'));
+
+      const mockShowModal = vi.fn();
+      const mockUpdate = vi.fn();
+
+      const interaction = {
+        user: { id: 'user-123', username: 'testuser' },
+        showModal: mockShowModal,
+        update: mockUpdate,
+      } as unknown as ButtonInteraction;
+
+      await handleEditTruncatedButton(interaction, 'memory-123');
+
+      expect(mockShowModal).not.toHaveBeenCalled();
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining('Failed to load'),
+          embeds: [],
+          components: [],
+        })
+      );
+    });
+
+    it('surfaces a followUp instead of crashing when the error update hits 10062', async () => {
+      stub.getMemory.mockResolvedValue(makeErr(404, 'Not found'));
+
+      const timeoutError = new DiscordAPIError(
+        { code: 10062, message: 'Unknown interaction' },
+        10062,
+        404,
+        'POST',
+        '/interactions/x/y/callback',
+        {}
+      );
+      const mockUpdate = vi.fn().mockRejectedValue(timeoutError);
+      const mockFollowUp = vi.fn().mockResolvedValue(undefined);
+
+      const interaction = {
+        user: { id: 'user-123', username: 'testuser' },
+        showModal: vi.fn(),
+        update: mockUpdate,
+        followUp: mockFollowUp,
+      } as unknown as ButtonInteraction;
+
+      await expect(handleEditTruncatedButton(interaction, 'memory-123')).resolves.toBeUndefined();
+      expect(mockFollowUp).toHaveBeenCalledWith(
+        expect.objectContaining({ content: expect.stringContaining('Failed to load') })
       );
     });
   });

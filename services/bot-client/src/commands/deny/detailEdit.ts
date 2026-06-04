@@ -18,6 +18,7 @@ import {
 import { createLogger, type DenylistScope } from '@tzurot/common-types';
 import { getSessionManager } from '../../utils/dashboard/SessionManager.js';
 import { showModalWithTimeoutCatch } from '../../utils/dashboard/showModalWithTimeoutCatch.js';
+import { ackWithTimeoutCatch } from '../../utils/dashboard/ackWithTimeoutCatch.js';
 import { DASHBOARD_MESSAGES } from '../../utils/dashboard/messages.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import type { DenylistEntryResponse } from './browseTypes.js';
@@ -32,6 +33,31 @@ import {
 
 const logger = createLogger('deny-detail-edit');
 
+/**
+ * Session-expired first ack shared by handleEdit (button) and handleEditModal
+ * (modal submit). The reply lands after the sessionManager.get() Redis
+ * round-trip consumed part of the 3-second budget, so it's wrapped: a blown
+ * window surfaces via the wrapper's followUp fallback instead of a silent
+ * "Interaction Failed". (followUp as the PRIMARY response would be wrong —
+ * it lands after Discord's "did not respond" banner; it's only the fallback.)
+ */
+async function replySessionExpired(
+  interaction: ButtonInteraction | ModalSubmitInteraction,
+  source: string,
+  entryId: string
+): Promise<void> {
+  await ackWithTimeoutCatch(
+    interaction,
+    () =>
+      interaction.reply({
+        content: DASHBOARD_MESSAGES.SESSION_EXPIRED,
+        flags: MessageFlags.Ephemeral,
+      }),
+    { source, userId: interaction.user.id, entityId: entryId, sectionId: 'edit' },
+    DASHBOARD_MESSAGES.SESSION_EXPIRED
+  );
+}
+
 /** Handle edit button — show modal */
 export async function handleEdit(interaction: ButtonInteraction, entryId: string): Promise<void> {
   const sessionManager = getSessionManager();
@@ -42,13 +68,7 @@ export async function handleEdit(interaction: ButtonInteraction, entryId: string
   );
 
   if (session === null) {
-    // First response to an unacknowledged button click must be reply/deferUpdate.
-    // followUp here would land via the webhook endpoint after Discord shows
-    // "Application did not respond" — a confusing double-message UX.
-    await interaction.reply({
-      content: DASHBOARD_MESSAGES.SESSION_EXPIRED,
-      flags: MessageFlags.Ephemeral,
-    });
+    await replySessionExpired(interaction, 'handleEdit', entryId);
     return;
   }
 
@@ -160,10 +180,7 @@ export async function handleEditModal(
   );
 
   if (session === null) {
-    await interaction.reply({
-      content: DASHBOARD_MESSAGES.SESSION_EXPIRED,
-      flags: MessageFlags.Ephemeral,
-    });
+    await replySessionExpired(interaction, 'handleEditModal', entryId);
     return;
   }
 

@@ -19,6 +19,7 @@ import { createLogger, DISCORD_COLORS, type MemoryItem } from '@tzurot/common-ty
 import { buildMemoryActionId, buildDetailEmbed, buildDetailButtons } from './detail.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { showModalWithTimeoutCatch } from '../../utils/dashboard/showModalWithTimeoutCatch.js';
+import { ackWithTimeoutCatch } from '../../utils/dashboard/ackWithTimeoutCatch.js';
 import { fetchMemory, updateMemory } from './detailApi.js';
 
 const logger = createLogger('memory-detail-modals');
@@ -31,6 +32,18 @@ const logger = createLogger('memory-detail-modals');
  * We use 2000 for consistency with API validation (memorySingle.ts MAX_CONTENT_LENGTH).
  */
 export const MAX_MODAL_CONTENT_LENGTH = 2000;
+
+/** Shared error copy for the memory-gone branches (initial ack + 10062 fallback) */
+const MEMORY_LOAD_FAILED = '❌ Failed to load memory. It may have been deleted.';
+
+/** Diagnostic source for handleEditButton's ack wrappers */
+const EDIT_BUTTON_SOURCE = 'handleEditButton';
+
+/** Diagnostic source for handleEditTruncatedButton's ack wrappers */
+const EDIT_TRUNCATED_SOURCE = 'handleEditTruncatedButton';
+
+/** Action id for the truncated-edit flow — used in the button customId and diag contexts */
+const EDIT_TRUNCATED_ACTION = 'edit-truncated';
 
 /**
  * Build the edit modal for memory content
@@ -82,7 +95,7 @@ function buildTruncationWarningEmbed(memory: MemoryItem): EmbedBuilder {
 function buildTruncationButtons(memoryId: string): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId(buildMemoryActionId('edit-truncated', memoryId))
+      .setCustomId(buildMemoryActionId(EDIT_TRUNCATED_ACTION, memoryId))
       .setLabel('Edit with Truncation')
       .setStyle(ButtonStyle.Danger)
       .setEmoji('✂️'),
@@ -103,10 +116,24 @@ export async function handleEditButton(
   const { userClient } = clientsFor(interaction);
   const memory = await fetchMemory(userClient, memoryId, interaction.user.id);
   if (memory === null) {
-    await interaction.reply({
-      content: '❌ Failed to load memory. It may have been deleted.',
-      flags: MessageFlags.Ephemeral,
-    });
+    // First ack lands AFTER the fetchMemory gateway call consumed part of
+    // the 3-second budget — wrap so a blown window surfaces via followUp
+    // instead of a silent "Interaction Failed".
+    await ackWithTimeoutCatch(
+      interaction,
+      () =>
+        interaction.reply({
+          content: MEMORY_LOAD_FAILED,
+          flags: MessageFlags.Ephemeral,
+        }),
+      {
+        source: EDIT_BUTTON_SOURCE,
+        userId: interaction.user.id,
+        entityId: memoryId,
+        sectionId: 'edit',
+      },
+      MEMORY_LOAD_FAILED
+    );
     return;
   }
 
@@ -117,11 +144,24 @@ export async function handleEditButton(
     const embed = buildTruncationWarningEmbed(memory);
     const buttons = buildTruncationButtons(memoryId);
 
-    await interaction.reply({
-      embeds: [embed],
-      components: [buttons],
-      flags: MessageFlags.Ephemeral,
-    });
+    await ackWithTimeoutCatch(
+      interaction,
+      () =>
+        interaction.reply({
+          embeds: [embed],
+          components: [buttons],
+          flags: MessageFlags.Ephemeral,
+        }),
+      {
+        source: EDIT_BUTTON_SOURCE,
+        userId: interaction.user.id,
+        entityId: memoryId,
+        // Distinct from the null-memory path's 'edit' so 10062 warns are
+        // unambiguous in log queries.
+        sectionId: 'edit-truncation-warning',
+      },
+      '⏰ Took too long to load the edit options. Please click the Edit button again.'
+    );
     return;
   }
 
@@ -132,7 +172,7 @@ export async function handleEditButton(
     interaction,
     modal,
     {
-      source: 'handleEditButton',
+      source: EDIT_BUTTON_SOURCE,
       userId: interaction.user.id,
       entityId: memoryId,
       sectionId: 'edit',
@@ -151,11 +191,24 @@ export async function handleEditTruncatedButton(
   const { userClient } = clientsFor(interaction);
   const memory = await fetchMemory(userClient, memoryId, interaction.user.id);
   if (memory === null) {
-    await interaction.update({
-      content: '❌ Failed to load memory. It may have been deleted.',
-      embeds: [],
-      components: [],
-    });
+    // Same async-before-ack exposure as handleEditButton — the update()
+    // is this interaction's first ack and follows a gateway call.
+    await ackWithTimeoutCatch(
+      interaction,
+      () =>
+        interaction.update({
+          content: MEMORY_LOAD_FAILED,
+          embeds: [],
+          components: [],
+        }),
+      {
+        source: EDIT_TRUNCATED_SOURCE,
+        userId: interaction.user.id,
+        entityId: memoryId,
+        sectionId: EDIT_TRUNCATED_ACTION,
+      },
+      MEMORY_LOAD_FAILED
+    );
     return;
   }
 
@@ -167,10 +220,10 @@ export async function handleEditTruncatedButton(
     interaction,
     modal,
     {
-      source: 'handleEditTruncatedButton',
+      source: EDIT_TRUNCATED_SOURCE,
       userId: interaction.user.id,
       entityId: memoryId,
-      sectionId: 'edit-truncated',
+      sectionId: EDIT_TRUNCATED_ACTION,
     },
     '⏰ Took too long to open the editor. Please click **Edit with Truncation** again.'
   );
