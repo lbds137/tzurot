@@ -37,6 +37,15 @@ vi.mock('../../../utils/conversationUtils.js', () => ({
   convertConversationHistory: mockConvertConversationHistory,
 }));
 
+const { mockShadowHydrateAndDiff, mockIsShadowHydrationEnabled } = vi.hoisted(() => ({
+  mockShadowHydrateAndDiff: vi.fn().mockResolvedValue(undefined),
+  mockIsShadowHydrationEnabled: vi.fn().mockReturnValue(false),
+}));
+vi.mock('../../../../services/context/shadowHydration.js', () => ({
+  shadowHydrateAndDiff: mockShadowHydrateAndDiff,
+  isShadowHydrationEnabled: mockIsShadowHydrationEnabled,
+}));
+
 const TEST_PERSONALITY: LoadedPersonality = {
   id: 'personality-123',
   name: 'TestBot',
@@ -94,6 +103,48 @@ describe('ContextStep', () => {
 
   it('should have correct name', () => {
     expect(step.name).toBe('ContextPreparation');
+  });
+
+  describe('shadow hydration gate', () => {
+    const config: ResolvedConfig = {
+      effectivePersonality: TEST_PERSONALITY,
+      configSource: 'personality',
+    };
+    const fakeDataSource = {
+      getChannelHistory: vi.fn(),
+      getCrossChannelHistory: vi.fn(),
+      getUserTimezone: vi.fn(),
+      getContextEpoch: vi.fn(),
+    };
+
+    it('invokes shadow hydration when a data source is provided and the flag is on', () => {
+      mockIsShadowHydrationEnabled.mockReturnValue(true);
+      const gatedStep = new ContextStep(fakeDataSource);
+
+      gatedStep.process({ job: createMockJob(), startTime: Date.now(), config });
+
+      expect(mockShadowHydrateAndDiff).toHaveBeenCalledWith(
+        expect.objectContaining({ jobId: 'job-123', dataSource: fakeDataSource })
+      );
+    });
+
+    it('does NOT invoke shadow hydration when the flag is off', () => {
+      mockIsShadowHydrationEnabled.mockReturnValue(false);
+      const gatedStep = new ContextStep(fakeDataSource);
+
+      gatedStep.process({ job: createMockJob(), startTime: Date.now(), config });
+
+      expect(mockShadowHydrateAndDiff).not.toHaveBeenCalled();
+    });
+
+    it('does NOT invoke shadow hydration without a data source, even with the flag on', () => {
+      mockIsShadowHydrationEnabled.mockReturnValue(true);
+      const ungatedStep = new ContextStep();
+
+      ungatedStep.process({ job: createMockJob(), startTime: Date.now(), config });
+
+      expect(mockShadowHydrateAndDiff).not.toHaveBeenCalled();
+    });
   });
 
   describe('process', () => {

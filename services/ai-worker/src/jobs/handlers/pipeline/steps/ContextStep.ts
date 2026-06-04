@@ -10,6 +10,11 @@ import {
   extractParticipants,
   convertConversationHistory,
 } from '../../../utils/conversationUtils.js';
+import type { ContextDataSource } from '../../../../services/context/types.js';
+import {
+  isShadowHydrationEnabled,
+  shadowHydrateAndDiff,
+} from '../../../../services/context/shadowHydration.js';
 import type { IPipelineStep, GenerationContext, Participant, PreparedContext } from '../types.js';
 
 const logger = createLogger('ContextStep');
@@ -45,12 +50,39 @@ function extractTimestamp(timestamp: string | Date | undefined | null): number |
 export class ContextStep implements IPipelineStep {
   readonly name = 'ContextPreparation';
 
+  /**
+   * @param contextDataSource - When provided AND `CONTEXT_SHADOW_HYDRATION=true`,
+   * each job's DB-derived context is re-hydrated worker-side and diffed
+   * against the bot-client payload (fire-and-forget, log-only). Burn-in
+   * instrumentation for the context-assembly relocation; the payload
+   * remains the source of truth for generation. Remove alongside the flag.
+   */
+  constructor(private readonly contextDataSource?: ContextDataSource) {}
+
+  /**
+   * Resolved once per step instance (pipeline is built at startup) — the
+   * flag only changes via a redeploy, so a per-job process.env read buys
+   * nothing.
+   */
+  private readonly shadowEnabled = isShadowHydrationEnabled();
+
   process(context: GenerationContext): GenerationContext {
     const { job, config } = context;
     const { personality, context: jobContext } = job.data;
 
     if (!config) {
       throw new Error('[ContextStep] ConfigStep must run before ContextStep');
+    }
+
+    if (this.contextDataSource !== undefined && this.shadowEnabled) {
+      // Intentionally not awaited — see constructor JSDoc.
+      void shadowHydrateAndDiff({
+        jobId: job.id,
+        jobContext,
+        personalityId: personality.id,
+        configOverrides: context.configOverrides,
+        dataSource: this.contextDataSource,
+      });
     }
 
     // Calculate oldest timestamp from conversation history AND referenced messages
