@@ -86,6 +86,19 @@ export function registerDevCommands(cli: CAC): void {
       runFindDeadFiles();
     });
 
+  cli
+    .command(
+      'dev:deferred-refs [...files]',
+      'Surface deferred-backlog entries referencing the given (or staged) files — informational, never fails'
+    )
+    .option('--staged', 'Use the git staged file list')
+    .example('ops dev:deferred-refs --staged')
+    .example('ops dev:deferred-refs services/ai-worker/src/services/MemoryRetriever.ts')
+    .action(async (files: string[], options: { staged?: boolean }) => {
+      const { checkDeferredRefs } = await import('../dev/check-deferred-refs.js');
+      await checkDeferredRefs({ staged: options.staged, files });
+    });
+
   registerSchemaAuditCommand(cli);
   registerComplexityReportCommand(cli);
 }
