@@ -7,6 +7,30 @@
 
 ## Next Session Goal
 
+**PR-2o is up next** (see Active Epic below) — the quick-wins queue was swept clean on 2026-06-03 (see Last Session), so the path to the epic is clear. Remember the PR-2o opener: re-verify the single-consumer set from VALUE imports before moving any file.
+
+## Last Session — Quick-wins sweep: 3 PRs, queue cleared (2026-06-03)
+
+Full sweep of the quick-wins backlog in three PRs, all merged to develop:
+
+| PR    | Title                                                                     | Outcome                                                                                                                                                                               |
+| ----- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #1147 | `chore: remove dead redis dependency + depcruise test-factories boundary` | Dead `redis` dep dropped from 4 package.jsons + knip config; `no-prod-import-test-factories` depcruise rule (liveness-verified via synthetic violation); stale tsconfig entry retired |
+| #1148 | `feat(tooling): add guard:dockerfile-dist`                                | New CI guard cross-checks Dockerfile runner-stage dist COPYs against the TRANSITIVE workspace dep closure — closes the PR #1145 crash-loop class; 23 tests; wired into lint job       |
+| #1149 | `test+refactor(bot-client): view.ts coverage + typed preset pipeline`     | `handleExpandField` 5-branch + pagination-catch coverage; `unflattenPresetData` → `LlmConfigUpdateInput`; root-cause fix in common-types (see below)                                  |
+
+### Net result
+
+- **Quick-wins queue: empty** except one new entry the sweep itself generated (stacked-JSDoc merge in `check-duplicate-exports.ts`).
+- **`optionalString()`/`nullableString()` typing wart fixed at the root** (#1149): both helpers were annotated as plain `z.ZodType<...>`, making every key REQUIRED in `z.infer`'d update-payload types — the reason `Parameters<>` casts existed at preset/persona/import call sites. Now `.optional()`-wrapped (runtime parse provably unchanged); 4 casts deleted across bot-client, with the `no-unnecessary-type-assertion` lint rule confirming each was dead.
+- **`guard:dockerfile-dist`** (#1148): static check, no Docker build; flags missing AND stale runner-stage dist copies; transitive closure (not direct-deps) so `clients → common-types` chains resolve; voice-engine auto-skipped; documented in `05-tooling.md` (now "all five" guards).
+- **Backlog deltas**: −6 quick-wins (3 shipped, 1 already-shipped stale, 2 absorbed), +1 quick-win (stacked JSDoc), +5 deferred (test-utils depcruise exemption, VALID_EFFORTS consolidation, expand-field config stub, orchestration multi-service coverage, runner-stage name anchoring).
+
+### Process notes
+
+- **Turbo cache poisoning found + worked around**: incremental `tsc` skipped emit while stale dist sat on disk (after cross-branch turbo cache restores), and turbo then cached that stale dist under the NEW source hash — every subsequent pre-push "restored" the poison. Fix was `rm -rf node_modules/.cache/turbo` + tsbuildinfo and a cold rebuild. If pre-push fails with type errors that don't reproduce under direct `tsc`, suspect this before anything else.
+- **Silent push-transfer failures, twice**: pre-push hook printed success but the ref never updated at origin; `| tail`/`| grep` filters hid the missing `-> branch` line, and an armed CI Monitor watched a stale run. Auto-memory broadened: verify `git status -sb` in-sync after any push with filtered output.
+
 **Active epic: Slim `@tzurot/common-types` (PR-2n)** — see [active-epic.md](backlog/active-epic.md). **Phase 1 shipped** (#1142): `factories/` → `@tzurot/test-factories` (dedicated package, NOT test-utils — that would close a `common-types ↔ test-utils` build cycle). Shipped to prod in beta.127.
 
 **Next: Phase 2 — extract `common-types/services/`.** Design **SETTLED** (council GLM-5.1 + Kimi-K2.6 + Qwen-3.7-max, unanimous Hybrid): relocate single-consumer services to their owner, keep the 2+-consumer core in a small new shared package, split pub/sub publisher/subscriber pairs, evict the `prisma.ts` singleton (constructor-inject). **Sequencing DECIDED: `PR-2o → Phase 2.5 → PR-2p → PR-2q`** (optimized for no stopgaps — 2.5 makes bot-client Prisma-free before 2p evicts the singleton, so bot-client never needs a temporary local Prisma). **First code PR: PR-2o** (relocate single-consumer services — ai-worker resolver stack + `ConversationRetentionService` → api-gateway). ⚠️ **PR-2o must start by re-verifying the single-consumer set from VALUE imports** (exclude type-only, include tests) — the earlier Explore-agent consumption map was noisy (counted `import type { PersonaResolver }` as usage). Phase 3 (barrel-kill, ~1,021 sites) deferred to icebox. Full design + sequencing rationale in [active-epic.md](backlog/active-epic.md).
