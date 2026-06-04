@@ -22,6 +22,7 @@ import { randomUUID } from 'node:crypto';
 import { ConversationalRAGService } from '../../services/ConversationalRAGService.js';
 import {
   createLogger,
+  getPrismaClient,
   ApiErrorCategory,
   ApiErrorType,
   USER_ERROR_MESSAGES,
@@ -32,6 +33,7 @@ import {
   type ConfigCascadeResolver,
   type SttResolver,
 } from '@tzurot/common-types';
+import { PrismaContextDataSource } from '../../services/context/PrismaContextDataSource.js';
 import { ApiKeyResolver } from '../../services/ApiKeyResolver.js';
 import type { EmbeddingServiceInterface } from '../../utils/duplicateDetection.js';
 import { storeDiagnosticLog } from './pipeline/steps/diagnosticStorage.js';
@@ -137,7 +139,10 @@ export class LLMGenerationHandler {
       new AuthStep(apiKeyResolver, configResolver, undefined, sttResolver),
       new DownloadAttachmentsStep(),
       new DependencyStep(apiKeyResolver),
-      new ContextStep(),
+      // Handler (and thus this pipeline) is constructed once at worker
+      // startup — the data source and its wrapped services are singletons,
+      // not per-job allocations.
+      new ContextStep(new PrismaContextDataSource(getPrismaClient())),
       new GenerationStep(ragService, embeddingService),
       new TTSStep(ttsConfigResolver),
     ];
