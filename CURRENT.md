@@ -7,7 +7,22 @@
 
 ## Next Session Goal
 
-**PR-2o is up next** (see Active Epic below) — the quick-wins queue was swept clean on 2026-06-03 (see Last Session), so the path to the epic is clear. Remember the PR-2o opener: re-verify the single-consumer set from VALUE imports before moving any file.
+**Phase 2.5 scoping pass is up next** (see Active Epic below) — PR-2o shipped 2026-06-04 (#1152). Phase 2.5 = make bot-client Prisma-free: enumerate exactly what bot-client reads from the DB (known entry points: `index.ts:188/:644` `getPrismaClient()` injections into `ConversationPersistence`/`MentionResolver`/`MessageReferenceExtractor`/`PersonalityService`, plus `ConversationSyncService` in `MessageContextBuilder`), design the api-gateway endpoints for those reads, then tighten the depcruise guard to block the re-export path. Likely its own mini-epic; the epic doc prescribes a scoping pass before code.
+
+## Last Session — PR-2o: single-consumer relocations + falsified resolver-stack assumption (2026-06-04)
+
+| PR    | Title                                                                 | Outcome                                                                                                                                                             |
+| ----- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #1152 | `refactor(common-types): relocate single-consumer services to owners` | `ConversationRetentionService` → api-gateway; `VisionDescriptionCache` → ai-worker; resolver stack falsified as 2-consumer → re-routed to PR-2p; epic doc corrected |
+
+### Net result
+
+- The mandated value-import re-verification (construction-site matrix, comments excluded) **falsified the epic's expected move set**: the config-resolver stack has real api-gateway production constructions in the cascade-resolution routes, so it's 2-consumer and belongs in 2p's shared package — 2p's scope formally grew (charter check: Kimi's ~15-file boundary warning flagged in the epic doc).
+- `VisionDescriptionCache` was a single-consumer the original map missed entirely — now in ai-worker.
+- Deliberate non-moves documented with reasons: `ConversationSyncService` (Prisma-backed, would entrench the 2.5 drift), `ChannelActivationCacheInvalidationService` (pub/sub pair → 2q), `tts/` dir (multi-consumer contract surface).
+- common-types `services/` shrinks by 6 files; redundant retention describes removed from the history int test (coverage preserved in the relocated int test — verified, including that the deleted block's interpolated `$executeRawUnsafe` fixture died with it).
+- Drive-by: `03-database.md` stale "L1+L2" row for VisionDescription corrected (L2 removed in beta.110).
+- The deferred tripwire fired its first organic reminders during this PR's commit.
 
 ## Last Session (evening arc) — Backlog-quality campaign: 2 PRs + deferred/icebox prune + tripwire (2026-06-03)
 
