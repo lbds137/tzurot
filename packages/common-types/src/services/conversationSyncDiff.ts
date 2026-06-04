@@ -1,28 +1,43 @@
 /**
- * Sync Validator
+ * Pure comparison helpers for opportunistic conversation sync.
  *
- * Functions for validating and comparing message content for opportunistic sync.
- * Extracted from DiscordChannelFetcher.ts for better modularity.
+ * Shared by ConversationSyncService.runSync (api-gateway's sync endpoint and
+ * bot-client's legacy direct path both delegate to it), so the edit/delete
+ * detection algorithm has exactly one implementation. Operates on plain
+ * observed-message shapes — no discord.js types — because the gateway sees
+ * only the snapshot bot-client POSTs.
  */
 
-import type { Message, Collection } from 'discord.js';
-import { createLogger, stripBotFooters, stripDmPrefix } from '@tzurot/common-types';
+import { createLogger } from '../utils/logger.js';
+import { stripBotFooters, stripDmPrefix } from '../utils/discord.js';
 
-const logger = createLogger('SyncValidator');
+const logger = createLogger('conversationSyncDiff');
 
 /**
- * Collate message chunks and prepare content for sync
- * Returns the collated content, or null if sync should be skipped
+ * A Discord message as observed by bot-client at fetch time — the minimal
+ * fields the sync diff needs.
+ */
+export interface ObservedSyncMessage {
+  /** Discord message ID (snowflake). */
+  id: string;
+  /** Raw Discord content. May be empty (e.g. voice messages). */
+  content: string;
+  createdAt: Date;
+}
+
+/**
+ * Collate message chunks and prepare content for sync.
+ * Returns the collated content, or null if sync should be skipped.
  *
  * @param dbId - Database message ID (for logging)
  * @param dbMsg - Database message record
- * @param chunks - Discord message chunks to collate
+ * @param chunks - Observed Discord chunks belonging to this record
  * @returns Collated content string, or null to skip this sync
  */
 export function collateChunksForSync(
   dbId: string,
   dbMsg: { discordMessageId: string[]; content: string },
-  chunks: Message[]
+  chunks: { id: string; content: string }[]
 ): string | null {
   // SAFEGUARD: Skip sync if we don't have all expected chunks
   // This prevents overwriting good data when Discord API returns partial results
@@ -41,10 +56,12 @@ export function collateChunksForSync(
 
   // Sort chunks by their order in the DB's discordMessageId array
   const orderMap = new Map(dbMsg.discordMessageId.map((id, idx) => [id, idx]));
-  chunks.sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0));
+  const sortedChunks = [...chunks].sort(
+    (a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0)
+  );
 
   // Concatenate all chunk contents
-  let collatedContent = chunks.map(c => c.content).join('');
+  let collatedContent = sortedChunks.map(c => c.content).join('');
 
   // Strip bot-added display elements that are NOT stored in the database:
   // 1. DM prefix: "**Display Name:** " added for DM messages (webhooks don't work in DMs)
@@ -72,8 +89,8 @@ export function collateChunksForSync(
 }
 
 /**
- * Check if two message contents differ significantly
- * Handles the case where DB content may have display name prefix
+ * Check if two message contents differ significantly.
+ * Handles the case where DB content may have display name prefix.
  */
 export function contentsDiffer(discordContent: string, dbContent: string): boolean {
   // Direct comparison first
@@ -103,11 +120,11 @@ export function contentsDiffer(discordContent: string, dbContent: string): boole
 }
 
 /**
- * Get the oldest timestamp from a collection of Discord messages
+ * Get the oldest timestamp from a set of observed messages.
  */
-export function getOldestTimestamp(messages: Collection<string, Message>): Date | null {
+export function getOldestObservedTimestamp(messages: ObservedSyncMessage[]): Date | null {
   let oldest: Date | null = null;
-  for (const msg of messages.values()) {
+  for (const msg of messages) {
     if (oldest === null || msg.createdAt < oldest) {
       oldest = msg.createdAt;
     }

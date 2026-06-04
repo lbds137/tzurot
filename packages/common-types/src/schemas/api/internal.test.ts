@@ -5,6 +5,11 @@ import {
   DmSessionSetRequestSchema,
   DmSessionSetResponseSchema,
   MessagePersonalityResponseSchema,
+  PersistAssistantMessageRequestSchema,
+  PersistAssistantMessageResponseSchema,
+  ConversationSyncRequestSchema,
+  ConversationSyncResponseSchema,
+  LoadPersonalityInternalResponseSchema,
 } from './internal.js';
 
 describe('DiscordSnowflakeSchema', () => {
@@ -166,5 +171,180 @@ describe('MessagePersonalityResponseSchema', () => {
     expect(MessagePersonalityResponseSchema.safeParse({ personalityName: 'Lila' }).success).toBe(
       false
     );
+  });
+});
+
+const VALID_PERSIST_REQUEST = {
+  channelId: '123456789012345678',
+  guildId: '876543210987654321',
+  personalityId: '550e8400-e29b-41d4-a716-446655440000',
+  personaId: '550e8400-e29b-41d4-a716-446655440001',
+  content: 'Hello from the assistant.',
+  chunkMessageIds: ['111111111111111111', '222222222222222222'],
+  userMessageTime: '2026-06-04T12:00:00.000Z',
+};
+
+describe('PersistAssistantMessageRequestSchema', () => {
+  it('accepts a valid multi-chunk request', () => {
+    expect(PersistAssistantMessageRequestSchema.safeParse(VALID_PERSIST_REQUEST).success).toBe(
+      true
+    );
+  });
+
+  it('accepts null guildId (DM messages)', () => {
+    expect(
+      PersistAssistantMessageRequestSchema.safeParse({ ...VALID_PERSIST_REQUEST, guildId: null })
+        .success
+    ).toBe(true);
+  });
+
+  it('rejects empty chunkMessageIds (nothing was delivered)', () => {
+    expect(
+      PersistAssistantMessageRequestSchema.safeParse({
+        ...VALID_PERSIST_REQUEST,
+        chunkMessageIds: [],
+      }).success
+    ).toBe(false);
+  });
+
+  it('rejects non-snowflake chunk IDs', () => {
+    expect(
+      PersistAssistantMessageRequestSchema.safeParse({
+        ...VALID_PERSIST_REQUEST,
+        chunkMessageIds: ['not-a-snowflake'],
+      }).success
+    ).toBe(false);
+  });
+
+  it('rejects empty content', () => {
+    expect(
+      PersistAssistantMessageRequestSchema.safeParse({ ...VALID_PERSIST_REQUEST, content: '' })
+        .success
+    ).toBe(false);
+  });
+
+  it('rejects non-UUID personalityId', () => {
+    expect(
+      PersistAssistantMessageRequestSchema.safeParse({
+        ...VALID_PERSIST_REQUEST,
+        personalityId: 'lila',
+      }).success
+    ).toBe(false);
+  });
+
+  it('rejects non-ISO userMessageTime', () => {
+    expect(
+      PersistAssistantMessageRequestSchema.safeParse({
+        ...VALID_PERSIST_REQUEST,
+        userMessageTime: 'yesterday',
+      }).success
+    ).toBe(false);
+  });
+});
+
+describe('PersistAssistantMessageResponseSchema', () => {
+  it('accepts a created response without matched', () => {
+    expect(
+      PersistAssistantMessageResponseSchema.safeParse({ id: 'row-uuid', created: true }).success
+    ).toBe(true);
+  });
+
+  it('accepts an existing-row response with matched', () => {
+    expect(
+      PersistAssistantMessageResponseSchema.safeParse({
+        id: 'row-uuid',
+        created: false,
+        matched: false,
+      }).success
+    ).toBe(true);
+  });
+});
+
+const VALID_SYNC_REQUEST = {
+  channelId: '123456789012345678',
+  personalityId: '550e8400-e29b-41d4-a716-446655440000',
+  observedMessages: [
+    {
+      discordMessageId: '111111111111111111',
+      content: 'observed content',
+      createdAt: '2026-06-04T12:00:00.000Z',
+    },
+  ],
+};
+
+describe('ConversationSyncRequestSchema', () => {
+  it('accepts a valid snapshot', () => {
+    expect(ConversationSyncRequestSchema.safeParse(VALID_SYNC_REQUEST).success).toBe(true);
+  });
+
+  it('accepts empty content (voice messages render empty on Discord)', () => {
+    expect(
+      ConversationSyncRequestSchema.safeParse({
+        ...VALID_SYNC_REQUEST,
+        observedMessages: [{ ...VALID_SYNC_REQUEST.observedMessages[0], content: '' }],
+      }).success
+    ).toBe(true);
+  });
+
+  it('rejects an empty snapshot (no messages observed means nothing to sync)', () => {
+    expect(
+      ConversationSyncRequestSchema.safeParse({ ...VALID_SYNC_REQUEST, observedMessages: [] })
+        .success
+    ).toBe(false);
+  });
+
+  it('rejects non-ISO createdAt', () => {
+    expect(
+      ConversationSyncRequestSchema.safeParse({
+        ...VALID_SYNC_REQUEST,
+        observedMessages: [{ ...VALID_SYNC_REQUEST.observedMessages[0], createdAt: 'now' }],
+      }).success
+    ).toBe(false);
+  });
+});
+
+describe('ConversationSyncResponseSchema', () => {
+  it('accepts zero-work results', () => {
+    expect(ConversationSyncResponseSchema.safeParse({ updated: 0, deleted: 0 }).success).toBe(true);
+  });
+
+  it('rejects negative counts', () => {
+    expect(ConversationSyncResponseSchema.safeParse({ updated: -1, deleted: 0 }).success).toBe(
+      false
+    );
+  });
+});
+
+describe('LoadPersonalityInternalResponseSchema', () => {
+  it('accepts a null personality (not found / no access is a normal outcome)', () => {
+    expect(LoadPersonalityInternalResponseSchema.safeParse({ personality: null }).success).toBe(
+      true
+    );
+  });
+
+  it('accepts a minimal valid LoadedPersonality', () => {
+    const result = LoadPersonalityInternalResponseSchema.safeParse({
+      personality: {
+        id: '550e8400-e29b-41d4-a716-446655440000',
+        name: 'Lila',
+        displayName: 'Lila',
+        slug: 'lila',
+        ownerId: '550e8400-e29b-41d4-a716-446655440002',
+        systemPrompt: 'You are Lila.',
+        model: 'anthropic/claude-sonnet-4.6',
+        temperature: 1,
+        contextWindowTokens: 200000,
+        characterInfo: 'info',
+        personalityTraits: 'traits',
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects a personality missing required fields', () => {
+    expect(
+      LoadPersonalityInternalResponseSchema.safeParse({ personality: { id: 'x', name: 'y' } })
+        .success
+    ).toBe(false);
   });
 });

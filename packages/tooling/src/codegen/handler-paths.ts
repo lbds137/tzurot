@@ -121,6 +121,9 @@ const PATH_MAP: Readonly<Record<string, string>> = {
   recentUsers: '../internal/usersRecent.js',
   setDmSession: '../internal/dmSessionSet.js',
   lookupPersonalityFromMessage: '../user/conversationLookup.js',
+  persistAssistantMessage: '../internal/conversationAssistantMessage.js',
+  syncConversation: '../internal/conversationSync.js',
+  loadPersonalityInternal: '../internal/personalityLoad.js',
 
   // User LLM config
   createUserLlmConfig: USER_LLM_CONFIG,

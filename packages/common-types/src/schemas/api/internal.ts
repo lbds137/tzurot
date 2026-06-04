@@ -6,6 +6,8 @@
  */
 
 import { z } from 'zod';
+import { loadedPersonalitySchema } from '../../types/schemas/personality.js';
+import { SYNC_LIMITS } from '../../constants/timing.js';
 
 // ============================================================================
 // GET /internal/users/recent
@@ -67,3 +69,91 @@ export const MessagePersonalityResponseSchema = z.object({
   personalityName: z.string().nullable().optional(),
 });
 export type MessagePersonalityResponse = z.infer<typeof MessagePersonalityResponseSchema>;
+
+// ============================================================================
+// POST /internal/conversation/assistant-message
+// Persists the assistant conversation-history row after bot-client confirms
+// Discord delivery. The gateway owns the write: it derives the assistant
+// timestamp (user message + 1ms), the deterministic row UUID, and the token
+// count — bot-client only reports what was delivered. Idempotent upsert: when
+// the row already exists (the dual-write window, where bot-client's legacy
+// Prisma write is authoritative), the gateway compares instead of writing and
+// reports the match so divergence is observable.
+// ============================================================================
+
+export const PersistAssistantMessageRequestSchema = z.object({
+  channelId: z.string().min(1),
+  guildId: z.string().nullable(),
+  personalityId: z.string().uuid(),
+  personaId: z.string().uuid(),
+  content: z.string().min(1),
+  /** Discord message IDs of the delivered chunks, in send order. */
+  chunkMessageIds: z.array(DiscordSnowflakeSchema).min(1).max(SYNC_LIMITS.MAX_MESSAGE_BATCH),
+  /** ISO timestamp of the triggering user message; the assistant row is persisted at +1ms. */
+  userMessageTime: z.string().datetime(),
+});
+export type PersistAssistantMessageRequest = z.infer<typeof PersistAssistantMessageRequestSchema>;
+
+export const PersistAssistantMessageResponseSchema = z.object({
+  /** Deterministic conversation-history row ID. */
+  id: z.string(),
+  /** True when this call created the row; false when it already existed. */
+  created: z.boolean(),
+  /**
+   * Present only when the row already existed: whether the existing row's
+   * content and chunk IDs match this request. False = divergence between the
+   * legacy write path and this endpoint — the burn-in signal.
+   */
+  matched: z.boolean().optional(),
+});
+export type PersistAssistantMessageResponse = z.infer<typeof PersistAssistantMessageResponseSchema>;
+
+// ============================================================================
+// POST /internal/conversation/sync
+// Opportunistic edit/delete sync. bot-client ships the Discord snapshot it
+// fetched for a channel+personality; the gateway runs the diff against DB
+// state (detecting edited content and deleted messages) and applies the
+// writes (content updates, soft-deletes + tombstones). Replaces bot-client's
+// direct-Prisma SyncExecutor path. Idempotent: re-posting an already-applied
+// snapshot finds zero work.
+// ============================================================================
+
+export const ConversationSyncRequestSchema = z.object({
+  channelId: z.string().min(1),
+  personalityId: z.string().uuid(),
+  observedMessages: z
+    .array(
+      z.object({
+        discordMessageId: DiscordSnowflakeSchema,
+        /** Raw Discord content. May be empty (e.g. voice messages). */
+        content: z.string(),
+        createdAt: z.string().datetime(),
+      })
+    )
+    .min(1)
+    .max(SYNC_LIMITS.MAX_DISCORD_ID_LOOKUP),
+});
+export type ConversationSyncRequest = z.infer<typeof ConversationSyncRequestSchema>;
+
+export const ConversationSyncResponseSchema = z.object({
+  /** Messages whose content was updated (edit detected). */
+  updated: z.number().int().nonnegative(),
+  /** Messages soft-deleted (present in DB window, absent from the snapshot). */
+  deleted: z.number().int().nonnegative(),
+});
+export type ConversationSyncResponse = z.infer<typeof ConversationSyncResponseSchema>;
+
+// ============================================================================
+// GET /internal/personality/load
+// Routing read: resolves a personality by name/slug/alias/ID with the same
+// access-control semantics as PersonalityService.loadPersonality. Used by
+// bot-client's pre-job routing paths (mention parsing, reply resolution,
+// channel activation) once those stop reading the DB directly. Not-found is a
+// normal outcome (mention candidates mostly miss), so the response carries
+// null rather than a 404.
+// ============================================================================
+
+export const LoadPersonalityInternalResponseSchema = z.object({
+  personality: loadedPersonalitySchema.nullable(),
+});
+export type LoadPersonalityInternalResponse = z.infer<typeof LoadPersonalityInternalResponseSchema>;

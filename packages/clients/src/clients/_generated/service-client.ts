@@ -120,6 +120,47 @@ export class ServiceClient {
     });
   }
 
+  async persistAssistantMessage(input: z.infer<typeof ROUTE_MANIFEST.persistAssistantMessage.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.persistAssistantMessage.output>>> {
+    const fullPath = '/api/internal/conversation/assistant-message';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      body: input,
+      outputSchema: ROUTE_MANIFEST.persistAssistantMessage.output,
+      timeoutMs: ROUTE_MANIFEST.persistAssistantMessage.timeoutMs,
+    });
+  }
+
+  async syncConversation(input: z.infer<typeof ROUTE_MANIFEST.syncConversation.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.syncConversation.output>>> {
+    const fullPath = '/api/internal/conversation/sync';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      body: input,
+      outputSchema: ROUTE_MANIFEST.syncConversation.output,
+      timeoutMs: ROUTE_MANIFEST.syncConversation.timeoutMs,
+    });
+  }
+
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
+  async loadPersonalityInternal(options: { nameOrId: string; userId?: string }): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.loadPersonalityInternal.output>>> {
+    const fullPath = '/api/internal/personality/load' + buildQueryString([['nameOrId', options.nameOrId], ['userId', options.userId]]);
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'GET',
+      path: fullPath,
+      outputSchema: ROUTE_MANIFEST.loadPersonalityInternal.output,
+      timeoutMs: ROUTE_MANIFEST.loadPersonalityInternal.timeoutMs,
+    });
+  }
+
   /**
    * @safeRead Server-side has no observable mutation — safe to cache client-side.
    */
