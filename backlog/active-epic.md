@@ -30,7 +30,49 @@ Council-settled specifics:
 
 ### Phase 2.5 — fix the bot-client→Prisma drift (proper, user-chosen 2026-06-03)
 
-bot-client calls `getPrismaClient()` (re-exported from common-types) at `index.ts:188`/`:644` and injects Prisma into `ConversationPersistence`/`MentionResolver`/`MessageReferenceExtractor`/`PersonalityService` — contradicting the documented "bot-client NEVER uses Prisma" rule. The `bot-client-no-prisma` depcruise guard only blocks direct `@prisma/client` imports, not the common-types re-export, so it never caught this. **Fix**: route bot-client's DB reads (conversation-history reference resolution) through api-gateway HTTP instead of touching the DB directly; then tighten the depcruise guard to also block the `getPrismaClient`/generated-client re-export path so it can't recur. Likely its own mini-epic given the read paths involved — it'll need a scoping pass when we reach it (enumerate exactly what bot-client reads from the DB → which api-gateway endpoints to add for those reads). **Sequencing DECIDED (2026-06-03): runs after PR-2o and before PR-2p** — 2p's singleton eviction would otherwise force a temporary local-Prisma stopgap in bot-client, which the user explicitly wants to avoid.
+bot-client calls `getPrismaClient()` (re-exported from common-types) and injects Prisma throughout its message pipeline — contradicting the documented "bot-client NEVER uses Prisma" rule. The `bot-client-no-prisma` depcruise guard only blocks direct `@prisma/client` imports, not the common-types re-export, so it never caught this. **Sequencing DECIDED (2026-06-03): runs after PR-2o and before PR-2p.**
+
+#### Scoping pass — COMPLETE 2026-06-04 (verified call-surface enumeration)
+
+bot-client's Prisma usage is **entirely message-pipeline**, in three functional clusters. Every operation below is verified from actual call sites (method-call grep, tests excluded), not from service surfaces.
+
+**Cluster A — per-message context reads (HOT PATH, ~4–8 DB queries per message today):**
+
+| Operation | Caller | Notes |
+| --- | --- | --- |
+| `PersonalityService.loadPersonality` (×10 sites) | MessageHandler, PersonalityTriggerProcessor, personalityMentionParser, DMSessionProcessor, ReplyResolutionService, MultiTagRecovery, PersonalityIdCache | Full `LoadedPersonality` (NOT the trimmed `getPersonality` user route). Cached via PersonalityIdCache/TTLCache, but cache misses hit DB |
+| `ConversationHistoryService.getChannelHistory` / `getCrossChannelHistory` | MessageContextBuilder | Context assembly |
+| `UserService.getOrCreateUser` (×3) / `getOrCreateUsersInBatch` / `getPersonaName` / `getUserTimezone` | MessageContextBuilder, MentionResolver, UserContextResolver | getOrCreate is an upsert (write-ish) |
+| `PersonaResolver.resolve` (×5) / `resolvePersonaIdOnly` | context + recovery paths | TTL-cached; `clearCache`/`invalidateUserCache`/`stopCleanup` are local-only (no DB) |
+| `lookupContextEpoch` (raw `prisma.userPersonaHistoryConfig.findUnique`) | UserContextResolver | The only RAW prisma query in bot-client (not via a service) |
+| `ConversationHistoryService.getMessageByDiscordId` | MessageReferenceExtractor (via ReferenceExtractor) | Reply-reference hydration |
+
+**Cluster B — per-message persistence writes:**
+
+| Operation | Caller | Notes |
+| --- | --- | --- |
+| `ConversationHistoryService.addMessage` (×2) / `updateLastUserMessage` | ConversationPersistence | User + assistant message persistence post-delivery |
+| `ConversationSyncService.getMessagesByDiscordIds` / `getMessagesInTimeWindow` / `softDeleteMessages` / `updateMessageContent` | channelFetcher/SyncExecutor | Discord-edit/delete → DB sync during extended-context fetch |
+
+**Cluster C — startup/maintenance (cold):**
+
+| Operation | Caller | Notes |
+| --- | --- | --- |
+| `PersonalityService.loadAllPersonalities` | `verifyDatabaseConnection()` at boot | Replaceable with a gateway health/list call trivially |
+
+**Existing manifest coverage: effectively none.** The 145 manifest routes are command-surface CRUD; `getPersonality` is the permission-trimmed user route, not the pipeline's `LoadedPersonality`. All Cluster A/B operations need new **internal-audience** routes (service-auth, like the existing 10 internal routes).
+
+#### The design fork (council pass required before code)
+
+1. **Endpoint-mirroring** — one internal route per operation (~12–14 new routes). Mechanical, smallest per-PR risk, but converts 4–8 in-process DB queries per message into 4–8 HTTP round-trips per message. Latency cost on the 3-second-sensitive path is the core objection.
+2. **Context-assembly relocation** — move context building server-side: bot-client submits thin references (channelId, userId, discordMessageIds); ai-worker (which legitimately owns Prisma) hydrates context inside the job. Eliminates most Cluster A endpoints entirely; biggest restructure (MessageContextBuilder largely dissolves into ai-worker's ContextStep, which already does context work — possible duplication-collapse win). Persistence (Cluster B) could similarly move into ai-worker post-generation + a small sync endpoint for SyncExecutor.
+3. **Hybrid (likely council favorite, prejudging slightly)** — ONE batched internal `assembleMessageContext` endpoint for Cluster A (1 round-trip per message, server does the 4–8 queries), POST endpoints for Cluster B persistence/sync, `loadPersonality` as a cached internal route (bot-client's TTL caches stay, only misses pay the HTTP hop). Smaller restructure than (2), bounded latency unlike (1).
+
+**Open questions for the council:** (a) which fork; (b) where assembled context should live relative to ai-worker's existing ContextStep (avoid assembling twice); (c) whether `getOrCreateUser` upserts belong in the context-assembly call or job submission; (d) Cluster B write authority — bot-client-driven POSTs vs ai-worker-side persistence (interacts with MultiTagRecovery's saveAssistantMessage paths); (e) PR slicing + whether a feature flag / dual-path window is needed given this touches every message.
+
+#### Closing the loop (after the reads are gone)
+
+Tighten the depcruise guard: extend `bot-client-no-prisma` (or add a sibling rule) to block `services/bot-client → packages/common-types/src/services/prisma` and `src/generated/prisma` resolved paths, plus a grep-style guard for `getPrismaClient` imports in bot-client. Then `index.ts:188/:644` constructions die, and the violation class can't silently return.
 
 ### Phase 3 (optional) — barrel-kill / exports-map
 
