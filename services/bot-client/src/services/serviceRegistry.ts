@@ -11,11 +11,11 @@
  */
 
 import type {
-  PersonalityService,
   ConversationHistoryService,
   PersonaResolver,
   ChannelActivationCacheInvalidationService,
 } from '@tzurot/common-types';
+import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import type { JobTracker } from './JobTracker.js';
 import type { WebhookManager } from '../utils/WebhookManager.js';
 import type { MessageContextBuilder } from './MessageContextBuilder.js';
@@ -25,7 +25,7 @@ import type { DenylistCache } from './DenylistCache.js';
 // Service references - set during app initialization
 let jobTracker: JobTracker | undefined;
 let webhookManager: WebhookManager | undefined;
-let personalityService: PersonalityService | undefined;
+let personalityService: IPersonalityLoader | undefined;
 let conversationHistoryService: ConversationHistoryService | undefined;
 let personaResolver: PersonaResolver | undefined;
 let channelActivationCacheInvalidationService:
@@ -41,7 +41,7 @@ let denylistCache: DenylistCache | undefined;
 interface RegisteredServices {
   jobTracker: JobTracker;
   webhookManager: WebhookManager;
-  personalityService: PersonalityService;
+  personalityService: IPersonalityLoader;
   conversationHistoryService: ConversationHistoryService;
   personaResolver: PersonaResolver;
   channelActivationCacheInvalidationService: ChannelActivationCacheInvalidationService;
@@ -89,10 +89,11 @@ export function getWebhookManager(): WebhookManager {
 }
 
 /**
- * Get the PersonalityService instance
+ * Get the routing personality loader. Prisma-backed PersonalityService in
+ * legacy mode; the gateway-backed HttpPersonalityLoader in CONTEXT_MODE=service.
  * @throws Error if services not registered
  */
-export function getPersonalityService(): PersonalityService {
+export function getPersonalityService(): IPersonalityLoader {
   if (personalityService === undefined) {
     throw new Error('PersonalityService not registered. Call registerServices() first.');
   }
