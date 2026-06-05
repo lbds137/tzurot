@@ -32,6 +32,8 @@ export {
   requestContextSchema,
   rawAssemblyInputsSchema,
   rawDiscordUserSchema,
+  rawMentionedChannelSchema,
+  rawMentionedRoleSchema,
   referencedMessageSchema,
 } from './schemas/index.js';
 

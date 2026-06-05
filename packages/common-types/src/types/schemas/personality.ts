@@ -7,6 +7,7 @@
 
 import { z } from 'zod';
 import { discordEnvironmentSchema, attachmentMetadataSchema } from './discord.js';
+import { rawAssemblyInputsSchema } from './rawEnvelope.js';
 import {
   apiConversationMessageSchema,
   crossChannelHistoryGroupSchema,
@@ -170,65 +171,6 @@ export const guildMemberInfoSchema = z.object({
  * Request context schema
  * Includes all contextual information about a message
  */
-/**
- * A Discord user observed in raw assembly inputs (mention targets,
- * extended-context authors, reactors) — the minimal fields the worker-side
- * assembler needs to re-run user upserts and persona resolution.
- */
-export const rawDiscordUserSchema = z.object({
-  discordId: z.string(),
-  username: z.string(),
-  displayName: z.string(),
-  isBot: z.boolean().optional(),
-});
-
-/**
- * Raw (pre-assembly) Discord-origin inputs for worker-side context assembly.
- *
- * The legacy payload carries the ASSEMBLED context (rewritten content, merged
- * history, enriched references) — fine for generation, but the worker-side
- * assembler can't be verified against it without the raw inputs it would
- * assemble FROM. When bot-client's `CONTEXT_RAW_ENVELOPE=true`, these ride
- * alongside the legacy fields so ai-worker's shadow assembler can re-derive
- * the context and diff it against the bot-built one. This object IS the
- * future thin-envelope payload: at cutover the legacy assembled fields stop
- * shipping and this (plus the always-Discord fields like attachments and
- * environment) becomes the job's context source.
- *
- * Everything in here is Discord-origin or pure-computed — no DB-derived data.
- */
-export const rawAssemblyInputsSchema = z.object({
-  /** message.content verbatim — before mention replacement and [Reference N] link rewriting. */
-  rawMessageContent: z.string(),
-  /** message.mentions.users — targets for worker-side persona resolution + content rewriting. */
-  rawMentionedUsers: z.array(rawDiscordUserSchema).optional(),
-  /**
-   * Discord-fetched reply/link reference snapshots BEFORE DB enrichment
-   * (no voice transcripts appended, no dedup-vs-history applied,
-   * referenceNumber = extraction order). Reuses the enriched wire shape —
-   * the raw snapshot is the same fields minus the DB-derived additions.
-   */
-  rawReferencedMessages: z.array(referencedMessageSchema).optional(),
-  /**
-   * Discord-fetched extended-context messages BEFORE the merge with DB
-   * history. Array-field semantics (also for the two user lists below):
-   * ABSENT = the extended-context fetch didn't run for this message;
-   * EMPTY = the fetch ran and observed nothing. The shadow assembler treats
-   * the two differently, so producers must not collapse [] to undefined.
-   */
-  rawExtendedContextMessages: z.array(apiConversationMessageSchema).optional(),
-  /** Authors observed in extended context — inputs to the batch user upsert. */
-  rawExtendedContextUsers: z.array(rawDiscordUserSchema).optional(),
-  /** Users who reacted to extended-context messages (separate upsert batch). */
-  rawReactorUsers: z.array(rawDiscordUserSchema).optional(),
-  /**
-   * Guild→channel environment map from the Discord.js cache, for decorating
-   * worker-fetched cross-channel groups with names the worker can't resolve.
-   * Keyed by channelId. Missing entries degrade to id-only location blocks.
-   */
-  knownChannelEnvironments: z.record(z.string(), discordEnvironmentSchema).optional(),
-});
-
 export const requestContextSchema = z.object({
   userId: z.string(), // Discord ID (for BYOK API key resolution)
   userInternalId: z.string().optional(), // Internal UUID (for usage logging)
@@ -292,5 +234,3 @@ export type MentionedPersona = z.infer<typeof mentionedPersonaSchema>;
 export type ReferencedChannel = z.infer<typeof referencedChannelSchema>;
 export type GuildMemberInfo = z.infer<typeof guildMemberInfoSchema>;
 export type RequestContext = z.infer<typeof requestContextSchema>;
-export type RawDiscordUser = z.infer<typeof rawDiscordUserSchema>;
-export type RawAssemblyInputs = z.infer<typeof rawAssemblyInputsSchema>;
