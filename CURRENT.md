@@ -7,9 +7,25 @@
 
 ## Next Session Goal
 
-**Phase 2.5c-iii-a is up next** (council verdict + slicing in [active-epic.md](backlog/active-epic.md)): the worker-side full context assembler — ContextDataSource grows persona resolution, `getOrCreateUser`/batch upserts, the HistoryMerger merge with envelope-carried Discord extended-context messages, and mention/reference content rewriting — behind an EXTENDED shadow mode. Three council catches shape it: raw envelope fields must ride ALONGSIDE the legacy payload during burn-in (today's payload only carries rewritten content); the shadow must run real-DB hydration (not just reassembly); match-rate telemetry with a go/no-go threshold gates iii-b. Then iii-b (discriminated-union `{ kind: 'legacy' | 'envelope' }` job payload, full guild→channel cache map in envelope per Fork A) → 2.5d. Burn-in option: `CONTEXT_MODE=service` on dev now exercises user-message persist + assistant persist + sync + routing reads end-to-end.
+**Phase 2.5c-iii-a2 is up next** — the worker-side full context assembler, the epic's last big build. It consumes the now-shipped `rawAssemblyInputs` (iii-a1, #1159): ContextDataSource grows persona resolution + `getOrCreateUser`/batch upserts; HistoryMerger-equivalent merge of hydrated DB history with envelope-carried extended-context messages; mention/reference content rewriting; cross-channel decoration from the envelope's channel-env map. All behind an EXTENDED shadow mode with real-DB hydration (GLM's catch) and match-rate telemetry whose go/no-go threshold gates iii-b (Qwen). Fold-forwards riding along (listed in active-epic.md): populate `rawReferencedMessages` (shape it by the assembler's needs), two schema doc one-liners, raw-envelope schema extraction, `buildGuildEnvironment` param type. Burn-in flags now available end-to-end on dev: `CONTEXT_MODE=service` + `CONTEXT_RAW_ENVELOPE` + `CONTEXT_SHADOW_HYDRATION` + `CONTEXT_DUAL_WRITE`. Watch: CPD ratchet at 1727/1728 — a2 may legitimately trip it (triage then rebaseline per documented procedure, never bypass).
 
-## Last Session (continued) — 2.5c-iii council + iii-0 shipped (2026-06-04 → 05)
+## Last Session (continued) — iii-a1 shipped + hono sweep (2026-06-05)
+
+| PR    | Title                                                                            | Outcome                                                                                                                                                             |
+| ----- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #1159 | `feat(bot-client): PR 2.5c-iii-a1 — raw assembly inputs ride the legacy payload` | `rawAssemblyInputsSchema` + `RawEnvelopeBuilder.ts` behind `CONTEXT_RAW_ENVELOPE`; pre-mutation extended-context snapshot; Fork-A channel-env cache map (5-min TTL) |
+| #1158 | `fix(deps): bump hono override to >=4.12.21 for four advisories`                 | 4 Moderate dependabot alerts cleared; dev-only transitive via prisma → @prisma/dev; override range gap (4.12.16–4.12.20) closed as a bonus                          |
+
+### Net result
+
+- **The thin envelope now exists on the wire** (optional, flag-gated): pre-rewrite content, mention targets, pre-resolution extended-context snapshot + user batches, channel-env map. This object IS iii-b's payload — one key flips at cutover.
+- **Mutation-timing catch**: `resolveExtendedContextPersonaIds` rewrites fetched messages in place, so the snapshot is captured immediately post-fetch (deep clone, flag-gated for cost) — otherwise the shadow assembler would verify against its own answers. Tested with an explicit mutate-after-snapshot guard.
+- **Type-drift killed structurally**: `ApiConversationMessage` derived via `z.infer` from the schema (round-2 review suggestion, typechecked clean first try).
+- **3 review rounds converging fast**: round-1's four trivial items auto-applied; round-2's two applied (clone-asymmetry comment + the infer derivation); final = LGTM with doc-line fold-forwards only.
+
+## Previous Session — 2.5c-iii council + iii-0 shipped (2026-06-04 → 05)
+
+## Previous Session — 2.5c-iii council + iii-0 shipped (2026-06-04 → 05)
 
 | PR    | Title                                                                             | Outcome                                                                                                                                                           |
 | ----- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
