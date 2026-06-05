@@ -4,7 +4,7 @@ _This week's active work. Max 3 items._
 
 ### Active
 
-1. **PR-2n epic — Phase 2 (services extraction)** — see [`active-epic.md`](backlog/active-epic.md). Sequencing: `PR-2o ✅ → Phase 2.5 (a ✅ → b ✅ → c-i ✅ → c-ii → c-iii → d) → PR-2p → PR-2q`. Shipped 2026-06-04: **2.5a** (#1153, shadow hydration), **2.5b** (#1154, 3 gateway endpoints + dual-write), **2.5c-i** (#1155, write cutover behind `CONTEXT_MODE`, legacy default). **Next: 2.5c-ii** — routing-read cutover: HTTP-backed `IPersonalityLoader` over `GET /internal/personality/load` + `(nameOrId, userId)` cache with positive (5 min) AND negative (30-60s) entries (required: `PersonalityService` skips its cache whenever userId is present). Then 2.5c-iii (hydration cutover, needs scoping) → 2.5d.
+1. **PR-2n epic — Phase 2 (services extraction)** — see [`active-epic.md`](backlog/active-epic.md). Sequencing: `PR-2o ✅ → Phase 2.5 (a ✅ → b ✅ → c-i ✅ → c-ii ✅ → c-iii → d) → PR-2p → PR-2q`. Shipped 2026-06-04: **2.5a** (#1153, shadow hydration), **2.5b** (#1154, 3 gateway endpoints + dual-write), **2.5c-i** (#1155, write cutover behind `CONTEXT_MODE`), **2.5c-ii** (#1156, routing-read cutover: `HttpPersonalityLoader` + positive/negative cache). **Next: 2.5c-iii — hydration cutover, NEEDS ITS OWN SCOPING PASS FIRST** (thin envelopes, in-job hydration, persona resolution + `getOrCreateUser` + user-message persist + vision update → ai-worker, cross-channel type unification). Fold-forward list in active-epic.md. Then 2.5d (deletion) → PR-2p.
 
    _v3.0.0-beta.127 shipped 2026-06-03 (#1146) — prod-validated. See [CURRENT.md](../CURRENT.md)._
 

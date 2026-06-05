@@ -7,9 +7,23 @@
 
 ## Next Session Goal
 
-**Phase 2.5c-ii is up next** (see [active-epic.md](backlog/active-epic.md)) — routing-read cutover: an HTTP-backed `IPersonalityLoader` over `GET /internal/personality/load` plus a `(nameOrId, userId)`-keyed cache holding **positive (5 min) and negative (30-60s) entries**. The negative side is mandatory: `PersonalityService` skips its TTL cache whenever `userId` is present (access-control re-check), so every mention-parse candidate is a DB query today and would become an HTTP hop per probe without it. Then 2.5c-iii (hydration cutover — needs its own scoping pass) → 2.5d (delete legacy + flags + tighten depcruise guard) → PR-2p. Burn-in option remains: `CONTEXT_MODE=service` on dev exercises the 2.5b/2.5c-i write path for real.
+**Phase 2.5c-iii is up next — scoping pass BEFORE code** (see [active-epic.md](backlog/active-epic.md)). The hydration cutover is the epic's biggest single move: thin envelopes from bot-client, ContextStep hydrates in-job (ContextDataSource grows persona resolution + `getOrCreateUser` upsert per the council verdict), user-message persist + vision-description update relocate to ai-worker, cross-channel wire/DB type unification, context-hash diff burn-in. Open design questions to settle in scoping: envelope shape (`RawDiscordEnvelope` fields), how referenced-message extraction relocates, MessageContextBuilder's Discord-fetched extended context (stays bot-side — only ai-worker DB reads move), and what `CONTEXT_MODE=service` toggles atomically. Fold-forward nits from #1155/#1156 ride along (listed in epic doc). Burn-in option: `CONTEXT_MODE=service` on dev now exercises writes + routing reads end-to-end.
 
-## Last Session (continued) — PR 2.5c-i shipped (2026-06-04)
+## Last Session (continued) — PR 2.5c-ii shipped (2026-06-04)
+
+| PR    | Title                                                                     | Outcome                                                                                                                                                                     |
+| ----- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #1156 | `feat(bot-client): PR 2.5c-ii — routing-read cutover behind CONTEXT_MODE` | `HttpPersonalityLoader` over the 2.5b routing endpoint; positive (5 min)/negative (60s) tiers keyed `(userId, nameOrId)`; pub/sub invalidation via `PersonalityCacheTarget` |
+
+### Net result
+
+- All routing-path personality resolution (mention parsing, reply resolution, activation, multi-tag recovery, `/character chat`) is HTTP-backed in service mode; legacy wiring byte-identical via two fallback variables.
+- Cache design is load-bearing: `PersonalityService` skips its cache whenever userId is present, so every probe was a DB query already; negative tier absorbs the mention-candidate miss storm; transport errors never negative-cached.
+- `PersonalityCacheTarget` interface (common-types) lets `CacheInvalidationService` drive whichever cache is live — `PersonalityService` satisfies it structurally, zero change for existing consumers.
+- Test-infra gotcha documented: lru-cache snapshots `performance.now` at module load (fake timers can't expire TTLs → injectable clock) and a clock starting at 0 makes entries immortal (falsy start = "no TTL").
+- 2 review rounds + final: round-1's four nits all auto-applied (trivial-shape); round-2 nits-only; final reviews' polish items folded forward to c-iii, two trigger-gated items (single-flight dedup, surgical eviction) → deferred.md.
+
+## Previous Session — PR 2.5c-i shipped (2026-06-04)
 
 | PR    | Title                                                             | Outcome                                                                                                                                                                               |
 | ----- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
