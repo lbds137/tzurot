@@ -16,9 +16,20 @@
 import { createLogger } from '../utils/logger.js';
 import { REDIS_CHANNELS } from '../constants/queue.js';
 import type { Redis } from 'ioredis';
-import type { PersonalityService } from './personality/index.js';
 
 const logger = createLogger('CacheInvalidationService');
+
+/**
+ * The minimal cache surface this service drives. PersonalityService
+ * satisfies it structurally; so does any other personality cache that needs
+ * pub/sub-driven invalidation (e.g. bot-client's HttpPersonalityLoader in
+ * CONTEXT_MODE=service).
+ */
+export interface PersonalityCacheTarget {
+  /** Invalidation events always carry the personality UUID, never a name. */
+  invalidatePersonality(personalityId: string): void;
+  invalidateAll(): void;
+}
 
 type InvalidationEvent = { type: 'personality'; personalityId: string } | { type: 'all' };
 
@@ -49,7 +60,7 @@ export class CacheInvalidationService {
 
   constructor(
     private redis: Redis,
-    private personalityService: PersonalityService
+    private personalityService: PersonalityCacheTarget
   ) {}
 
   /**
