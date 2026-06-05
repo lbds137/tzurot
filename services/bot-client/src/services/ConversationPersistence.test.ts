@@ -48,12 +48,16 @@ vi.mock('../utils/MessageContentBuilder.js', () => ({
 vi.mock('../utils/contextWritePath.js', () => ({
   dualWritePersistAssistantMessage: vi.fn().mockResolvedValue(undefined),
   persistAssistantMessageViaGateway: vi.fn().mockResolvedValue(undefined),
+  dualWritePersistUserMessage: vi.fn().mockResolvedValue(undefined),
+  persistUserMessageViaGateway: vi.fn().mockResolvedValue(undefined),
   getContextMode: vi.fn(() => 'legacy'),
 }));
 
 import {
   dualWritePersistAssistantMessage,
   persistAssistantMessageViaGateway,
+  dualWritePersistUserMessage,
+  persistUserMessageViaGateway,
   getContextMode,
 } from '../utils/contextWritePath.js';
 
@@ -113,7 +117,7 @@ describe('ConversationPersistence', () => {
         guildId: 'guild-123',
         discordMessageId: 'discord-msg-123',
         messageMetadata: undefined, // no references
-        timestamp: mockMessage.createdAt,
+        timestamp: expect.any(Date),
       });
     });
 
@@ -172,6 +176,7 @@ describe('ConversationPersistence', () => {
         guildId: null,
         discordMessageId: 'discord-msg-123',
         messageMetadata: undefined,
+        timestamp: expect.any(Date),
       });
     });
 
@@ -201,6 +206,7 @@ describe('ConversationPersistence', () => {
         guildId: 'guild-123',
         discordMessageId: 'discord-msg-123',
         messageMetadata: undefined, // no references
+        timestamp: expect.any(Date),
       });
     });
 
@@ -257,6 +263,7 @@ describe('ConversationPersistence', () => {
             },
           ],
         },
+        timestamp: expect.any(Date),
       });
     });
 
@@ -286,6 +293,7 @@ describe('ConversationPersistence', () => {
         guildId: 'guild-123',
         discordMessageId: 'discord-msg-fwd',
         messageMetadata: { isForwarded: true },
+        timestamp: expect.any(Date),
       });
     });
 
@@ -390,6 +398,7 @@ describe('ConversationPersistence', () => {
         messageMetadata: {
           referencedMessages: expect.any(Array), // References in metadata
         },
+        timestamp: expect.any(Date),
       });
     });
   });
@@ -477,6 +486,80 @@ describe('ConversationPersistence', () => {
         'persona-uuid-123',
         'Voice transcription'
       );
+    });
+  });
+
+  describe('saveUserMessage context-mode routing', () => {
+    it('legacy mode: fires the dual-write mirror with the SAME timestamp the local write used', async () => {
+      const mockMessage = createMockMessage({
+        id: 'discord-msg-123',
+        channelId: 'channel-123',
+        guildId: 'guild-123',
+      });
+
+      await persistence.saveUserMessage({
+        message: mockMessage,
+        personality: mockPersonality,
+        personaId: 'persona-uuid-123',
+        messageContent: 'Hello bot!',
+      });
+
+      expect(dualWritePersistUserMessage).toHaveBeenCalledTimes(1);
+      const mirrorParams = vi.mocked(dualWritePersistUserMessage).mock.calls[0][0];
+      const localCall = mockConversationHistory.addMessage.mock.calls[0][0];
+      // The deterministic row id derives from this timestamp — both paths
+      // must share one resolved value or dual-write produces false divergence.
+      expect(mirrorParams.messageTime).toBe(localCall.timestamp);
+      expect(persistUserMessageViaGateway).not.toHaveBeenCalled();
+    });
+
+    it('service mode: the gateway write is authoritative and the local write is skipped', async () => {
+      vi.mocked(getContextMode).mockReturnValueOnce('service');
+      const mockMessage = createMockMessage({
+        id: 'discord-msg-123',
+        channelId: 'channel-123',
+        guildId: 'guild-123',
+      });
+
+      await persistence.saveUserMessage({
+        message: mockMessage,
+        personality: mockPersonality,
+        personaId: 'persona-uuid-123',
+        messageContent: 'Hello bot!',
+      });
+
+      expect(persistUserMessageViaGateway).toHaveBeenCalledWith(
+        expect.objectContaining({
+          channelId: 'channel-123',
+          guildId: 'guild-123',
+          personalityId: 'personality-123',
+          personaId: 'persona-uuid-123',
+          content: 'Hello bot!',
+          discordMessageId: 'discord-msg-123',
+          messageTime: expect.any(Date),
+        })
+      );
+      expect(mockConversationHistory.addMessage).not.toHaveBeenCalled();
+      expect(dualWritePersistUserMessage).not.toHaveBeenCalled();
+    });
+
+    it('service mode: gateway write failures propagate to the caller', async () => {
+      vi.mocked(getContextMode).mockReturnValueOnce('service');
+      vi.mocked(persistUserMessageViaGateway).mockRejectedValueOnce(new Error('gateway down'));
+      const mockMessage = createMockMessage({
+        id: 'discord-msg-123',
+        channelId: 'channel-123',
+        guildId: 'guild-123',
+      });
+
+      await expect(
+        persistence.saveUserMessage({
+          message: mockMessage,
+          personality: mockPersonality,
+          personaId: 'persona-uuid-123',
+          messageContent: 'Hello bot!',
+        })
+      ).rejects.toThrow('gateway down');
     });
   });
 

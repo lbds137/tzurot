@@ -26,8 +26,10 @@ import { isForwardedMessage } from '../utils/forwardedMessageUtils.js';
 import { buildMessageContent } from '../utils/MessageContentBuilder.js';
 import {
   dualWritePersistAssistantMessage,
+  dualWritePersistUserMessage,
   getContextMode,
   persistAssistantMessageViaGateway,
+  persistUserMessageViaGateway,
 } from '../utils/contextWritePath.js';
 
 const logger = createLogger('ConversationPersistence');
@@ -268,6 +270,12 @@ export class ConversationPersistence {
     );
 
     // Update the message content only (metadata with references is already saved)
+    //
+    // TRANSITIONAL: this vision-description update is the one conversation
+    // write that still goes through local Prisma in BOTH context modes. It
+    // relocates to ai-worker (which produces the descriptions and persists
+    // them itself post-vision) in the hydration-cutover slice — not to the
+    // gateway — so no endpoint is built for it here.
     await this.conversationHistory.updateLastUserMessage(
       message.channel.id,
       personality.id,
@@ -348,18 +356,45 @@ export class ConversationPersistence {
       metadata.embedsXml = embedsXml;
     }
 
-    // Save atomically with placeholder descriptions and structured metadata
-    await this.conversationHistory.addMessage({
+    // Resolve the timestamp ONCE and pass the same value to both the local
+    // write and the gateway path — the deterministic row UUID derives from
+    // it, so letting each side default to its own new Date() would produce
+    // divergent IDs and false dual-write divergence signals.
+    const effectiveTimestamp = timestamp ?? new Date();
+    const writeParams = {
       channelId,
+      guildId,
       personalityId: personality.id,
       personaId,
-      role: MessageRole.User,
       content: userMessageContent,
-      guildId,
       discordMessageId,
       messageMetadata: metadata,
-      timestamp,
-    });
+      messageTime: effectiveTimestamp,
+    };
+
+    if (getContextMode() === 'service') {
+      // Service mode: the gateway endpoint IS the write — synchronous before
+      // job submission, so the next message's history query sees this row.
+      // Throws on failure, matching the legacy local write's error semantics.
+      await persistUserMessageViaGateway(writeParams);
+    } else {
+      // Save atomically with placeholder descriptions and structured metadata
+      await this.conversationHistory.addMessage({
+        channelId,
+        personalityId: personality.id,
+        personaId,
+        role: MessageRole.User,
+        content: userMessageContent,
+        guildId,
+        discordMessageId,
+        messageMetadata: metadata,
+        timestamp: effectiveTimestamp,
+      });
+
+      // Legacy-mode burn-in mirror. Fire-and-forget, no-op unless
+      // CONTEXT_DUAL_WRITE=true.
+      void dualWritePersistUserMessage(writeParams);
+    }
 
     logger.debug(
       {

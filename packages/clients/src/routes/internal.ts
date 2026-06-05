@@ -33,6 +33,8 @@ import {
   MessagePersonalityResponseSchema,
   PersistAssistantMessageRequestSchema,
   PersistAssistantMessageResponseSchema,
+  PersistUserMessageRequestSchema,
+  PersistUserMessageResponseSchema,
   RecentUsersResponseSchema,
   TIMEOUTS,
   TranscribeRequestSchema,
@@ -164,6 +166,25 @@ export const internalRoutes = {
     id: 'persistAssistantMessage',
     input: PersistAssistantMessageRequestSchema,
     output: PersistAssistantMessageResponseSchema,
+    serviceOnly: true,
+    timeoutMs: TIMEOUTS.GATEWAY_RPC,
+  },
+
+  /**
+   * POST /api/internal/conversation/user-message
+   * Bot-client persists the trigger user message synchronously BEFORE job
+   * submission (a user message is a Discord event — the gateway is the
+   * Discord-event data authority; pre-submission ordering means the next
+   * message's history query always sees this row). Idempotent
+   * upsert-with-compare, mirroring the assistant-message endpoint.
+   */
+  persistUserMessage: {
+    audience: 'internal',
+    method: 'post',
+    path: '/conversation/user-message',
+    id: 'persistUserMessage',
+    input: PersistUserMessageRequestSchema,
+    output: PersistUserMessageResponseSchema,
     serviceOnly: true,
     timeoutMs: TIMEOUTS.GATEWAY_RPC,
   },

@@ -7,6 +7,7 @@
 
 import { z } from 'zod';
 import { loadedPersonalitySchema } from '../../types/schemas/personality.js';
+import { messageMetadataSchema } from '../../types/schemas/message.js';
 import { SYNC_LIMITS } from '../../constants/timing.js';
 
 // ============================================================================
@@ -107,6 +108,43 @@ export const PersistAssistantMessageResponseSchema = z.object({
   matched: z.boolean().optional(),
 });
 export type PersistAssistantMessageResponse = z.infer<typeof PersistAssistantMessageResponseSchema>;
+
+// ============================================================================
+// POST /internal/conversation/user-message
+// Persists the trigger user message BEFORE job submission. A user message is
+// a Discord event, so the gateway (the Discord-event data authority) owns the
+// write — called synchronously by bot-client pre-submission, which preserves
+// strict ordering (the next message's history query always sees this row)
+// with no locks. Content arrives final (text + attachment placeholders —
+// placeholder assembly is Discord-domain and stays bot-side); the gateway
+// derives the deterministic row UUID and token count from what it persists.
+// Idempotent upsert-with-compare, same dual-write semantics as the
+// assistant-message endpoint.
+// ============================================================================
+
+export const PersistUserMessageRequestSchema = z.object({
+  channelId: z.string().min(1),
+  guildId: z.string().nullable(),
+  personalityId: z.string().uuid(),
+  personaId: z.string().uuid(),
+  /** Final content: user text + attachment placeholders, assembled bot-side. */
+  content: z.string().min(1),
+  /** The triggering Discord message ID. */
+  discordMessageId: DiscordSnowflakeSchema,
+  /** Structured references / forwarded flags / embed XML — the stored shape. */
+  messageMetadata: messageMetadataSchema.optional(),
+  /** ISO timestamp of the Discord message (becomes the row's createdAt). */
+  messageTime: z.string().datetime(),
+});
+export type PersistUserMessageRequest = z.infer<typeof PersistUserMessageRequestSchema>;
+
+/** Shape intentionally identical to the assistant-message response. */
+export const PersistUserMessageResponseSchema = z.object({
+  id: z.string(),
+  created: z.boolean(),
+  matched: z.boolean().optional(),
+});
+export type PersistUserMessageResponse = z.infer<typeof PersistUserMessageResponseSchema>;
 
 // ============================================================================
 // POST /internal/conversation/sync
