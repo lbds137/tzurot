@@ -12,12 +12,18 @@ import { Collection } from 'discord.js';
 import type { Message } from 'discord.js';
 import type { ConversationSyncService } from '@tzurot/common-types';
 
-vi.mock('../../utils/gatewayServiceCalls.js', () => ({
+vi.mock('../../utils/contextWritePath.js', () => ({
   dualWriteConversationSync: vi.fn().mockResolvedValue(undefined),
+  syncConversationViaGateway: vi.fn().mockResolvedValue({ updated: 0, deleted: 0 }),
+  getContextMode: vi.fn(() => 'legacy'),
 }));
 
 import { executeDatabaseSync, toObservedSyncMessages } from './SyncExecutor.js';
-import { dualWriteConversationSync } from '../../utils/gatewayServiceCalls.js';
+import {
+  dualWriteConversationSync,
+  syncConversationViaGateway,
+  getContextMode,
+} from '../../utils/contextWritePath.js';
 
 function createMockMessage(id: string, content: string, createdAt: Date): Message {
   return { id, content, createdAt } as unknown as Message;
@@ -75,5 +81,25 @@ describe('executeDatabaseSync', () => {
     expect(dualWriteConversationSync).toHaveBeenCalledWith('ch-1', 'p-1', [
       { id: 'd1', content: 'hello', createdAt },
     ]);
+  });
+
+  it('service mode: routes through the gateway and skips the local sync entirely', async () => {
+    vi.mocked(getContextMode).mockReturnValueOnce('service');
+    vi.mocked(syncConversationViaGateway).mockResolvedValueOnce({ updated: 3, deleted: 1 });
+    const createdAt = new Date('2026-06-01T00:00:00Z');
+    const messages = new Collection<string, Message>();
+    messages.set('d1', createMockMessage('d1', 'hello', createdAt));
+
+    const runSync = vi.fn();
+    const sync = { runSync } as unknown as ConversationSyncService;
+
+    const result = await executeDatabaseSync(messages, 'ch-1', 'p-1', sync);
+
+    expect(result).toEqual({ updated: 3, deleted: 1 });
+    expect(syncConversationViaGateway).toHaveBeenCalledWith('ch-1', 'p-1', [
+      { id: 'd1', content: 'hello', createdAt },
+    ]);
+    expect(runSync).not.toHaveBeenCalled();
+    expect(dualWriteConversationSync).not.toHaveBeenCalled();
   });
 });

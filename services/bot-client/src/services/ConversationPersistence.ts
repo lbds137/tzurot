@@ -24,7 +24,11 @@ import type { Message } from 'discord.js';
 import { generateAttachmentPlaceholders } from '../utils/attachmentPlaceholders.js';
 import { isForwardedMessage } from '../utils/forwardedMessageUtils.js';
 import { buildMessageContent } from '../utils/MessageContentBuilder.js';
-import { dualWritePersistAssistantMessage } from '../utils/gatewayServiceCalls.js';
+import {
+  dualWritePersistAssistantMessage,
+  getContextMode,
+  persistAssistantMessageViaGateway,
+} from '../utils/contextWritePath.js';
 
 const logger = createLogger('ConversationPersistence');
 
@@ -408,23 +412,10 @@ export class ConversationPersistence {
       'Saving assistant message'
     );
 
-    await this.conversationHistory.addMessage({
-      channelId,
-      personalityId: personality.id,
-      personaId,
-      role: MessageRole.Assistant,
-      content,
-      guildId,
-      discordMessageId: chunkMessageIds,
-      timestamp: assistantMessageTime,
-    });
-
-    // Phase 2.5 dual-write: mirror to the gateway endpoint for burn-in
-    // verification. Fire-and-forget, no-op unless CONTEXT_DUAL_WRITE=true.
-    // Sends userMessageTime (not assistantMessageTime) — the gateway derives
-    // the +1ms timestamp itself so the deterministic row id stays a pure
-    // function of what it persists.
-    void dualWritePersistAssistantMessage({
+    // Both paths send userMessageTime (not assistantMessageTime) to the
+    // gateway — it derives the +1ms timestamp itself so the deterministic
+    // row id stays a pure function of what it persists.
+    const writeParams = {
       channelId,
       guildId,
       personalityId: personality.id,
@@ -432,7 +423,28 @@ export class ConversationPersistence {
       content,
       chunkMessageIds,
       userMessageTime,
-    });
+    };
+
+    if (getContextMode() === 'service') {
+      // Service mode: the gateway endpoint IS the write. Throws on failure,
+      // matching the legacy local write's error semantics.
+      await persistAssistantMessageViaGateway(writeParams);
+    } else {
+      await this.conversationHistory.addMessage({
+        channelId,
+        personalityId: personality.id,
+        personaId,
+        role: MessageRole.Assistant,
+        content,
+        guildId,
+        discordMessageId: chunkMessageIds,
+        timestamp: assistantMessageTime,
+      });
+
+      // Legacy-mode burn-in: mirror to the gateway endpoint for log-only
+      // comparison. Fire-and-forget, no-op unless CONTEXT_DUAL_WRITE=true.
+      void dualWritePersistAssistantMessage(writeParams);
+    }
 
     logger.info({ chunks: chunkMessageIds.length }, 'Saved assistant message');
   }
