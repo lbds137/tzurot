@@ -17,6 +17,9 @@ import {
   type ConversationMessage,
   type RawAssemblyInputs,
   type RawDiscordUser,
+  type ReferencedMessage,
+  type RawMentionedChannel,
+  type RawMentionedRole,
 } from '@tzurot/common-types';
 import type { z } from 'zod';
 import type { ExtendedContextUser, FetchResult } from '../channelFetcher/types.js';
@@ -104,13 +107,21 @@ export function toApiConversationMessage(msg: ConversationMessage): ApiConversat
 export function buildRawAssemblyInputs(
   message: Message,
   content: string,
-  raw: RawExtendedContextSnapshot | undefined
+  raw: RawExtendedContextSnapshot | undefined,
+  refs?: {
+    rawReferencedMessages?: ReferencedMessage[];
+    rawMentionedChannels?: RawMentionedChannel[];
+    rawMentionedRoles?: RawMentionedRole[];
+  }
 ): RawAssemblyInputs | undefined {
   if (!isRawEnvelopeEnabled()) {
     return undefined;
   }
   return {
     rawMessageContent: content,
+    rawReferencedMessages: refs?.rawReferencedMessages,
+    rawMentionedChannels: refs?.rawMentionedChannels,
+    rawMentionedRoles: refs?.rawMentionedRoles,
     rawMentionedUsers:
       message.mentions.users.size > 0
         ? [...message.mentions.users.values()].map(u => ({

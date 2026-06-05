@@ -496,7 +496,11 @@ export class MessageContextBuilder {
 
     // Raw-envelope assembly inputs (worker-side shadow assembler burn-in);
     // undefined unless CONTEXT_RAW_ENVELOPE=true.
-    const rawAssemblyInputs = buildRawAssemblyInputs(message, content, extendedContext.raw);
+    const rawAssemblyInputs = buildRawAssemblyInputs(message, content, extendedContext.raw, {
+      rawReferencedMessages: refsAndMentions.rawReferencedMessages,
+      rawMentionedChannels: refsAndMentions.rawMentionedChannels,
+      rawMentionedRoles: refsAndMentions.rawMentionedRoles,
+    });
 
     // Build complete context
     // Note: userId is the Discord ID (for BYOK resolution)

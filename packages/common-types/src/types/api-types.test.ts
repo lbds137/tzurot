@@ -19,6 +19,8 @@ import {
   requestContextSchema,
   rawAssemblyInputsSchema,
   rawDiscordUserSchema,
+  rawMentionedChannelSchema,
+  rawMentionedRoleSchema,
   loadedPersonalitySchema,
   referencedMessageSchema,
   type GenerateRequest,
@@ -493,6 +495,34 @@ describe('API Endpoint Contract Tests', () => {
         },
       });
       expect(result.success).toBe(true);
+    });
+
+    it('should validate rawMentionedChannel and rawMentionedRole shapes', () => {
+      expect(
+        rawMentionedChannelSchema.safeParse({
+          channelId: '423456789012345678',
+          channelName: 'general',
+          topic: 'chat',
+          guildId: 'guild-123',
+        }).success
+      ).toBe(true);
+      expect(rawMentionedChannelSchema.safeParse({ channelId: 'x' }).success).toBe(false);
+      expect(
+        rawMentionedRoleSchema.safeParse({ roleId: '1', roleName: 'mods', mentionable: true })
+          .success
+      ).toBe(true);
+      expect(rawMentionedRoleSchema.safeParse({ roleId: '1' }).success).toBe(false);
+    });
+
+    it('should accept rawAssemblyInputs carrying channel/role mentions and raw references', () => {
+      expect(
+        rawAssemblyInputsSchema.safeParse({
+          rawMessageContent: '<#423456789012345678> <@&1> see msg',
+          rawMentionedChannels: [{ channelId: '423456789012345678', channelName: 'general' }],
+          rawMentionedRoles: [{ roleId: '1', roleName: 'mods' }],
+          rawReferencedMessages: [],
+        }).success
+      ).toBe(true);
     });
 
     it('should accept requestContext carrying rawAssemblyInputs', () => {

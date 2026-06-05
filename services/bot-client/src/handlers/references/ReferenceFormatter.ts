@@ -23,6 +23,22 @@ interface FormattedResult {
   references: ReferencedMessage[];
   /** Updated message content with links replaced by [Reference N] */
   updatedContent: string;
+  /**
+   * Raw pre-enrichment snapshots (only when `collectRaw` was requested):
+   * same numbering as `references`, but full content always — no transcript
+   * append, no dedup stubbing — so the worker-side assembler can re-run both
+   * enrichments itself.
+   */
+  rawReferences?: ReferencedMessage[];
+}
+
+/** Mutable accumulation state threaded through the per-message branch handlers. */
+interface FormatState {
+  references: ReferencedMessage[];
+  rawReferences: ReferencedMessage[];
+  collectRaw: boolean;
+  linkMap: Map<string, number>;
+  nextNumber: number;
 }
 
 /**
@@ -44,8 +60,11 @@ export class ReferenceFormatter {
   async format(
     originalContent: string,
     crawledMessages: Map<string, { message: Message; metadata: ReferenceMetadata }>,
-    maxReferences: number
+    maxReferences: number,
+    options: { collectRaw?: boolean } = {}
   ): Promise<FormattedResult> {
+    const collectRaw = options.collectRaw === true;
+    const rawReferences: ReferencedMessage[] = [];
     // Convert to array for sorting
     const messagesArray = Array.from(crawledMessages.values());
 
@@ -74,45 +93,15 @@ export class ReferenceFormatter {
     // Format messages and assign reference numbers
     const references: ReferencedMessage[] = [];
     const linkMap = new Map<string, number>(); // Map Discord URL to reference number
-    let currentNumber = 1;
 
+    const state: FormatState = { references, rawReferences, collectRaw, linkMap, nextNumber: 1 };
     for (const { message, metadata } of selected) {
-      // Deduped stubs: minimal ReferencedMessage with truncated content
       if (metadata.isDeduplicated === true) {
-        references.push(this.buildDedupedStub(message, currentNumber));
-        this.trackLink(metadata, currentNumber, linkMap);
-        currentNumber++;
-        continue;
-      }
-
-      // Check if this is a forwarded message with snapshots
-      if (isForwardedMessage(message)) {
-        // Extract each snapshot from the forward as a separate reference
-        for (const snapshot of message.messageSnapshots.values()) {
-          const snapshotReference = this.snapshotFormatter.formatSnapshot(
-            snapshot,
-            currentNumber,
-            message
-          );
-          references.push(snapshotReference);
-          this.trackLink(metadata, currentNumber, linkMap);
-          currentNumber++;
-
-          logger.debug(
-            {
-              messageId: message.id,
-              snapshotContent: snapshot.content?.substring(0, 50),
-              referenceNumber: currentNumber - 1,
-            },
-            'Added snapshot from forwarded message'
-          );
-        }
+        this.appendDedupedStub(message, metadata, state);
+      } else if (isForwardedMessage(message)) {
+        this.appendForwardedSnapshots(message, metadata, state);
       } else {
-        // Regular message (not a forward)
-        const formattedMessage = await this.messageFormatter.formatMessage(message, currentNumber);
-        references.push(formattedMessage);
-        this.trackLink(metadata, currentNumber, linkMap);
-        currentNumber++;
+        await this.appendRegular(message, metadata, state);
       }
     }
 
@@ -130,7 +119,73 @@ export class ReferenceFormatter {
     return {
       references,
       updatedContent,
+      ...(collectRaw && { rawReferences }),
     };
+  }
+
+  /** Deduped: enriched side gets a stub; raw side gets the full snapshot. */
+  private appendDedupedStub(message: Message, metadata: ReferenceMetadata, s: FormatState): void {
+    s.references.push(this.buildDedupedStub(message, s.nextNumber));
+    if (s.collectRaw) {
+      // The raw side never stubs: the worker re-derives dedup against its
+      // OWN hydrated history, so it needs the full pre-dedup snapshot.
+      s.rawReferences.push(
+        this.messageFormatter.buildRawReference(message, s.nextNumber).reference
+      );
+    }
+    this.trackLink(metadata, s.nextNumber, s.linkMap);
+    s.nextNumber++;
+  }
+
+  /** Forwarded: each snapshot becomes a reference; raw = enriched (no DB enrichment). */
+  private appendForwardedSnapshots(
+    message: Message & { messageSnapshots: NonNullable<Message['messageSnapshots']> },
+    metadata: ReferenceMetadata,
+    s: FormatState
+  ): void {
+    for (const snapshot of message.messageSnapshots.values()) {
+      const snapshotReference = this.snapshotFormatter.formatSnapshot(
+        snapshot,
+        s.nextNumber,
+        message
+      );
+      s.references.push(snapshotReference);
+      if (s.collectRaw) {
+        s.rawReferences.push({ ...snapshotReference });
+      }
+      // All snapshots of one forward share the crawled entry's discordUrl, and
+      // trackLink uses Map.set — so the LAST snapshot's number wins and the
+      // [Reference N] link resolves to the forward's final snapshot.
+      this.trackLink(metadata, s.nextNumber, s.linkMap);
+      s.nextNumber++;
+
+      logger.debug(
+        {
+          messageId: message.id,
+          snapshotContent: snapshot.content?.substring(0, 50),
+          referenceNumber: s.nextNumber - 1,
+        },
+        'Added snapshot from forwarded message'
+      );
+    }
+  }
+
+  /** Regular: enriched (transcripts appended) + raw pre-enrichment snapshot. */
+  private async appendRegular(
+    message: Message,
+    metadata: ReferenceMetadata,
+    s: FormatState
+  ): Promise<void> {
+    const { enriched, raw } = await this.messageFormatter.formatMessageWithRaw(
+      message,
+      s.nextNumber
+    );
+    s.references.push(enriched);
+    if (s.collectRaw) {
+      s.rawReferences.push(raw);
+    }
+    this.trackLink(metadata, s.nextNumber, s.linkMap);
+    s.nextNumber++;
   }
 
   /** Build a minimal ReferencedMessage for a deduped reference */

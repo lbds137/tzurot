@@ -17,8 +17,11 @@ import {
   type ReferencedChannel,
   type ReferencedMessage,
   type ConversationMessage,
+  type RawMentionedChannel,
+  type RawMentionedRole,
 } from '@tzurot/common-types';
 import { MessageReferenceExtractor } from '../../handlers/MessageReferenceExtractor.js';
+import { isRawEnvelopeEnabled } from '../../utils/contextWritePath.js';
 import type { MentionResolver } from '../MentionResolver.js';
 
 const logger = createLogger('MessageContextBuilder');
@@ -29,6 +32,14 @@ export interface ReferencesAndMentionsResult {
   referencedMessages: ReferencedMessage[];
   mentionedPersonas?: MentionedPersona[];
   referencedChannels?: ReferencedChannel[];
+  /**
+   * Raw-envelope fields (present only when CONTEXT_RAW_ENVELOPE=true):
+   * pre-enrichment reference snapshots plus the guild-cache-resolved channel
+   * and role mention data the worker needs to re-run content rewriting.
+   */
+  rawReferencedMessages?: ReferencedMessage[];
+  rawMentionedChannels?: RawMentionedChannel[];
+  rawMentionedRoles?: RawMentionedRole[];
 }
 
 /** Options for reference extraction */
@@ -77,30 +88,7 @@ export async function extractReferencesAndMentions(
     .filter((id): id is string => id !== undefined && id !== null);
   const conversationHistoryTimestamps = history.map(msg => msg.createdAt);
 
-  // Debug logging for voice message replies
-  if (
-    message.attachments.some(
-      a =>
-        (a.contentType?.startsWith(CONTENT_TYPES.AUDIO_PREFIX) ?? false) ||
-        (a.duration !== null && a.duration !== undefined)
-    )
-  ) {
-    const mostRecentAssistant = history.filter(m => m.role === MessageRole.Assistant).slice(-1)[0];
-    const mostRecentAssistantIds = mostRecentAssistant?.discordMessageId ?? [];
-
-    logger.debug(
-      {
-        isReply: message.reference !== null,
-        replyToMessageId: message.reference?.messageId,
-        messageContent: content ?? '(empty - voice only)',
-        historyCount: history.length,
-        replyMatchesRecentAssistant: mostRecentAssistantIds.includes(
-          message.reference?.messageId ?? ''
-        ),
-      },
-      '[MessageContextBuilder] Processing voice message reply - deduplication data'
-    );
-  }
+  logVoiceReplyDiagnostics(message, content, history);
 
   // Extract referenced messages
   logger.debug('Extracting referenced messages with deduplication');
@@ -112,8 +100,11 @@ export async function extractReferencesAndMentions(
     conversationHistoryTimestamps,
   });
 
-  const { references: referencedMessages, updatedContent } =
-    await referenceExtractor.extractReferencesWithReplacement(message);
+  const {
+    references: referencedMessages,
+    updatedContent,
+    rawReferences,
+  } = await referenceExtractor.extractReferencesWithReplacement(message);
 
   if (referencedMessages.length > 0) {
     logger.info(
@@ -164,5 +155,80 @@ export async function extractReferencesAndMentions(
     );
   }
 
-  return { messageContent, referencedMessages, mentionedPersonas, referencedChannels };
+  const rawEnvelopeFields = captureRawEnvelopeFields(rawReferences, mentionResult);
+
+  return {
+    messageContent,
+    referencedMessages,
+    mentionedPersonas,
+    referencedChannels,
+    ...rawEnvelopeFields,
+  };
+}
+
+/** Voice-message-reply dedup diagnostics (debug-only). */
+function logVoiceReplyDiagnostics(
+  message: Message,
+  content: string,
+  history: ConversationMessage[]
+): void {
+  const hasVoiceAttachment = message.attachments.some(
+    a =>
+      (a.contentType?.startsWith(CONTENT_TYPES.AUDIO_PREFIX) ?? false) ||
+      (a.duration !== null && a.duration !== undefined)
+  );
+  if (!hasVoiceAttachment) {
+    return;
+  }
+  const mostRecentAssistant = history.filter(m => m.role === MessageRole.Assistant).slice(-1)[0];
+  const mostRecentAssistantIds = mostRecentAssistant?.discordMessageId ?? [];
+
+  logger.debug(
+    {
+      isReply: message.reference !== null,
+      replyToMessageId: message.reference?.messageId,
+      messageContent: content ?? '(empty - voice only)',
+      historyCount: history.length,
+      replyMatchesRecentAssistant: mostRecentAssistantIds.includes(
+        message.reference?.messageId ?? ''
+      ),
+    },
+    '[MessageContextBuilder] Processing voice message reply - deduplication data'
+  );
+}
+
+/**
+ * Raw-envelope capture: the mention resolver already produced the
+ * guild-cache-pure channel/role data — reuse it rather than re-scanning.
+ * Undefined unless CONTEXT_RAW_ENVELOPE=true.
+ */
+type RawEnvelopeFields = Pick<
+  ReferencesAndMentionsResult,
+  'rawReferencedMessages' | 'rawMentionedChannels' | 'rawMentionedRoles'
+>;
+
+function captureRawEnvelopeFields(
+  rawReferences: ReferencedMessage[] | undefined,
+  mentionResult: Awaited<ReturnType<MentionResolver['resolveAllMentions']>>
+): RawEnvelopeFields | undefined {
+  if (!isRawEnvelopeEnabled()) {
+    return undefined;
+  }
+  return {
+    // No `?? []` fallback: when the envelope flag is on the extractor always
+    // produced an array, and if a future path legitimately passes undefined,
+    // ABSENT is the accurate signal to propagate (see schema semantics).
+    rawReferencedMessages: rawReferences,
+    rawMentionedChannels: mentionResult.mentionedChannels.map(ch => ({
+      channelId: ch.channelId,
+      channelName: ch.channelName,
+      topic: ch.topic,
+      guildId: ch.guildId,
+    })),
+    rawMentionedRoles: mentionResult.mentionedRoles.map(r => ({
+      roleId: r.roleId,
+      roleName: r.roleName,
+      mentionable: r.mentionable,
+    })),
+  };
 }

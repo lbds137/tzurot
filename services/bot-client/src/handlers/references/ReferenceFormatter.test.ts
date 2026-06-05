@@ -18,22 +18,50 @@ describe('ReferenceFormatter', () => {
 
   beforeEach(() => {
     // Mock MessageFormatter
+    const buildRef = (message: Message, refNum: number) => ({
+      referenceNumber: refNum,
+      discordMessageId: message.id,
+      discordUserId: message.author.id,
+      authorUsername: message.author.username,
+      authorDisplayName: message.author.displayName ?? message.author.username,
+      content: message.content,
+      embeds: '',
+      timestamp: message.createdAt.toISOString(),
+      locationContext: 'this channel',
+    });
     mockMessageFormatter = {
-      formatMessage: vi.fn().mockImplementation(async (message: Message, refNum: number) => ({
-        referenceNumber: refNum,
-        discordMessageId: message.id,
-        discordUserId: message.author.id,
-        authorUsername: message.author.username,
-        authorDisplayName: message.author.displayName ?? message.author.username,
-        content: message.content,
-        embeds: '',
-        timestamp: message.createdAt.toISOString(),
-        locationContext: 'this channel',
+      formatMessage: vi
+        .fn()
+        .mockImplementation(async (message: Message, refNum: number) => buildRef(message, refNum)),
+      formatMessageWithRaw: vi
+        .fn()
+        .mockImplementation(async (message: Message, refNum: number) => ({
+          enriched: buildRef(message, refNum),
+          raw: buildRef(message, refNum),
+        })),
+      buildRawReference: vi.fn().mockImplementation((message: Message, refNum: number) => ({
+        reference: buildRef(message, refNum),
+        attachments: [],
       })),
     } as unknown as MessageFormatter;
 
     // Mock SnapshotFormatter
-    mockSnapshotFormatter = {} as any;
+    mockSnapshotFormatter = {
+      formatSnapshot: vi
+        .fn()
+        .mockImplementation((snapshot: { content?: string }, refNum: number) => ({
+          referenceNumber: refNum,
+          discordMessageId: `snapshot-msg-${refNum}`,
+          discordUserId: 'fwd-user',
+          authorUsername: 'fwd',
+          authorDisplayName: 'Fwd',
+          content: snapshot.content ?? '',
+          embeds: '',
+          timestamp: new Date('2025-01-01T12:00:00Z').toISOString(),
+          locationContext: '',
+          isForwarded: true,
+        })),
+    } as any;
 
     formatter = new ReferenceFormatter(mockMessageFormatter, mockSnapshotFormatter);
   });
@@ -516,6 +544,123 @@ describe('ReferenceFormatter', () => {
 
       // Should limit to 10
       expect(result.references).toHaveLength(10);
+    });
+  });
+
+  describe('collectRaw (raw assembly envelope)', () => {
+    it('returns full pre-dedup raw snapshots alongside stubbed enriched references', async () => {
+      const longContent = 'B'.repeat(200);
+      const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>([
+        [
+          'deduped-1',
+          {
+            message: createMockMessage({ id: 'deduped-1', content: longContent }),
+            metadata: {
+              messageId: 'deduped-1',
+              depth: 1,
+              timestamp: new Date('2025-01-01T00:00:00Z'),
+              isDeduplicated: true,
+            },
+          },
+        ],
+      ]);
+
+      const result = await formatter.format('content', crawledMessages, 10, { collectRaw: true });
+
+      // Enriched side: stubbed (truncated, isDeduplicated).
+      expect(result.references[0].isDeduplicated).toBe(true);
+      expect(result.references[0].content.length).toBeLessThan(longContent.length);
+      // Raw side: FULL content, same reference number — the worker re-derives
+      // dedup against its own hydrated history.
+      expect(result.rawReferences).toHaveLength(1);
+      expect(result.rawReferences?.[0].content).toBe(longContent);
+      expect(result.rawReferences?.[0].referenceNumber).toBe(result.references[0].referenceNumber);
+    });
+
+    it('collects the raw snapshot for regular messages (raw = pre-transcript content)', async () => {
+      const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>([
+        [
+          'regular-raw',
+          {
+            message: createMockMessage({ id: 'regular-raw', content: 'plain message' }),
+            metadata: {
+              messageId: 'regular-raw',
+              depth: 1,
+              timestamp: new Date('2025-01-01T00:00:00Z'),
+            },
+          },
+        ],
+      ]);
+
+      const result = await formatter.format('content', crawledMessages, 10, { collectRaw: true });
+
+      expect(result.rawReferences).toHaveLength(1);
+      expect(result.rawReferences?.[0].content).toBe('plain message');
+      expect(result.rawReferences?.[0].referenceNumber).toBe(result.references[0].referenceNumber);
+    });
+
+    it('collects one raw entry per forwarded snapshot with consistent numbering', async () => {
+      const snapshotsMap = new Map();
+      snapshotsMap.set('s0', { content: 'first snapshot', attachments: new Map(), embeds: [] });
+      snapshotsMap.set('s1', { content: 'second snapshot', attachments: new Map(), embeds: [] });
+      const messageSnapshots = {
+        size: snapshotsMap.size,
+        values: () => snapshotsMap.values(),
+        first: () => snapshotsMap.values().next().value,
+      } as unknown as Collection<string, MessageSnapshot>;
+
+      const forwardedMessage = createMockMessage({
+        id: 'forwarded-raw',
+        content: '',
+        createdAt: new Date('2025-01-01T12:00:00Z'),
+        reference: { type: MessageReferenceType.Forward } as Message['reference'],
+        messageSnapshots,
+      });
+
+      const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>([
+        [
+          'forwarded-raw',
+          {
+            message: forwardedMessage,
+            metadata: {
+              messageId: 'forwarded-raw',
+              depth: 1,
+              timestamp: new Date('2025-01-01T12:00:00Z'),
+            },
+          },
+        ],
+      ]);
+
+      const result = await formatter.format('', crawledMessages, 10, { collectRaw: true });
+
+      // Each snapshot expands to its own enriched AND raw entry, numbers aligned.
+      expect(result.references).toHaveLength(2);
+      expect(result.rawReferences).toHaveLength(2);
+      expect(result.rawReferences?.map(r => r.referenceNumber)).toEqual(
+        result.references.map(r => r.referenceNumber)
+      );
+      expect(result.rawReferences?.[1].content).toBe('second snapshot');
+    });
+
+    it('omits rawReferences entirely when collectRaw is not requested', async () => {
+      const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>([
+        [
+          'regular-1',
+          {
+            message: createMockMessage({ id: 'regular-1', content: 'hello' }),
+            metadata: {
+              messageId: 'regular-1',
+              depth: 1,
+              timestamp: new Date('2025-01-01T00:00:00Z'),
+            },
+          },
+        ],
+      ]);
+
+      const result = await formatter.format('content', crawledMessages, 10);
+
+      expect(result.rawReferences).toBeUndefined();
+      expect(result.references).toHaveLength(1);
     });
   });
 });
