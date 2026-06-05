@@ -38,6 +38,12 @@ import {
 } from './contextBuilder/index.js';
 import type { ContextBuildOptions } from './contextBuilder/ContextBuildOptions.js';
 import {
+  buildRawAssemblyInputs,
+  captureRawExtendedContext,
+  toApiConversationMessage,
+  type RawExtendedContextSnapshot,
+} from './contextBuilder/RawEnvelopeBuilder.js';
+import {
   extractReferencesAndMentions,
   type ReferencesAndMentionsResult,
 } from './contextBuilder/ReferenceExtractor.js';
@@ -78,6 +84,13 @@ interface ExtendedContextResult {
   history: ConversationMessage[];
   attachments?: AttachmentMetadata[];
   participantGuildInfo?: ParticipantGuildInfo;
+  /**
+   * Raw-envelope snapshot (present only when CONTEXT_RAW_ENVELOPE=true):
+   * the Discord-fetched messages BEFORE persona-ID resolution mutates them
+   * in place, plus the user lists feeding the batch upsert — exactly what
+   * the worker-side shadow assembler needs to re-run that resolution.
+   */
+  raw?: RawExtendedContextSnapshot;
 }
 
 /** Parameters for extended context fetching */
@@ -219,6 +232,10 @@ export class MessageContextBuilder {
       }
     );
 
+    // Snapshot must happen HERE — resolveExtendedContextPersonaIds below
+    // mutates fetchResult.messages in place. See captureRawExtendedContext.
+    const rawSnapshot = captureRawExtendedContext(fetchResult);
+
     // Create personas for extended context users AND reactor users
     // Combine both arrays to handle in a single batch (reactors are users who reacted to messages)
     const usersToResolve = [
@@ -260,7 +277,7 @@ export class MessageContextBuilder {
     }
 
     if (fetchResult.messages.length === 0) {
-      return { history: mergedHistory };
+      return { history: mergedHistory, raw: rawSnapshot };
     }
 
     // Merge Discord messages with DB history
@@ -324,7 +341,7 @@ export class MessageContextBuilder {
         });
     }
 
-    return { history: mergedHistory, attachments, participantGuildInfo };
+    return { history: mergedHistory, attachments, participantGuildInfo, raw: rawSnapshot };
   }
 
   /** Extract referenced messages and resolve mentions - delegates to ReferenceExtractor */
@@ -463,23 +480,7 @@ export class MessageContextBuilder {
     // Include tokenCount for accurate token budget calculations (avoids chars/4 fallback)
     // Include discordUsername for disambiguation when persona name matches personality name
     // Include discordMessageId for quote deduplication (prevents duplicating quoted content in history)
-    const conversationHistory = history.map(msg => ({
-      id: msg.id,
-      role: msg.role,
-      content: msg.content,
-      tokenCount: msg.tokenCount, // Pre-computed with tiktoken at message save time
-      createdAt: msg.createdAt.toISOString(),
-      isForwarded: msg.isForwarded, // For XML attribute (forwarded="true")
-      personaId: msg.personaId,
-      personaName: msg.personaName,
-      discordUsername: msg.discordUsername, // For collision detection in prompt building
-      discordMessageId: msg.discordMessageId, // For quote deduplication in prompt building
-      // AI personality info for multi-AI channel attribution
-      // Allows correct attribution when multiple AI personalities respond in the same channel
-      personalityId: msg.personalityId,
-      personalityName: msg.personalityName,
-      messageMetadata: msg.messageMetadata,
-    }));
+    const conversationHistory = history.map(toApiConversationMessage);
 
     // Extract attachments using unified buildMessageContent
     // This ensures forwarded message snapshot attachments are included (DRY principle)
@@ -492,6 +493,10 @@ export class MessageContextBuilder {
 
     // Extract Discord environment context
     const environment = extractDiscordEnvironment(message);
+
+    // Raw-envelope assembly inputs (worker-side shadow assembler burn-in);
+    // undefined unless CONTEXT_RAW_ENVELOPE=true.
+    const rawAssemblyInputs = buildRawAssemblyInputs(message, content, extendedContext.raw);
 
     // Build complete context
     // Note: userId is the Discord ID (for BYOK resolution)
@@ -524,6 +529,7 @@ export class MessageContextBuilder {
           : undefined,
       // Detect voice messages for TTS voice-only mode
       isVoiceMessage: hasVoiceAttachments(message),
+      rawAssemblyInputs,
     };
 
     logger.debug(

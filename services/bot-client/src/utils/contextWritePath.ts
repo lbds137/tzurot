@@ -36,6 +36,17 @@ export function isContextDualWriteEnabled(env: NodeJS.ProcessEnv = process.env):
   return env.CONTEXT_DUAL_WRITE === 'true';
 }
 
+/**
+ * When true, bot-client attaches `rawAssemblyInputs` (raw Discord-origin
+ * assembly inputs) ALONGSIDE the legacy assembled payload, so ai-worker's
+ * shadow context assembler can re-derive the context and diff it against
+ * the bot-built one. Burn-in companion to ai-worker's
+ * CONTEXT_SHADOW_HYDRATION; adds payload bytes per message, so default off.
+ */
+export function isRawEnvelopeEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.CONTEXT_RAW_ENVELOPE === 'true';
+}
+
 interface AssistantMessageWriteParams {
   channelId: string;
   guildId: string | null;

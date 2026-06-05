@@ -71,6 +71,42 @@ async function resolveChannelEnvironment(
   }
 }
 
+/** Channel renames are rare; one cache walk per TTL window is plenty. */
+const ENV_MAP_TTL_MS = 5 * 60 * 1000;
+let envMapCache: { map: Record<string, DiscordEnvironment>; builtAt: number } | null = null;
+
+/** @internal Exported for tests only — call `buildKnownChannelEnvironments` normally. */
+export function clearKnownChannelEnvironmentsCache(): void {
+  envMapCache = null;
+}
+
+/**
+ * Build the channelId → DiscordEnvironment map from the Discord.js cache —
+ * no fetches. Ships in the raw assembly envelope so the worker-side context
+ * assembler can decorate its cross-channel groups with names it cannot
+ * resolve itself. Coverage gaps (e.g. lazily-cached threads) are expected;
+ * consumers degrade to id-only location blocks.
+ *
+ * Cached for ENV_MAP_TTL_MS: the cache walk runs per message while the raw
+ * envelope is enabled, and channel/guild renames are rare.
+ */
+export function buildKnownChannelEnvironments(client: Client): Record<string, DiscordEnvironment> {
+  const now = Date.now();
+  if (envMapCache !== null && now - envMapCache.builtAt < ENV_MAP_TTL_MS) {
+    return envMapCache.map;
+  }
+
+  const map: Record<string, DiscordEnvironment> = {};
+  for (const channel of client.channels.cache.values()) {
+    if ('guild' in channel && channel.guild !== null && channel.guild !== undefined) {
+      map[channel.id] = buildGuildEnvironment(channel);
+    }
+  }
+
+  envMapCache = { map, builtAt: now };
+  return map;
+}
+
 /** Build a DiscordEnvironment for a guild channel (text, thread, forum, etc.) */
 function buildGuildEnvironment(
   channel: Extract<Awaited<ReturnType<Client['channels']['fetch']>>, { guild: unknown }>
