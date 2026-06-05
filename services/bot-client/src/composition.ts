@@ -25,7 +25,6 @@ import { DMSessionProcessor } from './processors/DMSessionProcessor.js';
 import { BotMentionProcessor } from './processors/BotMentionProcessor.js';
 import { DenylistCache } from './services/DenylistCache.js';
 import { VoiceTranscriptionService } from './services/VoiceTranscriptionService.js';
-import { PersonalityIdCache } from './services/PersonalityIdCache.js';
 import { ReplyResolutionService } from './services/ReplyResolutionService.js';
 import { PersonalityMessageHandler } from './services/PersonalityMessageHandler.js';
 import { PersonalityChatManager } from './services/character/PersonalityChatManager.js';
@@ -174,7 +173,7 @@ export function buildMultiTagStack(deps: {
 export function buildProcessorChain(deps: {
   denylistCache: DenylistCache;
   voiceTranscription: VoiceTranscriptionService;
-  personalityIdCache: PersonalityIdCache;
+  personalityLoader: IPersonalityLoader;
   replyResolver: ReplyResolutionService;
   coordinator: MultiTagCoordinator;
   personalityHandler: PersonalityMessageHandler;
@@ -184,14 +183,14 @@ export function buildProcessorChain(deps: {
     new BotMessageFilter(),
     new DenylistFilter(deps.denylistCache),
     new EmptyMessageFilter(),
-    new VoiceMessageProcessor(deps.voiceTranscription, deps.personalityIdCache),
+    new VoiceMessageProcessor(deps.voiceTranscription, deps.personalityLoader),
     new PersonalityTriggerProcessor({
-      personalityService: deps.personalityIdCache,
+      personalityService: deps.personalityLoader,
       replyResolver: deps.replyResolver,
       coordinator: deps.coordinator,
     }),
     new DMSessionProcessor(
-      deps.personalityIdCache,
+      deps.personalityLoader,
       deps.personalityHandler,
       deps.multiTagPersistence
     ),
@@ -210,7 +209,7 @@ export function buildMessageHandler(deps: {
   // Processor-chain deps
   denylistCache: DenylistCache;
   voiceTranscription: VoiceTranscriptionService;
-  personalityIdCache: PersonalityIdCache;
+  personalityLoader: IPersonalityLoader;
   replyResolver: ReplyResolutionService;
   personalityHandler: PersonalityMessageHandler;
   multiTagPersistence: MultiTagPersistence;
@@ -226,7 +225,7 @@ export function buildMessageHandler(deps: {
   const processors = buildProcessorChain({
     denylistCache: deps.denylistCache,
     voiceTranscription: deps.voiceTranscription,
-    personalityIdCache: deps.personalityIdCache,
+    personalityLoader: deps.personalityLoader,
     replyResolver: deps.replyResolver,
     coordinator: deps.coordinator,
     personalityHandler: deps.personalityHandler,

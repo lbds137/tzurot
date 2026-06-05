@@ -51,6 +51,9 @@ import { MultiTagCoordinator } from './services/MultiTagCoordinator.js';
 import type { MultiTagPersistence } from './services/MultiTagPersistence.js';
 import type { MultiTagRecovery } from './services/MultiTagRecovery.js';
 import { PersonalityIdCache } from './services/PersonalityIdCache.js';
+import { HttpPersonalityLoader } from './services/HttpPersonalityLoader.js';
+import { getContextMode } from './utils/contextWritePath.js';
+import type { IPersonalityLoader } from './types/IPersonalityLoader.js';
 import { DenylistCache } from './services/DenylistCache.js';
 import { DMCacheWarmer } from './services/DMCacheWarmer.js';
 import { StartupDMPrewarmer } from './services/StartupDMPrewarmer.js';
@@ -204,9 +207,27 @@ function createServices(): Services {
   // Shared services (used by multiple processors)
   const personalityService = new PersonalityService(prisma);
   const conversationHistoryService = new ConversationHistoryService(prisma);
-  const cacheInvalidationService = new CacheInvalidationService(cacheRedis, personalityService);
   const personalityIdCache = new PersonalityIdCache(personalityService); // Optimizes name→ID lookups
   const userService = new UserService(prisma);
+
+  // Routing-read loader (Phase 2.5c-ii): in service mode, personality
+  // resolution for routing (mention parsing, reply resolution, activation,
+  // multi-tag recovery, /character chat) goes through the gateway's internal
+  // endpoint with positive/negative caching instead of direct Prisma. The two
+  // legacy variables preserve today's wiring exactly: some sites get the
+  // name→ID cache wrapper, others the raw service.
+  const httpPersonalityLoader = getContextMode() === 'service' ? new HttpPersonalityLoader() : null;
+  // Legacy fallback: PersonalityIdCache wrapping PersonalityService (extra name→ID cache layer).
+  const routingLoaderCached: IPersonalityLoader = httpPersonalityLoader ?? personalityIdCache;
+  // Legacy fallback: raw PersonalityService ("direct" = no wrapper; it still has its own TTL cache).
+  const routingLoaderDirect: IPersonalityLoader = httpPersonalityLoader ?? personalityService;
+
+  // Pub/sub invalidation drives whichever cache is live for routing: the
+  // HTTP loader's tiers in service mode, PersonalityService's cache in legacy.
+  const cacheInvalidationService = new CacheInvalidationService(
+    cacheRedis,
+    httpPersonalityLoader ?? personalityService
+  );
 
   // Persona resolution with proper cache invalidation via Redis pub/sub
   const personaResolver = new PersonaResolver(prisma, { enableCleanup: true });
@@ -233,7 +254,7 @@ function createServices(): Services {
   const persistence = new ConversationPersistence(prisma);
   const voiceTranscription = new VoiceTranscriptionService();
   const referenceEnricher = new ReferenceEnrichmentService(userService, personaResolver);
-  const replyResolver = new ReplyResolutionService(personalityIdCache);
+  const replyResolver = new ReplyResolutionService(routingLoaderCached);
 
   // Personality chat pipeline (manager + Discord-shape adapter).
   const { personalityChatManager, personalityHandler } = buildPersonalityChatPipeline({
@@ -274,7 +295,7 @@ function createServices(): Services {
     jobTracker,
     orderingService: responseOrderingService,
     slotDelivery,
-    personalityService,
+    personalityService: routingLoaderDirect,
     personaResolver,
     discordClient: client,
     recoveryQueue: multiTagRecoveryQueue,
@@ -294,7 +315,7 @@ function createServices(): Services {
   const messageHandler = buildMessageHandler({
     denylistCache,
     voiceTranscription,
-    personalityIdCache,
+    personalityLoader: routingLoaderCached,
     replyResolver,
     personalityHandler,
     multiTagPersistence,
@@ -303,7 +324,7 @@ function createServices(): Services {
     jobTracker,
     slotDelivery,
     coordinator: multiTagCoordinator,
-    personalityService,
+    personalityService: routingLoaderDirect,
     client,
   });
 
@@ -311,7 +332,7 @@ function createServices(): Services {
   registerServices({
     jobTracker,
     webhookManager,
-    personalityService,
+    personalityService: routingLoaderDirect,
     conversationHistoryService,
     personaResolver,
     channelActivationCacheInvalidationService,
