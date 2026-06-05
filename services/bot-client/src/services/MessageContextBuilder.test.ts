@@ -108,6 +108,13 @@ const mockFetchCrossChannelIfEnabled = vi.fn().mockResolvedValue(undefined);
 vi.mock('./CrossChannelHistoryFetcher.js', () => ({
   fetchCrossChannelIfEnabled: (...args: unknown[]) => mockFetchCrossChannelIfEnabled(...args),
   mapCrossChannelToApiFormat: vi.fn(() => []),
+  buildKnownChannelEnvironments: vi.fn(() => ({
+    '999888777666555444': {
+      type: 'guild',
+      guild: { id: 'guild-1', name: 'Cached Guild' },
+      channel: { id: '999888777666555444', name: 'cached-channel', type: 'GUILD_TEXT' },
+    },
+  })),
 }));
 
 // Import after mocks
@@ -228,6 +235,66 @@ describe('MessageContextBuilder', () => {
   });
 
   describe('buildContext', () => {
+    it('omits rawAssemblyInputs by default (CONTEXT_RAW_ENVELOPE off)', async () => {
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
+        userId: 'user-uuid-123',
+        defaultPersonaId: 'test-persona-id',
+      });
+      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
+      mockExtractReferencesWithReplacement.mockResolvedValue({
+        references: [],
+        updatedContent: 'Hello world',
+      });
+
+      const result = await builder.buildContext(mockMessage, mockPersonality, 'Hello world');
+
+      expect(result.context.rawAssemblyInputs).toBeUndefined();
+    });
+
+    it('attaches rawAssemblyInputs alongside the assembled payload when CONTEXT_RAW_ENVELOPE=true', async () => {
+      process.env.CONTEXT_RAW_ENVELOPE = 'true';
+      try {
+        vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
+          userId: 'user-uuid-123',
+          defaultPersonaId: 'test-persona-id',
+        });
+        vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
+        mockExtractReferencesWithReplacement.mockResolvedValue({
+          references: [],
+          updatedContent: 'REWRITTEN content',
+        });
+        // The mention resolver is the LAST rewriter — its output is the
+        // assembled messageContent.
+        mockResolveAllMentions.mockResolvedValue({
+          processedContent: 'REWRITTEN content',
+          mentionedUsers: [],
+          mentionedChannels: [],
+          mentionedRoles: [],
+        });
+
+        const result = await builder.buildContext(
+          mockMessage,
+          mockPersonality,
+          '<@123> raw content'
+        );
+
+        const raw = result.context.rawAssemblyInputs;
+        expect(raw).toBeDefined();
+        // The raw side carries the PRE-rewrite content; the assembled side
+        // carries the rewritten one — both in the same payload during burn-in.
+        expect(raw?.rawMessageContent).toBe('<@123> raw content');
+        expect(result.context.messageContent).toBe('REWRITTEN content');
+        // Empty mentions collection → field omitted, not [].
+        expect(raw?.rawMentionedUsers).toBeUndefined();
+        // Channel-environment map comes from the Discord.js cache walk.
+        expect(raw?.knownChannelEnvironments?.['999888777666555444']).toMatchObject({
+          type: 'guild',
+        });
+      } finally {
+        delete process.env.CONTEXT_RAW_ENVELOPE;
+      }
+    });
+
     it('should build complete context with user lookup and history', async () => {
       // Setup mocks
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({

@@ -1,0 +1,128 @@
+/**
+ * Raw assembly envelope construction.
+ *
+ * When CONTEXT_RAW_ENVELOPE=true, bot-client attaches the raw Discord-origin
+ * assembly inputs ALONGSIDE the legacy assembled payload so ai-worker's
+ * shadow context assembler can re-derive the context and diff it against the
+ * bot-built one. Everything here is Discord-origin or pure mapping — no DB.
+ *
+ * This module's output IS the future thin-envelope payload: at cutover the
+ * legacy assembled fields stop shipping and this becomes the job's context
+ * source.
+ */
+
+import type { Message } from 'discord.js';
+import {
+  apiConversationMessageSchema,
+  type ConversationMessage,
+  type RawAssemblyInputs,
+  type RawDiscordUser,
+} from '@tzurot/common-types';
+import type { z } from 'zod';
+import type { ExtendedContextUser, FetchResult } from '../channelFetcher/types.js';
+import { isRawEnvelopeEnabled } from '../../utils/contextWritePath.js';
+import { buildKnownChannelEnvironments } from '../CrossChannelHistoryFetcher.js';
+
+/** The pre-resolution extended-context snapshot threaded out of the fetch. */
+export interface RawExtendedContextSnapshot {
+  messages: ConversationMessage[];
+  extendedContextUsers: ExtendedContextUser[];
+  reactorUsers: ExtendedContextUser[];
+}
+
+/**
+ * Capture the raw extended-context snapshot from a fetch result. Must be
+ * called BEFORE resolveExtendedContextPersonaIds, which mutates the fetched
+ * messages in place (placeholder personaIds → UUIDs) — the worker-side
+ * shadow assembler needs the pre-resolution shape to verify its own batch
+ * upsert + persona resolution. Returns undefined when the envelope is off
+ * (structuredClone of up to 100 messages isn't free).
+ */
+export function captureRawExtendedContext(
+  fetchResult: Pick<FetchResult, 'messages' | 'extendedContextUsers' | 'reactorUsers'>
+): RawExtendedContextSnapshot | undefined {
+  if (!isRawEnvelopeEnabled()) {
+    return undefined;
+  }
+  return {
+    // Messages are deep-cloned because resolveExtendedContextPersonaIds
+    // rewrites msg.personaId in place. The user arrays only need shallow
+    // copies — resolution reads them but never mutates the user objects. If
+    // that ever changes, upgrade these to structuredClone too.
+    messages: structuredClone(fetchResult.messages),
+    extendedContextUsers: [...(fetchResult.extendedContextUsers ?? [])],
+    reactorUsers: [...(fetchResult.reactorUsers ?? [])],
+  };
+}
+
+/** Map a locally-observed Discord user to the raw-envelope wire shape. */
+export function toRawDiscordUser(u: ExtendedContextUser): RawDiscordUser {
+  return {
+    discordId: u.discordId,
+    username: u.username,
+    displayName: u.displayName ?? u.username,
+    ...(u.isBot && { isBot: true }),
+  };
+}
+
+/**
+ * The wire (API) serialization of a ConversationMessage — derived from the
+ * schema so the type cannot drift from what the worker validates against.
+ */
+export type ApiConversationMessage = z.infer<typeof apiConversationMessageSchema>;
+
+/**
+ * Serialize a ConversationMessage to the wire (API) shape. Shared by the
+ * assembled conversationHistory and the raw-envelope extended-context
+ * snapshot so the two serializations cannot drift.
+ */
+export function toApiConversationMessage(msg: ConversationMessage): ApiConversationMessage {
+  return {
+    id: msg.id,
+    role: msg.role,
+    content: msg.content,
+    tokenCount: msg.tokenCount, // Pre-computed with tiktoken at message save time
+    createdAt: msg.createdAt.toISOString(),
+    isForwarded: msg.isForwarded, // For XML attribute (forwarded="true")
+    personaId: msg.personaId,
+    personaName: msg.personaName,
+    discordUsername: msg.discordUsername, // For collision detection in prompt building
+    discordMessageId: msg.discordMessageId, // For quote deduplication in prompt building
+    // AI personality info for multi-AI channel attribution
+    // Allows correct attribution when multiple AI personalities respond in the same channel
+    personalityId: msg.personalityId,
+    personalityName: msg.personalityName,
+    messageMetadata: msg.messageMetadata,
+  };
+}
+
+/**
+ * Assemble the raw envelope. `content` is the pre-rewrite text (raw message
+ * content + any upstream voice transcript) — exactly what the worker-side
+ * rewriter starts from. Returns undefined when the envelope is off.
+ */
+export function buildRawAssemblyInputs(
+  message: Message,
+  content: string,
+  raw: RawExtendedContextSnapshot | undefined
+): RawAssemblyInputs | undefined {
+  if (!isRawEnvelopeEnabled()) {
+    return undefined;
+  }
+  return {
+    rawMessageContent: content,
+    rawMentionedUsers:
+      message.mentions.users.size > 0
+        ? [...message.mentions.users.values()].map(u => ({
+            discordId: u.id,
+            username: u.username,
+            displayName: u.globalName ?? u.username,
+            ...(u.bot && { isBot: true }),
+          }))
+        : undefined,
+    rawExtendedContextMessages: raw?.messages.map(toApiConversationMessage),
+    rawExtendedContextUsers: raw?.extendedContextUsers.map(toRawDiscordUser),
+    rawReactorUsers: raw?.reactorUsers.map(toRawDiscordUser),
+    knownChannelEnvironments: buildKnownChannelEnvironments(message.client),
+  };
+}

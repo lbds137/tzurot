@@ -30,6 +30,8 @@ export {
   generateRequestSchema,
   loadedPersonalitySchema,
   requestContextSchema,
+  rawAssemblyInputsSchema,
+  rawDiscordUserSchema,
   referencedMessageSchema,
 } from './schemas/index.js';
 
