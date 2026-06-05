@@ -95,6 +95,66 @@ export class MessageFormatter {
   }
 
   /**
+   * Build the RAW referenced message — every Discord-origin field, with
+   * content BEFORE the voice-transcript append (the one DB/Redis-derived
+   * enrichment in this formatter). Pure and synchronous; this is the shape
+   * the raw assembly envelope ships so the worker-side assembler can re-run
+   * the transcript enrichment itself.
+   */
+  buildRawReference(
+    message: Message,
+    referenceNumber: number,
+    isForwardedFlag?: boolean
+  ): { reference: ReferencedMessage; attachments: AttachmentList } {
+    const environment = extractDiscordEnvironment(message);
+    const locationContext = formatLocationAsXml(environment);
+    const messageIsForwarded = isForwardedFlag ?? isForwardedMessage(message);
+
+    const { content, attachments } = this.resolveMessageContent(message, messageIsForwarded);
+
+    return {
+      attachments,
+      reference: {
+        referenceNumber,
+        discordMessageId: message.id,
+        webhookId: message.webhookId ?? undefined,
+        discordUserId: message.author.id,
+        authorUsername: message.author.username,
+        authorDisplayName: message.author.displayName ?? message.author.username,
+        content,
+        embeds: EmbedParser.parseMessageEmbeds(message),
+        timestamp: message.createdAt.toISOString(),
+        locationContext,
+        attachments: attachments.length > 0 ? attachments : undefined,
+        isForwarded: messageIsForwarded || undefined,
+      },
+    };
+  }
+
+  /**
+   * Format a Discord message as a referenced message, returning both the
+   * enriched form (voice transcripts appended) and the raw pre-enrichment
+   * snapshot for the assembly envelope.
+   */
+  async formatMessageWithRaw(
+    message: Message,
+    referenceNumber: number,
+    isForwardedFlag?: boolean
+  ): Promise<{ enriched: ReferencedMessage; raw: ReferencedMessage }> {
+    const { reference: raw, attachments } = this.buildRawReference(
+      message,
+      referenceNumber,
+      isForwardedFlag
+    );
+    const contentWithTranscript = await this.appendVoiceTranscripts(
+      raw.content,
+      attachments,
+      message.id
+    );
+    return { raw, enriched: { ...raw, content: contentWithTranscript } };
+  }
+
+  /**
    * Format a Discord message as a referenced message
    * @param message - Discord message
    * @param referenceNumber - Reference number
@@ -106,30 +166,7 @@ export class MessageFormatter {
     referenceNumber: number,
     isForwardedFlag?: boolean
   ): Promise<ReferencedMessage> {
-    const environment = extractDiscordEnvironment(message);
-    const locationContext = formatLocationAsXml(environment);
-    const messageIsForwarded = isForwardedFlag ?? isForwardedMessage(message);
-
-    const { content, attachments } = this.resolveMessageContent(message, messageIsForwarded);
-    const contentWithTranscript = await this.appendVoiceTranscripts(
-      content,
-      attachments,
-      message.id
-    );
-
-    return {
-      referenceNumber,
-      discordMessageId: message.id,
-      webhookId: message.webhookId ?? undefined,
-      discordUserId: message.author.id,
-      authorUsername: message.author.username,
-      authorDisplayName: message.author.displayName ?? message.author.username,
-      content: contentWithTranscript,
-      embeds: EmbedParser.parseMessageEmbeds(message),
-      timestamp: message.createdAt.toISOString(),
-      locationContext,
-      attachments: attachments.length > 0 ? attachments : undefined,
-      isForwarded: messageIsForwarded || undefined,
-    };
+    const { enriched } = await this.formatMessageWithRaw(message, referenceNumber, isForwardedFlag);
+    return enriched;
   }
 }

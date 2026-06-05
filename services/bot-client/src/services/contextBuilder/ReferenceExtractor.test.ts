@@ -72,7 +72,65 @@ describe('extractReferencesAndMentions', () => {
       processedContent: 'Hello world',
       mentionedUsers: [],
       mentionedChannels: [],
+      mentionedRoles: [],
     });
+  });
+
+  it('captures raw envelope fields when CONTEXT_RAW_ENVELOPE=true', async () => {
+    process.env.CONTEXT_RAW_ENVELOPE = 'true';
+    try {
+      mockExtractReferences.mockResolvedValue({
+        references: [],
+        updatedContent: undefined,
+        rawReferences: [{ referenceNumber: 1, content: 'raw snapshot' }],
+      });
+      mockResolveAllMentions.mockResolvedValue({
+        processedContent: 'rewritten',
+        mentionedUsers: [],
+        mentionedChannels: [
+          { channelId: '1', channelName: 'general', topic: 'chat', guildId: 'g1' },
+        ],
+        mentionedRoles: [{ roleId: '2', roleName: 'mods', mentionable: true }],
+      });
+
+      const result = await extractReferencesAndMentions({
+        prisma: mockPrisma,
+        mentionResolver: mockMentionResolver as unknown as MentionResolver,
+        message: createMockMessage(),
+        content: 'Hello world',
+        personality: mockPersonality,
+        history: [],
+        maxReferences: 50,
+      });
+
+      expect(result.rawReferencedMessages).toEqual([
+        { referenceNumber: 1, content: 'raw snapshot' },
+      ]);
+      expect(result.rawMentionedChannels).toEqual([
+        { channelId: '1', channelName: 'general', topic: 'chat', guildId: 'g1' },
+      ]);
+      expect(result.rawMentionedRoles).toEqual([
+        { roleId: '2', roleName: 'mods', mentionable: true },
+      ]);
+    } finally {
+      delete process.env.CONTEXT_RAW_ENVELOPE;
+    }
+  });
+
+  it('omits raw envelope fields when the flag is off', async () => {
+    const result = await extractReferencesAndMentions({
+      prisma: mockPrisma,
+      mentionResolver: mockMentionResolver as unknown as MentionResolver,
+      message: createMockMessage(),
+      content: 'Hello world',
+      personality: mockPersonality,
+      history: [],
+      maxReferences: 50,
+    });
+
+    expect(result.rawReferencedMessages).toBeUndefined();
+    expect(result.rawMentionedChannels).toBeUndefined();
+    expect(result.rawMentionedRoles).toBeUndefined();
   });
 
   it('should return empty results in weigh-in mode', async () => {

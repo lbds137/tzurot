@@ -16,6 +16,7 @@ import {
   ConversationHistoryService,
 } from '@tzurot/common-types';
 import { Message } from 'discord.js';
+import { isRawEnvelopeEnabled } from '../utils/contextWritePath.js';
 import { TranscriptRetriever } from './references/TranscriptRetriever.js';
 import { SnapshotFormatter } from './references/SnapshotFormatter.js';
 import { MessageFormatter } from './references/MessageFormatter.js';
@@ -35,6 +36,12 @@ interface ReferenceExtractionResult {
   references: ReferencedMessage[];
   /** Updated message content with Discord links replaced by [Reference N] */
   updatedContent: string;
+  /**
+   * Raw pre-enrichment reference snapshots for the assembly envelope —
+   * present only when CONTEXT_RAW_ENVELOPE=true. Full content always (no
+   * transcripts, no dedup stubs), same numbering as `references`.
+   */
+  rawReferences?: ReferencedMessage[];
 }
 
 /**
@@ -157,12 +164,16 @@ export class MessageReferenceExtractor {
     const formattedResult = await this.formatter.format(
       updatedMessage.content,
       crawlResult.messages,
-      this.maxReferences
+      this.maxReferences,
+      { collectRaw: isRawEnvelopeEnabled() }
     );
 
     return {
       references: formattedResult.references,
       updatedContent: formattedResult.updatedContent,
+      ...(formattedResult.rawReferences !== undefined && {
+        rawReferences: formattedResult.rawReferences,
+      }),
     };
   }
 

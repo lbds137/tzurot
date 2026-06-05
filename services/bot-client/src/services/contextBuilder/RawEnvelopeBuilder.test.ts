@@ -130,6 +130,20 @@ describe('buildRawAssemblyInputs', () => {
     });
   });
 
+  it('passes reference and channel/role mention raws through', () => {
+    process.env.CONTEXT_RAW_ENVELOPE = 'true';
+    const raw = buildRawAssemblyInputs(makeMessage(), 'plain', undefined, {
+      rawReferencedMessages: [],
+      rawMentionedChannels: [{ channelId: '1', channelName: 'general', guildId: 'g1' }],
+      rawMentionedRoles: [{ roleId: '2', roleName: 'mods', mentionable: false }],
+    });
+
+    // Empty array preserved (extraction ran, found nothing) — not collapsed.
+    expect(raw?.rawReferencedMessages).toEqual([]);
+    expect(raw?.rawMentionedChannels?.[0].channelName).toBe('general');
+    expect(raw?.rawMentionedRoles?.[0].roleName).toBe('mods');
+  });
+
   it('omits rawMentionedUsers when the mentions collection is empty', () => {
     process.env.CONTEXT_RAW_ENVELOPE = 'true';
     const raw = buildRawAssemblyInputs(makeMessage(), 'plain', undefined);

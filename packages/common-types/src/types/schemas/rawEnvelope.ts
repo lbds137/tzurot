@@ -1,0 +1,100 @@
+/**
+ * Raw assembly envelope schemas.
+ *
+ * The raw Discord-origin inputs bot-client ships so ai-worker's context
+ * assembler can re-derive the LLM context worker-side. During burn-in these
+ * ride ALONGSIDE the legacy assembled payload (behind CONTEXT_RAW_ENVELOPE);
+ * at cutover the legacy assembled fields stop shipping and this object (plus
+ * the always-Discord fields like attachments and environment) becomes the
+ * job's context source.
+ *
+ * Everything in here is Discord-origin or pure-computed — no DB-derived data.
+ */
+
+import { z } from 'zod';
+import { discordEnvironmentSchema } from './discord.js';
+import { apiConversationMessageSchema, referencedMessageSchema } from './message.js';
+
+/**
+ * A Discord user observed in raw assembly inputs (mention targets,
+ * extended-context authors, reactors) — the minimal fields the worker-side
+ * assembler needs to re-run user upserts and persona resolution.
+ */
+export const rawDiscordUserSchema = z.object({
+  discordId: z.string(),
+  username: z.string(),
+  displayName: z.string(),
+  isBot: z.boolean().optional(),
+});
+
+/**
+ * A channel referenced via `<#id>` in the message content — name (and topic,
+ * for the referencedChannels context block) resolved from the guild cache at
+ * capture time, since the worker cannot resolve Discord names itself.
+ */
+export const rawMentionedChannelSchema = z.object({
+  channelId: z.string(),
+  channelName: z.string(),
+  topic: z.string().optional(),
+  guildId: z.string().optional(),
+});
+
+/**
+ * A role referenced via `<@&id>` in the message content — resolved from the
+ * guild cache at capture time. Roles have no other envelope source (unlike
+ * channels, which the environment map also covers).
+ */
+export const rawMentionedRoleSchema = z.object({
+  roleId: z.string(),
+  roleName: z.string(),
+  mentionable: z.boolean().optional(),
+});
+
+export const rawAssemblyInputsSchema = z.object({
+  /** message.content verbatim — before mention replacement and [Reference N] link rewriting. */
+  rawMessageContent: z.string(),
+  /**
+   * message.mentions.users — targets for worker-side persona resolution +
+   * content rewriting. Absent when the message mentions no users (mentions
+   * are always observed on a Discord message, so unlike the extended-context
+   * arrays below there is no ABSENT/EMPTY distinction here).
+   */
+  rawMentionedUsers: z.array(rawDiscordUserSchema).optional(),
+  /** `<#id>` channel references found in the raw content, names from guild cache. */
+  rawMentionedChannels: z.array(rawMentionedChannelSchema).optional(),
+  /** `<@&id>` role references found in the raw content, names from guild cache. */
+  rawMentionedRoles: z.array(rawMentionedRoleSchema).optional(),
+  /**
+   * Discord-fetched reply/link reference snapshots BEFORE DB enrichment:
+   * no voice transcripts appended, no dedup-vs-history stubbing applied
+   * (full content always), referenceNumber = crawl order (dedup-independent,
+   * so the worker's own dedup decisions never renumber). Reuses the enriched
+   * wire shape — the raw snapshot is the same fields minus DB additions.
+   * ABSENT = reference extraction didn't run (weigh-in mode) or the sender
+   * predates this field; EMPTY = extraction ran and found no references.
+   */
+  rawReferencedMessages: z.array(referencedMessageSchema).optional(),
+  /**
+   * Discord-fetched extended-context messages BEFORE the merge with DB
+   * history. Array-field semantics (also for the two user lists below):
+   * ABSENT = the extended-context fetch didn't run for this message;
+   * EMPTY = the fetch ran and observed nothing. The shadow assembler treats
+   * the two differently, so producers must not collapse [] to undefined.
+   */
+  rawExtendedContextMessages: z.array(apiConversationMessageSchema).optional(),
+  /** Authors observed in extended context — inputs to the batch user upsert. */
+  rawExtendedContextUsers: z.array(rawDiscordUserSchema).optional(),
+  /** Users who reacted to extended-context messages (separate upsert batch). */
+  rawReactorUsers: z.array(rawDiscordUserSchema).optional(),
+  /**
+   * Guild→channel environment map from the Discord.js cache, for decorating
+   * worker-fetched cross-channel groups with names the worker can't resolve.
+   * Keyed by channelId. Missing entries degrade to id-only location blocks.
+   */
+  knownChannelEnvironments: z.record(z.string(), discordEnvironmentSchema).optional(),
+});
+
+export type RawDiscordUser = z.infer<typeof rawDiscordUserSchema>;
+export type RawMentionedChannel = z.infer<typeof rawMentionedChannelSchema>;
+export type RawMentionedRole = z.infer<typeof rawMentionedRoleSchema>;
+export type RawAssemblyInputs = z.infer<typeof rawAssemblyInputsSchema>;
