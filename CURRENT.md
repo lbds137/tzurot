@@ -7,9 +7,22 @@
 
 ## Next Session Goal
 
-**Phase 2.5c is up next** (see [active-epic.md](backlog/active-epic.md)) — the cutover: `CONTEXT_MODE=legacy|service`, thin envelopes from bot-client, ContextStep hydrates inside the job, bot-client Prisma writes stop (gateway endpoints from 2.5b become the only write path). Prerequisite: **negative caching** in front of the routing read (mention parsing probes many non-personality candidates per message). Optionally first: enable `CONTEXT_SHADOW_HYDRATION` + `CONTEXT_DUAL_WRITE` on dev (Railway redeploy) and read the burn-in logs before writing 2.5c code. Fold-forward nits from #1154 reviews are listed in the epic doc's 2.5c/2.5d entries. Then 2.5d (delete legacy + tighten depcruise guard) → PR-2p.
+**Phase 2.5c-ii is up next** (see [active-epic.md](backlog/active-epic.md)) — routing-read cutover: an HTTP-backed `IPersonalityLoader` over `GET /internal/personality/load` plus a `(nameOrId, userId)`-keyed cache holding **positive (5 min) and negative (30-60s) entries**. The negative side is mandatory: `PersonalityService` skips its TTL cache whenever `userId` is present (access-control re-check), so every mention-parse candidate is a DB query today and would become an HTTP hop per probe without it. Then 2.5c-iii (hydration cutover — needs its own scoping pass) → 2.5d (delete legacy + flags + tighten depcruise guard) → PR-2p. Burn-in option remains: `CONTEXT_MODE=service` on dev exercises the 2.5b/2.5c-i write path for real.
 
-## Last Session (continued) — PR 2.5b shipped (2026-06-04)
+## Last Session (continued) — PR 2.5c-i shipped (2026-06-04)
+
+| PR    | Title                                                             | Outcome                                                                                                                                                                               |
+| ----- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #1155 | `feat(bot-client): PR 2.5c-i — write cutover behind CONTEXT_MODE` | `CONTEXT_MODE` born (legacy default = zero change); service mode flips assistant persist + edit/delete sync to the 2.5b gateway endpoints; write-path cluster → `contextWritePath.ts` |
+
+### Net result
+
+- 2.5c sliced (user-approved): i = write cutover (this PR), ii = routing reads, iii = hydration. `CONTEXT_MODE=service` flips whatever has shipped — one toggle, incremental meaning.
+- Error contracts preserved exactly: persist throws on failure (legacy-identical, caller catch paths untouched); sync never throws (opportunistic contract). Shared payload builders keep authoritative/mirror wire shapes drift-proof.
+- `contextWritePath.ts` extraction (forced by max-lines, but the right home): one cohesive module, one deletion story in 2.5d.
+- Review: one-round convergence, zero asks ("Correct, well-tested, rollback-safe... Ready to ship"); two reviewer-routed 2.5d fold-forwards filed (type-name consolidation; truncation-warn severity upgrade post-legacy).
+
+## Previous Session — PR 2.5b shipped (2026-06-04)
 
 | PR    | Title                                                                       | Outcome                                                                                                                                                                                          |
 | ----- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

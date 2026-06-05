@@ -4,7 +4,7 @@ _This week's active work. Max 3 items._
 
 ### Active
 
-1. **PR-2n epic — Phase 2 (services extraction)** — see [`active-epic.md`](backlog/active-epic.md). Sequencing: `PR-2o ✅ → Phase 2.5 (a ✅ → b ✅ → c → d) → PR-2p → PR-2q`. **2.5a shipped (#1153)**: ContextDataSource + shadow hydration (`CONTEXT_SHADOW_HYDRATION`). **2.5b shipped 2026-06-04 (#1154)**: 3 internal gateway endpoints (assistant-message persist, combined sync, personality routing read) + dual-write (`CONTEXT_DUAL_WRITE`). **Next: 2.5c** — cutover behind `CONTEXT_MODE` (thin envelopes, ContextStep hydrates, bot-client Prisma writes stop); prerequisite: negative caching in front of the routing read; fold-forward nits listed in active-epic.md.
+1. **PR-2n epic — Phase 2 (services extraction)** — see [`active-epic.md`](backlog/active-epic.md). Sequencing: `PR-2o ✅ → Phase 2.5 (a ✅ → b ✅ → c-i ✅ → c-ii → c-iii → d) → PR-2p → PR-2q`. Shipped 2026-06-04: **2.5a** (#1153, shadow hydration), **2.5b** (#1154, 3 gateway endpoints + dual-write), **2.5c-i** (#1155, write cutover behind `CONTEXT_MODE`, legacy default). **Next: 2.5c-ii** — routing-read cutover: HTTP-backed `IPersonalityLoader` over `GET /internal/personality/load` + `(nameOrId, userId)` cache with positive (5 min) AND negative (30-60s) entries (required: `PersonalityService` skips its cache whenever userId is present). Then 2.5c-iii (hydration cutover, needs scoping) → 2.5d.
 
    _v3.0.0-beta.127 shipped 2026-06-03 (#1146) — prod-validated. See [CURRENT.md](../CURRENT.md)._
 
