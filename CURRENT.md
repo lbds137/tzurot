@@ -7,9 +7,23 @@
 
 ## Next Session Goal
 
-**Phase 2.5c-iii is up next — scoping pass BEFORE code** (see [active-epic.md](backlog/active-epic.md)). The hydration cutover is the epic's biggest single move: thin envelopes from bot-client, ContextStep hydrates in-job (ContextDataSource grows persona resolution + `getOrCreateUser` upsert per the council verdict), user-message persist + vision-description update relocate to ai-worker, cross-channel wire/DB type unification, context-hash diff burn-in. Open design questions to settle in scoping: envelope shape (`RawDiscordEnvelope` fields), how referenced-message extraction relocates, MessageContextBuilder's Discord-fetched extended context (stays bot-side — only ai-worker DB reads move), and what `CONTEXT_MODE=service` toggles atomically. Fold-forward nits from #1155/#1156 ride along (listed in epic doc). Burn-in option: `CONTEXT_MODE=service` on dev now exercises writes + routing reads end-to-end.
+**Phase 2.5c-iii-a is up next** (council verdict + slicing in [active-epic.md](backlog/active-epic.md)): the worker-side full context assembler — ContextDataSource grows persona resolution, `getOrCreateUser`/batch upserts, the HistoryMerger merge with envelope-carried Discord extended-context messages, and mention/reference content rewriting — behind an EXTENDED shadow mode. Three council catches shape it: raw envelope fields must ride ALONGSIDE the legacy payload during burn-in (today's payload only carries rewritten content); the shadow must run real-DB hydration (not just reassembly); match-rate telemetry with a go/no-go threshold gates iii-b. Then iii-b (discriminated-union `{ kind: 'legacy' | 'envelope' }` job payload, full guild→channel cache map in envelope per Fork A) → 2.5d. Burn-in option: `CONTEXT_MODE=service` on dev now exercises user-message persist + assistant persist + sync + routing reads end-to-end.
 
-## Last Session (continued) — PR 2.5c-ii shipped (2026-06-04)
+## Last Session (continued) — 2.5c-iii council + iii-0 shipped (2026-06-04 → 05)
+
+| PR    | Title                                                                             | Outcome                                                                                                                                                           |
+| ----- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #1157 | `feat(api-gateway): PR 2.5c-iii-0 — user-message persist endpoint + mode cutover` | `POST /internal/conversation/user-message` (gateway = Discord-event data authority, synchronous pre-submission); `saveUserMessageFromFields` mode branch + mirror |
+
+### Net result
+
+- **2.5c-iii scoped via council** (GLM-5.1 + Kimi-K2.6 + Qwen-3.7-max): Fork B unanimous premise correction (user message = Discord event → gateway endpoint pre-submission, NOT worker persist — kills the rapid-follow-up ordering race outright); Fork A = full guild→channel cache map in envelope (2-1, Qwen's full-dump refinement); Fork C = worker updates vision descriptions via own Prisma post-vision (bot-side round-trip dies in iii-a); Fork D unanimous discriminated union. Slicing iii-0/a/b with three sharpening catches recorded.
+- **iii-0 shipped**: shared-once timestamp resolution (deterministic row UUID derives from it — independent `new Date()` defaults would have produced false divergence on every metadata-less message); vision-description update documented as transitional local-Prisma until iii-a.
+- **Structural fix from a CI/local discrepancy** (user-spotted): CI's lint job runs `pnpm ops test:audit` but local `quality` never did — the iii-0 schemas' missing contract tests passed locally and failed CI. Tests added AND `test:audit` joined the root `quality` chain; the discrepancy class is dead.
+- **CPD headroom note**: ratchet at 1727/1728 ceiling — one grace line left; iii-a may trip it legitimately (mirrored endpoint-family code).
+- **Hono dependabot sweep** (#1158): 4 Moderate advisories, all dev-only transitive via `prisma → @prisma/dev → @hono/node-server`; existing override bumped `>=4.12.16 → >=4.12.21` (resolves 4.12.23).
+
+## Previous Session — PR 2.5c-ii shipped (2026-06-04)
 
 | PR    | Title                                                                     | Outcome                                                                                                                                                                     |
 | ----- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
