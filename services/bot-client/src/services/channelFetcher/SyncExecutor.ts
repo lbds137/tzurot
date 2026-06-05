@@ -10,7 +10,11 @@
 
 import type { Message, Collection } from 'discord.js';
 import type { ConversationSyncService, ObservedSyncMessage } from '@tzurot/common-types';
-import { dualWriteConversationSync } from '../../utils/gatewayServiceCalls.js';
+import {
+  dualWriteConversationSync,
+  getContextMode,
+  syncConversationViaGateway,
+} from '../../utils/contextWritePath.js';
 import type { SyncResult } from './types.js';
 
 /**
@@ -37,10 +41,17 @@ export async function executeDatabaseSync(
   conversationSync: ConversationSyncService
 ): Promise<SyncResult> {
   const observed = toObservedSyncMessages(discordMessages);
+
+  if (getContextMode() === 'service') {
+    // Service mode: the gateway endpoint IS the sync path (never throws,
+    // zero counts on failure — same opportunistic contract as runSync).
+    return syncConversationViaGateway(channelId, personalityId, observed);
+  }
+
   const result = await conversationSync.runSync(channelId, personalityId, observed);
 
-  // Phase 2.5 dual-write: replay the same snapshot against the gateway
-  // endpoint for burn-in verification. The local sync just ran, so the
+  // Legacy-mode burn-in: replay the same snapshot against the gateway
+  // endpoint for log-only comparison. The local sync just ran, so the
   // gateway should find zero work. Fire-and-forget, no-op unless
   // CONTEXT_DUAL_WRITE=true.
   void dualWriteConversationSync(channelId, personalityId, observed);

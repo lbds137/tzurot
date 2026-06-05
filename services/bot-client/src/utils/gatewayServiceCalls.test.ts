@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { JobStatus, SYNC_LIMITS } from '@tzurot/common-types';
+import { JobStatus } from '@tzurot/common-types';
 
 // Mock the ServiceClient factory + the service-secret accessor so the helpers
-// run without real config/network.
+// run without real config/network. (The context write-path helpers live in
+// contextWritePath.ts with their own colocated tests.)
 const mockServiceClient = {
   getChannelSettings: vi.fn(),
   getAdminSettingsInternal: vi.fn(),
@@ -11,8 +12,6 @@ const mockServiceClient = {
   updateDiagnosticResponseIds: vi.fn(),
   aiGenerate: vi.fn(),
   aiConfirmDelivery: vi.fn(),
-  persistAssistantMessage: vi.fn(),
-  syncConversation: vi.fn(),
 };
 
 vi.mock('./gatewayClients.js', () => ({
@@ -37,9 +36,6 @@ import {
   invalidateAdminSettingsCache,
   clearAllChannelSettingsCache,
   _clearAdminSettingsCacheForTesting,
-  isContextDualWriteEnabled,
-  dualWritePersistAssistantMessage,
-  dualWriteConversationSync,
 } from './gatewayServiceCalls.js';
 
 const ok = <T>(data: T): { ok: true; data: T } => ({ ok: true, data });
@@ -290,131 +286,5 @@ describe('transcribe — transient-network retry', () => {
     await assertion;
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('isContextDualWriteEnabled', () => {
-  it('is enabled only by the exact string "true"', () => {
-    expect(isContextDualWriteEnabled({ CONTEXT_DUAL_WRITE: 'true' } as NodeJS.ProcessEnv)).toBe(
-      true
-    );
-    expect(isContextDualWriteEnabled({ CONTEXT_DUAL_WRITE: '1' } as NodeJS.ProcessEnv)).toBe(false);
-    expect(isContextDualWriteEnabled({} as NodeJS.ProcessEnv)).toBe(false);
-  });
-});
-
-describe('dualWritePersistAssistantMessage', () => {
-  const PARAMS = {
-    channelId: 'chan-1',
-    guildId: 'guild-1',
-    personalityId: 'pers-1',
-    personaId: 'persona-1',
-    content: 'response text',
-    chunkMessageIds: ['111111111111111111'],
-    userMessageTime: new Date('2026-06-04T12:00:00.000Z'),
-  };
-
-  afterEach(() => {
-    delete process.env.CONTEXT_DUAL_WRITE;
-  });
-
-  it('no-ops when the flag is off', async () => {
-    await dualWritePersistAssistantMessage(PARAMS);
-    expect(mockServiceClient.persistAssistantMessage).not.toHaveBeenCalled();
-  });
-
-  it('POSTs the payload with ISO userMessageTime when the flag is on', async () => {
-    process.env.CONTEXT_DUAL_WRITE = 'true';
-    mockServiceClient.persistAssistantMessage.mockResolvedValue(
-      ok({ id: 'row-1', created: false, matched: true })
-    );
-
-    await dualWritePersistAssistantMessage(PARAMS);
-
-    expect(mockServiceClient.persistAssistantMessage).toHaveBeenCalledWith({
-      channelId: 'chan-1',
-      guildId: 'guild-1',
-      personalityId: 'pers-1',
-      personaId: 'persona-1',
-      content: 'response text',
-      chunkMessageIds: ['111111111111111111'],
-      userMessageTime: '2026-06-04T12:00:00.000Z',
-    });
-  });
-
-  it('never throws on request failure or client error', async () => {
-    process.env.CONTEXT_DUAL_WRITE = 'true';
-    mockServiceClient.persistAssistantMessage.mockRejectedValue(new Error('network down'));
-
-    await expect(dualWritePersistAssistantMessage(PARAMS)).resolves.toBeUndefined();
-
-    mockServiceClient.persistAssistantMessage.mockResolvedValue(err(500));
-    await expect(dualWritePersistAssistantMessage(PARAMS)).resolves.toBeUndefined();
-  });
-});
-
-describe('dualWriteConversationSync', () => {
-  const OBSERVED = [
-    { id: '111111111111111111', content: 'hello', createdAt: new Date('2026-06-04T12:00:00Z') },
-  ];
-
-  afterEach(() => {
-    delete process.env.CONTEXT_DUAL_WRITE;
-  });
-
-  it('no-ops when the flag is off', async () => {
-    await dualWriteConversationSync('chan-1', 'pers-1', OBSERVED);
-    expect(mockServiceClient.syncConversation).not.toHaveBeenCalled();
-  });
-
-  it('no-ops on an empty snapshot even with the flag on', async () => {
-    process.env.CONTEXT_DUAL_WRITE = 'true';
-    await dualWriteConversationSync('chan-1', 'pers-1', []);
-    expect(mockServiceClient.syncConversation).not.toHaveBeenCalled();
-  });
-
-  it('POSTs the wire-shaped snapshot when the flag is on', async () => {
-    process.env.CONTEXT_DUAL_WRITE = 'true';
-    mockServiceClient.syncConversation.mockResolvedValue(ok({ updated: 0, deleted: 0 }));
-
-    await dualWriteConversationSync('chan-1', 'pers-1', OBSERVED);
-
-    expect(mockServiceClient.syncConversation).toHaveBeenCalledWith({
-      channelId: 'chan-1',
-      personalityId: 'pers-1',
-      observedMessages: [
-        {
-          discordMessageId: '111111111111111111',
-          content: 'hello',
-          createdAt: '2026-06-04T12:00:00.000Z',
-        },
-      ],
-    });
-  });
-
-  it('never throws on request failure or client error', async () => {
-    process.env.CONTEXT_DUAL_WRITE = 'true';
-    mockServiceClient.syncConversation.mockRejectedValue(new Error('network down'));
-
-    await expect(dualWriteConversationSync('chan-1', 'pers-1', OBSERVED)).resolves.toBeUndefined();
-
-    mockServiceClient.syncConversation.mockResolvedValue(err(500));
-    await expect(dualWriteConversationSync('chan-1', 'pers-1', OBSERVED)).resolves.toBeUndefined();
-  });
-
-  it('truncates oversized snapshots to the wire cap (slice is observable, not silent)', async () => {
-    process.env.CONTEXT_DUAL_WRITE = 'true';
-    mockServiceClient.syncConversation.mockResolvedValue(ok({ updated: 0, deleted: 0 }));
-
-    const oversized = Array.from({ length: SYNC_LIMITS.MAX_DISCORD_ID_LOOKUP + 5 }, (_, i) => ({
-      id: `${100000000000000000n + BigInt(i)}`,
-      content: `msg ${i}`,
-      createdAt: new Date('2026-06-04T12:00:00Z'),
-    }));
-
-    await dualWriteConversationSync('chan-1', 'pers-1', oversized);
-
-    const sent = mockServiceClient.syncConversation.mock.calls[0][0].observedMessages;
-    expect(sent).toHaveLength(SYNC_LIMITS.MAX_DISCORD_ID_LOOKUP);
   });
 });

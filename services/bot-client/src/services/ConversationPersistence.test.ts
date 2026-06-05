@@ -45,11 +45,17 @@ vi.mock('../utils/MessageContentBuilder.js', () => ({
   }),
 }));
 
-vi.mock('../utils/gatewayServiceCalls.js', () => ({
+vi.mock('../utils/contextWritePath.js', () => ({
   dualWritePersistAssistantMessage: vi.fn().mockResolvedValue(undefined),
+  persistAssistantMessageViaGateway: vi.fn().mockResolvedValue(undefined),
+  getContextMode: vi.fn(() => 'legacy'),
 }));
 
-import { dualWritePersistAssistantMessage } from '../utils/gatewayServiceCalls.js';
+import {
+  dualWritePersistAssistantMessage,
+  persistAssistantMessageViaGateway,
+  getContextMode,
+} from '../utils/contextWritePath.js';
 
 describe('ConversationPersistence', () => {
   let persistence: ConversationPersistence;
@@ -534,6 +540,58 @@ describe('ConversationPersistence', () => {
         chunkMessageIds: ['chunk-1'],
         userMessageTime,
       });
+    });
+
+    it('service mode: the gateway write is authoritative and the local write is skipped', async () => {
+      vi.mocked(getContextMode).mockReturnValueOnce('service');
+      const mockMessage = createMockMessage({
+        id: 'discord-msg-123',
+        channelId: 'channel-123',
+        guildId: 'guild-123',
+      });
+      const userMessageTime = new Date('2025-01-01T10:00:00.000Z');
+
+      await persistence.saveAssistantMessage({
+        message: mockMessage,
+        personality: mockPersonality,
+        personaId: 'persona-uuid-123',
+        content: 'Assistant response',
+        chunkMessageIds: ['chunk-1'],
+        userMessageTime,
+      });
+
+      expect(persistAssistantMessageViaGateway).toHaveBeenCalledWith({
+        channelId: 'channel-123',
+        guildId: 'guild-123',
+        personalityId: 'personality-123',
+        personaId: 'persona-uuid-123',
+        content: 'Assistant response',
+        chunkMessageIds: ['chunk-1'],
+        userMessageTime,
+      });
+      expect(mockConversationHistory.addMessage).not.toHaveBeenCalled();
+      expect(dualWritePersistAssistantMessage).not.toHaveBeenCalled();
+    });
+
+    it('service mode: gateway write failures propagate to the caller', async () => {
+      vi.mocked(getContextMode).mockReturnValueOnce('service');
+      vi.mocked(persistAssistantMessageViaGateway).mockRejectedValueOnce(new Error('gateway down'));
+      const mockMessage = createMockMessage({
+        id: 'discord-msg-123',
+        channelId: 'channel-123',
+        guildId: 'guild-123',
+      });
+
+      await expect(
+        persistence.saveAssistantMessage({
+          message: mockMessage,
+          personality: mockPersonality,
+          personaId: 'persona-uuid-123',
+          content: 'Assistant response',
+          chunkMessageIds: ['chunk-1'],
+          userMessageTime: new Date('2025-01-01T10:00:00.000Z'),
+        })
+      ).rejects.toThrow('gateway down');
     });
 
     it('should handle multiple chunk message IDs', async () => {
