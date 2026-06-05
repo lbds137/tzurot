@@ -38,6 +38,7 @@ import { handleAiConfirmDelivery } from '../ai/confirmDelivery.js';
 import { handleSetDmSession } from '../internal/dmSessionSet.js';
 import { handleLookupPersonalityFromMessage } from '../user/conversationLookup.js';
 import { handlePersistAssistantMessage } from '../internal/conversationAssistantMessage.js';
+import { handlePersistUserMessage } from '../internal/conversationUserMessage.js';
 import { handleSyncConversation } from '../internal/conversationSync.js';
 import { handleLoadPersonalityInternal } from '../internal/personalityLoad.js';
 import { handleRecentUsers } from '../internal/usersRecent.js';
@@ -102,6 +103,7 @@ export function mountInternalRoutes(app: Express, deps: RouteDeps): void {
   app.post('/api/internal/channel/dm-session/set', handleSetDmSession(deps));
   app.get('/api/internal/conversation/message-personality', handleLookupPersonalityFromMessage(deps));
   app.post('/api/internal/conversation/assistant-message', handlePersistAssistantMessage(deps));
+  app.post('/api/internal/conversation/user-message', handlePersistUserMessage(deps));
   app.post('/api/internal/conversation/sync', handleSyncConversation(deps));
   app.get('/api/internal/personality/load', handleLoadPersonalityInternal(deps));
   app.get('/api/internal/users/recent', handleRecentUsers(deps));

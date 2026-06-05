@@ -133,6 +133,19 @@ export class ServiceClient {
     });
   }
 
+  async persistUserMessage(input: z.infer<typeof ROUTE_MANIFEST.persistUserMessage.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.persistUserMessage.output>>> {
+    const fullPath = '/api/internal/conversation/user-message';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      body: input,
+      outputSchema: ROUTE_MANIFEST.persistUserMessage.output,
+      timeoutMs: ROUTE_MANIFEST.persistUserMessage.timeoutMs,
+    });
+  }
+
   async syncConversation(input: z.infer<typeof ROUTE_MANIFEST.syncConversation.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.syncConversation.output>>> {
     const fullPath = '/api/internal/conversation/sync';
     return callGateway({

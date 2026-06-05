@@ -8,7 +8,7 @@
  * legacy path and both flags) in 2.5d once service mode has burned in.
  */
 
-import { createLogger, SYNC_LIMITS } from '@tzurot/common-types';
+import { createLogger, SYNC_LIMITS, type MessageMetadata } from '@tzurot/common-types';
 import { getServiceClient } from './gatewayClients.js';
 
 const logger = createLogger('contextWritePath');
@@ -50,6 +50,97 @@ interface ObservedSyncSnapshotMessage {
   id: string;
   content: string;
   createdAt: Date;
+}
+
+interface UserMessageWriteParams {
+  channelId: string;
+  guildId: string | null;
+  personalityId: string;
+  personaId: string;
+  /** Final content: user text + attachment placeholders, assembled bot-side. */
+  content: string;
+  discordMessageId: string;
+  messageMetadata?: MessageMetadata;
+  /** Discord message timestamp — becomes the row's createdAt. */
+  messageTime: Date;
+}
+
+function buildUserMessagePayload(params: UserMessageWriteParams): {
+  channelId: string;
+  guildId: string | null;
+  personalityId: string;
+  personaId: string;
+  content: string;
+  discordMessageId: string;
+  messageMetadata?: MessageMetadata;
+  messageTime: string;
+} {
+  return {
+    channelId: params.channelId,
+    guildId: params.guildId,
+    personalityId: params.personalityId,
+    personaId: params.personaId,
+    content: params.content,
+    discordMessageId: params.discordMessageId,
+    ...(params.messageMetadata !== undefined && { messageMetadata: params.messageMetadata }),
+    messageTime: params.messageTime.toISOString(),
+  };
+}
+
+/**
+ * Persist the trigger user message via the gateway endpoint — the
+ * AUTHORITATIVE write in service mode, called synchronously BEFORE job
+ * submission so the next message's history query always sees this row.
+ * Throws on failure, matching the legacy local write's error semantics.
+ */
+export async function persistUserMessageViaGateway(params: UserMessageWriteParams): Promise<void> {
+  const result = await getServiceClient().persistUserMessage(buildUserMessagePayload(params));
+  if (!result.ok) {
+    throw new Error(`User-message persist failed via gateway: ${result.status} ${result.error}`);
+  }
+  if (result.data.created === false && result.data.matched === false) {
+    // Idempotent replay with divergent content — durable row wins; warn only.
+    logger.warn(
+      { ...result.data, channelId: params.channelId },
+      'User-message gateway persist hit an existing row with different content'
+    );
+    return;
+  }
+  logger.debug(
+    { id: result.data.id, created: result.data.created, channelId: params.channelId },
+    'User message persisted via gateway'
+  );
+}
+
+/**
+ * Mirror a just-persisted user message to the gateway endpoint (legacy-mode
+ * burn-in). Fire-and-forget: never throws. Expected outcome is
+ * `created: false, matched: true`; anything else logs as divergence.
+ */
+export async function dualWritePersistUserMessage(params: UserMessageWriteParams): Promise<void> {
+  if (!isContextDualWriteEnabled()) {
+    return;
+  }
+  try {
+    const result = await getServiceClient().persistUserMessage(buildUserMessagePayload(params));
+    if (!result.ok) {
+      logger.warn(
+        { status: result.status, channelId: params.channelId },
+        'User-message dual-write request failed'
+      );
+      return;
+    }
+    if (result.data.created || result.data.matched === false) {
+      logger.warn(
+        { ...result.data, channelId: params.channelId },
+        'User-message dual-write DIVERGED from local write'
+      );
+    } else {
+      logger.debug({ id: result.data.id }, 'User-message dual-write matched');
+    }
+  } catch (error) {
+    logger.warn({ err: error, channelId: params.channelId }, 'User-message dual-write error');
+  }
 }
 
 function buildAssistantMessagePayload(params: AssistantMessageWriteParams): {

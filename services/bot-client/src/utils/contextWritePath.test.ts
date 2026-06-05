@@ -4,6 +4,7 @@ import { SYNC_LIMITS } from '@tzurot/common-types';
 // Mock the ServiceClient factory so the helpers run without real config/network.
 const mockServiceClient = {
   persistAssistantMessage: vi.fn(),
+  persistUserMessage: vi.fn(),
   syncConversation: vi.fn(),
 };
 
@@ -14,9 +15,11 @@ vi.mock('./gatewayClients.js', () => ({
 import {
   isContextDualWriteEnabled,
   dualWritePersistAssistantMessage,
+  dualWritePersistUserMessage,
   dualWriteConversationSync,
   getContextMode,
   persistAssistantMessageViaGateway,
+  persistUserMessageViaGateway,
   syncConversationViaGateway,
 } from './contextWritePath.js';
 
@@ -253,5 +256,104 @@ describe('syncConversationViaGateway', () => {
       updated: 0,
       deleted: 0,
     });
+  });
+});
+
+describe('persistUserMessageViaGateway', () => {
+  const PARAMS = {
+    channelId: 'chan-1',
+    guildId: 'guild-1',
+    personalityId: 'pers-1',
+    personaId: 'persona-1',
+    content: 'Hello bot!\n\n[Image: cat.png]',
+    discordMessageId: '111111111111111111',
+    messageMetadata: { isForwarded: true },
+    messageTime: new Date('2026-06-04T12:00:00.000Z'),
+  };
+
+  it('POSTs the payload with ISO messageTime and metadata', async () => {
+    mockServiceClient.persistUserMessage.mockResolvedValue(ok({ id: 'row-1', created: true }));
+
+    await persistUserMessageViaGateway(PARAMS);
+
+    expect(mockServiceClient.persistUserMessage).toHaveBeenCalledWith({
+      channelId: 'chan-1',
+      guildId: 'guild-1',
+      personalityId: 'pers-1',
+      personaId: 'persona-1',
+      content: 'Hello bot!\n\n[Image: cat.png]',
+      discordMessageId: '111111111111111111',
+      messageMetadata: { isForwarded: true },
+      messageTime: '2026-06-04T12:00:00.000Z',
+    });
+  });
+
+  it('omits the messageMetadata key entirely when undefined', async () => {
+    mockServiceClient.persistUserMessage.mockResolvedValue(ok({ id: 'row-1', created: true }));
+
+    await persistUserMessageViaGateway({ ...PARAMS, messageMetadata: undefined });
+
+    const sent = mockServiceClient.persistUserMessage.mock.calls[0][0];
+    expect('messageMetadata' in sent).toBe(false);
+  });
+
+  it('THROWS on a request failure (authoritative write, caller owns the catch)', async () => {
+    mockServiceClient.persistUserMessage.mockResolvedValue(err(503));
+
+    await expect(persistUserMessageViaGateway(PARAMS)).rejects.toThrow(
+      'User-message persist failed via gateway: 503'
+    );
+  });
+
+  it('resolves (warn, not throw) on an idempotent replay that diverged', async () => {
+    mockServiceClient.persistUserMessage.mockResolvedValue(
+      ok({ id: 'row-1', created: false, matched: false })
+    );
+
+    await expect(persistUserMessageViaGateway(PARAMS)).resolves.toBeUndefined();
+  });
+
+  it('resolves quietly on an idempotent replay that matched', async () => {
+    mockServiceClient.persistUserMessage.mockResolvedValue(
+      ok({ id: 'row-1', created: false, matched: true })
+    );
+
+    await expect(persistUserMessageViaGateway(PARAMS)).resolves.toBeUndefined();
+  });
+});
+
+describe('dualWritePersistUserMessage', () => {
+  const PARAMS = {
+    channelId: 'chan-1',
+    guildId: null,
+    personalityId: 'pers-1',
+    personaId: 'persona-1',
+    content: 'hi',
+    discordMessageId: '111111111111111111',
+    messageTime: new Date('2026-06-04T12:00:00.000Z'),
+  };
+
+  afterEach(() => {
+    delete process.env.CONTEXT_DUAL_WRITE;
+  });
+
+  it('no-ops when the flag is off', async () => {
+    await dualWritePersistUserMessage(PARAMS);
+    expect(mockServiceClient.persistUserMessage).not.toHaveBeenCalled();
+  });
+
+  it('POSTs when the flag is on and never throws on errors', async () => {
+    process.env.CONTEXT_DUAL_WRITE = 'true';
+    mockServiceClient.persistUserMessage.mockResolvedValue(
+      ok({ id: 'row-1', created: false, matched: true })
+    );
+    await dualWritePersistUserMessage(PARAMS);
+    expect(mockServiceClient.persistUserMessage).toHaveBeenCalledTimes(1);
+
+    mockServiceClient.persistUserMessage.mockRejectedValue(new Error('network down'));
+    await expect(dualWritePersistUserMessage(PARAMS)).resolves.toBeUndefined();
+
+    mockServiceClient.persistUserMessage.mockResolvedValue(err(500));
+    await expect(dualWritePersistUserMessage(PARAMS)).resolves.toBeUndefined();
   });
 });

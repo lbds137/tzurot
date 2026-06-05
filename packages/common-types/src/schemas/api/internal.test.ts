@@ -7,6 +7,8 @@ import {
   MessagePersonalityResponseSchema,
   PersistAssistantMessageRequestSchema,
   PersistAssistantMessageResponseSchema,
+  PersistUserMessageRequestSchema,
+  PersistUserMessageResponseSchema,
   ConversationSyncRequestSchema,
   ConversationSyncResponseSchema,
   LoadPersonalityInternalResponseSchema,
@@ -257,6 +259,99 @@ describe('PersistAssistantMessageResponseSchema', () => {
         matched: false,
       }).success
     ).toBe(true);
+  });
+});
+
+const VALID_USER_PERSIST_REQUEST = {
+  channelId: '123456789012345678',
+  guildId: '876543210987654321',
+  personalityId: '550e8400-e29b-41d4-a716-446655440000',
+  personaId: '550e8400-e29b-41d4-a716-446655440001',
+  content: 'Hello bot!\n\n[Image: cat.png]',
+  discordMessageId: '111111111111111111',
+  messageTime: '2026-06-04T12:00:00.000Z',
+};
+
+describe('PersistUserMessageRequestSchema', () => {
+  it('accepts a metadata-free request (plain text message)', () => {
+    expect(PersistUserMessageRequestSchema.safeParse(VALID_USER_PERSIST_REQUEST).success).toBe(
+      true
+    );
+  });
+
+  it('accepts structured messageMetadata (references + forwarded flag)', () => {
+    expect(
+      PersistUserMessageRequestSchema.safeParse({
+        ...VALID_USER_PERSIST_REQUEST,
+        messageMetadata: {
+          isForwarded: true,
+          referencedMessages: [
+            {
+              discordMessageId: '222222222222222222',
+              authorUsername: 'other',
+              authorDisplayName: 'Other User',
+              content: 'referenced text',
+              timestamp: '2026-06-04T11:59:00.000Z',
+              locationContext: 'same-channel',
+            },
+          ],
+        },
+      }).success
+    ).toBe(true);
+  });
+
+  it('accepts null guildId (DM messages)', () => {
+    expect(
+      PersistUserMessageRequestSchema.safeParse({ ...VALID_USER_PERSIST_REQUEST, guildId: null })
+        .success
+    ).toBe(true);
+  });
+
+  it('rejects empty content', () => {
+    expect(
+      PersistUserMessageRequestSchema.safeParse({ ...VALID_USER_PERSIST_REQUEST, content: '' })
+        .success
+    ).toBe(false);
+  });
+
+  it('rejects a non-snowflake discordMessageId', () => {
+    expect(
+      PersistUserMessageRequestSchema.safeParse({
+        ...VALID_USER_PERSIST_REQUEST,
+        discordMessageId: 'nope',
+      }).success
+    ).toBe(false);
+  });
+
+  it('rejects non-ISO messageTime', () => {
+    expect(
+      PersistUserMessageRequestSchema.safeParse({
+        ...VALID_USER_PERSIST_REQUEST,
+        messageTime: 'yesterday',
+      }).success
+    ).toBe(false);
+  });
+});
+
+describe('PersistUserMessageResponseSchema', () => {
+  it('accepts a created response without matched', () => {
+    expect(
+      PersistUserMessageResponseSchema.safeParse({ id: 'row-uuid', created: true }).success
+    ).toBe(true);
+  });
+
+  it('accepts an existing-row response with matched', () => {
+    expect(
+      PersistUserMessageResponseSchema.safeParse({
+        id: 'row-uuid',
+        created: false,
+        matched: false,
+      }).success
+    ).toBe(true);
+  });
+
+  it('rejects a response missing created', () => {
+    expect(PersistUserMessageResponseSchema.safeParse({ id: 'row-uuid' }).success).toBe(false);
   });
 });
 

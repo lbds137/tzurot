@@ -122,6 +122,7 @@ const PATH_MAP: Readonly<Record<string, string>> = {
   setDmSession: '../internal/dmSessionSet.js',
   lookupPersonalityFromMessage: '../user/conversationLookup.js',
   persistAssistantMessage: '../internal/conversationAssistantMessage.js',
+  persistUserMessage: '../internal/conversationUserMessage.js',
   syncConversation: '../internal/conversationSync.js',
   loadPersonalityInternal: '../internal/personalityLoad.js',
 
