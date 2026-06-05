@@ -14,6 +14,7 @@ vi.mock('./gatewayClients.js', () => ({
 
 import {
   isContextDualWriteEnabled,
+  isRawEnvelopeEnabled,
   dualWritePersistAssistantMessage,
   dualWritePersistUserMessage,
   dualWriteConversationSync,
@@ -157,6 +158,14 @@ describe('dualWriteConversationSync', () => {
 
     const sent = mockServiceClient.syncConversation.mock.calls[0][0].observedMessages;
     expect(sent).toHaveLength(SYNC_LIMITS.MAX_DISCORD_ID_LOOKUP);
+  });
+});
+
+describe('isRawEnvelopeEnabled', () => {
+  it('is enabled only by the exact string "true"', () => {
+    expect(isRawEnvelopeEnabled({ CONTEXT_RAW_ENVELOPE: 'true' } as NodeJS.ProcessEnv)).toBe(true);
+    expect(isRawEnvelopeEnabled({ CONTEXT_RAW_ENVELOPE: '1' } as NodeJS.ProcessEnv)).toBe(false);
+    expect(isRawEnvelopeEnabled({} as NodeJS.ProcessEnv)).toBe(false);
   });
 });
 

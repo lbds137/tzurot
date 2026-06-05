@@ -17,6 +17,8 @@ import {
   generateRequestSchema,
   attachmentMetadataSchema,
   requestContextSchema,
+  rawAssemblyInputsSchema,
+  rawDiscordUserSchema,
   loadedPersonalitySchema,
   referencedMessageSchema,
   type GenerateRequest,
@@ -415,6 +417,89 @@ describe('API Endpoint Contract Tests', () => {
       };
 
       const result = requestContextSchema.safeParse(validContext);
+      expect(result.success).toBe(true);
+    });
+
+    it('should validate rawDiscordUser with and without the isBot flag', () => {
+      expect(
+        rawDiscordUserSchema.safeParse({
+          discordId: '123456789012345678',
+          username: 'lbds137',
+          displayName: 'Vladlena',
+        }).success
+      ).toBe(true);
+      expect(
+        rawDiscordUserSchema.safeParse({
+          discordId: '123456789012345678',
+          username: 'somebot',
+          displayName: 'Some Bot',
+          isBot: true,
+        }).success
+      ).toBe(true);
+      expect(rawDiscordUserSchema.safeParse({ discordId: 'x', username: 'y' }).success).toBe(false);
+    });
+
+    it('should validate rawAssemblyInputs with only rawMessageContent (minimal)', () => {
+      expect(
+        rawAssemblyInputsSchema.safeParse({ rawMessageContent: '<@123> hi there' }).success
+      ).toBe(true);
+      // rawMessageContent is the one required field
+      expect(rawAssemblyInputsSchema.safeParse({}).success).toBe(false);
+    });
+
+    it('should validate a fully-populated rawAssemblyInputs', () => {
+      const result = rawAssemblyInputsSchema.safeParse({
+        rawMessageContent: '<@123> check https://discord.com/channels/1/2/3',
+        rawMentionedUsers: [
+          { discordId: '123456789012345678', username: 'other', displayName: 'Other' },
+        ],
+        rawReferencedMessages: [
+          {
+            referenceNumber: 1,
+            discordMessageId: 'msg-123',
+            discordUserId: 'user-456',
+            authorUsername: 'testuser',
+            authorDisplayName: 'Test User',
+            content: 'Referenced content (pre-transcript)',
+            embeds: '',
+            timestamp: new Date().toISOString(),
+            locationContext: 'Test Server / #general',
+          },
+        ],
+        rawExtendedContextMessages: [
+          {
+            role: MessageRole.User,
+            content: 'extended msg',
+            createdAt: new Date().toISOString(),
+          },
+        ],
+        rawExtendedContextUsers: [
+          { discordId: '223456789012345678', username: 'ext', displayName: 'Ext User' },
+        ],
+        rawReactorUsers: [
+          {
+            discordId: '323456789012345678',
+            username: 'reactor',
+            displayName: 'Reactor',
+            isBot: true,
+          },
+        ],
+        knownChannelEnvironments: {
+          '423456789012345678': {
+            type: 'guild',
+            guild: { id: 'guild-123', name: 'Test Guild' },
+            channel: { id: '423456789012345678', name: 'general', type: 'GUILD_TEXT' },
+          },
+        },
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept requestContext carrying rawAssemblyInputs', () => {
+      const result = requestContextSchema.safeParse({
+        userId: 'user-123',
+        rawAssemblyInputs: { rawMessageContent: 'hello' },
+      });
       expect(result.success).toBe(true);
     });
   });

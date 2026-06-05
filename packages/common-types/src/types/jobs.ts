@@ -19,6 +19,7 @@ import {
   type DiscordEnvironment,
   type LLMGenerationResult,
   type GuildMemberInfo,
+  type RawAssemblyInputs,
   loadedPersonalitySchema,
   mentionedPersonaSchema,
   referencedChannelSchema,
@@ -28,6 +29,7 @@ import {
   discordEnvironmentSchema,
   guildMemberInfoSchema,
   crossChannelHistoryGroupSchema,
+  rawAssemblyInputsSchema,
 } from './schemas/index.js';
 import { JobType, JobStatus } from '../constants/queue.js';
 import { MessageRole } from '../constants/message.js';
@@ -104,6 +106,12 @@ export interface JobContext {
   crossChannelHistory?: CrossChannelHistoryGroupEntry[];
   /** Whether the triggering message was a voice message (used for voice-only TTS mode) */
   isVoiceMessage?: boolean;
+  /**
+   * Raw Discord-origin assembly inputs for worker-side context assembly
+   * (burn-in instrumentation; present only when bot-client ships them via
+   * CONTEXT_RAW_ENVELOPE=true). See rawAssemblyInputsSchema.
+   */
+  rawAssemblyInputs?: RawAssemblyInputs;
 }
 
 /**
@@ -345,6 +353,7 @@ const jobContextSchema = z.object({
   referencedChannels: z.array(referencedChannelSchema).optional(),
   crossChannelHistory: z.array(crossChannelHistoryGroupSchema).optional(),
   isVoiceMessage: z.boolean().optional(),
+  rawAssemblyInputs: rawAssemblyInputsSchema.optional(),
 });
 
 /**
