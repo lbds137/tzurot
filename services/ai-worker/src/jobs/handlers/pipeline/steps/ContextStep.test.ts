@@ -37,9 +37,14 @@ vi.mock('../../../utils/conversationUtils.js', () => ({
   convertConversationHistory: mockConvertConversationHistory,
 }));
 
-const { mockShadowHydrateAndDiff, mockIsShadowHydrationEnabled } = vi.hoisted(() => ({
-  mockShadowHydrateAndDiff: vi.fn().mockResolvedValue(undefined),
-  mockIsShadowHydrationEnabled: vi.fn().mockReturnValue(false),
+const { mockShadowHydrateAndDiff, mockIsShadowHydrationEnabled, mockShadowAssembleAndDiff } =
+  vi.hoisted(() => ({
+    mockShadowHydrateAndDiff: vi.fn().mockResolvedValue(undefined),
+    mockIsShadowHydrationEnabled: vi.fn().mockReturnValue(false),
+    mockShadowAssembleAndDiff: vi.fn(),
+  }));
+vi.mock('../../../../services/context/shadowAssembly.js', () => ({
+  shadowAssembleAndDiff: mockShadowAssembleAndDiff,
 }));
 vi.mock('../../../../services/context/shadowHydration.js', () => ({
   shadowHydrateAndDiff: mockShadowHydrateAndDiff,
@@ -135,6 +140,36 @@ describe('ContextStep', () => {
       gatedStep.process({ job: createMockJob(), startTime: Date.now(), config });
 
       expect(mockShadowHydrateAndDiff).not.toHaveBeenCalled();
+    });
+
+    it('routes to the ASSEMBLY shadow when the raw envelope is present and an assembler is wired', () => {
+      mockIsShadowHydrationEnabled.mockReturnValue(true);
+      const fakeAssembler = { assembleCore: vi.fn() };
+      const gatedStep = new ContextStep(fakeDataSource, fakeAssembler as never);
+
+      gatedStep.process({
+        job: createMockJob({
+          context: { userId: 'user-1', rawAssemblyInputs: { rawMessageContent: 'raw' } } as never,
+        }),
+        startTime: Date.now(),
+        config,
+      });
+
+      expect(mockShadowAssembleAndDiff).toHaveBeenCalledWith(
+        expect.objectContaining({ jobId: 'job-123', assembler: fakeAssembler })
+      );
+      expect(mockShadowHydrateAndDiff).not.toHaveBeenCalled();
+    });
+
+    it('falls back to the hydration shadow when the envelope is absent', () => {
+      mockIsShadowHydrationEnabled.mockReturnValue(true);
+      const fakeAssembler = { assembleCore: vi.fn() };
+      const gatedStep = new ContextStep(fakeDataSource, fakeAssembler as never);
+
+      gatedStep.process({ job: createMockJob(), startTime: Date.now(), config });
+
+      expect(mockShadowHydrateAndDiff).toHaveBeenCalled();
+      expect(mockShadowAssembleAndDiff).not.toHaveBeenCalled();
     });
 
     it('does NOT invoke shadow hydration without a data source, even with the flag on', () => {

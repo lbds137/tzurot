@@ -54,6 +54,13 @@ export const rawAssemblyInputsSchema = z.object({
   /** message.content verbatim — before mention replacement and [Reference N] link rewriting. */
   rawMessageContent: z.string(),
   /**
+   * The author's effective display name (member nick ?? globalName ??
+   * username) — feeds getOrCreateUser's persona naming for first-contact
+   * users, which the worker-side assembler re-runs. Absent only from senders
+   * predating this field (the assembler falls back to the username).
+   */
+  rawAuthorDisplayName: z.string().optional(),
+  /**
    * message.mentions.users — targets for worker-side persona resolution +
    * content rewriting. Absent when the message mentions no users (mentions
    * are always observed on a Discord message, so unlike the extended-context

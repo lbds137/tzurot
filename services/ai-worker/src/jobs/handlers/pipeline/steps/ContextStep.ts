@@ -15,6 +15,8 @@ import {
   isShadowHydrationEnabled,
   shadowHydrateAndDiff,
 } from '../../../../services/context/shadowHydration.js';
+import { shadowAssembleAndDiff } from '../../../../services/context/shadowAssembly.js';
+import type { ContextAssembler } from '../../../../services/context/ContextAssembler.js';
 import type { IPipelineStep, GenerationContext, Participant, PreparedContext } from '../types.js';
 
 const logger = createLogger('ContextStep');
@@ -57,7 +59,10 @@ export class ContextStep implements IPipelineStep {
    * instrumentation for the context-assembly relocation; the payload
    * remains the source of truth for generation. Remove alongside the flag.
    */
-  constructor(private readonly contextDataSource?: ContextDataSource) {}
+  constructor(
+    private readonly contextDataSource?: ContextDataSource,
+    private readonly contextAssembler?: ContextAssembler
+  ) {}
 
   /**
    * Resolved once per step instance (pipeline is built at startup) — the
@@ -65,6 +70,40 @@ export class ContextStep implements IPipelineStep {
    * nothing.
    */
   private readonly shadowEnabled = isShadowHydrationEnabled();
+
+  /**
+   * Route to the right shadow instrumentation. Raw envelope present + an
+   * assembler wired → the FULL assembly shadow (real-DB hydration +
+   * user/persona re-derivation + shared merge); otherwise the legacy
+   * hydration-only shadow. Both intentionally not awaited — fire-and-forget
+   * per the constructor JSDoc.
+   */
+  private dispatchShadow(
+    jobId: string | number | undefined,
+    jobContext: GenerationContext['job']['data']['context'],
+    personality: GenerationContext['job']['data']['personality'],
+    configOverrides: GenerationContext['configOverrides']
+  ): void {
+    if (jobContext.rawAssemblyInputs !== undefined && this.contextAssembler !== undefined) {
+      void shadowAssembleAndDiff({
+        jobId,
+        jobContext,
+        personality,
+        configOverrides,
+        assembler: this.contextAssembler,
+      });
+      return;
+    }
+    if (this.contextDataSource !== undefined) {
+      void shadowHydrateAndDiff({
+        jobId,
+        jobContext,
+        personalityId: personality.id,
+        configOverrides,
+        dataSource: this.contextDataSource,
+      });
+    }
+  }
 
   process(context: GenerationContext): GenerationContext {
     const { job, config } = context;
@@ -74,15 +113,8 @@ export class ContextStep implements IPipelineStep {
       throw new Error('[ContextStep] ConfigStep must run before ContextStep');
     }
 
-    if (this.contextDataSource !== undefined && this.shadowEnabled) {
-      // Intentionally not awaited — see constructor JSDoc.
-      void shadowHydrateAndDiff({
-        jobId: job.id,
-        jobContext,
-        personalityId: personality.id,
-        configOverrides: context.configOverrides,
-        dataSource: this.contextDataSource,
-      });
+    if (this.shadowEnabled) {
+      this.dispatchShadow(job.id, jobContext, personality, context.configOverrides);
     }
 
     // Calculate oldest timestamp from conversation history AND referenced messages

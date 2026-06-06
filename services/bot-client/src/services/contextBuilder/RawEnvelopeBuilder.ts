@@ -112,6 +112,8 @@ export function buildRawAssemblyInputs(
     rawReferencedMessages?: ReferencedMessage[];
     rawMentionedChannels?: RawMentionedChannel[];
     rawMentionedRoles?: RawMentionedRole[];
+    /** The author's effective display name from buildContext step 1. */
+    authorDisplayName?: string;
   }
 ): RawAssemblyInputs | undefined {
   if (!isRawEnvelopeEnabled()) {
@@ -119,6 +121,7 @@ export function buildRawAssemblyInputs(
   }
   return {
     rawMessageContent: content,
+    rawAuthorDisplayName: refs?.authorDisplayName,
     rawReferencedMessages: refs?.rawReferencedMessages,
     rawMentionedChannels: refs?.rawMentionedChannels,
     rawMentionedRoles: refs?.rawMentionedRoles,
