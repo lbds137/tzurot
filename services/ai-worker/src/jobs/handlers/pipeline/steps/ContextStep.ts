@@ -79,7 +79,7 @@ export class ContextStep implements IPipelineStep {
    * per the constructor JSDoc.
    */
   private dispatchShadow(
-    job: { id?: string | number; timestamp?: number },
+    job: Pick<GenerationContext['job'], 'id' | 'timestamp' | 'data'>,
     jobContext: GenerationContext['job']['data']['context'],
     personality: GenerationContext['job']['data']['personality'],
     configOverrides: GenerationContext['configOverrides']
@@ -94,6 +94,8 @@ export class ContextStep implements IPipelineStep {
         // Enqueue time stands in for the bot's crawl-time wall clock in the
         // reference time-fallback dedup window.
         jobTimestampMs: job.timestamp,
+        // The bot-rewritten content the worker's rewrite is diffed against.
+        payloadMessage: typeof job.data.message === 'string' ? job.data.message : undefined,
       });
       return;
     }

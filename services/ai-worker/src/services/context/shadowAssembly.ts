@@ -19,6 +19,8 @@ import {
   createLogger,
   type JobContext,
   type LoadedPersonality,
+  type MentionedPersona,
+  type ReferencedChannel,
   type ReferencedMessage,
   type ResolvedConfigOverrides,
 } from '@tzurot/common-types';
@@ -34,6 +36,12 @@ interface ShadowAssemblyParams {
   assembler: ContextAssembler;
   /** Job enqueue timestamp — anchors the reference time-fallback dedup window. */
   jobTimestampMs: number | undefined;
+  /**
+   * The job's `message` field (the bot-rewritten content) — the comparison
+   * target for the worker-rewritten messageContent. Undefined when the job
+   * carries a non-string message shape.
+   */
+  payloadMessage: string | undefined;
 }
 
 interface SurfaceMatches {
@@ -46,6 +54,36 @@ interface SurfaceMatches {
   historyPersonaIds: boolean;
   /** True when matched OR skipped (envelope carried no raw references to re-derive from). */
   referencedMessages: boolean;
+  /**
+   * True when matched OR skipped. Skipped for voice jobs (the envelope
+   * carries the transcript while the payload rewrote the empty refetched
+   * content — structurally incomparable while the voice content story is
+   * unresolved) and for non-string payload messages.
+   */
+  messageContent: boolean;
+  /** Set comparison over persona ids (payload omits the field when empty). */
+  mentionedPersonas: boolean;
+  /** Set comparison over channel ids (payload omits the field when empty). */
+  referencedChannels: boolean;
+}
+
+/** Compare two optional id-bearing lists as sets (payload-parity: undefined ≡ []). */
+function idSetsMatch<T>(
+  payload: T[] | undefined,
+  assembled: T[] | undefined,
+  idOf: (item: T) => string
+): boolean {
+  const payloadIds = new Set((payload ?? []).map(idOf));
+  const assembledIds = new Set((assembled ?? []).map(idOf));
+  if (payloadIds.size !== assembledIds.size) {
+    return false;
+  }
+  for (const id of payloadIds) {
+    if (!assembledIds.has(id)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /**
@@ -217,6 +255,18 @@ export async function shadowAssembleAndDiff(params: ShadowAssemblyParams): Promi
       assembled.referencedMessages
     );
 
+    // Voice jobs: raw content carries the transcript, the payload rewrote the
+    // (empty) refetched Discord content — structurally incomparable while
+    // the voice content story is unresolved.
+    const contentCompared =
+      params.payloadMessage !== undefined && jobContext.isVoiceMessage !== true;
+    const contentDiff = {
+      compared: contentCompared,
+      matched: contentCompared ? assembled.messageContent === params.payloadMessage : true,
+      payloadLength: params.payloadMessage?.length ?? 0,
+      assembledLength: assembled.messageContent.length,
+    };
+
     const matches: SurfaceMatches = {
       userInternalId: assembled.userInternalId === jobContext.userInternalId,
       activePersonaId: assembled.activePersonaId === jobContext.activePersonaId,
@@ -229,6 +279,17 @@ export async function shadowAssembleAndDiff(params: ShadowAssemblyParams): Promi
       historyContent: historyDiff.content,
       historyPersonaIds: historyDiff.personaIds,
       referencedMessages: referenceDiff.matched,
+      messageContent: contentDiff.matched,
+      mentionedPersonas: idSetsMatch(
+        jobContext.mentionedPersonas,
+        assembled.mentionedPersonas,
+        (p: MentionedPersona) => p.personaId
+      ),
+      referencedChannels: idSetsMatch(
+        jobContext.referencedChannels,
+        assembled.referencedChannels,
+        (c: ReferencedChannel) => c.channelId
+      ),
     };
     const allMatched = Object.values(matches).every(Boolean);
 
@@ -245,6 +306,7 @@ export async function shadowAssembleAndDiff(params: ShadowAssemblyParams): Promi
         personaIdMismatches: historyDiff.personaIdMismatches,
       },
       referenceDiff,
+      contentDiff,
     };
 
     if (allMatched) {

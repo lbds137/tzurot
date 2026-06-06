@@ -24,12 +24,15 @@ import {
   type ConversationMessage,
   type JobContext,
   type LoadedPersonality,
+  type MentionedPersona,
   type PersonaResolver,
   type RawAssemblyInputs,
+  type ReferencedChannel,
   type ReferencedMessage,
   type ResolvedConfigOverrides,
   type UserService,
 } from '@tzurot/common-types';
+import { rewriteRawContent } from './contentRewriter.js';
 import { enrichRawReferences } from './referenceEnricher.js';
 import type { ContextDataSource } from './types.js';
 
@@ -51,6 +54,17 @@ export interface AssembledCore {
    * weigh-in mode or a sender predating the field).
    */
   referencedMessages: ReferencedMessage[] | undefined;
+  /**
+   * The rewritten message content ([Reference N] links + mention names).
+   * In weigh-in mode this is the raw content untouched — the bot skips all
+   * rewriting there, and mirroring that also avoids upserting mention users
+   * for anonymous pokes.
+   */
+  messageContent: string;
+  /** Personas resolved from user mentions; undefined when none (payload parity). */
+  mentionedPersonas: MentionedPersona[] | undefined;
+  /** Channels resolved from channel mentions; undefined when none (payload parity). */
+  referencedChannels: ReferencedChannel[] | undefined;
 }
 
 /** Per-call assembly options (job-scoped values the deps can't carry). */
@@ -163,6 +177,33 @@ export class ContextAssembler {
     // dedup against the just-assembled history, transcripts from OWN DB.
     const referencedMessages = await this.enrichReferences(raw, history, options);
 
+    // Step 6: content rewriting (links → user mentions → channels → roles),
+    // skipped wholesale in weigh-in mode to mirror the bot-side early return.
+    const rewritten =
+      jobContext.isWeighIn === true
+        ? {
+            messageContent: raw.rawMessageContent,
+            mentionedPersonas: undefined,
+            referencedChannels: undefined,
+          }
+        : await rewriteRawContent({
+            raw,
+            rawReferences: raw.rawReferencedMessages,
+            personalityId: personality.id,
+            deps: {
+              getOrCreateUser: (discordId, username, displayName, bio, isBot) =>
+                this.deps.userService.getOrCreateUser(discordId, username, displayName, bio, isBot),
+              resolvePersona: async (discordUserId, pid) => {
+                const result = await this.deps.personaResolver.resolve(discordUserId, pid);
+                return {
+                  personaId: result.config.personaId,
+                  preferredName: result.config.preferredName,
+                };
+              },
+              findUserByDiscordId: discordId => this.deps.dataSource.findUserByDiscordId(discordId),
+            },
+          });
+
     logger.debug(
       {
         userInternalId: user.userId,
@@ -182,6 +223,9 @@ export class ContextAssembler {
       contextEpoch,
       history,
       referencedMessages,
+      messageContent: rewritten.messageContent,
+      mentionedPersonas: rewritten.mentionedPersonas,
+      referencedChannels: rewritten.referencedChannels,
     };
   }
 

@@ -22,6 +22,7 @@ function makeDeps(overrides: Partial<Record<string, unknown>> = {}): ContextAsse
       getUserTimezone: vi.fn().mockResolvedValue('UTC'),
       getContextEpoch: vi.fn().mockResolvedValue(undefined),
       getMessageByDiscordId: vi.fn().mockResolvedValue(null),
+      findUserByDiscordId: vi.fn().mockResolvedValue(null),
       ...(overrides.dataSource as object),
     } as unknown as ContextDataSource,
     userService: {
@@ -267,6 +268,80 @@ describe('ContextAssembler.assembleCore', () => {
       'voice msg\n\n[Voice transcript]: db transcript'
     );
     expect(deps.dataSource.getMessageByDiscordId).toHaveBeenCalledWith('d-voice');
+  });
+
+  it('rewrites mentions in the raw content through the REAL shared kernels', async () => {
+    const deps = makeDeps({
+      personaResolver: {
+        resolve: vi
+          .fn()
+          .mockResolvedValue({ config: { personaId: 'persona-7', preferredName: 'Mentioned' } }),
+      },
+    });
+    const assembler = new ContextAssembler(deps);
+
+    const core = await assembler.assembleCore(
+      makeJobContext({
+        rawAssemblyInputs: {
+          rawMessageContent: 'hi <@567890123456789012>',
+          rawMentionedUsers: [
+            { discordId: '567890123456789012', username: 'someone', displayName: 'Someone' },
+          ],
+        },
+      }),
+      PERSONALITY,
+      undefined
+    );
+
+    expect(core.messageContent).toBe('hi @Mentioned');
+    expect(core.mentionedPersonas).toEqual([{ personaId: 'persona-7', personaName: 'Mentioned' }]);
+  });
+
+  it('routes out-of-map mention ids through the dataSource DB fallback', async () => {
+    const deps = makeDeps();
+    const assembler = new ContextAssembler(deps);
+
+    const core = await assembler.assembleCore(
+      makeJobContext({
+        rawAssemblyInputs: {
+          // Mention id not present in rawMentionedUsers — DB fallback path.
+          rawMessageContent: 'hi <@678901234567890123>',
+          rawMentionedUsers: [],
+        },
+      }),
+      PERSONALITY,
+      undefined
+    );
+
+    expect(deps.dataSource.findUserByDiscordId).toHaveBeenCalledWith('678901234567890123');
+    // Unknown user: the tag stays raw.
+    expect(core.messageContent).toBe('hi <@678901234567890123>');
+  });
+
+  it('skips ALL content rewriting in weigh-in mode (no mention upserts)', async () => {
+    const deps = makeDeps();
+    const assembler = new ContextAssembler(deps);
+    const content = 'hi <@567890123456789012>';
+
+    const core = await assembler.assembleCore(
+      makeJobContext({
+        isWeighIn: true,
+        rawAssemblyInputs: {
+          rawMessageContent: content,
+          rawMentionedUsers: [
+            { discordId: '567890123456789012', username: 'someone', displayName: 'Someone' },
+          ],
+        },
+      }),
+      PERSONALITY,
+      undefined
+    );
+
+    expect(core.messageContent).toBe(content);
+    expect(core.mentionedPersonas).toBeUndefined();
+    // The anonymous-poke path must not create users for mentioned people —
+    // only the author upsert from step 1 runs.
+    expect(deps.userService.getOrCreateUser).toHaveBeenCalledTimes(1);
   });
 
   it('returns plain DB history when the envelope carries no extended context', async () => {

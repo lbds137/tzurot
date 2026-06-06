@@ -60,6 +60,13 @@ export interface ContextDataSource {
    */
   getMessageByDiscordId(discordMessageId: string): Promise<ConversationMessage | null>;
 
+  /**
+   * User row lookup by Discord id — the mention-resolution DB fallback for
+   * mention ids absent from the envelope's target list (user not in a
+   * shared server at capture time).
+   */
+  findUserByDiscordId(discordId: string): Promise<{ id: string; username: string } | null>;
+
   /** IANA timezone for an INTERNAL user id ('UTC' fallback). */
   getUserTimezone(internalUserId: string): Promise<string>;
 
