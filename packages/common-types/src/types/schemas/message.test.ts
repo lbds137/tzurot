@@ -9,6 +9,7 @@ import { MessageRole } from '../../constants/index.js';
 import {
   crossChannelMessageSchema,
   crossChannelHistoryGroupSchema,
+  referencedMessageSchema,
   type CrossChannelMessage,
   type CrossChannelHistoryGroupEntry,
 } from './message.js';
@@ -179,5 +180,41 @@ describe('crossChannelHistoryGroupSchema', () => {
 
     const result = crossChannelHistoryGroupSchema.safeParse(group);
     expect(result.success).toBe(true);
+  });
+});
+
+describe('referencedMessageSchema', () => {
+  const base = {
+    referenceNumber: 1,
+    discordMessageId: 'd1',
+    discordUserId: 'u1',
+    authorUsername: 'someone',
+    authorDisplayName: 'Someone',
+    content: 'referenced',
+    embeds: '',
+    timestamp: '2026-06-01T00:00:00.000Z',
+    locationContext: '',
+  };
+
+  it('accepts a minimal reference without authorIsBot (presence-encoded)', () => {
+    const result = referencedMessageSchema.safeParse(base);
+    expect(result.success).toBe(true);
+    expect(result.success && result.data.authorIsBot).toBeUndefined();
+  });
+
+  it('accepts authorIsBot true for bot-authored references', () => {
+    const result = referencedMessageSchema.safeParse({ ...base, authorIsBot: true });
+    expect(result.success).toBe(true);
+    expect(result.success && result.data.authorIsBot).toBe(true);
+  });
+
+  it('rejects a non-boolean authorIsBot', () => {
+    const result = referencedMessageSchema.safeParse({ ...base, authorIsBot: 'yes' });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects an explicit false (presence-encoding enforced at parse time)', () => {
+    const result = referencedMessageSchema.safeParse({ ...base, authorIsBot: false });
+    expect(result.success).toBe(false);
   });
 });

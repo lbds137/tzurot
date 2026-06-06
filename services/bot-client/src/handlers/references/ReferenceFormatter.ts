@@ -6,8 +6,11 @@
  */
 
 import type { Message } from 'discord.js';
-import { createLogger, type ReferencedMessage, TEXT_LIMITS } from '@tzurot/common-types';
-import { getEffectiveContent } from '../../utils/forwardedMessageUtils.js';
+import {
+  createLogger,
+  type ReferencedMessage,
+  buildDedupedReferenceStub,
+} from '@tzurot/common-types';
 import { MessageLinkParser } from '../../utils/MessageLinkParser.js';
 import { isForwardedMessage, type ReferenceMetadata } from './types.js';
 import { MessageFormatter } from './MessageFormatter.js';
@@ -125,13 +128,15 @@ export class ReferenceFormatter {
 
   /** Deduped: enriched side gets a stub; raw side gets the full snapshot. */
   private appendDedupedStub(message: Message, metadata: ReferenceMetadata, s: FormatState): void {
-    s.references.push(this.buildDedupedStub(message, s.nextNumber));
+    // Build the full raw snapshot first and derive the stub from it via the
+    // shared kernel — the same stub the worker-side assembler produces when
+    // its own dedup re-run agrees, so the two shapes cannot drift.
+    const raw = this.messageFormatter.buildRawReference(message, s.nextNumber).reference;
+    s.references.push(buildDedupedReferenceStub(raw));
     if (s.collectRaw) {
       // The raw side never stubs: the worker re-derives dedup against its
       // OWN hydrated history, so it needs the full pre-dedup snapshot.
-      s.rawReferences.push(
-        this.messageFormatter.buildRawReference(message, s.nextNumber).reference
-      );
+      s.rawReferences.push(raw);
     }
     this.trackLink(metadata, s.nextNumber, s.linkMap);
     s.nextNumber++;
@@ -186,26 +191,6 @@ export class ReferenceFormatter {
     }
     this.trackLink(metadata, s.nextNumber, s.linkMap);
     s.nextNumber++;
-  }
-
-  /** Build a minimal ReferencedMessage for a deduped reference */
-  private buildDedupedStub(message: Message, refNumber: number): ReferencedMessage {
-    const limit = TEXT_LIMITS.DEDUP_STUB_CONTENT;
-    // Use getEffectiveContent to handle forwarded messages (content is in snapshots)
-    const content = getEffectiveContent(message);
-    const truncatedContent = content.length > limit ? content.substring(0, limit) + '...' : content;
-    return {
-      referenceNumber: refNumber,
-      discordMessageId: message.id,
-      discordUserId: message.author.id,
-      authorUsername: message.author.username,
-      authorDisplayName: message.author.displayName ?? message.author.username,
-      content: truncatedContent,
-      embeds: '',
-      timestamp: message.createdAt.toISOString(),
-      locationContext: '',
-      isDeduplicated: true,
-    };
   }
 
   /** Track a Discord link for [Reference N] replacement if present */
