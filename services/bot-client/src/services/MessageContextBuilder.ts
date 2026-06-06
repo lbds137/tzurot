@@ -500,6 +500,7 @@ export class MessageContextBuilder {
       rawReferencedMessages: refsAndMentions.rawReferencedMessages,
       rawMentionedChannels: refsAndMentions.rawMentionedChannels,
       rawMentionedRoles: refsAndMentions.rawMentionedRoles,
+      authorDisplayName: displayName,
     });
 
     // Build complete context

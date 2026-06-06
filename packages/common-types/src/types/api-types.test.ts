@@ -441,6 +441,15 @@ describe('API Endpoint Contract Tests', () => {
       expect(rawDiscordUserSchema.safeParse({ discordId: 'x', username: 'y' }).success).toBe(false);
     });
 
+    it('should accept rawAuthorDisplayName on rawAssemblyInputs', () => {
+      expect(
+        rawAssemblyInputsSchema.safeParse({
+          rawMessageContent: 'hi',
+          rawAuthorDisplayName: 'Vladlena',
+        }).success
+      ).toBe(true);
+    });
+
     it('should validate rawAssemblyInputs with only rawMessageContent (minimal)', () => {
       expect(
         rawAssemblyInputsSchema.safeParse({ rawMessageContent: '<@123> hi there' }).success
