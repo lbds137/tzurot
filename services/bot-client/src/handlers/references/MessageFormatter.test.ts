@@ -128,6 +128,32 @@ describe('MessageFormatter', () => {
       expect(result.isForwarded).toBe(true);
     });
 
+    it('should presence-encode authorIsBot for bot authors', async () => {
+      const message = createMockMessage({
+        content: 'Bot message',
+        author: createMockUser({ username: 'SomeBot', bot: true }),
+        attachments: new Map() as any,
+        embeds: [],
+      });
+
+      const result = await formatter.formatMessage(message, 1);
+
+      expect(result.authorIsBot).toBe(true);
+    });
+
+    it('should omit authorIsBot for human authors', async () => {
+      const message = createMockMessage({
+        content: 'Human message',
+        author: createMockUser({ username: 'Human', bot: false }),
+        attachments: new Map() as any,
+        embeds: [],
+      });
+
+      const result = await formatter.formatMessage(message, 1);
+
+      expect(result.authorIsBot).toBeUndefined();
+    });
+
     it('should use username as displayName when displayName is null', async () => {
       const message = createMockMessage({
         content: 'Test',

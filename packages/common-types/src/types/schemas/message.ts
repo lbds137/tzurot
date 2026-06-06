@@ -46,6 +46,11 @@ export const referencedMessageSchema = z.object({
   referenceNumber: z.number(),
   discordMessageId: z.string(), // Discord message ID (for webhook detection)
   webhookId: z.string().optional(), // Discord webhook ID if message was sent via webhook
+  // Presence-encoded (true or omitted — literal(true) rejects an accidental
+  // `false` at parse time). Together with webhookId this gates the time-based
+  // dedup fallback, which the worker-side assembler re-runs from raw
+  // reference snapshots — it cannot ask Discord about the author itself.
+  authorIsBot: z.literal(true).optional(),
   discordUserId: z.string(), // Discord user ID for persona lookup
   authorUsername: z.string(),
   authorDisplayName: z.string(),

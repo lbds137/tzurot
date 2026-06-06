@@ -6,7 +6,12 @@
  */
 
 import type { Message } from 'discord.js';
-import { type ReferencedMessage, formatLocationAsXml, createLogger } from '@tzurot/common-types';
+import {
+  type ReferencedMessage,
+  appendVoiceTranscripts,
+  formatLocationAsXml,
+  createLogger,
+} from '@tzurot/common-types';
 
 const logger = createLogger('MessageFormatter');
 import { extractDiscordEnvironment } from '../../utils/discordContext.js';
@@ -53,45 +58,34 @@ export class MessageFormatter {
   }
 
   /**
-   * Append voice transcripts to message content (from Redis cache or database)
+   * Append voice transcripts to message content — shared kernel drives the
+   * format; this wrapper supplies the bot-side retriever (Redis cache + DB
+   * tiers) and the not-found debug log.
    */
-  private async appendVoiceTranscripts(
+  private async appendTranscriptsWithRetriever(
     content: string,
     attachments: AttachmentList,
     messageId: string
   ): Promise<string> {
-    if (attachments.length === 0) {
-      return content;
-    }
-
-    const transcripts: string[] = [];
-    for (const attachment of attachments) {
-      if (attachment.isVoiceMessage !== true) {
-        continue;
-      }
-
-      const transcript = await this.transcriptRetriever.retrieveTranscript(
-        messageId,
-        attachment.url
-      );
-      if (transcript !== undefined && transcript !== null && transcript.length > 0) {
-        transcripts.push(transcript);
-      } else {
-        logger.debug(
-          { messageId, attachmentUrl: attachment.url },
-          'Voice transcript not found for attachment'
-        );
-      }
-    }
-
-    if (transcripts.length === 0) {
-      return content;
-    }
-
-    const transcriptText = transcripts.join('\n\n');
-    return content
-      ? `${content}\n\n[Voice transcript]: ${transcriptText}`
-      : `[Voice transcript]: ${transcriptText}`;
+    return appendVoiceTranscripts({
+      content,
+      attachments,
+      discordMessageId: messageId,
+      retrieve: async (discordMessageId, attachmentUrl) => {
+        // The retriever is typed `string | null`; `?? null` up front keeps
+        // this adapter total over `undefined` too should that ever drift.
+        const transcript =
+          (await this.transcriptRetriever.retrieveTranscript(discordMessageId, attachmentUrl)) ??
+          null;
+        if (transcript === null || transcript.length === 0) {
+          logger.debug(
+            { messageId: discordMessageId, attachmentUrl },
+            'Voice transcript not found for attachment'
+          );
+        }
+        return transcript;
+      },
+    });
   }
 
   /**
@@ -118,6 +112,8 @@ export class MessageFormatter {
         referenceNumber,
         discordMessageId: message.id,
         webhookId: message.webhookId ?? undefined,
+        // Presence-encoded: gates the worker-side time-fallback dedup re-run.
+        authorIsBot: message.author.bot === true || undefined,
         discordUserId: message.author.id,
         authorUsername: message.author.username,
         authorDisplayName: message.author.displayName ?? message.author.username,
@@ -146,7 +142,7 @@ export class MessageFormatter {
       referenceNumber,
       isForwardedFlag
     );
-    const contentWithTranscript = await this.appendVoiceTranscripts(
+    const contentWithTranscript = await this.appendTranscriptsWithRetriever(
       raw.content,
       attachments,
       message.id
