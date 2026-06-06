@@ -7,9 +7,23 @@
 
 ## Next Session Goal
 
-**Phase 2.5c-iii-a3 is up next — the worker-side context assembler, the epic's last big build.** The envelope is COMPLETE (a1 #1159 + a2 #1160): the assembler consumes `rawAssemblyInputs` (raw content, mention users/channels/roles, raw reference snapshots, pre-merge extended-context + user batches, channel-env map) and re-derives the full context — persona resolution + upserts, HistoryMerger-equivalent merge, mention/reference content rewriting, transcript enrichment + dedup-vs-hydrated-history, cross-channel decoration — behind an extended shadow with real-DB hydration and match-rate telemetry (go/no-go gates iii-b). Key design constraints recorded in active-epic.md: reconstruct `[Reference N]` links from `referenceNumber` on reference objects (NOT a URL map — last-wins would drop multi-snapshot forward links); raw side is pre-transcript/pre-dedup by contract; ABSENT/EMPTY semantics per schema docs. Watch: CPD ratchet at 1727/1728. Burn-in flags all live on dev: `CONTEXT_MODE` + `CONTEXT_RAW_ENVELOPE` + `CONTEXT_SHADOW_HYDRATION` + `CONTEXT_DUAL_WRITE`.
+**Phase 2.5c-iii-a3-ii — content rewriting + reference enrichment, the assembler's second half.** The assembler core shipped (a3-i #1161): user upsert → persona resolution → timezone → epoch → history hydration → extended-context merge, all via SHARED common-types impls, diffed against the bot payload by `shadowAssembleAndDiff` (per-job `allMatched` telemetry = the iii-b go/no-go metric). a3-ii adds: mention rewrite (user/channel/role from raw inputs), reference enrichment (DB transcripts, dedup-vs-hydrated-history, stub truncation, `[Reference N]` links from `referenceNumber` NOT a URL map), cross-channel hydration + decoration from `knownChannelEnvironments` (unify wire vs DB group types), and extends the diff to the full assembled context. Fold-forwards queued in active-epic.md (a–d from #1161 reviews: channelId/guildId fill + cast drop, epoch telemetry note, test polish, scrub-pass nits). Watch: CPD ratchet at 1727/1728. Burn-in flags all live on dev: `CONTEXT_MODE` + `CONTEXT_RAW_ENVELOPE` + `CONTEXT_SHADOW_HYDRATION` + `CONTEXT_DUAL_WRITE`.
 
-## Last Session (continued) — iii-a2 shipped: the envelope is complete (2026-06-05)
+## Last Session — iii-a3-i shipped: the assembler core exists (2026-06-05)
+
+| PR    | Title                                                                          | Outcome                                                                                                                                                  |
+| ----- | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #1161 | `feat(ai-worker): PR 2.5c-iii-a3-i — context assembler core + assembly shadow` | `ContextAssembler.assembleCore` + `shadowAssembleAndDiff` (7-surface diff, never-throws); shared impls relocated to common-types; `rawAuthorDisplayName` |
+
+### Net result
+
+- **The worker can now re-derive the core context from the envelope + its own Prisma**, and every envelope-bearing job emits one `ShadowAssembly` telemetry line (`allMatched` + per-surface booleans). Error contract split: assembler THROWS (cutover = real job failures), shadow owns never-throws.
+- **Zero-drift by relocation**: `historyMerger` + `extendedContextPersonaResolver` + `INTERNAL_DISCORD_ID_PREFIX` moved to common-types; both paths call the SAME functions (runSync pattern).
+- **Two genuine gaps surfaced**: `rawAuthorDisplayName` (fixed end-to-end this PR — `getOrCreateUser` persona naming needs it) and wire-shape `channelId`/`guildId` (the reviewer's `satisfies` suggestion failed for a better reason than type hygiene — the `as` cast was masking a cutover prerequisite; documented + queued for a3-ii).
+- **3 review rounds, fast convergence**: round-1 = 4 comment-shape autos + codecov line closed; round-2 = one 🔴 dismissed with evidence (`getOrCreateUser` displayName is optional with documented internal fallback — reviewer's "type hole" premise false); final = observations only, all folded forward.
+- **Push-transfer flake fired a third time** (remote ref never created despite clean hook output); caught by the `git ls-remote` verification habit before any CI watching.
+
+## Previous Session — iii-a2 shipped: the envelope is complete (2026-06-05)
 
 | PR    | Title                                                                   | Outcome                                                                                                                                                              |
 | ----- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
