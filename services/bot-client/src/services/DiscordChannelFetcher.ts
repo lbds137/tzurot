@@ -17,8 +17,9 @@ import {
   type AttachmentMetadata,
   type MessageReaction,
   type StoredReferencedMessage,
+  INTERNAL_DISCORD_ID_PREFIX,
+  mergeWithHistory,
 } from '@tzurot/common-types';
-import { INTERNAL_DISCORD_ID_PREFIX } from '../constants/personaId.js';
 import { buildMessageContent, hasMessageContent } from '../utils/MessageContentBuilder.js';
 import { isUserContentMessage } from '../utils/messageTypeUtils.js';
 import { resolveHistoryLinks } from '../utils/HistoryLinkResolver.js';
@@ -37,7 +38,6 @@ import {
   processReactions,
   extractReactions as extractReactionsImpl,
 } from './channelFetcher/ReactionProcessor.js';
-import { mergeWithHistory } from './channelFetcher/HistoryMerger.js';
 import { executeDatabaseSync } from './channelFetcher/SyncExecutor.js';
 
 export type { FetchableChannel } from './channelFetcher/types.js';
