@@ -5,13 +5,15 @@
  * envelope + the worker's own Prisma access, mirroring bot-client's
  * MessageContextBuilder steps 1–4: user upsert, persona resolution, timezone,
  * context epoch, channel-history hydration, extended-context user batch
- * upserts + placeholder persona resolution (shared implementation), and the
- * history merge (shared implementation). Content rewriting, reference
- * enrichment, and cross-channel decoration land in the follow-on slice.
+ * upserts + placeholder persona resolution (shared implementation), the
+ * history merge (shared implementation), and reference enrichment
+ * (dedup-vs-history + transcript append, shared kernels). Content rewriting
+ * and cross-channel decoration land in the follow-on slices.
  *
- * Shared-implementation guarantee: `resolveExtendedContextPersonaIds` and
- * `mergeWithHistory` are the SAME common-types functions the legacy bot-side
- * path calls, so the two paths cannot drift during burn-in.
+ * Shared-implementation guarantee: `resolveExtendedContextPersonaIds`,
+ * `mergeWithHistory`, and the reference-enrichment kernels are the SAME
+ * common-types functions the legacy bot-side path calls, so the two paths
+ * cannot drift during burn-in.
  */
 
 import {
@@ -24,14 +26,16 @@ import {
   type LoadedPersonality,
   type PersonaResolver,
   type RawAssemblyInputs,
+  type ReferencedMessage,
   type ResolvedConfigOverrides,
   type UserService,
 } from '@tzurot/common-types';
+import { enrichRawReferences } from './referenceEnricher.js';
 import type { ContextDataSource } from './types.js';
 
 const logger = createLogger('ContextAssembler');
 
-/** The core (a3-i) surfaces the assembler re-derives. */
+/** The core surfaces the assembler re-derives. */
 export interface AssembledCore {
   userInternalId: string;
   activePersonaId: string;
@@ -40,6 +44,22 @@ export interface AssembledCore {
   contextEpoch: Date | undefined;
   /** Hydrated DB history merged with envelope-carried extended context. */
   history: ConversationMessage[];
+  /**
+   * Enriched references re-derived from the envelope's raw snapshots
+   * (dedup-vs-OWN-history + DB transcript append). Undefined when the
+   * envelope carries no raw references (extraction didn't run bot-side —
+   * weigh-in mode or a sender predating the field).
+   */
+  referencedMessages: ReferencedMessage[] | undefined;
+}
+
+/** Per-call assembly options (job-scoped values the deps can't carry). */
+export interface AssembleCoreOptions {
+  /**
+   * Anchor for the reference time-fallback dedup window — the job's enqueue
+   * timestamp. Undefined disables the time fallback (exact-id dedup only).
+   */
+  referenceDedupNowMs?: number;
 }
 
 export interface ContextAssemblerDeps {
@@ -83,7 +103,8 @@ export class ContextAssembler {
   async assembleCore(
     jobContext: JobContext,
     personality: LoadedPersonality,
-    configOverrides: ResolvedConfigOverrides | undefined
+    configOverrides: ResolvedConfigOverrides | undefined,
+    options?: AssembleCoreOptions
   ): Promise<AssembledCore> {
     const raw = jobContext.rawAssemblyInputs;
     if (raw === undefined) {
@@ -138,12 +159,17 @@ export class ContextAssembler {
     // impl). ABSENT raw messages = the fetch didn't run bot-side.
     const history = await this.mergeExtendedContext(raw, dbHistory, personality.id);
 
+    // Step 5: re-derive reference enrichment from the raw snapshots —
+    // dedup against the just-assembled history, transcripts from OWN DB.
+    const referencedMessages = await this.enrichReferences(raw, history, options);
+
     logger.debug(
       {
         userInternalId: user.userId,
         activePersonaId,
         dbCount: dbHistory.length,
         mergedCount: history.length,
+        referenceCount: referencedMessages?.length,
       },
       'Core context assembled'
     );
@@ -155,7 +181,37 @@ export class ContextAssembler {
       userTimezone,
       contextEpoch,
       history,
+      referencedMessages,
     };
+  }
+
+  /**
+   * Enrich raw reference snapshots (shared kernels) — undefined when the
+   * envelope carries none (ABSENT = extraction didn't run bot-side).
+   */
+  private async enrichReferences(
+    raw: RawAssemblyInputs,
+    history: ConversationMessage[],
+    options: AssembleCoreOptions | undefined
+  ): Promise<ReferencedMessage[] | undefined> {
+    if (raw.rawReferencedMessages === undefined) {
+      return undefined;
+    }
+    return enrichRawReferences({
+      rawReferences: raw.rawReferencedMessages,
+      history,
+      // DB lookup is per-message, not per-URL — the shared kernel passes
+      // attachmentUrl but this retriever drops it (each voice message row
+      // stores one transcript as its content).
+      retrieveTranscript: async (discordMessageId: string) => {
+        // DB tier only — the bot-side Redis-cache tier has no worker
+        // equivalent (accepted burn-in divergence; the row IS the transcript
+        // for persisted voice messages).
+        const row = await this.deps.dataSource.getMessageByDiscordId(discordMessageId);
+        return row?.content !== undefined && row.content.length > 0 ? row.content : null;
+      },
+      nowMs: options?.referenceDedupNowMs,
+    });
   }
 
   /** Steps the envelope's extended context through upsert → resolve → merge. */

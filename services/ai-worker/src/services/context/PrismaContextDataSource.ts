@@ -49,6 +49,10 @@ export class PrismaContextDataSource implements ContextDataSource {
     );
   }
 
+  async getMessageByDiscordId(discordMessageId: string): Promise<ConversationMessage | null> {
+    return this.history.getMessageByDiscordId(discordMessageId);
+  }
+
   async getUserTimezone(internalUserId: string): Promise<string> {
     return this.users.getUserTimezone(internalUserId);
   }

@@ -120,6 +120,7 @@ describe('ContextStep', () => {
       getCrossChannelHistory: vi.fn(),
       getUserTimezone: vi.fn(),
       getContextEpoch: vi.fn(),
+      getMessageByDiscordId: vi.fn().mockResolvedValue(null),
     };
 
     it('invokes shadow hydration when a data source is provided and the flag is on', () => {

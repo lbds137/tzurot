@@ -23,6 +23,7 @@ function makeAssembler(core: Partial<AssembledCore>): ContextAssembler {
       userTimezone: 'UTC',
       contextEpoch: undefined,
       history: [],
+      referencedMessages: undefined,
       ...core,
     }),
   } as unknown as ContextAssembler;
@@ -50,6 +51,18 @@ const msg = (id: string, content: string, personaId = 'persona-1') => ({
   discordMessageId: [id],
 });
 
+const ref = () => ({
+  referenceNumber: 1,
+  discordMessageId: 'r1',
+  discordUserId: 'u1',
+  authorUsername: 'a',
+  authorDisplayName: 'A',
+  content: 'ref content',
+  embeds: '',
+  timestamp: '2026-06-01T00:00:00.000Z',
+  locationContext: '',
+});
+
 describe('shadowAssembleAndDiff', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -63,6 +76,7 @@ describe('shadowAssembleAndDiff', () => {
       personality: PERSONALITY,
       configOverrides: undefined,
       assembler,
+      jobTimestampMs: undefined,
     });
     expect(assembler.assembleCore).not.toHaveBeenCalled();
     expect(mockLogger.info).not.toHaveBeenCalled();
@@ -75,6 +89,7 @@ describe('shadowAssembleAndDiff', () => {
       jobContext: makeJobContext({ conversationHistory: history as never }),
       personality: PERSONALITY,
       configOverrides: undefined,
+      jobTimestampMs: undefined,
       assembler: makeAssembler({ history: history as never }),
     });
 
@@ -91,6 +106,7 @@ describe('shadowAssembleAndDiff', () => {
       jobContext: makeJobContext(),
       personality: PERSONALITY,
       configOverrides: undefined,
+      jobTimestampMs: undefined,
       assembler: makeAssembler({ activePersonaId: 'OTHER' }),
     });
 
@@ -112,6 +128,7 @@ describe('shadowAssembleAndDiff', () => {
       jobContext: makeJobContext({ conversationHistory: payloadHistory as never }),
       personality: PERSONALITY,
       configOverrides: undefined,
+      jobTimestampMs: undefined,
       assembler: makeAssembler({ history: assembledHistory as never }),
     });
 
@@ -137,6 +154,7 @@ describe('shadowAssembleAndDiff', () => {
       jobContext: makeJobContext({ conversationHistory: payloadHistory as never }),
       personality: PERSONALITY,
       configOverrides: undefined,
+      jobTimestampMs: undefined,
       assembler: makeAssembler({ history: assembledHistory as never }),
     });
 
@@ -158,6 +176,7 @@ describe('shadowAssembleAndDiff', () => {
       jobContext: makeJobContext({ conversationHistory: payloadHistory as never }),
       personality: PERSONALITY,
       configOverrides: undefined,
+      jobTimestampMs: undefined,
       assembler: makeAssembler({ history: assembledHistory as never }),
     });
 
@@ -176,12 +195,124 @@ describe('shadowAssembleAndDiff', () => {
       jobContext: makeJobContext({ userTimezone: undefined, activePersonaName: undefined }),
       personality: PERSONALITY,
       configOverrides: undefined,
+      jobTimestampMs: undefined,
       assembler: makeAssembler({ userTimezone: 'UTC', activePersonaName: null }),
     });
 
     expect(mockLogger.info).toHaveBeenCalledWith(
       expect.objectContaining({ allMatched: true }),
       expect.anything()
+    );
+  });
+
+  it('threads the job timestamp into the assembler as the dedup anchor', async () => {
+    const assembler = makeAssembler({});
+    await shadowAssembleAndDiff({
+      jobId: 'j1',
+      jobContext: makeJobContext(),
+      personality: PERSONALITY,
+      configOverrides: undefined,
+      assembler,
+      jobTimestampMs: 1_717_243_200_000,
+    });
+    expect(assembler.assembleCore).toHaveBeenCalledWith(expect.anything(), PERSONALITY, undefined, {
+      referenceDedupNowMs: 1_717_243_200_000,
+    });
+  });
+
+  it('treats the reference surface as skipped when assembly produced none', async () => {
+    await shadowAssembleAndDiff({
+      jobId: 'j1',
+      jobContext: makeJobContext({ referencedMessages: [ref()] as never }),
+      personality: PERSONALITY,
+      configOverrides: undefined,
+      jobTimestampMs: undefined,
+      assembler: makeAssembler({ referencedMessages: undefined }),
+    });
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      expect.objectContaining({
+        allMatched: true,
+        referenceDiff: expect.objectContaining({ compared: false, payloadCount: 1 }),
+      }),
+      expect.stringContaining('matched')
+    );
+  });
+
+  it('matches when assembled references agree with the payload', async () => {
+    await shadowAssembleAndDiff({
+      jobId: 'j1',
+      jobContext: makeJobContext({ referencedMessages: [ref()] as never }),
+      personality: PERSONALITY,
+      configOverrides: undefined,
+      jobTimestampMs: undefined,
+      assembler: makeAssembler({ referencedMessages: [ref()] as never }),
+    });
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      expect.objectContaining({
+        allMatched: true,
+        referenceDiff: expect.objectContaining({ compared: true, matched: true }),
+      }),
+      expect.anything()
+    );
+  });
+
+  it('flags payload reference numbers absent from the assembled set', async () => {
+    await shadowAssembleAndDiff({
+      jobId: 'j1',
+      jobContext: makeJobContext({ referencedMessages: [ref()] as never }),
+      personality: PERSONALITY,
+      configOverrides: undefined,
+      jobTimestampMs: undefined,
+      assembler: makeAssembler({
+        // Same count, disjoint number — should-be-impossible drift shape.
+        referencedMessages: [{ ...ref(), referenceNumber: 99 }] as never,
+      }),
+    });
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        matches: expect.objectContaining({ referencedMessages: false }),
+        referenceDiff: expect.objectContaining({ missingFromAssembled: 1, extraInAssembled: 1 }),
+      }),
+      expect.stringContaining('DIVERGED')
+    );
+  });
+
+  it('labels worker-produced surplus references as extraInAssembled', async () => {
+    await shadowAssembleAndDiff({
+      jobId: 'j1',
+      jobContext: makeJobContext({ referencedMessages: undefined }),
+      personality: PERSONALITY,
+      configOverrides: undefined,
+      jobTimestampMs: undefined,
+      assembler: makeAssembler({ referencedMessages: [ref()] as never }),
+    });
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        matches: expect.objectContaining({ referencedMessages: false }),
+        referenceDiff: expect.objectContaining({ extraInAssembled: 1, payloadCount: 0 }),
+      }),
+      expect.stringContaining('DIVERGED')
+    );
+  });
+
+  it('flags content and stub-decision mismatches on the reference surface', async () => {
+    await shadowAssembleAndDiff({
+      jobId: 'j1',
+      jobContext: makeJobContext({ referencedMessages: [ref()] as never }),
+      personality: PERSONALITY,
+      configOverrides: undefined,
+      jobTimestampMs: undefined,
+      assembler: makeAssembler({
+        referencedMessages: [{ ...ref(), content: 'STUBBED', isDeduplicated: true }] as never,
+      }),
+    });
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        allMatched: false,
+        matches: expect.objectContaining({ referencedMessages: false }),
+        referenceDiff: expect.objectContaining({ contentMismatches: 1, dedupMismatches: 1 }),
+      }),
+      expect.stringContaining('DIVERGED')
     );
   });
 
@@ -197,6 +328,7 @@ describe('shadowAssembleAndDiff', () => {
         personality: PERSONALITY,
         configOverrides: undefined,
         assembler,
+        jobTimestampMs: undefined,
       })
     ).resolves.toBeUndefined();
 
