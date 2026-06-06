@@ -89,6 +89,7 @@ export * from './services/ConversationSyncService.js';
 export * from './services/conversationSyncDiff.js';
 export * from './utils/historyMerger.js';
 export * from './utils/extendedContextPersonaResolver.js';
+export * from './utils/referenceEnrichment.js';
 export * from './services/UserService.js';
 export * from './services/BaseCacheInvalidationService.js';
 export * from './services/CacheInvalidationService.js';

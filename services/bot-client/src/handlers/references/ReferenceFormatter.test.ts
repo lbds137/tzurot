@@ -40,7 +40,17 @@ describe('ReferenceFormatter', () => {
           raw: buildRef(message, refNum),
         })),
       buildRawReference: vi.fn().mockImplementation((message: Message, refNum: number) => ({
-        reference: buildRef(message, refNum),
+        reference: {
+          ...buildRef(message, refNum),
+          // Mirror the real formatter's contract: forwarded messages resolve
+          // their content from snapshots (message.content is empty on them).
+          content:
+            message.messageSnapshots !== undefined &&
+            message.messageSnapshots !== null &&
+            message.messageSnapshots.size > 0
+              ? (message.messageSnapshots.values().next().value?.content ?? '')
+              : message.content,
+        },
         attachments: [],
       })),
     } as unknown as MessageFormatter;

@@ -6,7 +6,7 @@
  */
 
 import type { Message } from 'discord.js';
-import { createLogger, INTERVALS } from '@tzurot/common-types';
+import { createLogger, isDuplicateReference } from '@tzurot/common-types';
 import type { IReferenceStrategy } from './strategies/IReferenceStrategy.js';
 import { type ReferenceMetadata, type ReferenceResult, ReferenceType } from './types.js';
 import { LinkExtractor } from './LinkExtractor.js';
@@ -229,42 +229,28 @@ export class ReferenceCrawler {
   }
 
   /**
-   * Check if a referenced message should be included or excluded as duplicate
+   * Check if a referenced message should be included or excluded as duplicate.
+   * Delegates to the shared `isDuplicateReference` kernel (the same decision
+   * the worker-side assembler re-runs from raw reference snapshots).
    * @param message - Discord message to check
    * @returns True if message should be included, false if it's a duplicate
    */
   private shouldIncludeReference(message: Message): boolean {
-    // Exact match: Check if Discord message ID is in conversation history
-    if (this.conversationHistoryMessageIds.has(message.id)) {
-      return false;
-    }
-
-    // Time-based fallback: If message is from bot/webhook and very recent,
-    // check if timestamp matches any message in conversation history
-    if (
-      (message.webhookId !== undefined &&
-        message.webhookId !== null &&
-        message.webhookId.length > 0) ||
-      message.author.bot === true
-    ) {
-      const messageTime = message.createdAt.getTime();
-      const now = Date.now();
-      const ageMs = now - messageTime;
-
-      // Only check recent messages (within last 60 seconds)
-      if (ageMs < INTERVALS.MESSAGE_AGE_DEDUP_WINDOW) {
-        for (const historyTimestamp of this.conversationHistoryTimestamps) {
-          const historyTime = historyTimestamp.getTime();
-          const timeDiff = Math.abs(messageTime - historyTime);
-
-          // If timestamps match within tolerance, likely the same message
-          if (timeDiff < INTERVALS.MESSAGE_TIMESTAMP_TOLERANCE) {
-            return false;
-          }
-        }
-      }
-    }
-
-    return true;
+    return !isDuplicateReference(
+      {
+        discordMessageId: message.id,
+        timestampMs: message.createdAt.getTime(),
+        isWebhookOrBotAuthored:
+          (message.webhookId !== undefined &&
+            message.webhookId !== null &&
+            message.webhookId.length > 0) ||
+          message.author.bot === true,
+      },
+      {
+        messageIds: this.conversationHistoryMessageIds,
+        timestamps: this.conversationHistoryTimestamps,
+      },
+      Date.now()
+    );
   }
 }
