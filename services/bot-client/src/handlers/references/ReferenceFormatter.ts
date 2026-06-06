@@ -10,8 +10,8 @@ import {
   createLogger,
   type ReferencedMessage,
   buildDedupedReferenceStub,
+  MessageLinkParser,
 } from '@tzurot/common-types';
-import { MessageLinkParser } from '../../utils/MessageLinkParser.js';
 import { isForwardedMessage, type ReferenceMetadata } from './types.js';
 import { MessageFormatter } from './MessageFormatter.js';
 import { SnapshotFormatter } from './SnapshotFormatter.js';

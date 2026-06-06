@@ -24,32 +24,25 @@ const mockPersonaResolver = {
   stopCleanup: vi.fn(),
 };
 
-// Mock dependencies - use synchronous mock to ensure DISCORD_MENTIONS is available at module load
-vi.mock('@tzurot/common-types', () => ({
-  // Constants must be provided synchronously
-  DISCORD_MENTIONS: {
-    USER_PATTERN: '<@!?(\\d+)>',
-    CHANNEL_PATTERN: '<#(\\d+)>',
-    ROLE_PATTERN: '<@&(\\d+)>',
-    MAX_PER_MESSAGE: 10,
-    MAX_CHANNELS_PER_MESSAGE: 5,
-    MAX_ROLES_PER_MESSAGE: 5,
-    UNKNOWN_CHANNEL_PLACEHOLDER: '#unknown-channel',
-    UNKNOWN_ROLE_PLACEHOLDER: '@unknown-role',
-  },
-  UserService: class {
-    getOrCreateUser = vi.fn();
-    getPersonaName = vi.fn();
-  },
-  createLogger: () => ({
-    info: vi.fn(),
-    debug: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
-  // Validation helper that filters to 17-19 digit numeric strings
-  isValidDiscordId: (id: string) => /^\d{17,19}$/.test(id),
-}));
+// Partial mock: the REAL mention-rewriting kernels (and their constants) run
+// so these stay genuine behavior tests of the scan/cap/placeholder rules;
+// only the DB-backed UserService and the logger are stubbed.
+vi.mock('@tzurot/common-types', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+  return {
+    ...actual,
+    UserService: class {
+      getOrCreateUser = vi.fn();
+      getPersonaName = vi.fn();
+    },
+    createLogger: () => ({
+      info: vi.fn(),
+      debug: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }),
+  };
+});
 
 // Import after mocks
 import { UserService } from '@tzurot/common-types';
@@ -115,8 +108,8 @@ describe('MentionResolver', () => {
     });
 
     it('should resolve a single mention when Discord user is available', async () => {
-      const mockUser = createMockUser('123456', 'testuser', 'Test User');
-      mockMentionedUsers.set('123456', mockUser);
+      const mockUser = createMockUser('567890123456789012', 'testuser', 'Test User');
+      mockMentionedUsers.set('567890123456789012', mockUser);
 
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
         userId: 'user-uuid-123',
@@ -125,7 +118,7 @@ describe('MentionResolver', () => {
       // PersonaResolver.resolve mock returns 'persona-123' and 'Test Persona' by default
 
       const result = await resolver.resolveMentions(
-        'Hey <@123456>, how are you?',
+        'Hey <@567890123456789012>, how are you?',
         mockMentionedUsers as Collection<string, User>,
         'personality-123'
       );
@@ -133,14 +126,14 @@ describe('MentionResolver', () => {
       expect(result.processedContent).toBe('Hey @Test Persona, how are you?');
       expect(result.mentionedUsers).toHaveLength(1);
       expect(result.mentionedUsers[0]).toEqual({
-        discordId: '123456',
+        discordId: '567890123456789012',
         userId: 'user-uuid-123',
         personaId: 'persona-123',
         personaName: 'Test Persona',
       });
 
       expect(mockUserService.getOrCreateUser).toHaveBeenCalledWith(
-        '123456',
+        '567890123456789012',
         'testuser',
         'Test User',
         undefined, // bio
@@ -148,14 +141,14 @@ describe('MentionResolver', () => {
       );
       // PersonaResolver uses Discord ID directly
       expect(mockPersonaResolver.resolve).toHaveBeenCalledWith(
-        '123456', // Discord ID
+        '567890123456789012', // Discord ID
         'personality-123'
       );
     });
 
     it('should handle nickname mention format with exclamation mark', async () => {
-      const mockUser = createMockUser('123456', 'testuser', 'Test User');
-      mockMentionedUsers.set('123456', mockUser);
+      const mockUser = createMockUser('567890123456789012', 'testuser', 'Test User');
+      mockMentionedUsers.set('567890123456789012', mockUser);
 
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
         userId: 'user-uuid-123',
@@ -164,7 +157,7 @@ describe('MentionResolver', () => {
       // PersonaResolver.resolve mock returns 'persona-123' and 'Test Persona' by default
 
       const result = await resolver.resolveMentions(
-        'Hey <@!123456>, how are you?',
+        'Hey <@!567890123456789012>, how are you?',
         mockMentionedUsers as Collection<string, User>,
         'personality-123'
       );
@@ -174,8 +167,8 @@ describe('MentionResolver', () => {
     });
 
     it('should deduplicate multiple mentions of the same user', async () => {
-      const mockUser = createMockUser('123456', 'testuser', 'Test User');
-      mockMentionedUsers.set('123456', mockUser);
+      const mockUser = createMockUser('567890123456789012', 'testuser', 'Test User');
+      mockMentionedUsers.set('567890123456789012', mockUser);
 
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
         userId: 'user-uuid-123',
@@ -184,7 +177,7 @@ describe('MentionResolver', () => {
       // PersonaResolver.resolve mock returns 'persona-123' and 'Test Persona' by default
 
       const result = await resolver.resolveMentions(
-        'Hey <@123456>! I was just talking to <@123456> about you, <@123456>',
+        'Hey <@567890123456789012>! I was just talking to <@567890123456789012> about you, <@567890123456789012>',
         mockMentionedUsers as Collection<string, User>,
         'personality-123'
       );
@@ -199,10 +192,10 @@ describe('MentionResolver', () => {
     });
 
     it('should resolve multiple different users', async () => {
-      const mockUser1 = createMockUser('111111', 'alice', 'Alice');
-      const mockUser2 = createMockUser('222222', 'bob', 'Bob');
-      mockMentionedUsers.set('111111', mockUser1);
-      mockMentionedUsers.set('222222', mockUser2);
+      const mockUser1 = createMockUser('611111111111111111', 'alice', 'Alice');
+      const mockUser2 = createMockUser('622222222222222222', 'bob', 'Bob');
+      mockMentionedUsers.set('611111111111111111', mockUser1);
+      mockMentionedUsers.set('622222222222222222', mockUser2);
 
       vi.mocked(mockUserService.getOrCreateUser)
         .mockResolvedValueOnce({ userId: 'alice-uuid', defaultPersonaId: 'alice-persona' })
@@ -228,7 +221,7 @@ describe('MentionResolver', () => {
         });
 
       const result = await resolver.resolveMentions(
-        'Hey <@111111> and <@222222>, lets chat!',
+        'Hey <@611111111111111111> and <@622222222222222222>, lets chat!',
         mockMentionedUsers as Collection<string, User>,
         'personality-123'
       );
@@ -254,7 +247,7 @@ describe('MentionResolver', () => {
       });
 
       const result = await resolver.resolveMentions(
-        'Talking about <@999999> who is not online',
+        'Talking about <@699999999999999999> who is not online',
         mockMentionedUsers as Collection<string, User>,
         'personality-123'
       );
@@ -262,14 +255,14 @@ describe('MentionResolver', () => {
       expect(result.processedContent).toBe('Talking about @ExistingPersona who is not online');
       expect(result.mentionedUsers).toHaveLength(1);
       expect(result.mentionedUsers[0]).toEqual({
-        discordId: '999999',
+        discordId: '699999999999999999',
         userId: 'db-user-uuid',
         personaId: 'db-persona-uuid',
         personaName: 'ExistingPersona',
       });
 
       expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
-        where: { discordId: '999999' },
+        where: { discordId: '699999999999999999' },
         select: { id: true, username: true },
       });
     });
@@ -279,18 +272,18 @@ describe('MentionResolver', () => {
       vi.mocked(mockPrisma.user.findUnique).mockResolvedValue(null);
 
       const result = await resolver.resolveMentions(
-        'Talking about <@999999> who is unknown',
+        'Talking about <@699999999999999999> who is unknown',
         mockMentionedUsers as Collection<string, User>,
         'personality-123'
       );
 
-      expect(result.processedContent).toBe('Talking about <@999999> who is unknown');
+      expect(result.processedContent).toBe('Talking about <@699999999999999999> who is unknown');
       expect(result.mentionedUsers).toEqual([]);
     });
 
     it('should use username as fallback when globalName is null', async () => {
-      const mockUser = createMockUser('123456', 'testuser', null);
-      mockMentionedUsers.set('123456', mockUser);
+      const mockUser = createMockUser('567890123456789012', 'testuser', null);
+      mockMentionedUsers.set('567890123456789012', mockUser);
 
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
         userId: 'user-uuid-123',
@@ -307,7 +300,7 @@ describe('MentionResolver', () => {
       });
 
       const result = await resolver.resolveMentions(
-        'Hey <@123456>!',
+        'Hey <@567890123456789012>!',
         mockMentionedUsers as Collection<string, User>,
         'personality-123'
       );
@@ -317,7 +310,7 @@ describe('MentionResolver', () => {
       expect(result.mentionedUsers[0].personaName).toBe('testuser');
 
       expect(mockUserService.getOrCreateUser).toHaveBeenCalledWith(
-        '123456',
+        '567890123456789012',
         'testuser',
         'testuser', // Falls back to username
         undefined, // bio
@@ -326,19 +319,19 @@ describe('MentionResolver', () => {
     });
 
     it('should handle error in user service gracefully', async () => {
-      const mockUser = createMockUser('123456', 'testuser', 'Test User');
-      mockMentionedUsers.set('123456', mockUser);
+      const mockUser = createMockUser('567890123456789012', 'testuser', 'Test User');
+      mockMentionedUsers.set('567890123456789012', mockUser);
 
       vi.mocked(mockUserService.getOrCreateUser).mockRejectedValue(new Error('Database error'));
 
       const result = await resolver.resolveMentions(
-        'Hey <@123456>!',
+        'Hey <@567890123456789012>!',
         mockMentionedUsers as Collection<string, User>,
         'personality-123'
       );
 
       // Should leave mention as-is on error
-      expect(result.processedContent).toBe('Hey <@123456>!');
+      expect(result.processedContent).toBe('Hey <@567890123456789012>!');
       expect(result.mentionedUsers).toEqual([]);
     });
 
@@ -346,19 +339,19 @@ describe('MentionResolver', () => {
       vi.mocked(mockPrisma.user.findUnique).mockRejectedValue(new Error('Database error'));
 
       const result = await resolver.resolveMentions(
-        'Hey <@123456>!',
+        'Hey <@567890123456789012>!',
         mockMentionedUsers as Collection<string, User>,
         'personality-123'
       );
 
       // Should leave mention as-is on error
-      expect(result.processedContent).toBe('Hey <@123456>!');
+      expect(result.processedContent).toBe('Hey <@567890123456789012>!');
       expect(result.mentionedUsers).toEqual([]);
     });
 
     it('should handle mixed resolved and unresolved mentions', async () => {
-      const mockUser = createMockUser('111111', 'alice', 'Alice');
-      mockMentionedUsers.set('111111', mockUser);
+      const mockUser = createMockUser('611111111111111111', 'alice', 'Alice');
+      mockMentionedUsers.set('611111111111111111', mockUser);
 
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
         userId: 'alice-uuid',
@@ -376,13 +369,15 @@ describe('MentionResolver', () => {
       vi.mocked(mockPrisma.user.findUnique).mockResolvedValue(null);
 
       const result = await resolver.resolveMentions(
-        'Hey <@111111> and <@999999>, lets chat!',
+        'Hey <@611111111111111111> and <@699999999999999999>, lets chat!',
         mockMentionedUsers as Collection<string, User>,
         'personality-123'
       );
 
       // Alice resolved, unknown user left as-is
-      expect(result.processedContent).toBe('Hey @AlicePersona and <@999999>, lets chat!');
+      expect(result.processedContent).toBe(
+        'Hey @AlicePersona and <@699999999999999999>, lets chat!'
+      );
       expect(result.mentionedUsers).toHaveLength(1);
       expect(result.mentionedUsers[0].personaName).toBe('AlicePersona');
     });
@@ -403,7 +398,7 @@ describe('MentionResolver', () => {
       });
 
       const result = await resolver.resolveMentions(
-        'Hey <@123456>!',
+        'Hey <@567890123456789012>!',
         mockMentionedUsers as Collection<string, User>,
         'personality-123'
       );
@@ -413,9 +408,9 @@ describe('MentionResolver', () => {
     });
 
     it('should handle both mention formats in the same message', async () => {
-      // Tests that both <@123456> and <@!123456> are replaced for the same user
-      const mockUser = createMockUser('123456', 'testuser', 'Test User');
-      mockMentionedUsers.set('123456', mockUser);
+      // Tests that both <@567890123456789012> and <@!567890123456789012> are replaced for the same user
+      const mockUser = createMockUser('567890123456789012', 'testuser', 'Test User');
+      mockMentionedUsers.set('567890123456789012', mockUser);
 
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
         userId: 'user-uuid-123',
@@ -424,7 +419,7 @@ describe('MentionResolver', () => {
       // PersonaResolver.resolve mock returns 'persona-123' and 'Test Persona' by default
 
       const result = await resolver.resolveMentions(
-        'Hey <@123456>! I was talking to <@!123456> about you, <@123456>',
+        'Hey <@567890123456789012>! I was talking to <@!567890123456789012> about you, <@567890123456789012>',
         mockMentionedUsers as Collection<string, User>,
         'personality-123'
       );
@@ -442,10 +437,12 @@ describe('MentionResolver', () => {
     });
 
     it('should respect max mentions limit for DoS prevention', async () => {
-      // Create 15 different users (more than the limit of 10)
-      for (let i = 1; i <= 15; i++) {
-        const mockUser = createMockUser(`${i}`, `user${i}`, `User ${i}`);
-        mockMentionedUsers.set(`${i}`, mockUser);
+      // Create 15 different users (more than the limit of 10) — valid
+      // snowflake ids, since non-snowflakes are filtered before the cap.
+      const manyIds = Array.from({ length: 15 }, (_, i) => `${700000000000000000n + BigInt(i)}`);
+      for (const id of manyIds) {
+        const mockUser = createMockUser(id, `user${id}`, `User ${id}`);
+        mockMentionedUsers.set(id, mockUser);
       }
 
       vi.mocked(mockUserService.getOrCreateUser).mockImplementation(async discordId => {
@@ -462,7 +459,7 @@ describe('MentionResolver', () => {
       }));
 
       // Build a message with 15 mentions
-      const mentions = Array.from({ length: 15 }, (_, i) => `<@${i + 1}>`).join(' ');
+      const mentions = manyIds.map(id => `<@${id}>`).join(' ');
       const result = await resolver.resolveMentions(
         `Hello ${mentions}`,
         mockMentionedUsers as Collection<string, User>,

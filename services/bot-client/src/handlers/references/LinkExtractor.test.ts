@@ -6,18 +6,23 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { LinkExtractor } from './LinkExtractor.js';
 import { MessageFormatter } from './MessageFormatter.js';
 import { SnapshotFormatter } from './SnapshotFormatter.js';
-import { MessageLinkParser } from '../../utils/MessageLinkParser.js';
 import { ChannelType, MessageReferenceType, Collection } from 'discord.js';
-import { INTERVALS } from '@tzurot/common-types';
+import { INTERVALS, MessageLinkParser } from '@tzurot/common-types';
 import type { Message, Guild, Channel, TextChannel, Client, MessageSnapshot } from 'discord.js';
 import type { ReferencedMessage } from '@tzurot/common-types';
 
-// Mock MessageLinkParser
-vi.mock('../../utils/MessageLinkParser.js', () => ({
-  MessageLinkParser: {
-    parseMessageLinks: vi.fn(),
-  },
-}));
+// Partial package mock: stub only the (relocated) MessageLinkParser's static
+// parse — these tests drive LinkExtractor through synthetic parse results.
+vi.mock('@tzurot/common-types', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+  return {
+    ...actual,
+    MessageLinkParser: {
+      ...actual.MessageLinkParser,
+      parseMessageLinks: vi.fn(),
+    },
+  };
+});
 
 // Type for mock input - allows any properties to be overridden
 type MockMessageInput = Record<string, unknown>;

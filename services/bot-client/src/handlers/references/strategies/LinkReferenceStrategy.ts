@@ -5,8 +5,7 @@
  */
 
 import type { Message } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
-import { MessageLinkParser } from '../../../utils/MessageLinkParser.js';
+import { createLogger, MessageLinkParser } from '@tzurot/common-types';
 import type { IReferenceStrategy } from './IReferenceStrategy.js';
 import { type ReferenceResult, ReferenceType } from '../types.js';
 
