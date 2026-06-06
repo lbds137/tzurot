@@ -21,6 +21,7 @@ function makeDeps(overrides: Partial<Record<string, unknown>> = {}): ContextAsse
       getCrossChannelHistory: vi.fn().mockResolvedValue([]),
       getUserTimezone: vi.fn().mockResolvedValue('UTC'),
       getContextEpoch: vi.fn().mockResolvedValue(undefined),
+      getMessageByDiscordId: vi.fn().mockResolvedValue(null),
       ...(overrides.dataSource as object),
     } as unknown as ContextDataSource,
     userService: {
@@ -75,17 +76,15 @@ describe('ContextAssembler.assembleCore', () => {
     const deps = makeDeps({
       dataSource: {
         getContextEpoch: vi.fn().mockResolvedValue(epoch),
-        getChannelHistory: vi
-          .fn()
-          .mockResolvedValue([
-            {
-              id: 'm1',
-              role: MessageRole.User,
-              content: 'hi',
-              createdAt: new Date(),
-              discordMessageId: ['d1'],
-            },
-          ]),
+        getChannelHistory: vi.fn().mockResolvedValue([
+          {
+            id: 'm1',
+            role: MessageRole.User,
+            content: 'hi',
+            createdAt: new Date(),
+            discordMessageId: ['d1'],
+          },
+        ]),
       },
     });
     const assembler = new ContextAssembler(deps);
@@ -201,6 +200,73 @@ describe('ContextAssembler.assembleCore', () => {
     const ext = core.history.find(m => m.id === 'd-ext');
     expect(ext?.personaId).toBe('persona-555');
     expect(ext?.createdAt).toBeInstanceOf(Date);
+  });
+
+  it('leaves referencedMessages undefined when the envelope carries no raw references', async () => {
+    const assembler = new ContextAssembler(makeDeps());
+    const core = await assembler.assembleCore(makeJobContext(), PERSONALITY, undefined);
+    expect(core.referencedMessages).toBeUndefined();
+  });
+
+  it('enriches raw references: stubs against assembled history, DB transcripts for the rest', async () => {
+    const historyRow = {
+      id: 'db-1',
+      role: MessageRole.User,
+      content: 'already in history',
+      createdAt: new Date('2026-06-01T00:00:00Z'),
+      discordMessageId: ['d-in-history'],
+    };
+    const deps = makeDeps({
+      dataSource: {
+        getChannelHistory: vi.fn().mockResolvedValue([historyRow]),
+        // Transcript lookup for the voice reference.
+        getMessageByDiscordId: vi.fn().mockResolvedValue({ content: 'db transcript' }),
+      },
+    });
+    const assembler = new ContextAssembler(deps);
+
+    const baseRef = {
+      discordUserId: 'u1',
+      authorUsername: 'a',
+      authorDisplayName: 'A',
+      embeds: '',
+      timestamp: '2026-06-01T00:01:00.000Z',
+      locationContext: '',
+    };
+    const core = await assembler.assembleCore(
+      makeJobContext({
+        rawAssemblyInputs: {
+          rawMessageContent: 'hello',
+          rawReferencedMessages: [
+            { ...baseRef, referenceNumber: 1, discordMessageId: 'd-in-history', content: 'dup' },
+            {
+              ...baseRef,
+              referenceNumber: 2,
+              discordMessageId: 'd-voice',
+              content: 'voice msg',
+              attachments: [
+                {
+                  url: 'https://cdn/v.ogg',
+                  contentType: 'audio/ogg',
+                  name: 'v.ogg',
+                  isVoiceMessage: true,
+                },
+              ],
+            },
+          ],
+        },
+      }),
+      PERSONALITY,
+      undefined,
+      { referenceDedupNowMs: new Date('2026-06-01T00:01:30Z').getTime() }
+    );
+
+    expect(core.referencedMessages).toHaveLength(2);
+    expect(core.referencedMessages?.[0].isDeduplicated).toBe(true);
+    expect(core.referencedMessages?.[1].content).toBe(
+      'voice msg\n\n[Voice transcript]: db transcript'
+    );
+    expect(deps.dataSource.getMessageByDiscordId).toHaveBeenCalledWith('d-voice');
   });
 
   it('returns plain DB history when the envelope carries no extended context', async () => {

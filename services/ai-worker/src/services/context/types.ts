@@ -51,6 +51,15 @@ export interface ContextDataSource {
   /** Cross-channel history groups for the active persona+personality. */
   getCrossChannelHistory(params: CrossChannelHistoryParams): Promise<CrossChannelHistoryGroup[]>;
 
+  /**
+   * Single history row lookup by Discord message id — the DB tier of voice
+   * transcript retrieval (voice messages store their transcript as the row's
+   * content). The bot-side path also has a Redis-cache tier; the worker is
+   * DB-only, so cache-hit-only transcripts are an expected divergence source
+   * during burn-in.
+   */
+  getMessageByDiscordId(discordMessageId: string): Promise<ConversationMessage | null>;
+
   /** IANA timezone for an INTERNAL user id ('UTC' fallback). */
   getUserTimezone(internalUserId: string): Promise<string>;
 

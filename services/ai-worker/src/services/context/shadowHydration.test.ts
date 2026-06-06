@@ -18,6 +18,7 @@ function makeDataSource(overrides: Partial<ContextDataSource> = {}): ContextData
     getCrossChannelHistory: vi.fn().mockResolvedValue([]),
     getUserTimezone: vi.fn().mockResolvedValue('UTC'),
     getContextEpoch: vi.fn().mockResolvedValue(undefined),
+    getMessageByDiscordId: vi.fn().mockResolvedValue(null),
     ...overrides,
   };
 }

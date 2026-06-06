@@ -79,24 +79,27 @@ export class ContextStep implements IPipelineStep {
    * per the constructor JSDoc.
    */
   private dispatchShadow(
-    jobId: string | number | undefined,
+    job: { id?: string | number; timestamp?: number },
     jobContext: GenerationContext['job']['data']['context'],
     personality: GenerationContext['job']['data']['personality'],
     configOverrides: GenerationContext['configOverrides']
   ): void {
     if (jobContext.rawAssemblyInputs !== undefined && this.contextAssembler !== undefined) {
       void shadowAssembleAndDiff({
-        jobId,
+        jobId: job.id,
         jobContext,
         personality,
         configOverrides,
         assembler: this.contextAssembler,
+        // Enqueue time stands in for the bot's crawl-time wall clock in the
+        // reference time-fallback dedup window.
+        jobTimestampMs: job.timestamp,
       });
       return;
     }
     if (this.contextDataSource !== undefined) {
       void shadowHydrateAndDiff({
-        jobId,
+        jobId: job.id,
         jobContext,
         personalityId: personality.id,
         configOverrides,
@@ -114,7 +117,7 @@ export class ContextStep implements IPipelineStep {
     }
 
     if (this.shadowEnabled) {
-      this.dispatchShadow(job.id, jobContext, personality, context.configOverrides);
+      this.dispatchShadow(job, jobContext, personality, context.configOverrides);
     }
 
     // Calculate oldest timestamp from conversation history AND referenced messages
