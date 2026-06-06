@@ -3,19 +3,13 @@
  * Type definitions for Discord mention resolution
  */
 
+import type { ResolvedUserMention } from '@tzurot/common-types';
+
 /**
- * Information about a mentioned user's persona
+ * Information about a mentioned user's persona — the kernel's resolved shape,
+ * re-named for this adapter's public API (one definition, no parallel type).
  */
-export interface MentionedUserInfo {
-  /** Discord user ID */
-  discordId: string;
-  /** User's database UUID */
-  userId: string;
-  /** Persona's database UUID */
-  personaId: string;
-  /** Display name used in message replacement */
-  personaName: string;
-}
+export type MentionedUserInfo = ResolvedUserMention;
 
 /**
  * Information about a mentioned channel
@@ -39,8 +33,8 @@ export interface ResolvedRole {
   roleId: string;
   /** Role name (without @) */
   roleName: string;
-  /** Whether the role is mentionable */
-  mentionable: boolean;
+  /** Whether the role is mentionable (absent when the source didn't carry it) */
+  mentionable?: boolean;
 }
 
 /**

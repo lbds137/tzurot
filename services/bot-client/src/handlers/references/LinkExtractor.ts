@@ -15,8 +15,13 @@ import {
   ChannelType,
   PermissionsBitField,
 } from 'discord.js';
-import { createLogger, INTERVALS, type ReferencedMessage } from '@tzurot/common-types';
-import { MessageLinkParser, type ParsedMessageLink } from '../../utils/MessageLinkParser.js';
+import {
+  createLogger,
+  INTERVALS,
+  type ReferencedMessage,
+  MessageLinkParser,
+  type ParsedMessageLink,
+} from '@tzurot/common-types';
 import { MessageFormatter } from './MessageFormatter.js';
 import { SnapshotFormatter } from './SnapshotFormatter.js';
 import { isForwardedMessage } from './types.js';

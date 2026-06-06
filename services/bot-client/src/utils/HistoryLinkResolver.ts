@@ -22,8 +22,9 @@ import {
   createLogger,
   type StoredReferencedMessage,
   type AttachmentMetadata,
+  MessageLinkParser,
+  type ParsedMessageLink,
 } from '@tzurot/common-types';
-import { MessageLinkParser, type ParsedMessageLink } from './MessageLinkParser.js';
 import { buildMessageContent } from './MessageContentBuilder.js';
 
 const logger = createLogger('HistoryLinkResolver');
