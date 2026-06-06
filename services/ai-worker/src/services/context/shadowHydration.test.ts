@@ -19,6 +19,7 @@ function makeDataSource(overrides: Partial<ContextDataSource> = {}): ContextData
     getUserTimezone: vi.fn().mockResolvedValue('UTC'),
     getContextEpoch: vi.fn().mockResolvedValue(undefined),
     getMessageByDiscordId: vi.fn().mockResolvedValue(null),
+    findUserByDiscordId: vi.fn().mockResolvedValue(null),
     ...overrides,
   };
 }

@@ -24,6 +24,9 @@ function makeAssembler(core: Partial<AssembledCore>): ContextAssembler {
       contextEpoch: undefined,
       history: [],
       referencedMessages: undefined,
+      messageContent: 'hello',
+      mentionedPersonas: undefined,
+      referencedChannels: undefined,
       ...core,
     }),
   } as unknown as ContextAssembler;
@@ -77,6 +80,7 @@ describe('shadowAssembleAndDiff', () => {
       configOverrides: undefined,
       assembler,
       jobTimestampMs: undefined,
+      payloadMessage: 'hello',
     });
     expect(assembler.assembleCore).not.toHaveBeenCalled();
     expect(mockLogger.info).not.toHaveBeenCalled();
@@ -90,6 +94,7 @@ describe('shadowAssembleAndDiff', () => {
       personality: PERSONALITY,
       configOverrides: undefined,
       jobTimestampMs: undefined,
+      payloadMessage: 'hello',
       assembler: makeAssembler({ history: history as never }),
     });
 
@@ -107,6 +112,7 @@ describe('shadowAssembleAndDiff', () => {
       personality: PERSONALITY,
       configOverrides: undefined,
       jobTimestampMs: undefined,
+      payloadMessage: 'hello',
       assembler: makeAssembler({ activePersonaId: 'OTHER' }),
     });
 
@@ -129,6 +135,7 @@ describe('shadowAssembleAndDiff', () => {
       personality: PERSONALITY,
       configOverrides: undefined,
       jobTimestampMs: undefined,
+      payloadMessage: 'hello',
       assembler: makeAssembler({ history: assembledHistory as never }),
     });
 
@@ -155,6 +162,7 @@ describe('shadowAssembleAndDiff', () => {
       personality: PERSONALITY,
       configOverrides: undefined,
       jobTimestampMs: undefined,
+      payloadMessage: 'hello',
       assembler: makeAssembler({ history: assembledHistory as never }),
     });
 
@@ -177,6 +185,7 @@ describe('shadowAssembleAndDiff', () => {
       personality: PERSONALITY,
       configOverrides: undefined,
       jobTimestampMs: undefined,
+      payloadMessage: 'hello',
       assembler: makeAssembler({ history: assembledHistory as never }),
     });
 
@@ -196,6 +205,7 @@ describe('shadowAssembleAndDiff', () => {
       personality: PERSONALITY,
       configOverrides: undefined,
       jobTimestampMs: undefined,
+      payloadMessage: 'hello',
       assembler: makeAssembler({ userTimezone: 'UTC', activePersonaName: null }),
     });
 
@@ -214,6 +224,7 @@ describe('shadowAssembleAndDiff', () => {
       configOverrides: undefined,
       assembler,
       jobTimestampMs: 1_717_243_200_000,
+      payloadMessage: 'hello',
     });
     expect(assembler.assembleCore).toHaveBeenCalledWith(expect.anything(), PERSONALITY, undefined, {
       referenceDedupNowMs: 1_717_243_200_000,
@@ -227,6 +238,7 @@ describe('shadowAssembleAndDiff', () => {
       personality: PERSONALITY,
       configOverrides: undefined,
       jobTimestampMs: undefined,
+      payloadMessage: 'hello',
       assembler: makeAssembler({ referencedMessages: undefined }),
     });
     expect(mockLogger.info).toHaveBeenCalledWith(
@@ -245,6 +257,7 @@ describe('shadowAssembleAndDiff', () => {
       personality: PERSONALITY,
       configOverrides: undefined,
       jobTimestampMs: undefined,
+      payloadMessage: 'hello',
       assembler: makeAssembler({ referencedMessages: [ref()] as never }),
     });
     expect(mockLogger.info).toHaveBeenCalledWith(
@@ -263,6 +276,7 @@ describe('shadowAssembleAndDiff', () => {
       personality: PERSONALITY,
       configOverrides: undefined,
       jobTimestampMs: undefined,
+      payloadMessage: 'hello',
       assembler: makeAssembler({
         // Same count, disjoint number — should-be-impossible drift shape.
         referencedMessages: [{ ...ref(), referenceNumber: 99 }] as never,
@@ -284,6 +298,7 @@ describe('shadowAssembleAndDiff', () => {
       personality: PERSONALITY,
       configOverrides: undefined,
       jobTimestampMs: undefined,
+      payloadMessage: 'hello',
       assembler: makeAssembler({ referencedMessages: [ref()] as never }),
     });
     expect(mockLogger.warn).toHaveBeenCalledWith(
@@ -302,6 +317,7 @@ describe('shadowAssembleAndDiff', () => {
       personality: PERSONALITY,
       configOverrides: undefined,
       jobTimestampMs: undefined,
+      payloadMessage: 'hello',
       assembler: makeAssembler({
         referencedMessages: [{ ...ref(), content: 'STUBBED', isDeduplicated: true }] as never,
       }),
@@ -311,6 +327,92 @@ describe('shadowAssembleAndDiff', () => {
         allMatched: false,
         matches: expect.objectContaining({ referencedMessages: false }),
         referenceDiff: expect.objectContaining({ contentMismatches: 1, dedupMismatches: 1 }),
+      }),
+      expect.stringContaining('DIVERGED')
+    );
+  });
+
+  it('flags id-set size mismatches on referencedChannels', async () => {
+    await shadowAssembleAndDiff({
+      jobId: 'j1',
+      jobContext: makeJobContext({ referencedChannels: undefined }),
+      personality: PERSONALITY,
+      configOverrides: undefined,
+      assembler: makeAssembler({
+        referencedChannels: [{ channelId: 'c-1', channelName: 'general' }],
+      }),
+      jobTimestampMs: undefined,
+      payloadMessage: 'hello',
+    });
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        matches: expect.objectContaining({ referencedChannels: false }),
+      }),
+      expect.stringContaining('DIVERGED')
+    );
+  });
+
+  it('flags messageContent divergence between worker rewrite and payload', async () => {
+    await shadowAssembleAndDiff({
+      jobId: 'j1',
+      jobContext: makeJobContext(),
+      personality: PERSONALITY,
+      configOverrides: undefined,
+      assembler: makeAssembler({ messageContent: 'WORKER VERSION' }),
+      jobTimestampMs: undefined,
+      payloadMessage: 'hello',
+    });
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        matches: expect.objectContaining({ messageContent: false }),
+        contentDiff: expect.objectContaining({ compared: true, matched: false }),
+      }),
+      expect.stringContaining('DIVERGED')
+    );
+  });
+
+  it('skips the messageContent comparison for voice jobs', async () => {
+    await shadowAssembleAndDiff({
+      jobId: 'j1',
+      jobContext: makeJobContext({ isVoiceMessage: true }),
+      personality: PERSONALITY,
+      configOverrides: undefined,
+      assembler: makeAssembler({ messageContent: 'the transcript' }),
+      jobTimestampMs: undefined,
+      payloadMessage: '',
+    });
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      expect.objectContaining({
+        allMatched: true,
+        contentDiff: expect.objectContaining({ compared: false }),
+      }),
+      expect.stringContaining('matched')
+    );
+  });
+
+  it('compares mentionedPersonas and referencedChannels as id sets', async () => {
+    await shadowAssembleAndDiff({
+      jobId: 'j1',
+      jobContext: makeJobContext({
+        mentionedPersonas: [{ personaId: 'p-1', personaName: 'A' }] as never,
+        referencedChannels: [{ channelId: 'c-1', channelName: 'general' }] as never,
+      }),
+      personality: PERSONALITY,
+      configOverrides: undefined,
+      assembler: makeAssembler({
+        // Same channel set, different persona set.
+        mentionedPersonas: [{ personaId: 'p-OTHER', personaName: 'A' }],
+        referencedChannels: [{ channelId: 'c-1', channelName: 'general' }],
+      }),
+      jobTimestampMs: undefined,
+      payloadMessage: 'hello',
+    });
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        matches: expect.objectContaining({
+          mentionedPersonas: false,
+          referencedChannels: true,
+        }),
       }),
       expect.stringContaining('DIVERGED')
     );
@@ -329,6 +431,7 @@ describe('shadowAssembleAndDiff', () => {
         configOverrides: undefined,
         assembler,
         jobTimestampMs: undefined,
+        payloadMessage: 'hello',
       })
     ).resolves.toBeUndefined();
 

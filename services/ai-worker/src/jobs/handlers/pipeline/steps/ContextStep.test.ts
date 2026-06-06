@@ -121,6 +121,7 @@ describe('ContextStep', () => {
       getUserTimezone: vi.fn(),
       getContextEpoch: vi.fn(),
       getMessageByDiscordId: vi.fn().mockResolvedValue(null),
+      findUserByDiscordId: vi.fn().mockResolvedValue(null),
     };
 
     it('invokes shadow hydration when a data source is provided and the flag is on', () => {
@@ -157,9 +158,33 @@ describe('ContextStep', () => {
       });
 
       expect(mockShadowAssembleAndDiff).toHaveBeenCalledWith(
-        expect.objectContaining({ jobId: 'job-123', assembler: fakeAssembler })
+        expect.objectContaining({
+          jobId: 'job-123',
+          assembler: fakeAssembler,
+          // The job factory's string message threads through verbatim.
+          payloadMessage: 'Hello, how are you?',
+        })
       );
       expect(mockShadowHydrateAndDiff).not.toHaveBeenCalled();
+    });
+
+    it('passes payloadMessage as undefined for non-string message shapes', () => {
+      mockIsShadowHydrationEnabled.mockReturnValue(true);
+      const fakeAssembler = { assembleCore: vi.fn() };
+      const gatedStep = new ContextStep(fakeDataSource, fakeAssembler as never);
+
+      gatedStep.process({
+        job: createMockJob({
+          message: { structured: true } as never,
+          context: { userId: 'user-1', rawAssemblyInputs: { rawMessageContent: 'raw' } } as never,
+        }),
+        startTime: Date.now(),
+        config,
+      });
+
+      expect(mockShadowAssembleAndDiff).toHaveBeenCalledWith(
+        expect.objectContaining({ payloadMessage: undefined })
+      );
     });
 
     it('falls back to the hydration shadow when the envelope is absent', () => {
