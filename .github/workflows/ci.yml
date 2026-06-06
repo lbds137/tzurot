@@ -206,6 +206,11 @@ jobs:
         if: ${{ !cancelled() }}
         uses: codecov/codecov-action@v6
         with:
+          # PyPI install path: the default binary download verifies its GPG
+          # signature against a key fetched from keybase.io, which has gone
+          # unavailable before (keybase 404 body piped into gpg — see
+          # codecov/codecov-action#1955). pip keeps its own integrity checks.
+          use_pypi: true
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./services/ai-worker/coverage/lcov.info
           flags: ai-worker
@@ -216,6 +221,11 @@ jobs:
         if: ${{ !cancelled() }}
         uses: codecov/codecov-action@v6
         with:
+          # PyPI install path: the default binary download verifies its GPG
+          # signature against a key fetched from keybase.io, which has gone
+          # unavailable before (keybase 404 body piped into gpg — see
+          # codecov/codecov-action#1955). pip keeps its own integrity checks.
+          use_pypi: true
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./services/api-gateway/coverage/lcov.info
           flags: api-gateway
@@ -226,6 +236,11 @@ jobs:
         if: ${{ !cancelled() }}
         uses: codecov/codecov-action@v6
         with:
+          # PyPI install path: the default binary download verifies its GPG
+          # signature against a key fetched from keybase.io, which has gone
+          # unavailable before (keybase 404 body piped into gpg — see
+          # codecov/codecov-action#1955). pip keeps its own integrity checks.
+          use_pypi: true
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./services/bot-client/coverage/lcov.info
           flags: bot-client
@@ -236,6 +251,11 @@ jobs:
         if: ${{ !cancelled() }}
         uses: codecov/codecov-action@v6
         with:
+          # PyPI install path: the default binary download verifies its GPG
+          # signature against a key fetched from keybase.io, which has gone
+          # unavailable before (keybase 404 body piped into gpg — see
+          # codecov/codecov-action#1955). pip keeps its own integrity checks.
+          use_pypi: true
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./packages/common-types/coverage/lcov.info
           flags: common-types
@@ -246,6 +266,11 @@ jobs:
         if: ${{ !cancelled() }}
         uses: codecov/codecov-action@v6
         with:
+          # PyPI install path: the default binary download verifies its GPG
+          # signature against a key fetched from keybase.io, which has gone
+          # unavailable before (keybase 404 body piped into gpg — see
+          # codecov/codecov-action#1955). pip keeps its own integrity checks.
+          use_pypi: true
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./services/*/junit.xml,./packages/*/junit.xml
           report_type: test_results
@@ -318,6 +343,11 @@ jobs:
         if: ${{ !cancelled() }}
         uses: codecov/codecov-action@v6
         with:
+          # PyPI install path: the default binary download verifies its GPG
+          # signature against a key fetched from keybase.io, which has gone
+          # unavailable before (keybase 404 body piped into gpg — see
+          # codecov/codecov-action#1955). pip keeps its own integrity checks.
+          use_pypi: true
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage/integration/lcov.info
           flags: integration
@@ -362,6 +392,11 @@ jobs:
         if: ${{ !cancelled() && steps.filter.outputs.voice-engine == 'true' }}
         uses: codecov/codecov-action@v6
         with:
+          # PyPI install path: the default binary download verifies its GPG
+          # signature against a key fetched from keybase.io, which has gone
+          # unavailable before (keybase 404 body piped into gpg — see
+          # codecov/codecov-action#1955). pip keeps its own integrity checks.
+          use_pypi: true
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./services/voice-engine/coverage.xml
           flags: voice-engine
