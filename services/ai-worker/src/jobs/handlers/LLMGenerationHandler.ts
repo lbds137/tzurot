@@ -23,6 +23,8 @@ import { ConversationalRAGService } from '../../services/ConversationalRAGServic
 import {
   createLogger,
   getPrismaClient,
+  PersonaResolver,
+  UserService,
   ApiErrorCategory,
   ApiErrorType,
   USER_ERROR_MESSAGES,
@@ -34,6 +36,7 @@ import {
   type SttResolver,
 } from '@tzurot/common-types';
 import { PrismaContextDataSource } from '../../services/context/PrismaContextDataSource.js';
+import { ContextAssembler } from '../../services/context/ContextAssembler.js';
 import { ApiKeyResolver } from '../../services/ApiKeyResolver.js';
 import type { EmbeddingServiceInterface } from '../../utils/duplicateDetection.js';
 import { storeDiagnosticLog } from './pipeline/steps/diagnosticStorage.js';
@@ -140,9 +143,10 @@ export class LLMGenerationHandler {
       new DownloadAttachmentsStep(),
       new DependencyStep(apiKeyResolver),
       // Handler (and thus this pipeline) is constructed once at worker
-      // startup — the data source and its wrapped services are singletons,
-      // not per-job allocations.
-      new ContextStep(new PrismaContextDataSource(getPrismaClient())),
+      // startup — the data source, assembler, and their wrapped services are
+      // constructed once here (around the shared prisma singleton), not
+      // re-allocated per job.
+      this.buildContextStep(),
       new GenerationStep(ragService, embeddingService),
       new TTSStep(ttsConfigResolver),
     ];
@@ -255,6 +259,22 @@ export class LLMGenerationHandler {
         },
       };
     }
+  }
+
+  /**
+   * Construct the ContextStep with its shadow instrumentation: the 2.5a
+   * hydration data source plus the iii-a context assembler (user/persona
+   * re-derivation + shared history merge against the raw envelope).
+   */
+  private buildContextStep(): ContextStep {
+    const prisma = getPrismaClient();
+    const dataSource = new PrismaContextDataSource(prisma);
+    const assembler = new ContextAssembler({
+      dataSource,
+      userService: new UserService(prisma),
+      personaResolver: new PersonaResolver(prisma),
+    });
+    return new ContextStep(dataSource, assembler);
   }
 
   /**
