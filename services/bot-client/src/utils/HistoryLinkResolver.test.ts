@@ -8,15 +8,20 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Message, Client } from 'discord.js';
 import { resolveHistoryLinks } from './HistoryLinkResolver.js';
 
-// Mock dependencies
-vi.mock('@tzurot/common-types', () => ({
-  createLogger: () => ({
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
-}));
+// Partial mock: the real (relocated) MessageLinkParser must run — these
+// tests exercise actual link parsing; only the logger is stubbed.
+vi.mock('@tzurot/common-types', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+  return {
+    ...actual,
+    createLogger: () => ({
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }),
+  };
+});
 
 vi.mock('./MessageContentBuilder.js', () => ({
   buildMessageContent: vi.fn().mockResolvedValue({

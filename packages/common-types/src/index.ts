@@ -90,6 +90,8 @@ export * from './services/conversationSyncDiff.js';
 export * from './utils/historyMerger.js';
 export * from './utils/extendedContextPersonaResolver.js';
 export * from './utils/referenceEnrichment.js';
+export * from './utils/messageLinkParser.js';
+export * from './utils/mentionRewriter.js';
 export * from './services/UserService.js';
 export * from './services/BaseCacheInvalidationService.js';
 export * from './services/CacheInvalidationService.js';
