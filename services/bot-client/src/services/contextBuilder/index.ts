@@ -6,7 +6,7 @@
  */
 
 // Extended Context Persona Resolution
-export { resolveExtendedContextPersonaIds } from './ExtendedContextPersonaResolver.js';
+export { resolveExtendedContextPersonaIds } from '@tzurot/common-types';
 
 // Guild Member Resolution
 export { extractGuildMemberInfo, resolveEffectiveMember } from './GuildMemberResolver.js';

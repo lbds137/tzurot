@@ -9,8 +9,8 @@ import {
   recoverEmptyDbContent,
   enrichDbMessagesWithExtendedMetadata,
   mergeWithHistory,
-} from './HistoryMerger.js';
-import { MessageRole, type ConversationMessage } from '@tzurot/common-types';
+} from './historyMerger.js';
+import { MessageRole, type ConversationMessage } from '../index.js';
 
 /**
  * Create a minimal conversation message for testing

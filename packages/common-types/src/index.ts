@@ -87,6 +87,8 @@ export * from './services/ConversationHistoryService.js';
 export * from './services/historyCutoff.js';
 export * from './services/ConversationSyncService.js';
 export * from './services/conversationSyncDiff.js';
+export * from './utils/historyMerger.js';
+export * from './utils/extendedContextPersonaResolver.js';
 export * from './services/UserService.js';
 export * from './services/BaseCacheInvalidationService.js';
 export * from './services/CacheInvalidationService.js';

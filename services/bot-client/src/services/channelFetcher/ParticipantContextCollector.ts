@@ -6,9 +6,13 @@
  */
 
 import type { Message } from 'discord.js';
-import { createLogger, MESSAGE_LIMITS, type MessageReaction } from '@tzurot/common-types';
+import {
+  createLogger,
+  MESSAGE_LIMITS,
+  type MessageReaction,
+  INTERNAL_DISCORD_ID_PREFIX,
+} from '@tzurot/common-types';
 import type { ParticipantGuildInfo, ExtendedContextUser } from './types.js';
-import { INTERNAL_DISCORD_ID_PREFIX } from '../../constants/personaId.js';
 
 const logger = createLogger('ParticipantContextCollector');
 
