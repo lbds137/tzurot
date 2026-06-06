@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockGetChannelHistory = vi.hoisted(() => vi.fn());
 const mockGetCrossChannelHistory = vi.hoisted(() => vi.fn());
+const mockGetMessageByDiscordId = vi.hoisted(() => vi.fn());
 const mockGetUserTimezone = vi.hoisted(() => vi.fn());
 
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -12,6 +13,7 @@ vi.mock('@tzurot/common-types', async importOriginal => {
     ConversationHistoryService: class {
       getChannelHistory = mockGetChannelHistory;
       getCrossChannelHistory = mockGetCrossChannelHistory;
+      getMessageByDiscordId = mockGetMessageByDiscordId;
     },
     UserService: class {
       getUserTimezone = mockGetUserTimezone;
@@ -79,6 +81,15 @@ describe('PrismaContextDataSource', () => {
       maxAgeSeconds: undefined,
       contextEpoch: undefined,
     });
+  });
+
+  it('delegates getMessageByDiscordId for the transcript DB tier', async () => {
+    mockGetMessageByDiscordId.mockResolvedValue({ id: 'm1', content: 'a transcript' });
+
+    const result = await source.getMessageByDiscordId('discord-1');
+
+    expect(mockGetMessageByDiscordId).toHaveBeenCalledWith('discord-1');
+    expect(result).toEqual({ id: 'm1', content: 'a transcript' });
   });
 
   it('delegates getUserTimezone', async () => {

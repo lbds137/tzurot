@@ -19,6 +19,7 @@ import {
   createLogger,
   type JobContext,
   type LoadedPersonality,
+  type ReferencedMessage,
   type ResolvedConfigOverrides,
 } from '@tzurot/common-types';
 import type { ContextAssembler, AssembledCore } from './ContextAssembler.js';
@@ -31,6 +32,8 @@ interface ShadowAssemblyParams {
   personality: LoadedPersonality;
   configOverrides: ResolvedConfigOverrides | undefined;
   assembler: ContextAssembler;
+  /** Job enqueue timestamp — anchors the reference time-fallback dedup window. */
+  jobTimestampMs: number | undefined;
 }
 
 interface SurfaceMatches {
@@ -41,6 +44,8 @@ interface SurfaceMatches {
   historyIds: boolean;
   historyContent: boolean;
   historyPersonaIds: boolean;
+  /** True when matched OR skipped (envelope carried no raw references to re-derive from). */
+  referencedMessages: boolean;
 }
 
 /**
@@ -111,6 +116,88 @@ function diffHistory(
 }
 
 /**
+ * Reference comparison, keyed by referenceNumber (adopted from the wire on
+ * both sides, so numbers align by construction). Compares content and the
+ * stub/full decision per number. Skipped (matched, compared:false) when the
+ * assembler produced nothing — the envelope carried no raw references
+ * (weigh-in mode or a sender predating the field).
+ *
+ * Dedup disagreement (one side stubs, the other keeps full) surfaces as
+ * dedupMismatches; a payload number absent from the assembled set should be
+ * impossible by construction and counts as missingFromAssembled.
+ */
+function diffReferences(
+  payload: ReferencedMessage[] | undefined,
+  assembled: ReferencedMessage[] | undefined
+): {
+  matched: boolean;
+  compared: boolean;
+  payloadCount: number;
+  assembledCount: number;
+  missingFromAssembled: number;
+  extraInAssembled: number;
+  contentMismatches: number;
+  dedupMismatches: number;
+} {
+  // Payload omits the field when extraction found nothing — normalize to [].
+  const payloadRefs = payload ?? [];
+  if (assembled === undefined) {
+    return {
+      matched: true,
+      compared: false,
+      payloadCount: payloadRefs.length,
+      assembledCount: 0,
+      missingFromAssembled: 0,
+      extraInAssembled: 0,
+      contentMismatches: 0,
+      dedupMismatches: 0,
+    };
+  }
+
+  const assembledByNumber = new Map(assembled.map(r => [r.referenceNumber, r]));
+  const payloadNumbers = new Set(payloadRefs.map(r => r.referenceNumber));
+  let missingFromAssembled = 0;
+  let contentMismatches = 0;
+  let dedupMismatches = 0;
+  for (const payloadRef of payloadRefs) {
+    const assembledRef = assembledByNumber.get(payloadRef.referenceNumber);
+    if (assembledRef === undefined) {
+      missingFromAssembled++;
+      continue;
+    }
+    if (assembledRef.content !== payloadRef.content) {
+      contentMismatches++;
+    }
+    if ((assembledRef.isDeduplicated ?? false) !== (payloadRef.isDeduplicated ?? false)) {
+      dedupMismatches++;
+    }
+  }
+
+  // Worker-produced reference numbers the payload lacks — true
+  // set-difference, so the metric stays accurate even when counts match
+  // but the number sets are disjoint.
+  const extraInAssembled = assembled.filter(r => !payloadNumbers.has(r.referenceNumber)).length;
+
+  return {
+    matched:
+      assembled.length === payloadRefs.length &&
+      missingFromAssembled === 0 &&
+      // Implied by the two checks above while numbers stay unique; explicit
+      // so the set-identity invariant survives future edits.
+      extraInAssembled === 0 &&
+      contentMismatches === 0 &&
+      dedupMismatches === 0,
+    compared: true,
+    payloadCount: payloadRefs.length,
+    assembledCount: assembled.length,
+    missingFromAssembled,
+    extraInAssembled,
+    contentMismatches,
+    dedupMismatches,
+  };
+}
+
+/**
  * Run the assembler against the job's raw envelope and diff the core
  * surfaces against the bot-assembled payload. Fire-and-forget: never throws.
  */
@@ -121,8 +208,14 @@ export async function shadowAssembleAndDiff(params: ShadowAssemblyParams): Promi
       return;
     }
 
-    const assembled = await assembler.assembleCore(jobContext, personality, configOverrides);
+    const assembled = await assembler.assembleCore(jobContext, personality, configOverrides, {
+      referenceDedupNowMs: params.jobTimestampMs,
+    });
     const historyDiff = diffHistory(jobContext.conversationHistory, assembled.history);
+    const referenceDiff = diffReferences(
+      jobContext.referencedMessages,
+      assembled.referencedMessages
+    );
 
     const matches: SurfaceMatches = {
       userInternalId: assembled.userInternalId === jobContext.userInternalId,
@@ -135,6 +228,7 @@ export async function shadowAssembleAndDiff(params: ShadowAssemblyParams): Promi
       historyIds: historyDiff.ids,
       historyContent: historyDiff.content,
       historyPersonaIds: historyDiff.personaIds,
+      referencedMessages: referenceDiff.matched,
     };
     const allMatched = Object.values(matches).every(Boolean);
 
@@ -150,6 +244,7 @@ export async function shadowAssembleAndDiff(params: ShadowAssemblyParams): Promi
         contentMismatches: historyDiff.contentMismatches,
         personaIdMismatches: historyDiff.personaIdMismatches,
       },
+      referenceDiff,
     };
 
     if (allMatched) {
