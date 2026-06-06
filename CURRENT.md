@@ -7,9 +7,23 @@
 
 ## Next Session Goal
 
-**Phase 2.5c-iii-a3-ii-2 — mention content rewriting, the next assembler slice.** Reference enrichment shipped (ii-1 #1162). ii-2 brings: shared mention kernels extracted from `MentionResolver` (the scan/dedup/cap/placeholder logic is the drift surface — user mentions via a plain user-map seam, channel/role via single resolver callbacks), `MessageLinkParser` relocation to common-types, `[Reference N]` link rewrite from `referenceNumber` (URL→messageId→max-number, last-wins mirrors trackLink), and the `messageContent` + `mentionedPersonas` + `referencedChannels` shadow surfaces. Then ii-3 = cross-channel decoration + wire/DB type unification + full-diff wrap-up; then iii-b cutover. Fold-forwards queued in active-epic.md (#1161 a–d + #1162 outer-Promise.all + locationContext-diff check). Also pending before iii-b: Fork C vision-description relocation (worker's own Prisma). Watch: CPD ratchet at 1727/1728. Burn-in flags all live on dev: `CONTEXT_MODE` + `CONTEXT_RAW_ENVELOPE` + `CONTEXT_SHADOW_HYDRATION` + `CONTEXT_DUAL_WRITE`.
+**Phase 2.5c-iii-a3-ii-3 — cross-channel decoration, the assembler's last re-derivation slice.** Mentions/links shipped (ii-2 #1163): the shadow now diffs 11 surfaces and the assembler re-derives everything except cross-channel history. ii-3 brings: `getCrossChannelHistory` consumption (dataSource method exists since 2.5a) + decoration from `knownChannelEnvironments` with the shared fallback-env builder, `mapCrossChannelToApiFormat` relocation, wire/DB group-type unification (closes the 2.5a count-only-diff caveat), the queued fold-forwards (#1161 a–d, #1162/#1163 batch in active-epic.md), and the full-diff wrap-up. Then the pre-iii-b loose ends: Fork C vision-description relocation + the voice content story design question (transcript-as-message would double with the attachment-description path in PromptBuilder). Watch: CPD ratchet. Burn-in flags all live on dev.
 
-## Last Session — a3-ii sliced; ii-1 shipped: worker-side reference enrichment (2026-06-06)
+## Last Session — ii-2 shipped + Codecov outage diagnosed and routed around (2026-06-06)
+
+| PR    | Title                                                                                     | Outcome                                                                                                                                                |
+| ----- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| #1163 | `feat(ai-worker): PR 2.5c-iii-a3-ii-2 — worker-side mention rewriting + link replacement` | Mention kernels shared (bot = thin adapter, 27 tests exercise REAL kernels); `[Reference N]` from wire numbers; shadow = 11 surfaces                   |
+| #1164 | `fix(ci): install codecov CLI via PyPI instead of the keybase-verified binary`            | Global Codecov outage routed around: keybase 404 body piped into gpg killed every upload; `use_pypi` keeps PyPI integrity checks — permanent hardening |
+
+### Net result
+
+- **The mention scan/dedup/cap/placeholder ordering rules live once** in `mentionRewriter.ts`; MentionResolver delegates, the worker's `rewriteRawContent` mirrors the bot's step-5 order exactly, and the existing bot tests verify the kernels through the adapter. One user-approved behavior change rode along: snowflake validation on user-mention ids (junk `<@1>` no longer costs a DB round-trip), applied atomically to both sides.
+- **5 review rounds converged**; rounds were trivial autos + verified dismissals; the reviewer's "missing isValidDiscordId" Medium was verified as a faithful-port of pre-existing behavior, then approved as an improvement.
+- **Codecov broke globally mid-merge** (Keybase key 404, fallout from the Harness acquisition week; codecov-action#1955, also took down mozilla/pdf.js CI). Diagnosed to the exact wrapper line (`curl -s` without `--fail` piping a 404 body into gpg), routed around via `use_pypi: true` on all 7 upload steps (#1164 — keeps pip's integrity checks, permanent keybase-independence), then #1163 rebased onto the fix and merged green.
+- **iii-b design question now on record**: the voice content story (envelope rawMessageContent = transcript; payload message = empty refetched content; transcript-as-message at cutover would double with the attachment-description path).
+
+## Previous Session — a3-ii sliced; ii-1 shipped: worker-side reference enrichment (2026-06-06)
 
 | PR    | Title                                                                     | Outcome                                                                                                                                                |
 | ----- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
