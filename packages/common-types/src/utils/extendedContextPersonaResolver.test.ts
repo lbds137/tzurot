@@ -6,8 +6,8 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import type { ConversationMessage, PersonaResolver } from '@tzurot/common-types';
-import { MessageRole } from '@tzurot/common-types';
+import type { ConversationMessage, PersonaResolver } from '../index.js';
+import { MessageRole } from '../index.js';
 import {
   collectAllDiscordIdsNeedingResolution,
   batchResolvePersonas,
@@ -15,7 +15,7 @@ import {
   remapParticipantGuildInfoKeys,
   resolveExtendedContextPersonaIds,
   type ParticipantGuildInfo,
-} from './ExtendedContextPersonaResolver.js';
+} from './extendedContextPersonaResolver.js';
 
 // Helper to create minimal ConversationMessage for tests
 function createMessage(partial: Partial<ConversationMessage>): ConversationMessage {

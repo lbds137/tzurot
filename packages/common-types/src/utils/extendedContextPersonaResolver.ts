@@ -6,12 +6,11 @@
  * authors AND reaction reactors in a single batch to minimize API calls.
  *
  * This module is the sole consumer of the `discord:XXXX` placeholder format
- * on the resolution side — writers (DiscordChannelFetcher, ReactionProcessor,
- * ParticipantContextCollector) construct the format, and this module strips
- * or resolves it. The shared prefix constant (`INTERNAL_DISCORD_ID_PREFIX`)
- * lives in `bot-client/src/constants/personaId.ts` so neither side has to
- * cross-import from the other. The format is a transient internal
- * representation used in the two-step fetch → resolve pipeline:
+ * on the resolution side — writers (bot-client's DiscordChannelFetcher,
+ * ReactionProcessor, ParticipantContextCollector) construct the format, and
+ * this module strips or resolves it. The prefix constant
+ * (`INTERNAL_DISCORD_ID_PREFIX`) lives in `constants/personaId.ts`. The
+ * format is used in the two-step fetch → resolve pipeline:
  *
  *   1. DiscordChannelFetcher / ReactionProcessor create ConversationMessage /
  *      reactor records with personaId = `discord:{discordId}` before any
@@ -21,18 +20,19 @@
  *      (unregistered users) so the format NEVER leaves bot-client
  *
  * Postcondition of resolveExtendedContextPersonaIds: no message or reactor
- * exits with a `discord:XXXX` personaId. ai-worker therefore only sees
- * UUIDs (or the empty-string sentinel for unregistered users) — all
- * identity-resolution logic there is dormant and can be deleted.
+ * exits with a `discord:XXXX` personaId — resolved outputs carry UUIDs (or
+ * the empty-string sentinel for unregistered users). Note: since the raw
+ * assembly envelope (CONTEXT_RAW_ENVELOPE), PRE-resolution snapshots — with
+ * placeholders intact — deliberately cross to ai-worker so its context
+ * assembler can re-run this exact resolution; that is why this module lives
+ * in common-types and is shared by both sides.
  */
 
-import {
-  createLogger,
-  type PersonaResolver,
-  type ConversationMessage,
-  type ReactionReactor,
-} from '@tzurot/common-types';
-import { INTERNAL_DISCORD_ID_PREFIX } from '../../constants/personaId.js';
+import { createLogger } from './logger.js';
+import type { PersonaResolver } from '../services/resolvers/PersonaResolver.js';
+import type { ConversationMessage } from '../services/ConversationMessageMapper.js';
+import type { ReactionReactor } from '../types/schemas/message.js';
+import { INTERNAL_DISCORD_ID_PREFIX } from '../constants/personaId.js';
 
 // Re-exported for any legacy importer that still reaches here; new callers
 // should import directly from `constants/personaId.ts`.

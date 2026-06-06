@@ -134,3 +134,6 @@ export { DEFAULT_PERSONA_DESCRIPTION } from './persona.js';
 
 // Redis cache-key prefixes (shared by services and ops tooling)
 export { CACHE_KEY_PREFIXES } from './redis-keys.js';
+
+// Persona-ID placeholder prefix (pre-resolution extended-context records)
+export { INTERNAL_DISCORD_ID_PREFIX } from './personaId.js';

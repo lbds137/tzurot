@@ -5,7 +5,8 @@
  * Extracted from DiscordChannelFetcher.ts for better modularity.
  */
 
-import { createLogger, type ConversationMessage } from '@tzurot/common-types';
+import { createLogger } from './logger.js';
+import type { ConversationMessage } from '../services/ConversationMessageMapper.js';
 
 const logger = createLogger('HistoryMerger');
 
