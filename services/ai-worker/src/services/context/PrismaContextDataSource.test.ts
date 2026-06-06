@@ -25,8 +25,10 @@ import { PrismaContextDataSource } from './PrismaContextDataSource.js';
 import type { PrismaClient } from '@tzurot/common-types';
 
 const mockFindUnique = vi.fn();
+const mockUserFindUnique = vi.fn();
 const fakePrisma = {
   userPersonaHistoryConfig: { findUnique: mockFindUnique },
+  user: { findUnique: mockUserFindUnique },
 } as unknown as PrismaClient;
 
 describe('PrismaContextDataSource', () => {
@@ -90,6 +92,18 @@ describe('PrismaContextDataSource', () => {
 
     expect(mockGetMessageByDiscordId).toHaveBeenCalledWith('discord-1');
     expect(result).toEqual({ id: 'm1', content: 'a transcript' });
+  });
+
+  it('looks up users by Discord id for the mention DB fallback', async () => {
+    mockUserFindUnique.mockResolvedValue({ id: 'internal-1', username: 'someone' });
+
+    const result = await source.findUserByDiscordId('discord-9');
+
+    expect(mockUserFindUnique).toHaveBeenCalledWith({
+      where: { discordId: 'discord-9' },
+      select: { id: true, username: true },
+    });
+    expect(result).toEqual({ id: 'internal-1', username: 'someone' });
   });
 
   it('delegates getUserTimezone', async () => {
