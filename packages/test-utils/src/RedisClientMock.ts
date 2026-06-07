@@ -90,6 +90,59 @@ class RedisClientMock {
     return Promise.resolve(deleted);
   }
 
+  /**
+   * Pub/sub publish — cache-invalidation services fire-and-forget events.
+   * The mock has no subscriber side; returns 0 receivers like a real Redis
+   * with nobody listening.
+   */
+  publish(_channel: string, _message: string): Promise<number> {
+    return Promise.resolve(0);
+  }
+
+  /** Hash read — observability endpoints read counters; empty hash when unset. */
+  hgetall(_key: string): Promise<Record<string, string>> {
+    return Promise.resolve({});
+  }
+
+  /** Atomic GET + DEL — used by single-use token consumption (GETDEL). */
+  async getdel(key: string): Promise<string | null> {
+    const value = await this.get(key);
+    if (value !== null) {
+      await this.del(key);
+    }
+    return value;
+  }
+
+  /**
+   * Cursor-based key iteration. The mock store is small enough to return
+   * everything in one pass: always responds with cursor '0' (scan complete)
+   * plus the keys matching the MATCH pattern, mirroring ioredis's
+   * `scan(cursor, 'MATCH', pattern, 'COUNT', n)` argument shape.
+   */
+  scan(_cursor: string, ...args: (string | number)[]): Promise<[string, string[]]> {
+    const matchIndex = args.findIndex(a => String(a).toUpperCase() === 'MATCH');
+    const pattern = matchIndex >= 0 ? String(args[matchIndex + 1]) : '*';
+    // Glob → RegExp: escape regex metachars, then widen glob tokens.
+    const regex = new RegExp(
+      `^${pattern
+        .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+        .replace(/\*/g, '.*')
+        .replace(/\?/g, '.')}$`
+    );
+
+    const now = Date.now();
+    const keys: string[] = [];
+    for (const [key, entry] of this.store) {
+      if (entry.expiresAt !== undefined && now > entry.expiresAt) {
+        continue;
+      }
+      if (regex.test(key)) {
+        keys.push(key);
+      }
+    }
+    return Promise.resolve(['0', keys]);
+  }
+
   // Add any other methods needed by the services
   // This is a minimal implementation
 }
