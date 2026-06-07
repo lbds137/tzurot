@@ -47,6 +47,14 @@ interface ShadowAssemblyParams {
    * carries a non-string message shape.
    */
   payloadMessage: string | undefined;
+  /**
+   * Trigger-message transcripts produced by the WORKER's own STT
+   * (preprocessing results) — diffed against the envelope's bot-side
+   * rawRoutingTranscript as an STT-divergence metric. Telemetry only:
+   * divergence between the two independent STT runs is expected and
+   * measured, never a match failure.
+   */
+  workerTranscriptions: string[] | undefined;
 }
 
 interface SurfaceMatches {
@@ -60,10 +68,9 @@ interface SurfaceMatches {
   /** True when matched OR skipped (envelope carried no raw references to re-derive from). */
   referencedMessages: boolean;
   /**
-   * True when matched OR skipped. Skipped for voice jobs (the envelope
-   * carries the transcript while the payload rewrote the empty refetched
-   * content — structurally incomparable while the voice content story is
-   * unresolved) and for non-string payload messages.
+   * True when matched OR skipped (non-string payload messages only).
+   * Voice jobs compare like any other: rawMessageContent is Discord ground
+   * truth (empty for voice), matching the payload's empty rewritten content.
    */
   messageContent: boolean;
   /** Set comparison over persona ids (payload omits the field when empty). */
@@ -365,11 +372,7 @@ export async function shadowAssembleAndDiff(params: ShadowAssemblyParams): Promi
       assembled.referencedMessages
     );
 
-    // Voice jobs: raw content carries the transcript, the payload rewrote the
-    // (empty) refetched Discord content — structurally incomparable while
-    // the voice content story is unresolved.
-    const contentCompared =
-      params.payloadMessage !== undefined && jobContext.isVoiceMessage !== true;
+    const contentCompared = params.payloadMessage !== undefined;
     const contentDiff = {
       compared: contentCompared,
       matched: contentCompared ? assembled.messageContent === params.payloadMessage : true,
@@ -381,6 +384,33 @@ export async function shadowAssembleAndDiff(params: ShadowAssemblyParams): Promi
       jobContext.crossChannelHistory,
       assembled.crossChannelHistory
     );
+
+    // STT divergence: bot-side routing transcript vs the worker's own
+    // transcription of the same audio. Two independent runs — divergence is
+    // EXPECTED and measured (the go/no-go input for a future single-STT
+    // optimization), so this never participates in allMatched.
+    //
+    // Multi-attachment join: the bot's rawRoutingTranscript is a single
+    // string while the worker carries one transcription per attachment;
+    // `equal` can only be true on multi-attachment messages if both sides
+    // use this same '\n\n' join. When the divergence data matures into the
+    // single-STT decision, pick the join strategy on the producing side to
+    // match (or compare per-attachment instead).
+    const botTranscript = jobContext.rawAssemblyInputs?.rawRoutingTranscript;
+    const workerTranscript =
+      params.workerTranscriptions !== undefined && params.workerTranscriptions.length > 0
+        ? params.workerTranscriptions.join('\n\n')
+        : undefined;
+    // Single guard for compared AND equal: `equal` is undefined whenever the
+    // pair wasn't compared — an asymmetric run (one side missing) must not
+    // read as "compared and diverged" in the burn-in data.
+    const bothTranscriptsPresent = botTranscript !== undefined && workerTranscript !== undefined;
+    const sttDivergence = {
+      compared: bothTranscriptsPresent,
+      equal: bothTranscriptsPresent ? botTranscript === workerTranscript : undefined,
+      botLength: botTranscript?.length,
+      workerLength: workerTranscript?.length,
+    };
 
     const matches: SurfaceMatches = {
       userInternalId: assembled.userInternalId === jobContext.userInternalId,
@@ -424,6 +454,7 @@ export async function shadowAssembleAndDiff(params: ShadowAssemblyParams): Promi
       referenceDiff,
       contentDiff,
       crossChannelDiff,
+      sttDivergence,
     };
 
     if (allMatched) {

@@ -450,6 +450,15 @@ describe('API Endpoint Contract Tests', () => {
       ).toBe(true);
     });
 
+    it('should accept rawRoutingTranscript on rawAssemblyInputs (telemetry-only field)', () => {
+      expect(
+        rawAssemblyInputsSchema.safeParse({
+          rawMessageContent: '',
+          rawRoutingTranscript: 'the spoken words',
+        }).success
+      ).toBe(true);
+    });
+
     it('should validate rawAssemblyInputs with only rawMessageContent (minimal)', () => {
       expect(
         rawAssemblyInputsSchema.safeParse({ rawMessageContent: '<@123> hi there' }).success

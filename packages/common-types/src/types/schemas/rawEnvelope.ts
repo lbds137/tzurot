@@ -51,8 +51,26 @@ export const rawMentionedRoleSchema = z.object({
 });
 
 export const rawAssemblyInputsSchema = z.object({
-  /** message.content verbatim — before mention replacement and [Reference N] link rewriting. */
+  /**
+   * Discord's message.content VERBATIM — the platform ground truth, before
+   * mention replacement and [Reference N] link rewriting. EMPTY for voice
+   * triggers (the transcript rides rawRoutingTranscript) and for forwarded
+   * triggers (snapshot content rides rawReferencedMessages). Carrying
+   * derived artifacts here overloaded the field's semantics and forced the
+   * shadow to skip voice comparisons.
+   */
   rawMessageContent: z.string(),
+  /**
+   * The bot-side STT transcript produced for routing (mention detection in
+   * spoken text). TELEMETRY-ONLY: assembly ignores it — the prompt's
+   * transcript comes from the worker's own transcription via the
+   * attachment-description path — and the shadow diffs it against the
+   * worker transcript to measure STT divergence. Consuming it for assembly
+   * (skipping the worker STT) is a deliberate post-burn-in change gated on
+   * that divergence data. ABSENT for non-voice triggers and when bot-side
+   * STT produced nothing.
+   */
+  rawRoutingTranscript: z.string().optional(),
   /**
    * The author's effective display name (member nick ?? globalName ??
    * username) — feeds getOrCreateUser's persona naming for first-contact
