@@ -4,9 +4,9 @@
  */
 
 import { type Response, type RequestHandler } from 'express';
-import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
+  GetPersonalityResponseSchema,
   isBotOwner,
   type PrismaClient,
   type CacheInvalidationService,
@@ -17,7 +17,7 @@ import {
 } from '@tzurot/common-types';
 import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
-import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
+import { sendContractSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses, type ErrorResponse } from '../../../utils/errorResponses.js';
 import { sendZodError } from '../../../utils/zodHelpers.js';
 import { validateSlug } from '../../../utils/validators.js';
@@ -269,16 +269,14 @@ function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInv
       'Updated personality'
     );
 
-    // Response contract is GetPersonalityResponseSchema ({ personality,
-    // canEdit }) — the manifest declares it and the generated clients
-    // VALIDATE it. canEdit: true is exact, not optimistic: the
-    // resolvePersonalityForEdit gate above already proved this requester
-    // can edit (reaching here otherwise is impossible).
-    sendCustomSuccess(
-      res,
-      { personality: formatPersonalityResponse(updated), canEdit: true },
-      StatusCodes.OK
-    );
+    // canEdit: true is exact, not optimistic: the resolvePersonalityForEdit
+    // gate above already proved this requester can edit (reaching here
+    // otherwise is impossible). The schema argument pins the payload to the
+    // declared contract at compile time.
+    sendContractSuccess(res, GetPersonalityResponseSchema, {
+      personality: formatPersonalityResponse(updated),
+      canEdit: true,
+    });
   };
 }
 

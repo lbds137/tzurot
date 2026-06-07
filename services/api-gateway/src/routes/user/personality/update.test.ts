@@ -175,17 +175,17 @@ describe('PUT /user/personality/:slug (update)', () => {
 
   it('should allow update via PersonalityOwner table', async () => {
     mockPrisma.personality.findUnique.mockResolvedValue({
-      id: 'personality-8',
+      id: '7e570000-0000-4000-8000-000000000008',
       ownerId: 'other-user', // Not direct owner
     });
     // User has co-ownership entry in PersonalityOwner table
     mockPrisma.personalityOwner.findUnique.mockResolvedValue({
       userId: MOCK_USER_ID,
-      personalityId: 'personality-8',
+      personalityId: '7e570000-0000-4000-8000-000000000008',
     });
     mockPrisma.personality.update.mockResolvedValue(
       createMockPersonality({
-        id: 'personality-8',
+        id: '7e570000-0000-4000-8000-000000000008',
         name: 'Updated',
         slug: 'shared-char',
         displayName: null,
@@ -201,12 +201,15 @@ describe('PUT /user/personality/:slug (update)', () => {
     await handler(req, res);
 
     expect(res.status).toHaveBeenCalledWith(200);
+    // Pin the full declared contract — co-ownership path emits the same shape.
+    const sentBody = vi.mocked(res.json).mock.calls[0][0];
+    expect(GetPersonalityResponseSchema.safeParse(sentBody).success).toBe(true);
   });
 
   describe('displayName preservation (regression tests)', () => {
     beforeEach(() => {
       mockPrisma.personality.findUnique.mockResolvedValue({
-        id: 'personality-unicode',
+        id: '7e570000-0000-4000-8000-000000000009',
         ownerId: MOCK_USER_ID,
         name: 'persephone', // Plain ASCII name
       });
@@ -217,7 +220,7 @@ describe('PUT /user/personality/:slug (update)', () => {
       // were overwriting Unicode displayNames with plain ASCII names
       mockPrisma.personality.update.mockResolvedValue(
         createMockPersonality({
-          id: 'personality-unicode',
+          id: '7e570000-0000-4000-8000-000000000009',
           name: 'persephone',
           displayName: '𝑷𝒆𝒓𝒔𝒆𝒑𝒉𝒐𝒏𝒆', // Unicode displayName preserved
           slug: 'persephone',
@@ -247,7 +250,7 @@ describe('PUT /user/personality/:slug (update)', () => {
     it('should sync displayName when name is updated without explicit displayName', async () => {
       mockPrisma.personality.update.mockResolvedValue(
         createMockPersonality({
-          id: 'personality-unicode',
+          id: '7e570000-0000-4000-8000-000000000009',
           name: 'NewName',
           displayName: 'NewName',
           slug: 'persephone',
@@ -278,7 +281,7 @@ describe('PUT /user/personality/:slug (update)', () => {
     it('should use explicit displayName when provided', async () => {
       mockPrisma.personality.update.mockResolvedValue(
         createMockPersonality({
-          id: 'personality-unicode',
+          id: '7e570000-0000-4000-8000-000000000009',
           name: 'persephone',
           displayName: 'Custom Display Name',
           slug: 'persephone',
@@ -307,7 +310,7 @@ describe('PUT /user/personality/:slug (update)', () => {
     it('should fall back to name when displayName is explicitly set to empty string', async () => {
       mockPrisma.personality.update.mockResolvedValue(
         createMockPersonality({
-          id: 'personality-unicode',
+          id: '7e570000-0000-4000-8000-000000000009',
           name: 'persephone',
           displayName: 'persephone',
           slug: 'persephone',

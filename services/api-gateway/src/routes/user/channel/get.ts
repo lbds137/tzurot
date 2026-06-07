@@ -4,11 +4,10 @@
  */
 
 import { type Response, type RequestHandler } from 'express';
-import { StatusCodes } from 'http-status-codes';
 import { createLogger, GetChannelSettingsResponseSchema } from '@tzurot/common-types';
 import { requireServiceAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
-import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
+import { sendContractSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { getParam } from '../../../utils/requestParams.js';
 import type { AuthenticatedRequest } from '../../../types.js';
@@ -52,9 +51,7 @@ export const handleGetUserChannel = (deps: RouteDeps): RequestHandler => {
 
     // No settings found
     if (settings === null) {
-      const response = { hasSettings: false };
-      GetChannelSettingsResponseSchema.parse(response);
-      sendCustomSuccess(res, response, StatusCodes.OK);
+      sendContractSuccess(res, GetChannelSettingsResponseSchema, { hasSettings: false });
       return;
     }
 
@@ -66,8 +63,8 @@ export const handleGetUserChannel = (deps: RouteDeps): RequestHandler => {
       'Retrieved channel settings'
     );
 
-    // Build response matching schema
-    const response = {
+    // Payload typed against the declared output schema — drift fails tsc.
+    sendContractSuccess(res, GetChannelSettingsResponseSchema, {
       hasSettings: true,
       settings: {
         id: settings.id,
@@ -80,11 +77,7 @@ export const handleGetUserChannel = (deps: RouteDeps): RequestHandler => {
         activatedBy: settings.createdBy,
         createdAt: settings.createdAt.toISOString(),
       },
-    };
-
-    GetChannelSettingsResponseSchema.parse(response);
-
-    sendCustomSuccess(res, response, StatusCodes.OK);
+    });
   });
 };
 

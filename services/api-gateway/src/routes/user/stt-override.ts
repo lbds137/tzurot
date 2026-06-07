@@ -14,10 +14,11 @@
  */
 
 import { Router, type Response, type RequestHandler } from 'express';
-import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
   type UserDefaultSttProvider,
+  ClearSttDefaultProviderResponseSchema,
+  SetSttDefaultProviderResponseSchema,
   SetSttDefaultProviderSchema,
   isSttProvider,
 } from '@tzurot/common-types';
@@ -25,7 +26,7 @@ import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMidd
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { tryInvalidateCache } from '../../utils/configOverrideHelpers.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
-import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
+import { sendError, sendContractSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import type { ProvisionedRequest } from '../../types.js';
@@ -54,7 +55,7 @@ export const handleGetSttDefaultProvider = (deps: RouteDeps): RequestHandler => 
     };
 
     logger.info({ discordUserId, providerId: result.providerId }, 'Got STT preference');
-    sendCustomSuccess(res, { default: result }, StatusCodes.OK);
+    sendContractSuccess(res, SetSttDefaultProviderResponseSchema, { default: result });
   });
 };
 
@@ -88,7 +89,7 @@ export const handleSetSttDefaultProvider = (deps: RouteDeps): RequestHandler => 
       { discordUserId }
     );
 
-    sendCustomSuccess(res, { default: result }, StatusCodes.OK);
+    sendContractSuccess(res, SetSttDefaultProviderResponseSchema, { default: result });
   });
 };
 
@@ -112,7 +113,10 @@ export const handleClearSttDefaultProvider = (deps: RouteDeps): RequestHandler =
         { discordUserId, hadDefault: false },
         'Clear called but no STT preference was set (idempotent success)'
       );
-      return sendCustomSuccess(res, { deleted: true, wasSet: false }, StatusCodes.OK);
+      return sendContractSuccess(res, ClearSttDefaultProviderResponseSchema, {
+        deleted: true,
+        wasSet: false,
+      });
     }
 
     await prisma.user.update({
@@ -130,7 +134,10 @@ export const handleClearSttDefaultProvider = (deps: RouteDeps): RequestHandler =
       { discordUserId }
     );
 
-    sendCustomSuccess(res, { deleted: true, wasSet: true }, StatusCodes.OK);
+    sendContractSuccess(res, ClearSttDefaultProviderResponseSchema, {
+      deleted: true,
+      wasSet: true,
+    });
   });
 };
 

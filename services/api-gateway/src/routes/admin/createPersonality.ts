@@ -6,6 +6,7 @@
 import { Router, type RequestHandler, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
+  AdminPersonalityResponseSchema,
   createLogger,
   generatePersonalityUuid,
   type CacheInvalidationService,
@@ -15,7 +16,7 @@ import {
 } from '@tzurot/common-types';
 import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
-import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
+import { sendError, sendContractSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import { processAvatarData } from '../../utils/avatarProcessor.js';
@@ -151,8 +152,11 @@ export const handleCreateGlobalPersonality = (deps: RouteDeps): RequestHandler =
     // snapshot — see the "Preset cascade standardization" backlog epic.
     await invalidateCacheIfPublic(cacheInvalidationService, validated.isPublic, personality.id);
 
-    sendCustomSuccess(
+    // Schema argument pins the payload to the declared admin contract at
+    // compile time (the slim admin envelope, not the full user-route detail).
+    sendContractSuccess(
       res,
+      AdminPersonalityResponseSchema,
       {
         success: true,
         personality: {
