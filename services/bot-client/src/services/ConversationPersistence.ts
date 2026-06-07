@@ -97,22 +97,6 @@ interface SaveAssistantMessageOptions {
 }
 
 /**
- * Options for updating a user message with rich descriptions
- */
-interface UpdateUserMessageOptions {
-  /** Discord message */
-  message: Message;
-  /** Personality being addressed */
-  personality: LoadedPersonality;
-  /** User's persona ID */
-  personaId: string;
-  /** Original message content */
-  messageContent: string;
-  /** Rich attachment descriptions from AI processing */
-  attachmentDescriptions?: string;
-}
-
-/**
  * Options for saving a user message from fields (core implementation).
  * Used directly by slash commands, or via saveUserMessage() wrapper for Message objects.
  */
@@ -187,7 +171,8 @@ export class ConversationPersistence {
    * - Saves message BEFORE AI processing
    * - Ensures chronological ordering (user timestamp < assistant timestamp)
    * - Provides immediate placeholder descriptions (not empty data)
-   * - Rich descriptions added later via updateUserMessage()
+   * - Rich descriptions are persisted post-vision by ai-worker (the
+   *   descriptions' producer owns the write)
    *
    * STORAGE PHILOSOPHY (2025-12):
    * - `content`: Plain text only (user message + attachment placeholders)
@@ -232,56 +217,6 @@ export class ConversationPersistence {
       embedsXml,
       timestamp: message.createdAt,
     });
-  }
-
-  /**
-   * Upgrade user message from placeholders to rich descriptions
-   *
-   * Called after AI processing completes with vision/transcription results.
-   * If AI processing failed, placeholders remain (acceptable degradation).
-   *
-   * STORAGE PHILOSOPHY (2025-12):
-   * - Only attachment descriptions go in `content` (user message + attachments)
-   * - Referenced messages are already in `messageMetadata` (from saveUserMessage)
-   * - Referenced message descriptions are NOT stored - they're formatted at prompt time
-   */
-  async updateUserMessage(options: UpdateUserMessageOptions): Promise<void> {
-    const { message, personality, personaId, messageContent, attachmentDescriptions } = options;
-
-    // Only update if we have attachment descriptions
-    // Referenced messages are already in metadata, not content
-    if (
-      attachmentDescriptions === undefined ||
-      attachmentDescriptions === null ||
-      attachmentDescriptions.length === 0
-    ) {
-      logger.debug('No attachment descriptions available, keeping placeholders');
-      return;
-    }
-
-    // Upgrade attachment placeholders to rich descriptions (but NOT references)
-    const enrichedContent = messageContent
-      ? `${messageContent}\n\n${attachmentDescriptions}`
-      : attachmentDescriptions;
-
-    logger.debug(
-      { descriptionLength: attachmentDescriptions.length },
-      'Upgrading attachment placeholders to rich descriptions'
-    );
-
-    // Update the message content only (metadata with references is already saved)
-    //
-    // TRANSITIONAL: this vision-description update is the one conversation
-    // write that still goes through local Prisma in BOTH context modes. It
-    // relocates to ai-worker (which produces the descriptions and persists
-    // them itself post-vision) in the hydration-cutover slice — not to the
-    // gateway — so no endpoint is built for it here.
-    await this.conversationHistory.updateLastUserMessage(
-      message.channel.id,
-      personality.id,
-      personaId,
-      enrichedContent
-    );
   }
 
   /**

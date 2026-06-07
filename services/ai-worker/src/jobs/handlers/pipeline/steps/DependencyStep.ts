@@ -20,6 +20,7 @@ import {
 import type { ProcessedAttachment } from '../../../../services/MultimodalProcessor.js';
 import type { IPipelineStep, GenerationContext, PreprocessingResults } from '../types.js';
 import type { ApiKeyResolver } from '../../../../services/ApiKeyResolver.js';
+import type { VisionDescriptionWriter } from '../../../../services/context/visionDescriptionWriter.js';
 import {
   resolveVisionAuth,
   buildVisionAuthFailureResults,
@@ -56,8 +57,16 @@ export class DependencyStep implements IPipelineStep {
    * compatibility with existing test fixtures that instantiate `DependencyStep()`
    * without args; runtime instantiation in `LLMGenerationHandler` always
    * passes the resolver.
+   *
+   * `visionDescriptionWriter` persists rich attachment descriptions onto the
+   * trigger user message immediately post-vision — the worker (producer of
+   * the descriptions) owns this write; bot-client has no delivery-time
+   * update.
    */
-  constructor(private readonly apiKeyResolver?: ApiKeyResolver) {}
+  constructor(
+    private readonly apiKeyResolver?: ApiKeyResolver,
+    private readonly visionDescriptionWriter?: VisionDescriptionWriter
+  ) {}
 
   async process(context: GenerationContext): Promise<GenerationContext> {
     const { job, auth, config } = context;
@@ -126,6 +135,26 @@ export class DependencyStep implements IPipelineStep {
     }
 
     this.logPreprocessingResults(job.id, preprocessing);
+
+    // Persist rich descriptions for the TRIGGER message's attachments now
+    // that vision/transcription has produced them — decoupled from
+    // generation success, never throws.
+    if (
+      this.visionDescriptionWriter !== undefined &&
+      preprocessing.processedAttachments.length > 0 &&
+      jobContext !== undefined
+    ) {
+      await this.visionDescriptionWriter.persistTriggerDescriptions({
+        jobId: job.id,
+        message: job.data.message,
+        jobContext,
+        // Raw job personality, NOT config.effectivePersonality: the update
+        // must match the key the row was saved under, and routing-time
+        // personality substitution doesn't change the saved row's key.
+        personalityId: job.data.personality.id,
+        processedAttachments: preprocessing.processedAttachments,
+      });
+    }
 
     return { ...context, preprocessing };
   }

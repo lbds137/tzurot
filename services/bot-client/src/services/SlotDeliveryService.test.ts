@@ -79,21 +79,13 @@ describe('SlotDeliveryService', () => {
   });
 
   describe('deliverSuccess', () => {
-    it('updates user message, sends response, persists assistant message, updates diagnostic', async () => {
+    it('sends response, persists assistant message, updates diagnostic', async () => {
       const result = buildSuccessResult();
       const slot = buildSlotContext();
 
       const out = await service.deliverSuccess(result, slot);
 
       expect(out.chunkMessageIds).toEqual(['chunk-1']);
-      expect(persistence.updateUserMessage).toHaveBeenCalledWith(
-        expect.objectContaining({
-          message: slot.message,
-          personality,
-          personaId: 'persona-1',
-          messageContent: 'hello',
-        })
-      );
       expect(responseSender.sendResponse).toHaveBeenCalledWith(
         expect.objectContaining({
           content: 'response content',
