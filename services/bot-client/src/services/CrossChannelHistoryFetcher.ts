@@ -9,19 +9,17 @@
 import { type Client, ChannelType } from 'discord.js';
 import {
   ConversationHistoryService,
+  buildFallbackEnvironment,
   createLogger,
-  type CrossChannelHistoryGroup,
-  type CrossChannelHistoryGroupEntry,
   type DiscordEnvironment,
+  type ResolvedCrossChannelGroup,
 } from '@tzurot/common-types';
 
 const logger = createLogger('CrossChannelHistoryFetcher');
 
-/** A single cross-channel group with resolved Discord environment */
-export interface ResolvedCrossChannelGroup {
-  channelEnvironment: DiscordEnvironment;
-  messages: CrossChannelHistoryGroup['messages'];
-}
+// The wire mapping (mapCrossChannelToApiFormat) and the group/environment
+// shapes live in common-types (crossChannelEnvironment.ts) — shared with
+// ai-worker's assembler. Import them from '@tzurot/common-types' directly.
 
 /** Options for fetching cross-channel history */
 interface FetchOptions {
@@ -154,21 +152,6 @@ function buildGuildEnvironment(
   }
 
   return env;
-}
-
-/** Build a minimal fallback environment when Discord channel fetch fails */
-function buildFallbackEnvironment(channelId: string, guildId: string | null): DiscordEnvironment {
-  if (guildId === null) {
-    return {
-      type: 'dm',
-      channel: { id: channelId, name: 'Direct Message', type: 'dm' },
-    };
-  }
-  return {
-    type: 'guild',
-    guild: { id: guildId, name: 'unknown-server' },
-    channel: { id: channelId, name: 'unknown-channel', type: 'text' },
-  };
 }
 
 /** Convert Discord ChannelType to human-readable name */
@@ -307,29 +290,4 @@ export async function fetchCrossChannelIfEnabled(opts: {
     maxAge: opts.maxAge,
     contextEpoch: opts.contextEpoch,
   });
-}
-
-/**
- * Map resolved cross-channel groups to the API/job payload format (Date→string serialization).
- * Note: `discordMessageId` is intentionally omitted — it's only used for current-channel
- * quote deduplication and is not relevant for cross-channel historical context.
- */
-export function mapCrossChannelToApiFormat(
-  groups: ResolvedCrossChannelGroup[]
-): CrossChannelHistoryGroupEntry[] {
-  return groups.map(group => ({
-    channelEnvironment: group.channelEnvironment,
-    messages: group.messages.map(msg => ({
-      id: msg.id,
-      role: msg.role,
-      content: msg.content,
-      tokenCount: msg.tokenCount,
-      createdAt: msg.createdAt.toISOString(),
-      personaId: msg.personaId,
-      personaName: msg.personaName,
-      discordUsername: msg.discordUsername,
-      personalityId: msg.personalityId,
-      personalityName: msg.personalityName,
-    })),
-  }));
 }

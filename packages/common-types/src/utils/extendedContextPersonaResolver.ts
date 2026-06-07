@@ -21,11 +21,11 @@
  *
  * Postcondition of resolveExtendedContextPersonaIds: no message or reactor
  * exits with a `discord:XXXX` personaId — resolved outputs carry UUIDs (or
- * the empty-string sentinel for unregistered users). Note: since the raw
- * assembly envelope (CONTEXT_RAW_ENVELOPE), PRE-resolution snapshots — with
- * placeholders intact — deliberately cross to ai-worker so its context
- * assembler can re-run this exact resolution; that is why this module lives
- * in common-types and is shared by both sides.
+ * the empty-string sentinel for unregistered users). Note: the raw assembly
+ * envelope (CONTEXT_RAW_ENVELOPE) carries PRE-resolution snapshots — with
+ * placeholders intact — across to ai-worker so its context assembler can
+ * re-run this exact resolution; that is why this module lives in
+ * common-types and is shared by both sides.
  */
 
 import { createLogger } from './logger.js';
