@@ -8,10 +8,13 @@
  * success path can't be exercised in the harness (external API round-trip,
  * queue-worker dependency, etc.).
  *
- * The registry's completeness is enforced two ways:
- *   - compile time: `satisfies Record<RouteId, ConformanceEntry>` in
- *     `../registry.ts` — a new manifest route without an entry fails tsc.
- *   - runtime: `registry.test.ts` asserts the key sets match exactly.
+ * The registry's completeness is enforced by `registry.test.ts`, which
+ * asserts an exact key bijection with ROUTE_MANIFEST (missing entries fail,
+ * stale entries fail, empty skip reasons fail). A `satisfies
+ * Record<RouteId, ...>` compile-time gate was considered and rejected: the
+ * per-family fixture records are annotated `Record<string, ConformanceEntry>`
+ * (keys erased), so the satisfies check would pass vacuously via the string
+ * index signature — the runtime bijection is the stronger guarantee.
  */
 
 import type { PrismaClient } from '@tzurot/common-types';

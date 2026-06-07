@@ -82,3 +82,10 @@ ignore:
   # Adding a new route is one entry, not a code change, so per-route line
   # coverage isn't meaningful.
   - 'packages/common-types/src/routes/**'
+  # Manifest-conformance harness fixtures: test infrastructure that only
+  # executes inside the conformance integration suite (same class as
+  # __mocks__ / test-utils helpers, which the colocated-test and dead-file
+  # checks also exempt). The integration coverage upload doesn't currently
+  # collect services/** (its include globs are root-relative), so these
+  # would otherwise read as permanently-0% production code in patch status.
+  - 'services/api-gateway/src/routes/conformance/fixtures/**'
