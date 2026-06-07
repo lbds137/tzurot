@@ -64,6 +64,9 @@ export const handleGetUserChannel = (deps: RouteDeps): RequestHandler => {
     );
 
     // Payload typed against the declared output schema — drift fails tsc.
+    // This replaced an explicit .parse() runtime guard: per-request parsing
+    // is redundant now that the conformance harness validates this route's
+    // wire response against the same schema. Don't add the parse back.
     sendContractSuccess(res, GetChannelSettingsResponseSchema, {
       hasSettings: true,
       settings: {
