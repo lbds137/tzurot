@@ -5,7 +5,7 @@
 
 import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, SetVisibilitySchema } from '@tzurot/common-types';
+import { createLogger, PERSONALITY_DETAIL_SELECT, SetVisibilitySchema } from '@tzurot/common-types';
 import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
@@ -13,6 +13,7 @@ import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { sendZodError } from '../../../utils/zodHelpers.js';
 import type { ProvisionedRequest } from '../../../types.js';
 import { getParam } from '../../../utils/requestParams.js';
+import { formatPersonalityResponse } from './formatters.js';
 import { resolvePersonalityForEdit } from './helpers.js';
 import type { RouteDeps } from '../../routeDeps.js';
 
@@ -56,11 +57,12 @@ export const handleSetPersonalityVisibility = (deps: RouteDeps): RequestHandler 
     }
     const { personality } = resolved;
 
-    // Update visibility
+    // Update visibility. Full detail select: the response contract is
+    // GetPersonalityResponseSchema, which carries the complete personality.
     const updated = await prisma.personality.update({
       where: { id: personality.id },
       data: { isPublic },
-      select: { id: true, slug: true, isPublic: true },
+      select: PERSONALITY_DETAIL_SELECT,
     });
 
     logger.info(
@@ -68,16 +70,11 @@ export const handleSetPersonalityVisibility = (deps: RouteDeps): RequestHandler 
       'Changed personality visibility'
     );
 
+    // Response contract is GetPersonalityResponseSchema — full personality
+    // + canEdit (exact, not optimistic: the edit gate above already passed).
     sendCustomSuccess(
       res,
-      {
-        success: true,
-        personality: {
-          id: updated.id,
-          slug: updated.slug,
-          isPublic: updated.isPublic,
-        },
-      },
+      { personality: formatPersonalityResponse(updated), canEdit: true },
       StatusCodes.OK
     );
   });
