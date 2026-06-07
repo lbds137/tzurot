@@ -24,6 +24,7 @@ import {
 import type { z } from 'zod';
 import type { ExtendedContextUser, FetchResult } from '../channelFetcher/types.js';
 import { isRawEnvelopeEnabled } from '../../utils/contextWritePath.js';
+import { VoiceMessageProcessor } from '../../processors/VoiceMessageProcessor.js';
 import { buildKnownChannelEnvironments } from '../CrossChannelHistoryFetcher.js';
 
 /** The pre-resolution extended-context snapshot threaded out of the fetch. */
@@ -100,13 +101,14 @@ export function toApiConversationMessage(msg: ConversationMessage): ApiConversat
 }
 
 /**
- * Assemble the raw envelope. `content` is the pre-rewrite text (raw message
- * content + any upstream voice transcript) — exactly what the worker-side
- * rewriter starts from. Returns undefined when the envelope is off.
+ * Assemble the raw envelope. `rawMessageContent` is Discord's
+ * message.content VERBATIM (ground truth — empty for voice and forwarded
+ * triggers); any bot-side STT transcript rides the dedicated
+ * rawRoutingTranscript field instead, telemetry-only. Returns undefined
+ * when the envelope is off.
  */
 export function buildRawAssemblyInputs(
   message: Message,
-  content: string,
   raw: RawExtendedContextSnapshot | undefined,
   refs?: {
     rawReferencedMessages?: ReferencedMessage[];
@@ -120,7 +122,8 @@ export function buildRawAssemblyInputs(
     return undefined;
   }
   return {
-    rawMessageContent: content,
+    rawMessageContent: message.content,
+    rawRoutingTranscript: VoiceMessageProcessor.getVoiceTranscript(message),
     rawAuthorDisplayName: refs?.rawAuthorDisplayName,
     rawReferencedMessages: refs?.rawReferencedMessages,
     rawMentionedChannels: refs?.rawMentionedChannels,

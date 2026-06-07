@@ -494,7 +494,7 @@ export class MessageContextBuilder {
 
     // Raw-envelope assembly inputs (worker-side shadow assembler burn-in);
     // undefined unless CONTEXT_RAW_ENVELOPE=true.
-    const rawAssemblyInputs = buildRawAssemblyInputs(message, content, extendedContext.raw, {
+    const rawAssemblyInputs = buildRawAssemblyInputs(message, extendedContext.raw, {
       rawReferencedMessages: refsAndMentions.rawReferencedMessages,
       rawMentionedChannels: refsAndMentions.rawMentionedChannels,
       rawMentionedRoles: refsAndMentions.rawMentionedRoles,

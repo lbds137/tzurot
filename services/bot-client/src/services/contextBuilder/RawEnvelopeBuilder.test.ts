@@ -2,6 +2,13 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { MessageRole, type ConversationMessage } from '@tzurot/common-types';
 import type { Message } from 'discord.js';
 
+const { mockGetVoiceTranscript } = vi.hoisted(() => ({
+  mockGetVoiceTranscript: vi.fn((): string | undefined => undefined),
+}));
+vi.mock('../../processors/VoiceMessageProcessor.js', () => ({
+  VoiceMessageProcessor: { getVoiceTranscript: mockGetVoiceTranscript },
+}));
+
 vi.mock('../CrossChannelHistoryFetcher.js', () => ({
   buildKnownChannelEnvironments: vi.fn(() => ({
     '999888777666555444': {
@@ -19,9 +26,13 @@ import {
   toRawDiscordUser,
 } from './RawEnvelopeBuilder.js';
 
-const makeMessage = (mentions: { id: string; username: string; globalName?: string }[] = []) =>
+const makeMessage = (
+  mentions: { id: string; username: string; globalName?: string }[] = [],
+  content = ''
+) =>
   ({
     client: {},
+    content,
     mentions: {
       users: new Map(mentions.map(m => [m.id, m])),
     },
@@ -95,7 +106,7 @@ describe('toApiConversationMessage', () => {
 
 describe('buildRawAssemblyInputs', () => {
   it('returns undefined when the envelope flag is off', () => {
-    expect(buildRawAssemblyInputs(makeMessage(), 'raw content', undefined)).toBeUndefined();
+    expect(buildRawAssemblyInputs(makeMessage(), undefined)).toBeUndefined();
   });
 
   it('assembles the envelope: raw content, mention mapping, snapshot serialization, env map', () => {
@@ -109,8 +120,10 @@ describe('buildRawAssemblyInputs', () => {
     };
 
     const raw = buildRawAssemblyInputs(
-      makeMessage([{ id: '333', username: 'mention-target', globalName: 'Mention Target' }]),
-      '<@333> raw content',
+      makeMessage(
+        [{ id: '333', username: 'mention-target', globalName: 'Mention Target' }],
+        '<@333> raw content'
+      ),
       snapshot
     );
 
@@ -132,7 +145,7 @@ describe('buildRawAssemblyInputs', () => {
 
   it('carries the author display name for worker-side getOrCreateUser parity', () => {
     process.env.CONTEXT_RAW_ENVELOPE = 'true';
-    const raw = buildRawAssemblyInputs(makeMessage(), 'plain', undefined, {
+    const raw = buildRawAssemblyInputs(makeMessage([], 'plain'), undefined, {
       rawAuthorDisplayName: 'Vladlena',
     });
     expect(raw?.rawAuthorDisplayName).toBe('Vladlena');
@@ -140,7 +153,7 @@ describe('buildRawAssemblyInputs', () => {
 
   it('passes reference and channel/role mention raws through', () => {
     process.env.CONTEXT_RAW_ENVELOPE = 'true';
-    const raw = buildRawAssemblyInputs(makeMessage(), 'plain', undefined, {
+    const raw = buildRawAssemblyInputs(makeMessage([], 'plain'), undefined, {
       rawReferencedMessages: [],
       rawMentionedChannels: [{ channelId: '1', channelName: 'general', guildId: 'g1' }],
       rawMentionedRoles: [{ roleId: '2', roleName: 'mods', mentionable: false }],
@@ -152,9 +165,30 @@ describe('buildRawAssemblyInputs', () => {
     expect(raw?.rawMentionedRoles?.[0].roleName).toBe('mods');
   });
 
+  it('captures Discord ground truth: empty content + dedicated routing transcript for voice', () => {
+    process.env.CONTEXT_RAW_ENVELOPE = 'true';
+    mockGetVoiceTranscript.mockReturnValue('the spoken words');
+
+    const raw = buildRawAssemblyInputs(makeMessage([], ''), undefined);
+
+    // rawMessageContent is message.content VERBATIM — not the transcript.
+    expect(raw?.rawMessageContent).toBe('');
+    expect(raw?.rawRoutingTranscript).toBe('the spoken words');
+  });
+
+  it('leaves rawRoutingTranscript absent for non-voice triggers', () => {
+    process.env.CONTEXT_RAW_ENVELOPE = 'true';
+    mockGetVoiceTranscript.mockReturnValue(undefined);
+
+    const raw = buildRawAssemblyInputs(makeMessage([], 'typed text'), undefined);
+
+    expect(raw?.rawMessageContent).toBe('typed text');
+    expect(raw?.rawRoutingTranscript).toBeUndefined();
+  });
+
   it('omits rawMentionedUsers when the mentions collection is empty', () => {
     process.env.CONTEXT_RAW_ENVELOPE = 'true';
-    const raw = buildRawAssemblyInputs(makeMessage(), 'plain', undefined);
+    const raw = buildRawAssemblyInputs(makeMessage([], 'plain'), undefined);
     expect(raw?.rawMentionedUsers).toBeUndefined();
     expect(raw?.rawExtendedContextMessages).toBeUndefined();
   });

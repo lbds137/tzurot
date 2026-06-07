@@ -82,7 +82,8 @@ export class ContextStep implements IPipelineStep {
     job: Pick<GenerationContext['job'], 'id' | 'timestamp' | 'data'>,
     jobContext: GenerationContext['job']['data']['context'],
     personality: GenerationContext['job']['data']['personality'],
-    configOverrides: GenerationContext['configOverrides']
+    configOverrides: GenerationContext['configOverrides'],
+    preprocessing: GenerationContext['preprocessing']
   ): void {
     if (jobContext.rawAssemblyInputs !== undefined && this.contextAssembler !== undefined) {
       void shadowAssembleAndDiff({
@@ -96,6 +97,9 @@ export class ContextStep implements IPipelineStep {
         jobTimestampMs: job.timestamp,
         // The bot-rewritten content the worker's rewrite is diffed against.
         payloadMessage: typeof job.data.message === 'string' ? job.data.message : undefined,
+        // Trigger transcripts from the worker's own STT (DependencyStep runs
+        // before this step) — the bot-vs-worker STT divergence metric input.
+        workerTranscriptions: preprocessing?.transcriptions,
       });
       return;
     }
@@ -119,7 +123,13 @@ export class ContextStep implements IPipelineStep {
     }
 
     if (this.shadowEnabled) {
-      this.dispatchShadow(job, jobContext, personality, context.configOverrides);
+      this.dispatchShadow(
+        job,
+        jobContext,
+        personality,
+        context.configOverrides,
+        context.preprocessing
+      );
     }
 
     // Calculate oldest timestamp from conversation history AND referenced messages

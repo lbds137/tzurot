@@ -280,9 +280,10 @@ describe('MessageContextBuilder', () => {
 
         const raw = result.context.rawAssemblyInputs;
         expect(raw).toBeDefined();
-        // The raw side carries the PRE-rewrite content; the assembled side
-        // carries the rewritten one — both in the same payload during burn-in.
-        expect(raw?.rawMessageContent).toBe('<@123> raw content');
+        // The raw side carries Discord GROUND TRUTH (message.content
+        // verbatim) — not the transcript-bearing content param; the
+        // assembled side carries the rewritten one.
+        expect(raw?.rawMessageContent).toBe('Hello world');
         expect(result.context.messageContent).toBe('REWRITTEN content');
         // Empty mentions collection → field omitted, not [].
         expect(raw?.rawMentionedUsers).toBeUndefined();
