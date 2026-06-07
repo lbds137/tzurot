@@ -17,11 +17,14 @@
  */
 
 import {
+  buildFallbackEnvironment,
   createLogger,
+  mapCrossChannelToApiFormat,
   mergeWithHistory,
   resolveExtendedContextPersonaIds,
   MESSAGE_LIMITS,
   type ConversationMessage,
+  type CrossChannelHistoryGroupEntry,
   type JobContext,
   type LoadedPersonality,
   type MentionedPersona,
@@ -32,7 +35,7 @@ import {
   type ResolvedConfigOverrides,
   type UserService,
 } from '@tzurot/common-types';
-import { rewriteRawContent } from './contentRewriter.js';
+import { rewriteRawContent, type RewrittenContent } from './contentRewriter.js';
 import { enrichRawReferences } from './referenceEnricher.js';
 import type { ContextDataSource } from './types.js';
 
@@ -65,6 +68,14 @@ export interface AssembledCore {
   mentionedPersonas: MentionedPersona[] | undefined;
   /** Channels resolved from channel mentions; undefined when none (payload parity). */
   referencedChannels: ReferencedChannel[] | undefined;
+  /**
+   * Cross-channel history groups, decorated from the envelope's
+   * knownChannelEnvironments (fallback env for cache misses) and serialized
+   * through the shared wire mapper. Undefined when the feature is disabled
+   * or the job is a weigh-in (payload parity with the bot path); [] when
+   * enabled but nothing eligible was found.
+   */
+  crossChannelHistory: CrossChannelHistoryGroupEntry[] | undefined;
 }
 
 /** Per-call assembly options (job-scoped values the deps can't carry). */
@@ -87,23 +98,29 @@ export interface ContextAssemblerDeps {
  * the ConversationMessage shape the shared merge/resolution functions
  * operate on. Inverse of bot-client's toApiConversationMessage.
  *
- * The cast bridges a known wire-shape gap: the envelope does not carry
- * channelId/guildId (extended context is same-channel by construction, so
- * they're derivable from the job). Nothing in the shadow path reads them —
- * the merge dedups on discordMessageId, the resolver touches personaId, and
- * the diff compares ids/content/personaIds — but the cutover slice must fill
- * them from job context before the assembled history feeds prompt building.
+ * The wire shape omits channelId/guildId (extended context is same-channel
+ * by construction), so both are filled from the job here — `satisfies`
+ * keeps the mapping structurally checked against ConversationMessage.
  */
 function fromApiMessage(
-  msg: NonNullable<RawAssemblyInputs['rawExtendedContextMessages']>[number]
+  msg: NonNullable<RawAssemblyInputs['rawExtendedContextMessages']>[number],
+  channelId: string,
+  guildId: string | null
 ): ConversationMessage {
   return {
     ...msg,
+    channelId,
+    guildId,
+    // id/personaId are schema-optional on the wire but always populated by
+    // the bot-side fetcher; '' mirrors the shadow diff's own normalization
+    // ('' ids are excluded from id-keyed diffs, personaIds compare via ?? '').
+    id: msg.id ?? '',
+    personaId: msg.personaId ?? '',
     // Discord messages always carry timestamps; epoch-0 is a defensive
     // fallback that sorts such a row first rather than crashing assembly.
     createdAt: msg.createdAt !== undefined ? new Date(msg.createdAt) : new Date(0),
     discordMessageId: msg.discordMessageId ?? [],
-  } as ConversationMessage;
+  } satisfies ConversationMessage;
 }
 
 export class ContextAssembler {
@@ -171,7 +188,10 @@ export class ContextAssembler {
     // Step 4: envelope-carried extended context — batch-upsert the observed
     // users, resolve placeholder personaIds (shared impl), merge (shared
     // impl). ABSENT raw messages = the fetch didn't run bot-side.
-    const history = await this.mergeExtendedContext(raw, dbHistory, personality.id);
+    const history = await this.mergeExtendedContext(raw, dbHistory, personality.id, {
+      channelId,
+      guildId: jobContext.serverId ?? null,
+    });
 
     // Step 5: re-derive reference enrichment from the raw snapshots —
     // dedup against the just-assembled history, transcripts from OWN DB.
@@ -179,30 +199,22 @@ export class ContextAssembler {
 
     // Step 6: content rewriting (links → user mentions → channels → roles),
     // skipped wholesale in weigh-in mode to mirror the bot-side early return.
-    const rewritten =
-      jobContext.isWeighIn === true
-        ? {
-            messageContent: raw.rawMessageContent,
-            mentionedPersonas: undefined,
-            referencedChannels: undefined,
-          }
-        : await rewriteRawContent({
-            raw,
-            rawReferences: raw.rawReferencedMessages,
-            personalityId: personality.id,
-            deps: {
-              getOrCreateUser: (discordId, username, displayName, bio, isBot) =>
-                this.deps.userService.getOrCreateUser(discordId, username, displayName, bio, isBot),
-              resolvePersona: async (discordUserId, pid) => {
-                const result = await this.deps.personaResolver.resolve(discordUserId, pid);
-                return {
-                  personaId: result.config.personaId,
-                  preferredName: result.config.preferredName,
-                };
-              },
-              findUserByDiscordId: discordId => this.deps.dataSource.findUserByDiscordId(discordId),
-            },
-          });
+    const rewritten = await this.rewriteContent(jobContext, raw, personality);
+
+    // Step 7: cross-channel history — own DB fetch, environment names from
+    // the envelope's cache map (the worker can't ask Discord), shared wire
+    // mapper. Same budget as the channel-history dbLimit, mirroring the
+    // bot-side fetchCrossChannelIfEnabled gate (disabled or weigh-in →
+    // undefined, matching the payload's absent field).
+    const crossChannelHistory = await this.assembleCrossChannel(jobContext, personality, {
+      enabled:
+        configOverrides?.crossChannelHistoryEnabled === true && jobContext.isWeighIn !== true,
+      personaId: activePersonaId,
+      excludeChannelId: channelId,
+      limit,
+      maxAgeSeconds: configOverrides?.maxAge ?? undefined,
+      contextEpoch,
+    });
 
     logger.debug(
       {
@@ -211,6 +223,7 @@ export class ContextAssembler {
         dbCount: dbHistory.length,
         mergedCount: history.length,
         referenceCount: referencedMessages?.length,
+        crossChannelGroups: crossChannelHistory?.length,
       },
       'Core context assembled'
     );
@@ -226,7 +239,88 @@ export class ContextAssembler {
       messageContent: rewritten.messageContent,
       mentionedPersonas: rewritten.mentionedPersonas,
       referencedChannels: rewritten.referencedChannels,
+      crossChannelHistory,
     };
+  }
+
+  /**
+   * Content rewriting through the shared kernels — weigh-in jobs pass the
+   * raw content through untouched (mirrors the bot's early return and
+   * avoids upserting mention users for anonymous pokes).
+   */
+  private async rewriteContent(
+    jobContext: JobContext,
+    raw: RawAssemblyInputs,
+    personality: LoadedPersonality
+  ): Promise<RewrittenContent> {
+    if (jobContext.isWeighIn === true) {
+      return {
+        messageContent: raw.rawMessageContent,
+        mentionedPersonas: undefined,
+        referencedChannels: undefined,
+      };
+    }
+    return rewriteRawContent({
+      raw,
+      rawReferences: raw.rawReferencedMessages,
+      personalityId: personality.id,
+      deps: {
+        getOrCreateUser: (discordId, username, displayName, bio, isBot) =>
+          this.deps.userService.getOrCreateUser(discordId, username, displayName, bio, isBot),
+        resolvePersona: async (discordUserId, pid) => {
+          const result = await this.deps.personaResolver.resolve(discordUserId, pid);
+          return {
+            personaId: result.config.personaId,
+            preferredName: result.config.preferredName,
+          };
+        },
+        findUserByDiscordId: discordId => this.deps.dataSource.findUserByDiscordId(discordId),
+      },
+    });
+  }
+
+  /**
+   * Fetch + decorate + serialize cross-channel history. Environment names
+   * come from the envelope's knownChannelEnvironments map; channels missing
+   * from it (lazily-cached threads, post-capture renames) degrade to the
+   * shared fallback environment — an accepted divergence vs the bot's
+   * live-fetch decoration.
+   */
+  private async assembleCrossChannel(
+    jobContext: JobContext,
+    personality: LoadedPersonality,
+    opts: {
+      enabled: boolean;
+      personaId: string;
+      /** The narrowed current-channel id from assembleCore's guard. */
+      excludeChannelId: string;
+      limit: number;
+      maxAgeSeconds: number | undefined;
+      contextEpoch: Date | undefined;
+    }
+  ): Promise<CrossChannelHistoryGroupEntry[] | undefined> {
+    if (!opts.enabled) {
+      return undefined;
+    }
+
+    const groups = await this.deps.dataSource.getCrossChannelHistory({
+      personaId: opts.personaId,
+      personalityId: personality.id,
+      excludeChannelId: opts.excludeChannelId,
+      limit: opts.limit,
+      maxAgeSeconds: opts.maxAgeSeconds,
+      contextEpoch: opts.contextEpoch,
+    });
+
+    const envByChannelId = jobContext.rawAssemblyInputs?.knownChannelEnvironments ?? {};
+    return mapCrossChannelToApiFormat(
+      groups.map(group => ({
+        channelEnvironment:
+          envByChannelId[group.channelId] ??
+          buildFallbackEnvironment(group.channelId, group.guildId),
+        messages: group.messages,
+      }))
+    );
   }
 
   /**
@@ -262,7 +356,8 @@ export class ContextAssembler {
   private async mergeExtendedContext(
     raw: RawAssemblyInputs,
     dbHistory: ConversationMessage[],
-    personalityId: string
+    personalityId: string,
+    location: { channelId: string; guildId: string | null }
   ): Promise<ConversationMessage[]> {
     const rawMessages = raw.rawExtendedContextMessages;
     if (rawMessages === undefined || rawMessages.length === 0) {
@@ -282,7 +377,7 @@ export class ContextAssembler {
       isBot: u.isBot ?? false,
     }));
 
-    const messages = rawMessages.map(fromApiMessage);
+    const messages = rawMessages.map(m => fromApiMessage(m, location.channelId, location.guildId));
 
     if (usersToResolve.length > 0) {
       const userMap = await this.deps.userService.getOrCreateUsersInBatch(usersToResolve);
