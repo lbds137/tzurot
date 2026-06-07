@@ -2,6 +2,12 @@
 
 _New items go here. Triage to appropriate section weekly._
 
+### `[CHORE]` Integration coverage never collects `services/**`
+
+**Surfaced 2026-06-07** during the beta.128 codecov/patch failure. `vitest.int.config.ts`'s coverage `include` is `['src/**/*.ts', 'packages/**/src/**/*.ts']` — both root-relative, so no `services/*/src` file has ever appeared in the integration coverage upload. The `integration` codecov flag claims `services/` in its paths but receives no matching data; every service line exercised only by int tests reads as uncovered.
+
+**Fix shape**: add `services/**/src/**/*.ts` to the include list. Do it as a standalone PR, not mid-release — real int coverage landing for three services will shift global coverage numbers and may need a codecov-baseline conversation. (The conformance fixtures stay codecov-ignored as test infrastructure regardless — that part is intentional, not a workaround.)
+
 ### `[FEAT]` Enrich forwarded-message context with origin channel/thread (not just forwarding channel)
 
 `SnapshotFormatter.formatSnapshot` (`services/bot-client/src/handlers/references/SnapshotFormatter.ts`) currently labels forwarded snapshots with the **forwarding** channel's `locationContext` + "(forwarded message)" — it does NOT surface the _origin_ channel/thread the message was forwarded FROM. The inline comment ("snapshot doesn't have it") is accurate about the snapshot object, but the origin `channelId`/`guildId` ARE available on `forwardedFrom.reference` (the `FORWARD`-type `MessageReference`). Discord's own client resolves that ID to show e.g. "#general · 05/09/2026" on the forward. The original **timestamp** is already captured (`snapshot.createdTimestamp`, falls back to the forward's time) — only the origin location is missing.
