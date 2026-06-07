@@ -7,9 +7,21 @@
 
 ## Next Session Goal
 
-**Pre-iii-b loose ends, then the cutover.** a3 is COMPLETE (#1165): the shadow diffs 12 surfaces and the assembler re-derives every payload surface the envelope replaces. Before iii-b: (1) **Fork C** — relocate the vision-description update to ai-worker's own Prisma (kills the transitional local-Prisma write documented in iii-0); (2) **voice content story decision** — envelope rawMessageContent carries the transcript while the payload `message` is the empty refetched content; transcript-as-message at cutover would double with the attachment-description path in PromptBuilder (options: keep message empty for voice + keep the attachment path, or use the transcript and dedupe in PromptBuilder); (3) optionally enable `CONTEXT_RAW_ENVELOPE` + `CONTEXT_SHADOW_HYDRATION` on dev and watch `ShadowAssembly` match rates — the go/no-go telemetry now exists end-to-end. Then **iii-b**: discriminated-union job payload (`{kind:'legacy'} | {kind:'envelope'}`), thin envelopes, raw participantGuildInfo, legacy fields stop shipping. Watch: CPD ratchet.
+**The voice content story, then iii-b.** Fork C shipped (#1166): bot-client now has ZERO direct conversation writes — every remaining local-Prisma usage is a READ that 2.5d deletes. The one open design question before iii-b: **voice content** — the envelope's rawMessageContent carries the transcript while the payload `message` is the empty refetched Discord content; at cutover, transcript-as-message would double with the attachment-description path in PromptBuilder. Options: (a) keep message empty for voice + keep the attachment-description path (mirrors today exactly), (b) use the transcript as message and dedupe in PromptBuilder. Worth a council pass or a focused design conversation. Also available: enable `CONTEXT_RAW_ENVELOPE` + `CONTEXT_SHADOW_HYDRATION` on dev and watch `ShadowAssembly` match rates — the go/no-go telemetry is complete. Then **iii-b**: discriminated-union job payload, thin envelopes, raw participantGuildInfo, legacy fields stop shipping; then **2.5d** deletion party → PR-2p.
 
-## Last Session (continued) — ii-3 shipped: a3 complete, 12 shadow surfaces (2026-06-06)
+## Last Session (continued) — Fork C shipped: zero bot-client conversation writes (2026-06-06)
+
+| PR    | Title                                                                           | Outcome                                                                                                                                         |
+| ----- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| #1166 | `feat(ai-worker): persist vision descriptions worker-side post-vision (Fork C)` | `VisionDescriptionWriter` (post-vision, never-throws, own Prisma); bot `updateUserMessage` deleted; descriptions now survive generation failure |
+
+### Net result
+
+- **The producer of attachment descriptions persists them.** The write happens in DependencyStep immediately post-vision — decoupled from generation success, with a shorter placeholder window, and a DB failure can no longer break delivery (the old call sat unguarded in the bot's pre-send path).
+- **bot-client conversation writes: zero.** The transitional local-Prisma note from iii-0 is discharged; what remains for 2.5d is reads only.
+- **2 rounds + final**: round-1's genuine catch (the `''` descriptions guard — applied with user approval in the explicit-comparison form) + code-name scrub (the reviewer correctly turned the temporal-marker rule on "Fork C" labels); round-2 + final = confirmations, incl. the reviewer verifying the raw-personality-id-vs-effective choice and that analysis getting encoded as the inline comment.
+
+## Previous Session — ii-3 shipped: a3 complete, 12 shadow surfaces (2026-06-06)
 
 | PR    | Title                                                                                 | Outcome                                                                                                                                   |
 | ----- | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
