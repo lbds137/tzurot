@@ -133,7 +133,7 @@ describe('buildRawAssemblyInputs', () => {
   it('carries the author display name for worker-side getOrCreateUser parity', () => {
     process.env.CONTEXT_RAW_ENVELOPE = 'true';
     const raw = buildRawAssemblyInputs(makeMessage(), 'plain', undefined, {
-      authorDisplayName: 'Vladlena',
+      rawAuthorDisplayName: 'Vladlena',
     });
     expect(raw?.rawAuthorDisplayName).toBe('Vladlena');
   });

@@ -16,6 +16,7 @@ import {
   ConversationSyncService,
   UserService,
   createLogger,
+  mapCrossChannelToApiFormat,
   MESSAGE_LIMITS,
   isTypingChannel,
 } from '@tzurot/common-types';
@@ -47,10 +48,7 @@ import {
   extractReferencesAndMentions,
   type ReferencesAndMentionsResult,
 } from './contextBuilder/ReferenceExtractor.js';
-import {
-  fetchCrossChannelIfEnabled,
-  mapCrossChannelToApiFormat,
-} from './CrossChannelHistoryFetcher.js';
+import { fetchCrossChannelIfEnabled } from './CrossChannelHistoryFetcher.js';
 
 const logger = createLogger('MessageContextBuilder');
 
@@ -500,7 +498,7 @@ export class MessageContextBuilder {
       rawReferencedMessages: refsAndMentions.rawReferencedMessages,
       rawMentionedChannels: refsAndMentions.rawMentionedChannels,
       rawMentionedRoles: refsAndMentions.rawMentionedRoles,
-      authorDisplayName: displayName,
+      rawAuthorDisplayName: displayName,
     });
 
     // Build complete context
