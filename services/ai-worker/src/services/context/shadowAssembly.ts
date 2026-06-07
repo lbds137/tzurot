@@ -13,10 +13,15 @@
  * booleans and an aggregate `allMatched`. Match rate over a burn-in window =
  * grep `ShadowAssembly` / count `allMatched:true` — the go/no-go gate for
  * the envelope cutover.
+ *
+ * Reading note: contextEpoch is diffed only INDIRECTLY (a differing epoch
+ * fetches different history rows), so `allMatched: true` means "epoch
+ * effects on history agree," not "the epochs themselves were compared."
  */
 
 import {
   createLogger,
+  type CrossChannelHistoryGroupEntry,
   type JobContext,
   type LoadedPersonality,
   type MentionedPersona,
@@ -65,6 +70,111 @@ interface SurfaceMatches {
   mentionedPersonas: boolean;
   /** Set comparison over channel ids (payload omits the field when empty). */
   referencedChannels: boolean;
+  /**
+   * Cross-channel groups: strict on presence (one side undefined while the
+   * other carries groups = gate disagreement, likely config divergence) and
+   * on group-key sets; tolerant on extra assembled messages within a group
+   * (timing drift); environment NAMES are counted but excluded from the
+   * match (the worker decorates from the envelope's cache map while the bot
+   * live-fetches — name drift is an accepted divergence).
+   */
+  crossChannelHistory: boolean;
+}
+
+/** Stable key for a cross-channel group (thread id when present, else channel id). */
+function crossChannelGroupKey(group: CrossChannelHistoryGroupEntry): string {
+  return group.channelEnvironment.thread?.id ?? group.channelEnvironment.channel.id;
+}
+
+/**
+ * Cross-channel comparison. Presence-strict, group-key-strict,
+ * message-tolerant (same tolerance shape as diffHistory).
+ */
+function diffCrossChannel(
+  payload: CrossChannelHistoryGroupEntry[] | undefined,
+  assembled: CrossChannelHistoryGroupEntry[] | undefined
+): {
+  matched: boolean;
+  payloadGroups: number;
+  assembledGroups: number;
+  presenceMismatch: boolean;
+  groupKeyMismatches: number;
+  missingMessages: number;
+  contentMismatches: number;
+  envNameMismatches: number;
+} {
+  const result = {
+    matched: true,
+    payloadGroups: payload?.length ?? 0,
+    assembledGroups: assembled?.length ?? 0,
+    presenceMismatch: false,
+    groupKeyMismatches: 0,
+    missingMessages: 0,
+    contentMismatches: 0,
+    envNameMismatches: 0,
+  };
+
+  if (payload === undefined || assembled === undefined) {
+    // Both absent = the feature was off on both sides — agreement.
+    result.presenceMismatch = (payload === undefined) !== (assembled === undefined);
+    result.matched = !result.presenceMismatch;
+    return result;
+  }
+
+  const assembledByKey = new Map(assembled.map(g => [crossChannelGroupKey(g), g]));
+  for (const payloadGroup of payload) {
+    const assembledGroup = assembledByKey.get(crossChannelGroupKey(payloadGroup));
+    if (assembledGroup === undefined) {
+      result.groupKeyMismatches++;
+      continue;
+    }
+    if (
+      assembledGroup.channelEnvironment.channel.name !==
+      payloadGroup.channelEnvironment.channel.name
+    ) {
+      result.envNameMismatches++;
+    }
+    const groupDiff = diffGroupMessages(payloadGroup, assembledGroup);
+    result.missingMessages += groupDiff.missing;
+    result.contentMismatches += groupDiff.content;
+  }
+  // Worker-only groups are also key mismatches (symmetric strictness).
+  const payloadKeys = new Set(payload.map(crossChannelGroupKey));
+  for (const key of assembledByKey.keys()) {
+    if (!payloadKeys.has(key)) {
+      result.groupKeyMismatches++;
+    }
+  }
+
+  result.matched =
+    result.groupKeyMismatches === 0 &&
+    result.missingMessages === 0 &&
+    result.contentMismatches === 0;
+  return result;
+}
+
+/** Per-group message comparison: id-keyed, missing flagged, extra tolerated. */
+function diffGroupMessages(
+  payloadGroup: CrossChannelHistoryGroupEntry,
+  assembledGroup: CrossChannelHistoryGroupEntry
+): { missing: number; content: number } {
+  const assembledById = new Map(
+    assembledGroup.messages.filter(m => m.id !== undefined && m.id.length > 0).map(m => [m.id, m])
+  );
+  let missing = 0;
+  let content = 0;
+  for (const msg of payloadGroup.messages) {
+    if (msg.id === undefined || msg.id.length === 0) {
+      continue;
+    }
+    const assembledMsg = assembledById.get(msg.id);
+    if (assembledMsg === undefined) {
+      missing++;
+    } else if (assembledMsg.content !== msg.content) {
+      content++;
+    }
+  }
+  return { missing, content };
 }
 
 /** Compare two optional id-bearing lists as sets (payload-parity: undefined ≡ []). */
@@ -263,9 +373,14 @@ export async function shadowAssembleAndDiff(params: ShadowAssemblyParams): Promi
     const contentDiff = {
       compared: contentCompared,
       matched: contentCompared ? assembled.messageContent === params.payloadMessage : true,
-      payloadLength: params.payloadMessage?.length ?? 0,
+      // Left undefined (not 0) when there was no payload string to measure.
+      payloadLength: params.payloadMessage?.length,
       assembledLength: assembled.messageContent.length,
     };
+    const crossChannelDiff = diffCrossChannel(
+      jobContext.crossChannelHistory,
+      assembled.crossChannelHistory
+    );
 
     const matches: SurfaceMatches = {
       userInternalId: assembled.userInternalId === jobContext.userInternalId,
@@ -290,6 +405,7 @@ export async function shadowAssembleAndDiff(params: ShadowAssemblyParams): Promi
         assembled.referencedChannels,
         (c: ReferencedChannel) => c.channelId
       ),
+      crossChannelHistory: crossChannelDiff.matched,
     };
     const allMatched = Object.values(matches).every(Boolean);
 
@@ -307,6 +423,7 @@ export async function shadowAssembleAndDiff(params: ShadowAssemblyParams): Promi
       },
       referenceDiff,
       contentDiff,
+      crossChannelDiff,
     };
 
     if (allMatched) {

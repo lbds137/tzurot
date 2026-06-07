@@ -8,7 +8,12 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   return { ...actual, createLogger: () => mockLogger };
 });
 
-import { MessageRole, type JobContext, type LoadedPersonality } from '@tzurot/common-types';
+import {
+  MessageRole,
+  type JobContext,
+  type LoadedPersonality,
+  type ResolvedConfigOverrides,
+} from '@tzurot/common-types';
 import { ContextAssembler, type ContextAssemblerDeps } from './ContextAssembler.js';
 import type { ContextDataSource } from './types.js';
 
@@ -95,7 +100,7 @@ describe('ContextAssembler.assembleCore', () => {
         rawAssemblyInputs: { rawMessageContent: 'hello', rawAuthorDisplayName: 'Vladlena' },
       }),
       PERSONALITY,
-      { maxMessages: 30, maxAge: 7200 } as never
+      { maxMessages: 30, maxAge: 7200 } as ResolvedConfigOverrides
     );
 
     expect(deps.userService.getOrCreateUser).toHaveBeenCalledWith(
@@ -201,6 +206,11 @@ describe('ContextAssembler.assembleCore', () => {
     const ext = core.history.find(m => m.id === 'd-ext');
     expect(ext?.personaId).toBe('persona-555');
     expect(ext?.createdAt).toBeInstanceOf(Date);
+    // Wire shape lacks channelId/guildId; the assembler fills them from the
+    // job (same-channel by construction) so assembled rows are structurally
+    // complete ConversationMessages.
+    expect(ext?.channelId).toBe('chan-1');
+    expect(ext?.guildId).toBeNull();
   });
 
   it('leaves referencedMessages undefined when the envelope carries no raw references', async () => {
@@ -342,6 +352,86 @@ describe('ContextAssembler.assembleCore', () => {
     // The anonymous-poke path must not create users for mentioned people —
     // only the author upsert from step 1 runs.
     expect(deps.userService.getOrCreateUser).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves crossChannelHistory undefined when the feature is disabled', async () => {
+    const deps = makeDeps();
+    const assembler = new ContextAssembler(deps);
+    const core = await assembler.assembleCore(makeJobContext(), PERSONALITY, {
+      maxMessages: 30,
+      crossChannelHistoryEnabled: false,
+    } as ResolvedConfigOverrides);
+    expect(core.crossChannelHistory).toBeUndefined();
+    expect(deps.dataSource.getCrossChannelHistory).not.toHaveBeenCalled();
+  });
+
+  it('skips cross-channel for weigh-in jobs even when enabled', async () => {
+    const deps = makeDeps();
+    const assembler = new ContextAssembler(deps);
+    const core = await assembler.assembleCore(makeJobContext({ isWeighIn: true }), PERSONALITY, {
+      maxMessages: 30,
+      crossChannelHistoryEnabled: true,
+    } as ResolvedConfigOverrides);
+    expect(core.crossChannelHistory).toBeUndefined();
+    expect(deps.dataSource.getCrossChannelHistory).not.toHaveBeenCalled();
+  });
+
+  it('decorates cross-channel groups from the env map, falling back for cache misses', async () => {
+    const knownEnv = {
+      type: 'guild' as const,
+      guild: { id: 'g1', name: 'Guild' },
+      channel: { id: 'other-1', name: 'general', type: 'text' },
+    };
+    const row = {
+      id: 'cc-1',
+      role: MessageRole.User,
+      content: 'cross msg',
+      createdAt: new Date('2026-06-01T00:00:00Z'),
+      personaId: 'p1',
+      channelId: 'other-1',
+      guildId: 'g1',
+      discordMessageId: ['d-cc'],
+    };
+    const deps = makeDeps({
+      dataSource: {
+        getCrossChannelHistory: vi.fn().mockResolvedValue([
+          { channelId: 'other-1', guildId: 'g1', messages: [row] },
+          { channelId: 'uncached-2', guildId: 'g1', messages: [] },
+        ]),
+      },
+    });
+    const assembler = new ContextAssembler(deps);
+
+    const core = await assembler.assembleCore(
+      makeJobContext({
+        rawAssemblyInputs: {
+          rawMessageContent: 'hello',
+          knownChannelEnvironments: { 'other-1': knownEnv },
+        },
+      }),
+      PERSONALITY,
+      { maxMessages: 30, maxAge: 7200, crossChannelHistoryEnabled: true } as ResolvedConfigOverrides
+    );
+
+    expect(deps.dataSource.getCrossChannelHistory).toHaveBeenCalledWith({
+      personaId: 'persona-1',
+      personalityId: 'pers-1',
+      excludeChannelId: 'chan-1',
+      limit: 30,
+      maxAgeSeconds: 7200,
+      contextEpoch: undefined,
+    });
+    expect(core.crossChannelHistory).toHaveLength(2);
+    // Cached channel: decorated with the envelope's environment.
+    expect(core.crossChannelHistory?.[0].channelEnvironment).toEqual(knownEnv);
+    // Wire serialization via the SHARED mapper (Date → ISO string).
+    expect(core.crossChannelHistory?.[0].messages[0].createdAt).toBe('2026-06-01T00:00:00.000Z');
+    // Cache miss: shared fallback environment.
+    expect(core.crossChannelHistory?.[1].channelEnvironment).toEqual({
+      type: 'guild',
+      guild: { id: 'g1', name: 'unknown-server' },
+      channel: { id: 'uncached-2', name: 'unknown-channel', type: 'text' },
+    });
   });
 
   it('returns plain DB history when the envelope carries no extended context', async () => {
