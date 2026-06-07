@@ -4,26 +4,55 @@
 
 ## Quick Reference - Key Rules Established
 
-| Date       | Incident                        | Rule Established                                  |
-| ---------- | ------------------------------- | ------------------------------------------------- |
-| 2026-03-09 | Near-delete of develop branch   | Never --delete-branch on long-lived branches      |
-| 2026-02-03 | Context settings not cascading  | Trace full runtime flow before declaring "done"   |
-| 2026-01-30 | Gitignored data/ deleted        | NEVER rm -rf without explicit user approval       |
-| 2026-01-30 | Work reverted without consent   | Never abandon uncommitted work without asking     |
-| 2026-01-24 | execSync with string commands   | Use execFileSync with arrays for external data    |
-| 2026-01-28 | Model footer missing on errors  | Both producer & consumer must be updated together |
-| 2026-01-26 | Dashboard prefix not registered | Test componentPrefixes for dashboard entityTypes  |
-| 2026-01-17 | Wrong branch migration deploy   | Run migrations from correct branch checkout       |
-| 2026-01-17 | Dockerfile missed new package   | Use Grep Rule for all infrastructure files        |
-| 2025-07-25 | Untested push broke develop     | Always run tests before pushing                   |
-| 2025-07-21 | Git restore destroyed work      | Confirm before destructive git commands           |
-| 2025-10-31 | DB URL committed                | Never commit database URLs                        |
-| 2025-07-16 | DDD migration broke features    | Test actual behavior, not just units              |
-| 2025-12-05 | Direct fetch broke /character   | Use gateway clients, not direct fetch             |
-| 2025-12-06 | API contract mismatch           | Use shared Zod schemas for contracts              |
-| 2025-12-14 | Random UUIDs broke db-sync      | Use deterministic v5 UUIDs for all entities       |
+| Date       | Incident                          | Rule Established                                  |
+| ---------- | --------------------------------- | ------------------------------------------------- |
+| 2026-06-07 | Handler/contract drift broke prod | Declared schemas must be executed, not documented |
+| 2026-03-09 | Near-delete of develop branch     | Never --delete-branch on long-lived branches      |
+| 2026-02-03 | Context settings not cascading    | Trace full runtime flow before declaring "done"   |
+| 2026-01-30 | Gitignored data/ deleted          | NEVER rm -rf without explicit user approval       |
+| 2026-01-30 | Work reverted without consent     | Never abandon uncommitted work without asking     |
+| 2026-01-24 | execSync with string commands     | Use execFileSync with arrays for external data    |
+| 2026-01-28 | Model footer missing on errors    | Both producer & consumer must be updated together |
+| 2026-01-26 | Dashboard prefix not registered   | Test componentPrefixes for dashboard entityTypes  |
+| 2026-01-17 | Wrong branch migration deploy     | Run migrations from correct branch checkout       |
+| 2026-01-17 | Dockerfile missed new package     | Use Grep Rule for all infrastructure files        |
+| 2025-07-25 | Untested push broke develop       | Always run tests before pushing                   |
+| 2025-07-21 | Git restore destroyed work        | Confirm before destructive git commands           |
+| 2025-10-31 | DB URL committed                  | Never commit database URLs                        |
+| 2025-07-16 | DDD migration broke features      | Test actual behavior, not just units              |
+| 2025-12-05 | Direct fetch broke /character     | Use gateway clients, not direct fetch             |
+| 2025-12-06 | API contract mismatch             | Use shared Zod schemas for contracts              |
+| 2025-12-14 | Random UUIDs broke db-sync        | Use deterministic v5 UUIDs for all entities       |
 
 ---
+
+## 2026-06-07 - Handler/Contract Drift Broke Character Edit in Production
+
+**What Happened**: Character edits, imports-over-existing, and visibility toggles all failed in production (beta.127) with `Response schema validation failed … canEdit: expected boolean, received undefined`. Two api-gateway handlers (`updatePersonality`, `setPersonalityVisibility`) returned response shapes that didn't match their manifest-declared output schemas. Fixed in PR #1167.
+
+**Root Cause — a three-act latency**:
+
+1. **Manifest build-out** (PR-1.5 era): routes were assigned declared `output` schemas written from intent. `GetPersonalityResponseSchema` was authored against the GET handler (its comment says "the GET handler … always returns it") and then assigned to the PUT and PATCH routes aspirationally. Nothing ever executed those handlers against the schema — the manifest was documentation, not enforcement.
+2. **Codegen** compiled output schemas into client-side response validation — but legacy `callGatewayApi` callsites never validated anything, so the drift stayed latent.
+3. **beta.127's typed-client cutover** moved every callsite to generated clients, switching validation on for ~128 routes simultaneously. Latent contract drift became production runtime failure. The bug shipped months before the release that exposed it.
+
+**Why no test caught it** — each layer had a precise blind spot:
+
+- Gateway unit tests asserted with `expect.objectContaining(...)` — structurally incapable of catching a MISSING field the test doesn't name. They verified the handler against itself, not against its contract.
+- bot-client unit tests mock the generated client entirely; its validation code never runs under test.
+- The integration suite doesn't execute (real handler output) × (declared output schema) for any route.
+- `sendCustomSuccess(res, payload)` is untyped — the handler never imports the manifest's output type, so tsc cannot see the drift. The contract exists in three places (schema, handler, client) and only the client enforces it — at runtime, in production.
+- Even the beta.127 manual dev smoke missed it: character _edit save_ wasn't on the smoke list.
+
+**Impact**: All character edit/update flows broken in production for every user from beta.127 until the next release carrying PR #1167.
+
+**Prevention**:
+
+1. **Hotfix-level**: the two routes' tests now parse the REAL response body through the manifest's declared schema — the exact validation production clients perform — so drift in these routes fails CI.
+2. **Class-level (tracked in 🚨 production-issues)**: a manifest-conformance harness — iterate `ROUTE_MANIFEST`, invoke each real handler, parse the response through its declared output schema. PR-1.5c's final review caught 4 sibling instances of this class, so assume it is seeded across the manifest until the sweep runs.
+3. **Candidate structural enforcement**: a typed `sendContractSuccess(res, route, payload)` helper (payload typed as `z.infer<typeof route.output>`) makes drift a compile error; dev-mode response-validation middleware catches anything the harness fixtures miss.
+
+**Rule established**: a declared contract that nothing executes is a liability, not documentation — when a schema is the source of truth for a boundary, every producer of that boundary must be tested THROUGH the schema, and turning on enforcement for many consumers at once (the typed-client cutover) converts every latent drift into a simultaneous production failure.
 
 ## 2026-03-09 - Near-Delete of Develop Branch
 
