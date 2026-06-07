@@ -50,7 +50,6 @@ import {
   TtsConfigUpdateSchema,
   UpdateLlmConfigResponseSchema,
   UpdateTtsConfigResponseSchema,
-  UserDefaultSttProviderSchema,
 } from '@tzurot/common-types';
 
 import type { RouteDef } from '../types.js';
@@ -313,7 +312,10 @@ export const userConfigRoutes = {
     method: 'get',
     path: STT_OVERRIDE_PATH,
     id: 'getSttDefaultProvider',
-    output: UserDefaultSttProviderSchema,
+    // GET and PUT share the { default: { providerId } } envelope — the
+    // handler wraps both. (The bare UserDefaultSttProviderSchema this entry
+    // used to declare was never what the handler emitted.)
+    output: SetSttDefaultProviderResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
   },

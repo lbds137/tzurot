@@ -72,11 +72,6 @@ export const GetChannelSettingsResponseSchema = z.object({
 });
 export type GetChannelSettingsResponse = z.infer<typeof GetChannelSettingsResponseSchema>;
 
-/** @deprecated Use GetChannelSettingsResponseSchema */
-export const GetChannelActivationResponseSchema = z.object({
-  isActivated: z.boolean(),
-  activation: ChannelSettingsSchema.optional(),
-});
 // ============================================================================
 // GET /user/channel/list
 // Lists all channel settings (optionally filtered by guild)
@@ -88,10 +83,6 @@ export const ListChannelSettingsResponseSchema = z.object({
 });
 export type ListChannelSettingsResponse = z.infer<typeof ListChannelSettingsResponseSchema>;
 
-/** @deprecated Use ListChannelSettingsResponseSchema */
-export const ListChannelActivationsResponseSchema = z.object({
-  activations: z.array(ChannelSettingsSchema),
-});
 // ============================================================================
 // PATCH /user/channel/update-guild
 // Updates guildId for an existing channel settings record
