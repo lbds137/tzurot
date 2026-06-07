@@ -144,7 +144,7 @@ describe('ContextStep', () => {
       expect(mockShadowHydrateAndDiff).not.toHaveBeenCalled();
     });
 
-    it('routes to the ASSEMBLY shadow when the raw envelope is present and an assembler is wired', () => {
+    it('routes to the assembly shadow when the raw envelope is present and an assembler is wired', () => {
       mockIsShadowHydrationEnabled.mockReturnValue(true);
       const fakeAssembler = { assembleCore: vi.fn() };
       const gatedStep = new ContextStep(fakeDataSource, fakeAssembler as never);
