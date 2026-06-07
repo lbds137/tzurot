@@ -6,9 +6,7 @@ import {
   DeactivateChannelRequestSchema,
   DeactivateChannelResponseSchema,
   GetChannelSettingsResponseSchema,
-  GetChannelActivationResponseSchema,
   ListChannelSettingsResponseSchema,
-  ListChannelActivationsResponseSchema,
   UpdateChannelGuildRequestSchema,
   UpdateChannelGuildResponseSchema,
 } from './channel.js';
@@ -191,24 +189,6 @@ describe('Channel Settings Schemas', () => {
     });
   });
 
-  // GetChannelActivationResponseSchema is for backward compatibility
-  describe('GetChannelActivationResponseSchema (deprecated)', () => {
-    it('should accept response with activation', () => {
-      const data = {
-        isActivated: true,
-        activation: createValidChannelSettings(),
-      };
-      expect(GetChannelActivationResponseSchema.parse(data)).toEqual(data);
-    });
-
-    it('should accept response without activation', () => {
-      const data = {
-        isActivated: false,
-      };
-      expect(GetChannelActivationResponseSchema.parse(data)).toEqual(data);
-    });
-  });
-
   describe('ListChannelSettingsResponseSchema', () => {
     it('should accept response with multiple settings', () => {
       const data = {
@@ -230,31 +210,6 @@ describe('Channel Settings Schemas', () => {
     it('should accept empty settings array', () => {
       const data = { settings: [] };
       expect(ListChannelSettingsResponseSchema.parse(data)).toEqual(data);
-    });
-  });
-
-  // ListChannelActivationsResponseSchema is for backward compatibility
-  describe('ListChannelActivationsResponseSchema (deprecated)', () => {
-    it('should accept response with multiple activations', () => {
-      const data = {
-        activations: [
-          createValidChannelSettings(),
-          createValidChannelSettings({
-            id: '550e8400-e29b-41d4-a716-446655440001',
-            channelId: '123456789012345679',
-            personalitySlug: 'sarcastic',
-            personalityName: 'Sarcastic Bot',
-            activatedBy: '550e8400-e29b-41d4-a716-446655440002',
-            createdAt: '2025-01-15T13:00:00.000Z',
-          }),
-        ],
-      };
-      expect(ListChannelActivationsResponseSchema.parse(data)).toEqual(data);
-    });
-
-    it('should accept empty activations array', () => {
-      const data = { activations: [] };
-      expect(ListChannelActivationsResponseSchema.parse(data)).toEqual(data);
     });
   });
 

@@ -21,8 +21,8 @@ import {
   DeactivateChannelResponseSchema,
   DeleteVoiceResponseSchema,
   GATEWAY_TIMEOUTS,
-  GetChannelActivationResponseSchema,
   GetChannelConfigOverridesResponseSchema,
+  GetChannelSettingsResponseSchema,
   GetNsfwStatusResponseSchema,
   GetVoiceResolutionResponseSchema,
   HardDeleteHistoryResponseSchema,
@@ -94,7 +94,11 @@ export const userResourceRoutes = {
     path: '/channel/:channelId',
     id: 'getUserChannel',
     params: { channelId: z.string() },
-    output: GetChannelActivationResponseSchema,
+    // Shares handleGetUserChannel with the internal getChannelSettings route —
+    // both emit the { hasSettings, settings } envelope, so both declare the
+    // same schema. (The deprecated { isActivated, activation } shape this
+    // entry used to declare was never what the handler emitted.)
+    output: GetChannelSettingsResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
   },

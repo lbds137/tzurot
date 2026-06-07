@@ -32,7 +32,6 @@ import {
   AdminUsageStatsSchema,
   ConfigOverridesSchema,
   CreateLlmConfigResponseSchema,
-  CreatePersonalityResponseSchema,
   CreateTtsConfigResponseSchema,
   DbSyncResponseSchema,
   DbSyncSchema,
@@ -152,7 +151,11 @@ export const adminRoutes = {
     path: '/personality',
     id: 'createGlobalPersonality',
     input: PersonalityCreateSchema,
-    output: CreatePersonalityResponseSchema,
+    // Admin create/update both emit the slim admin envelope (subset of
+    // fields + metadata), not the full user-route personality detail. (The
+    // CreatePersonalityResponseSchema this entry used to declare belongs to
+    // the user-audience create route.)
+    output: AdminPersonalityResponseSchema,
   },
 
   /** PATCH /api/admin/personality/:slug — Admin-side personality update. */
