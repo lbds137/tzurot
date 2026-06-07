@@ -4,11 +4,15 @@
  */
 
 import { type Response, type RequestHandler } from 'express';
-import { StatusCodes } from 'http-status-codes';
-import { createLogger, PERSONALITY_DETAIL_SELECT, SetVisibilitySchema } from '@tzurot/common-types';
+import {
+  createLogger,
+  GetPersonalityResponseSchema,
+  PERSONALITY_DETAIL_SELECT,
+  SetVisibilitySchema,
+} from '@tzurot/common-types';
 import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
-import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
+import { sendContractSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { sendZodError } from '../../../utils/zodHelpers.js';
 import type { ProvisionedRequest } from '../../../types.js';
@@ -70,13 +74,13 @@ export const handleSetPersonalityVisibility = (deps: RouteDeps): RequestHandler 
       'Changed personality visibility'
     );
 
-    // Response contract is GetPersonalityResponseSchema — full personality
-    // + canEdit (exact, not optimistic: the edit gate above already passed).
-    sendCustomSuccess(
-      res,
-      { personality: formatPersonalityResponse(updated), canEdit: true },
-      StatusCodes.OK
-    );
+    // canEdit is exact, not optimistic: the edit gate above already passed.
+    // The schema argument pins the payload to the declared contract at
+    // compile time.
+    sendContractSuccess(res, GetPersonalityResponseSchema, {
+      personality: formatPersonalityResponse(updated),
+      canEdit: true,
+    });
   });
 };
 

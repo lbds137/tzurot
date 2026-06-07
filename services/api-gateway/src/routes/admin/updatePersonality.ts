@@ -5,6 +5,7 @@
 
 import { Router, type Request, type RequestHandler, type Response } from 'express';
 import {
+  AdminPersonalityResponseSchema,
   createLogger,
   type CacheInvalidationService,
   PersonalityUpdateSchema,
@@ -13,7 +14,7 @@ import {
 import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import type { RouteDeps } from '../routeDeps.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
-import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
+import { sendError, sendContractSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import { getParam } from '../../utils/requestParams.js';
@@ -170,7 +171,9 @@ export const handleUpdateGlobalPersonality = (deps: RouteDeps): RequestHandler =
       isNowPublic
     );
 
-    sendCustomSuccess(res, {
+    // Schema argument pins the payload to the declared admin contract at
+    // compile time (the slim admin envelope, not the full user-route detail).
+    sendContractSuccess(res, AdminPersonalityResponseSchema, {
       success: true,
       personality: {
         id: personality.id,
