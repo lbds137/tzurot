@@ -3,8 +3,9 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { PrismaClient } from '@tzurot/common-types';
+import { GetPersonalityResponseSchema, type PrismaClient } from '@tzurot/common-types';
 import {
+  createMockPersonality,
   createMockPrisma,
   createMockReqRes,
   getHandler,
@@ -86,15 +87,17 @@ describe('PATCH /user/personality/:slug/visibility', () => {
 
   it('should toggle visibility to public', async () => {
     mockPrisma.personality.findUnique.mockResolvedValue({
-      id: 'personality-10',
+      id: '7e570000-0000-4000-8000-000000000010',
       ownerId: MOCK_USER_ID,
       isPublic: false,
     });
-    mockPrisma.personality.update.mockResolvedValue({
-      id: 'personality-10',
-      slug: 'my-char',
-      isPublic: true,
-    });
+    mockPrisma.personality.update.mockResolvedValue(
+      createMockPersonality({
+        id: '7e570000-0000-4000-8000-000000000010',
+        slug: 'my-char',
+        isPublic: true,
+      })
+    );
 
     const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
     const handler = getHandler(router, 'patch', '/:slug/visibility');
@@ -103,19 +106,24 @@ describe('PATCH /user/personality/:slug/visibility', () => {
     await handler(req, res);
 
     expect(mockPrisma.personality.update).toHaveBeenCalledWith({
-      where: { id: 'personality-10' },
+      where: { id: '7e570000-0000-4000-8000-000000000010' },
       data: { isPublic: true },
-      select: { id: true, slug: true, isPublic: true },
+      // Full detail select: the response carries the complete personality
+      // per GetPersonalityResponseSchema.
+      select: expect.objectContaining({ id: true, slug: true, isPublic: true, name: true }),
     });
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
-        success: true,
+        canEdit: true,
         personality: expect.objectContaining({
           isPublic: true,
         }),
       })
     );
+    // Pin the full declared contract, not just the fields asserted above.
+    const sentBody = vi.mocked(res.json).mock.calls[0][0];
+    expect(GetPersonalityResponseSchema.safeParse(sentBody).success).toBe(true);
   });
 
   it('should toggle visibility to private', async () => {
@@ -124,11 +132,9 @@ describe('PATCH /user/personality/:slug/visibility', () => {
       ownerId: MOCK_USER_ID,
       isPublic: true,
     });
-    mockPrisma.personality.update.mockResolvedValue({
-      id: 'personality-11',
-      slug: 'my-char',
-      isPublic: false,
-    });
+    mockPrisma.personality.update.mockResolvedValue(
+      createMockPersonality({ id: 'personality-11', slug: 'my-char', isPublic: false })
+    );
 
     const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
     const handler = getHandler(router, 'patch', '/:slug/visibility');

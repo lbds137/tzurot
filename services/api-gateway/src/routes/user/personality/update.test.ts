@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { PrismaClient } from '@tzurot/common-types';
+import { GetPersonalityResponseSchema, type PrismaClient } from '@tzurot/common-types';
 import {
   createMockPrisma,
   createMockPersonality,
@@ -115,12 +115,12 @@ describe('PUT /user/personality/:slug (update)', () => {
 
   it('should update owned personality', async () => {
     mockPrisma.personality.findUnique.mockResolvedValue({
-      id: 'personality-7',
+      id: '7e570000-0000-4000-8000-000000000007',
       ownerId: MOCK_USER_ID,
     });
     mockPrisma.personality.update.mockResolvedValue(
       createMockPersonality({
-        id: 'personality-7',
+        id: '7e570000-0000-4000-8000-000000000007',
         name: 'Updated Name',
         slug: 'my-char',
         displayName: 'Updated Display',
@@ -139,7 +139,7 @@ describe('PUT /user/personality/:slug (update)', () => {
     await handler(req, res);
 
     expect(mockPrisma.personality.update).toHaveBeenCalledWith({
-      where: { id: 'personality-7' },
+      where: { id: '7e570000-0000-4000-8000-000000000007' },
       data: expect.objectContaining({
         name: 'Updated Name',
         displayName: 'Updated Display',
@@ -152,14 +152,25 @@ describe('PUT /user/personality/:slug (update)', () => {
       }),
     });
     expect(res.status).toHaveBeenCalledWith(200);
+    // Contract: GetPersonalityResponseSchema — the generated clients VALIDATE
+    // this shape, so canEdit must be present (true is exact: the edit gate
+    // already passed for this requester).
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
-        success: true,
+        canEdit: true,
         personality: expect.objectContaining({
           name: 'Updated Name',
         }),
       })
     );
+    // Parse the REAL response through the manifest's declared output schema —
+    // the same validation the generated client performs in production. This
+    // is the pin that would have caught the canEdit omission before it
+    // shipped (clients started validating responses at the typed-client
+    // cutover; handlers that drifted from their declared contract fail in
+    // production, not in CI, without this).
+    const sentBody = vi.mocked(res.json).mock.calls[0][0];
+    expect(GetPersonalityResponseSchema.safeParse(sentBody).success).toBe(true);
   });
 
   it('should allow update via PersonalityOwner table', async () => {

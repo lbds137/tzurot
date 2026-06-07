@@ -269,9 +269,14 @@ function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInv
       'Updated personality'
     );
 
+    // Response contract is GetPersonalityResponseSchema ({ personality,
+    // canEdit }) — the manifest declares it and the generated clients
+    // VALIDATE it. canEdit: true is exact, not optimistic: the
+    // resolvePersonalityForEdit gate above already proved this requester
+    // can edit (reaching here otherwise is impossible).
     sendCustomSuccess(
       res,
-      { success: true, personality: formatPersonalityResponse(updated) },
+      { personality: formatPersonalityResponse(updated), canEdit: true },
       StatusCodes.OK
     );
   };
