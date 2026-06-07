@@ -7,7 +7,19 @@
 
 ## Next Session Goal
 
-**Phase 2.5c-iii-a3-ii-3 — cross-channel decoration, the assembler's last re-derivation slice.** Mentions/links shipped (ii-2 #1163): the shadow now diffs 11 surfaces and the assembler re-derives everything except cross-channel history. ii-3 brings: `getCrossChannelHistory` consumption (dataSource method exists since 2.5a) + decoration from `knownChannelEnvironments` with the shared fallback-env builder, `mapCrossChannelToApiFormat` relocation, wire/DB group-type unification (closes the 2.5a count-only-diff caveat), the queued fold-forwards (#1161 a–d, #1162/#1163 batch in active-epic.md), and the full-diff wrap-up. Then the pre-iii-b loose ends: Fork C vision-description relocation + the voice content story design question (transcript-as-message would double with the attachment-description path in PromptBuilder). Watch: CPD ratchet. Burn-in flags all live on dev.
+**Pre-iii-b loose ends, then the cutover.** a3 is COMPLETE (#1165): the shadow diffs 12 surfaces and the assembler re-derives every payload surface the envelope replaces. Before iii-b: (1) **Fork C** — relocate the vision-description update to ai-worker's own Prisma (kills the transitional local-Prisma write documented in iii-0); (2) **voice content story decision** — envelope rawMessageContent carries the transcript while the payload `message` is the empty refetched content; transcript-as-message at cutover would double with the attachment-description path in PromptBuilder (options: keep message empty for voice + keep the attachment path, or use the transcript and dedupe in PromptBuilder); (3) optionally enable `CONTEXT_RAW_ENVELOPE` + `CONTEXT_SHADOW_HYDRATION` on dev and watch `ShadowAssembly` match rates — the go/no-go telemetry now exists end-to-end. Then **iii-b**: discriminated-union job payload (`{kind:'legacy'} | {kind:'envelope'}`), thin envelopes, raw participantGuildInfo, legacy fields stop shipping. Watch: CPD ratchet.
+
+## Last Session (continued) — ii-3 shipped: a3 complete, 12 shadow surfaces (2026-06-06)
+
+| PR    | Title                                                                                 | Outcome                                                                                                                                   |
+| ----- | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| #1165 | `feat(ai-worker): PR 2.5c-iii-a3-ii-3 — cross-channel decoration + full-diff wrap-up` | Cross-channel via shared wire mapper + env-map decoration; shadow surface 12 closes the 2.5a count-only caveat; all fold-forwards applied |
+
+### Net result
+
+- **The assembler re-derives the complete context.** Cross-channel groups fetch through the worker's own dataSource, decorate from the envelope's cache map (misses → shared fallback), and serialize through the SAME mapper the bot uses. The diff is presence-strict/group-key-strict/message-tolerant with env-name drift counted-but-excluded — the one by-design divergence (cache-vs-live decoration) stays observable without poisoning the go/no-go metric.
+- **`satisfies` keeps paying**: the fold-forward predicted two missing wire fields (channelId/guildId); the compiler found two more (id/personaId). All four now filled with the diff's own normalization sentinels instead of hiding behind a cast.
+- **2 review rounds + final, fast convergence**: round-1 = one threading refactor (excludeChannelId from the narrowed guard, killing a `?? ''` and its comment-documented assumption); round-2 = one reviewer false-premise dismissed with citation (`?? undefined` is a load-bearing null→undefined conversion, maxAge is `number \| null`); final = nits self-resolved by green typecheck.
 
 ## Last Session — ii-2 shipped + Codecov outage diagnosed and routed around (2026-06-06)
 
