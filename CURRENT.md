@@ -7,7 +7,19 @@
 
 ## Next Session Goal
 
-**Voice ground-truth PR, then iii-b.** The voice content story is RESOLVED (council a′, recorded in active-epic.md) and the implementing slice is built + rebased onto post-release develop at `feat/pr-2.5c-voice-ground-truth` — **it has no PR yet**; open it, ride the review, merge. Then: enable `CONTEXT_RAW_ENVELOPE` + `CONTEXT_SHADOW_HYDRATION` on dev and watch `ShadowAssembly` match rates (incl. the new `sttDivergence` counter) — the go/no-go telemetry is complete. Then **iii-b**: discriminated-union job payload, thin envelopes, raw participantGuildInfo, legacy fields stop shipping; then **2.5d** deletion party → PR-2p.
+**Burn-in, then iii-b.** Everything pre-iii-b has shipped. Next: enable `CONTEXT_RAW_ENVELOPE` + `CONTEXT_SHADOW_HYDRATION` on dev Railway and watch `ShadowAssembly` match rates (incl. the new `sttDivergence` counter) — the go/no-go telemetry is complete across all 12 surfaces + the STT data-collection layer. Then **iii-b**: discriminated-union job payload, thin envelopes, raw participantGuildInfo, legacy fields stop shipping; then **2.5d** deletion party → PR-2p.
+
+## Last Session (continued) — voice ground truth shipped: pre-iii-b queue empty (2026-06-07)
+
+| PR    | Title                                                                            | Outcome                                                                                                                                                           |
+| ----- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #1169 | `feat: rawMessageContent becomes Discord ground truth; STT divergence telemetry` | Council a′ implemented: ground-truth content, telemetry-only `rawRoutingTranscript`, voice shadow-skip deleted, `sttDivergence` metric (excluded from allMatched) |
+
+### Net result
+
+- **The envelope's content field has one meaning.** `rawMessageContent` = `message.content` verbatim (empty for voice AND forwarded triggers); the transcript rides `rawRoutingTranscript` as telemetry only. The shadow compares content for every trigger type — the voice skip is gone.
+- **`sttDivergence` is the single-STT decision's dataset**: `equal` mirrors `compared` exactly (asymmetric runs are "uncompared", never "diverged" — review round 2's catch, user-approved), and the multi-attachment join-strategy precondition is documented at the join site + in deferred.md.
+- **4 review rounds, fast convergence**: round-1 trivial comment + log-noise deferral; round-2's genuine catch (the equal/compared guard asymmetry); round-3 `bothTranscriptsPresent` extraction; post-autosquash = confirmations only.
 
 ## Last Session — beta.128: prod contract-drift fix + manifest-conformance enforcement (2026-06-07)
 
