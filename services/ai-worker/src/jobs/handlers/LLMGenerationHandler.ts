@@ -23,6 +23,7 @@ import { ConversationalRAGService } from '../../services/ConversationalRAGServic
 import {
   createLogger,
   getPrismaClient,
+  ConversationHistoryService,
   PersonaResolver,
   UserService,
   ApiErrorCategory,
@@ -37,6 +38,7 @@ import {
 } from '@tzurot/common-types';
 import { PrismaContextDataSource } from '../../services/context/PrismaContextDataSource.js';
 import { ContextAssembler } from '../../services/context/ContextAssembler.js';
+import { VisionDescriptionWriter } from '../../services/context/visionDescriptionWriter.js';
 import { ApiKeyResolver } from '../../services/ApiKeyResolver.js';
 import type { EmbeddingServiceInterface } from '../../utils/duplicateDetection.js';
 import { storeDiagnosticLog } from './pipeline/steps/diagnosticStorage.js';
@@ -135,13 +137,20 @@ export class LLMGenerationHandler {
     //   neither of which depend on running before Config/Auth.
     // - ContextStep: Builds conversation history (needs preprocessing from DependencyStep)
     // - GenerationStep: Calls RAG service (needs all prior context)
+    // The worker persists rich attachment descriptions onto the trigger
+    // user message post-vision (its own Prisma — an AI-domain write, same
+    // class as memory writes).
+    const visionDescriptionWriter = new VisionDescriptionWriter(
+      new ConversationHistoryService(getPrismaClient())
+    );
+
     this.pipeline = [
       new ValidationStep(),
       new NormalizationStep(),
       new ConfigStep(configResolver, cascadeResolver),
       new AuthStep(apiKeyResolver, configResolver, undefined, sttResolver),
       new DownloadAttachmentsStep(),
-      new DependencyStep(apiKeyResolver),
+      new DependencyStep(apiKeyResolver, visionDescriptionWriter),
       // Handler (and thus this pipeline) is constructed once at worker
       // startup — the data source, assembler, and their wrapped services are
       // constructed once here (around the shared prisma singleton), not

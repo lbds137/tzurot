@@ -373,6 +373,57 @@ describe('DependencyStep', () => {
     });
   });
 
+  describe('vision-description persistence', () => {
+    const makeWriter = () => ({ persistTriggerDescriptions: vi.fn().mockResolvedValue(undefined) });
+
+    it('persists trigger descriptions post-vision when attachments were processed', async () => {
+      const imageResult: ImageDescriptionResult = {
+        requestId: 'test-req',
+        success: true,
+        descriptions: [{ url: 'https://example.com/image.png', description: 'A beautiful sunset' }],
+      };
+      mockGetJobResult.mockResolvedValueOnce(imageResult);
+      const writer = makeWriter();
+      const stepWithWriter = new DependencyStep(undefined, writer as never);
+
+      await stepWithWriter.process({
+        job: createMockJob({
+          dependencies: [
+            {
+              jobId: 'image-job-1',
+              type: JobType.ImageDescription,
+              status: JobStatus.Completed,
+              resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}image-key`,
+            },
+          ],
+        }),
+        startTime: Date.now(),
+      });
+
+      expect(writer.persistTriggerDescriptions).toHaveBeenCalledWith(
+        expect.objectContaining({
+          jobId: 'job-123',
+          message: 'Hello, how are you?',
+          personalityId: TEST_PERSONALITY.id,
+          jobContext: expect.objectContaining({ channelId: 'channel-789' }),
+          processedAttachments: [expect.objectContaining({ description: 'A beautiful sunset' })],
+        })
+      );
+    });
+
+    it('does not invoke the writer when no trigger attachments were processed', async () => {
+      const writer = makeWriter();
+      const stepWithWriter = new DependencyStep(undefined, writer as never);
+
+      await stepWithWriter.process({
+        job: createMockJob({ dependencies: [] }),
+        startTime: Date.now(),
+      });
+
+      expect(writer.persistTriggerDescriptions).not.toHaveBeenCalled();
+    });
+  });
+
   describe('extended context attachments', () => {
     it('should process extended context image attachments using effective personality', async () => {
       const processedAttachment = {
