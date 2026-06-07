@@ -28,6 +28,22 @@ function loadedPersonality(id: string, ownerId: string): Record<string, unknown>
   };
 }
 
+/**
+ * Resolve the actor's CURRENT default persona at seed time — the ownership
+ * family's setPersonaDefault fixture changes it mid-run, so the value
+ * captured at provisioning can be stale (same pattern as userMemory).
+ */
+async function currentDefaultPersonaId(ctx: SeedContext): Promise<string> {
+  const user = await ctx.prisma.user.findUnique({
+    where: { id: ctx.actorUserId },
+    select: { defaultPersonaId: true },
+  });
+  if (user?.defaultPersonaId === undefined || user.defaultPersonaId === null) {
+    throw new Error('conformance seed: actor has no default persona');
+  }
+  return user.defaultPersonaId;
+}
+
 /** Insert a diagnostic row for the response-ids PATCH. */
 async function seedDiagnosticRow(ctx: SeedContext, requestId: string): Promise<void> {
   await ctx.prisma.llmDiagnosticLog.create({
@@ -125,6 +141,81 @@ export const internalFixtures: Record<string, ConformanceEntry> = {
       });
     },
     query: { discordMessageId: '830000000000000003' },
+  },
+
+  persistUserMessage: {
+    seed: async ctx => {
+      const personality = await createPersonality(ctx, 'conf-persist-user-msg');
+      const personaId = await currentDefaultPersonaId(ctx);
+      return {
+        body: {
+          channelId: '830000000000000010',
+          guildId: '830000000000000011',
+          personalityId: personality.id,
+          personaId,
+          content: 'Conformance user message.',
+          discordMessageId: '830000000000000012',
+          messageTime: new Date().toISOString(),
+        },
+      };
+    },
+  },
+
+  persistAssistantMessage: {
+    seed: async ctx => {
+      const personality = await createPersonality(ctx, 'conf-persist-assistant-msg');
+      const personaId = await currentDefaultPersonaId(ctx);
+      return {
+        body: {
+          channelId: '830000000000000013',
+          guildId: '830000000000000014',
+          personalityId: personality.id,
+          personaId,
+          content: 'Conformance assistant reply.',
+          chunkMessageIds: ['830000000000000015'],
+          userMessageTime: new Date().toISOString(),
+        },
+      };
+    },
+  },
+
+  syncConversation: {
+    seed: async ctx => {
+      // Persist a user message via the real API, then sync an EDITED snapshot
+      // of the same Discord message so the diff path (updated: 1) runs rather
+      // than the trivial no-op branch.
+      const personality = await createPersonality(ctx, 'conf-sync-conversation');
+      const personaId = await currentDefaultPersonaId(ctx);
+      await ctx.call('post', '/api/internal/conversation/user-message', {
+        channelId: '830000000000000016',
+        guildId: '830000000000000017',
+        personalityId: personality.id,
+        personaId,
+        content: 'Original content before edit.',
+        discordMessageId: '830000000000000018',
+        messageTime: new Date().toISOString(),
+      });
+      return {
+        body: {
+          channelId: '830000000000000016',
+          personalityId: personality.id,
+          observedMessages: [
+            {
+              discordMessageId: '830000000000000018',
+              content: 'Edited content after sync.',
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        },
+      };
+    },
+  },
+
+  loadPersonalityInternal: {
+    seed: async ctx => {
+      await createPersonality(ctx, 'conf-load-personality');
+    },
+    query: { nameOrId: 'conf-load-personality' },
   },
 
   recentUsers: {

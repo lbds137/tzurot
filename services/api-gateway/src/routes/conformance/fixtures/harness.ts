@@ -16,7 +16,6 @@ import express, { type Express } from 'express';
 import request from 'supertest';
 import {
   CacheInvalidationService,
-  ConversationRetentionService,
   DenylistCacheInvalidationService,
   PrismaClient,
   resetConfig,
@@ -32,6 +31,7 @@ import {
 
 import { mountAdminRoutes, mountInternalRoutes, mountUserRoutes } from '../../_generated/mounts.js';
 import { getOrCreateUserService } from '../../../services/AuthMiddleware.js';
+import { ConversationRetentionService } from '../../../services/ConversationRetentionService.js';
 import { initializeDeduplicationCache } from '../../../utils/deduplicationCache.js';
 import type { RouteDeps } from '../../routeDeps.js';
 import type { HarnessMethod, SeedContext } from './types.js';
