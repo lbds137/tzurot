@@ -137,14 +137,11 @@ export async function rewriteRawContent(
             personaName: u.personaName,
           }))
         : undefined,
+    // RawMentionedChannel is structurally identical to ReferencedChannel —
+    // pass the kernel's list through rather than re-mapping (an explicit
+    // mapping would write `topic: undefined` props that could false-diverge
+    // a future deep-equality diff).
     referencedChannels:
-      channelResult.mentionedChannels.length > 0
-        ? channelResult.mentionedChannels.map(c => ({
-            channelId: c.channelId,
-            channelName: c.channelName,
-            topic: c.topic,
-            guildId: c.guildId,
-          }))
-        : undefined,
+      channelResult.mentionedChannels.length > 0 ? channelResult.mentionedChannels : undefined,
   };
 }

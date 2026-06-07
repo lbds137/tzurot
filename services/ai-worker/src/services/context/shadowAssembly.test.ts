@@ -27,6 +27,7 @@ function makeAssembler(core: Partial<AssembledCore>): ContextAssembler {
       messageContent: 'hello',
       mentionedPersonas: undefined,
       referencedChannels: undefined,
+      crossChannelHistory: undefined,
       ...core,
     }),
   } as unknown as ContextAssembler;
@@ -52,6 +53,12 @@ const msg = (id: string, content: string, personaId = 'persona-1') => ({
   createdAt: new Date('2026-06-01T00:00:00Z'),
   personaId,
   discordMessageId: [id],
+});
+
+const env = (channelId: string, name = 'chan') => ({
+  type: 'guild' as const,
+  guild: { id: 'g1', name: 'Guild' },
+  channel: { id: channelId, name, type: 'text' },
 });
 
 const ref = () => ({
@@ -415,6 +422,89 @@ describe('shadowAssembleAndDiff', () => {
         }),
       }),
       expect.stringContaining('DIVERGED')
+    );
+  });
+
+  it('flags cross-channel presence disagreement (gate divergence)', async () => {
+    await shadowAssembleAndDiff({
+      jobId: 'j1',
+      jobContext: makeJobContext({ crossChannelHistory: undefined }),
+      personality: PERSONALITY,
+      configOverrides: undefined,
+      jobTimestampMs: undefined,
+      payloadMessage: 'hello',
+      assembler: makeAssembler({
+        crossChannelHistory: [{ channelEnvironment: env('other-1'), messages: [] }] as never,
+      }),
+    });
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        matches: expect.objectContaining({ crossChannelHistory: false }),
+        crossChannelDiff: expect.objectContaining({ presenceMismatch: true }),
+      }),
+      expect.stringContaining('DIVERGED')
+    );
+  });
+
+  it('tolerates env-name drift but flags missing cross-channel messages', async () => {
+    const payloadGroup = {
+      channelEnvironment: env('other-1', 'real-name'),
+      messages: [
+        { id: 'x1', role: MessageRole.User, content: 'cross msg' },
+        { id: 'x2', role: MessageRole.User, content: 'second' },
+      ],
+    };
+    const assembledGroup = {
+      // Same channel id, fallback name (cache miss) — tolerated but counted.
+      channelEnvironment: env('other-1', 'unknown-channel'),
+      messages: [{ id: 'x1', role: MessageRole.User, content: 'cross msg' }],
+    };
+    await shadowAssembleAndDiff({
+      jobId: 'j1',
+      jobContext: makeJobContext({ crossChannelHistory: [payloadGroup] as never }),
+      personality: PERSONALITY,
+      configOverrides: undefined,
+      jobTimestampMs: undefined,
+      payloadMessage: 'hello',
+      assembler: makeAssembler({ crossChannelHistory: [assembledGroup] as never }),
+    });
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        crossChannelDiff: expect.objectContaining({
+          envNameMismatches: 1,
+          missingMessages: 1,
+          matched: false,
+        }),
+      }),
+      expect.stringContaining('DIVERGED')
+    );
+  });
+
+  it('matches cross-channel groups by key with identical messages despite name drift', async () => {
+    const messages = [{ id: 'x1', role: MessageRole.User, content: 'cross msg' }];
+    await shadowAssembleAndDiff({
+      jobId: 'j1',
+      jobContext: makeJobContext({
+        crossChannelHistory: [
+          { channelEnvironment: env('other-1', 'live-name'), messages },
+        ] as never,
+      }),
+      personality: PERSONALITY,
+      configOverrides: undefined,
+      jobTimestampMs: undefined,
+      payloadMessage: 'hello',
+      assembler: makeAssembler({
+        crossChannelHistory: [
+          { channelEnvironment: env('other-1', 'cached-name'), messages: [...messages] },
+        ] as never,
+      }),
+    });
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      expect.objectContaining({
+        allMatched: true,
+        crossChannelDiff: expect.objectContaining({ envNameMismatches: 1, matched: true }),
+      }),
+      expect.stringContaining('matched')
     );
   });
 

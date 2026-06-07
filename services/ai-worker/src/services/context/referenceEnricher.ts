@@ -75,38 +75,37 @@ export async function enrichRawReferences(
   const { rawReferences, history, retrieveTranscript, nowMs } = params;
   const dedupHistory = buildDedupHistory(history);
 
-  const enriched: ReferencedMessage[] = [];
-  for (const raw of rawReferences) {
-    const duplicate = isDuplicateReference(
-      {
+  // Promise.all preserves input order, so wire order (and the adopted
+  // reference numbers) survive the parallel enrichment.
+  return Promise.all(
+    rawReferences.map(async (raw): Promise<ReferencedMessage> => {
+      const duplicate = isDuplicateReference(
+        {
+          discordMessageId: raw.discordMessageId,
+          timestampMs: new Date(raw.timestamp).getTime(),
+          isWebhookOrBotAuthored:
+            (raw.webhookId !== undefined && raw.webhookId.length > 0) || raw.authorIsBot === true,
+        },
+        dedupHistory,
+        nowMs
+      );
+
+      if (duplicate) {
+        return buildDedupedReferenceStub(raw);
+      }
+
+      if (raw.isForwarded === true) {
+        // Snapshot/container references: raw == enriched by contract.
+        return { ...raw };
+      }
+
+      const content = await appendVoiceTranscripts({
+        content: raw.content,
+        attachments: raw.attachments ?? [],
         discordMessageId: raw.discordMessageId,
-        timestampMs: new Date(raw.timestamp).getTime(),
-        isWebhookOrBotAuthored:
-          (raw.webhookId !== undefined && raw.webhookId.length > 0) || raw.authorIsBot === true,
-      },
-      dedupHistory,
-      nowMs
-    );
-
-    if (duplicate) {
-      enriched.push(buildDedupedReferenceStub(raw));
-      continue;
-    }
-
-    if (raw.isForwarded === true) {
-      // Snapshot/container references: raw == enriched by contract.
-      enriched.push({ ...raw });
-      continue;
-    }
-
-    const content = await appendVoiceTranscripts({
-      content: raw.content,
-      attachments: raw.attachments ?? [],
-      discordMessageId: raw.discordMessageId,
-      retrieve: retrieveTranscript,
-    });
-    enriched.push({ ...raw, content });
-  }
-
-  return enriched;
+        retrieve: retrieveTranscript,
+      });
+      return { ...raw, content };
+    })
+  );
 }
