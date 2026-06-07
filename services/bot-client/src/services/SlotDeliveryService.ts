@@ -109,15 +109,6 @@ export class SlotDeliveryService {
       throw new Error('deliverSuccess called with empty/invalid content');
     }
 
-    // Upgrade user message: placeholders → rich attachment descriptions.
-    await this.persistence.updateUserMessage({
-      message: slot.message,
-      personality: slot.personality,
-      personaId: slot.personaId,
-      messageContent: slot.userMessageContent,
-      attachmentDescriptions: result.attachmentDescriptions,
-    });
-
     const { chunkMessageIds } = await this.responseSender.sendResponse({
       content: result.content,
       personality: slot.personality,
@@ -182,12 +173,7 @@ export class SlotDeliveryService {
    *      triggers `message.reply` on failure.
    *   2. Persistence + diagnostic (failures logged; do NOT trigger reply).
    *
-   * Unlike `deliverSuccess`, this path does **not** call `updateUserMessage`
-   * — when AI generation failed there are no attachment descriptions to
-   * upgrade, and we don't want to mutate the user-message row on the AI
-   * error path. The asymmetry is intentional.
-   *
-   * Also unlike `deliverSuccess`, this path does **not** pass
+   * Unlike `deliverSuccess`, this path does **not** pass
    * `recipientUserId` to `sendResponse`. That field gates bot-owner-only
    * TTS notices — but error responses don't trigger TTS (there's no
    * successful content to render as audio), so the gate is moot here. The
