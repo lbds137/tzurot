@@ -12,13 +12,13 @@ import type { ConformanceEntry, SeedContext } from './types.js';
 import { createPersonality } from './seedHelpers.js';
 
 /** Minimal valid loadedPersonalitySchema envelope for aiGenerate. */
-function loadedPersonality(id: string): Record<string, unknown> {
+function loadedPersonality(id: string, ownerId: string): Record<string, unknown> {
   return {
     id,
     name: 'Conformance Generate',
     displayName: 'Conformance Generate',
     slug: 'conf-ai-generate',
-    ownerId: '00000000-0000-4000-8000-000000000001',
+    ownerId,
     systemPrompt: 'You are a conformance-harness personality.',
     model: 'anthropic/claude-sonnet-4',
     temperature: 0.7,
@@ -48,7 +48,9 @@ export const internalFixtures: Record<string, ConformanceEntry> = {
       const personality = await createPersonality(ctx, 'conf-ai-generate');
       return {
         body: {
-          personality: loadedPersonality(personality.id),
+          // ownerId matches the actor that created the personality so any
+          // ownership-sensitive path in the pipeline sees consistent data.
+          personality: loadedPersonality(personality.id, ctx.actorUserId),
           message: 'Conformance harness trigger message.',
           context: { userId: ctx.actorDiscordId },
         },
