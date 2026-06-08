@@ -33,6 +33,20 @@ export function recoverEmptyDbContent(
     const extendedMsg = extendedMessageMap.get(msgId);
     const extendedContent = extendedMsg?.content ?? '';
     if (extendedContent.length === 0) {
+      // TEMPORARY diagnostic (remove with the forward-shape diagnostics,
+      // tracked in backlog/quick-wins). Pinpoints why an empty DB message
+      // (e.g. a clobbered forward) is NOT recovered: extended-map miss
+      // (keying mismatch — recovery keys on discordMessageId[0] while dedup
+      // keys on all ids) vs extended content genuinely empty. Lengths only.
+      logger.info(
+        {
+          messageId: msgId,
+          isForwarded: dbMsg.isForwarded === true,
+          hasExtendedEntry: extendedMsg !== undefined,
+          extendedContentLen: extendedContent.length,
+        },
+        'Empty DB message not recovered from extended context — diagnostic'
+      );
       continue;
     } // Extended context also empty
 
