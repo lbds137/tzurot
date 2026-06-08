@@ -21,6 +21,7 @@ import {
   hasVoiceAttachments,
   getEffectiveContent,
   hydrateForwardedSnapshots,
+  describeForwardShape,
 } from './forwardedMessageUtils.js';
 
 /**
@@ -721,6 +722,76 @@ describe('forwardedMessageUtils', () => {
 
       expect(message.fetch).toHaveBeenCalledWith(true);
       expect(result).toBe(message);
+    });
+  });
+
+  describe('describeForwardShape', () => {
+    it('reports a non-forward message as not-a-forward with no reference', () => {
+      const message = Object.assign(
+        createMockMessage({ referenceType: MessageReferenceType.Default, content: 'hello' }),
+        { type: 0, partial: false }
+      ) as Message;
+
+      const shape = describeForwardShape(message);
+
+      expect(shape.referenceType).toBe(MessageReferenceType.Default);
+      expect(shape.snapshotSize).toBe(0);
+      expect(shape.snapshotContentLen).toBe(0);
+      expect(shape.contentLen).toBe(5);
+      expect(shape.detectedAsForward).toBe(false);
+    });
+
+    it('reports a Forward-type message with no snapshots — the gateway-omission shape', () => {
+      const message = Object.assign(
+        createMockMessage({ referenceType: MessageReferenceType.Forward }),
+        { type: 0, partial: false }
+      ) as Message;
+
+      const shape = describeForwardShape(message);
+
+      expect(shape.referenceType).toBe(MessageReferenceType.Forward);
+      expect(shape.snapshotSize).toBe(0);
+      expect(shape.snapshotContentLen).toBe(0);
+      expect(shape.detectedAsForward).toBe(true); // reference-type branch
+    });
+
+    it('reports populated snapshot content length', () => {
+      const message = Object.assign(
+        createMockMessage({
+          referenceType: MessageReferenceType.Forward,
+          snapshots: [{ content: 'forwarded body' }],
+        }),
+        { type: 0, partial: false }
+      ) as Message;
+
+      const shape = describeForwardShape(message);
+
+      expect(shape.snapshotSize).toBe(1);
+      expect(shape.snapshotContentLen).toBe('forwarded body'.length);
+      expect(shape.detectedAsForward).toBe(true);
+    });
+
+    it('reports referenceType null when no reference is present', () => {
+      const message = Object.assign(createMockMessage({ referenceType: null, content: '' }), {
+        type: 0,
+        partial: false,
+      }) as Message;
+
+      const shape = describeForwardShape(message);
+
+      expect(shape.referenceType).toBeNull();
+      expect(shape.detectedAsForward).toBe(false);
+    });
+
+    it('reports isPartial when discord.js delivered a partial message', () => {
+      const message = Object.assign(createMockMessage({ referenceType: null, content: '' }), {
+        type: 0,
+        partial: true,
+      }) as Message;
+
+      const shape = describeForwardShape(message);
+
+      expect(shape.isPartial).toBe(true);
     });
   });
 });
