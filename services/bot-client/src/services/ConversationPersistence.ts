@@ -19,6 +19,7 @@ import {
   type ReferencedMessage,
   type MessageMetadata,
   type StoredReferencedMessage,
+  NO_TEXT_CONTENT_PLACEHOLDER,
 } from '@tzurot/common-types';
 import type { Message } from 'discord.js';
 import { generateAttachmentPlaceholders } from '../utils/attachmentPlaceholders.js';
@@ -262,7 +263,7 @@ export class ConversationPersistence {
     } = options;
 
     // Build content with placeholder descriptions (but NOT references - those go in metadata)
-    let userMessageContent = messageContent || '[no text content]';
+    let userMessageContent = messageContent || NO_TEXT_CONTENT_PLACEHOLDER;
 
     // Add placeholder attachment descriptions to content
     if (attachments && attachments.length > 0) {

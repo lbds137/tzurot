@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { MULTI_TAG } from './message.js';
+import { MULTI_TAG, NO_TEXT_CONTENT_PLACEHOLDER } from './message.js';
 import { TIMEOUTS } from './timing.js';
 
 describe('MULTI_TAG timing invariants', () => {
@@ -23,5 +23,14 @@ describe('MULTI_TAG timing invariants', () => {
     // The bot-side coordinator wait must finish before the worker lock expires,
     // or the lock can be reclaimed mid-coordination and two replicas race.
     expect(MULTI_TAG.COORDINATOR_TIMEOUT_MS).toBeLessThan(TIMEOUTS.WORKER_LOCK_DURATION);
+  });
+});
+
+describe('NO_TEXT_CONTENT_PLACEHOLDER', () => {
+  it('matches the exact sentinel already persisted in production rows', () => {
+    // Existing rows poisoned by the forwarded-content-loss bug store this exact
+    // string. The recovery guard compares against it to re-heal them, so the
+    // value must not drift — changing it orphans every poisoned row from recovery.
+    expect(NO_TEXT_CONTENT_PLACEHOLDER).toBe('[no text content]');
   });
 });

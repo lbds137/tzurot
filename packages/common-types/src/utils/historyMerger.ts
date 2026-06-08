@@ -6,6 +6,7 @@
  */
 
 import { createLogger } from './logger.js';
+import { NO_TEXT_CONTENT_PLACEHOLDER } from '../constants/message.js';
 import type { ConversationMessage } from '../services/ConversationMessageMapper.js';
 
 const logger = createLogger('HistoryMerger');
@@ -21,9 +22,13 @@ export function recoverEmptyDbContent(
   let recoveredCount = 0;
   for (const dbMsg of dbHistory) {
     const dbContent = dbMsg.content ?? '';
-    if (dbContent.length > 0) {
+    // A row poisoned by the forwarded-content-loss bug is stored as the
+    // placeholder sentinel (not an empty string), so a length check alone
+    // would treat it as "has content" and skip recovery. Treat the sentinel
+    // as empty so live extended context can re-heal it in-memory.
+    if (dbContent.length > 0 && dbContent !== NO_TEXT_CONTENT_PLACEHOLDER) {
       continue;
-    } // Has content, no recovery needed
+    } // Has real content, no recovery needed
 
     const msgId = dbMsg.discordMessageId[0];
     if (msgId === undefined) {
@@ -32,7 +37,10 @@ export function recoverEmptyDbContent(
 
     const extendedMsg = extendedMessageMap.get(msgId);
     const extendedContent = extendedMsg?.content ?? '';
-    if (extendedContent.length === 0) {
+    // The extended copy is only a valid recovery source if it carries real
+    // text. A placeholder-valued extended copy would otherwise "heal"
+    // placeholder → placeholder and falsely bump recoveredCount.
+    if (extendedContent.length === 0 || extendedContent === NO_TEXT_CONTENT_PLACEHOLDER) {
       // TEMPORARY diagnostic (remove with the forward-shape diagnostics,
       // tracked in backlog/quick-wins). Pinpoints why an empty DB message
       // (e.g. a clobbered forward) is NOT recovered: extended-map miss

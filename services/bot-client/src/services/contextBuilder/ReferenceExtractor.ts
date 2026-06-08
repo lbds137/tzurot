@@ -104,7 +104,7 @@ export async function extractReferencesAndMentions(
     references: referencedMessages,
     updatedContent,
     rawReferences,
-  } = await referenceExtractor.extractReferencesWithReplacement(message);
+  } = await referenceExtractor.extractReferencesWithReplacement(message, content);
 
   if (referencedMessages.length > 0) {
     logger.info(
@@ -116,12 +116,10 @@ export async function extractReferencesAndMentions(
     );
   }
 
-  // Preserve the content parameter as authoritative message content.
-  // Apply link replacements from reference extraction.
-  let messageContent = content ?? '[no text content]';
-  if (updatedContent !== undefined) {
-    messageContent = updatedContent;
-  }
+  // Adopt the link-replaced content. updatedContent is `content` (the snapshot
+  // text for forwards) with Discord links rewritten to [Reference N], so this no
+  // longer clobbers authoritative content with empty top-level message text.
+  let messageContent = updatedContent;
 
   // Resolve all mentions
   const mentionResult = await mentionResolver.resolveAllMentions(
@@ -140,7 +138,7 @@ export async function extractReferencesAndMentions(
       {
         messageId: message.id,
         contentLen: content?.length ?? 0,
-        updatedContentLen: updatedContent?.length, // undefined = no link-replace applied
+        updatedContentLen: updatedContent.length,
         afterMentionsLen: mentionResult.processedContent.length,
       },
       'Authoritative content lost during reference/mention rewriting — diagnostic'

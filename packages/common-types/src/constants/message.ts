@@ -141,6 +141,16 @@ export const MULTI_TAG = {
 } as const;
 
 /**
+ * Sentinel stored as message content when a message has no usable text
+ * (e.g. attachment-only messages, or a forward whose snapshot extraction
+ * yielded nothing). Persistence writes this; recovery treats it as empty so
+ * a poisoned row can be re-healed from live extended context. Both sides MUST
+ * reference this constant — a literal drift between writer and reader is what
+ * let placeholder-valued rows silently dodge recovery.
+ */
+export const NO_TEXT_CONTENT_PLACEHOLDER = '[no text content]';
+
+/**
  * Unknown User Constants
  * Used for forwarded messages where author information is unavailable
  * These must be used consistently to allow filtering during batch user creation
