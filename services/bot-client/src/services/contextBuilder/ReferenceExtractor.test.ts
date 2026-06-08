@@ -64,9 +64,12 @@ describe('extractReferencesAndMentions', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // The real extractor always returns a string: the effective content with
+    // Discord links rewritten to [Reference N]. With no links it echoes the
+    // content unchanged.
     mockExtractReferences.mockResolvedValue({
       references: [],
-      updatedContent: undefined,
+      updatedContent: 'Hello world',
     });
     mockResolveAllMentions.mockResolvedValue({
       processedContent: 'Hello world',
@@ -81,7 +84,7 @@ describe('extractReferencesAndMentions', () => {
     try {
       mockExtractReferences.mockResolvedValue({
         references: [],
-        updatedContent: undefined,
+        updatedContent: 'Hello world',
         rawReferences: [{ referenceNumber: 1, content: 'raw snapshot' }],
       });
       mockResolveAllMentions.mockResolvedValue({
@@ -244,6 +247,38 @@ describe('extractReferencesAndMentions', () => {
     });
 
     expect(result.messageContent).toBe('');
+  });
+
+  it('threads the effective content to the extractor so forward text is not clobbered', async () => {
+    // Forward-bug regression guard: a forwarded message has empty top-level
+    // content but non-empty effective content (extracted from the snapshot).
+    // The extractor must receive the effective content (not message.content),
+    // and link replacement over it must preserve the text — never collapse to
+    // empty by formatting the empty top-level content.
+    const effectiveContent = 'Forwarded snapshot text the user actually sent';
+    mockExtractReferences.mockResolvedValue({
+      references: [],
+      updatedContent: effectiveContent, // no links → echoed unchanged
+    });
+    mockResolveAllMentions.mockResolvedValue({
+      processedContent: effectiveContent,
+      mentionedUsers: [],
+      mentionedChannels: [],
+    });
+
+    const message = createMockMessage({ id: 'forward-1', content: '' } as Partial<Message>);
+    const result = await extractReferencesAndMentions({
+      prisma: mockPrisma,
+      mentionResolver: mockMentionResolver as unknown as MentionResolver,
+      message,
+      content: effectiveContent,
+      personality: mockPersonality,
+      history: [],
+      maxReferences: 50,
+    });
+
+    expect(mockExtractReferences).toHaveBeenCalledWith(message, effectiveContent);
+    expect(result.messageContent).toBe(effectiveContent);
   });
 
   it('should call reference extractor in normal mode', async () => {

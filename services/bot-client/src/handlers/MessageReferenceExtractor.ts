@@ -132,9 +132,17 @@ export class MessageReferenceExtractor {
    * 4. Replace Discord links with [Reference N] placeholders
    *
    * @param message - Discord message to extract references from
+   * @param effectiveContent - The authoritative message text to apply link
+   *   replacement to. For forwarded messages the real text lives in a snapshot,
+   *   so `message.content` (top-level) is empty; the caller passes the
+   *   snapshot-extracted content here. Falls back to `message.content` when
+   *   omitted (the references-only public path).
    * @returns References and updated content with links replaced
    */
-  async extractReferencesWithReplacement(message: Message): Promise<ReferenceExtractionResult> {
+  async extractReferencesWithReplacement(
+    message: Message,
+    effectiveContent?: string
+  ): Promise<ReferenceExtractionResult> {
     // Wait for Discord to process embeds
     await this.delay(this.embedProcessingDelayMs);
 
@@ -160,9 +168,12 @@ export class MessageReferenceExtractor {
       'Crawl complete'
     );
 
-    // Step 2: Format references (sort, number, replace links)
+    // Step 2: Format references (sort, number, replace links).
+    // Apply link replacement to the effective content (snapshot text for
+    // forwards), not the empty top-level content — otherwise a forward's real
+    // text is lost when the caller adopts updatedContent.
     const formattedResult = await this.formatter.format(
-      updatedMessage.content,
+      effectiveContent ?? updatedMessage.content,
       crawlResult.messages,
       this.maxReferences,
       { collectRaw: isRawEnvelopeEnabled() }

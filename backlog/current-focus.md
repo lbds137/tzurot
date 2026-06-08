@@ -8,6 +8,8 @@ _This week's active work. Max 3 items._
 
    _v3.0.0-beta.127 shipped 2026-06-03 (#1146) — prod-validated. See [CURRENT.md](../CURRENT.md)._
 
+2. **[FEAT] Forwarded-text link references** — _Follow-up to the forwarded-content-loss fix (`fix/forwarded-message-content-loss`)._ That fix threads the effective (snapshot) content into `MessageReferenceExtractor.extractReferencesWithReplacement` so link-replacement formats the real forwarded text. But the link **crawler** (`ReferenceCrawler` via `LinkReferenceStrategy`) still scans `message.content` to *detect* Discord message links — which is empty for forwards. So Discord links embedded inside forwarded snapshot text are not detected and never get `[Reference N]` numbering. **Action**: thread the effective content into the crawler's link-detection path (`LinkReferenceStrategy` / `ReferenceCrawler.crawl`) so forwarded links are crawled, numbered, and replaced like inline links. Start: `services/bot-client/src/handlers/references/strategies/LinkReferenceStrategy.ts`. Deliberate next-PR follow-up (not iceboxed) per user direction 2026-06-08.
+
 ### Quick-wins available between phases
 
 1 item in [`quick-wins.md`](quick-wins.md) (stacked-JSDoc merge in `check-duplicate-exports.ts`) — the 2026-06-03 sweep shipped the rest (#1147–#1151).

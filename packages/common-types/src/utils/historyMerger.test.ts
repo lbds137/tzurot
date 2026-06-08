@@ -10,7 +10,7 @@ import {
   enrichDbMessagesWithExtendedMetadata,
   mergeWithHistory,
 } from './historyMerger.js';
-import { MessageRole, type ConversationMessage } from '../index.js';
+import { MessageRole, NO_TEXT_CONTENT_PLACEHOLDER, type ConversationMessage } from '../index.js';
 
 /**
  * Create a minimal conversation message for testing
@@ -122,6 +122,58 @@ describe('HistoryMerger', () => {
       recoverEmptyDbContent(dbHistory, extendedMessageMap);
 
       expect(dbHistory[0].messageMetadata?.voiceTranscripts).toEqual(['Transcript text']);
+    });
+
+    it('should recover a row poisoned with the no-text-content placeholder', () => {
+      // The forwarded-content-loss bug stored the placeholder sentinel (17 chars)
+      // instead of empty string, so a length-only guard treated it as "has
+      // content" and skipped recovery. The sentinel must be treated as empty.
+      const dbHistory = [
+        createMockMessage({
+          discordMessageId: ['msg-1'],
+          content: NO_TEXT_CONTENT_PLACEHOLDER,
+        }),
+      ];
+      const extendedMessageMap = new Map<string, ConversationMessage>([
+        [
+          'msg-1',
+          createMockMessage({
+            discordMessageId: ['msg-1'],
+            content: 'Real forwarded content from live Discord',
+          }),
+        ],
+      ]);
+
+      const recoveredCount = recoverEmptyDbContent(dbHistory, extendedMessageMap);
+
+      expect(recoveredCount).toBe(1);
+      expect(dbHistory[0].content).toBe('Real forwarded content from live Discord');
+    });
+
+    it('should not recover a placeholder row when extended content is also the placeholder', () => {
+      const dbHistory = [
+        createMockMessage({
+          discordMessageId: ['msg-1'],
+          content: NO_TEXT_CONTENT_PLACEHOLDER,
+        }),
+      ];
+      const extendedMessageMap = new Map<string, ConversationMessage>([
+        [
+          'msg-1',
+          createMockMessage({
+            discordMessageId: ['msg-1'],
+            content: NO_TEXT_CONTENT_PLACEHOLDER,
+          }),
+        ],
+      ]);
+
+      const recoveredCount = recoverEmptyDbContent(dbHistory, extendedMessageMap);
+
+      // The extended copy is the placeholder itself (length > 0, so the old
+      // length-only guard would have accepted it as a source), but the new
+      // sentinel check rejects it — placeholder → placeholder is not a valid heal.
+      expect(recoveredCount).toBe(0);
+      expect(dbHistory[0].content).toBe(NO_TEXT_CONTENT_PLACEHOLDER);
     });
 
     it('should skip messages without Discord message ID', () => {
