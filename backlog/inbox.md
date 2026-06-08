@@ -2,6 +2,19 @@
 
 _New items go here. Triage to appropriate section weekly._
 
+### `[LIFT]` Audit message-content extraction paths — confirm single source, document the layering, find re-derivation footguns
+
+**Surfaced 2026-06-08** during the forwarded-trigger-empty-content investigation (see `backlog/production-issues.md`). The forward bug existed because `ReferenceExtractor` **re-derived** message content from `message.content` (empty for forwards) for its link-replacement step, silently clobbering the already-correctly-extracted forwarded text — a redundant second derivation that bypassed the shared extractor. The raw extraction itself is NOT duplicated (`getEffectiveContent` and `buildMessageContent` both bottom out in `extractForwardedContent`), but the layering is undocumented and the re-derivation footgun was invisible until it shipped a prod bug.
+
+**Scope** (do NOT big-bang-merge `getEffectiveContent` and `buildMessageContent` — they serve different purposes: raw-text-for-rewriting vs rendered-content-for-display; merging would run mention-rewriting over attachment descriptions):
+1. Enumerate every place that extracts a message's text content (`getEffectiveContent`, `buildMessageContent`, `ReferenceExtractor`, `DiscordChannelFetcher.convertMessage`, `ConversationPersistence`, `RawEnvelopeBuilder`, sync's `collateContentForSync`, etc.).
+2. Confirm each flows from the one `extractForwardedContent` for forward text, and flag any that re-derive from `message.content` instead of using passed/authoritative content (the ReferenceExtractor class of bug).
+3. Document the layering explicitly: raw-text path (trigger → rewriting) vs rendered path (history/display) vs persistence — and which is authoritative when they disagree.
+4. Capture the **gateway-vs-REST snapshot asymmetry** as a first-class fact: forward snapshot content is present on the live `MESSAGE_CREATE` but absent on REST re-fetch (so any history/refetch path that expects forward content will get empty). Decide where this belongs (a code comment in `forwardedMessageUtils.ts`, or `docs/reference/`).
+5. Consider structural enforcement: required-param contracts (no silent `message.content` defaults) wherever content-rewriting takes a base text.
+
+**Why a LIFT, not a quick fix**: the immediate forward bug gets a targeted fix; this audit is the systematic follow-up that prevents the next divergence, scoped after the fix lands so it has a concrete anchor.
+
 ### `[CHORE]` Integration coverage never collects `services/**`
 
 **Surfaced 2026-06-07** during the beta.128 codecov/patch failure. `vitest.int.config.ts`'s coverage `include` is `['src/**/*.ts', 'packages/**/src/**/*.ts']` — both root-relative, so no `services/*/src` file has ever appeared in the integration coverage upload. The `integration` codecov flag claims `services/` in its paths but receives no matching data; every service line exercised only by int tests reads as uncovered.
