@@ -207,7 +207,7 @@ jobs:
 
       - name: Upload ai-worker coverage to Codecov
         if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           # PyPI install path: the default binary download verifies its GPG
           # signature against a key fetched from keybase.io, which has gone
@@ -222,7 +222,7 @@ jobs:
 
       - name: Upload api-gateway coverage to Codecov
         if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           # PyPI install path: the default binary download verifies its GPG
           # signature against a key fetched from keybase.io, which has gone
@@ -237,7 +237,7 @@ jobs:
 
       - name: Upload bot-client coverage to Codecov
         if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           # PyPI install path: the default binary download verifies its GPG
           # signature against a key fetched from keybase.io, which has gone
@@ -252,7 +252,7 @@ jobs:
 
       - name: Upload common-types coverage to Codecov
         if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           # PyPI install path: the default binary download verifies its GPG
           # signature against a key fetched from keybase.io, which has gone
@@ -267,7 +267,7 @@ jobs:
 
       - name: Upload test results to Codecov
         if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           # PyPI install path: the default binary download verifies its GPG
           # signature against a key fetched from keybase.io, which has gone
@@ -344,7 +344,7 @@ jobs:
 
       - name: Upload integration coverage to Codecov
         if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           # PyPI install path: the default binary download verifies its GPG
           # signature against a key fetched from keybase.io, which has gone
@@ -393,7 +393,7 @@ jobs:
 
       - name: Upload voice-engine coverage to Codecov
         if: ${{ !cancelled() && steps.filter.outputs.voice-engine == 'true' }}
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           # PyPI install path: the default binary download verifies its GPG
           # signature against a key fetched from keybase.io, which has gone
