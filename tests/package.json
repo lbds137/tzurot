@@ -16,7 +16,7 @@
     "@tzurot/test-utils": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^25.9.1",
+    "@types/node": "^25.9.2",
     "vitest": "^4.1.8"
   }
 }
