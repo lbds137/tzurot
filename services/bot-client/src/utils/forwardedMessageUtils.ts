@@ -23,6 +23,7 @@ import {
   type MessageSnapshot,
   type Collection,
   type APIEmbed,
+  type MessageType,
   MessageReferenceType,
 } from 'discord.js';
 import { type AttachmentMetadata, createLogger } from '@tzurot/common-types';
@@ -334,6 +335,57 @@ export function getEffectiveContent(message: Message): string {
 
   // Regular messages: return main content directly
   return message.content;
+}
+
+/** Forward-relevant shape of an incoming message — see {@link describeForwardShape}. */
+export interface ForwardShape {
+  /** Discord MessageType (0 = Default, 19 = Reply, …). */
+  messageType: MessageType;
+  /** Whether discord.js delivered this as a partial (could lag the wire). */
+  isPartial: boolean;
+  /** `message_reference.type` from the wire: Default(0) = reply, Forward(1), null = absent. */
+  referenceType: MessageReferenceType | null;
+  /** `message_reference.message_id`, if a reference is present. */
+  referenceMessageId: string | undefined;
+  /** Number of `message_snapshots` discord.js built (0 = none on the wire). */
+  snapshotSize: number;
+  /** Text length of the first snapshot's content (0 = absent/empty). */
+  snapshotContentLen: number;
+  /** Length of the top-level `message.content`. */
+  contentLen: number;
+  /** Direct attachment count on the message (not snapshot attachments). */
+  attachmentCount: number;
+  /** What {@link isForwardedMessage} concludes from reference type OR snapshot size. */
+  detectedAsForward: boolean;
+}
+
+/**
+ * Capture the forward-relevant shape of an incoming message for diagnostics.
+ *
+ * discord.js copies `message_reference.type` and `message_snapshots` verbatim
+ * from the gateway payload, so this faithfully reflects what Discord delivered.
+ * Contains no PII — only ids, enum values, and lengths — so it is safe to log.
+ *
+ * Used to distinguish, from logs alone, why a forwarded-as-trigger message
+ * arrives with no extractable content: Discord didn't mark it a forward
+ * (`referenceType !== 1`), didn't include snapshots (`snapshotSize === 0`),
+ * or included a snapshot whose content was stripped (`snapshotContentLen === 0`).
+ */
+export function describeForwardShape(message: Message): ForwardShape {
+  // Every field read is null-safe: this feeds a diagnostic log that must never
+  // throw and break message handling, even on an unexpectedly-shaped message.
+  const snapshot = getFirstSnapshot(message);
+  return {
+    messageType: message.type,
+    isPartial: message.partial,
+    referenceType: message.reference?.type ?? null,
+    referenceMessageId: message.reference?.messageId,
+    snapshotSize: message.messageSnapshots?.size ?? 0,
+    snapshotContentLen: snapshot?.content?.length ?? 0,
+    contentLen: message.content?.length ?? 0,
+    attachmentCount: message.attachments?.size ?? 0,
+    detectedAsForward: isForwardedMessage(message),
+  };
 }
 
 /**
