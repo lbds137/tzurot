@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Collection, MessageType } from 'discord.js';
+import { Collection, MessageType, MessageReferenceType } from 'discord.js';
 import type { Message, TextChannel } from 'discord.js';
 import { MessageRole } from '@tzurot/common-types';
 import { DiscordChannelFetcher, type FetchableChannel } from './DiscordChannelFetcher.js';
@@ -80,7 +80,7 @@ function createMockMessage(
     type: MessageType;
     createdAt: Date;
     attachments: Map<string, MockAttachment>;
-    reference: { messageId: string } | null;
+    reference: { messageId: string; type?: number; channelId?: string } | null;
     reactions: Map<string, MockReaction>;
   }>
 ): Message {
@@ -222,6 +222,32 @@ describe('DiscordChannelFetcher', () => {
       // Should be newest first - content no longer has [Name]: prefix (uses from attribute in XML)
       expect(result.messages[0].content).toBe('Hi there');
       expect(result.messages[1].content).toBe('Hello world');
+    });
+
+    it('includes a forwarded message with empty top-level content in history results', async () => {
+      // Real invariant (keep beyond the temporary forward-shape diagnostic):
+      // a forward whose top-level content is empty is NOT filtered out of the
+      // history path — isForwardedMessage is true via the Forward reference
+      // type, so it passes the processable-content gate. (It also exercises the
+      // forward-shape diagnostic log, which is why a logger.info fires here.)
+      const messages = [
+        createMockMessage({
+          id: 'fwd-1',
+          content: '',
+          authorId: 'user1',
+          authorUsername: 'alice',
+          reference: { messageId: 'orig-1', type: MessageReferenceType.Forward, channelId: 'src' },
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, { botUserId: 'bot123' });
+
+      // Forwards are never filtered out even with empty extracted content.
+      expect(result.fetchedCount).toBe(1);
+      expect(result.messages).toHaveLength(1);
     });
 
     it('should identify bot messages as assistant role', async () => {
