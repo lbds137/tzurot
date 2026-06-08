@@ -222,6 +222,30 @@ describe('extractReferencesAndMentions', () => {
     ]);
   });
 
+  it('returns empty messageContent when mention resolution drops non-empty content', async () => {
+    // The forward-bug shape: authoritative `content` is non-empty, but the
+    // rewrite pipeline (link replacement → mention resolution) yields empty
+    // processed content. Content dropped by mention resolution must surface as
+    // empty messageContent, never silently fall back to the original content.
+    mockResolveAllMentions.mockResolvedValue({
+      processedContent: '',
+      mentionedUsers: [],
+      mentionedChannels: [],
+    });
+
+    const result = await extractReferencesAndMentions({
+      prisma: mockPrisma,
+      mentionResolver: mockMentionResolver as unknown as MentionResolver,
+      message: createMockMessage({ id: 'msg-forward' } as Partial<Message>),
+      content: 'Forwarded message with real content',
+      personality: mockPersonality,
+      history: [],
+      maxReferences: 50,
+    });
+
+    expect(result.messageContent).toBe('');
+  });
+
   it('should call reference extractor in normal mode', async () => {
     const history: ConversationMessage[] = [
       { discordMessageId: ['msg-1', 'msg-2'], createdAt: new Date() } as ConversationMessage,
