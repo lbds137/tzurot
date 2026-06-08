@@ -271,6 +271,8 @@ When making claims about causation, origin, intent, or history, distinguish betw
 - Root-cause statements issued before verification has exhausted its scope
 - Dismissals like "just user error" or "just a typo" without proof
 
+**Code-reading is not runtime verification.** Reading a code path tells you what it _could_ do given an input; it does NOT tell you which input actually occurred, or which branch actually ran, at runtime. A claim that _a specific execution did X_ — "the root cause is", "it returns empty here", "this branch runs" — requires a runtime observation (a log line, a test result, a repro) before it is stated as fact. "I read the code and it would do X" is a hypothesis; label it one ("code-reading suggests X; not yet runtime-confirmed") until a tool confirms it. Do NOT build or ship a fix on a code-read mechanism that hasn't been runtime-confirmed — ship the one diagnostic that produces the observation first. The pull to give a satisfying "found it!" is the tell: confident fact-framing on an unverified mechanism is exactly the failure this guards against.
+
 **Why this matters:** Users rely on assertions to decide what to do next. Speculation-as-fact produces wasted work when the real cause turns out to be different, and erodes trust when the pattern repeats. Prefer "the evidence shows X; the remaining candidates for why Y are A / B / C — here's how to narrow it" over "it was Z."
 
 ### Mandatory Global Discovery ("Grep Rule")
