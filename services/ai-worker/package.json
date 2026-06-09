@@ -27,7 +27,7 @@
     "@tzurot/embeddings": "workspace:*",
     "bullmq": "^5.78.0",
     "fast-xml-parser": "^5.8.0",
-    "ioredis": "^5.11.0",
+    "ioredis": "^5.11.1",
     "langchain": "^1.4.4",
     "onnxruntime-node": "^1.26.0",
     "pino": "^10.3.1",
