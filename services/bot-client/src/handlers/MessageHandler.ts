@@ -11,7 +11,6 @@ import { createLogger, type LLMGenerationResult, stripErrorSpoiler } from '@tzur
 import { buildErrorContent } from '../utils/buildErrorContent.js';
 import type { IMessageProcessor } from '../processors/IMessageProcessor.js';
 import { isUserContentMessage } from '../utils/messageTypeUtils.js';
-import { describeForwardShape, hydrateForwardedSnapshots } from '../utils/forwardedMessageUtils.js';
 import { fetchTypingChannel } from '../utils/fetchTypingChannel.js';
 import { DiscordResponseSender } from '../services/DiscordResponseSender.js';
 import { ConversationPersistence } from '../services/ConversationPersistence.js';
@@ -90,43 +89,13 @@ export class MessageHandler {
 
       logger.debug({ messageId: message.id, authorTag: message.author.tag }, 'Processing message');
 
-      // TEMPORARY forward-detection diagnostic — remove once the forwarded-
-      // trigger empty-content cause is identified (tracked in backlog/quick-wins).
-      // When a message arrives with no extractable top-level text, log its
-      // wire-relevant shape (reference type, snapshot presence/content, partial
-      // flag) — the ground truth for why a forwarded-as-trigger message can
-      // reach the LLM empty (Discord not marking it a forward, omitting
-      // snapshots, or stripping snapshot content are otherwise indistinguishable
-      // from the outside).
-      //
-      // The gate is DELIBERATELY broad (any empty-content message, not just
-      // isForwardedMessage()-detected ones): a forward that isForwardedMessage
-      // does NOT recognize is exactly the shape this targets, so gating on it
-      // would hide the case. The cost is benign false positives — attachment-
-      // only, sticker, and poll messages also have empty content — which read as
-      // all-zeros and are low-volume. INFO (not DEBUG) is intentional so the
-      // next dev re-forward is visible without a log-level change; the diagnostic
-      // is dev-only and short-lived, removed before it reaches a prod release.
-      if ((message.content?.length ?? 0) === 0) {
-        logger.info(
-          { messageId: message.id, shape: describeForwardShape(message) },
-          'Empty-content message — forward-shape diagnostic'
-        );
-      }
-
-      // Hydrate forwarded-message snapshots before any processor runs, so the
-      // whole chain (trigger content, references, attachments, persistence)
-      // sees populated snapshot content even when the gateway event omitted it.
-      // Non-forwards and already-hydrated forwards pass through untouched.
-      const hydratedMessage = await hydrateForwardedSnapshots(message);
-
       // Pass message through the chain of processors
       for (const processor of this.processors) {
-        const wasHandled = await processor.process(hydratedMessage);
+        const wasHandled = await processor.process(message);
 
         if (wasHandled) {
           logger.debug(
-            { messageId: hydratedMessage.id, processorName: processor.constructor.name },
+            { messageId: message.id, processorName: processor.constructor.name },
             'Message handled by processor'
           );
           return; // Stop the chain
@@ -134,7 +103,7 @@ export class MessageHandler {
       }
 
       // No processor handled the message
-      logger.debug({ messageId: hydratedMessage.id }, 'Message not handled by any processor');
+      logger.debug({ messageId: message.id }, 'Message not handled by any processor');
     } catch (error) {
       logger.error({ err: error }, 'Error processing message');
 

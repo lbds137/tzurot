@@ -23,14 +23,11 @@ import {
   type MessageSnapshot,
   type Collection,
   type APIEmbed,
-  type MessageType,
   MessageReferenceType,
 } from 'discord.js';
-import { type AttachmentMetadata, createLogger } from '@tzurot/common-types';
+import { type AttachmentMetadata } from '@tzurot/common-types';
 import { extractAttachments } from './attachmentExtractor.js';
 import { extractEmbedImages } from './embedImageExtractor.js';
-
-const logger = createLogger('forwardedMessageUtils');
 
 /**
  * Content extracted from a forwarded message or its snapshots
@@ -335,143 +332,4 @@ export function getEffectiveContent(message: Message): string {
 
   // Regular messages: return main content directly
   return message.content;
-}
-
-/** Forward-relevant shape of an incoming message — see {@link describeForwardShape}. */
-export interface ForwardShape {
-  /** Discord MessageType (0 = Default, 19 = Reply, …). */
-  messageType: MessageType;
-  /** Whether discord.js delivered this as a partial (could lag the wire). */
-  isPartial: boolean;
-  /** `message_reference.type` from the wire: Default(0) = reply, Forward(1), null = absent. */
-  referenceType: MessageReferenceType | null;
-  /** `message_reference.message_id`, if a reference is present. */
-  referenceMessageId: string | undefined;
-  /** Number of `message_snapshots` discord.js built (0 = none on the wire). */
-  snapshotSize: number;
-  /** Text length of the first snapshot's content (0 = absent/empty). */
-  snapshotContentLen: number;
-  /** Length of the top-level `message.content`. */
-  contentLen: number;
-  /** Direct attachment count on the message (not snapshot attachments). */
-  attachmentCount: number;
-  /** What {@link isForwardedMessage} concludes from reference type OR snapshot size. */
-  detectedAsForward: boolean;
-}
-
-/**
- * Capture the forward-relevant shape of an incoming message for diagnostics.
- *
- * discord.js copies `message_reference.type` and `message_snapshots` verbatim
- * from the gateway payload, so this faithfully reflects what Discord delivered.
- * Contains no PII — only ids, enum values, and lengths — so it is safe to log.
- *
- * Used to distinguish, from logs alone, why a forwarded-as-trigger message
- * arrives with no extractable content: Discord didn't mark it a forward
- * (`referenceType !== 1`), didn't include snapshots (`snapshotSize === 0`),
- * or included a snapshot whose content was stripped (`snapshotContentLen === 0`).
- */
-export function describeForwardShape(message: Message): ForwardShape {
-  // Every field read is null-safe: this feeds a diagnostic log that must never
-  // throw and break message handling, even on an unexpectedly-shaped message.
-  const snapshot = getFirstSnapshot(message);
-  return {
-    messageType: message.type,
-    isPartial: message.partial,
-    referenceType: message.reference?.type ?? null,
-    referenceMessageId: message.reference?.messageId,
-    snapshotSize: message.messageSnapshots?.size ?? 0,
-    snapshotContentLen: snapshot?.content?.length ?? 0,
-    contentLen: message.content?.length ?? 0,
-    attachmentCount: message.attachments?.size ?? 0,
-    detectedAsForward: isForwardedMessage(message),
-  };
-}
-
-/**
- * Whether the message's first snapshot carries non-empty text content.
- */
-function hasSnapshotContent(message: Message): boolean {
-  const snapshot = getFirstSnapshot(message);
-  return snapshot?.content !== undefined && snapshot.content.length > 0;
-}
-
-/**
- * Ensure a forward-shaped message has its snapshot content hydrated, fetching
- * from the REST API when the gateway event delivered it without.
- *
- * Discord's MESSAGE_CREATE gateway payload sometimes omits `message_snapshots`
- * (or their content) for forwards. When that happens `extractForwardedContent`
- * silently falls back to the empty `message.content`, so a forwarded-as-trigger
- * message reaches the LLM with no content and produces a generic reply. A
- * forced `message.fetch(true)` re-runs discord.js's snapshot `_patch` against
- * the REST payload, which DOES carry the snapshot content (gated by
- * MESSAGE_CONTENT, which this bot holds and which already works for non-forward
- * content).
- *
- * Scope guards keep this off the hot path:
- *  - Forward detection uses `reference.type === Forward` directly rather than
- *    {@link isForwardedMessage}. Both recognize a missing-snapshot forward
- *    (via the reference-type branch), but using the reference type keeps the
- *    two concerns separate: "is this a forward" (reference type) is decided
- *    independently of "does it have snapshot content" (`hasSnapshotContent`,
- *    whose `hasForwardedSnapshots` size check is what fails for missing
- *    snapshots) — so the recovery condition reads as the intersection of the two.
- *  - Forwards that already carry snapshot content skip the REST round-trip.
- *
- * Never throws: a failed fetch (e.g. uncached channel) degrades to the
- * original message — today's behavior — rather than breaking message handling.
- *
- * The before/after snapshot state is logged so the outcome is diagnosable
- * directly from logs (gateway-omitted vs content-stripped vs extraction bug)
- * instead of by inference.
- *
- * @param message - Incoming Discord message (any type)
- * @returns The hydrated message when a re-fetch succeeded, else the original
- */
-export async function hydrateForwardedSnapshots(message: Message): Promise<Message> {
-  const isForwardByReference = message.reference?.type === MessageReferenceType.Forward;
-  if (!isForwardByReference || hasSnapshotContent(message)) {
-    return message;
-  }
-
-  // referenceType is omitted — the guard above guarantees it is Forward, so
-  // it carries no diagnostic signal.
-  const before = {
-    snapshotSize: message.messageSnapshots?.size ?? 0,
-    snapshotContentLen: getFirstSnapshot(message)?.content?.length ?? 0,
-    messageContentLen: message.content.length,
-  };
-
-  try {
-    const fetched = await message.fetch(true);
-    logger.info(
-      {
-        messageId: message.id,
-        before,
-        after: {
-          snapshotSize: fetched.messageSnapshots?.size ?? 0,
-          snapshotContentLen: getFirstSnapshot(fetched)?.content?.length ?? 0,
-          messageContentLen: fetched.content.length,
-        },
-      },
-      'Re-fetched forwarded message to hydrate snapshot content'
-    );
-    // The re-fetch succeeded but the REST payload also lacked snapshot content
-    // (e.g. origin-channel MESSAGE_CONTENT gap). Surface it as its own warning
-    // so this distinct outcome isn't buried in the success-path info log.
-    if (!hasSnapshotContent(fetched)) {
-      logger.warn(
-        { messageId: message.id, before },
-        'Forwarded-message re-fetch succeeded but snapshot content is still absent'
-      );
-    }
-    return fetched;
-  } catch (error) {
-    logger.warn(
-      { err: error, messageId: message.id, before },
-      'Forwarded-message snapshot re-fetch failed; using original message'
-    );
-    return message;
-  }
 }

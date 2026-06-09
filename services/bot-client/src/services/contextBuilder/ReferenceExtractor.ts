@@ -128,23 +128,6 @@ export async function extractReferencesAndMentions(
     personality.id
   );
 
-  // TEMPORARY diagnostic (remove with the forward-shape diagnostics, tracked in
-  // backlog/quick-wins). Confirms WHERE non-empty authoritative `content` (e.g.
-  // a forward's 338 extracted chars) is lost on its way to the job: the
-  // link-replacement clobber (updatedContent), or mention resolution. Logs only
-  // lengths, never content.
-  if ((content?.length ?? 0) > 0 && mentionResult.processedContent.length === 0) {
-    logger.info(
-      {
-        messageId: message.id,
-        contentLen: content?.length ?? 0,
-        updatedContentLen: updatedContent.length,
-        afterMentionsLen: mentionResult.processedContent.length,
-      },
-      'Authoritative content lost during reference/mention rewriting — diagnostic'
-    );
-  }
-
   messageContent = mentionResult.processedContent;
 
   let mentionedPersonas: MentionedPersona[] | undefined;

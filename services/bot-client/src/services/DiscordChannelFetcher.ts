@@ -21,7 +21,6 @@ import {
   mergeWithHistory,
 } from '@tzurot/common-types';
 import { buildMessageContent, hasMessageContent } from '../utils/MessageContentBuilder.js';
-import { describeForwardShape, isForwardedMessage } from '../utils/forwardedMessageUtils.js';
 import { isUserContentMessage } from '../utils/messageTypeUtils.js';
 import { resolveHistoryLinks } from '../utils/HistoryLinkResolver.js';
 import { extractPersonalityName } from '../utils/webhookNaming.js';
@@ -344,23 +343,6 @@ export class DiscordChannelFetcher {
       includeAttachments: false,
       getTranscript: options.getTranscript,
     });
-
-    // TEMPORARY diagnostic — remove with the forward-shape diagnostic
-    // (tracked in backlog/quick-wins). Settles whether a bulk-list REST fetch
-    // (channel.messages.fetch) carries forward snapshot content the way the
-    // live gateway event does. `extractedContentLen` is what buildMessageContent
-    // got out of the snapshot here; compare it against `shape.snapshotContentLen`
-    // to see whether the snapshot is present on the re-fetched object at all.
-    if (isForwardedMessage(msg)) {
-      logger.info(
-        {
-          messageId: msg.id,
-          extractedContentLen: rawContent?.length ?? 0,
-          shape: describeForwardShape(msg),
-        },
-        'History-fetched forward — shape diagnostic'
-      );
-    }
 
     const hasTextContent = rawContent !== undefined && rawContent.length > 0;
     const hasAttachments = attachments.length > 0;
