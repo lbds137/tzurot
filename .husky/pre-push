@@ -20,9 +20,9 @@ if [ "$BRANCH" != "develop" ] && [ "$BRANCH" != "main" ]; then
     # Validate branch naming convention (dependabot/* allowed for automated dep PRs
     # that a maintainer may need to amend locally — e.g., when a knip/eslint upgrade
     # surfaces new findings the contributor has to fix before merge).
-    if ! echo "$BRANCH" | grep -qE "^(feat|fix|chore|refactor|docs|test|ci|dependabot)/"; then
+    if ! echo "$BRANCH" | grep -qE "^(feat|fix|chore|refactor|docs|test|ci|build|perf|style|revert|debug|dependabot)/"; then
         echo "${RED}Branch name must follow pattern: type/description${NC}"
-        echo "   Valid types: feat, fix, chore, refactor, docs, test, ci, dependabot"
+        echo "   Valid types: feat, fix, chore, refactor, docs, test, ci, build, perf, style, revert, debug, dependabot"
         echo "   Example: feat/add-user-auth"
         echo "   Use scratch/ prefix for WIP branches that skip checks"
         exit 1

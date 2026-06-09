@@ -45,6 +45,30 @@ const allScopes = [...new Set([...staticScopes, ...dynamicScopes])].sort();
 module.exports = {
   extends: ['@commitlint/config-conventional'],
   rules: {
+    // The default config-conventional set plus `debug` — temporary diagnostic
+    // instrumentation added to production code paths to confirm a bug's runtime
+    // behaviour, then removed in a cleanup PR. It is neither feat (not shipped),
+    // fix (corrects nothing), nor chore (it's risky production-path code, not
+    // housekeeping). A non-empty `git log --grep '^debug[:(]'` on a branch flags
+    // scaffolding that still needs removing. See .claude/rules/05-tooling.md.
+    'type-enum': [
+      2,
+      'always',
+      [
+        'build',
+        'chore',
+        'ci',
+        'debug',
+        'docs',
+        'feat',
+        'fix',
+        'perf',
+        'refactor',
+        'revert',
+        'style',
+        'test',
+      ],
+    ],
     // Dynamically generated from workspace packages + static root scopes
     'scope-enum': [2, 'always', allScopes],
     // Allow empty scope (for cross-cutting changes)

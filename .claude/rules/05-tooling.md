@@ -147,8 +147,20 @@ EOF
 )"
 ```
 
-**Types:** `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `perf`
+**Types:** `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `perf`, `debug`
 **Scopes:** `ai-worker`, `api-gateway`, `bot-client`, `common-types`, `ci`, `deps`
+
+The list above is the project's primary set. `commitlint.config.cjs` also accepts the rest of the standard Conventional Commits types — `build`, `ci`, `revert`, `style` — and the `.husky/pre-push` branch-name allowlist permits all of them as branch prefixes too, so a valid commit type is always a valid branch prefix. Reach for the standard ones when they genuinely fit (`build:` for bundler/Docker changes, `revert:` for a clean revert); otherwise the primary set covers most work.
+
+#### The `debug` type
+
+`debug` is for **temporary diagnostic instrumentation** — logging (or similar probes) added to a production code path to confirm a bug's _runtime_ behaviour before fixing it, then removed in a cleanup PR once the bug is understood. It exists because such work fits none of the other types cleanly: it is not `feat` (nothing ships to users), not `fix` (it corrects no behaviour), and not `chore` (it is risky production-path code, not housekeeping). Use it for **both** adding and removing the scaffolding (`debug(bot-client): add forward-shape probes` … `debug(bot-client): remove forward-shape probes`) so an add/remove pair reads cleanly in the log.
+
+The payoff is a built-in safety net: a `debug` commit is a high-signal "did I remove this?" marker. `git log --grep '^debug[:(]' origin/develop..HEAD` on a branch surfaces any instrumentation still live on it — empty output means the production code is clean. (The `[:(]` anchors to the conventional `debug:` / `debug(scope):` forms so a free-form subject like `debugged the parser` doesn't false-match.)
+
+Do **not** use `debug` for **permanent** observability (structured logs, metrics, traces that stay) — that is a real operational improvement and should be `feat`. The distinction is lifecycle: `debug` is scaffolding you intend to delete; `feat` observability is infrastructure you intend to keep.
+
+Adopted 2026-06-08 (unanimous council recommendation) after the forwarded-message debugging campaign repeatedly mislabelled diagnostic-logging PRs as `chore`. Enforced by `commitlint.config.cjs` (`type-enum`) and the `.husky/pre-push` branch-name allowlist (`debug/` branches permitted).
 
 ### PR Monitoring (automatic — do not wait to be asked)
 
