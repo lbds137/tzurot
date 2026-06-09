@@ -37,18 +37,24 @@ vi.mock('../../../utils/conversationUtils.js', () => ({
   convertConversationHistory: mockConvertConversationHistory,
 }));
 
-const { mockShadowHydrateAndDiff, mockIsShadowHydrationEnabled, mockShadowAssembleAndDiff } =
-  vi.hoisted(() => ({
-    mockShadowHydrateAndDiff: vi.fn().mockResolvedValue(undefined),
-    mockIsShadowHydrationEnabled: vi.fn().mockReturnValue(false),
-    mockShadowAssembleAndDiff: vi.fn(),
-  }));
+const {
+  mockShadowHydrateAndDiff,
+  mockIsShadowHydrationEnabled,
+  mockShadowAssembleAndDiff,
+  mockIsAssemblyPromoteEnabled,
+} = vi.hoisted(() => ({
+  mockShadowHydrateAndDiff: vi.fn().mockResolvedValue(undefined),
+  mockIsShadowHydrationEnabled: vi.fn().mockReturnValue(false),
+  mockShadowAssembleAndDiff: vi.fn(),
+  mockIsAssemblyPromoteEnabled: vi.fn().mockReturnValue(false),
+}));
 vi.mock('../../../../services/context/shadowAssembly.js', () => ({
   shadowAssembleAndDiff: mockShadowAssembleAndDiff,
 }));
 vi.mock('../../../../services/context/shadowHydration.js', () => ({
   shadowHydrateAndDiff: mockShadowHydrateAndDiff,
   isShadowHydrationEnabled: mockIsShadowHydrationEnabled,
+  isAssemblyPromoteEnabled: mockIsAssemblyPromoteEnabled,
 }));
 
 const TEST_PERSONALITY: LoadedPersonality = {
@@ -106,7 +112,7 @@ describe('ContextStep', () => {
     mockConvertConversationHistory.mockReturnValue([]);
   });
 
-  it('should have correct name', () => {
+  it('should have correct name', async () => {
     expect(step.name).toBe('ContextPreparation');
   });
 
@@ -124,32 +130,32 @@ describe('ContextStep', () => {
       findUserByDiscordId: vi.fn().mockResolvedValue(null),
     };
 
-    it('invokes shadow hydration when a data source is provided and the flag is on', () => {
+    it('invokes shadow hydration when a data source is provided and the flag is on', async () => {
       mockIsShadowHydrationEnabled.mockReturnValue(true);
       const gatedStep = new ContextStep(fakeDataSource);
 
-      gatedStep.process({ job: createMockJob(), startTime: Date.now(), config });
+      await gatedStep.process({ job: createMockJob(), startTime: Date.now(), config });
 
       expect(mockShadowHydrateAndDiff).toHaveBeenCalledWith(
         expect.objectContaining({ jobId: 'job-123', dataSource: fakeDataSource })
       );
     });
 
-    it('does NOT invoke shadow hydration when the flag is off', () => {
+    it('does NOT invoke shadow hydration when the flag is off', async () => {
       mockIsShadowHydrationEnabled.mockReturnValue(false);
       const gatedStep = new ContextStep(fakeDataSource);
 
-      gatedStep.process({ job: createMockJob(), startTime: Date.now(), config });
+      await gatedStep.process({ job: createMockJob(), startTime: Date.now(), config });
 
       expect(mockShadowHydrateAndDiff).not.toHaveBeenCalled();
     });
 
-    it('routes to the assembly shadow when the raw envelope is present and an assembler is wired', () => {
+    it('routes to the assembly shadow when the raw envelope is present and an assembler is wired', async () => {
       mockIsShadowHydrationEnabled.mockReturnValue(true);
       const fakeAssembler = { assembleCore: vi.fn() };
       const gatedStep = new ContextStep(fakeDataSource, fakeAssembler as never);
 
-      gatedStep.process({
+      await gatedStep.process({
         job: createMockJob({
           context: { userId: 'user-1', rawAssemblyInputs: { rawMessageContent: 'raw' } } as never,
         }),
@@ -168,12 +174,12 @@ describe('ContextStep', () => {
       expect(mockShadowHydrateAndDiff).not.toHaveBeenCalled();
     });
 
-    it('passes payloadMessage as undefined for non-string message shapes', () => {
+    it('passes payloadMessage as undefined for non-string message shapes', async () => {
       mockIsShadowHydrationEnabled.mockReturnValue(true);
       const fakeAssembler = { assembleCore: vi.fn() };
       const gatedStep = new ContextStep(fakeDataSource, fakeAssembler as never);
 
-      gatedStep.process({
+      await gatedStep.process({
         job: createMockJob({
           message: { structured: true } as never,
           context: { userId: 'user-1', rawAssemblyInputs: { rawMessageContent: 'raw' } } as never,
@@ -187,39 +193,161 @@ describe('ContextStep', () => {
       );
     });
 
-    it('falls back to the hydration shadow when the envelope is absent', () => {
+    it('falls back to the hydration shadow when the envelope is absent', async () => {
       mockIsShadowHydrationEnabled.mockReturnValue(true);
       const fakeAssembler = { assembleCore: vi.fn() };
       const gatedStep = new ContextStep(fakeDataSource, fakeAssembler as never);
 
-      gatedStep.process({ job: createMockJob(), startTime: Date.now(), config });
+      await gatedStep.process({ job: createMockJob(), startTime: Date.now(), config });
 
       expect(mockShadowHydrateAndDiff).toHaveBeenCalled();
       expect(mockShadowAssembleAndDiff).not.toHaveBeenCalled();
     });
 
-    it('does NOT invoke shadow hydration without a data source, even with the flag on', () => {
+    it('does NOT invoke shadow hydration without a data source, even with the flag on', async () => {
       mockIsShadowHydrationEnabled.mockReturnValue(true);
       const ungatedStep = new ContextStep();
 
-      ungatedStep.process({ job: createMockJob(), startTime: Date.now(), config });
+      await ungatedStep.process({ job: createMockJob(), startTime: Date.now(), config });
 
       expect(mockShadowHydrateAndDiff).not.toHaveBeenCalled();
     });
   });
 
+  describe('assembler promotion (iii-b cutover)', () => {
+    const config: ResolvedConfig = {
+      effectivePersonality: TEST_PERSONALITY,
+      configSource: 'personality',
+    };
+    const fakeDataSource = {
+      getChannelHistory: vi.fn(),
+      getCrossChannelHistory: vi.fn(),
+      getUserTimezone: vi.fn(),
+      getContextEpoch: vi.fn(),
+      getMessageByDiscordId: vi.fn().mockResolvedValue(null),
+      findUserByDiscordId: vi.fn().mockResolvedValue(null),
+    };
+
+    function makeAssembled(overrides: Record<string, unknown> = {}) {
+      return {
+        userInternalId: 'uid-internal',
+        activePersonaId: 'persona-asm',
+        activePersonaName: 'AsmPersona',
+        userTimezone: 'America/New_York',
+        contextEpoch: undefined,
+        history: [
+          {
+            role: MessageRole.User,
+            content: 'assembled history',
+            createdAt: new Date('2026-01-02T00:00:00Z'),
+            personaId: 'persona-asm',
+            discordMessageId: ['m1'],
+          },
+        ],
+        referencedMessages: [{ referenceNumber: 1, content: 'ref', authorName: 'A' }],
+        messageContent: 'assembled message content',
+        mentionedPersonas: [{ personaId: 'mp-1', personaName: 'Mentioned' }],
+        referencedChannels: undefined,
+        crossChannelHistory: undefined,
+        ...overrides,
+      };
+    }
+
+    it('builds context from the assembler when flag + envelope + assembler are all present', async () => {
+      mockIsAssemblyPromoteEnabled.mockReturnValue(true);
+      const assembled = makeAssembled();
+      const fakeAssembler = { assembleCore: vi.fn().mockResolvedValue(assembled) };
+      const promoteStep = new ContextStep(fakeDataSource, fakeAssembler as never);
+      const job = createMockJob({
+        context: {
+          userId: 'u',
+          rawAssemblyInputs: { rawMessageContent: 'raw' },
+          referencedMessages: [],
+        } as never,
+      });
+
+      const result = await promoteStep.process({ job, startTime: Date.now(), config });
+
+      expect(fakeAssembler.assembleCore).toHaveBeenCalled();
+      // History is sourced from the assembler, createdAt normalized Date → ISO.
+      expect(mockConvertConversationHistory).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({
+            content: 'assembled history',
+            createdAt: '2026-01-02T00:00:00.000Z',
+          }),
+        ]),
+        TEST_PERSONALITY.name
+      );
+      // jobContext re-sourced in place for the downstream conversationContextBuilder.
+      expect(job.data.context.referencedMessages).toBe(assembled.referencedMessages);
+      expect(job.data.context.mentionedPersonas).toBe(assembled.mentionedPersonas);
+      expect(job.data.context.activePersonaId).toBe('persona-asm');
+      expect(job.data.context.userTimezone).toBe('America/New_York');
+      // The worker-rewritten content drives generation.
+      expect(job.data.message).toBe('assembled message content');
+      // Shadow is redundant once promoted.
+      expect(mockShadowAssembleAndDiff).not.toHaveBeenCalled();
+      expect(result.preparedContext).toBeDefined();
+    });
+
+    it('nulls activePersonaId in jobContext when the assembler returns null (weigh-in)', async () => {
+      mockIsAssemblyPromoteEnabled.mockReturnValue(true);
+      const assembled = makeAssembled({ activePersonaId: null, activePersonaName: null });
+      const fakeAssembler = { assembleCore: vi.fn().mockResolvedValue(assembled) };
+      const promoteStep = new ContextStep(fakeDataSource, fakeAssembler as never);
+      const job = createMockJob({
+        context: {
+          userId: 'u',
+          isWeighIn: true,
+          rawAssemblyInputs: { rawMessageContent: 'raw' },
+        } as never,
+      });
+
+      await promoteStep.process({ job, startTime: Date.now(), config });
+
+      expect(job.data.context.activePersonaId).toBeUndefined();
+      expect(job.data.context.activePersonaName).toBeUndefined();
+    });
+
+    it('falls back to legacy when the flag is on but the envelope is absent', async () => {
+      mockIsAssemblyPromoteEnabled.mockReturnValue(true);
+      const fakeAssembler = { assembleCore: vi.fn() };
+      const promoteStep = new ContextStep(fakeDataSource, fakeAssembler as never);
+
+      await promoteStep.process({ job: createMockJob(), startTime: Date.now(), config });
+
+      expect(fakeAssembler.assembleCore).not.toHaveBeenCalled();
+    });
+
+    it('propagates assembleCore errors as job failures (not swallowed like the shadow)', async () => {
+      mockIsAssemblyPromoteEnabled.mockReturnValue(true);
+      const fakeAssembler = {
+        assembleCore: vi.fn().mockRejectedValue(new Error('assembler boom')),
+      };
+      const promoteStep = new ContextStep(fakeDataSource, fakeAssembler as never);
+      const job = createMockJob({
+        context: { userId: 'u', rawAssemblyInputs: { rawMessageContent: 'raw' } } as never,
+      });
+
+      await expect(
+        promoteStep.process({ job, startTime: Date.now(), config })
+      ).rejects.toThrow('assembler boom');
+    });
+  });
+
   describe('process', () => {
-    it('should throw error if config is missing', () => {
+    it('should throw error if config is missing', async () => {
       const context: GenerationContext = {
         job: createMockJob(),
         startTime: Date.now(),
         // No config
       };
 
-      expect(() => step.process(context)).toThrow('ConfigStep must run before ContextStep');
+      await expect(step.process(context)).rejects.toThrow('ConfigStep must run before ContextStep');
     });
 
-    it('should prepare empty context when no conversation history', () => {
+    it('should prepare empty context when no conversation history', async () => {
       const config: ResolvedConfig = {
         effectivePersonality: TEST_PERSONALITY,
         configSource: 'personality',
@@ -231,7 +359,7 @@ describe('ContextStep', () => {
         config,
       };
 
-      const result = step.process(context);
+      const result = await step.process(context);
 
       expect(result.preparedContext).toBeDefined();
       expect(result.preparedContext?.conversationHistory).toEqual([]);
@@ -240,7 +368,7 @@ describe('ContextStep', () => {
       expect(result.preparedContext?.oldestHistoryTimestamp).toBeUndefined();
     });
 
-    it('should call extractParticipants with conversation history', () => {
+    it('should call extractParticipants with conversation history', async () => {
       const conversationHistory = [
         { role: MessageRole.User, content: 'Hello', personaId: 'user-1', personaName: 'Alice' },
         {
@@ -274,12 +402,12 @@ describe('ContextStep', () => {
         config,
       };
 
-      step.process(context);
+      await step.process(context);
 
       expect(mockExtractParticipants).toHaveBeenCalledWith(conversationHistory, 'bot-1', 'TestBot');
     });
 
-    it('should call convertConversationHistory with personality name', () => {
+    it('should call convertConversationHistory with personality name', async () => {
       const conversationHistory = [{ role: MessageRole.User, content: 'Hello' }];
 
       const config: ResolvedConfig = {
@@ -295,7 +423,7 @@ describe('ContextStep', () => {
         config,
       };
 
-      step.process(context);
+      await step.process(context);
 
       expect(mockConvertConversationHistory).toHaveBeenCalledWith(
         conversationHistory,
@@ -303,7 +431,7 @@ describe('ContextStep', () => {
       );
     });
 
-    it('should calculate oldest timestamp from conversation history', () => {
+    it('should calculate oldest timestamp from conversation history', async () => {
       const conversationHistory = [
         { role: MessageRole.User, content: 'First', createdAt: '2024-01-01T12:00:00Z' },
         { role: MessageRole.Assistant, content: 'Second', createdAt: '2024-01-01T12:05:00Z' },
@@ -323,14 +451,14 @@ describe('ContextStep', () => {
         config,
       };
 
-      const result = step.process(context);
+      const result = await step.process(context);
 
       expect(result.preparedContext?.oldestHistoryTimestamp).toBe(
         new Date('2024-01-01T12:00:00Z').getTime()
       );
     });
 
-    it('should handle messages without timestamps', () => {
+    it('should handle messages without timestamps', async () => {
       const conversationHistory = [
         { role: MessageRole.User, content: 'First' }, // No createdAt
         { role: MessageRole.Assistant, content: 'Second', createdAt: '2024-01-01T12:05:00Z' },
@@ -349,7 +477,7 @@ describe('ContextStep', () => {
         config,
       };
 
-      const result = step.process(context);
+      const result = await step.process(context);
 
       // Should only use the message with timestamp
       expect(result.preparedContext?.oldestHistoryTimestamp).toBe(
@@ -357,7 +485,7 @@ describe('ContextStep', () => {
       );
     });
 
-    it('should merge mentioned personas into participants', () => {
+    it('should merge mentioned personas into participants', async () => {
       mockExtractParticipants.mockReturnValue([
         { personaId: 'user-1', personaName: 'Alice', isActive: false },
       ]);
@@ -378,7 +506,7 @@ describe('ContextStep', () => {
         config,
       };
 
-      const result = step.process(context);
+      const result = await step.process(context);
 
       expect(result.preparedContext?.participants).toHaveLength(2);
       expect(result.preparedContext?.participants).toContainEqual({
@@ -388,7 +516,7 @@ describe('ContextStep', () => {
       });
     });
 
-    it('should not duplicate mentioned personas already in participants', () => {
+    it('should not duplicate mentioned personas already in participants', async () => {
       mockExtractParticipants.mockReturnValue([
         { personaId: 'user-1', personaName: 'Alice', isActive: false },
         { personaId: 'bot-2', personaName: 'OtherBot', isActive: false },
@@ -412,13 +540,13 @@ describe('ContextStep', () => {
         config,
       };
 
-      const result = step.process(context);
+      const result = await step.process(context);
 
       // Should not duplicate
       expect(result.preparedContext?.participants).toHaveLength(2);
     });
 
-    it('should preserve raw conversation history', () => {
+    it('should preserve raw conversation history', async () => {
       const conversationHistory = [
         { role: MessageRole.User, content: 'Hello', tokenCount: 5 },
         { role: MessageRole.Assistant, content: 'Hi there', tokenCount: 10 },
@@ -442,14 +570,14 @@ describe('ContextStep', () => {
         config,
       };
 
-      const result = step.process(context);
+      const result = await step.process(context);
 
       expect(result.preparedContext?.rawConversationHistory).toEqual(conversationHistory);
       expect(result.preparedContext?.conversationHistory).toHaveLength(2);
     });
 
     describe('referenced message timestamps in deduplication', () => {
-      it('should include referenced message timestamps in oldestHistoryTimestamp', () => {
+      it('should include referenced message timestamps in oldestHistoryTimestamp', async () => {
         // Conversation history with recent messages
         const conversationHistory = [
           { role: MessageRole.User, content: 'Recent message', createdAt: '2024-01-01T14:00:00Z' },
@@ -483,7 +611,7 @@ describe('ContextStep', () => {
           config,
         };
 
-        const result = step.process(context);
+        const result = await step.process(context);
 
         // Oldest timestamp should be from the referenced message, not conversation history
         expect(result.preparedContext?.oldestHistoryTimestamp).toBe(
@@ -491,7 +619,7 @@ describe('ContextStep', () => {
         );
       });
 
-      it('should use conversation history timestamp if older than referenced messages', () => {
+      it('should use conversation history timestamp if older than referenced messages', async () => {
         const conversationHistory = [
           { role: MessageRole.User, content: 'Old message', createdAt: '2024-01-01T08:00:00Z' },
           { role: MessageRole.Assistant, content: 'Reply', createdAt: '2024-01-01T08:05:00Z' },
@@ -524,7 +652,7 @@ describe('ContextStep', () => {
           config,
         };
 
-        const result = step.process(context);
+        const result = await step.process(context);
 
         // Oldest timestamp should be from conversation history
         expect(result.preparedContext?.oldestHistoryTimestamp).toBe(
@@ -532,7 +660,7 @@ describe('ContextStep', () => {
         );
       });
 
-      it('should handle referenced messages without timestamps', () => {
+      it('should handle referenced messages without timestamps', async () => {
         const conversationHistory = [
           { role: MessageRole.User, content: 'Message', createdAt: '2024-01-01T12:00:00Z' },
         ];
@@ -564,7 +692,7 @@ describe('ContextStep', () => {
           config,
         };
 
-        const result = step.process(context);
+        const result = await step.process(context);
 
         // Should use conversation history timestamp when referenced message has no timestamp
         expect(result.preparedContext?.oldestHistoryTimestamp).toBe(
@@ -572,7 +700,7 @@ describe('ContextStep', () => {
         );
       });
 
-      it('should handle only referenced messages (no conversation history)', () => {
+      it('should handle only referenced messages (no conversation history)', async () => {
         const referencedMessages = [
           {
             referenceNumber: 1,
@@ -600,7 +728,7 @@ describe('ContextStep', () => {
           config,
         };
 
-        const result = step.process(context);
+        const result = await step.process(context);
 
         // Should use referenced message timestamp
         expect(result.preparedContext?.oldestHistoryTimestamp).toBe(
@@ -608,7 +736,7 @@ describe('ContextStep', () => {
         );
       });
 
-      it('should handle empty referenced messages array gracefully', () => {
+      it('should handle empty referenced messages array gracefully', async () => {
         const conversationHistory = [
           { role: MessageRole.User, content: 'Message', createdAt: '2024-01-01T12:00:00Z' },
         ];
@@ -626,7 +754,7 @@ describe('ContextStep', () => {
           config,
         };
 
-        const result = step.process(context);
+        const result = await step.process(context);
 
         // Should use conversation history timestamp
         expect(result.preparedContext?.oldestHistoryTimestamp).toBe(
@@ -634,7 +762,7 @@ describe('ContextStep', () => {
         );
       });
 
-      it('should include cross-channel timestamps in oldest calculation', () => {
+      it('should include cross-channel timestamps in oldest calculation', async () => {
         const conversationHistory = [
           { role: MessageRole.User, content: 'Current channel', createdAt: '2024-01-15T12:00:00Z' },
         ];
@@ -670,7 +798,7 @@ describe('ContextStep', () => {
           config,
         };
 
-        const result = step.process(context);
+        const result = await step.process(context);
 
         // Should use the older cross-channel timestamp
         expect(result.preparedContext?.oldestHistoryTimestamp).toBe(
@@ -678,7 +806,7 @@ describe('ContextStep', () => {
         );
       });
 
-      it('should set oldestHistoryTimestamp from cross-channel alone when no current history', () => {
+      it('should set oldestHistoryTimestamp from cross-channel alone when no current history', async () => {
         const crossChannelHistory = [
           {
             channelEnvironment: {
@@ -716,7 +844,7 @@ describe('ContextStep', () => {
           config,
         };
 
-        const result = step.process(context);
+        const result = await step.process(context);
 
         // Cross-channel timestamps should be the sole source for oldestHistoryTimestamp
         expect(result.preparedContext?.oldestHistoryTimestamp).toBe(
@@ -724,7 +852,7 @@ describe('ContextStep', () => {
         );
       });
 
-      it('should handle cross-channel messages with undefined createdAt', () => {
+      it('should handle cross-channel messages with undefined createdAt', async () => {
         const crossChannelHistory = [
           {
             channelEnvironment: {
@@ -762,7 +890,7 @@ describe('ContextStep', () => {
           config,
         };
 
-        const result = step.process(context);
+        const result = await step.process(context);
 
         // Should use the valid timestamp, ignoring the undefined one
         expect(result.preparedContext?.oldestHistoryTimestamp).toBe(
@@ -770,7 +898,7 @@ describe('ContextStep', () => {
         );
       });
 
-      it('should map cross-channel history to pipeline format', () => {
+      it('should map cross-channel history to pipeline format', async () => {
         const crossChannelHistory = [
           {
             channelEnvironment: {
@@ -803,7 +931,7 @@ describe('ContextStep', () => {
           config,
         };
 
-        const result = step.process(context);
+        const result = await step.process(context);
 
         expect(result.preparedContext?.crossChannelHistory).toHaveLength(1);
         expect(result.preparedContext?.crossChannelHistory?.[0].channelEnvironment.type).toBe('dm');
@@ -830,7 +958,7 @@ describe('ContextStep', () => {
         } as unknown as Job<LLMGenerationJobData>;
       }
 
-      it('warns with clock-skew framing when deltaMs is negative', () => {
+      it('warns with clock-skew framing when deltaMs is negative', async () => {
         // Job timestamp BEFORE the persisted assistant-message timestamp — shouldn't
         // happen with colocated BullMQ + Postgres, but if it ever does, it's a
         // clock/data anomaly, NOT a race. Message must be distinct from the
@@ -850,7 +978,7 @@ describe('ContextStep', () => {
           config,
         };
 
-        step.process(context);
+        await step.process(context);
 
         expect(mockLogger.warn).toHaveBeenCalledWith(
           expect.objectContaining({ suggestsClockSkew: true, deltaMs: -1_000 }),
@@ -863,7 +991,7 @@ describe('ContextStep', () => {
         );
       });
 
-      it('warns when job created within 500ms of newest assistant message persistence', () => {
+      it('warns when job created within 500ms of newest assistant message persistence', async () => {
         const jobTs = 1_700_000_000_000;
         const conversationHistory = [
           {
@@ -884,7 +1012,7 @@ describe('ContextStep', () => {
           config,
         };
 
-        step.process(context);
+        await step.process(context);
 
         expect(mockLogger.warn).toHaveBeenCalledWith(
           expect.objectContaining({ suggestsRace: true, deltaMs: 200 }),
@@ -892,7 +1020,7 @@ describe('ContextStep', () => {
         );
       });
 
-      it('emits info (not warn) when delta is comfortably positive', () => {
+      it('emits info (not warn) when delta is comfortably positive', async () => {
         const jobTs = 1_700_000_000_000;
         const conversationHistory = [
           {
@@ -908,7 +1036,7 @@ describe('ContextStep', () => {
           config,
         };
 
-        step.process(context);
+        await step.process(context);
 
         expect(mockLogger.info).toHaveBeenCalledWith(
           expect.objectContaining({ suggestsRace: false, deltaMs: 60_000 }),
@@ -920,7 +1048,7 @@ describe('ContextStep', () => {
         );
       });
 
-      it('picks the newest assistant message when multiple are present', () => {
+      it('picks the newest assistant message when multiple are present', async () => {
         const jobTs = 1_700_000_000_000;
         const conversationHistory = [
           {
@@ -946,7 +1074,7 @@ describe('ContextStep', () => {
           config,
         };
 
-        step.process(context);
+        await step.process(context);
 
         // 100ms delta → race-suspect; uses newest, not oldest
         expect(mockLogger.warn).toHaveBeenCalledWith(
@@ -955,7 +1083,7 @@ describe('ContextStep', () => {
         );
       });
 
-      it('emits nothing when history has no assistant messages', () => {
+      it('emits nothing when history has no assistant messages', async () => {
         const jobTs = 1_700_000_000_000;
         const conversationHistory = [
           { role: MessageRole.User, content: 'hi', createdAt: new Date(jobTs - 100).toISOString() },
@@ -967,7 +1095,7 @@ describe('ContextStep', () => {
           config,
         };
 
-        step.process(context);
+        await step.process(context);
 
         // Race-window messages never emit — no newest assistant to compare against
         expect(mockLogger.warn).not.toHaveBeenCalledWith(
@@ -980,7 +1108,7 @@ describe('ContextStep', () => {
         );
       });
 
-      it('emits nothing when assistant messages lack valid createdAt', () => {
+      it('emits nothing when assistant messages lack valid createdAt', async () => {
         const jobTs = 1_700_000_000_000;
         const conversationHistory = [
           { role: MessageRole.Assistant, content: 'no timestamp' },
@@ -993,7 +1121,7 @@ describe('ContextStep', () => {
           config,
         };
 
-        step.process(context);
+        await step.process(context);
 
         expect(mockLogger.warn).not.toHaveBeenCalledWith(
           expect.anything(),

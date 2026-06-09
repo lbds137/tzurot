@@ -44,7 +44,8 @@ const logger = createLogger('ContextAssembler');
 /** The core surfaces the assembler re-derives. */
 export interface AssembledCore {
   userInternalId: string;
-  activePersonaId: string;
+  /** Null in weigh-in mode — an anonymous poke has no invoking-user persona. */
+  activePersonaId: string | null;
   activePersonaName: string | null;
   userTimezone: string;
   contextEpoch: Date | undefined;
@@ -157,20 +158,11 @@ export class ContextAssembler {
     if (user === null) {
       throw new Error('[ContextAssembler] getOrCreateUser returned null (bot author?)');
     }
-    const personaResult = await this.deps.personaResolver.resolve(
-      jobContext.userId,
-      personality.id
-    );
-    const activePersonaId = personaResult.config.personaId;
-    const activePersonaName = personaResult.config.preferredName;
-
-    // Step 2: timezone + context epoch.
+    // Step 2: persona + timezone + context epoch. Weigh-in nulls the OUTPUT
+    // persona but the epoch still uses the resolved persona (see helper).
+    const { activePersonaId, activePersonaName, contextEpoch } =
+      await this.resolvePersonaContext(jobContext, personality.id, user.userId);
     const userTimezone = await this.deps.dataSource.getUserTimezone(user.userId);
-    const contextEpoch = await this.deps.dataSource.getContextEpoch(
-      user.userId,
-      personality.id,
-      activePersonaId
-    );
 
     // Step 3: hydrate channel history — same limit derivation as the
     // bot-side dbLimit (and as the 2.5a hydration shadow).
@@ -244,6 +236,39 @@ export class ContextAssembler {
   }
 
   /**
+   * Resolve the persona and its context epoch. Weigh-in is an anonymous poke:
+   * the prompt must carry NO invoking-user persona, so the OUTPUT persona goes
+   * null — mirroring the bot, which clears it in chat.ts adjustContextForWeighIn.
+   * Crucially the bot clears it AFTER resolving the epoch, and the epoch is
+   * keyed on the persona (lookupContextEpoch), so we keep using the resolved
+   * persona for the epoch lookup (and thus history filtering) — only the output
+   * goes null. Memory read/write skip is gated separately by isWeighIn.
+   */
+  private async resolvePersonaContext(
+    jobContext: JobContext,
+    personalityId: string,
+    internalUserId: string
+  ): Promise<{
+    activePersonaId: string | null;
+    activePersonaName: string | null;
+    contextEpoch: Date | undefined;
+  }> {
+    const personaResult = await this.deps.personaResolver.resolve(jobContext.userId, personalityId);
+    const resolvedPersonaId = personaResult.config.personaId;
+    const contextEpoch = await this.deps.dataSource.getContextEpoch(
+      internalUserId,
+      personalityId,
+      resolvedPersonaId
+    );
+    const isWeighIn = jobContext.isWeighIn === true;
+    return {
+      activePersonaId: isWeighIn ? null : resolvedPersonaId,
+      activePersonaName: isWeighIn ? null : personaResult.config.preferredName,
+      contextEpoch,
+    };
+  }
+
+  /**
    * Content rewriting through the shared kernels — weigh-in jobs pass the
    * raw content through untouched (mirrors the bot's early return and
    * avoids upserting mention users for anonymous pokes).
@@ -291,7 +316,8 @@ export class ContextAssembler {
     personality: LoadedPersonality,
     opts: {
       enabled: boolean;
-      personaId: string;
+      /** Null only in weigh-in mode, where `enabled` is always false. */
+      personaId: string | null;
       /** The narrowed current-channel id from assembleCore's guard. */
       excludeChannelId: string;
       limit: number;
@@ -302,9 +328,17 @@ export class ContextAssembler {
     if (!opts.enabled) {
       return undefined;
     }
+    // Invariant: cross-channel is disabled for weigh-in (the `enabled` flag
+    // gates on isWeighIn), so a non-null persona always reaches here. Fail loud
+    // if a future change decouples the two, rather than silently querying with
+    // a bad id.
+    if (opts.personaId === null) {
+      throw new Error('[ContextAssembler] cross-channel enabled with a null persona');
+    }
+    const personaId = opts.personaId;
 
     const groups = await this.deps.dataSource.getCrossChannelHistory({
-      personaId: opts.personaId,
+      personaId,
       personalityId: personality.id,
       excludeChannelId: opts.excludeChannelId,
       limit: opts.limit,
