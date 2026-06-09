@@ -22,8 +22,8 @@
     "typecheck:spec": "tsc --noEmit --project tsconfig.spec.json"
   },
   "dependencies": {
-    "@electric-sql/pglite": "^0.4.6",
-    "ioredis": "^5.11.0"
+    "@electric-sql/pglite": "^0.5.1",
+    "ioredis": "^5.11.1"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",
