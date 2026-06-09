@@ -54,7 +54,7 @@
     "audit.config.ts",
     "**/test-fixtures/audit-canaries/**"
   ],
-  "ignoreBinaries": ["dot", "railway", "ruff"],
+  "ignoreBinaries": ["dot", "ffmpeg", "ffprobe", "gh", "ops", "railway", "ruff"],
   "ignoreDependencies": [
     "@secretlint/secretlint-rule-preset-recommend",
     "eslint-formatter-pretty",
