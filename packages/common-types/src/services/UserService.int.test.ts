@@ -225,7 +225,10 @@ describe('UserService', () => {
     });
 
     it('should return UTC for non-existent user', async () => {
-      const timezone = await service.getUserTimezone('non-existent-id');
+      // Valid UUID shape that doesn't exist — Postgres rejects non-UUID strings
+      // on a uuid column (22P02), so the "missing row → default" path needs a
+      // well-formed id.
+      const timezone = await service.getUserTimezone('00000000-0000-0000-0000-000000000000');
       expect(timezone).toBe('UTC');
     });
   });
@@ -264,7 +267,8 @@ describe('UserService', () => {
     });
 
     it('should return null for non-existent persona', async () => {
-      const name = await service.getPersonaName('non-existent-id');
+      // Valid UUID shape that doesn't exist (see getUserTimezone note above).
+      const name = await service.getPersonaName('00000000-0000-0000-0000-000000000000');
       expect(name).toBeNull();
     });
   });
@@ -350,8 +354,12 @@ describe('UserService', () => {
 
     it("should reject deleting a persona that is still someone's default (Restrict FK)", async () => {
       // Pre-Phase-5: this delete would succeed and silently null the FK.
-      // Post-Phase-5: the FK is ON DELETE RESTRICT, so the delete fails at
-      // the DB level with P2003.
+      // Post-Phase-5: the FK is ON DELETE RESTRICT, so the delete is rejected
+      // at the DB level. Match the violation message rather than a Prisma error
+      // code — the driver adapter surfaces FK violations as a raw
+      // DriverAdapterError (no `code: P2003`), so the message is the stable
+      // cross-adapter signal; the persona-survives assertion below confirms the
+      // delete was actually blocked, not just that some error was thrown.
       await service.getOrCreateUser(testDiscordId, testUsername);
 
       const user = await prisma.user.findUnique({
@@ -364,9 +372,7 @@ describe('UserService', () => {
 
       await expect(
         prisma.persona.delete({ where: { id: defaultPersonaId } })
-      ).rejects.toMatchObject({
-        code: 'P2003', // Prisma's FK constraint violation
-      });
+      ).rejects.toThrow(/foreign key/i);
 
       // Persona still exists; default_persona_id still points to it
       const personaStillExists = await prisma.persona.findUnique({
