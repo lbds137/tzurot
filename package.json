@@ -74,7 +74,7 @@
     "eslint-plugin-sonarjs": "^4.0.3",
     "globals": "^17.6.0",
     "husky": "^9.1.7",
-    "jscpd": "^5.0.4",
+    "jscpd": "^4.2.5",
     "knip": "^6.16.1",
     "lint-staged": "^17.0.7",
     "pglite-prisma-adapter": "^0.7.2",
