@@ -239,6 +239,9 @@ importers:
       '@electric-sql/pglite':
         specifier: ^0.5.1
         version: 0.5.1
+      '@electric-sql/pglite-pgvector':
+        specifier: ^0.0.2
+        version: 0.0.2(@electric-sql/pglite@0.5.1)
       ioredis:
         specifier: ^5.10.0
         version: 5.11.1
@@ -728,6 +731,11 @@ packages:
   '@discordjs/ws@1.2.3':
     resolution: {integrity: sha512-wPlQDxEmlDg5IxhJPuxXr3Vy9AjYq5xCvFWGJyD7w7Np8ZGu+Mc+97LCoEc/+AYCo2IDpKioiH0/c/mj5ZR9Uw==}
     engines: {node: '>=16.11.0'}
+
+  '@electric-sql/pglite-pgvector@0.0.2':
+    resolution: {integrity: sha512-Gu9Nv7JHlg6BgOLqPCR6lCjI+3xlb7ej5qUtHWmzEYA0ZKzuNgeDK16nRO0ELInwzhLptLqX7VdWyYRElSXjdQ==}
+    peerDependencies:
+      '@electric-sql/pglite': 0.5.1
 
   '@electric-sql/pglite-socket@0.1.1':
     resolution: {integrity: sha512-p2hoXw3Z3LQHwTeikdZNsFBOvXGqKY2hk51BBw+8NKND8eoH+8LFOtW9Z8CQKmTJ2qqGYu82ipqiyFZOTTXNfw==}
@@ -5508,6 +5516,10 @@ snapshots:
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
+
+  '@electric-sql/pglite-pgvector@0.0.2(@electric-sql/pglite@0.5.1)':
+    dependencies:
+      '@electric-sql/pglite': 0.5.1
 
   '@electric-sql/pglite-socket@0.1.1(@electric-sql/pglite@0.4.1)':
     dependencies:
