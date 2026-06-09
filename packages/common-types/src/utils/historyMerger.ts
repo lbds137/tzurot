@@ -41,22 +41,8 @@ export function recoverEmptyDbContent(
     // text. A placeholder-valued extended copy would otherwise "heal"
     // placeholder → placeholder and falsely bump recoveredCount.
     if (extendedContent.length === 0 || extendedContent === NO_TEXT_CONTENT_PLACEHOLDER) {
-      // TEMPORARY diagnostic (remove with the forward-shape diagnostics,
-      // tracked in backlog/quick-wins). Pinpoints why an empty DB message
-      // (e.g. a clobbered forward) is NOT recovered: extended-map miss
-      // (keying mismatch — recovery keys on discordMessageId[0] while dedup
-      // keys on all ids) vs extended content genuinely empty. Lengths only.
-      logger.info(
-        {
-          messageId: msgId,
-          isForwarded: dbMsg.isForwarded === true,
-          hasExtendedEntry: extendedMsg !== undefined,
-          extendedContentLen: extendedContent.length,
-        },
-        'Empty DB message not recovered from extended context — diagnostic'
-      );
       continue;
-    } // Extended context also empty
+    } // Extended context absent or itself the placeholder — not a recovery source
 
     // Extended context has content (likely from bot transcript fallback) - use it
     dbMsg.content = extendedContent;

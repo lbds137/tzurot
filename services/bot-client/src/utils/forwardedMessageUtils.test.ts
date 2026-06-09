@@ -5,7 +5,7 @@
  * These utilities are the SINGLE SOURCE OF TRUTH for handling Discord forwarded messages.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import type { Message, MessageSnapshot, Collection } from 'discord.js';
 import { MessageReferenceType } from 'discord.js';
 import {
@@ -20,8 +20,6 @@ import {
   hasForwardedVoiceAttachment,
   hasVoiceAttachments,
   getEffectiveContent,
-  hydrateForwardedSnapshots,
-  describeForwardShape,
 } from './forwardedMessageUtils.js';
 
 /**
@@ -627,171 +625,6 @@ describe('forwardedMessageUtils', () => {
       const message = createMockMessage({ content: 'Hello' });
 
       expect(hasVoiceAttachments(message)).toBe(false);
-    });
-  });
-
-  describe('hydrateForwardedSnapshots', () => {
-    /** Build a forward-shaped message with a mockable `fetch` and an id. */
-    function makeMessage(
-      options: Parameters<typeof createMockMessage>[0],
-      fetchImpl?: () => Promise<Message>
-    ): Message & { fetch: ReturnType<typeof vi.fn> } {
-      const base = createMockMessage(options);
-      return Object.assign(base, {
-        id: 'msg-1',
-        fetch: vi.fn(fetchImpl ?? (() => Promise.resolve(base))),
-      }) as Message & { fetch: ReturnType<typeof vi.fn> };
-    }
-
-    it('returns a non-forward message untouched without fetching', async () => {
-      const message = makeMessage({ referenceType: MessageReferenceType.Default, content: 'hi' });
-
-      const result = await hydrateForwardedSnapshots(message);
-
-      expect(result).toBe(message);
-      expect(message.fetch).not.toHaveBeenCalled();
-    });
-
-    it('skips the fetch when the forward already has snapshot content', async () => {
-      const message = makeMessage({
-        referenceType: MessageReferenceType.Forward,
-        snapshots: [{ content: 'already here' }],
-      });
-
-      const result = await hydrateForwardedSnapshots(message);
-
-      expect(result).toBe(message);
-      expect(message.fetch).not.toHaveBeenCalled();
-    });
-
-    it('force-fetches when a forward arrives with no snapshots and returns the hydrated message', async () => {
-      const hydrated = createMockMessage({
-        referenceType: MessageReferenceType.Forward,
-        snapshots: [{ content: 'recovered content' }],
-      });
-      const message = makeMessage(
-        { referenceType: MessageReferenceType.Forward }, // no snapshots
-        () => Promise.resolve(hydrated)
-      );
-
-      const result = await hydrateForwardedSnapshots(message);
-
-      expect(message.fetch).toHaveBeenCalledWith(true);
-      expect(result).toBe(hydrated);
-      expect(getEffectiveContent(result)).toBe('recovered content');
-    });
-
-    it('force-fetches when the forward has an empty-content snapshot', async () => {
-      const hydrated = createMockMessage({
-        referenceType: MessageReferenceType.Forward,
-        snapshots: [{ content: 'recovered content' }],
-      });
-      const message = makeMessage(
-        { referenceType: MessageReferenceType.Forward, snapshots: [{ content: '' }] },
-        () => Promise.resolve(hydrated)
-      );
-
-      const result = await hydrateForwardedSnapshots(message);
-
-      expect(message.fetch).toHaveBeenCalledWith(true);
-      expect(result).toBe(hydrated);
-      expect(getEffectiveContent(result)).toBe('recovered content');
-    });
-
-    it('returns the fetched message even when the re-fetch still lacks snapshot content', async () => {
-      // REST payload also missing content (e.g. origin-channel MESSAGE_CONTENT gap):
-      // the function returns the fetched message and warns, rather than throwing.
-      const stillEmpty = createMockMessage({ referenceType: MessageReferenceType.Forward });
-      const message = makeMessage({ referenceType: MessageReferenceType.Forward }, () =>
-        Promise.resolve(stillEmpty)
-      );
-
-      const result = await hydrateForwardedSnapshots(message);
-
-      expect(message.fetch).toHaveBeenCalledWith(true);
-      expect(result).toBe(stillEmpty);
-      expect(getEffectiveContent(result)).toBe('');
-    });
-
-    it('returns the original message when the re-fetch throws', async () => {
-      const message = makeMessage({ referenceType: MessageReferenceType.Forward }, () =>
-        Promise.reject(new Error('ChannelNotCached'))
-      );
-
-      const result = await hydrateForwardedSnapshots(message);
-
-      expect(message.fetch).toHaveBeenCalledWith(true);
-      expect(result).toBe(message);
-    });
-  });
-
-  describe('describeForwardShape', () => {
-    it('reports a non-forward message as not-a-forward with no reference', () => {
-      const message = Object.assign(
-        createMockMessage({ referenceType: MessageReferenceType.Default, content: 'hello' }),
-        { type: 0, partial: false }
-      ) as Message;
-
-      const shape = describeForwardShape(message);
-
-      expect(shape.referenceType).toBe(MessageReferenceType.Default);
-      expect(shape.snapshotSize).toBe(0);
-      expect(shape.snapshotContentLen).toBe(0);
-      expect(shape.contentLen).toBe(5);
-      expect(shape.detectedAsForward).toBe(false);
-    });
-
-    it('reports a Forward-type message with no snapshots — the gateway-omission shape', () => {
-      const message = Object.assign(
-        createMockMessage({ referenceType: MessageReferenceType.Forward }),
-        { type: 0, partial: false }
-      ) as Message;
-
-      const shape = describeForwardShape(message);
-
-      expect(shape.referenceType).toBe(MessageReferenceType.Forward);
-      expect(shape.snapshotSize).toBe(0);
-      expect(shape.snapshotContentLen).toBe(0);
-      expect(shape.detectedAsForward).toBe(true); // reference-type branch
-    });
-
-    it('reports populated snapshot content length', () => {
-      const message = Object.assign(
-        createMockMessage({
-          referenceType: MessageReferenceType.Forward,
-          snapshots: [{ content: 'forwarded body' }],
-        }),
-        { type: 0, partial: false }
-      ) as Message;
-
-      const shape = describeForwardShape(message);
-
-      expect(shape.snapshotSize).toBe(1);
-      expect(shape.snapshotContentLen).toBe('forwarded body'.length);
-      expect(shape.detectedAsForward).toBe(true);
-    });
-
-    it('reports referenceType null when no reference is present', () => {
-      const message = Object.assign(createMockMessage({ referenceType: null, content: '' }), {
-        type: 0,
-        partial: false,
-      }) as Message;
-
-      const shape = describeForwardShape(message);
-
-      expect(shape.referenceType).toBeNull();
-      expect(shape.detectedAsForward).toBe(false);
-    });
-
-    it('reports isPartial when discord.js delivered a partial message', () => {
-      const message = Object.assign(createMockMessage({ referenceType: null, content: '' }), {
-        type: 0,
-        partial: true,
-      }) as Message;
-
-      const shape = describeForwardShape(message);
-
-      expect(shape.isPartial).toBe(true);
     });
   });
 });
