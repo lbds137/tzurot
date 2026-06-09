@@ -5,7 +5,7 @@
  * and oldest timestamp calculation for LTM deduplication.
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, type MessageRole } from '@tzurot/common-types';
 import {
   extractParticipants,
   convertConversationHistory,
@@ -13,6 +13,7 @@ import {
 import type { ContextDataSource } from '../../../../services/context/types.js';
 import {
   isShadowHydrationEnabled,
+  isAssemblyPromoteEnabled,
   shadowHydrateAndDiff,
 } from '../../../../services/context/shadowHydration.js';
 import { shadowAssembleAndDiff } from '../../../../services/context/shadowAssembly.js';
@@ -20,6 +21,20 @@ import type { ContextAssembler } from '../../../../services/context/ContextAssem
 import type { IPipelineStep, GenerationContext, Participant, PreparedContext } from '../types.js';
 
 const logger = createLogger('ContextStep');
+
+/**
+ * The shared history shape both the legacy payload (`ApiConversationMessage`)
+ * and the worker-assembled history (`ConversationMessage`, after createdAt
+ * normalization) satisfy, and which `convertConversationHistory` /
+ * `extractParticipants` / `rawConversationHistory` all accept.
+ */
+type PromptHistorySource = {
+  role: MessageRole;
+  content: string;
+  createdAt?: string;
+  personaId?: string;
+  personaName?: string;
+}[];
 
 /**
  * Extract timestamp from various formats (ISO string, Date object, or undefined)
@@ -72,6 +87,14 @@ export class ContextStep implements IPipelineStep {
   private readonly shadowEnabled = isShadowHydrationEnabled();
 
   /**
+   * Resolved once per step instance (same rationale as {@link shadowEnabled}).
+   * When true, the prompt context is built from the ContextAssembler instead
+   * of the bot's legacy payload. Effective only when the job also carries
+   * `rawAssemblyInputs` and an assembler is wired.
+   */
+  private readonly promoteEnabled = isAssemblyPromoteEnabled();
+
+  /**
    * Route to the right shadow instrumentation. Raw envelope present + an
    * assembler wired → the FULL assembly shadow (real-DB hydration +
    * user/persona re-derivation + shared merge); otherwise the legacy
@@ -114,7 +137,7 @@ export class ContextStep implements IPipelineStep {
     }
   }
 
-  process(context: GenerationContext): GenerationContext {
+  async process(context: GenerationContext): Promise<GenerationContext> {
     const { job, config } = context;
     const { personality, context: jobContext } = job.data;
 
@@ -122,7 +145,20 @@ export class ContextStep implements IPipelineStep {
       throw new Error('[ContextStep] ConfigStep must run before ContextStep');
     }
 
-    if (this.shadowEnabled) {
+    // Promotion: build the prompt context from the worker-side assembler
+    // instead of the bot's legacy payload. Requires the envelope + a
+    // wired assembler — an envelope-less job (mixed deploy state) falls back to
+    // legacy. When promoted, assembleCore's throws are real job failures (its
+    // designed contract), NOT swallowed like the shadow's.
+    const promoted =
+      this.promoteEnabled &&
+      jobContext.rawAssemblyInputs !== undefined &&
+      this.contextAssembler !== undefined;
+
+    // The shadow validates the assembler against the legacy payload; once we
+    // promote, the assembler IS the prompt, so the shadow is redundant. Run it
+    // only when not promoting (also avoids racing the jobContext mutation).
+    if (this.shadowEnabled && !promoted) {
       this.dispatchShadow(
         job,
         jobContext,
@@ -132,6 +168,8 @@ export class ContextStep implements IPipelineStep {
       );
     }
 
+    const historyEntries = await this.sourceHistory(context, promoted);
+
     // Calculate oldest timestamp from conversation history AND referenced messages
     // (for LTM deduplication - prevents verbatim repetition when replying to AI messages)
     let oldestHistoryTimestamp: number | undefined;
@@ -139,20 +177,20 @@ export class ContextStep implements IPipelineStep {
 
     // Timestamps from conversation history
     // Note: createdAt may be ISO string (after BullMQ serialization) or Date object
-    if (jobContext.conversationHistory && jobContext.conversationHistory.length > 0) {
-      const historyTimestamps = jobContext.conversationHistory
+    if (historyEntries.length > 0) {
+      const historyTimestamps = historyEntries
         .map(msg => extractTimestamp(msg.createdAt as string | Date | undefined))
         .filter((t): t is number => t !== null);
       allTimestamps.push(...historyTimestamps);
 
       // Log diagnostic if we found fewer timestamps than messages
-      if (historyTimestamps.length < jobContext.conversationHistory.length) {
+      if (historyTimestamps.length < historyEntries.length) {
         logger.warn(
           {
             jobId: job.id,
-            historyLength: jobContext.conversationHistory.length,
+            historyLength: historyEntries.length,
             validTimestamps: historyTimestamps.length,
-            missingTimestamps: jobContext.conversationHistory.length - historyTimestamps.length,
+            missingTimestamps: historyEntries.length - historyTimestamps.length,
           },
           'Some conversation history messages missing valid createdAt timestamps'
         );
@@ -190,7 +228,7 @@ export class ContextStep implements IPipelineStep {
 
     // Extract unique participants BEFORE converting to BaseMessage
     const participants = extractParticipants(
-      jobContext.conversationHistory ?? [],
+      historyEntries,
       jobContext.activePersonaId,
       jobContext.activePersonaName
     );
@@ -199,17 +237,14 @@ export class ContextStep implements IPipelineStep {
     const allParticipants = this.mergeParticipants(participants, jobContext.mentionedPersonas);
 
     // Convert conversation history to BaseMessage format
-    const conversationHistory = convertConversationHistory(
-      jobContext.conversationHistory ?? [],
-      personality.name
-    );
+    const conversationHistory = convertConversationHistory(historyEntries, personality.name);
 
     // Pass cross-channel history through to pipeline (structurally compatible)
     const crossChannelHistory = jobContext.crossChannelHistory;
 
     const preparedContext: PreparedContext = {
       conversationHistory,
-      rawConversationHistory: jobContext.conversationHistory ?? [],
+      rawConversationHistory: historyEntries,
       oldestHistoryTimestamp,
       participants: allParticipants,
       crossChannelHistory,
@@ -221,7 +256,7 @@ export class ContextStep implements IPipelineStep {
     // duplicates. Log the delta between job-creation time and the newest
     // assistant message's persisted timestamp. Negative/small deltas are the
     // signal we'd expect to see when a rapid user follow-up races the write.
-    this.logRaceWindowTelemetry(job, jobContext.conversationHistory ?? []);
+    this.logRaceWindowTelemetry(job, historyEntries);
 
     logger.debug(
       {
@@ -236,6 +271,56 @@ export class ContextStep implements IPipelineStep {
       ...context,
       preparedContext,
     };
+  }
+
+  /**
+   * Source the prompt's conversation history. In promoted mode the
+   * worker-assembled context replaces the bot's legacy payload: `historyEntries`
+   * comes from the assembler (createdAt normalized Date → ISO for the
+   * string-typed consumers), and the surfaces the downstream
+   * conversationContextBuilder reads straight from jobContext (refs / channels /
+   * mentions / persona / timezone / cross-channel) are overwritten in place —
+   * mutating the worker's local job.data copy is safe (precedent:
+   * DownloadAttachmentsStep). The bot still ships these legacy fields, so the
+   * promotion is reversible by flag; a later cleanup removes them and this
+   * re-sourcing once the bot stops shipping them.
+   */
+  private async sourceHistory(
+    context: GenerationContext,
+    promoted: boolean
+  ): Promise<PromptHistorySource> {
+    const { job } = context;
+    const jobContext = job.data.context;
+    const assembler = this.contextAssembler;
+    if (!promoted || assembler === undefined) {
+      // The `assembler === undefined` arm is unreachable when promoted (the
+      // caller's gate already required it) — it just narrows the type here.
+      return jobContext.conversationHistory ?? [];
+    }
+
+    const assembled = await assembler.assembleCore(
+      jobContext,
+      job.data.personality,
+      context.configOverrides,
+      { referenceDedupNowMs: job.timestamp }
+    );
+    jobContext.referencedMessages = assembled.referencedMessages;
+    jobContext.referencedChannels = assembled.referencedChannels;
+    jobContext.mentionedPersonas = assembled.mentionedPersonas;
+    jobContext.activePersonaId = assembled.activePersonaId ?? undefined;
+    jobContext.activePersonaName = assembled.activePersonaName ?? undefined;
+    jobContext.userTimezone = assembled.userTimezone;
+    jobContext.userInternalId = assembled.userInternalId;
+    jobContext.crossChannelHistory = assembled.crossChannelHistory;
+    job.data.message = assembled.messageContent;
+
+    return assembled.history.map(m => ({
+      ...m,
+      // Normalize Date → ISO for the string-typed prompt consumers. The
+      // non-Date branch preserves undefined/string as-is (coercing undefined to
+      // the literal "undefined" would misparse downstream).
+      createdAt: m.createdAt instanceof Date ? m.createdAt.toISOString() : (m.createdAt as string | undefined),
+    }));
   }
 
   /**

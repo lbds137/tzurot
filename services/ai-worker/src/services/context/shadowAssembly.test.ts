@@ -114,6 +114,35 @@ describe('shadowAssembleAndDiff', () => {
     expect(mockLogger.warn).not.toHaveBeenCalled();
   });
 
+  it('weigh-in: null assembled persona vs omitted payload persona matches; summary carries triggerMessageId', async () => {
+    await shadowAssembleAndDiff({
+      jobId: 'j-weigh',
+      jobContext: makeJobContext({
+        isWeighIn: true,
+        triggerMessageId: 'trig-99',
+        // Weigh-in payload omits the persona (bot cleared it).
+        activePersonaId: undefined,
+        activePersonaName: undefined,
+      }),
+      personality: PERSONALITY,
+      configOverrides: undefined,
+      jobTimestampMs: undefined,
+      payloadMessage: 'hello',
+      workerTranscriptions: undefined,
+      // The assembler nulls the output persona for weigh-in.
+      assembler: makeAssembler({ activePersonaId: null, activePersonaName: null }),
+    });
+
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      expect.objectContaining({
+        allMatched: true,
+        triggerMessageId: 'trig-99',
+        matches: expect.objectContaining({ activePersonaId: true, activePersonaName: true }),
+      }),
+      expect.stringContaining('matched')
+    );
+  });
+
   it('warns with per-surface booleans when the persona diverges', async () => {
     await shadowAssembleAndDiff({
       jobId: 'j1',

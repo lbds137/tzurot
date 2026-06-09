@@ -414,7 +414,10 @@ export async function shadowAssembleAndDiff(params: ShadowAssemblyParams): Promi
 
     const matches: SurfaceMatches = {
       userInternalId: assembled.userInternalId === jobContext.userInternalId,
-      activePersonaId: assembled.activePersonaId === jobContext.activePersonaId,
+      // Weigh-in: assembler nulls the output persona; the payload omits the
+      // field (bot cleared it). Both read as "no persona" — normalize so the
+      // by-design weigh-in null doesn't poison allMatched.
+      activePersonaId: (assembled.activePersonaId ?? undefined) === jobContext.activePersonaId,
       // Payload omits the name when the resolver returned null preferredName.
       activePersonaName:
         (assembled.activePersonaName ?? undefined) === jobContext.activePersonaName,
@@ -441,6 +444,9 @@ export async function shadowAssembleAndDiff(params: ShadowAssemblyParams): Promi
 
     const summary = {
       jobId: params.jobId,
+      // Shape hint: lets a DIVERGED line be attributed to its trigger without
+      // manual log cross-referencing (a safe Discord ID, not message content).
+      triggerMessageId: jobContext.triggerMessageId,
       allMatched,
       matches,
       historyDiff: {

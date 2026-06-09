@@ -35,6 +35,17 @@ export function isShadowHydrationEnabled(env: NodeJS.ProcessEnv = process.env): 
   return env.CONTEXT_SHADOW_HYDRATION === 'true';
 }
 
+/**
+ * When true (CONTEXT_ASSEMBLY_PROMOTE=true), ContextStep builds the prompt
+ * context from the worker-side ContextAssembler (envelope-derived) instead of
+ * the bot's legacy payload fields. Additionally gated on
+ * envelope presence + an assembler being wired (see ContextStep), so an
+ * envelope-less job falls back to legacy. Reversible: flip the flag + restart.
+ */
+export function isAssemblyPromoteEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.CONTEXT_ASSEMBLY_PROMOTE === 'true';
+}
+
 interface ShadowParams {
   jobId: string | number | undefined;
   jobContext: JobContext;
