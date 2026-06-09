@@ -15,7 +15,8 @@
  */
 
 import { PGlite } from '@electric-sql/pglite';
-import { vector } from '@electric-sql/pglite/vector';
+// pglite 0.5 extracted pgvector into a standalone package; citext stays in core contrib.
+import { vector } from '@electric-sql/pglite-pgvector';
 import { citext } from '@electric-sql/pglite/contrib/citext';
 import { Redis as IORedis } from 'ioredis';
 import { readFileSync } from 'node:fs';
