@@ -38,6 +38,14 @@ updates:
         dependency-type: 'development'
         patterns:
           - '*'
+    ignore:
+      # jscpd 5.x is a fresh Rust rewrite (5.0.4 shipped 2026-06-08, v4 still
+      # maintained in parallel) that drops the `.jscpd.json` `ignore` key — only
+      # the CLI `--ignore-pattern` works — and shifts detection counts vs the JS
+      # engine. Pinned to 4.x until the CPD tooling is migrated. See the
+      # "Migrate CPD tooling to jscpd 5" entry in backlog/deferred.md.
+      - dependency-name: 'jscpd'
+        update-types: ['version-update:semver-major']
 
   # GitHub Actions workflow file dependencies — separate ecosystem.
   - package-ecosystem: 'github-actions'
