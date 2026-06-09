@@ -7,7 +7,7 @@
 
 ## Next Session Goal
 
-**Burn-in, then iii-b.** Everything pre-iii-b has shipped. Next: enable `CONTEXT_RAW_ENVELOPE` + `CONTEXT_SHADOW_HYDRATION` on dev Railway and watch `ShadowAssembly` match rates (incl. the new `sttDivergence` counter) — the go/no-go telemetry is complete across all 12 surfaces + the STT data-collection layer. Then **iii-b**: discriminated-union job payload, thin envelopes, raw participantGuildInfo, legacy fields stop shipping; then **2.5d** deletion party → PR-2p.
+**iii-b — burn-in is DONE and GREEN (2026-06-08).** Full smoke matrix ran on dev: **8 matched / 3 diverged, all explained** (results table + analysis in `backlog/active-epic.md` § "Burn-in results"). Core assembler sound across all 12 surfaces incl. cross-channel. The 2 benign diffs are Fork C attachment-timing; the 1 real finding (weigh-in) is **resolved by design** — worker's `activePersonaId=null` is correct, legacy bot path was wrong; user decision 2026-06-09: weigh-in carries null persona + no invoking-user memory (LTM already skipped). Burn-in also caught the forward-content-loss prod bug (fixed #1178, cleaned up #1181). **Next: iii-b** — discriminated-union job payload, thin envelopes, raw participantGuildInfo, legacy fields stop shipping; carry the two iii-b actions from the burn-in (weigh-in envelope null-persona + shadow special-case; shadow-log shape-hint field). Then **2.5d** deletion party → PR-2p.
 
 ## Last Session (continued) — voice ground truth shipped: pre-iii-b queue empty (2026-06-07)
 
