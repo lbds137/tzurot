@@ -13,9 +13,9 @@ import {
 import type { ContextDataSource } from '../../../../services/context/types.js';
 import {
   isShadowHydrationEnabled,
-  isAssemblyPromoteEnabled,
   shadowHydrateAndDiff,
 } from '../../../../services/context/shadowHydration.js';
+import { isAssemblyPromoteEnabled } from '../../../../services/context/contextFlags.js';
 import { shadowAssembleAndDiff } from '../../../../services/context/shadowAssembly.js';
 import type { ContextAssembler } from '../../../../services/context/ContextAssembler.js';
 import type { IPipelineStep, GenerationContext, Participant, PreparedContext } from '../types.js';
@@ -145,15 +145,7 @@ export class ContextStep implements IPipelineStep {
       throw new Error('[ContextStep] ConfigStep must run before ContextStep');
     }
 
-    // Promotion: build the prompt context from the worker-side assembler
-    // instead of the bot's legacy payload. Requires the envelope + a
-    // wired assembler — an envelope-less job (mixed deploy state) falls back to
-    // legacy. When promoted, assembleCore's throws are real job failures (its
-    // designed contract), NOT swallowed like the shadow's.
-    const promoted =
-      this.promoteEnabled &&
-      jobContext.rawAssemblyInputs !== undefined &&
-      this.contextAssembler !== undefined;
+    const promoted = this.resolvePromoted(jobContext);
 
     // The shadow validates the assembler against the legacy payload; once we
     // promote, the assembler IS the prompt, so the shadow is redundant. Run it
@@ -274,6 +266,38 @@ export class ContextStep implements IPipelineStep {
   }
 
   /**
+   * Decide whether to build the prompt from the worker-side assembler. Two
+   * ways in:
+   *  - mustAssemble: a `kind: 'envelope'` job — the producer DROPPED the legacy
+   *    fields, so there is nothing to fall back to. Assemble regardless of the
+   *    promote flag, and fail loud if no assembler is wired.
+   *  - canPromote: a TRANSITIONAL fat-envelope job (envelope present, kind still
+   *    'legacy'/absent) — gated on CONTEXT_ASSEMBLY_PROMOTE so iii-b-1's
+   *    reversibility holds for these.
+   * `kind` is read with `?? 'legacy'`: ValidationStep discards its parsed copy,
+   * so the schema default never materializes on the raw job.data.
+   */
+  private resolvePromoted(jobContext: GenerationContext['job']['data']['context']): boolean {
+    // rawAssemblyInputs presence on the mustAssemble path is guaranteed by the
+    // llmGenerationContextSchema superRefine (envelope ⇒ rawAssemblyInputs).
+    // ValidationStep parses before ContextStep runs, so a kind:'envelope' job
+    // without the inputs would already have failed the job — hence no guard
+    // here (unlike canPromote, which checks it defensively for legacy jobs).
+    const mustAssemble = (jobContext.kind ?? 'legacy') === 'envelope';
+    if (mustAssemble && this.contextAssembler === undefined) {
+      throw new Error(
+        "[ContextStep] context.kind 'envelope' requires a wired ContextAssembler; " +
+          'the producer dropped the legacy fields, so there is no fallback'
+      );
+    }
+    const canPromote =
+      this.promoteEnabled &&
+      jobContext.rawAssemblyInputs !== undefined &&
+      this.contextAssembler !== undefined;
+    return mustAssemble || canPromote;
+  }
+
+  /**
    * Source the prompt's conversation history. In promoted mode the
    * worker-assembled context replaces the bot's legacy payload: `historyEntries`
    * comes from the assembler (createdAt normalized Date → ISO for the
@@ -314,12 +338,31 @@ export class ContextStep implements IPipelineStep {
     jobContext.crossChannelHistory = assembled.crossChannelHistory;
     job.data.message = assembled.messageContent;
 
+    // Permanent observability: which path drove this prompt. Counts + kind
+    // only — NO content/PII (per the no-PII logging rule). Without this, the
+    // promoted path is silent and "did the assembler run?" can only be answered
+    // by archaeology through the prisma query log.
+    logger.info(
+      {
+        jobId: job.id,
+        kind: jobContext.kind ?? 'legacy',
+        historyLength: assembled.history.length,
+        referencedCount: assembled.referencedMessages?.length ?? 0,
+        mentionedCount: assembled.mentionedPersonas?.length ?? 0,
+        crossChannelGroups: assembled.crossChannelHistory?.length ?? 0,
+      },
+      'Context assembled via promoted path'
+    );
+
     return assembled.history.map(m => ({
       ...m,
       // Normalize Date → ISO for the string-typed prompt consumers. The
       // non-Date branch preserves undefined/string as-is (coercing undefined to
       // the literal "undefined" would misparse downstream).
-      createdAt: m.createdAt instanceof Date ? m.createdAt.toISOString() : (m.createdAt as string | undefined),
+      createdAt:
+        m.createdAt instanceof Date
+          ? m.createdAt.toISOString()
+          : (m.createdAt as string | undefined),
     }));
   }
 

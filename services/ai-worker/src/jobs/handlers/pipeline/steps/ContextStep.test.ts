@@ -54,6 +54,8 @@ vi.mock('../../../../services/context/shadowAssembly.js', () => ({
 vi.mock('../../../../services/context/shadowHydration.js', () => ({
   shadowHydrateAndDiff: mockShadowHydrateAndDiff,
   isShadowHydrationEnabled: mockIsShadowHydrationEnabled,
+}));
+vi.mock('../../../../services/context/contextFlags.js', () => ({
   isAssemblyPromoteEnabled: mockIsAssemblyPromoteEnabled,
 }));
 
@@ -112,7 +114,7 @@ describe('ContextStep', () => {
     mockConvertConversationHistory.mockReturnValue([]);
   });
 
-  it('should have correct name', async () => {
+  it('should have correct name', () => {
     expect(step.name).toBe('ContextPreparation');
   });
 
@@ -330,9 +332,137 @@ describe('ContextStep', () => {
         context: { userId: 'u', rawAssemblyInputs: { rawMessageContent: 'raw' } } as never,
       });
 
-      await expect(
-        promoteStep.process({ job, startTime: Date.now(), config })
-      ).rejects.toThrow('assembler boom');
+      await expect(promoteStep.process({ job, startTime: Date.now(), config })).rejects.toThrow(
+        'assembler boom'
+      );
+    });
+
+    it('flows a non-undefined assembler crossChannelHistory through to preparedContext', async () => {
+      mockIsAssemblyPromoteEnabled.mockReturnValue(true);
+      const crossChannelHistory = [
+        {
+          channelEnvironment: {
+            type: 'dm' as const,
+            channel: { id: 'dm-1', name: 'DM', type: 'dm' },
+          },
+          messages: [
+            {
+              id: 'msg-cross-1',
+              role: MessageRole.User,
+              content: 'DM message',
+              createdAt: '2024-01-01T08:00:00Z',
+              personaName: 'Alice',
+              tokenCount: 5,
+            },
+          ],
+        },
+      ];
+      const assembled = makeAssembled({ crossChannelHistory });
+      const fakeAssembler = { assembleCore: vi.fn().mockResolvedValue(assembled) };
+      const promoteStep = new ContextStep(fakeDataSource, fakeAssembler as never);
+      const job = createMockJob({
+        context: { userId: 'u', rawAssemblyInputs: { rawMessageContent: 'raw' } } as never,
+      });
+
+      const result = await promoteStep.process({ job, startTime: Date.now(), config });
+
+      expect(job.data.context.crossChannelHistory).toBe(crossChannelHistory);
+      expect(result.preparedContext?.crossChannelHistory).toHaveLength(1);
+    });
+
+    it("assembles a kind:'envelope' job even when the promote flag is OFF", async () => {
+      mockIsAssemblyPromoteEnabled.mockReturnValue(false);
+      const fakeAssembler = { assembleCore: vi.fn().mockResolvedValue(makeAssembled()) };
+      const promoteStep = new ContextStep(fakeDataSource, fakeAssembler as never);
+      const job = createMockJob({
+        context: {
+          kind: 'envelope',
+          userId: 'u',
+          rawAssemblyInputs: { rawMessageContent: 'raw' },
+        } as never,
+      });
+
+      await promoteStep.process({ job, startTime: Date.now(), config });
+
+      expect(fakeAssembler.assembleCore).toHaveBeenCalled();
+    });
+
+    it("throws on a kind:'envelope' job when no assembler is wired (no legacy fallback)", async () => {
+      mockIsAssemblyPromoteEnabled.mockReturnValue(false);
+      const noAssemblerStep = new ContextStep(fakeDataSource);
+      const job = createMockJob({
+        context: {
+          kind: 'envelope',
+          userId: 'u',
+          rawAssemblyInputs: { rawMessageContent: 'raw' },
+        } as never,
+      });
+
+      await expect(noAssemblerStep.process({ job, startTime: Date.now(), config })).rejects.toThrow(
+        'requires a wired ContextAssembler'
+      );
+    });
+
+    it('logs the promoted path with counts only (no content)', async () => {
+      mockIsAssemblyPromoteEnabled.mockReturnValue(true);
+      const fakeAssembler = { assembleCore: vi.fn().mockResolvedValue(makeAssembled()) };
+      const promoteStep = new ContextStep(fakeDataSource, fakeAssembler as never);
+      const job = createMockJob({
+        context: { userId: 'u', rawAssemblyInputs: { rawMessageContent: 'raw' } } as never,
+      });
+
+      await promoteStep.process({ job, startTime: Date.now(), config });
+
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          historyLength: 1,
+          referencedCount: 1,
+          mentionedCount: 1,
+          crossChannelGroups: 0,
+        }),
+        'Context assembled via promoted path'
+      );
+    });
+
+    it("logs kind:'envelope' when the job carries that discriminant", async () => {
+      mockIsAssemblyPromoteEnabled.mockReturnValue(false); // mustAssemble path, promote off
+      const fakeAssembler = { assembleCore: vi.fn().mockResolvedValue(makeAssembled()) };
+      const promoteStep = new ContextStep(fakeDataSource, fakeAssembler as never);
+      const job = createMockJob({
+        context: {
+          kind: 'envelope',
+          userId: 'u',
+          rawAssemblyInputs: { rawMessageContent: 'raw' },
+        } as never,
+      });
+
+      await promoteStep.process({ job, startTime: Date.now(), config });
+
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: 'envelope' }),
+        'Context assembled via promoted path'
+      );
+    });
+
+    it('logs zero counts when the assembler returns undefined ref/mention/cross-channel surfaces', async () => {
+      mockIsAssemblyPromoteEnabled.mockReturnValue(true);
+      const assembled = makeAssembled({
+        referencedMessages: undefined,
+        mentionedPersonas: undefined,
+        crossChannelHistory: undefined,
+      });
+      const fakeAssembler = { assembleCore: vi.fn().mockResolvedValue(assembled) };
+      const promoteStep = new ContextStep(fakeDataSource, fakeAssembler as never);
+      const job = createMockJob({
+        context: { userId: 'u', rawAssemblyInputs: { rawMessageContent: 'raw' } } as never,
+      });
+
+      await promoteStep.process({ job, startTime: Date.now(), config });
+
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({ referencedCount: 0, mentionedCount: 0, crossChannelGroups: 0 }),
+        'Context assembled via promoted path'
+      );
     });
   });
 
