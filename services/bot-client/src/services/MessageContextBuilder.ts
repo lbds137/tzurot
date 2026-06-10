@@ -26,6 +26,7 @@ import { extractDiscordEnvironment } from '../utils/discordContext.js';
 import { buildMessageContent } from '../utils/MessageContentBuilder.js';
 import { getThreadParentId } from '../utils/discordChannelTypes.js';
 import { hasVoiceAttachments } from '../utils/forwardedMessageUtils.js';
+import { selectContextVariant } from './contextBuilder/contextVariant.js';
 import { MentionResolver } from './MentionResolver.js';
 import { DiscordChannelFetcher, type FetchableChannel } from './DiscordChannelFetcher.js';
 import { deriveBotSuffix } from '../utils/webhookNaming.js';
@@ -506,12 +507,24 @@ export class MessageContextBuilder {
       rawAuthorDisplayName: displayName,
     });
 
+    // Thin payload: kind:'envelope' omits the four fields the worker
+    // re-derives from rawAssemblyInputs; legacy keeps them. rawAssemblyInputs is
+    // undefined unless CONTEXT_RAW_ENVELOPE=true, so its presence is the
+    // envelope-enabled signal. See selectContextVariant.
+    const variant = selectContextVariant({
+      hasRawEnvelope: rawAssemblyInputs !== undefined,
+      fields: { conversationHistory, referencedMessages, mentionedPersonas, referencedChannels },
+      logger,
+      channelId: message.channel.id,
+    });
+
     // Build complete context
     // Note: userId is the Discord ID (for BYOK resolution)
     // userInternalId is the internal UUID (for usage logging and database operations)
     // discordUsername is used for disambiguation when persona name matches personality name
     // effectiveUser is either overrideUser (slash commands) or message.author (@mentions)
     const context: MessageContext = {
+      ...variant, // kind + the re-derivable fields (legacy) or just kind (envelope)
       userId: discordUserId,
       userInternalId: internalUserId,
       userName: effectiveUser.username,
@@ -523,14 +536,10 @@ export class MessageContextBuilder {
       activePersonaId: personaId,
       activePersonaName: personaName ?? undefined,
       activePersonaGuildInfo: guildMemberInfo, // Guild-specific info (roles, color, join date)
-      participantGuildInfo, // Guild info for other participants (from extended context)
-      conversationHistory,
+      participantGuildInfo, // Guild info for other participants (from extended context) — KEPT (assembler can't re-derive yet)
       attachments,
-      extendedContextAttachments, // Images from extended context (limited by maxImages)
+      extendedContextAttachments, // Images from extended context — KEPT (no envelope source yet)
       environment,
-      referencedMessages: referencedMessages.length > 0 ? referencedMessages : undefined,
-      mentionedPersonas,
-      referencedChannels,
       crossChannelHistory:
         crossChannelGroups !== undefined
           ? mapCrossChannelToApiFormat(crossChannelGroups)

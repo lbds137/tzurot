@@ -15,6 +15,7 @@ vi.mock('./gatewayClients.js', () => ({
 import {
   isContextDualWriteEnabled,
   isRawEnvelopeEnabled,
+  isThinPayloadEnabled,
   dualWritePersistAssistantMessage,
   dualWritePersistUserMessage,
   dualWriteConversationSync,
@@ -166,6 +167,14 @@ describe('isRawEnvelopeEnabled', () => {
     expect(isRawEnvelopeEnabled({ CONTEXT_RAW_ENVELOPE: 'true' } as NodeJS.ProcessEnv)).toBe(true);
     expect(isRawEnvelopeEnabled({ CONTEXT_RAW_ENVELOPE: '1' } as NodeJS.ProcessEnv)).toBe(false);
     expect(isRawEnvelopeEnabled({} as NodeJS.ProcessEnv)).toBe(false);
+  });
+});
+
+describe('isThinPayloadEnabled', () => {
+  it('is enabled only by the exact string "true"', () => {
+    expect(isThinPayloadEnabled({ CONTEXT_THIN_PAYLOAD: 'true' } as NodeJS.ProcessEnv)).toBe(true);
+    expect(isThinPayloadEnabled({ CONTEXT_THIN_PAYLOAD: '1' } as NodeJS.ProcessEnv)).toBe(false);
+    expect(isThinPayloadEnabled({} as NodeJS.ProcessEnv)).toBe(false);
   });
 });
 

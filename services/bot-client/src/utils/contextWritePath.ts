@@ -47,6 +47,22 @@ export function isRawEnvelopeEnabled(env: NodeJS.ProcessEnv = process.env): bool
   return env.CONTEXT_RAW_ENVELOPE === 'true';
 }
 
+/**
+ * When true (and the raw envelope is also enabled), bot-client ships a THIN
+ * context payload: it stamps `context.kind = 'envelope'` and OMITS the four
+ * fields the worker now re-derives from `rawAssemblyInputs`
+ * (conversationHistory, referencedMessages, mentionedPersonas,
+ * referencedChannels). The worker MUST assemble for envelope-kind jobs.
+ *
+ * Gated on `isRawEnvelopeEnabled` at the call site — going thin without the
+ * envelope would ship a kind:'envelope' payload the worker can't assemble (the
+ * gateway schema's superRefine rejects it). Default off; flip on only AFTER the
+ * worker that understands `kind` is deployed. Rollback = flag off + restart.
+ */
+export function isThinPayloadEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.CONTEXT_THIN_PAYLOAD === 'true';
+}
+
 interface AssistantMessageWriteParams {
   channelId: string;
   guildId: string | null;
