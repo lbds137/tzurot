@@ -172,6 +172,15 @@ export const guildMemberInfoSchema = z.object({
  * Includes all contextual information about a message
  */
 export const requestContextSchema = z.object({
+  // Context-payload variant. 'envelope' means the producer omitted the
+  // re-derivable legacy fields (conversationHistory, referencedMessages,
+  // mentionedPersonas, referencedChannels) and the worker MUST assemble them
+  // from rawAssemblyInputs. Optional here (kept off the inferred type's
+  // required set so existing RequestContext construction sites don't all need
+  // it); absent is treated as legacy by consumers (worker reads `?? 'legacy'`,
+  // jobContextBaseSchema defaults it). The envelope-requires-rawAssemblyInputs
+  // invariant is enforced at the job-schema layer (llmGenerationContextSchema).
+  kind: z.enum(['legacy', 'envelope']).optional(),
   userId: z.string(), // Discord ID (for BYOK API key resolution)
   userInternalId: z.string().optional(), // Internal UUID (for usage logging)
   userName: z.string().optional(),

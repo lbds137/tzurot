@@ -53,6 +53,19 @@ export interface JobDependency {
  * Job context shared across all job types
  */
 export interface JobContext {
+  /**
+   * Context-payload variant discriminant. `'envelope'` means the producer
+   * (bot-client) omitted the re-derivable legacy fields (conversationHistory,
+   * referencedMessages, mentionedPersonas, referencedChannels) and the worker
+   * MUST assemble them from `rawAssemblyInputs`. `'legacy'` (the default for
+   * absent — i.e. in-flight jobs from an older bot) means the legacy fields are
+   * authoritative. See jobContextBaseSchema.
+   *
+   * Optional here but `.default('legacy')` on the schema — intentional:
+   * ValidationStep discards its parsed copy, so the default never materializes
+   * on raw `job.data`; consumers read `kind ?? 'legacy'`.
+   */
+  kind?: 'legacy' | 'envelope';
   userId: string;
   userInternalId?: string;
   userName?: string;
@@ -329,7 +342,17 @@ const jobDependencySchema = z.object({
  * Job Context Schema
  * Shared context across all job types
  */
-const jobContextSchema = z.object({
+const jobContextBaseSchema = z.object({
+  /**
+   * Context-payload variant. `.default('legacy')` makes an absent discriminant
+   * (in-flight jobs from an older bot) parse as legacy — which is why this is a
+   * plain enum field, NOT a z.discriminatedUnion (a union would reject the
+   * absent discriminant and fail every old-bot job the moment the new worker
+   * deploys). The envelope-requires-rawAssemblyInputs invariant is enforced by
+   * the LLM context schema's superRefine, not here, so the audio/image schemas
+   * can still `.pick()` from this base.
+   */
+  kind: z.enum(['legacy', 'envelope']).default('legacy'),
   userId: z.string(),
   userInternalId: z.string().optional(),
   userName: z.string().optional(),
@@ -351,9 +374,30 @@ const jobContextSchema = z.object({
   referencedMessages: z.array(referencedMessageSchema).optional(),
   mentionedPersonas: z.array(mentionedPersonaSchema).optional(),
   referencedChannels: z.array(referencedChannelSchema).optional(),
+  /** Weigh-in mode: anonymous poke, skip LTM retrieval and storage. */
+  isWeighIn: z.boolean().optional(),
   crossChannelHistory: z.array(crossChannelHistoryGroupSchema).optional(),
   isVoiceMessage: z.boolean().optional(),
   rawAssemblyInputs: rawAssemblyInputsSchema.optional(),
+});
+
+/**
+ * LLM-generation context schema: the base plus the envelope invariant. A
+ * `kind: 'envelope'` payload MUST carry `rawAssemblyInputs` (the worker has no
+ * legacy fields to fall back to), enforced here so a malformed thin payload
+ * fails loud at both the gateway enqueue and the worker's ValidationStep.
+ *
+ * superRefine (→ ZodEffects) is applied ONLY here, not on the base, so the
+ * audio/image schemas can still `.pick()` from jobContextBaseSchema.
+ */
+const llmGenerationContextSchema = jobContextBaseSchema.superRefine((data, ctx) => {
+  if (data.kind === 'envelope' && data.rawAssemblyInputs === undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['rawAssemblyInputs'],
+      message: "context.kind 'envelope' requires rawAssemblyInputs",
+    });
+  }
 });
 
 /**
@@ -376,7 +420,7 @@ const baseJobDataSchema = z.object({
 export const audioTranscriptionJobDataSchema = baseJobDataSchema.extend({
   jobType: z.literal(JobType.AudioTranscription),
   attachment: attachmentMetadataSchema,
-  context: jobContextSchema.pick({ userId: true, channelId: true }),
+  context: jobContextBaseSchema.pick({ userId: true, channelId: true }),
   sourceReferenceNumber: z.number().optional(),
 });
 
@@ -390,7 +434,7 @@ export const imageDescriptionJobDataSchema = baseJobDataSchema.extend({
     .array(attachmentMetadataSchema)
     .min(1, 'At least one image attachment is required'),
   personality: loadedPersonalitySchema,
-  context: jobContextSchema.pick({ userId: true, channelId: true }),
+  context: jobContextBaseSchema.pick({ userId: true, channelId: true }),
   sourceReferenceNumber: z.number().optional(),
 });
 
@@ -402,7 +446,7 @@ export const llmGenerationJobDataSchema = baseJobDataSchema.extend({
   jobType: z.literal(JobType.LLMGeneration),
   personality: loadedPersonalitySchema,
   message: z.union([z.string(), z.object({}).passthrough()]),
-  context: jobContextSchema,
+  context: llmGenerationContextSchema,
   dependencies: z.array(jobDependencySchema).optional(),
   /**
    * Preprocessed attachments from dependency jobs

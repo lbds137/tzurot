@@ -443,6 +443,88 @@ describe('BullMQ Job Contract Tests', () => {
     });
   });
 
+  describe('Context kind discriminant + envelope invariant', () => {
+    // Pure builder — each test owns its data; no shared mutable state.
+    const buildLlmJob = (context: Record<string, unknown>): Record<string, unknown> => ({
+      requestId: 'req-kind',
+      jobType: JobType.LLMGeneration,
+      responseDestination: { type: 'discord', channelId: 'channel-123' },
+      personality: {
+        id: 'personality-123',
+        name: 'TestPersonality',
+        displayName: 'Test Personality',
+        slug: 'test',
+        ownerId: 'owner-uuid-test',
+        systemPrompt: 'You are a helpful assistant',
+        model: 'gpt-4',
+        provider: 'openrouter',
+        temperature: 0.7,
+        maxTokens: 2000,
+        contextWindowTokens: 8192,
+        characterInfo: 'A helpful test personality',
+        personalityTraits: 'Helpful, friendly',
+        voiceEnabled: false,
+      },
+      message: 'Hello, world!',
+      context,
+    });
+
+    const minimalRawAssemblyInputs = { rawMessageContent: 'hello' };
+
+    it("defaults an absent kind to 'legacy' (in-flight old-bot jobs)", () => {
+      const result = llmGenerationJobDataSchema.safeParse(buildLlmJob({ userId: 'user-123' }));
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.context.kind).toBe('legacy');
+      }
+    });
+
+    it('accepts a legacy-kind context carrying the re-derivable fields', () => {
+      const result = llmGenerationJobDataSchema.safeParse(
+        buildLlmJob({
+          kind: 'legacy',
+          userId: 'user-123',
+          conversationHistory: [],
+          referencedMessages: [],
+          mentionedPersonas: [],
+          referencedChannels: [],
+        })
+      );
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts an envelope-kind context with rawAssemblyInputs and without the 4 fields', () => {
+      const result = llmGenerationJobDataSchema.safeParse(
+        buildLlmJob({
+          kind: 'envelope',
+          userId: 'user-123',
+          rawAssemblyInputs: minimalRawAssemblyInputs,
+        })
+      );
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects an envelope-kind context missing rawAssemblyInputs (superRefine invariant)', () => {
+      const result = llmGenerationJobDataSchema.safeParse(
+        buildLlmJob({ kind: 'envelope', userId: 'user-123' })
+      );
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues.some(i => i.path.includes('rawAssemblyInputs'))).toBe(true);
+      }
+    });
+
+    it('preserves isWeighIn through validation (regression guard for the prior schema drift)', () => {
+      const result = llmGenerationJobDataSchema.safeParse(
+        buildLlmJob({ userId: 'user-123', isWeighIn: true })
+      );
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.context.isWeighIn).toBe(true);
+      }
+    });
+  });
+
   describe('Discriminated Union Schema', () => {
     it('should correctly discriminate audio transcription jobs', () => {
       const audioJob = {
