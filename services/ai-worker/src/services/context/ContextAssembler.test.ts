@@ -77,7 +77,7 @@ describe('ContextAssembler.assembleCore', () => {
     ).rejects.toThrow('channelId missing');
   });
 
-  it('weigh-in: nulls the output persona but still resolves the persona-scoped epoch', async () => {
+  it('weigh-in: nulls the output persona AND applies no context-epoch cutoff', async () => {
     const epoch = new Date('2026-05-01T00:00:00Z');
     const deps = makeDeps({
       dataSource: { getContextEpoch: vi.fn().mockResolvedValue(epoch) },
@@ -93,11 +93,13 @@ describe('ContextAssembler.assembleCore', () => {
     // Output persona is nulled for the anonymous poke...
     expect(core.activePersonaId).toBeNull();
     expect(core.activePersonaName).toBeNull();
-    // ...but the persona IS still resolved and used for the epoch lookup, so
-    // history filtering matches the bot (which clears the persona only AFTER
-    // resolving the persona-keyed epoch).
+    // ...and the persona-scoped STM-reset epoch is NOT applied: weigh-in is a
+    // channel-scoped summon, so one user's personal /conversation reset must
+    // not bound the shared channel history. The lookup is skipped entirely
+    // (not just discarded) — no wasted query, no cutoff.
     expect(deps.personaResolver.resolve).toHaveBeenCalledWith('123456789012345678', 'pers-1');
-    expect(deps.dataSource.getContextEpoch).toHaveBeenCalledWith('internal-1', 'pers-1', 'persona-1');
+    expect(deps.dataSource.getContextEpoch).not.toHaveBeenCalled();
+    expect(core.contextEpoch).toBeUndefined();
   });
 
   it('assembles the core surfaces: upsert, persona, timezone, epoch, history', async () => {

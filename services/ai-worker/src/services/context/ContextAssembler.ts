@@ -159,9 +159,13 @@ export class ContextAssembler {
       throw new Error('[ContextAssembler] getOrCreateUser returned null (bot author?)');
     }
     // Step 2: persona + timezone + context epoch. Weigh-in nulls the OUTPUT
-    // persona but the epoch still uses the resolved persona (see helper).
-    const { activePersonaId, activePersonaName, contextEpoch } =
-      await this.resolvePersonaContext(jobContext, personality.id, user.userId);
+    // persona AND skips the epoch — a channel-scoped summon must not be bound
+    // by the invoking user's persona-scoped STM reset (see helper).
+    const { activePersonaId, activePersonaName, contextEpoch } = await this.resolvePersonaContext(
+      jobContext,
+      personality.id,
+      user.userId
+    );
     const userTimezone = await this.deps.dataSource.getUserTimezone(user.userId);
 
     // Step 3: hydrate channel history — same limit derivation as the
@@ -236,13 +240,18 @@ export class ContextAssembler {
   }
 
   /**
-   * Resolve the persona and its context epoch. Weigh-in is an anonymous poke:
-   * the prompt must carry NO invoking-user persona, so the OUTPUT persona goes
-   * null — mirroring the bot, which clears it in chat.ts adjustContextForWeighIn.
-   * Crucially the bot clears it AFTER resolving the epoch, and the epoch is
-   * keyed on the persona (lookupContextEpoch), so we keep using the resolved
-   * persona for the epoch lookup (and thus history filtering) — only the output
-   * goes null. Memory read/write skip is gated separately by isWeighIn.
+   * Resolve the persona and its context epoch. Weigh-in is an anonymous,
+   * channel-scoped summon: the prompt must carry NO invoking-user persona, so
+   * the OUTPUT persona goes null (mirroring the bot, which clears it in
+   * chat.ts adjustContextForWeighIn). It must ALSO carry no context-epoch
+   * cutoff — the epoch is the invoking user's persona-scoped STM-reset
+   * (`/conversation reset`), which is the wrong granularity to bound a SHARED
+   * channel the personality is asked to comment on. A recent personal reset
+   * would otherwise silently truncate the channel history; there is no coarser
+   * channel/server epoch to fall back to, so weigh-in applies none (maxAge is
+   * the only bound). The persona is still resolved (its cache-populating read
+   * is harmless), but its epoch lookup is skipped. Memory read/write skip is
+   * gated separately by isWeighIn.
    */
   private async resolvePersonaContext(
     jobContext: JobContext,
@@ -255,12 +264,14 @@ export class ContextAssembler {
   }> {
     const personaResult = await this.deps.personaResolver.resolve(jobContext.userId, personalityId);
     const resolvedPersonaId = personaResult.config.personaId;
-    const contextEpoch = await this.deps.dataSource.getContextEpoch(
-      internalUserId,
-      personalityId,
-      resolvedPersonaId
-    );
     const isWeighIn = jobContext.isWeighIn === true;
+    const contextEpoch = isWeighIn
+      ? undefined
+      : await this.deps.dataSource.getContextEpoch(
+          internalUserId,
+          personalityId,
+          resolvedPersonaId
+        );
     return {
       activePersonaId: isWeighIn ? null : resolvedPersonaId,
       activePersonaName: isWeighIn ? null : personaResult.config.preferredName,
