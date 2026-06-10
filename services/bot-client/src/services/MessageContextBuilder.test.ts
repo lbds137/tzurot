@@ -822,6 +822,46 @@ describe('MessageContextBuilder', () => {
       );
     });
 
+    it('should NOT apply the per-user epoch in weigh-in mode even when one is set', async () => {
+      const contextEpoch = new Date('2025-01-15T12:00:00Z');
+
+      // The invoking user HAS a recent STM reset...
+      vi.mocked(mockPrisma.userPersonaHistoryConfig.findUnique).mockResolvedValue({
+        lastContextReset: contextEpoch,
+      } as any);
+
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
+        userId: 'user-uuid-123',
+        defaultPersonaId: 'test-persona-id',
+      });
+      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
+      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
+      mockExtractReferencesWithReplacement.mockResolvedValue({
+        references: [],
+        updatedContent: 'Weigh in',
+      });
+      mockResolveAllMentions.mockResolvedValue({
+        processedContent: 'Weigh in',
+        mentionedUsers: [],
+        mentionedChannels: [],
+        mentionedRoles: [],
+      });
+
+      await builder.buildContext(mockMessage, mockPersonality, 'Weigh in', {
+        isWeighInMode: true,
+      });
+
+      // ...but weigh-in is a channel-scoped anonymous summon, so that private
+      // reset must not bound the shared channel history. The epoch is dropped
+      // (undefined), not passed through.
+      expect(mockHistoryService.getChannelHistory).toHaveBeenCalledWith(
+        'channel-123',
+        50,
+        undefined,
+        undefined
+      );
+    });
+
     it('should not apply epoch filter when user has not cleared history', async () => {
       // No epoch set (default mock returns null)
       vi.mocked(mockPrisma.userPersonaHistoryConfig.findUnique).mockResolvedValue(null);
