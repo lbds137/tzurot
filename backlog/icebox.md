@@ -351,3 +351,11 @@ Surfaced 2026-04-23.
 
 **Why deferred**: a half-understood pgvector migration doesn't belong in a routine dep-bump PR; needs deliberate investigation. No urgency — 0.4.6 works. **Promote when**: pgvector-on-pglite behavior needs a 0.5-only fix/feature, OR opportunistically when doing a test-infra pass. Surfaced 2026-06-03 via dependabot #1136 / PR #1144.
 
+#### `[FEAT]` Channel/server-level context-reset epoch
+
+**Problem**: the context-reset epoch (`user_persona_history_configs.last_context_reset`, the `/conversation reset` / STM-reset point) is strictly scoped to a single `(user, personality, persona)` triple. There is no notion of resetting context at a **channel** or **server** level. This surfaced via the weigh-in epoch bug (2026-06-09): weigh-in is a channel-scoped anonymous summon, so the only correct behavior was to apply _no_ epoch cutoff at all — because the per-user persona epoch is the wrong granularity for a shared-channel operation, and nothing coarser exists. The same gap means there's no way to say "clear what every personality sees of this channel from here forward."
+
+**Action**: design a channel/server-scoped reset-epoch concept that history fetches can honor alongside (or instead of) the per-user persona epoch. Likely needs a new table keyed on `(channelId)` / `(guildId)` (+ optional personality scope), a resolution rule for combining multiple applicable epochs (the existing `historyCutoff.ts` already takes the _latest_ of maxAge + persona epoch — a channel epoch would be a third input), and a user-facing command to set it. Weigh-in would then honor a channel-level reset while still ignoring any individual user's personal STM reset.
+
+**Why icebox (not a quick win)**: this is an architectural addition, not a tweak — new schema, new cascade-resolution semantics in `historyCutoff.ts`, a new command surface, and a migration. The weigh-in bug is fixed independently (epoch → `undefined` for weigh-in); this item is the _generalization_, only worth doing if channel/server-level reset becomes a real user need. **Promote when**: a user asks for channel/server-wide context reset, OR a second channel-scoped operation needs an epoch and the "no coarse epoch exists" gap bites again. Surfaced 2026-06-09 (user) during the weigh-in epoch-semantics fix.
+
