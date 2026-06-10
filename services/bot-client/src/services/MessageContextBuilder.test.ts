@@ -296,6 +296,83 @@ describe('MessageContextBuilder', () => {
       }
     });
 
+    it("ships a thin kind:'envelope' payload (omits the 4 re-derivable fields) when CONTEXT_THIN_PAYLOAD=true", async () => {
+      process.env.CONTEXT_RAW_ENVELOPE = 'true';
+      process.env.CONTEXT_THIN_PAYLOAD = 'true';
+      try {
+        vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
+          userId: 'user-uuid-123',
+          defaultPersonaId: 'test-persona-id',
+        });
+        // A non-empty history row proves conversationHistory is OMITTED on
+        // thin (the worker re-derives it), not merely empty.
+        vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([
+          {
+            id: 'h1',
+            role: MessageRole.User,
+            content: 'prior',
+            createdAt: new Date('2026-01-01T00:00:00Z'),
+            personaId: 'p1',
+          },
+        ] as never);
+        mockExtractReferencesWithReplacement.mockResolvedValue({
+          references: [],
+          updatedContent: 'REWRITTEN content',
+        });
+        mockResolveAllMentions.mockResolvedValue({
+          processedContent: 'REWRITTEN content',
+          mentionedUsers: [],
+          mentionedChannels: [],
+          mentionedRoles: [],
+        });
+
+        const result = await builder.buildContext(mockMessage, mockPersonality, 'raw content');
+
+        expect(result.context.kind).toBe('envelope');
+        // The four re-derivable fields are omitted; the worker assembles them.
+        expect(result.context.conversationHistory).toBeUndefined();
+        expect(result.context.referencedMessages).toBeUndefined();
+        expect(result.context.mentionedPersonas).toBeUndefined();
+        expect(result.context.referencedChannels).toBeUndefined();
+        // The envelope itself still ships (the worker's only input now).
+        expect(result.context.rawAssemblyInputs).toBeDefined();
+      } finally {
+        delete process.env.CONTEXT_RAW_ENVELOPE;
+        delete process.env.CONTEXT_THIN_PAYLOAD;
+      }
+    });
+
+    it("ships a fat kind:'legacy' payload when thin is on but the envelope is off (misconfig fallback)", async () => {
+      process.env.CONTEXT_THIN_PAYLOAD = 'true';
+      // CONTEXT_RAW_ENVELOPE intentionally NOT set → no rawAssemblyInputs.
+      try {
+        vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
+          userId: 'user-uuid-123',
+          defaultPersonaId: 'test-persona-id',
+        });
+        vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
+        mockExtractReferencesWithReplacement.mockResolvedValue({
+          references: [],
+          updatedContent: 'content',
+        });
+        mockResolveAllMentions.mockResolvedValue({
+          processedContent: 'content',
+          mentionedUsers: [],
+          mentionedChannels: [],
+          mentionedRoles: [],
+        });
+
+        const result = await builder.buildContext(mockMessage, mockPersonality, 'content');
+
+        // Thin requires the envelope; without it we fall back to legacy.
+        expect(result.context.kind).toBe('legacy');
+        expect(result.context.rawAssemblyInputs).toBeUndefined();
+        expect(result.context.conversationHistory).toBeDefined();
+      } finally {
+        delete process.env.CONTEXT_THIN_PAYLOAD;
+      }
+    });
+
     it('should build complete context with user lookup and history', async () => {
       // Setup mocks
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
