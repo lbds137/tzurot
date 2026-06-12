@@ -260,6 +260,14 @@ export interface BudgetAllocationOptions {
    * by changing the context window.
    */
   historyReductionPercent?: number;
+  /**
+   * The input-token budget for this generation: the configured
+   * contextWindowTokens clamped to the model's real limit when known
+   * (see contextWindowResolver.ts).
+   * Required so the budget can never silently fall back to a window
+   * larger than the model supports.
+   */
+  effectiveContextWindowTokens: number;
 }
 
 /**

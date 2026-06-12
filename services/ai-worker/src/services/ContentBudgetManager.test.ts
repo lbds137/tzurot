@@ -80,6 +80,7 @@ describe('ContentBudgetManager', () => {
       userMessage: 'Hello, how are you?',
       processedAttachments: [],
       referencedMessagesDescriptions: undefined,
+      effectiveContextWindowTokens: 8000,
     });
 
     it('should return budget allocation result with all required fields', () => {
@@ -116,15 +117,20 @@ describe('ContentBudgetManager', () => {
       );
     });
 
-    it('should use default context window tokens when not specified', () => {
+    it('should budget against the effective context window, not the personality setting', () => {
       const options = createBaseOptions();
-      // Force undefined to test the fallback behavior (use as never to bypass type check)
-      options.personality = { ...mockPersonality, contextWindowTokens: undefined as never };
+      // Personality says 8000 but the caller-resolved effective window (e.g.,
+      // clamped to the model's real limit) is what must drive the budget
+      options.effectiveContextWindowTokens = 6000;
 
       budgetManager.allocate(options);
 
-      // Should use AI_DEFAULTS.CONTEXT_WINDOW_TOKENS (128000)
-      expect(mockContextWindowManager.calculateMemoryBudget).toHaveBeenCalled();
+      expect(mockContextWindowManager.calculateMemoryBudget).toHaveBeenCalledWith(
+        6000,
+        expect.any(Number),
+        expect.any(Number),
+        expect.any(Number)
+      );
     });
 
     it('should select memories within budget', () => {

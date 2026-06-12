@@ -10,6 +10,7 @@ import { resolveFinishReason, type LoadedPersonality } from '@tzurot/common-type
 import { inferNonXmlStop } from '../StopSequenceTracker.js';
 import { hasThinkingBlocks } from '../../utils/thinkingExtraction.js';
 import type { LlmResponseData } from './DiagnosticTypes.js';
+import type { BudgetAllocationResult, MemoryDocument } from '../ConversationalRAGTypes.js';
 
 /** Parsed response metadata from LangChain's AIMessage */
 export interface ParsedResponseMetadata {
@@ -154,6 +155,36 @@ function buildReasoningDebug(
     apiMessageKeys: openrouter?.apiMessageKeys,
     apiReasoningLength: openrouter?.apiReasoningLength,
   };
+}
+
+/** Options for recordBudgetDiagnostics */
+interface BudgetDiagnosticOptions {
+  collector: DiagnosticCollector;
+  retrievedMemories: MemoryDocument[];
+  focusModeEnabled: boolean;
+  budgetResult: BudgetAllocationResult;
+  /** The effective (model-clamped) context window the budget ran against */
+  contextWindowSize: number;
+  countTokens: (text: string) => number;
+}
+
+/** Record memory retrieval and token budget allocation to the diagnostic collector */
+export function recordBudgetDiagnostics(opts: BudgetDiagnosticOptions): void {
+  const { collector, retrievedMemories, focusModeEnabled, budgetResult, contextWindowSize } = opts;
+  collector.recordMemoryRetrieval({
+    retrievedMemories,
+    selectedMemories: budgetResult.relevantMemories,
+    focusModeEnabled,
+  });
+  collector.recordTokenBudget({
+    contextWindowSize,
+    systemPromptTokens: opts.countTokens(budgetResult.systemPrompt.content as string),
+    memoryTokensUsed: budgetResult.memoryTokensUsed,
+    historyTokensUsed: budgetResult.historyTokensUsed,
+    memoriesDropped: budgetResult.memoriesDroppedCount,
+    historyMessagesDropped: budgetResult.messagesDropped,
+    crossChannelMessagesIncluded: budgetResult.crossChannelMessagesIncluded,
+  });
 }
 
 /** Record the LLM response to the diagnostic collector */

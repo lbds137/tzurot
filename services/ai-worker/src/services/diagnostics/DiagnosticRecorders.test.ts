@@ -25,8 +25,12 @@ import {
   parseResponseMetadata,
   recordLlmConfigDiagnostic,
   recordLlmResponseDiagnostic,
+  recordBudgetDiagnostics,
   type ParsedResponseMetadata,
 } from './DiagnosticRecorders.js';
+import { SystemMessage } from '@langchain/core/messages';
+import type { DiagnosticCollector } from '../DiagnosticCollector.js';
+import type { BudgetAllocationResult, MemoryDocument } from '../ConversationalRAGTypes.js';
 
 describe('DiagnosticRecorders', () => {
   describe('parseResponseMetadata', () => {
@@ -146,6 +150,51 @@ describe('DiagnosticRecorders', () => {
 
       const call = mockCollector.recordLlmConfig.mock.calls[0][0] as Record<string, unknown>;
       expect(call.provider).toBe('anthropic');
+    });
+  });
+
+  describe('recordBudgetDiagnostics', () => {
+    it('should record memory retrieval and token budget from the allocation result', () => {
+      const mockCollector = {
+        recordMemoryRetrieval: vi.fn(),
+        recordTokenBudget: vi.fn(),
+      } as unknown as DiagnosticCollector;
+      const memories: MemoryDocument[] = [{ pageContent: 'a memory', metadata: {} }];
+      const budgetResult: BudgetAllocationResult = {
+        relevantMemories: memories,
+        serializedHistory: '',
+        systemPrompt: new SystemMessage('system prompt text'),
+        memoryTokensUsed: 50,
+        historyTokensUsed: 200,
+        memoriesDroppedCount: 1,
+        messagesDropped: 2,
+        contentForStorage: '',
+        crossChannelMessagesIncluded: 3,
+      };
+
+      recordBudgetDiagnostics({
+        collector: mockCollector,
+        retrievedMemories: memories,
+        focusModeEnabled: true,
+        budgetResult,
+        contextWindowSize: 24576,
+        countTokens: text => text.length,
+      });
+
+      expect(mockCollector.recordMemoryRetrieval).toHaveBeenCalledWith({
+        retrievedMemories: memories,
+        selectedMemories: memories,
+        focusModeEnabled: true,
+      });
+      expect(mockCollector.recordTokenBudget).toHaveBeenCalledWith({
+        contextWindowSize: 24576,
+        systemPromptTokens: 'system prompt text'.length,
+        memoryTokensUsed: 50,
+        historyTokensUsed: 200,
+        memoriesDropped: 1,
+        historyMessagesDropped: 2,
+        crossChannelMessagesIncluded: 3,
+      });
     });
   });
 

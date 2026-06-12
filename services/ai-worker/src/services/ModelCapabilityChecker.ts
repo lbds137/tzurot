@@ -25,6 +25,8 @@ const logger = createLogger('ModelCapabilityChecker');
 interface CachedCapabilities {
   supportsVision: boolean;
   supportsReasoning: boolean;
+  /** The model's real context length in tokens; null when resolved via pattern fallback (Redis unavailable or model not in cache). */
+  contextLength: number | null;
   timestamp: number;
 }
 
@@ -70,6 +72,7 @@ async function resolveFromRedis(
     const capabilities: CachedCapabilities = {
       supportsVision: model.architecture.input_modalities.includes('image'),
       supportsReasoning: model.supported_parameters.includes('reasoning'),
+      contextLength: model.context_length,
       timestamp: Date.now(),
     };
 
@@ -79,6 +82,7 @@ async function resolveFromRedis(
         modelId,
         supportsVision: capabilities.supportsVision,
         supportsReasoning: capabilities.supportsReasoning,
+        contextLength: capabilities.contextLength,
         source: 'redis-cache',
       },
       '[ModelCapabilityChecker] Resolved capabilities from cache'
@@ -109,10 +113,11 @@ async function getCapabilities(modelId: string, redis: Redis): Promise<CachedCap
     return fromRedis;
   }
 
-  // Fallback to pattern matching
+  // Fallback to pattern matching (no context-length knowledge on this path)
   const capabilities: CachedCapabilities = {
     supportsVision: hasVisionSupportFallback(modelId),
     supportsReasoning: hasReasoningSupportFallback(modelId),
+    contextLength: null,
     timestamp: Date.now(),
   };
 
@@ -171,6 +176,24 @@ export async function modelSupportsVision(modelId: string, redis: Redis): Promis
 export async function modelSupportsReasoning(modelId: string, redis: Redis): Promise<boolean> {
   const capabilities = await getCapabilities(modelId, redis);
   return capabilities.supportsReasoning;
+}
+
+/**
+ * Get a model's real context length from OpenRouter's cached model data.
+ *
+ * Same resolution order as the other capability checks (in-memory cache →
+ * Redis cache → fallback). The pattern fallback carries no context-length
+ * knowledge, so this returns null when the Redis cache is unavailable or the
+ * model isn't in it (e.g., non-OpenRouter providers) — callers must degrade
+ * gracefully rather than assume a limit.
+ *
+ * @param modelId - The model ID to look up
+ * @param redis - Redis client instance
+ * @returns The context length in tokens, or null when unknown
+ */
+export async function getModelContextLength(modelId: string, redis: Redis): Promise<number | null> {
+  const capabilities = await getCapabilities(modelId, redis);
+  return capabilities.contextLength;
 }
 
 // ===================================

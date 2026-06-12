@@ -72,6 +72,7 @@ vi.mock('../redis.js', () => ({
     get: vi.fn().mockResolvedValue(null),
   },
   checkModelReasoningSupport: vi.fn().mockResolvedValue(true),
+  checkModelContextLength: vi.fn().mockResolvedValue(null),
 }));
 vi.mock('./storedReferenceHydrator.js', () => ({
   hydrateStoredReferences: vi.fn().mockResolvedValue(undefined),
@@ -92,6 +93,7 @@ import {
   createMockContext,
   resetAllMocks,
 } from '../test/mocks/index.js';
+import { checkModelContextLength } from '../redis.js';
 
 describe('ConversationalRAGService', () => {
   let service: ConversationalRAGService;
@@ -174,6 +176,60 @@ describe('ConversationalRAGService', () => {
       const result = await service.generateResponse(personality, 'Test', context);
 
       expect(result.modelUsed).toBe('test-model');
+    });
+  });
+
+  describe('context window clamping', () => {
+    afterEach(() => {
+      // Restore the suite-wide default (unknown model → no clamp)
+      vi.mocked(checkModelContextLength).mockResolvedValue(null);
+    });
+
+    it('should clamp the budget when the configured window exceeds the model cap', async () => {
+      // The prod-incident shape: configured at the model's full context length
+      vi.mocked(checkModelContextLength).mockResolvedValue(8192);
+      const personality = createMockPersonality({ contextWindowTokens: 8192 });
+      const context = createMockContext();
+
+      await service.generateResponse(personality, 'Test', context);
+
+      // computeContextCap(8192) = 6144 (75% small-model headroom)
+      expect(getContextWindowManagerMock().calculateMemoryBudget).toHaveBeenCalledWith(
+        6144,
+        expect.any(Number),
+        expect.any(Number),
+        expect.any(Number)
+      );
+    });
+
+    it('should not clamp when configured below the model cap', async () => {
+      vi.mocked(checkModelContextLength).mockResolvedValue(131072); // cap = 65536
+      const personality = createMockPersonality({ contextWindowTokens: 8192 });
+      const context = createMockContext();
+
+      await service.generateResponse(personality, 'Test', context);
+
+      expect(getContextWindowManagerMock().calculateMemoryBudget).toHaveBeenCalledWith(
+        8192,
+        expect.any(Number),
+        expect.any(Number),
+        expect.any(Number)
+      );
+    });
+
+    it('should use the configured window unchanged when the model limit is unknown', async () => {
+      vi.mocked(checkModelContextLength).mockResolvedValue(null);
+      const personality = createMockPersonality({ contextWindowTokens: 8192 });
+      const context = createMockContext();
+
+      await service.generateResponse(personality, 'Test', context);
+
+      expect(getContextWindowManagerMock().calculateMemoryBudget).toHaveBeenCalledWith(
+        8192,
+        expect.any(Number),
+        expect.any(Number),
+        expect.any(Number)
+      );
     });
   });
 

@@ -6,7 +6,7 @@
  * file size and separate concerns.
  */
 
-import { createLogger, AI_DEFAULTS } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types';
 import type { PromptBuilder } from './PromptBuilder.js';
 import type { ContextWindowManager } from './context/ContextWindowManager.js';
 import type {
@@ -36,9 +36,8 @@ export class ContentBudgetManager {
    * 6. Build final system prompt with all content
    */
   allocate(opts: BudgetAllocationOptions): BudgetAllocationResult {
-    const { personality, processedPersonality, participantPersonas, context } = opts;
-    const contextWindowTokens =
-      personality.contextWindowTokens || AI_DEFAULTS.CONTEXT_WINDOW_TOKENS;
+    const { processedPersonality, participantPersonas, context } = opts;
+    const contextWindowTokens = opts.effectiveContextWindowTokens;
 
     // Build current message and base system prompt
     const { currentMessage, contentForStorage, systemPromptBaseTokens } =
