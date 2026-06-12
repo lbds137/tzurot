@@ -9,6 +9,7 @@ import type { DiagnosticCollector } from '../DiagnosticCollector.js';
 import { resolveFinishReason, type LoadedPersonality } from '@tzurot/common-types';
 import { inferNonXmlStop } from '../StopSequenceTracker.js';
 import { hasThinkingBlocks } from '../../utils/thinkingExtraction.js';
+import { contentToText } from '../../utils/baseMessageContent.js';
 import type { LlmResponseData } from './DiagnosticTypes.js';
 import type { BudgetAllocationResult, MemoryDocument } from '../ConversationalRAGTypes.js';
 
@@ -178,7 +179,7 @@ export function recordBudgetDiagnostics(opts: BudgetDiagnosticOptions): void {
   });
   collector.recordTokenBudget({
     contextWindowSize,
-    systemPromptTokens: opts.countTokens(budgetResult.systemPrompt.content as string),
+    systemPromptTokens: opts.countTokens(contentToText(budgetResult.systemPrompt.content)),
     memoryTokensUsed: budgetResult.memoryTokensUsed,
     historyTokensUsed: budgetResult.historyTokensUsed,
     memoriesDropped: budgetResult.memoriesDroppedCount,

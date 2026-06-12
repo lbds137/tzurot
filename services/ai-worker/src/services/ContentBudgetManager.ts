@@ -6,7 +6,9 @@
  * file size and separate concerns.
  */
 
+import type { HumanMessage } from '@langchain/core/messages';
 import { createLogger } from '@tzurot/common-types';
+import { contentToText } from '../utils/baseMessageContent.js';
 import type { PromptBuilder } from './PromptBuilder.js';
 import type { ContextWindowManager } from './context/ContextWindowManager.js';
 import type {
@@ -42,7 +44,9 @@ export class ContentBudgetManager {
     // Build current message and base system prompt
     const { currentMessage, contentForStorage, systemPromptBaseTokens } =
       this.buildBaseComponents(opts);
-    const currentMessageTokens = this.promptBuilder.countTokens(currentMessage.content as string);
+    const currentMessageTokens = this.promptBuilder.countTokens(
+      contentToText(currentMessage.content)
+    );
 
     // Select memories within budget
     const { relevantMemories, memoryTokensUsed, memoriesDroppedCount } = this.selectMemories(
@@ -103,7 +107,7 @@ export class ContentBudgetManager {
   }
 
   private buildBaseComponents(opts: BudgetAllocationOptions): {
-    currentMessage: { content: unknown };
+    currentMessage: HumanMessage;
     contentForStorage: string;
     systemPromptBaseTokens: number;
   } {
@@ -137,7 +141,7 @@ export class ContentBudgetManager {
     });
 
     const systemPromptBaseTokens = this.promptBuilder.countTokens(
-      systemPromptBaseOnly.content as string
+      contentToText(systemPromptBaseOnly.content)
     );
 
     return { currentMessage, contentForStorage, systemPromptBaseTokens };
@@ -224,7 +228,7 @@ export class ContentBudgetManager {
     });
 
     const systemPromptWithMemoriesTokens = this.promptBuilder.countTokens(
-      systemPromptWithMemories.content as string
+      contentToText(systemPromptWithMemories.content)
     );
 
     let historyBudget = this.contextWindowManager.calculateHistoryBudget(
