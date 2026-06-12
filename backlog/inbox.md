@@ -17,6 +17,22 @@ _New items go here. Triage to appropriate section weekly._
 
 **Method (REQUIRED)**: the spike must do **actual web research**, not lean on training-data priors. The candidate list above came from the agent's training data and is unverified — current tool maturity, latest versions, vitest/ESM integration status, performance on a monorepo this size, and whether better alternatives have emerged all need live verification (web search + the tools' own docs/changelogs) before any adoption decision. Treat the names above as a starting map to confirm/refute, not a recommendation.
 
+### `[RESEARCH]` Production observability — performance metrics + distributed tracing (stop flying blind)
+
+**Surfaced 2026-06-11 (user)** from the preset-PUT-timeout prod bug (production-issues.md): intermittent, **load-correlated** issues can't be reproduced in dev (single dev user, no load) and aren't visible in event logs — we log _what happened_ but have ~no aggregated _performance_ signal. User wants real insight + a foundation for scaling without "miserable growing pains." This is the perf analog of the `[RESEARCH]` test-tooling item — continuous/deterministic insight infrastructure, not repro-and-guess.
+
+**What we have**: pino structured logs → Railway; per-request `responseTime` _is_ logged by the gateway HTTP logger (that's how the preset bug was caught) but never aggregated/alerted. Railway exposes infra metrics (CPU/mem) but no app-level tracing.
+
+**What's missing**: (1) **time-series metrics** — p50/p95/p99 latency per route, DB query duration, Prisma connection-pool utilization, BullMQ queue depth + job durations, error rates; (2) **distributed tracing** — per-request span breakdown (handler → DB → cache → response), i.e. THE tool that would show exactly where the preset PUT's 10s goes; (3) dashboards + alerting (p99 spike, error-rate).
+
+**Candidate approach (to web-research, NOT assume)**: OpenTelemetry (vendor-neutral Node SDK; auto-instrumentation exists for Express/Prisma/ioredis/BullMQ → captures DB query times, Redis ops, queue jobs with minimal manual code) → export to a backend. Evaluate backends for a small Railway project on cost/effort: free-tier hosted (Grafana Cloud / Honeycomb free / Axiom / Sentry Performance) vs self-hosted Grafana+Tempo+Prometheus. Prisma has built-in metrics + OTel tracing hooks; `prom-client` for custom metrics.
+
+**Interim (cheaper, directly cracks the preset bug)**: targeted timing instrumentation shipped to the **prod** llm-config PUT path (it only repros under prod load) — breakdown log: validate / DB write / cache-invalidation / total. The forward-bug diagnostic pattern: ship the probe to prod, read the runtime observation, then fix.
+
+**Method (REQUIRED)**: actual web research — current OTel-on-Node maturity, auto-instrumentation coverage for OUR stack (Express/Prisma/ioredis/BullMQ), and real cost/effort of the backend options. Don't lean on training-data priors.
+
+**Outcome**: pick a LEAN starting point (likely OTel + auto-instrumentation + one free-tier backend, focused first on gateway request latency + Prisma query times), wire it, build a latency dashboard + a p99 alert. Foundation for scale. Likely graduates from inbox to a `future-themes` initiative once scoped.
+
 ### `[LIFT]` Audit slash-command timeout handling for consistency (Discord 3s ack + downstream timeouts)
 
 **Surfaced 2026-06-11 (user)** after a prod session where the api-gateway felt slow on less-common commands (preset edit/import/export, setting default presets personal + global). Suspicion: command-processing or gateway-call timeouts may be inconsistent across commands, or too short for the slower paths — a problem we've hit before. The Discord 3s-ack rule is well-documented (`04-discord.md`: defer-first), but the **downstream** timeouts (gateway `fetch`/`callGatewayApi`/`adminFetch` request timeouts, BullMQ result-wait windows, per-command budgets) may not be applied consistently.
