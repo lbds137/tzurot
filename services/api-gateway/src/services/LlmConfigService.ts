@@ -123,7 +123,7 @@ interface FormattedConfigDetail {
   params: Record<string, unknown>;
   /** Model's full context window (from OpenRouter), set by enrichWithModelContext */
   modelContextLength?: number;
-  /** 50% cap for contextWindowTokens, set by enrichWithModelContext */
+  /** Model-derived cap for contextWindowTokens (computeContextCap), set by enrichWithModelContext */
   contextWindowCap?: number;
 }
 

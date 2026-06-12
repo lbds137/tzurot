@@ -212,7 +212,7 @@ export const contextWindowSection: SectionDefinition<FlattenedPresetData> = {
   fields: [
     {
       id: 'contextWindowTokens',
-      label: 'Context Window Tokens (max 50% of model)',
+      label: 'Context Window Tokens (capped per model)',
       placeholder: '131072',
       required: false,
       style: 'short',
