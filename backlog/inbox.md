@@ -71,6 +71,14 @@ _New items go here. Triage to appropriate section weekly._
 
 **Why a LIFT, not a quick fix**: the immediate forward bug gets a targeted fix; this audit is the systematic follow-up that prevents the next divergence, scoped after the fix lands so it has a concrete anchor.
 
+### `[FIX]` `systemPrompt.content as string` cast silently undercounts complex content blocks
+
+**Surfaced 2026-06-12** (claude-review on PR #1186, flagged "not a blocker, worth a follow-up"). `recordBudgetDiagnostics` in `services/ai-worker/src/services/diagnostics/DiagnosticRecorders.ts` does `opts.countTokens(budgetResult.systemPrompt.content as string)` — pre-existing cast inherited from the code it was extracted from. LangChain's `BaseMessage.content` is `string | MessageContentComplex[]`; if a system prompt ever carries complex content blocks, `countTokens` receives `[object Object]`-ish text and silently undercounts. Today system prompts are always strings, so this is latent, not live. **Fix shape**: a small `contentToText(content)` helper (extract text parts from the array form) used at this call site; grep for sibling `content as string` casts on BaseMessage while there.
+
+### `[FEAT]` Surface "configured above model cap" in the preset dashboard
+
+**Surfaced 2026-06-12** (claude-review observation on PR #1186). The runtime clamp (PR #1186) protects presets stored above the model's cap (e.g. a pre-fix row at 32768 on a 32k model → budgets at 24576) and logs a `warn` per generation — but only operators see logs; the preset owner has no signal that their configured value is being quietly reduced. The gateway already returns `modelContextLength` + `contextWindowCap` on GET/create/update (`enrichWithModelContext`), so the bot-client dashboard has the data — it just doesn't compare/flag. **Fix shape**: in the preset dashboard view, when `contextWindowTokens > contextWindowCap`, render a ⚠️ line ("Context window exceeds this model's safe limit (24576); the lower value is used"). Pairs naturally with the import/export field-completeness audit (same command-surface territory).
+
 ### `[CHORE]` Integration coverage never collects `services/**`
 
 **Surfaced 2026-06-07** during the beta.128 codecov/patch failure. `vitest.int.config.ts`'s coverage `include` is `['src/**/*.ts', 'packages/**/src/**/*.ts']` — both root-relative, so no `services/*/src` file has ever appeared in the integration coverage upload. The `integration` codecov flag claims `services/` in its paths but receives no matching data; every service line exercised only by int tests reads as uncovered.
