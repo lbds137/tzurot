@@ -5,6 +5,7 @@
  */
 
 import { z } from 'zod';
+import { MESSAGE_LIMITS } from '../../constants/message.js';
 
 /**
  * Discord environment context schema
@@ -64,6 +65,21 @@ export const attachmentMetadataSchema = z.object({
   sourceDiscordMessageId: z.string().optional(),
 });
 
+/**
+ * Guild member info schema
+ * Discord server-specific information about a user
+ * Used for enriching participant context in prompts
+ */
+export const guildMemberInfoSchema = z.object({
+  /** User's top server roles (sorted by position, excluding @everyone). Limit: MESSAGE_LIMITS.MAX_GUILD_ROLES */
+  roles: z.array(z.string()).max(MESSAGE_LIMITS.MAX_GUILD_ROLES),
+  /** Display color from highest colored role (hex, e.g., '#FF00FF') */
+  displayColor: z.string().optional(),
+  /** When user joined the server (ISO 8601) */
+  joinedAt: z.string().optional(),
+});
+
 // Infer TypeScript types from schemas
 export type DiscordEnvironment = z.infer<typeof discordEnvironmentSchema>;
 export type AttachmentMetadata = z.infer<typeof attachmentMetadataSchema>;
+export type GuildMemberInfo = z.infer<typeof guildMemberInfoSchema>;

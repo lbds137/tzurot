@@ -25,6 +25,7 @@ import {
   MESSAGE_LIMITS,
   type ConversationMessage,
   type CrossChannelHistoryGroupEntry,
+  type GuildMemberInfo,
   type JobContext,
   type LoadedPersonality,
   type MentionedPersona,
@@ -77,6 +78,20 @@ export interface AssembledCore {
    * enabled but nothing eligible was found.
    */
   crossChannelHistory: CrossChannelHistoryGroupEntry[] | undefined;
+  /**
+   * Extended-context participant guild info, re-keyed from the envelope's
+   * pre-resolution `discord:*` map to persona UUIDs by the SAME shared
+   * resolver call the bot uses. Undefined when the envelope carries no raw
+   * map (DM, fetch didn't run, or a sender predating the field).
+   */
+  participantGuildInfo: Record<string, GuildMemberInfo> | undefined;
+  /**
+   * The triggering user's guild info, passed through from the envelope's
+   * raw scalar. Unconditional (present even in weigh-in, mirroring the
+   * payload: the bot clears the persona fields for weigh-in but ships this
+   * one, where it's inert downstream because no active persona reads it).
+   */
+  activePersonaGuildInfo: GuildMemberInfo | undefined;
 }
 
 /** Per-call assembly options (job-scoped values the deps can't carry). */
@@ -182,12 +197,18 @@ export class ContextAssembler {
     );
 
     // Step 4: envelope-carried extended context — batch-upsert the observed
-    // users, resolve placeholder personaIds (shared impl), merge (shared
-    // impl). ABSENT raw messages = the fetch didn't run bot-side.
-    const history = await this.mergeExtendedContext(raw, dbHistory, personality.id, {
-      channelId,
-      guildId: jobContext.serverId ?? null,
-    });
+    // users, resolve placeholder personaIds (shared impl, which also re-keys
+    // the raw guild map to persona UUIDs), merge (shared impl). ABSENT raw
+    // messages = the fetch didn't run bot-side.
+    const { history, participantGuildInfo } = await this.mergeExtendedContext(
+      raw,
+      dbHistory,
+      personality.id,
+      {
+        channelId,
+        guildId: jobContext.serverId ?? null,
+      }
+    );
 
     // Step 5: re-derive reference enrichment from the raw snapshots —
     // dedup against the just-assembled history, transcripts from OWN DB.
@@ -236,6 +257,8 @@ export class ContextAssembler {
       mentionedPersonas: rewritten.mentionedPersonas,
       referencedChannels: rewritten.referencedChannels,
       crossChannelHistory,
+      participantGuildInfo,
+      activePersonaGuildInfo: raw.rawActiveGuildMemberInfo,
     };
   }
 
@@ -403,10 +426,25 @@ export class ContextAssembler {
     dbHistory: ConversationMessage[],
     personalityId: string,
     location: { channelId: string; guildId: string | null }
-  ): Promise<ConversationMessage[]> {
+  ): Promise<{
+    history: ConversationMessage[];
+    participantGuildInfo: Record<string, GuildMemberInfo> | undefined;
+  }> {
     const rawMessages = raw.rawExtendedContextMessages;
     if (rawMessages === undefined || rawMessages.length === 0) {
-      return dbHistory;
+      // No extended-context messages to merge, but the guild map can still be
+      // present (e.g. {} = fetch ran in a guild, observed no member data).
+      // Return the cloned unremapped map rather than undefined: with no
+      // messages there are no `discord:*` keys to remap, so unremapped IS the
+      // resolved form — and it preserves the ABSENT (undefined) vs EMPTY ({})
+      // distinction the ContextStep adopt-guard depends on.
+      return {
+        history: dbHistory,
+        participantGuildInfo:
+          raw.rawParticipantGuildInfo !== undefined
+            ? structuredClone(raw.rawParticipantGuildInfo)
+            : undefined,
+      };
     }
 
     const usersToResolve = [
@@ -424,21 +462,26 @@ export class ContextAssembler {
 
     const messages = rawMessages.map(m => fromApiMessage(m, location.channelId, location.guildId));
 
+    // The shared resolver remaps the guild map's `discord:*` keys to persona
+    // UUIDs IN PLACE — clone so the job's envelope object stays pristine.
+    // When no users resolve, the bot keeps its unremapped map; returning the
+    // clone unremapped mirrors that exactly (parity by construction).
+    const participantGuildInfo =
+      raw.rawParticipantGuildInfo !== undefined
+        ? structuredClone(raw.rawParticipantGuildInfo)
+        : undefined;
+
     if (usersToResolve.length > 0) {
       const userMap = await this.deps.userService.getOrCreateUsersInBatch(usersToResolve);
-      // participantGuildInfo intentionally omitted: the envelope does not yet
-      // carry the pre-resolution (discord:-keyed) map, so the payload's
-      // already-remapped copy is authoritative for that surface until the
-      // envelope grows the raw form (tracked for the cutover slice).
       await resolveExtendedContextPersonaIds(
         messages,
         userMap,
         personalityId,
         this.deps.personaResolver,
-        undefined
+        participantGuildInfo
       );
     }
 
-    return mergeWithHistory(messages, dbHistory);
+    return { history: mergeWithHistory(messages, dbHistory), participantGuildInfo };
   }
 }
