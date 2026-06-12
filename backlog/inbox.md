@@ -17,6 +17,18 @@ _New items go here. Triage to appropriate section weekly._
 
 **Method (REQUIRED)**: the spike must do **actual web research**, not lean on training-data priors. The candidate list above came from the agent's training data and is unverified — current tool maturity, latest versions, vitest/ESM integration status, performance on a monorepo this size, and whether better alternatives have emerged all need live verification (web search + the tools' own docs/changelogs) before any adoption decision. Treat the names above as a starting map to confirm/refute, not a recommendation.
 
+### `[LIFT]` Audit slash-command timeout handling for consistency (Discord 3s ack + downstream timeouts)
+
+**Surfaced 2026-06-11 (user)** after a prod session where the api-gateway felt slow on less-common commands (preset edit/import/export, setting default presets personal + global). Suspicion: command-processing or gateway-call timeouts may be inconsistent across commands, or too short for the slower paths — a problem we've hit before. The Discord 3s-ack rule is well-documented (`04-discord.md`: defer-first), but the **downstream** timeouts (gateway `fetch`/`callGatewayApi`/`adminFetch` request timeouts, BullMQ result-wait windows, per-command budgets) may not be applied consistently.
+
+**Scope**:
+1. Enumerate every slash-command path's async budget: deferral → gateway request timeout → any BullMQ result-wait → where each value comes from (shared constant vs hardcoded vs implicit default).
+2. Find inconsistencies — structurally-similar commands using different/implicit timeouts; flag any with no explicit timeout (inheriting a possibly-too-short default).
+3. Decide a consistent policy (shared timeout constants per operation class: fast-read vs write vs import) and centralize.
+4. Anchor against evidence: the prod-log dig (below) will name which commands/endpoints were actually slow — the audit and the logs inform each other.
+
+**Why a LIFT**: cross-cutting consistency audit (command layer + gateway client + timeout constants), not a one-line fix. Pair with the prod-log investigation of the preset-command issues.
+
 ### `[LIFT]` Audit message-content extraction paths — confirm single source, document the layering, find re-derivation footguns
 
 **Surfaced 2026-06-08** during the forwarded-trigger-empty-content investigation (see `backlog/production-issues.md`). The forward bug existed because `ReferenceExtractor` **re-derived** message content from `message.content` (empty for forwards) for its link-replacement step, silently clobbering the already-correctly-extracted forwarded text — a redundant second derivation that bypassed the shared extractor. The raw extraction itself is NOT duplicated (`getEffectiveContent` and `buildMessageContent` both bottom out in `extractForwardedContent`), but the layering is undocumented and the re-derivation footgun was invisible until it shipped a prod bug.
