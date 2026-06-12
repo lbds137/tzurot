@@ -2,6 +2,19 @@
 
 _New items go here. Triage to appropriate section weekly._
 
+### `[RESEARCH]` Deterministic test-quality tooling — evaluate mutation testing + a job-payload contract layer
+
+**Surfaced 2026-06-11** (user) after the iii-b-2 thin-payload referenced-attachment regression (#1184): `jobChainOrchestrator` **had** a referenced-attachment test, and line coverage was green — but it covered only the _fat_ payload shape, so a new wire-shape shipped broken. Three green units, one broken cross-service seam. User's framing: unit tests are repeatedly insufficient for seam/wiring bugs; rules that depend on contributor/agent attention are not a safety net (the AI agent is non-deterministic by construction); we want **deterministic checks that fail the build**. We already have strong deterministic gates (cpd ratchet, test-audit, depcruise, conformance harness, codecov) — this is about filling the remaining rungs.
+
+**Candidates to evaluate (with honest scope of what each catches):**
+
+1. **Mutation testing — StrykerJS** _(highest-leverage general tool)._ Line coverage measures code-_ran_, not bug-_caught_. Stryker mutates code (flip conditionals, delete statements, swap `??`/`&&`) and checks whether a test fails → grades test _effectiveness_, surfacing tautological/weak tests suite-wide. **Caveat**: catches weak tests, NOT missing code paths — it would not have caught #1184 directly (that was a missing path), but it's the best deterministic answer to "are our tests a real net." Pilot: run on one package (e.g. `common-types` schemas or a service's core logic), set a mutation-score threshold, ratchet in CI like cpd/test-audit. **This is the recommended starting point.**
+2. **Job-payload contract / property suite at the bot→gateway→worker BullMQ seam** _(targeted at the #1184 class)._ Assert: every valid context shape (`legacy` / `envelope` / `envelope`+referenced-attachments) → correct job-chain → correctly consumed by the worker's `ValidationStep`/pipeline. Consider **fast-check** (property-based) to generate shapes rather than hand-enumerate. Homegrown, deterministic, not large. This is the rung that catches wire-shape regressions.
+3. **Evaluate Pact (consumer-driven contracts)** — likely an awkward fit (our seam is internal BullMQ, not HTTP between deployed services); quick rule-in/out, not a commitment.
+4. **More compiler-enforced invariants** — the `ContextVariant` discriminated union (PR #1183) is the cheapest deterministic check (illegal states won't compile); audit for more "make it unrepresentable" spots.
+
+**Outcome of the spike**: decide what to adopt as CI ratchets. Likely answer: Stryker (suite-wide floor) + the job-payload contract test (seam-specific). Complements (does not replace) the `00-critical.md` "fix failures structurally: hook > rule > memory" ordering — push toward the deterministic end.
+
 ### `[LIFT]` Audit message-content extraction paths — confirm single source, document the layering, find re-derivation footguns
 
 **Surfaced 2026-06-08** during the forwarded-trigger-empty-content investigation (see `backlog/production-issues.md`). The forward bug existed because `ReferenceExtractor` **re-derived** message content from `message.content` (empty for forwards) for its link-replacement step, silently clobbering the already-correctly-extracted forwarded text — a redundant second derivation that bypassed the shared extractor. The raw extraction itself is NOT duplicated (`getEffectiveContent` and `buildMessageContent` both bottom out in `extractForwardedContent`), but the layering is undocumented and the re-derivation footgun was invisible until it shipped a prod bug.
