@@ -505,6 +505,7 @@ export class MessageContextBuilder {
       rawMentionedChannels: refsAndMentions.rawMentionedChannels,
       rawMentionedRoles: refsAndMentions.rawMentionedRoles,
       rawAuthorDisplayName: displayName,
+      rawActiveGuildMemberInfo: guildMemberInfo,
     });
 
     // Thin payload: kind:'envelope' omits the four fields the worker

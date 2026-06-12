@@ -293,6 +293,139 @@ describe('ContextStep', () => {
       expect(result.preparedContext).toBeDefined();
     });
 
+    it('adopts the assembled guild surfaces when the envelope carries the raw sources', async () => {
+      mockIsAssemblyPromoteEnabled.mockReturnValue(true);
+      const assembledGuildMap = { 'persona-555': { roles: ['Admin'] } };
+      const assembledActive = { roles: ['Mod'] };
+      const assembled = makeAssembled({
+        participantGuildInfo: assembledGuildMap,
+        activePersonaGuildInfo: assembledActive,
+      });
+      const fakeAssembler = { assembleCore: vi.fn().mockResolvedValue(assembled) };
+      const promoteStep = new ContextStep(fakeDataSource, fakeAssembler as never);
+      const job = createMockJob({
+        context: {
+          userId: 'u',
+          rawAssemblyInputs: {
+            rawMessageContent: 'raw',
+            rawParticipantGuildInfo: { 'discord:555': { roles: ['Admin'] } },
+            rawActiveGuildMemberInfo: { roles: ['Mod'] },
+          },
+          // Payload copies the bot still ships during burn-in.
+          participantGuildInfo: { 'persona-555': { roles: ['Admin'] } },
+          activePersonaGuildInfo: { roles: ['Mod'] },
+        } as never,
+      });
+
+      await promoteStep.process({ job, startTime: Date.now(), config });
+
+      expect(job.data.context.participantGuildInfo).toBe(assembledGuildMap);
+      expect(job.data.context.activePersonaGuildInfo).toBe(assembledActive);
+    });
+
+    it('preserves the payload guild surfaces when the envelope predates the raw sources', async () => {
+      mockIsAssemblyPromoteEnabled.mockReturnValue(true);
+      // Old envelope: no raw guild fields → assembler derives undefined.
+      const assembled = makeAssembled({
+        participantGuildInfo: undefined,
+        activePersonaGuildInfo: undefined,
+      });
+      const fakeAssembler = { assembleCore: vi.fn().mockResolvedValue(assembled) };
+      const promoteStep = new ContextStep(fakeDataSource, fakeAssembler as never);
+      const payloadGuild = { 'persona-9': { roles: ['Keeper'] } };
+      const payloadActive = { roles: ['Elder'] };
+      const job = createMockJob({
+        context: {
+          userId: 'u',
+          rawAssemblyInputs: { rawMessageContent: 'raw' },
+          participantGuildInfo: payloadGuild,
+          activePersonaGuildInfo: payloadActive,
+        } as never,
+      });
+
+      await promoteStep.process({ job, startTime: Date.now(), config });
+
+      // No raw source → the overwrite must NOT clobber the valid payload copies.
+      expect(job.data.context.participantGuildInfo).toBe(payloadGuild);
+      expect(job.data.context.activePersonaGuildInfo).toBe(payloadActive);
+    });
+
+    it('emits the guild/attachment burn-in diff with matched booleans', async () => {
+      mockIsAssemblyPromoteEnabled.mockReturnValue(true);
+      const assembled = makeAssembled({
+        participantGuildInfo: { 'persona-555': { roles: ['Admin'] } },
+        activePersonaGuildInfo: { roles: ['Mod'] },
+      });
+      const fakeAssembler = { assembleCore: vi.fn().mockResolvedValue(assembled) };
+      const promoteStep = new ContextStep(fakeDataSource, fakeAssembler as never);
+      const job = createMockJob({
+        context: {
+          userId: 'u',
+          rawAssemblyInputs: {
+            rawMessageContent: 'raw',
+            rawParticipantGuildInfo: { 'discord:555': { roles: ['Admin'] } },
+            rawActiveGuildMemberInfo: { roles: ['Mod'] },
+            rawExtendedContextImageAttachments: [
+              { url: 'https://cdn/a.png', contentType: 'image/png', id: 'a' },
+              { url: 'https://cdn/b.png', contentType: 'image/png', id: 'b' },
+            ],
+          },
+          participantGuildInfo: { 'persona-555': { roles: ['Admin'] } },
+          activePersonaGuildInfo: { roles: ['Mod'] },
+          extendedContextAttachments: [
+            { url: 'https://cdn/b.png', contentType: 'image/png', id: 'b' },
+          ],
+        } as never,
+      });
+
+      await promoteStep.process({ job, startTime: Date.now(), config });
+
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          guildKeysMatched: true,
+          guildRolesMatched: true,
+          activeGuildMatched: true,
+          attachmentsCovered: true,
+          payloadGuildCount: 1,
+          payloadAttachmentCount: 1,
+          rawAttachmentCount: 2,
+        }),
+        'Guild/attachment surface diff (iii-b-3 burn-in)'
+      );
+    });
+
+    it('warns on the burn-in diff when re-derivation diverges from the payload', async () => {
+      // The warn path is the whole point of the burn-in: a real divergence
+      // between the bot's payload copy and the worker's re-derivation must
+      // surface as warn, not blend into info traffic. Here the assembler
+      // re-keys to a DIFFERENT persona than the payload carries.
+      mockIsAssemblyPromoteEnabled.mockReturnValue(true);
+      const assembled = makeAssembled({
+        participantGuildInfo: { 'persona-OTHER': { roles: ['Admin'] } },
+        activePersonaGuildInfo: { roles: ['Mod'] },
+      });
+      const fakeAssembler = { assembleCore: vi.fn().mockResolvedValue(assembled) };
+      const promoteStep = new ContextStep(fakeDataSource, fakeAssembler as never);
+      const job = createMockJob({
+        context: {
+          userId: 'u',
+          rawAssemblyInputs: {
+            rawMessageContent: 'raw',
+            rawParticipantGuildInfo: { 'discord:555': { roles: ['Admin'] } },
+          },
+          // Payload says persona-555; assembler re-derived persona-OTHER → key mismatch.
+          participantGuildInfo: { 'persona-555': { roles: ['Admin'] } },
+        } as never,
+      });
+
+      await promoteStep.process({ job, startTime: Date.now(), config });
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ guildKeysMatched: false }),
+        'Guild/attachment surface diff (iii-b-3 burn-in)'
+      );
+    });
+
     it('nulls activePersonaId in jobContext when the assembler returns null (weigh-in)', async () => {
       mockIsAssemblyPromoteEnabled.mockReturnValue(true);
       const assembled = makeAssembled({ activePersonaId: null, activePersonaName: null });

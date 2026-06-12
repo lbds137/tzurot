@@ -12,7 +12,11 @@
  */
 
 import { z } from 'zod';
-import { discordEnvironmentSchema } from './discord.js';
+import {
+  attachmentMetadataSchema,
+  discordEnvironmentSchema,
+  guildMemberInfoSchema,
+} from './discord.js';
 import { apiConversationMessageSchema, referencedMessageSchema } from './message.js';
 
 /**
@@ -111,6 +115,33 @@ export const rawAssemblyInputsSchema = z.object({
   rawExtendedContextUsers: z.array(rawDiscordUserSchema).optional(),
   /** Users who reacted to extended-context messages (separate upsert batch). */
   rawReactorUsers: z.array(rawDiscordUserSchema).optional(),
+  /**
+   * Guild member info (roles, display color, join date) for extended-context
+   * participants, keyed by the PRE-resolution placeholder id
+   * (`discord:<authorId>`) exactly as the channel fetcher builds it — the
+   * worker re-keys to persona UUIDs during its own persona resolution.
+   * ABSENT = DM or the extended-context fetch didn't run; EMPTY = the fetch
+   * ran in a guild but observed no member data.
+   */
+  rawParticipantGuildInfo: z.record(z.string(), guildMemberInfoSchema).optional(),
+  /**
+   * Image attachments observed across extended-context messages, UNCAPPED
+   * (each carries sourceDiscordMessageId linking it to its message). The
+   * worker applies the maxImages cap from its own resolved config — raw
+   * inputs ship pre-decision. Deliberately a flat list rather than
+   * per-message attachments on rawExtendedContextMessages: both the producer
+   * (channel fetcher) and the consumer (vision preprocessing) use the flat
+   * shape, and the per-message alternative would mutate the shared
+   * conversation-history wire schema. ABSENT = fetch didn't run; EMPTY =
+   * fetch ran and observed no images.
+   */
+  rawExtendedContextImageAttachments: z.array(attachmentMetadataSchema).optional(),
+  /**
+   * Guild member info for the TRIGGERING user (message.member), the raw form
+   * of activePersonaGuildInfo. Keyless scalar — no persona re-keying needed.
+   * ABSENT = DM or member data unavailable.
+   */
+  rawActiveGuildMemberInfo: guildMemberInfoSchema.optional(),
   /**
    * Guild→channel environment map from the Discord.js cache, for decorating
    * worker-fetched cross-channel groups with names the worker can't resolve.

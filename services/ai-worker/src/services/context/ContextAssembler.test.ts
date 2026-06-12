@@ -244,6 +244,88 @@ describe('ContextAssembler.assembleCore', () => {
     expect(core.referencedMessages).toBeUndefined();
   });
 
+  it('re-keys the raw guild map to persona UUIDs without mutating the envelope copy', async () => {
+    // Models the real resolution chain the shared resolver walks:
+    //   discordId '555' --getOrCreateUsersInBatch--> internal UUID 'internal-555'
+    //   --personaResolver.resolve--> persona UUID 'persona-555'
+    // so the guild map's `discord:555` key remaps to `persona-555`.
+    const deps = makeDeps({
+      userService: {
+        getOrCreateUser: vi.fn().mockResolvedValue({ userId: 'internal-1' }),
+        getOrCreateUsersInBatch: vi.fn().mockResolvedValue(new Map([['555', 'internal-555']])),
+      },
+      personaResolver: {
+        resolve: vi
+          .fn()
+          .mockResolvedValue({ config: { personaId: 'persona-555', preferredName: 'Ext' } }),
+      },
+    });
+    const assembler = new ContextAssembler(deps);
+    const jobContext = makeJobContext({
+      rawAssemblyInputs: {
+        rawMessageContent: 'hello',
+        rawExtendedContextMessages: [
+          {
+            id: 'd-ext',
+            role: MessageRole.User,
+            content: 'extended message',
+            createdAt: '2026-06-02T00:00:00.000Z',
+            personaId: 'discord:555',
+            discordMessageId: ['d-ext'],
+          },
+        ],
+        rawExtendedContextUsers: [
+          { discordId: '555', username: 'extuser', displayName: 'Ext User' },
+        ],
+        rawParticipantGuildInfo: {
+          'discord:555': { roles: ['Admin', 'Dev'], displayColor: '#FF00FF' },
+        },
+        rawActiveGuildMemberInfo: { roles: ['Mod'], joinedAt: '2024-01-01T00:00:00.000Z' },
+      },
+    });
+
+    const core = await assembler.assembleCore(jobContext, PERSONALITY, undefined);
+
+    // The REAL shared resolver re-keyed discord:555 → the resolved persona UUID.
+    expect(core.participantGuildInfo).toEqual({
+      'persona-555': { roles: ['Admin', 'Dev'], displayColor: '#FF00FF' },
+    });
+    // The envelope's own copy stays pristine (clone isolation).
+    expect(jobContext.rawAssemblyInputs?.rawParticipantGuildInfo).toEqual({
+      'discord:555': { roles: ['Admin', 'Dev'], displayColor: '#FF00FF' },
+    });
+    // The trigger user's guild info passes through unchanged.
+    expect(core.activePersonaGuildInfo).toEqual({
+      roles: ['Mod'],
+      joinedAt: '2024-01-01T00:00:00.000Z',
+    });
+  });
+
+  it('leaves the guild surfaces undefined when the envelope carries no raw forms', async () => {
+    const assembler = new ContextAssembler(makeDeps());
+    const core = await assembler.assembleCore(makeJobContext(), PERSONALITY, undefined);
+    expect(core.participantGuildInfo).toBeUndefined();
+    expect(core.activePersonaGuildInfo).toBeUndefined();
+  });
+
+  it('preserves an EMPTY guild map (not undefined) when no extended-context messages merge', async () => {
+    // ABSENT (undefined) vs EMPTY ({}) must survive the no-messages early
+    // return: the ContextStep adopt-guard keys off the raw field's presence,
+    // so collapsing {} → undefined here would clobber a valid empty payload.
+    const assembler = new ContextAssembler(makeDeps());
+    const core = await assembler.assembleCore(
+      makeJobContext({
+        rawAssemblyInputs: {
+          rawMessageContent: 'hello',
+          rawParticipantGuildInfo: {},
+        },
+      }),
+      PERSONALITY,
+      undefined
+    );
+    expect(core.participantGuildInfo).toEqual({});
+  });
+
   it('enriches raw references: stubs against assembled history, DB transcripts for the rest', async () => {
     const historyRow = {
       id: 'db-1',

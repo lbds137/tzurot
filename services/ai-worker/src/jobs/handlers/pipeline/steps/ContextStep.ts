@@ -5,7 +5,7 @@
  * and oldest timestamp calculation for LTM deduplication.
  */
 
-import { createLogger, type MessageRole } from '@tzurot/common-types';
+import { createLogger, type JobContext, type MessageRole } from '@tzurot/common-types';
 import {
   extractParticipants,
   convertConversationHistory,
@@ -17,10 +17,98 @@ import {
 } from '../../../../services/context/shadowHydration.js';
 import { isAssemblyPromoteEnabled } from '../../../../services/context/contextFlags.js';
 import { shadowAssembleAndDiff } from '../../../../services/context/shadowAssembly.js';
-import type { ContextAssembler } from '../../../../services/context/ContextAssembler.js';
+import type {
+  AssembledCore,
+  ContextAssembler,
+} from '../../../../services/context/ContextAssembler.js';
 import type { IPipelineStep, GenerationContext, Participant, PreparedContext } from '../types.js';
 
 const logger = createLogger('ContextStep');
+
+/**
+ * Transitional burn-in diff: while the bot still ships the resolved
+ * guild/attachment surfaces alongside the raw envelope forms, compare the
+ * payload copies against the assembler's re-derivation. Counts and booleans
+ * only — no content/PII. Must run BEFORE sourceHistory's overwrites discard
+ * the payload copies. Removed when the thin payload drops the fields.
+ */
+function logGuildSurfaceDiff(
+  jobId: string | undefined,
+  jobContext: JobContext,
+  assembled: AssembledCore
+): void {
+  const raw = jobContext.rawAssemblyInputs;
+  const hasAnyRawSource =
+    raw?.rawParticipantGuildInfo !== undefined ||
+    raw?.rawActiveGuildMemberInfo !== undefined ||
+    raw?.rawExtendedContextImageAttachments !== undefined;
+  if (!hasAnyRawSource) {
+    return; // envelope predates the raw guild/attachment fields — nothing to verify
+  }
+
+  const { guildKeysMatched, guildRolesMatched, payloadGuildCount, assembledGuildCount } =
+    diffGuildMaps(jobContext.participantGuildInfo, assembled.participantGuildInfo);
+
+  const activeGuildMatched =
+    (jobContext.activePersonaGuildInfo?.roles.length ?? -1) ===
+    (assembled.activePersonaGuildInfo?.roles.length ?? -1);
+
+  // The payload list is the bot's maxImages-capped slice; the raw list is
+  // uncapped — every payload attachment must appear in the raw list. Identity
+  // key is `id ?? url`: the Discord attachment id is the stable snowflake when
+  // present, and the CDN url is a stable fallback for the same image when it's
+  // absent — both sides derive from the same fetch so the key matches across.
+  const rawAttachmentIds = new Set(
+    (raw.rawExtendedContextImageAttachments ?? []).map(a => a.id ?? a.url)
+  );
+  const payloadAttachments = jobContext.extendedContextAttachments ?? [];
+  const attachmentsCovered = payloadAttachments.every(a => rawAttachmentIds.has(a.id ?? a.url));
+
+  const allMatched =
+    guildKeysMatched && guildRolesMatched && activeGuildMatched && attachmentsCovered;
+  logger[allMatched ? 'info' : 'warn'](
+    {
+      jobId,
+      guildKeysMatched,
+      guildRolesMatched,
+      activeGuildMatched,
+      attachmentsCovered,
+      payloadGuildCount,
+      assembledGuildCount,
+      payloadAttachmentCount: payloadAttachments.length,
+      rawAttachmentCount: rawAttachmentIds.size,
+    },
+    'Guild/attachment surface diff (iii-b-3 burn-in)'
+  );
+}
+
+/** Key-set + per-key role-count comparison for the burn-in guild diff. */
+function diffGuildMaps(
+  payload: JobContext['participantGuildInfo'],
+  assembled: JobContext['participantGuildInfo']
+): {
+  guildKeysMatched: boolean;
+  guildRolesMatched: boolean;
+  payloadGuildCount: number;
+  assembledGuildCount: number;
+} {
+  const payloadGuild = payload ?? {};
+  const assembledGuild = assembled ?? {};
+  const payloadKeys = Object.keys(payloadGuild).sort();
+  const assembledKeys = Object.keys(assembledGuild).sort();
+  const guildKeysMatched =
+    payloadKeys.length === assembledKeys.length &&
+    payloadKeys.every((k, i) => k === assembledKeys[i]);
+  const guildRolesMatched =
+    guildKeysMatched &&
+    payloadKeys.every(k => payloadGuild[k].roles.length === assembledGuild[k]?.roles.length);
+  return {
+    guildKeysMatched,
+    guildRolesMatched,
+    payloadGuildCount: payloadKeys.length,
+    assembledGuildCount: assembledKeys.length,
+  };
+}
 
 /**
  * The shared history shape both the legacy payload (`ApiConversationMessage`)
@@ -328,6 +416,11 @@ export class ContextStep implements IPipelineStep {
       context.configOverrides,
       { referenceDedupNowMs: job.timestamp }
     );
+    // Transitional burn-in diff: while the bot still ships the resolved guild
+    // surfaces, compare them against the assembler's re-derivation before the
+    // overwrite below discards the payload copies. Removed once the thin
+    // payload drops the fields (the diff has nothing to compare then).
+    logGuildSurfaceDiff(job.id, jobContext, assembled);
     jobContext.referencedMessages = assembled.referencedMessages;
     jobContext.referencedChannels = assembled.referencedChannels;
     jobContext.mentionedPersonas = assembled.mentionedPersonas;
@@ -336,6 +429,16 @@ export class ContextStep implements IPipelineStep {
     jobContext.userTimezone = assembled.userTimezone;
     jobContext.userInternalId = assembled.userInternalId;
     jobContext.crossChannelHistory = assembled.crossChannelHistory;
+    // Guild surfaces adopt the assembled value only when the envelope carried
+    // the raw source — an envelope from a sender predating the raw guild
+    // fields must keep its payload copy (overwriting with the assembler's
+    // undefined would silently clobber valid data, the forward-bug class).
+    if (jobContext.rawAssemblyInputs?.rawParticipantGuildInfo !== undefined) {
+      jobContext.participantGuildInfo = assembled.participantGuildInfo;
+    }
+    if (jobContext.rawAssemblyInputs?.rawActiveGuildMemberInfo !== undefined) {
+      jobContext.activePersonaGuildInfo = assembled.activePersonaGuildInfo;
+    }
     job.data.message = assembled.messageContent;
 
     // Permanent observability: which path drove this prompt. Counts + kind

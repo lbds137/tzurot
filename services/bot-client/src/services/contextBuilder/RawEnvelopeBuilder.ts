@@ -14,7 +14,9 @@
 import type { Message } from 'discord.js';
 import {
   apiConversationMessageSchema,
+  type AttachmentMetadata,
   type ConversationMessage,
+  type GuildMemberInfo,
   type RawAssemblyInputs,
   type RawDiscordUser,
   type ReferencedMessage,
@@ -32,30 +34,49 @@ export interface RawExtendedContextSnapshot {
   messages: ConversationMessage[];
   extendedContextUsers: ExtendedContextUser[];
   reactorUsers: ExtendedContextUser[];
+  /** Pre-remap guild info, still keyed `discord:<authorId>`. */
+  participantGuildInfo?: Record<string, GuildMemberInfo>;
+  /** Uncapped extended-context image list (each carries sourceDiscordMessageId). */
+  imageAttachments?: AttachmentMetadata[];
 }
 
 /**
  * Capture the raw extended-context snapshot from a fetch result. Must be
  * called BEFORE resolveExtendedContextPersonaIds, which mutates the fetched
- * messages in place (placeholder personaIds → UUIDs) — the worker-side
- * shadow assembler needs the pre-resolution shape to verify its own batch
- * upsert + persona resolution. Returns undefined when the envelope is off
- * (structuredClone of up to 100 messages isn't free).
+ * messages in place (placeholder personaIds → UUIDs) AND remaps the
+ * participantGuildInfo keys — the worker-side assembler needs the
+ * pre-resolution shape to re-run its own batch upsert + persona resolution.
+ * Returns undefined when the envelope is off (structuredClone of up to 100
+ * messages isn't free).
  */
 export function captureRawExtendedContext(
-  fetchResult: Pick<FetchResult, 'messages' | 'extendedContextUsers' | 'reactorUsers'>
+  fetchResult: Pick<
+    FetchResult,
+    | 'messages'
+    | 'extendedContextUsers'
+    | 'reactorUsers'
+    | 'participantGuildInfo'
+    | 'imageAttachments'
+  >
 ): RawExtendedContextSnapshot | undefined {
   if (!isRawEnvelopeEnabled()) {
     return undefined;
   }
   return {
     // Messages are deep-cloned because resolveExtendedContextPersonaIds
-    // rewrites msg.personaId in place. The user arrays only need shallow
-    // copies — resolution reads them but never mutates the user objects. If
-    // that ever changes, upgrade these to structuredClone too.
+    // rewrites msg.personaId in place; the guild map is deep-cloned because
+    // the same resolution remaps its keys in place. The user and attachment
+    // arrays only need shallow copies — resolution reads them but never
+    // mutates the objects. If that ever changes, upgrade to structuredClone.
     messages: structuredClone(fetchResult.messages),
     extendedContextUsers: [...(fetchResult.extendedContextUsers ?? [])],
     reactorUsers: [...(fetchResult.reactorUsers ?? [])],
+    participantGuildInfo:
+      fetchResult.participantGuildInfo !== undefined
+        ? structuredClone(fetchResult.participantGuildInfo)
+        : undefined,
+    imageAttachments:
+      fetchResult.imageAttachments !== undefined ? [...fetchResult.imageAttachments] : undefined,
   };
 }
 
@@ -116,6 +137,8 @@ export function buildRawAssemblyInputs(
     rawMentionedRoles?: RawMentionedRole[];
     /** The author's effective display name from buildContext step 1. */
     rawAuthorDisplayName?: string;
+    /** The triggering user's guild member info (raw form of activePersonaGuildInfo). */
+    rawActiveGuildMemberInfo?: GuildMemberInfo;
   }
 ): RawAssemblyInputs | undefined {
   if (!isRawEnvelopeEnabled()) {
@@ -125,6 +148,10 @@ export function buildRawAssemblyInputs(
     rawMessageContent: message.content,
     rawRoutingTranscript: VoiceMessageProcessor.getVoiceTranscript(message),
     rawAuthorDisplayName: refs?.rawAuthorDisplayName,
+    // No clone needed (unlike the participant guild map): this scalar is a
+    // freshly-built extractGuildMemberInfo result with no in-place mutation
+    // path — nothing downstream remaps or edits the active speaker's roles.
+    rawActiveGuildMemberInfo: refs?.rawActiveGuildMemberInfo,
     rawReferencedMessages: refs?.rawReferencedMessages,
     rawMentionedChannels: refs?.rawMentionedChannels,
     rawMentionedRoles: refs?.rawMentionedRoles,
@@ -140,6 +167,8 @@ export function buildRawAssemblyInputs(
     rawExtendedContextMessages: raw?.messages.map(toApiConversationMessage),
     rawExtendedContextUsers: raw?.extendedContextUsers.map(toRawDiscordUser),
     rawReactorUsers: raw?.reactorUsers.map(toRawDiscordUser),
+    rawParticipantGuildInfo: raw?.participantGuildInfo,
+    rawExtendedContextImageAttachments: raw?.imageAttachments,
     knownChannelEnvironments: buildKnownChannelEnvironments(message.client),
   };
 }

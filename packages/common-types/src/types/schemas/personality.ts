@@ -6,7 +6,11 @@
  */
 
 import { z } from 'zod';
-import { discordEnvironmentSchema, attachmentMetadataSchema } from './discord.js';
+import {
+  discordEnvironmentSchema,
+  attachmentMetadataSchema,
+  guildMemberInfoSchema,
+} from './discord.js';
 import { rawAssemblyInputsSchema } from './rawEnvelope.js';
 import {
   apiConversationMessageSchema,
@@ -153,19 +157,9 @@ export const referencedChannelSchema = z.object({
   guildId: z.string().optional(),
 });
 
-/**
- * Guild member info schema
- * Discord server-specific information about a user
- * Used for enriching participant context in prompts
- */
-export const guildMemberInfoSchema = z.object({
-  /** User's top server roles (sorted by position, excluding @everyone). Limit: MESSAGE_LIMITS.MAX_GUILD_ROLES */
-  roles: z.array(z.string()).max(5),
-  /** Display color from highest colored role (hex, e.g., '#FF00FF') */
-  displayColor: z.string().optional(),
-  /** When user joined the server (ISO 8601) */
-  joinedAt: z.string().optional(),
-});
+// guildMemberInfoSchema lives in discord.ts (Discord member data; also needed
+// by rawEnvelope.ts, which personality.ts imports — defining it here would
+// create a schema-module cycle).
 
 /**
  * Request context schema
@@ -241,5 +235,4 @@ export function isVoiceEnabled(personality: LoadedPersonality): boolean {
 
 export type MentionedPersona = z.infer<typeof mentionedPersonaSchema>;
 export type ReferencedChannel = z.infer<typeof referencedChannelSchema>;
-export type GuildMemberInfo = z.infer<typeof guildMemberInfoSchema>;
 export type RequestContext = z.infer<typeof requestContextSchema>;
