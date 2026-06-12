@@ -57,7 +57,11 @@ export default defineConfig({
       reporter: ['text', 'json', 'lcov'],
       reportsDirectory: './coverage/integration',
       enabled: false, // Enable with --coverage flag
-      include: ['src/**/*.ts', 'packages/**/src/**/*.ts'],
+      // All three roots must be listed: this config runs from the repo root,
+      // so a bare 'src/**' matches nothing — without the services glob, no
+      // services/*/src file ever appeared in the integration coverage upload
+      // (the 'integration' codecov flag claimed services/ but received no data).
+      include: ['src/**/*.ts', 'packages/**/src/**/*.ts', 'services/**/src/**/*.ts'],
       exclude: ['**/*.test.ts', '**/*.int.test.ts', '**/node_modules/**'],
     },
   },
