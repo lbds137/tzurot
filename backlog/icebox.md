@@ -359,14 +359,3 @@ Surfaced 2026-04-23.
 
 **Why icebox (not a quick win)**: this is an architectural addition, not a tweak — new schema, new cascade-resolution semantics in `historyCutoff.ts`, a new command surface, and a migration. The weigh-in bug is fixed independently (epoch → `undefined` for weigh-in); this item is the _generalization_, only worth doing if channel/server-level reset becomes a real user need. **Promote when**: a user asks for channel/server-wide context reset, OR a second channel-scoped operation needs an epoch and the "no coarse epoch exists" gap bites again. Surfaced 2026-06-09 (user) during the weigh-in epoch-semantics fix.
 
-#### `[DECISION]` Should ai-worker also lose Prisma (route all DB through api-gateway)?
-
-**Surfaced 2026-06-11 (user, "food for thought")** while making bot-client Prisma-free (Phase 2.5): if we're removing Prisma from bot-client, should ai-worker also go through api-gateway so there's a single DB source of truth?
-
-**Current lean: NO — keep ai-worker's Prisma. It's not the same move as bot-client.** The architecture rule isn't "one service owns all DB" — it's "data-owning backend services access their data; thin edge/interface services don't." bot-client is the Discord I/O layer and owns **no** data domain → correctly Prisma-free, goes through the gateway. ai-worker is a **data-owning AI/memory backend** (owns the `memories` table, embeddings, pgvector indexes) where DB access is the hot path:
-- **Perf**: pgvector similarity search, batch embedding writes, conversation-history hydration are high-volume + latency-sensitive; raw `$queryRaw` vector ops don't map cleanly to REST, and an HTTP hop per query adds serialization + network cost.
-- **Coupling**: routing ai-worker's memory/embedding surface through the gateway would balloon the gateway's internal API surface and make it a bottleneck for all AI ops — _more_ coupling, not less.
-- So the clean shape is two legitimate data owners (api-gateway = conversation/config/personality domain; ai-worker = AI/memory domain), each owning its own `PrismaClient`, with bot-client the only Prisma-free edge.
-
-**Revisit if**: ai-worker's DB access becomes thin/CRUD-shaped (no pgvector, no batch writes), OR a concrete operational pain (migration coordination, connection-pool limits) makes the single-owner tradeoff worth the perf/coupling cost. Until then, the 2-owner split is the intended design, not drift.
-

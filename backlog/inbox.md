@@ -33,6 +33,19 @@ _New items go here. Triage to appropriate section weekly._
 
 **Outcome**: pick a LEAN starting point (likely OTel + auto-instrumentation + one free-tier backend, focused first on gateway request latency + Prisma query times), wire it, build a latency dashboard + a p99 alert. Foundation for scale. Likely graduates from inbox to a `future-themes` initiative once scoped.
 
+### `[LIFT]` Audit import/export/template/clone field completeness — derive from schema, kill hard-coded field lists
+
+**Surfaced 2026-06-11 (user)** while editing presets. `/preset export` builds its JSON from a **hard-coded** `EXPORT_FIELDS` list (`services/bot-client/src/commands/preset/export.ts:20` — name/description/provider/model/visionModel/contextWindowTokens), plus hard-coded `SAMPLING_PARAMS` and `REASONING_PARAMS`. Add a field to the llm-config schema and it **silently won't export** unless someone manually updates the list → drift-prone data loss, exactly the brittle hard-coding the user wants to systematically kill. (Trigger: user noticed `isGlobal`/public-private isn't exported — that one IS intentional per the `export.ts:16-18` comment, "dashboard toggle" — but it surfaced the broader pattern.)
+
+**Scope** — enumerate every serialize/deserialize/template/clone surface and check whether its field set is **schema-derived (single source of truth)** or hand-listed:
+1. Preset export/import/clone: `export.ts` (`EXPORT_FIELDS`/`SAMPLING_PARAMS`/`REASONING_PARAMS`), the import counterpart, `createClonedPreset` (`cloneName.ts`).
+2. Any other export/import/template: personality export/import, shapes import, config templates/defaults, TTS-config equivalents.
+3. For each hand-listed set: flag it; prefer deriving from the Zod schema (e.g. a co-located "exportable projection" or `schema.keyof` introspection) so a new schema field defaults to **included**. Where exclusion is deliberate (computed/server-side fields, `isGlobal`), make it an explicit **deny-list against the schema's full key set** — fail-open-to-completeness, not fail-closed-to-silent-omission.
+
+**Decision to surface**: should export capture `isGlobal` so a re-import preserves public/private? (Currently no, by design — revisit during the audit.)
+
+**Why a LIFT**: cross-cutting (export/import/template/clone surfaces + possibly the schema layer); the per-surface fix (schema-derived projection) is small but needs the full enumeration first. Same brittle-hardcoding class we've hit repeatedly — worth killing structurally.
+
 ### `[LIFT]` Audit slash-command timeout handling for consistency (Discord 3s ack + downstream timeouts)
 
 **Surfaced 2026-06-11 (user)** after a prod session where the api-gateway felt slow on less-common commands (preset edit/import/export, setting default presets personal + global). Suspicion: command-processing or gateway-call timeouts may be inconsistent across commands, or too short for the slower paths — a problem we've hit before. The Discord 3s-ack rule is well-documented (`04-discord.md`: defer-first), but the **downstream** timeouts (gateway `fetch`/`callGatewayApi`/`adminFetch` request timeouts, BullMQ result-wait windows, per-command budgets) may not be applied consistently.
