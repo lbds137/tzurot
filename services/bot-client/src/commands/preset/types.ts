@@ -29,7 +29,7 @@ export interface PresetData {
   contextWindowTokens: number;
   /** Model's full context window (from OpenRouter), undefined if unknown */
   modelContextLength?: number;
-  /** 50% cap for contextWindowTokens, undefined if unknown */
+  /** Model-derived cap for contextWindowTokens (computeContextCap), undefined if unknown */
   contextWindowCap?: number;
   params: {
     temperature?: number;
@@ -94,7 +94,7 @@ export interface FlattenedPresetData {
   contextWindowTokens: string;
   /** Model's full context window (display-only, not editable) */
   modelContextLength?: number;
-  /** 50% cap for contextWindowTokens (display-only, not editable) */
+  /** Model-derived cap for contextWindowTokens (display-only, not editable) */
   contextWindowCap?: number;
   /** Browse context when opened from browse (for back navigation) */
   browseContext?: BrowseContext;
