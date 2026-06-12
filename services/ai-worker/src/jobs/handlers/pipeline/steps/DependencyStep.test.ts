@@ -16,7 +16,7 @@ import {
   type AudioTranscriptionResult,
   type ImageDescriptionResult,
 } from '@tzurot/common-types';
-import { DependencyStep } from './DependencyStep.js';
+import { DependencyStep, deriveExtendedContextImages } from './DependencyStep.js';
 import type { GenerationContext } from '../types.js';
 
 // Mock common-types logger
@@ -424,7 +424,76 @@ describe('DependencyStep', () => {
     });
   });
 
+  describe('deriveExtendedContextImages', () => {
+    const img = (id: string): { url: string; contentType: string; id: string } => ({
+      url: `https://cdn/${id}.png`,
+      contentType: 'image/png',
+      id,
+    });
+
+    it('returns undefined when the envelope carries no raw image list', () => {
+      expect(deriveExtendedContextImages(undefined, 10)).toBeUndefined();
+    });
+
+    it('returns undefined when maxImages disables the feature (bot parity)', () => {
+      // The bot ships undefined for maxImages <= 0, not [].
+      expect(deriveExtendedContextImages([img('a')], 0)).toBeUndefined();
+      expect(deriveExtendedContextImages([img('a')], undefined)).toBeUndefined();
+    });
+
+    it('caps to the most recent maxImages via slice(-cap), matching the bot rule', () => {
+      const result = deriveExtendedContextImages([img('a'), img('b'), img('c')], 2);
+      expect(result?.map(i => i.id)).toEqual(['b', 'c']);
+    });
+
+    it('passes the full list through when under the cap', () => {
+      const result = deriveExtendedContextImages([img('a')], 10);
+      expect(result?.map(i => i.id)).toEqual(['a']);
+    });
+  });
+
   describe('extended context attachments', () => {
+    it('derives the image list from the raw envelope when the payload field is absent (thin payload)', async () => {
+      const processedAttachment = {
+        type: AttachmentType.Image,
+        description: 'derived image',
+        originalUrl: 'https://cdn/raw1.png',
+        metadata: { url: 'https://cdn/raw1.png', contentType: 'image/png' },
+      };
+      mockProcessAttachments.mockResolvedValueOnce([processedAttachment]);
+
+      const context: GenerationContext = {
+        job: createMockJob({
+          context: {
+            userId: 'user-456',
+            userName: 'TestUser',
+            channelId: 'channel-789',
+            // No extendedContextAttachments — thin payload shape.
+            rawAssemblyInputs: {
+              rawMessageContent: 'hi',
+              rawExtendedContextImageAttachments: [
+                { url: 'https://cdn/raw0.png', contentType: 'image/png', id: 'raw0' },
+                { url: 'https://cdn/raw1.png', contentType: 'image/png', id: 'raw1' },
+              ],
+            },
+          },
+        }),
+        config: { effectivePersonality: TEST_PERSONALITY, configSource: 'personality' },
+        configOverrides: { maxImages: 1 } as never,
+        startTime: Date.now(),
+      };
+
+      const result = await step.process(context);
+
+      // Capped to the most recent 1 of the 2 raw images.
+      expect(mockProcessAttachments).toHaveBeenCalledWith(
+        [expect.objectContaining({ id: 'raw1' })],
+        TEST_PERSONALITY,
+        expect.anything()
+      );
+      expect(result.preprocessing?.extendedContextAttachments).toHaveLength(1);
+    });
+
     it('should process extended context image attachments using effective personality', async () => {
       const processedAttachment = {
         type: AttachmentType.Image,

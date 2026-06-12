@@ -78,6 +78,39 @@ describe('captureRawExtendedContext', () => {
     expect(snapshot?.extendedContextUsers).toHaveLength(1);
     expect(snapshot?.reactorUsers).toEqual([]);
   });
+
+  it('deep-clones the guild map so later in-place key remapping cannot leak in', () => {
+    process.env.CONTEXT_RAW_ENVELOPE = 'true';
+    const liveGuildInfo: Record<string, { roles: string[] }> = {
+      'discord:111': { roles: ['Admin'] },
+    };
+
+    const snapshot = captureRawExtendedContext({
+      messages: [],
+      extendedContextUsers: [],
+      reactorUsers: [],
+      participantGuildInfo: liveGuildInfo,
+      imageAttachments: [{ url: 'https://cdn/img.png', contentType: 'image/png', id: 'a1' }],
+    });
+
+    // Simulate resolveExtendedContextPersonaIds remapping the live map's keys.
+    liveGuildInfo['resolved-uuid'] = liveGuildInfo['discord:111'];
+    delete liveGuildInfo['discord:111'];
+
+    expect(snapshot?.participantGuildInfo).toEqual({ 'discord:111': { roles: ['Admin'] } });
+    expect(snapshot?.imageAttachments).toHaveLength(1);
+  });
+
+  it('leaves guild map and attachments undefined when the fetch produced none', () => {
+    process.env.CONTEXT_RAW_ENVELOPE = 'true';
+    const snapshot = captureRawExtendedContext({
+      messages: [],
+      extendedContextUsers: [],
+      reactorUsers: [],
+    });
+    expect(snapshot?.participantGuildInfo).toBeUndefined();
+    expect(snapshot?.imageAttachments).toBeUndefined();
+  });
 });
 
 describe('toRawDiscordUser', () => {
@@ -149,6 +182,32 @@ describe('buildRawAssemblyInputs', () => {
       rawAuthorDisplayName: 'Vladlena',
     });
     expect(raw?.rawAuthorDisplayName).toBe('Vladlena');
+  });
+
+  it('ships the raw guild surfaces: participant map, image list, active member info', () => {
+    process.env.CONTEXT_RAW_ENVELOPE = 'true';
+    const snapshot = {
+      messages: [],
+      extendedContextUsers: [],
+      reactorUsers: [],
+      participantGuildInfo: { 'discord:111': { roles: ['Admin'], displayColor: '#FF00FF' } },
+      imageAttachments: [{ url: 'https://cdn/img.png', contentType: 'image/png', id: 'a1' }],
+    };
+
+    const raw = buildRawAssemblyInputs(makeMessage([], 'plain'), snapshot, {
+      rawActiveGuildMemberInfo: { roles: ['Mod'], joinedAt: '2024-01-01T00:00:00.000Z' },
+    });
+
+    expect(raw?.rawParticipantGuildInfo).toEqual({
+      'discord:111': { roles: ['Admin'], displayColor: '#FF00FF' },
+    });
+    expect(raw?.rawExtendedContextImageAttachments).toEqual([
+      { url: 'https://cdn/img.png', contentType: 'image/png', id: 'a1' },
+    ]);
+    expect(raw?.rawActiveGuildMemberInfo).toEqual({
+      roles: ['Mod'],
+      joinedAt: '2024-01-01T00:00:00.000Z',
+    });
   });
 
   it('passes reference and channel/role mention raws through', () => {
