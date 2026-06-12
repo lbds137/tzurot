@@ -5,18 +5,8 @@
  * Used by both user and admin LLM config routes.
  */
 
+import { computeContextCap } from '@tzurot/common-types';
 import type { OpenRouterModelCache } from '../services/OpenRouterModelCache.js';
-
-/**
- * Models with context windows at or below this threshold use their full context
- * (no halving). Larger models are capped at 50% to leave room for generation.
- */
-const SMALL_CONTEXT_THRESHOLD = 65536;
-
-/** Compute the context window cap: full context for small models, 50% for large */
-function computeContextCap(contextLength: number): number {
-  return contextLength <= SMALL_CONTEXT_THRESHOLD ? contextLength : Math.floor(contextLength / 2);
-}
 
 /**
  * Result of model validation.
@@ -31,7 +21,9 @@ export interface ModelValidationResult {
 
 /**
  * Validate a model ID against the OpenRouter model cache and enforce
- * contextWindowTokens <= 50% of the model's context_length.
+ * contextWindowTokens <= computeContextCap(context_length) — the graduated
+ * headroom cap shared with ai-worker's runtime clamp (see
+ * common-types/utils/contextWindowCap.ts for the rationale).
  *
  * Gracefully degrades: if the model cache is unavailable (e.g., OpenRouter
  * is down), validation is skipped and the request proceeds.
@@ -67,14 +59,11 @@ export async function validateModelAndContextWindow(
   if (contextWindowTokens !== undefined && contextWindowTokens > cap) {
     const contextK = Math.round(model.contextLength / 1000);
     const capK = Math.round(cap / 1000);
-    // "full" when the cap equals contextLength (small model, no halving applied),
-    // "safe" when we're holding back 50% for generation room.
-    const scope = cap === model.contextLength ? 'full' : 'safe';
     return {
       error:
-        `Context window setting (${contextWindowTokens} tokens) exceeds the ${scope} limit for '${modelId}'. ` +
-        `Model supports ${contextK}K tokens; maximum allowed for this model is ${capK}K (${cap} tokens). ` +
-        `Reduce the Context Window value before saving.`,
+        `Context window setting (${contextWindowTokens} tokens) exceeds the safe limit for '${modelId}'. ` +
+        `Model supports ${contextK}K tokens; maximum allowed for this model is ${capK}K (${cap} tokens) ` +
+        `to leave room for the response. Reduce the Context Window value before saving.`,
       contextWindowCap: cap,
     };
   }

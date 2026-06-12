@@ -15,7 +15,11 @@ import { VisionDescriptionCache } from './services/VisionDescriptionCache.js';
 import { RedisService } from './services/RedisService.js';
 import { RateLimitCache } from './services/RateLimitCache.js';
 import { CreditExhaustionCache } from './services/CreditExhaustionCache.js';
-import { modelSupportsVision, modelSupportsReasoning } from './services/ModelCapabilityChecker.js';
+import {
+  modelSupportsVision,
+  modelSupportsReasoning,
+  getModelContextLength,
+} from './services/ModelCapabilityChecker.js';
 
 const { redis, voiceTranscriptCache } = initCoreRedisServices('WorkerRedis');
 
@@ -60,4 +64,15 @@ export async function checkModelVisionSupport(modelId: string): Promise<boolean>
  */
 export async function checkModelReasoningSupport(modelId: string): Promise<boolean> {
   return modelSupportsReasoning(modelId, redis);
+}
+
+/**
+ * Get a model's real context length using OpenRouter's cached model data.
+ * This is a singleton wrapper that uses the shared ioredis client.
+ *
+ * @param modelId - The model ID to look up
+ * @returns The context length in tokens, or null when unknown (cache miss, non-OpenRouter model)
+ */
+export async function checkModelContextLength(modelId: string): Promise<number | null> {
+  return getModelContextLength(modelId, redis);
 }

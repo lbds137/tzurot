@@ -36,6 +36,7 @@ import {
   countMediaAttachments,
 } from './RAGUtils.js';
 import { redisService, visionDescriptionCache, checkModelReasoningSupport } from '../redis.js';
+import { resolveEffectiveContextWindow } from './contextWindowResolver.js';
 import { deriveCacheKeyId } from './RateLimitCache.js';
 import { ResponsePostProcessor } from './ResponsePostProcessor.js';
 import { ConversationInputProcessor } from './ConversationInputProcessor.js';
@@ -45,6 +46,7 @@ import {
   parseResponseMetadata,
   recordLlmConfigDiagnostic,
   recordLlmResponseDiagnostic,
+  recordBudgetDiagnostics,
 } from './diagnostics/DiagnosticRecorders.js';
 import type { DiagnosticCollector } from './DiagnosticCollector.js';
 import type {
@@ -411,6 +413,7 @@ export class ConversationalRAGService {
       // Step 4: Allocate token budgets and select content
       // Note: Image descriptions and stored reference hydration are handled by
       // enrichConversationHistory (Step 1.5) — history is already enriched here
+      const effectiveContextWindowTokens = await resolveEffectiveContextWindow(personality);
       const budgetResult = this.contentBudgetManager.allocate({
         personality,
         processedPersonality,
@@ -421,25 +424,18 @@ export class ConversationalRAGService {
         processedAttachments: inputs.processedAttachments,
         referencedMessagesDescriptions: inputs.referencedMessagesDescriptions,
         historyReductionPercent: retryConfig?.historyReductionPercent,
+        effectiveContextWindowTokens,
       });
 
       // Record memory retrieval and token budget for diagnostics
       if (diagnosticCollector) {
-        diagnosticCollector.recordMemoryRetrieval({
+        recordBudgetDiagnostics({
+          collector: diagnosticCollector,
           retrievedMemories,
-          selectedMemories: budgetResult.relevantMemories,
           focusModeEnabled,
-        });
-        diagnosticCollector.recordTokenBudget({
-          contextWindowSize: personality.contextWindowTokens ?? 131072,
-          systemPromptTokens: this.promptBuilder.countTokens(
-            budgetResult.systemPrompt.content as string
-          ),
-          memoryTokensUsed: budgetResult.memoryTokensUsed,
-          historyTokensUsed: budgetResult.historyTokensUsed,
-          memoriesDropped: budgetResult.memoriesDroppedCount,
-          historyMessagesDropped: budgetResult.messagesDropped,
-          crossChannelMessagesIncluded: budgetResult.crossChannelMessagesIncluded,
+          budgetResult,
+          contextWindowSize: effectiveContextWindowTokens,
+          countTokens: text => this.promptBuilder.countTokens(text),
         });
       }
 

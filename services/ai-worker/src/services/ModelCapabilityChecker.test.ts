@@ -8,6 +8,7 @@ import { REDIS_KEY_PREFIXES, type OpenRouterModel } from '@tzurot/common-types';
 import {
   modelSupportsVision,
   modelSupportsReasoning,
+  getModelContextLength,
   clearCapabilityCache,
 } from './ModelCapabilityChecker.js';
 
@@ -335,6 +336,52 @@ describe('ModelCapabilityChecker', () => {
         expect(await modelSupportsReasoning('qwen/qwen2.5-72b', mockRedis)).toBe(false);
         expect(await modelSupportsReasoning('openai/gpt-4o', mockRedis)).toBe(false);
       });
+    });
+  });
+
+  describe('getModelContextLength', () => {
+    it('should return the context length from the Redis cache', async () => {
+      const models = [
+        createMockModel('cognitivecomputations/dolphin-mistral-24b-venice-edition', ['text']),
+      ];
+      vi.mocked(mockRedis.get).mockResolvedValue(JSON.stringify(models));
+
+      const result = await getModelContextLength(
+        'cognitivecomputations/dolphin-mistral-24b-venice-edition',
+        mockRedis
+      );
+
+      expect(result).toBe(4096); // createMockModel's context_length
+    });
+
+    it('should resolve :free-suffixed model IDs', async () => {
+      const models = [
+        createMockModel('cognitivecomputations/dolphin-mistral-24b-venice-edition', ['text']),
+      ];
+      vi.mocked(mockRedis.get).mockResolvedValue(JSON.stringify(models));
+
+      const result = await getModelContextLength(
+        'cognitivecomputations/dolphin-mistral-24b-venice-edition:free',
+        mockRedis
+      );
+
+      expect(result).toBe(4096);
+    });
+
+    it('should return null when the model is not in the cache', async () => {
+      vi.mocked(mockRedis.get).mockResolvedValue(JSON.stringify([]));
+
+      const result = await getModelContextLength('unknown/model', mockRedis);
+
+      expect(result).toBeNull();
+    });
+
+    it('should return null when Redis is unavailable (pattern fallback has no length)', async () => {
+      vi.mocked(mockRedis.get).mockRejectedValue(new Error('Redis down'));
+
+      const result = await getModelContextLength('openai/gpt-4o', mockRedis);
+
+      expect(result).toBeNull();
     });
   });
 

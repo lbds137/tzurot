@@ -79,16 +79,11 @@ export const AI_DEFAULTS = {
   /**
    * Default context window token budget (128k tokens)
    *
-   * GUIDELINE: Set contextWindowTokens to ~50% of model's advertised max for safety.
-   * - 50% = Very conservative, always safe (recommended default)
-   * - 75% = Generally safe for well-tested, non-reasoning models
-   * - 90% = Aggressive, only if tested at that load
-   *
-   * Why not use 100%?
-   * - Token counting (tiktoken) may differ from provider's actual counting
-   * - Many models degrade in quality near their context limit ("lost in the middle")
-   * - Reasoning models (o1, Claude thinking) use tokens for internal reasoning
-   * - Leaves headroom for output tokens on shared-limit models
+   * The effective budget is automatically capped against the model's real
+   * context length at both config-save time (gateway validation) and
+   * generation time (worker runtime clamp) — see utils/contextWindowCap.ts
+   * for the formula and the rationale (output headroom + tokenizer mismatch).
+   * Operators don't need to derate this value manually.
    */
   CONTEXT_WINDOW_TOKENS: 131072,
   /**
