@@ -2,6 +2,20 @@
 
 _New items go here. Triage to appropriate section weekly._
 
+### `[LIFT]` Type-assertion audit — triage sketchy casts, adopt a deterministic ratchet
+
+**Surfaced 2026-06-12 (user)** after PR #1192 (the `content as string` fix) — that cast was hiding a real type hole (`buildBaseComponents` returned `{ content: unknown }`, caught by tsc the moment the cast came out). Census of production code (tests excluded): **65 `as unknown as`** double-casts (full type-system bypass; some are test infra under `src/` — Discord mocks, conformance harness — but production hits include `ai-worker/jobs/AIJobProcessor.ts` ×3, `bot-client/utils/browse/customIdFactory.ts` ×3, the dashboard settings builders, `fetchTypingChannel.ts`), **1 `as never`** (`settingsUpdateFactory.ts:75`), **~416 total `as Type` assertions** never triaged. Same shape as the CPD story: a noisy raw metric needing a classifier + ratchet, not a grep.
+
+**Scope**: (1) triage the `as unknown as` production set — each is either a legit boundary (document why, à la suppression-justification standards in `02-code-standards.md`) or a latent hole (fix); (2) adopt a deterministic gate so new unsafe assertions can't land silently.
+
+**Tool candidates (training-data priors — REQUIRE live web verification per the research-method convention; verify current names/maturity/vitest-ESLint-version fit before adopting):**
+1. **`@typescript-eslint/no-unsafe-type-assertion`** — ESLint rule flagging assertions not provably safe; would slot into the existing lint pipeline with a baseline/ratchet like cpd. Likely the primary candidate.
+2. **`@typescript-eslint/consistent-type-assertions`** — can restrict assertion styles (e.g., forbid `as` outside `as const`).
+3. **`type-coverage`** (`--strict` counts type assertions; percentage metric with `--at-least` threshold) — ratchetable in CI exactly like the cpd/test-audit baselines.
+4. **ast-grep** for structural search during the triage itself (regex grep over-/under-matches casts).
+
+**Why a LIFT**: the triage pass is cross-cutting (all three services + packages), and the ratchet adoption follows the established audit-tool checklist (`docs/reference/audit-enforcement.md` — WHY.md, canary, baseline-meta contract) if it graduates to an audit-class gate. Complements (same family as) the `[RESEARCH]` deterministic-test-tooling spike below — both are "make the unsafe thing impossible to land silently."
+
 ### `[RESEARCH]` Deterministic test-quality tooling — evaluate mutation testing + a job-payload contract layer
 
 **Surfaced 2026-06-11** (user) after the iii-b-2 thin-payload referenced-attachment regression (#1184): `jobChainOrchestrator` **had** a referenced-attachment test, and line coverage was green — but it covered only the _fat_ payload shape, so a new wire-shape shipped broken. Three green units, one broken cross-service seam. User's framing: unit tests are repeatedly insufficient for seam/wiring bugs; rules that depend on contributor/agent attention are not a safety net (the AI agent is non-deterministic by construction); we want **deterministic checks that fail the build**. We already have strong deterministic gates (cpd ratchet, test-audit, depcruise, conformance harness, codecov) — this is about filling the remaining rungs.
