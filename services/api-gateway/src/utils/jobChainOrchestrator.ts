@@ -337,9 +337,16 @@ export async function createJobChain(params: {
     );
   }
 
-  // Process attachments from referenced messages
-  if (context.referencedMessages && context.referencedMessages.length > 0) {
-    for (const refMsg of context.referencedMessages) {
+  // Process attachments from referenced messages. In thin (kind:'envelope')
+  // mode the bot drops context.referencedMessages, so fall back to the raw
+  // envelope's snapshots: they carry the same attachments + referenceNumber
+  // (buildRawReference), and the worker preserves raw reference numbers, so the
+  // dep jobs' sourceReferenceNumber keys still line up with the assembled refs.
+  // Without this fallback, a reply/link to an image goes undescribed under thin.
+  const referencedMessages =
+    context.referencedMessages ?? context.rawAssemblyInputs?.rawReferencedMessages ?? [];
+  if (referencedMessages.length > 0) {
+    for (const refMsg of referencedMessages) {
       if (!refMsg.attachments || refMsg.attachments.length === 0) {
         continue;
       }
@@ -356,7 +363,7 @@ export async function createJobChain(params: {
     logger.info(
       {
         requestId,
-        referencedMessageCount: context.referencedMessages.length,
+        referencedMessageCount: referencedMessages.length,
         totalChildren: children.length,
       },
       'Built preprocessing child jobs including referenced messages'

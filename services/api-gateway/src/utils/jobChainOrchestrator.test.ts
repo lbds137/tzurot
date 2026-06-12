@@ -570,6 +570,96 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
       expect(flowCall.data.dependencies).toHaveLength(1);
     });
 
+    it('should create the referenced-image job from the raw envelope when referencedMessages is dropped (thin payload)', async () => {
+      // Thin (kind:'envelope') payload: the bot omits context.referencedMessages
+      // and ships the same snapshot on rawAssemblyInputs.rawReferencedMessages.
+      // The gateway must still spawn the referenced image's vision job — without
+      // this, a reply/link to an image goes undescribed under thin (regression
+      // that shipped because this case wasn't covered).
+      const context: JobContext = {
+        kind: 'envelope',
+        userId: 'user-123',
+        channelId: 'channel-123',
+        rawAssemblyInputs: {
+          rawMessageContent: 'What is in this image?',
+          rawReferencedMessages: [
+            createReferencedMessage(1, {
+              content: 'Check out this image!',
+              attachments: [
+                {
+                  url: 'https://example.com/ref-image.png',
+                  name: 'ref-image.png',
+                  contentType: CONTENT_TYPES.IMAGE_PNG,
+                  size: 2048,
+                },
+              ],
+            }),
+          ],
+        },
+      } as JobContext;
+
+      await createJobChain({
+        requestId: 'req-ref-img-thin',
+        personality: mockPersonality,
+        message: 'What is in this image?',
+        context,
+        responseDestination: mockResponseDestination,
+      });
+
+      expect(flowProducer.add).toHaveBeenCalledTimes(1);
+      const flowCall = (flowProducer.add as any).mock.calls[0][0];
+      expect(flowCall.children).toHaveLength(1);
+      expect(flowCall.children[0].name).toBe(JobType.ImageDescription);
+      expect(flowCall.children[0].data.sourceReferenceNumber).toBe(1);
+      expect(flowCall.children[0].data.attachments).toHaveLength(1);
+      expect(flowCall.data.dependencies).toHaveLength(1);
+    });
+
+    it('should create the referenced-audio job from the raw envelope under thin payload', async () => {
+      // Same fallback as the image case — the ?? in createJobChain is
+      // attachment-type-agnostic, so referenced voice messages must also
+      // transcribe under thin (kind:'envelope', referencedMessages dropped).
+      const context: JobContext = {
+        kind: 'envelope',
+        userId: 'user-123',
+        channelId: 'channel-123',
+        rawAssemblyInputs: {
+          rawMessageContent: 'What did they say?',
+          rawReferencedMessages: [
+            createReferencedMessage(1, {
+              content: 'Listen to this!',
+              attachments: [
+                {
+                  url: 'https://example.com/ref-voice.ogg',
+                  name: 'ref-voice.ogg',
+                  contentType: CONTENT_TYPES.AUDIO_OGG,
+                  size: 1024,
+                  isVoiceMessage: true,
+                  duration: 5,
+                },
+              ],
+            }),
+          ],
+        },
+      } as JobContext;
+
+      await createJobChain({
+        requestId: 'req-ref-audio-thin',
+        personality: mockPersonality,
+        message: 'What did they say?',
+        context,
+        responseDestination: mockResponseDestination,
+      });
+
+      expect(flowProducer.add).toHaveBeenCalledTimes(1);
+      const flowCall = (flowProducer.add as any).mock.calls[0][0];
+      expect(flowCall.children).toHaveLength(1);
+      expect(flowCall.children[0].name).toBe(JobType.AudioTranscription);
+      expect(flowCall.children[0].data.sourceReferenceNumber).toBe(1);
+      expect(flowCall.children[0].data.attachment.isVoiceMessage).toBe(true);
+      expect(flowCall.data.dependencies).toHaveLength(1);
+    });
+
     it('should create audio preprocessing job for referenced message voice messages', async () => {
       const context: JobContext = {
         userId: 'user-123',
