@@ -109,6 +109,25 @@ describe('logSanitizer', () => {
       expect(result.normalField).toBe('visible');
     });
 
+    it('should NOT redact numeric token COUNT fields (metrics, not secrets)', () => {
+      // Auth tokens are string secrets; token COUNTS are numbers. Blanking the
+      // counts was over-redaction that blinded context-budget/perf debugging.
+      const obj = {
+        tokensUsed: 4096,
+        contextWindowTokens: 32768,
+        historyTokensUsed: 1200,
+        maxTokens: 2000,
+        // A string 'token' value is still a possible secret → stays redacted.
+        accessToken: 'secret-abc',
+      };
+      const result = sanitizeObject(obj) as Record<string, unknown>;
+      expect(result.tokensUsed).toBe(4096);
+      expect(result.contextWindowTokens).toBe(32768);
+      expect(result.historyTokensUsed).toBe(1200);
+      expect(result.maxTokens).toBe(2000);
+      expect(result.accessToken).toBe('[REDACTED]');
+    });
+
     it('should NOT redact apiKeySource metadata field — it carries no key value', () => {
       // Regression test for an over-redaction bug discovered 2026-04-29:
       // the broad `lowerKey.includes('apikey')` check matched `apiKeySource`
