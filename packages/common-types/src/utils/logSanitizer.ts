@@ -133,10 +133,17 @@ export function sanitizeObject(obj: unknown, depth = 0): unknown {
       // a substring but reveal nothing sensitive. Add explicit names here when
       // adding new metadata fields with `apikey`-prefixed names.
       const isApiKeyMetadata = matchesApiKeyPattern && API_KEY_METADATA_FIELDS.has(lowerKey);
+      // 'token'-named fields: redact only STRING values. Auth/access/bearer
+      // tokens are string SECRETS; token COUNTS (tokensUsed, contextWindowTokens,
+      // historyTokensUsed, maxTokens, …) are numeric METRICS that carry no
+      // sensitive material — blanking them was over-redaction that blinded us to
+      // context-budget/perf debugging. A numeric value can't be a secret token,
+      // so this stays fail-safe while un-redacting the counts.
+      const isSensitiveTokenField = lowerKey.includes('token') && typeof value === 'string';
       const isSensitiveKey =
         (matchesApiKeyPattern && !isApiKeyMetadata) ||
         lowerKey.includes('secret') ||
-        lowerKey.includes('token') ||
+        isSensitiveTokenField ||
         lowerKey.includes('password') ||
         lowerKey.includes('authorization');
       if (isSensitiveKey) {
