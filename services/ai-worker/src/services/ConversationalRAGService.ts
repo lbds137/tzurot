@@ -19,6 +19,7 @@ import {
   getPrismaClient,
   type LoadedPersonality,
 } from '@tzurot/common-types';
+import { contentToText } from '../utils/baseMessageContent.js';
 import { logAndThrow } from '../utils/errorHandling.js';
 import { validateAIProvider } from '../utils/providerValidation.js';
 import { ReferencedMessageFormatter } from './ReferencedMessageFormatter.js';
@@ -218,8 +219,8 @@ export class ConversationalRAGService {
     // Record assembled prompt and LLM config for diagnostics
     if (diagnosticCollector) {
       const totalTokenEstimate =
-        this.promptBuilder.countTokens(systemPrompt.content as string) +
-        this.promptBuilder.countTokens(currentMessage.content as string);
+        this.promptBuilder.countTokens(contentToText(systemPrompt.content)) +
+        this.promptBuilder.countTokens(contentToText(currentMessage.content));
 
       diagnosticCollector.recordAssembledPrompt(messages, totalTokenEstimate);
       recordLlmConfigDiagnostic({
@@ -245,7 +246,10 @@ export class ConversationalRAGService {
       audioCount,
     });
 
-    const rawContent = response.content as string;
+    // Non-text parts (thinking blocks, images) are intentionally excluded —
+    // thinking content arrives via reasoning_details and is handled by
+    // parseResponseMetadata/thinkingExtraction, not the content array.
+    const rawContent = contentToText(response.content);
 
     // Extract token usage, finish reason, and reasoning details
     const metadata = parseResponseMetadata(response);
