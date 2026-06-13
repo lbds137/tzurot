@@ -443,8 +443,6 @@ export class MessageContextBuilder {
       options,
     });
     const history = extendedContext.history;
-    const extendedContextAttachments = extendedContext.attachments;
-    const participantGuildInfo = extendedContext.participantGuildInfo;
 
     // Step 4b: Fetch cross-channel history. Disabled in weigh-in mode (anonymous
     // poke that skips LTM and other-channel history for a fresh-perspective response).
@@ -482,10 +480,6 @@ export class MessageContextBuilder {
     // Step 6: Convert conversation history to API format
     // Include messageMetadata so referenced messages can be formatted at prompt time
     // Include tokenCount for accurate token budget calculations (avoids chars/4 fallback)
-    // Include discordUsername for disambiguation when persona name matches personality name
-    // Include discordMessageId for quote deduplication (prevents duplicating quoted content in history)
-    const conversationHistory = history.map(toApiConversationMessage);
-
     // Extract attachments using unified buildMessageContent
     // This ensures forwarded message snapshot attachments are included (DRY principle)
     // Voice transcripts are handled upstream (passed in via content parameter)
@@ -493,10 +487,6 @@ export class MessageContextBuilder {
       includeEmbeds: false, // Embeds parsed by reference extraction, not needed here
       includeAttachments: false, // We only need attachment metadata, not text descriptions
     });
-    const attachments = allAttachments.length > 0 ? allAttachments : undefined;
-
-    // Extract Discord environment context
-    const environment = extractDiscordEnvironment(message);
 
     // Raw-envelope assembly inputs (worker-side shadow assembler burn-in);
     // undefined unless CONTEXT_RAW_ENVELOPE=true.
@@ -514,7 +504,17 @@ export class MessageContextBuilder {
     // envelope-enabled signal. See selectContextVariant.
     const variant = selectContextVariant({
       hasRawEnvelope: rawAssemblyInputs !== undefined,
-      fields: { conversationHistory, referencedMessages, mentionedPersonas, referencedChannels },
+      fields: {
+        // discordUsername (disambiguation) + discordMessageId (quote dedup)
+        // are preserved by toApiConversationMessage.
+        conversationHistory: history.map(toApiConversationMessage),
+        referencedMessages,
+        mentionedPersonas,
+        referencedChannels,
+        activePersonaGuildInfo: guildMemberInfo,
+        participantGuildInfo: extendedContext.participantGuildInfo,
+        extendedContextAttachments: extendedContext.attachments,
+      },
       logger,
       channelId: message.channel.id,
     });
@@ -525,7 +525,9 @@ export class MessageContextBuilder {
     // discordUsername is used for disambiguation when persona name matches personality name
     // effectiveUser is either overrideUser (slash commands) or message.author (@mentions)
     const context: MessageContext = {
-      ...variant, // kind + the re-derivable fields (legacy) or just kind (envelope)
+      // kind + all re-derivable fields (legacy) or just kind (envelope) — the
+      // guild/attachment surfaces ride the variant now, omitted when thin.
+      ...variant,
       userId: discordUserId,
       userInternalId: internalUserId,
       userName: effectiveUser.username,
@@ -536,11 +538,8 @@ export class MessageContextBuilder {
       messageContent,
       activePersonaId: personaId,
       activePersonaName: personaName ?? undefined,
-      activePersonaGuildInfo: guildMemberInfo, // Guild-specific info (roles, color, join date)
-      participantGuildInfo, // Guild info for other participants (from extended context) — KEPT (assembler can't re-derive yet)
-      attachments,
-      extendedContextAttachments, // Images from extended context — KEPT (no envelope source yet)
-      environment,
+      attachments: allAttachments.length > 0 ? allAttachments : undefined,
+      environment: extractDiscordEnvironment(message),
       crossChannelHistory:
         crossChannelGroups !== undefined
           ? mapCrossChannelToApiFormat(crossChannelGroups)
@@ -554,7 +553,7 @@ export class MessageContextBuilder {
       {
         activePersonaId: context.activePersonaId,
         activePersonaName: context.activePersonaName,
-        historyLength: conversationHistory.length,
+        historyLength: history.length,
         referencedMessagesCount: referencedMessages.length,
       },
       'Context built successfully'
