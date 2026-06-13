@@ -296,7 +296,7 @@ describe('MessageContextBuilder', () => {
       }
     });
 
-    it("ships a thin kind:'envelope' payload (omits the 4 re-derivable fields) when CONTEXT_THIN_PAYLOAD=true", async () => {
+    it("ships a thin kind:'envelope' payload (omits all 7 re-derivable fields) when CONTEXT_THIN_PAYLOAD=true", async () => {
       process.env.CONTEXT_RAW_ENVELOPE = 'true';
       process.env.CONTEXT_THIN_PAYLOAD = 'true';
       try {
@@ -315,6 +315,18 @@ describe('MessageContextBuilder', () => {
             personaId: 'p1',
           },
         ] as never);
+        // Populate the guild/attachment surfaces in the fetch result so the
+        // omission assertions below prove the VARIANT drops them, not that the
+        // mock simply left them empty (the distinction the burn-in exit hinges
+        // on). guildMemberInfo for the trigger user comes from the message's
+        // member mock; participantGuildInfo + images come from the fetch.
+        mockFetchRecentMessages.mockResolvedValue({
+          messages: [],
+          fetchedCount: 0,
+          filteredCount: 0,
+          participantGuildInfo: { 'discord:other': { roles: ['Member'] } },
+          imageAttachments: [{ url: 'https://cdn/x.png', contentType: 'image/png', id: 'x' }],
+        });
         mockExtractReferencesWithReplacement.mockResolvedValue({
           references: [],
           updatedContent: 'REWRITTEN content',
@@ -326,16 +338,39 @@ describe('MessageContextBuilder', () => {
           mentionedRoles: [],
         });
 
-        const result = await builder.buildContext(mockMessage, mockPersonality, 'raw content');
+        // extendedContext + botUserId are required for the fetch above to run
+        // (it early-returns otherwise) — without them participantGuildInfo /
+        // imageAttachments would be unpopulated and the assertions below would
+        // be theater. maxImages > 0 so the image list isn't capped to nothing.
+        const result = await builder.buildContext(mockMessage, mockPersonality, 'raw content', {
+          extendedContext: {
+            maxMessages: 20,
+            maxAge: null,
+            maxImages: 10,
+            sources: {
+              maxMessages: 'personality',
+              maxAge: 'personality',
+              maxImages: 'personality',
+            },
+          },
+          botUserId: 'bot-123',
+        });
 
         expect(result.context.kind).toBe('envelope');
-        // The four re-derivable fields are omitted; the worker assembles them.
+        // The four core re-derivable fields are omitted; the worker assembles them.
         expect(result.context.conversationHistory).toBeUndefined();
         expect(result.context.referencedMessages).toBeUndefined();
         expect(result.context.mentionedPersonas).toBeUndefined();
         expect(result.context.referencedChannels).toBeUndefined();
-        // The envelope itself still ships (the worker's only input now).
-        expect(result.context.rawAssemblyInputs).toBeDefined();
+        // The three guild/attachment surfaces are omitted too — populated in
+        // the fetch mock above, so undefined here proves the variant omits
+        // them rather than the mock never setting them.
+        expect(result.context.participantGuildInfo).toBeUndefined();
+        expect(result.context.activePersonaGuildInfo).toBeUndefined();
+        expect(result.context.extendedContextAttachments).toBeUndefined();
+        // The envelope itself still ships (the worker's only input now), with
+        // the raw forms the worker re-derives from.
+        expect(result.context.rawAssemblyInputs?.rawParticipantGuildInfo).toBeDefined();
       } finally {
         delete process.env.CONTEXT_RAW_ENVELOPE;
         delete process.env.CONTEXT_THIN_PAYLOAD;
