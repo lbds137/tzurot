@@ -6,6 +6,11 @@ const fields: ReDerivableContextFields = {
   referencedMessages: [{ referenceNumber: 1, content: 'ref', authorName: 'A' }] as never,
   mentionedPersonas: [{ personaId: 'p', personaName: 'P' }] as never,
   referencedChannels: [{ channelId: 'c', channelName: 'gen' }] as never,
+  activePersonaGuildInfo: { roles: ['Mod'] },
+  participantGuildInfo: { 'persona-1': { roles: ['Admin'] } },
+  extendedContextAttachments: [
+    { url: 'https://cdn/x.png', contentType: 'image/png', id: 'x' },
+  ] as never,
 };
 
 const makeLogger = () => ({ warn: vi.fn() });
@@ -28,6 +33,10 @@ describe('selectContextVariant', () => {
     expect(variant.referencedMessages).toBe(fields.referencedMessages);
     expect(variant.mentionedPersonas).toBe(fields.mentionedPersonas);
     expect(variant.referencedChannels).toBe(fields.referencedChannels);
+    // Guild/attachment surfaces flow through the legacy arm (worker re-derives them in envelope mode).
+    expect(variant.activePersonaGuildInfo).toBe(fields.activePersonaGuildInfo);
+    expect(variant.participantGuildInfo).toBe(fields.participantGuildInfo);
+    expect(variant.extendedContextAttachments).toBe(fields.extendedContextAttachments);
   });
 
   it("returns kind:'envelope' carrying ONLY the discriminant when thin + envelope present", () => {

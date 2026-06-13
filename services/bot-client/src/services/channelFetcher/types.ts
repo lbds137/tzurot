@@ -6,16 +6,20 @@
  */
 
 import type { TextChannel, DMChannel, NewsChannel, Collection, Message } from 'discord.js';
-import type { ConversationMessage, AttachmentMetadata } from '@tzurot/common-types';
+import type {
+  ConversationMessage,
+  AttachmentMetadata,
+  GuildMemberInfo,
+} from '@tzurot/common-types';
 
 /**
- * Guild member info for participant context
+ * Guild member info for participant context.
+ *
+ * Re-exported alias of the canonical `GuildMemberInfo` (common-types). Kept as
+ * a named export so existing channel-fetcher imports don't churn, but it is no
+ * longer an independent structural definition — there's one source of truth.
  */
-export interface ParticipantGuildInfo {
-  roles: string[];
-  displayColor?: string;
-  joinedAt?: string;
-}
+export type ParticipantGuildInfo = GuildMemberInfo;
 
 /**
  * Extended context user info for batch user creation
