@@ -34,7 +34,7 @@ import {
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
-  getPersonalityService,
+  getPersonalityLoader,
   getMessageContextBuilder,
   getConversationPersistence,
   getPersonaResolver,
@@ -375,7 +375,7 @@ export async function handleChat(
 
   try {
     // 1. Load and validate personality
-    const personality = await getPersonalityService().loadPersonality(characterSlug, userId);
+    const personality = await getPersonalityLoader().loadPersonality(characterSlug, userId);
     if (!personality) {
       await context.editReply({ content: `❌ Character "${characterSlug}" not found.` });
       return;

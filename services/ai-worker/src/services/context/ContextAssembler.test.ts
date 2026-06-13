@@ -559,4 +559,44 @@ describe('ContextAssembler.assembleCore', () => {
     expect(core.history).toEqual([dbRow]);
     expect(deps.userService.getOrCreateUsersInBatch).not.toHaveBeenCalled();
   });
+
+  it('does not read the fields applyAssembledContext writes (idempotency invariant)', async () => {
+    // applyAssembledContext (ContextStep) overwrites jobContext.referencedMessages /
+    // mentionedPersonas / activePersonaId / userTimezone / etc. with assembled
+    // output IN PLACE. That's only safe — and assemble+apply only idempotent —
+    // if assembleCore never reads those written fields back. Guard it: poison
+    // every written field with junk, then assert the assembled output is
+    // byte-identical to a clean run. A future read-set expansion breaks here.
+    const dbRow = {
+      id: 'db-1',
+      role: MessageRole.User,
+      content: 'hi',
+      createdAt: new Date('2026-06-01T00:00:00Z'),
+      discordMessageId: ['d1'],
+    };
+    const deps = makeDeps({
+      dataSource: { getChannelHistory: vi.fn().mockResolvedValue([dbRow]) },
+    });
+    const assembler = new ContextAssembler(deps);
+
+    const clean = await assembler.assembleCore(makeJobContext(), PERSONALITY, undefined);
+    const poisoned = await assembler.assembleCore(
+      makeJobContext({
+        referencedMessages: [{ referenceNumber: 99, content: 'JUNK', authorName: 'X' }] as never,
+        referencedChannels: [{ channelId: 'junk', channelName: 'junk' }] as never,
+        mentionedPersonas: [{ personaId: 'junk', personaName: 'JUNK' }] as never,
+        activePersonaId: 'JUNK-PERSONA',
+        activePersonaName: 'JUNK',
+        userTimezone: 'Junk/Zone',
+        userInternalId: 'junk-internal',
+        crossChannelHistory: [{ channelEnvironment: {}, messages: [] }] as never,
+        participantGuildInfo: { junk: { roles: ['JUNK'] } } as never,
+        activePersonaGuildInfo: { roles: ['JUNK'] } as never,
+      }),
+      PERSONALITY,
+      undefined
+    );
+
+    expect(poisoned).toEqual(clean);
+  });
 });

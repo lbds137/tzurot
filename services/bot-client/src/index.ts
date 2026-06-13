@@ -210,7 +210,7 @@ function createServices(): Services {
   const personalityIdCache = new PersonalityIdCache(personalityService); // Optimizes name→ID lookups
   const userService = new UserService(prisma);
 
-  // Routing-read loader (Phase 2.5c-ii): in service mode, personality
+  // Routing-read loader: in service mode, personality
   // resolution for routing (mention parsing, reply resolution, activation,
   // multi-tag recovery, /character chat) goes through the gateway's internal
   // endpoint with positive/negative caching instead of direct Prisma. The two

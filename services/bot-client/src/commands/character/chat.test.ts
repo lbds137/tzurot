@@ -50,7 +50,7 @@ const mockPersonaResolver = {
 };
 
 vi.mock('../../services/serviceRegistry.js', () => ({
-  getPersonalityService: () => mockPersonalityService,
+  getPersonalityLoader: () => mockPersonalityService,
   getMessageContextBuilder: () => mockMessageContextBuilder,
   getConversationPersistence: () => mockConversationPersistence,
   getPersonaResolver: () => mockPersonaResolver,

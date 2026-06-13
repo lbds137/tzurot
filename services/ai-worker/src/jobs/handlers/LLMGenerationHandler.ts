@@ -271,9 +271,9 @@ export class LLMGenerationHandler {
   }
 
   /**
-   * Construct the ContextStep with its shadow instrumentation: the 2.5a
-   * hydration data source plus the iii-a context assembler (user/persona
-   * re-derivation + shared history merge against the raw envelope).
+   * Construct the ContextStep with its shadow instrumentation: the hydration
+   * data source plus the context assembler (user/persona re-derivation +
+   * shared history merge against the raw envelope).
    */
   private buildContextStep(): ContextStep {
     const prisma = getPrismaClient();

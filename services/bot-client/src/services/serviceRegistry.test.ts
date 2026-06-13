@@ -43,10 +43,10 @@ describe('serviceRegistry', () => {
       );
     });
 
-    it('should throw when getting PersonalityService before registration', async () => {
-      const { getPersonalityService } = await import('./serviceRegistry.js');
-      expect(() => getPersonalityService()).toThrow(
-        'PersonalityService not registered. Call registerServices() first.'
+    it('should throw when getting the personality loader before registration', async () => {
+      const { getPersonalityLoader } = await import('./serviceRegistry.js');
+      expect(() => getPersonalityLoader()).toThrow(
+        'Personality loader not registered. Call registerServices() first.'
       );
     });
 
@@ -145,8 +145,8 @@ describe('serviceRegistry', () => {
       expect(getWebhookManager()).toBe(mockWebhookManager);
     });
 
-    it('should return registered PersonalityService', async () => {
-      const { registerServices, getPersonalityService } = await import('./serviceRegistry.js');
+    it('should return the registered personality loader', async () => {
+      const { registerServices, getPersonalityLoader } = await import('./serviceRegistry.js');
 
       registerServices({
         jobTracker: mockJobTracker,
@@ -160,7 +160,7 @@ describe('serviceRegistry', () => {
         denylistCache: mockDenylistCache,
       });
 
-      expect(getPersonalityService()).toBe(mockPersonalityService);
+      expect(getPersonalityLoader()).toBe(mockPersonalityService);
     });
 
     it('should return registered ConversationHistoryService', async () => {
