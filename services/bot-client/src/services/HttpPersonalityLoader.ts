@@ -1,5 +1,5 @@
 /**
- * HTTP-backed personality loader (Phase 2.5c-ii).
+ * HTTP-backed personality loader.
  *
  * Implements IPersonalityLoader over the gateway's internal
  * `GET /api/internal/personality/load` route — the service-mode replacement
@@ -72,10 +72,13 @@ export class HttpPersonalityLoader implements IPersonalityLoader, PersonalityCac
    * Access control happens server-side (the endpoint applies
    * loadPersonality's public-or-owned semantics), so the cache key must
    * carry the userId — the same nameOrId can legitimately resolve for one
-   * user and miss for another.
+   * user and miss for another. The delimiter is `\x00` (NUL): it cannot
+   * appear in a Discord snowflake or a personality name/slug/alias, so two
+   * distinct (userId, nameOrId) pairs can never collide into one key (which
+   * a printable delimiter like `::` could, e.g. a name containing `::`).
    */
   private cacheKey(nameOrId: string, userId?: string): string {
-    return `${userId ?? ''}::${nameOrId.toLowerCase()}`;
+    return `${userId ?? ''}\x00${nameOrId.toLowerCase()}`;
   }
 
   async loadPersonality(nameOrId: string, userId?: string): Promise<LoadedPersonality | null> {

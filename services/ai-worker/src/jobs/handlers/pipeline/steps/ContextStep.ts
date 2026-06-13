@@ -17,10 +17,51 @@ import {
 } from '../../../../services/context/shadowHydration.js';
 import { isAssemblyPromoteEnabled } from '../../../../services/context/contextFlags.js';
 import { shadowAssembleAndDiff } from '../../../../services/context/shadowAssembly.js';
-import type { ContextAssembler } from '../../../../services/context/ContextAssembler.js';
+import type {
+  AssembledCore,
+  ContextAssembler,
+} from '../../../../services/context/ContextAssembler.js';
 import type { IPipelineStep, GenerationContext, Participant, PreparedContext } from '../types.js';
 
 const logger = createLogger('ContextStep');
+
+/**
+ * Apply the assembler's output onto the worker's local job.data in place. This
+ * is the propagation mechanism: the downstream conversationContextBuilder reads
+ * these surfaces straight off jobContext, so the assembled values must land
+ * there for the later pipeline step to see them (there is no shared return
+ * channel between steps). Mutating the worker's local copy is safe — it's a
+ * deserialized per-job object, not shared state (precedent: DownloadAttachmentsStep).
+ *
+ * Idempotent by construction: every write is a pure overwrite, and assembleCore
+ * derives its output solely from rawAssemblyInputs + the job's scalar identity
+ * fields (userId/channelId/serverId/isWeighIn) — NONE of the fields written
+ * here. So re-running assemble+apply yields the same result regardless of a
+ * prior application (verified against ContextAssembler's reads).
+ */
+function applyAssembledContext(job: GenerationContext['job'], assembled: AssembledCore): void {
+  const jobContext = job.data.context;
+  jobContext.referencedMessages = assembled.referencedMessages;
+  jobContext.referencedChannels = assembled.referencedChannels;
+  jobContext.mentionedPersonas = assembled.mentionedPersonas;
+  jobContext.activePersonaId = assembled.activePersonaId ?? undefined;
+  jobContext.activePersonaName = assembled.activePersonaName ?? undefined;
+  jobContext.userTimezone = assembled.userTimezone;
+  jobContext.userInternalId = assembled.userInternalId;
+  jobContext.crossChannelHistory = assembled.crossChannelHistory;
+  // Guild surfaces adopt the assembled value only when the envelope carried the
+  // raw source — an envelope from a sender predating the raw guild fields must
+  // keep its payload copy (overwriting with the assembler's undefined would
+  // silently clobber valid data, the forward-bug class). The guard is removed
+  // once every producer ships the raw forms (no legacy fallback to protect).
+  if (jobContext.rawAssemblyInputs?.rawParticipantGuildInfo !== undefined) {
+    jobContext.participantGuildInfo = assembled.participantGuildInfo;
+  }
+  if (jobContext.rawAssemblyInputs?.rawActiveGuildMemberInfo !== undefined) {
+    jobContext.activePersonaGuildInfo = assembled.activePersonaGuildInfo;
+  }
+  job.data.message = assembled.messageContent;
+}
 
 /**
  * The shared history shape both the legacy payload (`ApiConversationMessage`)
@@ -272,7 +313,7 @@ export class ContextStep implements IPipelineStep {
    *    fields, so there is nothing to fall back to. Assemble regardless of the
    *    promote flag, and fail loud if no assembler is wired.
    *  - canPromote: a TRANSITIONAL fat-envelope job (envelope present, kind still
-   *    'legacy'/absent) — gated on CONTEXT_ASSEMBLY_PROMOTE so iii-b-1's
+   *    'legacy'/absent) — gated on CONTEXT_ASSEMBLY_PROMOTE so the flag-driven
    *    reversibility holds for these.
    * `kind` is read with `?? 'legacy'`: ValidationStep discards its parsed copy,
    * so the schema default never materializes on the raw job.data.
@@ -301,13 +342,10 @@ export class ContextStep implements IPipelineStep {
    * Source the prompt's conversation history. In promoted mode the
    * worker-assembled context replaces the bot's legacy payload: `historyEntries`
    * comes from the assembler (createdAt normalized Date → ISO for the
-   * string-typed consumers), and the surfaces the downstream
-   * conversationContextBuilder reads straight from jobContext (refs / channels /
-   * mentions / persona / timezone / cross-channel) are overwritten in place —
-   * mutating the worker's local job.data copy is safe (precedent:
-   * DownloadAttachmentsStep). The bot still ships these legacy fields, so the
-   * promotion is reversible by flag; a later cleanup removes them and this
-   * re-sourcing once the bot stops shipping them.
+   * string-typed consumers), and the assembled surfaces are applied onto
+   * jobContext by {@link applyAssembledContext}. The bot still ships these
+   * legacy fields, so the promotion is reversible by flag; once the legacy
+   * fallback is removed the in-place application becomes the only path.
    */
   private async sourceHistory(
     context: GenerationContext,
@@ -328,25 +366,7 @@ export class ContextStep implements IPipelineStep {
       context.configOverrides,
       { referenceDedupNowMs: job.timestamp }
     );
-    jobContext.referencedMessages = assembled.referencedMessages;
-    jobContext.referencedChannels = assembled.referencedChannels;
-    jobContext.mentionedPersonas = assembled.mentionedPersonas;
-    jobContext.activePersonaId = assembled.activePersonaId ?? undefined;
-    jobContext.activePersonaName = assembled.activePersonaName ?? undefined;
-    jobContext.userTimezone = assembled.userTimezone;
-    jobContext.userInternalId = assembled.userInternalId;
-    jobContext.crossChannelHistory = assembled.crossChannelHistory;
-    // Guild surfaces adopt the assembled value only when the envelope carried
-    // the raw source — an envelope from a sender predating the raw guild
-    // fields must keep its payload copy (overwriting with the assembler's
-    // undefined would silently clobber valid data, the forward-bug class).
-    if (jobContext.rawAssemblyInputs?.rawParticipantGuildInfo !== undefined) {
-      jobContext.participantGuildInfo = assembled.participantGuildInfo;
-    }
-    if (jobContext.rawAssemblyInputs?.rawActiveGuildMemberInfo !== undefined) {
-      jobContext.activePersonaGuildInfo = assembled.activePersonaGuildInfo;
-    }
-    job.data.message = assembled.messageContent;
+    applyAssembledContext(job, assembled);
 
     // Permanent observability: which path drove this prompt. Counts + kind
     // only — NO content/PII (per the no-PII logging rule). Without this, the

@@ -1,11 +1,11 @@
 /**
- * Context write path (Phase 2.5).
+ * Context write path.
  *
  * Everything governing WHO owns bot-client's Discord-event conversation
  * writes (assistant persist, edit/delete sync) lives here: the CONTEXT_MODE
  * toggle, the authoritative gateway-write helpers used in service mode, and
  * the legacy-mode dual-write mirrors. This module is deleted (along with the
- * legacy path and both flags) in 2.5d once service mode has burned in.
+ * legacy path and both flags) once service mode has fully burned in.
  */
 
 import { createLogger, SYNC_LIMITS, type MessageMetadata } from '@tzurot/common-types';

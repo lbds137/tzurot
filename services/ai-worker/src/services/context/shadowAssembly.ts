@@ -204,8 +204,8 @@ function idSetsMatch<T>(
 }
 
 /**
- * History comparison over the DB-id-bearing subset (mirrors the 2.5a shadow's
- * tolerance): rows the assembler sees that the payload predates are expected
+ * History comparison over the DB-id-bearing subset (mirrors the hydration
+ * shadow's tolerance): rows the assembler sees that the payload predates are expected
  * timing drift; rows the payload has that assembly lacks are real divergence.
  * Content/personaId compare only on the id-intersection.
  *

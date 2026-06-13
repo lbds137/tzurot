@@ -184,7 +184,7 @@ export class ContextAssembler {
     const userTimezone = await this.deps.dataSource.getUserTimezone(user.userId);
 
     // Step 3: hydrate channel history — same limit derivation as the
-    // bot-side dbLimit (and as the 2.5a hydration shadow).
+    // bot-side dbLimit (and as the hydration shadow).
     const limit = Math.min(
       configOverrides?.maxMessages ?? MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES,
       MESSAGE_LIMITS.MAX_EXTENDED_CONTEXT
