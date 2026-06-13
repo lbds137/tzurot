@@ -53,8 +53,8 @@ export const handleLoadPersonalityInternal = (deps: RouteDeps): RequestHandler =
 
     const personality = await personalityService.loadPersonality(nameOrId, userId);
 
-    // nameOrId is a personality name/slug, not user PII — logged so burn-in
-    // analysis can correlate miss patterns for the 2.5c negative-caching work.
+    // nameOrId is a personality name/slug, not user PII — logged so analysis
+    // can correlate miss patterns for the loader's negative-caching tier.
     logger.debug(
       { nameOrId, found: personality !== null, hasUserId: userId !== undefined },
       'Personality load'

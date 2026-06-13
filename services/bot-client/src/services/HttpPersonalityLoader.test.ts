@@ -113,6 +113,24 @@ describe('HttpPersonalityLoader', () => {
     expect(mockServiceClient.loadPersonalityInternal).toHaveBeenCalledTimes(2);
   });
 
+  it('keys an undefined userId distinctly from a user-scoped key (no cross-bleed)', async () => {
+    // Internal/no-userId loads (the `\x00`-prefixed key, since the userId
+    // portion is empty) must NOT collide with a real user's scoped result,
+    // and vice versa — each is its own hop.
+    mockServiceClient.loadPersonalityInternal
+      .mockResolvedValueOnce(ok({ personality: PERSONALITY }))
+      .mockResolvedValueOnce(ok({ personality: null }));
+
+    expect(await loader.loadPersonality('lila')).not.toBeNull(); // no userId → key '\x00lila'
+    expect(await loader.loadPersonality('lila', 'user-1')).toBeNull(); // key 'user-1\x00lila'
+    // Each side stays cached independently — no third hop.
+    expect(await loader.loadPersonality('lila')).not.toBeNull();
+    expect(await loader.loadPersonality('lila', 'user-1')).toBeNull();
+
+    expect(mockServiceClient.loadPersonalityInternal).toHaveBeenCalledTimes(2);
+    expect(mockServiceClient.loadPersonalityInternal).toHaveBeenCalledWith({ nameOrId: 'lila' });
+  });
+
   it('keys case-insensitively on the name', async () => {
     mockServiceClient.loadPersonalityInternal.mockResolvedValue(ok({ personality: PERSONALITY }));
 

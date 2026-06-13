@@ -91,11 +91,13 @@ export function getWebhookManager(): WebhookManager {
 /**
  * Get the routing personality loader. Prisma-backed PersonalityService in
  * legacy mode; the gateway-backed HttpPersonalityLoader in CONTEXT_MODE=service.
+ * Named "loader" not "service" because it returns an IPersonalityLoader — the
+ * caller must not assume the Prisma-backed implementation.
  * @throws Error if services not registered
  */
-export function getPersonalityService(): IPersonalityLoader {
+export function getPersonalityLoader(): IPersonalityLoader {
   if (personalityService === undefined) {
-    throw new Error('PersonalityService not registered. Call registerServices() first.');
+    throw new Error('Personality loader not registered. Call registerServices() first.');
   }
   return personalityService;
 }
