@@ -52,9 +52,14 @@ vi.mock('./VisionProcessor.js', () => ({
 // VisionDescriptionCache singleton mock — buildVisionAuthFailureResults writes
 // to it; we just verify the call shape.
 const mockStoreFailure = vi.fn();
+// Default: quota allows (under cap). Over-cap tests override per-case.
+const mockTryConsume = vi.fn().mockResolvedValue(true);
 vi.mock('../../redis.js', () => ({
   visionDescriptionCache: {
     storeFailure: (...args: unknown[]) => mockStoreFailure(...args),
+  },
+  visionFallbackQuota: {
+    tryConsume: (...args: unknown[]) => mockTryConsume(...args),
   },
 }));
 
@@ -82,6 +87,8 @@ const mockResolver: ApiKeyResolver = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Default: under the daily fallback cap. Over-cap tests override per-case.
+  mockTryConsume.mockResolvedValue(true);
 });
 
 describe('resolveVisionConfig', () => {
@@ -272,6 +279,63 @@ describe('resolveVisionConfig', () => {
       }
       // The free model lives on OpenRouter — resolveApiKey was asked for that provider.
       expect(mockResolveApiKey).toHaveBeenCalledWith('user-1', AIProvider.OpenRouter);
+      // The system-key downgrade is counted against the per-user daily cap.
+      expect(mockTryConsume).toHaveBeenCalledWith('user-1');
+    });
+
+    it('fails fast when the user is over the daily system-fallback cap', async () => {
+      mockSelectVisionModel.mockResolvedValue('qwen/qwen3.5-397b-a17b');
+      mockTryResolveUserKey.mockResolvedValue(null);
+      mockResolveApiKey.mockResolvedValue({
+        apiKey: 'system-or-key',
+        source: 'system',
+        provider: AIProvider.OpenRouter,
+        isGuestMode: true,
+        userId: 'user-1',
+      });
+      mockTryConsume.mockResolvedValue(false); // over the cap
+
+      const result = await resolveVisionConfig({
+        personality,
+        mainProvider: AIProvider.ZaiCoding,
+        mainApiKey: 'user-zai-key',
+        isGuestMode: false,
+        userId: 'user-1',
+        apiKeyResolver: mockResolver,
+      });
+
+      expect(result).toEqual({ kind: 'failFast', provider: AIProvider.OpenRouter });
+    });
+
+    it('does NOT consume the cap when the user falls back onto their OWN OpenRouter key', async () => {
+      // User has no key for the vision provider but DOES have an OpenRouter key,
+      // so resolveApiKey returns source 'user' — their own key, not the owner's
+      // system key, so the freeloading cap must not apply.
+      mockSelectVisionModel.mockResolvedValue('qwen/qwen3.5-397b-a17b');
+      mockTryResolveUserKey.mockResolvedValue(null);
+      mockResolveApiKey.mockResolvedValue({
+        apiKey: 'user-or-key',
+        source: 'user',
+        provider: AIProvider.OpenRouter,
+        isGuestMode: false,
+        userId: 'user-1',
+      });
+
+      const result = await resolveVisionConfig({
+        personality,
+        mainProvider: AIProvider.ZaiCoding,
+        mainApiKey: 'user-zai-key',
+        isGuestMode: false,
+        userId: 'user-1',
+        apiKeyResolver: mockResolver,
+      });
+
+      expect(result.kind).toBe('resolved');
+      if (result.kind === 'resolved') {
+        expect(result.config.source).toBe('user');
+        expect(result.config.model).toBe(MODEL_DEFAULTS.VISION_FALLBACK_FREE);
+      }
+      expect(mockTryConsume).not.toHaveBeenCalled();
     });
   });
 

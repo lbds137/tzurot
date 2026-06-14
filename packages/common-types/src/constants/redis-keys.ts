@@ -21,4 +21,11 @@ export const CACHE_KEY_PREFIXES = {
    * Consumers: `ai-worker/CreditExhaustionCache`, `tooling/cache/clear-credit-exhaustion`.
    */
   CREDIT_EXHAUSTION_OPENROUTER: 'nocredits:openrouter:',
+  /**
+   * Per-(user, UTC-day) counter capping how many times an authenticated user may
+   * fall back to the free vision model on the SYSTEM OpenRouter key in a day.
+   * Bounds the freeloading surface opened by the broad vision free-fallback.
+   * Consumers: `ai-worker/VisionFallbackQuota`.
+   */
+  VISION_SYSTEM_FALLBACK_QUOTA: 'visionfallback:system:',
 } as const;
