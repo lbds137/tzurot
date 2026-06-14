@@ -13,6 +13,7 @@ import type {
   ReferencedMessage,
   ResolvedConfigOverrides,
   SttDispatch,
+  AIProvider,
 } from '@tzurot/common-types';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 
@@ -348,4 +349,12 @@ export interface GenerateResponseOptions {
    * When provided, memory retrieval uses these values instead of personality defaults.
    */
   configOverrides?: ResolvedConfigOverrides;
+  /**
+   * The provider the request will actually hit after ProviderRouter
+   * (`auth.provider`). Drives the context-window clamp's source-of-truth: a
+   * z.ai-direct request is capped from z.ai's documented limit, an OpenRouter
+   * request from the OpenRouter cache. Omitted → OpenRouter path with the
+   * catalog safety-net (see `resolveEffectiveContextWindow`).
+   */
+  effectiveProvider?: AIProvider;
 }

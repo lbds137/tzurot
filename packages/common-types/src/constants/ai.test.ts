@@ -197,11 +197,12 @@ describe('isZaiCodingPlanModel', () => {
 
 describe('getZaiCodingPlanContextLength', () => {
   it('should return the catalog context length for bare model names', () => {
+    // Values are z.ai's documented Context Length capability-card numbers.
     expect(getZaiCodingPlanContextLength('glm-5')).toBe(200_000);
     expect(getZaiCodingPlanContextLength('glm-5.1')).toBe(200_000);
-    expect(getZaiCodingPlanContextLength('glm-5-turbo')).toBe(262_144);
+    expect(getZaiCodingPlanContextLength('glm-5-turbo')).toBe(200_000);
     expect(getZaiCodingPlanContextLength('glm-4.7')).toBe(200_000);
-    expect(getZaiCodingPlanContextLength('glm-4.5-air')).toBe(131_072);
+    expect(getZaiCodingPlanContextLength('glm-4.5-air')).toBe(128_000);
   });
 
   it('should return 1M for glm-5.2 (z.ai-only flagship, not on OpenRouter)', () => {
