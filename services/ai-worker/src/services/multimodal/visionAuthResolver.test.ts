@@ -298,7 +298,7 @@ describe('buildVisionAuthFailureResults', () => {
 
     expect(results).toHaveLength(2);
     expect(results[0]?.type).toBe(AttachmentType.Image);
-    expect(results[0]?.description).toContain('check /wallet');
+    expect(results[0]?.description).toContain('check /settings apikey set');
     expect(results[0]?.originalUrl).toBe('https://cdn.discordapp.com/img1.png');
     expect(results[1]?.originalUrl).toBe('https://cdn.discordapp.com/img2.png');
 

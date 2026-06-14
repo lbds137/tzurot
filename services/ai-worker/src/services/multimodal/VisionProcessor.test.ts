@@ -514,7 +514,9 @@ describe('VisionProcessor', () => {
           loggingContext: { apiKeySource: 'user' },
         });
 
-        expect(result).toBe('[Image unavailable: your API key was rejected — check /wallet]');
+        expect(result).toBe(
+          '[Image unavailable: your API key was rejected — check /settings apikey set for the vision provider key]'
+        );
       });
 
       it('should return system-key-specific message when apiKeySource is "system"', async () => {
