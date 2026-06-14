@@ -38,7 +38,7 @@ import {
 } from '@tzurot/common-types';
 import { detectVisionProvider } from '../ProviderRouter.js';
 import { selectVisionModel } from './VisionProcessor.js';
-import { visionDescriptionCache } from '../../redis.js';
+import { visionDescriptionCache, visionFallbackQuota } from '../../redis.js';
 import type { ApiKeyResolver } from '../ApiKeyResolver.js';
 import type { ProcessedAttachment } from '../MultimodalProcessor.js';
 
@@ -125,6 +125,67 @@ export interface ResolveVisionConfigOptions {
   userId: string | undefined;
   /** Resolver instance for cross-provider lookups. */
   apiKeyResolver: ApiKeyResolver;
+}
+
+/**
+ * BROAD FREE FALLBACK — authenticated user with no key for the vision provider.
+ * Downgrade to the free vision model on the system key instead of fail-fasting.
+ * MUST force BOTH the free model AND its provider's key: `selectVisionModel`
+ * returns the PAID fallback for authenticated users (isGuestMode=false), so
+ * handing the system key to the natural model would bill the system key for a
+ * paid model.
+ *
+ * Only a SYSTEM-key downgrade spends the owner's shared free-tier quota, so only
+ * it counts against the per-user daily cap (a user on their OWN OpenRouter key
+ * doesn't). Over the cap → fail-fast. `resolveApiKey` throws propagate to the
+ * caller's catch (→ fail-fast). `originalVisionProvider` is carried so a
+ * fail-fast names what the user actually lacked, not the free-fallback provider.
+ */
+async function resolveBroadFreeFallback(
+  userId: string | undefined,
+  originalVisionProvider: AIProvider,
+  apiKeyResolver: ApiKeyResolver
+): Promise<VisionConfigResult> {
+  const freeModel = MODEL_DEFAULTS.VISION_FALLBACK_FREE;
+  const freeProvider = detectVisionProvider(freeModel);
+  const sys = await apiKeyResolver.resolveApiKey(userId, freeProvider);
+  // `sys.apiKey ?? ''` is defense-in-depth: resolveApiKey normally throws when
+  // no key is available, but a misbehaving resolver returning null would
+  // otherwise throw on `.length`.
+  if ((sys.apiKey ?? '').length === 0) {
+    logger.info(
+      { userId, originalVisionProvider, freeProvider },
+      'Vision free-fallback unavailable (no system key) — failing fast'
+    );
+    return { kind: 'failFast', provider: originalVisionProvider };
+  }
+  // `userId !== undefined` is always true here (the guest branch captured the
+  // undefined case) — the guard narrows the type and fails open.
+  if (
+    sys.source === 'system' &&
+    userId !== undefined &&
+    !(await visionFallbackQuota.tryConsume(userId))
+  ) {
+    return { kind: 'failFast', provider: originalVisionProvider };
+  }
+  logger.info(
+    { userId, originalVisionProvider, freeProvider, freeModel, source: sys.source },
+    'Authenticated user lacks vision-provider key — downgrading to free vision model on system key'
+  );
+  return {
+    kind: 'resolved',
+    config: {
+      apiKey: sys.apiKey,
+      provider: freeProvider,
+      model: freeModel,
+      // `source` is whatever resolveApiKey returned — normally 'system'; if the
+      // user happens to have an OpenRouter key it'd be 'user', which is fine
+      // (they ARE authenticated, just downgraded for the vision model).
+      source: sys.source,
+      // NOT a guest — they're authenticated, only the vision model is downgraded.
+      isGuestMode: false,
+    },
+  };
 }
 
 /**
@@ -246,46 +307,11 @@ export async function resolveVisionConfig(
       };
     }
 
-    // BROAD FREE FALLBACK — authenticated user with no key for the vision
-    // provider. Instead of fail-fasting, downgrade to the free vision model on
-    // the system key. MUST force BOTH the free model AND its provider's key:
-    // `selectVisionModel` returns the PAID fallback for authenticated users
-    // (isGuestMode=false), so handing the system key to `naturalModel` would
-    // bill the system key for a paid model.
-    const freeModel = MODEL_DEFAULTS.VISION_FALLBACK_FREE;
-    const freeProvider = detectVisionProvider(freeModel);
-    const sys = await apiKeyResolver.resolveApiKey(userId, freeProvider);
-    // `apiKey` is typed `string`, but guard against a null/empty result too —
-    // resolveApiKey normally throws when no key is available, so reaching here
-    // with no usable key is a defense-in-depth case. `sys.apiKey ?? ''` keeps
-    // the length check from throwing on a null returned by a misbehaving resolver.
-    if ((sys.apiKey ?? '').length === 0) {
-      // Fail-fast against the ORIGINAL vision provider so the placeholder
-      // reflects what they lacked.
-      logger.info(
-        { userId, visionProvider, freeProvider },
-        'Vision free-fallback unavailable (no system key) — failing fast'
-      );
-      return { kind: 'failFast', provider: visionProvider };
-    }
-    logger.info(
-      { userId, visionProvider, freeProvider, freeModel, source: sys.source },
-      'Authenticated user lacks vision-provider key — downgrading to free vision model on system key'
-    );
-    return {
-      kind: 'resolved',
-      config: {
-        apiKey: sys.apiKey,
-        provider: freeProvider,
-        model: freeModel,
-        // `source` is whatever resolveApiKey returned — normally 'system'; if
-        // the user happens to have an OpenRouter key it'd be 'user', which is
-        // fine (they ARE authenticated, just downgraded for the vision model).
-        source: sys.source,
-        // NOT a guest — they're authenticated, only the vision model is downgraded.
-        isGuestMode: false,
-      },
-    };
+    // Authenticated user with no key for the vision provider → broad free
+    // fallback (downgrade to the free vision model on the system key). Extracted
+    // to keep this function under the line limit; runs inside this try so its
+    // `resolveApiKey` throw still degrades to fail-fast via the catch below.
+    return await resolveBroadFreeFallback(userId, visionProvider, apiKeyResolver);
   } catch (error) {
     // Fallback-of-fallback unavailable path: `resolveApiKey` throws when no key
     // (user or system) is available for the requested provider. For the
