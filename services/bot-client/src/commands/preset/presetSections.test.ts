@@ -85,6 +85,38 @@ describe('identitySection', () => {
     const data = { name: '', model: '', description: '' } as FlattenedPresetData;
     expect(identitySection.getPreview(data)).toBe('_Not configured_');
   });
+
+  it('should append the z.ai-key badge when requiresZaiKey is true', () => {
+    const data = {
+      name: 'GLM Preset',
+      model: 'z-ai/glm-5.2',
+      provider: 'openrouter',
+      description: '',
+      requiresZaiKey: true,
+    } as FlattenedPresetData;
+    const preview = identitySection.getPreview(data);
+    expect(preview).toContain('**Model:** `z-ai/glm-5.2`');
+    expect(preview).toContain('requires z.ai key');
+  });
+
+  it('should NOT show the z.ai-key badge when requiresZaiKey is false/undefined', () => {
+    const falseData = {
+      name: 'GLM Preset',
+      model: 'z-ai/glm-5.2',
+      provider: 'openrouter',
+      description: '',
+      requiresZaiKey: false,
+    } as FlattenedPresetData;
+    expect(identitySection.getPreview(falseData)).not.toContain('requires z.ai key');
+
+    const undefData = {
+      name: 'Regular Preset',
+      model: 'anthropic/claude-sonnet-4',
+      provider: 'openrouter',
+      description: '',
+    } as FlattenedPresetData;
+    expect(identitySection.getPreview(undefData)).not.toContain('requires z.ai key');
+  });
 });
 
 describe('coreSamplingSection', () => {

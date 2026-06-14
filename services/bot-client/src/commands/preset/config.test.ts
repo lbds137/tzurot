@@ -175,6 +175,29 @@ describe('flattenPresetData', () => {
     expect(result.reasoning_effort).toBe('');
     expect(result.reasoning_enabled).toBe('');
   });
+
+  it('should pass requiresZaiKey through for the dashboard badge', () => {
+    const preset: PresetData = {
+      id: 'preset-123',
+      name: 'GLM Preset',
+      description: null,
+      model: 'z-ai/glm-5.2',
+      provider: 'openrouter',
+      visionModel: null,
+      isGlobal: true,
+      isOwned: false,
+      permissions: { canEdit: false, canDelete: false },
+      contextWindowTokens: 8192,
+      requiresZaiKey: true,
+      params: {},
+    };
+
+    expect(flattenPresetData(preset).requiresZaiKey).toBe(true);
+
+    // Absent on the source → absent on the flattened data (no badge).
+    const { requiresZaiKey: _omit, ...withoutFlag } = preset;
+    expect(flattenPresetData(withoutFlag).requiresZaiKey).toBeUndefined();
+  });
 });
 
 describe('unflattenPresetData', () => {

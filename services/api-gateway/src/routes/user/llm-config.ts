@@ -43,7 +43,7 @@ import {
   type LlmConfigScope,
 } from '../../services/LlmConfigService.js';
 import type { OpenRouterModelCache } from '../../services/OpenRouterModelCache.js';
-import { enrichWithModelContext } from '../../utils/modelValidation.js';
+import { enrichWithModelContext, computeRequiresZaiKey } from '../../utils/modelValidation.js';
 import { validateLlmConfigModelFields } from '../../utils/llmConfigValidation.js';
 import { userHasActiveApiKey } from '../../utils/userHasActiveApiKey.js';
 import {
@@ -98,7 +98,11 @@ function createListHandler(service: LlmConfigService) {
   };
 }
 
-function createGetHandler(service: LlmConfigService, modelCache?: OpenRouterModelCache) {
+function createGetHandler(
+  service: LlmConfigService,
+  prisma: PrismaClient,
+  modelCache?: OpenRouterModelCache
+) {
   return async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
     const configId = getRequiredParam(req.params.id, 'id');
@@ -128,8 +132,18 @@ function createGetHandler(service: LlmConfigService, modelCache?: OpenRouterMode
     const formatted = service.formatConfigDetail(config);
     await enrichWithModelContext(formatted, config.model, modelCache);
 
+    // Badge the dashboard when this viewer can't run the model without a z.ai key
+    // (z.ai-only model + no z.ai-coding key). Keyed off the VIEWER, so the same
+    // global preset shows the badge to a keyless user but not to one with a key.
+    const hasZaiCodingKey = await userHasActiveApiKey(prisma, userId, AIProvider.ZaiCoding);
+    const requiresZaiKey = await computeRequiresZaiKey(config.model, hasZaiCodingKey, modelCache);
+
     logger.debug({ discordUserId, configId }, 'Fetched config');
-    sendCustomSuccess(res, { config: { ...formatted, isOwned, permissions } }, StatusCodes.OK);
+    sendCustomSuccess(
+      res,
+      { config: { ...formatted, isOwned, permissions, requiresZaiKey } },
+      StatusCodes.OK
+    );
   };
 }
 
@@ -221,11 +235,12 @@ function createCreateHandler(
     // Format with service helper, then add user-specific fields
     const formatted = service.formatConfigDetail(config);
     await enrichWithModelContext(formatted, config.model, modelCache);
+    const requiresZaiKey = await computeRequiresZaiKey(config.model, hasZaiCodingKey, modelCache);
 
     logger.info({ discordUserId, configId: config.id, name: config.name }, 'Created config');
     sendCustomSuccess(
       res,
-      { config: { ...formatted, isOwned: true, permissions } },
+      { config: { ...formatted, isOwned: true, permissions, requiresZaiKey } },
       StatusCodes.CREATED
     );
   };
@@ -393,6 +408,7 @@ function createUpdateHandler(
     // Format with service helper, then add user-specific fields
     const formatted = service.formatConfigDetail(updated);
     await enrichWithModelContext(formatted, updated.model, modelCache);
+    const requiresZaiKey = await computeRequiresZaiKey(updated.model, hasZaiCodingKey, modelCache);
 
     logger.info(
       {
@@ -407,7 +423,7 @@ function createUpdateHandler(
 
     sendCustomSuccess(
       res,
-      { config: { ...formatted, isOwned: isOwnedByRequester, permissions } },
+      { config: { ...formatted, isOwned: isOwnedByRequester, permissions, requiresZaiKey } },
       StatusCodes.OK
     );
   };
@@ -478,7 +494,7 @@ export const handleListUserLlmConfigs = (deps: RouteDeps): RequestHandler =>
   asyncHandler(createListHandler(buildService(deps)));
 
 export const handleGetUserLlmConfig = (deps: RouteDeps): RequestHandler =>
-  asyncHandler(createGetHandler(buildService(deps), deps.modelCache));
+  asyncHandler(createGetHandler(buildService(deps), deps.prisma, deps.modelCache));
 
 export const handleCreateUserLlmConfig = (deps: RouteDeps): RequestHandler =>
   asyncHandler(createCreateHandler(buildService(deps), deps.prisma, deps.modelCache));

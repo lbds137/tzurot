@@ -1,5 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
-import { validateModelAndContextWindow, enrichWithModelContext } from './modelValidation.js';
+import {
+  validateModelAndContextWindow,
+  enrichWithModelContext,
+  computeRequiresZaiKey,
+} from './modelValidation.js';
 import type { OpenRouterModelCache } from '../services/OpenRouterModelCache.js';
 import type { ModelAutocompleteOption } from '@tzurot/common-types';
 
@@ -234,6 +238,58 @@ describe('validateModelAndContextWindow', () => {
       expect(result.contextWindowCap).toBe(100000);
       expect(cache.getModelById).toHaveBeenCalledWith('anthropic/claude-sonnet-4');
     });
+  });
+});
+
+describe('computeRequiresZaiKey', () => {
+  it('should badge a z.ai-only model (not on OpenRouter) for a keyless viewer', async () => {
+    // glm-5.2 is absent from OpenRouter → cache miss → a keyless viewer can't run
+    // it (OpenRouter fallthrough would 404), so the badge fires.
+    const cache = createMockModelCache(null);
+    expect(await computeRequiresZaiKey('z-ai/glm-5.2', false, cache)).toBe(true);
+    expect(cache.getModelById).toHaveBeenCalledWith('z-ai/glm-5.2');
+  });
+
+  it('should NOT badge a z.ai model that IS on OpenRouter for a keyless viewer', async () => {
+    // glm-5.1 is on OpenRouter, so a keyless viewer runs it there — preset works,
+    // no badge. This is the false-positive guard.
+    const cache = createMockModelCache(createMockModel({ id: 'z-ai/glm-5.1' }));
+    expect(await computeRequiresZaiKey('z-ai/glm-5.1', false, cache)).toBe(false);
+  });
+
+  it('should NOT badge when the viewer has a z.ai-coding key', async () => {
+    const cache = createMockModelCache(null);
+    expect(await computeRequiresZaiKey('z-ai/glm-5.2', true, cache)).toBe(false);
+    // Short-circuits on the key before any cache lookup.
+    expect(cache.getModelById).not.toHaveBeenCalled();
+  });
+
+  it('should NOT badge a non-z.ai model', async () => {
+    const cache = createMockModelCache(null);
+    expect(await computeRequiresZaiKey('anthropic/claude-sonnet-4', false, cache)).toBe(false);
+  });
+
+  it('should NOT badge a bare (unprefixed) catalog name', async () => {
+    // Mirrors the validation/runtime prefix gate: bare glm-5.2 wouldn't promote
+    // even with a key, so the z.ai-key hint would be wrong.
+    const cache = createMockModelCache(null);
+    expect(await computeRequiresZaiKey('glm-5.2', false, cache)).toBe(false);
+  });
+
+  it('should NOT badge a prefixed non-catalog model', async () => {
+    const cache = createMockModelCache(null);
+    expect(await computeRequiresZaiKey('z-ai/glm-nonexistent', false, cache)).toBe(false);
+    // Short-circuits on the catalog-membership check, before the cache lookup.
+    expect(cache.getModelById).not.toHaveBeenCalled();
+  });
+
+  it('should NOT badge when the cache is unavailable (cannot confirm absence)', async () => {
+    expect(await computeRequiresZaiKey('z-ai/glm-5.2', false, undefined)).toBe(false);
+  });
+
+  it('should NOT badge when model is undefined', async () => {
+    const cache = createMockModelCache(null);
+    expect(await computeRequiresZaiKey(undefined, false, cache)).toBe(false);
   });
 });
 
