@@ -101,6 +101,30 @@ export function registerDevCommands(cli: CAC): void {
 
   registerSchemaAuditCommand(cli);
   registerComplexityReportCommand(cli);
+  registerCommandsAuditCommand(cli);
+}
+
+function registerCommandsAuditCommand(cli: CAC): void {
+  cli
+    .command('commands:audit', 'Slash-command surface inventory + consistency audit')
+    .option('--format <format>', 'Inventory output format: tree (default), md, json')
+    .option(
+      '--summary',
+      'Output only the standardized JSONL audit-summary line (for the audit-aggregator)'
+    )
+    .example('ops commands:audit')
+    .example('ops commands:audit --format md')
+    .example('ops commands:audit --format json')
+    .example('ops commands:audit --summary')
+    .action(async (options: { format?: string; summary?: boolean }) => {
+      const { runCommandsAudit } = await import('../dev/commandsAudit.js');
+      const fmt = options.format;
+      if (fmt !== undefined && fmt !== 'tree' && fmt !== 'md' && fmt !== 'json') {
+        console.warn(`Unknown --format "${fmt}"; falling back to tree.`);
+      }
+      const format = fmt === 'md' || fmt === 'json' ? fmt : 'tree';
+      await runCommandsAudit({ format, summary: options.summary });
+    });
 }
 
 function registerComplexityReportCommand(cli: CAC): void {

@@ -22,3 +22,9 @@ _generated/
 # whole-table reformat, drowning the real change in alignment noise. Column
 # widths drift naturally and have zero review value, so exclude them.
 backlog/
+
+# Auto-generated command manifest. Its drift guard compares the committed file
+# byte-for-byte against `JSON.stringify(…, 2)` output; prettier collapses arrays
+# onto single lines, which would permanently break that comparison. Exclude so
+# the generator output stays the source of truth.
+services/bot-client/command-manifest.json

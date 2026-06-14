@@ -21,6 +21,8 @@ import { analyzeMigrationSafety } from '../db/check-migration-safety.js';
 import { runComplexityReport } from '../lint/complexity-report.js';
 import { checkAuditToolDocsFromRegistry } from './check-audit-tool-docs.js';
 import { findContentRefs } from './check-claude-content-refs.js';
+import { loadManifest, summarize } from '../dev/commandsAudit.js';
+import { runChecks } from '../dev/commandsAuditChecks.js';
 import type { AuditToolEntry } from './audit-tool-registry.js';
 import { parseSummary } from './summary.js';
 
@@ -150,5 +152,27 @@ describe('audit-canary: guard:claude-content-refs', () => {
       `expected exactly one dangling ref, got: ${JSON.stringify(result.danglingRefs)}`
     ).toHaveLength(1);
     expect(result.danglingRefs[0].command).toBe('nonexistent:canary-target');
+  });
+});
+
+describe('audit-canary: commands:audit', () => {
+  it('detects the deliberately-broken command manifest (bad category + empty desc + missing handler)', () => {
+    // The fixture has a command with a category ('Bogus') not in
+    // helpCategories, an empty subcommand description, and componentPrefixes
+    // without a button/select handler. The tool must report status:fail.
+    const manifest = loadManifest({
+      manifestPath: `${FIXTURES_ROOT}/commands-audit/command-manifest.json`,
+    });
+    const findings = runChecks(manifest);
+    const { status, findings: count } = summarize(findings);
+
+    expect(status).toBe('fail');
+    expect(count).toBeGreaterThan(0);
+    // The signature error checks must all fire.
+    expect(findings.some(f => f.rule === 'category-coverage')).toBe(true);
+    expect(findings.some(f => f.rule === 'description-presence' && f.severity === 'error')).toBe(
+      true
+    );
+    expect(findings.some(f => f.rule === 'component-handler-completeness')).toBe(true);
   });
 });
