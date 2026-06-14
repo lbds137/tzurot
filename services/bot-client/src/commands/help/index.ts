@@ -25,14 +25,23 @@ const logger = createLogger('help-command');
 /**
  * Command category display order and emoji
  */
+// Category = the command's top-level folder name (Title-cased), injected by
+// CommandHandler. Every folder needs an entry here or it falls into "Other" —
+// keep this in sync with services/bot-client/src/commands/*.
 const CATEGORY_CONFIG: Record<string, { emoji: string; order: number }> = {
   Character: { emoji: '🎭', order: 1 },
   Persona: { emoji: '👤', order: 2 },
-  Settings: { emoji: '⚙️', order: 3 },
-  History: { emoji: '📜', order: 4 },
-  Memory: { emoji: '🧠', order: 5 },
-  Admin: { emoji: '🛡️', order: 6 },
-  Help: { emoji: '❓', order: 7 },
+  Preset: { emoji: '🎛️', order: 3 },
+  Settings: { emoji: '⚙️', order: 4 },
+  Voice: { emoji: '🔊', order: 5 },
+  Shapes: { emoji: '🧩', order: 6 },
+  Memory: { emoji: '🧠', order: 7 },
+  History: { emoji: '📜', order: 8 },
+  Channel: { emoji: '#️⃣', order: 9 },
+  Inspect: { emoji: '🔍', order: 10 },
+  Deny: { emoji: '🚫', order: 11 },
+  Admin: { emoji: '🛡️', order: 12 },
+  Help: { emoji: '❓', order: 13 },
   Other: { emoji: '📦', order: 99 },
 };
 
