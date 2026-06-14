@@ -360,13 +360,23 @@ Surfaced 2026-04-23.
 **Why icebox (not a quick win)**: this is an architectural addition, not a tweak — new schema, new cascade-resolution semantics in `historyCutoff.ts`, a new command surface, and a migration. The weigh-in bug is fixed independently (epoch → `undefined` for weigh-in); this item is the _generalization_, only worth doing if channel/server-level reset becomes a real user need. **Promote when**: a user asks for channel/server-wide context reset, OR a second channel-scoped operation needs an epoch and the "no coarse epoch exists" gap bites again. Surfaced 2026-06-09 (user) during the weigh-in epoch-semantics fix.
 
 
-#### `[FEAT]` Surface z.ai coding-plan models in model autocomplete
+#### `[FEAT]` Model-browser slash command (`/models` by provider) — supersedes the moot z.ai autocomplete item
 
-**Problem**: The model autocomplete (preset model picker) sources from the OpenRouter model cache only. z.ai coding-plan models (`z-ai/glm-5`, `z-ai/glm-5.2`, …) that a user reaches via their z.ai-coding subscription must be free-typed — `z-ai/glm-5.2` isn't on OpenRouter at all, so it can never appear. PR #1197 made these models _validatable and saveable_ (z.ai-aware validation + catalog cap), but discoverability is a separate UX layer that's still missing.
+**Origin**: replaces a stale icebox entry ("Surface z.ai coding-plan models in model autocomplete"). That item assumed a live model autocomplete to fold z.ai catalog entries into — but there is none: `/preset` only autocompletes the `preset`/`config` options, and model IDs are free-typed in a Discord **modal** (no autocomplete possible). The discoverability intent is real, but the mechanism was wrong. This is its proper home.
 
-**Action**: When the requesting user has an active z.ai-coding key, fold the `ZAI_MODEL_CATALOG` entries (prefixed `z-ai/<model>`) into the autocomplete choices alongside the OpenRouter results — ideally badged so it's clear they route to the coding plan. Catalog already exposes `getZaiCodingPlanContextLength` / `isZaiCodingPlanModel` and the prefix constant `ZAI_MODEL_PREFIX`.
+**Problem**: Users pick a model by typing a raw slug into a modal, with no way to discover what's available or what a model supports — they have to visit OpenRouter (or z.ai docs) in a browser. z.ai-only models (`z-ai/glm-5.2`, absent from OpenRouter) are especially undiscoverable.
 
-**Why icebox**: validation unblocks the save path (the correctness gap); autocomplete is pure discoverability polish with no correctness impact. **Promote when**: free-typing z.ai model IDs becomes a recurring friction point, or a second z.ai-only model ships and users can't find it. Surfaced 2026-06-14 during the GLM-5 z.ai fix (PR #1197).
+**Action**: add a slash command (e.g. `/models browse` or `/models view`) that lists/inspects available models **by provider** and renders a model card. Per model, surface as much as the source API gives:
+
+- **Human-friendly name** + **full provider slug** (the value users paste into the preset modal)
+- **Capabilities** with emoji affordances — 💬 text, 👁️ vision, 🎨 image-gen, 🔊 audio in/out, 🎥 video if available (the gateway `/models` endpoint already returns `supportsVision`/`supportsImageGeneration`/`supportsAudioInput`/`supportsAudioOutput` on `ModelAutocompleteOption`)
+- **Context limit**
+- **Pricing** (prompt/completion per-million) — OpenRouter only; `ModelAutocompleteOption` already carries `promptPricePerMillion`/`completionPricePerMillion`
+- **z.ai provider support**: fold in `ZAI_MODEL_CATALOG` entries (`z-ai/<model>`) for a parallel UX with as much of the same info as z.ai exposes (name, slug, context length from the catalog; capabilities/pricing where derivable). Catalog helpers exist: `listZaiCodingPlanModels`-shaped accessor (was prototyped then reverted — re-add when building), `getZaiCodingPlanContextLength`, `isZaiCodingPlanModel`, `ZAI_MODEL_PREFIX`, plus `buildModelInfoUrl` for the docs-card link.
+
+**Infra already present**: `fetchModels`/`fetchTextModels`/`fetchVisionModels` (`services/bot-client/src/utils/modelAutocomplete.ts`) and the gateway `GET /models[/text|/vision]` endpoints already fetch + shape the OpenRouter catalog. The currently-unreachable `handleModelAutocomplete`/`handleVisionModelAutocomplete` branches in `preset/autocomplete.ts` are dead today but their fetch layer is the foundation for this command — that's why they're kept rather than deleted.
+
+**Why icebox**: new UX surface (command shape, pagination/selection, card layout) that needs a small design pass; pure discoverability, no correctness impact. **Promote when**: model-slug friction is reported, or alongside the next model-catalog-facing work. Surfaced 2026-06-14 (user), reframed from the moot autocomplete item after discovering the modal-based model entry.
 
 #### `[FEAT]` "Requires z.ai key" badge on preset dashboard for z.ai-only global presets
 
