@@ -105,12 +105,4 @@ _New items go here. Triage to appropriate section weekly._
 
 **Why inbox (not scheduled)**: explicitly NOT for beta.126; it's a UX-restructure with an unresolved design question, so it needs triage + a design pass before becoming a committed task. Touches `services/bot-client/src/commands/character/chat.ts` (mode branching), the slash-command definition, and `randomPick.ts`. Command-structure change → integration snapshots need updating (`pnpm test:int`).
 
-### `[FIX]` Per-user rate-limit guard on system-fallback vision — HIGH PRIORITY (fast-follow to the broad vision-fallback PR)
-
-**Surfaced 2026-06-14** (council review — GLM-5.1 + Qwen-3.7-Max independently flagged it — during the item-5 broad-vision-fallback design). The broad free-vision fallback (authenticated-but-can't-auth-vision-provider → free gemma on the **system** OpenRouter key) creates a freeloading surface: **any** authenticated user — including a throwaway/Sybil Discord account that sets a dummy key for any provider — can route vision through the owner's system OpenRouter key. The forced free model (`google/gemma-4-31b-it:free`) means no *direct* dollar cost, but it consumes the **shared OpenRouter free-tier rate limit**, so a few heavy users can starve genuine guests' vision.
-
-**Decision (user, 2026-06-14)**: ship the broad fallback **now** without the guard, add this guard as a **high-priority fast-follow** (NOT trigger-gated — do it next).
-
-**Action**: add a per-user cap on system-fallback vision calls (resolved vision auth `source: 'system'` for a non-guest user). Reuse the existing `RateLimitCache` in ai-worker, keyed distinctly from the guest pool (e.g. `(userId, 'vision-system-fallback')`). On cap exceeded, fall back to the existing fail-fast placeholder (`VISION_AUTH_FAIL_FAST_DESCRIPTION`) rather than the free model. Decide the per-user ceiling (council suggested ~20/day as a starting point). **Start**: the `source: 'system'` downgraded-vision path introduced by the item-5 PR in `services/ai-worker/src/services/multimodal/`; `RateLimitCache` for the counter.
-
-**Why HIGH**: it's a cost/abuse exposure that ships live with the broad-scope vision PR; the longer it's unguarded, the larger the window for free-tier rate-limit starvation.
+_Shipped 2026-06-14 (#1205): per-user daily cap on system-key free-vision fallback (`VisionFallbackQuota`, 20/day, fail-open) — the fast-follow guard for the #1204 broad fallback._
