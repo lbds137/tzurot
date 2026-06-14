@@ -21,11 +21,7 @@ import type { ProcessedAttachment } from '../../../../services/MultimodalProcess
 import type { IPipelineStep, GenerationContext, PreprocessingResults } from '../types.js';
 import type { ApiKeyResolver } from '../../../../services/ApiKeyResolver.js';
 import type { VisionDescriptionWriter } from '../../../../services/context/visionDescriptionWriter.js';
-import {
-  resolveVisionAuth,
-  buildVisionAuthFailureResults,
-} from '../../../../services/multimodal/visionAuthResolver.js';
-import { selectVisionModel } from '../../../../services/multimodal/VisionProcessor.js';
+import { processCrossProviderVisionImages } from './extendedContextVisionProcessor.js';
 
 const logger = createLogger('DependencyStep');
 
@@ -346,66 +342,18 @@ export class DependencyStep implements IPipelineStep {
     // for that case rather than falling through to the legacy path that lacks
     // explicit `provider` plumbing.
     if (this.apiKeyResolver !== undefined && mainProvider !== undefined) {
-      // Outer try/catch covers the entire cross-provider block — including
-      // `selectVisionModel`, `resolveVisionAuth`, and `processAttachments`.
-      // A transient Redis blip inside `apiKeyResolver.resolveApiKey` (guest
-      // path) or `tryResolveUserKey` (authenticated path) would otherwise
-      // throw out of `processExtendedContextImages` entirely, skipping the
-      // graceful "continuing without them" degradation that the legacy path
-      // already had. Wrapping at this scope keeps the failure UX consistent
-      // across all branches: a resolver throw degrades the same as a
-      // `processAttachments` throw — return empty, log, let the chat
-      // continue without the images.
-      try {
-        // Pre-compute the effective vision model with the same selection logic
-        // `describeImage` uses internally — so when `selectVisionModel` falls
-        // through to `VISION_FALLBACK_MODEL` (main lacks native vision and no
-        // override), provider detection sees the actual model rather than the
-        // main model. Without this, a personality with main=glm-5.1 (no vision)
-        // would have its provider detected as ZaiCoding even though the
-        // fallback model is on OpenRouter.
-        const effectiveVisionModel = await selectVisionModel(personality, isGuestMode);
-        const visionAuth = await resolveVisionAuth({
-          personality,
-          mainProvider,
-          mainApiKey: userApiKey,
-          isGuestMode,
-          userId,
-          apiKeyResolver: this.apiKeyResolver,
-          effectiveVisionModel,
-        });
-        if (visionAuth === null) {
-          // Authenticated user with no key for the vision provider. Fail-fast
-          // with synthetic-failure entries; the negative cache absorbs retries
-          // for 5min so the user sees a stable fallback string until they fix
-          // the key.
-          return buildVisionAuthFailureResults(imageAttachments);
-        }
-        const processed = await processAttachments(imageAttachments, personality, {
-          isGuestMode,
-          userApiKey: visionAuth.apiKey,
-          sttDispatch,
-          visionProvider: visionAuth.provider,
-          loggingContext: {
-            userId,
-            apiKeySource: visionAuth.source,
-            provider: visionAuth.provider,
-          },
-        });
-
-        logger.info(
-          { jobId, processedCount: processed.length, visionProvider: visionAuth.provider },
-          'Extended context images processed successfully'
-        );
-
-        return processed;
-      } catch (error) {
-        logger.error(
-          { err: error, jobId },
-          'Failed to process extended context images - continuing without them'
-        );
-        return [];
-      }
+      return processCrossProviderVisionImages({
+        imageAttachments,
+        personality,
+        jobId,
+        userId,
+        isGuestMode,
+        userApiKey,
+        sttDispatch,
+        mainProvider,
+        apiKeyResolver: this.apiKeyResolver,
+        processAttachments,
+      });
     }
 
     // Fallback path — reached when EITHER apiKeyResolver is undefined (legacy

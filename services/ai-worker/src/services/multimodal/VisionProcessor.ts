@@ -148,6 +148,17 @@ export interface DescribeImageOptions {
    * "Make `visionProvider` required in vision-pipeline option bags."
    */
   provider?: AIProvider;
+  /**
+   * Pre-resolved vision model name. When provided, `describeImage` uses it
+   * directly and SKIPS the internal `selectVisionModel` call. This lets the
+   * unified `resolveVisionConfig` decision flow through — critically, when an
+   * authenticated user is downgraded to the free vision model, that forced
+   * model must reach `createChatModel` rather than being re-selected (which
+   * would pick the PAID fallback for `isGuestMode === false` and bill the
+   * system key for it). Optional for backward compat; omitting it preserves the
+   * legacy self-selection behavior.
+   */
+  model?: string;
 }
 
 /**
@@ -561,7 +572,13 @@ export async function describeImage(
       ? personality.systemPrompt
       : undefined;
 
-  const usedModel = await selectVisionModel(personality, isGuestMode);
+  // Honor a caller-supplied model (from `resolveVisionConfig`) over internal
+  // selection — the unified resolver may have forced a free-tier downgrade that
+  // `selectVisionModel` would not reproduce for an authenticated user.
+  const usedModel =
+    options.model !== undefined && options.model.length > 0
+      ? options.model
+      : await selectVisionModel(personality, isGuestMode);
   const description = await invokeVisionModel(attachment, usedModel, {
     systemPrompt,
     userApiKey,
