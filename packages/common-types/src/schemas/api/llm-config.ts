@@ -255,6 +255,14 @@ export const LlmConfigDetailSchema = LlmConfigSummarySchema.extend({
   contextWindowTokens: z.number().int(),
   modelContextLength: z.number().int().optional(),
   contextWindowCap: z.number().int().optional(),
+  // True when the model is a z.ai-only coding-plan model (absent from OpenRouter)
+  // AND the viewing user has no active z.ai-coding key — the preset can't run for
+  // them without one. Drives the dashboard "requires z.ai key" badge; see
+  // api-gateway `computeRequiresZaiKey`. `.optional()` because only the
+  // user-facing GET/create/update routes emit it (always — as `false` when the
+  // badge doesn't apply); the owner-only admin routes intentionally omit it (the
+  // owner provisions the keys, so the badge has no audience there).
+  requiresZaiKey: z.boolean().optional(),
   params: AdvancedParamsSchema,
 });
 export type LlmConfigDetail = z.infer<typeof LlmConfigDetailSchema>;

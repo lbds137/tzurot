@@ -170,6 +170,14 @@ describe('LLM Config API Contract Tests', () => {
     it('accepts empty params object (gateway emits {} for no advanced params)', () => {
       expect(LlmConfigDetailSchema.safeParse({ ...validDetail, params: {} }).success).toBe(true);
     });
+
+    it('allows and preserves the optional requiresZaiKey flag', () => {
+      // The gateway sets this for the dashboard's "requires z.ai key" badge; it
+      // must be part of the contract so client-side parsing doesn't strip it.
+      const parsed = LlmConfigDetailSchema.safeParse({ ...validDetail, requiresZaiKey: true });
+      expect(parsed.success).toBe(true);
+      expect(parsed.success && parsed.data.requiresZaiKey).toBe(true);
+    });
   });
 
   describe('ListLlmConfigsResponseSchema', () => {

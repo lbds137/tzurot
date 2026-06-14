@@ -81,7 +81,8 @@ export const identitySection: SectionDefinition<FlattenedPresetData> = {
       parts.push(`**Name:** ${data.name}`);
     }
     if (data.model) {
-      parts.push(`**Model:** \`${data.model}\``);
+      const zaiBadge = data.requiresZaiKey === true ? ' ⚠️ requires z.ai key' : '';
+      parts.push(`**Model:** \`${data.model}\`${zaiBadge}`);
     }
     if (data.visionModel) {
       parts.push(`**Vision:** \`${data.visionModel}\``);
