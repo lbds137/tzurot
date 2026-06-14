@@ -55,6 +55,15 @@ export interface ValidateLlmConfigModelFieldsOptions {
     contextWindowTokens?: number;
   };
   /**
+   * Whether the saving user has an active z.ai-coding API key. Gates the z.ai
+   * catalog validation path in `validateModelAndContextWindow`: a user with a
+   * key gets `z-ai/<model>` requests promoted to z.ai-direct at runtime, so
+   * the model must be validated against z.ai's catalog (not OpenRouter). Admin
+   * /global configs pass `true` (any user with a key can use the preset; users
+   * without one fall through to OpenRouter at runtime). Defaults to `false`.
+   */
+  hasZaiCodingKey?: boolean;
+  /**
    * Only present on update-path calls. Lets the helper fetch the current
    * model if the update body omits `model` but changes `contextWindowTokens`.
    */
@@ -76,7 +85,7 @@ export interface ValidateLlmConfigModelFieldsOptions {
 export async function validateLlmConfigModelFields(
   opts: ValidateLlmConfigModelFieldsOptions
 ): Promise<boolean> {
-  const { res, modelCache, body, fallback } = opts;
+  const { res, modelCache, body, fallback, hasZaiCodingKey = false } = opts;
 
   // Update path: skip entirely when neither model nor contextWindowTokens is present.
   // A no-op update doesn't need model validation.
@@ -100,7 +109,8 @@ export async function validateLlmConfigModelFields(
   const result = await validateModelAndContextWindow(
     modelCache,
     effectiveModel,
-    body.contextWindowTokens
+    body.contextWindowTokens,
+    hasZaiCodingKey
   );
 
   if (result.error !== undefined) {

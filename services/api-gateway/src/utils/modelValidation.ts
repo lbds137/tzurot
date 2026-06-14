@@ -5,7 +5,11 @@
  * Used by both user and admin LLM config routes.
  */
 
-import { computeContextCap } from '@tzurot/common-types';
+import {
+  computeContextCap,
+  getZaiCodingPlanContextLength,
+  ZAI_MODEL_PREFIX,
+} from '@tzurot/common-types';
 import type { OpenRouterModelCache } from '../services/OpenRouterModelCache.js';
 
 /**
@@ -20,26 +24,90 @@ export interface ModelValidationResult {
 }
 
 /**
- * Validate a model ID against the OpenRouter model cache and enforce
+ * Compute the graduated context-window cap for a model and check the requested
+ * contextWindowTokens against it. Shared by the OpenRouter and z.ai validation
+ * paths so both produce identical cap math and error wording. The only
+ * difference between the two paths is where `contextLength` comes from
+ * (OpenRouter cache vs. z.ai catalog).
+ */
+function checkContextWindowCap(
+  modelId: string,
+  contextWindowTokens: number | undefined,
+  contextLength: number
+): ModelValidationResult {
+  const cap = computeContextCap(contextLength);
+  if (contextWindowTokens !== undefined && contextWindowTokens > cap) {
+    const contextK = Math.round(contextLength / 1000);
+    const capK = Math.round(cap / 1000);
+    return {
+      error:
+        `Context window setting (${contextWindowTokens} tokens) exceeds the safe limit for '${modelId}'. ` +
+        `Model supports ${contextK}K tokens; maximum allowed for this model is ${capK}K (${cap} tokens) ` +
+        `to leave room for the response. Reduce the Context Window value before saving.`,
+      contextWindowCap: cap,
+    };
+  }
+  return { contextWindowCap: cap };
+}
+
+/**
+ * Validate a model ID and enforce
  * contextWindowTokens <= computeContextCap(context_length) — the graduated
  * headroom cap shared with ai-worker's runtime clamp (see
  * common-types/utils/contextWindowCap.ts for the rationale).
  *
- * Gracefully degrades: if the model cache is unavailable (e.g., OpenRouter
- * is down), validation is skipped and the request proceeds.
+ * Two validation paths, mirroring runtime provider routing:
+ *
+ * 1. **z.ai catalog** (when `hasZaiCodingKey` and the model is a `z-ai/<model>`
+ *    in the coding-plan catalog): validate against the catalog's context
+ *    length. This mirrors `ProviderRouter.tryAutoPromoteToZai` — a user with a
+ *    z.ai-coding key will have the request promoted to z.ai-direct at runtime,
+ *    so it must be validated against z.ai's limits, not OpenRouter's. It also
+ *    unblocks z.ai-only models (e.g. `glm-5.2`) that aren't on OpenRouter at
+ *    all — while still capping them, so a bad config can't overflow at the
+ *    provider.
+ *
+ * 2. **OpenRouter cache** (everything else): validate against the cache and
+ *    reject on miss. Gracefully degrades: if the cache is unavailable (e.g.,
+ *    OpenRouter is down), validation is skipped and the request proceeds.
  *
  * @param modelCache - OpenRouter model cache (may be undefined if not wired)
  * @param modelId - The model ID to validate (e.g., "anthropic/claude-sonnet-4")
  * @param contextWindowTokens - Optional context window setting to validate
+ * @param hasZaiCodingKey - Whether the saving user has an active z.ai-coding
+ *   key (admin/global configs pass `true`). Gates the z.ai catalog path.
  * @returns Validation result with optional error message
  */
 export async function validateModelAndContextWindow(
   modelCache: OpenRouterModelCache | undefined,
   modelId: string | undefined,
-  contextWindowTokens: number | undefined
+  contextWindowTokens: number | undefined,
+  hasZaiCodingKey = false
 ): Promise<ModelValidationResult> {
+  if (modelId === undefined) {
+    return {};
+  }
+
+  // z.ai path first: a `z-ai/`-prefixed coding-plan model + a key means runtime
+  // will promote to z.ai-direct, so validate against the catalog (not
+  // OpenRouter). Falls through to the OpenRouter path for non-catalog models or
+  // when no key.
+  //
+  // The prefix guard is load-bearing: `getZaiCodingPlanContextLength` also
+  // accepts BARE names (`glm-5`) because the runtime resolver sees the promoted
+  // bare form. But ProviderRouter only promotes `z-ai/`-prefixed models, so a
+  // saved bare `glm-5` would NOT promote — it'd hit OpenRouter as a bare ID that
+  // doesn't exist there. Validation must mirror the router's prefix gate, or it
+  // accepts a config runtime can't honor.
+  if (hasZaiCodingKey && modelId.startsWith(ZAI_MODEL_PREFIX)) {
+    const zaiContextLength = getZaiCodingPlanContextLength(modelId);
+    if (zaiContextLength !== null) {
+      return checkContextWindowCap(modelId, contextWindowTokens, zaiContextLength);
+    }
+  }
+
   // No cache available — skip validation gracefully
-  if (modelCache === undefined || modelId === undefined) {
+  if (modelCache === undefined) {
     return {};
   }
 
@@ -55,20 +123,7 @@ export async function validateModelAndContextWindow(
     };
   }
 
-  const cap = computeContextCap(model.contextLength);
-  if (contextWindowTokens !== undefined && contextWindowTokens > cap) {
-    const contextK = Math.round(model.contextLength / 1000);
-    const capK = Math.round(cap / 1000);
-    return {
-      error:
-        `Context window setting (${contextWindowTokens} tokens) exceeds the safe limit for '${modelId}'. ` +
-        `Model supports ${contextK}K tokens; maximum allowed for this model is ${capK}K (${cap} tokens) ` +
-        `to leave room for the response. Reduce the Context Window value before saving.`,
-      contextWindowCap: cap,
-    };
-  }
-
-  return { contextWindowCap: cap };
+  return checkContextWindowCap(modelId, contextWindowTokens, model.contextLength);
 }
 
 /** Object with optional model context fields, set by enrichWithModelContext */
@@ -79,8 +134,12 @@ interface ModelContextEnrichable {
 
 /**
  * Enrich an API response object with model context window info.
- * Adds `modelContextLength` and `contextWindowCap` fields if the model
- * is found in the cache. Gracefully skips if cache or model is unavailable.
+ * Adds `modelContextLength` and `contextWindowCap` fields if the model's
+ * context length is resolvable. Gracefully skips if neither source has it.
+ *
+ * Two resolution sources, matching the validation paths: z.ai catalog first
+ * (so z.ai-only models like `glm-5.2` — absent from the OpenRouter cache —
+ * still show their cap in the dashboard), then the OpenRouter cache.
  *
  * Used by GET/create/update handlers so the bot-client can display
  * context window cap info in the preset dashboard.
@@ -90,7 +149,23 @@ export async function enrichWithModelContext(
   model: string | undefined,
   modelCache: OpenRouterModelCache | undefined
 ): Promise<void> {
-  if (modelCache === undefined || model === undefined) {
+  if (model === undefined) {
+    return;
+  }
+
+  // Mirror the validation path's prefix gate: only `z-ai/`-prefixed models
+  // resolve from the z.ai catalog. A bare `glm-5` runs on OpenRouter at
+  // runtime, so its dashboard cap must come from the OpenRouter cache too.
+  if (model.startsWith(ZAI_MODEL_PREFIX)) {
+    const zaiContextLength = getZaiCodingPlanContextLength(model);
+    if (zaiContextLength !== null) {
+      response.modelContextLength = zaiContextLength;
+      response.contextWindowCap = computeContextCap(zaiContextLength);
+      return;
+    }
+  }
+
+  if (modelCache === undefined) {
     return;
   }
   const modelInfo = await modelCache.getModelById(model);
