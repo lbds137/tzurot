@@ -51,4 +51,41 @@ describe('resolveEffectiveContextWindow', () => {
     // is ModelCapabilityChecker's responsibility, not the resolver's
     expect(checkModelContextLength).toHaveBeenCalledWith('some/model:free');
   });
+
+  describe('z.ai coding-plan models', () => {
+    it('clamps a z.ai-only model from the catalog even on a cache miss', async () => {
+      // glm-5.2 (1M context) is NOT on OpenRouter, so checkModelContextLength
+      // returns null. Without the catalog-first lookup this would resolve to
+      // "unknown" and run unclamped — the exact overflow Fix C guards against.
+      vi.mocked(checkModelContextLength).mockResolvedValue(null);
+
+      const result = await resolveEffectiveContextWindow(
+        personality({ model: 'z-ai/glm-5.2', contextWindowTokens: 900_000 })
+      );
+
+      expect(result).toBe(500_000); // computeContextCap(1_000_000) = 50%
+      // The catalog short-circuits before any Redis lookup.
+      expect(checkModelContextLength).not.toHaveBeenCalled();
+    });
+
+    it('passes through a within-cap configured value for a z.ai model', async () => {
+      const result = await resolveEffectiveContextWindow(
+        personality({ model: 'z-ai/glm-5', contextWindowTokens: 50_000 })
+      );
+
+      expect(result).toBe(50_000);
+      expect(checkModelContextLength).not.toHaveBeenCalled();
+    });
+
+    it('falls back to the OpenRouter cache for non-catalog models', async () => {
+      vi.mocked(checkModelContextLength).mockResolvedValue(200000);
+
+      const result = await resolveEffectiveContextWindow(
+        personality({ model: 'anthropic/claude-sonnet-4', contextWindowTokens: 150000 })
+      );
+
+      expect(result).toBe(100000); // 50% of 200k
+      expect(checkModelContextLength).toHaveBeenCalledWith('anthropic/claude-sonnet-4');
+    });
+  });
 });

@@ -206,7 +206,7 @@ export const ZAI_VALIDATION_MODEL = 'glm-4.5-air';
 
 /**
  * Catalog of models served by z.ai's GLM Coding Plan endpoint
- * (`api.z.ai/api/coding/paas/v4`). Single source of truth for two things:
+ * (`api.z.ai/api/coding/paas/v4`). Single source of truth for three things:
  *
  * 1. **Membership** — `isZaiCodingPlanModel()` checks if a model exists on
  *    the plan. Used by `ProviderRouter` as a guardrail before auto-promoting
@@ -217,21 +217,46 @@ export const ZAI_VALIDATION_MODEL = 'glm-4.5-air';
  *    `docsUrl` for the response footer link. Most models have a dedicated
  *    docs page at `docs.z.ai/guides/llm/<model>`; `glm-4.5-air` is the
  *    exception — z.ai docs that variant on the parent `glm-4.5` page, so we
- *    link there instead. (Confirmed 2026-04-28 via z.ai docs check.)
+ *    link there instead.
  *
- * Source of truth for membership: docs.z.ai/devpack/overview. Source of
- * truth for docs URLs: docs.z.ai/llms.txt. Keys must stay lowercase to
- * match the case-normalized lookups; user-typed preset configs may use any
- * case so callers normalize before lookup.
+ * 3. **Context length** — `getZaiCodingPlanContextLength()` reads the
+ *    `contextLength` for the context-window cap. This is load-bearing: once
+ *    config validation accepts a z.ai model via the z.ai path (bypassing the
+ *    OpenRouter model cache), the catalog is the ONLY source for the model's
+ *    real context limit at both save-time validation and runtime clamp. A
+ *    z.ai-only model (`glm-5.2`, not on OpenRouter) would otherwise run
+ *    unclamped and overflow at the provider. Values are from OpenRouter's
+ *    live model cards (glm-5/5.1/4.7 = 200K, turbo = 262K, air = 131K) and
+ *    z.ai's GLM-5.2 announcement (1M); slightly conservative is safe because
+ *    the cap formula errs small.
+ *
+ * Source of truth for membership + context lengths: docs.z.ai/devpack/overview
+ * and the per-model cards. Source of truth for docs URLs: docs.z.ai/llms.txt.
+ * Keys must stay lowercase to match the case-normalized lookups; user-typed
+ * preset configs may use any case so callers normalize before lookup.
  */
-const ZAI_MODEL_CATALOG: Readonly<Record<string, { docsUrl: string }>> = {
-  'glm-5.1': { docsUrl: 'https://docs.z.ai/guides/llm/glm-5.1' },
-  'glm-5-turbo': { docsUrl: 'https://docs.z.ai/guides/llm/glm-5-turbo' },
-  'glm-4.7': { docsUrl: 'https://docs.z.ai/guides/llm/glm-4.7' },
+const ZAI_MODEL_CATALOG: Readonly<Record<string, { docsUrl: string; contextLength: number }>> = {
+  'glm-5': { docsUrl: 'https://docs.z.ai/guides/llm/glm-5', contextLength: 200_000 },
+  'glm-5.1': { docsUrl: 'https://docs.z.ai/guides/llm/glm-5.1', contextLength: 200_000 },
+  // glm-5.2 is z.ai's flagship and is NOT on OpenRouter yet — the catalog is
+  // its only context-length source, so the cap depends on this value.
+  'glm-5.2': { docsUrl: 'https://docs.z.ai/guides/llm/glm-5.2', contextLength: 1_000_000 },
+  'glm-5-turbo': { docsUrl: 'https://docs.z.ai/guides/llm/glm-5-turbo', contextLength: 262_144 },
+  'glm-4.7': { docsUrl: 'https://docs.z.ai/guides/llm/glm-4.7', contextLength: 200_000 },
   // glm-4.5-air uses the parent family page — z.ai docs the Air variant on
   // the same page as the regular glm-4.5; no per-model URL exists.
-  'glm-4.5-air': { docsUrl: 'https://docs.z.ai/guides/llm/glm-4.5' },
+  'glm-4.5-air': { docsUrl: 'https://docs.z.ai/guides/llm/glm-4.5', contextLength: 131_072 },
 };
+
+/**
+ * Prefix that marks an OpenRouter model as belonging to the z.ai namespace
+ * (e.g. `z-ai/glm-5`). Both runtime routing (`ProviderRouter`) and config
+ * validation key off this prefix to decide whether a model is a z.ai
+ * coding-plan candidate — the `provider` field is not present in the
+ * llm-config request schemas, so the prefix is the only signal available at
+ * validation time.
+ */
+export const ZAI_MODEL_PREFIX = 'z-ai/';
 
 /**
  * Fallback URL for z.ai-coding requests where the model name isn't in the
@@ -248,6 +273,24 @@ const ZAI_CODING_OVERVIEW_URL = 'https://docs.z.ai/devpack/overview';
  */
 export function isZaiCodingPlanModel(model: string): boolean {
   return model.toLowerCase() in ZAI_MODEL_CATALOG;
+}
+
+/**
+ * Look up a z.ai coding-plan model's context length from the catalog, in
+ * tokens. Strips an optional `z-ai/` prefix (validation and runtime both pass
+ * the prefixed form `z-ai/glm-5`, while ProviderRouter promotes to the bare
+ * `glm-5`) and case-normalizes before lookup. Returns `null` for any model not
+ * in the catalog — callers treat that as "not a z.ai coding-plan model" and
+ * fall back to their OpenRouter-based context source.
+ *
+ * This is the cap source for z.ai-only models (e.g. `glm-5.2`) that never
+ * appear in the OpenRouter model cache: without it they'd be saved and run
+ * with no context-window clamp.
+ */
+export function getZaiCodingPlanContextLength(model: string): number | null {
+  const lower = model.toLowerCase();
+  const bare = lower.startsWith(ZAI_MODEL_PREFIX) ? lower.slice(ZAI_MODEL_PREFIX.length) : lower;
+  return ZAI_MODEL_CATALOG[bare]?.contextLength ?? null;
 }
 
 /**

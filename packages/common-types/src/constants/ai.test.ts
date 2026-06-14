@@ -3,7 +3,13 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { isFreeModel, GUEST_MODE, buildModelInfoUrl, isZaiCodingPlanModel } from './ai.js';
+import {
+  isFreeModel,
+  GUEST_MODE,
+  buildModelInfoUrl,
+  isZaiCodingPlanModel,
+  getZaiCodingPlanContextLength,
+} from './ai.js';
 
 describe('isFreeModel', () => {
   it('should return true for models ending with :free', () => {
@@ -49,9 +55,19 @@ describe('GUEST_MODE', () => {
 
 describe('buildModelInfoUrl', () => {
   describe('z.ai-coding direct route', () => {
+    it('should map glm-5 to its dedicated docs page', () => {
+      expect(buildModelInfoUrl('glm-5', 'zai-coding')).toBe('https://docs.z.ai/guides/llm/glm-5');
+    });
+
     it('should map glm-5.1 to its dedicated docs page', () => {
       expect(buildModelInfoUrl('glm-5.1', 'zai-coding')).toBe(
         'https://docs.z.ai/guides/llm/glm-5.1'
+      );
+    });
+
+    it('should map glm-5.2 to its dedicated docs page', () => {
+      expect(buildModelInfoUrl('glm-5.2', 'zai-coding')).toBe(
+        'https://docs.z.ai/guides/llm/glm-5.2'
       );
     });
 
@@ -153,8 +169,10 @@ describe('buildModelInfoUrl', () => {
 });
 
 describe('isZaiCodingPlanModel', () => {
-  it('should accept all four current coding-plan catalog entries', () => {
+  it('should accept all current coding-plan catalog entries', () => {
+    expect(isZaiCodingPlanModel('glm-5')).toBe(true);
     expect(isZaiCodingPlanModel('glm-5.1')).toBe(true);
+    expect(isZaiCodingPlanModel('glm-5.2')).toBe(true);
     expect(isZaiCodingPlanModel('glm-5-turbo')).toBe(true);
     expect(isZaiCodingPlanModel('glm-4.7')).toBe(true);
     expect(isZaiCodingPlanModel('glm-4.5-air')).toBe(true);
@@ -174,5 +192,40 @@ describe('isZaiCodingPlanModel', () => {
     expect(isZaiCodingPlanModel('glm-4.5-flash')).toBe(false); // hallucinated name from PR #921
     expect(isZaiCodingPlanModel('claude-sonnet-4')).toBe(false);
     expect(isZaiCodingPlanModel('')).toBe(false);
+  });
+});
+
+describe('getZaiCodingPlanContextLength', () => {
+  it('should return the catalog context length for bare model names', () => {
+    expect(getZaiCodingPlanContextLength('glm-5')).toBe(200_000);
+    expect(getZaiCodingPlanContextLength('glm-5.1')).toBe(200_000);
+    expect(getZaiCodingPlanContextLength('glm-5-turbo')).toBe(262_144);
+    expect(getZaiCodingPlanContextLength('glm-4.7')).toBe(200_000);
+    expect(getZaiCodingPlanContextLength('glm-4.5-air')).toBe(131_072);
+  });
+
+  it('should return 1M for glm-5.2 (z.ai-only flagship, not on OpenRouter)', () => {
+    // This is the load-bearing case: glm-5.2 never appears in the OpenRouter
+    // model cache, so the catalog is the ONLY context-length source for it.
+    expect(getZaiCodingPlanContextLength('glm-5.2')).toBe(1_000_000);
+  });
+
+  it('should strip the z-ai/ prefix before lookup', () => {
+    // Config validation and the runtime clamp pass the prefixed form; the
+    // catalog keys are bare.
+    expect(getZaiCodingPlanContextLength('z-ai/glm-5')).toBe(200_000);
+    expect(getZaiCodingPlanContextLength('z-ai/glm-5.2')).toBe(1_000_000);
+  });
+
+  it('should case-normalize before lookup', () => {
+    expect(getZaiCodingPlanContextLength('GLM-5')).toBe(200_000);
+    expect(getZaiCodingPlanContextLength('Z-AI/GLM-5.2')).toBe(1_000_000);
+  });
+
+  it('should return null for models not in the catalog', () => {
+    expect(getZaiCodingPlanContextLength('glm-99-future')).toBeNull();
+    expect(getZaiCodingPlanContextLength('z-ai/glm-99-future')).toBeNull();
+    expect(getZaiCodingPlanContextLength('anthropic/claude-sonnet-4')).toBeNull();
+    expect(getZaiCodingPlanContextLength('')).toBeNull();
   });
 });

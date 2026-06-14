@@ -91,7 +91,11 @@ function createCreateConfigHandler(
       return;
     }
 
-    if (!(await validateLlmConfigModelFields({ res, modelCache, body }))) {
+    // Global presets have no specific saving user — pass hasZaiCodingKey:true so
+    // z.ai-catalog models (incl. z.ai-only ones like glm-5.2) are validatable as
+    // global configs. Users with a z.ai key promote at runtime; users without
+    // one fall through to OpenRouter.
+    if (!(await validateLlmConfigModelFields({ res, modelCache, body, hasZaiCodingKey: true }))) {
       return;
     }
 
@@ -138,6 +142,7 @@ function createEditConfigHandler(
         modelCache,
         body,
         fallback: { service, configId: configId },
+        hasZaiCodingKey: true,
       }))
     ) {
       return;
