@@ -220,32 +220,46 @@ export const ZAI_VALIDATION_MODEL = 'glm-4.5-air';
  *    link there instead.
  *
  * 3. **Context length** — `getZaiCodingPlanContextLength()` reads the
- *    `contextLength` for the context-window cap. This is load-bearing: once
- *    config validation accepts a z.ai model via the z.ai path (bypassing the
- *    OpenRouter model cache), the catalog is the ONLY source for the model's
- *    real context limit at both save-time validation and runtime clamp. A
- *    z.ai-only model (`glm-5.2`, not on OpenRouter) would otherwise run
- *    unclamped and overflow at the provider. Values are from OpenRouter's
- *    live model cards (glm-5/5.1/4.7 = 200K, turbo = 262K, air = 131K) and
- *    z.ai's GLM-5.2 announcement (1M); slightly conservative is safe because
- *    the cap formula errs small.
+ *    `contextLength` for the context-window cap. This is load-bearing: when a
+ *    request routes to z.ai-direct (the user has a z.ai key + the model is
+ *    promoted), the model runs on z.ai, so its real limit is z.ai's documented
+ *    one — NOT OpenRouter's, which differs (e.g. OpenRouter lists glm-5.1 at
+ *    202752, but z.ai documents 200K). The catalog is also the ONLY source for
+ *    z.ai-only models (`glm-5.2`, absent from OpenRouter). Keyless requests
+ *    fall through to OpenRouter and are capped from the OpenRouter cache
+ *    instead (gateway validation gates on the z.ai key; the runtime resolver
+ *    gates on the effective provider).
  *
- * Source of truth for membership + context lengths: docs.z.ai/devpack/overview
- * and the per-model cards. Source of truth for docs URLs: docs.z.ai/llms.txt.
- * Keys must stay lowercase to match the case-normalized lookups; user-typed
- * preset configs may use any case so callers normalize before lookup.
+ *    Values are z.ai's own documented `Context Length` capability-card numbers
+ *    (docs.z.ai/guides/llm/<model>), read as decimal for consistency: "200K" →
+ *    200_000, "128K" → 128_000, "1M" → 1_000_000. Decimal (not binary 131_072
+ *    etc.) is the right convention here — z.ai's displayed figure is itself a
+ *    rounded-down label (OpenRouter's card for glm-5.1 is 202752, z.ai shows
+ *    "200K"), so the decimal reading sits at or below the real served limit,
+ *    which is the safe direction for a cap. glm-5/5.1/5-turbo/4.7 = 200K,
+ *    glm-4.5-air = 128K, glm-5.2 = 1M. (z.ai documents 128K max output for the
+ *    GLM-5 family and 5-turbo, 96K for glm-4.5-air — output headroom the cap
+ *    formula reserves automatically; recorded here so the next audit has it.)
+ *
+ * Source of truth for membership: docs.z.ai/devpack/overview. Source of truth
+ * for context lengths + docs URLs: the per-model pages under
+ * docs.z.ai/guides/llm (indexed in docs.z.ai/llms.txt). Keys must stay
+ * lowercase to match the case-normalized lookups; user-typed preset configs
+ * may use any case so callers normalize before lookup.
  */
 const ZAI_MODEL_CATALOG: Readonly<Record<string, { docsUrl: string; contextLength: number }>> = {
   'glm-5': { docsUrl: 'https://docs.z.ai/guides/llm/glm-5', contextLength: 200_000 },
   'glm-5.1': { docsUrl: 'https://docs.z.ai/guides/llm/glm-5.1', contextLength: 200_000 },
   // glm-5.2 is z.ai's flagship and is NOT on OpenRouter yet — the catalog is
-  // its only context-length source, so the cap depends on this value.
+  // its only context-length source, so the cap depends on this value. Its
+  // docs page isn't published yet (the URL follows the established pattern and
+  // will resolve once z.ai adds it).
   'glm-5.2': { docsUrl: 'https://docs.z.ai/guides/llm/glm-5.2', contextLength: 1_000_000 },
-  'glm-5-turbo': { docsUrl: 'https://docs.z.ai/guides/llm/glm-5-turbo', contextLength: 262_144 },
+  'glm-5-turbo': { docsUrl: 'https://docs.z.ai/guides/llm/glm-5-turbo', contextLength: 200_000 },
   'glm-4.7': { docsUrl: 'https://docs.z.ai/guides/llm/glm-4.7', contextLength: 200_000 },
   // glm-4.5-air uses the parent family page — z.ai docs the Air variant on
   // the same page as the regular glm-4.5; no per-model URL exists.
-  'glm-4.5-air': { docsUrl: 'https://docs.z.ai/guides/llm/glm-4.5', contextLength: 131_072 },
+  'glm-4.5-air': { docsUrl: 'https://docs.z.ai/guides/llm/glm-4.5', contextLength: 128_000 },
 };
 
 /**

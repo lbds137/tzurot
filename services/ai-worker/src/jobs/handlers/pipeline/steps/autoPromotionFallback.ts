@@ -15,6 +15,7 @@
 import {
   createLogger,
   MessageContent,
+  AIProvider,
   type ResolvedConfigOverrides,
   type SttDispatch,
 } from '@tzurot/common-types';
@@ -44,6 +45,8 @@ export interface GenerateAttemptOpts {
   jobId: string | undefined;
   diagnosticCollector?: DiagnosticCollector;
   configOverrides?: ResolvedConfigOverrides;
+  /** Provider the attempt routes to — drives the context-window cap source. */
+  effectiveProvider?: AIProvider;
 }
 
 export interface GenerateAttemptResult {
@@ -108,6 +111,9 @@ export async function runWithAutoPromotionFallback(
         personality: fallbackPersonality,
         apiKey: fallback.apiKey,
         isGuestMode: fallback.isGuestMode,
+        // The fallback route is, by construction, the OpenRouter passthrough —
+        // so the context-window cap must now derive from OpenRouter, not z.ai.
+        effectiveProvider: AIProvider.OpenRouter,
       });
     } catch (fallbackError) {
       logger.error(

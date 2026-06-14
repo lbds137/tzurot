@@ -417,7 +417,10 @@ export class ConversationalRAGService {
       // Step 4: Allocate token budgets and select content
       // Note: Image descriptions and stored reference hydration are handled by
       // enrichConversationHistory (Step 1.5) — history is already enriched here
-      const effectiveContextWindowTokens = await resolveEffectiveContextWindow(personality);
+      const effectiveContextWindowTokens = await resolveEffectiveContextWindow(
+        personality,
+        options.effectiveProvider
+      );
       const budgetResult = this.contentBudgetManager.allocate({
         personality,
         processedPersonality,
