@@ -105,14 +105,6 @@ _New items go here. Triage to appropriate section weekly._
 
 **Why inbox (not scheduled)**: explicitly NOT for beta.126; it's a UX-restructure with an unresolved design question, so it needs triage + a design pass before becoming a committed task. Touches `services/bot-client/src/commands/character/chat.ts` (mode branching), the slash-command definition, and `randomPick.ts`. Command-structure change → integration snapshots need updating (`pnpm test:int`).
 
-### `[FIX]` Misleading "model not found" when saving a `z-ai/*` model without a z.ai key
-
-**Surfaced 2026-06-14** (claude-review on release PR #1200). When a user **without** an active z.ai-coding key tries to save a `z-ai/`-prefixed model (e.g. `z-ai/glm-5.2`), validation correctly falls through to the OpenRouter path and returns "model not found in the available models list — use the model autocomplete." That's technically accurate but misleading: the real constraint is "this model requires a z.ai coding-plan key," not a bad model id.
-
-**Action**: in `validateModelAndContextWindow` (`services/api-gateway/src/utils/modelValidation.ts`), detect the `z-ai/`-prefix-but-no-key case (model is a z.ai catalog member via `getZaiCodingPlanContextLength`/`isZaiCodingPlanModel`, but `hasZaiCodingKey` is false) and return a dedicated message — e.g. "Model 'z-ai/glm-5.2' is served by the z.ai Coding Plan; add a z.ai-coding API key in /wallet to use it." Keep the existing OpenRouter "not found" message for genuinely-unknown models.
-
-**Why inbox**: small, self-contained UX fix; needs the exact message wording decided and a test. Non-blocking (the current message is correct, just unhelpful).
-
 ### `[FIX]` z.ai-coding-only users: degrade to free vision default instead of fail-fast
 
 **Surfaced 2026-06-14** (user), off the GLM-5 z.ai work. **Decision made: fall back to the free vision default (`VISION_FALLBACK_FREE` = `google/gemma-4-31b-it:free`) rather than fail-fast.**

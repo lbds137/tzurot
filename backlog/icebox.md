@@ -378,14 +378,6 @@ Surfaced 2026-04-23.
 
 **Why icebox**: new UX surface (command shape, pagination/selection, card layout) that needs a small design pass; pure discoverability, no correctness impact. **Promote when**: model-slug friction is reported, or alongside the next model-catalog-facing work. Surfaced 2026-06-14 (user), reframed from the moot autocomplete item after discovering the modal-based model entry.
 
-#### `[FEAT]` "Requires z.ai key" badge on preset dashboard for z.ai-only global presets
-
-**Problem**: PR #1197 lets an admin save a **global** preset using a z.ai-only model (`z-ai/glm-5.2`, not on OpenRouter). At runtime, a user **with** a z.ai-coding key has it promoted to z.ai-direct; a user **without** one falls through to OpenRouter, which doesn't carry `z-ai/glm-5.2` → runtime error. Non-key users see the preset as available and only discover the gap when they try to use it. This is inherent to BYOK + global-preset routing (the same class as any key-gated global default), not a bug introduced by #1197, but the dashboard gives no signal.
-
-**Action**: when the preset dashboard renders a config whose model is a z.ai catalog member (`isZaiCodingPlanModel` / `z-ai/`-prefixed) AND the viewing user has no active z.ai-coding key, surface a "requires z.ai key" badge (or disable selection). The validation/runtime layers already key off `ZAI_MODEL_PREFIX` + `userHasActiveApiKey`; this is the display layer catching up.
-
-**Why icebox**: pure UX signal, no correctness impact (the runtime error is informative, just late). Related to [[the z.ai autocomplete item above]] — both are the display layer surfacing z.ai eligibility. **Promote when**: a non-key user hits the confusing runtime error on a global z.ai preset, or the z.ai autocomplete item is picked up (do them together). Surfaced 2026-06-14, claude-review on PR #1197.
-
 #### `[FEAT]` Free-tier piggyback on the owner's z.ai coding plan — GLM-4.5-Air only
 
 **Problem / motivation**: Free (guest) users currently fall back to the system `OPENROUTER_API_KEY` restricted to `:free` OpenRouter models (`ApiKeyResolver.resolveApiKey` → system key + `isGuestMode: true`). GLM-4.5-Air is a meaningfully better model than the free OpenRouter tier, and the owner's z.ai coding-plan subscription bills it at the cheapest 1× quota multiplier — so letting free users reach **only** GLM-4.5-Air via the owner's z.ai subscription is a low-cost quality bump for the free tier.
