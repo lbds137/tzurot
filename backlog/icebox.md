@@ -401,4 +401,6 @@ Surfaced 2026-04-23.
 - **Interaction with shipped routing**: the catalog already has `glm-4.5-air` (128000) and the promotion machinery exists; this adds a *guest* path that uses the system z.ai key rather than a user BYOK key, and should set `isGuestMode` appropriately so other free-model restrictions still apply.
 - **Model gating**: `glm-4.5-air` isn't a `:free` OpenRouter model, so guest model-allowlist logic (`GUEST_MODE` / `isFreeModel`) needs a carve-out for this specific z.ai-direct case.
 
+**Design proposal**: [`docs/proposals/backlog/free-tier-zai-piggyback.md`](../docs/proposals/backlog/free-tier-zai-piggyback.md) — full design (system key, routing carve-out, per-user + global ceilings, credit-exhaustion handling, `isGuestMode` interaction, rollout behind a default-off flag).
+
 **Why icebox**: a genuine free-tier improvement we'd do eventually, but it spends real money (owner's subscription) on anonymous traffic, so it needs a deliberate abuse/quota design pass before it's safe to ship — not a quick win. Surfaced 2026-06-14 (owner), off the back of the z.ai GLM-5 work.
