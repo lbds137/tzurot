@@ -367,3 +367,11 @@ Surfaced 2026-04-23.
 **Action**: When the requesting user has an active z.ai-coding key, fold the `ZAI_MODEL_CATALOG` entries (prefixed `z-ai/<model>`) into the autocomplete choices alongside the OpenRouter results — ideally badged so it's clear they route to the coding plan. Catalog already exposes `getZaiCodingPlanContextLength` / `isZaiCodingPlanModel` and the prefix constant `ZAI_MODEL_PREFIX`.
 
 **Why icebox**: validation unblocks the save path (the correctness gap); autocomplete is pure discoverability polish with no correctness impact. **Promote when**: free-typing z.ai model IDs becomes a recurring friction point, or a second z.ai-only model ships and users can't find it. Surfaced 2026-06-14 during the GLM-5 z.ai fix (PR #1197).
+
+#### `[FEAT]` "Requires z.ai key" badge on preset dashboard for z.ai-only global presets
+
+**Problem**: PR #1197 lets an admin save a **global** preset using a z.ai-only model (`z-ai/glm-5.2`, not on OpenRouter). At runtime, a user **with** a z.ai-coding key has it promoted to z.ai-direct; a user **without** one falls through to OpenRouter, which doesn't carry `z-ai/glm-5.2` → runtime error. Non-key users see the preset as available and only discover the gap when they try to use it. This is inherent to BYOK + global-preset routing (the same class as any key-gated global default), not a bug introduced by #1197, but the dashboard gives no signal.
+
+**Action**: when the preset dashboard renders a config whose model is a z.ai catalog member (`isZaiCodingPlanModel` / `z-ai/`-prefixed) AND the viewing user has no active z.ai-coding key, surface a "requires z.ai key" badge (or disable selection). The validation/runtime layers already key off `ZAI_MODEL_PREFIX` + `userHasActiveApiKey`; this is the display layer catching up.
+
+**Why icebox**: pure UX signal, no correctness impact (the runtime error is informative, just late). Related to [[the z.ai autocomplete item above]] — both are the display layer surfacing z.ai eligibility. **Promote when**: a non-key user hits the confusing runtime error on a global z.ai preset, or the z.ai autocomplete item is picked up (do them together). Surfaced 2026-06-14, claude-review on PR #1197.
