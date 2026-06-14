@@ -91,7 +91,7 @@ export interface CommandDefinition {
    * defineCommand({
    *   deferralMode: 'ephemeral', // Default for most subcommands
    *   subcommandDeferralModes: {
-   *     'set': 'modal', // /wallet set shows a modal
+   *     'set': 'modal', // /settings apikey set shows a modal
    *   },
    *   execute: async (context) => {
    *     // Context type varies based on which subcommand was invoked

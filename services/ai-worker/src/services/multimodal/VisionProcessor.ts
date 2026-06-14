@@ -381,7 +381,7 @@ export const ATTACHMENT_BOUND_FAILURE_CATEGORIES: ReadonlySet<ApiErrorCategory> 
  *
  * AUTH gets a source-aware variant: a system-key failure shouldn't blame the user
  * for "API key issue" wording (they'd think their Discord account is broken),
- * while a user-key failure points them at `/wallet` to fix the underlying key.
+ * while a user-key failure points them at `/settings apikey set` to fix the underlying key.
  * Other categories use either `FAILURE_LABELS` (attachment-bound) or the generic
  * "temporarily unavailable" message.
  */
@@ -391,7 +391,7 @@ function buildFailureFallback(
 ): string {
   if (category === ApiErrorCategory.AUTHENTICATION) {
     if (apiKeySource === 'user') {
-      return '[Image unavailable: your API key was rejected — check /wallet]';
+      return '[Image unavailable: your API key was rejected — check /settings apikey set for the vision provider key]';
     }
     // Unknown source defaults to the system-side wording (same as `apiKeySource === 'system'`):
     // a user can't act on "API key issue" if they don't know whose key. Defaulting to the

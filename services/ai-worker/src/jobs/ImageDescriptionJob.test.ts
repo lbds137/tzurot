@@ -733,7 +733,7 @@ describe('ImageDescriptionJob', () => {
       // Each image gets the source-aware fallback description.
       expect(result.success).toBe(true);
       expect(result.descriptions).toHaveLength(1);
-      expect(result.descriptions?.[0]?.description).toContain('check /wallet');
+      expect(result.descriptions?.[0]?.description).toContain('check /settings apikey set');
       // describeImage / withRetry NOT invoked — the short-circuit fired before
       // any vision call.
       expect(mockWithRetry).not.toHaveBeenCalled();
