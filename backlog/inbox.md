@@ -124,3 +124,13 @@ _New items go here. Triage to appropriate section weekly._
 **⚠️ Open scoping question (resolve at implementation)**: does the free-vision fallback apply to (a) ONLY the z.ai-coding-only case, or (b) ALL "authenticated-but-no-key-for-vision-provider" cross-provider cases? Option (b) is simpler/more consistent ("can't auth vision provider → free fallback") but **relaxes the user-confirmed "no system fallback for authenticated users" policy more broadly** — confirm intended scope before coding. The `visionAuthResolver.ts:13-15` comment documents that policy as deliberate.
 
 **Why a FIX, not trivial**: it changes a security-sensitive, user-confirmed auth policy; needs the scope decided + careful tests, not an inline tweak. Related to the z.ai icebox follow-ups (autocomplete, key-required badge, free-tier piggyback).
+
+### `[FIX]` Per-user rate-limit guard on system-fallback vision — HIGH PRIORITY (fast-follow to the broad vision-fallback PR)
+
+**Surfaced 2026-06-14** (council review — GLM-5.1 + Qwen-3.7-Max independently flagged it — during the item-5 broad-vision-fallback design). The broad free-vision fallback (authenticated-but-can't-auth-vision-provider → free gemma on the **system** OpenRouter key) creates a freeloading surface: **any** authenticated user — including a throwaway/Sybil Discord account that sets a dummy key for any provider — can route vision through the owner's system OpenRouter key. The forced free model (`google/gemma-4-31b-it:free`) means no *direct* dollar cost, but it consumes the **shared OpenRouter free-tier rate limit**, so a few heavy users can starve genuine guests' vision.
+
+**Decision (user, 2026-06-14)**: ship the broad fallback **now** without the guard, add this guard as a **high-priority fast-follow** (NOT trigger-gated — do it next).
+
+**Action**: add a per-user cap on system-fallback vision calls (resolved vision auth `source: 'system'` for a non-guest user). Reuse the existing `RateLimitCache` in ai-worker, keyed distinctly from the guest pool (e.g. `(userId, 'vision-system-fallback')`). On cap exceeded, fall back to the existing fail-fast placeholder (`VISION_AUTH_FAIL_FAST_DESCRIPTION`) rather than the free model. Decide the per-user ceiling (council suggested ~20/day as a starting point). **Start**: the `source: 'system'` downgraded-vision path introduced by the item-5 PR in `services/ai-worker/src/services/multimodal/`; `RateLimitCache` for the counter.
+
+**Why HIGH**: it's a cost/abuse exposure that ships live with the broad-scope vision PR; the longer it's unguarded, the larger the window for free-tier rate-limit starvation.
