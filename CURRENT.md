@@ -5,15 +5,54 @@
 
 ---
 
+## Unreleased on Develop (since beta.130 → next release)
+
+Code changes accumulated on `develop` after the beta.130 tag. Authoritative source for the next release notes is `git log v3.0.0-beta.130..develop --no-merges`; this is the human summary. No migrations.
+
+### Bug Fixes
+
+- **ai-worker:** stale `/wallet` command refs updated to `/settings apikey set` (pre-session, `5ecab87ca`)
+- **api-gateway:** dedicated "served by the z.ai Coding Plan — add a key" message instead of a misleading "model not found" when a no-key user saves a z.ai-only model; admin-route z.ai-only coverage (#1202)
+
+### Features
+
+- **bot-client:** "⚠️ requires z.ai key" badge on the preset dashboard for z.ai-only models a viewer can't run (#1203)
+- **ai-worker:** broad free-vision fallback — an authenticated user who can't auth their vision provider now degrades to the free gemma model on the system key instead of fail-fasting; unified `resolveVisionConfig` (auth + model resolved atomically) (#1204)
+- **ai-worker:** per-user daily cap (100/day, fail-open) on the system-key free-vision fallback, bounding the shared-pool freeloading surface (#1205, raised 20→100 in #1206)
+
+_Docs/backlog-only commits on develop (item-6 free-tier-piggyback proposal, item-3 → `/models`-browser reframe, backlog sweeps) are not release-note material._
+
+---
+
 ## Next Session Goal
 
 **beta.130 SHIPPED 2026-06-14.** z.ai GLM-5 coding-plan support (#1197/#1198) dev-verified by the user (GLM-5 promotes onto the coding plan; GLM-5.2 saves + clamps). iii-b-3 + iii-cleanup also rode this release.
 
-**z.ai follow-ups (icebox FEATs filed):** surface z.ai models in autocomplete; "requires z.ai key" badge on the preset dashboard; free-tier piggyback on the owner's z.ai plan (GLM-4.5-Air only, needs an abuse/quota design pass). Plus two from the #1200 release review: better error message for `z-ai/*` save with no key (inbox UX), and an explicit admin-route test for `hasZaiCodingKey:true` accepting z.ai-only models (quick win).
+**z.ai follow-ups — SWEPT 2026-06-14 (this session, #1202–#1206):** the #1200-review error message + admin-route test (#1202), the "requires z.ai key" badge (#1203), and the broad free-vision fallback + its abuse-guard (#1204/#1205/#1206) all shipped. The "surface z.ai models in autocomplete" item was found moot (model entry is a modal, not autocomplete) and reframed into a `/models`-browser command (icebox). Free-tier piggyback got a design proposal (`docs/proposals/backlog/free-tier-zai-piggyback.md`), no code. Remaining z.ai-adjacent follow-up: make the vision-fallback cap a runtime admin-settings knob (inbox).
 
 **Remaining prod issue (the one left in production-issues.md):** preset llm-config PUT timeout — needs prod timing instrumentation (load-correlated, not dev-reproducible). That probe is the next natural release passenger.
 
 **Remaining in the context-relocation epic (2.5):** iii-b-3 and iii-cleanup are now DONE (shipped in beta.130). Next is **2.5d** (delete legacy + `MessageContextBuilder` + bot-client Prisma + all `CONTEXT_*` flags; tighten depcruise) → unblocks PR-2p.
+
+## Last Session — z.ai backlog sweep (2026-06-14)
+
+Cleared the whole z.ai backlog the user pointed at, small → large. 5 PRs merged to develop (no migrations).
+
+| PR    | Title                                                                          | Outcome                                                                                                                        |
+| ----- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| #1202 | `fix(api-gateway): z.ai-key-required message + admin-route z.ai-only coverage` | dedicated "needs a z.ai key" message vs misleading "model not found"; admin create/update z.ai-only coverage                   |
+| #1203 | `feat(bot-client): "requires z.ai key" badge on preset dashboard`              | gateway-computed `requiresZaiKey` (viewer-keyed, only for z.ai-only models absent from OpenRouter) → dashboard badge           |
+| #1204 | `feat(ai-worker): broad free-vision fallback for cross-provider auth gaps`     | unified `resolveVisionConfig` (auth+model atomic); authenticated-no-vision-key → free gemma on system key instead of fail-fast |
+| #1205 | `feat(ai-worker): per-user daily cap on system-key free-vision fallback`       | new `VisionFallbackQuota` (per-user/UTC-day Redis INCR, fail-open) — the council-flagged abuse guard                           |
+| #1206 | `feat(ai-worker): raise system-fallback vision cap 20→100/day`                 | $0 model → cap only protects the shared pool; 100 is the sensible default                                                      |
+
+### Net result
+
+- **Item 3 was moot, not built.** The "model autocomplete" it assumed doesn't exist (model IDs are free-typed in a Discord modal). Reframed into a `/models`-browser command backlog item.
+- **Item 5 (the big one) was council-reviewed first** (GLM-5.1 + Qwen-3.7-Max), which caught the freeloading surface → became the #1205 guard. Implementation delegated to a subagent, then human-reviewed (resolveVisionConfig core, both call paths, the describeImage contract, the file extraction) before commit.
+- **Three verify-before-accepting catches** that would each have shipped the wrong thing: item-3 premise (moot), #1204's "Redis-blip bug risk" (moot — the cache read already degrades), and #1205's spec ("reuse RateLimitCache" — it's a reactive 429-cache, not a counter; needed a new INCR primitive).
+- **Item 6** got a design proposal (free-tier piggyback), no code, per user call.
+- Backlog fully swept of shipped items; one new follow-up filed (admin-settings cap knob).
 
 ## Last Session — beta.130: z.ai GLM-5 + release (2026-06-14)
 
