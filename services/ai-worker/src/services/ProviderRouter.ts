@@ -34,10 +34,13 @@
  * deterministically without needing to know about the routing logic.
  */
 
-import { createLogger, AIProvider, isZaiCodingPlanModel } from '@tzurot/common-types';
+import {
+  createLogger,
+  AIProvider,
+  isZaiCodingPlanModel,
+  ZAI_MODEL_PREFIX,
+} from '@tzurot/common-types';
 import type { ApiKeyResolver } from './ApiKeyResolver.js';
-
-const ZAI_PREFIX = 'z-ai/';
 
 const logger = createLogger('ProviderRouter');
 
@@ -200,9 +203,9 @@ export class ProviderRouter {
     // with an already-namespaced model like `z-ai/glm-4.7` — concatenating would
     // produce `z-ai/z-ai/glm-4.7` and fail silently at the API. If the model is
     // already prefixed, use it verbatim.
-    const fallthroughModel = configuredModel.startsWith(ZAI_PREFIX)
+    const fallthroughModel = configuredModel.startsWith(ZAI_MODEL_PREFIX)
       ? configuredModel
-      : `${ZAI_PREFIX}${configuredModel}`;
+      : `${ZAI_MODEL_PREFIX}${configuredModel}`;
     const fallthroughResult = await this.apiKeyResolver.resolveApiKey(
       userId,
       AIProvider.OpenRouter
@@ -242,10 +245,10 @@ export class ProviderRouter {
     configuredModel: string,
     userId: string | undefined
   ): Promise<ResolvedRoute | null> {
-    if (!configuredModel.startsWith(ZAI_PREFIX)) {
+    if (!configuredModel.startsWith(ZAI_MODEL_PREFIX)) {
       return null;
     }
-    const bareModel = configuredModel.slice(ZAI_PREFIX.length).toLowerCase();
+    const bareModel = configuredModel.slice(ZAI_MODEL_PREFIX.length).toLowerCase();
     if (!isZaiCodingPlanModel(bareModel)) {
       logger.debug(
         { userId, configuredModel, reason: 'whitelist-miss' },
@@ -348,7 +351,7 @@ export class ProviderRouter {
  * explicit case before the OpenRouter default.
  */
 export function detectVisionProvider(modelName: string): AIProvider {
-  if (modelName.startsWith(ZAI_PREFIX)) {
+  if (modelName.startsWith(ZAI_MODEL_PREFIX)) {
     return AIProvider.ZaiCoding;
   }
   // Bare GLM names (no slash). The `glm-` prefix is z.ai's direct API

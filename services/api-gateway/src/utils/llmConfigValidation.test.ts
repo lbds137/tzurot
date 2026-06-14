@@ -48,8 +48,32 @@ describe('validateLlmConfigModelFields', () => {
       });
 
       expect(result).toBe(true);
-      expect(mockValidateModelAndContextWindow).toHaveBeenCalledWith(mockModelCache, 'gpt-4', 8000);
+      expect(mockValidateModelAndContextWindow).toHaveBeenCalledWith(
+        mockModelCache,
+        'gpt-4',
+        8000,
+        false
+      );
       expect(mockSendError).not.toHaveBeenCalled();
+    });
+
+    it('threads hasZaiCodingKey through to validateModelAndContextWindow', async () => {
+      mockValidateModelAndContextWindow.mockResolvedValue({});
+
+      const result = await validateLlmConfigModelFields({
+        res: mockRes,
+        modelCache: mockModelCache,
+        body: { model: 'z-ai/glm-5.2', contextWindowTokens: 100000 },
+        hasZaiCodingKey: true,
+      });
+
+      expect(result).toBe(true);
+      expect(mockValidateModelAndContextWindow).toHaveBeenCalledWith(
+        mockModelCache,
+        'z-ai/glm-5.2',
+        100000,
+        true
+      );
     });
 
     it('returns false and sends error when validation fails', async () => {
@@ -96,7 +120,8 @@ describe('validateLlmConfigModelFields', () => {
       expect(mockValidateModelAndContextWindow).toHaveBeenCalledWith(
         mockModelCache,
         undefined,
-        8000
+        8000,
+        false
       );
       expect(mockSendError).not.toHaveBeenCalled();
     });
@@ -131,7 +156,8 @@ describe('validateLlmConfigModelFields', () => {
       expect(mockValidateModelAndContextWindow).toHaveBeenCalledWith(
         mockModelCache,
         'claude-3-opus',
-        undefined
+        undefined,
+        false
       );
     });
 
@@ -151,7 +177,8 @@ describe('validateLlmConfigModelFields', () => {
       expect(mockValidateModelAndContextWindow).toHaveBeenCalledWith(
         mockModelCache,
         'existing-model',
-        16000
+        16000,
+        false
       );
     });
 
@@ -171,7 +198,8 @@ describe('validateLlmConfigModelFields', () => {
       expect(mockValidateModelAndContextWindow).toHaveBeenCalledWith(
         mockModelCache,
         'new-model',
-        32000
+        32000,
+        false
       );
     });
 
@@ -209,7 +237,8 @@ describe('validateLlmConfigModelFields', () => {
       expect(mockValidateModelAndContextWindow).toHaveBeenCalledWith(
         mockModelCache,
         undefined,
-        8000
+        8000,
+        false
       );
     });
   });

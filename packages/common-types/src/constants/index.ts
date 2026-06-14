@@ -14,7 +14,9 @@ export {
   GUEST_MODE,
   isFreeModel,
   ZAI_VALIDATION_MODEL,
+  ZAI_MODEL_PREFIX,
   isZaiCodingPlanModel,
+  getZaiCodingPlanContextLength,
   buildModelInfoUrl,
 } from './ai.js';
 

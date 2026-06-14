@@ -127,6 +127,9 @@ const mockPrisma = {
   personalityDefaultConfig: {
     count: vi.fn(),
   },
+  userApiKey: {
+    findFirst: vi.fn(),
+  },
   $executeRaw: vi.fn().mockResolvedValue(1),
   $transaction: vi.fn().mockImplementation(async (callback: (tx: unknown) => Promise<void>) => {
     const mockTx = {
@@ -195,6 +198,9 @@ describe('/user/llm-config routes', () => {
     mockPrisma.llmConfig.findFirst.mockResolvedValue(null);
     mockPrisma.llmConfig.findUnique.mockResolvedValue(null);
     mockPrisma.userPersonalityConfig.count.mockResolvedValue(0);
+    // Default: no z.ai-coding key (the common case). z.ai-specific tests
+    // override this to return a row.
+    mockPrisma.userApiKey.findFirst.mockResolvedValue(null);
   });
 
   describe('route factory', () => {
@@ -494,6 +500,40 @@ describe('/user/llm-config routes', () => {
           }),
         })
       );
+      expect(res.status).toHaveBeenCalledWith(201);
+    });
+
+    it('should save a z.ai-only model (z-ai/glm-5.2) when the user has a z.ai-coding key', async () => {
+      // End-to-end route wiring: resolveProvisionedUserId → userHasActiveApiKey
+      // (returns a key) → validation takes the z.ai catalog path, so glm-5.2
+      // (absent from OpenRouter) saves instead of being rejected. No model
+      // cache is wired, proving validation succeeds from the catalog alone.
+      mockPrisma.userApiKey.findFirst.mockResolvedValue({ id: 'zai-key-1' });
+      mockPrisma.llmConfig.create.mockResolvedValue({
+        id: 'new-config',
+        name: 'GLM Config',
+        description: null,
+        model: 'z-ai/glm-5.2',
+        provider: 'openrouter',
+        visionModel: null,
+        isGlobal: false,
+        isDefault: false,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
+      });
+
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+      const handler = getHandler(router, 'post', '/');
+      const { req, res } = createMockReqRes({ name: 'GLM Config', model: 'z-ai/glm-5.2' });
+
+      await handler(req, res);
+
+      expect(mockPrisma.userApiKey.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ provider: 'zai-coding', isActive: true }),
+        })
+      );
+      expect(mockPrisma.llmConfig.create).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(201);
     });
 
@@ -844,6 +884,84 @@ describe('/user/llm-config routes', () => {
           }),
         })
       );
+    });
+
+    it('should wire the z.ai-coding key check into the update path', async () => {
+      // Proves createUpdateHandler runs userHasActiveApiKey → hasZaiCodingKey →
+      // validation (mirrors the create-path test). If that wiring were dropped,
+      // userApiKey.findFirst would not be called and this fails — the regression
+      // guard the reviewer asked for on the update handler specifically.
+      mockPrisma.userApiKey.findFirst.mockResolvedValue({ id: 'zai-key-1' });
+      mockPrisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-123',
+        ownerId: 'user-uuid-123',
+        isGlobal: false,
+        name: 'My Config',
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
+      });
+      mockPrisma.llmConfig.update.mockResolvedValue({
+        id: 'config-123',
+        name: 'My Config',
+        description: null,
+        model: 'z-ai/glm-5.2',
+        provider: 'openrouter',
+        visionModel: null,
+        isGlobal: false,
+        isDefault: false,
+        isFreeDefault: false,
+        ownerId: 'user-uuid-123',
+        advancedParameters: null,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
+      });
+
+      const router = createLlmConfigRoutes({
+        prisma: mockPrisma as unknown as PrismaClient,
+        llmConfigCacheInvalidation: mockCacheInvalidation,
+      });
+      const handler = getHandler(router, 'put', '/:id');
+      const { req, res } = createMockReqRes({ model: 'z-ai/glm-5.2' }, { id: 'config-123' });
+
+      await handler(req, res);
+
+      expect(mockPrisma.userApiKey.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ provider: 'zai-coding', isActive: true }),
+        })
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('should reject an update whose new name collides in the owner namespace', async () => {
+      // Covers buildUpdatePatchOrSendCollision's collision branch: the helper
+      // sends a 400 and returns null, so the handler returns without updating.
+      mockPrisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-123',
+        ownerId: 'user-uuid-123',
+        isGlobal: false,
+        name: 'My Config',
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
+      });
+      mockPrisma.llmConfig.findFirst.mockResolvedValue({ id: 'other-existing' });
+
+      const router = createLlmConfigRoutes({
+        prisma: mockPrisma as unknown as PrismaClient,
+        llmConfigCacheInvalidation: mockCacheInvalidation,
+      });
+      const handler = getHandler(router, 'put', '/:id');
+      const { req, res } = createMockReqRes({ name: 'Taken Name' }, { id: 'config-123' });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining('Taken Name'),
+        })
+      );
+      expect(mockPrisma.llmConfig.update).not.toHaveBeenCalled();
     });
 
     it('should invalidate cache on update', async () => {

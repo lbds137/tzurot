@@ -133,6 +133,74 @@ describe('validateModelAndContextWindow', () => {
     const result = await validateModelAndContextWindow(cache, 'test/boundary', undefined);
     expect(result.contextWindowCap).toBe(32768); // Math.floor(65537 / 2)
   });
+
+  describe('z.ai coding-plan path (hasZaiCodingKey)', () => {
+    it('should validate z.ai-only models against the catalog without touching OpenRouter', async () => {
+      // glm-5.2 is NOT on OpenRouter — the cache returns null for it. With a
+      // z.ai key, validation must succeed from the catalog (1M context) and
+      // never consult the cache.
+      const cache = createMockModelCache(null);
+      const result = await validateModelAndContextWindow(cache, 'z-ai/glm-5.2', undefined, true);
+      expect(result.error).toBeUndefined();
+      expect(result.contextWindowCap).toBe(500_000); // 50% of 1M
+      expect(cache.getModelById).not.toHaveBeenCalled();
+    });
+
+    it('should cap (not skip) z.ai-accepted models — reject an oversized contextWindowTokens', async () => {
+      // Proves the z.ai path enforces the cap rather than waving the model
+      // through: 600k > the 500k cap on glm-5.2's 1M context.
+      const cache = createMockModelCache(null);
+      const result = await validateModelAndContextWindow(cache, 'z-ai/glm-5.2', 600_000, true);
+      expect(result.error).toContain("exceeds the safe limit for 'z-ai/glm-5.2'");
+      expect(result.error).toContain('1000K');
+      expect(result.error).toContain('500K');
+      expect(result.contextWindowCap).toBe(500_000);
+    });
+
+    it('should accept a within-cap contextWindowTokens for a z.ai model', async () => {
+      const cache = createMockModelCache(null);
+      const result = await validateModelAndContextWindow(cache, 'z-ai/glm-5', 100_000, true);
+      expect(result.error).toBeUndefined();
+      expect(result.contextWindowCap).toBe(100_000); // 50% of 200k
+    });
+
+    it('should fall through to OpenRouter when the user has no z.ai key', async () => {
+      // Without a key, a z.ai-only model is NOT promoted at runtime, so it must
+      // be validated against OpenRouter — where it is absent → rejected.
+      const cache = createMockModelCache(null);
+      const result = await validateModelAndContextWindow(cache, 'z-ai/glm-5.2', undefined, false);
+      expect(result.error).toContain("Model 'z-ai/glm-5.2' not found");
+      expect(cache.getModelById).toHaveBeenCalledWith('z-ai/glm-5.2');
+    });
+
+    it('should NOT take the z.ai path for a bare (unprefixed) catalog name', async () => {
+      // Regression guard: getZaiCodingPlanContextLength('glm-5') returns 200k
+      // (it accepts bare names for the runtime resolver), but ProviderRouter
+      // only promotes z-ai/-prefixed models. A saved bare `glm-5` must validate
+      // against OpenRouter — where it's absent → rejected — not short-circuit on
+      // the catalog and save a config runtime can't honor.
+      const cache = createMockModelCache(null);
+      const result = await validateModelAndContextWindow(cache, 'glm-5', undefined, true);
+      expect(result.error).toContain("Model 'glm-5' not found");
+      expect(cache.getModelById).toHaveBeenCalledWith('glm-5');
+    });
+
+    it('should fall through to OpenRouter for non-catalog models even with a key', async () => {
+      // hasZaiCodingKey:true must not short-circuit a non-z.ai model — it isn't
+      // in the catalog, so the OpenRouter path still owns it.
+      const model = createMockModel({ contextLength: 200000 });
+      const cache = createMockModelCache(model);
+      const result = await validateModelAndContextWindow(
+        cache,
+        'anthropic/claude-sonnet-4',
+        undefined,
+        true
+      );
+      expect(result.error).toBeUndefined();
+      expect(result.contextWindowCap).toBe(100000);
+      expect(cache.getModelById).toHaveBeenCalledWith('anthropic/claude-sonnet-4');
+    });
+  });
 });
 
 describe('enrichWithModelContext', () => {
@@ -196,5 +264,40 @@ describe('enrichWithModelContext', () => {
 
     expect(response.modelContextLength).toBe(32768);
     expect(response.contextWindowCap).toBe(24576); // 32768 * 0.75
+  });
+
+  it('should enrich z.ai-only models from the catalog without the cache', async () => {
+    // glm-5.2 is absent from OpenRouter; the dashboard cap must still resolve
+    // from the catalog (and not consult the cache).
+    const cache = createMockModelCache(null);
+    const response: { modelContextLength?: number; contextWindowCap?: number } = {};
+
+    await enrichWithModelContext(response, 'z-ai/glm-5.2', cache);
+
+    expect(response.modelContextLength).toBe(1_000_000);
+    expect(response.contextWindowCap).toBe(500_000);
+    expect(cache.getModelById).not.toHaveBeenCalled();
+  });
+
+  it('should enrich z.ai models even when the cache is undefined', async () => {
+    const response: { modelContextLength?: number; contextWindowCap?: number } = {};
+
+    await enrichWithModelContext(response, 'z-ai/glm-5', undefined);
+
+    expect(response.modelContextLength).toBe(200_000);
+    expect(response.contextWindowCap).toBe(100_000);
+  });
+
+  it('should NOT enrich a bare (unprefixed) catalog name from the z.ai catalog', async () => {
+    // Mirrors the validation prefix gate: bare `glm-5` runs on OpenRouter at
+    // runtime, so its cap must come from the cache (here a miss → no fields).
+    const cache = createMockModelCache(null);
+    const response: { modelContextLength?: number; contextWindowCap?: number } = {};
+
+    await enrichWithModelContext(response, 'glm-5', cache);
+
+    expect(response.modelContextLength).toBeUndefined();
+    expect(response.contextWindowCap).toBeUndefined();
+    expect(cache.getModelById).toHaveBeenCalledWith('glm-5');
   });
 });

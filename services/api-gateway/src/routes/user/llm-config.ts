@@ -16,7 +16,9 @@ import {
   createLogger,
   isBotOwner,
   type LlmConfigSummary,
+  type PrismaClient,
   computeLlmConfigPermissions,
+  AIProvider,
   // Shared schemas from common-types - single source of truth
   LlmConfigCreateSchema,
   LlmConfigUpdateSchema,
@@ -43,6 +45,7 @@ import {
 import type { OpenRouterModelCache } from '../../services/OpenRouterModelCache.js';
 import { enrichWithModelContext } from '../../utils/modelValidation.js';
 import { validateLlmConfigModelFields } from '../../utils/llmConfigValidation.js';
+import { userHasActiveApiKey } from '../../utils/userHasActiveApiKey.js';
 import {
   applyOwnerNamePromotion,
   buildCollisionMessage,
@@ -130,7 +133,11 @@ function createGetHandler(service: LlmConfigService, modelCache?: OpenRouterMode
   };
 }
 
-function createCreateHandler(service: LlmConfigService, modelCache?: OpenRouterModelCache) {
+function createCreateHandler(
+  service: LlmConfigService,
+  prisma: PrismaClient,
+  modelCache?: OpenRouterModelCache
+) {
   return async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
 
@@ -139,11 +146,15 @@ function createCreateHandler(service: LlmConfigService, modelCache?: OpenRouterM
       return;
     }
 
-    if (!(await validateLlmConfigModelFields({ res, modelCache, body }))) {
+    // resolveProvisionedUserId is a pure req-reader, free to run before
+    // validation — needed here so the z.ai key check can gate z.ai-catalog
+    // model validation.
+    const userId = resolveProvisionedUserId(req);
+    const hasZaiCodingKey = await userHasActiveApiKey(prisma, userId, AIProvider.ZaiCoding);
+
+    if (!(await validateLlmConfigModelFields({ res, modelCache, body, hasZaiCodingKey }))) {
       return;
     }
-
-    const userId = resolveProvisionedUserId(req);
 
     // Duplicate-name check is skipped when the client opts into
     // autoSuffixOnCollision (the preset clone flow): the service will bump
@@ -220,7 +231,68 @@ function createCreateHandler(service: LlmConfigService, modelCache?: OpenRouterM
   };
 }
 
-function createUpdateHandler(service: LlmConfigService, modelCache?: OpenRouterModelCache) {
+/**
+ * Build the update patch (applying owner-name promotion on owner edits) and
+ * verify the resulting name doesn't collide in the owner's namespace. Returns
+ * the patch on success, or `null` when a collision error has already been sent
+ * to `res` (caller returns immediately). Generic over the body type so the
+ * full update payload (advancedParameters, contextWindowTokens, …) survives —
+ * only the name/isGlobal fields drive promotion + collision logic.
+ */
+async function buildUpdatePatchOrSendCollision<
+  TBody extends { name?: string; isGlobal?: boolean },
+>(opts: {
+  res: Response;
+  service: LlmConfigService;
+  req: ProvisionedRequest;
+  body: TBody;
+  config: { name: string; isGlobal: boolean; ownerId: string };
+  configId: string;
+  isOwnedByRequester: boolean;
+}): Promise<TBody | null> {
+  const { res, service, req, body, config, configId, isOwnedByRequester } = opts;
+  const discordUserId = req.userId;
+
+  // Owner edits run the promotion helper; admin edits on non-owned configs
+  // apply the name verbatim (suffixing would mis-attribute provenance).
+  const user = { discordId: req.userId, discordUsername: getDiscordUsernameFromRequest(req) };
+  const patch = isOwnedByRequester ? applyOwnerNamePromotion(body, config, user) : { ...body };
+
+  // Compute post-update isGlobal so the collision check covers the cross-
+  // user global-namespace case when the user is promoting (or already
+  // promoted) their config.
+  const postIsGlobal = body.isGlobal ?? config.isGlobal;
+
+  // Check for duplicate name if a name is being applied (either user-supplied
+  // or normalized by the promotion helper). Bot-owner-editing-others uses
+  // the OWNER's userId for namespace scoping (the name lives in the
+  // owner's namespace, not the requester's).
+  if (
+    patch.name !== undefined &&
+    !(await ensureNoNameCollision(res, service, {
+      name: patch.name,
+      scope: { type: 'USER', userId: config.ownerId, discordId: discordUserId },
+      excludeId: configId,
+      postIsGlobal,
+      formatCollisionMessage: n =>
+        buildCollisionMessage({
+          effectiveName: n,
+          requestedName: body.name,
+          configKind: 'config',
+        }),
+    }))
+  ) {
+    return null;
+  }
+
+  return patch;
+}
+
+function createUpdateHandler(
+  service: LlmConfigService,
+  prisma: PrismaClient,
+  modelCache?: OpenRouterModelCache
+) {
   return async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
     const configId = getRequiredParam(req.params.id, 'id');
@@ -230,18 +302,22 @@ function createUpdateHandler(service: LlmConfigService, modelCache?: OpenRouterM
       return;
     }
 
+    // Resolve userId before validation so the z.ai key check can gate
+    // z.ai-catalog model validation (mirrors the create handler).
+    const userId = resolveProvisionedUserId(req);
+    const hasZaiCodingKey = await userHasActiveApiKey(prisma, userId, AIProvider.ZaiCoding);
+
     if (
       !(await validateLlmConfigModelFields({
         res,
         modelCache,
         body,
         fallback: { service, configId: configId },
+        hasZaiCodingKey,
       }))
     ) {
       return;
     }
-
-    const userId = resolveProvisionedUserId(req);
 
     const config = await findConfigOrSendNotFound(
       res,
@@ -273,35 +349,16 @@ function createUpdateHandler(service: LlmConfigService, modelCache?: OpenRouterM
       return sendError(res, ErrorResponses.validationError('No fields to update'));
     }
 
-    // Owner edits run the promotion helper; admin edits on non-owned configs
-    // apply the name verbatim (suffixing would mis-attribute provenance).
-    const user = { discordId: req.userId, discordUsername: getDiscordUsernameFromRequest(req) };
-    const patch = isOwnedByRequester ? applyOwnerNamePromotion(body, config, user) : { ...body };
-
-    // Compute post-update isGlobal so the collision check covers the cross-
-    // user global-namespace case when the user is promoting (or already
-    // promoted) their config.
-    const postIsGlobal = body.isGlobal ?? config.isGlobal;
-
-    // Check for duplicate name if a name is being applied (either user-supplied
-    // or normalized by the promotion helper). Bot-owner-editing-others uses
-    // the OWNER's userId for namespace scoping (the name lives in the
-    // owner's namespace, not the requester's).
-    if (
-      patch.name !== undefined &&
-      !(await ensureNoNameCollision(res, service, {
-        name: patch.name,
-        scope: { type: 'USER', userId: config.ownerId, discordId: discordUserId },
-        excludeId: configId,
-        postIsGlobal,
-        formatCollisionMessage: n =>
-          buildCollisionMessage({
-            effectiveName: n,
-            requestedName: body.name,
-            configKind: 'config',
-          }),
-      }))
-    ) {
+    const patch = await buildUpdatePatchOrSendCollision({
+      res,
+      service,
+      req,
+      body,
+      config,
+      configId,
+      isOwnedByRequester,
+    });
+    if (patch === null) {
       return;
     }
 
@@ -424,13 +481,13 @@ export const handleGetUserLlmConfig = (deps: RouteDeps): RequestHandler =>
   asyncHandler(createGetHandler(buildService(deps), deps.modelCache));
 
 export const handleCreateUserLlmConfig = (deps: RouteDeps): RequestHandler =>
-  asyncHandler(createCreateHandler(buildService(deps), deps.modelCache));
+  asyncHandler(createCreateHandler(buildService(deps), deps.prisma, deps.modelCache));
 
 export const handleResolveUserLlmConfig = (deps: RouteDeps): RequestHandler =>
   asyncHandler(createResolveHandler(deps.prisma, deps.cascadeResolver));
 
 export const handleUpdateUserLlmConfig = (deps: RouteDeps): RequestHandler =>
-  asyncHandler(createUpdateHandler(buildService(deps), deps.modelCache));
+  asyncHandler(createUpdateHandler(buildService(deps), deps.prisma, deps.modelCache));
 
 export const handleDeleteUserLlmConfig = (deps: RouteDeps): RequestHandler =>
   asyncHandler(createDeleteHandler(buildService(deps)));
