@@ -39,11 +39,13 @@ const logger = createLogger('VisionFallbackQuota');
 const KEY_PREFIX = CACHE_KEY_PREFIXES.VISION_SYSTEM_FALLBACK_QUOTA;
 
 /**
- * Default per-user daily ceiling on system-key free-vision fallbacks. Council
- * (GLM-5.1 + Qwen-3.7-Max) suggested ~20/day as a starting point; tune here if
- * abuse or legitimate-heavy-use signal emerges.
+ * Default per-user daily ceiling on system-key free-vision fallbacks. The free
+ * model (gemma) costs $0, so this cap exists only to stop one user draining the
+ * shared OpenRouter free-tier request pool — it can be generous. 100/day leaves
+ * comfortable headroom for legitimate image-heavy use while still bounding a
+ * single abuser. Intended to become a runtime admin-settings knob.
  */
-export const VISION_SYSTEM_FALLBACK_DAILY_LIMIT = 20;
+export const VISION_SYSTEM_FALLBACK_DAILY_LIMIT = 100;
 
 /** TTL for the per-day counter key — 25h gives margin past the UTC-day rollover. */
 const QUOTA_KEY_TTL_SECONDS = 25 * 60 * 60;
