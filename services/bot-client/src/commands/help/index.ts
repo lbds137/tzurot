@@ -28,7 +28,7 @@ const logger = createLogger('help-command');
 // Category = the command's top-level folder name (Title-cased), injected by
 // CommandHandler. Every folder needs an entry here or it falls into "Other" —
 // keep this in sync with services/bot-client/src/commands/*.
-const CATEGORY_CONFIG: Record<string, { emoji: string; order: number }> = {
+export const CATEGORY_CONFIG: Record<string, { emoji: string; order: number }> = {
   Character: { emoji: '🎭', order: 1 },
   Persona: { emoji: '👤', order: 2 },
   Preset: { emoji: '🎛️', order: 3 },
