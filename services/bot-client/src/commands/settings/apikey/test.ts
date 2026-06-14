@@ -21,7 +21,7 @@ import { getProviderDisplayName } from '../../../utils/providers.js';
 const logger = createLogger('settings-apikey-test');
 
 /**
- * Handle /wallet test <provider> subcommand
+ * Handle /settings apikey test <provider> subcommand
  * Tests the API key validity
  *
  * Receives DeferredCommandContext (no deferReply method!)

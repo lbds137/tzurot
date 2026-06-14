@@ -54,10 +54,10 @@ export interface VisionAuth {
  *
  * The wording is read by the LLM in the chat context, so it's phrased as a
  * description (not a UI error). The user sees the personality acknowledge
- * the missing image with the embedded "/wallet" hint.
+ * the missing image with the embedded "/settings apikey set" hint.
  */
 export const VISION_AUTH_FAIL_FAST_DESCRIPTION =
-  '[Image unavailable: your API key was rejected — check /wallet for the vision provider key]';
+  '[Image unavailable: your API key was rejected — check /settings apikey set for the vision provider key]';
 
 /**
  * Inputs for `resolveVisionAuth` — bundled into an options object to keep the

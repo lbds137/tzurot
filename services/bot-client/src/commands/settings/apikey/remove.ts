@@ -21,7 +21,7 @@ import { getProviderDisplayName } from '../../../utils/providers.js';
 const logger = createLogger('settings-apikey-remove');
 
 /**
- * Handle /wallet remove <provider> subcommand
+ * Handle /settings apikey remove <provider> subcommand
  * Removes the API key for the specified provider
  *
  * Receives DeferredCommandContext (no deferReply method!)

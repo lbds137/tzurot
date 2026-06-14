@@ -1121,7 +1121,7 @@ describe('DependencyStep', () => {
       });
       const synthetic = result.preprocessing?.extendedContextAttachments;
       expect(synthetic).toHaveLength(1);
-      expect(synthetic?.[0]?.description).toContain('check /wallet');
+      expect(synthetic?.[0]?.description).toContain('check /settings apikey set');
     });
   });
 });

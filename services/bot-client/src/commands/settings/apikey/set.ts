@@ -21,7 +21,7 @@ import { ApikeyCustomIds } from '../../../utils/customIds.js';
 const logger = createLogger('settings-apikey-set');
 
 /**
- * Handle /wallet set <provider> subcommand
+ * Handle /settings apikey set <provider> subcommand
  * Shows a modal for secure API key input
  *
  * Receives ModalCommandContext (has showModal method!)
