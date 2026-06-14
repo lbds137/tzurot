@@ -31,6 +31,12 @@ export interface PresetData {
   modelContextLength?: number;
   /** Model-derived cap for contextWindowTokens (computeContextCap), undefined if unknown */
   contextWindowCap?: number;
+  /**
+   * True when the model is a z.ai-only coding-plan model (absent from OpenRouter)
+   * AND the viewing user has no active z.ai-coding key — the preset can't run for
+   * them without one. Drives the "requires z.ai key" dashboard badge.
+   */
+  requiresZaiKey?: boolean;
   params: {
     temperature?: number;
     top_p?: number;
@@ -96,6 +102,8 @@ export interface FlattenedPresetData {
   modelContextLength?: number;
   /** Model-derived cap for contextWindowTokens (display-only, not editable) */
   contextWindowCap?: number;
+  /** True when the model needs a z.ai-coding key the viewer lacks (display-only) */
+  requiresZaiKey?: boolean;
   /** Browse context when opened from browse (for back navigation) */
   browseContext?: BrowseContext;
 }

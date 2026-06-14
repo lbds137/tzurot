@@ -55,6 +55,7 @@ export function flattenPresetData(data: PresetData): FlattenedPresetData {
     // Model context info (display-only, not editable)
     modelContextLength: data.modelContextLength,
     contextWindowCap: data.contextWindowCap,
+    requiresZaiKey: data.requiresZaiKey,
   };
 }
 

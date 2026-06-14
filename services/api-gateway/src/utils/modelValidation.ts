@@ -144,6 +144,44 @@ export async function validateModelAndContextWindow(
   return checkContextWindowCap(modelId, contextWindowTokens, model.contextLength);
 }
 
+/**
+ * Decide whether a saved config's model should show a "requires z.ai key" badge
+ * for the viewing user — i.e. the preset references a z.ai coding-plan model the
+ * viewer cannot actually run without a z.ai-coding key.
+ *
+ * Mirrors the dedicated-error condition in `validateModelAndContextWindow`'s
+ * not-found branch, so the dashboard badge and the save-time error agree on what
+ * "needs a z.ai key" means:
+ *
+ * - viewer has a z.ai key → no badge (the model is promoted to z.ai-direct for them)
+ * - model isn't a `z-ai/`-prefixed catalog member → no badge (ordinary model)
+ * - model IS on OpenRouter (glm-5.1, glm-4.7, …) → no badge: a keyless viewer
+ *   runs it on OpenRouter at runtime, so the preset works for them
+ * - model is z.ai-only (absent from OpenRouter, e.g. glm-5.2) → BADGE: a keyless
+ *   viewer's OpenRouter fallthrough would 404 at runtime
+ *
+ * When the cache is unavailable we can't confirm OpenRouter absence, so we
+ * return `false` (no badge) rather than risk a false positive — same
+ * graceful-degrade stance as `enrichWithModelContext`.
+ */
+export async function computeRequiresZaiKey(
+  model: string | undefined,
+  hasZaiCodingKey: boolean,
+  modelCache: OpenRouterModelCache | undefined
+): Promise<boolean> {
+  if (model === undefined || hasZaiCodingKey) {
+    return false;
+  }
+  if (!model.startsWith(ZAI_MODEL_PREFIX) || getZaiCodingPlanContextLength(model) === null) {
+    return false;
+  }
+  if (modelCache === undefined) {
+    return false;
+  }
+  const onOpenRouter = (await modelCache.getModelById(model)) !== null;
+  return !onOpenRouter;
+}
+
 /** Object with optional model context fields, set by enrichWithModelContext */
 interface ModelContextEnrichable {
   modelContextLength?: number;
