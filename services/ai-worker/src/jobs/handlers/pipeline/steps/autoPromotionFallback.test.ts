@@ -8,6 +8,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
+import { AIProvider } from '@tzurot/common-types';
 import { runWithAutoPromotionFallback } from './autoPromotionFallback.js';
 import type { GenerateAttemptOpts, GenerateAttemptResult } from './autoPromotionFallback.js';
 
@@ -53,6 +54,7 @@ const baseOpts: GenerateAttemptOpts = {
   sttDispatch: undefined,
   isGuestMode: false,
   jobId: 'job-1',
+  effectiveProvider: AIProvider.ZaiCoding,
 };
 
 const successResult: GenerateAttemptResult = {
@@ -107,16 +109,20 @@ describe('runWithAutoPromotionFallback', () => {
     });
 
     expect(attempt).toHaveBeenCalledTimes(2);
-    // First call: original opts (zai-coding personality + zai key)
+    // First call: original opts (zai-coding personality + zai key); the cap
+    // source stays z.ai for the promoted attempt.
     expect(attempt.mock.calls[0]?.[0]).toMatchObject({
       personality: { provider: 'zai-coding', model: 'glm-5.1' },
       apiKey: 'zai-key',
+      effectiveProvider: AIProvider.ZaiCoding,
     });
-    // Second call: swapped to openrouter personality + fallback key
+    // Second call: swapped to openrouter personality + fallback key, and the
+    // cap source swaps to OpenRouter too (the fallback runs there).
     expect(attempt.mock.calls[1]?.[0]).toMatchObject({
       personality: { provider: 'openrouter', model: 'z-ai/glm-5.1' },
       apiKey: 'sk-or-fallback',
       isGuestMode: false,
+      effectiveProvider: AIProvider.OpenRouter,
     });
     expect(result).toBe(fallbackResult);
   });

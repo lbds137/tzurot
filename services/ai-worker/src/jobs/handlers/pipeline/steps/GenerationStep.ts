@@ -14,6 +14,7 @@ import {
   USER_ERROR_MESSAGES,
   type ResolvedConfigOverrides,
   type SttDispatch,
+  type AIProvider,
 } from '@tzurot/common-types';
 import { createDiagnosticCollectorForRequest } from '../../../../services/diagnostics/personalityOwnerResolver.js';
 import type { ConversationalRAGService } from '../../../../services/ConversationalRAGService.js';
@@ -89,6 +90,7 @@ export class GenerationStep implements IPipelineStep {
     jobId: string | undefined;
     diagnosticCollector?: DiagnosticCollector;
     configOverrides?: ResolvedConfigOverrides;
+    effectiveProvider?: AIProvider;
   }): Promise<{
     response: RAGResponse;
     duplicateRetries: number;
@@ -105,6 +107,7 @@ export class GenerationStep implements IPipelineStep {
       jobId,
       diagnosticCollector,
       configOverrides,
+      effectiveProvider,
     } = opts;
 
     let duplicateRetries = 0;
@@ -143,6 +146,9 @@ export class GenerationStep implements IPipelineStep {
           skipMemoryStorage: true,
           diagnosticCollector,
           configOverrides,
+          // Capped from the provider the request actually hits: z.ai-direct uses
+          // z.ai's documented limit, OpenRouter fallthrough uses the OR cache.
+          effectiveProvider,
         });
       } catch (error) {
         // LLM invocation failed entirely. If we have a fallback from a prior
@@ -320,6 +326,9 @@ export class GenerationStep implements IPipelineStep {
             jobId: job.id,
             diagnosticCollector,
             configOverrides: context.configOverrides,
+            // Primary attempt routes to the resolved provider; the fallback
+            // wrapper overrides this to OpenRouter if it swaps to the fallback.
+            effectiveProvider: provider,
           },
           auth.wasAutoPromoted === true ? auth.fallback : undefined
         );
