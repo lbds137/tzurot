@@ -359,3 +359,11 @@ Surfaced 2026-04-23.
 
 **Why icebox (not a quick win)**: this is an architectural addition, not a tweak — new schema, new cascade-resolution semantics in `historyCutoff.ts`, a new command surface, and a migration. The weigh-in bug is fixed independently (epoch → `undefined` for weigh-in); this item is the _generalization_, only worth doing if channel/server-level reset becomes a real user need. **Promote when**: a user asks for channel/server-wide context reset, OR a second channel-scoped operation needs an epoch and the "no coarse epoch exists" gap bites again. Surfaced 2026-06-09 (user) during the weigh-in epoch-semantics fix.
 
+
+#### `[FEAT]` Surface z.ai coding-plan models in model autocomplete
+
+**Problem**: The model autocomplete (preset model picker) sources from the OpenRouter model cache only. z.ai coding-plan models (`z-ai/glm-5`, `z-ai/glm-5.2`, …) that a user reaches via their z.ai-coding subscription must be free-typed — `z-ai/glm-5.2` isn't on OpenRouter at all, so it can never appear. PR #1197 made these models _validatable and saveable_ (z.ai-aware validation + catalog cap), but discoverability is a separate UX layer that's still missing.
+
+**Action**: When the requesting user has an active z.ai-coding key, fold the `ZAI_MODEL_CATALOG` entries (prefixed `z-ai/<model>`) into the autocomplete choices alongside the OpenRouter results — ideally badged so it's clear they route to the coding plan. Catalog already exposes `getZaiCodingPlanContextLength` / `isZaiCodingPlanModel` and the prefix constant `ZAI_MODEL_PREFIX`.
+
+**Why icebox**: validation unblocks the save path (the correctness gap); autocomplete is pure discoverability polish with no correctness impact. **Promote when**: free-typing z.ai model IDs becomes a recurring friction point, or a second z.ai-only model ships and users can't find it. Surfaced 2026-06-14 during the GLM-5 z.ai fix (PR #1197).
