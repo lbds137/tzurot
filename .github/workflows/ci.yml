@@ -107,6 +107,9 @@ jobs:
       - name: Check claude/ command references resolve
         run: pnpm ops guard:claude-content-refs
 
+      - name: Audit slash-command surface consistency
+        run: pnpm ops commands:audit --summary
+
       - name: Check dependency boundaries
         run: pnpm depcruise
 

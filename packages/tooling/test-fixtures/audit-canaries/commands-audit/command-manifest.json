@@ -1,0 +1,24 @@
+{
+  "DO_NOT_FIX": "CANARY FIXTURE for commands:audit — deliberately broken. This command has a category ('Bogus') that is NOT in helpCategories, AND a subcommand with an empty description, AND a command that declares componentPrefixes but exports no button/select handler. The canary test asserts the tool reports status:fail with findings>0. If a future contributor 'fixes' these, the canary produces 0 findings and the silent-misconfiguration failure mode goes undetected. DO NOT FIX / DO NOT REMOVE.",
+  "helpCategories": ["Memory", "Character", "Other"],
+  "commands": [
+    {
+      "name": "broken",
+      "category": "Bogus",
+      "description": "A deliberately mis-categorized command",
+      "handlers": {
+        "execute": true,
+        "autocomplete": false,
+        "selectMenu": false,
+        "button": false,
+        "modal": false
+      },
+      "componentPrefixes": ["broken-browse"],
+      "data": {
+        "name": "broken",
+        "description": "A deliberately mis-categorized command",
+        "options": [{ "type": 1, "name": "view", "description": "" }]
+      }
+    }
+  ]
+}

@@ -127,3 +127,13 @@ _Shipped 2026-06-14 (#1205): per-user daily cap on system-key free-vision fallba
 **Pairs with**: the `/help` category-scheme deliberate revisit (the audit's category-coverage check is the enforcement; the scheme is the design). The immediate 6-in-"Other" gap was quick-fixed (#fix/help-category-coverage) — this is the durable prevention + the broader consistency surface. Lives in `packages/tooling/`.
 
 **Then**: use the inventory + consistency output to design the `/models`-browser command (icebox) against the existing surface instead of guessing.
+
+### `[CHORE]` Triage the 13 `commands:audit` warnings on the current surface
+
+**Surfaced 2026-06-14** by the new `commands:audit` tool's first run against the real command surface (0 errors, **13 warnings** — warn-only, doesn't fail CI). Pre-existing drift the tool now makes visible. Categories:
+
+- **option-name/type drift**: the `type` option is an integer in one command but a string in another; `preset`/`config` and `persona`/`profile` near-synonyms both in use for the same concept.
+- **legacy `list` subcommands**: two instances where `browse` is the preferred convention (04-discord.md).
+- **novel subcommand verbs**: `forget`, `get`, `auth`, `logout`, `set-default`, `clear-default` — outside the canonical CRUD set; decide per-case whether to rename or accept (and add to the tool's known-good vocabulary).
+
+**Action**: run `pnpm ops commands:audit` (tree/md), triage each warning → either fix (note: option/subcommand renames are command-structure changes → `pnpm test:int` snapshot updates) or accept-and-whitelist in the tool. **Why a CHORE (not urgent)**: all warn-level, no correctness impact; the tool surfaces them continuously now. Pairs with the deliberate `/help` UX pass.
