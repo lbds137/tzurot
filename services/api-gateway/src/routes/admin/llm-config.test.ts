@@ -433,6 +433,75 @@ describe('Admin LLM Config Routes', () => {
     });
   });
 
+  describe('z.ai-only model acceptance (hasZaiCodingKey wiring)', () => {
+    // The catalog-path validation logic lives in modelValidation.test.ts; these
+    // close the *route-level* story: the admin routes pass hasZaiCodingKey:true
+    // unconditionally (global presets), which is what lets a z.ai-only model like
+    // z-ai/glm-5.2 (absent from OpenRouter) reach the catalog path and be saved.
+    it('should accept a z.ai-only model (z-ai/glm-5.2) on create', async () => {
+      prisma.llmConfig.findFirst.mockResolvedValue(null);
+      prisma.llmConfig.create.mockResolvedValue({
+        id: 'new-config-id',
+        name: 'GLM Global',
+        model: 'z-ai/glm-5.2',
+        provider: 'openrouter',
+        isGlobal: true,
+        isDefault: false,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
+      });
+
+      const response = await request(app).post('/admin/llm-config').send({
+        name: 'GLM Global',
+        model: 'z-ai/glm-5.2',
+        provider: 'openrouter',
+      });
+
+      expect(response.status).toBe(201);
+      expect(response.body.config.model).toBe('z-ai/glm-5.2');
+      expect(mockValidateLlmConfigModelFields).toHaveBeenCalledWith(
+        expect.objectContaining({
+          hasZaiCodingKey: true,
+          body: expect.objectContaining({ model: 'z-ai/glm-5.2' }),
+        })
+      );
+    });
+
+    it('should accept a z.ai-only model (z-ai/glm-5.2) on update', async () => {
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-id',
+        name: 'Old Name',
+        isGlobal: true,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
+      });
+      prisma.llmConfig.findFirst.mockResolvedValue(null);
+      prisma.llmConfig.update.mockResolvedValue({
+        id: 'config-id',
+        name: 'Old Name',
+        model: 'z-ai/glm-5.2',
+        provider: 'openrouter',
+        isGlobal: true,
+        isDefault: false,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
+      });
+
+      const response = await request(app)
+        .put('/admin/llm-config/config-id')
+        .send({ model: 'z-ai/glm-5.2' });
+
+      expect(response.status).toBe(200);
+      expect(response.body.config.model).toBe('z-ai/glm-5.2');
+      expect(mockValidateLlmConfigModelFields).toHaveBeenCalledWith(
+        expect.objectContaining({
+          hasZaiCodingKey: true,
+          body: expect.objectContaining({ model: 'z-ai/glm-5.2' }),
+        })
+      );
+    });
+  });
+
   describe('PUT /admin/llm-config/:id', () => {
     it('should return 400 when model validation fails on update', async () => {
       mockValidateLlmConfigModelFields.mockImplementationOnce(

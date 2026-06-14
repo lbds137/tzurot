@@ -116,6 +116,24 @@ export async function validateModelAndContextWindow(
   // Model not found in cache — could be a new model or cache is stale
   // Reject with a helpful message
   if (model === null) {
+    // A `z-ai/`-prefixed catalog model that reached the OpenRouter lookup means
+    // the saving user has no z.ai-coding key (the keyed path returns earlier) AND
+    // this model isn't carried on OpenRouter either — i.e. a z.ai-only model like
+    // `z-ai/glm-5.2`. The generic "not found / check the model ID" message
+    // misdescribes the fix: the id is valid, the constraint is the missing key.
+    // z.ai models that DO exist on OpenRouter (glm-5.1, glm-4.7, …) are found by
+    // the lookup above and never reach here, so they keep validating normally.
+    if (
+      !hasZaiCodingKey &&
+      modelId.startsWith(ZAI_MODEL_PREFIX) &&
+      getZaiCodingPlanContextLength(modelId) !== null
+    ) {
+      return {
+        error:
+          `Model '${modelId}' is served by the z.ai Coding Plan. ` +
+          'Add a z.ai-coding API key with /settings apikey set to use it.',
+      };
+    }
     return {
       error:
         `Model '${modelId}' not found in the available models list. ` +

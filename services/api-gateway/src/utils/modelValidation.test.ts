@@ -164,13 +164,47 @@ describe('validateModelAndContextWindow', () => {
       expect(result.contextWindowCap).toBe(100_000); // 50% of 200k
     });
 
-    it('should fall through to OpenRouter when the user has no z.ai key', async () => {
-      // Without a key, a z.ai-only model is NOT promoted at runtime, so it must
-      // be validated against OpenRouter — where it is absent → rejected.
+    it('should return the z.ai-key-required message for a z.ai-only model with no key', async () => {
+      // Without a key, a z.ai-only model is NOT promoted at runtime, so it falls
+      // through to OpenRouter — where glm-5.2 is absent. Rather than the generic
+      // "not found" (which implies a bad model id), surface the real constraint:
+      // this model needs a z.ai-coding key. Still consults the cache first so an
+      // OpenRouter-available z.ai model isn't pre-empted.
       const cache = createMockModelCache(null);
       const result = await validateModelAndContextWindow(cache, 'z-ai/glm-5.2', undefined, false);
-      expect(result.error).toContain("Model 'z-ai/glm-5.2' not found");
+      expect(result.error).toContain("Model 'z-ai/glm-5.2' is served by the z.ai Coding Plan");
+      expect(result.error).toContain('/settings apikey set');
+      expect(result.error).not.toContain('not found');
       expect(cache.getModelById).toHaveBeenCalledWith('z-ai/glm-5.2');
+    });
+
+    it('should NOT falsely reject an OpenRouter-available z.ai model with no key', async () => {
+      // Regression guard for the subtlety: glm-5.1 (unlike glm-5.2) IS on
+      // OpenRouter, so a no-key user saving it runs on OpenRouter at runtime and
+      // the config is valid. The z.ai-key-required message must only replace the
+      // generic not-found message, never pre-empt the cache lookup — so a cache
+      // hit validates normally.
+      const cache = createMockModelCache(
+        createMockModel({ id: 'z-ai/glm-5.1', contextLength: 202752 })
+      );
+      const result = await validateModelAndContextWindow(cache, 'z-ai/glm-5.1', undefined, false);
+      expect(result.error).toBeUndefined();
+      expect(result.contextWindowCap).toBe(101376); // Math.floor(202752 / 2)
+      expect(cache.getModelById).toHaveBeenCalledWith('z-ai/glm-5.1');
+    });
+
+    it('should keep the generic not-found message for a genuinely unknown z-ai model', async () => {
+      // A `z-ai/`-prefixed id that isn't in the catalog is just an unknown model;
+      // the z.ai-key hint would be wrong, so it keeps the generic message.
+      const cache = createMockModelCache(null);
+      const result = await validateModelAndContextWindow(
+        cache,
+        'z-ai/glm-nonexistent',
+        undefined,
+        false
+      );
+      expect(result.error).toContain("Model 'z-ai/glm-nonexistent' not found");
+      expect(result.error).not.toContain('z.ai Coding Plan');
     });
 
     it('should NOT take the z.ai path for a bare (unprefixed) catalog name', async () => {
