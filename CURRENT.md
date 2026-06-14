@@ -1,17 +1,34 @@
 # Current
 
-> **Version**: v3.0.0-beta.129 (released 2026-06-12, #1188) — **18 PRs, no migrations.** Headliners: forwarded-message content-loss fix (#1178 + the debugging campaign), small-context model overflow fix (#1186/#1187 — graduated headroom cap 75%/50% shared between gateway validation and a new worker runtime clamp), referenced-attachment thin-payload fix (#1184), token-count un-redaction (#1185), plus the iii-b context-relocation slices (#1182/#1183) — all `CONTEXT_*` flags default OFF in prod. Also clears the four open `hono` security advisories (override to ≥4.12.21 rode the deps bumps). **Merge mechanics**: rebase-merge mechanically failed at 104 commits (`This branch can't be rebased`, same as beta.126) → documented fast-forward fallback used after the review gate fired; `main` == `develop` byte-identical → `release:finalize` was a no-op.
+> **Version**: v3.0.0-beta.130 (released 2026-06-14, #1200) — **9 PRs, no migrations.** Headliners: z.ai GLM Coding Plan now works for GLM-5 + z.ai-aware config validation (#1197), catalog context lengths grounded in z.ai's own docs + provider-aware runtime clamp (#1198 — z.ai-direct caps from z.ai's documented limit, keyless fallthrough from the OpenRouter cache; `glm-5-turbo` corrected 256K→200K), thinner Discord→gateway payload re-deriving guild/attachment surfaces in ai-worker (iii-b-3, #1194/#1195), iii-cleanup fold-forwards (#1196). Also clears Dependabot #109 (dev-only esbuild advisory, override ≥0.28.1, #1199). **Merge mechanics**: clean `gh pr merge --rebase` (9-PR delta, well under the ~200-commit rebase-fail threshold); `release:finalize` realigned develop (SHA divergence from the rebase-replay, cherry-pick-detected). All green incl. the holistic release review (no blocking).
 > **🚧 Release freeze status**: LIFTED. No release in progress.
 
 ---
 
 ## Next Session Goal
 
-**beta.129 SHIPPED 2026-06-12.** Both prod bugs from the 06-11 session are fixed and released: forwarded-message content loss (#1178, dev-verified incl. self-heal) and the small-context overflow (#1186/#1187 — clamp dev-verified: `configured=32768 → effective=24576` on the Dolphin 32k model). Post-release user TODO: lower the Dolphin preset's context window to ≤24576 (prod + dev) to silence the per-generation clamp warn; the dashboard shows `ctx=33K (max 25K ⚠️)` until then. Note: re-importing the old export JSON (32768) now gets rejected by validation — drop the file's value too.
+**beta.130 SHIPPED 2026-06-14.** z.ai GLM-5 coding-plan support (#1197/#1198) dev-verified by the user (GLM-5 promotes onto the coding plan; GLM-5.2 saves + clamps). iii-b-3 + iii-cleanup also rode this release.
+
+**z.ai follow-ups (icebox FEATs filed):** surface z.ai models in autocomplete; "requires z.ai key" badge on the preset dashboard; free-tier piggyback on the owner's z.ai plan (GLM-4.5-Air only, needs an abuse/quota design pass). Plus two from the #1200 release review: better error message for `z-ai/*` save with no key (inbox UX), and an explicit admin-route test for `hasZaiCodingKey:true` accepting z.ai-only models (quick win).
 
 **Remaining prod issue (the one left in production-issues.md):** preset llm-config PUT timeout — needs prod timing instrumentation (load-correlated, not dev-reproducible). That probe is the next natural release passenger.
 
-**Remaining in the context-relocation epic (2.5):** **iii-b-3** (grow the envelope's guild-info raw form → drop `participantGuildInfo` + `extendedContextAttachments`; possibly split 3a/3b) → **iii-cleanup** (5 carried #1156 fold-forwards + the new #6: ContextStep in-place-mutation → return-value refactor, from the beta.129 release review) → **2.5d** (delete legacy + `MessageContextBuilder` + bot-client Prisma + all `CONTEXT_*` flags; tighten depcruise) → unblocks PR-2p.
+**Remaining in the context-relocation epic (2.5):** iii-b-3 and iii-cleanup are now DONE (shipped in beta.130). Next is **2.5d** (delete legacy + `MessageContextBuilder` + bot-client Prisma + all `CONTEXT_*` flags; tighten depcruise) → unblocks PR-2p.
+
+## Last Session — beta.130: z.ai GLM-5 + release (2026-06-14)
+
+| PR    | Title                                                                   | Outcome                                                                                                                                             |
+| ----- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #1197 | `fix: support GLM-5 on z.ai coding plan + z.ai-aware config validation` | `glm-5`/`glm-5.2` added to `ZAI_MODEL_CATALOG`; validation short-circuits to the catalog when the user has a z.ai key; `userHasActiveApiKey` helper |
+| #1198 | `fix: ground z.ai catalog context lengths in z.ai docs`                 | Values verified against z.ai docs (`glm-5-turbo` 256K→200K); runtime clamp now provider-aware (z.ai-direct → catalog, keyless → OpenRouter cache)   |
+| #1199 | `chore(deps): force esbuild >=0.28.1`                                   | Clears Dependabot #109 (dev-only, Windows-only advisory; pnpm override pattern)                                                                     |
+| #1200 | `Release v3.0.0-beta.130`                                               | 9 PRs, no migrations; clean rebase-merge; holistic release review no-blocking                                                                       |
+
+### Net result
+
+- **z.ai GLM-5 asymmetry root-caused and fixed.** `glm-5` was missing from the catalog → `isZaiCodingPlanModel` false → no auto-promotion → silently ran on OpenRouter ("5.1 works, 5 doesn't"). Fix added the catalog entries + made both save-time validation and the runtime clamp z.ai-aware, capping from the provider the request actually hits. Catalog values were then verified against z.ai's own docs (a "203K" question from the user surfaced that the shipped numbers were conservative guesses; one — `glm-5-turbo` — was genuinely wrong-high at 256K).
+- **Backlog hygiene correction**: declined to file a "final hard context cap" backstop — user clarified icebox/deferred are for future work, not decided-against ideas. Captured as a feedback memory.
+- **Release mechanics clean**: unlike beta.129's 104-commit rebase failure, the 9-PR delta rebase-merged without issue.
 
 ## Last Session — beta.129: context clamp + release (2026-06-12)
 
