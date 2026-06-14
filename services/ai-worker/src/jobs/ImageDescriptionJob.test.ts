@@ -41,6 +41,9 @@ vi.mock('../redis.js', () => ({
   visionDescriptionCache: {
     storeFailure: (...args: unknown[]) => mockStoreFailure(...args),
   },
+  visionFallbackQuota: {
+    tryConsume: () => Promise.resolve(true),
+  },
   checkModelVisionSupport: (...args: unknown[]) => mockCheckModelVisionSupport(...args),
 }));
 

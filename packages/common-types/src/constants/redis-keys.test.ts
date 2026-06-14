@@ -11,6 +11,10 @@ describe('CACHE_KEY_PREFIXES', () => {
     expect(CACHE_KEY_PREFIXES.CREDIT_EXHAUSTION_OPENROUTER).toBe('nocredits:openrouter:');
   });
 
+  it('exposes the vision system-fallback quota prefix matching ai-worker VisionFallbackQuota', () => {
+    expect(CACHE_KEY_PREFIXES.VISION_SYSTEM_FALLBACK_QUOTA).toBe('visionfallback:system:');
+  });
+
   it('every prefix ends with a colon (concatenation invariant)', () => {
     for (const prefix of Object.values(CACHE_KEY_PREFIXES)) {
       expect(prefix.endsWith(':')).toBe(true);
