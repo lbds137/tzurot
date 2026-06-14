@@ -70,6 +70,14 @@ export interface ProcessAttachmentOptions {
    * Threaded down to `createChatModel` so cross-provider personalities route correctly.
    */
   visionProvider?: AIProvider;
+  /**
+   * Pre-resolved vision model name from `resolveVisionConfig`. Forwarded to
+   * `describeImage` so the unified resolver's chosen model (which may be a
+   * forced free-tier downgrade for a downgraded authenticated user) flows
+   * through instead of being re-selected by `selectVisionModel`. Optional; when
+   * omitted, `describeImage` self-selects (legacy behavior).
+   */
+  model?: string;
 }
 
 /**
@@ -80,12 +88,20 @@ async function processSingleAttachment(
   personality: LoadedPersonality,
   options: ProcessAttachmentOptions
 ): Promise<ProcessedAttachment | null> {
-  const { isGuestMode, userApiKey, sttDispatch, loggingContext = {}, visionProvider } = options;
+  const {
+    isGuestMode,
+    userApiKey,
+    sttDispatch,
+    loggingContext = {},
+    visionProvider,
+    model,
+  } = options;
   if (attachment.contentType.startsWith(CONTENT_TYPES.IMAGE_PREFIX)) {
     const description = await describeImage(attachment, personality, isGuestMode, userApiKey, {
       skipNegativeCache: true,
       loggingContext,
       provider: visionProvider,
+      model,
     });
     logger.info({ name: attachment.name }, 'Processed image attachment');
     return {
@@ -132,7 +148,14 @@ export async function processAttachments(
   personality: LoadedPersonality,
   options: ProcessAttachmentOptions
 ): Promise<ProcessedAttachment[]> {
-  const { isGuestMode, userApiKey, sttDispatch, loggingContext = {}, visionProvider } = options;
+  const {
+    isGuestMode,
+    userApiKey,
+    sttDispatch,
+    loggingContext = {},
+    visionProvider,
+    model,
+  } = options;
   logger.info(
     {
       attachmentCount: attachments.length,
@@ -143,6 +166,7 @@ export async function processAttachments(
       userId: loggingContext.userId,
       apiKeySource: loggingContext.apiKeySource,
       visionProvider,
+      visionModel: model,
     },
     'Processing attachments in parallel'
   );
@@ -157,6 +181,7 @@ export async function processAttachments(
         sttDispatch,
         loggingContext,
         visionProvider,
+        model,
       }),
     {
       maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,

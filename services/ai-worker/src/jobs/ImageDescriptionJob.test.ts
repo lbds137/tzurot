@@ -3,14 +3,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import {
-  processImageDescriptionJob,
-  USER_AUTH_PROBE_PROVIDERS,
-  NON_LLM_PROVIDERS,
-} from './ImageDescriptionJob.js';
+import { processImageDescriptionJob } from './ImageDescriptionJob.js';
 import type { Job } from 'bullmq';
 import type { ImageDescriptionJobData, LoadedPersonality } from '@tzurot/common-types';
-import { JobType, CONTENT_TYPES, AIProvider, TIMEOUTS } from '@tzurot/common-types';
+import { JobType, CONTENT_TYPES, AIProvider, TIMEOUTS, MODEL_DEFAULTS } from '@tzurot/common-types';
 
 // Mirrors the module-level constant in ImageDescriptionJob.ts. Intentionally
 // kept as a copy so the test asserts the expected *contract* (vision uses 2
@@ -35,11 +31,17 @@ vi.mock('../utils/apiErrorParser.js', () => ({
 // `buildFailFastResult` lazy-imports `visionDescriptionCache` from redis.js;
 // stub the cache method so the dynamic import resolves without hitting a real
 // Redis client at test time. Thunks defer reference resolution past hoisting.
+// `checkModelVisionSupport` is reached transitively now that resolveVisionConfig
+// calls the real `selectVisionModel` — default it to false so the
+// no-visionModel-override tests fall through to the fallback model without a
+// real Redis call.
 const mockStoreFailure = vi.fn();
+const mockCheckModelVisionSupport = vi.fn().mockResolvedValue(false);
 vi.mock('../redis.js', () => ({
   visionDescriptionCache: {
     storeFailure: (...args: unknown[]) => mockStoreFailure(...args),
   },
+  checkModelVisionSupport: (...args: unknown[]) => mockCheckModelVisionSupport(...args),
 }));
 
 // Import the mocked modules
@@ -457,7 +459,7 @@ describe('ImageDescriptionJob', () => {
       expect(result.metadata!.failedCount).toBe(1); // Track failures
     });
 
-    it('should pass isGuestMode=true to describeImage for guest users', async () => {
+    it('resolves a genuine guest to the free model on the system key', async () => {
       const jobData: ImageDescriptionJobData = {
         requestId: 'test-req-guest-mode',
         jobType: JobType.ImageDescription,
@@ -485,41 +487,46 @@ describe('ImageDescriptionJob', () => {
         data: jobData,
       } as Job<ImageDescriptionJobData>;
 
-      // Mock ApiKeyResolver: genuine guest — no user keys for any provider.
-      // tryResolveUserKey returns null for both probe providers, then
-      // resolveApiKey returns the system key with isGuestMode: true.
+      // Genuine guest — no user keys for any provider. ImageDescriptionJob has
+      // no upstream isGuestMode signal, so resolveVisionConfig is called with
+      // isGuestMode=false; a user with no vision-provider key flows through the
+      // broad free-fallback branch and gets the free model on the system key.
+      // tryResolveUserKey returns null; resolveApiKey returns the system key.
       const mockApiKeyResolver = {
         tryResolveUserKey: vi.fn().mockResolvedValue(null),
         resolveApiKey: vi.fn().mockResolvedValue({
-          apiKey: null,
-          source: 'fallback',
+          apiKey: 'system-or-key',
+          source: 'system',
+          provider: AIProvider.OpenRouter,
           isGuestMode: true,
         }),
       } as unknown as ApiKeyResolver;
 
       await processImageDescriptionJob(job, mockApiKeyResolver);
 
-      // Verify resolveApiKey was called with the detected vision provider
-      // (OpenRouter, since mockPersonality.visionModel='gpt-4-vision-preview').
-      // Only fires for the guest path — auth check happens via tryResolveUserKey.
+      // resolveApiKey is called for the free-fallback provider (OpenRouter,
+      // where the free gemma model lives).
       expect(mockApiKeyResolver.resolveApiKey).toHaveBeenCalledWith(
         'guest-user-123',
         AIProvider.OpenRouter
       );
 
-      // Verify describeImage was called with isGuestMode=true
-      // describeImage is called inside withRetry, so check the mockWithRetry call
       expect(mockWithRetry).toHaveBeenCalledTimes(1);
-      // Execute the retry function to verify describeImage receives correct params
+      // describeImage receives the forced free model on the system key. Note
+      // isGuestMode is `false` here — the broad-fallback branch preserves the
+      // "no keys anywhere" meaning of isGuestMode for the genuine-guest signal,
+      // but since the model is passed explicitly, isGuestMode no longer drives
+      // model selection in this path.
       const retryFn = mockWithRetry.mock.calls[0][0];
       await retryFn();
       expect(mockDescribeImage).toHaveBeenCalledWith(
         expect.objectContaining({ url: 'https://example.com/image1.png' }),
         mockPersonality,
-        true, // isGuestMode
-        undefined, // userApiKey (guests don't have one)
+        false, // isGuestMode — broad-fallback branch sets false; model is forced explicitly
+        'system-or-key', // system key
         expect.objectContaining({
           skipNegativeCache: true,
+          model: MODEL_DEFAULTS.VISION_FALLBACK_FREE,
           loggingContext: expect.objectContaining({ userId: expect.any(String) }),
         })
       );
@@ -635,13 +642,12 @@ describe('ImageDescriptionJob', () => {
       );
     });
 
-    it('falls back to main model when visionModel is empty and main is a glm-* z.ai model', async () => {
-      // The visionModel→main fallback chain mirrors selectVisionModel's logic:
-      // when no explicit override, we use the main model name to detect the
-      // vision provider (since the main model would also be used for vision
-      // if it has native support). Schema validation rejects null on this
-      // job-data field, so we use the empty-string sentinel which the
-      // resolveVisionApiKey fallback also accepts.
+    it('detects vision provider from the fallback model when visionModel and main both lack vision', async () => {
+      // With no visionModel override and a main model (glm-5.1) that has no
+      // native vision support, `selectVisionModel` falls through to the paid
+      // OpenRouter fallback model. The unified `resolveVisionConfig` detects the
+      // provider from THAT model (OpenRouter), fixing the old ImageDescriptionJob
+      // bug where the provider was detected from the main model name (ZaiCoding).
       const noOverridePersonality = {
         ...mockPersonality,
         visionModel: '',
@@ -663,31 +669,96 @@ describe('ImageDescriptionJob', () => {
         responseDestination: { type: 'discord', channelId: 'channel-1' },
       };
       const job = { id: 'image-fb', data: jobData } as Job<ImageDescriptionJobData>;
+      // main has no native vision → selectVisionModel falls to the paid
+      // OpenRouter fallback model.
+      mockCheckModelVisionSupport.mockResolvedValue(false);
       const mockApiKeyResolver = {
-        tryResolveUserKey: vi.fn().mockResolvedValue('zai-key'),
-        resolveApiKey: vi
-          .fn()
-          .mockRejectedValue(
-            new Error('resolveApiKey should not be called — fail-fast bypass expected')
-          ),
+        tryResolveUserKey: vi.fn().mockResolvedValue('or-user-key'),
+        resolveApiKey: vi.fn(),
       } as unknown as ApiKeyResolver;
 
       await processImageDescriptionJob(job, mockApiKeyResolver);
 
-      // Provider detected from main model (visionModel was empty); user has
-      // the ZaiCoding key, so tryResolveUserKey returns it.
+      // Provider detected from the fallback model (OpenRouter), NOT the main
+      // model's ZaiCoding — this is the bug the unified resolver fixes.
       expect(mockApiKeyResolver.tryResolveUserKey).toHaveBeenCalledWith(
         'user-fallback',
-        AIProvider.ZaiCoding
+        AIProvider.OpenRouter
       );
     });
 
-    it('fails fast when authenticated user lacks key for vision provider (matches DependencyStep policy)', async () => {
-      // Regression for the asymmetry the round-10 reviewer flagged: an
-      // authenticated user (has SOME user key) but no key for the personality's
-      // vision provider must NOT silently fall back to the system key here —
-      // they should get the same "configure your key" fallback that
-      // DependencyStep produces via buildVisionAuthFailureResults.
+    it('downgrades authenticated user without vision-provider key to free model on system key', async () => {
+      // BROAD FREE FALLBACK: an authenticated user (has SOME user key) but no
+      // key for the personality's vision provider no longer fails fast — they
+      // downgrade to the free vision model on the system OpenRouter key.
+      const jobData: ImageDescriptionJobData = {
+        requestId: 'test-req-free-fallback',
+        jobType: JobType.ImageDescription,
+        attachments: [
+          {
+            url: 'https://example.com/image1.png',
+            name: 'image1.png',
+            contentType: CONTENT_TYPES.IMAGE_PNG,
+            size: 1024,
+          },
+        ],
+        // visionModel is a z.ai model → vision provider is ZaiCoding, which the
+        // user lacks a key for.
+        personality: { ...mockPersonality, visionModel: 'glm-5v' },
+        context: { userId: 'auth-user-no-zai-key', channelId: 'channel-1' },
+        responseDestination: { type: 'discord', channelId: 'channel-1' },
+      };
+      const job = {
+        id: 'image-free-fallback',
+        data: jobData,
+      } as Job<ImageDescriptionJobData>;
+
+      // No user key for the ZaiCoding vision provider; resolveApiKey for the
+      // FREE provider (OpenRouter) returns the system key.
+      const mockApiKeyResolver = {
+        tryResolveUserKey: vi.fn().mockResolvedValue(null),
+        resolveApiKey: vi.fn().mockResolvedValue({
+          apiKey: 'system-or-key',
+          source: 'system',
+          provider: AIProvider.OpenRouter,
+          isGuestMode: true,
+          userId: 'auth-user-no-zai-key',
+        }),
+      } as unknown as ApiKeyResolver;
+
+      const result = await processImageDescriptionJob(job, mockApiKeyResolver);
+
+      // resolveApiKey IS called now (for the free provider) — no fail-fast.
+      expect(mockApiKeyResolver.resolveApiKey).toHaveBeenCalledWith(
+        'auth-user-no-zai-key',
+        AIProvider.OpenRouter
+      );
+      // The vision call runs (not short-circuited) and succeeds.
+      expect(result.success).toBe(true);
+      expect(result.descriptions).toHaveLength(1);
+      expect(mockWithRetry).toHaveBeenCalled();
+
+      // describeImage receives the forced free model + system key, isGuestMode=false.
+      const retryFn = mockWithRetry.mock.calls[0][0];
+      await retryFn();
+      expect(mockDescribeImage).toHaveBeenCalledWith(
+        expect.objectContaining({ url: 'https://example.com/image1.png' }),
+        expect.anything(),
+        false, // isGuestMode — they ARE authenticated, only the vision model is downgraded
+        'system-or-key', // system key
+        expect.objectContaining({
+          model: MODEL_DEFAULTS.VISION_FALLBACK_FREE, // forced free model
+          provider: AIProvider.OpenRouter,
+          loggingContext: expect.objectContaining({ apiKeySource: 'system' }),
+        })
+      );
+    });
+
+    it('fails fast when the free-model system fallback is also unavailable', async () => {
+      // Fallback-of-fallback: authenticated user lacks the vision-provider key
+      // AND no system OpenRouter key is configured (resolveApiKey throws). The
+      // job emits the "configure your key" placeholder against the original
+      // vision provider.
       const jobData: ImageDescriptionJobData = {
         requestId: 'test-req-fail-fast',
         jobType: JobType.ImageDescription,
@@ -700,7 +771,7 @@ describe('ImageDescriptionJob', () => {
           },
         ],
         personality: mockPersonality, // visionModel='gpt-4-vision-preview' → OpenRouter
-        context: { userId: 'auth-user-no-or-key', channelId: 'channel-1' },
+        context: { userId: 'auth-user-no-keys-at-all', channelId: 'channel-1' },
         responseDestination: { type: 'discord', channelId: 'channel-1' },
       };
       const job = {
@@ -708,28 +779,16 @@ describe('ImageDescriptionJob', () => {
         data: jobData,
       } as Job<ImageDescriptionJobData>;
 
-      // tryResolveUserKey returns null for OpenRouter (vision provider) but
-      // returns a user key for ZaiCoding — i.e., user IS authenticated, just
-      // not for the vision provider.
-      const tryResolveUserKey = vi
-        .fn()
-        .mockImplementation(async (_userId: string, provider: AIProvider) =>
-          provider === AIProvider.ZaiCoding ? 'zai-user-key' : null
-        );
       const mockApiKeyResolver = {
-        tryResolveUserKey,
+        tryResolveUserKey: vi.fn().mockResolvedValue(null),
+        // No system OpenRouter key configured → resolveApiKey throws.
         resolveApiKey: vi
           .fn()
-          .mockRejectedValue(
-            new Error('resolveApiKey should not be called — fail-fast bypass expected')
-          ),
+          .mockRejectedValue(new Error('No API key available for provider openrouter')),
       } as unknown as ApiKeyResolver;
 
       const result = await processImageDescriptionJob(job, mockApiKeyResolver);
 
-      // resolveApiKey is NOT called — fail-fast bypasses the system fallback
-      // entirely for authenticated users without the vision-provider key.
-      expect(mockApiKeyResolver.resolveApiKey).not.toHaveBeenCalled();
       // Each image gets the source-aware fallback description.
       expect(result.success).toBe(true);
       expect(result.descriptions).toHaveLength(1);
@@ -740,7 +799,7 @@ describe('ImageDescriptionJob', () => {
       expect(mockDescribeImage).not.toHaveBeenCalled();
     });
 
-    it('should default to guest mode when ApiKeyResolver fails', async () => {
+    it('fails fast (graceful degrade) when ApiKeyResolver throws transiently', async () => {
       const jobData: ImageDescriptionJobData = {
         requestId: 'test-req-resolver-fail',
         jobType: JobType.ImageDescription,
@@ -768,26 +827,19 @@ describe('ImageDescriptionJob', () => {
         data: jobData,
       } as Job<ImageDescriptionJobData>;
 
-      // Mock ApiKeyResolver throwing an error
+      // tryResolveUserKey throws → resolveVisionConfig's try/catch returns
+      // failFast (graceful degrade to the "configure your key" placeholder).
       const mockApiKeyResolver = {
-        resolveApiKey: vi.fn().mockRejectedValue(new Error('Database connection failed')),
+        tryResolveUserKey: vi.fn().mockRejectedValue(new Error('Database connection failed')),
+        resolveApiKey: vi.fn(),
       } as unknown as ApiKeyResolver;
 
-      await processImageDescriptionJob(job, mockApiKeyResolver);
+      const result = await processImageDescriptionJob(job, mockApiKeyResolver);
 
-      // Execute the retry function to verify describeImage receives isGuestMode=true (fallback)
-      const retryFn = mockWithRetry.mock.calls[0][0];
-      await retryFn();
-      expect(mockDescribeImage).toHaveBeenCalledWith(
-        expect.objectContaining({ url: 'https://example.com/image1.png' }),
-        mockPersonality,
-        true, // isGuestMode defaults to true on error
-        undefined, // userApiKey is undefined on error (no key resolved)
-        expect.objectContaining({
-          skipNegativeCache: true,
-          loggingContext: expect.objectContaining({ userId: 'user-error' }),
-        })
-      );
+      expect(result.success).toBe(true);
+      expect(result.descriptions?.[0]?.description).toContain('check /settings apikey set');
+      expect(mockWithRetry).not.toHaveBeenCalled();
+      expect(mockDescribeImage).not.toHaveBeenCalled();
     });
 
     it('should pass skipNegativeCache: true to describeImage within retry loop', async () => {
@@ -872,36 +924,5 @@ describe('ImageDescriptionJob', () => {
         })
       );
     });
-  });
-});
-
-describe('USER_AUTH_PROBE_PROVIDERS', () => {
-  it('excludes every provider tagged in NON_LLM_PROVIDERS', () => {
-    // Locks in the contract that drove the refactor: NON_LLM_PROVIDERS is the
-    // single source of truth for "which providers should NOT make a user
-    // count as LLM-authenticated." If a future contributor removes a tag
-    // from NON_LLM_PROVIDERS without intending to, this test fires.
-    for (const nonLlm of NON_LLM_PROVIDERS) {
-      expect(USER_AUTH_PROBE_PROVIDERS).not.toContain(nonLlm);
-    }
-  });
-
-  it('includes every AIProvider variant that is not in NON_LLM_PROVIDERS', () => {
-    // The inverse: a new LLM provider added to AIProvider must auto-include
-    // in the probe list. If someone refactors USER_AUTH_PROBE_PROVIDERS back
-    // to a hardcoded array and forgets to update it when a new provider lands,
-    // this test fires.
-    const nonLlmSet = new Set<AIProvider>(NON_LLM_PROVIDERS);
-    const expected = Object.values(AIProvider).filter(p => !nonLlmSet.has(p));
-    expect([...USER_AUTH_PROBE_PROVIDERS].sort()).toEqual([...expected].sort());
-  });
-
-  it('currently includes OpenRouter and ZaiCoding, excludes ElevenLabs', () => {
-    // Snapshot of the current concrete state — supplements the structural
-    // assertions above with a value-level check so a reader of the test file
-    // can see at a glance which providers are in scope today.
-    expect(USER_AUTH_PROBE_PROVIDERS).toContain(AIProvider.OpenRouter);
-    expect(USER_AUTH_PROBE_PROVIDERS).toContain(AIProvider.ZaiCoding);
-    expect(USER_AUTH_PROBE_PROVIDERS).not.toContain(AIProvider.ElevenLabs);
   });
 });

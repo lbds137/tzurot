@@ -21,8 +21,11 @@ import { describeImage } from '../services/MultimodalProcessor.js';
 import { withRetry } from '../utils/retry.js';
 import { shouldRetryError, getErrorLogContext } from '../utils/apiErrorParser.js';
 import type { ApiKeyResolver } from '../services/ApiKeyResolver.js';
-import { detectVisionProvider, effectiveVisionModelName } from '../services/ProviderRouter.js';
-import { VISION_AUTH_FAIL_FAST_DESCRIPTION } from '../services/multimodal/visionAuthResolver.js';
+import {
+  resolveVisionConfig,
+  VISION_AUTH_FAIL_FAST_DESCRIPTION,
+  type VisionConfigResult,
+} from '../services/multimodal/visionAuthResolver.js';
 
 const logger = createLogger('ImageDescriptionJob');
 
@@ -43,163 +46,53 @@ interface ImageProcessResult {
 }
 
 /**
- * Result of API key resolution for vision processing.
+ * Resolve auth + model for vision processing via the unified `resolveVisionConfig`.
  *
- * Discriminated union: a normal `proceed` result with the resolved auth context,
- * or a `failFast` signal when the user is authenticated for some provider but
- * lacks a key for the vision provider — matches the policy enforced in
- * `DependencyStep` via `resolveVisionAuth` so a Discord user gets the same
- * fallback string regardless of which path serves their image (direct upload
- * vs. channel-history extended context).
- */
-type VisionApiKeyResult =
-  | {
-      kind: 'proceed';
-      isGuestMode: boolean;
-      userApiKey?: string;
-      apiKeySource?: 'user' | 'system';
-      visionProvider?: AIProvider;
-    }
-  | {
-      kind: 'failFast';
-      visionProvider: AIProvider;
-    };
-
-/**
- * Providers explicitly excluded from "is this user authenticated for LLM/vision
- * purposes?" probing. ElevenLabs is voice-only; a user with only an ElevenLabs
- * key isn't an LLM-authenticated user and should not bypass system fallback.
+ * `ImageDescriptionJob` runs as a standalone preprocessing job at upload time,
+ * so it has no upstream main-model auth context — `mainProvider`/`mainApiKey`
+ * are undefined (the same-provider fast path is skipped; per-provider resolution
+ * always runs). `isGuestMode` is passed as `false`: the resolver discriminates
+ * genuine-guest-vs-authenticated by probing the vision provider's user key, and
+ * a genuine guest with no keys anywhere still resolves correctly to the system
+ * key + free model via the broad free-fallback branch.
  *
- * Exported as a readonly tuple so any future non-LLM provider added to
- * `AIProvider` (e.g., a dedicated TTS or STT provider) has a single canonical
- * place to opt out of authentication probing.
- */
-export const NON_LLM_PROVIDERS = [AIProvider.ElevenLabs] as const;
-
-const NON_LLM_PROVIDER_SET: ReadonlySet<AIProvider> = new Set(NON_LLM_PROVIDERS);
-
-/**
- * Providers checked when determining whether a user is "authenticated" — i.e.
- * has at least one user-configured key for SOME provider. Drives the
- * fail-fast vs system-fallback discriminator inside `resolveVisionApiKey`.
- *
- * Derived from `AIProvider` (minus `NON_LLM_PROVIDERS`) so that adding a new
- * LLM provider to the enum auto-includes it in the probe list. The previous
- * hardcoded form went stale with z.ai and was a documented drift risk —
- * future-us would have silently misclassified new-provider-only users as
- * guests until someone noticed.
- *
- * Order doesn't matter for correctness — `userHasAnyKey` short-circuits on
- * first hit.
- */
-export const USER_AUTH_PROBE_PROVIDERS: readonly AIProvider[] = Object.values(AIProvider).filter(
-  (p): p is AIProvider => !NON_LLM_PROVIDER_SET.has(p)
-);
-
-/**
- * Determine whether a user has at least one user-configured key for any LLM
- * provider. Used as the "authenticated vs genuine guest" discriminator
- * inside this job, since (unlike DependencyStep) ImageDescriptionJob has no
- * upstream `auth.isGuestMode` signal — it runs as a standalone preprocessing
- * job at upload time.
- *
- * Each call hits ApiKeyResolver's internal cache after the first lookup per
- * `userId × provider` pair, so the cost is bounded.
- */
-async function userHasAnyKey(apiKeyResolver: ApiKeyResolver, userId: string): Promise<boolean> {
-  for (const provider of USER_AUTH_PROBE_PROVIDERS) {
-    const key = await apiKeyResolver.tryResolveUserKey(userId, provider);
-    if (key !== null) {
-      return true;
-    }
-  }
-  return false;
-}
-
-/**
- * Resolve API key for vision processing via BYOK lookup.
- *
- * Decision tree (matches `resolveVisionAuth` policy in `DependencyStep`):
- * - User has key for vision provider → use user key
- * - User has no key for vision provider, but is authenticated for some other
- *   provider → fail fast (no silent system-key fallback for authenticated users)
- * - User has no keys anywhere → genuine guest, system-key fallback
- *
- * Detects the vision provider from the personality's vision model (vs the
- * old hardcoded `AIProvider.OpenRouter`) so that personalities with z.ai
- * vision models route to z.ai instead of mistakenly looking up the user's
- * OpenRouter key.
+ * Returns the unified `VisionConfigResult` directly. When `apiKeyResolver` is
+ * undefined (legacy test-fixture path; production always wires it via the
+ * worker bootstrap), we synthesize a `resolved` result that proceeds with no
+ * user key — matching the pre-unification legacy behavior.
  */
 async function resolveVisionApiKey(
   apiKeyResolver: ApiKeyResolver | undefined,
   userId: string,
   personality: ImageDescriptionJobData['personality']
-): Promise<VisionApiKeyResult> {
+): Promise<VisionConfigResult> {
   if (!apiKeyResolver) {
-    return { kind: 'proceed', isGuestMode: false };
-  }
-
-  // Provider detection runs against the actual vision-model name. The fallback
-  // chain (visionModel → main model → env default) mirrors `selectVisionModel`
-  // in VisionProcessor, but we don't have hasVisionSupport access here, so we
-  // take the explicit visionModel override if set, else default to the main
-  // model's provider (which is what selectVisionModel would also pick when
-  // the main model has native vision).
-  const visionProvider = detectVisionProvider(effectiveVisionModelName(personality));
-
-  try {
-    // First: try user's key for the vision provider directly. No system
-    // fallback here — that would silently consume the system key for an
-    // authenticated user, contradicting the user-confirmed policy.
-    const userKey = await apiKeyResolver.tryResolveUserKey(userId, visionProvider);
-    if (userKey !== null) {
-      logger.debug(
-        { userId, visionProvider, source: 'user' },
-        'Resolved user API key for vision processing'
-      );
-      return {
-        kind: 'proceed',
-        isGuestMode: false,
-        userApiKey: userKey,
-        apiKeySource: 'user',
-        visionProvider,
-      };
-    }
-
-    // No user key for vision provider. Discriminate: authenticated user
-    // missing this provider's key (fail fast) vs. genuine guest (system
-    // fallback).
-    const isAuthenticatedForSomeProvider = await userHasAnyKey(apiKeyResolver, userId);
-    if (isAuthenticatedForSomeProvider) {
-      logger.info(
-        { userId, visionProvider },
-        'Authenticated user lacks key for vision provider — failing fast (no system fallback)'
-      );
-      return { kind: 'failFast', visionProvider };
-    }
-
-    // Genuine guest — no user keys configured anywhere. System fallback is
-    // the only path that works for them; consistent with main-model auth
-    // resolution for guests.
-    const guestResult = await apiKeyResolver.resolveApiKey(userId, visionProvider);
-    logger.debug(
-      { userId, visionProvider, source: guestResult.source },
-      'Guest path — using system key fallback for vision'
-    );
+    // Legacy/no-resolver path: proceed with no user key. `describeImage`
+    // self-selects the model (model omitted) and `createChatModel` falls back
+    // to the env-default provider — same as the pre-unification behavior for
+    // this branch.
     return {
-      kind: 'proceed',
-      isGuestMode: guestResult.isGuestMode,
-      userApiKey: guestResult.source === 'user' ? guestResult.apiKey : undefined,
-      apiKeySource: guestResult.source,
-      visionProvider,
+      kind: 'resolved',
+      config: {
+        apiKey: '',
+        provider: AIProvider.OpenRouter,
+        model: '',
+        source: 'system',
+        isGuestMode: false,
+      },
     };
-  } catch (error) {
-    logger.warn(
-      { err: error, userId, visionProvider },
-      'Failed to resolve API key, defaulting to guest mode'
-    );
-    return { kind: 'proceed', isGuestMode: true, visionProvider };
   }
+
+  return resolveVisionConfig({
+    personality,
+    // No upstream main-model context at upload time — skip the same-provider
+    // fast path so per-provider resolution always runs.
+    mainProvider: undefined,
+    mainApiKey: undefined,
+    isGuestMode: false,
+    userId,
+    apiKeyResolver,
+  });
 }
 
 /**
@@ -212,6 +105,12 @@ interface ProcessSingleImageOptions {
   isGuestMode: boolean;
   userApiKey: string | undefined;
   visionProvider: AIProvider | undefined;
+  /**
+   * Pre-resolved vision model from `resolveVisionConfig`. Forwarded to
+   * `describeImage` so a forced free-tier downgrade is honored rather than
+   * re-selected. `undefined` falls back to `describeImage`'s self-selection.
+   */
+  model: string | undefined;
   loggingContext: {
     userId?: string;
     apiKeySource?: 'user' | 'system';
@@ -223,14 +122,22 @@ interface ProcessSingleImageOptions {
  * Process a single image attachment with retry logic
  */
 async function processSingleImage(options: ProcessSingleImageOptions): Promise<ImageProcessResult> {
-  const { attachment, personality, isGuestMode, userApiKey, visionProvider, loggingContext } =
-    options;
+  const {
+    attachment,
+    personality,
+    isGuestMode,
+    userApiKey,
+    visionProvider,
+    model,
+    loggingContext,
+  } = options;
   try {
     const result = await withRetry(
       () =>
         describeImage(attachment, personality, isGuestMode, userApiKey, {
           skipNegativeCache: true,
           provider: visionProvider,
+          model,
           loggingContext: { ...loggingContext, provider: visionProvider },
         }),
       {
@@ -371,23 +278,35 @@ export async function processImageDescriptionJob(
     'Processing image description job'
   );
 
-  // Fail-fast: authenticated user has no key for the vision provider. Mirrors
-  // DependencyStep's `buildVisionAuthFailureResults` behavior so direct upload
-  // and channel-history paths produce the same fallback shape for the same
-  // user setup. Each image gets the source-aware "configure your key"
+  // Fail-fast: even the free-model system fallback is unavailable (no system
+  // OpenRouter key configured) for an authenticated user lacking a vision key.
+  // Mirrors DependencyStep's `buildVisionAuthFailureResults` behavior so direct
+  // upload and channel-history paths produce the same fallback shape for the
+  // same user setup. Each image gets the source-aware "configure your key"
   // description and a synthetic AUTH cache entry so retries within the 5-min
   // window hit cache instead of repeating the resolution + failing again.
   if (authResult.kind === 'failFast') {
     return buildFailFastResult({
       requestId,
       attachments,
-      visionProvider: authResult.visionProvider,
+      visionProvider: authResult.provider,
       sourceReferenceNumber,
       startTime,
     });
   }
 
-  const { isGuestMode, userApiKey, apiKeySource, visionProvider } = authResult;
+  const { config } = authResult;
+  // The no-resolver legacy path synthesizes empty apiKey/model sentinels —
+  // normalize them back to `undefined` so `describeImage` self-selects the model
+  // and `createChatModel` doesn't receive an empty Authorization header.
+  const isGuestMode = config.isGuestMode;
+  const userApiKey = config.apiKey.length > 0 ? config.apiKey : undefined;
+  const visionModel = config.model.length > 0 ? config.model : undefined;
+  const apiKeySource = config.source;
+  // The legacy no-resolver path resolves to provider=OpenRouter with an empty
+  // apiKey; in that case leave `visionProvider` undefined so `createChatModel`
+  // falls back to the env default exactly as the pre-unification path did.
+  const visionProvider = userApiKey !== undefined ? config.provider : undefined;
   const loggingContext = {
     userId: context.userId,
     apiKeySource,
@@ -411,6 +330,7 @@ export async function processImageDescriptionJob(
           isGuestMode,
           userApiKey,
           visionProvider,
+          model: visionModel,
           loggingContext,
         })
       )
