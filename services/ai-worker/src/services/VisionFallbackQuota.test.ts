@@ -52,12 +52,12 @@ describe('VisionFallbackQuota', () => {
     expect(expire).not.toHaveBeenCalled();
   });
 
-  it('defaults to the council-suggested daily limit', async () => {
+  it('defaults to the configured daily limit', async () => {
     const { redis } = createMockRedis(() =>
       Promise.resolve(VISION_SYSTEM_FALLBACK_DAILY_LIMIT + 1)
     );
     const quota = new VisionFallbackQuota(redis); // no explicit limit
     expect(await quota.tryConsume('123')).toBe(false);
-    expect(VISION_SYSTEM_FALLBACK_DAILY_LIMIT).toBe(20);
+    expect(VISION_SYSTEM_FALLBACK_DAILY_LIMIT).toBe(100);
   });
 });

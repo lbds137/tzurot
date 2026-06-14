@@ -105,4 +105,12 @@ _New items go here. Triage to appropriate section weekly._
 
 **Why inbox (not scheduled)**: explicitly NOT for beta.126; it's a UX-restructure with an unresolved design question, so it needs triage + a design pass before becoming a committed task. Touches `services/bot-client/src/commands/character/chat.ts` (mode branching), the slash-command definition, and `randomPick.ts`. Command-structure change → integration snapshots need updating (`pnpm test:int`).
 
-_Shipped 2026-06-14 (#1205): per-user daily cap on system-key free-vision fallback (`VisionFallbackQuota`, 20/day, fail-open) — the fast-follow guard for the #1204 broad fallback._
+_Shipped 2026-06-14 (#1205): per-user daily cap on system-key free-vision fallback (`VisionFallbackQuota`, fail-open) — the fast-follow guard for the #1204 broad fallback._
+
+### `[FEAT]` Make the vision system-fallback daily cap a runtime admin-settings knob
+
+**Surfaced 2026-06-14** (user), tuning the #1205 guard. The per-user daily cap on system-key free-vision fallback (`VISION_SYSTEM_FALLBACK_DAILY_LIMIT`, currently a code constant = 100) should eventually be a runtime **admin-settings** config item so the owner can tune it without a code change + redeploy — the same way other admin settings are managed. Gemma is `$0`, so the cap is purely a shared-rate-limit-pool protector; the right value depends on observed traffic, which argues for runtime tunability.
+
+**Action**: thread the limit through the admin-settings layer (DB-backed `adminSettings` + the gateway admin config surface + the bot-client admin UI if one exposes it), falling back to the `VISION_SYSTEM_FALLBACK_DAILY_LIMIT` constant as the default. `VisionFallbackQuota` already takes `dailyLimit` as a constructor param, so the wiring is "resolve the configured value and pass it in" rather than a logic change. **Start**: `services/ai-worker/src/services/VisionFallbackQuota.ts` (already param-driven); the `adminSettings` resolution path in ai-worker.
+
+**Why inbox**: a real follow-up but not urgent — the constant default (100) is a sensible starting value; promote when the owner wants to tune it from observed traffic without a deploy.
