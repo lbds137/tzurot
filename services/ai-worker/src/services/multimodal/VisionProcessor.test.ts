@@ -214,6 +214,48 @@ describe('VisionProcessor', () => {
         expect(mockModelInvoke).toHaveBeenCalledTimes(1);
         expect(mockCheckModelVisionSupport).not.toHaveBeenCalled();
       });
+
+      it('uses options.model directly and SKIPS selectVisionModel when provided', async () => {
+        // The unified `resolveVisionConfig` may force a free-tier model that
+        // selectVisionModel would not reproduce for an authenticated user. When
+        // a pre-resolved model is passed, describeImage must honor it verbatim
+        // and not re-run the (Redis-touching) selection logic.
+        const personality = createMockPersonality({
+          // Both fields would normally drive selection; neither should be
+          // consulted because options.model wins.
+          model: 'gpt-4o',
+          visionModel: 'claude-3-opus',
+        });
+
+        await describeImage(mockAttachment, personality, false, undefined, {
+          model: 'google/gemma-4-31b-it:free',
+        });
+
+        expect(mockCreateChatModel).toHaveBeenCalledWith(
+          expect.objectContaining({
+            modelName: 'google/gemma-4-31b-it:free',
+          })
+        );
+        expect(mockModelInvoke).toHaveBeenCalledTimes(1);
+        // selectVisionModel's only I/O is checkModelVisionSupport — it must not
+        // be reached. (visionModel override would also short-circuit it, but
+        // asserting it here locks in that options.model bypasses selection.)
+        expect(mockCheckModelVisionSupport).not.toHaveBeenCalled();
+      });
+
+      it('falls back to selectVisionModel when options.model is an empty string', async () => {
+        mockCheckModelVisionSupport.mockResolvedValue(false);
+        const personality = createMockPersonality({
+          model: 'gpt-4',
+          visionModel: undefined,
+        });
+
+        await describeImage(mockAttachment, personality, false, undefined, { model: '' });
+
+        // Empty model is treated as "not provided" → self-selection runs.
+        expect(mockCheckModelVisionSupport).toHaveBeenCalledWith('gpt-4');
+        expect(mockModelInvoke).toHaveBeenCalledTimes(1);
+      });
     });
 
     describe('createChatModel configuration', () => {

@@ -10,6 +10,7 @@ import {
   AttachmentType,
   AIProvider,
   ApiErrorCategory,
+  MODEL_DEFAULTS,
   REDIS_KEY_PREFIXES,
   type LLMGenerationJobData,
   type LoadedPersonality,
@@ -969,14 +970,13 @@ describe('DependencyStep', () => {
       expect(result.preprocessing?.extendedContextAttachments).toHaveLength(1);
     });
 
-    it('degrades gracefully when apiKeyResolver throws (e.g., transient Redis failure)', async () => {
-      // Outer try/catch in processExtendedContextImages must catch resolver
-      // exceptions thrown OUTSIDE the processAttachments try (e.g., during
-      // `tryResolveUserKey` or `resolveApiKey`). Without that wrapping, a
-      // transient blip in apiKeyResolver would propagate up through the
-      // pipeline step and skip the graceful fallback the legacy path already
-      // has. This test pins the wrap so a future refactor can't quietly
-      // remove it.
+    it('degrades to fail-fast placeholder when apiKeyResolver throws (e.g., transient Redis failure)', async () => {
+      // `resolveVisionConfig` wraps its resolver calls in a try/catch that
+      // returns `failFast` on a transient throw, so a Redis blip during
+      // `tryResolveUserKey`/`resolveApiKey` no longer propagates up the pipeline.
+      // DependencyStep then emits the fail-fast placeholder (1 synthetic-failure
+      // entry) rather than silently dropping the images. This test pins that the
+      // throw is contained AND surfaces a user-visible placeholder.
       const tryResolveUserKey = vi.fn().mockRejectedValue(new Error('Redis blip'));
       const apiKeyResolver = {
         tryResolveUserKey,
@@ -990,8 +990,10 @@ describe('DependencyStep', () => {
 
       expect(tryResolveUserKey).toHaveBeenCalled();
       expect(mockProcessAttachments).not.toHaveBeenCalled();
-      // Empty array signals "couldn't process, but pipeline continues."
-      expect(result.preprocessing?.extendedContextAttachments).toEqual([]);
+      // Fail-fast placeholder: 1 attachment → 1 synthetic-failure entry.
+      const synthetic = result.preprocessing?.extendedContextAttachments;
+      expect(synthetic).toHaveLength(1);
+      expect(synthetic?.[0]?.description).toContain('check /settings apikey set');
     });
 
     it('routes guest-mode cross-provider through resolveApiKey (system fallback path)', async () => {
@@ -1094,11 +1096,69 @@ describe('DependencyStep', () => {
       expect(result.preprocessing?.extendedContextAttachments).toHaveLength(1);
     });
 
-    it('builds synthetic-failure entries when authenticated user lacks vision-provider key (fail-fast)', async () => {
+    it('downgrades to the free model on the system key when authenticated user lacks vision-provider key', async () => {
+      // BROAD FREE FALLBACK: authenticated user with no key for the vision
+      // provider (OpenRouter) no longer fails fast — they downgrade to the free
+      // vision model on the system key. processAttachments IS called, with the
+      // forced free model + system key threaded through.
       const tryResolveUserKey = vi.fn().mockResolvedValue(null);
+      const resolveApiKey = vi.fn().mockResolvedValue({
+        apiKey: 'system-or-key',
+        source: 'system',
+        provider: AIProvider.OpenRouter,
+        isGuestMode: true,
+        userId: 'cross-provider-user',
+      });
       const apiKeyResolver = {
         tryResolveUserKey,
-        resolveApiKey: vi.fn(),
+        resolveApiKey,
+      } as unknown as ConstructorParameters<typeof DependencyStep>[0];
+      const stepWithResolver = new DependencyStep(apiKeyResolver);
+
+      mockProcessAttachments.mockResolvedValueOnce([
+        {
+          type: AttachmentType.Image,
+          description: 'free-fallback success',
+          originalUrl: 'https://example.com/cp.jpg',
+          metadata: {
+            url: 'https://example.com/cp.jpg',
+            name: 'cp.jpg',
+            contentType: 'image/jpeg',
+            size: 1024,
+          },
+        },
+      ]);
+
+      const result = await stepWithResolver.process(buildCrossProviderContext());
+
+      // resolveApiKey was called for the free-fallback provider (OpenRouter).
+      expect(resolveApiKey).toHaveBeenCalledWith('cross-provider-user', AIProvider.OpenRouter);
+      // processAttachments received the forced free model + system key, isGuestMode=false.
+      expect(mockProcessAttachments).toHaveBeenCalledWith(
+        [expect.objectContaining({ url: 'https://example.com/cp.jpg' })],
+        CROSS_PROVIDER_PERSONALITY,
+        expect.objectContaining({
+          isGuestMode: false,
+          userApiKey: 'system-or-key',
+          visionProvider: AIProvider.OpenRouter,
+          model: MODEL_DEFAULTS.VISION_FALLBACK_FREE,
+          loggingContext: expect.objectContaining({ apiKeySource: 'system' }),
+        })
+      );
+      expect(result.preprocessing?.extendedContextAttachments).toHaveLength(1);
+    });
+
+    it('builds synthetic-failure entries when even the free-model system fallback is unavailable', async () => {
+      // Fallback-of-fallback: authenticated user lacks the vision-provider key
+      // AND no system OpenRouter key is configured (resolveApiKey throws). The
+      // step emits the source-aware "configure your key" placeholder.
+      const tryResolveUserKey = vi.fn().mockResolvedValue(null);
+      const resolveApiKey = vi
+        .fn()
+        .mockRejectedValue(new Error('No API key available for provider openrouter'));
+      const apiKeyResolver = {
+        tryResolveUserKey,
+        resolveApiKey,
       } as unknown as ConstructorParameters<typeof DependencyStep>[0];
       const stepWithResolver = new DependencyStep(apiKeyResolver);
 
@@ -1111,8 +1171,6 @@ describe('DependencyStep', () => {
       // Asserting the full argument shape (not just call count) self-documents
       // that `attachmentId: undefined` is intentional — fixtures don't include
       // an `id` field, and `getFailureKey` falls through to URL-hash keying.
-      // A future refactor that breaks the storeFailure contract would fail
-      // this assertion instead of slipping past on the count alone.
       expect(mockStoreFailure).toHaveBeenCalledTimes(1);
       expect(mockStoreFailure).toHaveBeenCalledWith({
         attachmentId: undefined,
