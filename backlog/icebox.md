@@ -375,3 +375,20 @@ Surfaced 2026-04-23.
 **Action**: when the preset dashboard renders a config whose model is a z.ai catalog member (`isZaiCodingPlanModel` / `z-ai/`-prefixed) AND the viewing user has no active z.ai-coding key, surface a "requires z.ai key" badge (or disable selection). The validation/runtime layers already key off `ZAI_MODEL_PREFIX` + `userHasActiveApiKey`; this is the display layer catching up.
 
 **Why icebox**: pure UX signal, no correctness impact (the runtime error is informative, just late). Related to [[the z.ai autocomplete item above]] — both are the display layer surfacing z.ai eligibility. **Promote when**: a non-key user hits the confusing runtime error on a global z.ai preset, or the z.ai autocomplete item is picked up (do them together). Surfaced 2026-06-14, claude-review on PR #1197.
+
+#### `[FEAT]` Free-tier piggyback on the owner's z.ai coding plan — GLM-4.5-Air only
+
+**Problem / motivation**: Free (guest) users currently fall back to the system `OPENROUTER_API_KEY` restricted to `:free` OpenRouter models (`ApiKeyResolver.resolveApiKey` → system key + `isGuestMode: true`). GLM-4.5-Air is a meaningfully better model than the free OpenRouter tier, and the owner's z.ai coding-plan subscription bills it at the cheapest 1× quota multiplier — so letting free users reach **only** GLM-4.5-Air via the owner's z.ai subscription is a low-cost quality bump for the free tier.
+
+**Action**:
+1. Add a **system z.ai coding key** env var (e.g. `ZAI_CODING_API_KEY`), the z.ai analogue of `OPENROUTER_API_KEY`. Today there is no system z.ai key — `ModelFactory.ts:430` explicitly notes the system `OPENROUTER_API_KEY` belongs to OpenRouter, not z.ai.
+2. In the routing layer (`ProviderRouter` / `ApiKeyResolver`), when a user has **no z.ai BYOK key** AND the requested model is **`glm-4.5-air`** (bare or `z-ai/`-prefixed), resolve the system z.ai key and route to z.ai-direct — instead of the OpenRouter guest fallback. All other models keep the existing free-OpenRouter behavior.
+3. Hard-restrict to `glm-4.5-air` only (NOT the 200K/1M GLM-5 tiers) so the owner's quota/cost exposure stays bounded to the cheapest model.
+
+**Constraints / things to design**:
+- **Quota/cost exposure**: free users consume the owner's paid z.ai quota. 1× multiplier + single-model restriction bounds per-request cost, but volume is unbounded without limits — reuse the existing OpenRouter abuse guards (`RateLimitCache`, `CreditExhaustionCache`) for the system z.ai key, and decide a per-user/global ceiling.
+- **Secret handling**: the z.ai key is a secret — Railway env var, never logged (same discipline as `OPENROUTER_API_KEY`).
+- **Interaction with shipped routing**: the catalog already has `glm-4.5-air` (128000) and the promotion machinery exists; this adds a *guest* path that uses the system z.ai key rather than a user BYOK key, and should set `isGuestMode` appropriately so other free-model restrictions still apply.
+- **Model gating**: `glm-4.5-air` isn't a `:free` OpenRouter model, so guest model-allowlist logic (`GUEST_MODE` / `isFreeModel`) needs a carve-out for this specific z.ai-direct case.
+
+**Why icebox**: a genuine free-tier improvement we'd do eventually, but it spends real money (owner's subscription) on anonymous traffic, so it needs a deliberate abuse/quota design pass before it's safe to ship — not a quick win. Surfaced 2026-06-14 (owner), off the back of the z.ai GLM-5 work.
