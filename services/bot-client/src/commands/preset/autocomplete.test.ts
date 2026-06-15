@@ -314,7 +314,7 @@ describe('handleAutocomplete', () => {
 
     it('responds with empty list when the admin endpoint fails', async () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
-        name: 'config',
+        name: 'preset',
         value: '',
       } as unknown as string);
       vi.mocked(mockInteraction.options.getSubcommand).mockReturnValue('set-default');
@@ -327,7 +327,7 @@ describe('handleAutocomplete', () => {
 
     it('lists global presets filtered by query, attaches GLOBAL + DEFAULT badges', async () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
-        name: 'config',
+        name: 'preset',
         value: 'claude',
       } as unknown as string);
       vi.mocked(mockInteraction.options.getSubcommand).mockReturnValue('set-default');
@@ -347,7 +347,7 @@ describe('handleAutocomplete', () => {
 
     it('restricts to free models when subcommand is free-default', async () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
-        name: 'config',
+        name: 'preset',
         value: '',
       } as unknown as string);
       vi.mocked(mockInteraction.options.getSubcommand).mockReturnValue('free-default');

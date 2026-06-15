@@ -390,17 +390,17 @@ export const personaDefaultOptions = defineTypedOptions({
 // =============================================================================
 
 /**
- * /preset global default <config>
+ * /preset global default <preset>
  */
 export const presetGlobalDefaultOptions = defineTypedOptions({
-  config: { type: 'string', required: true },
+  preset: { type: 'string', required: true },
 });
 
 /**
- * /preset global free-default <config>
+ * /preset global free-default <preset>
  */
 export const presetGlobalFreeDefaultOptions = defineTypedOptions({
-  config: { type: 'string', required: true },
+  preset: { type: 'string', required: true },
 });
 
 /**
