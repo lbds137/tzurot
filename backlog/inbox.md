@@ -115,19 +115,6 @@ _Shipped 2026-06-14 (#1205): per-user daily cap on system-key free-vision fallba
 
 **Why inbox**: a real follow-up but not urgent — the constant default (100) is a sensible starting value; promote when the owner wants to tune it from observed traffic without a deploy.
 
-### `[FEAT]` `commands:audit` — slash-command surface inventory + consistency gate
-
-**Surfaced 2026-06-14** (user), while scoping a new `/models` command — "I almost feel like we need an automated way to get the full skeleton of our currently implemented slash commands… check consistency of naming, params, structure." Greenlit to build next (plan-first).
-
-**Two layers:**
-
-1. **Inventory** — load all commands via the existing registration path (skeleton source: `services/bot-client/src/utils/deployCommands.ts` already serializes every command to Discord JSON via `.toJSON()`) and emit a tree of: command → subcommand-groups → subcommands → options (name, type, required, autocomplete, choices) + wired handlers (execute/autocomplete/button/modal) + category. Output `--format tree|md|json` (mirrors `pnpm ops xray`). The `md` form is the "see the whole surface at once" artifact.
-2. **Consistency checks** against `.claude/rules/04-discord.md`: subcommand-name conventions (`browse`/`view`/`create`/`edit`/`delete`); **cross-command option-name drift** (same concept → same option name — the `preset`/`config`/`character` worry); description presence/quality (this IS the user-facing guidance `/help` renders); `::` customId delimiter; **category coverage** (every command's category must exist in `/help`'s `CATEGORY_CONFIG` or it silently buckets to "Other"). Ratchet-able later per the audit-tool infra (`docs/reference/audit-enforcement.md`) if it graduates to a gate.
-
-**Pairs with**: the `/help` category-scheme deliberate revisit (the audit's category-coverage check is the enforcement; the scheme is the design). The immediate 6-in-"Other" gap was quick-fixed (#fix/help-category-coverage) — this is the durable prevention + the broader consistency surface. Lives in `packages/tooling/`.
-
-**Then**: use the inventory + consistency output to design the `/models`-browser command (icebox) against the existing surface instead of guessing.
-
 ### `[CHORE]` Triage the 13 `commands:audit` warnings on the current surface
 
 **Surfaced 2026-06-14** by the new `commands:audit` tool's first run against the real command surface (0 errors, **13 warnings** — warn-only, doesn't fail CI). Pre-existing drift the tool now makes visible. Categories:

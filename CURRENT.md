@@ -7,7 +7,7 @@
 
 ## Unreleased on Develop (since beta.131)
 
-_Nothing unreleased — develop is SHA-aligned with main at v3.0.0-beta.131._
+- **tooling:** `commands:audit` — slash-command surface inventory (`--format tree|md|json`) + 5 consistency checks (category-coverage, description-presence, subcommand-naming, option-name-drift, component-handler-completeness), wired into CI's `lint` job as an error-gating audit-class tool. Reads an auto-generated `command-manifest.json` (drift-guarded by `commandManifest.test.ts`) since bot-client command modules can't be imported outside their mocked test harness. (#1209)
 
 ---
 
