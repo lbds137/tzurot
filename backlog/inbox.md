@@ -115,18 +115,10 @@ _Shipped 2026-06-14 (#1205): per-user daily cap on system-key free-vision fallba
 
 **Why inbox**: a real follow-up but not urgent — the constant default (100) is a sensible starting value; promote when the owner wants to tune it from observed traffic without a deploy.
 
-### `[FIX]` Rename `/preset global` `config` option → `preset`
-
-**Surfaced 2026-06-14** by `commands:audit`'s option-name-drift check (the originally-flagged `preset`/`config` worry). In `/preset global default` and `/preset global free-default` the option is named `config` but its description is "Global preset to set as default" — it selects a preset, so it should be named `preset` like everywhere else on the surface.
-
-**Why not done in the #1210 triage**: not a pure rename. `preset/autocomplete.ts` discriminates user-presets vs global-presets **by the option name** (`name === 'preset'` → user presets at line 73; `name === 'config' && subcommandGroup === 'global'` → global presets at line 79). Renaming `config`→`preset` collapses that discriminator, so the autocomplete branch must be restructured to key off `subcommandGroup === 'global'` instead. Plus it's a command-structure change → `pnpm test:int` snapshot update + manifest regen.
-
-**Action**: rename the two `setName('config')` options in `services/bot-client/src/commands/preset/index.ts` (~L236, L248) → `preset`; restructure `preset/autocomplete.ts` to branch on subcommand group; update the execute-handler `getString('config')` read; update `preset/autocomplete.test.ts`; regen the manifest (`pnpm --filter @tzurot/bot-client test -- -u src/handlers/commandManifest.test.ts`) and run `pnpm test:int`. Clears 1 of the 4 remaining `commands:audit` warnings.
-
 ### `[CHORE]` Convert `/settings preset list` + `/voice list` to `browse`
 
 **Surfaced 2026-06-14** by `commands:audit`'s subcommand-naming check — two legacy `list` subcommands where `browse` (with a select menu) is the preferred convention per `.claude/rules/04-discord.md`. The tool's `list`-nudge is working as designed; these are the standing signals it leaves.
 
 **Action**: convert each to the `browse` pattern (select-menu pagination via the shared `utils/browse/*` helpers). Command-structure change → `pnpm test:int` snapshot update + manifest regen. Clears 2 of the 4 remaining `commands:audit` warnings. **Why a CHORE (not urgent)**: warn-level, UX-polish; the two `list` commands work fine as-is.
 
-> **Triage of the original 13 `commands:audit` warnings is complete** (closed by #1210): 1 tool false-positive fixed (stub regex), 6 deliberate verbs whitelisted, leaving the two entries above plus the accepted `type` int/string drift (`admin presence` vs `deny add` — unrelated concepts, no action).
+> **Triage of the original 13 `commands:audit` warnings is complete** (closed by #1210; preset/config rename shipped in #1211 → now 3 standing warnings): 1 tool false-positive fixed (stub regex), 6 deliberate verbs whitelisted, preset/config drift renamed, leaving the `list`→`browse` entry above plus the accepted `type` int/string drift (`admin presence` vs `deny add` — unrelated concepts, no action).
