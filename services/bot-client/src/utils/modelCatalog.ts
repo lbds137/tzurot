@@ -153,6 +153,7 @@ export async function fetchModelCatalog(
       supportsAudioOutput: false,
       promptPricePerMillion: 0,
       completionPricePerMillion: 0,
+      isRouter: false,
       isZaiCoding: true,
       docsUrl: z.docsUrl,
       source: 'zai-catalog',

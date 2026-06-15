@@ -76,10 +76,16 @@ function formatPriceShort(model: UsableCatalogModel): string {
   return `$${model.promptPricePerMillion.toFixed(2)} / $${model.completionPricePerMillion.toFixed(2)}`;
 }
 
-/** Capability emoji line, with a z.ai-coding marker appended when applicable. */
+/** Capability emoji line, with meta-router and z.ai-coding markers appended when applicable. */
 function capabilityLine(model: UsableCatalogModel): string {
-  const caps = formatCapabilities(model);
-  return model.isZaiCoding ? `${caps}${SEP}⚡ z.ai coding-plan` : caps;
+  const parts = [formatCapabilities(model)];
+  if (model.isRouter === true) {
+    parts.push('🔀 meta-router');
+  }
+  if (model.isZaiCoding) {
+    parts.push('⚡ z.ai coding-plan');
+  }
+  return parts.join(SEP);
 }
 
 /** Masked-markdown links (z.ai docs and/or the OpenRouter model page). */
@@ -99,7 +105,14 @@ function formatLinks(model: UsableCatalogModel): string | null {
  */
 export function buildModelCard(model: UsableCatalogModel): EmbedBuilder {
   const { provider, title } = splitName(model);
-  const source = isZaiOnly(model) ? 'z.ai coding plan' : 'OpenRouter';
+  // `both`-source models route via either OpenRouter (the shown pricing) or a
+  // z.ai coding-plan key, so name both — footering "via OpenRouter" alone
+  // misleads a z.ai-key-only viewer.
+  const source = isZaiOnly(model)
+    ? 'z.ai coding plan'
+    : model.source === 'both'
+      ? 'OpenRouter (also z.ai coding-plan)'
+      : 'OpenRouter';
 
   const embed = new EmbedBuilder()
     .setColor(model.canUse ? DISCORD_COLORS.SUCCESS : DISCORD_COLORS.WARNING)

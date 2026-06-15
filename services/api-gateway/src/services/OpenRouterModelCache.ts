@@ -259,6 +259,9 @@ export class OpenRouterModelCache {
       promptPricePerMillion: isNaN(promptPrice) ? 0 : promptPrice,
       completionPricePerMillion: isNaN(completionPrice) ? 0 : completionPrice,
       created: model.created,
+      // Meta-routers (openrouter/auto, fusion, …) report a null top-provider
+      // context length — their effective context depends on what they route to.
+      isRouter: model.top_provider.context_length === null,
     };
   }
 }

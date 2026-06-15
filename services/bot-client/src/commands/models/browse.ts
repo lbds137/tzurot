@@ -82,25 +82,44 @@ export function isModelsBrowseSelectInteraction(customId: string): boolean {
   return browseHelpers.isBrowseSelect(customId);
 }
 
+/**
+ * A catalog model annotated for the browse list. `isGlobalPreset` flags models
+ * used by one of Tzurot's global presets — these pin to the top of every sort.
+ */
+type BrowseModel = UsableCatalogModel & { isGlobalPreset: boolean };
+
 /** Price rank for the `price` sort: free/cheapest first, no-$ (z.ai/router) last. */
 function priceRank(model: UsableCatalogModel): number {
   return model.hasPricing ? model.promptPricePerMillion : Number.POSITIVE_INFINITY;
 }
 
 /** Sort the annotated models by the active sort mode (stable, name tie-break). */
-function sortModels(models: UsableCatalogModel[], sort: ModelSort): UsableCatalogModel[] {
-  const byName = (a: UsableCatalogModel, b: UsableCatalogModel): number =>
-    a.name.localeCompare(b.name);
+function sortModels<T extends UsableCatalogModel>(models: T[], sort: ModelSort): T[] {
+  const byName = (a: T, b: T): number => a.name.localeCompare(b.name);
   if (sort === 'price') {
     return [...models].sort((a, b) => priceRank(a) - priceRank(b) || byName(a, b));
   }
   if (sort === 'recent') {
     // Newest first; models without a `created` timestamp (z.ai-catalog-only) last.
-    const at = (m: UsableCatalogModel): number => m.created ?? Number.NEGATIVE_INFINITY;
+    const at = (m: T): number => m.created ?? Number.NEGATIVE_INFINITY;
     return [...models].sort((a, b) => at(b) - at(a) || byName(a, b));
   }
   // default: usable-first, then alphabetical.
   return [...models].sort((a, b) => (a.canUse === b.canUse ? byName(a, b) : a.canUse ? -1 : 1));
+}
+
+/**
+ * Two-tier sort: global-preset models first, the rest after — with the active
+ * sort applied independently WITHIN each tier (per product spec). With no
+ * pinned models this collapses to a plain `sortModels`.
+ */
+function sortModelsPinned(models: BrowseModel[], sort: ModelSort): BrowseModel[] {
+  const pinned: BrowseModel[] = [];
+  const rest: BrowseModel[] = [];
+  for (const m of models) {
+    (m.isGlobalPreset ? pinned : rest).push(m);
+  }
+  return [...sortModels(pinned, sort), ...sortModels(rest, sort)];
 }
 
 /** Per-model usability marker for the list/select. */
@@ -112,20 +131,25 @@ function usabilityIcon(model: UsableCatalogModel): string {
 }
 
 /** A single description line for a model in the browse list. */
-function formatModelLine(model: UsableCatalogModel, displayIndex: number): string {
-  const zai = model.isZaiCoding ? ' ⚡' : '';
-  const caps = [model.supportsVision ? '👁️' : '', model.supportsImageGeneration ? '🎨' : '']
+function formatModelLine(model: BrowseModel, displayIndex: number): string {
+  const badges = [
+    model.isGlobalPreset ? '📌' : '',
+    model.isRouter === true ? '🔀' : '',
+    model.isZaiCoding ? '⚡' : '',
+    model.supportsVision ? '👁️' : '',
+    model.supportsImageGeneration ? '🎨' : '',
+  ]
     .filter(Boolean)
-    .join('');
-  const capsSuffix = caps.length > 0 ? ` ${caps}` : '';
+    .join(' ');
+  const badgeSuffix = badges.length > 0 ? ` ${badges}` : '';
   return (
-    `**${displayIndex}.** ${usabilityIcon(model)} ${model.name}${zai}${capsSuffix}\n` +
+    `**${displayIndex}.** ${usabilityIcon(model)} ${model.name}${badgeSuffix}\n` +
     `   └ \`${model.id}\` • ${formatContextLength(model.contextLength)}`
   );
 }
 
 interface BrowseView {
-  items: UsableCatalogModel[];
+  items: BrowseModel[];
   page: number;
   capability: CapabilityFilter;
   sort: ModelSort;
@@ -140,7 +164,7 @@ const ACTIVE_SORT_LABEL: Record<ModelSort, string> = {
   recent: 'newest first',
 };
 
-function buildBrowseEmbed(view: BrowseView, pageItems: UsableCatalogModel[]): EmbedBuilder {
+function buildBrowseEmbed(view: BrowseView, pageItems: BrowseModel[]): EmbedBuilder {
   const { items, page, capability, sort, search, capped } = view;
   const startIdx = page * MODELS_PER_PAGE;
 
@@ -167,7 +191,7 @@ function buildBrowseEmbed(view: BrowseView, pageItems: UsableCatalogModel[]): Em
     text: joinFooter(
       pluralize(items.length, { singular: 'model', plural: 'models' }),
       capped && `first ${BROWSE_FETCH_LIMIT} — refine with search for more`,
-      '🆓 free  ✅ you can use  🔒 needs a key  ⚡ z.ai'
+      '🆓 free  ✅ you can use  🔒 needs a key  📌 global preset  🔀 router  ⚡ z.ai'
     ),
   });
   return embed;
@@ -175,14 +199,14 @@ function buildBrowseEmbed(view: BrowseView, pageItems: UsableCatalogModel[]): Em
 
 function buildBrowseComponents(
   view: BrowseView,
-  pageItems: UsableCatalogModel[],
+  pageItems: BrowseModel[],
   totalPages: number
 ): BrowseActionRow[] {
   const { page, capability, sort, search } = view;
   const startIdx = page * MODELS_PER_PAGE;
   const components: BrowseActionRow[] = [];
 
-  const selectRow = buildBrowseSelectMenu<UsableCatalogModel>({
+  const selectRow = buildBrowseSelectMenu<BrowseModel>({
     items: pageItems,
     customId: browseHelpers.buildSelect(page, capability, sort, search),
     placeholder: 'Select a model to view its card...',
@@ -226,22 +250,38 @@ function buildBrowsePage(view: BrowseView): { embed: EmbedBuilder; components: B
   };
 }
 
-/** Fetch the merged catalog + the user's active key providers, then annotate + sort. */
+/**
+ * Fetch the merged catalog + the user's active key providers + the global
+ * presets, then annotate usability, flag global-preset models, and apply the
+ * pinned two-tier sort. All three gateway reads run concurrently; the wallet
+ * and preset reads degrade to empty on failure (no usability/pin info rather
+ * than a failed browse).
+ */
 async function loadAnnotatedModels(
   interaction: ClientCarryingInteraction,
   capability: CapabilityFilter,
   search: string | null,
   sort: ModelSort
-): Promise<UsableCatalogModel[]> {
+): Promise<BrowseModel[]> {
   const { userClient } = clientsFor(interaction);
-  const [catalog, walletResult] = await Promise.all([
+  const [catalog, walletResult, configsResult] = await Promise.all([
     fetchModelCatalog({ capability, search: search ?? undefined, limit: BROWSE_FETCH_LIMIT }),
     userClient.listWalletKeys(),
+    userClient.listUserLlmConfigs(),
   ]);
   const activeProviders = new Set(
     walletResult.ok ? walletResult.data.keys.filter(k => k.isActive).map(k => k.provider) : []
   );
-  return sortModels(annotateUsability(catalog, activeProviders), sort);
+  const globalPresetModelIds = new Set(
+    configsResult.ok
+      ? configsResult.data.configs.filter(c => c.isGlobal).map(c => c.model.toLowerCase())
+      : []
+  );
+  const annotated = annotateUsability(catalog, activeProviders).map<BrowseModel>(m => ({
+    ...m,
+    isGlobalPreset: globalPresetModelIds.has(m.id.toLowerCase()),
+  }));
+  return sortModelsPinned(annotated, sort);
 }
 
 /**
