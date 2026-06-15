@@ -21,14 +21,14 @@
     "typecheck:spec": "tsc --noEmit --project tsconfig.spec.json"
   },
   "dependencies": {
-    "@langchain/core": "^1.1.48",
+    "@langchain/core": "^1.1.49",
     "@langchain/openai": "^1.4.7",
     "@tzurot/common-types": "workspace:*",
     "@tzurot/embeddings": "workspace:*",
-    "bullmq": "^5.78.0",
-    "fast-xml-parser": "^5.8.0",
+    "bullmq": "^5.78.1",
+    "fast-xml-parser": "^5.9.0",
     "ioredis": "^5.11.1",
-    "langchain": "^1.4.4",
+    "langchain": "^1.4.5",
     "onnxruntime-node": "^1.26.0",
     "pino": "^10.3.1",
     "sharp": "^0.35.1",
