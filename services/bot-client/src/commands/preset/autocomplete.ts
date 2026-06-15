@@ -71,17 +71,19 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
 
   try {
     if (focusedOption.name === 'preset') {
-      await handlePresetAutocomplete(interaction, focusedOption.value, userId);
+      // The 'preset' option appears in both user-scoped subcommands (suggest the
+      // user's own + global presets) and the owner-only 'global' group (suggest
+      // global presets only). Discriminate by subcommand group, not option name.
+      if (subcommandGroup === 'global') {
+        const freeOnly = subcommand === 'free-default';
+        await handleGlobalConfigAutocomplete(interaction, focusedOption.value, freeOnly);
+      } else {
+        await handlePresetAutocomplete(interaction, focusedOption.value, userId);
+      }
     } else if (focusedOption.name === 'model') {
       await handleModelAutocomplete(interaction, focusedOption.value);
     } else if (focusedOption.name === 'vision-model') {
       await handleVisionModelAutocomplete(interaction, focusedOption.value);
-    } else if (focusedOption.name === 'config' && subcommandGroup === 'global') {
-      // Global config autocomplete (for owner-only commands)
-      // Note: 'config' option is currently only used in the 'global' subcommand group.
-      // If future subcommands also use 'config', this condition will need updating.
-      const freeOnly = subcommand === 'free-default';
-      await handleGlobalConfigAutocomplete(interaction, focusedOption.value, freeOnly);
     } else {
       await interaction.respond([]);
     }

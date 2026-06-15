@@ -233,7 +233,7 @@ export default defineCommand({
             .setDescription('Set a global preset as the system default (Owner only)')
             .addStringOption(option =>
               option
-                .setName('config')
+                .setName('preset')
                 .setDescription('Global preset to set as default')
                 .setRequired(true)
                 .setAutocomplete(true)
@@ -245,7 +245,7 @@ export default defineCommand({
             .setDescription('Set a global preset as the free tier default (Owner only)')
             .addStringOption(option =>
               option
-                .setName('config')
+                .setName('preset')
                 .setDescription('Global preset to set as free tier default')
                 .setRequired(true)
                 .setAutocomplete(true)
