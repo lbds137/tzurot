@@ -63,6 +63,7 @@ import { requireServiceAuth } from './services/AuthMiddleware.js';
 import {
   createRedisPublicRouteRateLimiter,
   createRedisWalletRateLimiter,
+  createRedisWalletReadRateLimiter,
 } from './utils/RedisRateLimiter.js';
 import {
   initializeEmbeddingService,
@@ -309,7 +310,17 @@ function registerRoutes(app: Express, prisma: PrismaClient, services: ServicesCo
     queueEvents,
   };
 
-  app.use('/api/user/wallet', createRedisWalletRateLimiter(cacheRedis));
+  // Wallet rate limiting, scoped by method+path (registered before the codegen
+  // mounts below so these pass-through limiters run ahead of the handlers).
+  // Mutations + key validation make external calls / are sensitive → strict
+  // budget. The read path (`GET /wallet/list`) is hot (the /models browser reads
+  // keys on every interaction) → a generous per-minute bucket, so browsing can't
+  // exhaust the mutation budget and falsely flip models to "needs a key".
+  const walletWriteLimiter = createRedisWalletRateLimiter(cacheRedis);
+  app.post('/api/user/wallet/set', walletWriteLimiter);
+  app.post('/api/user/wallet/test', walletWriteLimiter);
+  app.delete('/api/user/wallet/:provider', walletWriteLimiter);
+  app.get('/api/user/wallet/list', createRedisWalletReadRateLimiter(cacheRedis));
   mountInternalRoutes(app, routeDeps);
   mountAdminRoutes(app, routeDeps);
   mountUserRoutes(app, routeDeps);
