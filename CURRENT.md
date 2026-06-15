@@ -8,6 +8,7 @@
 ## Unreleased on Develop (since beta.131)
 
 - **tooling:** `commands:audit` — slash-command surface inventory (`--format tree|md|json`) + 5 consistency checks (category-coverage, description-presence, subcommand-naming, option-name-drift, component-handler-completeness), wired into CI's `lint` job as an error-gating audit-class tool. Reads an auto-generated `command-manifest.json` (drift-guarded by `commandManifest.test.ts`) since bot-client command modules can't be imported outside their mocked test harness. (#1209)
+- **tooling:** triaged `commands:audit`'s first-run warnings 13 → 4 — fixed the stub-description regex false-positive (legit "Test …" descriptions) and whitelisted 6 deliberate domain verbs (`get`/`set-default`/`clear-default`/`forget`/`auth`/`logout`). Remaining 4 are tracked: preset `config`→`preset` rename + two `list`→`browse` conversions (inbox), and the accepted `type` int/string drift. (#1210)
 
 ---
 
