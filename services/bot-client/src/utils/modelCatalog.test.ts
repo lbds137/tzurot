@@ -18,6 +18,8 @@ import {
   fetchCatalogModelById,
   annotateUsability,
   formatCapabilities,
+  zaiDisplayName,
+  zaiReleasedToUnix,
   type CatalogModel,
 } from './modelCatalog.js';
 
@@ -246,5 +248,26 @@ describe('formatCapabilities', () => {
     expect(out).toContain('vision');
     expect(out).toContain('audio-in');
     expect(out).not.toContain('image-gen');
+  });
+});
+
+describe('zaiDisplayName', () => {
+  it('upper-cases recognized acronyms and title-cases the rest', () => {
+    expect(zaiDisplayName('glm-5.2')).toBe('GLM-5.2');
+    expect(zaiDisplayName('glm-5-turbo')).toBe('GLM-5-Turbo');
+    // Acronym set covers more than GLM (forward-looking for future z.ai-only slugs).
+    expect(zaiDisplayName('glm-4-vl')).toBe('GLM-4-VL');
+    expect(zaiDisplayName('deepseek-r1')).toBe('Deepseek-R1');
+  });
+});
+
+describe('zaiReleasedToUnix', () => {
+  it('converts an ISO date to Unix seconds', () => {
+    expect(zaiReleasedToUnix('2026-06-13')).toBe(Math.floor(Date.parse('2026-06-13') / 1000));
+  });
+
+  it('returns undefined for a missing or malformed date (never NaN)', () => {
+    expect(zaiReleasedToUnix(undefined)).toBeUndefined();
+    expect(zaiReleasedToUnix('not-a-date')).toBeUndefined();
   });
 });

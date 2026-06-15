@@ -310,17 +310,24 @@ function registerRoutes(app: Express, prisma: PrismaClient, services: ServicesCo
     queueEvents,
   };
 
-  // Wallet rate limiting, scoped by method+path (registered before the codegen
-  // mounts below so these pass-through limiters run ahead of the handlers).
-  // Mutations + key validation make external calls / are sensitive → strict
-  // budget. The read path (`GET /wallet/list`) is hot (the /models browser reads
-  // keys on every interaction) → a generous per-minute bucket, so browsing can't
-  // exhaust the mutation budget and falsely flip models to "needs a key".
+  // Wallet rate limiting (registered before the codegen mounts so these
+  // pass-through limiters run ahead of the handlers). Two layers:
+  //   1. A LENIENT baseline on the whole `/api/user/wallet` prefix — keeps the
+  //      old blanket's safe-by-default property: any wallet route (incl. ones
+  //      added later) is throttled even if nobody updates this block.
+  //   2. The STRICT mutation budget layered on top of the sensitive/external
+  //      routes (set / test / delete). On a mutation both run in registration
+  //      order — lenient (60/min) first, then strict (10/15min) — but strict is
+  //      the EFFECTIVE ceiling: mutations hit 10/15min long before the lenient
+  //      limit, so they stay tightly capped. The hot read (`GET /wallet/list`,
+  //      hit by the /models browser on every interaction) only ever pays the
+  //      generous 60/min baseline — browsing can't exhaust the mutation budget
+  //      and falsely flip models to "needs a key".
+  app.use('/api/user/wallet', createRedisWalletReadRateLimiter(cacheRedis));
   const walletWriteLimiter = createRedisWalletRateLimiter(cacheRedis);
   app.post('/api/user/wallet/set', walletWriteLimiter);
   app.post('/api/user/wallet/test', walletWriteLimiter);
   app.delete('/api/user/wallet/:provider', walletWriteLimiter);
-  app.get('/api/user/wallet/list', createRedisWalletReadRateLimiter(cacheRedis));
   mountInternalRoutes(app, routeDeps);
   mountAdminRoutes(app, routeDeps);
   mountUserRoutes(app, routeDeps);

@@ -63,12 +63,35 @@ export interface FetchCatalogOptions {
   limit?: number;
 }
 
+/**
+ * Conventional acronyms that should render fully upper-case in a z.ai display
+ * name (vs. the default title-case). Only matters for z.ai-catalog-ONLY models;
+ * on-OpenRouter models use OpenRouter's own `name`.
+ */
+const ZAI_NAME_ACRONYMS = new Set(['GLM', 'VL', 'VLM', 'R1', 'V1', 'MOE']);
+
 /** Render a z.ai catalog key as a display name: `glm-5-turbo` → `GLM-5-Turbo`. */
-function zaiDisplayName(model: string): string {
+export function zaiDisplayName(model: string): string {
   return model
     .split('-')
-    .map(seg => (seg.toLowerCase() === 'glm' ? 'GLM' : seg.charAt(0).toUpperCase() + seg.slice(1)))
+    .map(seg => {
+      const upper = seg.toUpperCase();
+      return ZAI_NAME_ACRONYMS.has(upper) ? upper : seg.charAt(0).toUpperCase() + seg.slice(1);
+    })
     .join('-');
+}
+
+/**
+ * Convert a catalog ISO release date to OpenRouter's `created` format (Unix
+ * seconds). Returns undefined for a missing OR malformed date — a bad string
+ * must NOT become `NaN`, which would corrupt the recency sort comparator.
+ */
+export function zaiReleasedToUnix(released: string | undefined): number | undefined {
+  if (released === undefined) {
+    return undefined;
+  }
+  const ms = Date.parse(released);
+  return Number.isNaN(ms) ? undefined : Math.floor(ms / 1000);
 }
 
 /** Build a CatalogModel from an OpenRouter option. */
@@ -156,6 +179,9 @@ export async function fetchModelCatalog(
       supportsAudioOutput: false,
       promptPricePerMillion: 0,
       completionPricePerMillion: 0,
+      // ISO release date → `created` (Unix seconds) so the recency sort ranks
+      // z.ai-only models correctly. Undefined when unknown/malformed → sorts last.
+      created: zaiReleasedToUnix(z.released),
       isRouter: false,
       isZaiCoding: true,
       docsUrl: z.docsUrl,
