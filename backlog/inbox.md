@@ -4,7 +4,9 @@ _New items go here. Triage to appropriate section weekly._
 
 ### `[FEAT]` `/models` v2 — sorting + curation
 
-**Surfaced 2026-06-14 (user)**, reviewing the `/models` v1 (#1212, shipped). v1 is browse/view + user-aware usability + z.ai merge + all ~337 models. v2 makes browse genuinely useful:
+**Surfaced 2026-06-14 (user)**, reviewing the `/models` v1 (#1212, shipped). v1 is browse/view + user-aware usability + z.ai merge + all ~337 models. v2 makes browse genuinely useful.
+
+**Part 1 — card redesign — DONE (#1214):** spec-sheet layout (usability color bar, provider author, hyperlinked title, short inline fields, masked links). Remaining parts below.
 
 1. **Sort by price** — cheapest-first (free → paid → variable/routers last). Data's already on `ModelAutocompleteOption` (`promptPricePerMillion`).
 2. **Sort by recency** — "recently released" via OpenRouter's `created` timestamp. **Needs plumbing**: `created` is in the raw `/models` payload but dropped by `toAutocompleteOption` (`OpenRouterModelCache.ts`) — thread it through `ModelAutocompleteOption` → `CatalogModel`.
@@ -16,6 +18,7 @@ _New items go here. Triage to appropriate section weekly._
 - `fetchCatalogModelById` uses the implicit 100 default — make `limit` explicit (1000) or comment why it's sufficient.
 - `handleBrowse` capability/search path is untested (filtering is covered in `modelCatalog.test`, but the handler pass-through isn't); add a case.
 - Optional 🔀 **router badge** for `top_provider.context_length === null` models (auto/fusion/etc.) — distinguishes meta-routers from concrete models in the list.
+- **`both`-source card footer** says "via OpenRouter" exclusively (#1214 review) — a z.ai-key-only user reading a `z-ai/glm-5` card is misled. When the curation work reworks `both`-source display, make the footer name both routes (the ⚡ z.ai-coding marker in the capability line already hints it; the footer attributes the shown OpenRouter pricing).
 
 **Explicitly NOT in scope**: availability filtering. Confirmed moot — OpenRouter's `/models` only lists available models (every model has free or paid pricing; "zero providers" isn't in the bulk payload anyway).
 
