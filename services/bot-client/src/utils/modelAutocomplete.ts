@@ -6,22 +6,14 @@
  */
 
 import {
-  getConfig,
   createLogger,
   AUTOCOMPLETE_BADGES,
   formatAutocompleteOption,
   type ModelAutocompleteOption,
 } from '@tzurot/common-types';
+import { getServiceClient } from './gatewayClients.js';
 
 const logger = createLogger('model-autocomplete-client');
-
-/**
- * Response from /models endpoint
- */
-interface ModelsResponse {
-  models: ModelAutocompleteOption[];
-  count: number;
-}
 
 /**
  * Options for fetching models
@@ -40,24 +32,13 @@ interface FetchModelsOptions {
 }
 
 /**
- * Get the gateway URL
- */
-function getGatewayUrl(): string | null {
-  const config = getConfig();
-  const gatewayUrl = config.GATEWAY_URL;
-
-  if (gatewayUrl === undefined || gatewayUrl === null || gatewayUrl.length === 0) {
-    return null;
-  }
-
-  return gatewayUrl;
-}
-
-/**
- * Fetch available models from the API gateway
+ * Fetch available models from the API gateway's cached OpenRouter list.
  *
- * Uses the cached OpenRouter model list in api-gateway.
- * This endpoint is public (no auth required).
+ * Goes through the typed `ServiceClient` (not a raw fetch) so the
+ * `X-Service-Auth` header is attached automatically — the `/api/internal/models`
+ * endpoint is public re: user auth but service-auth-gated like every
+ * bot-client → gateway call. The capability flags map to the single
+ * input/output-modality query pair the endpoint exposes.
  *
  * @param options - Filter options
  * @returns Array of model autocomplete options, or empty array on error
@@ -65,66 +46,36 @@ function getGatewayUrl(): string | null {
 export async function fetchModels(
   options: FetchModelsOptions = {}
 ): Promise<ModelAutocompleteOption[]> {
-  const gatewayUrl = getGatewayUrl();
+  const query: {
+    inputModality?: string;
+    outputModality?: string;
+    search?: string;
+    limit?: string;
+  } = {};
 
-  if (gatewayUrl === null) {
-    logger.warn({ gatewayUrl: 'not configured' }, 'Gateway URL not configured');
-    return [];
+  if (options.textOnly === true) {
+    query.outputModality = 'text';
+  } else if (options.visionOnly === true) {
+    query.inputModality = 'image';
+  } else if (options.imageGenOnly === true) {
+    query.outputModality = 'image';
+  }
+  if (options.search !== undefined && options.search.length > 0) {
+    query.search = options.search;
+  }
+  if (options.limit !== undefined && options.limit > 0) {
+    // String for the URL query param; the route manifest coerces it back to a
+    // number (z.coerce.number).
+    query.limit = String(options.limit);
   }
 
   try {
-    // Build the endpoint path based on options
-    let endpoint = '/models';
-
-    if (options.textOnly === true) {
-      endpoint = '/models/text';
-    } else if (options.visionOnly === true) {
-      endpoint = '/models/vision';
-    } else if (options.imageGenOnly === true) {
-      endpoint = '/models/image-generation';
-    }
-
-    // Build query string
-    const params = new URLSearchParams();
-    const searchQuery = options.search;
-    if (searchQuery !== undefined && searchQuery.length > 0) {
-      params.set('search', searchQuery);
-    }
-    if (options.limit !== undefined && options.limit > 0) {
-      params.set('limit', String(options.limit));
-    }
-
-    const queryString = params.toString();
-    const url =
-      queryString.length > 0
-        ? `${gatewayUrl}${endpoint}?${queryString}`
-        : `${gatewayUrl}${endpoint}`;
-
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      logger.warn({ status: response.status, endpoint }, 'Failed to fetch models');
+    const result = await getServiceClient().getModels(query);
+    if (!result.ok) {
+      logger.warn({ error: result.error }, 'Failed to fetch models');
       return [];
     }
-
-    const data = (await response.json()) as ModelsResponse;
-
-    logger.debug(
-      {
-        count: data.count,
-        textOnly: options.textOnly,
-        visionOnly: options.visionOnly,
-        search: options.search,
-      },
-      'Fetched models'
-    );
-
-    return data.models;
+    return result.data.models;
   } catch (error) {
     logger.error({ err: error }, 'Error fetching models');
     return [];

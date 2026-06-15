@@ -42,6 +42,7 @@ import { handlePersistUserMessage } from '../internal/conversationUserMessage.js
 import { handleSyncConversation } from '../internal/conversationSync.js';
 import { handleLoadPersonalityInternal } from '../internal/personalityLoad.js';
 import { handleRecentUsers } from '../internal/usersRecent.js';
+import { handleGetModels } from '../internal/models.js';
 import { handleGetDenylistCache, handleAddDenylistEntry, handleListDenylistEntries, handleRemoveDenylistEntry } from '../admin/denylist.js';
 import { handleUpdateDiagnosticResponseIds, handleGetRecentDiagnostics, handleGetDiagnosticByMessage, handleGetDiagnosticByResponse, handleGetDiagnosticByRequestId } from '../admin/diagnostic.js';
 import { handleGetUserChannel } from '../user/channel/get.js';
@@ -107,6 +108,7 @@ export function mountInternalRoutes(app: Express, deps: RouteDeps): void {
   app.post('/api/internal/conversation/sync', handleSyncConversation(deps));
   app.get('/api/internal/personality/load', handleLoadPersonalityInternal(deps));
   app.get('/api/internal/users/recent', handleRecentUsers(deps));
+  app.get('/api/internal/models', handleGetModels(deps));
   app.get('/api/internal/denylist/cache', handleGetDenylistCache(deps));
   app.get('/api/internal/admin-settings', handleGetAdminSettings(deps));
   app.get('/api/internal/ai/job/:jobId', handleAiJobStatus(deps));

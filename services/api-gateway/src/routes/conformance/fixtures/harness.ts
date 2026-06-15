@@ -54,6 +54,23 @@ export function authHeaders(): Record<string, string> {
   };
 }
 
+/**
+ * Canned model returned by the harness's fake `modelCache` (see deps below).
+ * Shaped as a `ModelAutocompleteOption`; cast at the use site to avoid coupling
+ * the harness to that import.
+ */
+const CONFORMANCE_SAMPLE_MODEL = {
+  id: 'anthropic/claude-sonnet-4',
+  name: 'Claude Sonnet 4',
+  contextLength: 200_000,
+  supportsVision: true,
+  supportsImageGeneration: false,
+  supportsAudioInput: false,
+  supportsAudioOutput: false,
+  promptPricePerMillion: 3,
+  completionPricePerMillion: 15,
+};
+
 export interface ConformanceHarness {
   app: Express;
   ctx: SeedContext;
@@ -116,6 +133,17 @@ export async function buildConformanceHarness(): Promise<ConformanceHarness> {
       undefined as unknown as ConstructorParameters<typeof CacheInvalidationService>[1]
     ),
     retentionService: new ConversationRetentionService(prisma),
+    // Fake model cache: OpenRouterModelCache wraps Redis + live OpenRouter HTTP,
+    // neither of which the PGLite harness has. A canned model lets the getModels
+    // fixture validate the output schema AND keeps the llm-config handlers'
+    // getModelById enrichment path working (it previously no-op'd because
+    // modelCache was absent; now it resolves to a valid model). Implement every
+    // method handlers call (getFilteredModels, getModelById) so a partial fake
+    // can't silently bypass a `if (modelCache)` guard elsewhere.
+    modelCache: {
+      getFilteredModels: () => Promise.resolve([CONFORMANCE_SAMPLE_MODEL]),
+      getModelById: () => Promise.resolve(CONFORMANCE_SAMPLE_MODEL),
+    } as unknown as RouteDeps['modelCache'],
   };
 
   // aiGenerate's dedup check runs through the real RedisDeduplicationCache

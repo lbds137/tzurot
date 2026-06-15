@@ -2,25 +2,25 @@
  * Tests for Model Autocomplete utilities
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ModelAutocompleteOption } from '@tzurot/common-types';
+import type { ServiceClient } from '@tzurot/clients';
+import { makeOk, makeErr } from '../test/gatewayClientStubs.js';
 
-// Mock dependencies before imports
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
     ...actual,
-    getConfig: vi.fn(() => ({
-      GATEWAY_URL: 'http://localhost:3000',
-    })),
-    createLogger: () => ({
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    }),
+    createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
   };
 });
+
+// fetchModels now goes through the typed ServiceClient (auth-injecting transport)
+// rather than a raw fetch, so mock the client, not global.fetch.
+const getModelsMock = vi.fn();
+vi.mock('./gatewayClients.js', () => ({
+  getServiceClient: vi.fn(() => ({ getModels: getModelsMock }) as unknown as ServiceClient),
+}));
 
 import {
   fetchModels,
@@ -28,9 +28,7 @@ import {
   fetchVisionModels,
   formatModelChoice,
 } from './modelAutocomplete.js';
-import { getConfig } from '@tzurot/common-types';
 
-// Sample model data
 const sampleTextModels: ModelAutocompleteOption[] = [
   {
     id: 'anthropic/claude-sonnet-4',
@@ -41,17 +39,6 @@ const sampleTextModels: ModelAutocompleteOption[] = [
     supportsAudioInput: false,
     supportsAudioOutput: false,
     promptPricePerMillion: 3,
-    completionPricePerMillion: 15,
-  },
-  {
-    id: 'openai/gpt-4o',
-    name: 'OpenAI: GPT-4o',
-    contextLength: 128000,
-    supportsVision: true,
-    supportsImageGeneration: false,
-    supportsAudioInput: false,
-    supportsAudioOutput: false,
-    promptPricePerMillion: 5,
     completionPricePerMillion: 15,
   },
 ];
@@ -70,223 +57,80 @@ const sampleVisionModels: ModelAutocompleteOption[] = [
   },
 ];
 
+function okModels(models: ModelAutocompleteOption[]) {
+  return makeOk({ models, count: models.length });
+}
+
 describe('modelAutocomplete', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    global.fetch = vi.fn();
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
+    getModelsMock.mockResolvedValue(okModels([]));
   });
 
   describe('fetchModels', () => {
-    it('should return empty array when gateway URL is not configured', async () => {
-      vi.mocked(getConfig).mockReturnValue({
-        GATEWAY_URL: undefined,
-      } as unknown as ReturnType<typeof getConfig>);
-
-      const models = await fetchModels();
-
-      expect(models).toEqual([]);
-      expect(global.fetch).not.toHaveBeenCalled();
-    });
-
-    it('should fetch models from gateway', async () => {
-      vi.mocked(getConfig).mockReturnValue({
-        GATEWAY_URL: 'http://localhost:3000',
-      } as ReturnType<typeof getConfig>);
-
-      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ models: sampleTextModels, count: 2 }),
-      });
+    it('calls the typed client and returns its model list', async () => {
+      getModelsMock.mockResolvedValue(okModels(sampleTextModels));
 
       const models = await fetchModels();
 
       expect(models).toEqual(sampleTextModels);
-      expect(global.fetch).toHaveBeenCalledWith(
-        'http://localhost:3000/models',
-        expect.objectContaining({
-          method: 'GET',
-        })
-      );
+      expect(getModelsMock).toHaveBeenCalledWith({});
     });
 
-    it('should use /models/text endpoint when textOnly is true', async () => {
-      vi.mocked(getConfig).mockReturnValue({
-        GATEWAY_URL: 'http://localhost:3000',
-      } as ReturnType<typeof getConfig>);
-
-      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ models: sampleTextModels, count: 2 }),
-      });
-
+    it('maps textOnly → outputModality=text', async () => {
       await fetchModels({ textOnly: true });
-
-      expect(global.fetch).toHaveBeenCalledWith(
-        'http://localhost:3000/models/text',
-        expect.any(Object)
-      );
+      expect(getModelsMock).toHaveBeenCalledWith({ outputModality: 'text' });
     });
 
-    it('should use /models/vision endpoint when visionOnly is true', async () => {
-      vi.mocked(getConfig).mockReturnValue({
-        GATEWAY_URL: 'http://localhost:3000',
-      } as ReturnType<typeof getConfig>);
-
-      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ models: sampleVisionModels, count: 1 }),
-      });
-
+    it('maps visionOnly → inputModality=image', async () => {
       await fetchModels({ visionOnly: true });
-
-      expect(global.fetch).toHaveBeenCalledWith(
-        'http://localhost:3000/models/vision',
-        expect.any(Object)
-      );
+      expect(getModelsMock).toHaveBeenCalledWith({ inputModality: 'image' });
     });
 
-    it('should use /models/image-generation endpoint when imageGenOnly is true', async () => {
-      vi.mocked(getConfig).mockReturnValue({
-        GATEWAY_URL: 'http://localhost:3000',
-      } as ReturnType<typeof getConfig>);
-
-      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ models: [], count: 0 }),
-      });
-
+    it('maps imageGenOnly → outputModality=image', async () => {
       await fetchModels({ imageGenOnly: true });
-
-      expect(global.fetch).toHaveBeenCalledWith(
-        'http://localhost:3000/models/image-generation',
-        expect.any(Object)
-      );
+      expect(getModelsMock).toHaveBeenCalledWith({ outputModality: 'image' });
     });
 
-    it('should include search parameter in query string', async () => {
-      vi.mocked(getConfig).mockReturnValue({
-        GATEWAY_URL: 'http://localhost:3000',
-      } as ReturnType<typeof getConfig>);
-
-      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ models: [], count: 0 }),
-      });
-
-      await fetchModels({ search: 'claude' });
-
-      expect(global.fetch).toHaveBeenCalledWith(
-        'http://localhost:3000/models?search=claude',
-        expect.any(Object)
-      );
+    it('passes search and stringifies limit', async () => {
+      await fetchModels({ search: 'claude', limit: 50 });
+      expect(getModelsMock).toHaveBeenCalledWith({ search: 'claude', limit: '50' });
     });
 
-    it('should include limit parameter in query string', async () => {
-      vi.mocked(getConfig).mockReturnValue({
-        GATEWAY_URL: 'http://localhost:3000',
-      } as ReturnType<typeof getConfig>);
-
-      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ models: [], count: 0 }),
-      });
-
-      await fetchModels({ limit: 10 });
-
-      expect(global.fetch).toHaveBeenCalledWith(
-        'http://localhost:3000/models?limit=10',
-        expect.any(Object)
-      );
+    it('returns [] when the client returns an error result', async () => {
+      getModelsMock.mockResolvedValue(makeErr(403, 'Service authentication failed'));
+      expect(await fetchModels()).toEqual([]);
     });
 
-    it('should return empty array on fetch error', async () => {
-      vi.mocked(getConfig).mockReturnValue({
-        GATEWAY_URL: 'http://localhost:3000',
-      } as ReturnType<typeof getConfig>);
-
-      (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Network error'));
-
-      const models = await fetchModels();
-
-      expect(models).toEqual([]);
-    });
-
-    it('should return empty array on non-ok response', async () => {
-      vi.mocked(getConfig).mockReturnValue({
-        GATEWAY_URL: 'http://localhost:3000',
-      } as ReturnType<typeof getConfig>);
-
-      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: false,
-        status: 500,
-      });
-
-      const models = await fetchModels();
-
-      expect(models).toEqual([]);
+    it('returns [] when the client throws', async () => {
+      getModelsMock.mockRejectedValue(new Error('Network error'));
+      expect(await fetchModels()).toEqual([]);
     });
   });
 
   describe('fetchTextModels', () => {
-    it('should fetch text models with default limit', async () => {
-      vi.mocked(getConfig).mockReturnValue({
-        GATEWAY_URL: 'http://localhost:3000',
-      } as ReturnType<typeof getConfig>);
-
-      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ models: sampleTextModels, count: 2 }),
-      });
-
+    it('requests text models with the default limit', async () => {
+      getModelsMock.mockResolvedValue(okModels(sampleTextModels));
       const models = await fetchTextModels();
-
-      expect(global.fetch).toHaveBeenCalledWith(
-        'http://localhost:3000/models/text?limit=25',
-        expect.any(Object)
-      );
+      expect(getModelsMock).toHaveBeenCalledWith({ outputModality: 'text', limit: '25' });
       expect(models).toEqual(sampleTextModels);
     });
 
-    it('should include search query', async () => {
-      vi.mocked(getConfig).mockReturnValue({
-        GATEWAY_URL: 'http://localhost:3000',
-      } as ReturnType<typeof getConfig>);
-
-      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ models: [], count: 0 }),
-      });
-
+    it('includes the search query', async () => {
       await fetchTextModels('gpt');
-
-      expect(global.fetch).toHaveBeenCalledWith(
-        'http://localhost:3000/models/text?search=gpt&limit=25',
-        expect.any(Object)
-      );
+      expect(getModelsMock).toHaveBeenCalledWith({
+        outputModality: 'text',
+        search: 'gpt',
+        limit: '25',
+      });
     });
   });
 
   describe('fetchVisionModels', () => {
-    it('should fetch vision models with default limit', async () => {
-      vi.mocked(getConfig).mockReturnValue({
-        GATEWAY_URL: 'http://localhost:3000',
-      } as ReturnType<typeof getConfig>);
-
-      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ models: sampleVisionModels, count: 1 }),
-      });
-
+    it('requests vision models with the default limit', async () => {
+      getModelsMock.mockResolvedValue(okModels(sampleVisionModels));
       const models = await fetchVisionModels();
-
-      expect(global.fetch).toHaveBeenCalledWith(
-        'http://localhost:3000/models/vision?limit=25',
-        expect.any(Object)
-      );
+      expect(getModelsMock).toHaveBeenCalledWith({ inputModality: 'image', limit: '25' });
       expect(models).toEqual(sampleVisionModels);
     });
   });
@@ -307,7 +151,6 @@ describe('modelAutocomplete', () => {
 
       const choice = formatModelChoice(model);
 
-      // Paid models: no badge, just name and context
       expect(choice.name).toBe('Anthropic: Claude Sonnet 4 · 200K');
       expect(choice.value).toBe('anthropic/claude-sonnet-4');
     });
@@ -327,7 +170,6 @@ describe('modelAutocomplete', () => {
 
       const choice = formatModelChoice(model);
 
-      // Free models: 🆓 badge prefix
       expect(choice.name).toBe('🆓 Meta: Llama 3.3 70B Instruct · 128K');
       expect(choice.value).toBe('meta-llama/llama-3.3-70b-instruct:free');
     });
@@ -345,9 +187,7 @@ describe('modelAutocomplete', () => {
         completionPricePerMillion: 10,
       };
 
-      const choice = formatModelChoice(model);
-
-      expect(choice.name).toBe('Google: Gemini 2.5 Pro · 1M');
+      expect(formatModelChoice(model).name).toBe('Google: Gemini 2.5 Pro · 1M');
     });
 
     it('should truncate long names while preserving metadata', () => {
@@ -366,7 +206,6 @@ describe('modelAutocomplete', () => {
       const choice = formatModelChoice(model);
 
       expect(choice.name.length).toBeLessThanOrEqual(100);
-      // formatAutocompleteOption preserves metadata suffix, truncates name portion with "..."
       expect(choice.name).toContain('...');
       expect(choice.name).toContain('· 128K');
     });
