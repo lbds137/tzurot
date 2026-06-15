@@ -360,24 +360,6 @@ Surfaced 2026-04-23.
 **Why icebox (not a quick win)**: this is an architectural addition, not a tweak — new schema, new cascade-resolution semantics in `historyCutoff.ts`, a new command surface, and a migration. The weigh-in bug is fixed independently (epoch → `undefined` for weigh-in); this item is the _generalization_, only worth doing if channel/server-level reset becomes a real user need. **Promote when**: a user asks for channel/server-wide context reset, OR a second channel-scoped operation needs an epoch and the "no coarse epoch exists" gap bites again. Surfaced 2026-06-09 (user) during the weigh-in epoch-semantics fix.
 
 
-#### `[FEAT]` Model-browser slash command (`/models` by provider) — supersedes the moot z.ai autocomplete item
-
-**Origin**: replaces a stale icebox entry ("Surface z.ai coding-plan models in model autocomplete"). That item assumed a live model autocomplete to fold z.ai catalog entries into — but there is none: `/preset` only autocompletes the `preset`/`config` options, and model IDs are free-typed in a Discord **modal** (no autocomplete possible). The discoverability intent is real, but the mechanism was wrong. This is its proper home.
-
-**Problem**: Users pick a model by typing a raw slug into a modal, with no way to discover what's available or what a model supports — they have to visit OpenRouter (or z.ai docs) in a browser. z.ai-only models (`z-ai/glm-5.2`, absent from OpenRouter) are especially undiscoverable.
-
-**Action**: add a slash command (e.g. `/models browse` or `/models view`) that lists/inspects available models **by provider** and renders a model card. Per model, surface as much as the source API gives:
-
-- **Human-friendly name** + **full provider slug** (the value users paste into the preset modal)
-- **Capabilities** with emoji affordances — 💬 text, 👁️ vision, 🎨 image-gen, 🔊 audio in/out, 🎥 video if available (the gateway `/models` endpoint already returns `supportsVision`/`supportsImageGeneration`/`supportsAudioInput`/`supportsAudioOutput` on `ModelAutocompleteOption`)
-- **Context limit**
-- **Pricing** (prompt/completion per-million) — OpenRouter only; `ModelAutocompleteOption` already carries `promptPricePerMillion`/`completionPricePerMillion`
-- **z.ai provider support**: fold in `ZAI_MODEL_CATALOG` entries (`z-ai/<model>`) for a parallel UX with as much of the same info as z.ai exposes (name, slug, context length from the catalog; capabilities/pricing where derivable). Catalog helpers exist: `listZaiCodingPlanModels`-shaped accessor (was prototyped then reverted — re-add when building), `getZaiCodingPlanContextLength`, `isZaiCodingPlanModel`, `ZAI_MODEL_PREFIX`, plus `buildModelInfoUrl` for the docs-card link.
-
-**Infra already present**: `fetchModels`/`fetchTextModels`/`fetchVisionModels` (`services/bot-client/src/utils/modelAutocomplete.ts`) and the gateway `GET /models[/text|/vision]` endpoints already fetch + shape the OpenRouter catalog. The currently-unreachable `handleModelAutocomplete`/`handleVisionModelAutocomplete` branches in `preset/autocomplete.ts` are dead today but their fetch layer is the foundation for this command — that's why they're kept rather than deleted.
-
-**Why icebox**: new UX surface (command shape, pagination/selection, card layout) that needs a small design pass; pure discoverability, no correctness impact. **Promote when**: model-slug friction is reported, or alongside the next model-catalog-facing work. Surfaced 2026-06-14 (user), reframed from the moot autocomplete item after discovering the modal-based model entry.
-
 #### `[FEAT]` Free-tier piggyback on the owner's z.ai coding plan — GLM-4.5-Air only
 
 **Problem / motivation**: Free (guest) users currently fall back to the system `OPENROUTER_API_KEY` restricted to `:free` OpenRouter models (`ApiKeyResolver.resolveApiKey` → system key + `isGuestMode: true`). GLM-4.5-Air is a meaningfully better model than the free OpenRouter tier, and the owner's z.ai coding-plan subscription bills it at the cheapest 1× quota multiplier — so letting free users reach **only** GLM-4.5-Air via the owner's z.ai subscription is a low-cost quality bump for the free tier.
