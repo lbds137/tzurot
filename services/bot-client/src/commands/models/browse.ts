@@ -25,6 +25,7 @@ import {
   joinFooter,
   pluralize,
   type BrowseActionRow,
+  type BrowseSortToggle,
 } from '../../utils/browse/index.js';
 import { formatContextLength } from '../../utils/modelAutocomplete.js';
 import {
@@ -50,10 +51,27 @@ const BROWSE_FETCH_LIMIT = 1000;
 
 const VALID_FILTERS: readonly CapabilityFilter[] = ['all', 'text', 'vision', 'image-gen'];
 
-const browseHelpers = createBrowseCustomIdHelpers<CapabilityFilter>({
+/** Sort modes for `/models browse`, cycled by the toggle button. */
+type ModelSort = 'default' | 'price' | 'recent';
+const VALID_SORTS: readonly ModelSort[] = ['default', 'price', 'recent'];
+
+/** Button label + emoji per sort (shown for the sort you'd switch TO). */
+const SORT_DISPLAY: Record<ModelSort, { label: string; emoji: string }> = {
+  default: { label: 'Sort: usable first', emoji: '🔀' },
+  price: { label: 'Sort: cheapest', emoji: '💰' },
+  recent: { label: 'Sort: newest', emoji: '🆕' },
+};
+
+/** Cycle default → price → recent → default. */
+const sortToggle: BrowseSortToggle<ModelSort> = {
+  next: current => (current === 'default' ? 'price' : current === 'price' ? 'recent' : 'default'),
+  labelFor: sort => SORT_DISPLAY[sort],
+};
+
+const browseHelpers = createBrowseCustomIdHelpers<CapabilityFilter, ModelSort>({
   prefix: 'models',
   validFilters: VALID_FILTERS,
-  includeSort: false,
+  validSorts: VALID_SORTS,
 });
 
 export function isModelsBrowseInteraction(customId: string): boolean {
@@ -64,12 +82,25 @@ export function isModelsBrowseSelectInteraction(customId: string): boolean {
   return browseHelpers.isBrowseSelect(customId);
 }
 
-/** Usable-first, then alphabetical by name. */
-function compareModels(a: UsableCatalogModel, b: UsableCatalogModel): number {
-  if (a.canUse !== b.canUse) {
-    return a.canUse ? -1 : 1;
+/** Price rank for the `price` sort: free/cheapest first, no-$ (z.ai/router) last. */
+function priceRank(model: UsableCatalogModel): number {
+  return model.hasPricing ? model.promptPricePerMillion : Number.POSITIVE_INFINITY;
+}
+
+/** Sort the annotated models by the active sort mode (stable, name tie-break). */
+function sortModels(models: UsableCatalogModel[], sort: ModelSort): UsableCatalogModel[] {
+  const byName = (a: UsableCatalogModel, b: UsableCatalogModel): number =>
+    a.name.localeCompare(b.name);
+  if (sort === 'price') {
+    return [...models].sort((a, b) => priceRank(a) - priceRank(b) || byName(a, b));
   }
-  return a.name.localeCompare(b.name);
+  if (sort === 'recent') {
+    // Newest first; models without a `created` timestamp (z.ai-catalog-only) last.
+    const at = (m: UsableCatalogModel): number => m.created ?? Number.NEGATIVE_INFINITY;
+    return [...models].sort((a, b) => at(b) - at(a) || byName(a, b));
+  }
+  // default: usable-first, then alphabetical.
+  return [...models].sort((a, b) => (a.canUse === b.canUse ? byName(a, b) : a.canUse ? -1 : 1));
 }
 
 /** Per-model usability marker for the list/select. */
@@ -97,22 +128,29 @@ interface BrowseView {
   items: UsableCatalogModel[];
   page: number;
   capability: CapabilityFilter;
+  sort: ModelSort;
   search: string | null;
   capped: boolean;
 }
 
+/** Human label for the currently-active sort (shown in the embed). */
+const ACTIVE_SORT_LABEL: Record<ModelSort, string> = {
+  default: 'usable first',
+  price: 'cheapest first',
+  recent: 'newest first',
+};
+
 function buildBrowseEmbed(view: BrowseView, pageItems: UsableCatalogModel[]): EmbedBuilder {
-  const { items, page, capability, search, capped } = view;
+  const { items, page, capability, sort, search, capped } = view;
   const startIdx = page * MODELS_PER_PAGE;
 
   const lines: string[] = [];
-  if (search !== null || capability !== 'all') {
-    const filterBits = [
-      capability !== 'all' ? `capability: ${capability}` : '',
-      search !== null ? `search: "${search}"` : '',
-    ].filter(Boolean);
-    lines.push(`_Filters — ${filterBits.join(', ')}_`);
-  }
+  const filterBits = [
+    capability !== 'all' ? `capability: ${capability}` : '',
+    search !== null ? `search: "${search}"` : '',
+    `sorted: ${ACTIVE_SORT_LABEL[sort]}`,
+  ].filter(Boolean);
+  lines.push(`_${filterBits.join(' · ')}_`);
   if (items.length === 0) {
     lines.push('_No models match your filters._');
   } else {
@@ -140,13 +178,13 @@ function buildBrowseComponents(
   pageItems: UsableCatalogModel[],
   totalPages: number
 ): BrowseActionRow[] {
-  const { page, capability, search } = view;
+  const { page, capability, sort, search } = view;
   const startIdx = page * MODELS_PER_PAGE;
   const components: BrowseActionRow[] = [];
 
   const selectRow = buildBrowseSelectMenu<UsableCatalogModel>({
     items: pageItems,
-    customId: browseHelpers.buildSelect(page, capability, 'name', search),
+    customId: browseHelpers.buildSelect(page, capability, sort, search),
     placeholder: 'Select a model to view its card...',
     startIndex: startIdx,
     formatItem: model => ({
@@ -165,10 +203,11 @@ function buildBrowseComponents(
         currentPage: page,
         totalPages,
         filter: capability,
-        currentSort: 'name',
+        currentSort: sort,
         query: search,
         buildCustomId: browseHelpers.build,
         buildInfoId: browseHelpers.buildInfo,
+        sortToggle,
       })
     );
   }
@@ -191,7 +230,8 @@ function buildBrowsePage(view: BrowseView): { embed: EmbedBuilder; components: B
 async function loadAnnotatedModels(
   interaction: ClientCarryingInteraction,
   capability: CapabilityFilter,
-  search: string | null
+  search: string | null,
+  sort: ModelSort
 ): Promise<UsableCatalogModel[]> {
   const { userClient } = clientsFor(interaction);
   const [catalog, walletResult] = await Promise.all([
@@ -201,7 +241,7 @@ async function loadAnnotatedModels(
   const activeProviders = new Set(
     walletResult.ok ? walletResult.data.keys.filter(k => k.isActive).map(k => k.provider) : []
   );
-  return annotateUsability(catalog, activeProviders).sort(compareModels);
+  return sortModels(annotateUsability(catalog, activeProviders), sort);
 }
 
 /**
@@ -211,18 +251,20 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
   const options = modelsBrowseOptions(context.interaction);
   const capability = (options.capability() ?? 'all') as CapabilityFilter;
   const search = options.search();
+  const sort: ModelSort = 'default';
 
   try {
-    const models = await loadAnnotatedModels(context.interaction, capability, search);
+    const models = await loadAnnotatedModels(context.interaction, capability, search, sort);
     const { embed, components } = buildBrowsePage({
       items: models,
       page: 0,
       capability,
+      sort,
       search,
       capped: models.length >= BROWSE_FETCH_LIMIT,
     });
     await context.editReply({ embeds: [embed], components });
-    logger.info({ count: models.length, capability, search }, 'Browse models');
+    logger.info({ count: models.length, capability, search, sort }, 'Browse models');
   } catch (error) {
     logger.error({ err: error }, 'Failed to browse models');
     await context.editReply('❌ Failed to load models. Please try again.');
@@ -239,11 +281,12 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
   }
   await interaction.deferUpdate();
   try {
-    const models = await loadAnnotatedModels(interaction, parsed.filter, parsed.query);
+    const models = await loadAnnotatedModels(interaction, parsed.filter, parsed.query, parsed.sort);
     const { embed, components } = buildBrowsePage({
       items: models,
       page: parsed.page,
       capability: parsed.filter,
+      sort: parsed.sort,
       search: parsed.query,
       capped: models.length >= BROWSE_FETCH_LIMIT,
     });

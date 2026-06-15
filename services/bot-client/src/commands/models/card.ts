@@ -39,6 +39,9 @@ const ACCESS_LABEL: Record<ModelUsability, string> = {
   'needs-either-key': 'OpenRouter / z.ai',
 };
 
+/** Inline separator shared by the capability line and the links line. */
+const SEP = '  ·  ';
+
 /** A z.ai-only model (z.ai catalog, not on OpenRouter) — no $ pricing, no OR page. */
 function isZaiOnly(model: UsableCatalogModel): boolean {
   return model.source === 'zai-catalog';
@@ -60,7 +63,7 @@ function splitName(model: UsableCatalogModel): { provider: string; title: string
  */
 function titleUrl(model: UsableCatalogModel): string | undefined {
   if (isZaiOnly(model)) {
-    return model.docsUrl ?? undefined;
+    return model.docsUrl ?? undefined; // null → undefined (setURL ignores undefined)
   }
   return buildModelInfoUrl(model.id, AIProvider.OpenRouter);
 }
@@ -76,7 +79,7 @@ function formatPriceShort(model: UsableCatalogModel): string {
 /** Capability emoji line, with a z.ai-coding marker appended when applicable. */
 function capabilityLine(model: UsableCatalogModel): string {
   const caps = formatCapabilities(model);
-  return model.isZaiCoding ? `${caps}  ·  ⚡ z.ai coding-plan` : caps;
+  return model.isZaiCoding ? `${caps}${SEP}⚡ z.ai coding-plan` : caps;
 }
 
 /** Masked-markdown links (z.ai docs and/or the OpenRouter model page). */
@@ -88,7 +91,7 @@ function formatLinks(model: UsableCatalogModel): string | null {
   if (!isZaiOnly(model)) {
     links.push(`[OpenRouter model page](${buildModelInfoUrl(model.id, AIProvider.OpenRouter)})`);
   }
-  return links.length > 0 ? links.join('  ·  ') : null;
+  return links.length > 0 ? links.join(SEP) : null;
 }
 
 /**
