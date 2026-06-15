@@ -11,6 +11,7 @@
     "History",
     "Channel",
     "Inspect",
+    "Models",
     "Deny",
     "Admin",
     "Help",
@@ -1202,6 +1203,75 @@
         ],
         "name": "memory",
         "description": "Manage your long-term memories",
+        "type": 1
+      }
+    },
+    {
+      "name": "models",
+      "category": "Models",
+      "description": "Browse and inspect available AI models",
+      "handlers": {
+        "execute": true,
+        "autocomplete": true,
+        "selectMenu": true,
+        "button": true,
+        "modal": false
+      },
+      "componentPrefixes": [
+        "models"
+      ],
+      "data": {
+        "options": [
+          {
+            "type": 1,
+            "name": "browse",
+            "description": "Browse available models, filtered by capability or search",
+            "options": [
+              {
+                "type": 3,
+                "choices": [
+                  {
+                    "name": "Vision",
+                    "value": "vision"
+                  },
+                  {
+                    "name": "Image generation",
+                    "value": "image-gen"
+                  },
+                  {
+                    "name": "Text only",
+                    "value": "text"
+                  }
+                ],
+                "name": "capability",
+                "description": "Filter by capability",
+                "required": false
+              },
+              {
+                "type": 3,
+                "name": "search",
+                "description": "Search by model name or ID",
+                "required": false
+              }
+            ]
+          },
+          {
+            "type": 1,
+            "name": "view",
+            "description": "View the detail card for a specific model",
+            "options": [
+              {
+                "autocomplete": true,
+                "type": 3,
+                "name": "model",
+                "description": "Model name or ID",
+                "required": true
+              }
+            ]
+          }
+        ],
+        "name": "models",
+        "description": "Browse and inspect available AI models",
         "type": 1
       }
     },
