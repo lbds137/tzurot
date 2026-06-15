@@ -34,6 +34,8 @@ export const ModelAutocompleteOptionSchema = z.object({
   completionPricePerMillion: z.number(),
   /** Release time (Unix seconds); absent for z.ai-catalog-only models. */
   created: z.number().optional(),
+  /** True for OpenRouter meta-routers. Optional to tolerate cache entries written before this field existed. */
+  isRouter: z.boolean().optional(),
 });
 
 /** Response shape for `GET /api/internal/models`. */

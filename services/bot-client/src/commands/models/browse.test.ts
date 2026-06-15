@@ -11,8 +11,8 @@ import type {
 import type { UserClient } from '@tzurot/clients';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { CatalogModel } from '../../utils/modelCatalog.js';
-import { makeOk } from '../../test/gatewayClientStubs.js';
-import { mockListWalletKeysResponse } from '@tzurot/test-factories';
+import { makeOk, makeErr } from '../../test/gatewayClientStubs.js';
+import { mockListWalletKeysResponse, mockListLlmConfigsResponse } from '@tzurot/test-factories';
 
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
@@ -39,7 +39,7 @@ vi.mock('../../utils/modelCatalog.js', async importOriginal => {
   };
 });
 
-const walletStub = { listWalletKeys: vi.fn() };
+const walletStub = { listWalletKeys: vi.fn(), listUserLlmConfigs: vi.fn() };
 vi.mock('../../utils/gatewayClients.js', () => ({
   clientsFor: vi.fn(() => ({ userClient: walletStub as unknown as UserClient })),
 }));
@@ -74,6 +74,7 @@ function catalogModel(overrides: Partial<CatalogModel> & { id: string }): Catalo
 beforeEach(() => {
   vi.clearAllMocks();
   walletStub.listWalletKeys.mockResolvedValue(makeOk(mockListWalletKeysResponse([])));
+  walletStub.listUserLlmConfigs.mockResolvedValue(makeOk(mockListLlmConfigsResponse([])));
 });
 
 describe('customId predicates', () => {
@@ -253,6 +254,125 @@ describe('sort modes', () => {
     } as unknown as ButtonInteraction;
     await handleBrowsePagination(interaction);
     expect(deferUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe('global-preset pinning + router badge', () => {
+  function renderViaPagination(customId: string): Promise<string> {
+    const editReply = vi.fn();
+    const interaction = {
+      customId,
+      user: { id: 'u1' },
+      deferUpdate: vi.fn(),
+      editReply,
+    } as unknown as ButtonInteraction;
+    return handleBrowsePagination(interaction).then(() => {
+      const call = editReply.mock.calls[0][0] as { embeds: { data: { description: string } }[] };
+      return call.embeds[0].data.description;
+    });
+  }
+
+  it('pins global-preset models to the top with a 📌 marker, overriding sort', async () => {
+    // 'zzz/pinned' would sort LAST alphabetically, but being a global preset
+    // pins it ahead of 'aaa/model'.
+    walletStub.listUserLlmConfigs.mockResolvedValue(
+      makeOk(mockListLlmConfigsResponse([{ model: 'zzz/pinned', isGlobal: true }]))
+    );
+    catalogMock.fetchModelCatalog.mockResolvedValue([
+      catalogModel({ id: 'aaa/model', name: 'Aaa' }),
+      catalogModel({ id: 'zzz/pinned', name: 'Zzz Pinned' }),
+    ]);
+    const description = await renderViaPagination('models::browse::0::all::default::');
+    expect(description.indexOf('zzz/pinned')).toBeLessThan(description.indexOf('aaa/model'));
+    // The pinned model's line carries the 📌 badge.
+    const pinnedLine = description.split('\n').find(l => l.includes('Zzz Pinned'));
+    expect(pinnedLine).toContain('📌');
+  });
+
+  it('only pins GLOBAL presets, not user-owned ones', async () => {
+    walletStub.listUserLlmConfigs.mockResolvedValue(
+      makeOk(mockListLlmConfigsResponse([{ model: 'owned/model', isGlobal: false }]))
+    );
+    catalogMock.fetchModelCatalog.mockResolvedValue([
+      catalogModel({ id: 'aaa/model', name: 'Aaa' }),
+      catalogModel({ id: 'owned/model', name: 'Owned' }),
+    ]);
+    const description = await renderViaPagination('models::browse::0::all::default::');
+    // No global preset → alphabetical, owned model not pinned.
+    expect(description.indexOf('aaa/model')).toBeLessThan(description.indexOf('owned/model'));
+    expect(description.split('\n').find(l => l.includes('Owned'))).not.toContain('📌');
+  });
+
+  it('applies the active sort within both the pinned and non-pinned tiers', async () => {
+    walletStub.listUserLlmConfigs.mockResolvedValue(
+      makeOk(
+        mockListLlmConfigsResponse([
+          { model: 'p/cheap', isGlobal: true },
+          { model: 'p/exp', isGlobal: true },
+        ])
+      )
+    );
+    catalogMock.fetchModelCatalog.mockResolvedValue([
+      catalogModel({ id: 'p/exp', name: 'PinnedExpensive', promptPricePerMillion: 100 }),
+      catalogModel({ id: 'u/cheap', name: 'UnpinnedCheap', promptPricePerMillion: 2 }),
+      catalogModel({ id: 'p/cheap', name: 'PinnedCheap', promptPricePerMillion: 1 }),
+      catalogModel({ id: 'u/exp', name: 'UnpinnedExpensive', promptPricePerMillion: 200 }),
+    ]);
+    const d = await renderViaPagination('models::browse::0::all::price::');
+    // Pinned tier (price-sorted) entirely precedes the rest (price-sorted).
+    expect(d.indexOf('p/cheap')).toBeLessThan(d.indexOf('p/exp'));
+    expect(d.indexOf('p/exp')).toBeLessThan(d.indexOf('u/cheap'));
+    expect(d.indexOf('u/cheap')).toBeLessThan(d.indexOf('u/exp'));
+  });
+
+  it('applies the recent sort within both tiers (pinned newest-first, then rest)', async () => {
+    walletStub.listUserLlmConfigs.mockResolvedValue(
+      makeOk(
+        mockListLlmConfigsResponse([
+          { model: 'p/new', isGlobal: true },
+          { model: 'p/old', isGlobal: true },
+        ])
+      )
+    );
+    catalogMock.fetchModelCatalog.mockResolvedValue([
+      catalogModel({ id: 'p/old', name: 'PinnedOld', created: 1_000 }),
+      catalogModel({ id: 'u/new', name: 'UnpinnedNew', created: 8_000 }),
+      catalogModel({ id: 'p/new', name: 'PinnedNew', created: 9_000 }),
+      catalogModel({ id: 'u/old', name: 'UnpinnedOld', created: 500 }),
+    ]);
+    const d = await renderViaPagination('models::browse::0::all::recent::');
+    // Pinned tier (newest-first) entirely precedes the rest (newest-first).
+    expect(d.indexOf('p/new')).toBeLessThan(d.indexOf('p/old'));
+    expect(d.indexOf('p/old')).toBeLessThan(d.indexOf('u/new'));
+    expect(d.indexOf('u/new')).toBeLessThan(d.indexOf('u/old'));
+  });
+
+  it('renders the 🔀 badge for meta-routers', async () => {
+    catalogMock.fetchModelCatalog.mockResolvedValue([
+      catalogModel({ id: 'openrouter/auto', name: 'Auto Router', isRouter: true }),
+    ]);
+    const description = await renderViaPagination('models::browse::0::all::default::');
+    expect(description).toContain('🔀');
+  });
+
+  it('orders badges pin-before-router for a pinned meta-router (📌 🔀)', async () => {
+    walletStub.listUserLlmConfigs.mockResolvedValue(
+      makeOk(mockListLlmConfigsResponse([{ model: 'openrouter/auto', isGlobal: true }]))
+    );
+    catalogMock.fetchModelCatalog.mockResolvedValue([
+      catalogModel({ id: 'openrouter/auto', name: 'Auto Router', isRouter: true }),
+    ]);
+    const description = await renderViaPagination('models::browse::0::all::default::');
+    expect(description).toContain('📌 🔀');
+  });
+
+  it('degrades gracefully (no pinning) when the preset fetch fails', async () => {
+    // Exercises the `configsResult.ok ? … : []` fallback — the list still renders.
+    walletStub.listUserLlmConfigs.mockResolvedValue(makeErr(500, 'Server error'));
+    catalogMock.fetchModelCatalog.mockResolvedValue([catalogModel({ id: 'a/model', name: 'A' })]);
+    const description = await renderViaPagination('models::browse::0::all::default::');
+    expect(description).toContain('a/model');
+    expect(description).not.toContain('📌');
   });
 });
 

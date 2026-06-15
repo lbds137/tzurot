@@ -109,8 +109,23 @@ describe('buildModelCard', () => {
     ).toJSON();
     expect(json.description).toContain('OpenRouter or z.ai');
     expect(json.color).toBe(0xffa500); // can't use (no keys) → orange
-    // 'both' source → still routes via OpenRouter, so the title links there
-    expect(json.footer?.text).toContain('via OpenRouter');
+    // 'both' source routes via OpenRouter (shown pricing) OR a z.ai key — the
+    // footer names both so a z.ai-key-only viewer isn't misled.
+    expect(json.footer?.text).toContain('via OpenRouter (also z.ai coding-plan)');
+  });
+
+  it('renders the meta-router marker in the capability line', () => {
+    const json = buildModelCard(
+      usable({
+        id: 'openrouter/auto',
+        name: 'Auto Router',
+        isRouter: true,
+        hasPricing: false,
+        usability: 'needs-openrouter-key',
+        canUse: false,
+      })
+    ).toJSON();
+    expect(json.description).toContain('🔀 meta-router');
   });
 
   it('shows the free usability line for free models', () => {

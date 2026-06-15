@@ -58,6 +58,18 @@ describe('fetchModelCatalog', () => {
     expect(glm52?.docsUrl).toMatch(/docs\.z\.ai/);
     // Display name title-cases each dash segment, keeping GLM fully uppercase.
     expect(glm52?.name).toBe('GLM-5.2');
+    // z.ai-catalog-only entries are never meta-routers.
+    expect(glm52?.isRouter).toBe(false);
+  });
+
+  it('passes the OpenRouter isRouter flag through to the catalog entry', async () => {
+    fetchModelsMock.mockResolvedValue([
+      model({ id: 'openrouter/auto', name: 'Auto Router', isRouter: true }),
+      model({ id: 'openai/gpt-5', isRouter: false }),
+    ]);
+    const catalog = await fetchModelCatalog();
+    expect(catalog.find(m => m.id === 'openrouter/auto')?.isRouter).toBe(true);
+    expect(catalog.find(m => m.id === 'openai/gpt-5')?.isRouter).toBe(false);
   });
 
   it('dedups a z.ai model present in both sources to source=both, keeping OpenRouter pricing', async () => {
