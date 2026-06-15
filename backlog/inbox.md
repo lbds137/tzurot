@@ -2,6 +2,23 @@
 
 _New items go here. Triage to appropriate section weekly._
 
+### `[FEAT]` `/models` v2 — sorting + curation
+
+**Surfaced 2026-06-14 (user)**, reviewing the `/models` v1 (#1212, shipped). v1 is browse/view + user-aware usability + z.ai merge + all ~337 models. v2 makes browse genuinely useful:
+
+1. **Sort by price** — cheapest-first (free → paid → variable/routers last). Data's already on `ModelAutocompleteOption` (`promptPricePerMillion`).
+2. **Sort by recency** — "recently released" via OpenRouter's `created` timestamp. **Needs plumbing**: `created` is in the raw `/models` payload but dropped by `toAutocompleteOption` (`OpenRouterModelCache.ts`) — thread it through `ModelAutocompleteOption` → `CatalogModel`.
+3. **Global-preset models first** — surface models used by Tzurot's global presets at the top of the default view. Fetch via `userClient.listUserLlmConfigs()` (returns owned + global with `model`), prioritize set membership.
+- Adding a `sort` option means switching `browse`'s customId helper from `includeSort: false` to a custom sort union (`createBrowseCustomIdHelpers` overload 2 supports it).
+
+**Bonus / carried review nits** (fold in while touching these files):
+- `zaiDisplayName` (`modelCatalog.ts`) uppercases whole slug → title-case dash segments (only affects future z.ai-only qualifier models; glm-5.2 renders fine today).
+- `fetchCatalogModelById` uses the implicit 100 default — make `limit` explicit (1000) or comment why it's sufficient.
+- `handleBrowse` capability/search path is untested (filtering is covered in `modelCatalog.test`, but the handler pass-through isn't); add a case.
+- Optional 🔀 **router badge** for `top_provider.context_length === null` models (auto/fusion/etc.) — distinguishes meta-routers from concrete models in the list.
+
+**Explicitly NOT in scope**: availability filtering. Confirmed moot — OpenRouter's `/models` only lists available models (every model has free or paid pricing; "zero providers" isn't in the bulk payload anyway).
+
 ### `[LIFT]` Type-assertion audit — triage sketchy casts, adopt a deterministic ratchet
 
 **Surfaced 2026-06-12 (user)** after PR #1192 (the `content as string` fix) — that cast was hiding a real type hole (`buildBaseComponents` returned `{ content: unknown }`, caught by tsc the moment the cast came out). Census of production code (tests excluded): **65 `as unknown as`** double-casts (full type-system bypass; some are test infra under `src/` — Discord mocks, conformance harness — but production hits include `ai-worker/jobs/AIJobProcessor.ts` ×3, `bot-client/utils/browse/customIdFactory.ts` ×3, the dashboard settings builders, `fetchTypingChannel.ts`), **1 `as never`** (`settingsUpdateFactory.ts:75`), **~416 total `as Type` assertions** never triaged. Same shape as the CPD story: a noisy raw metric needing a classifier + ratchet, not a grep.
