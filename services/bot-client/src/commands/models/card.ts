@@ -4,6 +4,11 @@
  * Builds the detail embed for a single model, shown by `/models view` and by
  * selecting an item in `/models browse`. Pure (no I/O) so it's directly
  * unit-testable.
+ *
+ * Layout: a usability-coded color bar (green = can run, orange = key needed),
+ * a provider author line, a hyperlinked title, a compact slug + capabilities +
+ * status description, and a single short inline field row (Context · Price ·
+ * Access). No thumbnail — pure text/emoji, so there are no image assets to host.
  */
 
 import { EmbedBuilder } from 'discord.js';
@@ -15,51 +20,90 @@ import {
   type UsableCatalogModel,
 } from '../../utils/modelCatalog.js';
 
-/** One-line usability summary keyed by status. */
+/** Bold, emoji-prefixed status line for the description. */
 const USABILITY_LINE: Record<ModelUsability, string> = {
-  free: '🆓 Free — available to everyone',
-  usable: '✅ You can use this',
-  'needs-openrouter-key': '🔒 Needs an OpenRouter key — add one with `/settings apikey set`',
-  'needs-zai-key': '🔒 Needs a z.ai coding-plan key — add one with `/settings apikey set`',
+  free: '🆓 **Free** — available to everyone',
+  usable: '✅ **You can use this**',
+  'needs-openrouter-key': '🔑 **Needs an OpenRouter key** — add one with `/settings apikey set`',
+  'needs-zai-key': '🔑 **Needs a z.ai coding-plan key** — add one with `/settings apikey set`',
   'needs-either-key':
-    '🔒 Needs an OpenRouter or z.ai coding-plan key — add one with `/settings apikey set`',
+    '🔑 **Needs an OpenRouter or z.ai key** — add one with `/settings apikey set`',
 };
 
-/** Format the pricing field, or the BYOK note when no per-token figures exist. */
-function formatPricing(model: UsableCatalogModel): string {
-  if (!model.hasPricing) {
-    // z.ai-only catalog entries have no $ figures; OpenRouter meta/auto-routers
-    // have negative pricing because the cost depends on the routed model.
-    return model.source === 'zai-catalog'
-      ? 'z.ai coding plan — bring your own key'
-      : 'Variable — depends on the routed model';
-  }
-  const inPrice = model.promptPricePerMillion.toFixed(2);
-  const outPrice = model.completionPricePerMillion.toFixed(2);
-  return `$${inPrice} in / $${outPrice} out (per 1M tokens)`;
+/** Short one-word(ish) access category for the inline field. */
+const ACCESS_LABEL: Record<ModelUsability, string> = {
+  free: 'Free',
+  usable: 'Ready',
+  'needs-openrouter-key': 'OpenRouter key',
+  'needs-zai-key': 'z.ai key',
+  'needs-either-key': 'OpenRouter / z.ai',
+};
+
+/** A z.ai-only model (z.ai catalog, not on OpenRouter) — no $ pricing, no OR page. */
+function isZaiOnly(model: UsableCatalogModel): boolean {
+  return model.source === 'zai-catalog';
 }
 
-/** Build the markdown links line (z.ai docs and/or OpenRouter model page). */
+/** Split the OpenRouter "Provider: Model" name into a provider + bare title. */
+function splitName(model: UsableCatalogModel): { provider: string; title: string } {
+  const sep = model.name.indexOf(': ');
+  if (sep > 0) {
+    return { provider: model.name.slice(0, sep), title: model.name.slice(sep + 2) };
+  }
+  return { provider: model.id.split('/')[0], title: model.name };
+}
+
+/**
+ * Where the title links: OpenRouter page, or the z.ai docs for z.ai-only models.
+ * Every ZAI_MODEL_CATALOG entry has a docsUrl today, so the `?? undefined`
+ * fallback (title renders unlinked) only fires if a future catalog entry omits it.
+ */
+function titleUrl(model: UsableCatalogModel): string | undefined {
+  if (isZaiOnly(model)) {
+    return model.docsUrl ?? undefined;
+  }
+  return buildModelInfoUrl(model.id, AIProvider.OpenRouter);
+}
+
+/** Short pricing value for the inline field (unit is clarified in the footer). */
+function formatPriceShort(model: UsableCatalogModel): string {
+  if (!model.hasPricing) {
+    return isZaiOnly(model) ? 'z.ai plan' : 'Variable';
+  }
+  return `$${model.promptPricePerMillion.toFixed(2)} / $${model.completionPricePerMillion.toFixed(2)}`;
+}
+
+/** Capability emoji line, with a z.ai-coding marker appended when applicable. */
+function capabilityLine(model: UsableCatalogModel): string {
+  const caps = formatCapabilities(model);
+  return model.isZaiCoding ? `${caps}  ·  ⚡ z.ai coding-plan` : caps;
+}
+
+/** Masked-markdown links (z.ai docs and/or the OpenRouter model page). */
 function formatLinks(model: UsableCatalogModel): string | null {
   const links: string[] = [];
   if (model.docsUrl !== null) {
     links.push(`[z.ai docs](${model.docsUrl})`);
   }
-  if (model.source !== 'zai-catalog') {
+  if (!isZaiOnly(model)) {
     links.push(`[OpenRouter model page](${buildModelInfoUrl(model.id, AIProvider.OpenRouter)})`);
   }
-  return links.length > 0 ? links.join(' • ') : null;
+  return links.length > 0 ? links.join('  ·  ') : null;
 }
 
 /**
  * Build the model detail card.
  */
 export function buildModelCard(model: UsableCatalogModel): EmbedBuilder {
+  const { provider, title } = splitName(model);
+  const source = isZaiOnly(model) ? 'z.ai coding plan' : 'OpenRouter';
+
   const embed = new EmbedBuilder()
-    .setTitle(model.name)
-    .setColor(model.canUse ? DISCORD_COLORS.SUCCESS : DISCORD_COLORS.BLURPLE)
+    .setColor(model.canUse ? DISCORD_COLORS.SUCCESS : DISCORD_COLORS.WARNING)
+    .setAuthor({ name: provider })
+    .setTitle(title)
     .setDescription(
-      [`\`${model.id}\``, '', formatCapabilities(model), USABILITY_LINE[model.usability]].join('\n')
+      [`\`${model.id}\``, capabilityLine(model), USABILITY_LINE[model.usability]].join('\n')
     )
     .addFields(
       {
@@ -67,21 +111,23 @@ export function buildModelCard(model: UsableCatalogModel): EmbedBuilder {
         value: `${formatContextLength(model.contextLength)} tokens`,
         inline: true,
       },
-      { name: 'Pricing', value: formatPricing(model), inline: true }
+      { name: 'Price', value: formatPriceShort(model), inline: true },
+      { name: 'Access', value: ACCESS_LABEL[model.usability], inline: true }
     );
 
-  if (model.isZaiCoding) {
-    embed.addFields({
-      name: 'z.ai coding plan',
-      value: '⚡ Available on the z.ai GLM coding plan',
-      inline: false,
-    });
+  const url = titleUrl(model);
+  if (url !== undefined) {
+    embed.setURL(url);
   }
 
   const links = formatLinks(model);
   if (links !== null) {
     embed.addFields({ name: 'Links', value: links, inline: false });
   }
+
+  embed.setFooter({
+    text: model.hasPricing ? `via ${source} · prices: in / out per 1M tokens` : `via ${source}`,
+  });
 
   return embed;
 }

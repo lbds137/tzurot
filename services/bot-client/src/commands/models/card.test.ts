@@ -27,22 +27,34 @@ function usable(overrides: Partial<UsableCatalogModel> & { id: string }): Usable
 }
 
 describe('buildModelCard', () => {
-  it('renders an OpenRouter model with slug, context, pricing, and OpenRouter link', () => {
+  it('renders an OpenRouter model: provider author, slug, short price, access, link', () => {
     const embed = buildModelCard(
       usable({ id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4' })
     );
     const json = embed.toJSON();
     expect(json.title).toBe('Claude Sonnet 4');
+    expect(json.author?.name).toBe('anthropic'); // from slug (no "Provider: " prefix in name)
+    expect(json.color).toBe(0x00ff00); // usable → green
     expect(json.description).toContain('`anthropic/claude-sonnet-4`');
-    expect(json.description).toContain('✅ You can use this');
+    expect(json.description).toContain('✅ **You can use this**');
     const fields = json.fields ?? [];
-    expect(fields.find(f => f.name === 'Context')?.value).toContain('200K');
-    expect(fields.find(f => f.name === 'Pricing')?.value).toContain('$3.00 in / $15.00 out');
+    expect(fields.find(f => f.name === 'Context')?.value).toBe('200K tokens');
+    expect(fields.find(f => f.name === 'Price')?.value).toBe('$3.00 / $15.00');
+    expect(fields.find(f => f.name === 'Access')?.value).toBe('Ready');
     expect(fields.find(f => f.name === 'Links')?.value).toContain('OpenRouter model page');
+    expect(json.footer?.text).toContain('per 1M tokens');
   });
 
-  it('renders a z.ai-only model with BYOK pricing, z.ai field, and docs link', () => {
-    const embed = buildModelCard(
+  it('splits a "Provider: Model" name into author + bare title', () => {
+    const json = buildModelCard(
+      usable({ id: 'ai21/jamba-large-1.7', name: 'AI21: Jamba Large 1.7' })
+    ).toJSON();
+    expect(json.author?.name).toBe('AI21');
+    expect(json.title).toBe('Jamba Large 1.7');
+  });
+
+  it('renders a z.ai-only model: z.ai-plan price, z.ai marker, docs link, orange (needs key)', () => {
+    const json = buildModelCard(
       usable({
         id: 'z-ai/glm-5.2',
         name: 'GLM-5.2',
@@ -54,58 +66,63 @@ describe('buildModelCard', () => {
         usability: 'needs-zai-key',
         canUse: false,
       })
-    );
-    const json = embed.toJSON();
+    ).toJSON();
     const fields = json.fields ?? [];
-    expect(fields.find(f => f.name === 'Context')?.value).toContain('1M');
-    expect(fields.find(f => f.name === 'Pricing')?.value).toContain('bring your own key');
-    expect(fields.some(f => f.name === 'z.ai coding plan')).toBe(true);
+    expect(json.color).toBe(0xffa500); // needs key → orange
+    expect(fields.find(f => f.name === 'Context')?.value).toBe('1M tokens');
+    expect(fields.find(f => f.name === 'Price')?.value).toBe('z.ai plan');
+    expect(fields.find(f => f.name === 'Access')?.value).toBe('z.ai key');
+    expect(json.description).toContain('⚡ z.ai coding-plan');
+    expect(json.description).toContain('🔑 **Needs a z.ai');
     expect(fields.find(f => f.name === 'Links')?.value).toContain('z.ai docs');
     expect(fields.find(f => f.name === 'Links')?.value).not.toContain('OpenRouter');
-    expect(json.description).toContain('🔒 Needs a z.ai');
+    expect(json.footer?.text).toBe('via z.ai coding plan');
   });
 
-  it('renders "Variable" pricing for a negative-priced auto-router', () => {
-    const embed = buildModelCard(
-      usable({
-        id: 'openrouter/auto',
-        name: 'Auto Router',
-        promptPricePerMillion: -1_000_000,
-        completionPricePerMillion: -1_000_000,
-        hasPricing: false,
-        source: 'openrouter',
-        usability: 'needs-openrouter-key',
-        canUse: false,
-      })
-    );
-    const fields = embed.toJSON().fields ?? [];
-    expect(fields.find(f => f.name === 'Pricing')?.value).toContain('Variable');
-    expect(fields.find(f => f.name === 'Pricing')?.value).not.toContain('-');
+  it('renders "Variable" price (not a negative number) for an auto-router', () => {
+    const fields =
+      buildModelCard(
+        usable({
+          id: 'openrouter/auto',
+          name: 'Auto Router',
+          promptPricePerMillion: -1_000_000,
+          completionPricePerMillion: -1_000_000,
+          hasPricing: false,
+          source: 'openrouter',
+          usability: 'needs-openrouter-key',
+          canUse: false,
+        })
+      ).toJSON().fields ?? [];
+    expect(fields.find(f => f.name === 'Price')?.value).toBe('Variable');
   });
 
   it('names both key paths for a both-source model with no keys', () => {
-    const embed = buildModelCard(
+    const json = buildModelCard(
       usable({
         id: 'z-ai/glm-5',
-        name: 'GLM-5',
+        name: 'Z.ai: GLM 5',
         isZaiCoding: true,
         source: 'both',
         usability: 'needs-either-key',
         canUse: false,
       })
-    );
-    expect(embed.toJSON().description).toContain('OpenRouter or z.ai');
+    ).toJSON();
+    expect(json.description).toContain('OpenRouter or z.ai');
+    expect(json.color).toBe(0xffa500); // can't use (no keys) → orange
+    // 'both' source → still routes via OpenRouter, so the title links there
+    expect(json.footer?.text).toContain('via OpenRouter');
   });
 
   it('shows the free usability line for free models', () => {
-    const embed = buildModelCard(
-      usable({ id: 'google/gemma:free', usability: 'free', canUse: true })
-    );
-    expect(embed.toJSON().description).toContain('🆓 Free');
+    expect(
+      buildModelCard(usable({ id: 'google/gemma:free', usability: 'free', canUse: true })).toJSON()
+        .description
+    ).toContain('🆓 **Free**');
   });
 
   it('renders capability emojis for a vision model', () => {
-    const embed = buildModelCard(usable({ id: 'x/vision', supportsVision: true }));
-    expect(embed.toJSON().description).toContain('👁️ vision');
+    expect(
+      buildModelCard(usable({ id: 'x/vision', supportsVision: true })).toJSON().description
+    ).toContain('👁️ vision');
   });
 });
