@@ -222,6 +222,11 @@ export const internalFixtures: Record<string, ConformanceEntry> = {
     // The provisioned actor row itself is the "recent user" — zero extra seed.
   },
 
+  getModels: {
+    // No DB seed: the catalog comes from the harness's fake modelCache.
+    query: { search: 'claude', limit: '10' },
+  },
+
   getDenylistCache: {
     seed: async ctx => {
       await ctx.call('post', '/api/admin/denylist', {
