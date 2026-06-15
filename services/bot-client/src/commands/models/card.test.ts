@@ -128,6 +128,20 @@ describe('buildModelCard', () => {
     expect(json.description).toContain('🔀 meta-router');
   });
 
+  it('renders the unverified (unknown) state without claiming a key is needed', () => {
+    const json = buildModelCard(
+      usable({
+        id: 'anthropic/claude-sonnet-4',
+        name: 'Claude Sonnet 4',
+        usability: 'unknown',
+        canUse: false,
+      })
+    ).toJSON();
+    expect(json.description).toContain("❔ **Couldn't verify your keys**");
+    expect(json.description).not.toContain('Needs');
+    expect((json.fields ?? []).find(f => f.name === 'Access')?.value).toBe('Unverified');
+  });
+
   it('shows the free usability line for free models', () => {
     expect(
       buildModelCard(usable({ id: 'google/gemma:free', usability: 'free', canUse: true })).toJSON()

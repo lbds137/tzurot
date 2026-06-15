@@ -44,6 +44,15 @@ export async function handleTestKey(context: DeferredCommandContext): Promise<vo
         return;
       }
 
+      // Rate-limited (429): our own wallet limiter, NOT a bad key. Saying
+      // "API Key Invalid" here is wrong and alarming — tell the user to retry.
+      if (result.status === 429) {
+        await context.editReply({
+          content: `⏳ Too many key operations in a short window. Your **${getProviderDisplayName(provider)}** key wasn't tested — please wait a moment and try again.`,
+        });
+        return;
+      }
+
       // Handle validation errors - need to try parsing the error response for details
       const embed = new EmbedBuilder()
         .setColor(DISCORD_COLORS.ERROR)

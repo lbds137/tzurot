@@ -28,6 +28,7 @@ const USABILITY_LINE: Record<ModelUsability, string> = {
   'needs-zai-key': '🔑 **Needs a z.ai coding-plan key** — add one with `/settings apikey set`',
   'needs-either-key':
     '🔑 **Needs an OpenRouter or z.ai key** — add one with `/settings apikey set`',
+  unknown: "❔ **Couldn't verify your keys** — try again in a moment",
 };
 
 /** Short one-word(ish) access category for the inline field. */
@@ -37,6 +38,7 @@ const ACCESS_LABEL: Record<ModelUsability, string> = {
   'needs-openrouter-key': 'OpenRouter key',
   'needs-zai-key': 'z.ai key',
   'needs-either-key': 'OpenRouter / z.ai',
+  unknown: 'Unverified',
 };
 
 /** Inline separator shared by the capability line and the links line. */

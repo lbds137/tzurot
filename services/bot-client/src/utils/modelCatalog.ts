@@ -43,7 +43,10 @@ export type ModelUsability =
   | 'usable'
   | 'needs-openrouter-key'
   | 'needs-zai-key'
-  | 'needs-either-key';
+  | 'needs-either-key'
+  // Couldn't determine the user's keys (wallet fetch failed/rate-limited) — we
+  // genuinely don't know, so we show this rather than a misleading "needs key".
+  | 'unknown';
 
 export interface UsableCatalogModel extends CatalogModel {
   usability: ModelUsability;
@@ -195,17 +198,26 @@ export async function fetchCatalogModelById(id: string): Promise<CatalogModel | 
  *
  * The system OpenRouter key is assumed present (bot-client can't probe it), so a
  * free model never reports "needs key".
+ *
+ * `activeProviders === null` means the wallet fetch FAILED (timeout, error,
+ * rate-limit) — we couldn't determine the user's keys. Non-free models are then
+ * marked `'unknown'` rather than falsely reporting "needs a key"; free models
+ * stay usable (they need no key regardless).
  */
 export function annotateUsability(
   models: CatalogModel[],
-  activeProviders: ReadonlySet<string>
+  activeProviders: ReadonlySet<string> | null
 ): UsableCatalogModel[] {
-  const hasOpenRouter = activeProviders.has(AIProvider.OpenRouter);
-  const hasZai = activeProviders.has(AIProvider.ZaiCoding);
+  const keysUnknown = activeProviders === null;
+  const hasOpenRouter = activeProviders?.has(AIProvider.OpenRouter) ?? false;
+  const hasZai = activeProviders?.has(AIProvider.ZaiCoding) ?? false;
 
   return models.map(model => {
     if (isFreeModel(model.id)) {
       return { ...model, usability: 'free', canUse: true };
+    }
+    if (keysUnknown) {
+      return { ...model, usability: 'unknown', canUse: false };
     }
     if (model.source === 'zai-catalog') {
       return { ...model, usability: hasZai ? 'usable' : 'needs-zai-key', canUse: hasZai };

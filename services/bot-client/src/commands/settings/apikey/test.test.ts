@@ -162,6 +162,27 @@ describe('handleTestKey', () => {
     });
   });
 
+  it('should map a 429 rate-limit to a retry message, not "API Key Invalid"', async () => {
+    stub.testWalletKey.mockResolvedValue(makeErr(429, 'Too many API key operations'));
+
+    const context = createMockContext('openrouter');
+    await handleTestKey(context);
+
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('Too many key operations'),
+    });
+    // Must NOT render the alarming validation-failure embed for a mere throttle.
+    expect(mockEditReply).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        embeds: expect.arrayContaining([
+          expect.objectContaining({
+            data: expect.objectContaining({ title: '❌ API Key Invalid' }),
+          }),
+        ]),
+      })
+    );
+  });
+
   it('should handle exceptions', async () => {
     stub.testWalletKey.mockRejectedValue(new Error('Network error'));
 

@@ -127,6 +127,9 @@ function usabilityIcon(model: UsableCatalogModel): string {
   if (model.usability === 'free') {
     return '🆓';
   }
+  if (model.usability === 'unknown') {
+    return '❔';
+  }
   return model.canUse ? '✅' : '🔒';
 }
 
@@ -175,6 +178,13 @@ function buildBrowseEmbed(view: BrowseView, pageItems: BrowseModel[]): EmbedBuil
     `sorted: ${ACTIVE_SORT_LABEL[sort]}`,
   ].filter(Boolean);
   lines.push(`_${filterBits.join(' · ')}_`);
+  // When the wallet fetch failed, every non-free model is `unknown` — explain
+  // the ❔ rather than leaving the user guessing why nothing shows ✅/🔒.
+  if (items.some(m => m.usability === 'unknown')) {
+    lines.push(
+      "⚠️ _Couldn't verify your API keys right now — usability shown as ❔. Try again shortly._"
+    );
+  }
   if (items.length === 0) {
     lines.push('_No models match your filters._');
   } else {
@@ -191,7 +201,7 @@ function buildBrowseEmbed(view: BrowseView, pageItems: BrowseModel[]): EmbedBuil
     text: joinFooter(
       pluralize(items.length, { singular: 'model', plural: 'models' }),
       capped && `first ${BROWSE_FETCH_LIMIT} — refine with search for more`,
-      '🆓 free  ✅ you can use  🔒 needs a key  📌 global preset  🔀 router  ⚡ z.ai'
+      '🆓 free  ✅ you can use  🔒 needs a key  ❔ unverified  📌 global preset  🔀 router  ⚡ z.ai'
     ),
   });
   return embed;
@@ -253,9 +263,10 @@ function buildBrowsePage(view: BrowseView): { embed: EmbedBuilder; components: B
 /**
  * Fetch the merged catalog + the user's active key providers + the global
  * presets, then annotate usability, flag global-preset models, and apply the
- * pinned two-tier sort. All three gateway reads run concurrently; the wallet
- * and preset reads degrade to empty on failure (no usability/pin info rather
- * than a failed browse).
+ * pinned two-tier sort. All three gateway reads run concurrently. A failed
+ * WALLET read yields `null` providers → non-free models render `unknown` (❔)
+ * rather than a misleading "needs a key"; a failed PRESET read degrades to no
+ * pinning. Neither fails the browse.
  */
 async function loadAnnotatedModels(
   interaction: ClientCarryingInteraction,
@@ -269,9 +280,10 @@ async function loadAnnotatedModels(
     userClient.listWalletKeys(),
     userClient.listUserLlmConfigs(),
   ]);
-  const activeProviders = new Set(
-    walletResult.ok ? walletResult.data.keys.filter(k => k.isActive).map(k => k.provider) : []
-  );
+  // null = wallet fetch failed (can't determine keys) → usability 'unknown'.
+  const activeProviders = walletResult.ok
+    ? new Set(walletResult.data.keys.filter(k => k.isActive).map(k => k.provider))
+    : null;
   const globalPresetModelIds = new Set(
     configsResult.ok
       ? configsResult.data.configs.filter(c => c.isGlobal).map(c => c.model.toLowerCase())
@@ -359,9 +371,10 @@ export async function handleBrowseSelect(interaction: StringSelectMenuInteractio
       });
       return;
     }
-    const activeProviders = new Set(
-      walletResult.ok ? walletResult.data.keys.filter(k => k.isActive).map(k => k.provider) : []
-    );
+    // null = wallet fetch failed → card shows 'unknown' rather than false "needs key".
+    const activeProviders = walletResult.ok
+      ? new Set(walletResult.data.keys.filter(k => k.isActive).map(k => k.provider))
+      : null;
     const [annotated] = annotateUsability([model], activeProviders);
     await interaction.followUp({
       embeds: [buildModelCard(annotated)],
