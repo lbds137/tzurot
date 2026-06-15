@@ -60,8 +60,12 @@ export interface OpenRouterModelPricing {
  * OpenRouter model top provider information
  */
 export interface OpenRouterModelTopProvider {
-  /** Maximum context length for this provider */
-  context_length: number;
+  /**
+   * Maximum context length for this provider. `null` for meta-routers
+   * (e.g. `openrouter/auto`), whose effective context depends on the
+   * model the request is routed to.
+   */
+  context_length: number | null;
   /** Maximum completion tokens */
   max_completion_tokens: number;
   /** Whether the model is moderated */
@@ -135,4 +139,12 @@ export interface ModelAutocompleteOption {
    * Used to sort the `/models` browser by recency.
    */
   created?: number;
+  /**
+   * True for OpenRouter meta-routers (e.g. `openrouter/auto`, `fusion`) —
+   * detected via `top_provider.context_length === null`. Their cost and
+   * context depend on the model a request is routed to, so the `/models`
+   * browser flags them with a 🔀 badge. Optional/absent for z.ai-catalog-only
+   * models, which are never routers.
+   */
+  isRouter?: boolean;
 }

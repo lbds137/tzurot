@@ -124,6 +124,41 @@ const sampleImageGenModel: OpenRouterModel = {
   default_parameters: {},
 };
 
+// Meta-router: reports a null top-provider context length (cost/context depend
+// on what it routes to). Drives the `isRouter` flag.
+const sampleRouterModel: OpenRouterModel = {
+  id: 'openrouter/auto',
+  canonical_slug: 'openrouter/auto',
+  hugging_face_id: null,
+  name: 'Auto Router',
+  created: 1700000000,
+  description: 'Routes to the best available model',
+  context_length: 2000000,
+  architecture: {
+    modality: 'text->text',
+    input_modalities: ['text'],
+    output_modalities: ['text'],
+    tokenizer: 'router',
+    instruct_type: null,
+  },
+  pricing: {
+    prompt: '-1',
+    completion: '-1',
+    request: '0',
+    image: '0',
+    web_search: '0',
+    internal_reasoning: '0',
+  },
+  top_provider: {
+    context_length: null,
+    max_completion_tokens: 0,
+    is_moderated: false,
+  },
+  per_request_limits: null,
+  supported_parameters: [],
+  default_parameters: {},
+};
+
 const sampleModels = [sampleTextModel, sampleVisionModel, sampleImageGenModel];
 
 // Create mock Redis
@@ -309,6 +344,7 @@ describe('OpenRouterModelCache', () => {
         promptPricePerMillion: 3,
         completionPricePerMillion: 15,
         created: 1700000000,
+        isRouter: false,
       });
     });
 
@@ -316,6 +352,16 @@ describe('OpenRouterModelCache', () => {
       const results = await cache.getFilteredModels({ search: 'gpt-4o' });
 
       expect(results[0].supportsVision).toBe(true);
+    });
+
+    it('flags meta-routers (null top-provider context length) as isRouter', async () => {
+      (mockRedis.get as ReturnType<typeof vi.fn>).mockResolvedValue(
+        JSON.stringify([sampleRouterModel, sampleTextModel])
+      );
+      const router = await cache.getModelById('openrouter/auto');
+      const concrete = await cache.getModelById('anthropic/claude-sonnet-4');
+      expect(router?.isRouter).toBe(true);
+      expect(concrete?.isRouter).toBe(false);
     });
 
     it('should correctly identify image generation support', async () => {
