@@ -9,6 +9,7 @@ import {
   buildModelInfoUrl,
   isZaiCodingPlanModel,
   getZaiCodingPlanContextLength,
+  listZaiCodingPlanModels,
 } from './ai.js';
 
 describe('isFreeModel', () => {
@@ -228,5 +229,31 @@ describe('getZaiCodingPlanContextLength', () => {
     expect(getZaiCodingPlanContextLength('z-ai/glm-99-future')).toBeNull();
     expect(getZaiCodingPlanContextLength('anthropic/claude-sonnet-4')).toBeNull();
     expect(getZaiCodingPlanContextLength('')).toBeNull();
+  });
+});
+
+describe('listZaiCodingPlanModels', () => {
+  it('returns every catalog model with its metadata', () => {
+    const models = listZaiCodingPlanModels();
+    const byName = new Map(models.map(m => [m.model, m]));
+    // The catalog lineup per docs.z.ai/devpack/overview.
+    expect([...byName.keys()].sort()).toEqual(
+      ['glm-4.5-air', 'glm-4.7', 'glm-5', 'glm-5-turbo', 'glm-5.1', 'glm-5.2'].sort()
+    );
+    expect(byName.get('glm-5.2')?.contextLength).toBe(1_000_000);
+    expect(byName.get('glm-4.5-air')?.contextLength).toBe(128_000);
+  });
+
+  it('returns bare keys (no z-ai/ prefix) and a docs URL per model', () => {
+    for (const entry of listZaiCodingPlanModels()) {
+      expect(entry.model.startsWith('z-ai/')).toBe(false);
+      expect(entry.docsUrl).toMatch(/^https:\/\/docs\.z\.ai\//);
+    }
+  });
+
+  it('is consistent with getZaiCodingPlanContextLength for each entry', () => {
+    for (const entry of listZaiCodingPlanModels()) {
+      expect(getZaiCodingPlanContextLength(entry.model)).toBe(entry.contextLength);
+    }
   });
 });

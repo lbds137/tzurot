@@ -39,9 +39,10 @@ export const CATEGORY_CONFIG: Record<string, { emoji: string; order: number }> =
   History: { emoji: '📜', order: 8 },
   Channel: { emoji: '#️⃣', order: 9 },
   Inspect: { emoji: '🔍', order: 10 },
-  Deny: { emoji: '🚫', order: 11 },
-  Admin: { emoji: '🛡️', order: 12 },
-  Help: { emoji: '❓', order: 13 },
+  Models: { emoji: '🤖', order: 11 },
+  Deny: { emoji: '🚫', order: 12 },
+  Admin: { emoji: '🛡️', order: 13 },
+  Help: { emoji: '❓', order: 14 },
   Other: { emoji: '📦', order: 99 },
 };
 

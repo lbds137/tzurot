@@ -1357,4 +1357,4 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
 ]
 `;
 
-exports[`CommandHandler (component) > command structure snapshots > should have stable command count > total-command-count 1`] = `13`;
+exports[`CommandHandler (component) > command structure snapshots > should have stable command count > total-command-count 1`] = `14`;

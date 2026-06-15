@@ -36,8 +36,12 @@ const logger = createLogger('models-routes');
 
 /** Default limit for autocomplete results */
 const DEFAULT_LIMIT = 25;
-/** Maximum allowed limit */
-const MAX_LIMIT = 100;
+/**
+ * Maximum allowed limit. High enough for the full OpenRouter catalog (~340
+ * models) so the `/models browse` command can page through everything; the
+ * autocomplete callers still pass small limits (25).
+ */
+const MAX_LIMIT = 1000;
 /** Valid modality values */
 const VALID_MODALITIES: ModelModality[] = ['text', 'image', 'audio', 'video', 'file'];
 

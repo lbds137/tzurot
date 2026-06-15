@@ -1,0 +1,246 @@
+/**
+ * Model Catalog
+ *
+ * Builds the unified model list behind the `/models` command by merging two
+ * sources:
+ *  1. The OpenRouter model list (via the gateway `/models` endpoints).
+ *  2. The static z.ai coding-plan catalog (`listZaiCodingPlanModels`) — which
+ *     includes z.ai-only models like `glm-5.2` that never appear in OpenRouter.
+ *
+ * It also annotates each model with whether the requesting user can actually
+ * use it, computed client-side from their configured API-key providers (no
+ * server round-trip beyond the wallet list the caller already fetched).
+ */
+
+import {
+  AIProvider,
+  ZAI_MODEL_PREFIX,
+  isFreeModel,
+  isZaiCodingPlanModel,
+  listZaiCodingPlanModels,
+  type ModelAutocompleteOption,
+} from '@tzurot/common-types';
+import { fetchModels } from './modelAutocomplete.js';
+
+/** Where a catalog entry's data came from. */
+export type ModelSource = 'openrouter' | 'zai-catalog' | 'both';
+
+/** A model plus the metadata the `/models` card/list needs. */
+export interface CatalogModel extends ModelAutocompleteOption {
+  /** True if the model is on the z.ai coding plan (by prefix or catalog membership). */
+  isZaiCoding: boolean;
+  /** z.ai docs URL when known (z.ai models only); null otherwise. */
+  docsUrl: string | null;
+  /** Origin of the data — drives pricing display (zai-catalog has no $ figures). */
+  source: ModelSource;
+  /** Whether per-token pricing is known (false for z.ai-only catalog entries). */
+  hasPricing: boolean;
+}
+
+/** Why a user can or can't use a model. */
+export type ModelUsability =
+  | 'free'
+  | 'usable'
+  | 'needs-openrouter-key'
+  | 'needs-zai-key'
+  | 'needs-either-key';
+
+export interface UsableCatalogModel extends CatalogModel {
+  usability: ModelUsability;
+  canUse: boolean;
+}
+
+/** Capability filter for browse/fetch — mirrors the `/models browse` choices. */
+export type CapabilityFilter = 'all' | 'text' | 'vision' | 'image-gen';
+
+export interface FetchCatalogOptions {
+  capability?: CapabilityFilter;
+  search?: string;
+  /** OpenRouter fetch cap (gateway max is 1000). */
+  limit?: number;
+}
+
+/** Render a z.ai catalog key as a display name, e.g. `glm-5.2` → `GLM-5.2`. */
+function zaiDisplayName(model: string): string {
+  return model.toUpperCase();
+}
+
+/** Build a CatalogModel from an OpenRouter option. */
+function fromOpenRouter(m: ModelAutocompleteOption): CatalogModel {
+  // Meta/auto-routers (e.g. openrouter/auto) carry negative pricing because
+  // their cost depends on what they route to — no concrete per-token figure.
+  const hasPricing = m.promptPricePerMillion >= 0 && m.completionPricePerMillion >= 0;
+  return {
+    ...m,
+    isZaiCoding: isZaiCodingPlanModel(m.id),
+    docsUrl: null,
+    source: 'openrouter',
+    hasPricing,
+  };
+}
+
+/**
+ * Whether a z.ai catalog entry passes the active capability/search filter.
+ * z.ai coding-plan models are text-only, so they're excluded from the
+ * vision/image-gen capability views.
+ */
+function zaiPassesFilter(
+  slug: string,
+  displayName: string,
+  capability: CapabilityFilter,
+  searchLower: string
+): boolean {
+  if (capability === 'vision' || capability === 'image-gen') {
+    return false;
+  }
+  if (searchLower.length === 0) {
+    return true;
+  }
+  return (
+    slug.toLowerCase().includes(searchLower) || displayName.toLowerCase().includes(searchLower)
+  );
+}
+
+/**
+ * Fetch the merged model catalog (OpenRouter + z.ai), deduped by slug.
+ *
+ * A z.ai model that ALSO appears in OpenRouter (e.g. a `z-ai/glm-*` mirror)
+ * merges to `source: 'both'` — OpenRouter pricing/capabilities are kept and the
+ * z.ai docs URL is attached. z.ai-only models become synthetic `zai-catalog`
+ * entries with no per-token pricing.
+ */
+export async function fetchModelCatalog(
+  options: FetchCatalogOptions = {}
+): Promise<CatalogModel[]> {
+  const capability = options.capability ?? 'all';
+  const search = options.search;
+  const openRouterModels = await fetchModels({
+    textOnly: capability === 'text',
+    visionOnly: capability === 'vision',
+    imageGenOnly: capability === 'image-gen',
+    search,
+    limit: options.limit ?? 100,
+  });
+
+  const byKey = new Map<string, CatalogModel>();
+  for (const m of openRouterModels) {
+    byKey.set(m.id.toLowerCase(), fromOpenRouter(m));
+  }
+
+  const searchLower = (search ?? '').toLowerCase();
+  for (const z of listZaiCodingPlanModels()) {
+    const slug = `${ZAI_MODEL_PREFIX}${z.model}`;
+    const key = slug.toLowerCase();
+    const existing = byKey.get(key);
+    if (existing !== undefined) {
+      // Present in both sources — keep OpenRouter pricing/caps, add z.ai docs.
+      byKey.set(key, { ...existing, isZaiCoding: true, docsUrl: z.docsUrl, source: 'both' });
+      continue;
+    }
+    if (!zaiPassesFilter(slug, zaiDisplayName(z.model), capability, searchLower)) {
+      continue;
+    }
+    byKey.set(key, {
+      id: slug,
+      name: zaiDisplayName(z.model),
+      contextLength: z.contextLength,
+      supportsVision: false,
+      supportsImageGeneration: false,
+      supportsAudioInput: false,
+      supportsAudioOutput: false,
+      promptPricePerMillion: 0,
+      completionPricePerMillion: 0,
+      isZaiCoding: true,
+      docsUrl: z.docsUrl,
+      source: 'zai-catalog',
+      hasPricing: false,
+    });
+  }
+
+  return [...byKey.values()];
+}
+
+/**
+ * Look up a single model by its exact slug, across both sources. Returns null
+ * when no model matches. Used by `/models view` and the browse-select card.
+ */
+export async function fetchCatalogModelById(id: string): Promise<CatalogModel | null> {
+  // The gateway `search` is a substring match over name/id, and the z.ai merge
+  // filters its catalog by the same term, so searching the exact slug surfaces
+  // the model from whichever source(s) it lives in. We then pin the exact id.
+  const candidates = await fetchModelCatalog({ search: id });
+  const target = id.toLowerCase();
+  return candidates.find(m => m.id.toLowerCase() === target) ?? null;
+}
+
+/**
+ * Annotate each model with the requesting user's usability, given the set of
+ * provider strings they have an ACTIVE key for. The required key follows the
+ * model's actual routing, keyed off `source` (NOT the `z-ai/` id prefix):
+ *
+ * - **free** (`:free`) — always usable on the system key.
+ * - **zai-catalog** (z.ai-only, e.g. `glm-5.2`) — only reachable via z.ai-direct,
+ *   so it needs a z.ai coding-plan key.
+ * - **both** (a coding-plan model that ALSO lives on OpenRouter, e.g. `z-ai/glm-5`)
+ *   — a z.ai key routes direct, an OpenRouter key routes via the OR fallthrough;
+ *   either unlocks it.
+ * - **openrouter** (everything else, including `z-ai/*` models NOT on the coding
+ *   plan, which only route via OpenRouter) — needs an OpenRouter key.
+ *
+ * The system OpenRouter key is assumed present (bot-client can't probe it), so a
+ * free model never reports "needs key".
+ */
+export function annotateUsability(
+  models: CatalogModel[],
+  activeProviders: ReadonlySet<string>
+): UsableCatalogModel[] {
+  const hasOpenRouter = activeProviders.has(AIProvider.OpenRouter);
+  const hasZai = activeProviders.has(AIProvider.ZaiCoding);
+
+  return models.map(model => {
+    if (isFreeModel(model.id)) {
+      return { ...model, usability: 'free', canUse: true };
+    }
+    if (model.source === 'zai-catalog') {
+      return { ...model, usability: hasZai ? 'usable' : 'needs-zai-key', canUse: hasZai };
+    }
+    if (model.source === 'both') {
+      // Reachable via either an OpenRouter key (OR fallthrough) or a z.ai key
+      // (direct), so when neither is present, name both paths — not just one.
+      const canUse = hasOpenRouter || hasZai;
+      return { ...model, usability: canUse ? 'usable' : 'needs-either-key', canUse };
+    }
+    return {
+      ...model,
+      usability: hasOpenRouter ? 'usable' : 'needs-openrouter-key',
+      canUse: hasOpenRouter,
+    };
+  });
+}
+
+/** Emoji per capability, in display order. */
+export const CAPABILITY_EMOJI = {
+  text: '💬',
+  vision: '👁️',
+  imageGen: '🎨',
+  audioIn: '🔊',
+  audioOut: '🗣️',
+} as const;
+
+/** Render a model's capabilities as an emoji+label string (text is implicit/always present). */
+export function formatCapabilities(model: ModelAutocompleteOption): string {
+  const parts = [`${CAPABILITY_EMOJI.text} text`];
+  if (model.supportsVision) {
+    parts.push(`${CAPABILITY_EMOJI.vision} vision`);
+  }
+  if (model.supportsImageGeneration) {
+    parts.push(`${CAPABILITY_EMOJI.imageGen} image-gen`);
+  }
+  if (model.supportsAudioInput) {
+    parts.push(`${CAPABILITY_EMOJI.audioIn} audio-in`);
+  }
+  if (model.supportsAudioOutput) {
+    parts.push(`${CAPABILITY_EMOJI.audioOut} audio-out`);
+  }
+  return parts.join('  ');
+}

@@ -185,7 +185,7 @@ export function formatModelChoice(model: ModelAutocompleteOption): { name: strin
 /**
  * Format context length for display
  */
-function formatContextLength(tokens: number): string {
+export function formatContextLength(tokens: number): string {
   if (tokens >= 1_000_000) {
     const millions = tokens / 1_000_000;
     return millions % 1 === 0 ? `${millions}M` : `${millions.toFixed(1)}M`;

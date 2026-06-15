@@ -353,6 +353,25 @@ export const memoryPurgeOptions = defineTypedOptions({
 });
 
 // =============================================================================
+// MODELS COMMAND
+// =============================================================================
+
+/**
+ * /models browse <capability, search>
+ */
+export const modelsBrowseOptions = defineTypedOptions({
+  capability: { type: 'string', required: false },
+  search: { type: 'string', required: false },
+});
+
+/**
+ * /models view <model>
+ */
+export const modelsViewOptions = defineTypedOptions({
+  model: { type: 'string', required: true },
+});
+
+// =============================================================================
 // PERSONA COMMAND
 // =============================================================================
 

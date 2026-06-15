@@ -17,8 +17,10 @@ export {
   ZAI_MODEL_PREFIX,
   isZaiCodingPlanModel,
   getZaiCodingPlanContextLength,
+  listZaiCodingPlanModels,
   buildModelInfoUrl,
 } from './ai.js';
+export type { ZaiCodingPlanModelInfo } from './ai.js';
 
 // Timing constants
 export {
