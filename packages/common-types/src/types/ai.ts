@@ -129,4 +129,10 @@ export interface ModelAutocompleteOption {
   promptPricePerMillion: number;
   /** Pricing per million completion tokens (for display) */
   completionPricePerMillion: number;
+  /**
+   * Release/creation time as a Unix timestamp (seconds), from OpenRouter's
+   * `created` field. Optional — z.ai-catalog-only models have no such timestamp.
+   * Used to sort the `/models` browser by recency.
+   */
+  created?: number;
 }

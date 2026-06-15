@@ -258,6 +258,7 @@ export class OpenRouterModelCache {
       supportsAudioOutput: model.architecture.output_modalities.includes('audio'),
       promptPricePerMillion: isNaN(promptPrice) ? 0 : promptPrice,
       completionPricePerMillion: isNaN(completionPrice) ? 0 : completionPrice,
+      created: model.created,
     };
   }
 }

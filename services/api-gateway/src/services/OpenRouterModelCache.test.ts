@@ -308,6 +308,7 @@ describe('OpenRouterModelCache', () => {
         supportsAudioOutput: false,
         promptPricePerMillion: 3,
         completionPricePerMillion: 15,
+        created: 1700000000,
       });
     });
 

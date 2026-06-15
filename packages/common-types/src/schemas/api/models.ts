@@ -32,6 +32,8 @@ export const ModelAutocompleteOptionSchema = z.object({
   promptPricePerMillion: z.number(),
   /** Pricing per million completion tokens. */
   completionPricePerMillion: z.number(),
+  /** Release time (Unix seconds); absent for z.ai-catalog-only models. */
+  created: z.number().optional(),
 });
 
 /** Response shape for `GET /api/internal/models`. */

@@ -60,9 +60,12 @@ export interface FetchCatalogOptions {
   limit?: number;
 }
 
-/** Render a z.ai catalog key as a display name, e.g. `glm-5.2` → `GLM-5.2`. */
+/** Render a z.ai catalog key as a display name: `glm-5-turbo` → `GLM-5-Turbo`. */
 function zaiDisplayName(model: string): string {
-  return model.toUpperCase();
+  return model
+    .split('-')
+    .map(seg => (seg.toLowerCase() === 'glm' ? 'GLM' : seg.charAt(0).toUpperCase() + seg.slice(1)))
+    .join('-');
 }
 
 /** Build a CatalogModel from an OpenRouter option. */
@@ -167,8 +170,10 @@ export async function fetchModelCatalog(
 export async function fetchCatalogModelById(id: string): Promise<CatalogModel | null> {
   // The gateway `search` is a substring match over name/id, and the z.ai merge
   // filters its catalog by the same term, so searching the exact slug surfaces
-  // the model from whichever source(s) it lives in. We then pin the exact id.
-  const candidates = await fetchModelCatalog({ search: id });
+  // the model from whichever source(s) it lives in. A high limit ensures the
+  // exact match isn't truncated out when the slug is a substring of many models
+  // (e.g. "gpt"). We then pin the exact id.
+  const candidates = await fetchModelCatalog({ search: id, limit: 1000 });
   const target = id.toLowerCase();
   return candidates.find(m => m.id.toLowerCase() === target) ?? null;
 }
