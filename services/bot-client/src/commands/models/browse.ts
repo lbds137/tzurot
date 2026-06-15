@@ -36,6 +36,7 @@ import {
   type UsableCatalogModel,
 } from '../../utils/modelCatalog.js';
 import { buildModelCard } from './card.js';
+import { getActiveProviders, getGlobalPresetModelIds } from './browseUserCache.js';
 
 const logger = createLogger('models-browse');
 
@@ -263,10 +264,11 @@ function buildBrowsePage(view: BrowseView): { embed: EmbedBuilder; components: B
 /**
  * Fetch the merged catalog + the user's active key providers + the global
  * presets, then annotate usability, flag global-preset models, and apply the
- * pinned two-tier sort. All three gateway reads run concurrently. A failed
- * WALLET read yields `null` providers → non-free models render `unknown` (❔)
- * rather than a misleading "needs a key"; a failed PRESET read degrades to no
- * pinning. Neither fails the browse.
+ * pinned two-tier sort. All three reads run concurrently; the wallet + preset
+ * reads are short-TTL cached (see `browseUserCache`) so paging doesn't re-hit
+ * the gateway every press. A failed WALLET read yields `null` providers →
+ * non-free models render `unknown` (❔), not a false "needs a key"; a failed
+ * PRESET read degrades to no pinning. Neither fails the browse.
  */
 async function loadAnnotatedModels(
   interaction: ClientCarryingInteraction,
@@ -275,20 +277,11 @@ async function loadAnnotatedModels(
   sort: ModelSort
 ): Promise<BrowseModel[]> {
   const { userClient } = clientsFor(interaction);
-  const [catalog, walletResult, configsResult] = await Promise.all([
+  const [catalog, activeProviders, globalPresetModelIds] = await Promise.all([
     fetchModelCatalog({ capability, search: search ?? undefined, limit: BROWSE_FETCH_LIMIT }),
-    userClient.listWalletKeys(),
-    userClient.listUserLlmConfigs(),
+    getActiveProviders(userClient, interaction.user.id),
+    getGlobalPresetModelIds(userClient),
   ]);
-  // null = wallet fetch failed (can't determine keys) → usability 'unknown'.
-  const activeProviders = walletResult.ok
-    ? new Set(walletResult.data.keys.filter(k => k.isActive).map(k => k.provider))
-    : null;
-  const globalPresetModelIds = new Set(
-    configsResult.ok
-      ? configsResult.data.configs.filter(c => c.isGlobal).map(c => c.model.toLowerCase())
-      : []
-  );
   const annotated = annotateUsability(catalog, activeProviders).map<BrowseModel>(m => ({
     ...m,
     isGlobalPreset: globalPresetModelIds.has(m.id.toLowerCase()),
@@ -360,9 +353,9 @@ export async function handleBrowseSelect(interaction: StringSelectMenuInteractio
   await interaction.deferUpdate();
   try {
     const { userClient } = clientsFor(interaction);
-    const [model, walletResult] = await Promise.all([
+    const [model, activeProviders] = await Promise.all([
       fetchCatalogModelById(modelId),
-      userClient.listWalletKeys(),
+      getActiveProviders(userClient, interaction.user.id),
     ]);
     if (model === null) {
       await interaction.followUp({
@@ -371,10 +364,8 @@ export async function handleBrowseSelect(interaction: StringSelectMenuInteractio
       });
       return;
     }
-    // null = wallet fetch failed → card shows 'unknown' rather than false "needs key".
-    const activeProviders = walletResult.ok
-      ? new Set(walletResult.data.keys.filter(k => k.isActive).map(k => k.provider))
-      : null;
+    // activeProviders === null = wallet fetch failed → card shows 'unknown'
+    // (❔) rather than a false "needs key".
     const [annotated] = annotateUsability([model], activeProviders);
     await interaction.followUp({
       embeds: [buildModelCard(annotated)],

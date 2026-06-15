@@ -52,6 +52,7 @@ import {
   isModelsBrowseInteraction,
   isModelsBrowseSelectInteraction,
 } from './browse.js';
+import { __resetBrowseUserCachesForTests } from './browseUserCache.js';
 
 function catalogModel(overrides: Partial<CatalogModel> & { id: string }): CatalogModel {
   return {
@@ -73,6 +74,9 @@ function catalogModel(overrides: Partial<CatalogModel> & { id: string }): Catalo
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Caches persist across tests — reset so per-test wallet/preset mocks aren't
+  // masked by a warm entry from a prior test.
+  __resetBrowseUserCachesForTests();
   walletStub.listWalletKeys.mockResolvedValue(makeOk(mockListWalletKeysResponse([])));
   walletStub.listUserLlmConfigs.mockResolvedValue(makeOk(mockListLlmConfigsResponse([])));
 });

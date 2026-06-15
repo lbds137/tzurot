@@ -247,14 +247,24 @@ export const ZAI_VALIDATION_MODEL = 'glm-4.5-air';
  * lowercase to match the case-normalized lookups; user-typed preset configs
  * may use any case so callers normalize before lookup.
  */
-const ZAI_MODEL_CATALOG: Readonly<Record<string, { docsUrl: string; contextLength: number }>> = {
+// `released` (ISO date) is only consumed for z.ai-EXCLUSIVE models: it becomes
+// the synthetic catalog entry's `created` so `/models` can sort them by recency.
+// Models that also live on OpenRouter take OpenRouter's `created` via the merge,
+// so `released` is optional and only worth setting for z.ai-only entries.
+const ZAI_MODEL_CATALOG: Readonly<
+  Record<string, { docsUrl: string; contextLength: number; released?: string }>
+> = {
   'glm-5': { docsUrl: 'https://docs.z.ai/guides/llm/glm-5', contextLength: 200_000 },
   'glm-5.1': { docsUrl: 'https://docs.z.ai/guides/llm/glm-5.1', contextLength: 200_000 },
   // glm-5.2 is z.ai's flagship and is NOT on OpenRouter yet — the catalog is
-  // its only context-length source, so the cap depends on this value. Its
-  // docs page isn't published yet (the URL follows the established pattern and
-  // will resolve once z.ai adds it).
-  'glm-5.2': { docsUrl: 'https://docs.z.ai/guides/llm/glm-5.2', contextLength: 1_000_000 },
+  // its only source for context length AND release date (so `/models` can rank
+  // it by recency). Its docs page isn't published yet (the URL follows the
+  // established pattern and will resolve once z.ai adds it).
+  'glm-5.2': {
+    docsUrl: 'https://docs.z.ai/guides/llm/glm-5.2',
+    contextLength: 1_000_000,
+    released: '2026-06-13',
+  },
   'glm-5-turbo': { docsUrl: 'https://docs.z.ai/guides/llm/glm-5-turbo', contextLength: 200_000 },
   'glm-4.7': { docsUrl: 'https://docs.z.ai/guides/llm/glm-4.7', contextLength: 200_000 },
   // glm-4.5-air uses the parent family page — z.ai docs the Air variant on
@@ -313,6 +323,8 @@ export interface ZaiCodingPlanModelInfo {
   model: string;
   docsUrl: string;
   contextLength: number;
+  /** ISO release date; only set for z.ai-exclusive models (see catalog comment). */
+  released?: string;
 }
 
 /**
