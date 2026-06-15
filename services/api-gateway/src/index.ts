@@ -35,7 +35,6 @@ import { ConversationRetentionService } from './services/ConversationRetentionSe
 
 // Routes
 import { createAIRouter } from './routes/ai/index.js';
-import { createModelsRouter } from './routes/models/index.js';
 import {
   mountInternalRoutes,
   mountAdminRoutes,
@@ -283,9 +282,6 @@ function registerRoutes(app: Express, prisma: PrismaClient, services: ServicesCo
 
   app.use('/ai', createAIRouter({ prisma, aiQueue, queueEvents }));
   logger.info('AI routes registered');
-
-  app.use('/models', createModelsRouter(modelCache));
-  logger.info('Models routes registered');
 
   // ---- Codegen-mounted /api/{internal,admin,user} routes ------------------
   //

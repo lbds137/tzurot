@@ -17,6 +17,9 @@ export * from './personality.js';
 // Model Override endpoints
 export * from './model-override.js';
 
+// Model catalog (/api/internal/models)
+export * from './models.js';
+
 // Wallet endpoints
 export * from './wallet.js';
 

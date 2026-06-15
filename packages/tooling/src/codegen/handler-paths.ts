@@ -119,6 +119,7 @@ const PATH_MAP: Readonly<Record<string, string>> = {
 
   // Internal
   recentUsers: '../internal/usersRecent.js',
+  getModels: '../internal/models.js',
   setDmSession: '../internal/dmSessionSet.js',
   lookupPersonalityFromMessage: '../user/conversationLookup.js',
   persistAssistantMessage: '../internal/conversationAssistantMessage.js',

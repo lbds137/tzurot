@@ -191,6 +191,21 @@ export class ServiceClient {
   /**
    * @safeRead Server-side has no observable mutation — safe to cache client-side.
    */
+  async getModels(options: { inputModality?: string; outputModality?: string; search?: string; limit?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getModels.output>>> {
+    const fullPath = '/api/internal/models' + buildQueryString([['inputModality', options.inputModality], ['outputModality', options.outputModality], ['search', options.search], ['limit', options.limit]]);
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'GET',
+      path: fullPath,
+      outputSchema: ROUTE_MANIFEST.getModels.output,
+      timeoutMs: ROUTE_MANIFEST.getModels.timeoutMs,
+    });
+  }
+
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async getDenylistCache(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getDenylistCache.output>>> {
     const fullPath = '/api/internal/denylist/cache';
     return callGateway({

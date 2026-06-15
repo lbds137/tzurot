@@ -31,6 +31,7 @@ import {
   GetChannelSettingsResponseSchema,
   LoadPersonalityInternalResponseSchema,
   MessagePersonalityResponseSchema,
+  ModelsListResponseSchema,
   PersistAssistantMessageRequestSchema,
   PersistAssistantMessageResponseSchema,
   PersistUserMessageRequestSchema,
@@ -244,6 +245,32 @@ export const internalRoutes = {
     output: RecentUsersResponseSchema,
     serviceOnly: true,
     meta: { safeRead: true },
+  },
+
+  /**
+   * GET /api/internal/models
+   * The OpenRouter model catalog (cached in OpenRouterModelCache), powering the
+   * bot-client `/models` command. Public re: user auth, but service-auth only
+   * like every bot-client → gateway call. The single inputModality/outputModality
+   * query pair covers the former /models/{text,vision,image-generation} sub-paths.
+   */
+  getModels: {
+    audience: 'internal',
+    method: 'get',
+    path: '/models',
+    id: 'getModels',
+    query: {
+      inputModality: z.string().optional(),
+      outputModality: z.string().optional(),
+      search: z.string().optional(),
+      limit: z.coerce.number().int().positive().optional(),
+    },
+    output: ModelsListResponseSchema,
+    serviceOnly: true,
+    meta: { safeRead: true },
+    // Bulk (~340 models) + a cold cache can trigger an external OpenRouter
+    // fetch — larger budget than a single-row RPC, same as getDenylistCache.
+    timeoutMs: TIMEOUTS.GATEWAY_BULK_FETCH,
   },
 
   /**
