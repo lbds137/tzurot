@@ -202,7 +202,21 @@ describe('/models routes', () => {
       );
     });
 
-    it('should cap limit at 100', async () => {
+    it('should cap limit at 1000 (full-catalog ceiling for /models browse)', async () => {
+      const router = createModelsRouter(mockCache);
+      const handler = getHandler(router, 'get', '/');
+      const { req, res } = createMockReqRes({ limit: '5000' });
+
+      await handler(req, res);
+
+      expect(mockCache.getFilteredModels).toHaveBeenCalledWith(
+        expect.objectContaining({
+          limit: 1000,
+        })
+      );
+    });
+
+    it('allows a limit between the old 100 and the new 1000 ceiling', async () => {
       const router = createModelsRouter(mockCache);
       const handler = getHandler(router, 'get', '/');
       const { req, res } = createMockReqRes({ limit: '500' });
@@ -210,9 +224,7 @@ describe('/models routes', () => {
       await handler(req, res);
 
       expect(mockCache.getFilteredModels).toHaveBeenCalledWith(
-        expect.objectContaining({
-          limit: 100,
-        })
+        expect.objectContaining({ limit: 500 })
       );
     });
 

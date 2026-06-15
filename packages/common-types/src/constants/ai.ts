@@ -307,6 +307,25 @@ export function getZaiCodingPlanContextLength(model: string): number | null {
   return ZAI_MODEL_CATALOG[bare]?.contextLength ?? null;
 }
 
+/** One z.ai coding-plan model with its catalog metadata. */
+export interface ZaiCodingPlanModelInfo {
+  /** Bare catalog key, e.g. `glm-5.2` (no `z-ai/` prefix). */
+  model: string;
+  docsUrl: string;
+  contextLength: number;
+}
+
+/**
+ * The full z.ai coding-plan lineup, for surfaces that enumerate the catalog
+ * rather than look up a single model — notably the `/models` browser, which
+ * merges these into the OpenRouter list so z.ai-only models (e.g. `glm-5.2`,
+ * never present in the OpenRouter cache) are still discoverable. Returns bare
+ * catalog keys; prefix with `ZAI_MODEL_PREFIX` for the routable slug form.
+ */
+export function listZaiCodingPlanModels(): ZaiCodingPlanModelInfo[] {
+  return Object.entries(ZAI_MODEL_CATALOG).map(([model, meta]) => ({ model, ...meta }));
+}
+
 /**
  * Build a model-info URL for the response footer based on which provider
  * was actually used. For z.ai-coding direct routes, link to z.ai's docs
