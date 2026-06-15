@@ -56,6 +56,8 @@ describe('fetchModelCatalog', () => {
     expect(glm52?.hasPricing).toBe(false);
     expect(glm52?.contextLength).toBe(1_000_000);
     expect(glm52?.docsUrl).toMatch(/docs\.z\.ai/);
+    // Display name title-cases each dash segment, keeping GLM fully uppercase.
+    expect(glm52?.name).toBe('GLM-5.2');
   });
 
   it('dedups a z.ai model present in both sources to source=both, keeping OpenRouter pricing', async () => {
