@@ -2,22 +2,6 @@
 
 _New items go here. Triage to appropriate section weekly._
 
-### `[FEAT]` `/models` v2 — sorting + curation
-
-**Surfaced 2026-06-14 (user)**, reviewing the `/models` v1 (#1212, shipped). v1 is browse/view + user-aware usability + z.ai merge + all ~337 models. v2 makes browse genuinely useful.
-
-**Part 1 — card redesign — DONE (#1214):** spec-sheet layout (usability color bar, provider author, hyperlinked title, short inline fields, masked links).
-
-**Part 2 — sort modes — DONE (#1217):** toggle cycles default (usable-first) → price (cheapest) → recent (newest). Sort encoded in the customId (`createBrowseCustomIdHelpers` overload 2 / custom sort union); `created` plumbed through `OpenRouterModelCache.toAutocompleteOption` → `ModelAutocompleteOption` (+ Zod schema) → `CatalogModel`. Carried nits also shipped: `zaiDisplayName` title-cases dash segments, `fetchCatalogModelById` limit raised to 1000, `handleBrowse` capability/search path now tested. Two follow-ups deferred (see `deferred.md`): full `zaiDisplayName` acronym list, and a dedicated by-id gateway route.
-
-**Part 3 — global-preset models first (REMAINING):** surface models used by Tzurot's global presets at the top of the default view. Fetch via `userClient.listUserLlmConfigs()` (returns owned + global with `model`), prioritize set membership. Per user: **pin in every sort, but apply the active sort to both the pinned and non-pinned tiers** (not just the default view).
-
-**Remaining review nits** (fold in with Part 3):
-- Optional 🔀 **router badge** for `top_provider.context_length === null` models (auto/fusion/etc.) — distinguishes meta-routers from concrete models in the list.
-- **`both`-source card footer** says "via OpenRouter" exclusively (#1214 review) — a z.ai-key-only user reading a `z-ai/glm-5` card is misled. When the curation work reworks `both`-source display, make the footer name both routes (the ⚡ z.ai-coding marker in the capability line already hints it; the footer attributes the shown OpenRouter pricing).
-
-**Explicitly NOT in scope**: availability filtering. Confirmed moot — OpenRouter's `/models` only lists available models (every model has free or paid pricing; "zero providers" isn't in the bulk payload anyway).
-
 ### `[LIFT]` Type-assertion audit — triage sketchy casts, adopt a deterministic ratchet
 
 **Surfaced 2026-06-12 (user)** after PR #1192 (the `content as string` fix) — that cast was hiding a real type hole (`buildBaseComponents` returned `{ content: unknown }`, caught by tsc the moment the cast came out). Census of production code (tests excluded): **65 `as unknown as`** double-casts (full type-system bypass; some are test infra under `src/` — Discord mocks, conformance harness — but production hits include `ai-worker/jobs/AIJobProcessor.ts` ×3, `bot-client/utils/browse/customIdFactory.ts` ×3, the dashboard settings builders, `fetchTypingChannel.ts`), **1 `as never`** (`settingsUpdateFactory.ts:75`), **~416 total `as Type` assertions** never triaged. Same shape as the CPD story: a noisy raw metric needing a classifier + ratchet, not a grep.
