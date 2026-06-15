@@ -9,6 +9,7 @@ import { StatusCodes } from 'http-status-codes';
 import {
   RedisRateLimiter,
   createRedisWalletRateLimiter,
+  createRedisWalletReadRateLimiter,
   createRedisPublicRouteRateLimiter,
 } from './RedisRateLimiter.js';
 
@@ -298,6 +299,54 @@ describe('createRedisWalletRateLimiter', () => {
     const middleware = createRedisWalletRateLimiter(mockRedis as never);
 
     expect(typeof middleware).toBe('function');
+  });
+});
+
+describe('createRedisWalletReadRateLimiter', () => {
+  let mockRes: Partial<Response>;
+  let mockNext: NextFunction;
+  const mockReq = { headers: { 'x-user-id': 'user-123' } } as unknown as Request;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRes = {
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn().mockReturnThis(),
+      set: vi.fn().mockReturnThis(),
+    };
+    mockNext = vi.fn();
+  });
+
+  it('uses the dedicated wallet-read key prefix', async () => {
+    mockRedis.eval.mockResolvedValue(1);
+    createRedisWalletReadRateLimiter(mockRedis as never)(mockReq, mockRes as Response, mockNext);
+    await new Promise(resolve => setImmediate(resolve));
+    expect(mockRedis.eval).toHaveBeenCalledWith(
+      expect.stringContaining('redis.call'),
+      1,
+      'ratelimit:wallet-read:user-123',
+      60
+    );
+  });
+
+  it('allows reads well past the strict 10-per-window mutation budget', async () => {
+    // The 11th read in a window would be blocked by the strict wallet limiter;
+    // the read limiter lets it through (limit is 60/min), so browsing the model
+    // list never falsely degrades usability to "needs a key".
+    mockRedis.eval.mockResolvedValue(11);
+    createRedisWalletReadRateLimiter(mockRedis as never)(mockReq, mockRes as Response, mockNext);
+    await new Promise(resolve => setImmediate(resolve));
+    expect(mockNext).toHaveBeenCalled();
+    expect(mockRes.status).not.toHaveBeenCalled();
+  });
+
+  it('blocks once the generous read budget is exceeded', async () => {
+    mockRedis.eval.mockResolvedValue(61);
+    mockRedis.ttl.mockResolvedValue(30);
+    createRedisWalletReadRateLimiter(mockRedis as never)(mockReq, mockRes as Response, mockNext);
+    await new Promise(resolve => setImmediate(resolve));
+    expect(mockNext).not.toHaveBeenCalled();
+    expect(mockRes.status).toHaveBeenCalledWith(StatusCodes.TOO_MANY_REQUESTS);
   });
 });
 
