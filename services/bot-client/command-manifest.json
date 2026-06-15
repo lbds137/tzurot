@@ -1430,7 +1430,7 @@
                   {
                     "autocomplete": true,
                     "type": 3,
-                    "name": "config",
+                    "name": "preset",
                     "description": "Global preset to set as default",
                     "required": true
                   }
@@ -1444,7 +1444,7 @@
                   {
                     "autocomplete": true,
                     "type": 3,
-                    "name": "config",
+                    "name": "preset",
                     "description": "Global preset to set as free tier default",
                     "required": true
                   }
