@@ -2,6 +2,16 @@
 
 _New items go here. Triage to appropriate section weekly._
 
+### `[FEAT]` Multimodal input: file (PDF/doc) + video forwarding, then surface in `/models`
+
+**Surfaced 2026-06-15 (user)** while reviewing `/models browse` modality coverage. OpenRouter's `ModelModality` is `text | image | audio | video | file`, but we only capture/route **text, image, audio**. `video` and `file` (PDF/doc) input modalities are dropped from `ModelAutocompleteOption` (`OpenRouterModelCache.toAutocompleteOption`), and — more fundamentally — the bot can't *send* them: `MessageContentBuilder` renders every non-voice/non-image attachment as a **text description** (`[Attachments: [application/pdf: doc.pdf]]`), never as native model input. So surfacing `supportsFileInput`/`supportsVideoInput` today would over-promise.
+
+**The user wants to build these for real.** Two-part feature:
+1. **Bot-side forwarding**: detect PDF/doc (and eventually video) attachments and forward them to capable models as native input (OpenRouter `file`/`video` content parts), not just a text mention. Gate per-model on the model's advertised input modalities.
+2. **`/models` surfacing** (only after #1 ships, else it misleads): add `supportsFileInput`/`supportsVideoInput` flags to `ModelAutocompleteOption` (+ Zod schema) and `toAutocompleteOption`; render badges in the browse list + card; consider browse capability filters for `file`/`video` (and `audio`, which we already capture but don't expose as a filter).
+
+**Plumbing already half-present**: `ModelModality` includes `video`/`file` and the gateway's `getFilteredModels` accepts them as `inputModality` — only the autocomplete projection + browse UI drop them. **Promote when**: prioritized as a feature (it's a real capability gap, not a defect).
+
 ### `[LIFT]` Type-assertion audit — triage sketchy casts, adopt a deterministic ratchet
 
 **Surfaced 2026-06-12 (user)** after PR #1192 (the `content as string` fix) — that cast was hiding a real type hole (`buildBaseComponents` returned `{ content: unknown }`, caught by tsc the moment the cast came out). Census of production code (tests excluded): **65 `as unknown as`** double-casts (full type-system bypass; some are test infra under `src/` — Discord mocks, conformance harness — but production hits include `ai-worker/jobs/AIJobProcessor.ts` ×3, `bot-client/utils/browse/customIdFactory.ts` ×3, the dashboard settings builders, `fetchTypingChannel.ts`), **1 `as never`** (`settingsUpdateFactory.ts:75`), **~416 total `as Type` assertions** never triaged. Same shape as the CPD story: a noisy raw metric needing a classifier + ratchet, not a grep.
