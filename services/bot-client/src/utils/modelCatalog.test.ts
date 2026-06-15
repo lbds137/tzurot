@@ -213,6 +213,18 @@ describe('annotateUsability', () => {
     expect(annotateUsability([both], new Set())[0].usability).toBe('needs-either-key');
   });
 
+  it('marks non-free models unknown when keys could not be fetched (null providers)', () => {
+    const [r] = annotateUsability([cat({ id: 'anthropic/claude-sonnet-4' })], null);
+    expect(r.usability).toBe('unknown');
+    expect(r.canUse).toBe(false);
+  });
+
+  it('keeps free models usable even when keys could not be fetched (null providers)', () => {
+    const [r] = annotateUsability([cat({ id: 'google/gemma:free' })], null);
+    expect(r.usability).toBe('free');
+    expect(r.canUse).toBe(true);
+  });
+
   it('a z-ai/ model NOT on the coding plan needs an OpenRouter key (routes via OR)', () => {
     // e.g. z-ai/glm-4.6 — on OpenRouter, not in the coding-plan catalog, so
     // source is plain 'openrouter' and the z-ai/ prefix must NOT imply z.ai.

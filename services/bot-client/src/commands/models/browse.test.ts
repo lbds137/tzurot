@@ -374,6 +374,17 @@ describe('global-preset pinning + router badge', () => {
     expect(description).toContain('a/model');
     expect(description).not.toContain('📌');
   });
+
+  it('shows ❔ unverified + a notice when the wallet fetch fails (no false 🔒)', async () => {
+    walletStub.listWalletKeys.mockResolvedValue(makeErr(429, 'rate limited'));
+    catalogMock.fetchModelCatalog.mockResolvedValue([
+      catalogModel({ id: 'anthropic/claude-sonnet-4', name: 'Claude' }),
+    ]);
+    const description = await renderViaPagination('models::browse::0::all::default::');
+    expect(description).toContain('❔');
+    expect(description).toContain("Couldn't verify your API keys");
+    expect(description).not.toContain('🔒');
+  });
 });
 
 describe('handleBrowseSelect', () => {
