@@ -116,6 +116,46 @@ describe('commandsAuditChecks: description-presence', () => {
     expect(findings.some(f => f.severity === 'warn')).toBe(true);
   });
 
+  it('does not flag a real description that merely starts with a stub word', () => {
+    // "Test your API key validity" begins with "Test" but is a legitimate,
+    // long-enough description — the anchored stub regex must not flag it.
+    const findings = runChecks(
+      manifest([
+        command({
+          name: 'settings',
+          category: 'Character',
+          description: 'Manage your settings',
+          data: {
+            name: 'settings',
+            description: 'Manage your settings',
+            options: [{ type: 1, name: 'test', description: 'Test your API key validity' }],
+          },
+        }),
+      ])
+    ).filter(f => f.rule === 'description-presence');
+    expect(findings).toHaveLength(0);
+  });
+
+  it('still flags a long-enough meta-note placeholder (TODO: ...)', () => {
+    // Long enough to pass the minimum-length gate, so only the leading-word
+    // stub regex can catch it — the regex's real value over the length check.
+    const findings = runChecks(
+      manifest([
+        command({
+          name: 'settings',
+          category: 'Character',
+          description: 'Manage your settings',
+          data: {
+            name: 'settings',
+            description: 'Manage your settings',
+            options: [{ type: 1, name: 'wip', description: 'TODO: wire this up later' }],
+          },
+        }),
+      ])
+    ).filter(f => f.rule === 'description-presence');
+    expect(findings.some(f => f.severity === 'warn')).toBe(true);
+  });
+
   it('walks nested group → subcommand → leaf descriptions', () => {
     const findings = runChecks(
       manifest([

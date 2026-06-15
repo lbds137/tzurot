@@ -34,10 +34,15 @@ const KNOWN_SUBCOMMAND_NAMES = new Set<string>([
   'edit',
   'delete',
   'list', // legacy — handled specially below (warns toward `browse`)
-  // config-route conventions (LLM/TTS settings)
+  // config-route conventions (LLM/TTS settings) + the config-cascade
+  // get/set/set-default/clear-default family used consistently by /settings
+  // and /voice (read a value, set the per-scope default, clear it).
   'default',
   'free-default',
   'settings',
+  'get',
+  'set-default',
+  'clear-default',
   // established add/remove pair (deny, etc.)
   'add',
   'remove',
@@ -74,9 +79,18 @@ const KNOWN_SUBCOMMAND_NAMES = new Set<string>([
   'hard-delete',
   'test',
   'set',
+  // domain-specific verbs with no canonical CRUD equivalent
+  'forget', // memory: retroactive/incognito deletion, distinct from `delete`
+  'auth', // shapes: third-party integration sign-in
+  'logout', // shapes: third-party integration sign-out
 ]);
 
-const STUB_DESCRIPTION_RE = /^(test|todo|tbd|xxx)/i;
+// Catches placeholder/meta-note descriptions. `todo`/`tbd`/`xxx` are virtually
+// never the start of a real description, so a leading-word match is safe and
+// still flags "TODO: fix later". `test`, by contrast, is a common imperative
+// verb ("Test your API key validity"), so it's only flagged as the WHOLE
+// description — a bare "test" — to avoid the false positive.
+const STUB_DESCRIPTION_RE = /^(todo|tbd|xxx)\b|^test$/i;
 const STUB_DESCRIPTION_MIN_LENGTH = 12;
 
 // Near-synonym option-name clusters: names that tend to denote the same concept.
