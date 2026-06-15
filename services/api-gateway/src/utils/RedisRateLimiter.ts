@@ -183,6 +183,28 @@ export function createRedisWalletRateLimiter(redis: Redis): RequestHandler {
 }
 
 /**
+ * Create rate limiter for the wallet READ path (`GET /wallet/list`).
+ *
+ * Reads are cheap (a masked-key DB lookup, no external call) and legitimately
+ * hot: the `/models` browser fetches the caller's keys on every interaction to
+ * compute per-model usability. They must NOT share the strict mutation budget
+ * (`createRedisWalletRateLimiter`, 10 per 15 min) — that throttle is sized for
+ * sensitive key writes + OpenRouter validation, and browsing would exhaust it,
+ * making every model falsely report "needs a key." A generous per-minute bucket
+ * (separate `keyPrefix`) still guards against an authenticated client hammering
+ * the endpoint.
+ */
+export function createRedisWalletReadRateLimiter(redis: Redis): RequestHandler {
+  const limiter = new RedisRateLimiter(redis, {
+    windowMs: 60 * 1000, // 1 minute
+    maxRequests: 60, // 60 reads per minute — ample for browsing, abuse-resistant
+    message: 'Too many wallet read requests. Please try again later.',
+    keyPrefix: 'ratelimit:wallet-read:',
+  });
+  return limiter.middleware();
+}
+
+/**
  * Create rate limiter for denylist admin operations (POST/DELETE)
  *
  * Denylist mutations are infrequent admin actions. Rate limit to
