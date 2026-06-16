@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { SnapshotFormatter } from './SnapshotFormatter.js';
 import { createMockMessage } from '../../test/mocks/Discord.mock.js';
-import type { MessageSnapshot, APIEmbed } from 'discord.js';
+import { Collection, type Channel, type MessageSnapshot, type APIEmbed } from 'discord.js';
 
 // Mock the utility functions
 vi.mock('../../utils/discordContext.js', () => ({
@@ -290,6 +290,40 @@ describe('SnapshotFormatter', () => {
     it('should append "(forwarded message)" to location context', () => {
       const snapshot = createMockSnapshot();
       const forwardedFrom = createMockMessage();
+
+      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom);
+
+      expect(result.locationContext).toBe(
+        '<location type="guild"><server name="Test Guild"/></location> (forwarded message)'
+      );
+    });
+
+    it('surfaces the origin channel name when the bot can see it (cached)', () => {
+      const snapshot = createMockSnapshot();
+      const forwardedFrom = createMockMessage({
+        reference: { channelId: 'origin-chan-1' } as never,
+        client: {
+          channels: {
+            cache: new Collection<string, Channel>([
+              ['origin-chan-1', { name: 'announcements' } as unknown as Channel],
+            ]),
+          },
+        } as never,
+      });
+
+      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom);
+
+      expect(result.locationContext).toBe(
+        '<location type="guild"><server name="Test Guild"/></location> (forwarded from #announcements)'
+      );
+    });
+
+    it('degrades to the generic marker when the origin channel is not in cache (e.g. cross-server)', () => {
+      const snapshot = createMockSnapshot();
+      const forwardedFrom = createMockMessage({
+        reference: { channelId: 'origin-chan-unknown' } as never,
+        client: { channels: { cache: new Collection<string, Channel>() } } as never,
+      });
 
       const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom);
 

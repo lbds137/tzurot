@@ -21,6 +21,35 @@ import { EmbedParser } from '../../utils/EmbedParser.js';
  */
 export class SnapshotFormatter {
   /**
+   * Build the forward marker appended to the snapshot's locationContext.
+   *
+   * Discord exposes the ORIGIN channel of a forward on `forwardedFrom.reference`
+   * (a FORWARD-type MessageReference). When the bot can see that channel we
+   * surface its name ("forwarded from #general"), matching what Discord's own
+   * client shows. We read the client's channel CACHE only — no network `fetch()`
+   * on the message-handling path: a name is meaningful exactly when the bot is a
+   * member, which is also when the channel is cached. Cross-server forwards (bot
+   * not a member) won't resolve and fall back to the generic "(forwarded
+   * message)" marker rather than leaking a bare ID or stalling on a doomed fetch.
+   */
+  private buildForwardMarker(forwardedFrom: Message): string {
+    const originChannelId = forwardedFrom.reference?.channelId;
+    if (originChannelId === undefined) {
+      return '(forwarded message)';
+    }
+    const channel = forwardedFrom.client?.channels?.cache?.get(originChannelId);
+    if (
+      channel !== undefined &&
+      'name' in channel &&
+      typeof channel.name === 'string' &&
+      channel.name.length > 0
+    ) {
+      return `(forwarded from #${channel.name})`;
+    }
+    return '(forwarded message)';
+  }
+
+  /**
    * Format a message snapshot into a referenced message
    * @param snapshot - Message snapshot from forwarded message
    * @param referenceNumber - Reference number for this message
@@ -77,7 +106,7 @@ export class SnapshotFormatter {
       timestamp: snapshot.createdTimestamp
         ? new Date(snapshot.createdTimestamp).toISOString()
         : forwardedFrom.createdAt.toISOString(),
-      locationContext: `${locationContext} (forwarded message)`,
+      locationContext: `${locationContext} ${this.buildForwardMarker(forwardedFrom)}`,
       attachments: allAttachments.length > 0 ? allAttachments : undefined,
       isForwarded: true,
     };
