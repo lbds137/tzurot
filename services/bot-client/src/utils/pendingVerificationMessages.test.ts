@@ -178,13 +178,15 @@ describe('Pending Verification Messages', () => {
     });
 
     it('should return empty array on Redis error', async () => {
-      // Create an async generator that throws on iteration to simulate a Redis
-      // scan failure. It deliberately yields nothing before throwing.
-      // eslint-disable-next-line require-yield -- intentionally throws on first iteration; no value is ever yielded
-      async function* throwingStream(): AsyncGenerator<string[], void, unknown> {
-        throw new Error('Redis error');
-      }
-      mockRedis.scanStream.mockReturnValue(throwingStream());
+      // An async iterable whose iteration rejects, simulating a Redis scan
+      // failure. A plain iterator (not a generator) avoids the require-yield
+      // lint while still throwing on the first `for await` step.
+      const throwingStream: AsyncIterable<string[]> = {
+        [Symbol.asyncIterator]: () => ({
+          next: () => Promise.reject(new Error('Redis error')),
+        }),
+      };
+      mockRedis.scanStream.mockReturnValue(throwingStream);
 
       const result = await getAllPendingVerificationUserIds(mockRedis as any);
 
