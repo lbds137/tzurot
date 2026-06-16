@@ -676,7 +676,7 @@ describe('MistralTtsProvider', () => {
         mimeType: 'audio/wav',
         provider: 'mistral',
       };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Hand-built handle for test
+
       await expect(
         provider.synthesize('x', stateless as any, { slug: 's', byokKey: 'k' })
       ).rejects.toThrow(/inlineAudio/);

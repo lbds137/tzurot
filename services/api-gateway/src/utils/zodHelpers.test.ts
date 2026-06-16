@@ -69,7 +69,6 @@ describe('zodHelpers', () => {
       const result = schema.safeParse({ name: '' });
       expect(result.success).toBe(false);
       if (!result.success) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock Express response for testing
         sendZodError(mockRes as any, result.error);
         expect(mockRes.status).toHaveBeenCalledWith(400);
         expect(mockRes.json).toHaveBeenCalledWith(

@@ -38,7 +38,7 @@ describe('POST /admin/invalidate-cache', () => {
     // Create Express app with invalidate cache router
     const deps: RouteDeps = {
       prisma: {} as PrismaClient,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mock service satisfies the interface at the call sites the handler exercises
+
       cacheInvalidationService: cacheInvalidationService as any,
     };
     app = express();

@@ -37,7 +37,6 @@ describe('validatePrerequisites', () => {
         job: fakeJob,
         startTime: 0,
         config: {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- intentionally minimal for the validation-only test
           effectivePersonality: {} as any,
           configSource: 'personality',
         },
@@ -52,7 +51,6 @@ describe('validatePrerequisites', () => {
         job: fakeJob,
         startTime: 0,
         config: {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- intentionally minimal for the validation-only test
           effectivePersonality: {} as any,
           configSource: 'personality',
         },
@@ -72,7 +70,6 @@ describe('validatePrerequisites', () => {
         job: fakeJob,
         startTime: 0,
         config: {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- intentionally minimal for the validation-only test
           effectivePersonality: {} as any,
           configSource: 'personality',
         },

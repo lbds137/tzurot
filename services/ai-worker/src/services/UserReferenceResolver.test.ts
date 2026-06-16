@@ -775,8 +775,6 @@ describe('UserReferenceResolver', () => {
     });
 
     it('should process fields in parallel', async () => {
-      vi.useFakeTimers();
-
       const shapesUserId = '98a94b95-cbd0-430b-8be2-602e1c75d8b0';
       const personality = createMockPersonality({
         systemPrompt: `@[user](user:${shapesUserId})`,
@@ -784,11 +782,19 @@ describe('UserReferenceResolver', () => {
         conversationalExamples: `@[user](user:${shapesUserId})`,
       });
 
+      // Prove concurrency directly rather than via timer advancement: the three field
+      // lookups dispatch via Promise.allSettled, so all three enter findMany before any
+      // resolves (peak overlap = 3). Sequential resolution would never exceed 1.
+      // Deterministic — no real or fake delays needed.
       let callCount = 0;
+      let inFlight = 0;
+      let maxInFlight = 0;
       mockPrisma.shapesPersonaMapping.findMany.mockImplementation(async () => {
         callCount++;
-        // Simulate async delay
-        await new Promise(resolve => setTimeout(resolve, 10));
+        inFlight++;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        await Promise.resolve(); // suspend so concurrently-dispatched lookups overlap
+        inFlight--;
         return [
           {
             shapesUserId,
@@ -803,21 +809,12 @@ describe('UserReferenceResolver', () => {
         ];
       });
 
-      // Start the resolution (don't await yet)
-      const resultPromise = resolver.resolvePersonalityReferences(personality);
+      const result = await resolver.resolvePersonalityReferences(personality);
 
-      // Advance timers - if parallel, one tick of 10ms should resolve all
-      // If sequential, would need 30ms (3 * 10ms)
-      await vi.advanceTimersByTimeAsync(15);
-
-      // Should complete with parallel execution
-      const result = await resultPromise;
-
-      // Should have made 3 DB calls (one per field with reference)
+      // Should have made 3 DB calls (one per field with reference), all in-flight at once.
       expect(callCount).toBe(3);
+      expect(maxInFlight).toBe(3);
       expect(result.resolvedPersonality.systemPrompt).toBe('Resolved');
-
-      vi.useRealTimers();
     });
   });
 });

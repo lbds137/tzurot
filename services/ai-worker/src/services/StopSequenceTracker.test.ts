@@ -122,18 +122,22 @@ describe('StopSequenceTracker', () => {
       expect(Object.keys(stats.byModel)).toHaveLength(0);
     });
 
-    it('should reset the startedAt timestamp', async () => {
-      const beforeReset = getStopSequenceStats().startedAt;
+    it('should reset the startedAt timestamp', () => {
+      // Fake timers make the timestamp advance deterministic — no real wait to flake.
+      vi.useFakeTimers();
+      try {
+        resetStopSequenceStats();
+        const beforeReset = getStopSequenceStats().startedAt;
 
-      // Wait a small amount of real time to ensure different timestamp
-      await new Promise(resolve => setTimeout(resolve, 5));
-      resetStopSequenceStats();
+        vi.advanceTimersByTime(5); // move the clock forward so the next reset differs
+        resetStopSequenceStats();
 
-      const afterReset = getStopSequenceStats().startedAt;
-      // After reset, startedAt should be >= the previous value
-      expect(new Date(afterReset).getTime()).toBeGreaterThanOrEqual(
-        new Date(beforeReset).getTime()
-      );
+        const afterReset = getStopSequenceStats().startedAt;
+        // After reset, startedAt tracks the advanced clock.
+        expect(new Date(afterReset).getTime()).toBeGreaterThan(new Date(beforeReset).getTime());
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 

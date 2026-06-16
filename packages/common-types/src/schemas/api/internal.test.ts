@@ -48,7 +48,9 @@ describe('DiscordSnowflakeSchema', () => {
   });
 
   it('rejects non-string inputs (numbers)', () => {
-    expect(DiscordSnowflakeSchema.safeParse(123456789012345678).success).toBe(false);
+    // Value is arbitrary — the schema rejects all non-string input. Kept within
+    // Number.MAX_SAFE_INTEGER so the literal carries no precision-loss surprise.
+    expect(DiscordSnowflakeSchema.safeParse(1234567890123456).success).toBe(false);
   });
 });
 

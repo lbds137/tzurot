@@ -139,16 +139,23 @@ describe('AttachmentProcessor', () => {
     });
 
     it('should process multiple attachments in parallel', async () => {
-      mockDescribeImage.mockImplementation(async () => {
-        await new Promise(resolve => setTimeout(resolve, 50));
-        return 'Image description';
-      });
-      mockTranscribeAudio.mockImplementation(async () => {
-        await new Promise(resolve => setTimeout(resolve, 50));
-        return 'Voice transcription';
-      });
+      // Prove concurrency directly instead of via wall-clock timing: track how many
+      // processing callbacks are in-flight simultaneously. Promise.allSettled dispatch
+      // means both the image and voice mocks enter before either resolves, so the peak
+      // overlap is > 1. Sequential processing would never exceed 1. This is deterministic
+      // (no real delays), so it can't flake under load.
+      let inFlight = 0;
+      let maxInFlight = 0;
+      const trackOverlap = async <T>(value: T): Promise<T> => {
+        inFlight++;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        await Promise.resolve(); // suspend so concurrently-dispatched callbacks overlap
+        inFlight--;
+        return value;
+      };
+      mockDescribeImage.mockImplementation(() => trackOverlap('Image description'));
+      mockTranscribeAudio.mockImplementation(() => trackOverlap('Voice transcription'));
 
-      const startTime = Date.now();
       const result = await processAttachmentsParallel({
         attachments: [
           {
@@ -176,15 +183,14 @@ describe('AttachmentProcessor', () => {
         personality: mockPersonality,
         isGuestMode: false,
       });
-      const duration = Date.now() - startTime;
 
       expect(result).toHaveLength(3);
       expect(result[0]).toContain('- Image (photo.png)');
       expect(result[1]).toContain('- Voice Message (5s)');
       expect(result[2]).toBe('- File: doc.pdf (application/pdf)');
 
-      // Should be parallel, not sequential
-      expect(duration).toBeLessThan(200);
+      // Image + voice callbacks were in-flight at the same time → concurrent dispatch.
+      expect(maxInFlight).toBeGreaterThan(1);
     });
 
     it('should handle image processing failures gracefully', async () => {

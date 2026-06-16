@@ -408,8 +408,8 @@ describe('Settings Command Index', () => {
         customId: 'unknown-entity::action::id',
       } as any;
 
-      // Should not throw
-      await handleButton(interaction);
+      // Unknown custom IDs are logged and ignored — the handler resolves without throwing.
+      await expect(handleButton(interaction)).resolves.toBeUndefined();
     });
   });
 
@@ -431,8 +431,8 @@ describe('Settings Command Index', () => {
         customId: 'unknown-entity::select::id',
       } as any;
 
-      // Should not throw
-      await handleSelectMenu(interaction);
+      // Unknown custom IDs are logged and ignored — the handler resolves without throwing.
+      await expect(handleSelectMenu(interaction)).resolves.toBeUndefined();
     });
   });
 

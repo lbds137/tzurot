@@ -154,18 +154,22 @@ describe('WebhookManager', () => {
   });
 
   describe('getBotSuffix (via getStandardizedUsername)', () => {
-    it('should extract suffix from tag with delimiter', () => {
+    it('should extract suffix from tag with delimiter', async () => {
       const client = createMockClient('Tzurot · Dev#0000');
       manager = new WebhookManager(client);
 
       const personality = createMockPersonality('Lilith');
-      // Access via sendAsPersonality which calls getStandardizedUsername internally
       const channel = createMockTextChannel('channel-123', 'bot-123');
 
-      // We can test the suffix by checking what username is passed to webhook.send
-      manager.getWebhook(channel).then(_webhook => {
-        manager.sendAsPersonality(channel, personality, 'Test');
-      });
+      const webhook = await manager.getWebhook(channel);
+      await manager.sendAsPersonality(channel, personality, 'Test');
+
+      // The bot tag's delimiter suffix ("Dev") is appended: "Lilith · Dev".
+      expect(webhook.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          username: 'Lilith · Dev',
+        })
+      );
     });
 
     it('should use full username when no delimiter in tag', async () => {
