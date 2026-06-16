@@ -240,6 +240,92 @@ describe('Help Command', () => {
       expect(paramsField?.value).toContain('`command`');
     });
 
+    it('expands subcommand groups with `group sub` labels and renders group params', async () => {
+      const commands = new Map<string, Command>();
+      commands.set('voice', {
+        data: {
+          name: 'voice',
+          description: 'Voice configuration',
+          options: [
+            {
+              type: 2, // SUBCOMMAND_GROUP
+              name: 'tts',
+              description: 'TTS config',
+              options: [
+                {
+                  type: 1,
+                  name: 'set',
+                  description: 'Override TTS for a character',
+                  options: [
+                    { type: 3, name: 'character', description: 'Which character', required: true },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+        execute: vi.fn(),
+        category: 'Voice',
+      } as unknown as Command);
+      const interaction = createMockContext('voice', commands);
+
+      await execute(interaction);
+
+      const json = mockEditReply.mock.calls[0][0].embeds[0].toJSON();
+      const groupField = json.fields.find((f: { name: string }) => f.name.includes('tts set'));
+      expect(groupField).toBeDefined();
+      expect(groupField?.value).toContain('Override TTS for a character');
+      expect(groupField?.value).toContain('`character`');
+      expect(groupField?.value).toContain('*(required)*');
+    });
+
+    it('renders the no-parameters fallback when a subcommand has neither description nor params', async () => {
+      const commands = new Map<string, Command>();
+      commands.set('bare', {
+        data: {
+          name: 'bare',
+          description: 'Bare command',
+          // A subcommand with an empty description and no options exercises the
+          // `_No parameters._` fallback (Discord normally requires a description,
+          // so this is the defensive empty-value guard).
+          options: [{ type: 1, name: 'noop', description: '' }],
+        },
+        execute: vi.fn(),
+        category: 'Other',
+      } as unknown as Command);
+      const interaction = createMockContext('bare', commands);
+
+      await execute(interaction);
+
+      const json = mockEditReply.mock.calls[0][0].embeds[0].toJSON();
+      const field = json.fields.find((f: { name: string }) => f.name.includes('noop'));
+      expect(field?.value).toContain('No parameters');
+    });
+
+    it('caps subcommand fields at the Discord limit with an overflow note', async () => {
+      const manySubs = Array.from({ length: 30 }, (_, i) => ({
+        type: 1,
+        name: `sub${i}`,
+        description: `Subcommand ${i}`,
+      }));
+      const commands = new Map<string, Command>();
+      commands.set('big', {
+        data: { name: 'big', description: 'Many subcommands', options: manySubs },
+        execute: vi.fn(),
+        category: 'Other',
+      } as unknown as Command);
+      const interaction = createMockContext('big', commands);
+
+      await execute(interaction);
+
+      const json = mockEditReply.mock.calls[0][0].embeds[0].toJSON();
+      // 24 subcommand fields + 1 overflow note = Discord's 25-field cap
+      expect(json.fields).toHaveLength(25);
+      const overflow = json.fields.find((f: { name: string }) => f.name.includes('and more'));
+      expect(overflow).toBeDefined();
+      expect(overflow?.value).toContain('6 more'); // 30 - 24
+    });
+
     it('should show error for unknown command', async () => {
       const commands = createMockCommands();
       const interaction = createMockContext('nonexistent', commands);
