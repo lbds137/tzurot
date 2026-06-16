@@ -1,7 +1,7 @@
 # Backlog
 
-> **Last Updated**: 2026-05-19
-> **Version**: v3.0.0-beta.123 (released — develop SHA-aligned with main)
+> **Last Updated**: 2026-06-16
+> **Version**: v3.0.0-beta.132 (released 2026-06-15); develop ahead by #1225/#1226 + docs (unreleased)
 
 Single source of truth for all work. Tech debt competes for the same time as features.
 
