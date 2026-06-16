@@ -468,33 +468,61 @@
           {
             "type": 1,
             "name": "chat",
-            "description": "Send a message to a character, or summon them to weigh in",
+            "description": "Chat one-on-one with a character",
             "options": [
               {
                 "autocomplete": true,
                 "type": 3,
                 "name": "character",
-                "description": "Character to chat with (omit for a random pick)",
-                "required": false
+                "description": "Character to chat with",
+                "required": true
               },
               {
                 "type": 3,
                 "name": "message",
-                "description": "Message to send (leave empty to have them weigh in on the conversation)",
+                "description": "Message to send to the character",
+                "required": true,
+                "max_length": 2000
+              }
+            ]
+          },
+          {
+            "type": 1,
+            "name": "random",
+            "description": "Chat with a random character — or, with no message, have them read the room",
+            "options": [
+              {
+                "type": 3,
+                "name": "message",
+                "description": "Message to send (leave empty to have the random pick react to recent chat)",
                 "required": false,
                 "max_length": 2000
               },
               {
                 "name": "exclude-private",
-                "description": "When picking a random character, only consider public ones (skip your private characters)",
+                "description": "Only consider public characters (skip your private ones)",
                 "required": false,
                 "type": 5
               },
               {
                 "name": "only-mine",
-                "description": "When picking a random character, only consider characters you own (composable with exclude-private)",
+                "description": "Only consider characters you own (composable with exclude-private)",
                 "required": false,
                 "type": 5
+              }
+            ]
+          },
+          {
+            "type": 1,
+            "name": "chime-in",
+            "description": "Have a character chime in on the recent conversation (no message from you)",
+            "options": [
+              {
+                "autocomplete": true,
+                "type": 3,
+                "name": "character",
+                "description": "Character to chime in",
+                "required": true
               }
             ]
           },

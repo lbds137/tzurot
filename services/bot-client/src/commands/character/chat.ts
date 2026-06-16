@@ -28,6 +28,8 @@ import {
   isTypingChannel,
   MESSAGE_LIMITS,
   characterChatOptions,
+  characterRandomOptions,
+  characterChimeInOptions,
   type TypingChannel,
   type EnvConfig,
   type LoadedPersonality,
@@ -318,7 +320,7 @@ async function submitAndTrackJob(params: SubmitJobParams): Promise<void> {
  * lives here where it's the function's only concern. Each filter is
  * independent — see `ResolveCharacterSlugOptions` for the AND-composition.
  */
-function readRandomPickFilters(options: ReturnType<typeof characterChatOptions>): {
+function readRandomPickFilters(options: ReturnType<typeof characterRandomOptions>): {
   excludePrivate: boolean;
   onlyMine: boolean;
 } {
@@ -329,38 +331,38 @@ function readRandomPickFilters(options: ReturnType<typeof characterChatOptions>)
 }
 
 /**
- * Handle /character chat subcommand
+ * Shared core for the three character-turn commands (`chat`, `random`,
+ * `chime-in`). They differ only in how they resolve their inputs:
  *
- * Supports two modes:
- * - Chat mode (message provided): User sends message, character responds
- * - Weigh-in mode (no message): Character contributes to ongoing conversation
+ * - **`/character chat`**: a named character + a required message → chat mode.
+ * - **`/character random`**: `characterArg=null` forces a random pick; with a
+ *   message it's a chat, with no message it's a weigh-in ("read the room").
+ * - **`/character chime-in`**: a named character + no message → weigh-in mode
+ *   (anonymous, no persona, no LTM, no STM-reset epoch).
  *
- * The character argument is optional. When omitted, a random accessible
- * personality is picked and an explanatory notice replaces the deferred
- * "thinking..." message so the channel sees who got chosen.
- *
- * Uses MessageContextBuilder for feature parity with @mentions:
- * - Context epoch support (/history clear honored)
- * - Guild member info (roles, color, join date)
- * - User timezone for date/time formatting
+ * Weigh-in is derived purely from `message` being absent/empty, so all three
+ * funnel through the same delivery path. Uses MessageContextBuilder for parity
+ * with @mentions (context epoch, guild member info, user timezone).
  */
-
-export async function handleChat(
+async function runCharacterTurn(
   context: DeferredCommandContext,
-  _config: EnvConfig
+  _config: EnvConfig,
+  params: {
+    /** Provided character slug, or null to force a random pick. */
+    characterArg: string | null;
+    /** User message, or null/empty for weigh-in mode. */
+    message: string | null;
+    /** Random-pick filters — only meaningful when characterArg is null. */
+    filters: { excludePrivate: boolean; onlyMine: boolean };
+  }
 ): Promise<void> {
-  const options = characterChatOptions(context.interaction);
-  const message = options.message();
+  const { characterArg, message, filters } = params;
   const userId = context.user.id;
   const isWeighInMode = message === null || message.trim().length === 0;
   const discordDisplayName = context.member?.displayName ?? context.user.displayName;
 
-  // Resolve the character slug (either user-provided or random pick).
-  const resolved = await resolveCharacterSlug(
-    options.character(),
-    context,
-    readRandomPickFilters(options)
-  );
+  // Resolve the character slug (either provided or a random pick).
+  const resolved = await resolveCharacterSlug(characterArg, context, filters);
   if (resolved.kind === 'error') {
     await context.editReply({ content: resolved.message });
     return;
@@ -428,6 +430,8 @@ export async function handleChat(
     const anchorMessage = anchorResult.message;
 
     // 7. Build full context with command invoker's identity (not anchor message author)
+    // (TS narrows `message` to string in the else branch via the aliased
+    // `isWeighInMode` const, which already covers the null/empty case.)
     const messageContent = isWeighInMode ? WEIGH_IN_MESSAGE : message;
     const buildResult = await buildChatContext({
       anchorMessage,
@@ -464,6 +468,56 @@ export async function handleChat(
     logger.error({ err: error, characterSlug }, 'Error processing chat');
     await handleChatError(context);
   }
+}
+
+/**
+ * `/character chat` — chat one-on-one with a named character. Both args are
+ * required (the message-required invariant is what makes Discord block the old
+ * "omit message = weigh-in" ambiguity at the UI level).
+ */
+export async function handleChat(
+  context: DeferredCommandContext,
+  config: EnvConfig
+): Promise<void> {
+  const options = characterChatOptions(context.interaction);
+  await runCharacterTurn(context, config, {
+    characterArg: options.character(),
+    message: options.message(),
+    filters: { excludePrivate: false, onlyMine: false },
+  });
+}
+
+/**
+ * `/character random` — pick a random accessible character. With a message it's
+ * a chat; with no message the random pick reads the room (weigh-in).
+ */
+export async function handleRandom(
+  context: DeferredCommandContext,
+  config: EnvConfig
+): Promise<void> {
+  const options = characterRandomOptions(context.interaction);
+  await runCharacterTurn(context, config, {
+    characterArg: null, // null forces the random pick in resolveCharacterSlug
+    message: options.message(),
+    filters: readRandomPickFilters(options),
+  });
+}
+
+/**
+ * `/character chime-in` — have a named character react to the recent
+ * conversation with no message from the invoker (weigh-in semantics: anonymous,
+ * no persona attachment, no LTM read/write, no STM-reset epoch).
+ */
+export async function handleChimeIn(
+  context: DeferredCommandContext,
+  config: EnvConfig
+): Promise<void> {
+  const options = characterChimeInOptions(context.interaction);
+  await runCharacterTurn(context, config, {
+    characterArg: options.character(),
+    message: null, // no message → weigh-in mode
+    filters: { excludePrivate: false, onlyMine: false },
+  });
 }
 
 /**

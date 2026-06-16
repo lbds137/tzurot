@@ -143,13 +143,27 @@ export const characterExportOptions = defineTypedOptions({
 });
 
 /**
- * /character chat <character, message, exclude-private, only-mine>
+ * /character chat <character, message>
  */
 export const characterChatOptions = defineTypedOptions({
-  character: { type: 'string', required: false },
+  character: { type: 'string', required: true },
+  message: { type: 'string', required: true },
+});
+
+/**
+ * /character random <message, exclude-private, only-mine>
+ */
+export const characterRandomOptions = defineTypedOptions({
   message: { type: 'string', required: false },
   'exclude-private': { type: 'boolean', required: false },
   'only-mine': { type: 'boolean', required: false },
+});
+
+/**
+ * /character chime-in <character>
+ */
+export const characterChimeInOptions = defineTypedOptions({
+  character: { type: 'string', required: true },
 });
 
 /**
