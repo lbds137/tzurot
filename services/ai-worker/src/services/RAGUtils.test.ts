@@ -352,9 +352,10 @@ describe('RAGUtils', () => {
         ['discord-msg-1', [{ filename: 'img.png', description: 'A photo' }]],
       ]);
 
-      // Should not throw
-      injectImageDescriptions([], imageMap);
-      injectImageDescriptions(undefined, imageMap);
+      expect(() => {
+        injectImageDescriptions([], imageMap);
+        injectImageDescriptions(undefined, imageMap);
+      }).not.toThrow();
     });
 
     it('should handle empty imageMap', () => {

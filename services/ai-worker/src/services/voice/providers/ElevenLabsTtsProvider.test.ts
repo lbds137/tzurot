@@ -37,7 +37,7 @@ describe('ElevenLabsTtsProvider', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     voiceService = makeService();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test double for ElevenLabsVoiceService
+
     provider = new ElevenLabsTtsProvider(voiceService as any);
   });
 
@@ -188,7 +188,6 @@ describe('ElevenLabsTtsProvider', () => {
     });
 
     it('rejects inlineAudio handles', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Hand-built handle for test
       const stateless: any = {
         _brand: 'prepared',
         kind: 'inlineAudio',

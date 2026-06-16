@@ -517,6 +517,7 @@ describe('LLMInvoker', () => {
           invoke: vi.fn().mockImplementation(
             () =>
               new Promise((_, reject) => {
+                // eslint-disable-next-line no-restricted-syntax -- Mocked 70s model latency under vi.useFakeTimers(); flushed by runAllTimersAsync below, not a real delay
                 setTimeout(() => reject({ code: 'ETIMEDOUT', message: 'Timeout' }), 70000);
               })
           ),

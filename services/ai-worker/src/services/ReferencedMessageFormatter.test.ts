@@ -380,9 +380,18 @@ describe('ReferencedMessageFormatter', () => {
 
   describe('Image attachment processing', () => {
     it('should process image attachments in parallel', async () => {
+      // Prove concurrency directly rather than via wall-clock timing: count how many
+      // describeImage callbacks overlap. Attachment processing dispatches via
+      // Promise.allSettled, so all three enter before any resolves (peak overlap = 3);
+      // sequential processing would never exceed 1. Deterministic — no real delays to flake.
+      let inFlight = 0;
+      let maxInFlight = 0;
       // Use hoisted mock directly (mockDescribeImage from vi.hoisted())
       mockDescribeImage.mockImplementation(async (attachment: { name: string }) => {
-        await new Promise(resolve => setTimeout(resolve, 100)); // Simulate processing time
+        inFlight++;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        await Promise.resolve(); // suspend so concurrently-dispatched callbacks overlap
+        inFlight--;
         return `Description of ${attachment.name}`;
       });
 
@@ -421,9 +430,7 @@ describe('ReferencedMessageFormatter', () => {
         },
       ];
 
-      const startTime = Date.now();
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
-      const duration = Date.now() - startTime;
 
       // Verify all images were processed
       expect(mockDescribeImage).toHaveBeenCalledTimes(3);
@@ -431,9 +438,8 @@ describe('ReferencedMessageFormatter', () => {
       expect(result).toContain('- Image (image2.png): Description of image2.png');
       expect(result).toContain('- Image (image3.png): Description of image3.png');
 
-      // Verify parallel processing (should take ~100ms not ~300ms)
-      // Allow some overhead but ensure it's significantly faster than sequential
-      expect(duration).toBeLessThan(250);
+      // All three describeImage callbacks were in-flight simultaneously → parallel processing.
+      expect(maxInFlight).toBe(3);
     });
 
     it('should handle image processing failures gracefully', async () => {
@@ -530,9 +536,17 @@ describe('ReferencedMessageFormatter', () => {
 
   describe('Voice message processing', () => {
     it('should transcribe voice messages in parallel', async () => {
+      // Prove concurrency directly rather than via wall-clock timing: count overlapping
+      // transcribe callbacks. Both voice messages dispatch via Promise.allSettled, so peak
+      // overlap = 2; sequential would never exceed 1. Deterministic — no real delays.
+      let inFlight = 0;
+      let maxInFlight = 0;
       // Use hoisted mock directly
       mockTranscribeAudio.mockImplementation(async (attachment: { duration: number }) => {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        inFlight++;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        await Promise.resolve(); // suspend so concurrently-dispatched callbacks overlap
+        inFlight--;
         return {
           text: `Transcription of voice ${attachment.duration}s`,
           actualProvider: 'voice-engine',
@@ -572,16 +586,14 @@ describe('ReferencedMessageFormatter', () => {
         },
       ];
 
-      const startTime = Date.now();
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
-      const duration = Date.now() - startTime;
 
       expect(mockTranscribeAudio).toHaveBeenCalledTimes(2);
       expect(result).toContain('- Voice Message (5s): "Transcription of voice 5s"');
       expect(result).toContain('- Voice Message (10s): "Transcription of voice 10s"');
 
-      // Verify parallel processing
-      expect(duration).toBeLessThan(250);
+      // Both transcribe callbacks were in-flight simultaneously → parallel processing.
+      expect(maxInFlight).toBe(2);
     });
 
     it('should handle voice transcription failures gracefully', async () => {

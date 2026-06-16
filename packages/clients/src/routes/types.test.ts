@@ -159,6 +159,7 @@ describe('createPaginationSchema', () => {
   });
 
   it('preserves typed sortFields at the type level', () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- used below in `typeof schema`; the non-type-aware test lint can't see type-position usage
     const schema = createPaginationSchema(['createdAt', 'updatedAt']);
     // Type-level assertion: sort is narrowed to the tuple, not generic string
     expectTypeOf<z.infer<typeof schema>['sort']>().toEqualTypeOf<

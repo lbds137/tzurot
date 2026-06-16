@@ -52,7 +52,8 @@ function buildEntry(overrides: Partial<RuntimeEntry> = {}): RuntimeEntry {
     userMessageContent: 'hi everyone',
     slots: [buildSlot('Alice')],
     createdAt: 1737900000000,
-    timeoutHandle: setTimeout(() => undefined, 1_000_000),
+    // Throwaway handle for the fixture; never armed for real. 0ms leaves no timer pending.
+    timeoutHandle: setTimeout(() => undefined, 0),
     truncated: false,
     ...overrides,
   };

@@ -689,7 +689,8 @@ describe('MultiTagCoordinator', () => {
           },
         ],
         createdAt: Date.now(),
-        timeoutHandle: setTimeout(() => undefined, 100000),
+        // Throwaway handle; the coordinator clears it. 0ms leaves no real timer pending.
+        timeoutHandle: setTimeout(() => undefined, 0),
         truncated: false,
       };
 
@@ -730,7 +731,8 @@ describe('MultiTagCoordinator', () => {
           },
         ],
         createdAt: Date.now(),
-        timeoutHandle: setTimeout(() => undefined, 100000),
+        // Throwaway handle; the coordinator clears it. 0ms leaves no real timer pending.
+        timeoutHandle: setTimeout(() => undefined, 0),
         truncated: false,
       };
 

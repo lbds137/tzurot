@@ -733,15 +733,14 @@ describe('DiagnosticCollector', () => {
   });
 
   describe('timing', () => {
-    it('should calculate total duration', async () => {
-      vi.useRealTimers(); // Need real timers for this test
-
+    it('should calculate total duration', () => {
+      // Fake timers (from beforeEach) make the elapsed-time math deterministic: advancing
+      // the clock by 15ms also advances Date.now(), so the measured duration is exactly 15.
       const startCollector = new DiagnosticCollector(defaultOptions);
-      await new Promise(resolve => setTimeout(resolve, 15));
+      vi.advanceTimersByTime(15);
       const payload = startCollector.finalize();
 
-      // Use slightly lower threshold than sleep time to account for timer imprecision
-      expect(payload.timing.totalDurationMs).toBeGreaterThanOrEqual(10);
+      expect(payload.timing.totalDurationMs).toBe(15);
     });
 
     it('should calculate memory retrieval timing', () => {

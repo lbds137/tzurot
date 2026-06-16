@@ -7,6 +7,7 @@ import sonarjs from 'eslint-plugin-sonarjs';
 import * as regexpPlugin from 'eslint-plugin-regexp';
 import importPlugin from 'eslint-plugin-import-x';
 import tzurotPlugin from './packages/tooling/dist/eslint/index.js';
+import vitest from '@vitest/eslint-plugin';
 
 // Get the directory name of the current module (monorepo root)
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -166,8 +167,10 @@ export default tseslint.config(
       '**/*.mjs',
       '**/*.d.ts',
       '**/*.tsbuildinfo',
-      '**/*.test.ts',
-      '**/*.spec.ts',
+      // Test files are NO LONGER globally ignored — they get a dedicated,
+      // type-checking-disabled config block below (vitest correctness rules +
+      // a fake-timer ban). The main `**/*.ts` block excludes them so its
+      // type-aware/size rules don't apply.
       'coverage/**',
       '.pnpm-store/**',
       '**/vitest.config.ts',
@@ -226,9 +229,12 @@ export default tseslint.config(
     },
   },
 
-  // Configuration for TypeScript files
+  // Configuration for TypeScript files (production + tooling source).
+  // Test files are excluded here and handled by the dedicated test block below
+  // (type-checking disabled, size/complexity off, vitest correctness rules on).
   {
     files: ['**/*.ts'],
+    ignores: ['**/*.test.ts', '**/*.spec.ts'],
     plugins: {
       '@tzurot': tzurotPlugin,
       sonarjs,
@@ -477,6 +483,97 @@ export default tseslint.config(
       'max-depth': ['warn', { max: 5 }], // ESLint rules can be deeply nested
       curly: 'off', // Allow compact conditional returns in CLI
       'no-restricted-syntax': 'off', // console.error is fine in CLI tools (not pino logger)
+    },
+  },
+
+  // ── Test files ───────────────────────────────────────────────────────────
+  // Tests were historically excluded from ESLint entirely (to dodge max-lines
+  // noise), which also dropped correctness signal. Per council review we lint
+  // them WITHOUT type-checking (the type-project cost over ~800 test files isn't
+  // worth it; vitest/node already fail on unhandled rejections) and WITHOUT the
+  // size/complexity family (handled by excluding tests from the main block).
+  // What we DO enforce: vitest correctness rules + a fake-timer ban.
+  {
+    files: ['**/*.test.ts', '**/*.spec.ts'],
+    plugins: { vitest },
+    languageOptions: {
+      // No type-aware project — these rules are all syntactic.
+      parserOptions: { projectService: false, project: false },
+    },
+    rules: {
+      // Turn off every type-aware rule pulled in by the global
+      // recommendedTypeChecked/stylisticTypeChecked spreads (they'd error with
+      // no project). Keeps the syntactic js.configs.recommended rules on.
+      ...tseslint.configs.disableTypeChecked.rules,
+      // Syntactic rules that are legitimate in tests but noise as errors —
+      // disabled per council review (mocks/fixtures need `any`, `!`, empty
+      // stubs; Array<T> vs T[] and inferrable types are pure style).
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-non-null-assertion': 'off',
+      '@typescript-eslint/no-empty-function': 'off',
+      '@typescript-eslint/array-type': 'off',
+      '@typescript-eslint/no-inferrable-types': 'off',
+      '@typescript-eslint/consistent-type-definitions': 'off',
+      '@typescript-eslint/ban-ts-comment': 'off', // tests legitimately use @ts-expect-error
+      // High-signal, low-false-positive vitest rules. no-unused-vars stays ON
+      // (dead test imports are real).
+      //
+      // vitest/valid-expect is deliberately NOT enabled: it flags the deferred
+      // fake-timer rejection idiom this codebase uses heavily (assign the
+      // unawaited assertion, advance timers, then await it — see 02-code-standards.md
+      // "Promise rejections with fake timers"), and its autofix rewrites that to
+      // `await expect(...)` BEFORE the timer advance, deadlocking the test. The
+      // rule cannot see the later await, so it's a false-positive generator whose
+      // --fix actively breaks correct code.
+      //
+      // expect-expect: a test() with no assertion. assertFunctionNames teaches it
+      // the project's custom assertion helpers + vitest's type-level matcher so
+      // tests that assert through them aren't false-flagged.
+      'vitest/expect-expect': [
+        'error',
+        {
+          assertFunctionNames: [
+            'expect',
+            'expectTypeOf',
+            'assertValidCustomId',
+            'assertParentBeforeChild',
+          ],
+        },
+      ],
+      // Match the project's `_`-prefix escape hatch (intentional unused
+      // params/vars in mock signatures) so it doesn't flood with false positives.
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+        },
+      ],
+    },
+  },
+  // Unit tests only: ban real wall-clock delays. Integration tests
+  // (*.int.test.ts) legitimately wait on real Redis/PGLite I/O, so they're
+  // exempt. The Date.now() ban was evaluated and dropped — 279 legitimate
+  // non-timing uses (ID/timestamp generation) made it pure noise.
+  {
+    files: ['**/*.test.ts', '**/*.spec.ts'],
+    ignores: ['**/*.int.test.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          // Enforcement boundary: matches a *literal* positive delay only
+          // (`setTimeout(fn, 100)`). It cannot catch `setTimeout(fn, TIMEOUT_MS)`
+          // where the delay is an identifier — static analysis can't evaluate the
+          // runtime value. The literal form is the common flake source; the
+          // identifier form is rare in tests and accepted as a gap.
+          selector:
+            "CallExpression[callee.name='setTimeout'][arguments.1.type='Literal'][arguments.1.value>0]",
+          message:
+            'Real setTimeout delay in a unit test causes flakes — use vi.useFakeTimers() + vi.advanceTimersByTimeAsync(). Real delays are allowed in *.int.test.ts.',
+        },
+      ],
     },
   }
 );

@@ -36,7 +36,7 @@ describe('SelfHostedTtsProvider', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     regService = makeService();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test double for VoiceRegistrationService
+
     provider = new SelfHostedTtsProvider(regService as any);
   });
 
@@ -141,7 +141,6 @@ describe('SelfHostedTtsProvider', () => {
     });
 
     it('rejects inlineAudio handles', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Hand-built handle for test
       const stateless: any = {
         _brand: 'prepared',
         kind: 'inlineAudio',

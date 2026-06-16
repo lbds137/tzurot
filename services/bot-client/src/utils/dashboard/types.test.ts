@@ -60,7 +60,6 @@ describe('resolveContextAware', () => {
 
   describe('edge cases', () => {
     it('should handle function returning undefined', () => {
-      // eslint-disable-next-line @typescript-eslint/no-confusing-void-expression
       const fn = () => undefined as unknown as boolean;
       expect(resolveContextAware(fn, adminContext, true)).toBeUndefined();
     });

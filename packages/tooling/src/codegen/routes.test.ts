@@ -81,7 +81,7 @@ describe('generateAllClients', () => {
     const summary = summarizeManifest();
     const totalMethods = Object.values(files).reduce((acc, src) => {
       // Count `async <id>(` occurrences (excluding the helper line)
-      const matches = src.matchAll(/^  async (\w+)\(/gm);
+      const matches = src.matchAll(/^ {2}async (\w+)\(/gm);
       return acc + [...matches].length;
     }, 0);
     expect(totalMethods).toBe(summary.total);
