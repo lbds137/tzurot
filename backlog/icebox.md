@@ -386,3 +386,15 @@ Surfaced 2026-04-23.
 **Action**: Add a small test (likely in `packages/tooling`) that imports the resolved flat-config array, finds the blocks whose `files` match a sample `*.int.test.ts` path, and asserts the last one setting `no-restricted-syntax` is the off-block (i.e. no later block re-enables it). Turns the doc-only contract into a CI gate.
 
 **Why icebox**: low risk (flat config is rarely appended to) and the comment already documents the contract. Worth doing if the config grows more test-matching blocks, but not urgent. Surfaced 2026-06-15 (claude-review, PR #1226).
+
+#### `[FEAT]` Add select→action to the remaining "bare" browse commands
+
+**Problem / motivation**: PR #1231 gave `/settings preset browse` and `/voice tts browse` an interactive select menu (select an override → confirm → clear, with a refreshed view). Three other `browse` commands are still **display-only embeds** with no item-level interaction — they list rows but make the user run a separate command (with autocomplete) to act on any one of them:
+
+- **`/settings apikey browse`** (`settings/apikey/browse.ts`) — lists configured provider keys. Natural select action: test or remove the selected key (today: `/settings apikey test|remove <provider>`).
+- **`/voice voices browse`** (`voice/voices/browse.ts`) — lists cloned voices; has pagination buttons but no select. Natural select action: delete (or view detail of) the selected voice (today: `/voice voices delete <voice>`).
+- **`/channel browse`** (`channel/browse.ts`) — lists activated channels; has pagination but no select. Natural select action: jump to / deactivate the selected channel's activation.
+
+**Action**: extend each to render a select menu over its listed items and route the selection through the command's `handleSelectMenu`. The apikey and voices cases (select → confirm → destructive action) map almost directly onto the `overrideBrowse.ts` shape from #1231; evaluate whether that helper generalizes or whether each warrants its own small handler (apply the 2-callback ceiling — voices/apikey clear-by-id is a close structural match, channel "deactivate" may diverge). Mirror the 3-second-rule discipline (`deferUpdate` first) and the >25-item select cap + footer fallback already established.
+
+**Why icebox**: a consistency/UX polish we'll want eventually now that the interactive-browse pattern exists, but none of the three is broken — the separate `test`/`remove`/`delete` commands work today. No urgency. **Promote when**: doing other work in any of these three command areas, OR a user asks for in-place actions on one of these lists. Surfaced 2026-06-16 (user) off the back of PR #1231.
