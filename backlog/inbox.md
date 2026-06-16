@@ -70,18 +70,6 @@ _New items go here. Triage to appropriate section weekly._
 
 **Why a LIFT**: cross-cutting (export/import/template/clone surfaces + possibly the schema layer); the per-surface fix (schema-derived projection) is small but needs the full enumeration first. Same brittle-hardcoding class we've hit repeatedly — worth killing structurally.
 
-### `[LIFT]` Audit slash-command timeout handling for consistency (Discord 3s ack + downstream timeouts)
-
-**Surfaced 2026-06-11 (user)** after a prod session where the api-gateway felt slow on less-common commands (preset edit/import/export, setting default presets personal + global). Suspicion: command-processing or gateway-call timeouts may be inconsistent across commands, or too short for the slower paths — a problem we've hit before. The Discord 3s-ack rule is well-documented (`04-discord.md`: defer-first), but the **downstream** timeouts (gateway `fetch`/`callGatewayApi`/`adminFetch` request timeouts, BullMQ result-wait windows, per-command budgets) may not be applied consistently.
-
-**Scope**:
-1. Enumerate every slash-command path's async budget: deferral → gateway request timeout → any BullMQ result-wait → where each value comes from (shared constant vs hardcoded vs implicit default).
-2. Find inconsistencies — structurally-similar commands using different/implicit timeouts; flag any with no explicit timeout (inheriting a possibly-too-short default).
-3. Decide a consistent policy (shared timeout constants per operation class: fast-read vs write vs import) and centralize.
-4. Anchor against evidence: the prod-log dig (below) will name which commands/endpoints were actually slow — the audit and the logs inform each other.
-
-**Why a LIFT**: cross-cutting consistency audit (command layer + gateway client + timeout constants), not a one-line fix. Pair with the prod-log investigation of the preset-command issues.
-
 ### `[FEAT]` Enrich forwarded-message context with origin channel/thread (not just forwarding channel)
 
 `SnapshotFormatter.formatSnapshot` (`services/bot-client/src/handlers/references/SnapshotFormatter.ts`) currently labels forwarded snapshots with the **forwarding** channel's `locationContext` + "(forwarded message)" — it does NOT surface the _origin_ channel/thread the message was forwarded FROM. The inline comment ("snapshot doesn't have it") is accurate about the snapshot object, but the origin `channelId`/`guildId` ARE available on `forwardedFrom.reference` (the `FORWARD`-type `MessageReference`). Discord's own client resolves that ID to show e.g. "#general · 05/09/2026" on the forward. The original **timestamp** is already captured (`snapshot.createdTimestamp`, falls back to the forward's time) — only the origin location is missing.
