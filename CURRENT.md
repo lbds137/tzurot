@@ -14,6 +14,7 @@
 - **fix(clients):** gateway write timeouts — added `GATEWAY_TIMEOUTS.WRITE` (20s) + method-aware transport default (writes default to WRITE, reads to AUTOCOMPLETE); bumped llm-config CRUD writes. Mitigates the prod llm-config-PUT false-abort (10s→20s); removed dead `ADMIN_GATEWAY`. Closes the slash-command timeout audit (#1228)
 - **feat(bot-client):** forwarded-message context now surfaces the origin channel ("forwarded from #name") when the bot can see it — resolved from `forwardedFrom.reference.channelId` via the channel cache (sync, no hot-path fetch), degrades gracefully on cross-server forwards (#1229)
 - **feat(bot-client):** split trimodal `/character chat` → `/character chat` (required char+message), `/character random` (optional message; no-message reads the room), `/character chime-in` (named-character weigh-in). Council-settled (chat/random/chime-in); deployed-command-surface change (#1230)
+- **feat(bot-client):** `/settings preset list` + `/voice tts list` → interactive `browse` — overrides render as a select menu; select → confirm → clear → refreshed view. Shared `overrideBrowse.ts` helper (2-callback config). Drive-by: fixed stale guest-mode footer to `/preset browse`. Deployed-command-surface change (#1231)
 
 ---
 
