@@ -586,17 +586,22 @@ describe('DenylistCache', () => {
         },
       });
 
-      // Removing a non-existent entry from the now-cleaned user should not throw
-      cache.handleEvent({
-        type: 'remove',
-        entry: {
-          type: 'USER',
-          discordId: 'user1',
-          scope: 'CHANNEL',
-          scopeId: 'chan2',
-          mode: 'BLOCK',
-        },
-      });
+      // The user's channel denial is gone after the matching removal.
+      expect(cache.isChannelDenied('user1', 'chan1')).toBe(false);
+
+      // Removing a non-existent entry from the now-cleaned user must not throw.
+      expect(() =>
+        cache.handleEvent({
+          type: 'remove',
+          entry: {
+            type: 'USER',
+            discordId: 'user1',
+            scope: 'CHANNEL',
+            scopeId: 'chan2',
+            mode: 'BLOCK',
+          },
+        })
+      ).not.toThrow();
     });
 
     it('should update mode when re-adding with different mode', () => {

@@ -58,7 +58,7 @@ vi.mock('../../services/MemoryActionTokenService.js', () => ({
   // shared mockTokenService — every handler in a single test sees the same
   // instance, so configuring mockTokenService.method.mockResolvedValue(...)
   // controls all 4 handlers' behavior in lockstep.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   MemoryActionTokenService: vi.fn().mockImplementation(function (this: any) {
     return mockTokenService;
   }),

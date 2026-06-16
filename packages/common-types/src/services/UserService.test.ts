@@ -107,7 +107,7 @@ describe('UserService', () => {
       // need to configure it per-test.
       $executeRaw: vi.fn().mockResolvedValue(1),
     };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test mock for Prisma client
+
     userService = new UserService(mockPrisma as any);
   });
 

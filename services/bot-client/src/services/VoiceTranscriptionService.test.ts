@@ -705,7 +705,7 @@ describe('VoiceTranscriptionService', () => {
       vi.mocked(transcribe).mockImplementation(
         () =>
           new Promise(resolve => {
-            // Resolve after timers advance
+            // eslint-disable-next-line no-restricted-syntax -- Mocked 20s transcription latency under vi.useFakeTimers(); driven by advanceTimersByTimeAsync below to prove the typing-refresh interval fires during a long transcription, not a real delay
             setTimeout(() => resolve({ content: 'Transcript' }), 20000);
           })
       );

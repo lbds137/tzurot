@@ -2,21 +2,6 @@
 
 _New items go here. Triage to appropriate section weekly._
 
-### `[LIFT]` Enforce fake-timers in unit tests — sweep real-timer flakes + add a lint gate
-
-**Surfaced 2026-06-15 (user)** after two distinct timing-flakes in one session (both on deps-only PRs, both rerun-green): `ReferencedMessageFormatter.test.ts › "transcribe voice messages in parallel"` (asserted `Date.now() - start < 250` over real `setTimeout(100)`s) and `ConversationHistoryService.int.test.ts › "exclude older channels when limit is smaller"` (rapid inserts tie on `createdAt`, no ORDER BY tiebreak). `02-code-standards.md` already mandates "Fake Timers — ALWAYS Use," but nothing enforces it, so real-timer tests slip in.
-
-**Scope** (measured): ~10 `*.test.ts` use real `setTimeout` delays (`new Promise(r => setTimeout(r, N))`); 9 of those already use fake timers elsewhere in the same file (stray real delays). Some real delays in `*.int.test.ts` are legitimate (real Redis/PGLite I/O waits). The `Date.now()`-elapsed-assertion anti-pattern (the actual flake source) is separate and not cleanly greppable.
-
-**Action**:
-1. Sweep the ~10 real-delay offenders — convert unit-test cases to fake timers + advance-time assertions; confirm `*.int.test.ts` delays are genuine I/O waits and leave them.
-2. Add an ESLint `no-restricted-syntax` rule banning `setTimeout`-with-numeric-delay in `*.test.ts`, allowlisting `*.int.test.ts` — turns the existing "always use fake timers" convention into an enforced gate (same pattern as `gatewayAccessGuard`).
-3. The harder `Date.now()`-elapsed-as-proxy assertions: fix in the sweep (replace with logical assertions); not lint-enforceable.
-
-**Why out of scope of the immediate fix**: the 2 tests that actually flaked today get a focused deflake PR; this `[LIFT]` is the systemic sweep + enforcement so it can't recur.
-
-**Note**: the 2 known offenders' fixes ship in the deflake PR; do NOT re-fix them here.
-
 ### `[FEAT]` Multimodal input: file (PDF/doc) + video forwarding, then surface in `/models`
 
 **Surfaced 2026-06-15 (user)** while reviewing `/models browse` modality coverage. OpenRouter's `ModelModality` is `text | image | audio | video | file`, but we only capture/route **text, image, audio**. `video` and `file` (PDF/doc) input modalities are dropped from `ModelAutocompleteOption` (`OpenRouterModelCache.toAutocompleteOption`), and — more fundamentally — the bot can't *send* them: `MessageContentBuilder` renders every non-voice/non-image attachment as a **text description** (`[Attachments: [application/pdf: doc.pdf]]`), never as native model input. So surfacing `supportsFileInput`/`supportsVideoInput` today would over-promise.

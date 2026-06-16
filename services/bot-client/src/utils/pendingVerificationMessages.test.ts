@@ -178,7 +178,9 @@ describe('Pending Verification Messages', () => {
     });
 
     it('should return empty array on Redis error', async () => {
-      // Create an async generator that throws
+      // Create an async generator that throws on iteration to simulate a Redis
+      // scan failure. It deliberately yields nothing before throwing.
+      // eslint-disable-next-line require-yield -- intentionally throws on first iteration; no value is ever yielded
       async function* throwingStream(): AsyncGenerator<string[], void, unknown> {
         throw new Error('Redis error');
       }

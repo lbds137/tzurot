@@ -64,9 +64,7 @@ describe('conversationLookup routes', () => {
   describe('GET /conversation/message-personality', () => {
     // Helper to get the route handler directly
     function getHandler() {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test utility accessing router internals
       const layer = (router as any).stack.find(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test utility accessing router internals
         (l: any) => l.route?.path === '/message-personality'
       );
       return layer?.route?.stack[0]?.handle;
