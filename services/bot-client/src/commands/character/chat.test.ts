@@ -17,7 +17,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { handleChat } from './chat.js';
+import { handleChat, handleRandom, handleChimeIn } from './chat.js';
 import type { GuildMember } from 'discord.js';
 import { ChannelType } from 'discord.js';
 import type { EnvConfig } from '@tzurot/common-types';
@@ -340,7 +340,7 @@ describe('Character Chat Handler (push delivery)', () => {
     });
   });
 
-  describe('weigh-in mode (no message)', () => {
+  describe('weigh-in mode (/character chime-in — named character, no message)', () => {
     it('does not send a user message in weigh-in mode', async () => {
       const channel = createMockChannel(ChannelType.GuildText);
       const ctx = createMockContext('test-char', null, channel);
@@ -350,7 +350,7 @@ describe('Character Chat Handler (push delivery)', () => {
       );
       mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-1', requestId: 'req-1' });
 
-      await handleChat(ctx, mockConfig);
+      await handleChimeIn(ctx, mockConfig);
 
       // The only send should be from a possible error path — the user message
       // send path is gated on isWeighInMode === false.
@@ -369,7 +369,7 @@ describe('Character Chat Handler (push delivery)', () => {
       const ctx = createMockContext('test-char', null, channel);
       mockPersonalityService.loadPersonality.mockResolvedValue(createMockPersonality());
 
-      await handleChat(ctx, mockConfig);
+      await handleChimeIn(ctx, mockConfig);
 
       expect(channel.send).toHaveBeenCalledWith(expect.stringContaining('No conversation history'));
       expect(mockJobTracker.trackJob).not.toHaveBeenCalled();
@@ -382,7 +382,7 @@ describe('Character Chat Handler (push delivery)', () => {
       // buildContext default returns empty history → adjustContextForWeighInMode returns false
       mockMessageContextBuilder.buildContext.mockResolvedValueOnce(createMockContextBuildResult());
 
-      await handleChat(ctx, mockConfig);
+      await handleChimeIn(ctx, mockConfig);
 
       expect(channel.send).toHaveBeenCalledWith(expect.stringContaining('No conversation history'));
       expect(mockJobTracker.trackJob).not.toHaveBeenCalled();
@@ -418,7 +418,7 @@ describe('Character Chat Handler (push delivery)', () => {
     });
   });
 
-  describe('random-pick mode', () => {
+  describe('random-pick mode (/character random)', () => {
     it('picks a random character when none supplied and registers the slash context', async () => {
       const channel = createMockChannel(ChannelType.GuildText);
       const ctx = createMockContext(null, 'Hi', channel);
@@ -437,11 +437,44 @@ describe('Character Chat Handler (push delivery)', () => {
         ],
       });
 
-      await handleChat(ctx, mockConfig);
+      await handleRandom(ctx, mockConfig);
 
       // editReply is called by finalizeDeferredReply with the picked-character notice.
       expect(ctx.editReply).toHaveBeenCalled();
       expect(mockJobTracker.trackJob).toHaveBeenCalled();
+    });
+
+    it('with no message, the random pick reads the room (weigh-in semantics)', async () => {
+      const channel = createMockChannel(ChannelType.GuildText);
+      const ctx = createMockContext(null, null, channel);
+      mockPersonalityService.loadPersonality.mockResolvedValue(createMockPersonality());
+      mockMessageContextBuilder.buildContext.mockResolvedValueOnce(
+        createMockContextBuildResult({ conversationHistory: [{ id: 'msg-1' }] })
+      );
+      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-1', requestId: 'req-1' });
+      mockGetCachedPersonalities.mockResolvedValueOnce({
+        kind: 'ok',
+        value: [
+          {
+            name: 'test-char',
+            slug: 'test-char',
+            displayName: 'Test Character',
+            isOwned: true,
+            isGlobal: false,
+          },
+        ],
+      });
+
+      await handleRandom(ctx, mockConfig);
+
+      // No user message sent (weigh-in), but the picked-character notice still
+      // posts via finalizeDeferredReply, and the job is tracked as a weigh-in.
+      expect(channel.send).not.toHaveBeenCalled();
+      expect(ctx.editReply).toHaveBeenCalled();
+      expect(mockJobTracker.trackJob).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ kind: 'slash', isWeighInMode: true })
+      );
     });
   });
 });
