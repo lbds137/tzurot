@@ -8,6 +8,8 @@ import {
   splitMessage,
   stripBotFooters,
   stripDmPrefix,
+  normalizeMessageForContext,
+  extractMessagePrefixName,
   findLeadingMentionsEnd,
   stripLeadingMentions,
 } from './discord.js';
@@ -275,9 +277,20 @@ Another paragraph here with more content.`;
       expect(stripBotFooters(content)).toBe('');
     });
 
+    it('should strip transcription attribution footer', () => {
+      const content =
+        'Hello world!\n-# Transcribed by [Mistral](<https://mistral.ai/news/voxtral>)';
+      expect(stripBotFooters(content)).toBe('Hello world!');
+    });
+
+    it('should strip standalone transcription attribution footer', () => {
+      const content = '-# Transcribed by [Whisper](<https://example.com/stt>)';
+      expect(stripBotFooters(content)).toBe('');
+    });
+
     it('should strip all footer types combined', () => {
       const content =
-        'Hello world!\n-# Model: [gpt-4](<https://example.com>) • 📍 auto\n-# 🆓 Using free model (no API key required)\n-# 🔒 Focus Mode • LTM retrieval disabled\n-# 👻 Incognito Mode • Memories not being saved';
+        'Hello world!\n-# Model: [gpt-4](<https://example.com>) • 📍 auto\n-# 🆓 Using free model (no API key required)\n-# 🔒 Focus Mode • LTM retrieval disabled\n-# 👻 Incognito Mode • Memories not being saved\n-# Transcribed by [Mistral](<https://example.com/stt>)';
       expect(stripBotFooters(content)).toBe('Hello world!');
     });
   });
@@ -330,6 +343,56 @@ Another paragraph here with more content.`;
     it('should handle prefix-only content', () => {
       const content = '**Name:** ';
       expect(stripDmPrefix(content)).toBe('');
+    });
+  });
+
+  describe('extractMessagePrefixName', () => {
+    it('should extract the name from a single-word prefix', () => {
+      expect(extractMessagePrefixName('**Lila:** poke')).toBe('Lila');
+    });
+
+    it('should extract a multi-word display name', () => {
+      expect(extractMessagePrefixName('**Test Bot Name:** hello')).toBe('Test Bot Name');
+    });
+
+    it('should extract a name containing emoji and special characters', () => {
+      expect(extractMessagePrefixName('**🌙 Luna:** moonlit')).toBe('🌙 Luna');
+      expect(extractMessagePrefixName('**Test-Name_123:** x')).toBe('Test-Name_123');
+    });
+
+    it('should return null when there is no prefix', () => {
+      expect(extractMessagePrefixName('just normal content')).toBeNull();
+    });
+
+    it('should return null for bold text not at the start', () => {
+      expect(extractMessagePrefixName('Hello **Name:** mid')).toBeNull();
+    });
+
+    it('should return null for empty string', () => {
+      expect(extractMessagePrefixName('')).toBeNull();
+    });
+  });
+
+  describe('normalizeMessageForContext', () => {
+    it('should strip the relay/DM prefix and bot footers together', () => {
+      const content =
+        '**Lila:** The actual reply.\n-# Model: [glm-5.2](<https://example/model>)\n-# 👻 Incognito Mode • Memories not being saved';
+      expect(normalizeMessageForContext(content)).toBe('The actual reply.');
+    });
+
+    it('should strip the transcription footer along with the rest', () => {
+      const content = '**Adam:** Heard you.\n-# Transcribed by [Mistral](<https://example/stt>)';
+      expect(normalizeMessageForContext(content)).toBe('Heard you.');
+    });
+
+    it('should be a no-op for plain content with neither prefix nor footer', () => {
+      const content = 'Just a normal message.';
+      expect(normalizeMessageForContext(content)).toBe(content);
+    });
+
+    it('should strip footers even when there is no prefix', () => {
+      const content = 'Reply text\n-# Model: [m](<u>)';
+      expect(normalizeMessageForContext(content)).toBe('Reply text');
     });
   });
 
