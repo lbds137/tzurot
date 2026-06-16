@@ -70,18 +70,6 @@ _New items go here. Triage to appropriate section weekly._
 
 **Why a LIFT**: cross-cutting (export/import/template/clone surfaces + possibly the schema layer); the per-surface fix (schema-derived projection) is small but needs the full enumeration first. Same brittle-hardcoding class we've hit repeatedly — worth killing structurally.
 
-### `[LIFT]` Split `/character chat`'s random mode into a separate `/character random` command
-
-**Surfaced 2026-05-29** (user). `/character chat` is currently trimodal — (1) chat with a named character + message, (2) weigh-in mode (named character, no message), (3) random-pick (no character → picks one). The combined surface is confusing for the average user: it's not obvious from the signature which mode you're invoking, and "omit the character to get a random one" is easy to miss or trigger by accident.
-
-**Direction (user)**: pull random-pick into its own `/character random` command so each command's purpose is legible from its name. **Keep weigh-in mode in `/character chat`** — it still requires picking a character, so it fits the "chat" mental model. Goal: split with zero loss of current functionality.
-
-**Open design question**: does `/character random` get the optional `message` arg (parity with chat), or is it message-less (pure "surprise me")? Both defensible — decide during design, not now.
-
-**Update 2026-06-09 (user)**: reconsider whether **weigh-in also deserves its own command** (e.g. `/character weighin`) rather than staying folded into `/character chat`. The 2026-05-29 direction was "keep weigh-in in chat," but weigh-in turns out to have genuinely _divergent context semantics_, not just a different arg shape: no invoking-user persona, no LTM read/write, and (after the epoch fix) **no STM-reset epoch cutoff** — it's a channel-scoped anonymous summon, not a personal chat turn. That semantic gap is itself an argument for a legible standalone command. Fold this into the same UX-restructure design pass; decide chat-vs-random-vs-weighin command topology together.
-
-**Why inbox (not scheduled)**: explicitly NOT for beta.126; it's a UX-restructure with an unresolved design question, so it needs triage + a design pass before becoming a committed task. Touches `services/bot-client/src/commands/character/chat.ts` (mode branching), the slash-command definition, and `randomPick.ts`. Command-structure change → integration snapshots need updating (`pnpm test:int`).
-
 _Shipped 2026-06-14 (#1205): per-user daily cap on system-key free-vision fallback (`VisionFallbackQuota`, fail-open) — the fast-follow guard for the #1204 broad fallback._
 
 ### `[FEAT]` Make the vision system-fallback daily cap a runtime admin-settings knob
