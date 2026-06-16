@@ -26,6 +26,15 @@ vi.mock('../../../utils/gatewayClients.js', () => ({
   clientsFor: vi.fn(() => ({ userClient: stub as unknown as UserClient })),
 }));
 
+// Silence the real pino logger that browse.ts initializes at module load.
+vi.mock('@tzurot/common-types', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+  return {
+    ...actual,
+    createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
+  };
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
   stub.listTtsOverrides.mockReset();

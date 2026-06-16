@@ -72,7 +72,15 @@ describe('Help Command', () => {
           name: 'character',
           description: 'Manage AI characters',
           options: [
-            { type: 1, name: 'create', description: 'Create a character' },
+            {
+              type: 1,
+              name: 'create',
+              description: 'Create a character',
+              options: [
+                { type: 3, name: 'name', description: 'Character name', required: true },
+                { type: 3, name: 'slug', description: 'URL slug', required: false },
+              ],
+            },
             { type: 1, name: 'edit', description: 'Edit a character' },
           ],
         },
@@ -192,6 +200,44 @@ describe('Help Command', () => {
 
       expect(json.title).toBe('/character');
       expect(json.description).toBe('Manage AI characters');
+
+      // Each subcommand becomes its own field, and `create`'s params are listed
+      const createField = json.fields.find((f: { name: string }) => f.name.includes('create'));
+      expect(createField).toBeDefined();
+      expect(createField?.value).toContain('Create a character');
+      expect(createField?.value).toContain('`name`');
+      expect(createField?.value).toContain('*(required)*');
+      expect(createField?.value).toContain('`slug`');
+
+      // A param-less subcommand still renders a field
+      const editField = json.fields.find((f: { name: string }) => f.name.includes('edit'));
+      expect(editField).toBeDefined();
+    });
+
+    it('shows parameters for a flat command (no subcommands)', async () => {
+      const commands = createMockCommands();
+      const interaction = createMockContext('help', commands);
+
+      // /help itself has a single `command` string option
+      commands.set('help', {
+        data: {
+          name: 'help',
+          description: 'Show all available commands',
+          options: [
+            { type: 3, name: 'command', description: 'Command to detail', required: false },
+          ],
+        },
+        execute: vi.fn(),
+        category: 'Help',
+      } as unknown as Command);
+
+      await execute(interaction);
+
+      const embed = mockEditReply.mock.calls[0][0].embeds[0];
+      const json = embed.toJSON();
+      const paramsField = json.fields?.find((f: { name: string }) => f.name === 'Parameters');
+      expect(paramsField).toBeDefined();
+      expect(paramsField?.value).toContain('`command`');
     });
 
     it('should show error for unknown command', async () => {
@@ -221,7 +267,7 @@ describe('Help Command', () => {
       expect(characterField?.value).toContain('2 subcommands');
     });
 
-    it('should include personality interaction info with configured mention char', async () => {
+    it('should include character interaction info with configured mention char', async () => {
       const commands = createMockCommands();
       const interaction = createMockContext(null, commands);
 
@@ -231,13 +277,13 @@ describe('Help Command', () => {
       const json = embed.toJSON();
 
       const interactionField = json.fields.find((f: { name: string }) =>
-        f.name.includes('Personality')
+        f.name.includes('Interactions')
       );
       expect(interactionField).toBeDefined();
-      expect(interactionField?.value).toContain(`${mockConfig.BOT_MENTION_CHAR}PersonalityName`);
+      expect(interactionField?.value).toContain(`${mockConfig.BOT_MENTION_CHAR}CharacterName`);
     });
 
-    it('should include /character chat reference in personality interactions', async () => {
+    it('should include /character chat reference in character interactions', async () => {
       const commands = createMockCommands();
       const interaction = createMockContext(null, commands);
 
@@ -247,7 +293,7 @@ describe('Help Command', () => {
       const json = embed.toJSON();
 
       const interactionField = json.fields.find((f: { name: string }) =>
-        f.name.includes('Personality')
+        f.name.includes('Interactions')
       );
       expect(interactionField?.value).toContain('/character chat');
     });
@@ -265,9 +311,9 @@ describe('Help Command', () => {
       const json = embed.toJSON();
 
       const interactionField = json.fields.find((f: { name: string }) =>
-        f.name.includes('Personality')
+        f.name.includes('Interactions')
       );
-      expect(interactionField?.value).toContain('&PersonalityName');
+      expect(interactionField?.value).toContain('&CharacterName');
 
       // Reset to default
       mockConfig.BOT_MENTION_CHAR = '@';
@@ -285,7 +331,7 @@ describe('Help Command', () => {
       // Get category names (stripping emojis)
       const categoryOrder = json.fields
         .map((f: { name: string }) => f.name)
-        .filter((name: string) => !name.includes('Personality'));
+        .filter((name: string) => !name.includes('Interactions'));
 
       // Character should come before Settings, Settings before Help
       const characterIndex = categoryOrder.findIndex((n: string) => n.includes('Character'));

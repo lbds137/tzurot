@@ -95,7 +95,7 @@ function createMockButtonInteraction(
   const footerText: string | null =
     'footerText' in opts && opts.footerText !== undefined
       ? opts.footerText
-      : `Personality: ${PERSONALITY_NAME}`;
+      : `Character: ${PERSONALITY_NAME}`;
   return {
     customId,
     user: { id: opts.userId ?? 'user-123' },
@@ -128,7 +128,7 @@ function createMockModalInteraction(
   const footerText: string | null =
     'footerText' in opts && opts.footerText !== undefined
       ? opts.footerText
-      : `Personality: ${PERSONALITY_NAME}`;
+      : `Character: ${PERSONALITY_NAME}`;
   const messageEdit = vi.fn().mockResolvedValue(undefined);
   return {
     customId,

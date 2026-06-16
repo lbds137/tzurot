@@ -282,7 +282,7 @@ describe('Channel Settings Dashboard', () => {
 
     it('should show admin overrides via resolve-defaults when no personality activated', async () => {
       const context = createMockContext(true);
-      // No personality activated
+      // No character activated
       mockGetChannelSettings.mockResolvedValue({ settings: {} });
       // resolveUserDefaults returns admin-sourced maxMessages
       stub.resolveUserDefaults.mockResolvedValue(
@@ -340,7 +340,7 @@ describe('Channel Settings Dashboard', () => {
       expect(maxImgField.value).toContain('Auto');
 
       // Info note about no personality activated
-      expect(embedJson.description).toContain('No personality activated');
+      expect(embedJson.description).toContain('No character activated');
     });
 
     it('should use fallback values when resolve endpoint fails', async () => {

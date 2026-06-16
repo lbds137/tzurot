@@ -136,7 +136,7 @@ describe('/channel deactivate', () => {
     await handleDeactivate(context);
 
     expect(context.editReply).toHaveBeenCalledWith(
-      expect.stringContaining('No personality is currently activated')
+      expect.stringContaining('No character is currently activated')
     );
   });
 

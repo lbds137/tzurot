@@ -119,7 +119,7 @@ function buildSearchEmbed(options: BuildSearchEmbedOptions): EmbedBuilder {
 
   if (results.length === 0) {
     embed.setDescription(
-      `No memories found matching: **${escapeMarkdown(truncateContent(query, 50))}**\n\nTry a different search query or check if you have memories with this personality.`
+      `No memories found matching: **${escapeMarkdown(truncateContent(query, 50))}**\n\nTry a different search query or check if you have memories with this character.`
     );
     return embed;
   }

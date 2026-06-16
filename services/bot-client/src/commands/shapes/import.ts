@@ -137,15 +137,15 @@ export async function handleImport(context: DeferredCommandContext): Promise<voi
       .setTitle(isMemoryOnly ? '📥 Import Memories from Shapes.inc' : '📥 Import from Shapes.inc')
       .setDescription(
         isMemoryOnly
-          ? `Ready to import memories from **${slug}** into the existing personality.\n\n` +
+          ? `Ready to import memories from **${slug}** into the existing character.\n\n` +
               'This will:\n' +
-              '• Look up the previously imported personality by slug\n' +
+              '• Look up the previously imported character by slug\n' +
               '• Fetch all conversation memories from shapes.inc\n' +
               '• Import them (deduplicating against existing memories)\n\n' +
-              'Existing personality config will not be changed.'
+              'Existing character config will not be changed.'
           : `Ready to import **${slug}** from shapes.inc.\n\n` +
               'This will:\n' +
-              '• Create a new personality with the character config\n' +
+              '• Create a new character with its config\n' +
               '• Download the character avatar\n' +
               '• Import all conversation memories\n' +
               '• Set up the LLM configuration\n\n' +

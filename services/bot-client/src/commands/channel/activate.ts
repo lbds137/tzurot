@@ -85,8 +85,8 @@ export async function handleActivate(context: DeferredCommandContext): Promise<v
       // Handle specific error cases
       if (result.status === 404) {
         await context.editReply(
-          `❌ Personality **${personalitySlug}** not found.\n\n` +
-            'Use the autocomplete to select a valid personality.'
+          `❌ Character **${personalitySlug}** not found.\n\n` +
+            'Use the autocomplete to select a valid character.'
         );
         return;
       }
@@ -94,7 +94,7 @@ export async function handleActivate(context: DeferredCommandContext): Promise<v
       if (result.status === 403) {
         await context.editReply(
           `❌ You don't have access to **${personalitySlug}**.\n\n` +
-            'You can only activate personalities that are public or that you own.'
+            'You can only activate characters that are public or that you own.'
         );
         return;
       }
@@ -111,7 +111,7 @@ export async function handleActivate(context: DeferredCommandContext): Promise<v
 
     await context.editReply(
       `✅ Activated **${activation.personalityName}** in this channel${replacedNote}.\n\n` +
-        `All messages in <#${channelId}> will now get responses from this personality.`
+        `All messages in <#${channelId}> will now get responses from this character.`
     );
 
     logger.info(

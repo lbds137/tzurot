@@ -277,7 +277,7 @@ async function handleDeleteButton(interaction: ButtonInteraction, entityId: stri
     entityName: data.name,
     confirmCustomId: PersonaCustomIds.confirmDelete(entityId),
     cancelCustomId: PersonaCustomIds.cancelDelete(entityId),
-    additionalWarning: 'Any personality-specific overrides using this persona will be cleared.',
+    additionalWarning: 'Any character-specific overrides using this persona will be cleared.',
   });
 
   await interaction.update({ embeds: [embed], components });

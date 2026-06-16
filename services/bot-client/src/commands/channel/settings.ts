@@ -104,7 +104,7 @@ export async function handleChannelSettings(context: DeferredCommandContext): Pr
         ? {
             ...CHANNEL_SETTINGS_CONFIG,
             descriptionNote:
-              'ℹ️ No personality activated — personality-level defaults not included in cascade.',
+              'ℹ️ No character activated — character-level defaults not included in cascade.',
           }
         : CHANNEL_SETTINGS_CONFIG;
 

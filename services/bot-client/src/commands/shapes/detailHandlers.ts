@@ -115,15 +115,15 @@ export async function handleDetailImport(
     )
     .setDescription(
       isMemoryOnly
-        ? `Ready to import memories from **${slug}** into the existing personality.\n\n` +
+        ? `Ready to import memories from **${slug}** into the existing character.\n\n` +
             'This will:\n' +
-            '\u2022 Look up the previously imported personality by slug\n' +
+            '\u2022 Look up the previously imported character by slug\n' +
             '\u2022 Fetch all conversation memories from shapes.inc\n' +
             '\u2022 Import them (deduplicating against existing memories)\n\n' +
-            'Existing personality config will not be changed.'
+            'Existing character config will not be changed.'
         : `Ready to import **${slug}** from shapes.inc.\n\n` +
             'This will:\n' +
-            '\u2022 Create a new personality with the character config\n' +
+            '\u2022 Create a new character with its config\n' +
             '\u2022 Download the character avatar\n' +
             '\u2022 Import all conversation memories\n' +
             '\u2022 Set up the LLM configuration\n\n' +

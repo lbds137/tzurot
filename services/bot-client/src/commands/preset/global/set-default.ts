@@ -20,7 +20,7 @@ export async function handleGlobalSetDefault(context: DeferredCommandContext): P
     embedTitle: 'System Default Preset Updated',
     embedDescription: (configName: string) =>
       `**${configName}** is now the system default preset.\n\n` +
-      'Personalities without a specific config will use this default.',
+      'Characters without a specific config will use this default.',
     logMessage: '[Preset/Global] Set system default preset',
     errorLogMessage: '[Preset/Global] Error setting default',
   });

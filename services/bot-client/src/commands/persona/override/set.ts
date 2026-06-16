@@ -42,10 +42,10 @@ function mapOverrideError(error: string | undefined, personalitySlug: string): s
     return '❌ Persona not found. Use `/persona browse` to see your personas.';
   }
   if (error.includes('Personality not found') || error.includes('personality not found')) {
-    return `❌ Personality "${personalitySlug}" not found.`;
+    return `❌ Character "${personalitySlug}" not found.`;
   }
   if (error.includes('no account') || error.includes('User not found')) {
-    return "❌ You don't have an account yet. Send a message to any personality to create one!";
+    return "❌ You don't have an account yet. Send a message to any character to create one!";
   }
   return null;
 }

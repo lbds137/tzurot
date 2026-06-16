@@ -67,7 +67,7 @@ export async function handleDeactivate(context: DeferredCommandContext): Promise
 
     if (!deactivated) {
       await context.editReply(
-        '📍 No personality is currently activated in this channel.\n\n' +
+        '📍 No character is currently activated in this channel.\n\n' +
           'Use `/channel activate` to activate one.'
       );
       return;

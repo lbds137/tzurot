@@ -45,7 +45,7 @@ export async function handleClear(context: DeferredCommandContext): Promise<void
     if (!result.ok) {
       const errorMessage =
         result.status === 404
-          ? `Personality "${personalitySlug}" not found.`
+          ? `Character "${personalitySlug}" not found.`
           : 'Failed to clear history. Please try again later.';
       logger.warn({ userId, personalitySlug, status: result.status }, 'Clear failed');
       await context.editReply({ content: `❌ ${errorMessage}` });

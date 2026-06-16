@@ -194,7 +194,7 @@ describe('handleClear', () => {
     await handleClear(context);
 
     expect(context.editReply).toHaveBeenCalledWith({
-      content: '❌ Personality "unknown" not found.',
+      content: '❌ Character "unknown" not found.',
     });
   });
 

@@ -88,7 +88,7 @@ describe('Preset Clear Handler', () => {
 
       expect(mockCreateSuccessEmbed).toHaveBeenCalledWith(
         '🔄 Preset Override Removed',
-        'The personality will now use its default preset.'
+        'The character will now use its default preset.'
       );
 
       expect(mockEditReply).toHaveBeenCalledWith({
@@ -103,7 +103,7 @@ describe('Preset Clear Handler', () => {
 
       expect(mockCreateInfoEmbed).toHaveBeenCalledWith(
         'ℹ️ No Override Set',
-        'This personality was already using its default preset.'
+        'This character was already using its default preset.'
       );
 
       expect(mockEditReply).toHaveBeenCalledWith({

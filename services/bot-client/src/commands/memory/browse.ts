@@ -107,8 +107,8 @@ function buildBrowseEmbed(options: BuildBrowseViewOptions): EmbedBuilder {
   if (memories.length === 0) {
     embed.setDescription(
       personalityId !== undefined
-        ? `No memories found for this personality.\n\nTry browsing all memories or check your search filters.`
-        : `You don't have any memories yet.\n\nMemories are created automatically when you chat with personalities.`
+        ? `No memories found for this character.\n\nTry browsing all memories or check your search filters.`
+        : `You don't have any memories yet.\n\nMemories are created automatically when you chat with characters.`
     );
     return embed;
   }

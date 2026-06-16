@@ -42,8 +42,8 @@ const logger = createLogger('memory-purge');
  */
 export const MEMORY_PURGE_PREFIX = 'memory-purge';
 
-/** Footer marker that encodes the personality display name on the warning embed. */
-const FOOTER_PREFIX = 'Personality: ';
+/** Footer marker that encodes the character display name on the warning embed. */
+const FOOTER_PREFIX = 'Character: ';
 
 /** Buffer for confirmation phrase input to allow minor whitespace. */
 const CONFIRMATION_PHRASE_LENGTH_BUFFER = 5;
@@ -116,7 +116,7 @@ export async function handlePurge(context: DeferredCommandContext): Promise<void
     if (!statsResult.ok) {
       const errorMessage =
         statsResult.status === 404
-          ? `Personality "${personalityInput}" not found.`
+          ? `Character "${personalityInput}" not found.`
           : 'Failed to get memory stats. Please try again later.';
       logger.warn({ userId, personalityInput, status: statsResult.status }, 'Purge stats failed');
       await context.editReply({ content: `❌ ${errorMessage}` });
@@ -207,7 +207,7 @@ export async function handlePurgeButton(interaction: ButtonInteraction): Promise
   if (personalityId === undefined || personalityId === '') {
     logger.warn({ customId: interaction.customId }, 'Purge proceed button missing personalityId');
     await interaction.reply({
-      content: '❌ Malformed purge button (missing personality ID).',
+      content: '❌ Malformed purge button (missing character ID).',
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -305,7 +305,7 @@ export async function handlePurgeModal(interaction: ModalSubmitInteraction): Pro
   if (personalityId === undefined || personalityId === '') {
     logger.warn({ customId: interaction.customId }, 'Purge modal missing personalityId');
     await interaction.reply({
-      content: '❌ Malformed purge modal (missing personality ID).',
+      content: '❌ Malformed purge modal (missing character ID).',
       flags: MessageFlags.Ephemeral,
     });
     return;
