@@ -291,7 +291,7 @@ describe('handleModal', () => {
       const result = (await callback()) as { success: boolean; errorMessage?: string };
 
       expect(result.success).toBe(false);
-      expect(result.errorMessage).toContain('Personality "lilith" not found');
+      expect(result.errorMessage).toContain('Character "lilith" not found');
     });
 
     it('returns the generic failure message on other error statuses', async () => {

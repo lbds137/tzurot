@@ -45,7 +45,7 @@ export async function handleUndo(context: DeferredCommandContext): Promise<void>
     if (!result.ok) {
       let errorMessage: string;
       if (result.status === 404) {
-        errorMessage = `Personality "${personalitySlug}" not found.`;
+        errorMessage = `Character "${personalitySlug}" not found.`;
       } else if (result.status === 400) {
         errorMessage =
           'No previous context to restore. Undo is only available after a clear operation.';

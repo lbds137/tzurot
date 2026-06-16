@@ -123,7 +123,7 @@ describe('handleOverrideSet', () => {
     await handleOverrideSet(createMockContext('nonexistent', 'persona-123'));
 
     expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Personality "nonexistent" not found'),
+      content: expect.stringContaining('Character "nonexistent" not found'),
       flags: MessageFlags.Ephemeral,
     });
   });

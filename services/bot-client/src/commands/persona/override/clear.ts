@@ -37,7 +37,7 @@ export async function handleOverrideClear(context: DeferredCommandContext): Prom
     if (!result.ok) {
       if (result.error.includes('Personality not found') || result.error.includes('not found')) {
         await context.editReply({
-          content: `❌ Personality "${personalitySlug}" not found.`,
+          content: `❌ Character "${personalitySlug}" not found.`,
         });
         return;
       }
@@ -45,7 +45,7 @@ export async function handleOverrideClear(context: DeferredCommandContext): Prom
       if (result.error.includes('no account') || result.error.includes('User')) {
         await context.editReply({
           content:
-            "❌ You don't have an account yet. Send a message to any personality to create one!",
+            "❌ You don't have an account yet. Send a message to any character to create one!",
         });
         return;
       }

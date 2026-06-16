@@ -47,7 +47,7 @@ export async function handleHardDelete(context: DeferredCommandContext): Promise
       entityName: personalitySlug,
       additionalWarning:
         '**This action is PERMANENT and cannot be undone!**\n\n' +
-        'All messages in this channel with this personality will be deleted forever.\n' +
+        'All messages in this channel with this character will be deleted forever.\n' +
         'This includes:\n' +
         '• Your messages\n' +
         '• AI responses\n' +

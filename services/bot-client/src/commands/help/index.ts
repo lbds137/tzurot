@@ -82,8 +82,87 @@ async function execute(ctx: SafeCommandContext): Promise<void> {
   }
 }
 
+/** Discord application-command option-type discriminators. */
+const OPTION_TYPE = { SUBCOMMAND: 1, SUBCOMMAND_GROUP: 2 } as const;
+
+/** Discord's hard cap is 25 embed fields; leave one for a truncation note. */
+const MAX_DETAIL_FIELDS = 24;
+
+/** Discord's per-field value limit. */
+const FIELD_VALUE_LIMIT = 1024;
+
 /**
- * Show detailed help for a specific command
+ * Minimal structural view of a command option as exposed by both the live
+ * SlashCommandBuilder tree and the plain objects used in tests.
+ */
+interface RawOption {
+  type?: number;
+  name?: string;
+  description?: string;
+  required?: boolean;
+  /**
+   * Child options: subcommands of a group, or parameters of a subcommand —
+   * the shape depends on the parent's `type`, so it stays `unknown[]` and is
+   * narrowed at each use site rather than modeled as a union here.
+   */
+  options?: unknown[];
+}
+
+/** An option is a user-supplied parameter (not a sub/group) when its type ≥ 3. */
+function isParam(type: number | undefined): boolean {
+  return (
+    type !== undefined && type !== OPTION_TYPE.SUBCOMMAND && type !== OPTION_TYPE.SUBCOMMAND_GROUP
+  );
+}
+
+/** Render an option's parameters as bullet lines; '' when it has none. */
+function renderParams(options: unknown[] | undefined): string {
+  if (!Array.isArray(options)) {
+    return '';
+  }
+  const lines = (options as RawOption[])
+    .filter(o => isParam(o.type))
+    .map(p => {
+      const name = p.name ?? '';
+      const desc = p.description ?? '';
+      const required = p.required === true ? ' *(required)*' : '';
+      return `• \`${name}\`${required}${desc !== '' ? ` — ${desc}` : ''}`;
+    });
+  return lines.join('\n');
+}
+
+/** Build a `{ name, value }` field for one (possibly group-prefixed) subcommand. */
+function subcommandField(sub: RawOption, groupName?: string): { name: string; value: string } {
+  const subName = sub.name ?? '';
+  const label = groupName !== undefined ? `${groupName} ${subName}` : subName;
+  const desc = sub.description ?? '';
+  const params = renderParams(sub.options);
+  const value = [desc, params].filter(part => part !== '').join('\n') || '_No parameters._';
+  return { name: `\`${label}\``, value: value.slice(0, FIELD_VALUE_LIMIT) };
+}
+
+/**
+ * Flatten a command's option tree into one field per subcommand, expanding
+ * subcommand groups (`group sub`) and listing each subcommand's parameters.
+ */
+function buildSubcommandFields(options: unknown[]): { name: string; value: string }[] {
+  const fields: { name: string; value: string }[] = [];
+  for (const opt of options as RawOption[]) {
+    if (opt.type === OPTION_TYPE.SUBCOMMAND_GROUP && Array.isArray(opt.options)) {
+      const groupName = opt.name ?? '';
+      for (const sub of opt.options as RawOption[]) {
+        fields.push(subcommandField(sub, groupName));
+      }
+    } else if (opt.type === OPTION_TYPE.SUBCOMMAND) {
+      fields.push(subcommandField(opt));
+    }
+  }
+  return fields;
+}
+
+/**
+ * Show detailed help for a specific command, including each subcommand's
+ * parameters (or, for a flat command, its own parameters).
  */
 async function showCommandDetails(
   context: DeferredCommandContext,
@@ -104,23 +183,24 @@ async function showCommandDetails(
     .setTitle(`/${command.data.name}`)
     .setDescription(command.data.description);
 
-  // Add subcommands if present
-  if ('options' in command.data && Array.isArray(command.data.options)) {
-    const subcommands = command.data.options.filter(
-      opt => 'type' in opt && (opt.type === 1 || opt.type === 2) // Subcommand or SubcommandGroup
-    );
+  const options =
+    'options' in command.data && Array.isArray(command.data.options) ? command.data.options : [];
 
-    if (subcommands.length > 0) {
-      const subcommandList = subcommands
-        .map(sub => {
-          const name = 'name' in sub ? String(sub.name) : '';
-          const desc = 'description' in sub ? String(sub.description) : '';
-          const type = 'type' in sub && sub.type === 2 ? ' (group)' : '';
-          return `\`${name}\`${type} - ${desc}`;
-        })
-        .join('\n');
+  const subcommandFields = buildSubcommandFields(options);
 
-      embed.addFields({ name: 'Subcommands', value: subcommandList });
+  if (subcommandFields.length > 0) {
+    embed.addFields(subcommandFields.slice(0, MAX_DETAIL_FIELDS));
+    if (subcommandFields.length > MAX_DETAIL_FIELDS) {
+      embed.addFields({
+        name: '…and more',
+        value: `${subcommandFields.length - MAX_DETAIL_FIELDS} more subcommand(s) not shown.`,
+      });
+    }
+  } else {
+    // Flat command (no subcommands) — list its own parameters, if any.
+    const params = renderParams(options);
+    if (params !== '') {
+      embed.addFields({ name: 'Parameters', value: params.slice(0, FIELD_VALUE_LIMIT) });
     }
   }
 
@@ -140,7 +220,7 @@ async function showAllCommands(
     .setTitle('📚 Available Commands')
     .setDescription(
       'Use `/help <command>` for detailed information about a specific command.\n\n' +
-        'You can also interact with AI personalities by @mentioning them!'
+        'You can also interact with AI characters by @mentioning them!'
     )
     .setTimestamp();
 
@@ -194,11 +274,11 @@ async function showAllCommands(
     });
   }
 
-  // Add personality mention info
+  // Add character mention info
   embed.addFields({
-    name: '💬 Personality Interactions',
+    name: '💬 Character Interactions',
     value:
-      `• \`${mentionChar}PersonalityName your message\` - Start a conversation\n` +
+      `• \`${mentionChar}CharacterName your message\` - Start a conversation\n` +
       '• Reply to their messages to continue chatting\n' +
       '• Use `/character chat` to start via slash command',
     inline: false,
