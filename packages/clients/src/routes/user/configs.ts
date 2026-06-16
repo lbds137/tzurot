@@ -130,7 +130,7 @@ export const userConfigRoutes = {
     input: LlmConfigCreateSchema,
     output: CreateLlmConfigResponseSchema,
     requiresProvisionedUser: true,
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
+    timeoutMs: GATEWAY_TIMEOUTS.WRITE,
   },
 
   updateUserLlmConfig: {
@@ -143,7 +143,7 @@ export const userConfigRoutes = {
     output: UpdateLlmConfigResponseSchema,
     requiresProvisionedUser: true,
     meta: { idempotent: true },
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
+    timeoutMs: GATEWAY_TIMEOUTS.WRITE,
   },
 
   deleteUserLlmConfig: {
@@ -154,7 +154,7 @@ export const userConfigRoutes = {
     params: { id: z.string() },
     output: DeleteLlmConfigResponseSchema,
     requiresProvisionedUser: true,
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
+    timeoutMs: GATEWAY_TIMEOUTS.WRITE,
   },
 
   resolveUserLlmConfig: {
@@ -248,6 +248,12 @@ export const userConfigRoutes = {
     timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
+  // Override writes (this and the model/stt overrides below) deliberately keep
+  // DEFERRED (10s) rather than WRITE: they're single-row upserts with no
+  // validation cascade or cache-invalidation fan-out, so 10s is ample. The
+  // method-aware transport default backstops any future write route that omits
+  // a timeout (it gets WRITE), so leaving these at DEFERRED is a conscious
+  // shorter-budget choice, not an oversight.
   setTtsOverride: {
     audience: 'user',
     method: 'put',

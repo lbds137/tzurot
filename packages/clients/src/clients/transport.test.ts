@@ -7,6 +7,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
+import { GATEWAY_TIMEOUTS } from '@tzurot/common-types';
 import { callGateway, callGatewayOrThrow } from './transport.js';
 import { GatewayApiError } from './errors.js';
 
@@ -102,6 +103,30 @@ describe('callGateway', () => {
     await callGateway({ ...baseOpts, baseUrl: 'https://example.test/' });
     const [url] = fetchSpy.mock.calls[0] as [string];
     expect(url).toBe('https://example.test/api/user/timezone');
+  });
+
+  it('defaults write methods (POST/PUT/PATCH/DELETE) to the WRITE timeout', async () => {
+    const timeoutSpy = vi.spyOn(AbortSignal, 'timeout');
+    for (const method of ['POST', 'PUT', 'PATCH', 'DELETE'] as const) {
+      timeoutSpy.mockClear();
+      fetchSpy.mockResolvedValueOnce(jsonResponse({ ok: true }));
+      await callGateway({ ...baseOpts, method });
+      expect(timeoutSpy).toHaveBeenCalledWith(GATEWAY_TIMEOUTS.WRITE);
+    }
+  });
+
+  it('defaults read methods (GET) to the short AUTOCOMPLETE timeout', async () => {
+    const timeoutSpy = vi.spyOn(AbortSignal, 'timeout');
+    fetchSpy.mockResolvedValueOnce(jsonResponse({ ok: true }));
+    await callGateway(baseOpts);
+    expect(timeoutSpy).toHaveBeenCalledWith(GATEWAY_TIMEOUTS.AUTOCOMPLETE);
+  });
+
+  it('lets an explicit timeoutMs override the method-aware default', async () => {
+    const timeoutSpy = vi.spyOn(AbortSignal, 'timeout');
+    fetchSpy.mockResolvedValueOnce(jsonResponse({ ok: true }));
+    await callGateway({ ...baseOpts, method: 'POST', timeoutMs: 1234 });
+    expect(timeoutSpy).toHaveBeenCalledWith(1234);
   });
 
   it('returns ok: true with the parsed data on 2xx', async () => {

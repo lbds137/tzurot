@@ -44,12 +44,6 @@ export const TIMEOUTS = {
   STT_GATEWAY: 240_000,
   /** BullMQ worker lock duration - maximum time a job can run before being considered stalled (20 minutes - safety net for hung jobs) */
   WORKER_LOCK_DURATION: 20 * 60 * 1000,
-  /** Client-side timeout for admin slash command → api-gateway requests (10 s).
-   * Well inside Discord's 15-minute interaction expiry — covers a healthy
-   * gateway response plus generous headroom, but short enough that a hung
-   * gateway surfaces as "Gateway unreachable" rather than letting the slash
-   * command sit in "Thinking…" until Discord's deferReply window expires. */
-  ADMIN_GATEWAY: 10_000,
   /** Default timeout for bot-client → api-gateway internal RPC calls (5 s).
    * Covers small JSON request/response shapes (channel lookups, session
    * writes, confirm-delivery acks, settings reads, diagnostic patches).
