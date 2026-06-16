@@ -148,6 +148,46 @@ function ctxProbeDescriptor(
 }
 
 /**
+ * Collapse DB-history rows that represent the SAME Discord message.
+ *
+ * `conversation_history` rows are personality-scoped and there is no unique
+ * constraint on `discordMessageId`, so a single Discord message that triggered
+ * N personalities (a user's @-ping to multiple characters in one channel) is
+ * stored as N rows sharing the same `discordMessageId`. `getChannelHistory` is
+ * channel-scoped — it fetches ALL personalities' rows — so every duplicate
+ * comes back, and the merge would otherwise surface that one user turn N times
+ * in the model context.
+ *
+ * Collapsing by shared id only ever removes TRUE duplicates: distinct Discord
+ * messages never share a snowflake, and each character's own reply is its own
+ * Discord message with its own id, so assistant turns are never collapsed —
+ * only a shared trigger that was fanned out across personalities. Keeps the
+ * first occurrence (the caller supplies rows already in chronological order).
+ */
+function dedupeDbHistoryByMessageId(dbHistory: ConversationMessage[]): ConversationMessage[] {
+  const seenIds = new Set<string>();
+  const deduped: ConversationMessage[] = [];
+  let droppedCount = 0;
+  for (const msg of dbHistory) {
+    if (msg.discordMessageId.some(id => seenIds.has(id))) {
+      droppedCount++;
+      continue;
+    }
+    for (const id of msg.discordMessageId) {
+      seenIds.add(id);
+    }
+    deduped.push(msg);
+  }
+  if (droppedCount > 0) {
+    logger.debug(
+      { droppedCount, originalCount: dbHistory.length },
+      'Collapsed duplicate channel-history rows sharing a Discord message id'
+    );
+  }
+  return deduped;
+}
+
+/**
  * Merge extended context messages with database conversation history
  *
  * This handles deduplication when the same message appears in both sources.
@@ -161,9 +201,16 @@ export function mergeWithHistory(
   extendedMessages: ConversationMessage[],
   dbHistory: ConversationMessage[]
 ): ConversationMessage[] {
+  // Collapse same-Discord-message duplicate rows FIRST. A user's @-ping to
+  // multiple characters is persisted once per responding personality (rows are
+  // personality-scoped, no unique constraint on discordMessageId), and the
+  // channel-scoped getChannelHistory returns all of them — without this the
+  // merge would surface that one user turn N times. See dedupeDbHistoryByMessageId.
+  const dedupedDbHistory = dedupeDbHistoryByMessageId(dbHistory);
+
   // Build map of message IDs to DB messages for deduplication and content comparison
   const dbMessageMap = new Map<string, ConversationMessage>();
-  for (const msg of dbHistory) {
+  for (const msg of dedupedDbHistory) {
     for (const id of msg.discordMessageId) {
       dbMessageMap.set(id, msg);
     }
@@ -179,10 +226,10 @@ export function mergeWithHistory(
   }
 
   // Recover empty DB content from extended context
-  const recoveredCount = recoverEmptyDbContent(dbHistory, extendedMessageMap);
+  const recoveredCount = recoverEmptyDbContent(dedupedDbHistory, extendedMessageMap);
 
   // Enrich DB messages with extended context metadata (reactions, embeds)
-  enrichDbMessagesWithExtendedMetadata(dbHistory, extendedMessageMap);
+  enrichDbMessagesWithExtendedMetadata(dedupedDbHistory, extendedMessageMap);
 
   // Filter extended messages to exclude those already in DB history
   const uniqueExtendedMessages = extendedMessages.filter(msg => {
@@ -193,7 +240,8 @@ export function mergeWithHistory(
   logger.debug(
     {
       extendedCount: extendedMessages.length,
-      dbHistoryCount: dbHistory.length,
+      dbHistoryCount: dedupedDbHistory.length,
+      dbHistoryDuplicatesDropped: dbHistory.length - dedupedDbHistory.length,
       uniqueExtendedCount: uniqueExtendedMessages.length,
       deduplicatedCount: extendedMessages.length - uniqueExtendedMessages.length,
       recoveredCount,
@@ -202,7 +250,7 @@ export function mergeWithHistory(
   );
 
   // Combine: DB history (chronological, richer metadata) + unique extended messages
-  const merged = [...dbHistory, ...uniqueExtendedMessages];
+  const merged = [...dedupedDbHistory, ...uniqueExtendedMessages];
 
   // Sort by timestamp ascending (oldest first = chronological order)
   // This ensures newest messages appear last in the prompt, getting

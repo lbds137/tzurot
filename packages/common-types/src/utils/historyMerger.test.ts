@@ -390,6 +390,66 @@ describe('HistoryMerger', () => {
       expect(result.some(m => m.content === 'Extended content')).toBe(false);
     });
 
+    it('collapses duplicate DB rows sharing a Discord id (multi-personality user turn)', () => {
+      // A user @-pinged two characters: the trigger is persisted once per
+      // responding personality → two rows, SAME discordMessageId. The
+      // channel-scoped fetch returns both; the merge must surface it once.
+      const dbHistory = [
+        createMockMessage({
+          id: 'db-cold',
+          discordMessageId: ['user-msg-1'],
+          content: 'ping both of you',
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+        }),
+        createMockMessage({
+          id: 'db-weaver',
+          discordMessageId: ['user-msg-1'], // same Discord id, different personality row
+          content: 'ping both of you',
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+        }),
+        createMockMessage({
+          id: 'db-cold-reply',
+          discordMessageId: ['cold-reply-1'],
+          content: 'COLD replies',
+          createdAt: new Date('2024-01-01T12:00:30Z'),
+        }),
+        createMockMessage({
+          id: 'db-weaver-reply',
+          discordMessageId: ['weaver-reply-1'],
+          content: 'Weaver replies',
+          createdAt: new Date('2024-01-01T12:00:31Z'),
+        }),
+      ];
+
+      const result = mergeWithHistory([], dbHistory);
+
+      // Shared user turn appears exactly once...
+      expect(result.filter(m => m.content === 'ping both of you')).toHaveLength(1);
+      // ...each character's distinct reply (distinct id) is untouched.
+      expect(result.some(m => m.content === 'COLD replies')).toBe(true);
+      expect(result.some(m => m.content === 'Weaver replies')).toBe(true);
+      expect(result).toHaveLength(3);
+    });
+
+    it('does not collapse distinct DB messages with different Discord ids', () => {
+      const dbHistory = [
+        createMockMessage({
+          discordMessageId: ['a'],
+          content: 'first',
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+        }),
+        createMockMessage({
+          discordMessageId: ['b'],
+          content: 'second',
+          createdAt: new Date('2024-01-01T12:01:00Z'),
+        }),
+      ];
+
+      const result = mergeWithHistory([], dbHistory);
+
+      expect(result).toHaveLength(2);
+    });
+
     it('should sort by timestamp (oldest first)', () => {
       const extendedMessages = [
         createMockMessage({
