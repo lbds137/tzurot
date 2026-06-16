@@ -9,6 +9,7 @@
 
 - **fix(common-types):** deterministic conversation-history ordering — `id` tiebreak on all `take`-bounded queries (hoisted to `conversationRecencyOrderBy`); fixes a cross-channel-history flake on timestamp ties (#1225)
 - **test(repo):** ESLint now lints test files (first time) — `vitest/expect-expect` w/ `assertFunctionNames`, `no-unused-vars`, and a `no-restricted-syntax` ban on real `setTimeout` delays in unit tests (`*.int.test.ts` exempt). `vitest/valid-expect` deliberately NOT enabled (its autofix deadlocks the deferred fake-timer rejection idiom — had silently broken 40 sites). Deflaked all real-timer offenders + fixed 5 genuine assertion gaps (#1225)
+- **test(repo):** test-lint ratchet — inline suppressions 6→2 (the 2 kept are justified-permanent fake-timer mock-latency); added `vitest/no-focused-tests` (guards committed `.only`), `no-identical-title`, `no-standalone-expect`; new `*.int.test.ts` block scopes route-handler bans out of int-test fixtures (recurrence-proof). Icebox: structural guard for the eslint block-ordering contract (#1226)
 
 ---
 
