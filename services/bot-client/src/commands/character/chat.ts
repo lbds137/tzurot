@@ -430,8 +430,6 @@ async function runCharacterTurn(
     const anchorMessage = anchorResult.message;
 
     // 7. Build full context with command invoker's identity (not anchor message author)
-    // (TS narrows `message` to string in the else branch via the aliased
-    // `isWeighInMode` const, which already covers the null/empty case.)
     const messageContent = isWeighInMode ? WEIGH_IN_MESSAGE : message;
     const buildResult = await buildChatContext({
       anchorMessage,

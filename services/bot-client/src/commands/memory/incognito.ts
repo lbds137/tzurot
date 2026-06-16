@@ -230,7 +230,7 @@ export async function handleIncognitoStatus(context: DeferredCommandContext): Pr
 
     const embed = createWarningEmbed(
       '👻 Incognito Active',
-      `Incognito mode is currently **active**.\n\n**Active sessions:**\n${sessionLines.join('\n')}\n\nNew memories will NOT be saved for these personalities.`
+      `Incognito mode is currently **active**.\n\n**Active sessions:**\n${sessionLines.join('\n')}\n\nNew memories will NOT be saved for these characters.`
     );
 
     await context.editReply({ embeds: [embed] });
@@ -300,7 +300,7 @@ export async function handleIncognitoForget(context: DeferredCommandContext): Pr
       data.deletedCount > 0
         ? createSuccessEmbed(
             '🗑️ Memories Deleted',
-            `**${data.deletedCount} memories** from the last ${timeframe} have been deleted.\n\n${data.personalities.length > 0 ? `**Affected personalities:** ${data.personalities.map(p => escapeMarkdown(p)).join(', ')}` : ''}\n\n*Note: Locked memories are preserved.*`
+            `**${data.deletedCount} memories** from the last ${timeframe} have been deleted.\n\n${data.personalities.length > 0 ? `**Affected characters:** ${data.personalities.map(p => escapeMarkdown(p)).join(', ')}` : ''}\n\n*Note: Locked memories are preserved.*`
           )
         : createInfoEmbed(
             '🗑️ No Memories Found',

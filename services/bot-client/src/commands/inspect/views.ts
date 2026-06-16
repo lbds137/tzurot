@@ -159,7 +159,7 @@ export function buildSystemPromptView(
     // results inherit that automatically.
     return {
       content:
-        '🔒 **Character card hidden** — this personality is owned by another user.\n\n' +
+        '🔒 **Character card hidden** — this character is owned by another user.\n\n' +
         'Numeric and timing diagnostics remain visible above.',
     };
   }
@@ -266,7 +266,7 @@ function renderMemoryTable(
   ];
   if (!canViewCharacter) {
     lines.push('');
-    lines.push('🔒 _Memory previews redacted — this personality is owned by another user._');
+    lines.push('🔒 _Memory previews redacted — this character is owned by another user._');
   }
   lines.push('', '| # | Score | Status | Preview |', '|---|-------|--------|---------|');
   for (let i = 0; i < memories.length; i++) {

@@ -109,7 +109,7 @@ describe('handleOverrideClear', () => {
     await handleOverrideClear(createMockContext('nonexistent'));
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Personality "nonexistent" not found'),
+      content: expect.stringContaining('Character "nonexistent" not found'),
     });
   });
 

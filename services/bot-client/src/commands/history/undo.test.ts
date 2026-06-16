@@ -144,7 +144,7 @@ describe('handleUndo', () => {
     await handleUndo(context);
 
     expect(context.editReply).toHaveBeenCalledWith({
-      content: '❌ Personality "unknown" not found.',
+      content: '❌ Character "unknown" not found.',
     });
   });
 

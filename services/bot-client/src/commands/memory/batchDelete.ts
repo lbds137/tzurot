@@ -73,7 +73,7 @@ export async function handleBatchDelete(context: DeferredCommandContext): Promis
 
     if (personalityId === null) {
       await context.editReply({
-        content: `❌ Personality "${personalityInput}" not found. Use autocomplete to select a valid personality.`,
+        content: `❌ Character "${personalityInput}" not found. Use autocomplete to select a valid character.`,
       });
       return;
     }
@@ -90,7 +90,7 @@ export async function handleBatchDelete(context: DeferredCommandContext): Promis
     if (!previewResult.ok) {
       const errorMessage =
         previewResult.status === 404
-          ? `Personality "${personalityInput}" not found.`
+          ? `Character "${personalityInput}" not found.`
           : (previewResult.error ?? 'Failed to preview deletion. Please try again later.');
       logger.warn(
         { userId, personalityInput, status: previewResult.status },

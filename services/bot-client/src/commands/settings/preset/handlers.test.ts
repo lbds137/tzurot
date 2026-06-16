@@ -165,7 +165,7 @@ describe('Preset Command Handlers', () => {
       expect(stub.deleteModelOverride).toHaveBeenCalledWith(PERSONALITY_ID_1);
       expect(mockCreateSuccessEmbed).toHaveBeenCalledWith(
         '🔄 Preset Override Removed',
-        'The personality will now use its default preset.'
+        'The character will now use its default preset.'
       );
     });
 

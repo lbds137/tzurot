@@ -88,7 +88,7 @@ function buildHardDeleteOperation(
         success: false,
         errorMessage:
           result.status === 404
-            ? `Personality "${personalitySlug}" not found.`
+            ? `Character "${personalitySlug}" not found.`
             : 'Failed to delete history. Please try again.',
       };
     }

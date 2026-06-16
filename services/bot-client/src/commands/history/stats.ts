@@ -55,7 +55,7 @@ export async function handleStats(context: DeferredCommandContext): Promise<void
     if (!result.ok) {
       const errorMessage =
         result.status === 404
-          ? `Personality "${personalitySlug}" not found.`
+          ? `Character "${personalitySlug}" not found.`
           : 'Failed to get stats. Please try again later.';
       logger.warn({ userId, personalitySlug, status: result.status }, 'Stats failed');
       await context.editReply({ content: `❌ ${errorMessage}` });

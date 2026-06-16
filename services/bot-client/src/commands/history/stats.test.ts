@@ -318,7 +318,7 @@ describe('handleStats', () => {
     await handleStats(context);
 
     expect(context.editReply).toHaveBeenCalledWith({
-      content: '❌ Personality "unknown" not found.',
+      content: '❌ Character "unknown" not found.',
     });
   });
 

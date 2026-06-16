@@ -38,7 +38,7 @@ export async function handleStats(context: DeferredCommandContext): Promise<void
     if (!result.ok) {
       const errorMessage =
         result.status === 404
-          ? `Personality "${personalityInput}" not found.`
+          ? `Character "${personalityInput}" not found.`
           : 'Failed to get stats. Please try again later.';
       logger.warn({ userId, personalityInput, status: result.status }, 'Stats failed');
       await context.editReply({ content: `❌ ${errorMessage}` });
@@ -55,8 +55,7 @@ export async function handleStats(context: DeferredCommandContext): Promise<void
     }
 
     if (data.personaId === null) {
-      description +=
-        '\n\n*No profile configured - you have no memories with this personality yet.*';
+      description += '\n\n*No profile configured - you have no memories with this character yet.*';
     }
 
     const embed = createInfoEmbed('Memory Statistics', description);

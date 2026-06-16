@@ -43,11 +43,11 @@ export async function handleClear(context: DeferredCommandContext): Promise<void
     const embed = wasSet
       ? createSuccessEmbed(
           '🔄 Preset Override Removed',
-          'The personality will now use its default preset.'
+          'The character will now use its default preset.'
         )
       : createInfoEmbed(
           'ℹ️ No Override Set',
-          'This personality was already using its default preset.'
+          'This character was already using its default preset.'
         );
 
     await context.editReply({ embeds: [embed] });

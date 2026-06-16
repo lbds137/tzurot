@@ -204,7 +204,7 @@ export function buildDiagnosticEmbed(payload: DiagnosticPayload): EmbedBuilder {
         name: '📝 Request',
         value: [
           `**ID:** \`${meta.requestId}\``,
-          `**Personality:** ${meta.personalityName}`,
+          `**Character:** ${meta.personalityName}`,
           `**User:** <@${meta.userId}>`,
           `**Channel:** <#${meta.channelId}>`,
         ].join('\n'),

@@ -48,7 +48,7 @@ export async function resolveOptionalPersonality(
   const resolved = await resolvePersonalityId(userClient, personalityInput);
   if (resolved === null) {
     await context.editReply({
-      content: `❌ Personality "${personalityInput}" not found. Use autocomplete to select a valid personality.`,
+      content: `❌ Character "${personalityInput}" not found. Use autocomplete to select a valid character.`,
     });
     return null;
   }
@@ -80,7 +80,7 @@ export async function resolveRequiredPersonality(
   const resolved = await resolvePersonalityId(userClient, personalityInput);
   if (resolved === null) {
     await context.editReply({
-      content: `❌ Personality "${personalityInput}" not found. Use autocomplete to select a valid personality.`,
+      content: `❌ Character "${personalityInput}" not found. Use autocomplete to select a valid character.`,
     });
   }
   return resolved;

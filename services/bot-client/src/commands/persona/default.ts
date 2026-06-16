@@ -62,7 +62,7 @@ export async function handleSetDefaultPersona(context: DeferredCommandContext): 
     logger.info({ userId: discordId, personaId, personaName: persona.name }, 'Set default');
 
     await context.editReply({
-      content: `⭐ **${displayName}** is now your default persona.\n\nThis persona will be used when talking to personalities that don't have a specific override set.`,
+      content: `⭐ **${displayName}** is now your default persona.\n\nThis persona will be used when talking to characters that don't have a specific override set.`,
     });
   } catch (error) {
     logger.error({ err: error, userId: discordId }, 'Failed to set default');
