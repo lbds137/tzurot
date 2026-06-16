@@ -935,9 +935,9 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
     "name_localizations": undefined,
     "options": [
       {
-        "description": "List your preset overrides",
+        "description": "Browse your preset overrides (select to clear)",
         "description_localizations": undefined,
-        "name": "list",
+        "name": "browse",
         "name_localizations": undefined,
         "options": [],
         "type": 1,
@@ -1203,9 +1203,9 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
     "name_localizations": undefined,
     "options": [
       {
-        "description": "List your TTS overrides",
+        "description": "Browse your TTS overrides (select to clear)",
         "description_localizations": undefined,
-        "name": "list",
+        "name": "browse",
         "name_localizations": undefined,
         "options": [],
         "type": 1,

@@ -1568,7 +1568,8 @@
         "modal": true
       },
       "componentPrefixes": [
-        "user-defaults-settings"
+        "user-defaults-settings",
+        "settings-preset-override"
       ],
       "data": {
         "options": [
@@ -1712,8 +1713,8 @@
             "options": [
               {
                 "type": 1,
-                "name": "list",
-                "description": "List your preset overrides",
+                "name": "browse",
+                "description": "Browse your preset overrides (select to clear)",
                 "options": []
               },
               {
@@ -1908,7 +1909,8 @@
         "modal": true
       },
       "componentPrefixes": [
-        "voice-voices"
+        "voice-voices",
+        "voice-tts-override"
       ],
       "data": {
         "options": [
@@ -1933,8 +1935,8 @@
             "options": [
               {
                 "type": 1,
-                "name": "list",
-                "description": "List your TTS overrides",
+                "name": "browse",
+                "description": "Browse your TTS overrides (select to clear)",
                 "options": []
               },
               {

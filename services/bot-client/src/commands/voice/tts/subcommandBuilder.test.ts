@@ -23,7 +23,7 @@ describe('buildVoiceTtsSubcommandGroup', () => {
     const subcommandNames = (ttsGroup?.options as Array<{ name: string }> | undefined)?.map(
       s => s.name
     );
-    expect(subcommandNames).toEqual(['list', 'set', 'clear', 'set-default', 'clear-default']);
+    expect(subcommandNames).toEqual(['browse', 'set', 'clear', 'set-default', 'clear-default']);
   });
 
   it('set subcommand requires personality + tts options with autocomplete', () => {

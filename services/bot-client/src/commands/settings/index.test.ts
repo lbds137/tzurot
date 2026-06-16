@@ -44,8 +44,12 @@ vi.mock('./apikey/modal.js', () => ({
 }));
 
 // Mock preset handlers
-vi.mock('./preset/list.js', () => ({
-  handleListOverrides: vi.fn().mockResolvedValue(undefined),
+vi.mock('./preset/browse.js', () => ({
+  handlePresetBrowse: vi.fn().mockResolvedValue(undefined),
+  handlePresetBrowseSelect: vi.fn().mockResolvedValue(undefined),
+  handlePresetBrowseButton: vi.fn().mockResolvedValue(undefined),
+  isPresetOverrideInteraction: vi.fn(() => false),
+  PRESET_OVERRIDE_PREFIX: 'settings-preset-override',
 }));
 
 vi.mock('./preset/set.js', () => ({
@@ -162,8 +166,9 @@ describe('Settings Command Index', () => {
       ).map(s => s.name);
       // Names mirror the /voice tts pattern: action verb (set / clear) +
       // optional scope qualifier (-default for global vs no suffix for
-      // per-character). `list` (not `browse`) for the user-overrides view.
-      expect(subcommands).toContain('list');
+      // per-character). `browse` is the interactive select-to-clear view of
+      // the user's overrides.
+      expect(subcommands).toContain('browse');
       expect(subcommands).toContain('set');
       expect(subcommands).toContain('clear');
       expect(subcommands).toContain('set-default');
@@ -198,8 +203,11 @@ describe('Settings Command Index', () => {
       expect(groupNames).not.toContain('voices');
     });
 
-    it('should have componentPrefixes for user-defaults only', () => {
-      expect(settingsCommand.componentPrefixes).toEqual(['user-defaults-settings']);
+    it('should have componentPrefixes for user-defaults and preset-override', () => {
+      expect(settingsCommand.componentPrefixes).toEqual([
+        'user-defaults-settings',
+        'settings-preset-override',
+      ]);
     });
 
     it('should have correct deferral modes', () => {
@@ -296,13 +304,13 @@ describe('Settings Command Index', () => {
     });
 
     describe('preset group', () => {
-      it('should route /preset list to handleListOverrides', async () => {
-        const { handleListOverrides } = await import('./preset/list.js');
-        const context = createMockContext('preset', 'list');
+      it('should route /preset browse to handlePresetBrowse', async () => {
+        const { handlePresetBrowse } = await import('./preset/browse.js');
+        const context = createMockContext('preset', 'browse');
 
         await execute(context);
 
-        expect(handleListOverrides).toHaveBeenCalledWith(context);
+        expect(handlePresetBrowse).toHaveBeenCalledWith(context);
       });
 
       it('should route to preset set handler', async () => {

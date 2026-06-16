@@ -119,7 +119,7 @@ export async function checkGuestModePremiumAccess(
           'In **Guest Mode**, you can only use configs with free models (marked with 🆓).\n\n' +
           'Use `/settings apikey set` to add your own API key for full model access.'
       )
-      .setFooter({ text: 'Use /settings preset list to see available free presets' })
+      .setFooter({ text: 'Use /preset browse to see available free presets' })
       .setTimestamp();
 
     await context.editReply({ embeds: [embed] });

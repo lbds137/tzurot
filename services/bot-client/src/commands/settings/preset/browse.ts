@@ -1,0 +1,60 @@
+/**
+ * Settings Preset Browse Handler
+ * Handles /settings preset browse — lists the user's per-character preset
+ * overrides and lets them clear one by selecting it.
+ *
+ * Replaces the old /settings preset list (display-only) with an interactive
+ * select → clear flow built on the shared override browser.
+ */
+
+import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
+import { createLogger } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
+import {
+  type OverrideBrowseConfig,
+  handleOverrideBrowse,
+  handleOverrideBrowseSelect,
+  handleOverrideBrowseButton,
+  createOverrideBrowseCustomIds,
+} from '../../../utils/overrideBrowse.js';
+
+const logger = createLogger('settings-preset-browse');
+
+/** customId prefix — must match settings/index.ts componentPrefixes. */
+export const PRESET_OVERRIDE_PREFIX = 'settings-preset-override';
+
+const presetOverrideConfig: OverrideBrowseConfig = {
+  prefix: PRESET_OVERRIDE_PREFIX,
+  title: '🎭 Your Preset Overrides',
+  entityType: 'preset override',
+  fallbackNoun: 'preset',
+  emptyDescription:
+    "You haven't set any preset overrides.\n\nUse `/settings preset set` to override which preset a character uses.",
+  clearCommandHint: '/settings preset clear',
+  selectPlaceholder: 'Select an override to clear…',
+  logger,
+  list: userClient => userClient.listModelOverrides(),
+  delete: (userClient, personalityId) => userClient.deleteModelOverride(personalityId),
+};
+
+const presetOverrideIds = createOverrideBrowseCustomIds(PRESET_OVERRIDE_PREFIX);
+
+/** Whether a customId belongs to the preset-override browser. */
+export function isPresetOverrideInteraction(customId: string): boolean {
+  return presetOverrideIds.isOwn(customId);
+}
+
+/** Handle /settings preset browse */
+export function handlePresetBrowse(context: DeferredCommandContext): Promise<void> {
+  return handleOverrideBrowse(presetOverrideConfig, context);
+}
+
+/** Handle preset-override select-menu (select → confirm clear). */
+export function handlePresetBrowseSelect(interaction: StringSelectMenuInteraction): Promise<void> {
+  return handleOverrideBrowseSelect(presetOverrideConfig, interaction);
+}
+
+/** Handle preset-override confirm/cancel buttons. */
+export function handlePresetBrowseButton(interaction: ButtonInteraction): Promise<void> {
+  return handleOverrideBrowseButton(presetOverrideConfig, interaction);
+}
