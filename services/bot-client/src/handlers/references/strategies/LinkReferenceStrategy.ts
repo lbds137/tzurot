@@ -6,6 +6,7 @@
 
 import type { Message } from 'discord.js';
 import { createLogger, MessageLinkParser } from '@tzurot/common-types';
+import { extractForwardedContent } from '../../../utils/forwardedMessageUtils.js';
 import type { IReferenceStrategy } from './IReferenceStrategy.js';
 import { type ReferenceResult, ReferenceType } from '../types.js';
 
@@ -21,8 +22,11 @@ export class LinkReferenceStrategy implements IReferenceStrategy {
    * @returns Array of reference results from parsed links
    */
   extract(message: Message): Promise<ReferenceResult[]> {
-    // Parse message links from content
-    const links = MessageLinkParser.parseMessageLinks(message.content);
+    // Use the effective content so links embedded in a FORWARDED message's
+    // snapshot are detected — `message.content` is empty for forwards, which
+    // would otherwise drop their links from `[Reference N]` numbering.
+    // extractForwardedContent falls back to message.content for non-forwards.
+    const links = MessageLinkParser.parseMessageLinks(extractForwardedContent(message));
 
     if (links.length === 0) {
       return Promise.resolve([]);

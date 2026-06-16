@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
+import { Collection, type MessageSnapshot } from 'discord.js';
 import { LinkReferenceStrategy } from './LinkReferenceStrategy.js';
 import { ReferenceType } from '../types.js';
 import { createMockMessage } from '../../../test/mocks/Discord.mock.js';
@@ -92,6 +93,33 @@ describe('LinkReferenceStrategy', () => {
       guildId: '123',
       type: ReferenceType.LINK,
       discordUrl: 'https://ptb.discord.com/channels/123/456/789',
+    });
+  });
+
+  it('should extract links from a FORWARDED message snapshot (message.content is empty)', async () => {
+    // Forwards carry their text in messageSnapshots, not message.content. The
+    // strategy must read the snapshot so links inside forwarded text get crawled.
+    const message = createMockMessage({
+      content: '',
+      messageSnapshots: new Collection<string, MessageSnapshot>([
+        [
+          'snap-1',
+          {
+            content: 'Forwarded: see https://discord.com/channels/123/456/789',
+          } as unknown as MessageSnapshot,
+        ],
+      ]),
+    });
+
+    const result = await strategy.extract(message);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual({
+      messageId: '789',
+      channelId: '456',
+      guildId: '123',
+      type: ReferenceType.LINK,
+      discordUrl: 'https://discord.com/channels/123/456/789',
     });
   });
 });
