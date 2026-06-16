@@ -100,10 +100,18 @@ export async function callGateway<T>(options: TransportOptions): Promise<Gateway
     path,
     headers: extraHeaders,
     body,
-    timeoutMs = GATEWAY_TIMEOUTS.AUTOCOMPLETE,
+    timeoutMs,
     outputSchema,
     onWarn,
   } = options;
+
+  // Method-aware default: mutations default to the WRITE budget, reads to the
+  // short AUTOCOMPLETE budget. This stops a write route that forgets `timeoutMs`
+  // from silently inheriting the 2.5s read default and aborting a slow-but-fine
+  // write. An explicit `timeoutMs` on the route always wins.
+  const isWriteMethod = ['post', 'put', 'patch', 'delete'].includes(method.toLowerCase());
+  const effectiveTimeoutMs =
+    timeoutMs ?? (isWriteMethod ? GATEWAY_TIMEOUTS.WRITE : GATEWAY_TIMEOUTS.AUTOCOMPLETE);
 
   if (baseUrl.length === 0) {
     return { ok: false, error: 'baseUrl is empty', status: 0 };
@@ -129,7 +137,7 @@ export async function callGateway<T>(options: TransportOptions): Promise<Gateway
       method,
       headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
-      signal: AbortSignal.timeout(timeoutMs),
+      signal: AbortSignal.timeout(effectiveTimeoutMs),
     });
 
     if (!response.ok) {
