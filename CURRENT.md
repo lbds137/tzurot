@@ -7,7 +7,8 @@
 
 ## Unreleased on Develop (since beta.132)
 
-_Nothing yet — beta.132 shipped 2026-06-15 (the /models browser arc, wallet rate-limit fixes, commands:audit)._
+- **fix(common-types):** deterministic conversation-history ordering — `id` tiebreak on all `take`-bounded queries (hoisted to `conversationRecencyOrderBy`); fixes a cross-channel-history flake on timestamp ties (#1225)
+- **test(repo):** ESLint now lints test files (first time) — `vitest/expect-expect` w/ `assertFunctionNames`, `no-unused-vars`, and a `no-restricted-syntax` ban on real `setTimeout` delays in unit tests (`*.int.test.ts` exempt). `vitest/valid-expect` deliberately NOT enabled (its autofix deadlocks the deferred fake-timer rejection idiom — had silently broken 40 sites). Deflaked all real-timer offenders + fixed 5 genuine assertion gaps (#1225)
 
 ---
 
