@@ -8,7 +8,7 @@ _This week's active work. Max 3 items._
 
    _Epic work is prod-validated through beta.130 (#1200, 2026-06-14). Latest release: **beta.132** (2026-06-15). Unreleased on develop: #1225/#1226 (test-lint infra + the conversation-history ordering flake fix). See [CURRENT.md](../CURRENT.md)._
 
-2. **Pre-beta.133 forwarded + slash-command batch** (user-directed) — working through the forwarded-message + slash-command items before the next release. Shipped: forwarded-link crawling (#1227), gateway write-timeouts (#1228, in review). Remaining: forwarded origin-channel enrichment, `/character chat` split (council-gated), `list`→`browse`, `/help` enhancement + terminology audit. Plan: `~/.claude/plans/calm-scribbling-scroll.md`.
+2. **Pre-beta.133 forwarded + slash-command batch** (user-directed) — working through the forwarded-message + slash-command items before the next release. Shipped: forwarded-link crawling (#1227), gateway write-timeouts (#1228), forwarded origin-channel enrichment (#1229), `/character chat` split (#1230), `list`→`browse` (#1231). Remaining: PR F — `/help` enhancement + full "character" terminology audit. Fold into PR F (touches these areas): (a) PR D nits — drop the TS-narrowing comment in `character/chat.ts`, add `chime-in` to `character/autocomplete.ts` JSDoc; (b) PR E nit — restore the `createLogger` mock in `settings/preset/browse.test.ts` + `voice/tts/browse.test.ts` (dropped from the deleted `list.test.ts`, so they emit real pino lines in CI). Plan: `~/.claude/plans/calm-scribbling-scroll.md`.
 
 ### Quick-wins available between phases
 
