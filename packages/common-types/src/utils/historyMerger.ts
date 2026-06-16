@@ -201,27 +201,6 @@ export function mergeWithHistory(
     'Merged extended context with DB history'
   );
 
-  // TEMPORARY diagnostic (debug PR, CTX_MERGE_PROBE=1): dump PII-safe per-message
-  // descriptors for both sides + the dedup result so we can read — at runtime, on
-  // dev — which copy of each message survives the merge and with what shape. This
-  // is the single boundary where the beta.133 context trio converges (footer leak,
-  // chime-in role/order, blank image msgs). Capped to the most recent 15 per side
-  // to bound log volume. Remove with the cleanup commit once the mechanism is read.
-  if (process.env.CTX_MERGE_PROBE === '1') {
-    const TAIL = 15;
-    logger.info(
-      {
-        probe: 'ctx-merge',
-        dbCount: dbHistory.length,
-        liveCount: extendedMessages.length,
-        survivedLive: uniqueExtendedMessages.length,
-        db: dbHistory.slice(-TAIL).map(m => ctxProbeDescriptor(m, dbMessageMap)),
-        live: extendedMessages.slice(-TAIL).map(m => ctxProbeDescriptor(m, dbMessageMap)),
-      },
-      '[CTX-MERGE-PROBE]'
-    );
-  }
-
   // Combine: DB history (chronological, richer metadata) + unique extended messages
   const merged = [...dbHistory, ...uniqueExtendedMessages];
 
@@ -235,6 +214,29 @@ export function mergeWithHistory(
       b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt).getTime();
     return timeA - timeB;
   });
+
+  // TEMPORARY diagnostic (debug PR, CTX_MERGE_PROBE=1): dump PII-safe descriptors for
+  // the most-recent slice of the FINAL merged result — i.e. exactly the recent window
+  // the prompt will render. Logging `merged` (which IS sorted oldest-first) rather than
+  // the raw `extendedMessages` array (newest-first from the Discord fetch) avoids the
+  // window-direction trap. `inDb` reveals whether each entry is DB-sourced (clean) or a
+  // unique live copy that leaked through dedup. This is the single boundary where the
+  // beta.133 context trio converges (footer leak / chime-in role+order / blank image
+  // msgs). Remove with the cleanup commit once the mechanism is read.
+  if (process.env.CTX_MERGE_PROBE === '1') {
+    const TAIL = 25;
+    logger.info(
+      {
+        probe: 'ctx-merge',
+        dbCount: dbHistory.length,
+        liveCount: extendedMessages.length,
+        survivedLive: uniqueExtendedMessages.length,
+        mergedCount: merged.length,
+        recent: merged.slice(-TAIL).map(m => ctxProbeDescriptor(m, dbMessageMap)),
+      },
+      '[CTX-MERGE-PROBE]'
+    );
+  }
 
   return merged;
 }
