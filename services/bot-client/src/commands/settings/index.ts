@@ -5,7 +5,7 @@
  *
  * - /settings timezone get|set - Manage timezone
  * - /settings apikey set|browse|remove|test - Manage API keys (BYOK)
- * - /settings preset list|set|clear|set-default|clear-default - Manage preset overrides
+ * - /settings preset browse|set|clear|set-default|clear-default - Manage preset overrides
  * - /settings defaults edit - Manage global default settings (config cascade)
  *
  * HISTORY:
@@ -46,7 +46,13 @@ import { handleApikeyModalSubmit } from './apikey/modal.js';
 import { ApikeyCustomIds } from '../../utils/customIds.js';
 
 // Preset handlers
-import { handleListOverrides } from './preset/list.js';
+import {
+  handlePresetBrowse,
+  handlePresetBrowseSelect,
+  handlePresetBrowseButton,
+  isPresetOverrideInteraction,
+  PRESET_OVERRIDE_PREFIX,
+} from './preset/browse.js';
 import { handleSet as handlePresetSet } from './preset/set.js';
 import { handleClear as handlePresetClear } from './preset/clear.js';
 import { handleSetDefault as handlePresetSetDefault } from './preset/set-default.js';
@@ -97,7 +103,7 @@ const apikeyRouter = createMixedModeSubcommandRouter(
  */
 const presetRouter = createTypedSubcommandRouter(
   {
-    list: handleListOverrides,
+    browse: handlePresetBrowse,
     set: handlePresetSet,
     clear: handlePresetClear,
     'set-default': handlePresetSetDefault,
@@ -156,6 +162,11 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
     return;
   }
 
+  if (isPresetOverrideInteraction(interaction.customId)) {
+    await handlePresetBrowseButton(interaction);
+    return;
+  }
+
   logger.warn({ customId: interaction.customId }, 'Unknown button customId');
 }
 
@@ -165,6 +176,11 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
 async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promise<void> {
   if (isUserDefaultsInteraction(interaction.customId)) {
     await handleUserDefaultsSelectMenu(interaction);
+    return;
+  }
+
+  if (isPresetOverrideInteraction(interaction.customId)) {
+    await handlePresetBrowseSelect(interaction);
     return;
   }
 
@@ -286,7 +302,9 @@ export default defineCommand({
         .setName('preset')
         .setDescription('Manage preset/model overrides')
         .addSubcommand(subcommand =>
-          subcommand.setName('list').setDescription('List your preset overrides')
+          subcommand
+            .setName('browse')
+            .setDescription('Browse your preset overrides (select to clear)')
         )
         .addSubcommand(subcommand =>
           subcommand
@@ -349,5 +367,5 @@ export default defineCommand({
   handleModal,
   handleButton,
   handleSelectMenu,
-  componentPrefixes: ['user-defaults-settings'],
+  componentPrefixes: ['user-defaults-settings', PRESET_OVERRIDE_PREFIX],
 });

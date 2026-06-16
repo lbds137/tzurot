@@ -3,7 +3,7 @@
  *
  * Unified namespace for voice configuration:
  *
- * - /voice tts list|set|clear|set-default|clear-default — TTS provider config (per-character + user-default)
+ * - /voice tts browse|set|clear|set-default|clear-default — TTS provider config (per-character + user-default)
  * - /voice stt set|clear — transcription provider preference (user-scoped; STT is speaker-bound)
  * - /voice voices browse|delete|clear — cloned-voice lifecycle
  * - /voice view <character> — unified TTS+STT+voices dashboard
@@ -26,7 +26,13 @@ import type {
 import { DestructiveCustomIds } from '../../utils/customIds.js';
 
 // TTS handlers
-import { handleTtsListOverrides } from './tts/list.js';
+import {
+  handleTtsBrowse,
+  handleTtsBrowseSelect,
+  handleTtsBrowseButton,
+  isTtsOverrideInteraction,
+  TTS_OVERRIDE_PREFIX,
+} from './tts/browse.js';
 import { handleTtsSet } from './tts/set.js';
 import { handleTtsClear } from './tts/clear.js';
 import { handleTtsSetDefault } from './tts/set-default.js';
@@ -64,7 +70,7 @@ const logger = createLogger('voice-command');
 
 const ttsRouter = createTypedSubcommandRouter(
   {
-    list: handleTtsListOverrides,
+    browse: handleTtsBrowse,
     set: handleTtsSet,
     clear: handleTtsClear,
     'set-default': handleTtsSetDefault,
@@ -156,6 +162,11 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
     return;
   }
 
+  if (isTtsOverrideInteraction(interaction.customId)) {
+    await handleTtsBrowseButton(interaction);
+    return;
+  }
+
   if (DestructiveCustomIds.isDestructive(interaction.customId)) {
     const parsed = DestructiveCustomIds.parse(interaction.customId);
     if (parsed?.operation === VOICE_CLEAR_OPERATION) {
@@ -179,10 +190,13 @@ async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
   logger.warn({ customId: interaction.customId }, 'Unknown modal customId');
 }
 
-// Voice command currently has no select menus.
-function handleSelectMenu(interaction: StringSelectMenuInteraction): Promise<void> {
+async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promise<void> {
+  if (isTtsOverrideInteraction(interaction.customId)) {
+    await handleTtsBrowseSelect(interaction);
+    return;
+  }
+
   logger.debug({ customId: interaction.customId }, 'Unhandled select menu in voice command');
-  return Promise.resolve();
 }
 
 export default defineCommand({
@@ -210,5 +224,5 @@ export default defineCommand({
   handleButton,
   handleModal,
   handleSelectMenu,
-  componentPrefixes: ['voice-voices'],
+  componentPrefixes: ['voice-voices', TTS_OVERRIDE_PREFIX],
 });
