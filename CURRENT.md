@@ -11,6 +11,7 @@
 - **test(repo):** ESLint now lints test files (first time) — `vitest/expect-expect` w/ `assertFunctionNames`, `no-unused-vars`, and a `no-restricted-syntax` ban on real `setTimeout` delays in unit tests (`*.int.test.ts` exempt). `vitest/valid-expect` deliberately NOT enabled (its autofix deadlocks the deferred fake-timer rejection idiom — had silently broken 40 sites). Deflaked all real-timer offenders + fixed 5 genuine assertion gaps (#1225)
 - **test(repo):** test-lint ratchet — inline suppressions 6→2 (the 2 kept are justified-permanent fake-timer mock-latency); added `vitest/no-focused-tests` (guards committed `.only`), `no-identical-title`, `no-standalone-expect`; new `*.int.test.ts` block scopes route-handler bans out of int-test fixtures (recurrence-proof). Icebox: structural guard for the eslint block-ordering contract (#1226)
 - **fix(bot-client):** crawl Discord links inside forwarded message snapshots — `LinkReferenceStrategy` read empty `message.content` for forwards, so links in forwarded text never got `[Reference N]` numbering; routed through `extractForwardedContent`. Closes the message-content-extraction audit (`extractForwardedContent` confirmed sole source of truth) (#1227)
+- **fix(clients):** gateway write timeouts — added `GATEWAY_TIMEOUTS.WRITE` (20s) + method-aware transport default (writes default to WRITE, reads to AUTOCOMPLETE); bumped llm-config CRUD writes. Mitigates the prod llm-config-PUT false-abort (10s→20s); removed dead `ADMIN_GATEWAY`. Closes the slash-command timeout audit (#1228)
 
 ---
 
