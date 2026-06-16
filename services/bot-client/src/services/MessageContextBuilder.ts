@@ -24,12 +24,13 @@ import type { Message } from 'discord.js';
 import type { MessageContext } from '../types.js';
 import { extractDiscordEnvironment } from '../utils/discordContext.js';
 import { buildMessageContent } from '../utils/MessageContentBuilder.js';
-import { getThreadParentId } from '../utils/discordChannelTypes.js';
+import { buildBlockDeniedChecker } from './contextBuilder/blockDeniedChecker.js';
 import { hasVoiceAttachments } from '../utils/forwardedMessageUtils.js';
 import { selectContextVariant } from './contextBuilder/contextVariant.js';
 import { MentionResolver } from './MentionResolver.js';
 import { DiscordChannelFetcher, type FetchableChannel } from './DiscordChannelFetcher.js';
 import { deriveBotSuffix } from '../utils/webhookNaming.js';
+import { redisService } from '../redis.js';
 import type { DenylistCache } from './DenylistCache.js';
 import { TranscriptRetriever } from '../handlers/references/TranscriptRetriever.js';
 import {
@@ -168,7 +169,7 @@ export class MessageContextBuilder {
   /**
    * Fetch extended context from Discord channel and merge with history.
    */
-  // eslint-disable-next-line max-lines-per-function, sonarjs/cognitive-complexity -- Cohesive extended context workflow with guard clauses and optional feature checks
+  // eslint-disable-next-line max-lines-per-function -- Cohesive extended context workflow with guard clauses and optional feature checks
   private async fetchExtendedContext(
     params: ExtendedContextParams
   ): Promise<ExtendedContextResult> {
@@ -210,24 +211,11 @@ export class MessageContextBuilder {
         personalityId: personality.id,
         getTranscript: (discordMessageId, attachmentUrl) =>
           this.transcriptRetriever.retrieveTranscript(discordMessageId, attachmentUrl),
+        getOurPersonalityId: (discordMessageId: string) =>
+          redisService.getWebhookPersonality(discordMessageId),
         contextEpoch,
         maxAge: options.extendedContext.maxAge,
-        isBlockDenied:
-          this.denylistCache !== undefined
-            ? (discordUserId: string) => {
-                const cache = this.denylistCache;
-                if (cache === undefined) {
-                  return false;
-                }
-                return cache.isBlocked(
-                  discordUserId,
-                  message.guildId ?? undefined,
-                  message.channelId,
-                  personality.id,
-                  getThreadParentId(message.channel) ?? undefined
-                );
-              }
-            : undefined,
+        isBlockDenied: buildBlockDeniedChecker(this.denylistCache, message, personality.id),
       }
     );
 

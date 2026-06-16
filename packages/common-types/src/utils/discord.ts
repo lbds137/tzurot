@@ -290,6 +290,55 @@ export function stripDmPrefix(content: string): string {
 }
 
 /**
+ * Capturing variant of {@link DM_PREFIX_PATTERN} — the same `**Name:** ` shape
+ * but with the name captured so callers can recover the attribution.
+ */
+const DM_PREFIX_NAME_PATTERN = /^\*\*([^*]+):\*\*\s*/;
+
+/**
+ * Extract the display name from a bot-added `**Name:** ` prefix, or `null` if
+ * the content has no such prefix.
+ *
+ * The same `channel.send("**Name:** …")` shape is used by two distinct bot
+ * paths, so the recovered name means different things depending on the path —
+ * the caller knows which it is from the message's author/registry status:
+ *  - DM personality response → the name is the PERSONALITY's display name.
+ *  - slash-command / chime-in relay echo → the name is the USER's display name.
+ *
+ * Apply ONLY to messages WE authored (same contract as
+ * {@link normalizeMessageForContext}); a real user typing literal `**foo:** bar`
+ * would otherwise be mis-attributed.
+ */
+export function extractMessagePrefixName(content: string): string | null {
+  const match = DM_PREFIX_NAME_PATTERN.exec(content);
+  return match !== null ? match[1].trim() : null;
+}
+
+/**
+ * Canonical normalization for a message's content before it enters LLM context.
+ *
+ * This is the SINGLE source of truth for the content-cleaning every
+ * context-building path must apply — the live Discord fetch
+ * (`DiscordChannelFetcher`) and the DB-sync diff (`conversationSyncDiff`) both
+ * route through it so the steps can't drift between paths (the drift between
+ * those two is exactly what leaked footers / left relay prefixes in the model
+ * context). Apply ONLY to messages WE authored (our bot user or our personality
+ * webhooks); real users' `-#`/`**…:**` text is theirs and must be left intact.
+ *
+ * Steps, in order:
+ * 1. Strip the relay / DM `**Name:** ` prefix the bot adds for slash-command
+ *    and DM visibility (`stripDmPrefix`).
+ * 2. Strip our `-#` subtext footers — model indicator, incognito/focus mode,
+ *    auto-response, transcription attribution (`stripBotFooters`).
+ *
+ * Both sub-functions are pattern-specific (they match only our exact shapes),
+ * so this never mangles legitimate user content even if mis-applied.
+ */
+export function normalizeMessageForContext(content: string): string {
+  return stripBotFooters(stripDmPrefix(content));
+}
+
+/**
  * Find the first index of `s` that is NOT part of a leading Discord mention
  * or the whitespace surrounding one. Skips stacked mentions in a loop, so
  * `@Bot\n<@adminId> hello` returns the index of `h`.

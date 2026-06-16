@@ -9,7 +9,7 @@
  */
 
 import { createLogger } from '../utils/logger.js';
-import { stripBotFooters, stripDmPrefix } from '../utils/discord.js';
+import { normalizeMessageForContext } from '../utils/discord.js';
 
 const logger = createLogger('conversationSyncDiff');
 
@@ -63,11 +63,11 @@ export function collateChunksForSync(
   // Concatenate all chunk contents
   let collatedContent = sortedChunks.map(c => c.content).join('');
 
-  // Strip bot-added display elements that are NOT stored in the database:
-  // 1. DM prefix: "**Display Name:** " added for DM messages (webhooks don't work in DMs)
-  // 2. Footer lines: model indicator, guest mode, auto-response notices
-  collatedContent = stripDmPrefix(collatedContent);
-  collatedContent = stripBotFooters(collatedContent);
+  // Strip bot-added display elements that are NOT stored in the database via the
+  // single canonical normalizer (DM/relay prefix, then `-#` footers). Routing
+  // through `normalizeMessageForContext` keeps this path in lockstep with the
+  // live Discord fetch (`DiscordChannelFetcher`) so the strip steps can't drift.
+  collatedContent = normalizeMessageForContext(collatedContent);
 
   // SAFEGUARD: Skip sync if stripping left us with significantly less content
   // This protects against cases where footer stripping is too aggressive

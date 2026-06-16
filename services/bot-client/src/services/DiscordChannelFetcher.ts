@@ -12,7 +12,8 @@ import {
   MESSAGE_LIMITS,
   ConversationSyncService,
   computeHistoryCutoff,
-  stripBotFooters,
+  normalizeMessageForContext,
+  extractMessagePrefixName,
   type ConversationMessage,
   type AttachmentMetadata,
   type MessageReaction,
@@ -23,7 +24,7 @@ import {
 import { buildMessageContent, hasMessageContent } from '../utils/MessageContentBuilder.js';
 import { isUserContentMessage } from '../utils/messageTypeUtils.js';
 import { resolveHistoryLinks } from '../utils/HistoryLinkResolver.js';
-import { extractPersonalityName } from '../utils/webhookNaming.js';
+import { extractPersonalityName, stripBotSuffix } from '../utils/webhookNaming.js';
 
 import {
   isThinkingBlockMessage,
@@ -271,15 +272,23 @@ export class DiscordChannelFetcher {
           collectedImageAttachments.push(...images);
         }
 
+        // Collect guild info + unique user info for participant/persona
+        // resolution — but ONLY for messages authored by a real (non-bot) user.
+        // A relay-echo is now correctly role=User (Bug B), yet it's authored by
+        // the PRIMARY bot; the user it represents has no resolvable Discord
+        // identity on a bot-authored message, so sweeping `msg.author` here would
+        // register the bot (or a PluralKit webhook id) as a bogus participant.
+        const isRealUser = msg.author.bot !== true;
+
         // Collect guild info for user participants
         const personaId = conversionResult.message.personaId;
-        if (conversionResult.message.role === MessageRole.User && msg.member) {
+        if (conversionResult.message.role === MessageRole.User && isRealUser && msg.member) {
           delete participantGuildInfo[personaId];
           participantGuildInfo[personaId] = extractGuildInfo(msg);
         }
 
         // Collect unique user info
-        if (conversionResult.message.role === MessageRole.User) {
+        if (conversionResult.message.role === MessageRole.User && isRealUser) {
           const discordId = msg.author.id;
           if (!uniqueUsers.has(discordId)) {
             uniqueUsers.set(discordId, {
@@ -319,18 +328,71 @@ export class DiscordChannelFetcher {
   }
 
   /**
+   * Classify a message's authorship for role + normalization decisions.
+   *
+   * Mirrors the dual-detection in `ReferenceEnrichmentService.isWebhookMessage`
+   * (our-webhook registry primary, `webhookId` + bot-suffix as fallback). Three
+   * "ours" outcomes drive downstream handling:
+   *  - our guild webhook character reply → assistant
+   *  - our DM personality response (primary bot, registered; webhooks don't work
+   *    in DMs so it's sent as `**Personality:** …`) → assistant
+   *  - our primary-bot relay-echo of USER input (`channel.send("**Name:** …")`,
+   *    not registered) → user
+   *
+   * Everything else — real humans, PluralKit, unaffiliated webhooks — is not
+   * ours: role=user, content left untouched.
+   */
+  private async classifyAuthorship(
+    msg: Message,
+    options: FetchOptions,
+    authorName: string
+  ): Promise<{ isOurMessage: boolean; isOurAssistant: boolean }> {
+    const isPrimaryBot = msg.author.id === options.botUserId;
+    const hasWebhookId =
+      msg.webhookId !== undefined && msg.webhookId !== null && msg.webhookId.length > 0;
+
+    // Registry lookup only for potentially-ours messages; real human messages
+    // (the majority) skip the Redis round-trip entirely.
+    let registeredPersonalityId: string | null = null;
+    if (isPrimaryBot || hasWebhookId) {
+      registeredPersonalityId = (await options.getOurPersonalityId?.(msg.id)) ?? null;
+    }
+
+    // Bot-suffix fallback for guild webhooks whose registry key expired (TTL) or
+    // was never stored (transient failure) — same tier-down as reply resolution.
+    const suffixMatches =
+      hasWebhookId &&
+      options.botSuffix !== undefined &&
+      options.botSuffix.length > 0 &&
+      stripBotSuffix(authorName, options.botSuffix) !== null;
+
+    const isOurWebhook = hasWebhookId && (registeredPersonalityId !== null || suffixMatches);
+    const isOurDmResponse = isPrimaryBot && registeredPersonalityId !== null;
+    const isOurRelayEcho = isPrimaryBot && registeredPersonalityId === null;
+
+    return {
+      isOurMessage: isOurWebhook || isOurDmResponse || isOurRelayEcho,
+      isOurAssistant: isOurWebhook || isOurDmResponse,
+    };
+  }
+
+  /**
    * Convert a Discord message to ConversationMessage format
    */
-  // eslint-disable-next-line complexity, sonarjs/cognitive-complexity -- Message type conversion branches for role detection, content building, attachment handling, reference resolution, forwarded message extraction, and bot-footer stripping on prior assistant turns
+  // eslint-disable-next-line complexity, sonarjs/cognitive-complexity -- Message type conversion branches for content building, attachment handling, reference resolution, forwarded message extraction, and our-message normalization
   private async convertMessage(
     msg: Message,
     options: FetchOptions,
     resolvedReferences?: Map<string, StoredReferencedMessage[]>
   ): Promise<{ message: ConversationMessage; attachments: AttachmentMetadata[] } | null> {
-    const isBot = msg.author.id === options.botUserId;
-    const role = isBot ? MessageRole.Assistant : MessageRole.User;
     const authorName =
       msg.member?.displayName ?? msg.author.globalName ?? msg.author.username ?? 'Unknown';
+    const { isOurMessage, isOurAssistant } = await this.classifyAuthorship(
+      msg,
+      options,
+      authorName
+    );
+    const role = isOurAssistant ? MessageRole.Assistant : MessageRole.User;
 
     const {
       content: rawContent,
@@ -361,12 +423,25 @@ export class DiscordChannelFetcher {
       return null;
     }
 
-    // Strip bot-emitted footers (model indicator, incognito mode, auto-response,
-    // etc.) from prior assistant turns so the model doesn't see its own footers
-    // in extended context and roleplay around them. Mirrors the DB-persisted-
-    // history strip in channelFetcher/SyncValidator.ts. User messages are
-    // left untouched — footer-shaped text in user content is user-authored.
-    const content = isBot ? stripBotFooters(rawContent) : rawContent;
+    // Normalize ONLY messages WE authored: strip the bot-added `**Name:** `
+    // relay/DM prefix and our `-#` subtext footers (model indicator,
+    // incognito/focus mode, auto-response, transcription) so the model never
+    // sees them in extended context and roleplays around them. Real users'
+    // content is theirs — `-#`/`**…:**` text there is user-authored, left
+    // intact. Single source of truth shared with the DB-sync path
+    // (conversationSyncDiff) via normalizeMessageForContext so the two can't drift.
+    const content =
+      isOurMessage && rawContent !== undefined
+        ? normalizeMessageForContext(rawContent)
+        : rawContent;
+
+    // Recover the attribution carried in our `**Name:** ` prefix before it's
+    // stripped: for an assistant DM response it's the personality's display
+    // name; for a relay-echo of user input it's the USER's display name. Scoped
+    // to OUR messages so a real user typing literal `**foo:** bar` isn't
+    // mis-attributed.
+    const prefixName =
+      isOurMessage && rawContent !== undefined ? extractMessagePrefixName(rawContent) : null;
     const hasMetadata = embedsXml !== undefined || voiceTranscripts !== undefined;
     let messageMetadata: ConversationMessage['messageMetadata'] = hasMetadata
       ? { embedsXml, voiceTranscripts }
@@ -400,14 +475,14 @@ export class DiscordChannelFetcher {
       createdAt: msg.createdAt,
       personaId:
         role === MessageRole.User ? `${INTERNAL_DISCORD_ID_PREFIX}${msg.author.id}` : 'assistant',
-      personaName: role === MessageRole.User ? authorName : undefined,
+      personaName: role === MessageRole.User ? (prefixName ?? authorName) : undefined,
       discordUsername: msg.author.username,
       discordMessageId: [msg.id],
       isForwarded: isForwarded || undefined,
       messageMetadata,
       personalityName:
         role === MessageRole.Assistant
-          ? extractPersonalityName(authorName, options.botSuffix ?? '')
+          ? (prefixName ?? extractPersonalityName(authorName, options.botSuffix ?? ''))
           : undefined,
       channelId: msg.channelId,
       guildId: msg.guildId,

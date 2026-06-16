@@ -77,6 +77,25 @@ export interface FetchOptions {
   personalityId?: string;
   /** Optional transcript retriever for voice messages */
   getTranscript?: (discordMessageId: string, attachmentUrl: string) => Promise<string | null>;
+  /**
+   * Optional resolver for "is this message one of OUR personality messages, and
+   * which personality?" — the authoritative our-webhook registry
+   * (`redisService.getWebhookPersonality`), returning the personality UUID or
+   * `null`. Used to classify message role/identity in `convertMessage`:
+   *  - A guild webhook message in the registry → our character reply (assistant).
+   *  - A primary-bot message in the registry → our DM personality response
+   *    (assistant; webhooks don't work in DMs).
+   *  - A primary-bot message NOT in the registry → a relay-echo / transcript of
+   *    USER content (`channel.send("**Name:** …")`), which is user-role content.
+   * Mirrors the dual-detection in `ReferenceEnrichmentService.isWebhookMessage`
+   * (registry primary, `webhookId` + bot-suffix as fallback). Optional, but the
+   * fallback only covers GUILD webhooks (bot-suffix on the webhook username): if
+   * this is omitted, primary-bot DM personality responses (no `webhookId`, no
+   * suffix) are misclassified as relay-echoes (user role). Production always
+   * wires it; the option exists for tests that classify by suffix or never
+   * exercise primary-bot DM messages.
+   */
+  getOurPersonalityId?: (messageId: string) => Promise<string | null>;
   /** Whether to resolve Discord message links in history (default: true) */
   resolveLinks?: boolean;
   /** Context epoch - ignore messages before this timestamp (from /history clear) */
