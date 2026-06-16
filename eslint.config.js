@@ -540,6 +540,15 @@ export default tseslint.config(
           ],
         },
       ],
+      // A committed `.only`/`fit`/`fdescribe` silently limits the whole suite to
+      // one test while CI stays green — highest-value test-lint guard, and nothing
+      // else enforces it. `no-identical-title` catches copy-paste tests that forgot
+      // a rename; `no-standalone-expect` catches assertions outside a test().
+      // (`no-conditional-expect` was evaluated and dropped — 376 legitimate
+      // error-path assertions inside `.catch`/conditionals make it pure noise here.)
+      'vitest/no-focused-tests': 'error',
+      'vitest/no-identical-title': 'error',
+      'vitest/no-standalone-expect': 'error',
       // Match the project's `_`-prefix escape hatch (intentional unused
       // params/vars in mock signatures) so it doesn't flood with false positives.
       '@typescript-eslint/no-unused-vars': [
@@ -574,6 +583,26 @@ export default tseslint.config(
             'Real setTimeout delay in a unit test causes flakes — use vi.useFakeTimers() + vi.advanceTimersByTimeAsync(). Real delays are allowed in *.int.test.ts.',
         },
       ],
+    },
+  },
+  // Integration tests legitimately do things the production no-restricted-syntax
+  // bans forbid: seed/query the users table directly (fixtures), and wait on real
+  // Redis/PGLite I/O. Turning the rule off for them is a blunt instrument — it
+  // disables ALL selectors, including ones not specific to route handlers (e.g.
+  // the pino-logger ban), so a stray console.log in an int test would NOT be
+  // caught here. That blast radius is accepted: int tests are fixture/IO code, not
+  // production paths, and listing per-selector exceptions isn't worth the churn.
+  //
+  // Ordering contract: flat config is last-match-wins per rule, so this block MUST
+  // remain the LAST one matching *.int.test.ts. It overrides the routes-scoped
+  // block (`services/api-gateway/src/routes/**`) that would otherwise re-apply the
+  // identity/discordId bans to int tests under routes/. If a later block matches
+  // *.int.test.ts and sets no-restricted-syntax, it silently re-enables those bans.
+  // Non-int test files keep the setTimeout ban via the block above.
+  {
+    files: ['**/*.int.test.ts'],
+    rules: {
+      'no-restricted-syntax': 'off',
     },
   }
 );

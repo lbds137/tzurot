@@ -99,14 +99,12 @@ describe('LLM Config Resolution Integration', () => {
     // NULL, so we can't "unlink" the default persona before deleting — instead,
     // deleting the user cascades to its personas via the reverse owner FK.
     const testUser = await prisma.user.findFirst({
-      // eslint-disable-next-line no-restricted-syntax -- Integration-test fixture teardown, not a route handler: there is no req.provisionedUserId during DB cleanup, so looking up by discordId is correct here
       where: { discordId: TEST_DISCORD_ID },
     });
     if (testUser) {
       await prisma.llmConfig.deleteMany({ where: { ownerId: testUser.id } });
     }
 
-    // eslint-disable-next-line no-restricted-syntax -- Integration-test fixture teardown, not a route handler: deleting the seeded test user by discordId is correct here
     await prisma.user.deleteMany({ where: { discordId: TEST_DISCORD_ID } });
 
     // Create test user + default persona atomically. The bare Discord ID would
