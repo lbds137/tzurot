@@ -378,3 +378,11 @@ Surfaced 2026-04-23.
 **Design proposal**: [`docs/proposals/backlog/free-tier-zai-piggyback.md`](../docs/proposals/backlog/free-tier-zai-piggyback.md) — full design (system key, routing carve-out, per-user + global ceilings, credit-exhaustion handling, `isGuestMode` interaction, rollout behind a default-off flag).
 
 **Why icebox**: a genuine free-tier improvement we'd do eventually, but it spends real money (owner's subscription) on anonymous traffic, so it needs a deliberate abuse/quota design pass before it's safe to ship — not a quick win. Surfaced 2026-06-14 (owner), off the back of the z.ai GLM-5 work.
+
+#### `[LIFT]` Structural guard for the eslint flat-config block-ordering contract
+
+**Problem / motivation**: The `*.int.test.ts` block in `eslint.config.js` (sets `no-restricted-syntax: 'off'`) relies on being the **last** block matching `*.int.test.ts` — flat config is last-match-wins per rule, and it must override the routes-scoped block that would otherwise re-apply the identity/discordId bans to int tests. The invariant is documented in a comment but enforced by convention only: if a future block is appended that matches `*.int.test.ts` and sets `no-restricted-syntax`, the bans silently reassert and int-test fixtures start failing lint in a confusing way. Flagged twice by `claude-review` on PR #1226 ("probably overkill right now, just flagging it").
+
+**Action**: Add a small test (likely in `packages/tooling`) that imports the resolved flat-config array, finds the blocks whose `files` match a sample `*.int.test.ts` path, and asserts the last one setting `no-restricted-syntax` is the off-block (i.e. no later block re-enables it). Turns the doc-only contract into a CI gate.
+
+**Why icebox**: low risk (flat config is rarely appended to) and the comment already documents the contract. Worth doing if the config grows more test-matching blocks, but not urgent. Surfaced 2026-06-15 (claude-review, PR #1226).
