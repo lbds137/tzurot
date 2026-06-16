@@ -1068,7 +1068,11 @@ describe('MessageHandler', () => {
       expect(mockPersistence.saveAssistantMessage).not.toHaveBeenCalled();
     });
 
-    it('skips assistant persistence in weigh-in mode', async () => {
+    it('persists assistant response in weigh-in mode (history-only; memory stays gated in ai-worker)', async () => {
+      // Weigh-in/chime-in responses ARE persisted to conversation history so they
+      // survive past the live-fetch window and stay in cross-turn continuity.
+      // Long-term memory creation is gated separately on isWeighIn in the
+      // ai-worker, so persisting here does not violate incognito semantics.
       const ctx = createSlashContext({ isWeighInMode: true });
       mockJobTracker.getContext.mockReturnValue(ctx);
       mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['m-1'] });
@@ -1079,7 +1083,9 @@ describe('MessageHandler', () => {
         content: 'Weighing in',
       } as unknown as LLMGenerationResult);
 
-      expect(mockPersistence.saveAssistantMessageFromFields).not.toHaveBeenCalled();
+      expect(mockPersistence.saveAssistantMessageFromFields).toHaveBeenCalledWith(
+        expect.objectContaining({ content: 'Weighing in', chunkMessageIds: ['m-1'] })
+      );
     });
 
     it('updates diagnostic response IDs with the slash requestId', async () => {

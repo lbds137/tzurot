@@ -432,20 +432,21 @@ export class MessageHandler {
         ttsNotices: result.metadata?.ttsNotices,
       });
 
-      // Persist assistant message; skip in weigh-in mode (ai-worker also skips
-      // LTM storage, and the response wasn't anchored to a user prompt the
-      // history would meaningfully reference).
-      if (!isWeighInMode) {
-        await this.persistence.saveAssistantMessageFromFields({
-          channelId: channel.id,
-          guildId,
-          personality,
-          personaId,
-          content,
-          chunkMessageIds,
-          userMessageTime,
-        });
-      }
+      // Persist the assistant response to conversation history — including
+      // weigh-in/chime-in responses, so they survive once they age out of the
+      // live-fetch window and stay part of cross-turn continuity. This is a
+      // history-only write: long-term MEMORY creation is gated separately on
+      // isWeighIn in the ai-worker (ConversationalRAGService), so persisting
+      // here keeps the incognito "no memories" semantics intact.
+      await this.persistence.saveAssistantMessageFromFields({
+        channelId: channel.id,
+        guildId,
+        personality,
+        personaId,
+        content,
+        chunkMessageIds,
+        userMessageTime,
+      });
 
       if (chunkMessageIds.length > 0) {
         void updateDiagnosticResponseIds(result.requestId, chunkMessageIds).catch(err => {
