@@ -88,6 +88,20 @@ export type ConversationHistoryQueryResult = Prisma.ConversationHistoryGetPayloa
 }>;
 
 /**
+ * Default ordering for conversation-history queries: by createdAt (newest first),
+ * with a *stable* `id` tiebreak so the order — and therefore which rows survive a
+ * `take` limit — is deterministic when multiple rows share a createdAt timestamp.
+ * The tiebreak is for stability, not recency: ids are deterministic UUIDs, not
+ * monotonic, so among equal-timestamp rows the order is consistent-but-arbitrary.
+ * Without the tiebreak the database breaks ties however it likes, which makes
+ * `take`-bounded queries (channel history, cross-channel history) flaky.
+ */
+export const conversationRecencyOrderBy: Prisma.ConversationHistoryOrderByWithRelationInput[] = [
+  { createdAt: 'desc' },
+  { id: 'desc' },
+];
+
+/**
  * Safely parse messageMetadata from database JSONB column
  * Returns undefined if validation fails (logs warning)
  */
