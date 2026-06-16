@@ -469,6 +469,16 @@ Surfaced 2026-05-07 during user-driven intake — recalled from earlier thinking
 
 _Redesign how models are configured. Bundle paid/free/vision into reusable profiles._
 
+#### ✨ Vision model as a first-class config — decouple from LlmConfig (user direction 2026-06-16)
+
+**Motivation (prod, 2026-06-16):** an image in an activated channel "didn't come through" because the personality's configured vision model (`qwen/qwen3.5-397b-a17b`, a 397B MoE) consistently exceeded the 90s vision budget and aborted → no description → the LLM improvised "image didn't come through." Diagnosed from prod ai-worker logs; the slug is valid + vision-capable, just too slow. Infra behaved correctly (retry + transient-timeout negative cache + graceful degrade). The manual fix today: change that personality's vision model to a faster one (e.g. `qwen/qwen3-vl-30b-a3b-instruct`).
+
+**Near-term want — auto-fallback on vision failure:** when the configured vision model times out/errors, automatically try a different (faster/known-good) vision model instead of degrading to no-image. The user explicitly wants this — but "we'd need to do some cleanup to make it viable" because the vision model is currently glued to `LlmConfig` (no independent vision-model choice or fallback chain).
+
+**Architectural goal (the cleanup):** make the vision model a **top-level, first-class config that parallels text models** — its own config/preset with **global default, free default, and per-user override via slash command**, exactly like the text-LLM-config surface. Vision selection should NOT be a field bolted onto `LlmConfig`; it's its own axis.
+
+**Design tension to resolve vs the "LLM Config Profiles" sub-theme below:** that sub-theme proposes *bundling* the vision model INTO a profile ("changing the global vision model should be one action"). The 2026-06-16 direction is the opposite shape — a **separate parallel vision-config system**, not a field inside the text profile. Decide between them (separate surface vs bundled field) before building; separate-surface is the user's current preference. Auto-fallback then rides whichever surface wins (a fallback chain of vision configs).
+
 #### ✨ Config cascade extension — server, user-server, user-channel tiers
 
 Current cascade: admin < personality < channel < user-default < user+personality. Missing tiers:
