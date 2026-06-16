@@ -138,6 +138,24 @@ export function getSnapshots(message: Message): Collection<string, MessageSnapsh
  * Tries to extract content from snapshots first, falls back to main message content.
  * Handles the case where Discord doesn't populate snapshots.
  *
+ * **This is the single source of truth for a forward's text.** Any code that
+ * needs the *text a user would read* from a (possibly-forwarded) message must
+ * route through here (or accept already-extracted content as a parameter) —
+ * never re-derive from `message.content` directly, which is EMPTY for forwards.
+ * A direct read silently drops all forwarded text — the footgun behind both the
+ * forwarded-trigger-empty-content bug and forwarded links not being crawled.
+ * Safe for non-forwards: with no snapshot it returns `message.content` unchanged.
+ *
+ * Distinct, non-overlapping paths (do NOT merge them):
+ * - **raw text for rewriting** (this fn → mention/link rewriting, crawling)
+ * - **rendered content for display/history** (buildMessageContent → adds
+ *   attachment descriptions; running rewriting over it would corrupt those)
+ * - **persistence** (already-extracted `ConversationMessage.content`)
+ *
+ * Snapshot asymmetry caveat: forward snapshot content is present on the live
+ * `MESSAGE_CREATE` gateway event but ABSENT on a REST re-fetch — any refetch
+ * path that expects forward text will get empty. Capture it live, thread it.
+ *
  * @param message - Discord message (should be a forwarded message)
  * @returns Extracted content string
  */
