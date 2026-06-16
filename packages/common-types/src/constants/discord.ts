@@ -307,4 +307,11 @@ export const BOT_FOOTER_PATTERNS = {
   FOCUS_MODE: /(?:^|\n)-# 🔒 Focus Mode • LTM retrieval disabled/g,
   /** Incognito mode indicator (memories not saved) */
   INCOGNITO_MODE: /(?:^|\n)-# 👻 Incognito Mode • Memories not being saved/g,
+  /**
+   * Transcription attribution (dynamic provider name + URL). Mirrors the
+   * builder in bot-client `VoiceTranscriptionService.buildTranscriptionFooter`
+   * (`-# Transcribed by [${name}](<${url}>)`) — keep the two in sync. The
+   * `[..]` / `<..>` captures absorb the dynamic provider name and link.
+   */
+  TRANSCRIBED: /(?:^|\n)-# Transcribed by \[[^\]]+\]\(<[^>]+>\)/g,
 } as const;

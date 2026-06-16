@@ -77,6 +77,7 @@ function createMockMessage(
     memberJoinedAt: Date | null;
     guildId: string | null;
     isBot: boolean;
+    webhookId: string | null;
     type: MessageType;
     createdAt: Date;
     attachments: Map<string, MockAttachment>;
@@ -96,6 +97,7 @@ function createMockMessage(
     memberJoinedAt: null,
     guildId: null,
     isBot: false,
+    webhookId: null,
     type: MessageType.Default,
     createdAt: new Date('2024-01-01T12:00:00Z'),
     attachments: new Map(),
@@ -133,6 +135,7 @@ function createMockMessage(
       bot: config.isBot,
     },
     member,
+    webhookId: config.webhookId,
     guild: config.guildId ? { id: config.guildId } : null,
     type: config.type,
     createdAt: config.createdAt,
@@ -250,7 +253,7 @@ describe('DiscordChannelFetcher', () => {
       expect(result.messages).toHaveLength(1);
     });
 
-    it('should identify bot messages as assistant role', async () => {
+    it('identifies our webhook character reply as assistant role (registry detection)', async () => {
       const botUserId = 'bot123';
 
       const messages = [
@@ -263,9 +266,13 @@ describe('DiscordChannelFetcher', () => {
         createMockMessage({
           id: '2',
           content: 'Bot response',
-          authorId: botUserId,
+          // Real webhook messages are authored by the WEBHOOK, not the primary
+          // bot user: author.id !== botUserId and webhookId is set. (The old
+          // tests modelled webhooks as authorId === botUserId, which never
+          // matched production — the root of the footer-strip-never-ran bug.)
+          authorId: 'webhook-2',
           authorUsername: 'TestBot',
-          isBot: true,
+          webhookId: 'webhook-2',
         }),
       ];
 
@@ -274,6 +281,8 @@ describe('DiscordChannelFetcher', () => {
       const result = await fetcher.fetchRecentMessages(channel, {
         botUserId,
         personalityName: 'TestPersonality',
+        // Registry resolves this webhook message to one of our personalities.
+        getOurPersonalityId: async id => (id === '2' ? 'personality-uuid' : null),
       });
 
       const userMsg = result.messages.find(m => m.role === MessageRole.User);
@@ -284,27 +293,30 @@ describe('DiscordChannelFetcher', () => {
 
       expect(assistantMsg).toBeDefined();
       expect(assistantMsg!.content).toBe('Bot response');
-      // Assistant messages use the webhook username as personalityName for multi-AI attribution
+      // personalityName is the webhook display name (the registry stores the
+      // UUID; the username carries the human-readable name). No suffix to strip.
       expect(assistantMsg!.personalityName).toBe('TestBot');
       expect(assistantMsg!.personaName).toBeUndefined();
     });
 
-    it('should extract personality name from webhook using canonical " · BotName" suffix', async () => {
+    it('extracts personality name from webhook " · BotName" suffix (registry-miss fallback)', async () => {
       const botUserId = 'bot123';
 
       const messages = [
         createMockMessage({
           id: '1',
           content: 'Bot response from webhook',
-          authorId: botUserId,
+          authorId: 'webhook-1',
           // Webhook name format: "DisplayName · BotName" (current canonical form)
           authorUsername: 'Lila · תשב',
-          isBot: true,
+          webhookId: 'webhook-1',
         }),
       ];
 
       const channel = createMockChannel(messages);
 
+      // No getOurPersonalityId → registry miss; the bot-suffix is the fallback
+      // ownership detector for guild webhooks whose registry key expired.
       const result = await fetcher.fetchRecentMessages(channel, {
         botUserId,
         botSuffix: ' · תשב',
@@ -317,19 +329,19 @@ describe('DiscordChannelFetcher', () => {
       expect(assistantMsg!.personalityName).toBe('Lila');
     });
 
-    it('should extract personality name from webhook using legacy " | BotName" suffix (back-compat)', async () => {
+    it('extracts personality name from webhook legacy " | BotName" suffix (back-compat)', async () => {
       const botUserId = 'bot123';
 
       const messages = [
         createMockMessage({
           id: '1',
           content: 'Bot response from legacy webhook',
-          authorId: botUserId,
+          authorId: 'webhook-1',
           // Legacy webhook name format: "DisplayName | BotName" — older
           // messages keep their original pipe separator and must still
           // parse correctly (backward-compat read path).
           authorUsername: 'Lila | תשב',
-          isBot: true,
+          webhookId: 'webhook-1',
         }),
       ];
 
@@ -346,15 +358,47 @@ describe('DiscordChannelFetcher', () => {
       expect(assistantMsg!.personalityName).toBe('Lila');
     });
 
-    it('falls back to raw webhook username when no botSuffix is supplied (back-compat)', async () => {
+    it('falls back to raw webhook username for personalityName when no botSuffix is supplied', async () => {
       const botUserId = 'bot123';
 
       const messages = [
         createMockMessage({
           id: '1',
           content: 'Bot response',
-          authorId: botUserId,
+          authorId: 'webhook-1',
           authorUsername: 'Lila · תשב',
+          webhookId: 'webhook-1',
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      // Registry establishes ownership; with no botSuffix there's nothing to
+      // strip, so the raw webhook username is used as the personalityName
+      // (degraded but not broken — caller's choice to opt in to stripping).
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId,
+        personalityName: 'CurrentPersonality',
+        getOurPersonalityId: async () => 'personality-uuid',
+      });
+
+      const assistantMsg = result.messages.find(m => m.role === MessageRole.Assistant);
+      expect(assistantMsg).toBeDefined();
+      expect(assistantMsg!.personalityName).toBe('Lila · תשב');
+    });
+
+    it('classifies a primary-bot relay-echo of user input as a user message (Bug B)', async () => {
+      const botUserId = 'bot123';
+
+      const messages = [
+        createMockMessage({
+          id: '1',
+          // Chime-in / slash-command relay echo: sent by the PRIMARY bot user
+          // via channel.send("**Name:** message"). The Name is the USER's
+          // display name, and the message is USER content — not the bot's.
+          content: '**Lila:** poke',
+          authorId: botUserId,
+          authorUsername: 'Rotzot',
           isBot: true,
         }),
       ];
@@ -363,14 +407,141 @@ describe('DiscordChannelFetcher', () => {
 
       const result = await fetcher.fetchRecentMessages(channel, {
         botUserId,
-        personalityName: 'CurrentPersonality',
+        botSuffix: ' · תשב',
+        // Relay echoes are NOT in the our-webhook registry (it holds personality
+        // responses only), so the registry resolver returns null for them.
+        getOurPersonalityId: async () => null,
       });
 
-      const assistantMsg = result.messages.find(m => m.role === MessageRole.Assistant);
-      expect(assistantMsg).toBeDefined();
-      // No botSuffix in options → extractPersonalityName returns the raw username
-      // (degraded but not broken — caller's choice to opt in to stripping)
-      expect(assistantMsg!.personalityName).toBe('Lila · תשב');
+      const msg = result.messages[0];
+      expect(msg.role).toBe(MessageRole.User);
+      // Attributed to the user from the prefix, not to the bot/personality.
+      expect(msg.personaName).toBe('Lila');
+      expect(msg.personalityName).toBeUndefined();
+      // The "**Name:** " prefix is stripped from the content seen by the model.
+      expect(msg.content).toBe('poke');
+    });
+
+    it('classifies a primary-bot DM personality response as an assistant message', async () => {
+      const botUserId = 'bot123';
+
+      const messages = [
+        createMockMessage({
+          id: '1',
+          // DMs can't use webhooks, so personality responses are sent by the
+          // primary bot as "**Personality:** content" — and ARE registered.
+          content: '**Lila:** hello there',
+          authorId: botUserId,
+          authorUsername: 'Rotzot',
+          isBot: true,
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId,
+        getOurPersonalityId: async () => 'personality-uuid',
+      });
+
+      const msg = result.messages[0];
+      expect(msg.role).toBe(MessageRole.Assistant);
+      // Personality display name comes from the "**Name:** " prefix in DMs.
+      expect(msg.personalityName).toBe('Lila');
+      expect(msg.content).toBe('hello there');
+    });
+
+    it('strips our -# footers (model / incognito / transcription) from webhook replies (Bug A)', async () => {
+      const botUserId = 'bot123';
+      const content = [
+        'The actual reply.',
+        '-# Model: [glm-5.2](<https://example/model>)',
+        '-# 👻 Incognito Mode • Memories not being saved',
+        '-# Transcribed by [Mistral](<https://example/stt>)',
+      ].join('\n');
+
+      const messages = [
+        createMockMessage({
+          id: '1',
+          content,
+          authorId: 'webhook-1',
+          authorUsername: 'Lila · תשב',
+          webhookId: 'webhook-1',
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId,
+        botSuffix: ' · תשב',
+        getOurPersonalityId: async () => 'personality-uuid',
+      });
+
+      const msg = result.messages[0];
+      expect(msg.role).toBe(MessageRole.Assistant);
+      // All three footer kinds gone; only the real reply text reaches the model.
+      expect(msg.content).toBe('The actual reply.');
+      expect(msg.content).not.toContain('-#');
+      expect(msg.content).not.toContain('Incognito');
+      expect(msg.content).not.toContain('Transcribed by');
+    });
+
+    it('leaves a real user message containing footer/prefix-shaped text intact', async () => {
+      const botUserId = 'bot123';
+
+      const messages = [
+        createMockMessage({
+          id: '1',
+          // A human literally typing these shapes — must NOT be stripped or
+          // re-attributed; normalization is scoped to OUR messages only.
+          content: '**Important:** read this\n-# Model: not really a footer',
+          authorId: 'user1',
+          authorUsername: 'alice',
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId,
+        getOurPersonalityId: async () => null,
+      });
+
+      const msg = result.messages[0];
+      expect(msg.role).toBe(MessageRole.User);
+      expect(msg.content).toBe('**Important:** read this\n-# Model: not really a footer');
+      expect(msg.personaName).toBe('alice');
+    });
+
+    it('treats a foreign webhook (registry miss + no suffix match) as a user message', async () => {
+      const botUserId = 'bot123';
+
+      const messages = [
+        createMockMessage({
+          id: '1',
+          // A non-ours webhook (e.g. PluralKit): has a webhookId, but the
+          // registry doesn't know it AND its username carries no bot-suffix.
+          content: 'proxied human message',
+          authorId: 'pk-webhook-1',
+          authorUsername: 'SomeSystemMember',
+          webhookId: 'pk-webhook-1',
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId,
+        botSuffix: ' · תשב',
+        getOurPersonalityId: async () => null, // registry miss
+      });
+
+      const msg = result.messages[0];
+      // Not ours → user role, content untouched, no personality attribution.
+      expect(msg.role).toBe(MessageRole.User);
+      expect(msg.content).toBe('proxied human message');
+      expect(msg.personalityName).toBeUndefined();
     });
 
     it('should filter out system messages', async () => {

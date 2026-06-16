@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MessageContextBuilder } from './MessageContextBuilder.js';
+import { redisService } from '../redis.js';
 import type { PrismaClient } from '@tzurot/common-types';
 import type {
   Message,
@@ -57,7 +58,8 @@ vi.mock('../utils/discordContext.js', () => ({
   })),
 }));
 
-// Mock redis since TranscriptRetriever imports it
+// Mock redis since TranscriptRetriever imports it and the extended-context
+// fetch wires redisService.getWebhookPersonality through as getOurPersonalityId.
 vi.mock('../redis.js', () => ({
   redisService: {
     get: vi.fn(),
@@ -66,6 +68,7 @@ vi.mock('../redis.js', () => ({
     exists: vi.fn(),
     expire: vi.fn(),
     setWithExpiry: vi.fn(),
+    getWebhookPersonality: vi.fn(),
   },
 }));
 
@@ -1542,6 +1545,51 @@ describe('MessageContextBuilder', () => {
       expect(mockFetchCrossChannelIfEnabled).toHaveBeenCalledWith(
         expect.objectContaining({ enabled: false })
       );
+    });
+
+    it('wires the our-webhook registry into the fetch via getOurPersonalityId', async () => {
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
+        userId: 'user-uuid-123',
+        defaultPersonaId: 'test-persona-id',
+      });
+      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
+      mockFetchRecentMessages.mockResolvedValue({
+        messages: [],
+        fetchedCount: 0,
+        filteredCount: 0,
+      });
+      mockExtractReferencesWithReplacement.mockResolvedValue({
+        references: [],
+        updatedContent: 'content',
+      });
+      mockResolveAllMentions.mockResolvedValue({
+        processedContent: 'content',
+        mentionedUsers: [],
+        mentionedChannels: [],
+        mentionedRoles: [],
+      });
+      vi.mocked(redisService.getWebhookPersonality).mockResolvedValue('personality-uuid');
+
+      // extendedContext + botUserId are required for the fetch to run at all.
+      await builder.buildContext(mockMessage, mockPersonality, 'content', {
+        extendedContext: {
+          maxMessages: 20,
+          maxAge: null,
+          maxImages: 0,
+          sources: { maxMessages: 'personality', maxAge: 'personality', maxImages: 'personality' },
+        },
+        botUserId: 'bot-123',
+      });
+
+      // The fetch received a getOurPersonalityId callback that delegates to the
+      // registry — invoking it proves the registry is actually plumbed in (the
+      // crux of the Bug A/B classification fix), not just constructed.
+      const fetchOptions = mockFetchRecentMessages.mock.calls[0]?.[1] as {
+        getOurPersonalityId?: (id: string) => Promise<string | null>;
+      };
+      expect(fetchOptions.getOurPersonalityId).toBeTypeOf('function');
+      await expect(fetchOptions.getOurPersonalityId!('msg-id-1')).resolves.toBe('personality-uuid');
+      expect(redisService.getWebhookPersonality).toHaveBeenCalledWith('msg-id-1');
     });
   });
 });

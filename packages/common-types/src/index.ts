@@ -27,6 +27,8 @@ export {
   truncateText,
   stripBotFooters,
   stripDmPrefix,
+  normalizeMessageForContext,
+  extractMessagePrefixName,
   findLeadingMentionsEnd,
   stripLeadingMentions,
 } from './utils/discord.js';
