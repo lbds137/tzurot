@@ -270,7 +270,7 @@ export const adminRoutes = {
     input: LlmConfigUpdateSchema,
     output: UpdateLlmConfigResponseSchema,
     meta: { idempotent: true },
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
+    timeoutMs: GATEWAY_TIMEOUTS.WRITE,
   },
 
   /** PUT /api/admin/llm-config/:id/set-default — Promote to paid default. */

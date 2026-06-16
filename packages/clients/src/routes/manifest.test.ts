@@ -14,16 +14,18 @@ import type { AnyRouteDef } from './types.js';
 const entries = Object.entries(ROUTE_MANIFEST) as [string, AnyRouteDef][];
 
 /**
- * Route IDs asserting "this op is fast, the 2500ms transport default is fine"
- * (single-row CRUD, toggles, single lookups). Slow / external / bulk /
- * aggregate routes must NOT be listed — they declare an explicit `timeoutMs`
- * (DEFERRED/BULK), else they silently fall back to 2500ms and false-timeout.
+ * Route IDs asserting "this op is fast enough for the method-aware transport
+ * default" (single-row CRUD, toggles, single lookups). The default is method-
+ * aware: GET routes get AUTOCOMPLETE (2.5s), write methods get WRITE (20s).
+ * Slow / external / bulk / aggregate routes must NOT be listed — they declare
+ * an explicit `timeoutMs` (DEFERRED/BULK) to make their budget a conscious
+ * decision rather than leaning on the default.
  */
 const DEFAULT_TIMEOUT_OK = new Set<string>([
   // ---- internal (service-to-service single lookups / job introspection) ----
   // aiTranscribe is a sync STT wait (up to 240s) but is invoked via the raw-fetch
   // path in gatewayServiceCalls.ts (its own AbortSignal/retry), never the typed
-  // service-client — so the 2500ms manifest default is never applied to it.
+  // service-client — so the transport's manifest default is never applied to it.
   'aiTranscribe',
   'aiJobStatus',
   'recentUsers',
@@ -216,15 +218,16 @@ describe('central route manifest', () => {
   });
 
   it('every route either declares timeoutMs or is registered as default-timeout-OK', () => {
-    // Forcing function against the "silent 2500ms regression" class: the
-    // typed-client transport defaults `timeoutMs` to GATEWAY_TIMEOUTS.AUTOCOMPLETE
-    // (2500ms). A migrated route that legitimately needs more (external
-    // round-trips, multi-tier cascade, bulk work) but forgets an explicit
-    // `timeoutMs` silently falls back to 2500ms and reports false
+    // Forcing function against the "silent default-timeout regression" class:
+    // the typed-client transport applies a method-aware default when a route
+    // omits `timeoutMs` — AUTOCOMPLETE (2.5s) for GET, WRITE (20s) for write
+    // methods. A route that legitimately needs more than its method default
+    // (external round-trips, multi-tier cascade, bulk work) but forgets an
+    // explicit `timeoutMs` can silently fall back and report false
     // "Request timeout (HTTP 0)" failures on operations that actually
     // completed server-side. This test makes the fall-back a CONSCIOUS
     // decision: a route with no explicit timeoutMs must be registered in
-    // DEFAULT_TIMEOUT_OK above (asserting "this op is fast, 2500ms is fine").
+    // DEFAULT_TIMEOUT_OK above (asserting "the method-aware default suffices").
     for (const [key, route] of entries) {
       const ok = route.timeoutMs !== undefined || DEFAULT_TIMEOUT_OK.has(key);
       expect(
@@ -234,7 +237,7 @@ describe('central route manifest', () => {
           `(e.g. GATEWAY_TIMEOUTS.DEFERRED). If it is genuinely fast (single-row ` +
           `CRUD by indexed key, toggle, single lookup, simple insert), register ` +
           `its id in DEFAULT_TIMEOUT_OK. Do NOT leave it to silently fall back ` +
-          `to the 2500ms transport default.`
+          `to the method-aware transport default (AUTOCOMPLETE for GET, WRITE for mutations).`
       ).toBe(true);
     }
   });

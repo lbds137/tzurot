@@ -82,6 +82,14 @@ export const DISCORD_LIMITS = {
  * After deferral (deferReply), we have up to 15 minutes.
  * These timeouts are for gateway API calls that must complete
  * within Discord's interaction windows.
+ *
+ * Read/write policy: GET routes set AUTOCOMPLETE (3s-budget reads) or DEFERRED
+ * (post-defer reads). Mutations (POST/PUT/PATCH/DELETE) get WRITE — they can run
+ * validation + multi-table transactions + cache-invalidation cascades, which
+ * legitimately exceed the read budgets. The transport applies WRITE as the
+ * default for write methods when a route declares no timeout (see
+ * `callGateway`), so a new write route can't silently inherit a too-short read
+ * default. BULK_OPERATION is the explicit ceiling for batched external-API ops.
  */
 export const GATEWAY_TIMEOUTS = {
   /** Timeout for autocomplete handlers (Discord 3s limit) */
@@ -90,6 +98,13 @@ export const GATEWAY_TIMEOUTS = {
    *  10s is generous for warmed DB connections — the api-gateway now calls
    *  prisma.$connect() at startup to eliminate cold-start latency. */
   DEFERRED: 10000,
+  /** Default for mutations (POST/PUT/PATCH/DELETE). Writes can touch validation +
+   *  multi-table transactions + cache-invalidation cascades; 20s absorbs that
+   *  without falsely aborting a slow-but-succeeding write (the failure mode
+   *  behind the llm-config PUT timeouts). Still well within the 15-min
+   *  post-defer window. Applied automatically by the transport for write
+   *  methods that declare no explicit timeout. */
+  WRITE: 20_000,
   /** Extended timeout for bulk operations (e.g., clearing all cloned voices).
    *  These involve multiple sequential/batched external API calls. */
   BULK_OPERATION: 30_000,
