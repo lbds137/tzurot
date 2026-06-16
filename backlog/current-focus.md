@@ -8,7 +8,7 @@ _This week's active work. Max 3 items._
 
    _Epic work is prod-validated through beta.130 (#1200, 2026-06-14). Latest release: **beta.132** (2026-06-15). Unreleased on develop: #1225/#1226 (test-lint infra + the conversation-history ordering flake fix). See [CURRENT.md](../CURRENT.md)._
 
-2. **[FEAT] Forwarded-text link references** — _Follow-up to the forwarded-content-loss fix (`fix/forwarded-message-content-loss`)._ That fix threads the effective (snapshot) content into `MessageReferenceExtractor.extractReferencesWithReplacement` so link-replacement formats the real forwarded text. But the link **crawler** (`ReferenceCrawler` via `LinkReferenceStrategy`) still scans `message.content` to *detect* Discord message links — which is empty for forwards. So Discord links embedded inside forwarded snapshot text are not detected and never get `[Reference N]` numbering. **Action**: thread the effective content into the crawler's link-detection path (`LinkReferenceStrategy` / `ReferenceCrawler.crawl`) so forwarded links are crawled, numbered, and replaced like inline links. Start: `services/bot-client/src/handlers/references/strategies/LinkReferenceStrategy.ts`. Deliberate next-PR follow-up (not iceboxed) per user direction 2026-06-08.
+2. **Pre-beta.133 forwarded + slash-command batch** (user-directed) — working through the forwarded-message + slash-command items before the next release. Shipped: forwarded-link crawling (#1227), gateway write-timeouts (#1228, in review). Remaining: forwarded origin-channel enrichment, `/character chat` split (council-gated), `list`→`browse`, `/help` enhancement + terminology audit. Plan: `~/.claude/plans/calm-scribbling-scroll.md`.
 
 ### Quick-wins available between phases
 
