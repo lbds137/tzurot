@@ -1,7 +1,7 @@
 /**
  * TTS subcommand group builder for /voice.
  *
- * Symmetric naming: set / clear / set-default / clear-default / browse.
+ * Symmetric naming: browse / set / clear / set-default / clear-default.
  * Each subcommand owns one (action × scope) pair. The shape mirrors what
  * /voice stt will adopt in PR 2 — sharing the pattern keeps both subgroups
  * predictable for users.
@@ -20,7 +20,7 @@ export function buildVoiceTtsSubcommandGroup(
     .setName('tts')
     .setDescription('Manage TTS configuration overrides')
     .addSubcommand(subcommand =>
-      subcommand.setName('list').setDescription('List your TTS overrides')
+      subcommand.setName('browse').setDescription('Browse your TTS overrides (select to clear)')
     )
     .addSubcommand(subcommand =>
       subcommand

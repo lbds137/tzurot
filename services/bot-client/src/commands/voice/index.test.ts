@@ -25,7 +25,13 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-vi.mock('./tts/list.js', () => ({ handleTtsListOverrides: vi.fn() }));
+vi.mock('./tts/browse.js', () => ({
+  handleTtsBrowse: vi.fn(),
+  handleTtsBrowseSelect: vi.fn(),
+  handleTtsBrowseButton: vi.fn(),
+  isTtsOverrideInteraction: vi.fn(() => false),
+  TTS_OVERRIDE_PREFIX: 'voice-tts-override',
+}));
 vi.mock('./tts/set.js', () => ({ handleTtsSet: vi.fn() }));
 vi.mock('./tts/clear.js', () => ({ handleTtsClear: vi.fn() }));
 vi.mock('./tts/set-default.js', () => ({ handleTtsSetDefault: vi.fn() }));
@@ -48,7 +54,7 @@ vi.mock('./voices/clear.js', () => ({
   VOICE_CLEAR_OPERATION: 'voice-clear',
 }));
 
-import { handleTtsListOverrides } from './tts/list.js';
+import { handleTtsBrowse } from './tts/browse.js';
 import { handleTtsSet } from './tts/set.js';
 import { handleTtsClear } from './tts/clear.js';
 import { handleTtsSetDefault } from './tts/set-default.js';
@@ -100,7 +106,7 @@ describe('Voice Command', () => {
       const ttsSubcommands = ((tts as { options?: { name: string }[] }).options ?? [])
         .map(s => s.name)
         .sort();
-      expect(ttsSubcommands).toEqual(['clear', 'clear-default', 'list', 'set', 'set-default']);
+      expect(ttsSubcommands).toEqual(['browse', 'clear', 'clear-default', 'set', 'set-default']);
     });
 
     it('exposes the voices subcommand shape', () => {
@@ -139,10 +145,10 @@ describe('Voice Command', () => {
       expect(handleTtsClearDefault).toHaveBeenCalledOnce();
     });
 
-    it('routes /voice tts list to handleTtsListOverrides', async () => {
-      const ctx = createMockContext('list', 'tts');
+    it('routes /voice tts browse to handleTtsBrowse', async () => {
+      const ctx = createMockContext('browse', 'tts');
       await execute(ctx as any);
-      expect(handleTtsListOverrides).toHaveBeenCalledOnce();
+      expect(handleTtsBrowse).toHaveBeenCalledOnce();
     });
 
     it('routes /voice voices browse to handleBrowseVoices', async () => {

@@ -6,11 +6,9 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { handleListOverrides } from './list.js';
 import { handleSet } from './set.js';
 import { handleClear } from './clear.js';
 import {
-  mockListModelOverridesResponse,
   mockSetModelOverrideResponse,
   mockDeleteModelOverrideResponse,
   mockListWalletKeysResponse,
@@ -21,9 +19,7 @@ import type { UserClient } from '@tzurot/clients';
 
 // Test UUIDs (RFC 4122 compliant)
 const PERSONALITY_ID_1 = '11111111-1111-5111-8111-111111111111';
-const PERSONALITY_ID_2 = '22222222-2222-5222-8222-222222222222';
 const CONFIG_ID_1 = '33333333-3333-5333-8333-333333333333';
-const CONFIG_ID_2 = '44444444-4444-5444-8444-444444444444';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -40,7 +36,6 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 });
 
 const stub = {
-  listModelOverrides: vi.fn(),
   listWalletKeys: vi.fn(),
   listUserLlmConfigs: vi.fn(),
   setModelOverride: vi.fn(),
@@ -64,83 +59,15 @@ describe('Preset Command Handlers', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    stub.listModelOverrides.mockReset();
     stub.listWalletKeys.mockReset();
     stub.listUserLlmConfigs.mockReset();
     stub.setModelOverride.mockReset();
     stub.deleteModelOverride.mockReset();
   });
 
-  describe('handleListOverrides', () => {
-    function createMockContext() {
-      return {
-        user: { id: '123456789', username: 'testuser' },
-        interaction: {} as never,
-        editReply: mockEditReply,
-      } as unknown as Parameters<typeof handleListOverrides>[0];
-    }
-
-    it('should list overrides', async () => {
-      stub.listModelOverrides.mockResolvedValue(
-        makeOk(
-          mockListModelOverridesResponse([
-            {
-              personalityId: PERSONALITY_ID_1,
-              personalityName: 'Lilith',
-              configId: CONFIG_ID_1,
-              configName: 'Fast',
-            },
-            {
-              personalityId: PERSONALITY_ID_2,
-              personalityName: 'Sarcastic',
-              configId: CONFIG_ID_2,
-              configName: 'GPT-4',
-            },
-          ])
-        )
-      );
-
-      await handleListOverrides(createMockContext());
-
-      expect(stub.listModelOverrides).toHaveBeenCalled();
-      expect(mockEditReply).toHaveBeenCalledWith({
-        embeds: [
-          expect.objectContaining({
-            data: expect.objectContaining({
-              title: '🎭 Your Preset Overrides',
-              description: expect.stringContaining('Lilith'),
-            }),
-          }),
-        ],
-      });
-    });
-
-    it('should show empty message when no overrides', async () => {
-      stub.listModelOverrides.mockResolvedValue(makeOk(mockListModelOverridesResponse([])));
-
-      await handleListOverrides(createMockContext());
-
-      expect(mockEditReply).toHaveBeenCalledWith({
-        embeds: [
-          expect.objectContaining({
-            data: expect.objectContaining({
-              description: expect.stringContaining("haven't set any"),
-            }),
-          }),
-        ],
-      });
-    });
-
-    it('should handle API error', async () => {
-      stub.listModelOverrides.mockResolvedValue(makeErr(500, 'Error'));
-
-      await handleListOverrides(createMockContext());
-
-      expect(mockEditReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Failed to get overrides'),
-      });
-    });
-  });
+  // Browse (the former list) coverage lives in ./browse.test.ts and
+  // ../../../utils/overrideBrowse.test.ts — the interactive select→clear flow
+  // moved to the shared override browser.
 
   describe('handleSet', () => {
     function createMockContext(personalityId = PERSONALITY_ID_1, configId = CONFIG_ID_1) {
