@@ -41,7 +41,7 @@ import {
   isCharacterBrowseInteraction,
   isCharacterBrowseSelectInteraction,
 } from './browse.js';
-import { handleChat } from './chat.js';
+import { handleChat, handleRandom, handleChimeIn } from './chat.js';
 import {
   handleSettings,
   handleCharacterSettingsSelectMenu,
@@ -94,6 +94,8 @@ function createCharacterRouter(): (context: SafeCommandContext) => Promise<void>
         export: (ctx: DeferredCommandContext) => handleExport(ctx, config),
         template: (ctx: DeferredCommandContext) => handleTemplate(ctx, config),
         chat: (ctx: DeferredCommandContext) => handleChat(ctx, config),
+        random: (ctx: DeferredCommandContext) => handleRandom(ctx, config),
+        'chime-in': (ctx: DeferredCommandContext) => handleChimeIn(ctx, config),
         settings: (ctx: DeferredCommandContext) => handleSettings(ctx, config),
         overrides: (ctx: DeferredCommandContext) => handleOverrides(ctx, config),
       },
@@ -210,11 +212,14 @@ export default defineCommand({
   deferralMode: 'ephemeral', // Default for most subcommands
   subcommandDeferralModes: {
     create: 'modal', // /character create shows a modal
-    // `chat` defers ephemerally so the random-pick notice ("🎲 Picked X")
-    // and any error responses (editReply) land as invoker-only messages.
-    // The user-mirror (`channel.send` in chat.ts) and the character's
-    // webhook reply are independent of the defer mode and remain public.
+    // chat / random / chime-in defer ephemerally so the random-pick notice
+    // ("🎲 Picked X", now on /character random) and any error responses
+    // (editReply) land as invoker-only messages. The user-mirror
+    // (`channel.send` in chat.ts) and the character's webhook reply are
+    // independent of the defer mode and remain public.
     chat: 'ephemeral',
+    random: 'ephemeral',
+    'chime-in': 'ephemeral',
   },
   data: new SlashCommandBuilder()
     .setName('character')
@@ -348,19 +353,33 @@ export default defineCommand({
     .addSubcommand(subcommand =>
       subcommand
         .setName('chat')
-        .setDescription('Send a message to a character, or summon them to weigh in')
+        .setDescription('Chat one-on-one with a character')
         .addStringOption(option =>
           option
             .setName('character')
-            .setDescription('Character to chat with (omit for a random pick)')
-            .setRequired(false)
+            .setDescription('Character to chat with')
+            .setRequired(true)
             .setAutocomplete(true)
         )
         .addStringOption(option =>
           option
             .setName('message')
+            .setDescription('Message to send to the character')
+            .setRequired(true)
+            .setMaxLength(2000)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('random')
+        .setDescription(
+          'Chat with a random character — or, with no message, have them read the room'
+        )
+        .addStringOption(option =>
+          option
+            .setName('message')
             .setDescription(
-              'Message to send (leave empty to have them weigh in on the conversation)'
+              'Message to send (leave empty to have the random pick react to recent chat)'
             )
             .setRequired(false)
             .setMaxLength(2000)
@@ -368,18 +387,28 @@ export default defineCommand({
         .addBooleanOption(option =>
           option
             .setName('exclude-private')
-            .setDescription(
-              'When picking a random character, only consider public ones (skip your private characters)'
-            )
+            .setDescription('Only consider public characters (skip your private ones)')
             .setRequired(false)
         )
         .addBooleanOption(option =>
           option
             .setName('only-mine')
-            .setDescription(
-              'When picking a random character, only consider characters you own (composable with exclude-private)'
-            )
+            .setDescription('Only consider characters you own (composable with exclude-private)')
             .setRequired(false)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('chime-in')
+        .setDescription(
+          'Have a character chime in on the recent conversation (no message from you)'
+        )
+        .addStringOption(option =>
+          option
+            .setName('character')
+            .setDescription('Character to chime in')
+            .setRequired(true)
+            .setAutocomplete(true)
         )
     )
     .addSubcommand(subcommand =>
