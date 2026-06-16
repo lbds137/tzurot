@@ -1123,7 +1123,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
             channelId: { not: 'current-channel' },
             deletedAt: null,
           },
-          orderBy: { createdAt: 'desc' },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
           take: 50,
           select: expect.objectContaining({
             channelId: true,

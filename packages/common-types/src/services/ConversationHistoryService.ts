@@ -15,6 +15,7 @@ import { countTextTokens } from '../utils/tokenCounter.js';
 import type { MessageMetadata } from '../types/schemas/index.js';
 import {
   conversationHistorySelect,
+  conversationRecencyOrderBy,
   mapToConversationMessage,
   mapToConversationMessages,
   type ConversationMessage,
@@ -249,9 +250,7 @@ export class ConversationHistoryService {
             },
           }),
         },
-        orderBy: {
-          createdAt: 'desc',
-        },
+        orderBy: conversationRecencyOrderBy,
         take: safeLimit + 1, // Fetch one extra to check if there are more
         ...(cursor !== undefined && cursor.length > 0 ? { cursor: { id: cursor }, skip: 1 } : {}),
         select: conversationHistorySelect,
@@ -400,9 +399,7 @@ export class ConversationHistoryService {
           deletedAt: null,
           ...(cutoff !== undefined ? { createdAt: { gte: cutoff } } : {}),
         },
-        orderBy: {
-          createdAt: 'desc',
-        },
+        orderBy: conversationRecencyOrderBy,
         take: limit,
         select: conversationHistorySelect,
       });
@@ -461,9 +458,7 @@ export class ConversationHistoryService {
           deletedAt: null,
           ...(cutoff !== undefined ? { createdAt: { gte: cutoff } } : {}),
         },
-        orderBy: {
-          createdAt: 'desc',
-        },
+        orderBy: conversationRecencyOrderBy,
         take: safeLimit,
         select: conversationHistorySelect,
       });

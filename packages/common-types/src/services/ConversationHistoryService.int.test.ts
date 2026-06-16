@@ -768,7 +768,9 @@ describe('ConversationHistoryService Component Test', () => {
       const chExclude = 'cross-limit-ch1';
       const chOther = 'cross-limit-ch2';
 
-      // Add 5 messages to other channel
+      // Add 5 messages to other channel with strictly-increasing timestamps so the
+      // "3 most recent" assertion is deterministic regardless of insert-time ties.
+      const base = new Date('2026-01-01T00:00:00Z').getTime();
       for (let i = 0; i < 5; i++) {
         await service.addMessage({
           channelId: chOther,
@@ -777,6 +779,7 @@ describe('ConversationHistoryService Component Test', () => {
           role: MessageRole.User,
           content: `Cross-channel message ${i}`,
           guildId: testGuildId,
+          timestamp: new Date(base + i * 1000),
         });
       }
 
@@ -800,6 +803,11 @@ describe('ConversationHistoryService Component Test', () => {
       const chOlder = 'cross-exclude-ch2';
       const chNewer = 'cross-exclude-ch3';
 
+      // Explicit strictly-increasing timestamps: every chNewer message is newer than
+      // every chOlder one, so the limit=3 cutoff deterministically keeps only chNewer.
+      // Without this the inserts could share a timestamp and the cutoff would be arbitrary.
+      const base = new Date('2026-01-01T00:00:00Z').getTime();
+
       // Add 2 older messages to chOlder
       for (let i = 0; i < 2; i++) {
         await service.addMessage({
@@ -809,10 +817,11 @@ describe('ConversationHistoryService Component Test', () => {
           role: MessageRole.User,
           content: `Channel 2 older ${i}`,
           guildId: testGuildId,
+          timestamp: new Date(base + i * 1000),
         });
       }
 
-      // Add 3 newer messages to chNewer
+      // Add 3 newer messages to chNewer (all strictly after the chOlder pair)
       for (let i = 0; i < 3; i++) {
         await service.addMessage({
           channelId: chNewer,
@@ -821,6 +830,7 @@ describe('ConversationHistoryService Component Test', () => {
           role: MessageRole.User,
           content: `Channel 3 recent ${i}`,
           guildId: testGuildId,
+          timestamp: new Date(base + 10_000 + i * 1000),
         });
       }
 
