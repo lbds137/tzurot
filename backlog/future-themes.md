@@ -479,6 +479,8 @@ _Redesign how models are configured. Bundle paid/free/vision into reusable profi
 
 **Design tension to resolve vs the "LLM Config Profiles" sub-theme below:** that sub-theme proposes *bundling* the vision model INTO a profile ("changing the global vision model should be one action"). The 2026-06-16 direction is the opposite shape — a **separate parallel vision-config system**, not a field inside the text profile. Decide between them (separate surface vs bundled field) before building; separate-surface is the user's current preference. Auto-fallback then rides whichever surface wins (a fallback chain of vision configs).
 
+**Fold-in — negative-cache key should include the resolved vision model:** `VisionDescriptionCache` keys failures by Discord attachment id / URL-hash only (`services/ai-worker/src/services/VisionDescriptionCache.ts`), NOT by model — so when a vision model is too slow and an image times out (negative-cached 10 min via the generic `VISION_FAILURE_TTL`), switching the configured vision model does NOT invalidate that image's cached failure; the same attachment replays the cached failure until the cooldown expires. Today that's a deliberate anti-re-hammer design and only bites during testing (re-upload the image = new attachment id = fresh attempt). Once vision becomes a first-class config (and especially with auto-fallback), the negative-cache key should incorporate the resolved vision model so a model swap / fallback re-attempts immediately instead of waiting out the cooldown. Surfaced 2026-06-16 during beta.133 dev-smoke vision-timeout.
+
 #### ✨ Config cascade extension — server, user-server, user-channel tiers
 
 Current cascade: admin < personality < channel < user-default < user+personality. Missing tiers:
