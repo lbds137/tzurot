@@ -53,7 +53,7 @@ export interface SchemaAuditOptions {
    * test-exclusion pattern is derived by suffix-substituting `*.ts` → `*.test.ts`.
    * A glob that doesn't end in `*.ts` (e.g., `services/foo.tsx`) will silently
    * include test files because the substitution becomes a no-op. Track in
-   * `backlog/deferred.md` for tightening if a real consumer hits this gap.
+   * `backlog/cold/follow-ups.md` for tightening if a real consumer hits this gap.
    */
   sourceGlobs?: string[];
   /** Path to audit.config (defaults to ./audit.config.ts at repo root). */

@@ -1,20 +1,24 @@
 /**
- * Deferred-Backlog Tripwire
+ * Follow-ups Tripwire
  *
- * A large share of `backlog/deferred.md` entries are gated on "opportunistic
- * when next touching <file>" — a trigger that only fires if whoever is editing
- * the file REMEMBERS the entry exists. In practice that means it never fires:
- * entries with concrete, cheap fix shapes sit for months while the referenced
- * files get edited around them.
+ * A large share of `backlog/cold/follow-ups.md` entries are gated on
+ * "opportunistic when next touching <file>" — a trigger that only fires if
+ * whoever is editing the file REMEMBERS the entry exists. In practice that
+ * means it never fires: entries with concrete, cheap fix shapes sit for months
+ * while the referenced files get edited around them.
  *
  * This tool makes those triggers structural: given a set of files (typically
- * the staged set at commit time), it greps deferred.md for entries whose text
- * references any of them and prints the matches INFORMATIONALLY. It never
+ * the staged set at commit time), it greps `follow-ups.md` for entries whose
+ * text references any of them and prints the matches INFORMATIONALLY. It never
  * fails — this is a reminder surface, not a gate, so a developer who decides
  * "not this PR" loses nothing. Wired into .husky/pre-commit.
  *
  * Entries with no file path in their text (the genuinely event-gated ones)
  * are invisible to this tool by design.
+ *
+ * (Reads `cold/follow-ups.md` — the table the old `deferred.md` became in the
+ * HOT/COLD backlog restructure. Same table shape, so the parser is unchanged.
+ * The exported symbols keep the `Deferred` name for test stability.)
  */
 
 import { execFileSync } from 'node:child_process';
@@ -22,7 +26,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import chalk from 'chalk';
 
-const DEFERRED_PATH = 'backlog/deferred.md';
+const FOLLOWUPS_PATH = 'backlog/cold/follow-ups.md';
 
 /** Max characters of the entry title shown per match */
 const TITLE_PREVIEW_LENGTH = 90;
@@ -35,7 +39,7 @@ export interface DeferredRef {
   isPrefix: boolean;
   /** First-cell entry title (truncated) */
   title: string;
-  /** 1-based line number of the entry row in deferred.md */
+  /** 1-based line number of the entry row in follow-ups.md */
   line: number;
 }
 
@@ -107,7 +111,7 @@ export function normalizePathToken(raw: string): { pathToken: string; isPrefix: 
 }
 
 /**
- * Parse deferred.md table rows into path-keyed references.
+ * Parse follow-ups.md table rows into path-keyed references.
  */
 /** @internal Exported for testing */
 export function extractDeferredRefs(markdown: string): DeferredRef[] {
@@ -185,8 +189,8 @@ interface CheckOptions {
 export async function checkDeferredRefs(options: CheckOptions = {}): Promise<void> {
   try {
     const rootDir = process.cwd();
-    const deferredFile = join(rootDir, DEFERRED_PATH);
-    if (!existsSync(deferredFile)) {
+    const followUpsFile = join(rootDir, FOLLOWUPS_PATH);
+    if (!existsSync(followUpsFile)) {
       return;
     }
 
@@ -195,18 +199,18 @@ export async function checkDeferredRefs(options: CheckOptions = {}): Promise<voi
       return;
     }
 
-    const refs = extractDeferredRefs(readFileSync(deferredFile, 'utf-8'));
+    const refs = extractDeferredRefs(readFileSync(followUpsFile, 'utf-8'));
     const matches = matchFiles(files, refs);
     if (matches.length === 0) {
       return;
     }
 
     console.log('');
-    console.log(chalk.yellow.bold('📌 Deferred backlog entries reference files in this change:'));
+    console.log(chalk.yellow.bold('📌 Backlog follow-ups reference files in this change:'));
     for (const match of matches) {
       console.log(chalk.white(`   ${match.file}`));
       for (const ref of match.refs) {
-        console.log(chalk.dim(`     • ${ref.title} (${DEFERRED_PATH}:${ref.line})`));
+        console.log(chalk.dim(`     • ${ref.title} (${FOLLOWUPS_PATH}:${ref.line})`));
       }
     }
     console.log(chalk.dim('   Reminder only — fold one in if it fits, or carry on. Never blocks.'));
@@ -214,7 +218,7 @@ export async function checkDeferredRefs(options: CheckOptions = {}): Promise<voi
   } catch (error) {
     console.error(
       chalk.dim(
-        `deferred-refs check skipped (${error instanceof Error ? error.message : String(error)})`
+        `follow-up-refs check skipped (${error instanceof Error ? error.message : String(error)})`
       )
     );
   }
