@@ -31,18 +31,15 @@ import { ContextWindowManager } from './context/ContextWindowManager.js';
 import { PersonaResolver } from './resolvers/index.js';
 import { UserReferenceResolver } from './UserReferenceResolver.js';
 import { ContentBudgetManager } from './ContentBudgetManager.js';
-import {
-  buildAttachmentDescriptions,
-  enrichConversationHistory,
-  countMediaAttachments,
-} from './RAGUtils.js';
-import { redisService, visionDescriptionCache, checkModelReasoningSupport } from '../redis.js';
+import { buildAttachmentDescriptions, countMediaAttachments } from './RAGUtils.js';
+import { redisService, checkModelReasoningSupport } from '../redis.js';
 import { resolveEffectiveContextWindow } from './contextWindowResolver.js';
 import { deriveCacheKeyId } from './RateLimitCache.js';
 import { ResponsePostProcessor } from './ResponsePostProcessor.js';
 import { ConversationInputProcessor } from './ConversationInputProcessor.js';
 import { MemoryPersistenceService } from './MemoryPersistenceService.js';
-import { processAttachments, deriveApiKeySource } from './MultimodalProcessor.js';
+import { resolveRagVisionAuth, enrichRagHistory } from './multimodal/ragVisionAuth.js';
+import type { ApiKeyResolver } from './ApiKeyResolver.js';
 import {
   parseResponseMetadata,
   recordLlmConfigDiagnostic,
@@ -74,7 +71,11 @@ export class ConversationalRAGService {
   private inputProcessor: ConversationInputProcessor;
   private memoryPersistence: MemoryPersistenceService;
 
-  constructor(memoryManager?: PgvectorMemoryAdapter, personaResolver?: PersonaResolver) {
+  constructor(
+    memoryManager?: PgvectorMemoryAdapter,
+    personaResolver?: PersonaResolver,
+    private readonly apiKeyResolver?: ApiKeyResolver
+  ) {
     this.llmInvoker = new LLMInvoker();
     this.memoryRetriever = new MemoryRetriever(memoryManager, personaResolver);
     this.promptBuilder = new PromptBuilder();
@@ -358,11 +359,23 @@ export class ConversationalRAGService {
     const diagnosticCollector = diagnosticCollectorRef as DiagnosticCollector | undefined;
 
     try {
+      // Resolve the cross-provider vision key ONCE for this request; thread it to
+      // every vision call site below so none forwards the raw main-model key.
+      const visionAuth = await resolveRagVisionAuth({
+        personality,
+        userId: context.userId,
+        isGuestMode,
+        mainApiKey: userApiKey,
+        mainProvider: options.effectiveProvider,
+        apiKeyResolver: this.apiKeyResolver,
+      });
+
       // Step 1: Process inputs (attachments, messages, search query)
       const inputs = await this.inputProcessor.processInputs(personality, message, context, {
         isGuestMode,
         userApiKey,
         sttDispatch,
+        visionAuth,
       });
 
       // Record input processing for diagnostics
@@ -378,24 +391,9 @@ export class ConversationalRAGService {
         });
       }
 
-      // Step 1.5: Enrich history with inline image descriptions + hydrated stored references.
-      const visionLoggingContext = {
-        userId: context.userId,
-        apiKeySource: deriveApiKeySource(isGuestMode, userApiKey),
-      };
-      await enrichConversationHistory(
-        context.rawConversationHistory,
-        context.preprocessedExtendedContextAttachments,
-        getPrismaClient(),
-        visionDescriptionCache,
-        atts =>
-          processAttachments(atts, personality, {
-            isGuestMode,
-            userApiKey,
-            sttDispatch,
-            loggingContext: visionLoggingContext,
-          })
-      );
+      // Step 1.5: Enrich history with inline image descriptions + hydrated stored
+      // references, using the cross-provider-resolved vision auth.
+      await enrichRagHistory({ context, personality, visionAuth, isGuestMode, sttDispatch });
 
       // Step 2: Load personas and resolve user references
       const { participantPersonas, processedPersonality } =
