@@ -7,13 +7,15 @@
 
 ## Unreleased on Develop (since beta.133)
 
-_Nothing yet — **beta.133 shipped 2026-06-17 (#1244)**. The beta.132→133 delta (context-assembly fix family #1239/#1240/#1241/#1242 + dedup + A/B normalization, the `/character import` timeout fix #1228, `/character chat` split #1230, browse UIs #1231, forwarded-origin context #1229) is in the [release notes](https://github.com/lbds137/tzurot/releases/tag/v3.0.0-beta.133)._
+- **Backlog system restructured (#1245, merged 2026-06-17)** — HOT/COLD split + granularity ladder (see Last Session below). Docs + tooling only: new `pnpm ops backlog` lint, `check-deferred-refs` repathed; **no runtime/user-facing change, no migration** — not a release-note item.
+
+_beta.133 shipped 2026-06-17 (#1244); the beta.132→133 delta (context-assembly fix family #1239/#1240/#1241/#1242 + dedup + A/B normalization, the `/character import` timeout fix #1228, `/character chat` split #1230, browse UIs #1231, forwarded-origin context #1229) is in the [release notes](https://github.com/lbds137/tzurot/releases/tag/v3.0.0-beta.133)._
 
 ---
 
 ## Next Session Goal
 
-**beta.133 SHIPPED 2026-06-17 (#1244).** The context-assembly fix family (#1239 model stamping, #1240 cross-provider vision key, #1241 reference-image persistence, #1242 dedup-stub markers) + the A/B footer/relay normalization (#1236/#1237) + the `/character import` write-timeout fix (#1228). Prod auto-deploys on merge; no migrations. No clear forward thread is pre-decided — candidates below, user's pick.
+**This session (2026-06-17): backlog restructured + inbox triaged to zero (#1245, merged).** The backlog is now HOT/COLD — session-start load dropped from ~2500 lines to ~350 (see Last Session below). beta.133 (#1244) shipped just prior. No forward thread is pre-decided — candidates below, your pick.
 
 **Candidate next threads** (pick one, none greenlit yet):
 
@@ -22,7 +24,17 @@ _Nothing yet — **beta.133 shipped 2026-06-17 (#1244)**. The beta.132→133 del
 - **Context-relocation epic 2.5d** — delete legacy + `MessageContextBuilder` + bot-client Prisma + all `CONTEXT_*` flags; tighten depcruise → unblocks PR-2p.
 - **Dead-URL image retry-storm** (`backlog/cold/ideas.md`) — expired CDN URLs trigger a full multi-provider retry storm (~106s observed); short-circuit on `media_not_found` + fix `skipNegativeCache` to bypass only transient failures.
 
-**Smaller follow-ups in backlog:** vision-fallback cap → runtime admin knob (inbox); write-side `findFirst` `id`-tiebreak alignment (quick-wins); dedup-stub edge-case tests (quick-wins).
+**Smaller follow-ups in backlog** (now under the new structure): vision-fallback cap → runtime admin knob, write-side `findFirst` `id`-tiebreak alignment, dedup-stub edge-case tests, and the backlog-lint docs/CI-wiring decision — all in `backlog/cold/follow-ups.md`. The `// FOLLOWUP:` code-comment convention the council proposed is in `backlog/cold/ideas.md` for its own evaluation.
+
+## Last Session — backlog restructure: HOT/COLD + granularity ladder (2026-06-17)
+
+Reworked the backlog system end-to-end after the deferred-vs-icebox distinction collapsed and several section files re-grew into monoliths. 4-model council pass (Gemini 3.1 Pro, GLM 5.1, Kimi K2.7-code, Qwen 3.7 Max) → plan → executed as **PR #1245** (merged 2026-06-17, 37 files, 3 clean review rounds).
+
+- **HOT/COLD split.** Session-start load dropped ~2500 → ~350 lines. HOT: `BACKLOG.md` (manifest) + `now.md` (prod-issues/focus/quick-wins/untriaged, capped) + `active-epic.md` (roadmap, dense per-PR log split to `cold/epic-log.md`) + `references.md`. COLD (grep-on-demand): `cold/queue.md` index + 28 `cold/themes/*.md` (future-themes exploded) + `cold/ideas.md` (icebox) + `cold/follow-ups.md` (deferred, re-cut as a table).
+- **Granularity ladder** replaces Deferred/Icebox: epic → `themes/`; paragraph idea → `ideas.md`; one-sentence follow-up → `follow-ups.md`. Trigger is a field, not a bucket.
+- **Staleness principle (user directive):** aging escalates priority, never deletes; removal only when done or grep-verified obsolete. Baked into `06-backlog.md`; surfaced by the new `pnpm ops backlog` lint (oldest-follow-ups nudge).
+- **Also this session (pre-restructure):** inbox triaged to zero (10 items routed); beta.133 close-out (CURRENT.md/production-issues swept); MCP/council memory updated (GLM 5.1→5.2).
+- **Net:** the next session loads a focused hot surface instead of the full archive. Tooling/docs only — no runtime change, no migration.
 
 ## Last Session — beta.133: context-assembly fix family + release (2026-06-17)
 
