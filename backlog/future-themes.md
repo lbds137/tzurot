@@ -961,3 +961,82 @@ The campaign-close audit at `docs/reference/CPD_CAMPAIGN_AUDIT.md` classifies th
 ### Theme: Slim `@tzurot/common-types` — extract non-type domains (PR-2n) — PROMOTED to Active Epic
 
 **Now the Active Epic** (2026-06-03, after the typed-client epic closed). Phase 1 (factories → `@tzurot/test-factories`) shipped in PR #1142. Full epic detail — Phase 2 services-extraction council design, Phase 2.5 bot-client/Prisma fix, sequencing PR-2o/2p/2q — lives in [`active-epic.md`](active-epic.md).
+
+---
+
+_The four themes below were triaged in from the inbox on 2026-06-17 (not priority-ordered relative to the themes above)._
+
+### Theme: Multimodal Input — file (PDF/doc) + video forwarding
+
+_Focus: capture and forward `video` and `file` input modalities to capable models, then surface the capability in `/models`. Companion to — not the same as — the "Multi-Modality" output features under Next-Gen AI Capabilities above (that one is image generation)._
+
+**Surfaced 2026-06-15 (user)** while reviewing `/models browse` modality coverage. OpenRouter's `ModelModality` is `text | image | audio | video | file`, but we only capture/route **text, image, audio**. `video` and `file` (PDF/doc) input modalities are dropped from `ModelAutocompleteOption` (`OpenRouterModelCache.toAutocompleteOption`), and — more fundamentally — the bot can't *send* them: `MessageContentBuilder` renders every non-voice/non-image attachment as a **text description** (`[Attachments: [application/pdf: doc.pdf]]`), never as native model input. So surfacing `supportsFileInput`/`supportsVideoInput` today would over-promise.
+
+**The user wants to build these for real.** Two-part feature:
+
+1. **Bot-side forwarding**: detect PDF/doc (and eventually video) attachments and forward them to capable models as native input (OpenRouter `file`/`video` content parts), not just a text mention. Gate per-model on the model's advertised input modalities.
+2. **`/models` surfacing** (only after #1 ships, else it misleads): add `supportsFileInput`/`supportsVideoInput` flags to `ModelAutocompleteOption` (+ Zod schema) and `toAutocompleteOption`; render badges in the browse list + card; consider browse capability filters for `file`/`video` (and `audio`, which we already capture but don't expose as a filter).
+
+**Plumbing already half-present**: `ModelModality` includes `video`/`file` and the gateway's `getFilteredModels` accepts them as `inputModality` — only the autocomplete projection + browse UI drop them. **Promote when**: prioritized as a feature (it's a real capability gap, not a defect).
+
+### Theme: Type-Assertion Audit + Deterministic Ratchet
+
+_Focus: triage the untyped-cast surface and adopt a deterministic gate so new unsafe assertions can't land silently — same shape as the CPD story (noisy raw metric → classifier + ratchet)._
+
+**Surfaced 2026-06-12 (user)** after PR #1192 (the `content as string` fix) — that cast was hiding a real type hole (`buildBaseComponents` returned `{ content: unknown }`, caught by tsc the moment the cast came out). Census of production code (tests excluded): **65 `as unknown as`** double-casts (full type-system bypass; some are test infra under `src/`, but production hits include `ai-worker/jobs/AIJobProcessor.ts` ×3, `bot-client/utils/browse/customIdFactory.ts` ×3, the dashboard settings builders, `fetchTypingChannel.ts`), **1 `as never`** (`settingsUpdateFactory.ts:75`), **~416 total `as Type` assertions** never triaged.
+
+**Scope**: (1) triage the `as unknown as` production set — each is either a legit boundary (document why, à la suppression-justification standards in `02-code-standards.md`) or a latent hole (fix); (2) adopt a deterministic gate so new unsafe assertions can't land silently.
+
+**Tool candidates (training-data priors — REQUIRE live web verification per the research-method convention; verify current names/maturity/vitest-ESLint-version fit before adopting):**
+
+1. **`@typescript-eslint/no-unsafe-type-assertion`** — ESLint rule flagging assertions not provably safe; slots into the existing lint pipeline with a baseline/ratchet like cpd. Likely primary candidate.
+2. **`@typescript-eslint/consistent-type-assertions`** — can restrict assertion styles (e.g., forbid `as` outside `as const`).
+3. **`type-coverage`** (`--strict` counts type assertions; `--at-least` threshold) — ratchetable in CI like the cpd/test-audit baselines.
+4. **ast-grep** for structural search during the triage itself.
+
+The triage pass is cross-cutting (all three services + packages); the ratchet adoption follows the audit-tool checklist (`docs/reference/audit-enforcement.md`) if it graduates to an audit-class gate. Complements the deterministic-test-tooling theme below — both are "make the unsafe thing impossible to land silently." **Promote when**: capacity for a cross-cutting tech-debt campaign exists.
+
+### Theme: Deterministic Test-Quality Tooling (mutation testing + job-payload contract)
+
+_Focus: fill the remaining deterministic-gate rungs so seam/wiring bugs fail the build, not slip through green line-coverage. Sibling to the Production Observability theme below — both make the unsafe/invisible thing deterministic._
+
+**Surfaced 2026-06-11 (user)** after the iii-b-2 thin-payload referenced-attachment regression (#1184): `jobChainOrchestrator` **had** a referenced-attachment test, and line coverage was green — but it covered only the _fat_ payload shape, so a new wire-shape shipped broken. Three green units, one broken cross-service seam. User's framing: unit tests are repeatedly insufficient for seam/wiring bugs; we want **deterministic checks that fail the build**. We already have strong gates (cpd ratchet, test-audit, depcruise, conformance harness, codecov) — this fills the remaining rungs.
+
+**Candidates to evaluate (with honest scope of what each catches):**
+
+1. **Mutation testing — StrykerJS** _(highest-leverage general tool)._ Line coverage measures code-_ran_, not bug-_caught_. Stryker mutates code (flip conditionals, delete statements, swap `??`/`&&`) and checks whether a test fails → grades test _effectiveness_. **Caveat**: catches weak tests, NOT missing code paths — it would not have caught #1184 directly, but it's the best deterministic answer to "are our tests a real net." Pilot on one package, set a mutation-score threshold, ratchet in CI like cpd/test-audit. **Recommended starting point.**
+2. **Job-payload contract / property suite at the bot→gateway→worker BullMQ seam** _(targeted at the #1184 class)._ Assert every valid context shape (`legacy` / `envelope` / `envelope`+referenced-attachments) → correct job-chain → correctly consumed by the worker's pipeline. Consider **fast-check** (property-based). The rung that catches wire-shape regressions.
+3. **Evaluate Pact (consumer-driven contracts)** — likely an awkward fit (internal BullMQ seam, not HTTP); quick rule-in/out.
+4. **More compiler-enforced invariants** — the `ContextVariant` discriminated union (PR #1183) is the cheapest deterministic check; audit for more "make it unrepresentable" spots.
+
+**Outcome**: decide what to adopt as CI ratchets (likely Stryker suite-wide floor + the job-payload contract test). **Method (REQUIRED)**: actual web research, not training-data priors — current tool maturity, latest versions, vitest/ESM integration, monorepo performance, and whether better alternatives have emerged all need live verification before any adoption decision.
+
+### Theme: Production Observability — perf metrics + distributed tracing
+
+_Focus: continuous, deterministic performance insight + a foundation for scaling — the perf analog of the deterministic test-tooling theme above. Sibling to the "Railway Log Search DX" theme (that one is log-correlation; this is metrics + tracing)._
+
+**Surfaced 2026-06-11 (user)** from the preset-PUT-timeout prod bug (production-issues.md): intermittent, **load-correlated** issues can't be reproduced in dev and aren't visible in event logs — we log _what happened_ but have ~no aggregated _performance_ signal.
+
+**What we have**: pino structured logs → Railway; per-request `responseTime` _is_ logged by the gateway HTTP logger (that's how the preset bug was caught) but never aggregated/alerted. Railway exposes infra metrics but no app-level tracing.
+
+**What's missing**: (1) **time-series metrics** — p50/p95/p99 latency per route, DB query duration, Prisma connection-pool utilization, BullMQ queue depth + job durations, error rates; (2) **distributed tracing** — per-request span breakdown (handler → DB → cache → response), i.e. THE tool that would show exactly where the preset PUT's 10s goes; (3) dashboards + alerting.
+
+**Candidate approach (to web-research, NOT assume)**: OpenTelemetry (vendor-neutral Node SDK; auto-instrumentation for Express/Prisma/ioredis/BullMQ) → export to a backend. Evaluate backends on cost/effort: free-tier hosted (Grafana Cloud / Honeycomb / Axiom / Sentry Performance) vs self-hosted Grafana+Tempo+Prometheus. Prisma has built-in metrics + OTel hooks; `prom-client` for custom metrics.
+
+**Interim (cheaper, directly cracks the preset bug)**: targeted timing instrumentation shipped to the **prod** llm-config PUT path — breakdown log: validate / DB write / cache-invalidation / total. Ship the probe to prod, read the runtime observation, then fix.
+
+**Method (REQUIRED)**: actual web research — current OTel-on-Node maturity, auto-instrumentation coverage for our stack, real cost/effort of backends. **Outcome**: pick a LEAN starting point (likely OTel + auto-instrumentation + one free-tier backend, focused first on gateway request latency + Prisma query times), wire it, build a latency dashboard + a p99 alert.
+
+### Theme: Export/Import/Template/Clone Field Completeness — schema-derived, not hard-coded
+
+_Focus: kill hard-coded field lists across every serialize/deserialize surface — derive from the Zod schema so a new field defaults to included, not silently dropped. Overlaps the Character Portability theme (export/import) but is broader (presets, config templates, clones)._
+
+**Surfaced 2026-06-11 (user)** while editing presets. `/preset export` builds its JSON from a **hard-coded** `EXPORT_FIELDS` list (`services/bot-client/src/commands/preset/export.ts:20`), plus hard-coded `SAMPLING_PARAMS` and `REASONING_PARAMS`. Add a field to the llm-config schema and it **silently won't export** unless someone manually updates the list → drift-prone data loss.
+
+**Scope** — enumerate every serialize/deserialize/template/clone surface and check whether its field set is **schema-derived (single source of truth)** or hand-listed:
+
+1. Preset export/import/clone: `export.ts` (`EXPORT_FIELDS`/`SAMPLING_PARAMS`/`REASONING_PARAMS`), the import counterpart, `createClonedPreset` (`cloneName.ts`).
+2. Any other export/import/template: personality export/import, shapes import, config templates/defaults, TTS-config equivalents.
+3. For each hand-listed set: prefer deriving from the Zod schema (co-located "exportable projection" or `schema.keyof`) so a new field defaults to **included**. Where exclusion is deliberate (computed/server-side fields, `isGlobal`), make it an explicit **deny-list against the schema's full key set** — fail-open-to-completeness, not fail-closed-to-silent-omission.
+
+**Confirmed cross-surface inconsistency (the real lead)**: **characters round-trip visibility, presets don't.** `character/export.ts` `EXPORT_FIELDS` **includes `isPublic`** and `character/import.ts` reads it back; preset export **excludes `isGlobal`**. Same concept, opposite handling — reconcile to one policy (lean: match characters — round-trip visibility for presets too). **Why a theme**: cross-cutting (export/import/template/clone surfaces + possibly the schema layer); the per-surface fix is small but needs the full enumeration first.
