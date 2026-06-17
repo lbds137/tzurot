@@ -113,41 +113,6 @@ export function enrichDbMessagesWithExtendedMetadata(
 }
 
 /**
- * TEMPORARY diagnostic (debug PR): build a PII-safe descriptor of a message
- * for the context-merge probe. Logs derived booleans/lengths/IDs only — never
- * raw content (per the no-PII-in-logs rule). Used to root-cause the beta.133
- * context-assembly trio (footer leak / chime-in role+order / blank image msgs):
- * which copy of a message survives the live-vs-DB merge, and with what shape.
- * Gated behind CTX_MERGE_PROBE=1; remove with the cleanup commit once read.
- */
-function ctxProbeDescriptor(
-  m: ConversationMessage,
-  dbIds: { has: (id: string) => boolean }
-): Record<string, unknown> {
-  const content = m.content ?? '';
-  const id = m.discordMessageId[0];
-  const meta = m.messageMetadata;
-  return {
-    id: id ?? null,
-    role: String(m.role),
-    pName: m.personalityName ?? null,
-    len: content.length,
-    ph: content === NO_TEXT_CONTENT_PLACEHOLDER,
-    ftr: content.includes('-# '), // Discord subtext footer (Bug A)
-    relay: /^\*\*[^*]+:\*\*\s/.test(content), // "**Name:** …" relay-echo shape (Bug B)
-    fwd: m.isForwarded === true,
-    // metadata presence (Bug C — is there ANY attachment description to render?)
-    aDesc: meta?.attachmentDescriptions?.length ?? 0,
-    emb: meta?.embedsXml?.length ?? 0,
-    voc: meta?.voiceTranscripts?.length ?? 0,
-    fAtt: meta?.forwardedAttachmentLines?.length ?? 0,
-    rx: meta?.reactions?.length ?? 0,
-    // for live messages: does a DB row already cover this id (→ deduped out)?
-    inDb: id !== undefined ? dbIds.has(id) : false,
-  };
-}
-
-/**
  * Collapse DB-history rows that represent the SAME Discord message.
  *
  * `conversation_history` rows are personality-scoped and there is no unique
@@ -262,29 +227,6 @@ export function mergeWithHistory(
       b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt).getTime();
     return timeA - timeB;
   });
-
-  // TEMPORARY diagnostic (debug PR, CTX_MERGE_PROBE=1): dump PII-safe descriptors for
-  // the most-recent slice of the FINAL merged result — i.e. exactly the recent window
-  // the prompt will render. Logging `merged` (which IS sorted oldest-first) rather than
-  // the raw `extendedMessages` array (newest-first from the Discord fetch) avoids the
-  // window-direction trap. `inDb` reveals whether each entry is DB-sourced (clean) or a
-  // unique live copy that leaked through dedup. This is the single boundary where the
-  // beta.133 context trio converges (footer leak / chime-in role+order / blank image
-  // msgs). Remove with the cleanup commit once the mechanism is read.
-  if (process.env.CTX_MERGE_PROBE === '1') {
-    const TAIL = 25;
-    logger.info(
-      {
-        probe: 'ctx-merge',
-        dbCount: dbHistory.length,
-        liveCount: extendedMessages.length,
-        survivedLive: uniqueExtendedMessages.length,
-        mergedCount: merged.length,
-        recent: merged.slice(-TAIL).map(m => ctxProbeDescriptor(m, dbMessageMap)),
-      },
-      '[CTX-MERGE-PROBE]'
-    );
-  }
 
   return merged;
 }

@@ -198,29 +198,6 @@ export class ConversationPersistence {
       embedsXml = buildResult.embedsXml;
     }
 
-    // TEMPORARY diagnostic (debug, EMBED_PERSIST_PROBE=1): confirm the embed-only
-    // blank-history mechanism. embedsXml is currently only built for FORWARDED
-    // messages (above), so a regular link-embed message never persists it — and
-    // once it ages out of the live-fetch window it renders blank. This probe
-    // answers the one remaining question for the fix: at persist time, does a
-    // non-forwarded message ALREADY carry its embed (so "persist embedsXml for
-    // all" suffices) or not yet (Discord async embed resolution → also needs a
-    // re-capture on messageUpdate)? PII-safe: ids/booleans/counts only, no
-    // content. Remove with the embed fix once read.
-    if (process.env.EMBED_PERSIST_PROBE === '1') {
-      logger.info(
-        {
-          probe: 'embed-persist',
-          messageId: message.id,
-          isForwarded,
-          embedCountAtPersist: message.embeds.length,
-          embedsXmlPersisted: embedsXml !== undefined && embedsXml.length > 0,
-          contentLength: messageContent.length,
-        },
-        '[EMBED-PERSIST-PROBE]'
-      );
-    }
-
     // Delegate to field-based implementation with Message fields extracted.
     // Pass `message.createdAt` as the explicit timestamp so the user row's
     // `createdAt` matches the Discord post time. Without this, the row used

@@ -193,19 +193,6 @@ describe('VisionProcessor', () => {
         );
       });
 
-      it('runs the gated vision-auth probe when VISION_AUTH_PROBE=1 (debug instrumentation)', async () => {
-        process.env.VISION_AUTH_PROBE = '1';
-        try {
-          const personality = createMockPersonality({ visionModel: 'gpt-4-vision-preview' });
-          // The env-gated probe (logVisionAuthProbe) runs in invokeVisionModel; the
-          // call still returns its description (covers the diagnostic path).
-          const result = await describeImage(mockAttachment, personality);
-          expect(result).toBe('Mocked image description');
-        } finally {
-          delete process.env.VISION_AUTH_PROBE;
-        }
-      });
-
       it('should use main model when it has vision support', async () => {
         mockCheckModelVisionSupport.mockResolvedValue(true);
 
