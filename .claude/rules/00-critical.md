@@ -148,7 +148,7 @@ The PR cycle's primary value on this project is **automated review** — `claude
 
 | Allowed on `develop` directly                                                                             | Still requires a PR                                                          |
 | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `BACKLOG.md` + `backlog/*.md` (post-merge tracker updates, triage moves, status changes)                  | Any code change (`*.ts`, `*.tsx`, `*.py`, `*.js`, etc.)                      |
+| `BACKLOG.md` + `backlog/**/*.md` (post-merge tracker updates, triage moves, status changes)               | Any code change (`*.ts`, `*.tsx`, `*.py`, `*.js`, etc.)                      |
 | `CURRENT.md` (session-status / handoff notes)                                                             | Schema or migration files (`prisma/`, `*.sql`)                               |
 | New or edited files under `docs/` (typo fixes, runbook tweaks, reference updates, freshly-written guides) | `.claude/rules/*.md` (load-bearing constraints — review-gated)               |
 | Release-notes / changelog edits                                                                           | `.claude/skills/*/SKILL.md` (load-bearing procedures — review-gated)         |

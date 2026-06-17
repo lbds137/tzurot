@@ -157,9 +157,9 @@ describe('checkDeferredRefs (CLI entry)', () => {
     await expect(checkDeferredRefs({ staged: true })).resolves.toBeUndefined();
 
     const output = logSpy.mock.calls.flat().join('\n');
-    expect(output).toContain('Deferred backlog entries reference files');
+    expect(output).toContain('Backlog follow-ups reference files');
     expect(output).toContain('MemoryRetriever.ts');
-    expect(output).toContain('backlog/deferred.md:7');
+    expect(output).toContain('backlog/cold/follow-ups.md:7');
   });
 
   it('swallows git failures and logs to stderr (the never-blocks contract)', async () => {
@@ -187,7 +187,7 @@ describe('checkDeferredRefs (CLI entry)', () => {
     expect(logSpy).not.toHaveBeenCalled();
   });
 
-  it('no-ops when deferred.md does not exist', async () => {
+  it('no-ops when follow-ups.md does not exist', async () => {
     vi.mocked(existsSync).mockReturnValue(false);
 
     await checkDeferredRefs({ staged: true });

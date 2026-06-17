@@ -304,6 +304,7 @@ describe('findContentRefs (against real repo)', () => {
       // If the actual rule/skill content references something not here,
       // the test will surface a useful "what's actually referenced"
       // signal rather than failing on a spurious dangling.
+      'backlog',
       'cache:clear',
       'cache:inspect',
       'context',

@@ -17,7 +17,7 @@
  * survive Redis restarts. It was removed because (a) Discord attachments are
  * ephemeral, so the persistence value is small, and (b) lacking a TTL or
  * eviction path, transient failures became permanent for affected attachments.
- * See `backlog/production-issues.md` for the original incident.
+ * See git history / release notes for the original vision negative-cache incident.
  */
 
 import { createHash } from 'node:crypto';

@@ -1,7 +1,7 @@
 ---
 name: tzurot-docs
-description: 'Session workflow procedures. Invoke with /tzurot-docs for session start/end, CURRENT.md and backlog/*.md management.'
-lastUpdated: '2026-04-26'
+description: 'Session workflow procedures. Invoke with /tzurot-docs for session start/end, CURRENT.md and backlog management.'
+lastUpdated: '2026-06-17'
 ---
 
 # Documentation & Session Workflow
@@ -10,31 +10,31 @@ lastUpdated: '2026-04-26'
 
 ## Session Start Procedure
 
+The backlog is HOT/COLD split — load only the HOT surface at start (see `BACKLOG.md`, the manifest):
+
 1. Read `CURRENT.md` - What's the active task?
-2. Read `backlog/production-issues.md` - Any active bugs to fix first?
-3. Read `backlog/current-focus.md` - What's this week's active work?
-4. Continue active task or pull next from Quick Wins / Active Epic
+2. Read `backlog/now.md` - 🚨 Production Issues (fix first) → 🎯 Current Focus (continue) → ⚡ Quick Wins
+3. Read `backlog/active-epic.md` - the current major initiative + its current phase
+4. Do NOT load `backlog/cold/` — grep it only when a task points you there
 
 ## Session End Procedure
 
 1. Update `CURRENT.md` with progress
 2. If task incomplete, note blockers in Scratchpad
 3. **Run both BACKLOG gates** (see `.claude/rules/06-backlog.md`):
-   - **Additions gate**: every promised backlog item from this session's
-     plans is actually written to the appropriate `backlog/*.md` file
-   - **Removals gate**: every item that shipped in this session's merged
-     PRs is removed from its `backlog/*.md` file. `grep backlog/` against
-     the session's PR titles and scope terms; delete matches. This gate
-     is the one that most often gets skipped, producing backlog rot.
+   - **Additions gate**: every promised backlog item from this session's plans is actually written to the appropriate `backlog/**/*.md` file
+   - **Removals gate**: every item that shipped in this session's merged PRs is removed from its backlog file. `grep -r backlog/` (recursive — includes `cold/`) against the session's PR titles and scope terms; delete matches. This gate most often gets skipped, producing backlog rot. (Removal is for _shipped_ or _genuinely obsolete_ items only — never time-based pruning; aging escalates, it doesn't delete.)
 4. Commit with `wip:` prefix if session ended with incomplete work
 
 ## Work Tracking Files
 
-| File           | Purpose                               | Update When                     |
-| -------------- | ------------------------------------- | ------------------------------- |
-| `CURRENT.md`   | Active session - what's happening NOW | Start/end session, task done    |
-| `BACKLOG.md`   | Index pointing to per-section files   | When sections are added/renamed |
-| `backlog/*.md` | Per-section work items                | New ideas, triage, completion   |
+| File                     | Purpose                                           | Update When                    |
+| ------------------------ | ------------------------------------------------- | ------------------------------ |
+| `CURRENT.md`             | Active session — what's happening NOW             | Start/end session, task done   |
+| `BACKLOG.md`             | Load manifest + filing decision-tree              | When the structure changes     |
+| `backlog/now.md`         | HOT: prod issues / focus / quick-wins / untriaged | New ideas, triage, completion  |
+| `backlog/active-epic.md` | HOT: current epic roadmap + phase                 | Phase progress                 |
+| `backlog/cold/*`         | COLD: themes / ideas / follow-ups / epic-log      | Grep-on-demand; route + update |
 
 **Tags**: 🏗️ `[LIFT]` refactor/debt | ✨ `[FEAT]` feature | 🐛 `[FIX]` bug | 🧹 `[CHORE]` maintenance
 
@@ -68,17 +68,13 @@ _Error logs, decisions, API snippets._
 
 ## Backlog Structure
 
-The backlog is split across per-section files under `backlog/`. See
-`.claude/rules/06-backlog.md` for the canonical section→file table
-(Production Issues, Inbox, Current Focus, Quick Wins, Active Epic, Next
-Theme, Future Themes, Icebox, Deferred, References). `BACKLOG.md` at
-root is a thin index pointing to each.
+HOT (loaded every session) / COLD (grep-on-demand). See `.claude/rules/06-backlog.md` for the canonical topology + the **granularity-ladder** filing rule (multi-phase epic → `cold/themes/`; paragraph idea → `cold/ideas.md`; one-sentence follow-up → `cold/follow-ups.md`) and the **staleness principle** (aging escalates priority; items are never deleted by calendar — only when done or genuinely obsolete). `BACKLOG.md` at root is the load manifest.
 
 ## Workflow Operations
 
 ### Intake (New Idea)
 
-Add to **`backlog/inbox.md`** with a tag (weekly triage moves it to the right section):
+Capture in **`backlog/now.md` › 📥 Untriaged** mid-session, then route per the granularity ladder (or file directly if the home is obvious):
 
 ```markdown
 - ✨ `[FEAT]` **Feature Name** - Brief description
@@ -86,7 +82,7 @@ Add to **`backlog/inbox.md`** with a tag (weekly triage moves it to the right se
 
 ### Start Work (Pull)
 
-1. Cut task from the appropriate `backlog/*.md` file (usually `backlog/current-focus.md` or `backlog/quick-wins.md`)
+1. Take the task from `backlog/now.md` (Current Focus or Quick Wins), or promote a theme from `cold/queue.md`
 2. Paste into CURRENT.md under **Active Task**
 3. Add checklist if needed
 4. Update **Session Goal**
@@ -95,7 +91,8 @@ Add to **`backlog/inbox.md`** with a tag (weekly triage moves it to the right se
 
 1. Mark task complete in CURRENT.md
 2. Move to **Recent Highlights** (keep last 3-5)
-3. Pull next task from BACKLOG High Priority
+3. Remove the shipped item from `backlog/now.md` (removals gate)
+4. Pull next task from `now.md` Current Focus / Quick Wins
 
 ## Documentation Standards
 
@@ -104,6 +101,6 @@ For doc placement, naming, and lifecycle rules, see `.claude/rules/07-documentat
 ## References
 
 - Current session: `CURRENT.md`
-- All work items: `BACKLOG.md` (index) → `backlog/*.md` (per-section)
+- All work items: `BACKLOG.md` (manifest) → `backlog/now.md` + `backlog/active-epic.md` (HOT) → `backlog/cold/*` (COLD)
 - Documentation standards: `.claude/rules/07-documentation.md`
 - Documentation audit: `.claude/skills/tzurot-doc-audit/SKILL.md`

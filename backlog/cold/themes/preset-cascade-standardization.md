@@ -1,0 +1,26 @@
+### Theme: Preset Cascade Standardization (multi-PR epic)
+
+_Focus: cross-tier preset-editing UX parity with the config-override cascade. Surfaced 2026-04-20 during Kimi-K2.5-routing bug triage (PR #853)._
+
+The preset cascade (`LlmConfigResolver.resolveConfig`) has user-tier commands (`/settings preset default`, `/settings preset set <personality>`, `/settings preset clear-default`) but **no character-tier UX** for a personality creator to pin their character to a specific preset. Historically "filled" by the auto-pin bug PR #853 removed. Now personalities correctly cascade to current global default, but creators have no opt-in pin path.
+
+**Contrast with the config-override cascade** (sampling, memory, reasoning, vision): has dashboards at **every tier** — `/settings defaults edit`, `/channel settings`, `/channel context`, per-personality override via `user_personality_configs.configOverrides`. Preset commands are flat args at user tier only. The asymmetry is probably why auto-pin slipped through — preset stopped at user-tier because "character tier is set at creation, done."
+
+**Fix shape (multi-PR epic)**:
+
+1. Add character-tier preset editing: new `/character edit` dashboard section for "Default preset" (read from `personality_default_configs`, write via new API endpoint). Creator/owner only. Opt-in — absent row → cascade to global default.
+2. Standardize cascade UX: audit preset, config-overrides, and context settings for a common pattern — probably dashboard-per-tier with pin/inherit/clear semantics at each level. Document the canonical pattern in `.claude/rules/` so future settings cascades follow it.
+3. Consider whether current resolver priority (`user-per-personality → user-default → personality-default → global-default`) is right, or whether users expect `user-default` to supersede `personality-default`. Council consultation 2026-04-20 flagged this as a genuine design question, not a bug.
+4. Shapes import currently writes its own `personality_default_configs` upsert with the shapes.inc-specified model — preserve this as the "deliberate pin" path. Might need UX to explain "this was set by shapes import, not by you" in the edit dashboard.
+
+**Also folds in** (moved from Inbox during 2026-04-21 triage):
+
+- Post-`/character create` dashboard missing Delete button — two entry points produce different dashboards. Unify via dashboard factory.
+- `/persona create` UX should mirror `/character create` (plus edit-in-place) — specific case of broader cascade-UX-inconsistency problem.
+- Bot-owner/admin should be able to delete any preset — admin override capability for moderation/maintenance. Extend `services/api-gateway/src/routes/admin/llm-config.ts` to allow deleting any LlmConfig regardless of owner.
+- Add Create button inside `/X browse` view for convenience — streamline "add one more" loop across browse-capable commands.
+- **"Max age: off" should override global setting; separate "off" from "inherit"** — In the settings cascade, "off" (disabled) and "inherit" (use parent value) are conflated into one state. When a user sets max-age to "off" at a level where the global has a value, "off" should still mean "disabled" — it should not fall through to the global. The same issue may affect other cascade items (TTS provider, LLM config, etc.). **Fix shape**: audit all settings cascade fields for off-vs-inherit semantics; introduce a distinguishable "off" sentinel value (e.g., `null` = inherit, `false` = explicitly off, or a discriminated union). Ensure the resolver treats "off" as a terminal "no max age" rather than "use parent". Scope depends on how many cascade fields have this conflation. **Concrete plumbing follow-up**: `computeHistoryCutoff(maxAgeSeconds, contextEpoch)` in `historyCutoff.ts` currently treats `null` and `undefined` identically (both → no filter). The "off" semantic needs richer types like `{ kind: 'inherit' } | { kind: 'off' } | { kind: 'value'; seconds: number }` so cascade resolvers can distinguish "user explicitly set off, override global" from "user didn't touch this, inherit". Naturally aligns with goal #2 above (standardize cascade UX with pin/inherit/clear semantics). Surfaced 2026-05-02; promoted from quick-wins 2026-05-12 — not quick-win sized (cross-cutting cascade audit).
+
+**Start**: `packages/common-types/src/services/LlmConfigResolver.ts:141` (cascade logic); `services/bot-client/src/commands/settings/preset/` (user-tier template); `services/bot-client/src/commands/character/dashboardButtons.ts` (add section); `services/ai-worker/src/jobs/ShapesImportHelpers.ts:41` (shapes pin path to preserve).
+
+**Related proposal**: [`docs/proposals/backlog/config-cascade-design.md`](../docs/proposals/backlog/config-cascade-design.md) covers the broader "unified configuration cascade" vision. Phase 1 (model validation + context window enforcement) shipped 2026-02-16. Phases 2–5 (LlmConfig slimming, lightweight overlay system, voice/image user overrides, focus mode tier expansion) are the deferred work that overlaps with this theme.

@@ -1,7 +1,7 @@
 ---
 name: tzurot-arch-audit
 description: 'Architecture health audit. Invoke with /tzurot-arch-audit to run static analysis, check boundaries, and assess code health.'
-lastUpdated: '2026-02-07'
+lastUpdated: '2026-06-17'
 ---
 
 # Architecture Audit Procedure
@@ -262,7 +262,7 @@ Use this format to report audit results:
    pnpm depcruise:baseline          # If circular deps decreased
    pnpm ops test:audit --update     # If coverage gaps closed
    ```
-3. Add "Track" items to `backlog/inbox.md`
+3. Add "Track" items to `backlog/now.md` (📥 Untriaged), then route per the granularity ladder
 4. Commit: `docs: architecture audit YYYY-MM-DD` or `fix: address architecture audit findings`
 
 ## References

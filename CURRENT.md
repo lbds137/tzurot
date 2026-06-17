@@ -17,10 +17,10 @@ _Nothing yet — **beta.133 shipped 2026-06-17 (#1244)**. The beta.132→133 del
 
 **Candidate next threads** (pick one, none greenlit yet):
 
-- **Embed-only blank history** (`backlog/inbox.md`) — the deferred half of Bug C, and the diagnostic is already settled: drop the `isForwarded &&` gate at `ConversationPersistence.ts:193` so `embedsXml` persists for any message with embeds. Small, dev-verifiable. The most natural beta.133 follow-on.
-- **Preset llm-config PUT timeout — track (a)** (`backlog/production-issues.md`) — the one still-open prod issue. track (b) is mitigated (20s WRITE budget), but the gateway PUT exceeding 10s at all is unexplained; needs prod timing instrumentation (load-correlated, not dev-reproducible). The probe is the next natural release passenger.
+- **Embed-only blank history** (`backlog/now.md` — Quick Wins) — the deferred half of Bug C, and the diagnostic is already settled: drop the `isForwarded &&` gate at `ConversationPersistence.ts:193` so `embedsXml` persists for any message with embeds. Small, dev-verifiable. The most natural beta.133 follow-on.
+- **Preset llm-config PUT timeout — track (a)** (`backlog/now.md` — Production Issues) — the one still-open prod issue. track (b) is mitigated (20s WRITE budget), but the gateway PUT exceeding 10s at all is unexplained; needs prod timing instrumentation (load-correlated, not dev-reproducible). The probe is the next natural release passenger.
 - **Context-relocation epic 2.5d** — delete legacy + `MessageContextBuilder` + bot-client Prisma + all `CONTEXT_*` flags; tighten depcruise → unblocks PR-2p.
-- **Dead-URL image retry-storm** (`backlog/inbox.md`) — expired CDN URLs trigger a full multi-provider retry storm (~106s observed); short-circuit on `media_not_found` + fix `skipNegativeCache` to bypass only transient failures.
+- **Dead-URL image retry-storm** (`backlog/cold/ideas.md`) — expired CDN URLs trigger a full multi-provider retry storm (~106s observed); short-circuit on `media_not_found` + fix `skipNegativeCache` to bypass only transient failures.
 
 **Smaller follow-ups in backlog:** vision-fallback cap → runtime admin knob (inbox); write-side `findFirst` `id`-tiebreak alignment (quick-wins); dedup-stub edge-case tests (quick-wins).
 
@@ -349,17 +349,17 @@ Full sweep of the quick-wins backlog in three PRs, all merged to develop:
 
 **Next: Phase 2 — extract `common-types/services/`.** Design **SETTLED** (council GLM-5.1 + Kimi-K2.6 + Qwen-3.7-max, unanimous Hybrid): relocate single-consumer services to their owner, keep the 2+-consumer core in a small new shared package, split pub/sub publisher/subscriber pairs, evict the `prisma.ts` singleton (constructor-inject). **Sequencing DECIDED: `PR-2o → Phase 2.5 → PR-2p → PR-2q`** (optimized for no stopgaps — 2.5 makes bot-client Prisma-free before 2p evicts the singleton, so bot-client never needs a temporary local Prisma). **First code PR: PR-2o** (relocate single-consumer services — ai-worker resolver stack + `ConversationRetentionService` → api-gateway). ⚠️ **PR-2o must start by re-verifying the single-consumer set from VALUE imports** (exclude type-only, include tests) — the earlier Explore-agent consumption map was noisy (counted `import type { PersonaResolver }` as usage). Phase 3 (barrel-kill, ~1,021 sites) deferred to icebox. Full design + sequencing rationale in [active-epic.md](backlog/active-epic.md).
 
-Quick-wins available between phases ([quick-wins.md](backlog/quick-wins.md)): queue swept 2026-06-03 — one item remains (stacked-JSDoc merge in `check-duplicate-exports.ts`).
+Quick-wins available between phases ([now.md](backlog/now.md)): queue swept 2026-06-03 — one item remains (stacked-JSDoc merge in `check-duplicate-exports.ts`).
 
 **Candidate next themes after PR-2n** (user picks; each gets a council pass before plan-mode):
 
-- **Self-Hosted TTS + BYOK Re-Eval — Step 0 BYOK probes** ([future-themes.md](backlog/future-themes.md)) — Cartesia / Fish Audio / PlayHT / Resemble pricing-and-quality pass.
-- **Adjacent CPD Follow-Up Campaigns** ([future-themes.md](backlog/future-themes.md)) — four independently-pickable mini-epics from the 2026-05-16 CPD campaign close-out.
+- **Self-Hosted TTS + BYOK Re-Eval — Step 0 BYOK probes** ([queue.md](backlog/cold/queue.md)) — Cartesia / Fish Audio / PlayHT / Resemble pricing-and-quality pass.
+- **Adjacent CPD Follow-Up Campaigns** ([queue.md](backlog/cold/queue.md)) — four independently-pickable mini-epics from the 2026-05-16 CPD campaign close-out.
 
 **Post-release loose ends**:
 
-- **shapes import/export unverified** ([deferred.md](backlog/deferred.md)) — the beta.126 dev smoke skipped the shapes.inc round-trip (needs a desktop Chrome session for the auth cookie). The timeout fix restored these routes to the `DEFERRED` budget (= beta.125), so confidence is high; verify next time at a desktop.
-- **4 beta.126 review nits** ([quick-wins.md](backlog/quick-wins.md)) — optional doc/observability polish from PR #1120 claude-review.
+- **shapes import/export unverified** ([follow-ups.md](backlog/cold/follow-ups.md)) — the beta.126 dev smoke skipped the shapes.inc round-trip (needs a desktop Chrome session for the auth cookie). The timeout fix restored these routes to the `DEFERRED` budget (= beta.125), so confidence is high; verify next time at a desktop.
+- **4 beta.126 review nits** ([now.md](backlog/now.md)) — optional doc/observability polish from PR #1120 claude-review.
 
 **Verify on prod (low priority, fix shipped)**:
 

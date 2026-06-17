@@ -89,7 +89,7 @@ export function registerDevCommands(cli: CAC): void {
   cli
     .command(
       'dev:deferred-refs [...files]',
-      'Surface deferred-backlog entries referencing the given (or staged) files — informational, never fails'
+      'Surface backlog follow-ups (cold/follow-ups.md) referencing the given (or staged) files — informational, never fails'
     )
     .option('--staged', 'Use the git staged file list')
     .example('ops dev:deferred-refs --staged')
@@ -102,6 +102,20 @@ export function registerDevCommands(cli: CAC): void {
   registerSchemaAuditCommand(cli);
   registerComplexityReportCommand(cli);
   registerCommandsAuditCommand(cli);
+  registerBacklogCommand(cli);
+}
+
+function registerBacklogCommand(cli: CAC): void {
+  cli
+    .command(
+      'backlog',
+      'Lint the HOT/COLD backlog layout: now.md caps, queue.md theme links, oldest follow-ups'
+    )
+    .example('ops backlog')
+    .action(async () => {
+      const { runBacklogLint } = await import('../dev/backlogLint.js');
+      await runBacklogLint();
+    });
 }
 
 function registerCommandsAuditCommand(cli: CAC): void {

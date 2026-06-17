@@ -2,49 +2,76 @@
 
 ## Structure
 
-The backlog follows a "Now, Next, Later" topology with clear focus. Each section lives in its own file under `backlog/`; `BACKLOG.md` at root is the index pointing to them.
+The backlog is split **HOT** (loaded every session) / **COLD** (grep-on-demand). `BACKLOG.md` at the repo root is the load manifest. The hot surface stays small so the agent's session-start context is _now_, not the full archive of future work.
 
-| Section              | File                           | Purpose                                                                    | Max Items |
-| -------------------- | ------------------------------ | -------------------------------------------------------------------------- | --------- |
-| 🚨 Production Issues | `backlog/production-issues.md` | Active bugs in production. Fix first.                                      | No limit  |
-| 📥 Inbox             | `backlog/inbox.md`             | New items. Triage weekly.                                                  | No limit  |
-| 🎯 Current Focus     | `backlog/current-focus.md`     | This week's active work.                                                   | 3         |
-| ⚡️ Quick Wins        | `backlog/quick-wins.md`        | Small tasks for momentum between features.                                 | ~5        |
-| 🏗 Active Epic       | `backlog/active-epic.md`       | Current major initiative with phases.                                      | 1         |
-| 📅 Next Theme        | `backlog/next-theme.md`        | Ready to start when current epic ends.                                     | 1         |
-| 📦 Future Themes     | `backlog/future-themes.md`     | Epics ordered by dependency.                                               | Unlimited |
-| 🧊 Icebox            | `backlog/icebox.md`            | Ideas for later. Resist the shiny object.                                  | Unlimited |
-| ⏸️ Deferred          | `backlog/deferred.md`          | Decided not to do yet — either declined, or parked behind a named trigger. | Unlimited |
-| 📚 References        | `backlog/references.md`        | Cross-links to research docs and post-mortems. Not a triage target.        | —         |
+### HOT — read at session start (the whole surface is ~350 lines)
+
+| File                     | Contents                                                                                        |
+| ------------------------ | ----------------------------------------------------------------------------------------------- |
+| `BACKLOG.md` (root)      | Load manifest + filing decision-tree                                                            |
+| `backlog/now.md`         | 🚨 Production Issues · 🎯 Current Focus (max 3) · ⚡ Quick Wins (max 5) · 📥 Untriaged (max 10) |
+| `backlog/active-epic.md` | The ONE current major initiative: roadmap + current phase                                       |
+| `backlog/references.md`  | Cross-links to research docs / post-mortems                                                     |
+
+### COLD — grep-on-demand, NEVER auto-loaded
+
+| File                            | Contents                                                           |
+| ------------------------------- | ------------------------------------------------------------------ |
+| `backlog/cold/queue.md`         | Ordered index of future themes → links into `cold/themes/`         |
+| `backlog/cold/themes/<slug>.md` | One file per multi-phase epic (the big queue)                      |
+| `backlog/cold/ideas.md`         | Ungated speculative features + larger fixes (prose, `##` sections) |
+| `backlog/cold/follow-ups.md`    | Terse review-nit / "do X when Y happens" follow-ups (table)        |
+| `backlog/cold/epic-log.md`      | Detailed per-PR slice log for the Active Epic                      |
+
+### The granularity ladder (replaces the old Deferred/Icebox split)
+
+File a "not now" item by **size**, not by whether it has a trigger:
+
+| Item shape                                  | Home                                                  |
+| ------------------------------------------- | ----------------------------------------------------- |
+| Multi-phase initiative (its own epic)       | `cold/themes/<slug>.md` + a bullet in `cold/queue.md` |
+| Single feature, needs scoping (a paragraph) | `cold/ideas.md` (`##` section)                        |
+| One sentence, ~<2hr, usually a review-nit   | `cold/follow-ups.md` (table row)                      |
+
+**"Promote when…" / a trigger is an optional FIELD on any item, never a filing rule.** The old Deferred (trigger-gated) vs Icebox (no trigger) distinction collapsed because nearly every parked item acquires a trigger — the real, decidable axis is granularity. Don't reintroduce a trigger-based bucket.
+
+## Staleness — aging escalates, it never deletes
+
+Items are **never** deleted by calendar. An untouched follow-up that's aged RISES in priority and gets surfaced for a conscious decision (do it now / confirm the trigger is still pending) — it is **not** swept under the rug. An item leaves the backlog only when it is:
+
+- **done** (shipped — remove it; git is the archive), or
+- **genuinely obsolete** — the code path, file, or condition it references no longer exists. Verify by grep before removing, not by date.
+
+There is no "prune items older than N days" rule. Staleness is a signal to act, not a signal to discard. (`pnpm ops backlog` surfaces the oldest follow-ups as an escalation nudge — that's a prompt to decide, never an auto-delete.)
 
 ## Session Workflow
 
 ### Starting a Session
 
 1. Read `CURRENT.md` for context
-2. Read `backlog/production-issues.md` — fix before new features
-3. Read `backlog/current-focus.md` — continue active work
-4. If Current Focus is empty, pull from `backlog/quick-wins.md` or `backlog/active-epic.md`
+2. Read `backlog/now.md` — 🚨 Production Issues fix first; then continue 🎯 Current Focus
+3. If Current Focus is empty, pull from ⚡ Quick Wins (in `now.md`) or `backlog/active-epic.md`
+4. Do NOT load `backlog/cold/` — grep it only when a task points you there
 
 ### Ending a Session
 
 1. Update `CURRENT.md` with session progress
-2. Move completed items out of `backlog/current-focus.md`
-3. Add any new items to `backlog/inbox.md`
-4. Triage `backlog/inbox.md` if items are piling up
+2. Remove shipped items from `backlog/now.md` (and any `cold/` file that tracked them)
+3. Capture new items in `backlog/now.md` › 📥 Untriaged, then route them per the filing decision-tree (see `BACKLOG.md`)
+4. Keep the caps: Current Focus ≤ 3, Quick Wins ≤ 5, Untriaged ≤ 10
 
 ## Out-of-Scope Items Must Be Tracked
 
-Marking something "out of scope" is NOT permission to ignore it. Any known defect, inconsistency, or technical deficiency you decide not to fix in the current work **must** land in the appropriate `backlog/*.md` file with a concrete destination section. Applies to plans, PRs, code reviews, and ad-hoc work.
+Marking something "out of scope" is NOT permission to ignore it. Any known defect, inconsistency, or technical deficiency you decide not to fix in the current work **must** land in the appropriate `backlog/**/*.md` file with a concrete destination. Applies to plans, PRs, code reviews, and ad-hoc work.
 
-**Commit messages, PR bodies, plan notes, and code comments are NOT substitutes for backlog entries.** Mentioning "adminFetch sites are a distinct follow-up" in a commit message, or writing `// TODO: migrate this later` in a comment, does not count as tracking — nobody greps commit history or scattered comments looking for deferred work. If the follow-up matters enough to mention anywhere, it matters enough to be a concrete entry in the appropriate `backlog/*.md` file before the current work closes. Observed failure mode 2026-04-21 on PR #859 where "adminFetch follow-up" was flagged in a commit message but never written to backlog; reviewer caught the gap.
+**Commit messages, PR bodies, plan notes, and code comments are NOT substitutes for backlog entries.** Mentioning "adminFetch sites are a distinct follow-up" in a commit message, or writing `// TODO: migrate this later` in a comment, does not count as tracking — nobody greps commit history or scattered comments looking for deferred work. If the follow-up matters enough to mention anywhere, it matters enough to be a concrete entry in the appropriate `backlog/**/*.md` file before the current work closes. Observed failure mode 2026-04-21 on PR #859 where "adminFetch follow-up" was flagged in a commit message but never written to backlog; reviewer caught the gap.
 
 ### Two types of "out of scope" — only one needs tracking
 
-| Type                    | What it is                                                                                                                     | Example                                                                                             | Track?                                            |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| **(a) Design decision** | Current code is fine; you're choosing not to extract/refactor because doing so would be over-abstraction                       | "Not extracting this helper — trades 5 lines of linear code for 8 lines of options-object ceremony" | **No** — it's a judgment call, not a defect       |
-| **(b) Known defect**    | Something is wrong (bug, naming drift, stale entry, duplicated code) but fixing it would bloat the PR or needs separate design | "File is `settings.ts` but command is `/channel context`; four-layer naming drift"                  | **Yes** — concrete entry with destination section |
+| Type                    | What it is                                                                                                                     | Example                                                                                             | Track?                                      |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| **(a) Design decision** | Current code is fine; you're choosing not to extract/refactor because doing so would be over-abstraction                       | "Not extracting this helper — trades 5 lines of linear code for 8 lines of options-object ceremony" | **No** — it's a judgment call, not a defect |
+| **(b) Known defect**    | Something is wrong (bug, naming drift, stale entry, duplicated code) but fixing it would bloat the PR or needs separate design | "File is `settings.ts` but command is `/channel context`; four-layer naming drift"                  | **Yes** — concrete entry with destination   |
 
 When uncertain between (a) and (b), **err toward tracking**.
 
@@ -52,93 +79,83 @@ When uncertain between (a) and (b), **err toward tracking**.
 
 Plan files produced in plan mode must include a "Backlog Additions Required" section enumerating every type-(b) out-of-scope item with:
 
-1. **Destination section** (🚨 Production Issues / 📥 Inbox / ⚡️ Quick Wins / 🧊 Icebox / ⏸️ Deferred)
+1. **Destination** (`now.md` Production Issues / Quick Wins / Untriaged · `cold/follow-ups.md` · `cold/ideas.md` · `cold/themes/`)
 2. **Problem**: one paragraph describing what's wrong
 3. **Action**: concrete, specific steps to fix
 4. **Why out of scope**: one sentence on why it isn't being fixed now
 
 ### Session-end gate (additions)
 
-A session is NOT done until every promised backlog addition is actually written to the appropriate `backlog/*.md` file. Before running session-end cleanup:
+A session is NOT done until every promised backlog addition is actually written to the appropriate `backlog/**/*.md` file. Before running session-end cleanup:
 
 - Re-read the plan's "Backlog Additions Required" section
-- Verify each item exists in the promised destination file (e.g. `backlog/inbox.md`, `backlog/quick-wins.md`)
+- Verify each item exists in the promised destination file (e.g. `backlog/now.md`, `backlog/cold/follow-ups.md`)
 - If any are missing, write them first — then close the session
 
 ### Session-end gate (removals)
 
-A session is ALSO not done until every item that shipped during the session is removed from its `backlog/*.md` file. Additions without removals is what lets the backlog rot. Specifically:
+A session is ALSO not done until every item that shipped during the session is removed from its backlog file. Additions without removals is what lets the backlog rot. Specifically:
 
 - List the PRs merged during the session
-- For each PR, grep `backlog/` for the item title/topic — if a matching entry exists, **remove it**
+- For each PR, grep `backlog/` (recursive — includes `cold/`) for the item title/topic — if a matching entry exists, **remove it**
 - For any backlog entry annotated "PROMOTED to Current Focus" or similar, re-verify the underlying fix actually shipped; if yes, remove
-- Also remove any entry whose "Start" hints point to code that no longer needs fixing (grep the file to confirm)
+- Also remove any entry whose "Start" hints point to code that no longer needs fixing (grep the file to confirm). This is the "genuinely obsolete" removal path — it's distinct from time-based pruning, which we do NOT do.
 
-Both gates pair with the session-end workflow in the `/tzurot-docs` skill. Additions protect the "out of scope" commitment; removals protect against backlog bloat from items the repo no longer needs.
+Both gates pair with the session-end workflow in the `/tzurot-docs` skill.
 
-## Triage Rules
+## Triage Rules — where does a new item go?
 
-### Inbox → Other Sections
+File by size/granularity (see the ladder above); trigger is a field, not a bucket.
 
-| If the item is...             | Move to...           |
-| ----------------------------- | -------------------- |
-| Active production bug         | 🚨 Production Issues |
-| Needed this week              | 🎯 Current Focus     |
-| Small (<1 hour), independent  | ⚡️ Quick Wins        |
-| Part of current epic          | 🏗 Active Epic       |
-| Part of the queued-next theme | 📅 Next Theme        |
-| Part of a future theme        | 📦 Future Themes     |
-| Nice-to-have, no urgency      | 🧊 Icebox            |
-| Decided against (with reason) | ⏸️ Deferred          |
-| Parked behind a named trigger | ⏸️ Deferred          |
+| If the item is...                        | Goes to...                                                          |
+| ---------------------------------------- | ------------------------------------------------------------------- |
+| Active production bug                    | `now.md` › 🚨 Production Issues                                     |
+| Needed this week                         | `now.md` › 🎯 Current Focus (max 3)                                 |
+| Small (<~2hr), independent, one sentence | `now.md` › ⚡ Quick Wins (max 5) if soon; else `cold/follow-ups.md` |
+| Part of the active epic                  | `active-epic.md` (slice detail → `cold/epic-log.md`)                |
+| A single feature needing scoping         | `cold/ideas.md` (`##` section)                                      |
+| A multi-phase initiative                 | `cold/themes/<slug>.md` + bullet in `cold/queue.md`                 |
+| Arrived mid-session, no time to triage   | `now.md` › 📥 Untriaged (max 10), route later                       |
 
-### Promoting Themes
+### Promoting a theme to Active Epic
 
-When Active Epic completes:
+When the Active Epic completes:
 
-1. Move Active Epic content out of `backlog/active-epic.md` (delete if no longer relevant, or fold completed phases into a `backlog/future-themes.md` entry as historical reference)
-2. Promote Next Theme: replace `backlog/active-epic.md` content with what was in `backlog/next-theme.md`
-3. Choose new Next Theme from `backlog/future-themes.md` (pick based on dependencies + value); replace `backlog/next-theme.md` content accordingly. The filename stays stable across rotations — the file's role (the slot after active-epic) is what's named, not the specific theme inside.
+1. Remove the finished epic from `active-epic.md` (git preserves it; fold any still-relevant follow-on into `cold/`). Its detailed log in `cold/epic-log.md` can be deleted or kept as historical reference.
+2. Pick the next theme from `cold/queue.md` (by dependency + value — each substantial pick deserves a council pass before plan-mode).
+3. Move that theme's `cold/themes/<slug>.md` content into `active-epic.md` (slim roadmap in the hot file; push dense per-PR detail to `cold/epic-log.md`). Remove its bullet from `cold/queue.md`.
 
 ## Theme/Epic Structure
 
-Each theme or epic should have:
+A theme file (`cold/themes/<slug>.md`) or the active epic should carry a `_Focus: one-sentence goal._` line and phase structure:
 
 ```markdown
-## 🏗 Active Epic: Name
+### Theme: Name
 
 _Focus: One-sentence goal._
 
-### Phase 1: Quick Wins (IN CURRENT FOCUS)
+### Phase 1 — ... (✅ DONE / NEXT / ...)
 
-- [ ] Concrete task 1
-- [ ] Concrete task 2
-
-### Phase 2: Core Work
-
-- [ ] Task with dependencies noted
-
-### Phase 3: Polish (Optional)
-
-- [ ] Nice-to-haves if time permits
+- [ ] Concrete task with dependencies noted
 ```
 
 ## Anti-Patterns
 
-| Don't                              | Do Instead                              |
-| ---------------------------------- | --------------------------------------- |
-| Have 10 items in Current Focus     | Max 3 items. Focus beats breadth.       |
-| Leave items in Inbox for months    | Triage weekly. Icebox or delete.        |
-| Work on Icebox items spontaneously | Promote to Quick Wins first.            |
-| Have multiple "Active Epics"       | One epic. Queue the rest as Next.       |
-| Add items without context          | Include why, what, and acceptance.      |
-| Delete items you might revisit     | Move to Icebox or Deferred with reason. |
+| Don't                              | Do Instead                                                        |
+| ---------------------------------- | ----------------------------------------------------------------- |
+| Put >3 items in Current Focus      | Max 3. Focus beats breadth.                                       |
+| Let Untriaged pile up              | Route items per the ladder before session-end; empty is the goal. |
+| Reintroduce a trigger-based bucket | Trigger is a field; file by granularity.                          |
+| Delete an item because it's old    | Aging escalates priority — act on it, don't discard.              |
+| Have multiple "Active Epics"       | One epic. The rest live in `cold/queue.md`.                       |
+| Add items without context          | Include why, what, and acceptance.                                |
+| Load `cold/` at session start      | It's grep-on-demand; only the HOT files load every session.       |
 
 ## Tags
 
-Use consistently across all sections:
+Use consistently across all files:
 
-- 🏗️ `[LIFT]` - Refactor/tech debt
-- ✨ `[FEAT]` - New feature
-- 🐛 `[FIX]` - Bug fix
-- 🧹 `[CHORE]` - Maintenance/cleanup
+- 🏗️ `[LIFT]` — Refactor/tech debt
+- ✨ `[FEAT]` — New feature
+- 🐛 `[FIX]` — Bug fix
+- 🧹 `[CHORE]` — Maintenance/cleanup
