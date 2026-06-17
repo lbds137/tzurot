@@ -375,6 +375,26 @@ function buildOpenRouterModel(
     throw new Error('OPENROUTER_API_KEY is required for AI generation');
   }
 
+  // TEMPORARY diagnostic (debug, VISION_AUTH_PROBE=1): pin the cross-provider
+  // vision 401 — logs the FINAL key length handed to ChatOpenAI (never the key)
+  // and whether the per-request key or the system fallback was used, for the
+  // failing model. Noisy (fires for every OpenRouter build while enabled) but
+  // env-gated + short-lived. Remove with the vision-auth fix once read.
+  if (process.env.VISION_AUTH_PROBE === '1') {
+    const perRequestKeyLen = modelConfig.apiKey?.length ?? 0;
+    logger.info(
+      {
+        probe: 'vision-auth',
+        site: 'buildOpenRouterModel',
+        modelName,
+        perRequestKeyLen,
+        usedSystemFallback: perRequestKeyLen === 0,
+        finalApiKeyLen: apiKey.length,
+      },
+      '[VISION-AUTH-PROBE]'
+    );
+  }
+
   const extraParams = buildOpenRouterExtraParams(modelConfig);
   const hasExtraParams = Object.keys(extraParams).length > 0;
   const hasReasoning =

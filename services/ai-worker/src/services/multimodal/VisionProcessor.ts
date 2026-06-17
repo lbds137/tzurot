@@ -32,6 +32,19 @@ const logger = createLogger('VisionProcessor');
 const config = getConfig();
 
 /**
+ * TEMPORARY diagnostic (debug, VISION_AUTH_PROBE=1): PII-safe vision-auth probe to
+ * pin the cross-provider vision 401 ("Missing Authentication header" despite a real
+ * system key). Logs key LENGTHS/provider/source only — never the key itself — so we
+ * can tell an empty resolved key from a non-empty-but-rejected one. Remove with the
+ * vision-auth fix once read.
+ */
+function logVisionAuthProbe(fields: Record<string, unknown>): void {
+  if (process.env.VISION_AUTH_PROBE === '1') {
+    logger.info({ probe: 'vision-auth', ...fields }, '[VISION-AUTH-PROBE]');
+  }
+}
+
+/**
  * User-friendly labels for the ATTACHMENT-BOUND error categories that actually reach
  * `FAILURE_LABELS` via `buildFailureFallback`. Other categories (auth, quota, rate-limit,
  * server-error, timeout, network, etc.) return the generic "temporarily unavailable"
@@ -235,6 +248,16 @@ async function invokeVisionModel(
       'invokeVisionModel called without explicit provider — misrouting risk for cross-provider personalities'
     );
   }
+
+  // TEMPORARY diagnostic (debug, VISION_AUTH_PROBE=1) — see logVisionAuthProbe.
+  logVisionAuthProbe({
+    site: 'invokeVisionModel',
+    modelName,
+    provider: provider ?? null,
+    userApiKeyLen: userApiKey?.length ?? 0,
+    apiKeySource: loggingContext.apiKeySource ?? null,
+    personalityName,
+  });
 
   const { model } = createChatModel({
     modelName,
