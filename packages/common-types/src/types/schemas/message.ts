@@ -64,6 +64,16 @@ export const referencedMessageSchema = z.object({
 });
 
 /**
+ * Resolved image description for a referenced message's image attachment.
+ * Single source of truth for the shape: both the Zod field below and the
+ * derived `ResolvedImageDescription` type reference this, so they can't drift.
+ */
+export const resolvedImageDescriptionSchema = z.object({
+  filename: z.string(),
+  description: z.string(),
+});
+
+/**
  * Stored referenced message schema
  * Snapshot of a referenced message stored in message_metadata JSONB column
  * Preserves the state of the message at the time it was referenced (receipt perspective)
@@ -83,9 +93,7 @@ export const storedReferencedMessageSchema = z.object({
   // Ephemeral — set by hydration in ai-worker before prompt formatting
   resolvedPersonaId: z.string().optional(),
   resolvedPersonaName: z.string().optional(),
-  resolvedImageDescriptions: z
-    .array(z.object({ filename: z.string(), description: z.string() }))
-    .optional(),
+  resolvedImageDescriptions: z.array(resolvedImageDescriptionSchema).optional(),
 });
 
 /**
@@ -175,6 +183,7 @@ export const crossChannelHistoryGroupSchema = z.object({
 // Infer TypeScript types from schemas
 export type ReferencedMessage = z.infer<typeof referencedMessageSchema>;
 export type StoredReferencedMessage = z.infer<typeof storedReferencedMessageSchema>;
+export type ResolvedImageDescription = z.infer<typeof resolvedImageDescriptionSchema>;
 export type ReactionReactor = z.infer<typeof reactionReactorSchema>;
 export type MessageReaction = z.infer<typeof messageReactionSchema>;
 export type MessageMetadata = z.infer<typeof messageMetadataSchema>;
