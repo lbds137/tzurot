@@ -29,6 +29,7 @@ import {
   DenylistCacheInvalidationService,
   ConfigCascadeCacheInvalidationService,
   ConfigCascadeResolver,
+  LlmConfigResolver,
   type PrismaClient,
 } from '@tzurot/common-types';
 import { ConversationRetentionService } from './services/ConversationRetentionService.js';
@@ -114,6 +115,7 @@ interface ServicesContext {
   denylistInvalidation: DenylistCacheInvalidationService;
   cascadeInvalidation: ConfigCascadeCacheInvalidationService;
   cascadeResolver: ConfigCascadeResolver;
+  llmConfigResolver: LlmConfigResolver;
   modelCache: OpenRouterModelCache;
   dbNotificationListener: DatabaseNotificationListener;
 }
@@ -181,6 +183,15 @@ async function initializeServices(prisma: PrismaClient): Promise<ServicesContext
   });
   logger.info('ConfigCascadeResolver initialized with cache invalidation');
 
+  // LLM model-config cascade resolver for the /ai/generate handler. Resolves
+  // {model, visionModel} once at job-chain build so the image-description child
+  // job uses the user-cascaded model rather than the personality seed (the
+  // global paid default). No pub/sub invalidation is wired here — it relies on
+  // the built-in 10s TTL, matching the staleness window the cascade already
+  // carries elsewhere. Converging this instance with the one in
+  // routes/user/llmConfigResolve.ts (and adding pub/sub) is a tracked backlog item.
+  const llmConfigResolver = new LlmConfigResolver(prisma);
+
   const modelCache = new OpenRouterModelCache(cacheRedis);
 
   // Initialize local embedding service for memory search
@@ -214,6 +225,7 @@ async function initializeServices(prisma: PrismaClient): Promise<ServicesContext
     denylistInvalidation,
     cascadeInvalidation,
     cascadeResolver,
+    llmConfigResolver,
     modelCache,
     dbNotificationListener,
   };
@@ -234,6 +246,7 @@ function registerRoutes(app: Express, prisma: PrismaClient, services: ServicesCo
     denylistInvalidation,
     cascadeInvalidation,
     cascadeResolver,
+    llmConfigResolver,
     modelCache,
   } = services;
 
@@ -281,7 +294,7 @@ function registerRoutes(app: Express, prisma: PrismaClient, services: ServicesCo
   app.use('/voice-references', createVoiceReferenceRouter(prisma));
   logger.info('Voice references route registered (service-auth protected)');
 
-  app.use('/ai', createAIRouter({ prisma, aiQueue, queueEvents }));
+  app.use('/ai', createAIRouter({ prisma, aiQueue, queueEvents, llmConfigResolver }));
   logger.info('AI routes registered');
 
   // ---- Codegen-mounted /api/{internal,admin,user} routes ------------------
@@ -304,6 +317,7 @@ function registerRoutes(app: Express, prisma: PrismaClient, services: ServicesCo
     apiKeyCacheInvalidation,
     retentionService,
     cascadeResolver,
+    llmConfigResolver,
     modelCache,
     redis: cacheRedis,
     aiQueue,

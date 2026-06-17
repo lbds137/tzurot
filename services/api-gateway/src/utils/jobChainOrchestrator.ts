@@ -20,6 +20,8 @@ import {
   type JobDependency,
   type JobContext,
   type ResponseDestination,
+  type LlmConfigResolver,
+  type ConfigSourceId,
   JobStatus,
   audioTranscriptionJobDataSchema,
   imageDescriptionJobDataSchema,
@@ -278,44 +280,96 @@ function processAttachmentsForJobs(
 }
 
 /**
- * Orchestrate job chain creation using BullMQ FlowProducer
+ * Resolve the user's effective LLM config ONCE and stamp the resolved
+ * `model`/`visionModel` onto the personality, so every job in the chain (the
+ * conversation job AND the image-description child job) shares the same
+ * user-cascaded values. Without this, the image-description job consumes the
+ * personality SEED model (the global paid default applied at load time) because
+ * it never runs ai-worker's `ConfigStep` cascade.
  *
- * Flow:
- * 1. If attachments exist, categorize them (audio vs images)
- * 2. Build child jobs array (preprocessing jobs)
- * 3. Create flow with LLM as parent, preprocessing as children
- * 4. BullMQ runs children FIRST (in parallel), then parent when all complete
- * 5. Return the parent (LLM) job ID
+ * `provider` is intentionally NOT stamped: `ResolvedLlmConfig` carries no
+ * provider (all configs are OpenRouter; ai-worker's ProviderRouter auto-promotes
+ * by model-name prefix), so the configured seed provider must survive for
+ * AuthStep's routing to fire.
  *
- * **Parallel Preprocessing**: BullMQ FlowProducer automatically executes all child jobs
- * concurrently (audio transcription + image description run simultaneously). The parent
- * (LLM) job is only queued after ALL children successfully complete.
+ * Fails open: a resolver throw (or no resolver wired) falls back to the seed
+ * personality — never block job creation on config resolution.
  */
-export async function createJobChain(params: {
+async function stampResolvedConfig(
+  personality: LoadedPersonality,
+  userId: string,
+  requestId: string,
+  llmConfigResolver?: LlmConfigResolver
+): Promise<{ personality: LoadedPersonality; configSource: ConfigSourceId }> {
+  if (llmConfigResolver === undefined) {
+    return { personality, configSource: 'personality' };
+  }
+
+  try {
+    const resolved = await llmConfigResolver.resolveConfig(userId, personality.id, personality);
+
+    // Only the two user-override tiers stamp a model onto the personality.
+    // - 'personality': the resolved model equals the seed already → return it
+    //   unchanged (no spread, and the source stays 'personality').
+    // - 'free-default'/'hardcoded': LlmConfigResolver should never produce these
+    //   (they're TtsConfigResolver tiers). Warn so the contract violation stays
+    //   observable (the demoted ConfigStep used to throw), and leave the seed
+    //   untouched — don't stamp a model while reporting source 'personality'.
+    if (resolved.source === 'free-default' || resolved.source === 'hardcoded') {
+      logger.warn(
+        { requestId, personalityId: personality.id, unexpectedSource: resolved.source },
+        'LlmConfigResolver returned a TTS-only config source — using personality seed'
+      );
+      return { personality, configSource: 'personality' };
+    }
+    if (resolved.source === 'personality') {
+      return { personality, configSource: 'personality' };
+    }
+
+    // user-personality | user-default → stamp the resolved model/visionModel.
+    // `resolved.config` is already merged with personality fallbacks, so `model`
+    // is the final value. Only overwrite `visionModel` when the resolved config
+    // carries one — otherwise keep the personality's own (mirrors
+    // LlmConfigResolver's `override ?? personality` merge).
+    const resolvedVisionModel = resolved.config.visionModel;
+    const effectivePersonality: LoadedPersonality = {
+      ...personality,
+      model: resolved.config.model,
+      ...(resolvedVisionModel !== null && resolvedVisionModel !== undefined
+        ? { visionModel: resolvedVisionModel }
+        : {}),
+    };
+    return { personality: effectivePersonality, configSource: resolved.source };
+  } catch (error) {
+    logger.warn(
+      { err: error, requestId, personalityId: personality.id },
+      'LLM config resolution failed at job-chain build — using personality seed'
+    );
+    return { personality, configSource: 'personality' };
+  }
+}
+
+/** Base params shared by every preprocessing job in a chain (per-job suffix/ref added at call site). */
+interface BasePreprocessingParams {
   requestId: string;
-  personality: LoadedPersonality;
-  message: string | object;
-  context: JobContext;
+  userId: string;
+  channelId: string | undefined;
   responseDestination: ResponseDestination;
-  userApiKey?: string;
-}): Promise<string> {
-  const { requestId, personality, message, context, responseDestination, userApiKey } = params;
+  personality: LoadedPersonality;
+  queueName: string;
+}
 
-  const config = await import('@tzurot/common-types').then(m => m.getConfig());
-  const QUEUE_NAME = config.QUEUE_NAME;
-
-  // Build child jobs array (preprocessing jobs that must complete first)
+/**
+ * Collect preprocessing child jobs for direct attachments AND referenced-message
+ * attachments. Both share the (already config-stamped) `baseJobParams.personality`.
+ */
+function collectPreprocessingJobs(
+  context: JobContext,
+  baseJobParams: BasePreprocessingParams
+): PreprocessingJobsResult {
+  const { requestId } = baseJobParams;
   const children: FlowJob[] = [];
   const dependencies: JobDependency[] = [];
-
-  const baseJobParams = {
-    requestId,
-    userId: context.userId,
-    channelId: context.channelId,
-    responseDestination,
-    personality,
-    queueName: QUEUE_NAME,
-  };
 
   // Process direct attachments
   if (context.attachments && context.attachments.length > 0) {
@@ -323,7 +377,6 @@ export async function createJobChain(params: {
       { requestId, attachmentCount: context.attachments.length },
       'Attachments detected - creating preprocessing jobs as flow children'
     );
-
     const result = processAttachmentsForJobs(context.attachments, {
       ...baseJobParams,
       requestIdSuffix: '',
@@ -350,7 +403,6 @@ export async function createJobChain(params: {
       if (!refMsg.attachments || refMsg.attachments.length === 0) {
         continue;
       }
-
       const result = processAttachmentsForJobs(refMsg.attachments, {
         ...baseJobParams,
         requestIdSuffix: `-ref${refMsg.referenceNumber}`,
@@ -370,6 +422,58 @@ export async function createJobChain(params: {
     );
   }
 
+  return { children, dependencies };
+}
+
+/**
+ * Orchestrate job chain creation using BullMQ FlowProducer
+ *
+ * Flow:
+ * 1. If attachments exist, categorize them (audio vs images)
+ * 2. Build child jobs array (preprocessing jobs)
+ * 3. Create flow with LLM as parent, preprocessing as children
+ * 4. BullMQ runs children FIRST (in parallel), then parent when all complete
+ * 5. Return the parent (LLM) job ID
+ *
+ * **Parallel Preprocessing**: BullMQ FlowProducer automatically executes all child jobs
+ * concurrently (audio transcription + image description run simultaneously). The parent
+ * (LLM) job is only queued after ALL children successfully complete.
+ */
+export async function createJobChain(params: {
+  requestId: string;
+  personality: LoadedPersonality;
+  message: string | object;
+  context: JobContext;
+  responseDestination: ResponseDestination;
+  userApiKey?: string;
+  llmConfigResolver?: LlmConfigResolver;
+}): Promise<string> {
+  const { requestId, message, context, responseDestination, userApiKey, llmConfigResolver } =
+    params;
+
+  const config = await import('@tzurot/common-types').then(m => m.getConfig());
+  const QUEUE_NAME = config.QUEUE_NAME;
+
+  // Resolve the user's effective LLM config once and stamp it onto the
+  // personality used by EVERY job in this chain (conversation + image-desc).
+  const { personality, configSource } = await stampResolvedConfig(
+    params.personality,
+    context.userId,
+    requestId,
+    llmConfigResolver
+  );
+
+  // Build child jobs (preprocessing jobs that must complete before the LLM job).
+  // Both direct + referenced-message attachments share the config-stamped personality.
+  const { children, dependencies } = collectPreprocessingJobs(context, {
+    requestId,
+    userId: context.userId,
+    channelId: context.channelId,
+    responseDestination,
+    personality,
+    queueName: QUEUE_NAME,
+  });
+
   // Create LLM generation job as parent (runs after all children complete)
   const llmJobId = `${JOB_PREFIXES.LLM_GENERATION}${requestId}`;
   const llmJobData: LLMGenerationJobData = {
@@ -380,6 +484,7 @@ export async function createJobChain(params: {
     context,
     responseDestination,
     userApiKey,
+    configSource,
     dependencies: dependencies.length > 0 ? dependencies : undefined,
   };
 
