@@ -23,6 +23,7 @@ import {
   type LoadedPersonality,
 } from '@tzurot/common-types';
 import { createChatModel } from '../ModelFactory.js';
+import { detectVisionProvider } from '../ProviderRouter.js';
 import { parseApiError } from '../../utils/apiErrorParser.js';
 import { checkModelVisionSupport, visionDescriptionCache } from '../../redis.js';
 import { isDataUrl } from '../../utils/attachmentFetch.js';
@@ -136,16 +137,14 @@ export interface DescribeImageOptions {
   /** Diagnostic context for failure logging + source-aware fallback strings */
   loggingContext?: VisionLoggingContext;
   /**
-   * Explicit provider for the vision call, derived from the vision model name
-   * by the caller (typically via `detectVisionProvider` in `ProviderRouter`).
-   *
-   * **WARNING — all new callers MUST provide this.** Omitting it makes
-   * `createChatModel` fall back to the env-default `config.AI_PROVIDER`,
-   * which silently misroutes cross-provider personalities (e.g., main=z.ai-coding
-   * + vision=OpenRouter) and reproduces the exact 401 bug this resolver exists
-   * to prevent. The `?` is retained ONLY for backward compat with legacy tests
-   * predating the cross-provider fix; tracked in `backlog/inbox.md` as
-   * "Make `visionProvider` required in vision-pipeline option bags."
+   * Explicit provider for the vision call. When omitted, `describeImage` derives
+   * it from the RESOLVED vision model via `detectVisionProvider`, so an omitted
+   * provider no longer misroutes — the derivation is the safety net that keeps
+   * cross-provider personalities (e.g. main=z.ai-coding + vision=OpenRouter) on
+   * the right route instead of the env-default `config.AI_PROVIDER`. Still prefer
+   * passing it when the caller already knows the provider (e.g. a registry/
+   * resolver that also drives BYOK key routing); an explicit value wins over the
+   * derivation.
    */
   provider?: AIProvider;
   /**
@@ -468,10 +467,7 @@ export async function selectVisionModel(
     personality.visionModel !== null &&
     personality.visionModel.length > 0
   ) {
-    logger.info(
-      { visionModel: personality.visionModel },
-      'Using configured vision model (personality override)'
-    );
+    logger.info({ visionModel: personality.visionModel }, 'Using configured vision model');
     return personality.visionModel;
   }
 
@@ -579,10 +575,17 @@ export async function describeImage(
     options.model !== undefined && options.model.length > 0
       ? options.model
       : await selectVisionModel(personality, isGuestMode);
+  // Derive the provider from the RESOLVED vision model when the caller didn't
+  // supply one. An undefined provider makes createChatModel fall back to the
+  // env-default AI_PROVIDER, which misroutes cross-provider personalities (e.g.
+  // an OpenRouter vision model paired with a z.ai-coding main model) → wrong
+  // route → 401 Missing Authentication. detectVisionProvider maps the actual
+  // model name to its route, so key resolution and routing stay aligned.
+  const provider = options.provider ?? detectVisionProvider(usedModel);
   const description = await invokeVisionModel(attachment, usedModel, {
     systemPrompt,
     userApiKey,
-    provider: options.provider,
+    provider,
     loggingContext,
     personalityName: personality.name,
   });
