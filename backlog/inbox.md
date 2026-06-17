@@ -11,6 +11,12 @@ _New items go here. Triage to appropriate section weekly._
 
 **Promote when:** the #1237 dedup/weigh-in fixes and the Bug C image fix are dev-verified — then read both probes, apply the embed fix, and remove both probes.
 
+### `[FIX]` Short-circuit retry-storm on permanently-dead image URLs (media_not_found)
+
+**Surfaced 2026-06-17** while verifying beta.133 on dev. An image whose Discord CDN URL has expired (404) — e.g. an old image sitting in a channel's extended-context window — triggers a full multi-provider retry storm every turn it's re-attempted. Observed ~106s added latency on request `6b825048` (`AuraBecoming-Lila.jpg`, expired signed URL): vision retried across ~7 OpenRouter providers (404 / 502 / 429 / "model doesn't accept image input") through the 3-attempt `withRetry` before giving up, then negative-cached it (`media_not_found`, 3600s). Two problems: (a) the first re-attempt per hour still pays the full storm; (b) the reference/inline path passes `skipNegativeCache: true`, so it ignores the negative cache and re-storms even within the 1h window.
+
+**Action**: when a fetch fails permanently (`errorCategory='media_not_found'`, `shouldRetry=false`), short-circuit immediately — skip the cross-provider retry, and have `skipNegativeCache` bypass only _transient_-failure caching, not permanent media-not-found (so a dead URL stays suppressed). **Why not now**: pre-existing, not beta.133-gating; small design pass on `skipNegativeCache` semantics.
+
 ### `[FEAT]` Multimodal input: file (PDF/doc) + video forwarding, then surface in `/models`
 
 **Surfaced 2026-06-15 (user)** while reviewing `/models browse` modality coverage. OpenRouter's `ModelModality` is `text | image | audio | video | file`, but we only capture/route **text, image, audio**. `video` and `file` (PDF/doc) input modalities are dropped from `ModelAutocompleteOption` (`OpenRouterModelCache.toAutocompleteOption`), and — more fundamentally — the bot can't *send* them: `MessageContentBuilder` renders every non-voice/non-image attachment as a **text description** (`[Attachments: [application/pdf: doc.pdf]]`), never as native model input. So surfacing `supportsFileInput`/`supportsVideoInput` today would over-promise.
