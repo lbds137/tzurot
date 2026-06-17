@@ -19,15 +19,15 @@ import type { RouteDeps } from '../routeDeps.js';
 /**
  * POST /api/internal/ai/generate — create an AI generation job.
  *
- * The `_deps` parameter is the interface-implementation escape hatch from
- * `02-code-standards.md` — every handler in the manifest is invoked as
- * `handle<Name>(deps)` by the generated mounts.ts, so the signature is
- * fixed by the codegen contract regardless of which deps a given handler
- * actually uses. This handler's body reads neither `deps.prisma` nor any
- * other field; the deduplication cache and BullMQ job queue are
- * module-load singletons accessed via getters.
+ * Reads `deps.llmConfigResolver` to resolve the effective LLM config once at
+ * job-chain build time (see `createJobChain`), so the conversation job and the
+ * image-description child job share the same user-cascaded model rather than the
+ * personality seed. The resolver is optional: when absent (tests, or wiring not
+ * present), `createJobChain` falls back to the seed personality unchanged. The
+ * deduplication cache and BullMQ job queue remain module-load singletons
+ * accessed via getters.
  */
-export const handleAiGenerate = (_deps: RouteDeps): RequestHandler =>
+export const handleAiGenerate = (deps: RouteDeps): RequestHandler =>
   asyncHandler(async (req: Request, res: Response) => {
     const startTime = Date.now();
 
@@ -72,6 +72,7 @@ export const handleAiGenerate = (_deps: RouteDeps): RequestHandler =>
         context: request.context,
         responseDestination: { type: 'api' as const },
         userApiKey: request.userApiKey,
+        llmConfigResolver: deps.llmConfigResolver,
       });
 
       await deduplicationCache.cacheRequest(request, requestId, jobId);

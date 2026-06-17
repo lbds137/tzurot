@@ -29,9 +29,10 @@ describe('POST /generate', () => {
     // Create Express app with generate router
     app = express();
     app.use(express.json());
-    // handleAiGenerate ignores its deps argument (see _deps in generate.ts).
-    // Pass an empty stub through the RouteDeps cast — `{} as unknown as
-    // RouteDeps` is clearer than `as never` here.
+    // handleAiGenerate reads only `deps.llmConfigResolver` (optional). With an
+    // empty stub it's undefined, so createJobChain (mocked here) is invoked with
+    // no resolver and falls back to the seed personality — exercising the
+    // back-compat path. `{} as unknown as RouteDeps` is clearer than `as never`.
     app.post('/generate', handleAiGenerate({} as unknown as RouteDeps));
   });
 

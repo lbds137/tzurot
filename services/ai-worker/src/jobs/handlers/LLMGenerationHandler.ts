@@ -147,7 +147,7 @@ export class LLMGenerationHandler {
     this.pipeline = [
       new ValidationStep(),
       new NormalizationStep(),
-      new ConfigStep(configResolver, cascadeResolver),
+      new ConfigStep(cascadeResolver),
       new AuthStep(apiKeyResolver, configResolver, undefined, sttResolver),
       new DownloadAttachmentsStep(),
       new DependencyStep(apiKeyResolver, visionDescriptionWriter),

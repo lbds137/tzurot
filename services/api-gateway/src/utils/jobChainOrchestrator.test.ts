@@ -8,6 +8,7 @@ import { flowProducer } from '../queue.js';
 import {
   JobType,
   type LoadedPersonality,
+  type LlmConfigResolver,
   type JobContext,
   type ResponseDestination,
   CONTENT_TYPES,
@@ -890,6 +891,221 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
 
       // LLM parent should have 2 dependencies
       expect(flowCall.data.dependencies).toHaveLength(2);
+    });
+  });
+
+  describe('LLM config resolution stamping', () => {
+    const imageAttachmentContext = (): JobContext => ({
+      userId: 'user-123',
+      channelId: 'channel-123',
+      attachments: [
+        {
+          url: 'https://example.com/image.png',
+          name: 'image.png',
+          contentType: CONTENT_TYPES.IMAGE_PNG,
+          size: 2048,
+        },
+      ],
+    });
+
+    const resolverReturning = (
+      config: { model: string; visionModel?: string },
+      source: string
+    ): LlmConfigResolver =>
+      ({
+        resolveConfig: vi.fn().mockResolvedValue({ config, source }),
+      }) as unknown as LlmConfigResolver;
+
+    it('stamps resolved model + visionModel onto BOTH the LLM job and the image-description child', async () => {
+      const llmConfigResolver = resolverReturning(
+        { model: 'z-ai/glm-5.2', visionModel: 'google/gemma-4-31b-it' },
+        'user-default'
+      );
+
+      await createJobChain({
+        requestId: 'req-stamp',
+        personality: mockPersonality, // seed model 'test-model'
+        message: 'What is this?',
+        context: imageAttachmentContext(),
+        responseDestination: mockResponseDestination,
+        llmConfigResolver,
+      });
+
+      const flowCall = (flowProducer.add as any).mock.calls[0][0];
+
+      // Conversation (parent) job carries the user-cascaded model + diagnostic source
+      expect(flowCall.data.personality.model).toBe('z-ai/glm-5.2');
+      expect(flowCall.data.personality.visionModel).toBe('google/gemma-4-31b-it');
+      expect(flowCall.data.configSource).toBe('user-default');
+
+      // Non-model personality fields survive the stamp (spread preserves them).
+      expect(flowCall.data.personality.systemPrompt).toBe(mockPersonality.systemPrompt);
+      expect(flowCall.data.personality.temperature).toBe(mockPersonality.temperature);
+
+      // Image-description child carries the SAME values (the Bug X fix)
+      const imageJob = flowCall.children.find((c: any) => c.name === JobType.ImageDescription);
+      expect(imageJob.data.personality.model).toBe('z-ai/glm-5.2');
+      expect(imageJob.data.personality.visionModel).toBe('google/gemma-4-31b-it');
+    });
+
+    it('does NOT overwrite provider (AuthStep auto-promote relies on the configured provider)', async () => {
+      const llmConfigResolver = resolverReturning(
+        { model: 'z-ai/glm-5.2', visionModel: 'google/gemma-4-31b-it' },
+        'user-default'
+      );
+
+      await createJobChain({
+        requestId: 'req-provider',
+        personality: mockPersonality, // provider: 'openrouter'
+        message: 'hi',
+        context: imageAttachmentContext(),
+        responseDestination: mockResponseDestination,
+        llmConfigResolver,
+      });
+
+      const flowCall = (flowProducer.add as any).mock.calls[0][0];
+      expect(flowCall.data.personality.provider).toBe('openrouter');
+    });
+
+    it('keeps the personality visionModel when the resolved config has none', async () => {
+      const personalityWithVision: LoadedPersonality = {
+        ...mockPersonality,
+        visionModel: 'seed-vision',
+      };
+      const llmConfigResolver = resolverReturning({ model: 'z-ai/glm-5.2' }, 'user-default');
+
+      await createJobChain({
+        requestId: 'req-keep-vision',
+        personality: personalityWithVision,
+        message: 'hi',
+        context: imageAttachmentContext(),
+        responseDestination: mockResponseDestination,
+        llmConfigResolver,
+      });
+
+      const flowCall = (flowProducer.add as any).mock.calls[0][0];
+      expect(flowCall.data.personality.model).toBe('z-ai/glm-5.2');
+      expect(flowCall.data.personality.visionModel).toBe('seed-vision');
+    });
+
+    it('leaves the seed personality and reports configSource=personality when source is personality', async () => {
+      const llmConfigResolver = resolverReturning({ model: 'test-model' }, 'personality');
+
+      await createJobChain({
+        requestId: 'req-seed',
+        personality: mockPersonality,
+        message: 'hi',
+        context: imageAttachmentContext(),
+        responseDestination: mockResponseDestination,
+        llmConfigResolver,
+      });
+
+      const flowCall = (flowProducer.add as any).mock.calls[0][0];
+      expect(flowCall.data.personality.model).toBe('test-model');
+      expect(flowCall.data.configSource).toBe('personality');
+    });
+
+    it('falls back to the seed personality when no resolver is wired (back-compat)', async () => {
+      await createJobChain({
+        requestId: 'req-no-resolver',
+        personality: mockPersonality,
+        message: 'hi',
+        context: imageAttachmentContext(),
+        responseDestination: mockResponseDestination,
+        // llmConfigResolver omitted
+      });
+
+      const flowCall = (flowProducer.add as any).mock.calls[0][0];
+      expect(flowCall.data.personality.model).toBe('test-model');
+      expect(flowCall.data.configSource).toBe('personality');
+    });
+
+    it('falls back to the seed personality when the resolver throws (never blocks job creation)', async () => {
+      const llmConfigResolver = {
+        resolveConfig: vi.fn().mockRejectedValue(new Error('db down')),
+      } as unknown as LlmConfigResolver;
+
+      const jobId = await createJobChain({
+        requestId: 'req-throw',
+        personality: mockPersonality,
+        message: 'hi',
+        context: imageAttachmentContext(),
+        responseDestination: mockResponseDestination,
+        llmConfigResolver,
+      });
+
+      const flowCall = (flowProducer.add as any).mock.calls[0][0];
+      expect(flowCall.data.personality.model).toBe('test-model');
+      expect(flowCall.data.configSource).toBe('personality');
+      expect(jobId).toBe('llm-job-123');
+    });
+
+    it('stamps the resolved model onto referenced-message image jobs', async () => {
+      const llmConfigResolver = resolverReturning(
+        { model: 'z-ai/glm-5.2', visionModel: 'google/gemma-4-31b-it' },
+        'user-default'
+      );
+      const context: JobContext = {
+        userId: 'user-123',
+        channelId: 'channel-123',
+        referencedMessages: [
+          {
+            referenceNumber: 1,
+            discordMessageId: 'discord-msg-1',
+            discordUserId: 'discord-user-1',
+            authorDisplayName: 'Ref User',
+            authorUsername: 'refuser',
+            timestamp: '2025-11-30T00:00:00Z',
+            locationContext: 'Test Guild > #general',
+            content: 'Look at this',
+            embeds: '',
+            attachments: [
+              {
+                url: 'https://example.com/ref-image.png',
+                name: 'ref-image.png',
+                contentType: CONTENT_TYPES.IMAGE_PNG,
+                size: 2048,
+              },
+            ],
+          },
+        ],
+      };
+
+      await createJobChain({
+        requestId: 'req-ref-stamp',
+        personality: mockPersonality,
+        message: 'What is in this image?',
+        context,
+        responseDestination: mockResponseDestination,
+        llmConfigResolver,
+      });
+
+      const flowCall = (flowProducer.add as any).mock.calls[0][0];
+      const imageJob = flowCall.children.find((c: any) => c.name === JobType.ImageDescription);
+      expect(imageJob.data.personality.model).toBe('z-ai/glm-5.2');
+      expect(imageJob.data.personality.visionModel).toBe('google/gemma-4-31b-it');
+    });
+
+    it('leaves the seed untouched on an unexpected TTS-tier source (free-default)', async () => {
+      // LlmConfigResolver should never return TTS-only tiers; stampResolvedConfig
+      // defends against it by leaving the seed personality AND reporting source
+      // 'personality' — no "diagnostic lie" where a stamped model contradicts the
+      // reported source. The warn log (not asserted here) keeps the violation visible.
+      const llmConfigResolver = resolverReturning({ model: 'z-ai/glm-5.2' }, 'free-default');
+
+      await createJobChain({
+        requestId: 'req-free-default',
+        personality: mockPersonality,
+        message: 'hi',
+        context: imageAttachmentContext(),
+        responseDestination: mockResponseDestination,
+        llmConfigResolver,
+      });
+
+      const flowCall = (flowProducer.add as any).mock.calls[0][0];
+      expect(flowCall.data.configSource).toBe('personality');
+      // Seed preserved — the unexpected-tier model is NOT stamped.
+      expect(flowCall.data.personality.model).toBe('test-model');
     });
   });
 });

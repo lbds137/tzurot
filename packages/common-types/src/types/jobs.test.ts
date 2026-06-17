@@ -384,6 +384,49 @@ describe('BullMQ Job Contract Tests', () => {
       expect(result.success).toBe(true);
     });
 
+    it('should accept an optional configSource stamped by the gateway and reject unknown values', () => {
+      const base: LLMGenerationJobData = {
+        requestId: 'req-config-source',
+        jobType: JobType.LLMGeneration,
+        responseDestination: { type: 'discord', channelId: 'channel-123' },
+        personality: {
+          id: 'personality-123',
+          name: 'TestPersonality',
+          displayName: 'Test Personality',
+          slug: 'test',
+          ownerId: 'owner-uuid-test',
+          systemPrompt: 'You are a helpful assistant',
+          model: 'gpt-4',
+          provider: 'openrouter',
+          temperature: 0.7,
+          maxTokens: 2000,
+          contextWindowTokens: 8192,
+          characterInfo: 'A helpful test personality',
+          personalityTraits: 'Helpful, friendly',
+          voiceEnabled: false,
+        },
+        message: 'Hello',
+        context: { userId: 'user-123' },
+      };
+
+      // Omitted is valid (backward compatibility with in-flight jobs)
+      expect(llmGenerationJobDataSchema.safeParse(base).success).toBe(true);
+
+      // Each cascade tier round-trips
+      for (const source of ['personality', 'user-personality', 'user-default'] as const) {
+        const parsed = llmGenerationJobDataSchema.safeParse({ ...base, configSource: source });
+        expect(parsed.success).toBe(true);
+        if (parsed.success) {
+          expect(parsed.data.configSource).toBe(source);
+        }
+      }
+
+      // Unknown source is rejected
+      expect(
+        llmGenerationJobDataSchema.safeParse({ ...base, configSource: 'free-default' }).success
+      ).toBe(false);
+    });
+
     it('should accept both string and object message types', () => {
       // String message
       const jobWithString: LLMGenerationJobData = {

@@ -7,41 +7,14 @@
 
 import {
   createLogger,
-  LLM_CONFIG_OVERRIDE_KEYS,
   HARDCODED_CONFIG_DEFAULTS,
-  type LoadedPersonality,
   type ConfigOverrideSource,
-  type LlmConfigResolver,
-  type ResolvedLlmConfig,
   type ResolvedConfigOverrides,
   type ConfigCascadeResolver,
 } from '@tzurot/common-types';
 import type { IPipelineStep, GenerationContext, ResolvedConfig } from '../types.js';
 
 const logger = createLogger('ConfigStep');
-
-/**
- * Merge user LLM config override with personality defaults.
- * Config values take precedence; personality values are fallbacks.
- */
-function mergeConfigWithPersonality(
-  personality: LoadedPersonality,
-  config: ResolvedLlmConfig
-): LoadedPersonality {
-  // Start with personality as base, override model (required field)
-  const result = { ...personality, model: config.model };
-
-  // For each config key, use config value if defined, else keep personality value
-  for (const key of LLM_CONFIG_OVERRIDE_KEYS) {
-    const configValue = config[key];
-    if (configValue !== undefined) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access -- Dynamic key assignment from LLM_CONFIG_OVERRIDE_KEYS requires runtime indexing
-      (result as any)[key] = configValue;
-    }
-  }
-
-  return result;
-}
 
 /** Build a ResolvedConfigOverrides with all hardcoded defaults */
 function buildDefaultOverrides(): ResolvedConfigOverrides {
@@ -58,60 +31,19 @@ function buildDefaultOverrides(): ResolvedConfigOverrides {
 export class ConfigStep implements IPipelineStep {
   readonly name = 'ConfigResolution';
 
-  constructor(
-    private readonly configResolver?: LlmConfigResolver,
-    private readonly cascadeResolver?: ConfigCascadeResolver
-  ) {}
+  constructor(private readonly cascadeResolver?: ConfigCascadeResolver) {}
 
   async process(context: GenerationContext): Promise<GenerationContext> {
     const { job } = context;
-    const { personality, context: jobContext } = job.data;
+    const { personality, context: jobContext, configSource: stampedSource } = job.data;
 
-    let effectivePersonality = personality;
-    let configSource: ResolvedConfig['configSource'] = 'personality';
-
-    if (this.configResolver) {
-      try {
-        const configResult = await this.configResolver.resolveConfig(
-          jobContext.userId,
-          personality.id,
-          personality
-        );
-
-        // ConfigResolutionSource includes TTS-only tiers ('free-default',
-        // 'hardcoded') that LlmConfigResolver should never produce — the
-        // base resolver only routes those tiers through TtsConfigResolver's
-        // `getExtractSource` override. Treat as a contract violation rather
-        // than silently mapping, so a future resolver bug surfaces loudly.
-        if (configResult.source === 'free-default' || configResult.source === 'hardcoded') {
-          throw new Error(
-            `LlmConfigResolver returned unexpected source "${configResult.source}" — only TtsConfigResolver should produce TTS-tier sources`
-          );
-        }
-        configSource = configResult.source;
-
-        // If user has an override, apply it to the personality
-        if (configResult.source !== 'personality') {
-          effectivePersonality = mergeConfigWithPersonality(personality, configResult.config);
-
-          logger.info(
-            {
-              userId: jobContext.userId,
-              personalityId: personality.id,
-              source: configResult.source,
-              configName: configResult.configName,
-              model: effectivePersonality.model,
-            },
-            'Applied user config override'
-          );
-        }
-      } catch (error) {
-        logger.warn(
-          { err: error, userId: jobContext.userId },
-          'Failed to resolve user config, using personality default'
-        );
-      }
-    }
+    // The effective LLM model/visionModel is resolved + stamped onto the
+    // personality by the gateway's job-chain step (jobChainOrchestrator), so
+    // ConfigStep no longer re-runs the LLM model cascade. The personality on the
+    // job is already the user-cascaded one; `configSource` rides along as a
+    // diagnostic. This step still owns the config-overrides cascade below.
+    const effectivePersonality = personality;
+    const configSource: ResolvedConfig['configSource'] = stampedSource ?? 'personality';
 
     // Resolve config cascade overrides (if resolver available)
     // Default to hardcoded values so downstream code always has a valid object

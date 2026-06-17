@@ -35,6 +35,7 @@ import type {
   ConfigCascadeResolver,
   DenylistCacheInvalidationService,
   LlmConfigCacheInvalidationService,
+  LlmConfigResolver,
   PrismaClient,
   SttResolverCacheInvalidationService,
   TtsConfigCacheInvalidationService,
@@ -69,6 +70,13 @@ export interface RouteDeps {
   readonly retentionService?: ConversationRetentionService;
   /** Cascade-overrides resolver — used by user channel config-overrides read. */
   readonly cascadeResolver?: ConfigCascadeResolver;
+  /**
+   * LLM model-config cascade resolver — used by the /ai/generate handler to
+   * resolve {model, visionModel} once at job-chain build and stamp both the
+   * conversation job and the image-description child job. Keeps the seed
+   * (personality default) from leaking into the image-description path.
+   */
+  readonly llmConfigResolver?: LlmConfigResolver;
   /** OpenRouter model catalog cache — used by LLM config endpoints. */
   readonly modelCache?: OpenRouterModelCache;
 
