@@ -96,24 +96,6 @@ describe('ModelFactory', () => {
       );
     });
 
-    it('runs the gated vision-auth probe when VISION_AUTH_PROBE=1 (debug instrumentation)', () => {
-      process.env.VISION_AUTH_PROBE = '1';
-      try {
-        const config: ModelConfig = {
-          modelName: 'google/gemma-4-31b-it',
-          apiKey: 'test-api-key',
-        };
-        // The env-gated probe block runs inside buildOpenRouterModel; assert the
-        // model still builds normally (covers the diagnostic path).
-        createChatModel(config);
-        expect(mockChatOpenAI).toHaveBeenCalledWith(
-          expect.objectContaining({ modelName: 'google/gemma-4-31b-it' })
-        );
-      } finally {
-        delete process.env.VISION_AUTH_PROBE;
-      }
-    });
-
     it('should always set __includeRawResponse:true so the OpenRouter reasoning extractor has access to the raw API response', () => {
       // Required for extractAndPopulateOpenRouterReasoning() in LLMInvoker to read
       // additional_kwargs.__raw_response. If this assertion ever fails, also check
