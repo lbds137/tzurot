@@ -178,27 +178,54 @@ export class DependencyStep implements IPipelineStep {
 
     this.logPreprocessingResults(job.id, preprocessing);
 
-    // Persist rich descriptions for the TRIGGER message's attachments now
-    // that vision/transcription has produced them — decoupled from
-    // generation success, never throws.
-    if (
-      this.visionDescriptionWriter !== undefined &&
-      preprocessing.processedAttachments.length > 0 &&
-      jobContext !== undefined
-    ) {
+    // Persist rich attachment descriptions (trigger + referenced images) into
+    // durable history now that vision/transcription has produced them.
+    await this.persistVisionDescriptions(context, preprocessing);
+
+    return { ...context, preprocessing };
+  }
+
+  /**
+   * Persist rich attachment descriptions into durable stored history,
+   * decoupled from generation success (the writer never throws):
+   * - trigger message's own attachments → upgraded message content
+   * - referenced (quoted/replied-to) images → stored
+   *   `referencedMessages[].resolvedImageDescriptions`, so a quoted image
+   *   survives the ~1h vision-cache TTL on replay
+   *
+   * Both use the RAW job personality (NOT config.effectivePersonality): the
+   * update must match the key the row was saved under, and routing-time
+   * personality substitution doesn't change the saved row's key.
+   */
+  private async persistVisionDescriptions(
+    context: GenerationContext,
+    preprocessing: PreprocessingResults
+  ): Promise<void> {
+    const { job } = context;
+    const jobContext = job.data.context;
+    if (this.visionDescriptionWriter === undefined || jobContext === undefined) {
+      return;
+    }
+    const personalityId = job.data.personality.id;
+
+    if (preprocessing.processedAttachments.length > 0) {
       await this.visionDescriptionWriter.persistTriggerDescriptions({
         jobId: job.id,
         message: job.data.message,
         jobContext,
-        // Raw job personality, NOT config.effectivePersonality: the update
-        // must match the key the row was saved under, and routing-time
-        // personality substitution doesn't change the saved row's key.
-        personalityId: job.data.personality.id,
+        personalityId,
         processedAttachments: preprocessing.processedAttachments,
       });
     }
 
-    return { ...context, preprocessing };
+    if (Object.keys(preprocessing.referenceAttachments).length > 0) {
+      await this.visionDescriptionWriter.persistReferenceDescriptions({
+        jobId: job.id,
+        jobContext,
+        personalityId,
+        processedReferenceAttachments: preprocessing.referenceAttachments,
+      });
+    }
   }
 
   private async fetchDependencyResults(

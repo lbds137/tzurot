@@ -378,7 +378,10 @@ describe('DependencyStep', () => {
   });
 
   describe('vision-description persistence', () => {
-    const makeWriter = () => ({ persistTriggerDescriptions: vi.fn().mockResolvedValue(undefined) });
+    const makeWriter = () => ({
+      persistTriggerDescriptions: vi.fn().mockResolvedValue(undefined),
+      persistReferenceDescriptions: vi.fn().mockResolvedValue(undefined),
+    });
 
     it('persists trigger descriptions post-vision when attachments were processed', async () => {
       const imageResult: ImageDescriptionResult = {
@@ -425,6 +428,46 @@ describe('DependencyStep', () => {
       });
 
       expect(writer.persistTriggerDescriptions).not.toHaveBeenCalled();
+      expect(writer.persistReferenceDescriptions).not.toHaveBeenCalled();
+    });
+
+    it('persists reference descriptions when a referenced-image dependency was processed', async () => {
+      const imageResult: ImageDescriptionResult = {
+        requestId: 'test-req',
+        success: true,
+        descriptions: [{ url: 'https://example.com/ref.png', description: 'A quoted image' }],
+        sourceReferenceNumber: 1,
+      };
+      mockGetJobResult.mockResolvedValueOnce(imageResult);
+      const writer = makeWriter();
+      const stepWithWriter = new DependencyStep(undefined, writer as never);
+
+      await stepWithWriter.process({
+        job: createMockJob({
+          dependencies: [
+            {
+              jobId: 'ref-image-job-1',
+              type: JobType.ImageDescription,
+              status: JobStatus.Completed,
+              resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}ref-image-key`,
+            },
+          ],
+        }),
+        startTime: Date.now(),
+      });
+
+      // Reference attachments route here, not to trigger descriptions
+      expect(writer.persistTriggerDescriptions).not.toHaveBeenCalled();
+      expect(writer.persistReferenceDescriptions).toHaveBeenCalledWith(
+        expect.objectContaining({
+          jobId: 'job-123',
+          personalityId: TEST_PERSONALITY.id,
+          jobContext: expect.objectContaining({ channelId: 'channel-789' }),
+          processedReferenceAttachments: expect.objectContaining({
+            1: [expect.objectContaining({ description: 'A quoted image' })],
+          }),
+        })
+      );
     });
   });
 
