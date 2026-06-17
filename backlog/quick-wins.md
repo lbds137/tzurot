@@ -2,6 +2,10 @@
 
 _Small tasks that can be done between major features. Good for momentum._
 
+### `[LIFT]` Converge the two gateway `LlmConfigResolver` instances (+ optional pub/sub)
+
+**Surfaced 2026-06-17** by PR #1239 (Bug X) claude-review. The gateway now constructs **two** `LlmConfigResolver` instances: the process-lifetime one wired into `RouteDeps` for `/ai/generate` job-chain model stamping (`services/api-gateway/src/index.ts`, no pub/sub, 10s TTL), and the request-scoped one in `services/api-gateway/src/routes/user/llmConfigResolve.ts`. They hit the same DB cascade; the only cost is a second non-shared cache. The job-chain instance has **no pub/sub invalidation**, so for up to 10s after a user changes their LLM config an image-description job could be stamped with the stale model (the conversation path already had this 10s window). **Action**: refactor `createResolveHandler` to accept the injected `LlmConfigResolver` from `RouteDeps` (it already accepts an injected `ConfigCascadeResolver`), construct one shared instance in `index.ts`, and optionally wire `LlmConfigCacheInvalidationService` pub/sub to it like `ConfigCascadeResolver` has. Low risk; closes the staleness gap the reviewer flagged.
+
 > Note: 7 items previously filed here all shipped in PR #1082-1084 (Layer 2 + Layer 3 of the periodic-audit-enforcement proposal). The remaining work tracked in [`docs/proposals/backlog/periodic-audit-enforcement.md`](../docs/proposals/backlog/periodic-audit-enforcement.md) is Layers 4-5 (markdown baselines + `ops:health` cron aggregator).
 
 _Shipped 2026-06-12 (quick-wins sweep, PRs #1191/#1192/#1193): stacked-JSDoc merge in check-duplicate-exports, contentToText replacing the BaseMessage content-as-string casts, integration-coverage services/** glob._
