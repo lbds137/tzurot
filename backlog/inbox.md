@@ -2,6 +2,15 @@
 
 _New items go here. Triage to appropriate section weekly._
 
+### `[FIX]` Embed-only blank history + remove context probes (beta.133 follow-up)
+
+**Surfaced 2026-06-16** during the beta.133 context-assembly work (#1237 review finding 2). Two coupled follow-ups:
+
+1. **Embed-only blank fix.** `embedsXml` is persisted ONLY for _forwarded_ messages (`ConversationPersistence.saveUserMessage:193`), so a regular link-embed message never persists it and renders blank once it ages out of the live-fetch window. Read the `EMBED_PERSIST_PROBE=1` dev logs (shipped in #1237) to settle the fix: if the embed is present at persist time → persist `embedsXml` for ALL messages with embeds; if not (Discord async embed resolution) → also add a `messageUpdate` re-capture.
+2. **Remove the two context probes** once their fixes are dev-verified: `EMBED_PERSIST_PROBE` (ConversationPersistence — paired with #1) and `CTX_MERGE_PROBE` (historyMerger — paired with the #1237 dedup + the Bug C image fix). Both are gated `debug` instrumentation; `git log --grep '^debug[:(]' origin/develop` surfaces any still-live.
+
+**Promote when:** the #1237 dedup/weigh-in fixes and the Bug C image fix are dev-verified — then read both probes, apply the embed fix, and remove both probes.
+
 ### `[FEAT]` Multimodal input: file (PDF/doc) + video forwarding, then surface in `/models`
 
 **Surfaced 2026-06-15 (user)** while reviewing `/models browse` modality coverage. OpenRouter's `ModelModality` is `text | image | audio | video | file`, but we only capture/route **text, image, audio**. `video` and `file` (PDF/doc) input modalities are dropped from `ModelAutocompleteOption` (`OpenRouterModelCache.toAutocompleteOption`), and — more fundamentally — the bot can't *send* them: `MessageContentBuilder` renders every non-voice/non-image attachment as a **text description** (`[Attachments: [application/pdf: doc.pdf]]`), never as native model input. So surfacing `supportsFileInput`/`supportsVideoInput` today would over-promise.
