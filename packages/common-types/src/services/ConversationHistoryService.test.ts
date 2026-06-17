@@ -488,6 +488,224 @@ describe('ConversationHistoryService - Token Count Caching', () => {
         })
       );
     });
+
+    it('merges new metadata onto existing row metadata (does not clobber referencedMessages)', async () => {
+      mockPrismaClient.conversationHistory.findFirst.mockResolvedValue({
+        id: 'msg-merge',
+        content: 'original',
+        tokenCount: 2,
+        role: MessageRole.User,
+        // Pre-existing metadata that must survive the update
+        messageMetadata: {
+          referencedMessages: [{ discordMessageId: 'ref-1', content: 'quoted' }],
+          embedsXml: ['<embed>keep me</embed>'],
+        },
+      });
+      (tokenCounter.countTextTokens as any).mockReturnValue(9);
+      mockPrismaClient.conversationHistory.update.mockResolvedValue({});
+
+      await service.updateLastUserMessage('channel-123', 'personality-456', 'persona-789', 'new', {
+        attachmentDescriptions: [
+          { type: 'image', description: 'a cat', originalUrl: 'https://cdn/c.png' },
+        ],
+      });
+
+      expect(mockPrismaClient.conversationHistory.update).toHaveBeenCalledWith({
+        where: { id: 'msg-merge' },
+        data: {
+          content: 'new',
+          tokenCount: 9,
+          messageMetadata: {
+            // pre-existing keys preserved
+            referencedMessages: [{ discordMessageId: 'ref-1', content: 'quoted' }],
+            embedsXml: ['<embed>keep me</embed>'],
+            // new key merged in
+            attachmentDescriptions: [
+              { type: 'image', description: 'a cat', originalUrl: 'https://cdn/c.png' },
+            ],
+          },
+        },
+      });
+    });
+  });
+
+  describe('persistReferenceImageDescriptions', () => {
+    const storedRef = (overrides = {}) => ({
+      discordMessageId: 'ref-msg-1',
+      authorUsername: 'alice',
+      authorDisplayName: 'Alice',
+      content: 'look',
+      timestamp: '2026-06-17T00:00:00.000Z',
+      locationContext: '',
+      attachments: [{ url: 'https://cdn/a.png', contentType: 'image/png', name: 'cat.png' }],
+      ...overrides,
+    });
+
+    it('writes resolvedImageDescriptions onto matching stored references (metadata only)', async () => {
+      mockPrismaClient.conversationHistory.findFirst.mockResolvedValue({
+        id: 'msg-ref',
+        role: MessageRole.User,
+        content: 'should not change',
+        messageMetadata: { referencedMessages: [storedRef()], embedsXml: ['<e/>'] },
+      });
+      mockPrismaClient.conversationHistory.update.mockResolvedValue({});
+
+      const count = await service.persistReferenceImageDescriptions(
+        'channel-123',
+        'personality-456',
+        'persona-789',
+        new Map([['https://cdn/a.png', 'a tabby cat']])
+      );
+
+      expect(count).toBe(1);
+      expect(mockPrismaClient.conversationHistory.update).toHaveBeenCalledWith({
+        where: { id: 'msg-ref' },
+        data: {
+          messageMetadata: {
+            embedsXml: ['<e/>'],
+            referencedMessages: [
+              {
+                ...storedRef(),
+                resolvedImageDescriptions: [{ filename: 'cat.png', description: 'a tabby cat' }],
+              },
+            ],
+          },
+        },
+      });
+      // content / tokenCount are untouched
+      expect(mockPrismaClient.conversationHistory.update.mock.calls[0][0].data).not.toHaveProperty(
+        'content'
+      );
+    });
+
+    it('replaces (does not merge) pre-existing resolvedImageDescriptions', async () => {
+      mockPrismaClient.conversationHistory.findFirst.mockResolvedValue({
+        id: 'msg-ref',
+        role: MessageRole.User,
+        messageMetadata: {
+          referencedMessages: [
+            {
+              ...storedRef(),
+              // stale value from a prior persist — must be fully replaced
+              resolvedImageDescriptions: [
+                { filename: 'cat.png', description: 'STALE description' },
+              ],
+            },
+          ],
+        },
+      });
+      mockPrismaClient.conversationHistory.update.mockResolvedValue({});
+
+      const count = await service.persistReferenceImageDescriptions(
+        'channel-123',
+        'personality-456',
+        'persona-789',
+        new Map([['https://cdn/a.png', 'fresh description']])
+      );
+
+      expect(count).toBe(1);
+      const written =
+        mockPrismaClient.conversationHistory.update.mock.calls[0][0].data.messageMetadata
+          .referencedMessages[0].resolvedImageDescriptions;
+      expect(written).toEqual([{ filename: 'cat.png', description: 'fresh description' }]);
+    });
+
+    it('returns 0 and skips the update when no stored reference matches', async () => {
+      mockPrismaClient.conversationHistory.findFirst.mockResolvedValue({
+        id: 'msg-ref',
+        role: MessageRole.User,
+        messageMetadata: { referencedMessages: [storedRef()] },
+      });
+
+      const count = await service.persistReferenceImageDescriptions(
+        'channel-123',
+        'personality-456',
+        'persona-789',
+        new Map([['https://cdn/UNMATCHED.png', 'nope']])
+      );
+
+      expect(count).toBe(0);
+      expect(mockPrismaClient.conversationHistory.update).not.toHaveBeenCalled();
+    });
+
+    it('returns 0 without a DB read when the description map is empty', async () => {
+      const count = await service.persistReferenceImageDescriptions(
+        'channel-123',
+        'personality-456',
+        'persona-789',
+        new Map()
+      );
+
+      expect(count).toBe(0);
+      expect(mockPrismaClient.conversationHistory.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('returns 0 when the message has no stored references', async () => {
+      mockPrismaClient.conversationHistory.findFirst.mockResolvedValue({
+        id: 'msg-ref',
+        role: MessageRole.User,
+        messageMetadata: { embedsXml: ['<e/>'] },
+      });
+
+      const count = await service.persistReferenceImageDescriptions(
+        'channel-123',
+        'personality-456',
+        'persona-789',
+        new Map([['https://cdn/a.png', 'a tabby cat']])
+      );
+
+      expect(count).toBe(0);
+      expect(mockPrismaClient.conversationHistory.update).not.toHaveBeenCalled();
+    });
+
+    it('never throws — a failed DB read returns 0', async () => {
+      mockPrismaClient.conversationHistory.findFirst.mockRejectedValue(new Error('db down'));
+
+      await expect(
+        service.persistReferenceImageDescriptions(
+          'channel-123',
+          'personality-456',
+          'persona-789',
+          new Map([['https://cdn/a.png', 'a tabby cat']])
+        )
+      ).resolves.toBe(0);
+    });
+
+    it('never throws — a failed update returns 0', async () => {
+      mockPrismaClient.conversationHistory.findFirst.mockResolvedValue({
+        id: 'msg-ref',
+        role: MessageRole.User,
+        messageMetadata: { referencedMessages: [storedRef()] },
+      });
+      mockPrismaClient.conversationHistory.update.mockRejectedValue(new Error('update failed'));
+
+      await expect(
+        service.persistReferenceImageDescriptions(
+          'channel-123',
+          'personality-456',
+          'persona-789',
+          new Map([['https://cdn/a.png', 'a tabby cat']])
+        )
+      ).resolves.toBe(0);
+    });
+
+    it('returns 0 when the found row has null messageMetadata', async () => {
+      mockPrismaClient.conversationHistory.findFirst.mockResolvedValue({
+        id: 'msg-ref',
+        role: MessageRole.User,
+        messageMetadata: null,
+      });
+
+      const count = await service.persistReferenceImageDescriptions(
+        'channel-123',
+        'personality-456',
+        'persona-789',
+        new Map([['https://cdn/a.png', 'a tabby cat']])
+      );
+
+      expect(count).toBe(0);
+      expect(mockPrismaClient.conversationHistory.update).not.toHaveBeenCalled();
+    });
   });
 
   describe('Performance Optimization Validation', () => {

@@ -23,6 +23,7 @@ import {
 } from './ConversationMessageMapper.js';
 import { generateConversationHistoryUuid } from '../utils/deterministicUuid.js';
 import { computeHistoryCutoff } from './historyCutoff.js';
+import { writeReferenceImageDescriptions } from './referenceImageDescriptions.js';
 
 // Re-export types for consumers that import from this module
 export type { ConversationMessage, CrossChannelHistoryGroup } from './ConversationMessageMapper.js';
@@ -187,6 +188,13 @@ export class ConversationHistoryService {
       // Recompute token count for enriched content
       const tokenCount = countTextTokens(newContent);
 
+      // Merge new metadata fields onto the existing row metadata (don't clobber
+      // embedsXml/referencedMessages/etc. that were persisted at message creation).
+      const mergedMetadata =
+        newMetadata !== undefined
+          ? { ...((lastMessage.messageMetadata as MessageMetadata | null) ?? {}), ...newMetadata }
+          : undefined;
+
       // Update the content, token count, and optionally metadata
       await this.prisma.conversationHistory.update({
         where: {
@@ -195,8 +203,7 @@ export class ConversationHistoryService {
         data: {
           content: newContent,
           tokenCount, // Update token count to match enriched content
-          // Update metadata if provided (merges with existing)
-          ...(newMetadata !== undefined && { messageMetadata: newMetadata }),
+          ...(mergedMetadata !== undefined && { messageMetadata: mergedMetadata }),
         },
       });
 
@@ -209,6 +216,29 @@ export class ConversationHistoryService {
       logger.error({ err: error }, 'Failed to update user message');
       return false;
     }
+  }
+
+  /**
+   * Persist resolved image descriptions onto the most recent user message's
+   * stored referenced-message metadata, so a quoted image survives the ~1h
+   * Redis vision-cache TTL the hydrator reads from. Delegates to
+   * {@link writeReferenceImageDescriptions} (extracted to keep this file under
+   * the max-lines ceiling).
+   *
+   * @param descriptionsByUrl attachment URL → resolved description text
+   * @returns number of stored reference entries that gained descriptions
+   */
+  async persistReferenceImageDescriptions(
+    channelId: string,
+    personalityId: string,
+    personaId: string,
+    descriptionsByUrl: Map<string, string>
+  ): Promise<number> {
+    return writeReferenceImageDescriptions(
+      this.prisma,
+      { channelId, personalityId, personaId },
+      descriptionsByUrl
+    );
   }
 
   /**

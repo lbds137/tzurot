@@ -428,6 +428,7 @@ export default tseslint.config(
       'services/bot-client/src/index.ts', // Entrypoint/composition root
       'services/bot-client/src/utils/dashboard/SessionManager.ts', // Exemplary single-class design
       'services/bot-client/src/utils/GatewayClient.ts', // Clean API wrapper, all methods share context
+      'packages/common-types/src/services/ConversationHistoryService.ts', // Single-class CRUD/query service; retention/sync/mapping already split out
     ],
     rules: {
       'max-lines': ['error', { max: 600, skipBlankLines: true, skipComments: true }],
