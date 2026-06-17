@@ -430,18 +430,14 @@ export class DiscordChannelFetcher {
     // content is theirs — `-#`/`**…:**` text there is user-authored, left
     // intact. Single source of truth shared with the DB-sync path
     // (conversationSyncDiff) via normalizeMessageForContext so the two can't drift.
-    const content =
-      isOurMessage && rawContent !== undefined
-        ? normalizeMessageForContext(rawContent)
-        : rawContent;
+    const content = isOurMessage ? normalizeMessageForContext(rawContent) : rawContent;
 
     // Recover the attribution carried in our `**Name:** ` prefix before it's
     // stripped: for an assistant DM response it's the personality's display
     // name; for a relay-echo of user input it's the USER's display name. Scoped
     // to OUR messages so a real user typing literal `**foo:** bar` isn't
     // mis-attributed.
-    const prefixName =
-      isOurMessage && rawContent !== undefined ? extractMessagePrefixName(rawContent) : null;
+    const prefixName = isOurMessage ? extractMessagePrefixName(rawContent) : null;
     const hasMetadata = embedsXml !== undefined || voiceTranscripts !== undefined;
     let messageMetadata: ConversationMessage['messageMetadata'] = hasMetadata
       ? { embedsXml, voiceTranscripts }
