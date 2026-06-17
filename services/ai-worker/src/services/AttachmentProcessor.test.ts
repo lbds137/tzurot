@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { AttachmentType, type LoadedPersonality } from '@tzurot/common-types';
+import { AttachmentType, AIProvider, type LoadedPersonality } from '@tzurot/common-types';
 import { processAttachmentsParallel } from './AttachmentProcessor.js';
 
 // Use vi.hoisted() to create mocks that persist across test resets
@@ -88,6 +88,40 @@ describe('AttachmentProcessor', () => {
       expect(result).toHaveLength(1);
       expect(result[0]).toContain('- Image (photo.png): A beautiful landscape');
       expect(mockDescribeImage).toHaveBeenCalledTimes(1);
+    });
+
+    it('forwards the resolved vision provider and model to describeImage (cross-provider key)', async () => {
+      mockDescribeImage.mockResolvedValue('A cross-provider description');
+
+      await processAttachmentsParallel({
+        attachments: [
+          {
+            url: 'https://example.com/image.png',
+            contentType: 'image/png',
+            name: 'photo.png',
+            size: 1000,
+          },
+        ],
+        referenceNumber: 1,
+        personality: mockPersonality,
+        isGuestMode: false,
+        userApiKey: 'vision-provider-key',
+        visionProvider: AIProvider.OpenRouter,
+        model: 'google/gemma-4-31b-it',
+      });
+
+      // The resolved vision key/provider/model must reach describeImage so the
+      // reference path doesn't 401 on a cross-provider vision model.
+      expect(mockDescribeImage).toHaveBeenCalledWith(
+        expect.objectContaining({ url: 'https://example.com/image.png' }),
+        mockPersonality,
+        false,
+        'vision-provider-key',
+        expect.objectContaining({
+          provider: AIProvider.OpenRouter,
+          model: 'google/gemma-4-31b-it',
+        })
+      );
     });
 
     it('should process voice message attachments', async () => {

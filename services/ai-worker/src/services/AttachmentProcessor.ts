@@ -55,6 +55,8 @@ interface ProcessSingleAttachmentOptions {
   loggingContext?: VisionLoggingContext;
   /** Explicit provider for vision calls (from `detectVisionProvider` on the personality's vision model) */
   visionProvider?: AIProvider;
+  /** Pre-resolved vision model (from `resolveVisionConfig`); honored over `selectVisionModel`. */
+  model?: string;
 }
 
 /**
@@ -73,6 +75,8 @@ interface ProcessImageOptions {
   loggingContext?: VisionLoggingContext;
   /** Explicit provider for vision calls */
   visionProvider?: AIProvider;
+  /** Pre-resolved vision model (from `resolveVisionConfig`); honored over `selectVisionModel`. */
+  model?: string;
 }
 
 /**
@@ -92,6 +96,8 @@ export interface ProcessAttachmentsOptions {
   loggingContext?: VisionLoggingContext;
   /** Explicit provider for vision calls (from `detectVisionProvider` on the personality's vision model) */
   visionProvider?: AIProvider;
+  /** Pre-resolved vision model (from `resolveVisionConfig`); honored over `selectVisionModel`. */
+  model?: string;
 }
 
 /**
@@ -114,6 +120,7 @@ export async function processAttachmentsParallel(
     sttDispatch,
     loggingContext,
     visionProvider,
+    model,
   } = options;
   if (!attachments || attachments.length === 0) {
     return [];
@@ -131,6 +138,7 @@ export async function processAttachmentsParallel(
       sttDispatch,
       loggingContext,
       visionProvider,
+      model,
     })
   );
 
@@ -225,6 +233,7 @@ async function processImageAttachment(
     userApiKey,
     loggingContext = {},
     visionProvider,
+    model,
   } = options;
   if (preprocessed?.description !== undefined && preprocessed.description !== '') {
     logger.debug({ referenceNumber, url: attachment.url }, 'Using preprocessed image description');
@@ -247,6 +256,7 @@ async function processImageAttachment(
           skipNegativeCache: true,
           loggingContext,
           provider: visionProvider,
+          model,
         }),
       {
         maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
@@ -279,6 +289,7 @@ async function processSingleAttachment(
     sttDispatch,
     loggingContext,
     visionProvider,
+    model,
   } = options;
   const preprocessed = findPreprocessedByUrl(attachment.url, preprocessedAttachments);
 
@@ -297,6 +308,7 @@ async function processSingleAttachment(
       userApiKey,
       loggingContext,
       visionProvider,
+      model,
     });
   }
 

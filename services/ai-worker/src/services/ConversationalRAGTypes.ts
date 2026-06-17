@@ -18,6 +18,22 @@ import type {
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 
 /**
+ * Cross-provider vision auth, resolved ONCE per request and threaded to every
+ * vision call site in the RAG path (history enrichment, current-message inline
+ * fallback, referenced-message attachments). Replaces forwarding the raw
+ * main-model key, which 401s when the vision model lives on a different provider
+ * than the main model. `userApiKey` is the key for the VISION provider (the
+ * system key on a free-tier downgrade); `visionProvider`/`model` come from
+ * `resolveVisionConfig`. All three sites share one personality + user per
+ * request, so a single resolution is correct for all of them.
+ */
+export interface ResolvedVisionAuth {
+  userApiKey?: string;
+  visionProvider?: AIProvider;
+  model?: string;
+}
+
+/**
  * Memory document structure from vector search
  */
 export interface MemoryDocument {

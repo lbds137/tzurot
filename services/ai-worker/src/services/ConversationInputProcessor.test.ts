@@ -8,6 +8,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ConversationInputProcessor } from './ConversationInputProcessor.js';
 import {
   AttachmentType,
+  AIProvider,
   type LoadedPersonality,
   type MessageContent,
   type ReferencedMessage,
@@ -194,6 +195,72 @@ describe('ConversationInputProcessor', () => {
           isGuestMode: false,
           userApiKey: 'user-api-key',
           loggingContext: expect.objectContaining({ apiKeySource: 'user' }),
+        })
+      );
+    });
+
+    it('threads resolved visionAuth (key/provider/model) into the inline-fallback vision call', async () => {
+      const attachments = [{ url: 'http://example.com/cat.jpg', contentType: 'image/jpeg' }];
+      mockProcessAttachments.mockResolvedValue([]);
+      const context = createMockContext({ attachments });
+
+      await processor.processInputs(mockPersonality, mockMessage, context, {
+        isGuestMode: false,
+        userApiKey: 'main-model-key', // main key — must NOT be used for vision
+        visionAuth: {
+          userApiKey: 'vision-provider-key',
+          visionProvider: AIProvider.OpenRouter,
+          model: 'google/gemma-4-31b-it',
+        },
+      });
+
+      // Inline fallback must use the resolved vision key/provider/model, not the main key.
+      expect(mockProcessAttachments).toHaveBeenCalledWith(
+        attachments,
+        mockPersonality,
+        expect.objectContaining({
+          userApiKey: 'vision-provider-key',
+          visionProvider: AIProvider.OpenRouter,
+          model: 'google/gemma-4-31b-it',
+        })
+      );
+    });
+
+    it('threads resolved visionAuth into formatReferencedMessages', async () => {
+      const referencedMessages: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'msg1',
+          discordUserId: 'user1',
+          authorUsername: 'user1',
+          authorDisplayName: 'User One',
+          content: 'Referenced content',
+          embeds: '',
+          timestamp: '2025-01-01T00:00:00Z',
+          locationContext: '<location/>',
+        },
+      ];
+      const context = createMockContext({ referencedMessages });
+
+      await processor.processInputs(mockPersonality, mockMessage, context, {
+        isGuestMode: false,
+        userApiKey: 'main-model-key',
+        visionAuth: {
+          userApiKey: 'vision-provider-key',
+          visionProvider: AIProvider.OpenRouter,
+          model: 'google/gemma-4-31b-it',
+        },
+      });
+
+      expect(mockReferencedMessageFormatter.formatReferencedMessages).toHaveBeenCalledWith(
+        referencedMessages,
+        mockPersonality,
+        false,
+        undefined,
+        expect.objectContaining({
+          userApiKey: 'vision-provider-key',
+          visionProvider: AIProvider.OpenRouter,
+          visionModel: 'google/gemma-4-31b-it',
         })
       );
     });
