@@ -1,34 +1,49 @@
 # Current
 
-> **Version**: v3.0.0-beta.131 (released 2026-06-14, #1208) — **7 code changes, no migrations.** Headliners: broad free-vision fallback (an authenticated user who can't auth their vision provider degrades to the free gemma model on the system key instead of dropping the image; unified `resolveVisionConfig` resolves auth + model atomically, #1204) + a per-user daily cap (100/day, fail-open) bounding the shared-pool freeloading surface (#1205/#1206); "requires z.ai key" preset-dashboard badge (#1203); clearer z.ai-only-model save error vs "model not found" (#1202); `/help` now categorizes all 13 command groups (`channel`/`deny`/`inspect`/`preset`/`shapes`/`voice` no longer in "Other", #1207); stale `/wallet`→`/settings apikey set` refs. **Mechanics**: clean rebase-merge (7-commit delta); `release:finalize` SHA-aligned develop (cherry-pick-detected, expected); holistic review no-blocking. _Prior: v3.0.0-beta.130 (#1200) — z.ai GLM-5 coding-plan support + z.ai-aware validation/clamp._
+> **Version**: v3.0.0-beta.133 (released 2026-06-17, #1244) — **no migrations.** Headliners: the context-assembly fix family — image descriptions now stamp the user's resolved `{model,visionModel}` at job-chain build (#1239) and the RAG path resolves the cross-provider vision key so vision no longer 401s (#1240); referenced/quoted image descriptions persist durably (`resolvedImageDescriptions`) so a reply to an image described >1h ago still renders its description instead of the raw `[image/jpeg: name]` marker (#1241); deduped reference stubs fold attachment markers into content so an image-only reply-target is no longer blank (#1242). Plus the `/character import` write-timeout fix that rode along (the prod release-stopper: writes were defaulting to the 2.5s AUTOCOMPLETE timeout instead of the 20s WRITE timeout). **Mechanics**: clean rebase-merge; `release:finalize` SHA-aligned develop; holistic review surfaced one non-blocking `findFirst` id-tiebreak follow-up (filed to quick-wins). _Prior: v3.0.0-beta.131 (#1208) — broad free-vision fallback + per-user daily cap + `/help` category fix._
 > **🚧 Release freeze status**: LIFTED. No release in progress.
 
 ---
 
-## Unreleased on Develop (since beta.132)
+## Unreleased on Develop (since beta.133)
 
-- **fix(common-types):** deterministic conversation-history ordering — `id` tiebreak on all `take`-bounded queries (hoisted to `conversationRecencyOrderBy`); fixes a cross-channel-history flake on timestamp ties (#1225)
-- **test(repo):** ESLint now lints test files (first time) — `vitest/expect-expect` w/ `assertFunctionNames`, `no-unused-vars`, and a `no-restricted-syntax` ban on real `setTimeout` delays in unit tests (`*.int.test.ts` exempt). `vitest/valid-expect` deliberately NOT enabled (its autofix deadlocks the deferred fake-timer rejection idiom — had silently broken 40 sites). Deflaked all real-timer offenders + fixed 5 genuine assertion gaps (#1225)
-- **test(repo):** test-lint ratchet — inline suppressions 6→2 (the 2 kept are justified-permanent fake-timer mock-latency); added `vitest/no-focused-tests` (guards committed `.only`), `no-identical-title`, `no-standalone-expect`; new `*.int.test.ts` block scopes route-handler bans out of int-test fixtures (recurrence-proof). Icebox: structural guard for the eslint block-ordering contract (#1226)
-- **fix(bot-client):** crawl Discord links inside forwarded message snapshots — `LinkReferenceStrategy` read empty `message.content` for forwards, so links in forwarded text never got `[Reference N]` numbering; routed through `extractForwardedContent`. Closes the message-content-extraction audit (`extractForwardedContent` confirmed sole source of truth) (#1227)
-- **fix(clients):** gateway write timeouts — added `GATEWAY_TIMEOUTS.WRITE` (20s) + method-aware transport default (writes default to WRITE, reads to AUTOCOMPLETE); bumped llm-config CRUD writes. Mitigates the prod llm-config-PUT false-abort (10s→20s); removed dead `ADMIN_GATEWAY`. Closes the slash-command timeout audit (#1228)
-- **feat(bot-client):** forwarded-message context now surfaces the origin channel ("forwarded from #name") when the bot can see it — resolved from `forwardedFrom.reference.channelId` via the channel cache (sync, no hot-path fetch), degrades gracefully on cross-server forwards (#1229)
-- **feat(bot-client):** split trimodal `/character chat` → `/character chat` (required char+message), `/character random` (optional message; no-message reads the room), `/character chime-in` (named-character weigh-in). Council-settled (chat/random/chime-in); deployed-command-surface change (#1230)
-- **feat(bot-client):** `/settings preset list` + `/voice tts list` → interactive `browse` — overrides render as a select menu; select → confirm → clear → refreshed view. Shared `overrideBrowse.ts` helper (2-callback config). Drive-by: fixed stale guest-mode footer to `/preset browse`. Deployed-command-surface change (#1231)
+_Nothing yet — **beta.133 shipped 2026-06-17 (#1244)**. The beta.132→133 delta (context-assembly fix family #1239/#1240/#1241/#1242 + dedup + A/B normalization, the `/character import` timeout fix #1228, `/character chat` split #1230, browse UIs #1231, forwarded-origin context #1229) is in the [release notes](https://github.com/lbds137/tzurot/releases/tag/v3.0.0-beta.133)._
 
 ---
 
 ## Next Session Goal
 
-**beta.131 SHIPPED 2026-06-14 (#1208).** The full z.ai backlog the user pointed at, swept small→large across #1202–#1207 (error message + admin coverage, "requires z.ai key" badge, broad free-vision fallback + per-user abuse-guard cap, `/help` category fix). Prod auto-deploys on merge; no migrations.
+**beta.133 SHIPPED 2026-06-17 (#1244).** The context-assembly fix family (#1239 model stamping, #1240 cross-provider vision key, #1241 reference-image persistence, #1242 dedup-stub markers) + the A/B footer/relay normalization (#1236/#1237) + the `/character import` write-timeout fix (#1228). Prod auto-deploys on merge; no migrations. No clear forward thread is pre-decided — candidates below, user's pick.
 
-**Next thread — GREENLIT: build `commands:audit`** (`backlog/inbox.md`), plan-first. A `pnpm ops` tool that (1) inventories the whole slash-command surface (skeleton from `deployCommands.ts` → tree/md/json) and (2) consistency-checks naming/params/structure + **category coverage** (the gap that let 6 commands silently bucket into `/help`'s "Other") + description quality (the user-facing guidance `/help` renders). It then informs the deliberate `/models`-browser command UX (icebox) — the user wants a naming/structure pass against the existing surface before adding a new command.
+**Candidate next threads** (pick one, none greenlit yet):
 
-**Other z.ai-adjacent follow-up:** make the vision-fallback cap a runtime admin-settings knob (inbox). Free-tier piggyback has a design proposal (`docs/proposals/backlog/free-tier-zai-piggyback.md`), no code.
+- **Embed-only blank history** (`backlog/inbox.md`) — the deferred half of Bug C, and the diagnostic is already settled: drop the `isForwarded &&` gate at `ConversationPersistence.ts:193` so `embedsXml` persists for any message with embeds. Small, dev-verifiable. The most natural beta.133 follow-on.
+- **Preset llm-config PUT timeout — track (a)** (`backlog/production-issues.md`) — the one still-open prod issue. track (b) is mitigated (20s WRITE budget), but the gateway PUT exceeding 10s at all is unexplained; needs prod timing instrumentation (load-correlated, not dev-reproducible). The probe is the next natural release passenger.
+- **Context-relocation epic 2.5d** — delete legacy + `MessageContextBuilder` + bot-client Prisma + all `CONTEXT_*` flags; tighten depcruise → unblocks PR-2p.
+- **Dead-URL image retry-storm** (`backlog/inbox.md`) — expired CDN URLs trigger a full multi-provider retry storm (~106s observed); short-circuit on `media_not_found` + fix `skipNegativeCache` to bypass only transient failures.
 
-**Remaining prod issue (the one left in production-issues.md):** preset llm-config PUT timeout — needs prod timing instrumentation (load-correlated, not dev-reproducible). That probe is the next natural release passenger.
+**Smaller follow-ups in backlog:** vision-fallback cap → runtime admin knob (inbox); write-side `findFirst` `id`-tiebreak alignment (quick-wins); dedup-stub edge-case tests (quick-wins).
 
-**Remaining in the context-relocation epic (2.5):** iii-b-3 and iii-cleanup are now DONE (shipped in beta.130). Next is **2.5d** (delete legacy + `MessageContextBuilder` + bot-client Prisma + all `CONTEXT_*` flags; tighten depcruise) → unblocks PR-2p.
+## Last Session — beta.133: context-assembly fix family + release (2026-06-17)
+
+Diagnosed and fixed the full context-assembly bug family surfaced in the beta.133 dev smoke, plus a prod release-stopper (`/character import` broken). 9 PRs to develop, no migrations.
+
+| PR    | Title                                                                        | Outcome                                                                                                                                |
+| ----- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| #1236 | `fix(bot-client): normalize our-authored messages in extended context (A+B)` | Strips `-#` footers (incl. incognito) from replayed content; reclassifies our-authored extended-context copies off `role:assistant`    |
+| #1237 | `fix(context): history dedup + weigh-in persistence + vision misroute`       | Collapses duplicate channel-history rows sharing a Discord id; persists weigh-in/chime-in with the right role; derives vision provider |
+| #1239 | `fix(api-gateway): resolve LLM model config once at job-chain build (Bug X)` | Image-description jobs stamp the user's resolved `{model,visionModel}`, not the global default                                         |
+| #1240 | `fix(ai-worker): resolve cross-provider vision key in the RAG path (Bug Y)`  | RAG vision call resolves the cross-provider key → no more `401 Missing Auth`                                                           |
+| #1241 | `feat(ai-worker): persist reference-image descriptions durably`              | `resolvedImageDescriptions` persisted onto the trigger row → quoted/replied images survive the ~1h vision-cache TTL                    |
+| #1242 | `fix(common-types): preserve attachment markers in deduped reference stubs`  | Attachment markers folded into stub content (markers-first vs end-truncation) → image-only reply-target no longer blank                |
+| #1243 | `debug: remove beta.133 context-assembly probes`                             | Removed the 3 dev probes (`EMBED_PERSIST`/`CTX_MERGE`/`VISION_AUTH`) once A/B/C verified                                               |
+| #1244 | `Release v3.0.0-beta.133`                                                    | Clean rebase-merge; `release:finalize` SHA-aligned develop; holistic review surfaced one non-blocking `findFirst` tiebreak follow-up   |
+
+### Net result
+
+- **The original "image renders blank" symptom was mis-attributed** (caught via `/inspect` runtime evidence): the root was vision _failing_ (Bug Y's 401), not a persistence gap. Bug X (#1239) + Bug Y (#1240) fixed the failure; the genuine remaining gap — referenced/quoted image descriptions being **cache-dependent** — became #1241's persist-on-describe. The direct-image `attachmentDescriptions`/`messageUpdate` WIP was reverted as targeting a non-issue.
+- **The import release-stopper rode along for free.** Root-caused (runtime-confirmed via the 2507ms abort matching prod's `AUTOCOMPLETE=2500` default) to the missing write-aware timeout default on the gateway client — already fixed on develop by #1228 (`GATEWAY_TIMEOUTS.WRITE=20s`, method-aware default), so it shipped in beta.133 with zero new code. Track (a) of the preset-PUT-timeout (gateway slowness root cause) stays open.
+- **`CTX_MERGE_PROBE` settled the A/B/C root**: clean DB rows + footered/relay live copies that failed to dedup against them (mismatched `discordMessageId`). Embed-only half of Bug C deferred (filed to inbox; simple `isForwarded &&`-gate-drop fix identified via `EMBED_PERSIST_PROBE`).
 
 ## Last Session — z.ai backlog sweep (2026-06-14)
 
