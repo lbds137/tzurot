@@ -30,6 +30,8 @@ import {
   guildMemberInfoSchema,
   crossChannelHistoryGroupSchema,
   rawAssemblyInputsSchema,
+  CONFIG_SOURCE_IDS,
+  type ConfigSourceId,
 } from './schemas/index.js';
 import { JobType, JobStatus } from '../constants/queue.js';
 import { MessageRole } from '../constants/message.js';
@@ -190,6 +192,14 @@ export interface LLMGenerationJobData extends BaseJobData {
   message: string | object;
   /** Full context */
   context: JobContext;
+  /**
+   * Cascade tier that produced the resolved LLM config, stamped by the gateway's
+   * single-resolution step (jobChainOrchestrator). Diagnostic-only — surfaced via
+   * /inspect and consumed by GenerationStep. Optional: absent on in-flight jobs
+   * enqueued before this field existed, and on the gateway resolve-failure
+   * fallback path; ConfigStep defaults it to 'personality'.
+   */
+  configSource?: ConfigSourceId;
   /** Optional dependencies (preprocessing jobs) */
   dependencies?: JobDependency[];
   /**
@@ -447,6 +457,7 @@ export const llmGenerationJobDataSchema = baseJobDataSchema.extend({
   personality: loadedPersonalitySchema,
   message: z.union([z.string(), z.object({}).passthrough()]),
   context: llmGenerationContextSchema,
+  configSource: z.enum(CONFIG_SOURCE_IDS).optional(),
   dependencies: z.array(jobDependencySchema).optional(),
   /**
    * Preprocessed attachments from dependency jobs
