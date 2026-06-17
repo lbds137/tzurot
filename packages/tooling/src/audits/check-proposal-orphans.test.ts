@@ -58,7 +58,7 @@ describe('findProposalOrphans', () => {
       scaffold(root, {
         'docs/proposals/backlog/foo-proposal.md': '# Foo proposal',
         'docs/proposals/backlog/bar-proposal.md': '# Bar proposal',
-        'backlog/future-themes.md':
+        'backlog/cold/queue.md':
           'See [foo](../docs/proposals/backlog/foo-proposal.md) and bar-proposal.',
       });
       const result = findProposalOrphans(root);
@@ -73,7 +73,7 @@ describe('findProposalOrphans', () => {
       scaffold(root, {
         'docs/proposals/backlog/linked-proposal.md': '# Linked',
         'docs/proposals/backlog/orphan-proposal.md': '# Orphan',
-        'backlog/future-themes.md': 'Mentions linked-proposal but not the other.',
+        'backlog/cold/queue.md': 'Mentions linked-proposal but not the other.',
       });
       const result = findProposalOrphans(root);
       expect(result.totalProposals).toBe(2);
@@ -158,7 +158,7 @@ describe('findProposalOrphans', () => {
     await withTempRepo(root => {
       scaffold(root, {
         'docs/proposals/backlog/GIT_HOOK_IMPROVEMENTS.md': '# Git hook improvements',
-        'backlog/future-themes.md': 'See git_hook_improvements (lowercased).',
+        'backlog/cold/queue.md': 'See git_hook_improvements (lowercased).',
       });
       const result = findProposalOrphans(root);
       expect(result.orphans).toEqual([]);
@@ -169,7 +169,7 @@ describe('findProposalOrphans', () => {
     await withTempRepo(root => {
       scaffold(root, {
         'docs/proposals/backlog/memory-redesign-plan.md': '# Memory',
-        'backlog/future-themes.md': 'See Memory-Redesign-Plan in the queue.',
+        'backlog/cold/queue.md': 'See Memory-Redesign-Plan in the queue.',
       });
       const result = findProposalOrphans(root);
       expect(result.orphans).toEqual([]);
@@ -206,7 +206,7 @@ describe('findProposalOrphans', () => {
         'docs/proposals/backlog/memory.md': '# Memory',
         'docs/proposals/backlog/api.md': '# API',
         'docs/proposals/backlog/valid-name.md': '# Valid',
-        'backlog/future-themes.md': 'See valid-name.',
+        'backlog/cold/queue.md': 'See valid-name.',
       });
       const result = findProposalOrphans(root);
       expect(result.totalProposals).toBe(3);
@@ -224,8 +224,7 @@ describe('findProposalOrphans', () => {
     await withTempRepo(root => {
       scaffold(root, {
         'docs/proposals/backlog/memory.md': '# Memory',
-        'backlog/future-themes.md':
-          'See [memory](../docs/proposals/backlog/memory.md) in the queue.',
+        'backlog/cold/queue.md': 'See [memory](../docs/proposals/backlog/memory.md) in the queue.',
       });
       const result = findProposalOrphans(root);
       expect(result.singleSegmentProposals).toHaveLength(1);
@@ -239,7 +238,7 @@ describe('checkProposalOrphans (CLI entry point with --summary)', () => {
     await withTempRepo(async root => {
       scaffold(root, {
         'docs/proposals/backlog/foo-proposal.md': '# Foo',
-        'backlog/future-themes.md': 'See foo-proposal.',
+        'backlog/cold/queue.md': 'See foo-proposal.',
       });
       const captured: string[] = [];
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {

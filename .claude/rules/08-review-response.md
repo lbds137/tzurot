@@ -43,7 +43,7 @@ Compare the reviewer's severity label against the edit shape from rule 1:
 
 **Dismissed vs. Backlog candidates** — both are "no action this round," but they differ on whether a future trigger exists. **Key question: does the reviewer name a specific event, metric, or threshold that should reopen the question? If yes → Backlog candidate. If no → Dismissed.** A reviewer self-dismissal ("actually fine," "non-issue," "current is correct") has no trigger; the matter is closed. A **pure-aesthetic deferral** ("the naming could be cleaner someday," "might be worth polishing later," "if you're ever doing a follow-up pass" — vague preference with no named event) also has no actionable trigger; treat it as Dismissed. A reviewer deferral with a **named condition** ("worth keeping in mind if the retry count grows," "monitor over time," "if X happens, narrow Y") has an implicit trigger; without tracking, the trigger silently expires when memory fades.
 
-**When the reviewer's framing names a future event or condition that should reopen the question, the entry belongs in Backlog candidates, not Dismissed.** File the entry directly in `backlog/deferred.md` (per the triage table in `06-backlog.md`: trigger-gated items route to Deferred, not Inbox), capturing both the deferred concern and the promote-when criterion. Established 2026-04-29 after PR #941 round 1: a `claude-review` "worth keeping an eye on over the next few PR cycles" framing was incorrectly bucketed as Dismissed; the reviewer's later round 2 sharpened the framing to a concrete monitoring criterion + fallback action, surfacing the gap.
+**When the reviewer's framing names a future event or condition that should reopen the question, the entry belongs in Backlog candidates, not Dismissed.** File the entry in the granularity-appropriate backlog file (per `06-backlog.md`: a one-line follow-up with a "promote when" trigger → `backlog/cold/follow-ups.md`; a larger parked idea → `backlog/cold/ideas.md`), capturing both the deferred concern and the promote-when criterion. (A trigger is a field on the item, not its own bucket — the old "route to Deferred" rule is gone.) Established 2026-04-29 after PR #941 round 1: a `claude-review` "worth keeping an eye on over the next few PR cycles" framing was incorrectly bucketed as Dismissed; the reviewer's later round 2 sharpened the framing to a concrete monitoring criterion + fallback action, surfacing the gap.
 
 **Reviewer self-contradiction across rounds**: when round-N reviewer reverses its round-(N-1) stance on the same item (e.g., round 3 says "drop the `?? ''` as unreachable," round 4 says "add `?? ''` back for defensive typing"), the reviewer is not authoritative on its own prior disagreement. Dismiss and cite the earlier round's reasoning in the summary. Don't ping-pong. This is distinct from genuine new information surfacing — a round-N reviewer observation that _builds on_ round-(N-1) (adds context, corrects an error) is normal; a direct reversal on the same fact-pattern is noise.
 
@@ -133,7 +133,7 @@ PR #N has completed 3 rounds of review-respond. Remaining unresolved items:
 2. [semantic:contract] ...     (raised round 3, new)
 
 Each round's fixes have surfaced new findings. Options:
-- Merge as-is (remaining items → appropriate `backlog/*.md` file)
+- Merge as-is (remaining items → appropriate `backlog/**/*.md` file)
 - Rewrite the PR to address remaining items differently
 - Review the loop — maybe the PR scope is wrong
 ```
@@ -167,9 +167,9 @@ The whitelist is loaded with the rule. Entries are evaluated in order. The user 
 - **Type annotation addition** — adding `: T` to a variable, parameter, or return type; adding a type guard that only narrows for the compiler; **not** type changes that alter runtime control flow
 - **Formatting per linter** — apply `prettier` or `eslint --fix` output verbatim; no manual edits
 - **String literal typo fix** — text-content correction in a regular string literal; **not** inside regex patterns, SQL queries, shell commands, URL paths, or any other language-in-a-string context
-- **Documentation-only addition** — adding content to `BACKLOG.md`, `backlog/*.md`, release notes, `CHANGELOG.md`, `README.md`, or any file under `docs/`. Includes new sections and new entries, not just fixes. **Excludes** edits to `.claude/rules/*.md` and `.claude/skills/*/SKILL.md`, which are load-bearing constraints/procedures — treat those as semantic-shape even though they're markdown. Adding to a documentation file that this PR didn't otherwise touch is still allowed under this shape; "scope expansion" only applies to CODE files (see below).
+- **Documentation-only addition** — adding content to `BACKLOG.md`, `backlog/**/*.md`, release notes, `CHANGELOG.md`, `README.md`, or any file under `docs/`. Includes new sections and new entries, not just fixes. **Excludes** edits to `.claude/rules/*.md` and `.claude/skills/*/SKILL.md`, which are load-bearing constraints/procedures — treat those as semantic-shape even though they're markdown. Adding to a documentation file that this PR didn't otherwise touch is still allowed under this shape; "scope expansion" only applies to CODE files (see below).
 
-Implicit rule: "touches a file not in the PR's diff so far" is NOT a blocker for auto-apply as long as the edit is one of the trivial shapes above. The blast radius concern comes from the _shape_ of the change, not the _location_. A `backlog/*.md` addition to a file the PR hasn't touched is still a trivial-shape edit; a logic change in an untouched code file is still semantic-shape.
+Implicit rule: "touches a file not in the PR's diff so far" is NOT a blocker for auto-apply as long as the edit is one of the trivial shapes above. The blast radius concern comes from the _shape_ of the change, not the _location_. A `backlog/**/*.md` addition to a file the PR hasn't touched is still a trivial-shape edit; a logic change in an untouched code file is still semantic-shape.
 
 ### Explicit non-trivial (always ASK regardless of surface simplicity)
 
@@ -210,4 +210,4 @@ Before each round's consolidated message:
 - **`00-critical.md`** "Never merge PRs without user approval" remains in force. This rule governs iteration _before_ merge approval; it does not loosen the merge gate.
 - **`00-critical.md`** "NEVER modify tests to make them pass" remains in force. The test-suite gate in rule 3 fails closed — a trivial-shape edit that breaks tests is escalated, not covered up by modifying tests.
 - **`05-tooling.md`** PR-monitoring step 4 delegates to this file.
-- **`06-backlog.md`** out-of-scope tracking still applies — items explicitly flagged as follow-ups are added to the appropriate `backlog/*.md` file per rule 4's "Backlog candidates" section.
+- **`06-backlog.md`** out-of-scope tracking still applies — items explicitly flagged as follow-ups are added to the appropriate `backlog/**/*.md` file per rule 4's "Backlog candidates" section.

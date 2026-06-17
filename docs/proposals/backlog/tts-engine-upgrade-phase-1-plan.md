@@ -604,7 +604,7 @@ Each PR ships green tests, no behavioral regression. PR 1 invisible to users. PR
 
 ## 12. Backlog implications
 
-**Phase 1 surfaced — add to `backlog/inbox.md`**:
+**Phase 1 surfaced — add to `backlog/now.md` (Untriaged)**:
 
 - _"Reference audio TTLCache in `voiceReferenceHelper.ts`."_ Optimization: cache reference audio buffer for 5min to avoid repeated gateway round-trips. Defer if it bloats Phase 1; ship as Phase 1.5.
 - _"Mistral API smoke test results."_ Document empirical request/response shapes in `voice-cloning-2026.md` after smoke test (next session).

@@ -50,7 +50,7 @@ Rules:
 | `// Surfaced 2026-04-25 by claude-bot`         | `// guards against the empty-default leaking into ON CONFLICT path`                       |
 | `* Background: PR #983 raised the cap to 4000` | `* Cap mirrors API schema's SHORT_PARAGRAPH_MAX_LENGTH; do not raise without bumping API` |
 
-This applies to all comment shapes: full-line `//`, JSDoc `*` body, block `/* */`. Backlog markdown (`backlog/*.md`) is exempt — it intentionally tracks surfacing dates and PR origins.
+This applies to all comment shapes: full-line `//`, JSDoc `*` body, block `/* */`. Backlog markdown (`backlog/**/*.md`) is exempt — it intentionally tracks surfacing dates and PR origins.
 
 **Where archaeology _does_ belong**: commit messages (preserved by git), PR descriptions, post-mortems (`docs/incidents/`), and backlog entries with explicit "Surfaced 20YY-MM-DD" prefixes. Code comments document the _invariant_, not the _journey_.
 

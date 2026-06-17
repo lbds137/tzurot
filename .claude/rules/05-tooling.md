@@ -120,7 +120,7 @@ pnpm ops guard:proposal-links        # docs/proposals/backlog/*.md must have inb
 pnpm ops guard:audit-tool-docs       # Every registered audit tool has a non-stub WHY.md
 ```
 
-All five run in the CI `lint` job and hard-fail on findings (including `guard:boundaries` — its `--summary` mode is still pending per `backlog/quick-wins.md`, but hard-fail is independent of `--summary`). `guard:proposal-links` and `guard:audit-tool-docs` also support `--summary` for the future aggregator. `guard:audit-tool-docs` self-registers and runs the bidirectional check (every registered tool has a WHY.md AND every `*.WHY.md` is either registered or on `UNREGISTERED_WHY_PATHS`).
+All five run in the CI `lint` job and hard-fail on findings (including `guard:boundaries` — its `--summary` mode is still pending (tracked in `backlog/cold/follow-ups.md`), but hard-fail is independent of `--summary`). `guard:proposal-links` and `guard:audit-tool-docs` also support `--summary` for the future aggregator. `guard:audit-tool-docs` self-registers and runs the bidirectional check (every registered tool has a WHY.md AND every `*.WHY.md` is either registered or on `UNREGISTERED_WHY_PATHS`).
 
 **Note on `guard:duplicate-exports` and `guard:dockerfile-dist`**: both are CI gates but intentionally NOT registered as audit-class tools (no WHY.md, no canary, no `--summary` mode). The criteria for "audit-class" require a measurement with a threshold — duplicate-exports and dockerfile-dist are binary "is this in sync?" checks, not measurements. Same framing as `memory:analyze` (one-shot remediation, not periodic audit). See [`docs/reference/audit-enforcement.md`](../../docs/reference/audit-enforcement.md) for the registry criteria.
 

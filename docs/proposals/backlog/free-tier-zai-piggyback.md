@@ -95,8 +95,8 @@ is ready to commit a bounded slice of the coding-plan quota to guests.
 
 ## Related
 
-- Backlog entry: `backlog/icebox.md` → "Free-tier piggyback on the owner's z.ai
+- Backlog entry: `backlog/cold/ideas.md` → "Free-tier piggyback on the owner's z.ai
   coding plan — GLM-4.5-Air only" (this doc is its design expansion).
-- Deferred z.ai error-shape items (`backlog/deferred.md`): "z.ai 402 HTTP status
+- Deferred z.ai error-shape items (`backlog/cold/follow-ups.md`): "z.ai 402 HTTP status
   verification", "z.ai integration validation-model fallback" — both feed the
   dynamic-ceiling open question.
