@@ -164,6 +164,35 @@ describe('VisionProcessor', () => {
         expect(mockCheckModelVisionSupport).not.toHaveBeenCalled();
       });
 
+      it('derives the z.ai provider from a glm vision model when caller omits provider', async () => {
+        const personality = createMockPersonality({
+          model: 'gpt-4',
+          visionModel: 'z-ai/glm-5.2',
+        });
+
+        await describeImage(mockAttachment, personality);
+
+        // Provider must be derived from the RESOLVED vision model — not left
+        // undefined, which would fall back to the env-default AI_PROVIDER and
+        // misroute this cross-provider call (→ 401 Missing Authentication).
+        expect(mockCreateChatModel).toHaveBeenCalledWith(
+          expect.objectContaining({ modelName: 'z-ai/glm-5.2', provider: 'zai-coding' })
+        );
+      });
+
+      it('derives the OpenRouter provider from a slash-form vision model', async () => {
+        const personality = createMockPersonality({
+          model: 'gpt-4',
+          visionModel: 'google/gemma-4-31b-it',
+        });
+
+        await describeImage(mockAttachment, personality);
+
+        expect(mockCreateChatModel).toHaveBeenCalledWith(
+          expect.objectContaining({ modelName: 'google/gemma-4-31b-it', provider: 'openrouter' })
+        );
+      });
+
       it('should use main model when it has vision support', async () => {
         mockCheckModelVisionSupport.mockResolvedValue(true);
 
