@@ -115,7 +115,7 @@ function fullReference(content: string): ReferencedMessage {
 }
 
 describe('buildDedupedReferenceStub', () => {
-  it('keeps short content and strips embeds/location/attachments/flags', () => {
+  it('strips embeds/location/flags and folds the attachment marker into content', () => {
     const stub = buildDedupedReferenceStub(fullReference('short content'));
     expect(stub).toEqual({
       referenceNumber: 3,
@@ -123,7 +123,8 @@ describe('buildDedupedReferenceStub', () => {
       discordUserId: 'user-1',
       authorUsername: 'someone',
       authorDisplayName: 'Someone',
-      content: 'short content',
+      // marker first (truncation-safe), then the original text
+      content: '[image/png: x.png]\n\nshort content',
       embeds: '',
       timestamp: '2026-06-01T11:59:00.000Z',
       locationContext: '',
@@ -131,10 +132,34 @@ describe('buildDedupedReferenceStub', () => {
     });
   });
 
-  it('truncates content beyond the stub limit with an ellipsis', () => {
+  it('renders attachment markers alone for an image-only reply-target (empty text)', () => {
+    const stub = buildDedupedReferenceStub(fullReference(''));
+    expect(stub.content).toBe('[image/png: x.png]');
+  });
+
+  it('emits one marker per attachment, using contentType + name', () => {
+    const ref = fullReference('look at these');
+    ref.attachments = [
+      { url: 'https://cdn/a.jpg', contentType: 'image/jpeg', name: 'a.jpg' },
+      { url: 'https://cdn/v.ogg', contentType: 'audio/ogg' }, // no name → 'attachment'
+    ];
+    const stub = buildDedupedReferenceStub(ref);
+    expect(stub.content).toBe('[image/jpeg: a.jpg]\n[audio/ogg: attachment]\n\nlook at these');
+  });
+
+  it('leaves content untouched (no leading newlines) when there are no attachments', () => {
+    const ref = fullReference('plain text');
+    ref.attachments = undefined;
+    const stub = buildDedupedReferenceStub(ref);
+    expect(stub.content).toBe('plain text');
+  });
+
+  it('truncates the text portion but keeps the leading marker', () => {
     const long = 'x'.repeat(TEXT_LIMITS.DEDUP_STUB_CONTENT + 10);
     const stub = buildDedupedReferenceStub(fullReference(long));
-    expect(stub.content).toBe('x'.repeat(TEXT_LIMITS.DEDUP_STUB_CONTENT) + '...');
+    expect(stub.content).toBe(
+      '[image/png: x.png]\n\n' + 'x'.repeat(TEXT_LIMITS.DEDUP_STUB_CONTENT) + '...'
+    );
   });
 });
 

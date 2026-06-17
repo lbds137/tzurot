@@ -85,9 +85,20 @@ export function isDuplicateReference(
 
 /**
  * Collapse a full reference into the minimal deduplicated stub: truncated
- * content, no embeds/location/attachments. The stub keeps the reference
- * number — numbering is assigned before the dedup decision, so stubs consume
- * numbers and downstream `[Reference N]` links stay stable.
+ * content (with attachment markers), no embeds/location. The stub keeps the
+ * reference number — numbering is assigned before the dedup decision, so stubs
+ * consume numbers and downstream `[Reference N]` links stay stable.
+ *
+ * Attachment markers (`[contentType: name]`) are folded into the content so an
+ * image-only reply-target doesn't collapse to an empty quote — without them the
+ * model sees nothing and reports "no image," even though the full message (with
+ * its rendered image description) is in the history the stub points at. The
+ * marker's filename lets the model correlate the stub with that history entry.
+ *
+ * Contract: with attachments present the returned `content` can exceed
+ * `DEDUP_STUB_CONTENT` (markers are prepended AFTER the text is truncated), so a
+ * caller that treats it as final output must re-apply the limit. The prompt path
+ * already does, via `formatDedupedQuote`.
  */
 export function buildDedupedReferenceStub(reference: ReferencedMessage): ReferencedMessage {
   const limit = TEXT_LIMITS.DEDUP_STUB_CONTENT;
@@ -95,13 +106,22 @@ export function buildDedupedReferenceStub(reference: ReferencedMessage): Referen
     reference.content.length > limit
       ? reference.content.substring(0, limit) + '...'
       : reference.content;
+  // Markers go FIRST so they survive downstream re-truncation: formatDedupedQuote
+  // applies DEDUP_STUB_CONTENT to the COMBINED (markers + text) string and trims
+  // from the end, so the effective text budget there is DEDUP_STUB_CONTENT minus
+  // the marker length. Squeezing the text hint is acceptable — the full message
+  // (the thing the stub points at) is in history regardless; the marker is not.
+  const attachmentMarkers = (reference.attachments ?? [])
+    .map(att => `[${att.contentType}: ${att.name ?? 'attachment'}]`)
+    .join('\n');
+  const content = [attachmentMarkers, truncatedContent].filter(s => s.length > 0).join('\n\n');
   return {
     referenceNumber: reference.referenceNumber,
     discordMessageId: reference.discordMessageId,
     discordUserId: reference.discordUserId,
     authorUsername: reference.authorUsername,
     authorDisplayName: reference.authorDisplayName,
-    content: truncatedContent,
+    content,
     embeds: '',
     timestamp: reference.timestamp,
     locationContext: '',

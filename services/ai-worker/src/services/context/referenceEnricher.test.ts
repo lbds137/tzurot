@@ -63,6 +63,24 @@ describe('enrichRawReferences', () => {
     expect(result[0].locationContext).toBe('');
   });
 
+  it('keeps the image attachment marker when stubbing a duplicate image-only reply-target', async () => {
+    const result = await enrichRawReferences({
+      rawReferences: [
+        rawRef({
+          content: '', // image-only message — without the marker the stub is blank
+          attachments: [
+            { url: 'https://cdn/board.png', contentType: 'image/png', name: 'board.png' },
+          ],
+        }),
+      ],
+      history: [historyRow('ref-1', new Date(NOW - 5_000))],
+      retrieveTranscript: noTranscript,
+      nowMs: NOW,
+    });
+    expect(result[0].isDeduplicated).toBe(true);
+    expect(result[0].content).toBe('[image/png: board.png]');
+  });
+
   it('stubs a recent webhook reference via the time fallback', async () => {
     const result = await enrichRawReferences({
       rawReferences: [rawRef({ webhookId: 'wh-1' })],
