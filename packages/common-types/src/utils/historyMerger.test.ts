@@ -556,27 +556,5 @@ describe('HistoryMerger', () => {
       expect(result[0].content).toBe('First');
       expect(result[1].content).toBe('Second');
     });
-
-    // TEMPORARY (debug PR): the CTX_MERGE_PROBE diagnostic is logging-only and
-    // must not alter merge behavior. Remove with the probe cleanup commit.
-    it('CTX_MERGE_PROBE logging does not change the merged result', () => {
-      const dbHistory = [createMockMessage({ discordMessageId: ['db-1'], content: 'DB one' })];
-      const extendedMessages = [
-        createMockMessage({ discordMessageId: ['live-2'], content: 'Live two' }),
-      ];
-
-      const prev = process.env.CTX_MERGE_PROBE;
-      process.env.CTX_MERGE_PROBE = '1';
-      try {
-        const result = mergeWithHistory(extendedMessages, dbHistory);
-        expect(result.map(m => m.content)).toEqual(['DB one', 'Live two']);
-      } finally {
-        if (prev === undefined) {
-          delete process.env.CTX_MERGE_PROBE;
-        } else {
-          process.env.CTX_MERGE_PROBE = prev;
-        }
-      }
-    });
   });
 });
