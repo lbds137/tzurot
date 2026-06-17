@@ -98,13 +98,17 @@ export class AIJobProcessor {
     this.prisma = prisma;
     this.memoryManager = memoryManager;
 
+    // Use provided ApiKeyResolver (for testing) or create new one (for production)
+    // ApiKeyResolver handles BYOK - looking up and decrypting user API keys.
+    // Constructed before the RAG service so it can be injected for cross-provider
+    // vision-key resolution in the RAG history/reference paths.
+    this.apiKeyResolver = apiKeyResolver ?? new ApiKeyResolver(prisma);
+
     // Use provided RAGService (for testing) or create new one (for production)
     // Note: PersonaResolver is passed through to MemoryRetriever for persona-based memory retrieval
-    this.ragService = ragService ?? new ConversationalRAGService(memoryManager, personaResolver);
-
-    // Use provided ApiKeyResolver (for testing) or create new one (for production)
-    // ApiKeyResolver handles BYOK - looking up and decrypting user API keys
-    this.apiKeyResolver = apiKeyResolver ?? new ApiKeyResolver(prisma);
+    this.ragService =
+      ragService ??
+      new ConversationalRAGService(memoryManager, personaResolver, this.apiKeyResolver);
 
     // Use provided LlmConfigResolver (for testing) or create new one (for production)
     // LlmConfigResolver handles user config overrides (per-personality and global default)

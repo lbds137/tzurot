@@ -11,6 +11,7 @@ import {
   type ReferencedMessage,
   type LoadedPersonality,
   type SttDispatch,
+  type AIProvider,
   TEXT_LIMITS,
   formatTimestampWithDelta,
 } from '@tzurot/common-types';
@@ -25,6 +26,20 @@ import { processAttachmentsParallel } from './AttachmentProcessor.js';
 import { extractXmlTextContent } from '../utils/xmlTextExtractor.js';
 
 const logger = createLogger('ReferencedMessageFormatter');
+
+/**
+ * Auth context for reference-attachment processing. `userApiKey` is the key for
+ * the VISION provider (resolved upstream), and `visionProvider`/`visionModel`
+ * carry the cross-provider vision resolution so reference images use the correct
+ * key+model instead of the raw main-model key. `sttDispatch` drives voice
+ * transcription independently. All fields optional — legacy callers degrade.
+ */
+interface ReferenceVisionAuth {
+  userApiKey?: string;
+  sttDispatch?: SttDispatch;
+  visionProvider?: AIProvider;
+  visionModel?: string;
+}
 
 /**
  * Referenced Message Formatter
@@ -64,10 +79,8 @@ export class ReferencedMessageFormatter {
     personality: LoadedPersonality,
     isGuestMode = false,
     preprocessedAttachments?: Record<number, ProcessedAttachment[]>,
-    apiKeys?: { userApiKey?: string; sttDispatch?: SttDispatch }
+    apiKeys?: ReferenceVisionAuth
   ): Promise<string> {
-    const userApiKey = apiKeys?.userApiKey;
-    const sttDispatch = apiKeys?.sttDispatch;
     const referenceElements: string[] = [];
 
     // Process each reference into XML
@@ -95,7 +108,7 @@ export class ReferencedMessageFormatter {
           personality,
           isGuestMode,
           preprocessedAttachments?.[ref.referenceNumber],
-          { userApiKey, sttDispatch }
+          apiKeys
         );
         referenceElements.push(forwardedElement);
         continue;
@@ -107,7 +120,7 @@ export class ReferencedMessageFormatter {
         personality,
         isGuestMode,
         preprocessedAttachments?.[ref.referenceNumber],
-        { userApiKey, sttDispatch }
+        apiKeys
       );
       referenceElements.push(standardElement);
     }
@@ -139,9 +152,9 @@ export class ReferencedMessageFormatter {
     personality: LoadedPersonality,
     isGuestMode: boolean,
     preprocessedForRef?: ProcessedAttachment[],
-    apiKeys?: { userApiKey?: string; sttDispatch?: SttDispatch }
+    apiKeys?: ReferenceVisionAuth
   ): Promise<string> {
-    const { userApiKey, sttDispatch } = apiKeys ?? {};
+    const { userApiKey, sttDispatch, visionProvider, visionModel } = apiKeys ?? {};
     const { absolute, relative } = formatTimestampWithDelta(ref.timestamp);
 
     let attachmentLines: string[] = [];
@@ -154,6 +167,8 @@ export class ReferencedMessageFormatter {
         preprocessedAttachments: preprocessedForRef,
         userApiKey,
         sttDispatch,
+        visionProvider,
+        model: visionModel,
       });
     }
 
@@ -178,9 +193,9 @@ export class ReferencedMessageFormatter {
     personality: LoadedPersonality,
     isGuestMode: boolean,
     preprocessedForRef?: ProcessedAttachment[],
-    apiKeys?: { userApiKey?: string; sttDispatch?: SttDispatch }
+    apiKeys?: ReferenceVisionAuth
   ): Promise<string> {
-    const { userApiKey, sttDispatch } = apiKeys ?? {};
+    const { userApiKey, sttDispatch, visionProvider, visionModel } = apiKeys ?? {};
     const { absolute, relative } = formatTimestampWithDelta(ref.timestamp);
 
     const forwardedContent: ForwardedMessageContent = {
@@ -199,6 +214,8 @@ export class ReferencedMessageFormatter {
         preprocessedAttachments: preprocessedForRef,
         userApiKey,
         sttDispatch,
+        visionProvider,
+        model: visionModel,
       });
 
       if (attachmentLines.length > 0) {

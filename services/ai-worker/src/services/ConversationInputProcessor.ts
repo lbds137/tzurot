@@ -23,7 +23,11 @@ import { extractRecentHistoryWindow } from './RAGUtils.js';
 import type { PromptBuilder } from './PromptBuilder.js';
 import type { ReferencedMessageFormatter } from './ReferencedMessageFormatter.js';
 import type { ResponsePostProcessor } from './ResponsePostProcessor.js';
-import type { ConversationContext, ProcessedInputs } from './ConversationalRAGTypes.js';
+import type {
+  ConversationContext,
+  ProcessedInputs,
+  ResolvedVisionAuth,
+} from './ConversationalRAGTypes.js';
 
 const logger = createLogger('ConversationInputProcessor');
 
@@ -67,9 +71,21 @@ export class ConversationInputProcessor {
       isGuestMode: boolean;
       userApiKey?: string;
       sttDispatch?: SttDispatch;
+      /**
+       * Cross-provider vision auth resolved once upstream (ConversationalRAGService).
+       * Used for image processing so the inline-fallback + reference paths send the
+       * vision-provider key instead of the raw main-model key. Absent in legacy
+       * callers/tests → fall back to `userApiKey` (no cross-provider resolution).
+       */
+      visionAuth?: ResolvedVisionAuth;
     }
   ): Promise<ProcessedInputs> {
-    const { isGuestMode, userApiKey, sttDispatch } = authOptions;
+    const { isGuestMode, userApiKey, sttDispatch, visionAuth } = authOptions;
+    // Vision-provider key/provider/model (resolved upstream); fall back to the
+    // main key when no visionAuth was threaded (legacy/test callers).
+    const visionApiKey = visionAuth?.userApiKey ?? userApiKey;
+    const visionProvider = visionAuth?.visionProvider;
+    const visionModel = visionAuth?.model;
     // Use pre-processed attachments from dependency jobs if available
     let processedAttachments: ProcessedAttachment[] = [];
     if (context.preprocessedAttachments && context.preprocessedAttachments.length > 0) {
@@ -82,11 +98,13 @@ export class ConversationInputProcessor {
       // Fallback: process attachments inline (shouldn't happen with job chain, but defensive)
       processedAttachments = await processAttachments(context.attachments, personality, {
         isGuestMode,
-        userApiKey,
+        userApiKey: visionApiKey,
         sttDispatch,
+        visionProvider,
+        model: visionModel,
         loggingContext: {
           userId: context.userId,
-          apiKeySource: deriveApiKeySource(isGuestMode, userApiKey),
+          apiKeySource: deriveApiKeySource(isGuestMode, visionApiKey),
         },
       });
       logger.info(
@@ -112,7 +130,7 @@ export class ConversationInputProcessor {
             personality,
             isGuestMode,
             context.preprocessedReferenceAttachments,
-            { userApiKey, sttDispatch }
+            { userApiKey: visionApiKey, sttDispatch, visionProvider, visionModel }
           )
         : undefined;
 

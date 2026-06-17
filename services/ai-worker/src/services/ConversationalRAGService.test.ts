@@ -16,7 +16,14 @@ import { ConversationalRAGService } from './ConversationalRAGService.js';
 import type { MemoryDocument } from './ConversationalRAGTypes.js';
 import type { AttachmentMetadata, ReferencedMessage } from '@tzurot/common-types';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
-import { CONTENT_TYPES, AttachmentType } from '@tzurot/common-types';
+import type { ApiKeyResolver } from './ApiKeyResolver.js';
+import { CONTENT_TYPES, AttachmentType, AIProvider } from '@tzurot/common-types';
+
+// Mock the cross-provider vision resolver so we can assert resolveVisionAuth wiring
+// without exercising the real key-resolution path.
+const { mockResolveVisionConfig } = vi.hoisted(() => ({
+  mockResolveVisionConfig: vi.fn(),
+}));
 
 // Set up mocks using async factories (vi.mock is hoisted before imports)
 vi.mock('./LLMInvoker.js', async () => {
@@ -77,6 +84,9 @@ vi.mock('../redis.js', () => ({
 vi.mock('./storedReferenceHydrator.js', () => ({
   hydrateStoredReferences: vi.fn().mockResolvedValue(undefined),
 }));
+vi.mock('./multimodal/visionAuthResolver.js', () => ({
+  resolveVisionConfig: mockResolveVisionConfig,
+}));
 
 // Import mock accessors and fixtures (after vi.mock declarations)
 import {
@@ -108,6 +118,56 @@ describe('ConversationalRAGService', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  describe('cross-provider vision auth', () => {
+    it('resolves vision config once with the effective main provider + key when an apiKeyResolver is wired', async () => {
+      mockResolveVisionConfig.mockResolvedValue({
+        kind: 'resolved',
+        config: {
+          apiKey: 'vision-provider-key',
+          provider: AIProvider.OpenRouter,
+          model: 'google/gemma-4-31b-it',
+          source: 'user',
+          isGuestMode: false,
+        },
+      });
+      const serviceWithResolver = new ConversationalRAGService(
+        undefined,
+        undefined,
+        {} as unknown as ApiKeyResolver
+      );
+      const personality = createMockPersonality();
+      const context = createMockContext();
+
+      await serviceWithResolver.generateResponse(personality, 'Hi', context, {
+        userApiKey: 'main-model-key', // z.ai main key — must NOT leak to the OpenRouter vision call
+        effectiveProvider: AIProvider.ZaiCoding,
+      });
+
+      expect(mockResolveVisionConfig).toHaveBeenCalledTimes(1);
+      expect(mockResolveVisionConfig).toHaveBeenCalledWith(
+        expect.objectContaining({
+          personality,
+          mainProvider: AIProvider.ZaiCoding,
+          mainApiKey: 'main-model-key',
+          userId: context.userId,
+        })
+      );
+    });
+
+    it('does not resolve vision config when no apiKeyResolver is wired (legacy/degrade path)', async () => {
+      const personality = createMockPersonality();
+      const context = createMockContext();
+
+      // `service` (from beforeEach) is constructed without an apiKeyResolver.
+      await service.generateResponse(personality, 'Hi', context, {
+        userApiKey: 'main-model-key',
+        effectiveProvider: AIProvider.ZaiCoding,
+      });
+
+      expect(mockResolveVisionConfig).not.toHaveBeenCalled();
+    });
   });
 
   describe('RAG service orchestration', () => {
