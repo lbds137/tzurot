@@ -2,14 +2,9 @@
 
 _New items go here. Triage to appropriate section weekly._
 
-### `[FIX]` Embed-only blank history + remove context probes (beta.133 follow-up)
+### `[FIX]` Embed-only blank history (non-forwarded link embeds)
 
-**Surfaced 2026-06-16** during the beta.133 context-assembly work (#1237 review finding 2). Two coupled follow-ups:
-
-1. **Embed-only blank fix.** `embedsXml` is persisted ONLY for _forwarded_ messages (`ConversationPersistence.saveUserMessage:193`), so a regular link-embed message never persists it and renders blank once it ages out of the live-fetch window. Read the `EMBED_PERSIST_PROBE=1` dev logs (shipped in #1237) to settle the fix: if the embed is present at persist time → persist `embedsXml` for ALL messages with embeds; if not (Discord async embed resolution) → also add a `messageUpdate` re-capture.
-2. **Remove the two context probes** once their fixes are dev-verified: `EMBED_PERSIST_PROBE` (ConversationPersistence — paired with #1) and `CTX_MERGE_PROBE` (historyMerger — paired with the #1237 dedup + the Bug C image fix). Both are gated `debug` instrumentation; `git log --grep '^debug[:(]' origin/develop` surfaces any still-live.
-
-**Promote when:** the #1237 dedup/weigh-in fixes and the Bug C image fix are dev-verified — then read both probes, apply the embed fix, and remove both probes.
+**Surfaced 2026-06-16; diagnostic settled 2026-06-17.** `embedsXml` is persisted ONLY for _forwarded_ messages (`ConversationPersistence.saveUserMessage:193`), so a regular non-forwarded link-embed message never persists it and renders blank once it ages out of the live-fetch window. **The `EMBED_PERSIST_PROBE` answered the open design question** (reply-case dev sample, 2026-06-17: `embedCountAtPersist=1, embedsXmlPersisted=false`) — the embed IS present at persist time, so the fix is the **simple variant**: build + persist `embedsXml` for ALL messages with `embeds.length > 0` (drop the `isForwarded &&` gate at `ConversationPersistence.ts:193`), **not** a `messageUpdate` re-capture. **Caveat**: some link types (e.g. Reddit `/s/` share links) may carry a thin/placeholder embed whose content resolves async — those could still need a `messageUpdate` follow-up, but the simple fix covers rich embeds (the common case). **Action**: drop the `isForwarded &&` gate so `embedsXml` builds for any message with embeds; dev-verify. (The 3 beta.133 context probes — `EMBED_PERSIST`/`CTX_MERGE`/`VISION_AUTH` — were removed in PR #1243.)
 
 ### `[FIX]` Short-circuit retry-storm on permanently-dead image URLs (media_not_found)
 
