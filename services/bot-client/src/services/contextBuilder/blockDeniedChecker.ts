@@ -24,12 +24,14 @@ export function buildBlockDeniedChecker(
   message: Message,
   personalityId: string
 ): ((discordUserId: string) => boolean) | undefined {
-  const cache = denylistCache;
-  if (cache === undefined) {
+  if (denylistCache === undefined) {
     return undefined;
   }
+  // `denylistCache` is a never-reassigned parameter, so TS keeps the
+  // non-undefined narrowing inside the returned closure (unlike the class
+  // field this was extracted from, which needed a local alias).
   return (discordUserId: string): boolean =>
-    cache.isBlocked(
+    denylistCache.isBlocked(
       discordUserId,
       message.guildId ?? undefined,
       message.channelId,

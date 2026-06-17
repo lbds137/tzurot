@@ -420,6 +420,77 @@ describe('DiscordChannelFetcher', () => {
       expect(msg.personalityName).toBeUndefined();
       // The "**Name:** " prefix is stripped from the content seen by the model.
       expect(msg.content).toBe('poke');
+      // The bot (relay author) must NOT be registered as a participant — the
+      // isRealUser guard excludes bot-authored messages from user collection.
+      expect(result.extendedContextUsers ?? []).not.toContainEqual(
+        expect.objectContaining({ discordId: botUserId })
+      );
+    });
+
+    it('classifies a primary-bot relay-echo with no prefix as a user message (bot name fallback)', async () => {
+      const botUserId = 'bot123';
+
+      const messages = [
+        createMockMessage({
+          id: '1',
+          // Edge case: a primary-bot message not in the registry and with no
+          // "**Name:** " prefix (e.g. an error fallback). It's still user-role
+          // (not our assistant), and personaName falls back to the author name.
+          content: 'plain bot-authored text, no prefix',
+          authorId: botUserId,
+          authorUsername: 'Rotzot',
+          isBot: true,
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId,
+        getOurPersonalityId: async () => null, // not registered
+      });
+
+      const msg = result.messages[0];
+      expect(msg.role).toBe(MessageRole.User);
+      // No prefix to parse → personaName falls back to the author display name.
+      expect(msg.personaName).toBe('Rotzot');
+      expect(msg.content).toBe('plain bot-authored text, no prefix');
+      // Still excluded from participant collection (bot-authored).
+      expect(result.extendedContextUsers ?? []).not.toContainEqual(
+        expect.objectContaining({ discordId: botUserId })
+      );
+    });
+
+    it('classifies a primary-bot DM response as a relay-echo when the registry misses (documented degradation)', async () => {
+      // Documents the registry-miss degradation: a real DM personality response
+      // whose registry key expired/never-stored is classified as a relay-echo
+      // (user role) on the LIVE copy. In production this is dedup-mitigated — the
+      // DM response is persisted as role=assistant and the live copy dedups
+      // against the DB row, so the misclassification never reaches the model.
+      const botUserId = 'bot123';
+
+      const messages = [
+        createMockMessage({
+          id: '1',
+          content: '**Lila:** hello there',
+          authorId: botUserId,
+          authorUsername: 'Rotzot',
+          isBot: true,
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId,
+        getOurPersonalityId: async () => null, // registry miss (TTL expired / never stored)
+      });
+
+      const msg = result.messages[0];
+      // Degrades to user-role relay-echo (the documented, dedup-mitigated path).
+      expect(msg.role).toBe(MessageRole.User);
+      expect(msg.personaName).toBe('Lila');
+      expect(msg.content).toBe('hello there');
     });
 
     it('classifies a primary-bot DM personality response as an assistant message', async () => {
