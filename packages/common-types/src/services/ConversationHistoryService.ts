@@ -172,9 +172,9 @@ export class ConversationHistoryService {
           personaId,
           role: MessageRole.User,
         },
-        orderBy: {
-          createdAt: 'desc',
-        },
+        // id tiebreak so a createdAt-ms tie deterministically resolves to one
+        // row — this then drives an update() on lastMessage.id below.
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       });
 
       if (!lastMessage) {
@@ -334,9 +334,9 @@ export class ConversationHistoryService {
           personaId,
           role: MessageRole.Assistant,
         },
-        orderBy: {
-          createdAt: 'desc',
-        },
+        // id tiebreak so a createdAt-ms tie deterministically resolves to one
+        // row — this then drives an update() on lastMessage.id below.
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       });
 
       if (!lastMessage) {
