@@ -30,16 +30,7 @@ let stopPoolStatsGauge: (() => void) | null = null;
  */
 export function getPrismaClient(): PrismaClient {
   if (!prismaClient) {
-    // Debug: Check DATABASE_URL at runtime
     const dbUrl = process.env.DATABASE_URL;
-    logger.info(
-      {
-        set: dbUrl !== null && dbUrl !== undefined && dbUrl.length > 0,
-        prefix:
-          dbUrl !== null && dbUrl !== undefined && dbUrl.length > 0 ? dbUrl.substring(0, 15) : null,
-      },
-      'DATABASE_URL check'
-    );
 
     // Prisma 7.0 driver adapter over an EXPLICIT pg.Pool. The adapter ignores
     // `?connection_limit=` on DATABASE_URL, so the pool MUST be sized here —
