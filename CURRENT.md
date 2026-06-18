@@ -7,24 +7,36 @@
 
 ## Unreleased on Develop (since beta.133)
 
-- **Backlog system restructured (#1245, merged 2026-06-17)** — HOT/COLD split + granularity ladder (see Last Session below). Docs + tooling only: new `pnpm ops backlog` lint, `check-deferred-refs` repathed; **no runtime/user-facing change, no migration** — not a release-note item.
+**Session 2026-06-18 — incognito feature + two prod-bug classes + LHF sweep** (all to develop, no migrations):
 
-_beta.133 shipped 2026-06-17 (#1244); the beta.132→133 delta (context-assembly fix family #1239/#1240/#1241/#1242 + dedup + A/B normalization, the `/character import` timeout fix #1228, `/character chat` split #1230, browse UIs #1231, forwarded-origin context #1229) is in the [release notes](https://github.com/lbds137/tzurot/releases/tag/v3.0.0-beta.133)._
+- **DB connection-pool starvation fixed** (#1250/#1251) — the Prisma 7 driver-adapter pool fell back to pg defaults (`max=10`, wait-forever acquisition) and starved under load (the "logged nothing, then eventually completed" timeouts). Now explicitly configured (`max=20`, finite acquisition timeout, env-tunable per `poolConfig.ts`) + saturation gauge + bounded transient pools. **Pending prod validation.**
+- **avatarData null round-trip fixed** (#1253) — editing a **no-avatar** character 400'd (`avatarData: expected string, received null`), masked as "Failed to update character." Schema now accepts null + both media processors guard it. Plus a **round-trip contract test** guarding the whole class, and real-gateway-error surfacing on the character/persona/preset dashboards (shared `utils/dashboard/saveError.ts`).
+- **Incognito toggle** (#1252) — `incognito` boolean on `/character chime-in` + `random` (anonymous by default; `incognito:False` injects persona + memories + records). **#1255** reordered it after `message` on `/random`.
+- **Incognito cross-channel crash fixed** (#1254) — an incognito chat threw `[ContextAssembler] cross-channel enabled with a null persona`. Cross-channel now gates on **persona presence**, not weigh-in framing — fixes the crash AND makes a personal weigh-in correctly get cross-channel ("they're a unit").
+- **Preset save-timeout honest UX** (#1249) — `⏳ still applying` notice on a status-0 client abort instead of a misleading hard failure.
+- **`/help` autocomplete** over leaf commands + an all-command structure snapshot (fixed a latent `toJSON` bug where `/help <cmd>` rendered no subcommands).
+- **Tier 1 LHF**: `embedsXml` persists for all embed-bearing messages; `id` tiebreak on recency-ordered write-then-update picks; dedup-stub over-budget + image-only stub tests; stale `/metrics` + `/voice-references` docstrings; `backlog:lint` wired into `pnpm quality`. Plus a hono override bump (5 advisories).
+- **Backlog system restructured (#1245, 2026-06-17)** — HOT/COLD split + granularity ladder. Docs + tooling only.
+
+_beta.133 shipped 2026-06-17 (#1244); the beta.132→133 delta is in the [release notes](https://github.com/lbds137/tzurot/releases/tag/v3.0.0-beta.133)._
 
 ---
 
 ## Next Session Goal
 
-**This session (2026-06-17): backlog restructured + inbox triaged to zero (#1245, merged).** The backlog is now HOT/COLD — session-start load dropped from ~2500 lines to ~350 (see Last Session below). beta.133 (#1244) shipped just prior. No forward thread is pre-decided — candidates below, your pick.
+**Session 2026-06-18 shipped the incognito feature + two prod-bug classes (DB-pool starvation, avatarData null round-trip) + an LHF sweep** — see Unreleased above. **Pending verification on dev**: the incognito 4-case matrix + cross-channel-for-personal-summons + the no-avatar character edit (avatar edit already confirmed working). **Pending prod**: confirm the DB-pool-starvation fix (#1250) under real load.
 
-**Candidate next threads** (pick one, none greenlit yet):
+No release cut yet — these accumulate for beta.134.
 
-- **Embed-only blank history** (`backlog/now.md` — Quick Wins) — the deferred half of Bug C, and the diagnostic is already settled: drop the `isForwarded &&` gate at `ConversationPersistence.ts:193` so `embedsXml` persists for any message with embeds. Small, dev-verifiable. The most natural beta.133 follow-on.
-- **Preset llm-config PUT timeout — track (a)** (`backlog/now.md` — Production Issues) — the one still-open prod issue. track (b) is mitigated (20s WRITE budget), but the gateway PUT exceeding 10s at all is unexplained; needs prod timing instrumentation (load-correlated, not dev-reproducible). The probe is the next natural release passenger.
-- **Context-relocation epic 2.5d** — delete legacy + `MessageContextBuilder` + bot-client Prisma + all `CONTEXT_*` flags; tighten depcruise → unblocks PR-2p.
-- **Dead-URL image retry-storm** (`backlog/cold/ideas.md`) — expired CDN URLs trigger a full multi-provider retry storm (~106s observed); short-circuit on `media_not_found` + fix `skipNegativeCache` to bypass only transient failures.
+**Candidate next threads** (none greenlit):
 
-**Smaller follow-ups in backlog** (now under the new structure): vision-fallback cap → runtime admin knob, write-side `findFirst` `id`-tiebreak alignment, dedup-stub edge-case tests, and the backlog-lint docs/CI-wiring decision — all in `backlog/cold/follow-ups.md`. The `// FOLLOWUP:` code-comment convention the council proposed is in `backlog/cold/ideas.md` for its own evaluation.
+- **Cut beta.134** — once dev verification of the incognito/cross-channel behavior is clean. Sizeable user-facing delta (incognito + avatar fix + pool fix + preset/help UX).
+- **Type-enforce the personal/anonymous context coupling** (`cold/ideas.md`) — the discriminated-union refactor so the `isWeighIn`/`incognito`-vs-persona drift class becomes unrepresentable (the "enforce bundling" idea from the #1254 investigation).
+- **UX consistency audit (incl. parameter ordering)** (`cold/ideas.md`) — **user wants soonish** (asked 2026-06-18 off the `/character random` option reorder).
+- **Preset llm-config PUT timeout — track (a)** — the gateway-slowness root cause; the pool fix (#1250) is the leading candidate, so **re-check on prod** before treating it as still-open.
+- **Context-relocation epic 2.5d** — delete legacy + `MessageContextBuilder` + bot-client Prisma + all `CONTEXT_*` flags.
+
+**Smaller follow-ups** in `backlog/cold/follow-ups.md`: bot-client holds its own Prisma pool (3×20 vs Railway's ~100), `characterInfo`/`personalityTraits` empty-string sibling of the avatarData class, round-trip-registry enforcement, incognito test-gaps + cosmetic cleanup — plus the older ones.
 
 ## Last Session — backlog restructure: HOT/COLD + granularity ladder (2026-06-17)
 
