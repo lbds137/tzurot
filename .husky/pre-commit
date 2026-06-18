@@ -84,7 +84,25 @@ if [ -n "$STAGED_CODE_FILES" ]; then
     # is the dominant violation pattern in observed data; inline cases are rare.
     # Date pattern is decade-scoped (`202[0-9]`) so RFC/spec date references
     # like "RFC 3339 (2002-07-15)" don't trip the hook.
-    TEMPORAL_PATTERN='PR #[0-9]+|PR-[0-9]+(\.[0-9a-z]+)*|202[0-9]-[0-9]{2}-[0-9]{2}|Surfaced 202[0-9]|caught in (round|PR )|flagged by (review|PR)|round [0-9]+ (claude-review|review)'
+    #
+    # PR/issue refs: `PR #N` alone was too narrow — `bug #N`, `(#N)`, `GH-N`,
+    # `fixes #N`, and a bare `the #N drift` all slipped through. We now also
+    # match those ref-word/parenthetical forms (zero hex risk — each requires a
+    # ref word or parens) PLUS a bare `#NNNN` bounded to 4-5 digits. That bound
+    # is the hex-color guard: a CSS hex is 3/4/6/8 digits, so `#[0-9]{4,5}`
+    # (followed by a non-digit) catches a 4-5 digit issue/PR number while
+    # skipping `#123` (3), `#123456` (6), and `#1a2b3c` (any letters). The one
+    # narrow gap left is an all-numeric 4-digit RGBA hex (`#1234`) — vanishingly
+    # rare in a comment, and `TZUROT_SKIP_TEMPORAL_CHECK=1` overrides it. The
+    # final match below is case-insensitive (grep -Ei), so capitalized keywords
+    # (`Fixes #N`, `Closed #N`, `Caught in round N`) are caught too.
+    #
+    # Smoke-test after editing TEMPORAL_PATTERN (run in a shell where it's set):
+    #   for s in 'Fixes #42' 'bug #1254' 'the #1254 drift' '(#1254)'; do \
+    #     echo "$s" | grep -qEi "$TEMPORAL_PATTERN" && echo "catch: $s"; done
+    #   for s in '#FF0000' '#123456' '#123' 'close the door'; do \
+    #     echo "$s" | grep -qEi "$TEMPORAL_PATTERN" || echo "ignore: $s"; done
+    TEMPORAL_PATTERN='PR #[0-9]+|PR-[0-9]+(\.[0-9a-z]+)*|GH-[0-9]+|[Bb]ug #[0-9]+|[Ii]ssue #[0-9]+|\(#[0-9]+\)|(fix(e[sd])?|close[sd]?|resolve[sd]?) #[0-9]+|#[0-9]{4,5}([^0-9]|$)|202[0-9]-[0-9]{2}-[0-9]{2}|Surfaced 202[0-9]|caught in (round|PR )|flagged by (review|PR)|round [0-9]+ (claude-review|review)'
     HAS_VIOLATIONS=0
     VIOLATION_OUTPUT=""
     for file in $STAGED_CODE_FILES; do
@@ -98,7 +116,7 @@ if [ -n "$STAGED_CODE_FILES" ]; then
         FILE_VIOLATIONS=$(git diff --cached -- "$file" | \
             grep -E '^[+]' | grep -v '^[+][+][+]' | \
             grep -E '^[+][[:space:]]*(//|\*|/\*)' | \
-            grep -E "$TEMPORAL_PATTERN" || true)
+            grep -Ei "$TEMPORAL_PATTERN" || true)
         if [ -n "$FILE_VIOLATIONS" ]; then
             HAS_VIOLATIONS=1
             VIOLATION_OUTPUT="${VIOLATION_OUTPUT}   ${file}:
