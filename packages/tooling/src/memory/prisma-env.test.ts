@@ -9,6 +9,7 @@ vi.mock('@tzurot/common-types', () => ({
   PrismaClient: class MockPrismaClient {
     $disconnect = vi.fn().mockResolvedValue(undefined);
   },
+  transientPoolOptions: () => ({ max: 5, connectionTimeoutMillis: 10_000 }),
 }));
 
 vi.mock('@prisma/adapter-pg', () => ({

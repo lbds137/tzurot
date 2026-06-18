@@ -75,6 +75,7 @@ export { normalizeRole, normalizeTimestamp } from './utils/messageNormalization.
 
 // Export services
 export * from './services/prisma.js';
+export * from './services/poolConfig.js';
 export * from './services/personality/index.js';
 export * from './services/BaseConfigResolver.js';
 export * from './services/LlmConfigMapper.js';
