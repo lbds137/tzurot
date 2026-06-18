@@ -494,7 +494,10 @@ describe('ContextAssembler.assembleCore', () => {
     expect(deps.dataSource.getCrossChannelHistory).not.toHaveBeenCalled();
   });
 
-  it('skips cross-channel for weigh-in jobs even when enabled', async () => {
+  it('skips cross-channel for a default weigh-in (incognito → null persona) even when enabled', async () => {
+    // A bare weigh-in defaults to incognito, which nulls the persona; cross-channel
+    // is persona-scoped, so it's skipped — because of the null persona, NOT the
+    // weigh-in framing (a personal weigh-in still gets it — see below).
     const deps = makeDeps();
     const assembler = new ContextAssembler(deps);
     const core = await assembler.assembleCore(makeJobContext({ isWeighIn: true }), PERSONALITY, {
@@ -503,6 +506,37 @@ describe('ContextAssembler.assembleCore', () => {
     } as ResolvedConfigOverrides);
     expect(core.crossChannelHistory).toBeUndefined();
     expect(deps.dataSource.getCrossChannelHistory).not.toHaveBeenCalled();
+  });
+
+  it('skips cross-channel for an incognito chat (persona nulled) even when enabled', async () => {
+    // Regression: /character random with a message + incognito:true has
+    // isWeighIn=false (a real chat turn) but incognito nulls the persona.
+    // Cross-channel is persona-scoped, so it must be skipped rather than throwing
+    // "[ContextAssembler] cross-channel enabled with a null persona".
+    const deps = makeDeps();
+    const assembler = new ContextAssembler(deps);
+    const core = await assembler.assembleCore(makeJobContext({ incognito: true }), PERSONALITY, {
+      maxMessages: 30,
+      crossChannelHistoryEnabled: true,
+    } as ResolvedConfigOverrides);
+    expect(core.activePersonaId).toBeNull();
+    expect(core.crossChannelHistory).toBeUndefined();
+    expect(deps.dataSource.getCrossChannelHistory).not.toHaveBeenCalled();
+  });
+
+  it('enables cross-channel for a PERSONAL weigh-in (incognito=false keeps the persona)', async () => {
+    // Cross-channel and the persona are a unit: a personal weigh-in
+    // (isWeighIn=true, incognito=false) keeps its persona, so cross-channel runs.
+    // The weigh-in framing does NOT disable it.
+    const deps = makeDeps();
+    const assembler = new ContextAssembler(deps);
+    const core = await assembler.assembleCore(
+      makeJobContext({ isWeighIn: true, incognito: false }),
+      PERSONALITY,
+      { maxMessages: 30, crossChannelHistoryEnabled: true } as ResolvedConfigOverrides
+    );
+    expect(core.activePersonaId).not.toBeNull();
+    expect(deps.dataSource.getCrossChannelHistory).toHaveBeenCalled();
   });
 
   it('decorates cross-channel groups from the env map, falling back for cache misses', async () => {
