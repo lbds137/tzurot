@@ -161,6 +161,31 @@ describe('buildDedupedReferenceStub', () => {
       '[image/png: x.png]\n\n' + 'x'.repeat(TEXT_LIMITS.DEDUP_STUB_CONTENT) + '...'
     );
   });
+
+  it('preserves all markers in full even when they alone exceed the content budget', () => {
+    // Several long-named attachments whose markers TOGETHER blow past
+    // DEDUP_STUB_CONTENT. buildDedupedReferenceStub must NOT truncate the
+    // markers (only the text portion is truncated) — they carry the
+    // filename→history correlation that downstream re-truncation
+    // (formatDedupedQuote) is told to protect by keeping them first.
+    const ref = fullReference('hi');
+    const longName = (n: number) => `${'really-long-attachment-name-'.repeat(2)}${n}.png`;
+    ref.attachments = [
+      { url: 'https://cdn/1.png', contentType: 'image/png', name: longName(1) },
+      { url: 'https://cdn/2.png', contentType: 'image/png', name: longName(2) },
+      { url: 'https://cdn/3.png', contentType: 'image/png', name: longName(3) },
+    ];
+    const expectedMarkers = ref.attachments
+      .map(att => `[${att.contentType}: ${att.name}]`)
+      .join('\n');
+
+    // Sanity-check the test actually exercises the over-budget case.
+    expect(expectedMarkers.length).toBeGreaterThan(TEXT_LIMITS.DEDUP_STUB_CONTENT);
+
+    const stub = buildDedupedReferenceStub(ref);
+    // Every marker survives untruncated, markers-first, with the short text after.
+    expect(stub.content).toBe(`${expectedMarkers}\n\nhi`);
+  });
 });
 
 describe('appendVoiceTranscripts', () => {
