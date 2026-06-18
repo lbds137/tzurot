@@ -7,7 +7,7 @@
 pnpm dev              # Start all services
 pnpm test             # Run unit tests
 pnpm test:int         # Run integration tests (snapshots, cross-service)
-pnpm quality          # lint + codegen-drift + knip + cpd + cpd:check + depcruise + typecheck + typecheck:spec
+pnpm quality          # lint + codegen-drift + knip + cpd + cpd:check + depcruise + typecheck + typecheck:spec + backlog:lint
 pnpm lint             # Lint all packages
 pnpm lint:errors      # Show only errors
 
@@ -123,6 +123,15 @@ pnpm ops guard:audit-tool-docs       # Every registered audit tool has a non-stu
 All five run in the CI `lint` job and hard-fail on findings (including `guard:boundaries` — its `--summary` mode is still pending (tracked in `backlog/cold/follow-ups.md`), but hard-fail is independent of `--summary`). `guard:proposal-links` and `guard:audit-tool-docs` also support `--summary` for the future aggregator. `guard:audit-tool-docs` self-registers and runs the bidirectional check (every registered tool has a WHY.md AND every `*.WHY.md` is either registered or on `UNREGISTERED_WHY_PATHS`).
 
 **Note on `guard:duplicate-exports` and `guard:dockerfile-dist`**: both are CI gates but intentionally NOT registered as audit-class tools (no WHY.md, no canary, no `--summary` mode). The criteria for "audit-class" require a measurement with a threshold — duplicate-exports and dockerfile-dist are binary "is this in sync?" checks, not measurements. Same framing as `memory:analyze` (one-shot remediation, not periodic audit). See [`docs/reference/audit-enforcement.md`](../../docs/reference/audit-enforcement.md) for the registry criteria.
+
+### Backlog layout lint
+
+```bash
+pnpm ops backlog                     # Check HOT/COLD caps + dangling cold/themes/ links
+pnpm backlog:lint                    # Same check (root-level shortcut)
+```
+
+Verifies the caps (Current Focus ≤ 3, Quick Wins ≤ 5, Untriaged ≤ 10), flags dangling `cold/themes/` links, and surfaces the oldest follow-ups as an aging-escalation nudge (it never auto-deletes — see `06-backlog.md`). **Wired into `pnpm quality`** (and therefore CI) so a cap violation hard-fails rather than silently drifting. Like the binary guards above, it's a layout sync-check, not an audit-class tool — no WHY.md / canary / `--summary`.
 
 ### Audit-tool infrastructure (Layers 1-3)
 
