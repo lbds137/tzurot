@@ -454,6 +454,55 @@ describe('ReferenceFormatter', () => {
       expect(result.references[0].content).toBe('Short');
     });
 
+    it('should fold the attachment marker into an image-only deduped stub (empty text)', async () => {
+      // Image-only reply target: empty text + one image attachment. The deduped
+      // stub the bot ships to the worker must carry the attachment marker so the
+      // model can correlate it with the (image-described) history entry; without
+      // it the stub collapses to an empty quote and the model reports "no image."
+      vi.mocked(mockMessageFormatter.buildRawReference).mockReturnValueOnce({
+        reference: {
+          referenceNumber: 1,
+          discordMessageId: 'deduped-image-only',
+          discordUserId: 'user-1',
+          authorUsername: 'someone',
+          authorDisplayName: 'Someone',
+          content: '',
+          embeds: '',
+          timestamp: new Date('2025-01-01T12:00:00Z').toISOString(),
+          locationContext: 'this channel',
+          attachments: [
+            { url: 'https://cdn/photo.png', contentType: 'image/png', name: 'photo.png' },
+          ],
+        },
+        attachments: [],
+      });
+
+      const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>([
+        [
+          'deduped-image-only',
+          {
+            message: createMockMessage({
+              id: 'deduped-image-only',
+              content: '',
+              createdAt: new Date('2025-01-01T12:00:00Z'),
+            }),
+            metadata: {
+              messageId: 'deduped-image-only',
+              depth: 1,
+              timestamp: new Date('2025-01-01T12:00:00Z'),
+              isDeduplicated: true,
+            },
+          },
+        ],
+      ]);
+
+      const result = await formatter.format('', crawledMessages, 10);
+
+      const ref = result.references[0];
+      expect(ref.isDeduplicated).toBe(true);
+      expect(ref.content).toBe('[image/png: photo.png]');
+    });
+
     it('should use snapshot content for deduped forwarded messages', async () => {
       // Forwarded messages have empty message.content — real content is in snapshots
       const snapshotsMap = new Map();
