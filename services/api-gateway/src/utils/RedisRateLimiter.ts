@@ -267,8 +267,9 @@ function publicRouteKeyGenerator(req: Request): string {
  * spoofing-defense rationale — `req.ip` with `trust proxy: 1` is the
  * spoofable position when an attacker injects one XFF entry).
  *
- * Applied to /metrics, /avatars, /voice-references, /exports — NOT /health,
- * which must remain freely pollable for uptime monitoring.
+ * Applied to /avatars and /exports — the only anonymous public routes. NOT
+ * /health (must stay freely pollable for uptime monitoring), and NOT /metrics
+ * or /voice-references, which now sit behind service auth (see index.ts).
  */
 export function createRedisPublicRouteRateLimiter(
   redis: Redis,
