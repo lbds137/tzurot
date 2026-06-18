@@ -334,7 +334,41 @@ describe('ConversationPersistence', () => {
       );
     });
 
-    it('should not call buildMessageContent for non-forwarded messages', async () => {
+    it('should persist embedsXml for non-forwarded messages with embeds (link previews)', async () => {
+      // Regression: a regular link-embed message (not forwarded) must persist
+      // its embed XML so the history doesn't render blank once the message ages
+      // out of the Discord API fetch window. isForwardedMessage stays false here.
+      const { buildMessageContent } = await import('../utils/MessageContentBuilder.js');
+      vi.mocked(buildMessageContent).mockResolvedValueOnce({
+        content: '',
+        attachments: [],
+        hasVoiceMessage: false,
+        isForwarded: false,
+        embedsXml: ['<embed title="Link Preview">Some content</embed>'],
+      });
+
+      const mockMessage = createMockMessage({
+        id: 'discord-msg-link-embed',
+        channelId: 'channel-123',
+        guildId: 'guild-123',
+        embeds: [{ data: { title: 'Link Preview' } }],
+      });
+
+      await persistence.saveUserMessage({
+        message: mockMessage,
+        personality: mockPersonality,
+        personaId: 'persona-uuid-123',
+        messageContent: 'Check out this link',
+      });
+
+      expect(mockConversationHistory.addMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          messageMetadata: { embedsXml: ['<embed title="Link Preview">Some content</embed>'] },
+        })
+      );
+    });
+
+    it('should not call buildMessageContent for messages without embeds', async () => {
       const { buildMessageContent } = await import('../utils/MessageContentBuilder.js');
       vi.mocked(buildMessageContent).mockClear();
 
