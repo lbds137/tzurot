@@ -186,11 +186,13 @@ export class ConversationPersistence {
 
     const isForwarded = isForwardedMessage(message);
 
-    // Extract embed XML for forwarded messages so it survives DB round-trip.
-    // Without this, forwarded image-only messages lose embed data when they
-    // age out of the Discord API fetch window.
+    // Extract embed XML for any message carrying embeds so it survives the DB
+    // round-trip. Without this, a message's embeds (forwarded snapshots OR a
+    // regular link-embed) are lost once the message ages out of the Discord
+    // API fetch window, and the history renders blank. The embed is present at
+    // persist time regardless of forwarding, so the gate is purely "has embeds."
     let embedsXml: string[] | undefined;
-    if (isForwarded && message.embeds.length > 0) {
+    if (message.embeds.length > 0) {
       const buildResult = await buildMessageContent(message, {
         includeEmbeds: true,
         includeAttachments: false,
@@ -285,8 +287,8 @@ export class ConversationPersistence {
       metadata.isForwarded = true;
     }
 
-    // Persist embed XML for forwarded messages (prevents data loss when messages
-    // age out of the Discord API fetch window)
+    // Persist embed XML for any embed-bearing message (prevents data loss when
+    // messages age out of the Discord API fetch window)
     if (embedsXml !== undefined && embedsXml.length > 0) {
       metadata = metadata ?? {};
       metadata.embedsXml = embedsXml;
