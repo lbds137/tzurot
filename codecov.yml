@@ -71,6 +71,12 @@ ignore:
   - 'services/ai-worker/src/index.ts'
   - 'services/bot-client/src/index.ts'
   - 'services/api-gateway/src/queue.ts'
+  # DB composition root: getPrismaClient() wires pg.Pool + the driver adapter +
+  # PrismaClient. Same class as the entry points above — unit-testing it means
+  # mocking pg/adapter/client (testing the mocks). The real logic (pool sizing,
+  # the saturation gauge) lives in the fully-tested poolConfig.ts. Already
+  # exempt from the colocated-test rule in structure.test.ts for this reason.
+  - 'packages/common-types/src/services/prisma.ts'
   # Auto-generated client classes from the route manifest. Tested indirectly
   # via codegen unit tests (packages/tooling/src/codegen/) that assert the
   # generated string output. Each file carries the AUTO-GENERATED header

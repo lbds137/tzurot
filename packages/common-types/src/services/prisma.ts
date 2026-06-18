@@ -22,6 +22,7 @@ const logger = createLogger('PrismaService');
 const config = getConfig();
 
 let prismaClient: PrismaClient | null = null;
+let stopPoolStatsGauge: (() => void) | null = null;
 
 /**
  * Get or create the Prisma client singleton
@@ -50,7 +51,7 @@ export function getPrismaClient(): PrismaClient {
     pool.on('error', err => {
       logger.error({ err }, 'pg.Pool idle-client error');
     });
-    startPoolStatsGauge(pool, logger, resolvePoolStatsIntervalMs(), max);
+    stopPoolStatsGauge = startPoolStatsGauge(pool, logger, resolvePoolStatsIntervalMs(), max);
 
     // disposeExternalPool: true so prismaClient.$disconnect() closes the pool we
     // created (external pools are otherwise left open on disconnect).
@@ -75,6 +76,10 @@ export function getPrismaClient(): PrismaClient {
  */
 export async function disconnectPrisma(): Promise<void> {
   if (prismaClient) {
+    // Stop the gauge before disconnecting so a reconnect doesn't leave a stale
+    // interval polling the now-closed pool alongside the new one.
+    stopPoolStatsGauge?.();
+    stopPoolStatsGauge = null;
     await prismaClient.$disconnect();
     prismaClient = null;
     logger.info('Prisma client disconnected');
