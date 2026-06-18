@@ -30,7 +30,7 @@ import {
   PersonaUpdateSchema,
   LlmConfigUpdateSchema,
 } from '@tzurot/common-types';
-import { toCharacterData } from '../../commands/character/api.js';
+import { toCharacterData, omitEmptyRequiredText } from '../../commands/character/api.js';
 import { flattenPersonaData, unflattenPersonaData } from '../../commands/persona/config.js';
 import { flattenPresetData, unflattenPresetData } from '../../commands/preset/config.js';
 import type { PersonaDetails } from '../../commands/persona/types.js';
@@ -75,6 +75,16 @@ const characterDetailWithNulls = {
   hasAvatar: false,
 };
 
+// A legacy character predating the `min(1)` create constraint: its required text
+// fields come back null. `toCharacterData` coerces them to `''`, which the update
+// schema's `z.string().min(1)` rejects on a full-session round-trip — so
+// `omitEmptyRequiredText` must drop them for the section save to go through.
+const characterDetailEmptyText = {
+  ...characterDetailWithNulls,
+  characterInfo: null,
+  personalityTraits: null,
+};
+
 const personaDetailWithNulls: PersonaDetails = {
   id: 'persona-1',
   name: 'Vee',
@@ -102,7 +112,15 @@ const presetDetailWithNulls: PresetData = {
 const DASHBOARDS: DashboardRoundTrip[] = [
   {
     name: 'character',
-    buildPayload: () => toCharacterData(characterDetailWithNulls),
+    // Models the real PUT path: toCharacterData → omitEmptyRequiredText (what
+    // updateCharacter sends). A no-op on this non-empty fixture, but keeps the
+    // model faithful so the avatarData-null guard stays accurate.
+    buildPayload: () => omitEmptyRequiredText(toCharacterData(characterDetailWithNulls)),
+    updateSchema: PersonalityUpdateSchema,
+  },
+  {
+    name: 'character (legacy empty required text)',
+    buildPayload: () => omitEmptyRequiredText(toCharacterData(characterDetailEmptyText)),
     updateSchema: PersonalityUpdateSchema,
   },
   {
