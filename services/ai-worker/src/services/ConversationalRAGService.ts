@@ -468,9 +468,10 @@ export class ConversationalRAGService {
 
       // Step 6: Check incognito mode and handle memory storage.
       // A chime-in/random summon is incognito by default (skip storage, set the
-      // footer flag); a personal (incognito=false) summon records memories. The
-      // user's own /memory incognito session still forces incognito regardless.
-      const summonIncognito = context.incognito ?? Boolean(context.isWeighIn);
+      // footer flag); a personal summon records memories. The summon's anonymity
+      // was resolved once in buildConversationContext. The user's own /memory
+      // incognito Redis session still forces incognito regardless.
+      const summonIncognito = context.summonAnonymity?.kind === 'incognito';
       const incognitoModeActive =
         summonIncognito || (await redisService.isIncognitoActive(context.userId, personality.id));
 

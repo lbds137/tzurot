@@ -14,6 +14,7 @@ import type {
   ResolvedConfigOverrides,
   SttDispatch,
   AIProvider,
+  SummonAnonymity,
 } from '@tzurot/common-types';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 
@@ -73,9 +74,16 @@ export interface ConversationContext {
   isProxyMessage?: boolean;
   /** Weigh-in mode: read-the-room framing (controls framing, not anonymity). */
   isWeighIn?: boolean;
-  /** Anonymity for chime-in/random: skip persona + LTM read/write + epoch when
-   *  true (defaults to `isWeighIn` when unset). See JobContext.incognito. */
-  incognito?: boolean;
+  /**
+   * Personal-vs-incognito union, resolved once in `buildConversationContext`
+   * from the wire flags (always populated on the production path). Memory
+   * consumers switch on `summonAnonymity?.kind` rather than re-deriving
+   * `incognito ?? isWeighIn`, which is what let the anonymity decision drift
+   * across sites. Optional so unrelated tests need not declare it —
+   * absent reads as a personal summon (the safe default: memory works). Distinct
+   * from the Redis `/memory incognito` session checked separately at write time.
+   */
+  summonAnonymity?: SummonAnonymity;
   activePersonaId?: string;
   activePersonaName?: string;
   discordUsername?: string;

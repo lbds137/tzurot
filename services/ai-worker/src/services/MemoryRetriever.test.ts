@@ -522,16 +522,16 @@ describe('MemoryRetriever', () => {
       expect(mockMemoryManager.queryMemories).not.toHaveBeenCalled();
     });
 
-    it('should return empty memories when isWeighIn is true', async () => {
-      const weighInContext: ConversationContext = {
+    it('should return empty memories for an incognito summon', async () => {
+      const incognitoContext: ConversationContext = {
         userId: 'discord-user-123',
-        isWeighIn: true,
+        summonAnonymity: { kind: 'incognito' },
       };
 
       const result = await retriever.retrieveRelevantMemories(
         mockPersonality,
         'test query',
-        weighInContext
+        incognitoContext
       );
 
       expect(result).toEqual({ memories: [], focusModeEnabled: false });
@@ -540,7 +540,7 @@ describe('MemoryRetriever', () => {
       expect(mockMemoryManager.queryMemories).not.toHaveBeenCalled();
     });
 
-    it('retrieves LTM when incognito=false even if isWeighIn is true (personal summon)', async () => {
+    it('retrieves LTM for a personal summon (even with weigh-in framing)', async () => {
       mockPersonaResolver.resolveForMemory.mockResolvedValue({
         personaId: 'persona-123',
         focusModeEnabled: false,
@@ -548,12 +548,16 @@ describe('MemoryRetriever', () => {
       const mockMemories = [{ pageContent: 'Memory content', metadata: { id: 'mem-1' } }];
       (mockMemoryManager.queryMemories as any).mockResolvedValue(mockMemories);
 
-      // isWeighIn drives framing only; incognito=false makes the summon personal,
-      // so LTM retrieval proceeds instead of short-circuiting on the weigh-in flag.
+      // The summon is personal, so LTM retrieval proceeds. isWeighIn is framing
+      // only and does not force anonymity — the persona-presence union decides.
       const personalWeighIn: ConversationContext = {
         userId: 'discord-user-123',
         isWeighIn: true,
-        incognito: false,
+        summonAnonymity: {
+          kind: 'personal',
+          activePersonaId: 'persona-123',
+          activePersonaName: 'Vee',
+        },
       };
 
       const result = await retriever.retrieveRelevantMemories(
