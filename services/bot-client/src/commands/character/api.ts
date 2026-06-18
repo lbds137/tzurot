@@ -7,21 +7,23 @@
  * all flow through the route manifest.
  *
  * Schema drift note: `CharacterData` is a bot-client display shape that
- * predates the typed client. Two fields don't round-trip cleanly with
- * `PersonalityFullSchema`:
+ * predates the typed client. `toCharacterData` coerces two fields so the shape
+ * assigns directly to the gateway's create/update input (no cast needed):
  *   - `characterInfo` / `personalityTraits` are non-nullable on
  *     `CharacterData` but nullable in the schema (the gateway can return
  *     null for newly-created characters before the user fills the modal).
  *     Coerced with `?? ''` at the spread boundary here.
  *   - `avatarData` is a bot-client convenience field (used during
  *     create/update flows in import.ts); the gateway response carries
- *     `hasAvatar: boolean` instead. Defaulted to `null` on incoming data
- *     and populated separately on the create/update paths.
+ *     `hasAvatar: boolean` instead. Defaulted to `null` on incoming data.
+ *     The create/update schemas accept `null` (= no avatar), so it round-trips
+ *     cleanly; the avatar itself is set separately via `/character avatar`.
  */
 
 import type { ChatInputCommandInteraction } from 'discord.js';
 import type { EnvConfig } from '@tzurot/common-types';
 import type { UserClient } from '@tzurot/clients';
+import { DashboardUpdateError } from '../../utils/dashboard/saveError.js';
 import type { CharacterData } from './characterTypes.js';
 
 /**
@@ -209,19 +211,23 @@ export async function createCharacter(
   userClient: UserClient,
   _config: EnvConfig
 ): Promise<CharacterData> {
-  const result = await userClient.createPersonality(
-    data as Parameters<UserClient['createPersonality']>[0]
-  );
+  const result = await userClient.createPersonality(data);
 
   if (!result.ok) {
-    throw new Error(`Failed to create character: ${result.status} - ${result.error}`);
+    // Consistent with updateCharacter: carry the status (so a create flow could
+    // surface the honest status-0 notice) and guard the message against an
+    // undefined gateway error.
+    throw new DashboardUpdateError(
+      `Failed to create character: ${result.status} - ${result.error ?? 'Unknown'}`,
+      result.status
+    );
   }
 
   return toCharacterData(result.data.personality);
 }
 
 /**
- * Update a character. Same boundary-cast rationale as `createCharacter`.
+ * Update a character.
  */
 export async function updateCharacter(
   slug: string,
@@ -229,13 +235,16 @@ export async function updateCharacter(
   userClient: UserClient,
   _config: EnvConfig
 ): Promise<CharacterData> {
-  const result = await userClient.updatePersonality(
-    slug,
-    data as Parameters<UserClient['updatePersonality']>[1]
-  );
+  const result = await userClient.updatePersonality(slug, data);
 
   if (!result.ok) {
-    throw new Error(`Failed to update character: ${result.status} - ${result.error}`);
+    // DashboardUpdateError carries the status so the dashboard can distinguish a
+    // client-side abort (0 → "still applying") from a real HTTP rejection (whose
+    // message it surfaces). The message format matches extractApiErrorMessage.
+    throw new DashboardUpdateError(
+      `Failed to update character: ${result.status} - ${result.error ?? 'Unknown'}`,
+      result.status
+    );
   }
 
   return toCharacterData(result.data.personality);

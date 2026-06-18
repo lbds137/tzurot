@@ -30,10 +30,12 @@ export interface AvatarError {
  *          or `{ ok: false, error }` on processing failure.
  */
 export async function processAvatarData(
-  avatarData: string | undefined,
+  avatarData: string | null | undefined,
   slug: string
 ): Promise<AvatarSuccess | AvatarError | null> {
-  if (avatarData === undefined || avatarData.length === 0) {
+  // null = no avatar (the dashboard round-trips null for a no-avatar character);
+  // treat it like undefined/empty — no processing, no change to the stored avatar.
+  if (avatarData === undefined || avatarData === null || avatarData.length === 0) {
     return null;
   }
 

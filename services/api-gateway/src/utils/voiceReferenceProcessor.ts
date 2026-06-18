@@ -43,10 +43,17 @@ function extractMimeType(dataUri: string): string | null {
  *          or `{ ok: false, error }` on validation failure.
  */
 export function processVoiceReferenceData(
-  voiceReferenceData: string | undefined,
+  voiceReferenceData: string | null | undefined,
   slug: string
 ): VoiceReferenceSuccess | VoiceReferenceError | null {
-  if (voiceReferenceData === undefined || voiceReferenceData.length === 0) {
+  // null = no voice reference provided (parity with avatarData). The update
+  // route handles the explicit "clear existing" case before calling this; here
+  // null is simply "no data" — no processing.
+  if (
+    voiceReferenceData === undefined ||
+    voiceReferenceData === null ||
+    voiceReferenceData.length === 0
+  ) {
     return null;
   }
 

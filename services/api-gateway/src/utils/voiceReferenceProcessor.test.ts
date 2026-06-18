@@ -39,6 +39,11 @@ describe('processVoiceReferenceData', () => {
     expect(result).toBeNull();
   });
 
+  it('returns null when data is null (no voice reference provided; no change)', () => {
+    const result = processVoiceReferenceData(null, 'test-slug');
+    expect(result).toBeNull();
+  });
+
   it('returns null when data is empty string', () => {
     const result = processVoiceReferenceData('', 'test-slug');
     expect(result).toBeNull();

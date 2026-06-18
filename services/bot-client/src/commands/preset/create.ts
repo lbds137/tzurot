@@ -32,7 +32,8 @@ import {
   buildPresetDashboardOptions,
 } from './config.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
-import { createPreset, extractApiErrorMessage } from './api.js';
+import { createPreset } from './api.js';
+import { extractApiErrorMessage } from '../../utils/dashboard/saveError.js';
 
 const logger = createLogger('preset-create');
 

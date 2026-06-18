@@ -367,6 +367,27 @@ describe('handleModalSubmit', () => {
     expect(stub.updatePersona).toHaveBeenCalledWith(TEST_PERSONA_ID, expect.any(Object));
   });
 
+  it('surfaces the real gateway error message when the update fails', async () => {
+    mockSessionGet.mockResolvedValue({
+      data: { name: 'Test Persona', preferredName: 'Tester' },
+    });
+    mockExtractModalValues.mockReturnValue({ name: 'Updated Name' });
+    // updatePersona throws DashboardUpdateError; the dashboard surfaces the
+    // extracted gateway message instead of a generic "Please try again".
+    stub.updatePersona.mockResolvedValue(makeErr(400, 'pronouns: too long'));
+
+    await handleModalSubmit(
+      createMockModalInteraction(`persona::modal::${TEST_PERSONA_ID}::identity`, {
+        name: 'Updated Name',
+      })
+    );
+
+    expect(mockFollowUp).toHaveBeenCalledWith({
+      content: '❌ pronouns: too long',
+      flags: MessageFlags.Ephemeral,
+    });
+  });
+
   it('should handle unknown modal submissions', async () => {
     await handleModalSubmit(createMockModalInteraction('persona::unknown::action'));
 

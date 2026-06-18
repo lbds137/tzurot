@@ -20,6 +20,14 @@ describe('processAvatarData', () => {
     expect(mockOptimizeAvatar).not.toHaveBeenCalled();
   });
 
+  it('returns null when avatarData is null (no-avatar round-trip; no change, no crash)', async () => {
+    // The dashboard round-trips avatarData=null for a no-avatar character. null
+    // must be treated as "no media" — never optimized, never wiping an avatar.
+    const result = await processAvatarData(null, 'test-slug');
+    expect(result).toBeNull();
+    expect(mockOptimizeAvatar).not.toHaveBeenCalled();
+  });
+
   it('returns null when avatarData is empty string', async () => {
     const result = await processAvatarData('', 'test-slug');
     expect(result).toBeNull();
