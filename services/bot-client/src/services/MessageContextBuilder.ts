@@ -433,10 +433,16 @@ export class MessageContextBuilder {
     });
     const history = extendedContext.history;
 
-    // Step 4b: Fetch cross-channel history. Disabled in weigh-in mode (anonymous
-    // poke that skips LTM and other-channel history for a fresh-perspective response).
+    // Step 4b: Fetch cross-channel history. Cross-channel and the persona are a
+    // unit — it's persona-scoped, so a personal summon (incognito:false),
+    // INCLUDING a personal weigh-in, gets it; only an incognito (anonymous)
+    // summon is disabled, since there's no persona to scope it to. Gated on the
+    // effective incognito (`incognito ?? isWeighInMode`), mirroring the epoch
+    // gate above and the worker-side ContextAssembler.
     const crossChannelGroups = await fetchCrossChannelIfEnabled({
-      enabled: options.crossChannelHistoryEnabled === true && options.isWeighInMode !== true,
+      enabled:
+        options.crossChannelHistoryEnabled === true &&
+        (options.incognito ?? options.isWeighInMode) !== true,
       channelId: message.channel.id,
       personaId,
       personalityId: personality.id,

@@ -224,8 +224,14 @@ export class ContextAssembler {
     // bot-side fetchCrossChannelIfEnabled gate (disabled or weigh-in →
     // undefined, matching the payload's absent field).
     const crossChannelHistory = await this.assembleCrossChannel(jobContext, personality, {
-      enabled:
-        configOverrides?.crossChannelHistoryEnabled === true && jobContext.isWeighIn !== true,
+      // Cross-channel history and the persona are a unit: it's persona-scoped, so
+      // it's enabled for ANY personal summon (persona present) — including a
+      // personal weigh-in (incognito:false) — and disabled only when there's no
+      // persona to scope it to. `incognito` nulls the persona (whether it's a
+      // chime-in, a message-less random, or /character random with a message +
+      // incognito:true), so `activePersonaId !== null` is the single gate.
+      // Framing (`isWeighIn`) is deliberately NOT checked here.
+      enabled: configOverrides?.crossChannelHistoryEnabled === true && activePersonaId !== null,
       personaId: activePersonaId,
       excludeChannelId: channelId,
       limit,
@@ -353,7 +359,7 @@ export class ContextAssembler {
     personality: LoadedPersonality,
     opts: {
       enabled: boolean;
-      /** Null only in weigh-in mode, where `enabled` is always false. */
+      /** Null in weigh-in OR incognito mode; `enabled` requires a non-null persona. */
       personaId: string | null;
       /** The narrowed current-channel id from assembleCore's guard. */
       excludeChannelId: string;
@@ -365,10 +371,9 @@ export class ContextAssembler {
     if (!opts.enabled) {
       return undefined;
     }
-    // Invariant: cross-channel is disabled for weigh-in (the `enabled` flag
-    // gates on isWeighIn), so a non-null persona always reaches here. Fail loud
-    // if a future change decouples the two, rather than silently querying with
-    // a bad id.
+    // Invariant: the `enabled` gate is `activePersonaId !== null`, so a non-null
+    // persona always reaches here. Fail loud if a future change decouples
+    // cross-channel from the persona, rather than silently querying with a bad id.
     if (opts.personaId === null) {
       throw new Error('[ContextAssembler] cross-channel enabled with a null persona');
     }
