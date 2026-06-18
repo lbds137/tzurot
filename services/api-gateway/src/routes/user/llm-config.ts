@@ -500,7 +500,7 @@ export const handleCreateUserLlmConfig = (deps: RouteDeps): RequestHandler =>
   asyncHandler(createCreateHandler(buildService(deps), deps.prisma, deps.modelCache));
 
 export const handleResolveUserLlmConfig = (deps: RouteDeps): RequestHandler =>
-  asyncHandler(createResolveHandler(deps.prisma, deps.cascadeResolver));
+  asyncHandler(createResolveHandler(deps.prisma, deps.cascadeResolver, deps.llmConfigResolver));
 
 export const handleUpdateUserLlmConfig = (deps: RouteDeps): RequestHandler =>
   asyncHandler(createUpdateHandler(buildService(deps), deps.prisma, deps.modelCache));
