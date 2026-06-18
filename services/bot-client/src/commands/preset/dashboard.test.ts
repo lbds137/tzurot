@@ -13,6 +13,7 @@ import {
 import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
 import { DASHBOARD_MESSAGES, formatSessionExpiredMessage } from '../../utils/dashboard/messages.js';
 import type { PresetData } from './config.js';
+import { PresetUpdateError } from './api.js';
 import { GatewayApiError } from '@tzurot/clients';
 
 // Sentinel passed by the migrated dashboard handler — `clientsFor(interaction)`
@@ -476,6 +477,31 @@ describe('handleModalSubmit', () => {
 
     expect(mockModalFollowUp).toHaveBeenCalledWith({
       content: '❌ Failed to update preset. Please try again.',
+      flags: MessageFlags.Ephemeral,
+    });
+  });
+
+  it('shows the "may still be applying" notice when the save times out (status 0)', async () => {
+    mockParseDashboardCustomId.mockReturnValue({
+      entityType: 'preset',
+      action: 'modal',
+      entityId: 'preset-123',
+      sectionId: 'identity',
+    });
+    mockSessionManagerGet.mockResolvedValue({
+      data: { id: 'preset-123', name: 'Test', isGlobal: false, isOwned: true },
+    });
+    // A client-side timeout surfaces as a PresetUpdateError with status 0 — the
+    // write may have committed server-side, so the user gets the honest notice
+    // rather than a hard "Failed, try again".
+    mockUpdatePreset.mockRejectedValue(
+      new PresetUpdateError('Failed to update preset: 0 - Request timeout', 0)
+    );
+
+    await handleModalSubmit(createMockModalInteraction('preset::modal::preset-123::identity'));
+
+    expect(mockModalFollowUp).toHaveBeenCalledWith({
+      content: expect.stringContaining('may still be applying'),
       flags: MessageFlags.Ephemeral,
     });
   });
