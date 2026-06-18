@@ -384,64 +384,31 @@ describe('CommandHandler (component)', () => {
    * Changes to command names, subcommands, or options should be intentional.
    */
   describe('command structure snapshots', () => {
-    it('should have stable /character command structure', () => {
-      const characterCommand = handler.getCommand('character');
-      expect(characterCommand).toBeDefined();
+    // These snapshots pin the FULL command surface, not a hardcoded subset.
+    // Previously only six commands were snapshotted by name, so a structural
+    // change to any of the other eight (channel, deny, help, history, inspect,
+    // memory, models, preset) would pass unnoticed. Iterating every registered
+    // command means adding a command auto-adds a snapshot, and changing any
+    // command's options (a new subcommand, param, or flag like autocomplete)
+    // breaks the matching snapshot. Pairs with 'command loading completeness'
+    // above, which asserts every command folder actually loads.
 
-      const data = characterCommand!.data.toJSON();
-      expect(data.name).toBe('character');
-      expect(data.options).toMatchSnapshot('character-command-options');
+    it('registers a stable set of command names (guards against silent drops)', () => {
+      // A per-command snapshot alone would still pass if a command silently
+      // failed to load — it just wouldn't snapshot the missing one. Pinning the
+      // name set makes an unexpected add or removal fail loudly instead.
+      const names = [...handler.getCommands().values()].map(command => command.data.name).sort();
+      expect(names).toMatchSnapshot('registered-command-names');
     });
 
-    it('should have stable /admin command structure', () => {
-      const adminCommand = handler.getCommand('admin');
-      expect(adminCommand).toBeDefined();
-
-      const data = adminCommand!.data.toJSON();
-      expect(data.name).toBe('admin');
-      expect(data.options).toMatchSnapshot('admin-command-options');
-    });
-
-    it('should have stable /persona command structure', () => {
-      const personaCommand = handler.getCommand('persona');
-      expect(personaCommand).toBeDefined();
-
-      const data = personaCommand!.data.toJSON();
-      expect(data.name).toBe('persona');
-      expect(data.options).toMatchSnapshot('persona-command-options');
-    });
-
-    it('should have stable /settings command structure', () => {
-      const settingsCommand = handler.getCommand('settings');
-      expect(settingsCommand).toBeDefined();
-
-      const data = settingsCommand!.data.toJSON();
-      expect(data.name).toBe('settings');
-      expect(data.options).toMatchSnapshot('settings-command-options');
-    });
-
-    it('should have stable /shapes command structure', () => {
-      const shapesCommand = handler.getCommand('shapes');
-      expect(shapesCommand).toBeDefined();
-
-      const data = shapesCommand!.data.toJSON();
-      expect(data.name).toBe('shapes');
-      expect(data.options).toMatchSnapshot('shapes-command-options');
-    });
-
-    it('should have stable /voice command structure', () => {
-      const voiceCommand = handler.getCommand('voice');
-      expect(voiceCommand).toBeDefined();
-
-      const data = voiceCommand!.data.toJSON();
-      expect(data.name).toBe('voice');
-      expect(data.options).toMatchSnapshot('voice-command-options');
-    });
-
-    it('should have stable command count', () => {
-      // Track total command count to catch accidental additions/removals
-      const commandCount = handler.getCommands().size;
-      expect(commandCount).toMatchSnapshot('total-command-count');
+    it('has a stable option structure for every registered command', () => {
+      const commands = [...handler.getCommands().values()].sort((a, b) =>
+        a.data.name.localeCompare(b.data.name)
+      );
+      for (const command of commands) {
+        const data = command.data.toJSON();
+        expect(data.options ?? []).toMatchSnapshot(`${data.name}-command-options`);
+      }
     });
   });
 });
