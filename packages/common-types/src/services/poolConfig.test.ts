@@ -9,6 +9,7 @@ import {
   resolveConnectionTimeoutMs,
   resolvePoolStatsIntervalMs,
   startPoolStatsGauge,
+  transientPoolOptions,
   type PoolStatsSource,
 } from './poolConfig.js';
 
@@ -37,11 +38,30 @@ describe('resolveConnectionTimeoutMs', () => {
     expect(resolveConnectionTimeoutMs({ DATABASE_POOL_CONN_TIMEOUT_MS: '0' })).toBe(0);
   });
 
-  it('reads a valid override and falls back on garbage', () => {
+  it('reads a valid override and falls back on garbage or negative values', () => {
     expect(resolveConnectionTimeoutMs({ DATABASE_POOL_CONN_TIMEOUT_MS: '3000' })).toBe(3000);
     expect(resolveConnectionTimeoutMs({ DATABASE_POOL_CONN_TIMEOUT_MS: 'soon' })).toBe(
       DB_POOL_DEFAULTS.CONNECTION_TIMEOUT_MS
     );
+    expect(resolveConnectionTimeoutMs({ DATABASE_POOL_CONN_TIMEOUT_MS: '-1' })).toBe(
+      DB_POOL_DEFAULTS.CONNECTION_TIMEOUT_MS
+    );
+  });
+});
+
+describe('transientPoolOptions', () => {
+  it('uses the small transient max and the resolved (finite) acquisition timeout', () => {
+    expect(transientPoolOptions({})).toEqual({
+      max: DB_POOL_DEFAULTS.TRANSIENT_MAX,
+      connectionTimeoutMillis: DB_POOL_DEFAULTS.CONNECTION_TIMEOUT_MS,
+    });
+  });
+
+  it('honors a DATABASE_POOL_CONN_TIMEOUT_MS override for the timeout', () => {
+    expect(transientPoolOptions({ DATABASE_POOL_CONN_TIMEOUT_MS: '2000' })).toEqual({
+      max: DB_POOL_DEFAULTS.TRANSIENT_MAX,
+      connectionTimeoutMillis: 2000,
+    });
   });
 });
 

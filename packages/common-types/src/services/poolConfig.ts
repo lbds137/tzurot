@@ -24,6 +24,9 @@ export const DB_POOL_DEFAULTS = {
   /** Saturation-gauge interval. Logs WARN only when connections are queued, so
    *  the next incident is captured automatically. 0 disables the gauge. */
   STATS_INTERVAL_MS: 30_000,
+  /** Max for transient/short-lived clients (CLI scripts, cross-env sync) — small
+   *  on purpose; these aren't the long-running request pool. */
+  TRANSIENT_MAX: 5,
 } as const;
 
 /** Parse a non-negative integer env var, falling back when unset/invalid. */
@@ -45,6 +48,23 @@ export function resolveConnectionTimeoutMs(env: NodeJS.ProcessEnv = process.env)
 /** Resolve the saturation-gauge interval in ms (0 = disabled). */
 export function resolvePoolStatsIntervalMs(env: NodeJS.ProcessEnv = process.env): number {
   return parseIntEnv(env.DATABASE_POOL_STATS_INTERVAL_MS, DB_POOL_DEFAULTS.STATS_INTERVAL_MS, 0);
+}
+
+/**
+ * Pool options for transient/short-lived `PrismaPg` clients (CLI scripts,
+ * cross-env sync) that don't warrant the full singleton pool: a small `max` plus
+ * the same finite acquisition timeout, so they fail loudly instead of hanging
+ * forever on a saturated/unreachable database. Spread into a `PrismaPg` config:
+ * `new PrismaPg({ connectionString, ...transientPoolOptions() })`.
+ */
+export function transientPoolOptions(env: NodeJS.ProcessEnv = process.env): {
+  max: number;
+  connectionTimeoutMillis: number;
+} {
+  return {
+    max: DB_POOL_DEFAULTS.TRANSIENT_MAX,
+    connectionTimeoutMillis: resolveConnectionTimeoutMs(env),
+  };
 }
 
 /** The pool stats the gauge reads (subset of `pg.Pool`). */
