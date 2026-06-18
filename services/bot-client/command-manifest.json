@@ -499,6 +499,12 @@
                 "max_length": 2000
               },
               {
+                "name": "incognito",
+                "description": "Anonymous by default (no persona/memories). Set False to use your persona + memories.",
+                "required": false,
+                "type": 5
+              },
+              {
                 "name": "exclude-private",
                 "description": "Only consider public characters (skip your private ones)",
                 "required": false,
@@ -507,12 +513,6 @@
               {
                 "name": "only-mine",
                 "description": "Only consider characters you own (composable with exclude-private)",
-                "required": false,
-                "type": 5
-              },
-              {
-                "name": "incognito",
-                "description": "Anonymous by default (no persona/memories). Set False to use your persona + memories.",
                 "required": false,
                 "type": 5
               }

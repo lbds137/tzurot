@@ -386,6 +386,14 @@ export default defineCommand({
         )
         .addBooleanOption(option =>
           option
+            .setName('incognito')
+            .setDescription(
+              'Anonymous by default (no persona/memories). Set False to use your persona + memories.'
+            )
+            .setRequired(false)
+        )
+        .addBooleanOption(option =>
+          option
             .setName('exclude-private')
             .setDescription('Only consider public characters (skip your private ones)')
             .setRequired(false)
@@ -394,14 +402,6 @@ export default defineCommand({
           option
             .setName('only-mine')
             .setDescription('Only consider characters you own (composable with exclude-private)')
-            .setRequired(false)
-        )
-        .addBooleanOption(option =>
-          option
-            .setName('incognito')
-            .setDescription(
-              'Anonymous by default (no persona/memories). Set False to use your persona + memories.'
-            )
             .setRequired(false)
         )
     )

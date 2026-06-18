@@ -151,13 +151,13 @@ export const characterChatOptions = defineTypedOptions({
 });
 
 /**
- * /character random <message, exclude-private, only-mine, incognito>
+ * /character random <message, incognito, exclude-private, only-mine>
  */
 export const characterRandomOptions = defineTypedOptions({
   message: { type: 'string', required: false },
+  incognito: { type: 'boolean', required: false },
   'exclude-private': { type: 'boolean', required: false },
   'only-mine': { type: 'boolean', required: false },
-  incognito: { type: 'boolean', required: false },
 });
 
 /**
