@@ -36,6 +36,13 @@ export interface ContextBuildOptions {
    */
   isWeighInMode?: boolean;
   /**
+   * Anonymity flag (separate from weigh-in framing). When true, the summon is
+   * anonymous: skip the persona-scoped STM-reset epoch so the user's
+   * /conversation reset doesn't bound the shared channel history. A personal
+   * summon (false) keeps the epoch. Defaults to isWeighInMode at the call site.
+   */
+  incognito?: boolean;
+  /**
    * Whether to fetch cross-channel history to fill unused context budget.
    * When true and current channel history is under maxMessages, fills remaining
    * budget with history from other channels where this user+personality interacted.

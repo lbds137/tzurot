@@ -540,6 +540,33 @@ describe('MemoryRetriever', () => {
       expect(mockMemoryManager.queryMemories).not.toHaveBeenCalled();
     });
 
+    it('retrieves LTM when incognito=false even if isWeighIn is true (personal summon)', async () => {
+      mockPersonaResolver.resolveForMemory.mockResolvedValue({
+        personaId: 'persona-123',
+        focusModeEnabled: false,
+      });
+      const mockMemories = [{ pageContent: 'Memory content', metadata: { id: 'mem-1' } }];
+      (mockMemoryManager.queryMemories as any).mockResolvedValue(mockMemories);
+
+      // isWeighIn drives framing only; incognito=false makes the summon personal,
+      // so LTM retrieval proceeds instead of short-circuiting on the weigh-in flag.
+      const personalWeighIn: ConversationContext = {
+        userId: 'discord-user-123',
+        isWeighIn: true,
+        incognito: false,
+      };
+
+      const result = await retriever.retrieveRelevantMemories(
+        mockPersonality,
+        'test query',
+        personalWeighIn
+      );
+
+      expect(result.memories).toEqual(mockMemories);
+      expect(mockPersonaResolver.resolveForMemory).toHaveBeenCalled();
+      expect(mockMemoryManager.queryMemories).toHaveBeenCalled();
+    });
+
     it('should return empty array when focus mode is enabled', async () => {
       mockPersonaResolver.resolveForMemory.mockResolvedValue({
         personaId: 'persona-123',

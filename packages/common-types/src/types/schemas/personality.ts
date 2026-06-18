@@ -210,8 +210,10 @@ export const requestContextSchema = z.object({
   mentionedPersonas: z.array(mentionedPersonaSchema).optional(),
   // Referenced channels (from #channel mentions - used for LTM scoping)
   referencedChannels: z.array(referencedChannelSchema).optional(),
-  // Weigh-in mode flag (anonymous poke - skip LTM retrieval and storage)
+  // Weigh-in mode flag (read-the-room framing; anonymity is controlled by `incognito`)
   isWeighIn: z.boolean().optional(),
+  // Anonymity for chime-in/random: skip persona + LTM read/write + epoch when true
+  incognito: z.boolean().optional(),
   // Cross-channel conversation history (grouped by channel)
   crossChannelHistory: z.array(crossChannelHistoryGroupSchema).optional(),
   // Whether the triggering message was a voice message (for voice-only TTS mode)

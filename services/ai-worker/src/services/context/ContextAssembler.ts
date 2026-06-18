@@ -287,8 +287,11 @@ export class ContextAssembler {
   }> {
     const personaResult = await this.deps.personaResolver.resolve(jobContext.userId, personalityId);
     const resolvedPersonaId = personaResult.config.personaId;
-    const isWeighIn = jobContext.isWeighIn === true;
-    const contextEpoch = isWeighIn
+    // Anonymity (incognito), not framing (isWeighIn): a personal summon keeps
+    // its persona + STM epoch even though it uses the weigh-in framing. Defaults
+    // to isWeighIn so existing weigh-in jobs stay anonymous.
+    const incognito = jobContext.incognito ?? Boolean(jobContext.isWeighIn);
+    const contextEpoch = incognito
       ? undefined
       : await this.deps.dataSource.getContextEpoch(
           internalUserId,
@@ -296,23 +299,23 @@ export class ContextAssembler {
           resolvedPersonaId
         );
     return {
-      activePersonaId: isWeighIn ? null : resolvedPersonaId,
-      activePersonaName: isWeighIn ? null : personaResult.config.preferredName,
+      activePersonaId: incognito ? null : resolvedPersonaId,
+      activePersonaName: incognito ? null : personaResult.config.preferredName,
       contextEpoch,
     };
   }
 
   /**
-   * Content rewriting through the shared kernels — weigh-in jobs pass the
-   * raw content through untouched (mirrors the bot's early return and
-   * avoids upserting mention users for anonymous pokes).
+   * Content rewriting through the shared kernels — incognito (anonymous) jobs
+   * pass the raw content through untouched, avoiding mention-user upserts. A
+   * personal summon (incognito=false) rewrites mentions like a normal chat.
    */
   private async rewriteContent(
     jobContext: JobContext,
     raw: RawAssemblyInputs,
     personality: LoadedPersonality
   ): Promise<RewrittenContent> {
-    if (jobContext.isWeighIn === true) {
+    if (jobContext.incognito ?? Boolean(jobContext.isWeighIn)) {
       return {
         messageContent: raw.rawMessageContent,
         mentionedPersonas: undefined,
