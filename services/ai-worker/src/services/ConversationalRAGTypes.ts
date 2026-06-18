@@ -71,8 +71,11 @@ export interface ConversationContext {
   userName?: string;
   userTimezone?: string;
   isProxyMessage?: boolean;
-  /** Weigh-in mode: anonymous poke, skip LTM retrieval and storage */
+  /** Weigh-in mode: read-the-room framing (controls framing, not anonymity). */
   isWeighIn?: boolean;
+  /** Anonymity for chime-in/random: skip persona + LTM read/write + epoch when
+   *  true (defaults to `isWeighIn` when unset). See JobContext.incognito. */
+  incognito?: boolean;
   activePersonaId?: string;
   activePersonaName?: string;
   discordUsername?: string;

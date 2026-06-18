@@ -102,6 +102,28 @@ describe('ContextAssembler.assembleCore', () => {
     expect(core.contextEpoch).toBeUndefined();
   });
 
+  it('incognito=false on a weigh-in job keeps the persona + applies the epoch', async () => {
+    const epoch = new Date('2026-05-01T00:00:00Z');
+    const deps = makeDeps({
+      dataSource: { getContextEpoch: vi.fn().mockResolvedValue(epoch) },
+    });
+    const assembler = new ContextAssembler(deps);
+
+    // isWeighIn drives the read-the-room framing; incognito=false makes the
+    // summon PERSONAL — the persona attribution and the STM-reset epoch are
+    // restored even though the framing stays weigh-in.
+    const core = await assembler.assembleCore(
+      makeJobContext({ isWeighIn: true, incognito: false }),
+      PERSONALITY,
+      undefined
+    );
+
+    expect(core.activePersonaId).toBe('persona-1');
+    expect(core.activePersonaName).toBe('Vee');
+    expect(deps.dataSource.getContextEpoch).toHaveBeenCalled();
+    expect(core.contextEpoch).toEqual(epoch);
+  });
+
   it('assembles the core surfaces: upsert, persona, timezone, epoch, history', async () => {
     const epoch = new Date('2026-05-01T00:00:00Z');
     const deps = makeDeps({

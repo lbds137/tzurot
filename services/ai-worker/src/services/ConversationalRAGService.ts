@@ -466,11 +466,13 @@ export class ConversationalRAGService {
           personality.id
         );
 
-      // Step 6: Check incognito mode and handle memory storage
-      // Weigh-in mode reuses the incognito pipeline (skip storage, set flag on response)
+      // Step 6: Check incognito mode and handle memory storage.
+      // A chime-in/random summon is incognito by default (skip storage, set the
+      // footer flag); a personal (incognito=false) summon records memories. The
+      // user's own /memory incognito session still forces incognito regardless.
+      const summonIncognito = context.incognito ?? Boolean(context.isWeighIn);
       const incognitoModeActive =
-        context.isWeighIn === true ||
-        (await redisService.isIncognitoActive(context.userId, personality.id));
+        summonIncognito || (await redisService.isIncognitoActive(context.userId, personality.id));
 
       // Build deferred memory data for potential later storage
       let deferredMemoryData: DeferredMemoryData | undefined;

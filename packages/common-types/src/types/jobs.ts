@@ -115,8 +115,15 @@ export interface JobContext {
   referencedMessages?: ReferencedMessage[];
   mentionedPersonas?: MentionedPersona[];
   referencedChannels?: ReferencedChannel[];
-  /** Weigh-in mode: anonymous poke, skip LTM retrieval and storage */
+  /** Weigh-in mode: read-the-room prompt framing (system instruction, current
+   *  channel only). Controls FRAMING, not anonymity — see `incognito`. */
   isWeighIn?: boolean;
+  /** Anonymity for chime-in / random summons: when true (the default for those
+   *  commands), skip persona injection + LTM read + memory write + STM epoch.
+   *  When false, the summon is personal (persona + memories + recorded) while
+   *  keeping the weigh-in framing. Defaults to `isWeighIn` when unset so existing
+   *  weigh-in payloads stay anonymous. */
+  incognito?: boolean;
   /** Cross-channel conversation history (grouped by channel, for cross-channel context) */
   crossChannelHistory?: CrossChannelHistoryGroupEntry[];
   /** Whether the triggering message was a voice message (used for voice-only TTS mode) */
@@ -384,8 +391,10 @@ const jobContextBaseSchema = z.object({
   referencedMessages: z.array(referencedMessageSchema).optional(),
   mentionedPersonas: z.array(mentionedPersonaSchema).optional(),
   referencedChannels: z.array(referencedChannelSchema).optional(),
-  /** Weigh-in mode: anonymous poke, skip LTM retrieval and storage. */
+  /** Weigh-in mode: read-the-room prompt framing (controls framing, not anonymity). */
   isWeighIn: z.boolean().optional(),
+  /** Anonymity for chime-in/random: skip persona + LTM read/write + epoch when true. */
+  incognito: z.boolean().optional(),
   crossChannelHistory: z.array(crossChannelHistoryGroupSchema).optional(),
   isVoiceMessage: z.boolean().optional(),
   rawAssemblyInputs: rawAssemblyInputsSchema.optional(),

@@ -396,6 +396,14 @@ export default defineCommand({
             .setDescription('Only consider characters you own (composable with exclude-private)')
             .setRequired(false)
         )
+        .addBooleanOption(option =>
+          option
+            .setName('incognito')
+            .setDescription(
+              'Anonymous by default (no persona/memories). Set False to use your persona + memories.'
+            )
+            .setRequired(false)
+        )
     )
     .addSubcommand(subcommand =>
       subcommand
@@ -409,6 +417,14 @@ export default defineCommand({
             .setDescription('Character to chime in')
             .setRequired(true)
             .setAutocomplete(true)
+        )
+        .addBooleanOption(option =>
+          option
+            .setName('incognito')
+            .setDescription(
+              'Anonymous by default (no persona/memories). Set False to use your persona + memories.'
+            )
+            .setRequired(false)
         )
     )
     .addSubcommand(subcommand =>

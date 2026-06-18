@@ -509,6 +509,12 @@
                 "description": "Only consider characters you own (composable with exclude-private)",
                 "required": false,
                 "type": 5
+              },
+              {
+                "name": "incognito",
+                "description": "Anonymous by default (no persona/memories). Set False to use your persona + memories.",
+                "required": false,
+                "type": 5
               }
             ]
           },
@@ -523,6 +529,12 @@
                 "name": "character",
                 "description": "Character to chime in",
                 "required": true
+              },
+              {
+                "name": "incognito",
+                "description": "Anonymous by default (no persona/memories). Set False to use your persona + memories.",
+                "required": false,
+                "type": 5
               }
             ]
           },
