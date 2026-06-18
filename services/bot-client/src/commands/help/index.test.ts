@@ -8,11 +8,11 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { EmbedBuilder } from 'discord.js';
+import { EmbedBuilder, type AutocompleteInteraction } from 'discord.js';
 import helpCommand from './index.js';
 
 // Destructure from default export
-const { execute, data, deferralMode } = helpCommand;
+const { execute, data, deferralMode, autocomplete } = helpCommand;
 import type { Command } from '../../types.js';
 import type { SafeCommandContext } from '../../utils/commandContext/index.js';
 
@@ -212,6 +212,25 @@ describe('Help Command', () => {
       // A param-less subcommand still renders a field
       const editField = json.fields.find((f: { name: string }) => f.name.includes('edit'));
       expect(editField).toBeDefined();
+    });
+
+    it('shows a single subcommand detail when "parent sub" is requested', async () => {
+      const commands = createMockCommands();
+      const interaction = createMockContext('character create', commands);
+
+      await execute(interaction);
+
+      const embed = mockEditReply.mock.calls[0][0].embeds[0];
+      const json = embed.toJSON();
+
+      // Bounded to just the one subcommand — title is the full path, body lists
+      // only that subcommand's params (not every sibling subcommand).
+      expect(json.title).toBe('/character create');
+      expect(json.description).toBe('Create a character');
+      const paramsField = json.fields.find((f: { name: string }) => f.name === 'Parameters');
+      expect(paramsField?.value).toContain('`name`');
+      expect(paramsField?.value).toContain('*(required)*');
+      expect(paramsField?.value).toContain('`slug`');
     });
 
     it('shows parameters for a flat command (no subcommands)', async () => {
@@ -426,6 +445,139 @@ describe('Help Command', () => {
 
       expect(characterIndex).toBeLessThan(settingsIndex);
       expect(settingsIndex).toBeLessThan(helpIndex);
+    });
+  });
+
+  describe('autocomplete', () => {
+    interface CmdSpec {
+      name: string;
+      description: string;
+      subcommands?: Array<{ name: string; description: string }>;
+    }
+
+    function buildCommands(entries: CmdSpec[]): Map<string, Command> {
+      const commands = new Map<string, Command>();
+      for (const { name, description, subcommands } of entries) {
+        commands.set(name, {
+          data: {
+            name,
+            description,
+            ...(subcommands !== undefined && {
+              options: subcommands.map(s => ({
+                type: 1,
+                name: s.name,
+                description: s.description,
+              })),
+            }),
+          },
+          execute: vi.fn(),
+          category: 'Other',
+        } as unknown as Command);
+      }
+      return commands;
+    }
+
+    function createAutocompleteInteraction(
+      focusedValue: string,
+      commands?: Map<string, Command>,
+      focusedName = 'command'
+    ): { interaction: AutocompleteInteraction; respond: ReturnType<typeof vi.fn> } {
+      const respond = vi.fn();
+      const interaction = {
+        options: { getFocused: vi.fn(() => ({ name: focusedName, value: focusedValue })) },
+        client: { commands },
+        user: { id: 'user-123' },
+        guildId: null,
+        respond,
+      } as unknown as AutocompleteInteraction;
+      return { interaction, respond };
+    }
+
+    const sample: CmdSpec[] = [
+      {
+        name: 'character',
+        description: 'Manage AI characters',
+        subcommands: [
+          { name: 'chat', description: 'Chat one-on-one' },
+          { name: 'import', description: 'Import from JSON' },
+        ],
+      },
+      { name: 'help', description: 'Show all available commands' }, // flat command
+      {
+        name: 'voice',
+        description: 'Voice settings',
+        subcommands: [{ name: 'tts', description: 'TTS' }],
+      },
+    ];
+
+    function respondedValues(respond: ReturnType<typeof vi.fn>): string[] {
+      return (respond.mock.calls[0][0] as Array<{ value: string }>).map(choice => choice.value);
+    }
+
+    it('offers leaf subcommand paths matching the typed query (alphabetical)', async () => {
+      const { interaction, respond } = createAutocompleteInteraction('char', buildCommands(sample));
+      await autocomplete?.(interaction);
+      expect(respondedValues(respond)).toEqual(['character chat', 'character import']);
+    });
+
+    it('uses the leaf path as the value and shows "/path — description"', async () => {
+      const { interaction, respond } = createAutocompleteInteraction(
+        'voice tts',
+        buildCommands(sample)
+      );
+      await autocomplete?.(interaction);
+      expect(respond).toHaveBeenCalledWith([{ name: '/voice tts — TTS', value: 'voice tts' }]);
+    });
+
+    it('offers a flat (subcommand-less) command by its bare name', async () => {
+      const { interaction, respond } = createAutocompleteInteraction('help', buildCommands(sample));
+      await autocomplete?.(interaction);
+      expect(respond).toHaveBeenCalledWith([
+        { name: '/help — Show all available commands', value: 'help' },
+      ]);
+    });
+
+    it('returns every leaf (alphabetical) for an empty query', async () => {
+      const { interaction, respond } = createAutocompleteInteraction('', buildCommands(sample));
+      await autocomplete?.(interaction);
+      expect(respondedValues(respond)).toEqual([
+        'character chat',
+        'character import',
+        'help',
+        'voice tts',
+      ]);
+    });
+
+    it('caps choices at the Discord autocomplete limit', async () => {
+      const many: CmdSpec[] = [
+        {
+          name: 'big',
+          description: 'big',
+          subcommands: Array.from({ length: 30 }, (_, i) => ({
+            name: `s${String(i).padStart(2, '0')}`,
+            description: 'd',
+          })),
+        },
+      ];
+      const { interaction, respond } = createAutocompleteInteraction('big', buildCommands(many));
+      await autocomplete?.(interaction);
+      expect((respond.mock.calls[0][0] as unknown[]).length).toBe(25);
+    });
+
+    it('ignores a focused option other than `command`', async () => {
+      const { interaction, respond } = createAutocompleteInteraction(
+        'x',
+        buildCommands(sample),
+        'other'
+      );
+      await autocomplete?.(interaction);
+      expect(respond).not.toHaveBeenCalled();
+    });
+
+    it('responds with an empty list when no commands are registered', async () => {
+      const { interaction, respond } = createAutocompleteInteraction('any', undefined);
+      await autocomplete?.(interaction);
+      expect(respond).toHaveBeenCalledWith([]);
     });
   });
 });
