@@ -1,36 +1,24 @@
 # Current
 
-> **Version**: v3.0.0-beta.133 (released 2026-06-17, #1244) — **no migrations.** Headliners: the context-assembly fix family — image descriptions now stamp the user's resolved `{model,visionModel}` at job-chain build (#1239) and the RAG path resolves the cross-provider vision key so vision no longer 401s (#1240); referenced/quoted image descriptions persist durably (`resolvedImageDescriptions`) so a reply to an image described >1h ago still renders its description instead of the raw `[image/jpeg: name]` marker (#1241); deduped reference stubs fold attachment markers into content so an image-only reply-target is no longer blank (#1242). Plus the `/character import` write-timeout fix that rode along (the prod release-stopper: writes were defaulting to the 2.5s AUTOCOMPLETE timeout instead of the 20s WRITE timeout). **Mechanics**: clean rebase-merge; `release:finalize` SHA-aligned develop; holistic review surfaced one non-blocking `findFirst` id-tiebreak follow-up (filed to quick-wins). _Prior: v3.0.0-beta.131 (#1208) — broad free-vision fallback + per-user daily cap + `/help` category fix._
+> **Version**: v3.0.0-beta.134 (released 2026-06-18, #1256) — **no migrations.** Headliners: **incognito mode** — a per-summon toggle on `/character chime-in` + `/character random` (anonymous by default: no persona/memories/recording; `incognito:False` injects your persona + memories) (#1252), and the **DB connection-pool fix** — the Prisma 7 driver-adapter pool was falling back to pg defaults (`max=10`, wait-forever acquisition) and starving under load, the root cause of the systemic "request hangs, then completes" timeouts (#1250/#1251). Plus: the no-avatar character-edit 400 fix + a round-trip contract guard for the class (#1253), the incognito cross-channel null-persona crash fix (#1254), preset save-timeout honest UX (#1249), `/help` autocomplete (#1248), and a Tier-1 LHF sweep (#1247). **Mechanics**: clean rebase-merge; `release:finalize` SHA-aligned develop (the `--dry-run` mis-reported a no-op; the real run rebased + force-pushed); holistic review LGTM with one debug-log cleanup applied pre-merge. _Prior: v3.0.0-beta.133 (#1244) — context-assembly fix family._
 > **🚧 Release freeze status**: LIFTED. No release in progress.
 
 ---
 
-## Unreleased on Develop (since beta.133)
+## Unreleased on Develop (since beta.134)
 
-**Session 2026-06-18 — incognito feature + two prod-bug classes + LHF sweep** (all to develop, no migrations):
+_Nothing yet — **v3.0.0-beta.134 shipped 2026-06-18** (#1256); develop is SHA-aligned with main. The beta.133→134 delta (incognito #1252/#1254/#1255, avatarData fix #1253, DB-pool fix #1250/#1251, preset UX #1249, `/help` autocomplete #1248, Tier-1 LHF #1247) is in the [release notes](https://github.com/lbds137/tzurot/releases/tag/v3.0.0-beta.134)._
 
-- **DB connection-pool starvation fixed** (#1250/#1251) — the Prisma 7 driver-adapter pool fell back to pg defaults (`max=10`, wait-forever acquisition) and starved under load (the "logged nothing, then eventually completed" timeouts). Now explicitly configured (`max=20`, finite acquisition timeout, env-tunable per `poolConfig.ts`) + saturation gauge + bounded transient pools. **Pending prod validation.**
-- **avatarData null round-trip fixed** (#1253) — editing a **no-avatar** character 400'd (`avatarData: expected string, received null`), masked as "Failed to update character." Schema now accepts null + both media processors guard it. Plus a **round-trip contract test** guarding the whole class, and real-gateway-error surfacing on the character/persona/preset dashboards (shared `utils/dashboard/saveError.ts`).
-- **Incognito toggle** (#1252) — `incognito` boolean on `/character chime-in` + `random` (anonymous by default; `incognito:False` injects persona + memories + records). **#1255** reordered it after `message` on `/random`.
-- **Incognito cross-channel crash fixed** (#1254) — an incognito chat threw `[ContextAssembler] cross-channel enabled with a null persona`. Cross-channel now gates on **persona presence**, not weigh-in framing — fixes the crash AND makes a personal weigh-in correctly get cross-channel ("they're a unit").
-- **Preset save-timeout honest UX** (#1249) — `⏳ still applying` notice on a status-0 client abort instead of a misleading hard failure.
-- **`/help` autocomplete** over leaf commands + an all-command structure snapshot (fixed a latent `toJSON` bug where `/help <cmd>` rendered no subcommands).
-- **Tier 1 LHF**: `embedsXml` persists for all embed-bearing messages; `id` tiebreak on recency-ordered write-then-update picks; dedup-stub over-budget + image-only stub tests; stale `/metrics` + `/voice-references` docstrings; `backlog:lint` wired into `pnpm quality`. Plus a hono override bump (5 advisories).
-- **Backlog system restructured (#1245, 2026-06-17)** — HOT/COLD split + granularity ladder. Docs + tooling only.
-
-_beta.133 shipped 2026-06-17 (#1244); the beta.132→133 delta is in the [release notes](https://github.com/lbds137/tzurot/releases/tag/v3.0.0-beta.133)._
+**Pending validation**: confirm the DB-pool fix (#1250) holds in **prod** under real load (dev was clean — `waiting=0` throughout). All dev verification (incognito 4-case matrix + cross-channel-for-personal-summons + no-avatar edit) passed before the cut.
 
 ---
 
 ## Next Session Goal
 
-**Session 2026-06-18 shipped the incognito feature + two prod-bug classes (DB-pool starvation, avatarData null round-trip) + an LHF sweep** — see Unreleased above. **Pending verification on dev**: the incognito 4-case matrix + cross-channel-for-personal-summons + the no-avatar character edit (avatar edit already confirmed working). **Pending prod**: confirm the DB-pool-starvation fix (#1250) under real load.
-
-No release cut yet — these accumulate for beta.134.
+**Session 2026-06-18: shipped v3.0.0-beta.134** (#1256) — incognito mode + two prod-bug classes (DB-pool starvation, avatarData null round-trip) + an LHF sweep. All dev verification passed (incognito 4-case matrix, cross-channel-for-personal-summons, no-avatar edit) before the cut. **Only open thread: confirm the DB-pool fix (#1250) in prod under real load.** No forward thread pre-decided.
 
 **Candidate next threads** (none greenlit):
 
-- **Cut beta.134** — once dev verification of the incognito/cross-channel behavior is clean. Sizeable user-facing delta (incognito + avatar fix + pool fix + preset/help UX).
 - **Type-enforce the personal/anonymous context coupling** (`cold/ideas.md`) — the discriminated-union refactor so the `isWeighIn`/`incognito`-vs-persona drift class becomes unrepresentable (the "enforce bundling" idea from the #1254 investigation).
 - **UX consistency audit (incl. parameter ordering)** (`cold/ideas.md`) — **user wants soonish** (asked 2026-06-18 off the `/character random` option reorder).
 - **Preset llm-config PUT timeout — track (a)** — the gateway-slowness root cause; the pool fix (#1250) is the leading candidate, so **re-check on prod** before treating it as still-open.
