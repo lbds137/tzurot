@@ -1547,6 +1547,66 @@ describe('MessageContextBuilder', () => {
       );
     });
 
+    it('should suppress cross-channel history when incognito is true (chat with a message)', async () => {
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
+        userId: 'user-uuid-123',
+        defaultPersonaId: 'test-persona-id',
+      });
+      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
+      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
+      mockExtractReferencesWithReplacement.mockResolvedValue({
+        references: [],
+        updatedContent: 'Hello',
+      });
+      mockResolveAllMentions.mockResolvedValue({
+        processedContent: 'Hello',
+        mentionedUsers: [],
+        mentionedChannels: [],
+      });
+
+      // incognito with a message: isWeighInMode is false, but incognito nulls the
+      // persona, so the persona-scoped cross-channel fetch must still be skipped.
+      await builder.buildContext(mockMessage, mockPersonality, 'Hello', {
+        crossChannelHistoryEnabled: true,
+        incognito: true,
+      });
+
+      expect(mockFetchCrossChannelIfEnabled).toHaveBeenCalledWith(
+        expect.objectContaining({ enabled: false })
+      );
+    });
+
+    it('enables cross-channel history for a PERSONAL weigh-in (incognito=false)', async () => {
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
+        userId: 'user-uuid-123',
+        defaultPersonaId: 'test-persona-id',
+      });
+      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
+      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
+      mockExtractReferencesWithReplacement.mockResolvedValue({
+        references: [],
+        updatedContent: 'Hello',
+      });
+      mockResolveAllMentions.mockResolvedValue({
+        processedContent: 'Hello',
+        mentionedUsers: [],
+        mentionedChannels: [],
+      });
+
+      // Cross-channel and the persona are a unit: a personal weigh-in keeps its
+      // persona (incognito=false overrides the isWeighInMode default), so the
+      // fetch must be enabled even though it's a weigh-in.
+      await builder.buildContext(mockMessage, mockPersonality, 'Hello', {
+        crossChannelHistoryEnabled: true,
+        isWeighInMode: true,
+        incognito: false,
+      });
+
+      expect(mockFetchCrossChannelIfEnabled).toHaveBeenCalledWith(
+        expect.objectContaining({ enabled: true })
+      );
+    });
+
     it('wires the our-webhook registry into the fetch via getOurPersonalityId', async () => {
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
         userId: 'user-uuid-123',
