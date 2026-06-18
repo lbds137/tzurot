@@ -34,6 +34,44 @@ export function extractApiErrorMessage(error: unknown): string | null {
 }
 
 /**
+ * Notice shown when a preset write aborts client-side (transport status 0).
+ * The gateway llm-config update path can exceed the 20s WRITE budget under
+ * load and abort even though the write commits server-side a moment later — so
+ * claiming outright failure (and nudging "try again", which risks a duplicate
+ * write) is wrong. Tell the user the truth: it may still be applying.
+ */
+const SAVE_TIMEOUT_NOTICE =
+  '⏳ This is taking longer than usual — your change may still be applying. ' +
+  'Give it a moment, then tap **🔄 Refresh** to confirm before saving again.';
+
+/**
+ * Error thrown by preset writes, carrying the gateway response status so the
+ * caller can tell a genuine rejection (HTTP 4xx/5xx) apart from a client-side
+ * network/timeout abort (status 0), whose server-side outcome is uncertain.
+ */
+export class PresetUpdateError extends Error {
+  constructor(
+    message: string,
+    readonly status: number
+  ) {
+    super(message);
+    this.name = 'PresetUpdateError';
+  }
+}
+
+/**
+ * Build the user-facing content for a failed preset save. A status-0 abort
+ * (network/timeout) gets the honest "may still be applying" notice; everything
+ * else falls through to the extracted API message or a generic failure.
+ */
+export function buildSaveErrorContent(error: unknown): string {
+  if (error instanceof PresetUpdateError && error.status === 0) {
+    return SAVE_TIMEOUT_NOTICE;
+  }
+  return `❌ ${extractApiErrorMessage(error) ?? 'Failed to update preset. Please try again.'}`;
+}
+
+/**
  * Adapt a fetched LlmConfig detail payload to the dashboard's PresetData shape.
  *
  * `LlmConfigDetailSchema` now enumerates every field the dashboard reads
@@ -99,7 +137,10 @@ export async function updatePreset(
   const result = await userClient.updateUserLlmConfig(presetId, data);
 
   if (!result.ok) {
-    throw new Error(`Failed to update preset: ${result.status} - ${result.error ?? 'Unknown'}`);
+    throw new PresetUpdateError(
+      `Failed to update preset: ${result.status} - ${result.error ?? 'Unknown'}`,
+      result.status
+    );
   }
 
   return toPresetData(result.data.config);
@@ -118,8 +159,9 @@ export async function updateGlobalPreset(
   const result = await ownerClient.updateGlobalLlmConfig(presetId, data);
 
   if (!result.ok) {
-    throw new Error(
-      `Failed to update global preset: ${result.status} - ${result.error ?? 'Unknown'}`
+    throw new PresetUpdateError(
+      `Failed to update global preset: ${result.status} - ${result.error ?? 'Unknown'}`,
+      result.status
     );
   }
 

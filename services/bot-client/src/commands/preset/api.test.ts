@@ -9,6 +9,8 @@ import {
   updatePreset,
   updateGlobalPreset,
   extractApiErrorMessage,
+  buildSaveErrorContent,
+  PresetUpdateError,
   createPreset,
 } from './api.js';
 import { GatewayApiError } from '@tzurot/clients';
@@ -168,6 +170,15 @@ describe('updatePreset', () => {
       'Failed to update preset: 500 - Unknown'
     );
   });
+
+  it('throws PresetUpdateError carrying the gateway status (0 on client-side timeout)', async () => {
+    stub.updateUserLlmConfig.mockResolvedValue(makeErr(0, 'Request timeout'));
+
+    await expect(updatePreset('preset-123', {}, asUserClient(stub))).rejects.toMatchObject({
+      name: 'PresetUpdateError',
+      status: 0,
+    });
+  });
 });
 
 describe('updateGlobalPreset', () => {
@@ -207,6 +218,27 @@ describe('updateGlobalPreset', () => {
 
     await expect(updateGlobalPreset('preset-123', {}, asOwnerClient(stub))).rejects.toThrow(
       'Failed to update global preset: 500 - Unknown'
+    );
+  });
+});
+
+describe('buildSaveErrorContent', () => {
+  it('shows the honest "may still be applying" notice on a status-0 timeout', () => {
+    const error = new PresetUpdateError('Failed to update preset: 0 - Request timeout', 0);
+    const content = buildSaveErrorContent(error);
+    expect(content).toContain('may still be applying');
+    expect(content).toContain('Refresh');
+    expect(content).not.toContain('❌');
+  });
+
+  it('shows the extracted gateway message on a genuine HTTP rejection', () => {
+    const error = new PresetUpdateError('Failed to update preset: 400 - Context too large', 400);
+    expect(buildSaveErrorContent(error)).toBe('❌ Context too large');
+  });
+
+  it('falls back to a generic failure for a non-PresetUpdateError', () => {
+    expect(buildSaveErrorContent(new Error('boom'))).toBe(
+      '❌ Failed to update preset. Please try again.'
     );
   });
 });
