@@ -85,7 +85,9 @@ export async function writeReferenceImageDescriptions(
 
     const lastMessage = await prisma.conversationHistory.findFirst({
       where: { ...scope, role: MessageRole.User },
-      orderBy: { createdAt: 'desc' },
+      // Tiebreak on id so two user rows sharing a createdAt ms can't resolve to
+      // the wrong row — mirrors the deterministic ordering the read path uses.
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     });
 
     if (lastMessage === null) {
