@@ -10,14 +10,26 @@
  * - TypeScript prevents accidental deferReply() calls at compile time
  */
 
-import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
-import { createLogger, DISCORD_COLORS, getConfig, helpOptions } from '@tzurot/common-types';
+import { SlashCommandBuilder, EmbedBuilder, type AutocompleteInteraction } from 'discord.js';
+import {
+  createLogger,
+  DISCORD_COLORS,
+  DISCORD_LIMITS,
+  getConfig,
+  helpOptions,
+} from '@tzurot/common-types';
 import {
   defineCommand,
   type DeferredCommandContext,
   type SafeCommandContext,
 } from '../../utils/defineCommand.js';
 import type { Command } from '../../types.js';
+import {
+  flattenCommandLeaves,
+  getCommandOptions,
+  resolveHelpTarget,
+  type CommandOptionNode,
+} from './commandPaths.js';
 // Note: Type augmentation for client.commands is in types/discord.d.ts
 
 const logger = createLogger('help-command');
@@ -167,25 +179,50 @@ function buildSubcommandFields(options: unknown[]): { name: string; value: strin
 async function showCommandDetails(
   context: DeferredCommandContext,
   commands: Map<string, Command>,
-  commandName: string
+  value: string
 ): Promise<void> {
-  const command = commands.get(commandName.toLowerCase());
+  const target = resolveHelpTarget(commands, value);
 
-  if (!command) {
+  if (target.kind === 'unknown') {
     await context.editReply({
-      content: `❌ Unknown command: \`/${commandName}\`\n\nUse \`/help\` to see all available commands.`,
+      content: `❌ Unknown command: \`/${value}\`\n\nUse \`/help\` to see all available commands.`,
     });
     return;
   }
 
+  const embed =
+    target.kind === 'subcommand'
+      ? buildSubcommandEmbed(target.label, target.option)
+      : buildOverviewEmbed(target.command);
+
+  await context.editReply({ embeds: [embed] });
+}
+
+/** Detail embed for a single subcommand: its description + parameter list. */
+function buildSubcommandEmbed(label: string, option: CommandOptionNode): EmbedBuilder {
+  const embed = new EmbedBuilder()
+    .setColor(DISCORD_COLORS.BLURPLE)
+    .setTitle(`/${label}`)
+    .setDescription(option.description ?? '');
+
+  const params = renderParams(option.options);
+  if (params !== '') {
+    embed.addFields({ name: 'Parameters', value: params.slice(0, FIELD_VALUE_LIMIT) });
+  }
+  return embed;
+}
+
+/** Overview embed for a command: one field per subcommand, or its own params. */
+function buildOverviewEmbed(command: Command): EmbedBuilder {
   const embed = new EmbedBuilder()
     .setColor(DISCORD_COLORS.BLURPLE)
     .setTitle(`/${command.data.name}`)
     .setDescription(command.data.description);
 
-  const options =
-    'options' in command.data && Array.isArray(command.data.options) ? command.data.options : [];
-
+  // Read via getCommandOptions (toJSON-backed): the live builder's raw
+  // `.options` don't expose a numeric `type`, so the subcommand classification
+  // below would otherwise find nothing in production.
+  const options = getCommandOptions(command);
   const subcommandFields = buildSubcommandFields(options);
 
   if (subcommandFields.length > 0) {
@@ -203,8 +240,7 @@ async function showCommandDetails(
       embed.addFields({ name: 'Parameters', value: params.slice(0, FIELD_VALUE_LIMIT) });
     }
   }
-
-  await context.editReply({ embeds: [embed] });
+  return embed;
 }
 
 /**
@@ -296,7 +332,57 @@ const commandData = new SlashCommandBuilder()
       .setName('command')
       .setDescription('Get detailed help for a specific command')
       .setRequired(false)
+      .setAutocomplete(true)
   );
+
+/** Discord caps an autocomplete choice's display name at 100 characters. */
+const AUTOCOMPLETE_NAME_LIMIT = 100;
+
+/**
+ * Autocomplete for the `command` option.
+ *
+ * Offers the discrete invocable command paths (subcommands like
+ * "character chat", group subcommands like "admin presence set") so users pick
+ * the exact thing they want help with — mirroring Discord's own slash-command
+ * picker. A freeform value that doesn't resolve lands on the "Unknown command"
+ * path, so steering users to real paths here is the whole point. Matches the
+ * typed query as a case-insensitive substring of the path, sorted
+ * alphabetically, capped at Discord's choice limit. The choice value is the
+ * path itself so `resolveHelpTarget` resolves it directly.
+ */
+async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
+  const focused = interaction.options.getFocused(true);
+  if (focused.name !== 'command') {
+    return;
+  }
+
+  try {
+    const commands = interaction.client.commands;
+    if (commands === undefined || commands.size === 0) {
+      await interaction.respond([]);
+      return;
+    }
+
+    const query = focused.value.toLowerCase();
+    const choices = [...commands.values()]
+      .flatMap(flattenCommandLeaves)
+      .filter(leaf => query.length === 0 || leaf.path.toLowerCase().includes(query))
+      .sort((a, b) => a.path.localeCompare(b.path))
+      .slice(0, DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES)
+      .map(leaf => ({
+        name: `/${leaf.path}${leaf.description.length > 0 ? ` — ${leaf.description}` : ''}`.slice(
+          0,
+          AUTOCOMPLETE_NAME_LIMIT
+        ),
+        value: leaf.path,
+      }));
+
+    await interaction.respond(choices);
+  } catch (error) {
+    logger.error({ err: error, query: focused.value }, 'Help command autocomplete failed');
+    await interaction.respond([]);
+  }
+}
 
 /**
  * Export command definition using defineCommand for type safety
@@ -311,4 +397,5 @@ export default defineCommand({
   data: commandData,
   deferralMode: 'ephemeral',
   execute,
+  autocomplete,
 });
