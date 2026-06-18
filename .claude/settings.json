@@ -80,8 +80,7 @@
       "WebFetch(domain:openrouter.ai)",
       "WebFetch(domain:discord-api-types.dev)"
     ],
-    "deny": [],
-    "defaultMode": "acceptEdits"
+    "deny": []
   },
   "enableAllProjectMcpServers": false
 }
