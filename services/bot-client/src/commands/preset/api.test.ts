@@ -220,6 +220,15 @@ describe('updateGlobalPreset', () => {
       'Failed to update global preset: 500 - Unknown'
     );
   });
+
+  it('throws PresetUpdateError carrying the gateway status (0 on client-side timeout)', async () => {
+    stub.updateGlobalLlmConfig.mockResolvedValue(makeErr(0, 'Request timeout'));
+
+    await expect(updateGlobalPreset('preset-123', {}, asOwnerClient(stub))).rejects.toMatchObject({
+      name: 'PresetUpdateError',
+      status: 0,
+    });
+  });
 });
 
 describe('buildSaveErrorContent', () => {

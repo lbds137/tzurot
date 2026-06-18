@@ -33,13 +33,11 @@ export function extractApiErrorMessage(error: unknown): string | null {
   return msg.length > MAX_DISCORD_CONTENT ? msg.slice(0, MAX_DISCORD_CONTENT) + '…' : msg;
 }
 
-/**
- * Notice shown when a preset write aborts client-side (transport status 0).
- * The gateway llm-config update path can exceed the 20s WRITE budget under
- * load and abort even though the write commits server-side a moment later — so
- * claiming outright failure (and nudging "try again", which risks a duplicate
- * write) is wrong. Tell the user the truth: it may still be applying.
- */
+// Notice shown when a preset write aborts client-side (transport status 0).
+// The gateway llm-config update path can exceed the 20s WRITE budget under
+// load and abort even though the write commits server-side a moment later — so
+// claiming outright failure (and nudging "try again", which risks a duplicate
+// write) is wrong. Tell the user the truth: it may still be applying.
 const SAVE_TIMEOUT_NOTICE =
   '⏳ This is taking longer than usual — your change may still be applying. ' +
   'Give it a moment, then tap **🔄 Refresh** to confirm before saving again.';
