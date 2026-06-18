@@ -34,7 +34,7 @@ import {
   buildPresetDashboardOptions,
 } from './config.js';
 import type { PresetData } from './types.js';
-import { fetchPreset, updatePreset, updateGlobalPreset, extractApiErrorMessage } from './api.js';
+import { fetchPreset, updatePreset, updateGlobalPreset, buildSaveErrorContent } from './api.js';
 import { handleSeedModalSubmit } from './create.js';
 import { PresetCustomIds } from '../../utils/customIds.js';
 import { presetConfigValidator } from './presetValidation.js';
@@ -197,9 +197,11 @@ async function handleSectionModalSubmit(
   } catch (error) {
     logger.error({ err: error, entityId, sectionId }, 'Failed to update preset section');
 
-    // Use followUp (not editReply/reply) because the interaction was already deferred via deferUpdate
+    // Use followUp (not editReply/reply) because the interaction was already deferred via deferUpdate.
+    // buildSaveErrorContent shows the honest "may still be applying" notice on a
+    // client-side timeout (status 0) instead of a misleading hard failure.
     await interaction.followUp({
-      content: `❌ ${extractApiErrorMessage(error) ?? 'Failed to update preset. Please try again.'}`,
+      content: buildSaveErrorContent(error),
       flags: MessageFlags.Ephemeral,
     });
   }
