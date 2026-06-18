@@ -49,13 +49,16 @@ export const resolveConfigBodySchema = z.object({
 
 export function createResolveHandler(
   prisma: PrismaClient,
-  injectedCascadeResolver?: ConfigCascadeResolver
+  injectedCascadeResolver?: ConfigCascadeResolver,
+  injectedLlmResolver?: LlmConfigResolver
 ) {
-  // LlmConfigResolver is request-scoped (no cross-request caching needed for model resolution).
-  // ConfigCascadeResolver should be the long-lived, pub/sub-subscribed instance from index.ts
-  // so channel/user/personality config changes are reflected immediately (not after 30s TTL).
-  // Falls back to a local instance if not injected (e.g., in tests).
-  const resolver = new LlmConfigResolver(prisma, { enableCleanup: false });
+  // Both resolvers should be the long-lived, pub/sub-subscribed instances from
+  // index.ts so user/channel/personality config changes are reflected immediately
+  // (not after the cache-TTL window). The shared LlmConfigResolver is the same
+  // instance the /ai/generate job-chain uses, so a user's model change invalidates
+  // one cache, not two. Each falls back to a local instance when not injected
+  // (e.g. in tests).
+  const resolver = injectedLlmResolver ?? new LlmConfigResolver(prisma, { enableCleanup: false });
   const cascadeResolver =
     injectedCascadeResolver ?? new ConfigCascadeResolver(prisma, { enableCleanup: false });
 

@@ -24,7 +24,7 @@ _Active bugs observed in production. Fix before new features. Cleared issues are
 
 _Small tasks that can be done between major features. Good for momentum._
 
-- `[LIFT]` **Converge the two gateway `LlmConfigResolver` instances (+ optional pub/sub)** — Surfaced by PR #1239 (Bug X) review. The gateway constructs **two** `LlmConfigResolver` instances: the process-lifetime one wired into `RouteDeps` for `/ai/generate` job-chain model stamping (`services/api-gateway/src/index.ts`, no pub/sub, 10s TTL), and the request-scoped one in `services/api-gateway/src/routes/user/llmConfigResolve.ts`. Same DB cascade; the only cost is a second non-shared cache. The job-chain instance has **no pub/sub invalidation**, so for up to 10s after a user changes their LLM config an image-description job could be stamped with the stale model. **Action**: refactor `createResolveHandler` to accept the injected `LlmConfigResolver` from `RouteDeps` (it already accepts an injected `ConfigCascadeResolver`), construct one shared instance in `index.ts`, optionally wire `LlmConfigCacheInvalidationService` pub/sub to it. Low risk; closes the staleness gap.
+_(empty)_
 
 ---
 

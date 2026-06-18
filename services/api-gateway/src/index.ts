@@ -183,14 +183,24 @@ async function initializeServices(prisma: PrismaClient): Promise<ServicesContext
   });
   logger.info('ConfigCascadeResolver initialized with cache invalidation');
 
-  // LLM model-config cascade resolver for the /ai/generate handler. Resolves
-  // {model, visionModel} once at job-chain build so the image-description child
-  // job uses the user-cascaded model rather than the personality seed (the
-  // global paid default). No pub/sub invalidation is wired here — it relies on
-  // the built-in 10s TTL, matching the staleness window the cascade already
-  // carries elsewhere. Converging this instance with the one in
-  // routes/user/llmConfigResolve.ts (and adding pub/sub) is a tracked backlog item.
+  // Long-lived LLM model-config resolver with pub/sub invalidation. One shared
+  // instance, one cache: it resolves {model, visionModel} for the /ai/generate
+  // job-chain (so the image-description child job uses the user-cascaded model,
+  // not the personality seed — the global paid default) AND backs the
+  // /user/llm-config/resolve endpoint. The subscription clears stale entries the
+  // moment a user's LLM config changes, closing the cache-TTL window where a job
+  // could otherwise be stamped with the pre-change model.
   const llmConfigResolver = new LlmConfigResolver(prisma);
+  await llmConfigCacheInvalidation.subscribe(event => {
+    if (event.type === 'user') {
+      llmConfigResolver.invalidateUserCache(event.discordId);
+    } else {
+      // 'all' and 'config' aren't user-keyed — a preset edit can touch any
+      // cached user (and the free-default entry), so clear the whole cache.
+      llmConfigResolver.clearCache();
+    }
+  });
+  logger.info('LlmConfigResolver initialized with cache invalidation');
 
   const modelCache = new OpenRouterModelCache(cacheRedis);
 
