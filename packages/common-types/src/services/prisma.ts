@@ -6,10 +6,17 @@
  * The PrismaClient is generated to packages/common-types/src/generated/prisma/
  */
 
+import { Pool } from 'pg';
 import { PrismaClient } from '../generated/prisma/client.js';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { createLogger } from '../utils/logger.js';
 import { getConfig } from '../config/config.js';
+import {
+  resolvePoolMax,
+  resolveConnectionTimeoutMs,
+  resolvePoolStatsIntervalMs,
+  startPoolStatsGauge,
+} from './poolConfig.js';
 
 const logger = createLogger('PrismaService');
 const config = getConfig();
@@ -33,15 +40,31 @@ export function getPrismaClient(): PrismaClient {
       'DATABASE_URL check'
     );
 
-    // Prisma 7.0: Use driver adapter for PostgreSQL
-    const adapter = new PrismaPg({ connectionString: dbUrl });
+    // Prisma 7.0 driver adapter over an EXPLICIT pg.Pool. The adapter ignores
+    // `?connection_limit=` on DATABASE_URL, so the pool MUST be sized here —
+    // otherwise it silently uses pg's defaults (max=10, wait-forever acquisition)
+    // and starves under load. See poolConfig.ts for the full rationale.
+    const max = resolvePoolMax();
+    const connectionTimeoutMillis = resolveConnectionTimeoutMs();
+    const pool = new Pool({ connectionString: dbUrl, max, connectionTimeoutMillis });
+    pool.on('error', err => {
+      logger.error({ err }, 'pg.Pool idle-client error');
+    });
+    startPoolStatsGauge(pool, logger, resolvePoolStatsIntervalMs(), max);
+
+    // disposeExternalPool: true so prismaClient.$disconnect() closes the pool we
+    // created (external pools are otherwise left open on disconnect).
+    const adapter = new PrismaPg(pool, { disposeExternalPool: true });
 
     prismaClient = new PrismaClient({
       adapter,
       log: config.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
     });
 
-    logger.info('Prisma client initialized with PrismaPg adapter');
+    logger.info(
+      { max, connectionTimeoutMillis },
+      'Prisma client initialized with configured pg.Pool'
+    );
   }
 
   return prismaClient;

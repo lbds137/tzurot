@@ -10,7 +10,7 @@ import { getPrismaClient } from '@tzurot/common-types';
 const prisma = new PrismaClient(); // Don't do this!
 ```
 
-**Pool configuration:** `connectionLimit = 20` per service (Railway limit is 100)
+**Pool configuration:** The Prisma 7 driver adapter (`@prisma/adapter-pg`) runs over an explicit node-postgres `pg.Pool` configured in `packages/common-types/src/services/poolConfig.ts` — **default `max = 20` per service process**, env-tunable via `DATABASE_POOL_MAX`, with a finite `DATABASE_POOL_CONN_TIMEOUT_MS` (default 10s) acquisition timeout. **Gotcha:** the driver adapter **ignores the `?connection_limit=` URL param** — pool size MUST be set in `poolConfig.ts`/env, never on `DATABASE_URL`. The pool previously fell back to pg's defaults (`max = 10`, wait-forever acquisition), which starved under load. Set `DATABASE_POOL_STATS_INTERVAL_MS` to enable the saturation gauge (warns when connections queue). Keep total connections (Σ `max` across all service processes/replicas) under the Postgres `max_connections` (~100 on Railway).
 
 ## Query Patterns
 
