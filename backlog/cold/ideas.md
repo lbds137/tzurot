@@ -293,8 +293,19 @@ Surfaced 2026-04-23.
 
 `handleExportError` (ShapesExportJob.ts) and `handleImportError` (ShapesImportJob.ts) are near-identical: `willRetry` computation, three-way log message, re-throw or mark DB as failed. Extract to a shared helper in `shapesCredentials.ts` or a new `shapesJobHelpers.ts`.
 
+#### 🏗️ Type-enforce the personal/anonymous context coupling
+
+Several behaviors are coupled to "personal mode" (persona present): cross-channel history, LTM read/write, STM-reset epoch, mention upserts. After #1252 split the conflated `isWeighIn` flag into framing (`isWeighIn`) vs anonymity (`incognito`), each consumer re-derived "personal mode" independently — and cross-channel drifted (kept keying on `isWeighIn`), causing the `[ContextAssembler] cross-channel enabled with a null persona` crash (fixed in #1254 by gating on `activePersonaId`).
+
+**Idea (the durable "enforce bundling")**: model the resolved context as a discriminated union instead of separate booleans + a nullable persona — `{ kind: 'personal'; personaId: string; epoch; /* cross-channel, LTM allowed */ } | { kind: 'anonymous'; /* no personaId / cross-channel / LTM / epoch — fields absent */ }`. Then cross-channel/LTM/epoch live on the `personal` variant only, so "cross-channel with no persona" is unrepresentable (compile error), not a runtime guard.
+
+**Cheaper interim steps**: (a) the flag-matrix tests added in #1254 pin the coupling in CI; (b) keep every persona-coupled behavior keyed off the single `activePersonaId` signal (mostly done); (c) a `.claude/rules/02-code-standards.md` testing note — "when a refactor splits a flag or makes a field nullable, write a matrix/contract test over the new state-space, not just the happy path" (the recurring lesson across the avatarData null-round-trip class AND this one). Step (c) is a rule-doc change → needs a PR; ask the user before adding.
+
+**Why cold**: a real refactor of the context-assembly shape (ContextAssembler + MessageContextBuilder + JobContext types); the #1254 fix + tests hold the line for now. **Promote when**: the next change touches incognito/persona gating, OR a third instance of this class appears. Surfaced 2026-06-18 (user asked "should we enforce bundling of these coupled items?").
+
 ### Low-Priority Audits
 
+- **UX consistency audit (incl. parameter ordering)** — slash-command option order should follow importance/relevance to the user, not insertion order (e.g. #1255 moved `incognito` right after `message` on `/character random`; the `exclude-private`/`only-mine` filters trail). Generalize: audit every command's option ordering, plus other UX consistency (badge/legend formatting, button order per `04-discord.md`, ephemeral-vs-public choices, subcommand naming). Parameter ordering is a judgment call but should be a standing UX-audit criterion. **User wants this soonish (asked 2026-06-18)** — promote to `now.md` Current Focus when ready; it's only here because it isn't scheduled yet. Surfaced 2026-06-18 (user) while reordering `/character random` options.
 - **DB-Sync Deletion Propagation** — Cross-env sync only upserts, so prod deletions get undone on re-sync. Workaround: manual cleanup. Needs design decision (tombstones, deletion log, sync manifest). Low urgency.
 
 ### Nice-to-Have Features
