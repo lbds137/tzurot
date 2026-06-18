@@ -13,7 +13,7 @@ import {
 import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
 import { DASHBOARD_MESSAGES, formatSessionExpiredMessage } from '../../utils/dashboard/messages.js';
 import type { PresetData } from './config.js';
-import { PresetUpdateError } from './api.js';
+import { DashboardUpdateError } from '../../utils/dashboard/saveError.js';
 import { GatewayApiError } from '@tzurot/clients';
 
 // Sentinel passed by the migrated dashboard handler — `clientsFor(interaction)`
@@ -491,11 +491,11 @@ describe('handleModalSubmit', () => {
     mockSessionManagerGet.mockResolvedValue({
       data: { id: 'preset-123', name: 'Test', isGlobal: false, isOwned: true },
     });
-    // A client-side timeout surfaces as a PresetUpdateError with status 0 — the
+    // A client-side timeout surfaces as a DashboardUpdateError with status 0 — the
     // write may have committed server-side, so the user gets the honest notice
     // rather than a hard "Failed, try again".
     mockUpdatePreset.mockRejectedValue(
-      new PresetUpdateError('Failed to update preset: 0 - Request timeout', 0)
+      new DashboardUpdateError('Failed to update preset: 0 - Request timeout', 0)
     );
 
     await handleModalSubmit(createMockModalInteraction('preset::modal::preset-123::identity'));

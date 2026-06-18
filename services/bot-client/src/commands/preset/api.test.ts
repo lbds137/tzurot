@@ -8,9 +8,6 @@ import {
   fetchGlobalPreset,
   updatePreset,
   updateGlobalPreset,
-  extractApiErrorMessage,
-  buildSaveErrorContent,
-  PresetUpdateError,
   createPreset,
 } from './api.js';
 import { GatewayApiError } from '@tzurot/clients';
@@ -171,11 +168,11 @@ describe('updatePreset', () => {
     );
   });
 
-  it('throws PresetUpdateError carrying the gateway status (0 on client-side timeout)', async () => {
+  it('throws DashboardUpdateError carrying the gateway status (0 on client-side timeout)', async () => {
     stub.updateUserLlmConfig.mockResolvedValue(makeErr(0, 'Request timeout'));
 
     await expect(updatePreset('preset-123', {}, asUserClient(stub))).rejects.toMatchObject({
-      name: 'PresetUpdateError',
+      name: 'DashboardUpdateError',
       status: 0,
     });
   });
@@ -221,69 +218,13 @@ describe('updateGlobalPreset', () => {
     );
   });
 
-  it('throws PresetUpdateError carrying the gateway status (0 on client-side timeout)', async () => {
+  it('throws DashboardUpdateError carrying the gateway status (0 on client-side timeout)', async () => {
     stub.updateGlobalLlmConfig.mockResolvedValue(makeErr(0, 'Request timeout'));
 
     await expect(updateGlobalPreset('preset-123', {}, asOwnerClient(stub))).rejects.toMatchObject({
-      name: 'PresetUpdateError',
+      name: 'DashboardUpdateError',
       status: 0,
     });
-  });
-});
-
-describe('buildSaveErrorContent', () => {
-  it('shows the honest "may still be applying" notice on a status-0 timeout', () => {
-    const error = new PresetUpdateError('Failed to update preset: 0 - Request timeout', 0);
-    const content = buildSaveErrorContent(error);
-    expect(content).toContain('may still be applying');
-    expect(content).toContain('Refresh');
-    expect(content).not.toContain('❌');
-  });
-
-  it('shows the extracted gateway message on a genuine HTTP rejection', () => {
-    const error = new PresetUpdateError('Failed to update preset: 400 - Context too large', 400);
-    expect(buildSaveErrorContent(error)).toBe('❌ Context too large');
-  });
-
-  it('falls back to a generic failure for a non-PresetUpdateError', () => {
-    expect(buildSaveErrorContent(new Error('boom'))).toBe(
-      '❌ Failed to update preset. Please try again.'
-    );
-  });
-});
-
-describe('extractApiErrorMessage', () => {
-  it('should extract API message from structured error', () => {
-    const error = new Error('Failed to update preset: 400 - Context window too large');
-    expect(extractApiErrorMessage(error)).toBe('Context window too large');
-  });
-
-  it('should return null for non-Error values', () => {
-    expect(extractApiErrorMessage('string error')).toBeNull();
-    expect(extractApiErrorMessage(null)).toBeNull();
-  });
-
-  it('should return null for errors without API format', () => {
-    expect(extractApiErrorMessage(new Error('Network error'))).toBeNull();
-  });
-
-  it('should return null for non-API errors containing dashes', () => {
-    expect(extractApiErrorMessage(new Error('Request timed out - after 30s'))).toBeNull();
-    expect(extractApiErrorMessage(new Error('TLS handshake failed - connection reset'))).toBeNull();
-  });
-
-  it('should preserve dashes in the API message portion', () => {
-    const error = new Error('Failed to update preset: 400 - limit is 4096 - not 131072');
-    expect(extractApiErrorMessage(error)).toBe('limit is 4096 - not 131072');
-  });
-
-  it('should truncate very long API messages', () => {
-    const longMessage = 'A'.repeat(2000);
-    const error = new Error(`Failed to update preset: 400 - ${longMessage}`);
-    const result = extractApiErrorMessage(error);
-    expect(result).not.toBeNull();
-    expect(result!.length).toBeLessThanOrEqual(1801); // 1800 + ellipsis
-    expect(result!.endsWith('…')).toBe(true);
   });
 });
 

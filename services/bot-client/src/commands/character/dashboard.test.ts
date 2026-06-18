@@ -11,6 +11,7 @@ import {
 } from './dashboard.js';
 import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
 import * as api from './api.js';
+import { DashboardUpdateError } from '../../utils/dashboard/saveError.js';
 import * as createModule from './create.js';
 import * as viewModule from './view.js';
 import * as truncationWarning from './truncationWarning.js';
@@ -223,6 +224,35 @@ describe('Character Dashboard', () => {
       await handleModalSubmit(mockInteraction, mockConfig);
 
       expect(mockInteraction.deferUpdate).toHaveBeenCalled();
+    });
+
+    it('surfaces the real gateway error message when the section update fails', async () => {
+      vi.mocked(dashboardUtils.parseDashboardCustomId).mockReturnValue({
+        entityType: 'character',
+        action: 'modal',
+        entityId: 'test-char',
+        sectionId: 'identity',
+      });
+
+      const mockInteraction = createMockModalInteraction('character::modal::test-char::identity');
+      mockInteraction.deferUpdate = vi.fn();
+      mockInteraction.followUp = vi.fn();
+
+      // A 400 validation error is surfaced as the real gateway message, not
+      // masked behind a generic retry prompt.
+      vi.mocked(api.updateCharacter).mockRejectedValue(
+        new DashboardUpdateError(
+          'Failed to update character: 400 - avatarData: Invalid input: expected string, received null',
+          400
+        )
+      );
+
+      await handleModalSubmit(mockInteraction, mockConfig);
+
+      expect(mockInteraction.followUp).toHaveBeenCalledWith({
+        content: '❌ avatarData: Invalid input: expected string, received null',
+        flags: MessageFlags.Ephemeral,
+      });
     });
 
     it('should reply with error for unknown modal', async () => {

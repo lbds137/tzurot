@@ -7,6 +7,7 @@
 
 import { createLogger, type PersonaUpdateInput } from '@tzurot/common-types';
 import { type UserClient } from '@tzurot/clients';
+import { DashboardUpdateError } from '../../utils/dashboard/saveError.js';
 import type { PersonaDetails, PersonaSummary } from './types.js';
 
 const logger = createLogger('persona-api');
@@ -59,12 +60,18 @@ export async function updatePersona(
   data: PersonaUpdateInput,
   userClient: UserClient,
   userId: string
-): Promise<PersonaDetails | null> {
+): Promise<PersonaDetails> {
   const result = await userClient.updatePersona(personaId, data);
 
   if (!result.ok) {
     logger.warn({ userId, personaId, error: result.error }, 'Failed to update persona');
-    return null;
+    // Throw (rather than return null) so the dashboard can surface the real
+    // gateway message and distinguish a status-0 client abort from an HTTP
+    // rejection — the same contract as updateCharacter / updatePreset.
+    throw new DashboardUpdateError(
+      `Failed to update persona: ${result.status} - ${result.error ?? 'Unknown'}`,
+      result.status
+    );
   }
 
   return result.data.persona;
