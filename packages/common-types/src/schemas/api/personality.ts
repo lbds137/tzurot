@@ -219,13 +219,17 @@ export const PersonalityCreateSchema = z.object({
   // Custom fields (JSONB) - accepts arbitrary nested JSON to match Prisma Json? type
   customFields: z.record(z.string(), z.unknown()).optional().nullable(),
 
-  // Avatar data (base64 encoded, processed separately)
-  avatarData: z.string().optional(),
+  // Avatar data (base64 encoded, processed separately).
+  // null = no avatar — the bot-client dashboard only fetches `hasAvatar`, never
+  // the base64, so it round-trips `avatarData: null` on every save. Accepting
+  // null (treated as "no change" by processAvatarData) is required or that
+  // round-trip 400s. See voiceReferenceData below for the same shape.
+  avatarData: z.string().nullable().optional(),
 
   // Voice reference audio (base64 data URI, processed by voiceReferenceProcessor).
-  // Schema only validates type — format/MIME/size validation is in the processor
-  // (same pattern as avatarData above).
-  voiceReferenceData: z.string().optional(),
+  // Schema only validates type — format/MIME/size validation is in the processor.
+  // null = no voice reference (same round-trip rationale as avatarData above).
+  voiceReferenceData: z.string().nullable().optional(),
 });
 
 export type PersonalityCreateInput = z.infer<typeof PersonalityCreateSchema>;
@@ -253,8 +257,12 @@ export const PersonalityUpdateSchema = z.object({
   // Custom fields (JSONB) - accepts arbitrary nested JSON to match Prisma Json? type
   customFields: z.record(z.string(), z.unknown()).optional().nullable(),
 
-  // Avatar data (base64 encoded, processed separately)
-  avatarData: z.string().optional(),
+  // Avatar data (base64 encoded, processed separately).
+  // null = the dashboard round-trips a no-avatar character (it only fetches
+  // `hasAvatar`, never the base64). processMediaUploads treats null as "no
+  // change" — it never clears an existing avatar — so editing an unrelated
+  // section is safe. Rejecting null here is the avatarData-class 400 bug.
+  avatarData: z.string().nullable().optional(),
 
   // Voice reference audio (base64 data URI, processed separately)
   // null = clear existing voice reference, undefined = don't change, string = set new

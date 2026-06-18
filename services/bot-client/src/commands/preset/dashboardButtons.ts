@@ -31,7 +31,8 @@ import {
   unflattenPresetData,
   buildPresetDashboardOptions,
 } from './config.js';
-import { fetchPreset, updatePreset, fetchGlobalPreset, extractApiErrorMessage } from './api.js';
+import { fetchPreset, updatePreset, fetchGlobalPreset } from './api.js';
+import { extractApiErrorMessage } from '../../utils/dashboard/saveError.js';
 import { createClonedPreset } from './cloneName.js';
 
 // Re-export for backward compatibility

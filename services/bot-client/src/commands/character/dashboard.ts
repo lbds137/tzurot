@@ -26,6 +26,7 @@ import {
   handleSharedBackButton,
 } from '../../utils/dashboard/index.js';
 import { showModalWithTimeoutCatch } from '../../utils/dashboard/showModalWithTimeoutCatch.js';
+import { buildDashboardSaveErrorContent } from '../../utils/dashboard/saveError.js';
 import { CharacterCustomIds } from '../../utils/customIds.js';
 import {
   getCharacterDashboardConfig,
@@ -179,9 +180,11 @@ async function handleSectionModalSubmit(
     logger.info({ slug: entityId, sectionId, isAdmin }, 'Character section updated');
   } catch (error) {
     logger.error({ err: error, entityId, sectionId }, 'Failed to update character section');
-    // Notify user of failure via followUp (since we deferred update)
+    // Notify user of failure via followUp (since we deferred update). Surface the
+    // real gateway message (or the honest "still applying" notice on a status-0
+    // abort) instead of a generic retry prompt that masks 400 validation errors.
     await interaction.followUp({
-      content: '❌ Failed to update character. Please try again.',
+      content: buildDashboardSaveErrorContent(error, 'character'),
       flags: MessageFlags.Ephemeral,
     });
   }

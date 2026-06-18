@@ -344,6 +344,15 @@ describe('Personality API Contract Tests', () => {
       expect(result.success).toBe(true);
     });
 
+    it('should accept null avatarData / voiceReferenceData (no media provided)', () => {
+      const result = PersonalityCreateSchema.safeParse({
+        ...validCreateInput,
+        avatarData: null,
+        voiceReferenceData: null,
+      });
+      expect(result.success).toBe(true);
+    });
+
     it('should reject missing required field: name', () => {
       const { name: _name, ...inputWithoutName } = validCreateInput;
       const result = PersonalityCreateSchema.safeParse(inputWithoutName);
@@ -449,6 +458,18 @@ describe('Personality API Contract Tests', () => {
 
       const result = PersonalityUpdateSchema.safeParse(fullUpdate);
       expect(result.success).toBe(true);
+    });
+
+    it('should accept avatarData as null (no-avatar round-trip)', () => {
+      // Regression: a character with no avatar has avatarData=null, and the
+      // dashboard round-trips it on every section save (it only fetches
+      // `hasAvatar`, never the base64). Rejecting null here 400'd every edit of
+      // a no-avatar character with "expected string, received null".
+      const result = PersonalityUpdateSchema.safeParse({ name: 'New Name', avatarData: null });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.avatarData).toBeNull();
+      }
     });
 
     it('should accept voiceReferenceData as string (set new)', () => {

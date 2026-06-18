@@ -40,6 +40,7 @@ import { fetchPersona, updatePersona, deletePersona, isDefaultPersona } from './
 import { PersonaCustomIds } from '../../utils/customIds.js';
 import { buildSectionModal } from '../../utils/dashboard/ModalFactory.js';
 import { showModalWithTimeoutCatch } from '../../utils/dashboard/showModalWithTimeoutCatch.js';
+import { buildDashboardSaveErrorContent } from '../../utils/dashboard/saveError.js';
 import { detectOverLengthFields } from '../../utils/dashboard/truncationGate/index.js';
 import { resolvePersonaSectionContext } from './sectionContext.js';
 import {
@@ -120,20 +121,14 @@ async function handleSectionModalSubmit(
     const updatePayload = unflattenPersonaData(extracted.merged);
 
     const { userClient } = clientsFor(interaction);
+    // updatePersona throws DashboardUpdateError on failure (caught below);
+    // a resolved value is always a valid persona.
     const updatedPersona = await updatePersona(
       entityId,
       updatePayload,
       userClient,
       interaction.user.id
     );
-
-    if (!updatedPersona) {
-      await interaction.followUp({
-        content: '❌ Failed to save persona. Please try again.',
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
 
     // Flatten the response for dashboard display
     const flattenedData = flattenPersonaData(updatedPersona);
@@ -165,9 +160,11 @@ async function handleSectionModalSubmit(
     logger.info({ personaId: entityId, sectionId }, 'Persona section updated');
   } catch (error) {
     logger.error({ err: error, entityId, sectionId }, 'Failed to update persona section');
-    // Notify user of failure via followUp (since we deferred update)
+    // Notify user of failure via followUp (since we deferred update). Surface the
+    // real gateway message (or the honest "still applying" notice on a status-0
+    // abort) instead of a generic retry prompt that masks 400 validation errors.
     await interaction.followUp({
-      content: '❌ Failed to update persona. Please try again.',
+      content: buildDashboardSaveErrorContent(error, 'persona'),
       flags: MessageFlags.Ephemeral,
     });
   }

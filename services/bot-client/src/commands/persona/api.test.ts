@@ -170,23 +170,46 @@ describe('updatePersona', () => {
     expect(result?.name).toBe('Updated Name');
   });
 
-  it('should return null on failure', async () => {
+  it('throws DashboardUpdateError carrying the gateway status on failure', async () => {
     stub.updatePersona.mockResolvedValue(makeErr(500, 'Update failed'));
 
-    const result = await updatePersona(
-      TEST_PERSONA_ID,
-      {
-        name: 'Test',
-        content: undefined,
-        preferredName: undefined,
-        description: undefined,
-        pronouns: undefined,
-      },
-      asUserClient(stub),
-      TEST_USER_ID
-    );
+    await expect(
+      updatePersona(
+        TEST_PERSONA_ID,
+        {
+          name: 'Test',
+          content: undefined,
+          preferredName: undefined,
+          description: undefined,
+          pronouns: undefined,
+        },
+        asUserClient(stub),
+        TEST_USER_ID
+      )
+    ).rejects.toMatchObject({
+      name: 'DashboardUpdateError',
+      status: 500,
+      message: 'Failed to update persona: 500 - Update failed',
+    });
+  });
 
-    expect(result).toBeNull();
+  it('throws with status 0 on a client-side abort', async () => {
+    stub.updatePersona.mockResolvedValue(makeErr(0, 'Request timeout'));
+
+    await expect(
+      updatePersona(
+        TEST_PERSONA_ID,
+        {
+          name: 'Test',
+          content: undefined,
+          preferredName: undefined,
+          description: undefined,
+          pronouns: undefined,
+        },
+        asUserClient(stub),
+        TEST_USER_ID
+      )
+    ).rejects.toMatchObject({ name: 'DashboardUpdateError', status: 0 });
   });
 });
 
