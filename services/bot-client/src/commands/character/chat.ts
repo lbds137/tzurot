@@ -108,25 +108,31 @@ async function getAnchorMessage(
 }
 
 /**
- * Adjust context for weigh-in mode by clearing persona info.
- * In weigh-in mode, the prompt is a system instruction, not a user message.
+ * Apply the two orthogonal summon concerns to the built context:
+ * - **Framing** (`isWeighInMode`): the prompt is a read-the-room system
+ *   instruction, not a user message. Needs prior conversation history.
+ * - **Anonymity** (`incognito`): drop the persona attribution (no `<from>` tag)
+ *   so ai-worker skips persona + LTM read/write + epoch. A personal summon
+ *   (`incognito=false`) keeps its persona while still using weigh-in framing.
  */
 function adjustContextForWeighInMode(
   buildResult: { context: MessageContext; conversationHistory: unknown[] },
-  isWeighInMode: boolean
+  isWeighInMode: boolean,
+  incognito: boolean
 ): boolean {
-  // Check for conversation history in weigh-in mode
+  // Read-the-room framing needs something to read.
   if (isWeighInMode && buildResult.conversationHistory.length === 0) {
     return false;
   }
 
-  // In weigh-in mode, clear persona info so no <from> tag is added,
-  // and mark as weigh-in so ai-worker skips LTM retrieval and storage
   if (isWeighInMode) {
-    buildResult.context.activePersonaId = undefined;
-    buildResult.context.activePersonaName = undefined;
     buildResult.context.isWeighIn = true;
   }
+  if (incognito) {
+    buildResult.context.activePersonaId = undefined;
+    buildResult.context.activePersonaName = undefined;
+  }
+  buildResult.context.incognito = incognito;
 
   return true;
 }
@@ -218,6 +224,9 @@ interface BuildChatContextParams {
   };
   commandContext: DeferredCommandContext;
   isWeighInMode: boolean;
+  /** Anonymity flag: skip persona + memory + epoch (the read-the-room framing
+   *  stays under isWeighInMode). Defaults are resolved by the caller. */
+  incognito: boolean;
 }
 
 /**
@@ -233,6 +242,7 @@ async function buildChatContext(
     extendedContextSettings,
     commandContext,
     isWeighInMode,
+    incognito,
   } = params;
 
   const contextBuilder = getMessageContextBuilder();
@@ -246,11 +256,13 @@ async function buildChatContext(
       overrideUser: commandContext.user,
       overrideMember: commandContext.member ?? null, // null for DMs
       isWeighInMode,
+      incognito,
     }
   );
 
-  // Adjust context for weigh-in mode (validate history + clear persona)
-  const hasValidContext = adjustContextForWeighInMode(buildResult, isWeighInMode);
+  // Adjust context: weigh-in framing under isWeighInMode; anonymity (persona
+  // clear + incognito flag) under incognito.
+  const hasValidContext = adjustContextForWeighInMode(buildResult, isWeighInMode, incognito);
   if (!hasValidContext) {
     return null;
   }
@@ -354,11 +366,20 @@ async function runCharacterTurn(
     message: string | null;
     /** Random-pick filters — only meaningful when characterArg is null. */
     filters: { excludePrivate: boolean; onlyMine: boolean };
+    /**
+     * The `incognito` option from chime-in/random (null when unset). null →
+     * default to weigh-in mode (no-message summons are anonymous, with-message
+     * are personal); explicit true/false overrides. Absent for /character chat.
+     */
+    incognitoOption?: boolean | null;
   }
 ): Promise<void> {
-  const { characterArg, message, filters } = params;
+  const { characterArg, message, filters, incognitoOption } = params;
   const userId = context.user.id;
   const isWeighInMode = message === null || message.trim().length === 0;
+  // Anonymity flag (separate from the read-the-room framing). Defaults to
+  // isWeighInMode so existing behavior is preserved; the option overrides it.
+  const incognito = incognitoOption ?? isWeighInMode;
   const discordDisplayName = context.member?.displayName ?? context.user.displayName;
 
   // Resolve the character slug (either provided or a random pick).
@@ -438,6 +459,7 @@ async function runCharacterTurn(
       extendedContextSettings,
       commandContext: context,
       isWeighInMode,
+      incognito,
     });
 
     if (buildResult === null) {
@@ -498,6 +520,7 @@ export async function handleRandom(
     characterArg: null, // null forces the random pick in resolveCharacterSlug
     message: options.message(),
     filters: readRandomPickFilters(options),
+    incognitoOption: options.incognito(),
   });
 }
 
@@ -515,6 +538,7 @@ export async function handleChimeIn(
     characterArg: options.character(),
     message: null, // no message → weigh-in mode
     filters: { excludePrivate: false, onlyMine: false },
+    incognitoOption: options.incognito(),
   });
 }
 

@@ -24,6 +24,7 @@ export function buildConversationContext(
     sessionId: jobContext.sessionId,
     isProxyMessage: jobContext.isProxyMessage,
     isWeighIn: jobContext.isWeighIn,
+    incognito: jobContext.incognito,
     activePersonaId: jobContext.activePersonaId,
     activePersonaName: jobContext.activePersonaName,
     // Guild-specific info for participants (roles, color, join date)

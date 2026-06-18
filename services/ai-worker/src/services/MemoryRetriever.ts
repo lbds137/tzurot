@@ -127,11 +127,13 @@ export class MemoryRetriever {
     context: ConversationContext,
     configOverrides?: ResolvedConfigOverrides
   ): Promise<MemoryRetrievalResult> {
-    // Weigh-in mode: anonymous poke — skip LTM retrieval entirely (no past memories injected)
-    if (context.isWeighIn === true) {
+    // Incognito (anonymous chime-in/random) — skip LTM retrieval entirely (no
+    // past memories injected). Defaults to isWeighIn so existing weigh-in jobs
+    // stay anonymous; a personal (incognito=false) summon reads memories.
+    if (context.incognito ?? Boolean(context.isWeighIn)) {
       logger.info(
         { userId: context.userId, personalityId: personality.id },
-        'Weigh-in mode - skipping LTM retrieval'
+        'Incognito mode - skipping LTM retrieval'
       );
       return { memories: [], focusModeEnabled: false };
     }

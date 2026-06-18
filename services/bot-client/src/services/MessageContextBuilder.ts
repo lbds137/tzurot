@@ -397,12 +397,13 @@ export class MessageContextBuilder {
       }
     );
     const { internalUserId, discordUserId, personaId, personaName, userTimezone } = userContext;
-    // Weigh-in is an anonymous, channel-scoped summon: the invoking user's
-    // persona-scoped STM-reset epoch must NOT bound the shared channel history
-    // the personality is asked to comment on (a recent /conversation reset
-    // would otherwise silently truncate it). Mirror of the worker-side
-    // ContextAssembler.resolvePersonaContext weigh-in handling.
-    const contextEpoch = options.isWeighInMode === true ? undefined : userContext.contextEpoch;
+    // An incognito (anonymous) summon must NOT bound the shared channel history
+    // by the invoking user's persona-scoped STM-reset epoch (a recent
+    // /conversation reset would otherwise silently truncate it). A personal
+    // summon keeps the epoch. Mirror of the worker-side
+    // ContextAssembler.resolvePersonaContext incognito handling.
+    const contextEpoch =
+      (options.incognito ?? options.isWeighInMode) === true ? undefined : userContext.contextEpoch;
 
     // Step 3: Fetch conversation history from PostgreSQL
     // Always fetch complete channel history (not personality-filtered)
