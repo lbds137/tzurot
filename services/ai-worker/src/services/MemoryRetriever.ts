@@ -128,9 +128,10 @@ export class MemoryRetriever {
     configOverrides?: ResolvedConfigOverrides
   ): Promise<MemoryRetrievalResult> {
     // Incognito (anonymous chime-in/random) — skip LTM retrieval entirely (no
-    // past memories injected). Defaults to isWeighIn so existing weigh-in jobs
-    // stay anonymous; a personal (incognito=false) summon reads memories.
-    if (context.incognito ?? Boolean(context.isWeighIn)) {
+    // past memories injected). The personal-vs-incognito decision was resolved
+    // once in buildConversationContext; absent (test contexts) reads as personal,
+    // so a personal summon reads memories.
+    if (context.summonAnonymity?.kind === 'incognito') {
       logger.info(
         { userId: context.userId, personalityId: personality.id },
         'Incognito mode - skipping LTM retrieval'
