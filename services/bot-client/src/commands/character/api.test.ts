@@ -424,6 +424,26 @@ describe('Character API Client', () => {
         updateCharacter('test-char', { name: 'New Name' }, asClient(stub), mockConfig)
       ).rejects.toThrow('Failed to update character: 403 - Not authorized');
     });
+
+    it('strips empty characterInfo/personalityTraits before the PUT', async () => {
+      // A legacy character whose required text comes back null is coerced to ''
+      // by toCharacterData and replayed on every section save; the update schema
+      // rejects '' (min(1)), so updateCharacter must drop them — while preserving
+      // the section the user actually changed.
+      stub.updatePersonality.mockResolvedValue({
+        ok: true,
+        data: { success: true, personality: makePersonality({ slug: 'test-char' }) },
+      });
+
+      await updateCharacter(
+        'test-char',
+        { characterInfo: '', personalityTraits: '', personalityTone: 'Wry' },
+        asClient(stub),
+        mockConfig
+      );
+
+      expect(stub.updatePersonality).toHaveBeenCalledWith('test-char', { personalityTone: 'Wry' });
+    });
   });
 
   describe('toggleVisibility', () => {

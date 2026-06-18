@@ -10,9 +10,11 @@
  * predates the typed client. `toCharacterData` coerces two fields so the shape
  * assigns directly to the gateway's create/update input (no cast needed):
  *   - `characterInfo` / `personalityTraits` are non-nullable on
- *     `CharacterData` but nullable in the schema (the gateway can return
- *     null for newly-created characters before the user fills the modal).
- *     Coerced with `?? ''` at the spread boundary here.
+ *     `CharacterData` but nullable in the gateway response schema (a legacy
+ *     character predating the `min(1)` create constraint can carry null).
+ *     Coerced with `?? ''` here so the display shape stays string-typed;
+ *     `omitEmptyRequiredText` drops the empty value back out of update
+ *     payloads, since the update schema rejects `''`.
  *   - `avatarData` is a bot-client convenience field (used during
  *     create/update flows in import.ts); the gateway response carries
  *     `hasAvatar: boolean` instead. Defaulted to `null` on incoming data.
@@ -54,6 +56,36 @@ export function toCharacterData<
     personalityTraits: p.personalityTraits ?? '',
     avatarData: null,
   };
+}
+
+/**
+ * Drop `characterInfo`/`personalityTraits` from an update payload when they're
+ * empty strings. `toCharacterData` coerces these nullable fields to `''` for the
+ * `CharacterData` display shape, but the gateway update schema declares them
+ * `z.string().min(1)` — and every section save replays the WHOLE session, so a
+ * character whose text is empty (a legacy row predating the `min(1)` create
+ * constraint) would 400 on an unrelated edit. Omitting an unchanged required
+ * field leaves it untouched server-side (the update is a partial PUT), so the
+ * edit goes through. Exported so the round-trip contract test exercises the real
+ * sanitizer rather than a reimplementation.
+ *
+ * Constraint is `string`, not `string | null`: by the time a payload reaches
+ * here it has passed through `toCharacterData`, which coerces null → '', so the
+ * fields are always `string | undefined`. Admitting null would invite a future
+ * caller to pass one that this helper wouldn't strip (it only drops '') — and
+ * the gateway update schema rejects null anyway.
+ */
+export function omitEmptyRequiredText<
+  T extends { characterInfo?: string; personalityTraits?: string },
+>(data: T): Partial<T> {
+  const out: Partial<T> = { ...data };
+  if (out.characterInfo === '') {
+    delete out.characterInfo;
+  }
+  if (out.personalityTraits === '') {
+    delete out.personalityTraits;
+  }
+  return out;
 }
 
 /**
@@ -235,7 +267,7 @@ export async function updateCharacter(
   userClient: UserClient,
   _config: EnvConfig
 ): Promise<CharacterData> {
-  const result = await userClient.updatePersonality(slug, data);
+  const result = await userClient.updatePersonality(slug, omitEmptyRequiredText(data));
 
   if (!result.ok) {
     // DashboardUpdateError carries the status so the dashboard can distinguish a
