@@ -185,22 +185,38 @@ describe('finalizeRelease', () => {
   });
 
   describe('dry-run mode', () => {
-    it('never executes checkout/rebase/push in dry-run', async () => {
+    it('runs the read-only fetch + ahead-count but never checkout/rebase/push', async () => {
       mockGit({ 'rev-list --count': '3\n' });
 
       await finalizeRelease({ dryRun: true, yes: true });
 
-      // Dry-run still needs to read state (status, rev-list via fetch
-      // wouldn't run in dry-run, rev-list itself is a read). Writes must
-      // never fire.
       const invocations = mockedExec.mock.calls.map(c => (c[1] as string[]).join(' '));
-      // rev-list is the only read allowed post-fetch; fetch itself is
-      // printed, not executed, in dry-run.
-      expect(invocations).not.toContain('fetch --all');
+      // fetch + rev-list are read-only and MUST run even in dry-run so the
+      // preview reflects fresh remote state. Writes must never fire.
+      expect(invocations).toContain('fetch --all');
+      expect(invocations).toContain('rev-list --count origin/develop..origin/main');
       expect(invocations).not.toContain('checkout main');
       expect(invocations).not.toContain('checkout develop');
       expect(invocations).not.toContain('rebase origin/main');
       expect(invocations).not.toContain('push --force-with-lease origin develop');
+    });
+
+    it('fetches BEFORE reading the ahead-count so the preview is not stale (regression)', async () => {
+      // The bug this pins: dry-run skipped `git fetch --all`, so the
+      // ahead-count `rev-list` read stale remote-tracking refs and could
+      // falsely report "nothing to finalize" on a genuinely-diverged
+      // develop/main. fetch is read-only (only updates remote-tracking
+      // refs — no working-tree/branch/push writes), so it's safe to run
+      // in preview mode and required for an accurate count.
+      mockGit({ 'rev-list --count': '3\n' });
+
+      await finalizeRelease({ dryRun: true, yes: true });
+
+      const invocations = mockedExec.mock.calls.map(c => (c[1] as string[]).join(' '));
+      const fetchIdx = invocations.indexOf('fetch --all');
+      const revListIdx = invocations.indexOf('rev-list --count origin/develop..origin/main');
+      expect(fetchIdx).toBeGreaterThanOrEqual(0);
+      expect(revListIdx).toBeGreaterThan(fetchIdx);
     });
   });
 

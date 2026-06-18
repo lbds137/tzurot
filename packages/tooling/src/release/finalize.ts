@@ -168,20 +168,17 @@ function reportBranchDrift(startBranch: string): void {
 /**
  * Check whether main has commits ahead of develop. Returns `'noop'` when
  * develop already contains every main commit (exit early) or `'proceed'`
- * when a rebase is needed. Logs the appropriate status message in both
- * cases — dry-run gets a "(preview, local refs — may be stale)" prefix
- * since `fetch --all` was only printed, not executed.
+ * when a rebase is needed. Reads the remote-tracking refs, so the caller
+ * MUST `git fetch` first (the orchestrator does, even in dry-run) — the
+ * count is meaningless against stale refs.
  */
-function checkAheadCount(dryRun: boolean): 'noop' | 'proceed' {
+function checkAheadCount(): 'noop' | 'proceed' {
   const ahead = commitsMainAheadOfDevelop();
   if (ahead === 0) {
     console.log(chalk.green('✓ develop already contains every main commit — nothing to finalize'));
     return 'noop';
   }
-  const note = dryRun
-    ? `(preview, local refs — may be stale) main ahead of develop by ${ahead} commit(s)`
-    : `main ahead of develop — rebase needed`;
-  console.log(chalk.yellow(note));
+  console.log(chalk.yellow(`main ahead of develop by ${ahead} commit(s) — rebase needed`));
   return 'proceed';
 }
 
@@ -244,15 +241,17 @@ export async function finalizeRelease(options: FinalizeOptions): Promise<void> {
 
   console.log(chalk.cyan(dryRun ? '[dry-run] Finalizing release' : 'Finalizing release'));
 
-  // Step 1: fetch. Dry-run prints; real run actually fetches (we need
-  // the current remote state for the ahead-count check that follows).
+  // Step 1: fetch. Runs even in dry-run — `fetch` is read-only (it only
+  // updates remote-tracking refs; no working-tree, branch, or push writes), and
+  // the ahead-count check below MUST read fresh remote state or the preview
+  // lies: a stale origin/main (e.g. predating the just-merged release PR) looks
+  // like an ancestor of develop, so the dry-run falsely reports "nothing to
+  // finalize" while the real run correctly rebases.
   console.log(chalk.dim('Fetching remote refs...'));
-  planStep(['fetch', '--all'], dryRun);
+  git(['fetch', '--all']);
 
-  // Step 2: detect no-op. In dry-run we're reading local refs (fetch
-  // was printed, not executed) so the count may be stale — the helper
-  // flags that in the status message.
-  if (checkAheadCount(dryRun) === 'noop') {
+  // Step 2: detect no-op against the freshly-fetched refs (accurate in dry-run).
+  if (checkAheadCount() === 'noop') {
     return;
   }
 
