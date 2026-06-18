@@ -1115,9 +1115,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
           personaId: 'persona-789',
           role: MessageRole.Assistant,
         },
-        orderBy: {
-          createdAt: 'desc',
-        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       });
 
       expect(mockPrismaClient.conversationHistory.update).toHaveBeenCalledWith({
