@@ -5,7 +5,7 @@
  * Extracted from GenerationStep to keep file under max-lines limit.
  */
 
-import type { LLMGenerationJobData } from '@tzurot/common-types';
+import { resolveSummonAnonymity, type LLMGenerationJobData } from '@tzurot/common-types';
 import type { ConversationContext } from '../../../../services/ConversationalRAGTypes.js';
 import type { PreparedContext, PreprocessingResults } from '../types.js';
 
@@ -15,6 +15,24 @@ export function buildConversationContext(
   preparedContext: PreparedContext,
   preprocessing: PreprocessingResults | undefined
 ): ConversationContext {
+  // Resolve the personal-vs-incognito union once here so the memory consumers
+  // (LTM read/write skip) switch on `summonAnonymity.kind` instead of each
+  // re-deriving `incognito ?? isWeighIn`. A personal summon always carries its
+  // persona (the bot or the worker assembler resolved it); if the wire id is
+  // somehow absent, the resolver fail-safes to incognito rather than building a
+  // persona-less personal arm.
+  //
+  // This agrees with the assembler's own resolveSummonAnonymity call by
+  // construction: in service mode ContextStep.applyAssembledContext writes the
+  // assembler's resolved activePersonaId onto jobContext BEFORE this step runs,
+  // so both see the same id; in legacy mode the assembler never runs, so this is
+  // the sole resolution point. The fail-safe therefore never fires for a real
+  // personal summon — it can't diverge from the assembler. (If that writeback is
+  // ever removed, the two calls could disagree on kind — keep them in sync.)
+  const summonAnonymity = resolveSummonAnonymity(jobContext, {
+    activePersonaId: jobContext.activePersonaId,
+    activePersonaName: jobContext.activePersonaName ?? null,
+  });
   return {
     userId: jobContext.userId,
     userName: jobContext.userName,
@@ -24,7 +42,7 @@ export function buildConversationContext(
     sessionId: jobContext.sessionId,
     isProxyMessage: jobContext.isProxyMessage,
     isWeighIn: jobContext.isWeighIn,
-    incognito: jobContext.incognito,
+    summonAnonymity,
     activePersonaId: jobContext.activePersonaId,
     activePersonaName: jobContext.activePersonaName,
     // Guild-specific info for participants (roles, color, join date)

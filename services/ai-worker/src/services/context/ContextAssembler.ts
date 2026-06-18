@@ -30,10 +30,12 @@ import {
   type LoadedPersonality,
   type MentionedPersona,
   type PersonaResolver,
+  resolveSummonAnonymity,
   type RawAssemblyInputs,
   type ReferencedChannel,
   type ReferencedMessage,
   type ResolvedConfigOverrides,
+  type SummonAnonymity,
   type UserService,
 } from '@tzurot/common-types';
 import { rewriteRawContent, type RewrittenContent } from './contentRewriter.js';
@@ -45,7 +47,7 @@ const logger = createLogger('ContextAssembler');
 /** The core surfaces the assembler re-derives. */
 export interface AssembledCore {
   userInternalId: string;
-  /** Null in weigh-in mode — an anonymous poke has no invoking-user persona. */
+  /** Null for an incognito summon — an anonymous poke has no invoking-user persona. */
   activePersonaId: string | null;
   activePersonaName: string | null;
   userTimezone: string;
@@ -61,8 +63,8 @@ export interface AssembledCore {
   referencedMessages: ReferencedMessage[] | undefined;
   /**
    * The rewritten message content ([Reference N] links + mention names).
-   * In weigh-in mode this is the raw content untouched — the bot skips all
-   * rewriting there, and mirroring that also avoids upserting mention users
+   * For an incognito summon this is the raw content untouched — the bot skips
+   * all rewriting there, and mirroring that also avoids upserting mention users
    * for anonymous pokes.
    */
   messageContent: string;
@@ -74,7 +76,7 @@ export interface AssembledCore {
    * Cross-channel history groups, decorated from the envelope's
    * knownChannelEnvironments (fallback env for cache misses) and serialized
    * through the shared wire mapper. Undefined when the feature is disabled
-   * or the job is a weigh-in (payload parity with the bot path); [] when
+   * or the summon is incognito (payload parity with the bot path); [] when
    * enabled but nothing eligible was found.
    */
   crossChannelHistory: CrossChannelHistoryGroupEntry[] | undefined;
@@ -173,14 +175,17 @@ export class ContextAssembler {
     if (user === null) {
       throw new Error('[ContextAssembler] getOrCreateUser returned null (bot author?)');
     }
-    // Step 2: persona + timezone + context epoch. Weigh-in nulls the OUTPUT
-    // persona AND skips the epoch — a channel-scoped summon must not be bound
-    // by the invoking user's persona-scoped STM reset (see helper).
-    const { activePersonaId, activePersonaName, contextEpoch } = await this.resolvePersonaContext(
+    // Step 2: persona + timezone + context epoch. An incognito summon has no
+    // persona arm, so the OUTPUT persona is null and the epoch is skipped — a
+    // channel-scoped anonymous poke must not be bound by the invoking user's
+    // persona-scoped STM reset (see helper).
+    const { summon, contextEpoch } = await this.resolvePersonaContext(
       jobContext,
       personality.id,
       user.userId
     );
+    const activePersonaId = summon.kind === 'personal' ? summon.activePersonaId : null;
+    const activePersonaName = summon.kind === 'personal' ? summon.activePersonaName : null;
     const userTimezone = await this.deps.dataSource.getUserTimezone(user.userId);
 
     // Step 3: hydrate channel history — same limit derivation as the
@@ -215,24 +220,16 @@ export class ContextAssembler {
     const referencedMessages = await this.enrichReferences(raw, history, options);
 
     // Step 6: content rewriting (links → user mentions → channels → roles),
-    // skipped wholesale in weigh-in mode to mirror the bot-side early return.
-    const rewritten = await this.rewriteContent(jobContext, raw, personality);
+    // skipped wholesale for an incognito summon to mirror the bot-side early
+    // return (also avoids upserting mention users for an anonymous poke).
+    const rewritten = await this.rewriteContent(summon, raw, personality);
 
-    // Step 7: cross-channel history — own DB fetch, environment names from
-    // the envelope's cache map (the worker can't ask Discord), shared wire
-    // mapper. Same budget as the channel-history dbLimit, mirroring the
-    // bot-side fetchCrossChannelIfEnabled gate (disabled or weigh-in →
-    // undefined, matching the payload's absent field).
-    const crossChannelHistory = await this.assembleCrossChannel(jobContext, personality, {
-      // Cross-channel history and the persona are a unit: it's persona-scoped, so
-      // it's enabled for ANY personal summon (persona present) — including a
-      // personal weigh-in (incognito:false) — and disabled only when there's no
-      // persona to scope it to. `incognito` nulls the persona (whether it's a
-      // chime-in, a message-less random, or /character random with a message +
-      // incognito:true), so `activePersonaId !== null` is the single gate.
-      // Framing (`isWeighIn`) is deliberately NOT checked here.
-      enabled: configOverrides?.crossChannelHistoryEnabled === true && activePersonaId !== null,
-      personaId: activePersonaId,
+    // Step 7: cross-channel history — own DB fetch, environment names from the
+    // envelope's cache map (the worker can't ask Discord), shared wire mapper,
+    // same budget as the channel-history dbLimit. The persona-scoping gate lives
+    // in the helper, which narrows on the summon union (see its doc).
+    const crossChannelHistory = await this.assembleCrossChannel(jobContext, personality, summon, {
+      crossChannelEnabled: configOverrides?.crossChannelHistoryEnabled === true,
       excludeChannelId: channelId,
       limit,
       maxAgeSeconds: configOverrides?.maxAge ?? undefined,
@@ -277,51 +274,47 @@ export class ContextAssembler {
    * (`/conversation reset`), which is the wrong granularity to bound a SHARED
    * channel the personality is asked to comment on. A recent personal reset
    * would otherwise silently truncate the channel history; there is no coarser
-   * channel/server epoch to fall back to, so weigh-in applies none (maxAge is
+   * channel/server epoch to fall back to, so incognito applies none (maxAge is
    * the only bound). The persona is still resolved (its cache-populating read
-   * is harmless), but its epoch lookup is skipped. Memory read/write skip is
-   * gated separately by isWeighIn.
+   * is harmless), but the OUTPUT persona + its epoch lookup are bundled into
+   * the returned `SummonAnonymity` — an incognito summon has no persona arm, so
+   * the epoch is skipped and downstream can't read a persona that isn't there.
    */
   private async resolvePersonaContext(
     jobContext: JobContext,
     personalityId: string,
     internalUserId: string
-  ): Promise<{
-    activePersonaId: string | null;
-    activePersonaName: string | null;
-    contextEpoch: Date | undefined;
-  }> {
+  ): Promise<{ summon: SummonAnonymity; contextEpoch: Date | undefined }> {
     const personaResult = await this.deps.personaResolver.resolve(jobContext.userId, personalityId);
-    const resolvedPersonaId = personaResult.config.personaId;
-    // Anonymity (incognito), not framing (isWeighIn): a personal summon keeps
-    // its persona + STM epoch even though it uses the weigh-in framing. Defaults
-    // to isWeighIn so existing weigh-in jobs stay anonymous.
-    const incognito = jobContext.incognito ?? Boolean(jobContext.isWeighIn);
-    const contextEpoch = incognito
-      ? undefined
-      : await this.deps.dataSource.getContextEpoch(
-          internalUserId,
-          personalityId,
-          resolvedPersonaId
-        );
-    return {
-      activePersonaId: incognito ? null : resolvedPersonaId,
-      activePersonaName: incognito ? null : personaResult.config.preferredName,
-      contextEpoch,
-    };
+    // Anonymity (incognito), not framing (isWeighIn): a personal summon keeps its
+    // persona + STM epoch even with weigh-in framing. The resolver owns the
+    // `incognito ?? isWeighIn` default so it lives in exactly one place.
+    const summon = resolveSummonAnonymity(jobContext, {
+      activePersonaId: personaResult.config.personaId,
+      activePersonaName: personaResult.config.preferredName,
+    });
+    const contextEpoch =
+      summon.kind === 'personal'
+        ? await this.deps.dataSource.getContextEpoch(
+            internalUserId,
+            personalityId,
+            summon.activePersonaId
+          )
+        : undefined;
+    return { summon, contextEpoch };
   }
 
   /**
-   * Content rewriting through the shared kernels — incognito (anonymous) jobs
-   * pass the raw content through untouched, avoiding mention-user upserts. A
-   * personal summon (incognito=false) rewrites mentions like a normal chat.
+   * Content rewriting through the shared kernels — an incognito summon passes
+   * the raw content through untouched, avoiding mention-user upserts. A personal
+   * summon rewrites mentions like a normal chat.
    */
   private async rewriteContent(
-    jobContext: JobContext,
+    summon: SummonAnonymity,
     raw: RawAssemblyInputs,
     personality: LoadedPersonality
   ): Promise<RewrittenContent> {
-    if (jobContext.incognito ?? Boolean(jobContext.isWeighIn)) {
+    if (summon.kind === 'incognito') {
       return {
         messageContent: raw.rawMessageContent,
         mentionedPersonas: undefined,
@@ -357,10 +350,9 @@ export class ContextAssembler {
   private async assembleCrossChannel(
     jobContext: JobContext,
     personality: LoadedPersonality,
+    summon: SummonAnonymity,
     opts: {
-      enabled: boolean;
-      /** Null in weigh-in OR incognito mode; `enabled` requires a non-null persona. */
-      personaId: string | null;
+      crossChannelEnabled: boolean;
       /** The narrowed current-channel id from assembleCore's guard. */
       excludeChannelId: string;
       limit: number;
@@ -368,19 +360,19 @@ export class ContextAssembler {
       contextEpoch: Date | undefined;
     }
   ): Promise<CrossChannelHistoryGroupEntry[] | undefined> {
-    if (!opts.enabled) {
+    // Cross-channel history and the persona are a unit: it's persona-scoped, so
+    // it's enabled for ANY personal summon (including a personal weigh-in) and
+    // impossible for an incognito one (no persona to scope it to). Narrowing on
+    // `summon.kind === 'personal'` makes `summon.activePersonaId` non-null BY
+    // TYPE below — "cross-channel with a null persona" is unrepresentable by
+    // type, no runtime guard needed. Framing (`isWeighIn`) is
+    // deliberately not part of this decision. Undefined when disabled/incognito
+    // (payload parity with the bot path); [] when enabled but nothing eligible.
+    if (!opts.crossChannelEnabled || summon.kind !== 'personal') {
       return undefined;
     }
-    // Invariant: the `enabled` gate is `activePersonaId !== null`, so a non-null
-    // persona always reaches here. Fail loud if a future change decouples
-    // cross-channel from the persona, rather than silently querying with a bad id.
-    if (opts.personaId === null) {
-      throw new Error('[ContextAssembler] cross-channel enabled with a null persona');
-    }
-    const personaId = opts.personaId;
-
     const groups = await this.deps.dataSource.getCrossChannelHistory({
-      personaId,
+      personaId: summon.activePersonaId,
       personalityId: personality.id,
       excludeChannelId: opts.excludeChannelId,
       limit: opts.limit,

@@ -24,6 +24,14 @@ export function createMockContext(overrides?: Partial<ConversationContext>): Con
     channelId: 'channel-456',
     serverId: 'server-789',
     userName: 'TestUser',
+    // Default to a personal summon (matches the old default: no incognito/isWeighIn
+    // flags → `incognito ?? Boolean(isWeighIn)` resolved false). Tests exercising
+    // anonymity override with `summonAnonymity: { kind: 'incognito' }`.
+    summonAnonymity: {
+      kind: 'personal',
+      activePersonaId: 'persona-default',
+      activePersonaName: 'TestUser',
+    },
     ...overrides,
   };
 }

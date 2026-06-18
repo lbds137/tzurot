@@ -115,4 +115,74 @@ describe('buildConversationContext', () => {
     expect(result.crossChannelHistory?.[0].channelEnvironment.type).toBe('dm');
     expect(result.crossChannelHistory?.[0].messages[0].content).toBe('DM message');
   });
+
+  // This is the single resolution boundary for the memory consumers: the wire
+  // flags (incognito/isWeighIn) become a SummonAnonymity union exactly once here,
+  // so MemoryRetriever/ConversationalRAGService can't re-derive it differently.
+  describe('summonAnonymity resolution', () => {
+    it('resolves a personal summon when no anonymity flags are set', () => {
+      const jobContext = createMinimalJobContext();
+      jobContext.activePersonaId = 'persona-1';
+      jobContext.activePersonaName = 'Vee';
+
+      const result = buildConversationContext(
+        jobContext,
+        createMinimalPreparedContext(),
+        undefined
+      );
+
+      expect(result.summonAnonymity).toEqual({
+        kind: 'personal',
+        activePersonaId: 'persona-1',
+        activePersonaName: 'Vee',
+      });
+    });
+
+    it('defaults to incognito when isWeighIn is set and incognito is unset', () => {
+      const jobContext = createMinimalJobContext();
+      jobContext.isWeighIn = true;
+
+      const result = buildConversationContext(
+        jobContext,
+        createMinimalPreparedContext(),
+        undefined
+      );
+
+      expect(result.summonAnonymity).toEqual({ kind: 'incognito' });
+    });
+
+    it('resolves personal when incognito=false overrides weigh-in framing', () => {
+      const jobContext = createMinimalJobContext();
+      jobContext.isWeighIn = true;
+      jobContext.incognito = false;
+      jobContext.activePersonaId = 'persona-1';
+      jobContext.activePersonaName = 'Vee';
+
+      const result = buildConversationContext(
+        jobContext,
+        createMinimalPreparedContext(),
+        undefined
+      );
+
+      expect(result.summonAnonymity).toEqual({
+        kind: 'personal',
+        activePersonaId: 'persona-1',
+        activePersonaName: 'Vee',
+      });
+    });
+
+    it('resolves incognito when incognito=true regardless of persona fields on the wire', () => {
+      const jobContext = createMinimalJobContext();
+      jobContext.incognito = true;
+      jobContext.activePersonaId = 'persona-1';
+
+      const result = buildConversationContext(
+        jobContext,
+        createMinimalPreparedContext(),
+        undefined
+      );
+
+      expect(result.summonAnonymity).toEqual({ kind: 'incognito' });
+    });
+  });
 });

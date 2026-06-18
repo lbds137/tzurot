@@ -18,6 +18,7 @@ export * from './types/discord.js';
 export * from './types/discord-types.js';
 export * from './types/gateway-context.js';
 export * from './types/jobs.js';
+export * from './types/summon-anonymity.js';
 export * from './types/shapes-import.js';
 export * from './types/schemas/index.js';
 

@@ -541,32 +541,32 @@ describe('ConversationalRAGService', () => {
       expect(result.deferredMemoryData).toBeUndefined();
     });
 
-    it('should skip LTM storage when isWeighIn is true (weigh-in mode)', async () => {
+    it('should skip LTM storage when the summon is incognito', async () => {
       const personality = createMockPersonality();
-      const context = createMockContext({ isWeighIn: true });
+      const context = createMockContext({ summonAnonymity: { kind: 'incognito' } });
 
       const result = await service.generateResponse(personality, 'Test', context);
 
       // LTM storage should NOT have been called
       expect(getLongTermMemoryServiceMock().storeInteraction).not.toHaveBeenCalled();
-      // Response should indicate incognito mode was active (weigh-in reuses incognito pipeline)
+      // Response should indicate incognito mode was active
       expect(result.incognitoModeActive).toBe(true);
     });
 
-    it('should not return deferredMemoryData when isWeighIn is true', async () => {
+    it('should not return deferredMemoryData when the summon is incognito', async () => {
       getMemoryRetrieverMock().resolvePersonaForMemory.mockResolvedValue({
         personaId: 'persona-123',
         focusModeEnabled: false,
       });
 
       const personality = createMockPersonality();
-      const context = createMockContext({ isWeighIn: true });
+      const context = createMockContext({ summonAnonymity: { kind: 'incognito' } });
 
       const result = await service.generateResponse(personality, 'Test', context, {
         skipMemoryStorage: true,
       });
 
-      // Even with skipMemoryStorage, no deferredMemoryData when weigh-in
+      // Even with skipMemoryStorage, no deferredMemoryData for an incognito summon
       expect(result.deferredMemoryData).toBeUndefined();
       expect(result.incognitoModeActive).toBe(true);
     });
