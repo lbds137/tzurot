@@ -1,6 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import { MessageFlags } from 'discord.js';
-import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
+import type {
+  ButtonInteraction,
+  StringSelectMenuInteraction,
+  ModalSubmitInteraction,
+} from 'discord.js';
 import { replyError } from './replyError.js';
 
 type AckState = { deferred: boolean; replied: boolean };
@@ -77,5 +81,22 @@ describe('replyError', () => {
 
     expect(followUp).toHaveBeenCalledWith({ content: 'boom', flags: MessageFlags.Ephemeral });
     expect(editReply).not.toHaveBeenCalled();
+  });
+
+  it('accepts a ModalSubmitInteraction (widened signature) — deferred → editReply', async () => {
+    // Modal submits share the deferred/replied/reply/editReply/followUp surface,
+    // so the same ack-adaptive logic applies. This pins the type-level acceptance.
+    const editReply = vi.fn().mockResolvedValue(undefined);
+    const interaction = {
+      deferred: true,
+      replied: false,
+      editReply,
+      followUp: vi.fn().mockResolvedValue(undefined),
+      reply: vi.fn().mockResolvedValue(undefined),
+    } as unknown as ModalSubmitInteraction;
+
+    await replyError(interaction, 'boom');
+
+    expect(editReply).toHaveBeenCalledWith({ content: 'boom' });
   });
 });
