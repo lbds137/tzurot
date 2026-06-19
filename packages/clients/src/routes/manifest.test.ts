@@ -8,106 +8,31 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { GATEWAY_TIMEOUTS } from '@tzurot/common-types';
 import { ROUTE_MANIFEST, adminRoutes, internalRoutes, userRoutes } from './manifest.js';
 import type { AnyRouteDef } from './types.js';
 
 const entries = Object.entries(ROUTE_MANIFEST) as [string, AnyRouteDef][];
 
 /**
- * Route IDs asserting "this op is fast enough for the method-aware transport
- * default" (single-row CRUD, toggles, single lookups). The default is method-
- * aware: GET routes get AUTOCOMPLETE (2.5s), write methods get WRITE (20s).
- * Slow / external / bulk / aggregate routes must NOT be listed — they declare
- * an explicit `timeoutMs` (DEFERRED/BULK) to make their budget a conscious
- * decision rather than leaning on the default.
+ * Route IDs that deliberately use the tight AUTOCOMPLETE budget (2.5s).
+ *
+ * The transport read default is DEFERRED (10s) — safe for the common case where
+ * a call is invoked post-defer. The AUTOCOMPLETE budget is the DANGEROUS tier:
+ * it aborts a call that legitimately takes >2.5s under load (the class behind
+ * the /inspect diagnostic timeout). A route may only opt into it by being
+ * registered here, asserting "this call MUST fail fast at 2.5s."
+ *
+ * Currently only `resolveUserLlmConfig` — a fail-fast hot-path call that runs
+ * BEFORE deferReply and must degrade (fall back to personality defaults) rather
+ * than stall the message pipeline.
+ *
+ * Note: routes invoked from Discord autocomplete do NOT belong here despite the
+ * tier's name. Discord bounds the autocomplete side at 3s client-side regardless
+ * of the gateway budget, so they correctly sit on DEFERRED (and are typically
+ * dual-called from deferred browse anyway).
  */
-const DEFAULT_TIMEOUT_OK = new Set<string>([
-  // ---- internal (service-to-service single lookups / job introspection) ----
-  // aiTranscribe is a sync STT wait (up to 240s) but is invoked via the raw-fetch
-  // path in gatewayServiceCalls.ts (its own AbortSignal/retry), never the typed
-  // service-client — so the transport's manifest default is never applied to it.
-  'aiTranscribe',
-  'aiJobStatus',
-  'recentUsers',
-  // ---- admin (single-row CRUD / toggles / singleton reads) ----
-  'invalidateCache',
-  'createGlobalPersonality',
-  'updateGlobalPersonality',
-  'addDenylistEntry',
-  'listDenylistEntries',
-  'removeDenylistEntry',
-  'createGlobalLlmConfig',
-  'setGlobalLlmConfigDefault',
-  'setGlobalLlmConfigFreeDefault',
-  'deleteGlobalLlmConfig',
-  'listGlobalTtsConfigs',
-  'getGlobalTtsConfig',
-  'createGlobalTtsConfig',
-  'updateGlobalTtsConfig',
-  'setGlobalTtsConfigDefault',
-  'setGlobalTtsConfigFreeDefault',
-  'deleteGlobalTtsConfig',
-  'getAdminSettings',
-  'updateAdminSettings',
-  'clearAdminSettings',
-  'getStopSequencesStats',
-  'getAdminUsageStats',
-  // ---- user: TTS config / STT default (single-row CRUD by indexed key) ----
-  'getUserTtsConfig',
-  'createUserTtsConfig',
-  'updateUserTtsConfig',
-  'deleteUserTtsConfig',
-  'getTtsDefaultConfig',
-  'getSttDefaultProvider',
-  // ---- user: personality CRUD (single-row by slug) ----
-  'createPersonality',
-  'updatePersonality',
-  'setPersonalityVisibility',
-  'deletePersonality',
-  // ---- user: channel activation + per-channel overrides (single-row) ----
-  'activateChannel',
-  'deactivateChannel',
-  'listUserChannels',
-  'getUserChannel',
-  'updateChannelGuild',
-  'getChannelConfigOverrides',
-  'updateChannelConfigOverrides',
-  'clearChannelConfigOverrides',
-  // ---- user: usage + history (single-key reads / scoped deletes) ----
-  'getUserUsage',
-  'clearHistory',
-  'undoHistory',
-  'getHistoryStats',
-  'hardDeleteHistory',
-  // ---- user: NSFW verification (single-row toggle/read) ----
-  'getNsfwStatus',
-  'verifyNsfw',
-  // ---- user: memory CRUD + batch (single-row ops + token-gated batches) ----
-  'getStats',
-  'list',
-  'getFocus',
-  'setFocus',
-  'search',
-  'batchDeletePreview',
-  'batchDelete',
-  'issuePurgeToken',
-  'purge',
-  'getMemory',
-  'updateMemory',
-  'deleteMemory',
-  'setMemoryLock',
-  'getIncognitoStatus',
-  'enableIncognito',
-  'disableIncognito',
-  'incognitoForget',
-  // ---- user: single-tier config-override clear ----
-  'clearPersonalityOverrides',
-  // ---- user: diagnostic lookups (single-row by indexed key) ----
-  'getRecentDiagnostics',
-  'getDiagnosticByMessage',
-  'getDiagnosticByResponse',
-  'getDiagnosticByRequestId',
-]);
+const AUTOCOMPLETE_TIER = new Set<string>(['resolveUserLlmConfig']);
 
 describe('central route manifest', () => {
   it('has at least one entry from each audience', () => {
@@ -217,45 +142,38 @@ describe('central route manifest', () => {
     }
   });
 
-  it('every route either declares timeoutMs or is registered as default-timeout-OK', () => {
-    // Forcing function against the "silent default-timeout regression" class:
-    // the typed-client transport applies a method-aware default when a route
-    // omits `timeoutMs` — AUTOCOMPLETE (2.5s) for GET, WRITE (20s) for write
-    // methods. A route that legitimately needs more than its method default
-    // (external round-trips, multi-tier cascade, bulk work) but forgets an
-    // explicit `timeoutMs` can silently fall back and report false
-    // "Request timeout (HTTP 0)" failures on operations that actually
-    // completed server-side. This test makes the fall-back a CONSCIOUS
-    // decision: a route with no explicit timeoutMs must be registered in
-    // DEFAULT_TIMEOUT_OK above (asserting "the method-aware default suffices").
+  it('only AUTOCOMPLETE_TIER routes use the tight AUTOCOMPLETE budget', () => {
+    // The read default is DEFERRED (10s, safe). The AUTOCOMPLETE budget (2.5s) is
+    // the dangerous tier — it aborts a read that takes >2.5s under load (the
+    // class behind the /inspect prod timeout). A route may only opt into it by
+    // being registered in AUTOCOMPLETE_TIER above. Forgetting `timeoutMs` lands
+    // on the safe DEFERRED default; declaring AUTOCOMPLETE without registering
+    // fails here.
     for (const [key, route] of entries) {
-      const ok = route.timeoutMs !== undefined || DEFAULT_TIMEOUT_OK.has(key);
-      expect(
-        ok,
-        `${key} has neither an explicit timeoutMs nor an entry in DEFAULT_TIMEOUT_OK. ` +
-          `If this op is slow / external / bulk / multi-tier, add a timeoutMs ` +
-          `(e.g. GATEWAY_TIMEOUTS.DEFERRED). If it is genuinely fast (single-row ` +
-          `CRUD by indexed key, toggle, single lookup, simple insert), register ` +
-          `its id in DEFAULT_TIMEOUT_OK. Do NOT leave it to silently fall back ` +
-          `to the method-aware transport default (AUTOCOMPLETE for GET, WRITE for mutations).`
-      ).toBe(true);
+      if (route.timeoutMs === GATEWAY_TIMEOUTS.AUTOCOMPLETE) {
+        expect(
+          AUTOCOMPLETE_TIER.has(key),
+          `${key} declares timeoutMs: GATEWAY_TIMEOUTS.AUTOCOMPLETE (2.5s) but is not in ` +
+            `AUTOCOMPLETE_TIER. The tight autocomplete budget aborts slow-but-fine reads — ` +
+            `use GATEWAY_TIMEOUTS.DEFERRED unless this route is autocomplete-ONLY and a ` +
+            `slower response is useless.`
+        ).toBe(true);
+      }
     }
   });
 
-  it('DEFAULT_TIMEOUT_OK contains no stale entries (every id exists and lacks timeoutMs)', () => {
-    // Guard the inverse drift: an id removed from the manifest, or one that
-    // later gained an explicit timeoutMs, should not linger in the allowlist.
+  it('AUTOCOMPLETE_TIER contains no stale entries (every id exists and declares AUTOCOMPLETE)', () => {
     const manifestIds = new Set(entries.map(([key]) => key));
-    for (const id of DEFAULT_TIMEOUT_OK) {
+    for (const id of AUTOCOMPLETE_TIER) {
       expect(
         manifestIds.has(id),
-        `DEFAULT_TIMEOUT_OK lists "${id}" but it is not in the manifest`
+        `AUTOCOMPLETE_TIER lists "${id}" but it is not in the manifest`
       ).toBe(true);
       const route = ROUTE_MANIFEST[id as keyof typeof ROUTE_MANIFEST] as AnyRouteDef | undefined;
       expect(
         route?.timeoutMs,
-        `DEFAULT_TIMEOUT_OK lists "${id}" but it now declares an explicit timeoutMs — drop it from the allowlist`
-      ).toBeUndefined();
+        `AUTOCOMPLETE_TIER lists "${id}" but it does not declare timeoutMs: AUTOCOMPLETE`
+      ).toBe(GATEWAY_TIMEOUTS.AUTOCOMPLETE);
     }
   });
 

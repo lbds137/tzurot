@@ -115,11 +115,11 @@ describe('callGateway', () => {
     }
   });
 
-  it('defaults read methods (GET) to the short AUTOCOMPLETE timeout', async () => {
+  it('defaults read methods (GET) to the DEFERRED timeout (safe for post-defer reads)', async () => {
     const timeoutSpy = vi.spyOn(AbortSignal, 'timeout');
     fetchSpy.mockResolvedValueOnce(jsonResponse({ ok: true }));
     await callGateway(baseOpts);
-    expect(timeoutSpy).toHaveBeenCalledWith(GATEWAY_TIMEOUTS.AUTOCOMPLETE);
+    expect(timeoutSpy).toHaveBeenCalledWith(GATEWAY_TIMEOUTS.DEFERRED);
   });
 
   it('lets an explicit timeoutMs override the method-aware default', async () => {

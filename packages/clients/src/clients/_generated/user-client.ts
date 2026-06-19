@@ -1995,6 +1995,7 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.getRecentDiagnostics.output,
+      timeoutMs: ROUTE_MANIFEST.getRecentDiagnostics.timeoutMs,
     });
   }
 
