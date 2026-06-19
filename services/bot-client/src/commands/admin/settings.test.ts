@@ -255,7 +255,7 @@ describe('Admin Settings Dashboard', () => {
       await handleSettings(context);
 
       expect(context.editReply).toHaveBeenCalledWith({
-        content: 'Failed to fetch admin settings.',
+        content: '❌ Failed to fetch admin settings.',
       });
     });
 

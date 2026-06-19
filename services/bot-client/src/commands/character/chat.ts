@@ -549,12 +549,12 @@ async function handleChatError(context: DeferredCommandContext): Promise<void> {
   try {
     const { interaction } = context;
     if (interaction.replied || interaction.deferred) {
-      await context.editReply({ content: 'Sorry, something went wrong. Please try again.' });
+      await context.editReply({ content: '❌ Sorry, something went wrong. Please try again.' });
     }
   } catch {
     const ch = context.channel;
     if (ch && 'send' in ch && typeof ch.send === 'function') {
-      await ch.send('Sorry, something went wrong. Please try again.');
+      await ch.send('❌ Sorry, something went wrong. Please try again.');
     }
   }
 }

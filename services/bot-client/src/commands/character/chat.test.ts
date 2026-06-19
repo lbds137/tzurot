@@ -416,6 +416,18 @@ describe('Character Chat Handler (push delivery)', () => {
       });
       expect(mockJobTracker.trackJob).not.toHaveBeenCalled();
     });
+
+    it('falls back to channel.send when editReply throws during error handling', async () => {
+      const channel = createMockChannel(ChannelType.GuildText);
+      const ctx = createMockContext('test-char', 'Hi', channel);
+      mockPersonalityService.loadPersonality.mockRejectedValueOnce(new Error('boom'));
+      // editReply itself throws → handleChatError's catch falls back to the channel
+      vi.mocked(ctx.editReply).mockRejectedValueOnce(new Error('editReply unavailable'));
+
+      await handleChat(ctx, mockConfig);
+
+      expect(channel.send).toHaveBeenCalledWith(expect.stringContaining('something went wrong'));
+    });
   });
 
   describe('random-pick mode (/character random)', () => {

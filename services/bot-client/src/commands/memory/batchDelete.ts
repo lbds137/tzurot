@@ -173,7 +173,7 @@ export async function handleBatchDelete(context: DeferredCommandContext): Promis
 
       if (!deleteResult.ok) {
         await buttonInteraction.editReply({
-          content: `Failed to delete memories: ${deleteResult.error ?? 'Unknown error'}`,
+          content: `❌ Failed to delete memories: ${deleteResult.error ?? 'Unknown error'}`,
           embeds: [],
           components: [],
         });

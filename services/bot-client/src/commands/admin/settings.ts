@@ -84,7 +84,7 @@ export async function handleSettings(context: DeferredCommandContext): Promise<v
 
     if (settings === null) {
       await context.editReply({
-        content: 'Failed to fetch admin settings.',
+        content: '❌ Failed to fetch admin settings.',
       });
       return;
     }
