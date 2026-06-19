@@ -37,23 +37,8 @@ vi.mock('../../../utils/conversationUtils.js', () => ({
   convertConversationHistory: mockConvertConversationHistory,
 }));
 
-const {
-  mockShadowHydrateAndDiff,
-  mockIsShadowHydrationEnabled,
-  mockShadowAssembleAndDiff,
-  mockIsAssemblyPromoteEnabled,
-} = vi.hoisted(() => ({
-  mockShadowHydrateAndDiff: vi.fn().mockResolvedValue(undefined),
-  mockIsShadowHydrationEnabled: vi.fn().mockReturnValue(false),
-  mockShadowAssembleAndDiff: vi.fn(),
+const { mockIsAssemblyPromoteEnabled } = vi.hoisted(() => ({
   mockIsAssemblyPromoteEnabled: vi.fn().mockReturnValue(false),
-}));
-vi.mock('../../../../services/context/shadowAssembly.js', () => ({
-  shadowAssembleAndDiff: mockShadowAssembleAndDiff,
-}));
-vi.mock('../../../../services/context/shadowHydration.js', () => ({
-  shadowHydrateAndDiff: mockShadowHydrateAndDiff,
-  isShadowHydrationEnabled: mockIsShadowHydrationEnabled,
 }));
 vi.mock('../../../../services/context/contextFlags.js', () => ({
   isAssemblyPromoteEnabled: mockIsAssemblyPromoteEnabled,
@@ -118,118 +103,11 @@ describe('ContextStep', () => {
     expect(step.name).toBe('ContextPreparation');
   });
 
-  describe('shadow hydration gate', () => {
-    const config: ResolvedConfig = {
-      effectivePersonality: TEST_PERSONALITY,
-      configSource: 'personality',
-    };
-    const fakeDataSource = {
-      getChannelHistory: vi.fn(),
-      getCrossChannelHistory: vi.fn(),
-      getUserTimezone: vi.fn(),
-      getContextEpoch: vi.fn(),
-      getMessageByDiscordId: vi.fn().mockResolvedValue(null),
-      findUserByDiscordId: vi.fn().mockResolvedValue(null),
-    };
-
-    it('invokes shadow hydration when a data source is provided and the flag is on', async () => {
-      mockIsShadowHydrationEnabled.mockReturnValue(true);
-      const gatedStep = new ContextStep(fakeDataSource);
-
-      await gatedStep.process({ job: createMockJob(), startTime: Date.now(), config });
-
-      expect(mockShadowHydrateAndDiff).toHaveBeenCalledWith(
-        expect.objectContaining({ jobId: 'job-123', dataSource: fakeDataSource })
-      );
-    });
-
-    it('does NOT invoke shadow hydration when the flag is off', async () => {
-      mockIsShadowHydrationEnabled.mockReturnValue(false);
-      const gatedStep = new ContextStep(fakeDataSource);
-
-      await gatedStep.process({ job: createMockJob(), startTime: Date.now(), config });
-
-      expect(mockShadowHydrateAndDiff).not.toHaveBeenCalled();
-    });
-
-    it('routes to the assembly shadow when the raw envelope is present and an assembler is wired', async () => {
-      mockIsShadowHydrationEnabled.mockReturnValue(true);
-      const fakeAssembler = { assembleCore: vi.fn() };
-      const gatedStep = new ContextStep(fakeDataSource, fakeAssembler as never);
-
-      await gatedStep.process({
-        job: createMockJob({
-          context: { userId: 'user-1', rawAssemblyInputs: { rawMessageContent: 'raw' } } as never,
-        }),
-        startTime: Date.now(),
-        config,
-      });
-
-      expect(mockShadowAssembleAndDiff).toHaveBeenCalledWith(
-        expect.objectContaining({
-          jobId: 'job-123',
-          assembler: fakeAssembler,
-          // The job factory's string message threads through verbatim.
-          payloadMessage: 'Hello, how are you?',
-        })
-      );
-      expect(mockShadowHydrateAndDiff).not.toHaveBeenCalled();
-    });
-
-    it('passes payloadMessage as undefined for non-string message shapes', async () => {
-      mockIsShadowHydrationEnabled.mockReturnValue(true);
-      const fakeAssembler = { assembleCore: vi.fn() };
-      const gatedStep = new ContextStep(fakeDataSource, fakeAssembler as never);
-
-      await gatedStep.process({
-        job: createMockJob({
-          message: { structured: true } as never,
-          context: { userId: 'user-1', rawAssemblyInputs: { rawMessageContent: 'raw' } } as never,
-        }),
-        startTime: Date.now(),
-        config,
-      });
-
-      expect(mockShadowAssembleAndDiff).toHaveBeenCalledWith(
-        expect.objectContaining({ payloadMessage: undefined })
-      );
-    });
-
-    it('falls back to the hydration shadow when the envelope is absent', async () => {
-      mockIsShadowHydrationEnabled.mockReturnValue(true);
-      const fakeAssembler = { assembleCore: vi.fn() };
-      const gatedStep = new ContextStep(fakeDataSource, fakeAssembler as never);
-
-      await gatedStep.process({ job: createMockJob(), startTime: Date.now(), config });
-
-      expect(mockShadowHydrateAndDiff).toHaveBeenCalled();
-      expect(mockShadowAssembleAndDiff).not.toHaveBeenCalled();
-    });
-
-    it('does NOT invoke shadow hydration without a data source, even with the flag on', async () => {
-      mockIsShadowHydrationEnabled.mockReturnValue(true);
-      const ungatedStep = new ContextStep();
-
-      await ungatedStep.process({ job: createMockJob(), startTime: Date.now(), config });
-
-      expect(mockShadowHydrateAndDiff).not.toHaveBeenCalled();
-    });
-  });
-
   describe('assembler promotion (iii-b cutover)', () => {
     const config: ResolvedConfig = {
       effectivePersonality: TEST_PERSONALITY,
       configSource: 'personality',
     };
-    const fakeDataSource = {
-      getChannelHistory: vi.fn(),
-      getCrossChannelHistory: vi.fn(),
-      getUserTimezone: vi.fn(),
-      getContextEpoch: vi.fn(),
-      getMessageByDiscordId: vi.fn().mockResolvedValue(null),
-      findUserByDiscordId: vi.fn().mockResolvedValue(null),
-    };
-
     function makeAssembled(overrides: Record<string, unknown> = {}) {
       return {
         userInternalId: 'uid-internal',
@@ -259,7 +137,7 @@ describe('ContextStep', () => {
       mockIsAssemblyPromoteEnabled.mockReturnValue(true);
       const assembled = makeAssembled();
       const fakeAssembler = { assembleCore: vi.fn().mockResolvedValue(assembled) };
-      const promoteStep = new ContextStep(fakeDataSource, fakeAssembler as never);
+      const promoteStep = new ContextStep(fakeAssembler as never);
       const job = createMockJob({
         context: {
           userId: 'u',
@@ -288,8 +166,6 @@ describe('ContextStep', () => {
       expect(job.data.context.userTimezone).toBe('America/New_York');
       // The worker-rewritten content drives generation.
       expect(job.data.message).toBe('assembled message content');
-      // Shadow is redundant once promoted.
-      expect(mockShadowAssembleAndDiff).not.toHaveBeenCalled();
       expect(result.preparedContext).toBeDefined();
     });
 
@@ -302,7 +178,7 @@ describe('ContextStep', () => {
         activePersonaGuildInfo: assembledActive,
       });
       const fakeAssembler = { assembleCore: vi.fn().mockResolvedValue(assembled) };
-      const promoteStep = new ContextStep(fakeDataSource, fakeAssembler as never);
+      const promoteStep = new ContextStep(fakeAssembler as never);
       const job = createMockJob({
         context: {
           userId: 'u',
@@ -331,7 +207,7 @@ describe('ContextStep', () => {
         activePersonaGuildInfo: undefined,
       });
       const fakeAssembler = { assembleCore: vi.fn().mockResolvedValue(assembled) };
-      const promoteStep = new ContextStep(fakeDataSource, fakeAssembler as never);
+      const promoteStep = new ContextStep(fakeAssembler as never);
       const payloadGuild = { 'persona-9': { roles: ['Keeper'] } };
       const payloadActive = { roles: ['Elder'] };
       const job = createMockJob({
@@ -354,7 +230,7 @@ describe('ContextStep', () => {
       mockIsAssemblyPromoteEnabled.mockReturnValue(true);
       const assembled = makeAssembled({ activePersonaId: null, activePersonaName: null });
       const fakeAssembler = { assembleCore: vi.fn().mockResolvedValue(assembled) };
-      const promoteStep = new ContextStep(fakeDataSource, fakeAssembler as never);
+      const promoteStep = new ContextStep(fakeAssembler as never);
       const job = createMockJob({
         context: {
           userId: 'u',
@@ -372,7 +248,7 @@ describe('ContextStep', () => {
     it('falls back to legacy when the flag is on but the envelope is absent', async () => {
       mockIsAssemblyPromoteEnabled.mockReturnValue(true);
       const fakeAssembler = { assembleCore: vi.fn() };
-      const promoteStep = new ContextStep(fakeDataSource, fakeAssembler as never);
+      const promoteStep = new ContextStep(fakeAssembler as never);
 
       await promoteStep.process({ job: createMockJob(), startTime: Date.now(), config });
 
@@ -384,7 +260,7 @@ describe('ContextStep', () => {
       const fakeAssembler = {
         assembleCore: vi.fn().mockRejectedValue(new Error('assembler boom')),
       };
-      const promoteStep = new ContextStep(fakeDataSource, fakeAssembler as never);
+      const promoteStep = new ContextStep(fakeAssembler as never);
       const job = createMockJob({
         context: { userId: 'u', rawAssemblyInputs: { rawMessageContent: 'raw' } } as never,
       });
@@ -416,7 +292,7 @@ describe('ContextStep', () => {
       ];
       const assembled = makeAssembled({ crossChannelHistory });
       const fakeAssembler = { assembleCore: vi.fn().mockResolvedValue(assembled) };
-      const promoteStep = new ContextStep(fakeDataSource, fakeAssembler as never);
+      const promoteStep = new ContextStep(fakeAssembler as never);
       const job = createMockJob({
         context: { userId: 'u', rawAssemblyInputs: { rawMessageContent: 'raw' } } as never,
       });
@@ -430,7 +306,7 @@ describe('ContextStep', () => {
     it("assembles a kind:'envelope' job even when the promote flag is OFF", async () => {
       mockIsAssemblyPromoteEnabled.mockReturnValue(false);
       const fakeAssembler = { assembleCore: vi.fn().mockResolvedValue(makeAssembled()) };
-      const promoteStep = new ContextStep(fakeDataSource, fakeAssembler as never);
+      const promoteStep = new ContextStep(fakeAssembler as never);
       const job = createMockJob({
         context: {
           kind: 'envelope',
@@ -446,7 +322,7 @@ describe('ContextStep', () => {
 
     it("throws on a kind:'envelope' job when no assembler is wired (no legacy fallback)", async () => {
       mockIsAssemblyPromoteEnabled.mockReturnValue(false);
-      const noAssemblerStep = new ContextStep(fakeDataSource);
+      const noAssemblerStep = new ContextStep();
       const job = createMockJob({
         context: {
           kind: 'envelope',
@@ -463,7 +339,7 @@ describe('ContextStep', () => {
     it('logs the promoted path with counts only (no content)', async () => {
       mockIsAssemblyPromoteEnabled.mockReturnValue(true);
       const fakeAssembler = { assembleCore: vi.fn().mockResolvedValue(makeAssembled()) };
-      const promoteStep = new ContextStep(fakeDataSource, fakeAssembler as never);
+      const promoteStep = new ContextStep(fakeAssembler as never);
       const job = createMockJob({
         context: { userId: 'u', rawAssemblyInputs: { rawMessageContent: 'raw' } } as never,
       });
@@ -484,7 +360,7 @@ describe('ContextStep', () => {
     it("logs kind:'envelope' when the job carries that discriminant", async () => {
       mockIsAssemblyPromoteEnabled.mockReturnValue(false); // mustAssemble path, promote off
       const fakeAssembler = { assembleCore: vi.fn().mockResolvedValue(makeAssembled()) };
-      const promoteStep = new ContextStep(fakeDataSource, fakeAssembler as never);
+      const promoteStep = new ContextStep(fakeAssembler as never);
       const job = createMockJob({
         context: {
           kind: 'envelope',
@@ -509,7 +385,7 @@ describe('ContextStep', () => {
         crossChannelHistory: undefined,
       });
       const fakeAssembler = { assembleCore: vi.fn().mockResolvedValue(assembled) };
-      const promoteStep = new ContextStep(fakeDataSource, fakeAssembler as never);
+      const promoteStep = new ContextStep(fakeAssembler as never);
       const job = createMockJob({
         context: { userId: 'u', rawAssemblyInputs: { rawMessageContent: 'raw' } } as never,
       });
