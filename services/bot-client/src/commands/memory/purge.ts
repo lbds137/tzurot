@@ -274,7 +274,7 @@ async function executePurgeHandshake(
 
   if (!tokenResult.ok) {
     await interaction.editReply({
-      content: `Failed to confirm purge: ${tokenResult.error ?? 'Unknown error'}`,
+      content: `❌ Failed to confirm purge: ${tokenResult.error ?? 'Unknown error'}`,
       embeds: [],
       components: [],
     });
@@ -285,7 +285,7 @@ async function executePurgeHandshake(
 
   if (!purgeResult.ok) {
     await interaction.editReply({
-      content: `Failed to purge memories: ${purgeResult.error ?? 'Unknown error'}`,
+      content: `❌ Failed to purge memories: ${purgeResult.error ?? 'Unknown error'}`,
       embeds: [],
       components: [],
     });
