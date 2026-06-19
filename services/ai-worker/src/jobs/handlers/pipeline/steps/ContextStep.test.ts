@@ -1,5 +1,12 @@
 /**
  * ContextStep Unit Tests
+ *
+ * After the thin-envelope cutover every job is `kind: 'envelope'` (thin) and ALL
+ * prompt surfaces — conversation history, references, participants, guild info,
+ * the rewritten message — come from the worker-side ContextAssembler, applied onto
+ * jobContext by the step. Non-envelope jobs fail loud. Tests therefore drive
+ * behaviour by configuring `assembleCore`'s output, not the job's legacy fields
+ * (which the bot no longer ships).
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -35,13 +42,6 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 vi.mock('../../../utils/conversationUtils.js', () => ({
   extractParticipants: mockExtractParticipants,
   convertConversationHistory: mockConvertConversationHistory,
-}));
-
-const { mockIsAssemblyPromoteEnabled } = vi.hoisted(() => ({
-  mockIsAssemblyPromoteEnabled: vi.fn().mockReturnValue(false),
-}));
-vi.mock('../../../../services/context/contextFlags.js', () => ({
-  isAssemblyPromoteEnabled: mockIsAssemblyPromoteEnabled,
 }));
 
 const TEST_PERSONALITY: LoadedPersonality = {
@@ -87,6 +87,53 @@ function createMockJob(data: Partial<LLMGenerationJobData> = {}): Job<LLMGenerat
   } as Job<LLMGenerationJobData>;
 }
 
+const config: ResolvedConfig = {
+  effectivePersonality: TEST_PERSONALITY,
+  configSource: 'personality',
+};
+
+/**
+ * The shape `ContextAssembler.assembleCore` returns. Overridable per test; the
+ * step applies all of these onto jobContext, so this — not the job's context —
+ * is what downstream timestamp/participant logic sees.
+ */
+function makeAssembled(overrides: Record<string, unknown> = {}) {
+  return {
+    userInternalId: 'uid-internal',
+    activePersonaId: 'persona-asm',
+    activePersonaName: 'AsmPersona',
+    userTimezone: 'America/New_York',
+    history: [] as unknown[],
+    referencedMessages: undefined,
+    messageContent: 'assembled message content',
+    mentionedPersonas: undefined,
+    referencedChannels: undefined,
+    crossChannelHistory: undefined,
+    participantGuildInfo: undefined,
+    activePersonaGuildInfo: undefined,
+    ...overrides,
+  };
+}
+
+/** A ContextStep whose assembler returns `makeAssembled(overrides)`. */
+function envelopeStep(overrides: Record<string, unknown> = {}) {
+  const assembled = makeAssembled(overrides);
+  const assembleCore = vi.fn().mockResolvedValue(assembled);
+  return { step: new ContextStep({ assembleCore } as never), assembleCore, assembled };
+}
+
+/** A `kind: 'envelope'` job; contextOverrides merge into the context. */
+function envelopeJob(contextOverrides: Record<string, unknown> = {}): Job<LLMGenerationJobData> {
+  return createMockJob({
+    context: {
+      kind: 'envelope',
+      userId: 'user-456',
+      rawAssemblyInputs: { rawMessageContent: 'raw' },
+      ...contextOverrides,
+    } as never,
+  });
+}
+
 describe('ContextStep', () => {
   let step: ContextStep;
 
@@ -103,18 +150,43 @@ describe('ContextStep', () => {
     expect(step.name).toBe('ContextPreparation');
   });
 
-  describe('assembler promotion (iii-b cutover)', () => {
-    const config: ResolvedConfig = {
-      effectivePersonality: TEST_PERSONALITY,
-      configSource: 'personality',
-    };
-    function makeAssembled(overrides: Record<string, unknown> = {}) {
-      return {
-        userInternalId: 'uid-internal',
-        activePersonaId: 'persona-asm',
-        activePersonaName: 'AsmPersona',
-        userTimezone: 'America/New_York',
-        contextEpoch: undefined,
+  describe('envelope contract', () => {
+    it("throws on a job that is not kind:'envelope' (legacy shapes unsupported)", async () => {
+      const { step: envStep } = envelopeStep();
+      // No kind on the context → legacy shape.
+      const job = createMockJob({ context: { userId: 'u' } as never });
+
+      await expect(envStep.process({ job, startTime: Date.now(), config })).rejects.toThrow(
+        "context.kind 'envelope'"
+      );
+    });
+
+    it("throws on an explicit kind:'legacy' job", async () => {
+      const { step: envStep } = envelopeStep();
+      const job = createMockJob({ context: { kind: 'legacy', userId: 'u' } as never });
+
+      await expect(envStep.process({ job, startTime: Date.now(), config })).rejects.toThrow(
+        "context.kind 'envelope'"
+      );
+    });
+
+    it("throws on a kind:'envelope' job when no assembler is wired", async () => {
+      const noAssemblerStep = new ContextStep();
+      const job = envelopeJob();
+
+      await expect(noAssemblerStep.process({ job, startTime: Date.now(), config })).rejects.toThrow(
+        'requires a wired ContextAssembler'
+      );
+    });
+  });
+
+  describe('envelope context assembly', () => {
+    it('builds context from the assembler', async () => {
+      const {
+        step: envStep,
+        assembleCore,
+        assembled,
+      } = envelopeStep({
         history: [
           {
             role: MessageRole.User,
@@ -125,30 +197,13 @@ describe('ContextStep', () => {
           },
         ],
         referencedMessages: [{ referenceNumber: 1, content: 'ref', authorName: 'A' }],
-        messageContent: 'assembled message content',
         mentionedPersonas: [{ personaId: 'mp-1', personaName: 'Mentioned' }],
-        referencedChannels: undefined,
-        crossChannelHistory: undefined,
-        ...overrides,
-      };
-    }
-
-    it('builds context from the assembler when flag + envelope + assembler are all present', async () => {
-      mockIsAssemblyPromoteEnabled.mockReturnValue(true);
-      const assembled = makeAssembled();
-      const fakeAssembler = { assembleCore: vi.fn().mockResolvedValue(assembled) };
-      const promoteStep = new ContextStep(fakeAssembler as never);
-      const job = createMockJob({
-        context: {
-          userId: 'u',
-          rawAssemblyInputs: { rawMessageContent: 'raw' },
-          referencedMessages: [],
-        } as never,
       });
+      const job = envelopeJob();
 
-      const result = await promoteStep.process({ job, startTime: Date.now(), config });
+      const result = await envStep.process({ job, startTime: Date.now(), config });
 
-      expect(fakeAssembler.assembleCore).toHaveBeenCalled();
+      expect(assembleCore).toHaveBeenCalled();
       // History is sourced from the assembler, createdAt normalized Date → ISO.
       expect(mockConvertConversationHistory).toHaveBeenCalledWith(
         expect.arrayContaining([
@@ -170,108 +225,71 @@ describe('ContextStep', () => {
     });
 
     it('adopts the assembled guild surfaces when the envelope carries the raw sources', async () => {
-      mockIsAssemblyPromoteEnabled.mockReturnValue(true);
       const assembledGuildMap = { 'persona-555': { roles: ['Admin'] } };
       const assembledActive = { roles: ['Mod'] };
-      const assembled = makeAssembled({
+      const { step: envStep } = envelopeStep({
         participantGuildInfo: assembledGuildMap,
         activePersonaGuildInfo: assembledActive,
       });
-      const fakeAssembler = { assembleCore: vi.fn().mockResolvedValue(assembled) };
-      const promoteStep = new ContextStep(fakeAssembler as never);
-      const job = createMockJob({
-        context: {
-          userId: 'u',
-          rawAssemblyInputs: {
-            rawMessageContent: 'raw',
-            rawParticipantGuildInfo: { 'discord:555': { roles: ['Admin'] } },
-            rawActiveGuildMemberInfo: { roles: ['Mod'] },
-          },
-          // Payload copies the bot still ships during burn-in.
-          participantGuildInfo: { 'persona-555': { roles: ['Admin'] } },
-          activePersonaGuildInfo: { roles: ['Mod'] },
-        } as never,
+      const job = envelopeJob({
+        rawAssemblyInputs: {
+          rawMessageContent: 'raw',
+          rawParticipantGuildInfo: { 'discord:555': { roles: ['Admin'] } },
+          rawActiveGuildMemberInfo: { roles: ['Mod'] },
+        },
+        // Payload copies (ignored — the envelope omits them, here only to prove
+        // the assembled values win when the raw sources are present).
+        participantGuildInfo: { 'persona-555': { roles: ['Admin'] } },
+        activePersonaGuildInfo: { roles: ['Mod'] },
       });
 
-      await promoteStep.process({ job, startTime: Date.now(), config });
+      await envStep.process({ job, startTime: Date.now(), config });
 
       expect(job.data.context.participantGuildInfo).toBe(assembledGuildMap);
       expect(job.data.context.activePersonaGuildInfo).toBe(assembledActive);
     });
 
-    it('preserves the payload guild surfaces when the envelope predates the raw sources', async () => {
-      mockIsAssemblyPromoteEnabled.mockReturnValue(true);
-      // Old envelope: no raw guild fields → assembler derives undefined.
-      const assembled = makeAssembled({
+    it('preserves the payload guild surfaces when the envelope lacks the raw sources (DM case)', async () => {
+      // No raw guild fields (e.g. a DM) → assembler derives undefined; the guard
+      // must NOT clobber the payload copies with that undefined.
+      const { step: envStep } = envelopeStep({
         participantGuildInfo: undefined,
         activePersonaGuildInfo: undefined,
       });
-      const fakeAssembler = { assembleCore: vi.fn().mockResolvedValue(assembled) };
-      const promoteStep = new ContextStep(fakeAssembler as never);
       const payloadGuild = { 'persona-9': { roles: ['Keeper'] } };
       const payloadActive = { roles: ['Elder'] };
-      const job = createMockJob({
-        context: {
-          userId: 'u',
-          rawAssemblyInputs: { rawMessageContent: 'raw' },
-          participantGuildInfo: payloadGuild,
-          activePersonaGuildInfo: payloadActive,
-        } as never,
+      const job = envelopeJob({
+        participantGuildInfo: payloadGuild,
+        activePersonaGuildInfo: payloadActive,
       });
 
-      await promoteStep.process({ job, startTime: Date.now(), config });
+      await envStep.process({ job, startTime: Date.now(), config });
 
-      // No raw source → the overwrite must NOT clobber the valid payload copies.
       expect(job.data.context.participantGuildInfo).toBe(payloadGuild);
       expect(job.data.context.activePersonaGuildInfo).toBe(payloadActive);
     });
 
     it('nulls activePersonaId in jobContext when the assembler returns null (weigh-in)', async () => {
-      mockIsAssemblyPromoteEnabled.mockReturnValue(true);
-      const assembled = makeAssembled({ activePersonaId: null, activePersonaName: null });
-      const fakeAssembler = { assembleCore: vi.fn().mockResolvedValue(assembled) };
-      const promoteStep = new ContextStep(fakeAssembler as never);
-      const job = createMockJob({
-        context: {
-          userId: 'u',
-          isWeighIn: true,
-          rawAssemblyInputs: { rawMessageContent: 'raw' },
-        } as never,
-      });
+      const { step: envStep } = envelopeStep({ activePersonaId: null, activePersonaName: null });
+      const job = envelopeJob({ isWeighIn: true });
 
-      await promoteStep.process({ job, startTime: Date.now(), config });
+      await envStep.process({ job, startTime: Date.now(), config });
 
       expect(job.data.context.activePersonaId).toBeUndefined();
       expect(job.data.context.activePersonaName).toBeUndefined();
     });
 
-    it('falls back to legacy when the flag is on but the envelope is absent', async () => {
-      mockIsAssemblyPromoteEnabled.mockReturnValue(true);
-      const fakeAssembler = { assembleCore: vi.fn() };
-      const promoteStep = new ContextStep(fakeAssembler as never);
+    it('propagates assembleCore errors as job failures', async () => {
+      const assembleCore = vi.fn().mockRejectedValue(new Error('assembler boom'));
+      const envStep = new ContextStep({ assembleCore } as never);
+      const job = envelopeJob();
 
-      await promoteStep.process({ job: createMockJob(), startTime: Date.now(), config });
-
-      expect(fakeAssembler.assembleCore).not.toHaveBeenCalled();
-    });
-
-    it('propagates assembleCore errors as job failures (not swallowed like the shadow)', async () => {
-      mockIsAssemblyPromoteEnabled.mockReturnValue(true);
-      const fakeAssembler = {
-        assembleCore: vi.fn().mockRejectedValue(new Error('assembler boom')),
-      };
-      const promoteStep = new ContextStep(fakeAssembler as never);
-      const job = createMockJob({
-        context: { userId: 'u', rawAssemblyInputs: { rawMessageContent: 'raw' } } as never,
-      });
-
-      await expect(promoteStep.process({ job, startTime: Date.now(), config })).rejects.toThrow(
+      await expect(envStep.process({ job, startTime: Date.now(), config })).rejects.toThrow(
         'assembler boom'
       );
     });
 
     it('flows a non-undefined assembler crossChannelHistory through to preparedContext', async () => {
-      mockIsAssemblyPromoteEnabled.mockReturnValue(true);
       const crossChannelHistory = [
         {
           channelEnvironment: {
@@ -290,111 +308,50 @@ describe('ContextStep', () => {
           ],
         },
       ];
-      const assembled = makeAssembled({ crossChannelHistory });
-      const fakeAssembler = { assembleCore: vi.fn().mockResolvedValue(assembled) };
-      const promoteStep = new ContextStep(fakeAssembler as never);
-      const job = createMockJob({
-        context: { userId: 'u', rawAssemblyInputs: { rawMessageContent: 'raw' } } as never,
-      });
+      const { step: envStep } = envelopeStep({ crossChannelHistory });
+      const job = envelopeJob();
 
-      const result = await promoteStep.process({ job, startTime: Date.now(), config });
+      const result = await envStep.process({ job, startTime: Date.now(), config });
 
       expect(job.data.context.crossChannelHistory).toBe(crossChannelHistory);
       expect(result.preparedContext?.crossChannelHistory).toHaveLength(1);
     });
 
-    it("assembles a kind:'envelope' job even when the promote flag is OFF", async () => {
-      mockIsAssemblyPromoteEnabled.mockReturnValue(false);
-      const fakeAssembler = { assembleCore: vi.fn().mockResolvedValue(makeAssembled()) };
-      const promoteStep = new ContextStep(fakeAssembler as never);
-      const job = createMockJob({
-        context: {
-          kind: 'envelope',
-          userId: 'u',
-          rawAssemblyInputs: { rawMessageContent: 'raw' },
-        } as never,
+    it('logs the assembly with counts only (no content)', async () => {
+      const { step: envStep } = envelopeStep({
+        history: [{ role: MessageRole.User, content: 'h', createdAt: new Date() }],
+        referencedMessages: [{ referenceNumber: 1, content: 'ref', authorName: 'A' }],
+        mentionedPersonas: [{ personaId: 'mp-1', personaName: 'Mentioned' }],
       });
+      const job = envelopeJob();
 
-      await promoteStep.process({ job, startTime: Date.now(), config });
-
-      expect(fakeAssembler.assembleCore).toHaveBeenCalled();
-    });
-
-    it("throws on a kind:'envelope' job when no assembler is wired (no legacy fallback)", async () => {
-      mockIsAssemblyPromoteEnabled.mockReturnValue(false);
-      const noAssemblerStep = new ContextStep();
-      const job = createMockJob({
-        context: {
-          kind: 'envelope',
-          userId: 'u',
-          rawAssemblyInputs: { rawMessageContent: 'raw' },
-        } as never,
-      });
-
-      await expect(noAssemblerStep.process({ job, startTime: Date.now(), config })).rejects.toThrow(
-        'requires a wired ContextAssembler'
-      );
-    });
-
-    it('logs the promoted path with counts only (no content)', async () => {
-      mockIsAssemblyPromoteEnabled.mockReturnValue(true);
-      const fakeAssembler = { assembleCore: vi.fn().mockResolvedValue(makeAssembled()) };
-      const promoteStep = new ContextStep(fakeAssembler as never);
-      const job = createMockJob({
-        context: { userId: 'u', rawAssemblyInputs: { rawMessageContent: 'raw' } } as never,
-      });
-
-      await promoteStep.process({ job, startTime: Date.now(), config });
+      await envStep.process({ job, startTime: Date.now(), config });
 
       expect(mockLogger.info).toHaveBeenCalledWith(
         expect.objectContaining({
+          kind: 'envelope',
           historyLength: 1,
           referencedCount: 1,
           mentionedCount: 1,
           crossChannelGroups: 0,
         }),
-        'Context assembled via promoted path'
-      );
-    });
-
-    it("logs kind:'envelope' when the job carries that discriminant", async () => {
-      mockIsAssemblyPromoteEnabled.mockReturnValue(false); // mustAssemble path, promote off
-      const fakeAssembler = { assembleCore: vi.fn().mockResolvedValue(makeAssembled()) };
-      const promoteStep = new ContextStep(fakeAssembler as never);
-      const job = createMockJob({
-        context: {
-          kind: 'envelope',
-          userId: 'u',
-          rawAssemblyInputs: { rawMessageContent: 'raw' },
-        } as never,
-      });
-
-      await promoteStep.process({ job, startTime: Date.now(), config });
-
-      expect(mockLogger.info).toHaveBeenCalledWith(
-        expect.objectContaining({ kind: 'envelope' }),
-        'Context assembled via promoted path'
+        'Context assembled'
       );
     });
 
     it('logs zero counts when the assembler returns undefined ref/mention/cross-channel surfaces', async () => {
-      mockIsAssemblyPromoteEnabled.mockReturnValue(true);
-      const assembled = makeAssembled({
+      const { step: envStep } = envelopeStep({
         referencedMessages: undefined,
         mentionedPersonas: undefined,
         crossChannelHistory: undefined,
       });
-      const fakeAssembler = { assembleCore: vi.fn().mockResolvedValue(assembled) };
-      const promoteStep = new ContextStep(fakeAssembler as never);
-      const job = createMockJob({
-        context: { userId: 'u', rawAssemblyInputs: { rawMessageContent: 'raw' } } as never,
-      });
+      const job = envelopeJob();
 
-      await promoteStep.process({ job, startTime: Date.now(), config });
+      await envStep.process({ job, startTime: Date.now(), config });
 
       expect(mockLogger.info).toHaveBeenCalledWith(
         expect.objectContaining({ referencedCount: 0, mentionedCount: 0, crossChannelGroups: 0 }),
-        'Context assembled via promoted path'
+        'Context assembled'
       );
     });
   });
@@ -402,7 +359,7 @@ describe('ContextStep', () => {
   describe('process', () => {
     it('should throw error if config is missing', async () => {
       const context: GenerationContext = {
-        job: createMockJob(),
+        job: envelopeJob(),
         startTime: Date.now(),
         // No config
       };
@@ -410,19 +367,10 @@ describe('ContextStep', () => {
       await expect(step.process(context)).rejects.toThrow('ConfigStep must run before ContextStep');
     });
 
-    it('should prepare empty context when no conversation history', async () => {
-      const config: ResolvedConfig = {
-        effectivePersonality: TEST_PERSONALITY,
-        configSource: 'personality',
-      };
+    it('should prepare empty context when the assembler returns no history', async () => {
+      const { step: envStep } = envelopeStep({ history: [] });
 
-      const context: GenerationContext = {
-        job: createMockJob({ context: { userId: 'user-456', conversationHistory: [] } }),
-        startTime: Date.now(),
-        config,
-      };
-
-      const result = await step.process(context);
+      const result = await envStep.process({ job: envelopeJob(), startTime: Date.now(), config });
 
       expect(result.preparedContext).toBeDefined();
       expect(result.preparedContext?.conversationHistory).toEqual([]);
@@ -431,8 +379,8 @@ describe('ContextStep', () => {
       expect(result.preparedContext?.oldestHistoryTimestamp).toBeUndefined();
     });
 
-    it('should call extractParticipants with conversation history', async () => {
-      const conversationHistory = [
+    it('should call extractParticipants with the assembled history + active persona', async () => {
+      const history = [
         { role: MessageRole.User, content: 'Hello', personaId: 'user-1', personaName: 'Alice' },
         {
           role: MessageRole.Assistant,
@@ -441,80 +389,48 @@ describe('ContextStep', () => {
           personaName: 'TestBot',
         },
       ];
-
       mockExtractParticipants.mockReturnValue([
         { personaId: 'user-1', personaName: 'Alice', isActive: false },
         { personaId: 'bot-1', personaName: 'TestBot', isActive: true },
       ]);
+      const { step: envStep } = envelopeStep({
+        history,
+        activePersonaId: 'bot-1',
+        activePersonaName: 'TestBot',
+      });
 
-      const config: ResolvedConfig = {
-        effectivePersonality: TEST_PERSONALITY,
-        configSource: 'personality',
-      };
+      await envStep.process({ job: envelopeJob(), startTime: Date.now(), config });
 
-      const context: GenerationContext = {
-        job: createMockJob({
-          context: {
-            userId: 'user-456',
-            conversationHistory,
-            activePersonaId: 'bot-1',
-            activePersonaName: 'TestBot',
-          },
-        }),
-        startTime: Date.now(),
-        config,
-      };
-
-      await step.process(context);
-
-      expect(mockExtractParticipants).toHaveBeenCalledWith(conversationHistory, 'bot-1', 'TestBot');
+      // History entries are normalized (createdAt Date → ISO; absent stays undefined).
+      expect(mockExtractParticipants).toHaveBeenCalledWith(
+        history.map(h => ({ ...h, createdAt: undefined })),
+        'bot-1',
+        'TestBot'
+      );
     });
 
-    it('should call convertConversationHistory with personality name', async () => {
-      const conversationHistory = [{ role: MessageRole.User, content: 'Hello' }];
+    it('should call convertConversationHistory with the personality name', async () => {
+      const history = [{ role: MessageRole.User, content: 'Hello' }];
+      const { step: envStep } = envelopeStep({ history });
 
-      const config: ResolvedConfig = {
-        effectivePersonality: TEST_PERSONALITY,
-        configSource: 'personality',
-      };
-
-      const context: GenerationContext = {
-        job: createMockJob({
-          context: { userId: 'user-456', conversationHistory },
-        }),
-        startTime: Date.now(),
-        config,
-      };
-
-      await step.process(context);
+      await envStep.process({ job: envelopeJob(), startTime: Date.now(), config });
 
       expect(mockConvertConversationHistory).toHaveBeenCalledWith(
-        conversationHistory,
+        history.map(h => ({ ...h, createdAt: undefined })),
         TEST_PERSONALITY.name
       );
     });
 
-    it('should calculate oldest timestamp from conversation history', async () => {
-      const conversationHistory = [
-        { role: MessageRole.User, content: 'First', createdAt: '2024-01-01T12:00:00Z' },
-        { role: MessageRole.Assistant, content: 'Second', createdAt: '2024-01-01T12:05:00Z' },
-        { role: MessageRole.User, content: 'Third', createdAt: '2024-01-01T12:10:00Z' },
-      ];
+    it('should calculate oldest timestamp from the assembled history', async () => {
+      const { step: envStep } = envelopeStep({
+        history: [
+          { role: MessageRole.User, content: 'First', createdAt: '2024-01-01T12:00:00Z' },
+          { role: MessageRole.Assistant, content: 'Second', createdAt: '2024-01-01T12:05:00Z' },
+          { role: MessageRole.User, content: 'Third', createdAt: '2024-01-01T12:10:00Z' },
+        ],
+      });
 
-      const config: ResolvedConfig = {
-        effectivePersonality: TEST_PERSONALITY,
-        configSource: 'personality',
-      };
-
-      const context: GenerationContext = {
-        job: createMockJob({
-          context: { userId: 'user-456', conversationHistory },
-        }),
-        startTime: Date.now(),
-        config,
-      };
-
-      const result = await step.process(context);
+      const result = await envStep.process({ job: envelopeJob(), startTime: Date.now(), config });
 
       expect(result.preparedContext?.oldestHistoryTimestamp).toBe(
         new Date('2024-01-01T12:00:00Z').getTime()
@@ -522,25 +438,14 @@ describe('ContextStep', () => {
     });
 
     it('should handle messages without timestamps', async () => {
-      const conversationHistory = [
-        { role: MessageRole.User, content: 'First' }, // No createdAt
-        { role: MessageRole.Assistant, content: 'Second', createdAt: '2024-01-01T12:05:00Z' },
-      ];
+      const { step: envStep } = envelopeStep({
+        history: [
+          { role: MessageRole.User, content: 'First' }, // No createdAt
+          { role: MessageRole.Assistant, content: 'Second', createdAt: '2024-01-01T12:05:00Z' },
+        ],
+      });
 
-      const config: ResolvedConfig = {
-        effectivePersonality: TEST_PERSONALITY,
-        configSource: 'personality',
-      };
-
-      const context: GenerationContext = {
-        job: createMockJob({
-          context: { userId: 'user-456', conversationHistory },
-        }),
-        startTime: Date.now(),
-        config,
-      };
-
-      const result = await step.process(context);
+      const result = await envStep.process({ job: envelopeJob(), startTime: Date.now(), config });
 
       // Should only use the message with timestamp
       expect(result.preparedContext?.oldestHistoryTimestamp).toBe(
@@ -548,28 +453,130 @@ describe('ContextStep', () => {
       );
     });
 
+    it('includes cross-channel message timestamps in oldestHistoryTimestamp', async () => {
+      // The current-channel history is newer; the older cross-channel message
+      // must win the oldest-timestamp calculation (the assembled crossChannelHistory
+      // is folded into the timestamp set alongside current + referenced messages).
+      const { step: envStep } = envelopeStep({
+        history: [
+          { role: MessageRole.User, content: 'Current', createdAt: '2024-01-15T12:00:00Z' },
+        ],
+        crossChannelHistory: [
+          {
+            channelEnvironment: {
+              type: 'dm' as const,
+              channel: { id: 'dm-1', name: 'DM', type: 'dm' },
+            },
+            messages: [
+              {
+                id: 'msg-cross-old',
+                role: MessageRole.User,
+                content: 'Older cross-channel message',
+                createdAt: '2024-01-01T08:00:00Z',
+                personaName: 'Alice',
+                tokenCount: 5,
+              },
+            ],
+          },
+        ],
+      });
+
+      const result = await envStep.process({ job: envelopeJob(), startTime: Date.now(), config });
+
+      expect(result.preparedContext?.oldestHistoryTimestamp).toBe(
+        new Date('2024-01-01T08:00:00Z').getTime()
+      );
+    });
+
+    it('uses cross-channel timestamps for oldestHistoryTimestamp when there is no current history', async () => {
+      // Cross-channel as the SOLE timestamp source — current-channel history empty.
+      const { step: envStep } = envelopeStep({
+        history: [],
+        crossChannelHistory: [
+          {
+            channelEnvironment: {
+              type: 'dm' as const,
+              channel: { id: 'dm-1', name: 'DM', type: 'dm' },
+            },
+            messages: [
+              {
+                id: 'm-cross-only',
+                role: MessageRole.User,
+                content: 'Cross-channel only',
+                createdAt: '2024-01-03T09:00:00Z',
+                personaName: 'Bob',
+                tokenCount: 4,
+              },
+            ],
+          },
+        ],
+      });
+
+      const result = await envStep.process({ job: envelopeJob(), startTime: Date.now(), config });
+
+      expect(result.preparedContext?.oldestHistoryTimestamp).toBe(
+        new Date('2024-01-03T09:00:00Z').getTime()
+      );
+    });
+
+    it('handles cross-channel messages with missing createdAt without throwing', async () => {
+      // No valid timestamp anywhere — the cross-channel message omits createdAt and
+      // there is no current history — so oldestHistoryTimestamp stays undefined and
+      // the cross-channel passthrough still works.
+      const { step: envStep } = envelopeStep({
+        history: [],
+        crossChannelHistory: [
+          {
+            channelEnvironment: {
+              type: 'dm' as const,
+              channel: { id: 'dm-1', name: 'DM', type: 'dm' },
+            },
+            messages: [
+              {
+                id: 'm-cross-no-ts',
+                role: MessageRole.User,
+                content: 'No timestamp',
+                personaName: 'Bob',
+                tokenCount: 4,
+              },
+            ],
+          },
+        ],
+      });
+
+      const result = await envStep.process({ job: envelopeJob(), startTime: Date.now(), config });
+
+      expect(result.preparedContext?.oldestHistoryTimestamp).toBeUndefined();
+      expect(result.preparedContext?.crossChannelHistory).toHaveLength(1);
+    });
+
+    it('handles an explicit empty referencedMessages array gracefully', async () => {
+      // An explicit `[]` hits a different guard branch than the default `undefined`;
+      // neither contributes timestamps nor throws.
+      const { step: envStep } = envelopeStep({
+        history: [{ role: MessageRole.User, content: 'Hi', createdAt: '2024-01-01T12:00:00Z' }],
+        referencedMessages: [],
+      });
+      const job = envelopeJob();
+
+      const result = await envStep.process({ job, startTime: Date.now(), config });
+
+      expect(job.data.context.referencedMessages).toEqual([]);
+      // Only the history timestamp contributes; the empty array adds nothing.
+      expect(result.preparedContext?.oldestHistoryTimestamp).toBe(
+        new Date('2024-01-01T12:00:00Z').getTime()
+      );
+    });
+
     it('should merge mentioned personas into participants', async () => {
       mockExtractParticipants.mockReturnValue([
         { personaId: 'user-1', personaName: 'Alice', isActive: false },
       ]);
+      const { step: envStep } = envelopeStep({
+        mentionedPersonas: [{ personaId: 'bot-2', personaName: 'OtherBot' }],
+      });
 
-      const config: ResolvedConfig = {
-        effectivePersonality: TEST_PERSONALITY,
-        configSource: 'personality',
-      };
-
-      const context: GenerationContext = {
-        job: createMockJob({
-          context: {
-            userId: 'user-456',
-            mentionedPersonas: [{ personaId: 'bot-2', personaName: 'OtherBot' }],
-          },
-        }),
-        startTime: Date.now(),
-        config,
-      };
-
-      const result = await step.process(context);
+      const result = await envStep.process({ job: envelopeJob(), startTime: Date.now(), config });
 
       expect(result.preparedContext?.participants).toHaveLength(2);
       expect(result.preparedContext?.participants).toContainEqual({
@@ -584,479 +591,156 @@ describe('ContextStep', () => {
         { personaId: 'user-1', personaName: 'Alice', isActive: false },
         { personaId: 'bot-2', personaName: 'OtherBot', isActive: false },
       ]);
+      const { step: envStep } = envelopeStep({
+        mentionedPersonas: [{ personaId: 'bot-2', personaName: 'OtherBot' }],
+      });
 
-      const config: ResolvedConfig = {
-        effectivePersonality: TEST_PERSONALITY,
-        configSource: 'personality',
-      };
+      const result = await envStep.process({ job: envelopeJob(), startTime: Date.now(), config });
 
-      const context: GenerationContext = {
-        job: createMockJob({
-          context: {
-            userId: 'user-456',
-            mentionedPersonas: [
-              { personaId: 'bot-2', personaName: 'OtherBot' }, // Already in participants
-            ],
-          },
-        }),
-        startTime: Date.now(),
-        config,
-      };
-
-      const result = await step.process(context);
-
-      // Should not duplicate
       expect(result.preparedContext?.participants).toHaveLength(2);
     });
 
     it('should preserve raw conversation history', async () => {
-      const conversationHistory = [
+      const history = [
         { role: MessageRole.User, content: 'Hello', tokenCount: 5 },
         { role: MessageRole.Assistant, content: 'Hi there', tokenCount: 10 },
       ];
-
       mockConvertConversationHistory.mockReturnValue([
         new HumanMessage('Hello'),
         new AIMessage('Hi there'),
       ]);
+      const { step: envStep } = envelopeStep({ history });
 
-      const config: ResolvedConfig = {
-        effectivePersonality: TEST_PERSONALITY,
-        configSource: 'personality',
-      };
+      const result = await envStep.process({ job: envelopeJob(), startTime: Date.now(), config });
 
-      const context: GenerationContext = {
-        job: createMockJob({
-          context: { userId: 'user-456', conversationHistory },
-        }),
-        startTime: Date.now(),
-        config,
-      };
-
-      const result = await step.process(context);
-
-      expect(result.preparedContext?.rawConversationHistory).toEqual(conversationHistory);
+      expect(result.preparedContext?.rawConversationHistory).toEqual(
+        history.map(h => ({ ...h, createdAt: undefined }))
+      );
       expect(result.preparedContext?.conversationHistory).toHaveLength(2);
     });
 
     describe('referenced message timestamps in deduplication', () => {
+      function refMsg(timestamp: string) {
+        return {
+          referenceNumber: 1,
+          discordMessageId: 'ref-msg-1',
+          discordUserId: 'user-123',
+          authorUsername: 'alice',
+          authorDisplayName: 'Alice',
+          content: 'A referenced message',
+          embeds: '',
+          timestamp,
+          locationContext: 'Server/Channel',
+        };
+      }
+
       it('should include referenced message timestamps in oldestHistoryTimestamp', async () => {
-        // Conversation history with recent messages
-        const conversationHistory = [
-          { role: MessageRole.User, content: 'Recent message', createdAt: '2024-01-01T14:00:00Z' },
-        ];
+        const { step: envStep } = envelopeStep({
+          history: [
+            { role: MessageRole.User, content: 'Recent', createdAt: '2024-01-01T14:00:00Z' },
+          ],
+          // Referenced message older than the history.
+          referencedMessages: [refMsg('2024-01-01T10:00:00Z')],
+        });
 
-        // Referenced message is older than conversation history
-        const referencedMessages = [
-          {
-            referenceNumber: 1,
-            discordMessageId: 'ref-msg-1',
-            discordUserId: 'user-123',
-            authorUsername: 'alice',
-            authorDisplayName: 'Alice',
-            content: 'An old message being referenced',
-            embeds: '',
-            timestamp: '2024-01-01T10:00:00Z', // Older than conversation history
-            locationContext: 'Server/Channel',
-          },
-        ];
+        const result = await envStep.process({ job: envelopeJob(), startTime: Date.now(), config });
 
-        const config: ResolvedConfig = {
-          effectivePersonality: TEST_PERSONALITY,
-          configSource: 'personality',
-        };
-
-        const context: GenerationContext = {
-          job: createMockJob({
-            context: { userId: 'user-456', conversationHistory, referencedMessages },
-          }),
-          startTime: Date.now(),
-          config,
-        };
-
-        const result = await step.process(context);
-
-        // Oldest timestamp should be from the referenced message, not conversation history
         expect(result.preparedContext?.oldestHistoryTimestamp).toBe(
           new Date('2024-01-01T10:00:00Z').getTime()
         );
       });
 
-      it('should use conversation history timestamp if older than referenced messages', async () => {
-        const conversationHistory = [
-          { role: MessageRole.User, content: 'Old message', createdAt: '2024-01-01T08:00:00Z' },
-          { role: MessageRole.Assistant, content: 'Reply', createdAt: '2024-01-01T08:05:00Z' },
-        ];
+      it('should use history timestamp if older than referenced messages', async () => {
+        const { step: envStep } = envelopeStep({
+          history: [
+            { role: MessageRole.User, content: 'Old', createdAt: '2024-01-01T08:00:00Z' },
+            { role: MessageRole.Assistant, content: 'Reply', createdAt: '2024-01-01T08:05:00Z' },
+          ],
+          referencedMessages: [refMsg('2024-01-01T12:00:00Z')], // newer than history
+        });
 
-        const referencedMessages = [
-          {
-            referenceNumber: 1,
-            discordMessageId: 'ref-msg-1',
-            discordUserId: 'user-123',
-            authorUsername: 'bob',
-            authorDisplayName: 'Bob',
-            content: 'A newer referenced message',
-            embeds: '',
-            timestamp: '2024-01-01T12:00:00Z', // Newer than conversation history
-            locationContext: 'Server/Channel',
-          },
-        ];
+        const result = await envStep.process({ job: envelopeJob(), startTime: Date.now(), config });
 
-        const config: ResolvedConfig = {
-          effectivePersonality: TEST_PERSONALITY,
-          configSource: 'personality',
-        };
-
-        const context: GenerationContext = {
-          job: createMockJob({
-            context: { userId: 'user-456', conversationHistory, referencedMessages },
-          }),
-          startTime: Date.now(),
-          config,
-        };
-
-        const result = await step.process(context);
-
-        // Oldest timestamp should be from conversation history
         expect(result.preparedContext?.oldestHistoryTimestamp).toBe(
           new Date('2024-01-01T08:00:00Z').getTime()
         );
       });
 
       it('should handle referenced messages without timestamps', async () => {
-        const conversationHistory = [
-          { role: MessageRole.User, content: 'Message', createdAt: '2024-01-01T12:00:00Z' },
-        ];
+        const { step: envStep } = envelopeStep({
+          history: [
+            { role: MessageRole.User, content: 'Message', createdAt: '2024-01-01T12:00:00Z' },
+          ],
+          referencedMessages: [refMsg('')], // empty timestamp
+        });
 
-        const referencedMessages = [
-          {
-            referenceNumber: 1,
-            discordMessageId: 'ref-msg-1',
-            discordUserId: 'user-123',
-            authorUsername: 'charlie',
-            authorDisplayName: 'Charlie',
-            content: 'Referenced without timestamp',
-            embeds: '',
-            timestamp: '', // Empty timestamp
-            locationContext: 'Server/Channel',
-          },
-        ];
+        const result = await envStep.process({ job: envelopeJob(), startTime: Date.now(), config });
 
-        const config: ResolvedConfig = {
-          effectivePersonality: TEST_PERSONALITY,
-          configSource: 'personality',
-        };
-
-        const context: GenerationContext = {
-          job: createMockJob({
-            context: { userId: 'user-456', conversationHistory, referencedMessages },
-          }),
-          startTime: Date.now(),
-          config,
-        };
-
-        const result = await step.process(context);
-
-        // Should use conversation history timestamp when referenced message has no timestamp
         expect(result.preparedContext?.oldestHistoryTimestamp).toBe(
           new Date('2024-01-01T12:00:00Z').getTime()
         );
       });
 
-      it('should handle only referenced messages (no conversation history)', async () => {
-        const referencedMessages = [
-          {
-            referenceNumber: 1,
-            discordMessageId: 'ref-msg-1',
-            discordUserId: 'user-123',
-            authorUsername: 'dave',
-            authorDisplayName: 'Dave',
-            content: 'Only a referenced message',
-            embeds: '',
-            timestamp: '2024-01-01T15:00:00Z',
-            locationContext: 'Server/Channel',
-          },
-        ];
+      it('should handle only referenced messages (no history)', async () => {
+        const { step: envStep } = envelopeStep({
+          history: [],
+          referencedMessages: [refMsg('2024-01-01T15:00:00Z')],
+        });
 
-        const config: ResolvedConfig = {
-          effectivePersonality: TEST_PERSONALITY,
-          configSource: 'personality',
-        };
+        const result = await envStep.process({ job: envelopeJob(), startTime: Date.now(), config });
 
-        const context: GenerationContext = {
-          job: createMockJob({
-            context: { userId: 'user-456', conversationHistory: [], referencedMessages },
-          }),
-          startTime: Date.now(),
-          config,
-        };
-
-        const result = await step.process(context);
-
-        // Should use referenced message timestamp
         expect(result.preparedContext?.oldestHistoryTimestamp).toBe(
           new Date('2024-01-01T15:00:00Z').getTime()
         );
       });
-
-      it('should handle empty referenced messages array gracefully', async () => {
-        const conversationHistory = [
-          { role: MessageRole.User, content: 'Message', createdAt: '2024-01-01T12:00:00Z' },
-        ];
-
-        const config: ResolvedConfig = {
-          effectivePersonality: TEST_PERSONALITY,
-          configSource: 'personality',
-        };
-
-        const context: GenerationContext = {
-          job: createMockJob({
-            context: { userId: 'user-456', conversationHistory, referencedMessages: [] },
-          }),
-          startTime: Date.now(),
-          config,
-        };
-
-        const result = await step.process(context);
-
-        // Should use conversation history timestamp
-        expect(result.preparedContext?.oldestHistoryTimestamp).toBe(
-          new Date('2024-01-01T12:00:00Z').getTime()
-        );
-      });
-
-      it('should include cross-channel timestamps in oldest calculation', async () => {
-        const conversationHistory = [
-          { role: MessageRole.User, content: 'Current channel', createdAt: '2024-01-15T12:00:00Z' },
-        ];
-
-        const crossChannelHistory = [
-          {
-            channelEnvironment: {
-              type: 'guild' as const,
-              guild: { id: 'g-1', name: 'Server' },
-              channel: { id: 'ch-other', name: 'general', type: 'text' },
-            },
-            messages: [
-              {
-                id: 'msg-1',
-                role: MessageRole.User,
-                content: 'Older cross-channel msg',
-                createdAt: '2024-01-01T08:00:00Z',
-              },
-            ],
-          },
-        ];
-
-        const config: ResolvedConfig = {
-          effectivePersonality: TEST_PERSONALITY,
-          configSource: 'personality',
-        };
-
-        const context: GenerationContext = {
-          job: createMockJob({
-            context: { userId: 'user-456', conversationHistory, crossChannelHistory },
-          }),
-          startTime: Date.now(),
-          config,
-        };
-
-        const result = await step.process(context);
-
-        // Should use the older cross-channel timestamp
-        expect(result.preparedContext?.oldestHistoryTimestamp).toBe(
-          new Date('2024-01-01T08:00:00Z').getTime()
-        );
-      });
-
-      it('should set oldestHistoryTimestamp from cross-channel alone when no current history', async () => {
-        const crossChannelHistory = [
-          {
-            channelEnvironment: {
-              type: 'guild' as const,
-              guild: { id: 'g-1', name: 'Server' },
-              channel: { id: 'ch-other', name: 'general', type: 'text' },
-            },
-            messages: [
-              {
-                id: 'msg-cross-1',
-                role: MessageRole.User,
-                content: 'Old cross-channel message',
-                createdAt: '2024-01-05T08:00:00Z',
-              },
-              {
-                id: 'msg-cross-2',
-                role: MessageRole.Assistant,
-                content: 'Response',
-                createdAt: '2024-01-10T12:00:00Z',
-              },
-            ],
-          },
-        ];
-
-        const config: ResolvedConfig = {
-          effectivePersonality: TEST_PERSONALITY,
-          configSource: 'personality',
-        };
-
-        const context: GenerationContext = {
-          job: createMockJob({
-            context: { userId: 'user-456', crossChannelHistory },
-          }),
-          startTime: Date.now(),
-          config,
-        };
-
-        const result = await step.process(context);
-
-        // Cross-channel timestamps should be the sole source for oldestHistoryTimestamp
-        expect(result.preparedContext?.oldestHistoryTimestamp).toBe(
-          new Date('2024-01-05T08:00:00Z').getTime()
-        );
-      });
-
-      it('should handle cross-channel messages with undefined createdAt', async () => {
-        const crossChannelHistory = [
-          {
-            channelEnvironment: {
-              type: 'guild' as const,
-              guild: { id: 'g-1', name: 'Server' },
-              channel: { id: 'ch-other', name: 'general', type: 'text' },
-            },
-            messages: [
-              {
-                id: 'msg-cross-1',
-                role: MessageRole.User,
-                content: 'No timestamp',
-                // createdAt intentionally omitted
-              },
-              {
-                id: 'msg-cross-2',
-                role: MessageRole.Assistant,
-                content: 'Has timestamp',
-                createdAt: '2024-01-10T12:00:00Z',
-              },
-            ],
-          },
-        ];
-
-        const config: ResolvedConfig = {
-          effectivePersonality: TEST_PERSONALITY,
-          configSource: 'personality',
-        };
-
-        const context: GenerationContext = {
-          job: createMockJob({
-            context: { userId: 'user-456', crossChannelHistory },
-          }),
-          startTime: Date.now(),
-          config,
-        };
-
-        const result = await step.process(context);
-
-        // Should use the valid timestamp, ignoring the undefined one
-        expect(result.preparedContext?.oldestHistoryTimestamp).toBe(
-          new Date('2024-01-10T12:00:00Z').getTime()
-        );
-      });
-
-      it('should map cross-channel history to pipeline format', async () => {
-        const crossChannelHistory = [
-          {
-            channelEnvironment: {
-              type: 'dm' as const,
-              channel: { id: 'dm-1', name: 'DM', type: 'dm' },
-            },
-            messages: [
-              {
-                id: 'msg-cross-1',
-                role: MessageRole.User,
-                content: 'DM message',
-                createdAt: '2024-01-01T08:00:00Z',
-                personaName: 'Alice',
-                tokenCount: 5,
-              },
-            ],
-          },
-        ];
-
-        const config: ResolvedConfig = {
-          effectivePersonality: TEST_PERSONALITY,
-          configSource: 'personality',
-        };
-
-        const context: GenerationContext = {
-          job: createMockJob({
-            context: { userId: 'user-456', crossChannelHistory },
-          }),
-          startTime: Date.now(),
-          config,
-        };
-
-        const result = await step.process(context);
-
-        expect(result.preparedContext?.crossChannelHistory).toHaveLength(1);
-        expect(result.preparedContext?.crossChannelHistory?.[0].channelEnvironment.type).toBe('dm');
-        expect(result.preparedContext?.crossChannelHistory?.[0].messages[0].content).toBe(
-          'DM message'
-        );
-      });
     });
+  });
 
-    describe('race-window telemetry', () => {
-      const config: ResolvedConfig = {
-        effectivePersonality: TEST_PERSONALITY,
-        configSource: 'personality',
-      };
+  describe('race-window telemetry', () => {
+    // A kind:'envelope' job that also carries a BullMQ `timestamp` — the telemetry
+    // compares it against the newest assistant message in the assembled history.
+    // History is sourced from the assembler (envelopeStep), not the job's context.
+    function jobWithTimestamp(timestamp: number): Job<LLMGenerationJobData> {
+      return {
+        id: 'race-job',
+        timestamp,
+        data: envelopeJob().data,
+      } as unknown as Job<LLMGenerationJobData>;
+    }
 
-      function jobWithTimestamp(
-        timestamp: number,
-        overrides: Partial<LLMGenerationJobData> = {}
-      ): Job<LLMGenerationJobData> {
-        return {
-          id: 'race-job',
-          timestamp,
-          data: createValidJobData(overrides),
-        } as unknown as Job<LLMGenerationJobData>;
-      }
-
-      it('warns with clock-skew framing when deltaMs is negative', async () => {
-        // Job timestamp BEFORE the persisted assistant-message timestamp — shouldn't
-        // happen with colocated BullMQ + Postgres, but if it ever does, it's a
-        // clock/data anomaly, NOT a race. Message must be distinct from the
-        // race-signal message so triage doesn't conflate them.
-        const jobTs = 1_700_000_000_000;
-        const conversationHistory = [
+    it('warns with clock-skew framing when deltaMs is negative', async () => {
+      // Job timestamp BEFORE the persisted assistant-message timestamp — shouldn't
+      // happen with colocated BullMQ + Postgres, but if it ever does, it's a
+      // clock/data anomaly, NOT a race. Message must be distinct from the
+      // race-signal message so triage doesn't conflate them.
+      const jobTs = 1_700_000_000_000;
+      const { step: envStep } = envelopeStep({
+        history: [
           {
             role: MessageRole.Assistant,
             content: 'future-looking message',
             createdAt: new Date(jobTs + 1_000).toISOString(),
           },
-        ];
-
-        const context: GenerationContext = {
-          job: jobWithTimestamp(jobTs, { context: { userId: 'u', conversationHistory } }),
-          startTime: jobTs,
-          config,
-        };
-
-        await step.process(context);
-
-        expect(mockLogger.warn).toHaveBeenCalledWith(
-          expect.objectContaining({ suggestsClockSkew: true, deltaMs: -1_000 }),
-          expect.stringContaining('Clock-skew signal')
-        );
-        // And does NOT fire the race-window warning (separate failure class)
-        expect(mockLogger.warn).not.toHaveBeenCalledWith(
-          expect.anything(),
-          expect.stringContaining('Race-window signal')
-        );
+        ],
       });
 
-      it('warns when job created within 500ms of newest assistant message persistence', async () => {
-        const jobTs = 1_700_000_000_000;
-        const conversationHistory = [
+      await envStep.process({ job: jobWithTimestamp(jobTs), startTime: jobTs, config });
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ suggestsClockSkew: true, deltaMs: -1_000 }),
+        expect.stringContaining('Clock-skew signal')
+      );
+      // And does NOT fire the race-window warning (separate failure class)
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(
+        expect.anything(),
+        expect.stringContaining('Race-window signal')
+      );
+    });
+
+    it('warns when job created within 500ms of newest assistant message persistence', async () => {
+      const jobTs = 1_700_000_000_000;
+      const { step: envStep } = envelopeStep({
+        history: [
           {
             role: MessageRole.User,
             content: 'hi',
@@ -1067,53 +751,45 @@ describe('ContextStep', () => {
             content: 'previous bot response',
             createdAt: new Date(jobTs - 200).toISOString(),
           },
-        ];
-
-        const context: GenerationContext = {
-          job: jobWithTimestamp(jobTs, { context: { userId: 'u', conversationHistory } }),
-          startTime: jobTs,
-          config,
-        };
-
-        await step.process(context);
-
-        expect(mockLogger.warn).toHaveBeenCalledWith(
-          expect.objectContaining({ suggestsRace: true, deltaMs: 200 }),
-          expect.stringContaining('Race-window signal')
-        );
+        ],
       });
 
-      it('emits info (not warn) when delta is comfortably positive', async () => {
-        const jobTs = 1_700_000_000_000;
-        const conversationHistory = [
+      await envStep.process({ job: jobWithTimestamp(jobTs), startTime: jobTs, config });
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ suggestsRace: true, deltaMs: 200 }),
+        expect.stringContaining('Race-window signal')
+      );
+    });
+
+    it('emits info (not warn) when delta is comfortably positive', async () => {
+      const jobTs = 1_700_000_000_000;
+      const { step: envStep } = envelopeStep({
+        history: [
           {
             role: MessageRole.Assistant,
             content: 'older bot response',
             createdAt: new Date(jobTs - 60_000).toISOString(),
           },
-        ];
-
-        const context: GenerationContext = {
-          job: jobWithTimestamp(jobTs, { context: { userId: 'u', conversationHistory } }),
-          startTime: jobTs,
-          config,
-        };
-
-        await step.process(context);
-
-        expect(mockLogger.info).toHaveBeenCalledWith(
-          expect.objectContaining({ suggestsRace: false, deltaMs: 60_000 }),
-          expect.stringContaining('Race-window telemetry')
-        );
-        expect(mockLogger.warn).not.toHaveBeenCalledWith(
-          expect.anything(),
-          expect.stringContaining('Race-window signal')
-        );
+        ],
       });
 
-      it('picks the newest assistant message when multiple are present', async () => {
-        const jobTs = 1_700_000_000_000;
-        const conversationHistory = [
+      await envStep.process({ job: jobWithTimestamp(jobTs), startTime: jobTs, config });
+
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({ suggestsRace: false, deltaMs: 60_000 }),
+        expect.stringContaining('Race-window telemetry')
+      );
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(
+        expect.anything(),
+        expect.stringContaining('Race-window signal')
+      );
+    });
+
+    it('picks the newest assistant message when multiple are present', async () => {
+      const jobTs = 1_700_000_000_000;
+      const { step: envStep } = envelopeStep({
+        history: [
           {
             role: MessageRole.Assistant,
             content: 'oldest',
@@ -1129,72 +805,62 @@ describe('ContextStep', () => {
             content: 'newest',
             createdAt: new Date(jobTs - 100).toISOString(),
           },
-        ];
-
-        const context: GenerationContext = {
-          job: jobWithTimestamp(jobTs, { context: { userId: 'u', conversationHistory } }),
-          startTime: jobTs,
-          config,
-        };
-
-        await step.process(context);
-
-        // 100ms delta → race-suspect; uses newest, not oldest
-        expect(mockLogger.warn).toHaveBeenCalledWith(
-          expect.objectContaining({ deltaMs: 100 }),
-          expect.stringContaining('Race-window signal')
-        );
+        ],
       });
 
-      it('emits nothing when history has no assistant messages', async () => {
-        const jobTs = 1_700_000_000_000;
-        const conversationHistory = [
-          { role: MessageRole.User, content: 'hi', createdAt: new Date(jobTs - 100).toISOString() },
-        ];
+      await envStep.process({ job: jobWithTimestamp(jobTs), startTime: jobTs, config });
 
-        const context: GenerationContext = {
-          job: jobWithTimestamp(jobTs, { context: { userId: 'u', conversationHistory } }),
-          startTime: jobTs,
-          config,
-        };
+      // 100ms delta → race-suspect; uses newest, not oldest
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ deltaMs: 100 }),
+        expect.stringContaining('Race-window signal')
+      );
+    });
 
-        await step.process(context);
-
-        // Race-window messages never emit — no newest assistant to compare against
-        expect(mockLogger.warn).not.toHaveBeenCalledWith(
-          expect.anything(),
-          expect.stringContaining('Race-window signal')
-        );
-        expect(mockLogger.info).not.toHaveBeenCalledWith(
-          expect.anything(),
-          expect.stringContaining('Race-window telemetry')
-        );
+    it('emits nothing when history has no assistant messages', async () => {
+      const jobTs = 1_700_000_000_000;
+      const { step: envStep } = envelopeStep({
+        history: [
+          {
+            role: MessageRole.User,
+            content: 'hi',
+            createdAt: new Date(jobTs - 100).toISOString(),
+          },
+        ],
       });
 
-      it('emits nothing when assistant messages lack valid createdAt', async () => {
-        const jobTs = 1_700_000_000_000;
-        const conversationHistory = [
+      await envStep.process({ job: jobWithTimestamp(jobTs), startTime: jobTs, config });
+
+      // Race-window messages never emit — no newest assistant to compare against
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(
+        expect.anything(),
+        expect.stringContaining('Race-window signal')
+      );
+      expect(mockLogger.info).not.toHaveBeenCalledWith(
+        expect.anything(),
+        expect.stringContaining('Race-window telemetry')
+      );
+    });
+
+    it('emits nothing when assistant messages lack valid createdAt', async () => {
+      const jobTs = 1_700_000_000_000;
+      const { step: envStep } = envelopeStep({
+        history: [
           { role: MessageRole.Assistant, content: 'no timestamp' },
           { role: MessageRole.Assistant, content: 'invalid ts', createdAt: 'not-a-date' },
-        ];
-
-        const context: GenerationContext = {
-          job: jobWithTimestamp(jobTs, { context: { userId: 'u', conversationHistory } }),
-          startTime: jobTs,
-          config,
-        };
-
-        await step.process(context);
-
-        expect(mockLogger.warn).not.toHaveBeenCalledWith(
-          expect.anything(),
-          expect.stringContaining('Race-window signal')
-        );
-        expect(mockLogger.info).not.toHaveBeenCalledWith(
-          expect.anything(),
-          expect.stringContaining('Race-window telemetry')
-        );
+        ],
       });
+
+      await envStep.process({ job: jobWithTimestamp(jobTs), startTime: jobTs, config });
+
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(
+        expect.anything(),
+        expect.stringContaining('Race-window signal')
+      );
+      expect(mockLogger.info).not.toHaveBeenCalledWith(
+        expect.anything(),
+        expect.stringContaining('Race-window telemetry')
+      );
     });
   });
 });
