@@ -107,7 +107,10 @@ async function handleSetKeySubmit(
 
     logger.info({ provider, userId: interaction.user.id }, 'API key stored successfully');
   } catch (error) {
-    logger.error({ err: error, provider, userId: interaction.user.id }, 'Error');
+    logger.error(
+      { err: error, provider, userId: interaction.user.id },
+      'Unexpected error storing API key'
+    );
 
     await replyError(
       interaction,
