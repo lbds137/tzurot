@@ -5,7 +5,11 @@
  * Uses the Dashboard Framework pattern for consistent UX.
  */
 
-import type { LlmConfigUpdateInput, AdvancedParams } from '@tzurot/common-types';
+import {
+  DISCORD_COLORS,
+  type LlmConfigUpdateInput,
+  type AdvancedParams,
+} from '@tzurot/common-types';
 import type { DashboardConfig, FieldDefinition } from '../../utils/dashboard/types.js';
 import type { ActionButtonOptions } from '../../utils/dashboard/index.js';
 import type { PresetData, FlattenedPresetData } from './types.js';
@@ -234,7 +238,7 @@ export const PRESET_DASHBOARD_CONFIG: DashboardConfig<FlattenedPresetData> = {
   ],
   actions: [], // Refresh button already exists - no need for dropdown entry
   getFooter: () => 'Select a section to edit • Changes save automatically',
-  color: 0x5865f2, // Discord blurple
+  color: DISCORD_COLORS.BLURPLE,
 };
 
 /**

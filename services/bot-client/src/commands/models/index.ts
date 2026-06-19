@@ -61,7 +61,10 @@ export default defineCommand({
     .addSubcommand(subcommand =>
       subcommand
         .setName('browse')
-        .setDescription('Browse available models, filtered by capability or search')
+        .setDescription('Browse available models, filtered by capability or name')
+        .addStringOption(option =>
+          option.setName('query').setDescription('Search by model name or ID').setRequired(false)
+        )
         .addStringOption(option =>
           option
             .setName('capability')
@@ -72,9 +75,6 @@ export default defineCommand({
               { name: 'Image generation', value: 'image-gen' },
               { name: 'Text only', value: 'text' }
             )
-        )
-        .addStringOption(option =>
-          option.setName('search').setDescription('Search by model name or ID').setRequired(false)
         )
     )
     .addSubcommand(subcommand =>

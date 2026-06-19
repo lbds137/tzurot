@@ -153,7 +153,8 @@ export async function handlePurge(context: DeferredCommandContext): Promise<void
     const proceedButton = new ButtonBuilder()
       .setCustomId(`${MEMORY_PURGE_PREFIX}::proceed::${personalityId}::${userId}`)
       .setLabel('I Understand - Proceed')
-      .setStyle(ButtonStyle.Danger);
+      .setStyle(ButtonStyle.Danger)
+      .setEmoji('🗑️');
 
     const cancelButton = new ButtonBuilder()
       .setCustomId(`${MEMORY_PURGE_PREFIX}::cancel::${userId}`)
