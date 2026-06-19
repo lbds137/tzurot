@@ -4,6 +4,9 @@ import {
   type StringSelectMenuInteraction,
   type ModalSubmitInteraction,
 } from 'discord.js';
+import { createLogger } from '@tzurot/common-types';
+
+const logger = createLogger('replyError');
 
 /**
  * Reply with an ephemeral error, adapting to the interaction's ack state.
@@ -27,7 +30,8 @@ import {
  * MessageFlags.Ephemeral })`. `editReply` inherits whatever flags were
  * set by `deferReply` — passing flags here has no effect. A caller that
  * defers without ephemeral and then hits this helper would expose the
- * error message publicly.
+ * error message publicly; that misuse emits a runtime `warn` (it can't be
+ * prevented here — the deferral already happened — but it won't pass silently).
  *
  * The deferred slot's ephemeral flag is what makes the error message
  * private; the other two paths pass `flags: Ephemeral` explicitly.
@@ -37,6 +41,15 @@ export async function replyError(
   content: string
 ): Promise<void> {
   if (interaction.deferred && !interaction.replied) {
+    // editReply inherits the deferReply slot's flags. If the caller deferred
+    // non-ephemerally, this error content is about to be publicly visible —
+    // surface the precondition violation rather than leak it silently.
+    if (interaction.ephemeral === false) {
+      logger.warn(
+        { interactionId: interaction.id },
+        'replyError took the deferred path on a non-ephemeral interaction; error content will be publicly visible. Defer with MessageFlags.Ephemeral.'
+      );
+    }
     await interaction.editReply({ content });
   } else if (interaction.replied) {
     await interaction.followUp({ content, flags: MessageFlags.Ephemeral });

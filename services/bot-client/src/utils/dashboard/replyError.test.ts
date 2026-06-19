@@ -7,6 +7,15 @@ import type {
 } from 'discord.js';
 import { replyError } from './replyError.js';
 
+const warnMock = vi.hoisted(() => vi.fn());
+vi.mock('@tzurot/common-types', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+  return {
+    ...actual,
+    createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: warnMock, error: vi.fn() }),
+  };
+});
+
 type AckState = { deferred: boolean; replied: boolean };
 
 function makeInteraction(state: AckState): {
@@ -98,5 +107,44 @@ describe('replyError', () => {
     await replyError(interaction, 'boom');
 
     expect(editReply).toHaveBeenCalledWith({ content: 'boom' });
+  });
+
+  it('warns when the deferred path runs on a non-ephemeral interaction (privacy footgun)', async () => {
+    warnMock.mockClear();
+    const editReply = vi.fn().mockResolvedValue(undefined);
+    const interaction = {
+      deferred: true,
+      replied: false,
+      ephemeral: false, // caller deferred WITHOUT MessageFlags.Ephemeral
+      id: '123456789',
+      editReply,
+      followUp: vi.fn().mockResolvedValue(undefined),
+      reply: vi.fn().mockResolvedValue(undefined),
+    } as unknown as ButtonInteraction;
+
+    await replyError(interaction, 'boom');
+
+    // It still fills the deferred slot (can't un-defer), but flags the misuse.
+    expect(editReply).toHaveBeenCalledWith({ content: 'boom' });
+    expect(warnMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does NOT warn on the deferred path when the interaction is ephemeral', async () => {
+    warnMock.mockClear();
+    const editReply = vi.fn().mockResolvedValue(undefined);
+    const interaction = {
+      deferred: true,
+      replied: false,
+      ephemeral: true,
+      id: '123456789',
+      editReply,
+      followUp: vi.fn().mockResolvedValue(undefined),
+      reply: vi.fn().mockResolvedValue(undefined),
+    } as unknown as ButtonInteraction;
+
+    await replyError(interaction, 'boom');
+
+    expect(editReply).toHaveBeenCalledWith({ content: 'boom' });
+    expect(warnMock).not.toHaveBeenCalled();
   });
 });
