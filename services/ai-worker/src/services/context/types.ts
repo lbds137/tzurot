@@ -13,10 +13,10 @@
  * environment, live channel fetches) stays in the job envelope forever —
  * only bot-client can see Discord.
  *
- * All methods are READ-ONLY. Persona resolution and user upserts are
- * deliberately excluded until the cutover phase — the shadow-verification
- * mode (see shadowHydration.ts) runs against production traffic and must
- * not write.
+ * All methods are READ-ONLY: this is the read seam for DB-derived context
+ * only. Persona resolution and user upserts are deliberately excluded — they
+ * run through their own services (UserService, PersonaResolver, wired into
+ * ContextAssembler), keeping this interface a pure reader.
  */
 
 import type { ConversationMessage, CrossChannelHistoryGroup } from '@tzurot/common-types';
