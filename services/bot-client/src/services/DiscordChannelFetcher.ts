@@ -10,7 +10,6 @@ import {
   createLogger,
   MessageRole,
   MESSAGE_LIMITS,
-  ConversationSyncService,
   computeHistoryCutoff,
   normalizeMessageForContext,
   extractMessagePrefixName,
@@ -499,10 +498,9 @@ export class DiscordChannelFetcher {
   async syncWithDatabase(
     discordMessages: Collection<string, Message>,
     channelId: string,
-    personalityId: string,
-    conversationSync: ConversationSyncService
+    personalityId: string
   ): Promise<SyncResult> {
-    return executeDatabaseSync(discordMessages, channelId, personalityId, conversationSync);
+    return executeDatabaseSync(discordMessages, channelId, personalityId);
   }
 
   /** Wrapper for backward compatibility - delegates to ReactionProcessor */

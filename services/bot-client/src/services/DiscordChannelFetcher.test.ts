@@ -7,6 +7,7 @@ import { Collection, MessageType, MessageReferenceType } from 'discord.js';
 import type { Message, TextChannel } from 'discord.js';
 import { MessageRole } from '@tzurot/common-types';
 import { DiscordChannelFetcher, type FetchableChannel } from './DiscordChannelFetcher.js';
+import { executeDatabaseSync } from './channelFetcher/SyncExecutor.js';
 
 // Mock the logger (keep everything else from actual module)
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -29,6 +30,10 @@ vi.mock('@tzurot/common-types', async importOriginal => {
     },
   };
 });
+
+vi.mock('./channelFetcher/SyncExecutor.js', () => ({
+  executeDatabaseSync: vi.fn().mockResolvedValue({ updated: 0, deleted: 0 }),
+}));
 
 // Mock role interface for testing
 interface MockRole {
@@ -1089,10 +1094,10 @@ describe('DiscordChannelFetcher', () => {
 
   describe('syncWithDatabase', () => {
     // The sync algorithm itself (edit/delete detection, chunk collation,
-    // footer stripping, voice-transcript protection) is tested in
-    // common-types: ConversationSyncService.runSync + conversationSyncDiff.
-    // This test covers only the fetcher's delegation through the adapter.
-    it('delegates to ConversationSyncService.runSync with the observed snapshot', async () => {
+    // footer stripping, voice-transcript protection) is tested in common-types
+    // (conversationSyncDiff). This test covers only the fetcher's delegation.
+    it('delegates the observed snapshot to executeDatabaseSync', async () => {
+      vi.mocked(executeDatabaseSync).mockResolvedValueOnce({ updated: 1, deleted: 2 });
       const createdAt = new Date('2024-01-01T12:00:00Z');
       const discordMessages = new Collection<string, Message>();
       discordMessages.set(
@@ -1100,19 +1105,18 @@ describe('DiscordChannelFetcher', () => {
         createMockMessage({ id: 'discord1', content: 'Hello', createdAt })
       );
 
-      const runSync = vi.fn().mockResolvedValue({ updated: 1, deleted: 2 });
-
       const result = await fetcher.syncWithDatabase(
         discordMessages,
         'channel123',
-        'personality123',
-        { runSync } as never
+        'personality123'
       );
 
       expect(result).toEqual({ updated: 1, deleted: 2 });
-      expect(runSync).toHaveBeenCalledWith('channel123', 'personality123', [
-        { id: 'discord1', content: 'Hello', createdAt },
-      ]);
+      expect(executeDatabaseSync).toHaveBeenCalledWith(
+        discordMessages,
+        'channel123',
+        'personality123'
+      );
     });
   });
 

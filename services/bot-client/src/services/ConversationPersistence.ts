@@ -11,10 +11,7 @@
  */
 
 import {
-  type PrismaClient,
-  ConversationHistoryService,
   createLogger,
-  MessageRole,
   type LoadedPersonality,
   type ReferencedMessage,
   type MessageMetadata,
@@ -26,9 +23,6 @@ import { generateAttachmentPlaceholders } from '../utils/attachmentPlaceholders.
 import { isForwardedMessage } from '../utils/forwardedMessageUtils.js';
 import { buildMessageContent } from '../utils/MessageContentBuilder.js';
 import {
-  dualWritePersistAssistantMessage,
-  dualWritePersistUserMessage,
-  getContextMode,
   persistAssistantMessageViaGateway,
   persistUserMessageViaGateway,
 } from '../utils/contextWritePath.js';
@@ -159,12 +153,6 @@ interface SaveAssistantMessageFromFieldsOptions {
  * Manages conversation history storage and updates
  */
 export class ConversationPersistence {
-  private conversationHistory: ConversationHistoryService;
-
-  constructor(prisma: PrismaClient) {
-    this.conversationHistory = new ConversationHistoryService(prisma);
-  }
-
   /**
    * Save user message with placeholder descriptions
    *
@@ -310,29 +298,9 @@ export class ConversationPersistence {
       messageTime: effectiveTimestamp,
     };
 
-    if (getContextMode() === 'service') {
-      // Service mode: the gateway endpoint IS the write — synchronous before
-      // job submission, so the next message's history query sees this row.
-      // Throws on failure, matching the legacy local write's error semantics.
-      await persistUserMessageViaGateway(writeParams);
-    } else {
-      // Save atomically with placeholder descriptions and structured metadata
-      await this.conversationHistory.addMessage({
-        channelId,
-        personalityId: personality.id,
-        personaId,
-        role: MessageRole.User,
-        content: userMessageContent,
-        guildId,
-        discordMessageId,
-        messageMetadata: metadata,
-        timestamp: effectiveTimestamp,
-      });
-
-      // Legacy-mode burn-in mirror. Fire-and-forget, no-op unless
-      // CONTEXT_DUAL_WRITE=true.
-      void dualWritePersistUserMessage(writeParams);
-    }
+    // The gateway endpoint IS the write — synchronous before job submission, so
+    // the next message's history query always sees this row. Throws on failure.
+    await persistUserMessageViaGateway(writeParams);
 
     logger.debug(
       {
@@ -398,26 +366,8 @@ export class ConversationPersistence {
       userMessageTime,
     };
 
-    if (getContextMode() === 'service') {
-      // Service mode: the gateway endpoint IS the write. Throws on failure,
-      // matching the legacy local write's error semantics.
-      await persistAssistantMessageViaGateway(writeParams);
-    } else {
-      await this.conversationHistory.addMessage({
-        channelId,
-        personalityId: personality.id,
-        personaId,
-        role: MessageRole.Assistant,
-        content,
-        guildId,
-        discordMessageId: chunkMessageIds,
-        timestamp: assistantMessageTime,
-      });
-
-      // Legacy-mode burn-in: mirror to the gateway endpoint for log-only
-      // comparison. Fire-and-forget, no-op unless CONTEXT_DUAL_WRITE=true.
-      void dualWritePersistAssistantMessage(writeParams);
-    }
+    // The gateway endpoint IS the write. Throws on failure.
+    await persistAssistantMessageViaGateway(writeParams);
 
     logger.info({ chunks: chunkMessageIds.length }, 'Saved assistant message');
   }

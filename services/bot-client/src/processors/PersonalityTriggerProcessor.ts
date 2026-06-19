@@ -74,7 +74,7 @@ export class PersonalityTriggerProcessor implements IMessageProcessor {
     //
     // Cold-cache caveat: this may load the same personality up to 3x when
     // reply target + activation + mention all resolve to the same character.
-    // PersonalityIdCache makes this cheap in steady state; SlotResolver's
+    // The routing loader's cache makes this cheap in steady state; SlotResolver's
     // `resolveSlots` dedupes by personality.id downstream so the duplicate
     // resolution doesn't propagate. The duplicated cold-cache fetch is an
     // acceptable cost for keeping the resolvers independent.
