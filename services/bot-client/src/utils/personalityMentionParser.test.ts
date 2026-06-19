@@ -246,6 +246,19 @@ describe('personalityMentionParser', () => {
       expect(result).toHaveLength(1);
       expect(result[0].personality.name).toBe('Lilith');
     });
+
+    it("handles @Lilith's typed with a typographic apostrophe (mobile autocorrect)", async () => {
+      const apos = String.fromCharCode(0x2019); // U+2019 RIGHT SINGLE QUOTATION MARK (not ASCII ')
+      const result = await findPersonalityMentions(
+        `@Lilith${apos}s hello`,
+        '@',
+        mockPersonalityService,
+        TEST_USER_ID
+      );
+
+      expect(result).toHaveLength(1);
+      expect(result[0].personality.name).toBe('Lilith');
+    });
   });
 
   describe('Trailing punctuation', () => {
@@ -266,6 +279,18 @@ describe('personalityMentionParser', () => {
       );
       expect(result).toHaveLength(1);
       expect(result[0].personality.name).toBe(expected);
+    });
+
+    it('strips a trailing typographic double-quote (mobile autocorrect)', async () => {
+      const rdquo = String.fromCharCode(0x201d); // U+201D RIGHT DOUBLE QUOTATION MARK
+      const result = await findPersonalityMentions(
+        `@Lilith${rdquo} hello`,
+        '@',
+        mockPersonalityService,
+        TEST_USER_ID
+      );
+      expect(result).toHaveLength(1);
+      expect(result[0].personality.name).toBe('Lilith');
     });
   });
 
@@ -371,6 +396,18 @@ describe('personalityMentionParser', () => {
     it("matches @O'Reilly", async () => {
       const result = await findPersonalityMentions(
         "@O'Reilly hello",
+        '@',
+        mockPersonalityService,
+        TEST_USER_ID
+      );
+      expect(result).toHaveLength(1);
+      expect(result[0].personality.name).toBe("O'Reilly");
+    });
+
+    it("matches @O'Reilly when typed with a typographic apostrophe", async () => {
+      const apos = String.fromCharCode(0x2019); // U+2019 — normalized to ASCII ' to match the stored name
+      const result = await findPersonalityMentions(
+        `@O${apos}Reilly hello`,
         '@',
         mockPersonalityService,
         TEST_USER_ID
