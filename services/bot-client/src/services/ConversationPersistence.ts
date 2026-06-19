@@ -282,10 +282,9 @@ export class ConversationPersistence {
       metadata.embedsXml = embedsXml;
     }
 
-    // Resolve the timestamp ONCE and pass the same value to both the local
-    // write and the gateway path — the deterministic row UUID derives from
-    // it, so letting each side default to its own new Date() would produce
-    // divergent IDs and false dual-write divergence signals.
+    // Use the Discord post time (falling back to now). The deterministic row
+    // UUID derives from it, so the value must be stable — a fresh new Date()
+    // per write would produce a different id on every retry.
     const effectiveTimestamp = timestamp ?? new Date();
     const writeParams = {
       channelId,
