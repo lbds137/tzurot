@@ -2,10 +2,9 @@
  * HTTP-backed personality loader.
  *
  * Implements IPersonalityLoader over the gateway's internal
- * `GET /api/internal/personality/load` route — the service-mode replacement
- * for the Prisma-backed PersonalityService/PersonalityIdCache stack on
- * bot-client's routing paths (mention parsing, reply resolution, channel
- * activation, multi-tag recovery, /character chat).
+ * `GET /api/internal/personality/load` route — bot-client's loader for the
+ * routing paths (mention parsing, reply resolution, channel activation,
+ * multi-tag recovery, /character chat), keeping Prisma off those paths.
  *
  * Caching is load-bearing here, not an optimization: PersonalityService
  * skips its own cache whenever a userId is present (access control is
@@ -13,9 +12,9 @@
  * that would mean one gateway hop per mention-parse candidate per message.
  * Two cache tiers, keyed by (userId, nameOrId):
  *
- * - **Positive** (5 min): resolved personalities. Same TTL the legacy
- *   PersonalityIdCache tolerates for renames. Config changes invalidate
- *   eagerly via the personality pub/sub channel (see invalidate methods).
+ * - **Positive** (5 min): resolved personalities; a rename is tolerated for up
+ *   to the TTL. Config changes invalidate eagerly via the personality pub/sub
+ *   channel (see invalidate methods).
  * - **Negative** (60 s): definitive misses — the common case during mention
  *   parsing, where most `@word` candidates are not personalities. Shorter
  *   TTL so newly-created or renamed personalities appear quickly. Transport

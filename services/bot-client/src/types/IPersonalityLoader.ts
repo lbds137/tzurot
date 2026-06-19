@@ -1,6 +1,6 @@
 /**
  * Interface for services that can load personalities.
- * Implemented by PersonalityService, PersonalityIdCache, and HttpPersonalityLoader.
+ * Implemented by PersonalityService and HttpPersonalityLoader.
  */
 
 import type { LoadedPersonality } from '@tzurot/common-types';

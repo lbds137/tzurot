@@ -1,40 +1,17 @@
 /**
  * Context write path.
  *
- * Everything governing WHO owns bot-client's Discord-event conversation
- * writes (assistant persist, edit/delete sync) lives here: the CONTEXT_MODE
- * toggle, the authoritative gateway-write helpers used in service mode, and
- * the legacy-mode dual-write mirrors. This module is deleted (along with the
- * legacy path and both flags) once service mode has fully burned in.
+ * The gateway-write helpers for bot-client's Discord-event conversation writes
+ * (user/assistant persist, edit/delete sync). The gateway endpoints ARE the
+ * write path — bot-client performs no local Prisma conversation writes for the
+ * Discord-event surface. Also home to the raw-envelope / thin-payload flag
+ * readers used by the context builder.
  */
 
 import { createLogger, SYNC_LIMITS, type MessageMetadata } from '@tzurot/common-types';
 import { getServiceClient } from './gatewayClients.js';
 
 const logger = createLogger('contextWritePath');
-
-// CONTEXT_MODE governs who owns bot-client's conversation writes:
-//   legacy  (default) — local Prisma writes are authoritative; when
-//                       CONTEXT_DUAL_WRITE=true they're ALSO mirrored to the
-//                       gateway endpoints for log-only comparison (burn-in).
-//   service           — the gateway endpoints ARE the write path; bot-client
-//                       performs no local Prisma conversation writes for the
-//                       Discord-event surface (assistant persist, edit/delete
-//                       sync). Rollback = env flip + restart.
-//
-// The authoritative and mirror paths share the payload builders below so the
-// wire shape cannot drift between them.
-
-export type ContextMode = 'legacy' | 'service';
-
-/** Anything other than the exact string 'service' resolves to legacy. */
-export function getContextMode(env: NodeJS.ProcessEnv = process.env): ContextMode {
-  return env.CONTEXT_MODE === 'service' ? 'service' : 'legacy';
-}
-
-export function isContextDualWriteEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.CONTEXT_DUAL_WRITE === 'true';
-}
 
 /**
  * When true, bot-client attaches `rawAssemblyInputs` (raw Discord-origin
@@ -137,37 +114,6 @@ export async function persistUserMessageViaGateway(params: UserMessageWriteParam
     { id: result.data.id, created: result.data.created, channelId: params.channelId },
     'User message persisted via gateway'
   );
-}
-
-/**
- * Mirror a just-persisted user message to the gateway endpoint (legacy-mode
- * burn-in). Fire-and-forget: never throws. Expected outcome is
- * `created: false, matched: true`; anything else logs as divergence.
- */
-export async function dualWritePersistUserMessage(params: UserMessageWriteParams): Promise<void> {
-  if (!isContextDualWriteEnabled()) {
-    return;
-  }
-  try {
-    const result = await getServiceClient().persistUserMessage(buildUserMessagePayload(params));
-    if (!result.ok) {
-      logger.warn(
-        { status: result.status, channelId: params.channelId },
-        'User-message dual-write request failed'
-      );
-      return;
-    }
-    if (result.data.created || result.data.matched === false) {
-      logger.warn(
-        { ...result.data, channelId: params.channelId },
-        'User-message dual-write DIVERGED from local write'
-      );
-    } else {
-      logger.debug({ id: result.data.id }, 'User-message dual-write matched');
-    }
-  } catch (error) {
-    logger.warn({ err: error, channelId: params.channelId }, 'User-message dual-write error');
-  }
 }
 
 function buildAssistantMessagePayload(params: AssistantMessageWriteParams): {
@@ -281,82 +227,5 @@ export async function syncConversationViaGateway(
   } catch (error) {
     logger.warn({ err: error, channelId }, 'Conversation sync via gateway error');
     return { updated: 0, deleted: 0 };
-  }
-}
-
-/**
- * Mirror a just-persisted assistant message to the gateway endpoint.
- * Fire-and-forget: never throws. Expected outcome is `created: false,
- * matched: true` (the local write landed first with identical data);
- * anything else is logged as a divergence signal.
- */
-export async function dualWritePersistAssistantMessage(
-  params: AssistantMessageWriteParams
-): Promise<void> {
-  if (!isContextDualWriteEnabled()) {
-    return;
-  }
-  try {
-    const result = await getServiceClient().persistAssistantMessage(
-      buildAssistantMessagePayload(params)
-    );
-    if (!result.ok) {
-      logger.warn(
-        { status: result.status, channelId: params.channelId },
-        'Assistant-message dual-write request failed'
-      );
-      return;
-    }
-    if (result.data.created || result.data.matched === false) {
-      // created=true means the local write is missing from the DB (or wrote a
-      // different deterministic id); matched=false means the row content or
-      // chunk IDs differ. Both are burn-in divergence signals.
-      logger.warn(
-        { ...result.data, channelId: params.channelId },
-        'Assistant-message dual-write DIVERGED from local write'
-      );
-    } else {
-      logger.debug({ id: result.data.id }, 'Assistant-message dual-write matched');
-    }
-  } catch (error) {
-    logger.warn({ err: error, channelId: params.channelId }, 'Assistant-message dual-write error');
-  }
-}
-
-/**
- * Mirror an already-applied edit/delete sync snapshot to the gateway
- * endpoint. Fire-and-forget: never throws. The local sync ran first, so the
- * gateway should find zero remaining work — nonzero counts mean the two
- * paths disagreed.
- */
-export async function dualWriteConversationSync(
-  channelId: string,
-  personalityId: string,
-  observedMessages: ObservedSyncSnapshotMessage[]
-): Promise<void> {
-  if (!isContextDualWriteEnabled() || observedMessages.length === 0) {
-    return;
-  }
-  try {
-    const result = await getServiceClient().syncConversation(
-      buildSyncSnapshotPayload(channelId, personalityId, observedMessages)
-    );
-    if (!result.ok) {
-      logger.warn(
-        { status: result.status, channelId },
-        'Conversation-sync dual-write request failed'
-      );
-      return;
-    }
-    if (result.data.updated > 0 || result.data.deleted > 0) {
-      logger.warn(
-        { ...result.data, channelId, personalityId },
-        'Conversation-sync dual-write found work the local sync missed (DIVERGED)'
-      );
-    } else {
-      logger.debug({ channelId }, 'Conversation-sync dual-write matched (zero work)');
-    }
-  } catch (error) {
-    logger.warn({ err: error, channelId }, 'Conversation-sync dual-write error');
   }
 }

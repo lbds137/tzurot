@@ -1,20 +1,15 @@
 /**
  * Database sync executor for DiscordChannelFetcher.
  *
- * Thin discord.js adapter over ConversationSyncService.runSync — maps the
- * fetched message Collection to the plain observed-message shape and
- * delegates. The diff algorithm itself lives in common-types so the
- * api-gateway sync endpoint and this legacy direct path share one
- * implementation.
+ * Maps the fetched Discord message Collection to the plain observed-message
+ * shape and runs edit/delete sync via the gateway endpoint. The diff algorithm
+ * lives in common-types so the api-gateway sync endpoint and bot-client share
+ * one implementation.
  */
 
 import type { Message, Collection } from 'discord.js';
-import type { ConversationSyncService, ObservedSyncMessage } from '@tzurot/common-types';
-import {
-  dualWriteConversationSync,
-  getContextMode,
-  syncConversationViaGateway,
-} from '../../utils/contextWritePath.js';
+import type { ObservedSyncMessage } from '@tzurot/common-types';
+import { syncConversationViaGateway } from '../../utils/contextWritePath.js';
 import type { SyncResult } from './types.js';
 
 /**
@@ -34,27 +29,13 @@ export function toObservedSyncMessages(
 /**
  * Perform opportunistic sync between Discord messages and database.
  */
-export async function executeDatabaseSync(
+export function executeDatabaseSync(
   discordMessages: Collection<string, Message>,
   channelId: string,
-  personalityId: string,
-  conversationSync: ConversationSyncService
+  personalityId: string
 ): Promise<SyncResult> {
   const observed = toObservedSyncMessages(discordMessages);
-
-  if (getContextMode() === 'service') {
-    // Service mode: the gateway endpoint IS the sync path (never throws,
-    // zero counts on failure — same opportunistic contract as runSync).
-    return syncConversationViaGateway(channelId, personalityId, observed);
-  }
-
-  const result = await conversationSync.runSync(channelId, personalityId, observed);
-
-  // Legacy-mode burn-in: replay the same snapshot against the gateway
-  // endpoint for log-only comparison. The local sync just ran, so the
-  // gateway should find zero work. Fire-and-forget, no-op unless
-  // CONTEXT_DUAL_WRITE=true.
-  void dualWriteConversationSync(channelId, personalityId, observed);
-
-  return result;
+  // The gateway endpoint IS the sync path: never throws, zero counts on
+  // failure — opportunistic, same contract as the old local runSync.
+  return syncConversationViaGateway(channelId, personalityId, observed);
 }

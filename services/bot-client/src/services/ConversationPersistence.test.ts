@@ -5,24 +5,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ConversationPersistence } from './ConversationPersistence.js';
 import type { LoadedPersonality, ReferencedMessage } from '@tzurot/common-types';
-import { MessageRole } from '@tzurot/common-types';
 import type { Message } from 'discord.js';
-
-// Mock dependencies
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
-
-  // Define mock class inside the factory
-  class MockConversationHistoryService {
-    addMessage = vi.fn().mockResolvedValue(undefined);
-    updateLastUserMessage = vi.fn().mockResolvedValue(undefined);
-  }
-
-  return {
-    ...actual,
-    ConversationHistoryService: MockConversationHistoryService,
-  };
-});
 
 vi.mock('../utils/attachmentPlaceholders.js', () => ({
   generateAttachmentPlaceholders: vi.fn(attachments => {
@@ -45,38 +28,25 @@ vi.mock('../utils/MessageContentBuilder.js', () => ({
   }),
 }));
 
+// The conversation write IS the gateway endpoint — bot-client performs no
+// local Prisma write for this surface.
 vi.mock('../utils/contextWritePath.js', () => ({
-  dualWritePersistAssistantMessage: vi.fn().mockResolvedValue(undefined),
   persistAssistantMessageViaGateway: vi.fn().mockResolvedValue(undefined),
-  dualWritePersistUserMessage: vi.fn().mockResolvedValue(undefined),
   persistUserMessageViaGateway: vi.fn().mockResolvedValue(undefined),
-  getContextMode: vi.fn(() => 'legacy'),
 }));
 
 import {
-  dualWritePersistAssistantMessage,
   persistAssistantMessageViaGateway,
-  dualWritePersistUserMessage,
   persistUserMessageViaGateway,
-  getContextMode,
 } from '../utils/contextWritePath.js';
 
 describe('ConversationPersistence', () => {
   let persistence: ConversationPersistence;
-  let mockConversationHistory: {
-    addMessage: ReturnType<typeof vi.fn>;
-    updateLastUserMessage: ReturnType<typeof vi.fn>;
-  };
   let mockPersonality: LoadedPersonality;
 
   beforeEach(() => {
     vi.clearAllMocks();
-
-    // Constructor expects PrismaClient but we've mocked ConversationHistoryService
-    persistence = new ConversationPersistence({} as any);
-    mockConversationHistory = (
-      persistence as unknown as { conversationHistory: typeof mockConversationHistory }
-    ).conversationHistory;
+    persistence = new ConversationPersistence();
 
     mockPersonality = {
       id: 'personality-123',
@@ -107,26 +77,22 @@ describe('ConversationPersistence', () => {
         messageContent: 'Hello bot!',
       });
 
-      // New storage format: options object
-      expect(mockConversationHistory.addMessage).toHaveBeenCalledWith({
+      expect(persistUserMessageViaGateway).toHaveBeenCalledWith({
         channelId: 'channel-123',
+        guildId: 'guild-123',
         personalityId: 'personality-123',
         personaId: 'persona-uuid-123',
-        role: MessageRole.User,
         content: 'Hello bot!',
-        guildId: 'guild-123',
         discordMessageId: 'discord-msg-123',
         messageMetadata: undefined, // no references
-        timestamp: expect.any(Date),
+        messageTime: expect.any(Date),
       });
     });
 
     it('should pass Discord message createdAt as the row timestamp', async () => {
-      // Regression test: without this, the user row's createdAt defaulted to
-      // `new Date()` (DB insert time), while the corresponding assistant row
-      // used `userMessageTime + 1ms` (Discord post + 1ms). That made the
-      // assistant's createdAt *earlier* than the user's, reversing every
-      // turn-pair in cross-channel-context output.
+      // Regression test: the row's createdAt must be the Discord post time, not
+      // the DB insert time — otherwise the assistant row (userMessageTime + 1ms)
+      // could predate the user row, reversing the turn-pair ordering.
       const discordPostTime = new Date('2026-05-16T15:42:10.000Z');
       const mockMessage = createMockMessage({
         id: 'discord-msg-timestamp',
@@ -148,8 +114,8 @@ describe('ConversationPersistence', () => {
         messageContent: 'Hi',
       });
 
-      expect(mockConversationHistory.addMessage).toHaveBeenCalledWith(
-        expect.objectContaining({ timestamp: discordPostTime })
+      expect(persistUserMessageViaGateway).toHaveBeenCalledWith(
+        expect.objectContaining({ messageTime: discordPostTime })
       );
     });
 
@@ -167,16 +133,15 @@ describe('ConversationPersistence', () => {
         messageContent: '',
       });
 
-      expect(mockConversationHistory.addMessage).toHaveBeenCalledWith({
+      expect(persistUserMessageViaGateway).toHaveBeenCalledWith({
         channelId: 'channel-123',
+        guildId: null,
         personalityId: 'personality-123',
         personaId: 'persona-uuid-123',
-        role: MessageRole.User,
         content: '[no text content]',
-        guildId: null,
         discordMessageId: 'discord-msg-123',
         messageMetadata: undefined,
-        timestamp: expect.any(Date),
+        messageTime: expect.any(Date),
       });
     });
 
@@ -197,16 +162,15 @@ describe('ConversationPersistence', () => {
         attachments,
       });
 
-      expect(mockConversationHistory.addMessage).toHaveBeenCalledWith({
+      expect(persistUserMessageViaGateway).toHaveBeenCalledWith({
         channelId: 'channel-123',
+        guildId: 'guild-123',
         personalityId: 'personality-123',
         personaId: 'persona-uuid-123',
-        role: MessageRole.User,
         content: 'Check this image\n\n[Placeholder: 1 attachment(s)]',
-        guildId: 'guild-123',
         discordMessageId: 'discord-msg-123',
         messageMetadata: undefined, // no references
-        timestamp: expect.any(Date),
+        messageTime: expect.any(Date),
       });
     });
 
@@ -239,14 +203,13 @@ describe('ConversationPersistence', () => {
         referencedMessages,
       });
 
-      // Content should NOT contain references - they go in messageMetadata
-      expect(mockConversationHistory.addMessage).toHaveBeenCalledWith({
+      // Content should NOT contain references — they go in messageMetadata
+      expect(persistUserMessageViaGateway).toHaveBeenCalledWith({
         channelId: 'channel-123',
+        guildId: 'guild-123',
         personalityId: 'personality-123',
         personaId: 'persona-uuid-123',
-        role: MessageRole.User,
         content: 'Replying to [Reference 1]', // Just the text, no reference content
-        guildId: 'guild-123',
         discordMessageId: 'discord-msg-123',
         messageMetadata: {
           referencedMessages: [
@@ -263,7 +226,7 @@ describe('ConversationPersistence', () => {
             },
           ],
         },
-        timestamp: expect.any(Date),
+        messageTime: expect.any(Date),
       });
     });
 
@@ -284,16 +247,15 @@ describe('ConversationPersistence', () => {
         messageContent: 'Forwarded content',
       });
 
-      expect(mockConversationHistory.addMessage).toHaveBeenCalledWith({
+      expect(persistUserMessageViaGateway).toHaveBeenCalledWith({
         channelId: 'channel-123',
+        guildId: 'guild-123',
         personalityId: 'personality-123',
         personaId: 'persona-uuid-123',
-        role: MessageRole.User,
         content: 'Forwarded content',
-        guildId: 'guild-123',
         discordMessageId: 'discord-msg-fwd',
         messageMetadata: { isForwarded: true },
-        timestamp: expect.any(Date),
+        messageTime: expect.any(Date),
       });
     });
 
@@ -324,7 +286,7 @@ describe('ConversationPersistence', () => {
         messageContent: 'Forwarded with embeds',
       });
 
-      expect(mockConversationHistory.addMessage).toHaveBeenCalledWith(
+      expect(persistUserMessageViaGateway).toHaveBeenCalledWith(
         expect.objectContaining({
           messageMetadata: {
             isForwarded: true,
@@ -361,7 +323,7 @@ describe('ConversationPersistence', () => {
         messageContent: 'Check out this link',
       });
 
-      expect(mockConversationHistory.addMessage).toHaveBeenCalledWith(
+      expect(persistUserMessageViaGateway).toHaveBeenCalledWith(
         expect.objectContaining({
           messageMetadata: { embedsXml: ['<embed title="Link Preview">Some content</embed>'] },
         })
@@ -421,78 +383,21 @@ describe('ConversationPersistence', () => {
       });
 
       // Attachments go in content (as placeholders), references go in metadata
-      expect(mockConversationHistory.addMessage).toHaveBeenCalledWith({
+      expect(persistUserMessageViaGateway).toHaveBeenCalledWith({
         channelId: 'channel-123',
+        guildId: 'guild-123',
         personalityId: 'personality-123',
         personaId: 'persona-uuid-123',
-        role: MessageRole.User,
         content: 'Image with reference\n\n[Placeholder: 1 attachment(s)]', // Attachments in content
-        guildId: 'guild-123',
         discordMessageId: 'discord-msg-123',
         messageMetadata: {
           referencedMessages: expect.any(Array), // References in metadata
         },
-        timestamp: expect.any(Date),
+        messageTime: expect.any(Date),
       });
     });
-  });
 
-  describe('saveUserMessage context-mode routing', () => {
-    it('legacy mode: fires the dual-write mirror with the SAME timestamp the local write used', async () => {
-      const mockMessage = createMockMessage({
-        id: 'discord-msg-123',
-        channelId: 'channel-123',
-        guildId: 'guild-123',
-      });
-
-      await persistence.saveUserMessage({
-        message: mockMessage,
-        personality: mockPersonality,
-        personaId: 'persona-uuid-123',
-        messageContent: 'Hello bot!',
-      });
-
-      expect(dualWritePersistUserMessage).toHaveBeenCalledTimes(1);
-      const mirrorParams = vi.mocked(dualWritePersistUserMessage).mock.calls[0][0];
-      const localCall = mockConversationHistory.addMessage.mock.calls[0][0];
-      // The deterministic row id derives from this timestamp — both paths
-      // must share one resolved value or dual-write produces false divergence.
-      expect(mirrorParams.messageTime).toBe(localCall.timestamp);
-      expect(persistUserMessageViaGateway).not.toHaveBeenCalled();
-    });
-
-    it('service mode: the gateway write is authoritative and the local write is skipped', async () => {
-      vi.mocked(getContextMode).mockReturnValueOnce('service');
-      const mockMessage = createMockMessage({
-        id: 'discord-msg-123',
-        channelId: 'channel-123',
-        guildId: 'guild-123',
-      });
-
-      await persistence.saveUserMessage({
-        message: mockMessage,
-        personality: mockPersonality,
-        personaId: 'persona-uuid-123',
-        messageContent: 'Hello bot!',
-      });
-
-      expect(persistUserMessageViaGateway).toHaveBeenCalledWith(
-        expect.objectContaining({
-          channelId: 'channel-123',
-          guildId: 'guild-123',
-          personalityId: 'personality-123',
-          personaId: 'persona-uuid-123',
-          content: 'Hello bot!',
-          discordMessageId: 'discord-msg-123',
-          messageTime: expect.any(Date),
-        })
-      );
-      expect(mockConversationHistory.addMessage).not.toHaveBeenCalled();
-      expect(dualWritePersistUserMessage).not.toHaveBeenCalled();
-    });
-
-    it('service mode: gateway write failures propagate to the caller', async () => {
-      vi.mocked(getContextMode).mockReturnValueOnce('service');
+    it('propagates gateway write failures to the caller', async () => {
       vi.mocked(persistUserMessageViaGateway).mockRejectedValueOnce(new Error('gateway down'));
       const mockMessage = createMockMessage({
         id: 'discord-msg-123',
@@ -512,74 +417,13 @@ describe('ConversationPersistence', () => {
   });
 
   describe('saveAssistantMessage', () => {
-    it('should save assistant message with correct timestamp', async () => {
+    it('sends userMessageTime to the gateway (the +1ms assistant time is derived gateway-side)', async () => {
       const mockMessage = createMockMessage({
         id: 'discord-msg-123',
         channelId: 'channel-123',
         guildId: 'guild-123',
       });
 
-      const userMessageTime = new Date('2025-01-01T10:00:00.000Z');
-      const expectedAssistantTime = new Date('2025-01-01T10:00:00.001Z');
-
-      await persistence.saveAssistantMessage({
-        message: mockMessage,
-        personality: mockPersonality,
-        personaId: 'persona-uuid-123',
-        content: 'Assistant response',
-        chunkMessageIds: ['chunk-1'],
-        userMessageTime,
-      });
-
-      expect(mockConversationHistory.addMessage).toHaveBeenCalledWith({
-        channelId: 'channel-123',
-        personalityId: 'personality-123',
-        personaId: 'persona-uuid-123',
-        role: MessageRole.Assistant,
-        content: 'Assistant response',
-        guildId: 'guild-123',
-        discordMessageId: ['chunk-1'],
-        timestamp: expectedAssistantTime,
-      });
-    });
-
-    it('fires the dual-write mirror with the original userMessageTime after the local save', async () => {
-      const mockMessage = createMockMessage({
-        id: 'discord-msg-123',
-        channelId: 'channel-123',
-        guildId: 'guild-123',
-      });
-      const userMessageTime = new Date('2025-01-01T10:00:00.000Z');
-
-      await persistence.saveAssistantMessage({
-        message: mockMessage,
-        personality: mockPersonality,
-        personaId: 'persona-uuid-123',
-        content: 'Assistant response',
-        chunkMessageIds: ['chunk-1'],
-        userMessageTime,
-      });
-
-      // The helper receives userMessageTime, NOT the +1ms assistant time —
-      // the gateway derives the +1ms itself.
-      expect(dualWritePersistAssistantMessage).toHaveBeenCalledWith({
-        channelId: 'channel-123',
-        guildId: 'guild-123',
-        personalityId: 'personality-123',
-        personaId: 'persona-uuid-123',
-        content: 'Assistant response',
-        chunkMessageIds: ['chunk-1'],
-        userMessageTime,
-      });
-    });
-
-    it('service mode: the gateway write is authoritative and the local write is skipped', async () => {
-      vi.mocked(getContextMode).mockReturnValueOnce('service');
-      const mockMessage = createMockMessage({
-        id: 'discord-msg-123',
-        channelId: 'channel-123',
-        guildId: 'guild-123',
-      });
       const userMessageTime = new Date('2025-01-01T10:00:00.000Z');
 
       await persistence.saveAssistantMessage({
@@ -600,12 +444,9 @@ describe('ConversationPersistence', () => {
         chunkMessageIds: ['chunk-1'],
         userMessageTime,
       });
-      expect(mockConversationHistory.addMessage).not.toHaveBeenCalled();
-      expect(dualWritePersistAssistantMessage).not.toHaveBeenCalled();
     });
 
-    it('service mode: gateway write failures propagate to the caller', async () => {
-      vi.mocked(getContextMode).mockReturnValueOnce('service');
+    it('propagates gateway write failures to the caller', async () => {
       vi.mocked(persistAssistantMessageViaGateway).mockRejectedValueOnce(new Error('gateway down'));
       const mockMessage = createMockMessage({
         id: 'discord-msg-123',
@@ -643,15 +484,14 @@ describe('ConversationPersistence', () => {
         userMessageTime,
       });
 
-      expect(mockConversationHistory.addMessage).toHaveBeenCalledWith({
+      expect(persistAssistantMessageViaGateway).toHaveBeenCalledWith({
         channelId: 'channel-123',
+        guildId: 'guild-123',
         personalityId: 'personality-123',
         personaId: 'persona-uuid-123',
-        role: MessageRole.Assistant,
         content: 'Long response that was chunked',
-        guildId: 'guild-123',
-        discordMessageId: ['chunk-1', 'chunk-2', 'chunk-3'],
-        timestamp: expect.any(Date),
+        chunkMessageIds: ['chunk-1', 'chunk-2', 'chunk-3'],
+        userMessageTime,
       });
     });
 
@@ -662,18 +502,16 @@ describe('ConversationPersistence', () => {
         guildId: 'guild-123',
       });
 
-      const userMessageTime = new Date('2025-01-01T10:00:00.000Z');
-
       await persistence.saveAssistantMessage({
         message: mockMessage,
         personality: mockPersonality,
         personaId: 'persona-uuid-123',
         content: 'Response',
         chunkMessageIds: [],
-        userMessageTime,
+        userMessageTime: new Date('2025-01-01T10:00:00.000Z'),
       });
 
-      expect(mockConversationHistory.addMessage).not.toHaveBeenCalled();
+      expect(persistAssistantMessageViaGateway).not.toHaveBeenCalled();
     });
 
     it('should handle DM channels (no guild)', async () => {
@@ -694,15 +532,14 @@ describe('ConversationPersistence', () => {
         userMessageTime,
       });
 
-      expect(mockConversationHistory.addMessage).toHaveBeenCalledWith({
+      expect(persistAssistantMessageViaGateway).toHaveBeenCalledWith({
         channelId: 'dm-channel-123',
+        guildId: null,
         personalityId: 'personality-123',
         personaId: 'persona-uuid-123',
-        role: MessageRole.Assistant,
         content: 'DM response',
-        guildId: null,
-        discordMessageId: ['chunk-1'],
-        timestamp: expect.any(Date),
+        chunkMessageIds: ['chunk-1'],
+        userMessageTime,
       });
     });
   });

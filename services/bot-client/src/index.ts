@@ -50,10 +50,7 @@ import { SlotDeliveryService } from './services/SlotDeliveryService.js';
 import { MultiTagCoordinator } from './services/MultiTagCoordinator.js';
 import type { MultiTagPersistence } from './services/MultiTagPersistence.js';
 import type { MultiTagRecovery } from './services/MultiTagRecovery.js';
-import { PersonalityIdCache } from './services/PersonalityIdCache.js';
 import { HttpPersonalityLoader } from './services/HttpPersonalityLoader.js';
-import { getContextMode } from './utils/contextWritePath.js';
-import type { IPersonalityLoader } from './types/IPersonalityLoader.js';
 import { DenylistCache } from './services/DenylistCache.js';
 import { DMCacheWarmer } from './services/DMCacheWarmer.js';
 import { StartupDMPrewarmer } from './services/StartupDMPrewarmer.js';
@@ -207,26 +204,18 @@ function createServices(): Services {
   // Shared services (used by multiple processors)
   const personalityService = new PersonalityService(prisma);
   const conversationHistoryService = new ConversationHistoryService(prisma);
-  const personalityIdCache = new PersonalityIdCache(personalityService); // Optimizes name→ID lookups
   const userService = new UserService(prisma);
 
-  // Routing-read loader: in service mode, personality
-  // resolution for routing (mention parsing, reply resolution, activation,
-  // multi-tag recovery, /character chat) goes through the gateway's internal
-  // endpoint with positive/negative caching instead of direct Prisma. The two
-  // legacy variables preserve today's wiring exactly: some sites get the
-  // name→ID cache wrapper, others the raw service.
-  const httpPersonalityLoader = getContextMode() === 'service' ? new HttpPersonalityLoader() : null;
-  // Legacy fallback: PersonalityIdCache wrapping PersonalityService (extra name→ID cache layer).
-  const routingLoaderCached: IPersonalityLoader = httpPersonalityLoader ?? personalityIdCache;
-  // Legacy fallback: raw PersonalityService ("direct" = no wrapper; it still has its own TTL cache).
-  const routingLoaderDirect: IPersonalityLoader = httpPersonalityLoader ?? personalityService;
+  // Routing-read loader: personality resolution for routing (mention parsing,
+  // reply resolution, activation, multi-tag recovery, /character chat) goes
+  // through the gateway's internal endpoint with positive/negative caching
+  // instead of direct Prisma.
+  const routingPersonalityLoader = new HttpPersonalityLoader();
 
-  // Pub/sub invalidation drives whichever cache is live for routing: the
-  // HTTP loader's tiers in service mode, PersonalityService's cache in legacy.
+  // Pub/sub invalidation drives the HTTP loader's cache tiers for routing.
   const cacheInvalidationService = new CacheInvalidationService(
     cacheRedis,
-    httpPersonalityLoader ?? personalityService
+    routingPersonalityLoader
   );
 
   // Persona resolution with proper cache invalidation via Redis pub/sub
@@ -251,10 +240,10 @@ function createServices(): Services {
   // Message handling services
   const responseSender = new DiscordResponseSender(webhookManager);
   const contextBuilder = new MessageContextBuilder(prisma, personaResolver, denylistCache);
-  const persistence = new ConversationPersistence(prisma);
+  const persistence = new ConversationPersistence();
   const voiceTranscription = new VoiceTranscriptionService();
   const referenceEnricher = new ReferenceEnrichmentService(userService, personaResolver);
-  const replyResolver = new ReplyResolutionService(routingLoaderCached);
+  const replyResolver = new ReplyResolutionService(routingPersonalityLoader);
 
   // Personality chat pipeline (manager + Discord-shape adapter).
   const { personalityChatManager, personalityHandler } = buildPersonalityChatPipeline({
@@ -295,7 +284,7 @@ function createServices(): Services {
     jobTracker,
     orderingService: responseOrderingService,
     slotDelivery,
-    personalityService: routingLoaderDirect,
+    personalityService: routingPersonalityLoader,
     personaResolver,
     discordClient: client,
     recoveryQueue: multiTagRecoveryQueue,
@@ -315,7 +304,7 @@ function createServices(): Services {
   const messageHandler = buildMessageHandler({
     denylistCache,
     voiceTranscription,
-    personalityLoader: routingLoaderCached,
+    personalityLoader: routingPersonalityLoader,
     replyResolver,
     personalityHandler,
     multiTagPersistence,
@@ -324,7 +313,7 @@ function createServices(): Services {
     jobTracker,
     slotDelivery,
     coordinator: multiTagCoordinator,
-    personalityService: routingLoaderDirect,
+    personalityService: routingPersonalityLoader,
     client,
   });
 
@@ -332,7 +321,7 @@ function createServices(): Services {
   registerServices({
     jobTracker,
     webhookManager,
-    personalityService: routingLoaderDirect,
+    personalityService: routingPersonalityLoader,
     conversationHistoryService,
     personaResolver,
     channelActivationCacheInvalidationService,
