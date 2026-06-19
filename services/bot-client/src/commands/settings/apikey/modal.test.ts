@@ -63,6 +63,7 @@ describe('handleApikeyModalSubmit', () => {
       },
       reply: mockReply,
       editReply: mockEditReply,
+      followUp: vi.fn().mockResolvedValue(undefined),
       deferred: false,
       replied: false,
     };

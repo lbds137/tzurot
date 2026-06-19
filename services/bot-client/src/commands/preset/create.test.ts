@@ -90,6 +90,7 @@ describe('Preset Create', () => {
         channelId: 'channel-123',
         deferReply: vi.fn(),
         editReply: vi.fn().mockResolvedValue({ id: 'message-123' }),
+        followUp: vi.fn().mockResolvedValue(undefined),
         deferred: true,
         replied: false,
         fields: {
