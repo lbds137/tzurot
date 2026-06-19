@@ -45,6 +45,29 @@ vi.mock('./pipeline/steps/diagnosticStorage.js', () => ({
   storeDiagnosticLog: vi.fn(),
 }));
 
+// ContextStep is unit-tested separately (ContextStep.test.ts). Here it's stubbed
+// to a pass-through that produces an empty preparedContext, so this handler test
+// exercises orchestration (deps, RAG, response shaping) rather than the
+// envelope-assembly internals — and the legacy-shaped fixture jobs don't need to
+// satisfy the kind:'envelope' contract the real step now enforces.
+vi.mock('./pipeline/steps/ContextStep.js', () => ({
+  ContextStep: class {
+    readonly name = 'ContextPreparation';
+    process(context: GenerationContext): Promise<GenerationContext> {
+      return Promise.resolve({
+        ...context,
+        preparedContext: {
+          conversationHistory: [],
+          rawConversationHistory: [],
+          oldestHistoryTimestamp: undefined,
+          participants: [],
+          crossChannelHistory: undefined,
+        },
+      });
+    }
+  },
+}));
+
 // Import mocked modules
 import { redisService } from '../../redis.js';
 import { extractParticipants, convertConversationHistory } from '../utils/conversationUtils.js';
@@ -864,171 +887,6 @@ describe('LLMGenerationHandler', () => {
         // technicalMessage is what surfaces in the spoiler tag — verify the
         // underlying error reaches the user-visible diagnostic.
         expect(result.errorInfo?.technicalMessage).toContain('rate limited');
-      });
-    });
-
-    describe('conversation history processing', () => {
-      it('should extract participants from conversation history', async () => {
-        const jobData = createValidJobData({
-          context: {
-            userId: 'user-456',
-            userName: 'TestUser',
-            channelId: 'channel-789',
-            conversationHistory: [
-              {
-                role: 'user' as any,
-                content: 'Hello',
-                personaId: 'persona-1',
-                personaName: 'Alice',
-              },
-              {
-                role: 'assistant' as any,
-                content: 'Hi there',
-              },
-            ],
-          },
-        });
-        const job = { id: 'job-participants', data: jobData } as Job<LLMGenerationJobData>;
-
-        await handler.processJob(job);
-
-        expect(mockExtractParticipants).toHaveBeenCalledWith(
-          jobData.context.conversationHistory,
-          undefined, // activePersonaId
-          undefined // activePersonaName
-        );
-      });
-
-      it('should convert conversation history to BaseMessage format', async () => {
-        const jobData = createValidJobData({
-          context: {
-            userId: 'user-456',
-            userName: 'TestUser',
-            channelId: 'channel-789',
-            conversationHistory: [{ role: 'user' as any, content: 'Test message' }],
-          },
-        });
-        const job = { id: 'job-convert', data: jobData } as Job<LLMGenerationJobData>;
-
-        await handler.processJob(job);
-
-        expect(mockConvertConversationHistory).toHaveBeenCalledWith(
-          jobData.context.conversationHistory,
-          'TestBot' // personality name
-        );
-      });
-
-      it('should calculate oldest history timestamp for LTM deduplication', async () => {
-        const jobData = createValidJobData({
-          context: {
-            userId: 'user-456',
-            userName: 'TestUser',
-            channelId: 'channel-789',
-            conversationHistory: [
-              { role: 'user' as any, content: 'First', createdAt: '2025-01-01T10:00:00Z' },
-              { role: 'assistant' as any, content: 'Response', createdAt: '2025-01-01T10:01:00Z' },
-              { role: 'user' as any, content: 'Second', createdAt: '2025-01-01T10:02:00Z' },
-            ],
-          },
-        });
-        const job = { id: 'job-timestamp', data: jobData } as Job<LLMGenerationJobData>;
-
-        await handler.processJob(job);
-
-        // Should pass oldestHistoryTimestamp to RAG service
-        expect(mockRAGService.generateResponse).toHaveBeenCalledWith(
-          expect.any(Object),
-          expect.any(String),
-          expect.objectContaining({
-            oldestHistoryTimestamp: new Date('2025-01-01T10:00:00Z').getTime(),
-          }),
-          expect.objectContaining({
-            userApiKey: undefined,
-            isGuestMode: false,
-          })
-        );
-      });
-
-      it('should add mentioned personas to participants when not already present', async () => {
-        const jobData = createValidJobData({
-          context: {
-            userId: 'user-456',
-            userName: 'TestUser',
-            channelId: 'channel-789',
-            activePersonaId: 'active-persona-id',
-            activePersonaName: 'ActiveUser',
-            conversationHistory: [],
-            mentionedPersonas: [
-              { personaId: 'mentioned-persona-1', personaName: 'MentionedUser1' },
-              { personaId: 'mentioned-persona-2', personaName: 'MentionedUser2' },
-            ],
-          },
-        });
-        const job = { id: 'job-mentioned', data: jobData } as Job<LLMGenerationJobData>;
-
-        // extractParticipants returns just the active user initially
-        mockExtractParticipants.mockReturnValue([
-          { personaId: 'active-persona-id', personaName: 'ActiveUser', isActive: true },
-        ]);
-
-        await handler.processJob(job);
-
-        // Verify mentioned personas are added with isActive: false
-        expect(mockRAGService.generateResponse).toHaveBeenCalledWith(
-          expect.any(Object),
-          expect.any(String),
-          expect.objectContaining({
-            participants: expect.arrayContaining([
-              { personaId: 'active-persona-id', personaName: 'ActiveUser', isActive: true },
-              { personaId: 'mentioned-persona-1', personaName: 'MentionedUser1', isActive: false },
-              { personaId: 'mentioned-persona-2', personaName: 'MentionedUser2', isActive: false },
-            ]),
-          }),
-          expect.objectContaining({
-            userApiKey: undefined,
-            isGuestMode: false,
-          })
-        );
-      });
-
-      it('should not duplicate mentioned personas that are already in participants', async () => {
-        const jobData = createValidJobData({
-          context: {
-            userId: 'user-456',
-            userName: 'TestUser',
-            channelId: 'channel-789',
-            activePersonaId: 'active-persona-id',
-            activePersonaName: 'ActiveUser',
-            conversationHistory: [],
-            mentionedPersonas: [
-              { personaId: 'active-persona-id', personaName: 'ActiveUser' }, // Already in participants
-              { personaId: 'new-persona-id', personaName: 'NewUser' },
-            ],
-          },
-        });
-        const job = { id: 'job-no-dup', data: jobData } as Job<LLMGenerationJobData>;
-
-        // extractParticipants already includes the active user
-        mockExtractParticipants.mockReturnValue([
-          { personaId: 'active-persona-id', personaName: 'ActiveUser', isActive: true },
-        ]);
-
-        await handler.processJob(job);
-
-        // Should have exactly 2 participants (no duplicate)
-        const call = mockRAGService.generateResponse.mock.calls[0];
-        const ragContext = call[2];
-        expect(ragContext.participants).toHaveLength(2);
-        expect(ragContext.participants).toContainEqual({
-          personaId: 'active-persona-id',
-          personaName: 'ActiveUser',
-          isActive: true,
-        });
-        expect(ragContext.participants).toContainEqual({
-          personaId: 'new-persona-id',
-          personaName: 'NewUser',
-          isActive: false,
-        });
       });
     });
 

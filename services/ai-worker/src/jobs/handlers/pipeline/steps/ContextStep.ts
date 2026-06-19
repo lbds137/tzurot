@@ -10,7 +10,6 @@ import {
   extractParticipants,
   convertConversationHistory,
 } from '../../../utils/conversationUtils.js';
-import { isAssemblyPromoteEnabled } from '../../../../services/context/contextFlags.js';
 import type {
   AssembledCore,
   ContextAssembler,
@@ -104,15 +103,6 @@ export class ContextStep implements IPipelineStep {
 
   constructor(private readonly contextAssembler?: ContextAssembler) {}
 
-  /**
-   * Resolved once per step instance (pipeline is built at startup; the flag
-   * only changes via a redeploy, so a per-job process.env read buys nothing).
-   * When true, the prompt context is built from the ContextAssembler instead
-   * of the bot's legacy payload. Effective only when the job also carries
-   * `rawAssemblyInputs` and an assembler is wired.
-   */
-  private readonly promoteEnabled = isAssemblyPromoteEnabled();
-
   async process(context: GenerationContext): Promise<GenerationContext> {
     const { job, config } = context;
     const { personality, context: jobContext } = job.data;
@@ -121,8 +111,8 @@ export class ContextStep implements IPipelineStep {
       throw new Error('[ContextStep] ConfigStep must run before ContextStep');
     }
 
-    const promoted = this.resolvePromoted(jobContext);
-    const historyEntries = await this.sourceHistory(context, promoted);
+    this.assertEnvelopeJob(jobContext);
+    const historyEntries = await this.sourceHistory(context);
 
     // Calculate oldest timestamp from conversation history AND referenced messages
     // (for LTM deduplication - prevents verbatim repetition when replying to AI messages)
@@ -228,58 +218,38 @@ export class ContextStep implements IPipelineStep {
   }
 
   /**
-   * Decide whether to build the prompt from the worker-side assembler. Two
-   * ways in:
-   *  - mustAssemble: a `kind: 'envelope'` job — the producer DROPPED the legacy
-   *    fields, so there is nothing to fall back to. Assemble regardless of the
-   *    promote flag, and fail loud if no assembler is wired.
-   *  - canPromote: a TRANSITIONAL fat-envelope job (envelope present, kind still
-   *    'legacy'/absent) — gated on CONTEXT_ASSEMBLY_PROMOTE so the flag-driven
-   *    reversibility holds for these.
-   * `kind` is read with `?? 'legacy'`: ValidationStep discards its parsed copy,
-   * so the schema default never materializes on the raw job.data.
+   * Every job is a `kind: 'envelope'` thin payload — the producer dropped the
+   * legacy fields, so worker-side assembly is the only path. A non-envelope job
+   * is a contract violation (a producer predating the cutover); fail loud
+   * rather than silently mis-assemble. `kind` is read with `?? 'legacy'`
+   * because ValidationStep discards its parsed copy, so the schema default
+   * never materializes on the raw job.data.
    */
-  private resolvePromoted(jobContext: GenerationContext['job']['data']['context']): boolean {
-    // rawAssemblyInputs presence on the mustAssemble path is guaranteed by the
-    // llmGenerationContextSchema superRefine (envelope ⇒ rawAssemblyInputs).
-    // ValidationStep parses before ContextStep runs, so a kind:'envelope' job
-    // without the inputs would already have failed the job — hence no guard
-    // here (unlike canPromote, which checks it defensively for legacy jobs).
-    const mustAssemble = (jobContext.kind ?? 'legacy') === 'envelope';
-    if (mustAssemble && this.contextAssembler === undefined) {
+  private assertEnvelopeJob(jobContext: GenerationContext['job']['data']['context']): void {
+    if ((jobContext.kind ?? 'legacy') !== 'envelope') {
       throw new Error(
-        "[ContextStep] context.kind 'envelope' requires a wired ContextAssembler; " +
-          'the producer dropped the legacy fields, so there is no fallback'
+        "[ContextStep] every job must carry context.kind 'envelope'; legacy job " +
+          'shapes are no longer supported (producer must ship the raw envelope)'
       );
     }
-    const canPromote =
-      this.promoteEnabled &&
-      jobContext.rawAssemblyInputs !== undefined &&
-      this.contextAssembler !== undefined;
-    return mustAssemble || canPromote;
+    if (this.contextAssembler === undefined) {
+      throw new Error("[ContextStep] context.kind 'envelope' requires a wired ContextAssembler");
+    }
   }
 
   /**
-   * Source the prompt's conversation history. In promoted mode the
-   * worker-assembled context replaces the bot's legacy payload: `historyEntries`
-   * comes from the assembler (createdAt normalized Date → ISO for the
-   * string-typed consumers), and the assembled surfaces are applied onto
-   * jobContext by {@link applyAssembledContext}. The bot still ships these
-   * legacy fields, so the promotion is reversible by flag; once the legacy
-   * fallback is removed the in-place application becomes the only path.
+   * Source the prompt's conversation history from the worker-side assembler:
+   * `historyEntries` comes from `assembleCore` (createdAt normalized Date → ISO
+   * for the string-typed consumers), and the assembled surfaces are applied
+   * onto jobContext by {@link applyAssembledContext} so the downstream
+   * conversationContextBuilder reads them. The assembler is guaranteed wired by
+   * {@link assertEnvelopeJob}, run earlier in {@link process}.
    */
-  private async sourceHistory(
-    context: GenerationContext,
-    promoted: boolean
-  ): Promise<PromptHistorySource> {
+  private async sourceHistory(context: GenerationContext): Promise<PromptHistorySource> {
     const { job } = context;
     const jobContext = job.data.context;
-    const assembler = this.contextAssembler;
-    if (!promoted || assembler === undefined) {
-      // The `assembler === undefined` arm is unreachable when promoted (the
-      // caller's gate already required it) — it just narrows the type here.
-      return jobContext.conversationHistory ?? [];
-    }
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- assertEnvelopeJob (run in process() before this) throws when the assembler is unwired
+    const assembler = this.contextAssembler!;
 
     const assembled = await assembler.assembleCore(
       jobContext,
@@ -289,10 +259,10 @@ export class ContextStep implements IPipelineStep {
     );
     applyAssembledContext(job, assembled);
 
-    // Permanent observability: which path drove this prompt. Counts + kind
-    // only — NO content/PII (per the no-PII logging rule). Without this, the
-    // promoted path is silent and "did the assembler run?" can only be answered
-    // by archaeology through the prisma query log.
+    // Permanent observability: counts + kind only — NO content/PII (per the
+    // no-PII logging rule). Without this, the assembly is silent and "did the
+    // assembler run?" can only be answered by archaeology through the prisma
+    // query log.
     logger.info(
       {
         jobId: job.id,
@@ -302,7 +272,7 @@ export class ContextStep implements IPipelineStep {
         mentionedCount: assembled.mentionedPersonas?.length ?? 0,
         crossChannelGroups: assembled.crossChannelHistory?.length ?? 0,
       },
-      'Context assembled via promoted path'
+      'Context assembled'
     );
 
     return assembled.history.map(m => ({

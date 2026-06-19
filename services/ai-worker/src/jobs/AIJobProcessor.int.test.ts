@@ -2,17 +2,18 @@
  * Component Test: AIJobProcessor
  *
  * Tests the AI job processing pipeline with:
- * - REAL: Prisma DB, conversation history queries, result persistence
- * - MOCKED: ConversationalRAGService (AI provider)
+ * - REAL: Prisma DB (PGlite), result persistence, Redis publishing path
+ * - MOCKED: ConversationalRAGService (AI provider); ContextStep (the
+ *   envelope-assembly step, unit-tested in ContextStep.test.ts) — stubbed to a
+ *   pass-through so these fixtures don't need to satisfy the kind:'envelope'
+ *   contract the real step enforces, and so the assembler's own prisma
+ *   singleton isn't exercised against this PGlite harness.
  *
  * This verifies the critical path:
  * Job routing → Processing → DB persistence → Redis publishing
  *
- * WHY THIS IS CRITICAL FOR PHASE 0:
- * - Phase 1 will refactor the database schema extensively
- * - AIJobProcessor is the core service that processes all AI jobs
- * - These tests catch breaking changes in job processing logic
- * - Ensures result persistence and async delivery patterns work correctly
+ * AIJobProcessor is the core service that processes all AI jobs; these tests
+ * catch breaking changes in routing, result persistence, and async delivery.
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
@@ -21,13 +22,13 @@ import type { ConversationalRAGService } from '../services/ConversationalRAGServ
 import type { RAGResponse } from '../services/ConversationalRAGTypes.js';
 import {
   JobType,
-  MessageRole,
   type LLMGenerationJobData,
   generateSystemPromptUuid,
   generatePersonalityUuid,
   generatePersonaUuid,
   generateUserUuid,
 } from '@tzurot/common-types';
+import type { GenerationContext } from './handlers/pipeline/types.js';
 import type { Job } from 'bullmq';
 import { PrismaClient } from '@tzurot/common-types';
 import type { PGlite } from '@electric-sql/pglite';
@@ -45,6 +46,30 @@ vi.mock('../redis.js', () => ({
 // Mock cleanup function to avoid background processing during tests
 vi.mock('./CleanupJobResults.js', () => ({
   cleanupOldJobResults: vi.fn().mockResolvedValue(undefined),
+}));
+
+// ContextStep is unit-tested separately (ContextStep.test.ts). Here it's stubbed
+// to a pass-through that produces an empty preparedContext, so this component
+// test exercises routing + persistence rather than envelope-assembly internals.
+// The real step now requires kind:'envelope' jobs and a wired assembler whose
+// PrismaContextDataSource reads the prisma SINGLETON — neither of which this
+// PGlite-backed harness provides — so stubbing keeps the harness honest.
+vi.mock('./handlers/pipeline/steps/ContextStep.js', () => ({
+  ContextStep: class {
+    readonly name = 'ContextPreparation';
+    process(context: GenerationContext): Promise<GenerationContext> {
+      return Promise.resolve({
+        ...context,
+        preparedContext: {
+          conversationHistory: [],
+          rawConversationHistory: [],
+          oldestHistoryTimestamp: undefined,
+          participants: [],
+          crossChannelHistory: undefined,
+        },
+      });
+    }
+  },
 }));
 
 describe('AIJobProcessor Component Test', () => {
@@ -216,91 +241,6 @@ describe('AIJobProcessor Component Test', () => {
       expect(persistedResult?.requestId).toBe(requestId);
       expect(persistedResult?.status).toBe('PENDING_DELIVERY');
       expect(persistedResult?.completedAt).toBeDefined();
-    });
-
-    it('should process LLM job with conversation history', async () => {
-      const requestId = 'test-component-llm-gen-2';
-      const jobId = 'job-test-component-2';
-
-      const jobData: LLMGenerationJobData = {
-        requestId,
-        jobType: JobType.LLMGeneration,
-        personality: {
-          id: 'personality-test-id',
-          name: 'TestComponent',
-          displayName: 'Test Component Bot',
-          slug: 'test-component',
-          ownerId: 'owner-uuid-test',
-          systemPrompt: 'You are a test assistant',
-          model: 'anthropic/claude-sonnet-4',
-          provider: 'openrouter',
-          temperature: 0.7,
-          maxTokens: 2000,
-          contextWindowTokens: 8192,
-          characterInfo: 'A test bot',
-          personalityTraits: 'Helpful',
-          voiceEnabled: false,
-        },
-        message: 'What did I say earlier?',
-        context: {
-          userId: 'user-test-123',
-          conversationHistory: [
-            {
-              role: MessageRole.User,
-              content: 'Hello!',
-              createdAt: new Date(Date.now() - 60000).toISOString(),
-            },
-            {
-              role: MessageRole.Assistant,
-              content: 'Hi there!',
-              createdAt: new Date(Date.now() - 30000).toISOString(),
-            },
-          ],
-        },
-        responseDestination: {
-          type: 'discord',
-          channelId: 'channel-test-123',
-        },
-      };
-
-      const mockJob = {
-        id: jobId,
-        data: jobData,
-      } as Job<LLMGenerationJobData>;
-
-      // Process the job
-      await jobProcessor.processJob(mockJob);
-
-      // Verify RAG service was called with conversation history
-      expect(mockRagService.generateResponse).toHaveBeenCalledTimes(1);
-      const generateCall = vi.mocked(mockRagService.generateResponse).mock.calls[0];
-
-      // Check the context parameter (3rd argument)
-      const contextArg = generateCall[2];
-      expect(contextArg?.conversationHistory).toBeDefined();
-      expect(contextArg?.conversationHistory?.length).toBe(2);
-
-      // Verify conversation history was passed through
-      expect(contextArg?.rawConversationHistory).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            role: MessageRole.User,
-            content: 'Hello!',
-          }),
-          expect.objectContaining({
-            role: MessageRole.Assistant,
-            content: 'Hi there!',
-          }),
-        ])
-      );
-
-      // Verify result was persisted
-      const persistedResult = await prisma.jobResult.findUnique({
-        where: { jobId },
-      });
-
-      expect(persistedResult).toBeDefined();
-      expect(persistedResult?.requestId).toBe(requestId);
     });
 
     it('should handle job processing errors gracefully', async () => {
