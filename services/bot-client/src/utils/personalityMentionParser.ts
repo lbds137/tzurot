@@ -9,9 +9,10 @@
  * Handles:
  * - Multi-word personalities (`@Bambi Prime`, `@Angel Dust`)
  * - Abbreviation-style names with periods (`@Dr. Gregory House`)
- * - Possessive suffixes (`@Lilith's` → `Lilith`)
+ * - Possessive suffixes (`@Lilith's` → `Lilith`), straight OR typographic apostrophe
  * - Discord markdown wrapping (`*@X*`, `` `@X` ``, `||@X||`, etc.)
  * - Trailing punctuation (`@Lilith,` / `@Lilith?` / `@Lilith.`)
+ * - Typographic "smart" quotes from mobile autocorrect (U+2018/2019/201C/201D → ASCII)
  *
  * Performance: batches all candidate lookups into a single Promise.all() so a
  * message with N mention positions × M candidates each costs one parallel
@@ -30,6 +31,17 @@ const MAX_POTENTIAL_MENTIONS = 10; // Bound on positions scanned per message.
 
 /** Strip possessive suffix ('s) from a name candidate to also try the base form. */
 const POSSESSIVE_SUFFIX = /'s$/i;
+
+/**
+ * Typographic "smart" quotes that mobile keyboards auto-insert for apostrophes
+ * and quotes. Normalized to their ASCII equivalents on the raw capture so the
+ * straight-quote POSSESSIVE_SUFFIX + punctuation strips below also handle them
+ * (e.g. `@Lucifer's` typed on a phone arrives with U+2019, not `'`, so the
+ * possessive strip never produces the `Lucifer` candidate). Bonus: a
+ * smart-quote-typed apostrophe name (`@O'Brien`) then matches its straight-stored form.
+ */
+const SMART_SINGLE_QUOTES = /[\u2018\u2019]/g;
+const SMART_DOUBLE_QUOTES = /[\u201c\u201d]/g;
 
 /**
  * Strip trailing punctuation — full-strip variant. Strips sentence punctuation
@@ -189,7 +201,11 @@ function extractCandidatesByPosition(content: string, escapedChar: string): Cand
       break;
     }
 
-    const captureGroup = match[1] ?? '';
+    // Normalize "smart" quotes to ASCII first so the straight-quote possessive +
+    // punctuation strips below see e.g. `Lucifer's` (U+2019) as `Lucifer's`.
+    const captureGroup = (match[1] ?? '')
+      .replace(SMART_SINGLE_QUOTES, "'")
+      .replace(SMART_DOUBLE_QUOTES, '"');
     const startIndex = match.index ?? 0;
 
     // Strip trailing punctuation from the whole capture before splitting.
