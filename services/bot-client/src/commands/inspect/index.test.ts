@@ -405,14 +405,22 @@ describe('handleButton', () => {
 describe('handleSelectMenu', () => {
   function createMockSelectInteraction(viewType: string, userId = 'owner-123') {
     const requestId = 'test-req-123';
-    return {
+    const interaction: Record<string, unknown> = {
       customId: InspectCustomIds.selectMenu(requestId),
       values: [viewType],
       user: { id: userId },
-      deferReply: vi.fn().mockResolvedValue(undefined),
+      deferred: false,
+      replied: false,
       editReply: vi.fn().mockResolvedValue(undefined),
       reply: vi.fn().mockResolvedValue(undefined),
-    } as unknown as import('discord.js').StringSelectMenuInteraction;
+    };
+    // deferReply flips the ack state like Discord, so replyError picks editReply
+    // (deferred) over reply (fresh) — matching the runtime path for error replies.
+    interaction.deferReply = vi.fn().mockImplementation(() => {
+      interaction.deferred = true;
+      return Promise.resolve(undefined);
+    });
+    return interaction as unknown as import('discord.js').StringSelectMenuInteraction;
   }
 
   it('should defer and respond with the selected view', async () => {
@@ -443,6 +451,33 @@ describe('handleSelectMenu', () => {
       })
     );
     expect(interaction.deferReply).not.toHaveBeenCalled();
+  });
+
+  it('surfaces a lookup failure through replyError on the deferred slot', async () => {
+    // After deferReply, replyError must take the editReply (deferred) path —
+    // a fresh reply() here would throw at runtime (interaction already acked).
+    stub.getDiagnosticByRequestId.mockResolvedValue(err(404));
+
+    const interaction = createMockSelectInteraction(DebugViewType.TokenBudget);
+    await inspectCommand.handleSelectMenu!(interaction);
+
+    expect(interaction.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
+    expect(interaction.editReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('not found'),
+    });
+    expect(interaction.reply).not.toHaveBeenCalled();
+  });
+
+  it('surfaces a thrown gateway error through replyError in the catch path', async () => {
+    stub.getDiagnosticByRequestId.mockRejectedValue(new Error('gateway exploded'));
+
+    const interaction = createMockSelectInteraction(DebugViewType.TokenBudget);
+    await inspectCommand.handleSelectMenu!(interaction);
+
+    expect(interaction.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
+    expect(interaction.editReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('Error loading diagnostic view'),
+    });
   });
 
   it('should return early for non-inspect custom IDs', async () => {
