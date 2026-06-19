@@ -92,10 +92,9 @@ function buildUserMessagePayload(params: UserMessageWriteParams): {
 }
 
 /**
- * Persist the trigger user message via the gateway endpoint — the
- * AUTHORITATIVE write in service mode, called synchronously BEFORE job
- * submission so the next message's history query always sees this row.
- * Throws on failure, matching the legacy local write's error semantics.
+ * Persist the trigger user message via the gateway endpoint — the authoritative
+ * write, called synchronously BEFORE job submission so the next message's
+ * history query always sees this row. Throws on failure.
  */
 export async function persistUserMessageViaGateway(params: UserMessageWriteParams): Promise<void> {
   const result = await getServiceClient().persistUserMessage(buildUserMessagePayload(params));
@@ -170,9 +169,8 @@ function buildSyncSnapshotPayload(
 }
 
 /**
- * Persist an assistant message via the gateway endpoint — the AUTHORITATIVE
- * write in service mode. Throws on failure, matching the error semantics of
- * the legacy local Prisma write (callers own the catch).
+ * Persist an assistant message via the gateway endpoint — the authoritative
+ * write. Throws on failure; callers own the catch.
  */
 export async function persistAssistantMessageViaGateway(
   params: AssistantMessageWriteParams
@@ -186,7 +184,7 @@ export async function persistAssistantMessageViaGateway(
     );
   }
   if (result.data.created === false && result.data.matched === false) {
-    // In service mode nothing else writes this row — created=false means an
+    // Nothing else writes this row — created=false means an
     // idempotent replay (re-delivery), and matched=false on a replay means
     // the replayed content differs from what was first persisted. Rare and
     // worth eyes, but the row is already durable, so don't fail the caller.
@@ -203,9 +201,8 @@ export async function persistAssistantMessageViaGateway(
 }
 
 /**
- * Run edit/delete sync via the gateway endpoint — the AUTHORITATIVE sync in
- * service mode. Never throws (sync is opportunistic, same contract as the
- * legacy runSync path); returns zero counts on failure.
+ * Run edit/delete sync via the gateway endpoint — the authoritative sync. Never
+ * throws (sync is opportunistic); returns zero counts on failure.
  */
 export async function syncConversationViaGateway(
   channelId: string,
