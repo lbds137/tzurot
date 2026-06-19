@@ -85,10 +85,9 @@ export const adminRoutes = {
   /**
    * POST /api/admin/db-sync — Apply pending Prisma migrations.
    *
-   * Slow route (multi-second under load) — uses DEFERRED (10s) instead
-   * of the AUTOCOMPLETE default (2500ms). Matches the legacy
-   * `adminFetch('admin/db-sync')` budget so the typed-client cutover
-   * preserves the existing timeout headroom.
+   * Matches the legacy `adminFetch('admin/db-sync')` budget so the typed-client
+   * cutover preserves the existing timeout headroom (the explicit
+   * BULK_OPERATION tier is explained at the timeoutMs field below).
    */
   dbSync: {
     audience: 'admin',

@@ -83,13 +83,15 @@ export const DISCORD_LIMITS = {
  * These timeouts are for gateway API calls that must complete
  * within Discord's interaction windows.
  *
- * Read/write policy: GET routes set AUTOCOMPLETE (3s-budget reads) or DEFERRED
- * (post-defer reads). Mutations (POST/PUT/PATCH/DELETE) get WRITE — they can run
+ * Read/write policy: reads default to DEFERRED (10s) — almost every read is
+ * invoked post-defer, so the tight AUTOCOMPLETE budget is opt-in (only for the
+ * few autocomplete-invoked routes, guarded in the clients package's
+ * manifest.test.ts). Mutations (POST/PUT/PATCH/DELETE) get WRITE — they can run
  * validation + multi-table transactions + cache-invalidation cascades, which
- * legitimately exceed the read budgets. The transport applies WRITE as the
- * default for write methods when a route declares no timeout (see
- * `callGateway`), so a new write route can't silently inherit a too-short read
- * default. BULK_OPERATION is the explicit ceiling for batched external-API ops.
+ * legitimately exceed the read budgets. The transport (see `callGateway`)
+ * applies these method-aware defaults when a route declares no timeout, so a
+ * route can't silently inherit a too-short budget. BULK_OPERATION is the
+ * explicit ceiling for batched external-API ops.
  */
 export const GATEWAY_TIMEOUTS = {
   /** Timeout for autocomplete handlers (Discord 3s limit) */
