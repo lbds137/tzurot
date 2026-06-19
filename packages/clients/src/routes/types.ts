@@ -266,26 +266,24 @@ export interface RouteDef<
    */
   readonly requiresProvisionedUser?: boolean;
   /**
-   * Request timeout in milliseconds. When set, the generated client
-   * method passes this value to `callGateway`'s `timeoutMs` parameter,
-   * overriding the transport default of `GATEWAY_TIMEOUTS.AUTOCOMPLETE`
-   * (2500ms — sized for Discord's 3-second autocomplete budget).
+   * Request timeout in milliseconds. When set, the generated client method
+   * passes this to `callGateway`'s `timeoutMs`, overriding the method-aware
+   * transport default: DEFERRED (10s) for reads, WRITE (20s) for writes.
    *
-   * Required for slow routes that legitimately exceed 2500ms — external
-   * round-trips, bulk/aggregate work, multi-second migrations (e.g. `dbSync`,
-   * `cleanup`, the shapes import/export routes). Typically
-   * `GATEWAY_TIMEOUTS.DEFERRED` (10s) or `BULK_OPERATION` (30s).
+   * Reads default to DEFERRED because almost every read is invoked post-defer
+   * (15-min window); the tight AUTOCOMPLETE budget (2.5s) is the DANGEROUS tier
+   * and is opt-in only — register the id in `AUTOCOMPLETE_TIER` in
+   * `manifest.test.ts`, for autocomplete-ONLY routes where a slower response is
+   * useless. Omitting `timeoutMs` is now safe (it lands on DEFERRED/WRITE).
+   *
+   * Set an explicit value to: (a) widen a known-heavy op past the 10s read
+   * default — `GATEWAY_TIMEOUTS.BULK_OPERATION` (30s) for batched/external work;
+   * or (b) pin a known-slow read's tier so it isn't coupled to the default.
    *
    * Upper bound: a value above ~60s is a design smell, not a valid config —
    * a sync gateway request that needs more than a minute should be a BullMQ
    * job with push-based result delivery, not a blocking HTTP call. The
    * manifest invariant test caps timeoutMs at 60_000 to enforce this.
-   *
-   * If a route comfortably fits the 2500ms default, do NOT just omit this
-   * field — also register its id in `DEFAULT_TIMEOUT_OK` in `manifest.test.ts`.
-   * That test enforces that relying on the default is a conscious "this op is
-   * fast" decision rather than a silent fallback. Omit + register, or set
-   * timeoutMs — never silently omit.
    */
   readonly timeoutMs?: number;
 }

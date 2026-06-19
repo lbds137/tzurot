@@ -67,7 +67,7 @@ export interface TransportOptions {
   headers?: Record<string, string>;
   /** Request body — JSON-serialized if defined. */
   body?: unknown;
-  /** Request timeout in milliseconds (default: AUTOCOMPLETE). */
+  /** Request timeout in milliseconds (default: DEFERRED for reads, WRITE for writes). */
   timeoutMs?: number;
   /**
    * Optional Zod schema for the success-path response. When supplied,
@@ -105,13 +105,16 @@ export async function callGateway<T>(options: TransportOptions): Promise<Gateway
     onWarn,
   } = options;
 
-  // Method-aware default: mutations default to the WRITE budget, reads to the
-  // short AUTOCOMPLETE budget. This stops a write route that forgets `timeoutMs`
-  // from silently inheriting the 2.5s read default and aborting a slow-but-fine
-  // write. An explicit `timeoutMs` on the route always wins.
+  // Method-aware default: mutations default to the WRITE budget (20s), reads to
+  // the DEFERRED budget (10s). Reads default to DEFERRED — not the tight 2.5s
+  // AUTOCOMPLETE budget — because almost every read is invoked from a DEFERRED
+  // slash command (15-min window); the tight default silently aborted heavy
+  // deferred reads under load. The AUTOCOMPLETE budget is now an explicit opt-in
+  // for the few autocomplete-invoked routes (guarded in routes/manifest.test.ts).
+  // An explicit `timeoutMs` on the route always wins.
   const isWriteMethod = ['post', 'put', 'patch', 'delete'].includes(method.toLowerCase());
   const effectiveTimeoutMs =
-    timeoutMs ?? (isWriteMethod ? GATEWAY_TIMEOUTS.WRITE : GATEWAY_TIMEOUTS.AUTOCOMPLETE);
+    timeoutMs ?? (isWriteMethod ? GATEWAY_TIMEOUTS.WRITE : GATEWAY_TIMEOUTS.DEFERRED);
 
   if (baseUrl.length === 0) {
     return { ok: false, error: 'baseUrl is empty', status: 0 };

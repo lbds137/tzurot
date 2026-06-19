@@ -14,6 +14,7 @@ import { z } from 'zod';
 import {
   DiagnosticLogResponseSchema,
   DiagnosticLogsResponseSchema,
+  GATEWAY_TIMEOUTS,
   RecentDiagnosticLogsResponseSchema,
 } from '@tzurot/common-types';
 import type { RouteDef } from '../types.js';
@@ -34,6 +35,11 @@ export const userDiagnosticRoutes = {
     query: { personalityId: z.string().optional() },
     output: RecentDiagnosticLogsResponseSchema,
     acceptsSubject: true,
+    // Pinned to DEFERRED explicitly: this is a 100-row scan with a per-row JSONB
+    // extraction that can exceed a tight budget under load, so it stays at 10s
+    // even if the read default ever moves. The single-row sibling lookups below
+    // need no such pin — they ride the safe DEFERRED read default.
+    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
     meta: { safeRead: true },
   },
 
