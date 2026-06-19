@@ -23,6 +23,7 @@ import type {
   DeferredCommandContext,
 } from '../../utils/commandContext/types.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
+import { replyError } from '../../utils/dashboard/replyError.js';
 import { InspectCustomIds } from './customIds.js';
 import { resolveDiagnosticLog, lookupByRequestId } from './lookup.js';
 import { buildDiagnosticEmbed } from './embed.js';
@@ -129,10 +130,7 @@ async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promi
 
   const viewType = interaction.values[0] as DebugViewType;
   if (!Object.values(DebugViewType).includes(viewType)) {
-    await interaction.reply({
-      content: '\u274c Unknown view type.',
-      flags: MessageFlags.Ephemeral,
-    });
+    await replyError(interaction, '\u274c Unknown view type.');
     return;
   }
 
@@ -142,7 +140,7 @@ async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promi
   try {
     const result = await lookupByRequestId(parsed.requestId, userClient);
     if (!result.success) {
-      await interaction.editReply({ content: `\u274c ${result.errorMessage}` });
+      await replyError(interaction, `\u274c ${result.errorMessage}`);
       return;
     }
 
@@ -166,9 +164,10 @@ async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promi
       { err: error, requestId: parsed.requestId, viewType },
       'Error building view from select'
     );
-    await interaction.editReply({
-      content: '\u274c Error loading diagnostic view. The log may have expired.',
-    });
+    await replyError(
+      interaction,
+      '\u274c Error loading diagnostic view. The log may have expired.'
+    );
   }
 }
 

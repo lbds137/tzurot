@@ -52,7 +52,7 @@ describe('handleApikeyModalSubmit', () => {
   });
 
   function createMockInteraction(customId: string, apiKey: string = 'sk-or-valid-key') {
-    return {
+    const interaction: Record<string, unknown> = {
       customId,
       user: { id: '123456789' },
       fields: {
@@ -62,9 +62,17 @@ describe('handleApikeyModalSubmit', () => {
         },
       },
       reply: mockReply,
-      deferReply: mockDeferReply,
       editReply: mockEditReply,
-    } as unknown as Parameters<typeof handleApikeyModalSubmit>[0];
+      deferred: false,
+      replied: false,
+    };
+    // deferReply flips the ack state like Discord, so replyError picks
+    // editReply (deferred) vs reply (fresh) the way it does at runtime.
+    interaction.deferReply = mockDeferReply.mockImplementation(() => {
+      interaction.deferred = true;
+      return Promise.resolve();
+    });
+    return interaction as unknown as Parameters<typeof handleApikeyModalSubmit>[0];
   }
 
   describe('Modal routing', () => {
@@ -106,7 +114,7 @@ describe('handleApikeyModalSubmit', () => {
       await handleApikeyModalSubmit(interaction);
 
       expect(mockDeferReply).toHaveBeenCalled();
-      expect(mockEditReply).toHaveBeenCalledWith('❌ API key cannot be empty');
+      expect(mockEditReply).toHaveBeenCalledWith({ content: '❌ API key cannot be empty' });
     });
 
     it('should reject OpenRouter key with wrong format', async () => {
@@ -116,9 +124,9 @@ describe('handleApikeyModalSubmit', () => {
       );
       await handleApikeyModalSubmit(interaction);
 
-      expect(mockEditReply).toHaveBeenCalledWith(
-        expect.stringContaining('Invalid OpenRouter Key Format')
-      );
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Invalid OpenRouter Key Format'),
+      });
     });
 
     it('should accept ZaiCoding key with any non-empty format (no client-side prefix check)', async () => {
@@ -202,7 +210,9 @@ describe('handleApikeyModalSubmit', () => {
       );
       await handleApikeyModalSubmit(interaction);
 
-      expect(mockEditReply).toHaveBeenCalledWith(expect.stringContaining('Invalid API Key'));
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Invalid API Key'),
+      });
     });
 
     it('should handle 402 insufficient credits error', async () => {
@@ -214,7 +224,9 @@ describe('handleApikeyModalSubmit', () => {
       );
       await handleApikeyModalSubmit(interaction);
 
-      expect(mockEditReply).toHaveBeenCalledWith(expect.stringContaining('Insufficient Credits'));
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Insufficient Credits'),
+      });
     });
 
     it('should handle generic gateway error', async () => {
@@ -226,7 +238,9 @@ describe('handleApikeyModalSubmit', () => {
       );
       await handleApikeyModalSubmit(interaction);
 
-      expect(mockEditReply).toHaveBeenCalledWith(expect.stringContaining('Server Error'));
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Server Error'),
+      });
     });
 
     it('should handle network errors', async () => {
@@ -238,7 +252,9 @@ describe('handleApikeyModalSubmit', () => {
       );
       await handleApikeyModalSubmit(interaction);
 
-      expect(mockEditReply).toHaveBeenCalledWith(expect.stringContaining('unexpected error'));
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('unexpected error'),
+      });
     });
 
     it('should show descriptive error for missing permissions (400)', async () => {
@@ -252,9 +268,9 @@ describe('handleApikeyModalSubmit', () => {
       );
       await handleApikeyModalSubmit(interaction);
 
-      expect(mockEditReply).toHaveBeenCalledWith(
-        expect.stringContaining('missing required permissions')
-      );
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('missing required permissions'),
+      });
     });
   });
 });

@@ -201,6 +201,8 @@ describe('handleExpandContent', () => {
       deferReply: mockDeferReply,
       editReply: mockEditReply,
       followUp: mockFollowUp,
+      deferred: true,
+      replied: false,
     } as unknown as Parameters<typeof handleExpandContent>[0];
   }
 
@@ -288,7 +290,7 @@ describe('handleExpandContent', () => {
 
     await handleExpandContent(createMockButtonInteraction(), TEST_PERSONA_ID, 'content');
 
-    expect(mockEditReply).toHaveBeenCalledWith(expect.stringContaining('not found'));
+    expect(mockEditReply).toHaveBeenCalledWith({ content: expect.stringContaining('not found') });
   });
 
   it('should handle network errors gracefully', async () => {
@@ -296,6 +298,8 @@ describe('handleExpandContent', () => {
 
     await handleExpandContent(createMockButtonInteraction(), TEST_PERSONA_ID, 'content');
 
-    expect(mockEditReply).toHaveBeenCalledWith(expect.stringContaining('Failed to load'));
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('Failed to load'),
+    });
   });
 });

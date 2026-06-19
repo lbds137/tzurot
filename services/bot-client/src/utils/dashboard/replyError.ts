@@ -1,7 +1,16 @@
-import { MessageFlags, type ButtonInteraction, type StringSelectMenuInteraction } from 'discord.js';
+import {
+  MessageFlags,
+  type ButtonInteraction,
+  type StringSelectMenuInteraction,
+  type ModalSubmitInteraction,
+} from 'discord.js';
 
 /**
  * Reply with an ephemeral error, adapting to the interaction's ack state.
+ *
+ * Accepts any component-style interaction that shares the
+ * deferred/replied/reply/editReply/followUp surface — button, string
+ * select menu, and modal submit (their ack handling is identical).
  *
  * Three states map to three response APIs:
  * - `deferred && !replied` (caller did `deferReply`, hasn't sent the
@@ -24,7 +33,7 @@ import { MessageFlags, type ButtonInteraction, type StringSelectMenuInteraction 
  * private; the other two paths pass `flags: Ephemeral` explicitly.
  */
 export async function replyError(
-  interaction: ButtonInteraction | StringSelectMenuInteraction,
+  interaction: ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction,
   content: string
 ): Promise<void> {
   if (interaction.deferred && !interaction.replied) {

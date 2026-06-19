@@ -26,6 +26,7 @@ import type { DeferredCommandContext } from '../../utils/commandContext/types.js
 import type { CharacterData } from './characterTypes.js';
 import { CharacterCustomIds } from '../../utils/customIds.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
+import { replyError } from '../../utils/dashboard/replyError.js';
 import { toCharacterData } from './api.js';
 import { VIEW_TOTAL_PAGES, VIEW_PAGE_TITLES, EXPANDABLE_FIELDS } from './viewTypes.js';
 import { sendChunkedReply } from '../../utils/chunkedReply.js';
@@ -437,14 +438,14 @@ export async function handleExpandField(
     const { userClient } = clientsFor(interaction);
     const character = await fetchCharacterForView(slug, userClient);
     if (!character) {
-      await interaction.editReply('❌ Character not found.');
+      await replyError(interaction, '❌ Character not found.');
       return;
     }
 
     // Get field info
     const fieldInfo = EXPANDABLE_FIELDS[fieldName];
     if (fieldInfo === undefined) {
-      await interaction.editReply('❌ Unknown field.');
+      await replyError(interaction, '❌ Unknown field.');
       return;
     }
 
@@ -465,7 +466,7 @@ export async function handleExpandField(
     logger.info({ slug, fieldName }, 'Expanded field content shown');
   } catch (error) {
     logger.error({ err: error, slug, fieldName }, 'Failed to expand field');
-    await interaction.editReply('❌ Failed to load field content. Please try again.');
+    await replyError(interaction, '❌ Failed to load field content. Please try again.');
   }
 }
 

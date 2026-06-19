@@ -518,6 +518,8 @@ describe('Memory Detail', () => {
         user: { id: 'user-123', username: 'testuser' },
         deferReply: mockDeferReply,
         editReply: mockEditReply,
+        deferred: true,
+        replied: false,
       } as unknown as ButtonInteraction;
 
       await handleViewFullButton(interaction, 'memory-123');

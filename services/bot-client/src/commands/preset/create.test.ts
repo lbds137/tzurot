@@ -90,6 +90,8 @@ describe('Preset Create', () => {
         channelId: 'channel-123',
         deferReply: vi.fn(),
         editReply: vi.fn().mockResolvedValue({ id: 'message-123' }),
+        deferred: true,
+        replied: false,
         fields: {
           getTextInputValue: vi.fn((id: string) => values[id] ?? ''),
         },
@@ -152,7 +154,9 @@ describe('Preset Create', () => {
 
       await handleSeedModalSubmit(mockInteraction);
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith('❌ Preset name is required.');
+      expect(mockInteraction.editReply).toHaveBeenCalledWith({
+        content: '❌ Preset name is required.',
+      });
       expect(api.createPreset).not.toHaveBeenCalled();
     });
 
@@ -169,7 +173,9 @@ describe('Preset Create', () => {
 
       await handleSeedModalSubmit(mockInteraction);
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith('❌ Model ID is required.');
+      expect(mockInteraction.editReply).toHaveBeenCalledWith({
+        content: '❌ Model ID is required.',
+      });
       expect(api.createPreset).not.toHaveBeenCalled();
     });
 
@@ -248,9 +254,9 @@ describe('Preset Create', () => {
 
       await handleSeedModalSubmit(mockInteraction);
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith(
-        expect.stringContaining('already exists')
-      );
+      expect(mockInteraction.editReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('already exists'),
+      });
     });
 
     it('should handle generic API errors', async () => {
@@ -270,9 +276,9 @@ describe('Preset Create', () => {
 
       await handleSeedModalSubmit(mockInteraction);
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith(
-        '❌ Failed to create preset. Please try again.'
-      );
+      expect(mockInteraction.editReply).toHaveBeenCalledWith({
+        content: '❌ Failed to create preset. Please try again.',
+      });
     });
 
     it('should surface API validation error when create fails with structured error', async () => {
@@ -296,9 +302,9 @@ describe('Preset Create', () => {
 
       await handleSeedModalSubmit(mockInteraction);
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith(
-        '❌ contextWindowTokens (131072) exceeds 50% of the model context window'
-      );
+      expect(mockInteraction.editReply).toHaveBeenCalledWith({
+        content: '❌ contextWindowTokens (131072) exceeds 50% of the model context window',
+      });
     });
   });
 });
