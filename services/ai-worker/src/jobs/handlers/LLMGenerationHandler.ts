@@ -283,7 +283,7 @@ export class LLMGenerationHandler {
       userService: new UserService(prisma),
       personaResolver: new PersonaResolver(prisma),
     });
-    return new ContextStep(dataSource, assembler);
+    return new ContextStep(assembler);
   }
 
   /**
