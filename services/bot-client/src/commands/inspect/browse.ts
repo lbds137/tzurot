@@ -167,7 +167,7 @@ function buildBackToListRow(page: number): ActionRowBuilder<MessageActionRowComp
     new ButtonBuilder()
       .setCustomId(browseHelpers.build(page, 'all', 'date', null))
       .setLabel('Back to List')
-      .setEmoji('\ud83d\udccb')
+      .setEmoji('\u25c0\ufe0f')
       .setStyle(ButtonStyle.Secondary)
   );
 }

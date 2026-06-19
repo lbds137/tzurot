@@ -19,7 +19,7 @@ import {
   type MessageActionRowComponentBuilder,
   type ButtonInteraction,
 } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { PersonaCustomIds } from '../../utils/customIds.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
@@ -53,7 +53,10 @@ function buildPersonaEmbed(personaDetails: PersonaDetails): {
   embed: EmbedBuilder;
   components: ActionRowBuilder<MessageActionRowComponentBuilder>[];
 } {
-  const embed = new EmbedBuilder().setTitle('🎭 Your Persona').setColor(0x5865f2).setTimestamp();
+  const embed = new EmbedBuilder()
+    .setTitle('🎭 Your Persona')
+    .setColor(DISCORD_COLORS.BLURPLE)
+    .setTimestamp();
 
   if (personaDetails.preferredName !== null && personaDetails.preferredName.length > 0) {
     embed.addFields({

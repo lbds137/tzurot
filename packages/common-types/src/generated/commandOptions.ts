@@ -373,11 +373,11 @@ export const memoryPurgeOptions = defineTypedOptions({
 // =============================================================================
 
 /**
- * /models browse <capability, search>
+ * /models browse <query, capability>
  */
 export const modelsBrowseOptions = defineTypedOptions({
+  query: { type: 'string', required: false },
   capability: { type: 'string', required: false },
-  search: { type: 'string', required: false },
 });
 
 /**

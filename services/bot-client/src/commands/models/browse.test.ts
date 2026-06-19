@@ -21,7 +21,7 @@ vi.mock('@tzurot/common-types', async importOriginal => {
     createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
     modelsBrowseOptions: vi.fn(() => ({
       capability: () => undefined,
-      search: () => null,
+      query: () => null,
     })),
   };
 });
@@ -125,7 +125,7 @@ describe('handleBrowse', () => {
   it('passes capability + search through to the catalog fetch', async () => {
     vi.mocked(modelsBrowseOptions).mockReturnValueOnce({
       capability: () => 'vision',
-      search: () => 'claude',
+      query: () => 'claude',
     } as unknown as ReturnType<typeof modelsBrowseOptions>);
     catalogMock.fetchModelCatalog.mockResolvedValue([
       catalogModel({ id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4' }),
