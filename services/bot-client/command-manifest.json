@@ -500,7 +500,7 @@
               },
               {
                 "name": "incognito",
-                "description": "Anonymous by default (no persona/memories). Set False to use your persona + memories.",
+                "description": "Hide your persona & memories. Defaults on with no message, off when you send one.",
                 "required": false,
                 "type": 5
               },
@@ -1266,8 +1266,14 @@
           {
             "type": 1,
             "name": "browse",
-            "description": "Browse available models, filtered by capability or search",
+            "description": "Browse available models, filtered by capability or name",
             "options": [
+              {
+                "type": 3,
+                "name": "query",
+                "description": "Search by model name or ID",
+                "required": false
+              },
               {
                 "type": 3,
                 "choices": [
@@ -1286,12 +1292,6 @@
                 ],
                 "name": "capability",
                 "description": "Filter by capability",
-                "required": false
-              },
-              {
-                "type": 3,
-                "name": "search",
-                "description": "Search by model name or ID",
                 "required": false
               }
             ]

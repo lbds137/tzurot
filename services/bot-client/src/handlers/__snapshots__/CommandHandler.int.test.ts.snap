@@ -613,7 +613,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
         "type": 3,
       },
       {
-        "description": "Anonymous by default (no persona/memories). Set False to use your persona + memories.",
+        "description": "Hide your persona & memories. Defaults on with no message, off when you send one.",
         "description_localizations": undefined,
         "name": "incognito",
         "name_localizations": undefined,
@@ -1585,11 +1585,23 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
 exports[`CommandHandler (component) > command structure snapshots > has a stable option structure for every registered command > models-command-options 1`] = `
 [
   {
-    "description": "Browse available models, filtered by capability or search",
+    "description": "Browse available models, filtered by capability or name",
     "description_localizations": undefined,
     "name": "browse",
     "name_localizations": undefined,
     "options": [
+      {
+        "autocomplete": undefined,
+        "choices": undefined,
+        "description": "Search by model name or ID",
+        "description_localizations": undefined,
+        "max_length": undefined,
+        "min_length": undefined,
+        "name": "query",
+        "name_localizations": undefined,
+        "required": false,
+        "type": 3,
+      },
       {
         "autocomplete": undefined,
         "choices": [
@@ -1614,18 +1626,6 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
         "max_length": undefined,
         "min_length": undefined,
         "name": "capability",
-        "name_localizations": undefined,
-        "required": false,
-        "type": 3,
-      },
-      {
-        "autocomplete": undefined,
-        "choices": undefined,
-        "description": "Search by model name or ID",
-        "description_localizations": undefined,
-        "max_length": undefined,
-        "min_length": undefined,
-        "name": "search",
         "name_localizations": undefined,
         "required": false,
         "type": 3,

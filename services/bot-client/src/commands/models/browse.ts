@@ -1,10 +1,10 @@
 /**
  * Models Browse Handler
  *
- * `/models browse [capability?] [search?]` — paginated, user-aware list of
- * models. Selecting one opens its detail card. Filtering (capability + search)
+ * `/models browse [capability?] [query?]` — paginated, user-aware list of
+ * models. Selecting one opens its detail card. Filtering (capability + query)
  * is applied at fetch time; the customId encodes capability (as the browse
- * "filter") + search (as the "query") + page so pagination can rebuild the
+ * "filter") + query + page so pagination can rebuild the
  * same view statelessly.
  */
 
@@ -295,7 +295,7 @@ async function loadAnnotatedModels(
 export async function handleBrowse(context: DeferredCommandContext): Promise<void> {
   const options = modelsBrowseOptions(context.interaction);
   const capability = (options.capability() ?? 'all') as CapabilityFilter;
-  const search = options.search();
+  const search = options.query();
   const sort: ModelSort = 'default';
 
   try {

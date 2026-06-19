@@ -388,7 +388,7 @@ export default defineCommand({
           option
             .setName('incognito')
             .setDescription(
-              'Anonymous by default (no persona/memories). Set False to use your persona + memories.'
+              'Hide your persona & memories. Defaults on with no message, off when you send one.'
             )
             .setRequired(false)
         )
