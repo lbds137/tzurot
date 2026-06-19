@@ -418,15 +418,10 @@ Several behaviors are coupled to "personal mode" (persona present): cross-channe
 
 **Why icebox**: a consistency/UX polish we'll want eventually now that the interactive-browse pattern exists, but none of the three is broken — the separate `test`/`remove`/`delete` commands work today. No urgency. **Promote when**: doing other work in any of these three command areas, OR a user asks for in-place actions on one of these lists. Surfaced 2026-06-16 (user) off the back of PR #1231.
 
-#### `[LIFT]` Error-handling UX consistency (from the full UX sweep)
+#### `[LIFT]` Error-message wording standardization (from the full UX sweep)
 
-**Problem / motivation**: A full slash-command UX audit found the command surface in strong shape overall (parameter ordering, subcommand naming, terminology, button ordering all clean), but two error-handling consistency gaps worth a dedicated pass:
+**Problem / motivation**: A full slash-command UX audit found the command surface in strong shape overall (parameter ordering, subcommand naming, terminology, button ordering all clean). Two of the three error-handling gaps it flagged have since shipped — the missing-`❌`-prefix cases (PR #1265) and `replyError()` under-adoption (the helper is now adopted across the eligible component handlers + widened for modal submits). What remains is **error-message wording drift**: "Not found" has ~5 phrasings across commands (bare vs "use autocomplete to select…" vs "…or type 'all'"); generic-failure copy splits between "Please try again" and "Please try again later".
 
-1. **Error-message wording drift**. "Not found" has ~5 phrasings across commands (bare vs "use autocomplete to select…" vs "…or type 'all'"); generic-failure copy splits between "Please try again" and "Please try again later"; a few user-facing errors miss the `❌` prefix or use a different register (e.g. `character/chat.ts` "Sorry, something went wrong. Please try again." — no emoji, off-tone).
-2. **`replyError()` under-adoption**. The shared `utils/dashboard/replyError.ts` (ack-state-aware ephemeral error reply for component interactions) is used in only a couple of handlers; most button/select handlers hand-roll their error replies, which is exactly where double-ack bugs hide.
+**Action**: Decide a canonical phrasing set (not-found → one shape, leaning on the most-helpful "…Use autocomplete to select a valid option."; transient-failure → "Please try again later") and apply across `services/bot-client/src/commands/**`.
 
-**Action**:
-1. Decide a canonical phrasing set (not-found → one shape, leaning on the most-helpful "…Use autocomplete to select a valid option."; transient-failure → "Please try again later"; always `❌`-prefixed) and apply across `services/bot-client/src/commands/**`.
-2. Survey component-interaction handlers and migrate hand-rolled error replies to `replyError()` where the ack-state branching applies.
-
-**Why icebox**: pure consistency polish — nothing is broken, every error path works today; it's a mechanical sweep with one up-front phrasing decision. **Promote when**: doing other work in a command's error paths, or the wording drift produces a user-facing report. Surfaced 2026-06-18 (full UX sweep).
+**Why icebox**: pure consistency polish — nothing is broken, every error path works today; it's a mechanical sweep whose only real cost is the up-front phrasing decision. The user deliberately scoped the sweep to the structural fixes (prefixes + `replyError`) and left pure-wording standardization as a conscious later pass. **Promote when**: doing other work in a command's error paths, or the wording drift produces a user-facing report. Surfaced 2026-06-18 (full UX sweep).
