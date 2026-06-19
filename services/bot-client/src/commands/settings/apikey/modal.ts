@@ -14,6 +14,7 @@ import { createLogger, DISCORD_COLORS, AIProvider, API_KEY_FORMATS } from '@tzur
 import { getProviderDisplayName } from '../../../utils/providers.js';
 import { clientsFor } from '../../../utils/gatewayClients.js';
 import { ApikeyCustomIds } from '../../../utils/customIds.js';
+import { replyError } from '../../../utils/dashboard/replyError.js';
 
 const logger = createLogger('settings-apikey-modal');
 
@@ -25,10 +26,7 @@ export async function handleApikeyModalSubmit(interaction: ModalSubmitInteractio
   // Parse customId using centralized utilities
   const parsed = ApikeyCustomIds.parse(interaction.customId);
   if (parsed?.provider === undefined) {
-    await interaction.reply({
-      content: '❌ Unknown apikey modal submission',
-      flags: MessageFlags.Ephemeral,
-    });
+    await replyError(interaction, '❌ Unknown apikey modal submission');
     return;
   }
 
@@ -37,10 +35,7 @@ export async function handleApikeyModalSubmit(interaction: ModalSubmitInteractio
   if (parsed.action === 'set') {
     await handleSetKeySubmit(interaction, provider);
   } else {
-    await interaction.reply({
-      content: '❌ Unknown apikey action',
-      flags: MessageFlags.Ephemeral,
-    });
+    await replyError(interaction, '❌ Unknown apikey action');
   }
 }
 
@@ -58,14 +53,14 @@ async function handleSetKeySubmit(
 
   // Basic validation
   if (apiKey.length === 0) {
-    await interaction.editReply('❌ API key cannot be empty');
+    await replyError(interaction, '❌ API key cannot be empty');
     return;
   }
 
   // Validate key format based on provider
   const formatError = validateKeyFormat(apiKey, provider);
   if (formatError !== null) {
-    await interaction.editReply(formatError);
+    await replyError(interaction, formatError);
     return;
   }
 
@@ -82,7 +77,7 @@ async function handleSetKeySubmit(
 
       // Handle specific error cases with user-friendly messages
       const friendlyMessage = getErrorMessage(result.status, { error: result.error }, provider);
-      await interaction.editReply(friendlyMessage);
+      await replyError(interaction, friendlyMessage);
       return;
     }
 
@@ -114,7 +109,8 @@ async function handleSetKeySubmit(
   } catch (error) {
     logger.error({ err: error, provider, userId: interaction.user.id }, 'Error');
 
-    await interaction.editReply(
+    await replyError(
+      interaction,
       '❌ An unexpected error occurred while saving your API key.\n' +
         'Please try again later or contact support if the issue persists.'
     );

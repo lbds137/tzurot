@@ -23,6 +23,7 @@ import {
 } from '@tzurot/common-types';
 import { CUSTOM_ID_DELIMITER } from '../../utils/customIds.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
+import { replyError } from '../../utils/dashboard/replyError.js';
 
 import { fetchMemory, setMemoryLock, deleteMemory } from './detailApi.js';
 import { EMBED_DESCRIPTION_SAFE_LIMIT } from './formatters.js';
@@ -361,9 +362,7 @@ export async function handleViewFullButton(
   const { userClient } = clientsFor(interaction);
   const memory = await fetchMemory(userClient, memoryId, userId);
   if (memory === null) {
-    await interaction.editReply({
-      content: '❌ Failed to load memory. It may have been deleted.',
-    });
+    await replyError(interaction, '❌ Failed to load memory. It may have been deleted.');
     return;
   }
 

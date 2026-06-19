@@ -24,6 +24,7 @@ import type { DeferredCommandContext } from '../../utils/commandContext/types.js
 import { PersonaCustomIds } from '../../utils/customIds.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { sendChunkedReply } from '../../utils/chunkedReply.js';
+import { replyError } from '../../utils/dashboard/replyError.js';
 
 const logger = createLogger('persona-view');
 
@@ -176,7 +177,7 @@ export async function handleExpandContent(
         { userId: discordId, personaId, error: result.error },
         'Failed to fetch persona for expand'
       );
-      await interaction.editReply('❌ Persona not found or access denied.');
+      await replyError(interaction, '❌ Persona not found or access denied.');
       return;
     }
 
@@ -196,6 +197,6 @@ export async function handleExpandContent(
     logger.info({ userId: discordId, personaId }, 'User expanded persona content');
   } catch (error) {
     logger.error({ err: error, personaId }, 'Failed to expand persona content');
-    await interaction.editReply('❌ Failed to load content. Please try again.');
+    await replyError(interaction, '❌ Failed to load content. Please try again.');
   }
 }

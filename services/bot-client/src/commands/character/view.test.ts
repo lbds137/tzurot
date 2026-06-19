@@ -567,7 +567,9 @@ describe('handleExpandField', () => {
   });
 
   function expandInteraction() {
-    return { deferReply, editReply } as unknown as Parameters<typeof handleExpandField>[0];
+    return { deferReply, editReply, deferred: true, replied: false } as unknown as Parameters<
+      typeof handleExpandField
+    >[0];
   }
 
   it('defers ephemerally and sends the full field content via chunked reply', async () => {
@@ -591,7 +593,9 @@ describe('handleExpandField', () => {
 
     await handleExpandField(expandInteraction(), 'test-character', 'characterInfo', config);
 
-    expect(editReply).toHaveBeenCalledWith(expect.stringContaining('Character not found'));
+    expect(editReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('Character not found'),
+    });
     expect(sendChunkedReply).not.toHaveBeenCalled();
   });
 
@@ -600,7 +604,7 @@ describe('handleExpandField', () => {
 
     await handleExpandField(expandInteraction(), 'test-character', 'noSuchField', config);
 
-    expect(editReply).toHaveBeenCalledWith(expect.stringContaining('Unknown field'));
+    expect(editReply).toHaveBeenCalledWith({ content: expect.stringContaining('Unknown field') });
     expect(sendChunkedReply).not.toHaveBeenCalled();
   });
 
@@ -619,7 +623,9 @@ describe('handleExpandField', () => {
 
     await handleExpandField(expandInteraction(), 'test-character', 'characterInfo', config);
 
-    expect(editReply).toHaveBeenCalledWith(expect.stringContaining('Failed to load field content'));
+    expect(editReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('Failed to load field content'),
+    });
     expect(sendChunkedReply).not.toHaveBeenCalled();
   });
 });
