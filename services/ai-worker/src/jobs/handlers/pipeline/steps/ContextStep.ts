@@ -10,13 +10,7 @@ import {
   extractParticipants,
   convertConversationHistory,
 } from '../../../utils/conversationUtils.js';
-import type { ContextDataSource } from '../../../../services/context/types.js';
-import {
-  isShadowHydrationEnabled,
-  shadowHydrateAndDiff,
-} from '../../../../services/context/shadowHydration.js';
 import { isAssemblyPromoteEnabled } from '../../../../services/context/contextFlags.js';
-import { shadowAssembleAndDiff } from '../../../../services/context/shadowAssembly.js';
 import type {
   AssembledCore,
   ContextAssembler,
@@ -108,75 +102,16 @@ function extractTimestamp(timestamp: string | Date | undefined | null): number |
 export class ContextStep implements IPipelineStep {
   readonly name = 'ContextPreparation';
 
-  /**
-   * @param contextDataSource - When provided AND `CONTEXT_SHADOW_HYDRATION=true`,
-   * each job's DB-derived context is re-hydrated worker-side and diffed
-   * against the bot-client payload (fire-and-forget, log-only). Burn-in
-   * instrumentation for the context-assembly relocation; the payload
-   * remains the source of truth for generation. Remove alongside the flag.
-   */
-  constructor(
-    private readonly contextDataSource?: ContextDataSource,
-    private readonly contextAssembler?: ContextAssembler
-  ) {}
+  constructor(private readonly contextAssembler?: ContextAssembler) {}
 
   /**
-   * Resolved once per step instance (pipeline is built at startup) — the
-   * flag only changes via a redeploy, so a per-job process.env read buys
-   * nothing.
-   */
-  private readonly shadowEnabled = isShadowHydrationEnabled();
-
-  /**
-   * Resolved once per step instance (same rationale as {@link shadowEnabled}).
+   * Resolved once per step instance (pipeline is built at startup; the flag
+   * only changes via a redeploy, so a per-job process.env read buys nothing).
    * When true, the prompt context is built from the ContextAssembler instead
    * of the bot's legacy payload. Effective only when the job also carries
    * `rawAssemblyInputs` and an assembler is wired.
    */
   private readonly promoteEnabled = isAssemblyPromoteEnabled();
-
-  /**
-   * Route to the right shadow instrumentation. Raw envelope present + an
-   * assembler wired → the FULL assembly shadow (real-DB hydration +
-   * user/persona re-derivation + shared merge); otherwise the legacy
-   * hydration-only shadow. Both intentionally not awaited — fire-and-forget
-   * per the constructor JSDoc.
-   */
-  private dispatchShadow(
-    job: Pick<GenerationContext['job'], 'id' | 'timestamp' | 'data'>,
-    jobContext: GenerationContext['job']['data']['context'],
-    personality: GenerationContext['job']['data']['personality'],
-    configOverrides: GenerationContext['configOverrides'],
-    preprocessing: GenerationContext['preprocessing']
-  ): void {
-    if (jobContext.rawAssemblyInputs !== undefined && this.contextAssembler !== undefined) {
-      void shadowAssembleAndDiff({
-        jobId: job.id,
-        jobContext,
-        personality,
-        configOverrides,
-        assembler: this.contextAssembler,
-        // Enqueue time stands in for the bot's crawl-time wall clock in the
-        // reference time-fallback dedup window.
-        jobTimestampMs: job.timestamp,
-        // The bot-rewritten content the worker's rewrite is diffed against.
-        payloadMessage: typeof job.data.message === 'string' ? job.data.message : undefined,
-        // Trigger transcripts from the worker's own STT (DependencyStep runs
-        // before this step) — the bot-vs-worker STT divergence metric input.
-        workerTranscriptions: preprocessing?.transcriptions,
-      });
-      return;
-    }
-    if (this.contextDataSource !== undefined) {
-      void shadowHydrateAndDiff({
-        jobId: job.id,
-        jobContext,
-        personalityId: personality.id,
-        configOverrides,
-        dataSource: this.contextDataSource,
-      });
-    }
-  }
 
   async process(context: GenerationContext): Promise<GenerationContext> {
     const { job, config } = context;
@@ -187,20 +122,6 @@ export class ContextStep implements IPipelineStep {
     }
 
     const promoted = this.resolvePromoted(jobContext);
-
-    // The shadow validates the assembler against the legacy payload; once we
-    // promote, the assembler IS the prompt, so the shadow is redundant. Run it
-    // only when not promoting (also avoids racing the jobContext mutation).
-    if (this.shadowEnabled && !promoted) {
-      this.dispatchShadow(
-        job,
-        jobContext,
-        personality,
-        context.configOverrides,
-        context.preprocessing
-      );
-    }
-
     const historyEntries = await this.sourceHistory(context, promoted);
 
     // Calculate oldest timestamp from conversation history AND referenced messages
