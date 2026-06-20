@@ -126,6 +126,7 @@ const PATH_MAP: Readonly<Record<string, string>> = {
   persistUserMessage: '../internal/conversationUserMessage.js',
   syncConversation: '../internal/conversationSync.js',
   loadPersonalityInternal: '../internal/personalityLoad.js',
+  routingContextCreate: '../internal/routingContextCreate.js',
 
   // User LLM config
   createUserLlmConfig: USER_LLM_CONFIG,

@@ -99,6 +99,7 @@ export * from './utils/messageLinkParser.js';
 export * from './utils/mentionRewriter.js';
 export * from './utils/crossChannelEnvironment.js';
 export * from './services/UserService.js';
+export * from './services/RoutingContextResolver.js';
 export * from './services/BaseCacheInvalidationService.js';
 export * from './services/CacheInvalidationService.js';
 export * from './services/ApiKeyCacheInvalidationService.js';

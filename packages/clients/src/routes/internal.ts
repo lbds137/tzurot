@@ -37,6 +37,8 @@ import {
   PersistUserMessageRequestSchema,
   PersistUserMessageResponseSchema,
   RecentUsersResponseSchema,
+  RoutingContextRequestSchema,
+  RoutingContextResponseSchema,
   TIMEOUTS,
   TranscribeRequestSchema,
 } from '@tzurot/common-types';
@@ -227,6 +229,27 @@ export const internalRoutes = {
     output: LoadPersonalityInternalResponseSchema,
     serviceOnly: true,
     meta: { safeRead: true },
+    timeoutMs: TIMEOUTS.GATEWAY_RPC,
+  },
+
+  /**
+   * POST /api/internal/v1/routing-context
+   * Hot-path routing read: resolves the per-(user, personality) routing facts a
+   * message needs before job dispatch — internal user UUID, active persona
+   * (override → default cascade), persona display name, timezone, STM
+   * context-epoch — and provisions the user + default persona on first contact
+   * (idempotent upsert keyed on discordId, hence POST not GET). Consolidated
+   * because the reads are sequentially dependent; one round-trip replaces the
+   * ~4 serialized hops per-read routes would cost on the hottest path.
+   */
+  routingContextCreate: {
+    audience: 'internal',
+    method: 'post',
+    path: '/v1/routing-context',
+    id: 'routingContextCreate',
+    input: RoutingContextRequestSchema,
+    output: RoutingContextResponseSchema,
+    serviceOnly: true,
     timeoutMs: TIMEOUTS.GATEWAY_RPC,
   },
 

@@ -195,3 +195,59 @@ export const LoadPersonalityInternalResponseSchema = z.object({
   personality: loadedPersonalitySchema.nullable(),
 });
 export type LoadPersonalityInternalResponse = z.infer<typeof LoadPersonalityInternalResponseSchema>;
+
+// ============================================================================
+// POST /internal/v1/routing-context
+// Hot-path routing read: resolves the per-(user, personality) routing facts a
+// message needs BEFORE the AI job is dispatched — internal user UUID, active
+// persona (override → default cascade), persona display name, user timezone,
+// and the STM context-epoch. Provisions the user + default persona on first
+// contact (idempotent upsert keyed on discordId). Consolidated into one
+// endpoint because the reads are sequentially dependent (UUID → cascade →
+// epoch); per-read routes would cost ~4 serialized HTTP hops on the single
+// most latency-sensitive path in the system. The persona cascade runs here,
+// where Prisma is legal, instead of being reimplemented in bot-client.
+//
+// Versioned (/v1/) — the response is the routing contract bot-client depends
+// on; evolve it additively only.
+// ============================================================================
+
+export const RoutingContextRequestSchema = z.object({
+  /** Message author's Discord snowflake — the provisioning + cascade key. */
+  discordId: z.string().min(1).max(32),
+  /**
+   * Discord username, for provisioning the user shell on first contact. Not
+   * `.min(1)`-constrained: Discord usernames are always non-empty at the
+   * call-site, so the cap is the only real bound.
+   */
+  username: z.string().max(255),
+  /**
+   * Display name, for seeding the default persona's name on first contact.
+   * May legitimately be blank (a user without a global display name), so it is
+   * intentionally NOT `.min(1)`-constrained.
+   */
+  displayName: z.string().max(255),
+  /** True for bot authors; provisioning rejects them (returns 400). */
+  isBot: z.boolean().optional(),
+  /** Target personality whose persona cascade to resolve (deterministic UUID). */
+  personalityId: z.string().min(1).max(64),
+});
+export type RoutingContextRequest = z.infer<typeof RoutingContextRequestSchema>;
+
+export const RoutingContextResponseSchema = z.object({
+  /** Internal user UUID (FK for everything downstream). */
+  userId: z.string().uuid(),
+  /**
+   * Resolved active persona UUID (override → default cascade). Not `.uuid()`-
+   * constrained: the system-default fallback carries an empty string, which the
+   * epoch lookup treats as a non-matching key.
+   */
+  personaId: z.string(),
+  /** Persona display name; null when the cascade has no preferred name. */
+  personaName: z.string().nullable(),
+  /** IANA timezone; `getUserTimezone` falls back to 'UTC', so always present. */
+  timezone: z.string(),
+  /** STM context-epoch (last-reset) as ISO; null when no reset is recorded. */
+  contextEpoch: z.string().datetime().nullable(),
+});
+export type RoutingContextResponse = z.infer<typeof RoutingContextResponseSchema>;

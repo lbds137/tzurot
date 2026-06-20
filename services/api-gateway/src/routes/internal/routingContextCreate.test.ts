@@ -1,0 +1,98 @@
+/**
+ * Tests for POST /internal/v1/routing-context
+ *
+ * Isolates the HTTP layer: the orchestration (`resolveRoutingContext`) is
+ * unit-tested in common-types, so here it's mocked to exercise the parse →
+ * resolve → respond wiring plus the bot-author and validation error paths.
+ */
+
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import express from 'express';
+import request from 'supertest';
+import { type PrismaClient } from '@tzurot/common-types';
+
+const mockResolveRoutingContext = vi.fn();
+
+vi.mock('@tzurot/common-types', async () => {
+  const actual =
+    await vi.importActual<typeof import('@tzurot/common-types')>('@tzurot/common-types');
+  return {
+    ...actual,
+    createLogger: () => ({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() }),
+    // Stub the service constructors so the handler factory doesn't touch Prisma.
+    UserService: vi.fn(),
+    PersonaResolver: vi.fn(),
+    resolveRoutingContext: (...args: unknown[]) => mockResolveRoutingContext(...args),
+  };
+});
+
+import { handleRoutingContextCreate } from './routingContextCreate.js';
+
+const VALID_BODY = {
+  discordId: '278863839632818186',
+  username: 'lila',
+  displayName: 'Lila',
+  personalityId: 'personality-uuid',
+};
+
+const RESOLVED = {
+  userId: '11111111-1111-1111-1111-111111111111',
+  personaId: 'persona-uuid',
+  personaName: 'Nyx',
+  timezone: 'UTC',
+  contextEpoch: '2026-06-20T00:00:00.000Z',
+};
+
+function buildApp(): express.Express {
+  const app = express();
+  app.use(express.json());
+  app.post(
+    '/internal/v1/routing-context',
+    handleRoutingContextCreate({ prisma: {} as unknown as PrismaClient })
+  );
+  return app;
+}
+
+describe('POST /internal/v1/routing-context', () => {
+  beforeEach(() => vi.clearAllMocks());
+  afterEach(() => vi.restoreAllMocks());
+
+  it('resolves and returns the routing bundle', async () => {
+    mockResolveRoutingContext.mockResolvedValue(RESOLVED);
+
+    const response = await request(buildApp())
+      .post('/internal/v1/routing-context')
+      .send(VALID_BODY);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject(RESOLVED);
+    // The parsed request is forwarded verbatim to the resolver.
+    expect(mockResolveRoutingContext).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        discordId: '278863839632818186',
+        personalityId: 'personality-uuid',
+      })
+    );
+  });
+
+  it('returns 400 for a bot author (resolver returns null)', async () => {
+    mockResolveRoutingContext.mockResolvedValue(null);
+
+    const response = await request(buildApp())
+      .post('/internal/v1/routing-context')
+      .send({ ...VALID_BODY, isBot: true });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBeDefined();
+  });
+
+  it('returns 400 when the request body is invalid', async () => {
+    const response = await request(buildApp())
+      .post('/internal/v1/routing-context')
+      .send({ discordId: '', username: 'x' }); // missing displayName + personalityId, empty discordId
+
+    expect(response.status).toBe(400);
+    expect(mockResolveRoutingContext).not.toHaveBeenCalled();
+  });
+});
