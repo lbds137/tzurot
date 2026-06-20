@@ -9,7 +9,7 @@
 
 _Nothing yet — **v3.0.0-beta.135 shipped 2026-06-20** (#1275); develop is SHA-aligned with main. The beta.134→135 delta (2.5d cutover finale #1267/#1268/#1269/#1270, vision-403 fix #1274, trigger-dup fix #1272, LlmConfigResolver convergence #1258, read-timeout flip #1262, summon-anonymity union #1260, slash-command sweep #1263/#1264/#1265) is in the [release notes](https://github.com/lbds137/tzurot/releases/tag/v3.0.0-beta.135)._
 
-**Pending validation**: the vision-403 fix (#1274) is dev-verified (referenced vxReddit embed described correctly, no `imageFetchFallback` marker); confirm it holds in **prod** — the soak window showed 286 image-403 `bad_request`s across 2 users, all of which this release fixes. **Post-merge cleanup**: remove the now-inert `CONTEXT_ASSEMBLY_PROMOTE` (ai-worker), `CONTEXT_RAW_ENVELOPE` + `CONTEXT_THIN_PAYLOAD` (bot-client) Railway vars from dev + prod via the dashboard (CLI can't unset) — tracked in `cold/follow-ups.md`.
+**Pending validation**: the vision-403 fix (#1274) is dev-verified (referenced vxReddit embed described correctly, no `imageFetchFallback` marker); confirm it holds in **prod** — the soak window showed 286 image-403 `bad_request`s across 2 users, all of which this release fixes. **Post-merge cleanup**: ✅ inert `CONTEXT_*` Railway vars removed from dev + prod (2026-06-20).
 
 ---
 
