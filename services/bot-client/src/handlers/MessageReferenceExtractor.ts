@@ -8,13 +8,7 @@
  * This facade maintains the original public API for backwards compatibility
  */
 
-import {
-  type PrismaClient,
-  createLogger,
-  INTERVALS,
-  type ReferencedMessage,
-  ConversationHistoryService,
-} from '@tzurot/common-types';
+import { createLogger, INTERVALS, type ReferencedMessage } from '@tzurot/common-types';
 import { Message } from 'discord.js';
 import { TranscriptRetriever } from './references/TranscriptRetriever.js';
 import { SnapshotFormatter } from './references/SnapshotFormatter.js';
@@ -47,8 +41,6 @@ interface ReferenceExtractionResult {
  * Options for message reference extraction
  */
 interface ReferenceExtractionOptions {
-  /** Prisma client for database operations */
-  prisma: PrismaClient;
   /** Maximum number of references to extract (default: 10) */
   maxReferences?: number;
   /** Delay in ms before fetching to allow Discord to process embeds (default: 2500ms) */
@@ -88,8 +80,7 @@ export class MessageReferenceExtractor {
       options.embedProcessingDelayMs ?? INTERVALS.EMBED_PROCESSING_DELAY;
 
     // Initialize dependencies
-    const conversationHistoryService = new ConversationHistoryService(options.prisma);
-    const transcriptRetriever = new TranscriptRetriever(conversationHistoryService);
+    const transcriptRetriever = new TranscriptRetriever();
     const snapshotFormatter = new SnapshotFormatter();
     const messageFormatter = new MessageFormatter(transcriptRetriever);
     const linkExtractor = new LinkExtractor(messageFormatter, snapshotFormatter);

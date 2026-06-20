@@ -11,7 +11,6 @@ import {
   MessageRole,
   CONTENT_TYPES,
   INTERVALS,
-  type PrismaClient,
   type LoadedPersonality,
   type ReferencedMessage,
   type ConversationMessage,
@@ -39,7 +38,6 @@ export interface ReferencesAndMentionsResult {
 
 /** Options for reference extraction */
 interface ExtractReferencesOptions {
-  prisma: PrismaClient;
   mentionResolver: MentionResolver;
   message: Message;
   content: string;
@@ -58,7 +56,6 @@ export async function extractReferencesAndMentions(
   opts: ExtractReferencesOptions
 ): Promise<ReferencesAndMentionsResult> {
   const {
-    prisma,
     mentionResolver,
     message,
     content,
@@ -86,7 +83,6 @@ export async function extractReferencesAndMentions(
   // Extract referenced messages
   logger.debug('Extracting referenced messages with deduplication');
   const referenceExtractor = new MessageReferenceExtractor({
-    prisma,
     maxReferences,
     embedProcessingDelayMs: INTERVALS.EMBED_PROCESSING_DELAY,
     conversationHistoryMessageIds,
