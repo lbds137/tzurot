@@ -6,14 +6,7 @@
  */
 
 import { Embed } from 'discord.js';
-import {
-  createLogger,
-  type AttachmentMetadata,
-  CONTENT_TYPES,
-  EMBED_NAMING,
-} from '@tzurot/common-types';
-
-const logger = createLogger('embedImageExtractor');
+import { type AttachmentMetadata, CONTENT_TYPES, EMBED_NAMING } from '@tzurot/common-types';
 
 /**
  * Extract image and thumbnail URLs from Discord embeds as attachment metadata
@@ -28,19 +21,6 @@ export function extractEmbedImages(embeds: Embed[] | undefined): AttachmentMetad
   const imageAttachments: AttachmentMetadata[] = [];
 
   for (const embed of embeds) {
-    // DEBUG (temporary): capture the raw vs proxy URLs Discord hands us, to
-    // diagnose the &amp;-encoded Reddit/og:image embed URLs that 403 in the
-    // vision fetch. Remove once the embed→vision URL fix lands.
-    logger.info(
-      {
-        imageRawUrl: embed.image?.url,
-        imageProxyUrl: embed.image?.proxyURL,
-        thumbRawUrl: embed.thumbnail?.url,
-        thumbProxyUrl: embed.thumbnail?.proxyURL,
-        embedSourceUrl: embed.url,
-      },
-      'DEBUG embed image URL fields'
-    );
     // Prefer proxyURL: Discord re-hosts external embed images on media.discordapp.net,
     // which satisfies our strict CDN allowlist. `url` is the original source (e.g. Reddit,
     // Imgur) and will be rejected. Fall back to `url` only when proxyURL is absent —
