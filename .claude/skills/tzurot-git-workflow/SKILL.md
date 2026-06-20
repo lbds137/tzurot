@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-06-08'
+lastUpdated: '2026-06-20'
 ---
 
 # Git Workflow Procedures
@@ -269,12 +269,19 @@ git push origin v3.0.0-beta.XX
 ### 8. Create GitHub Release
 
 The tag is git metadata; the GitHub Release is the user-facing page with notes.
-Both are needed. Use the same release notes prepared in step 2:
+Both are needed. Use the same release notes prepared in step 2.
+
+**Release-channel convention**: the **newest** release holds GitHub's **`latest`**
+badge (`prerelease=false`); **every older** beta is `prerelease=true`. The `latest`
+badge is how users/tooling find the current build, and a prerelease can't hold it.
+This is NOT automatic — without the two commands below the newest tag stays a plain
+release and the previous one keeps `latest`, so both steps are required each release.
 
 ```bash
+# Create the newest release as `latest` (NOT --prerelease — they're mutually exclusive)
 gh release create v3.0.0-beta.XX \
   --title "v3.0.0-beta.XX" \
-  --prerelease \
+  --latest \
   --notes "$(cat <<'EOF'
 ### Bug Fixes
 - ...
@@ -285,10 +292,17 @@ gh release create v3.0.0-beta.XX \
 **Full Changelog**: https://github.com/lbds137/tzurot/compare/v3.0.0-beta.YY...v3.0.0-beta.XX
 EOF
 )"
+
+# Flip the PREVIOUS newest to prerelease. Creating vXX as --latest removes vYY's
+# latest badge but leaves it a plain release, so this explicit flip is required.
+gh release edit v3.0.0-beta.YY --prerelease
 ```
 
-`--prerelease` flag is used for all `-beta.*` tags (match existing convention
-via `gh release list`).
+Verify with `gh release list --limit 5 --json tagName,isPrerelease,isLatest --jq '.[] | {tagName, isPrerelease, isLatest}'`:
+the newest must read `prerelease=false / latest=true`, every older beta `prerelease=true / latest=false`.
+Older betas (beyond the immediately-previous) are already prerelease from past releases —
+only the immediately-previous tag needs flipping each time. **Do NOT** mark the newest
+tag `--prerelease`; that's the old (wrong) instruction this step replaces.
 
 ### 9. Reset CURRENT.md Unreleased Section
 
