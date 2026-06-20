@@ -83,6 +83,12 @@ vi.mock('../../utils/apiErrorParser.js', () => ({
   parseApiError: (error: unknown) => mockParseApiError(error),
 }));
 
+// Mock imageToDataUrl so describeImage's materialize step never hits the network.
+const mockDownloadImageToDataUrl = vi.fn();
+vi.mock('../../utils/imageToDataUrl.js', () => ({
+  downloadImageToDataUrl: (url: string, opts: unknown) => mockDownloadImageToDataUrl(url, opts),
+}));
+
 describe('VisionProcessor', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -111,6 +117,11 @@ describe('VisionProcessor', () => {
     // Default failure cache behavior - no failure cached
     mockVisionCacheGetFailure.mockResolvedValue(null);
     mockVisionCacheStoreFailure.mockResolvedValue(undefined);
+    // Default: download succeeds, returning a small fake data URL.
+    mockDownloadImageToDataUrl.mockResolvedValue({
+      dataUrl: 'data:image/jpeg;base64,ZmFrZQ==',
+      bytes: 4,
+    });
   });
 
   afterEach(() => {
@@ -145,6 +156,56 @@ describe('VisionProcessor', () => {
       contentType: 'image/png',
       size: 1024,
     };
+
+    describe('image materialization (download → data URL)', () => {
+      it('downloads a non-data: image and keys the cache on the ORIGINAL url', async () => {
+        const personality = createMockPersonality({ visionModel: 'gpt-4-vision-preview' });
+
+        await describeImage(mockAttachment, personality);
+
+        // The worker fetches the bytes itself rather than handing the provider a URL.
+        expect(mockDownloadImageToDataUrl).toHaveBeenCalledWith(
+          'https://cdn.discordapp.com/test-image.png',
+          expect.objectContaining({ contentType: 'image/png' })
+        );
+        // Cache key stays the ORIGINAL url, never the synthesized data: URL.
+        expect(mockVisionCacheGet).toHaveBeenCalledWith(
+          expect.objectContaining({ url: 'https://cdn.discordapp.com/test-image.png' })
+        );
+      });
+
+      it('skips the download when the attachment is already a data: URL', async () => {
+        const personality = createMockPersonality({ visionModel: 'gpt-4-vision-preview' });
+
+        await describeImage(
+          { ...mockAttachment, url: 'data:image/jpeg;base64,ZmFrZQ==' },
+          personality
+        );
+
+        expect(mockDownloadImageToDataUrl).not.toHaveBeenCalled();
+      });
+
+      it('falls back to the provider URL when the worker download fails', async () => {
+        const personality = createMockPersonality({ visionModel: 'gpt-4-vision-preview' });
+        mockDownloadImageToDataUrl.mockRejectedValueOnce(new Error('host blocked our egress'));
+
+        // Does not throw — the vision call still runs (with the original URL).
+        const result = await describeImage(mockAttachment, personality);
+
+        expect(result).toBe('Mocked image description');
+        expect(mockCreateChatModel).toHaveBeenCalled();
+
+        // The provider must receive the ORIGINAL source URL on fallback, not a
+        // data URL — guards against resolveVisionImageUrl silently returning
+        // undefined (or a stale data URL) instead of attachment.url on error.
+        const messages = mockModelInvoke.mock.calls[0][0];
+        const humanMessage = messages[messages.length - 1];
+        const imageContent = humanMessage.content.find(
+          (c: { type: string }) => c.type === 'image_url'
+        );
+        expect(imageContent.image_url.url).toBe(mockAttachment.url);
+      });
+    });
 
     describe('model routing', () => {
       it('should use personality visionModel when specified', async () => {
@@ -438,7 +499,7 @@ describe('VisionProcessor', () => {
     });
 
     describe('attachment handling', () => {
-      it('should use attachment URL correctly', async () => {
+      it('sends the materialized image (data URL) to the provider, not the source URL', async () => {
         mockCheckModelVisionSupport.mockResolvedValue(true);
 
         const personality = createMockPersonality({
@@ -452,7 +513,8 @@ describe('VisionProcessor', () => {
         const humanMessage = messages[messages.length - 1];
         const imageContent = humanMessage.content.find((c: any) => c.type === 'image_url');
 
-        expect(imageContent.image_url.url).toBe(mockAttachment.url);
+        // The provider receives the worker-fetched bytes, never the remote URL.
+        expect(imageContent.image_url.url).toBe('data:image/jpeg;base64,ZmFrZQ==');
       });
 
       it('should include description prompt', async () => {

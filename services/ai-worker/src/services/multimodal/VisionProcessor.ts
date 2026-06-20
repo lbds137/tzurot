@@ -27,6 +27,7 @@ import { detectVisionProvider } from '../ProviderRouter.js';
 import { parseApiError } from '../../utils/apiErrorParser.js';
 import { checkModelVisionSupport, visionDescriptionCache } from '../../redis.js';
 import { isDataUrl } from '../../utils/attachmentFetch.js';
+import { downloadImageToDataUrl } from '../../utils/imageToDataUrl.js';
 
 const logger = createLogger('VisionProcessor');
 const config = getConfig();
@@ -200,6 +201,13 @@ interface InvokeVisionModelOptions {
    * where the env-default would route to the wrong provider's API.
    */
   provider?: AIProvider;
+  /**
+   * The image to send to the provider — a `data:` URL of worker-fetched bytes,
+   * or (on download-fallback) the original remote URL. Kept SEPARATE from
+   * `attachment` so cache keys + the negative cache stay on the original URL
+   * while the provider receives the bytes. Defaults to `attachment.url`.
+   */
+  imageUrl?: string;
   loggingContext: VisionLoggingContext;
   personalityName: string;
 }
@@ -274,13 +282,19 @@ async function invokeVisionModel(
   // `new URL()` preserves them. In practice neither LLM providers nor Discord
   // CDN ever emit trailing-dot hostnames, so the difference is academic, but
   // it's a real semantic divergence worth noting if either ever changes.
-  const imageUrl = isDataUrl(attachment.url) ? attachment.url : new URL(attachment.url).toString();
+  // The provider receives the resolved image (a data: URL of worker-fetched
+  // bytes, or the original remote URL on download-fallback). Everything else in
+  // this function — the negative cache below, attachmentId, logging — stays on
+  // the ORIGINAL attachment so cache keys never become the (huge, unstable)
+  // data: URL. describeImage's resolveVisionImageUrl now owns the fetch (with
+  // SSRF guards), so for that path the bytes DO pass through our process first.
+  const sourceUrl = options.imageUrl ?? attachment.url;
+  const imageUrl = isDataUrl(sourceUrl) ? sourceUrl : new URL(sourceUrl).toString();
 
-  // Redact data URLs in logs: after DownloadAttachmentsStep runs, attachment.url
-  // is a 1-2 MiB base64 string. Emitting that at info level saturates log
-  // aggregators and buries other messages. Remote URLs are log-safe (short,
-  // useful forensically).
-  const logUrl = isDataUrl(attachment.url) ? '<data-url>' : imageUrl;
+  // Redact data URLs in logs: a materialized image is a 1-2 MiB base64 string.
+  // Emitting that at info level saturates log aggregators and buries other
+  // messages. Remote URLs are log-safe (short, useful forensically).
+  const logUrl = isDataUrl(sourceUrl) ? '<data-url>' : imageUrl;
 
   logger.info({ url: logUrl, modelName }, 'Invoking vision model');
 
@@ -492,6 +506,55 @@ export async function selectVisionModel(
 }
 
 /**
+ * Resolve the image URL the vision provider should receive: a `data:` URL of
+ * worker-fetched bytes for remote images, so the provider never has to fetch a
+ * URL it might be unable to reach. OpenRouter can't fetch Discord's external-
+ * image proxy (`images-ext-1.discordapp.net`, 403s on its datacenter egress),
+ * and signed Discord-CDN URLs expire — but our own SSRF-guarded fetcher pulls
+ * both. Already-inlined images (a `data:` URL, e.g. from DownloadAttachmentsStep)
+ * are returned untouched.
+ *
+ * On download failure, falls back to the ORIGINAL remote URL so the provider can
+ * try hosts our egress can't reach — logged so the fallback rate is observable.
+ * Returns only the URL; the caller keeps the original `attachment` for cache keys.
+ */
+async function resolveVisionImageUrl(
+  attachment: AttachmentMetadata,
+  loggingContext: VisionLoggingContext
+): Promise<string> {
+  if (isDataUrl(attachment.url)) {
+    return attachment.url;
+  }
+  try {
+    const { dataUrl } = await downloadImageToDataUrl(attachment.url, {
+      contentType: attachment.contentType,
+      name: attachment.name,
+      jobId: loggingContext.jobId,
+    });
+    return dataUrl;
+  } catch (error) {
+    // Broad by design: ANY download failure — including AttachmentTooLargeError —
+    // degrades to handing the provider the original URL. Unlike
+    // DownloadAttachmentsStep, where an over-size image is a hard fail, the vision
+    // provider may accept larger images than our own fetch cap, so we let it try
+    // rather than rethrow. Do NOT add an `instanceof AttachmentTooLargeError`
+    // rethrow here thinking it closes a gap; the fallback rate is observable via
+    // the image_fetch_fallback log field below.
+    logger.warn(
+      {
+        jobId: loggingContext.jobId,
+        attachmentId: attachment.id,
+        name: attachment.name,
+        err: error,
+        image_fetch_fallback: true,
+      },
+      'Vision image download failed; falling back to provider URL fetch'
+    );
+    return attachment.url;
+  }
+}
+
+/**
  * Describe an image using vision model
  * Uses personality's model if it has vision, otherwise uses uncensored fallback
  * Throws errors to allow retry logic to handle them
@@ -582,10 +645,16 @@ export async function describeImage(
   // route → 401 Missing Authentication. detectVisionProvider maps the actual
   // model name to its route, so key resolution and routing stay aligned.
   const provider = options.provider ?? detectVisionProvider(usedModel);
+  // Resolve the image to inline bytes so the vision PROVIDER never has to fetch
+  // a URL it may be unable to reach (Discord's external-image proxy 403s
+  // OpenRouter; signed Discord-CDN URLs expire). We pass the ORIGINAL attachment
+  // (for cache keys) plus the resolved imageUrl separately.
+  const imageUrl = await resolveVisionImageUrl(attachment, loggingContext);
   const description = await invokeVisionModel(attachment, usedModel, {
     systemPrompt,
     userApiKey,
     provider,
+    imageUrl,
     loggingContext,
     personalityName: personality.name,
   });
