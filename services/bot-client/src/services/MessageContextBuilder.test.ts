@@ -119,12 +119,9 @@ vi.mock('./DiscordChannelFetcher.js', () => ({
   },
 }));
 
-// Mock for CrossChannelHistoryFetcher
-const mockFetchCrossChannelIfEnabled = vi.fn().mockResolvedValue(undefined);
-
+// Only the known-channel-environments builder remains in CrossChannelHistoryFetcher
+// (the cross-channel fetch is the worker's now).
 vi.mock('./CrossChannelHistoryFetcher.js', () => ({
-  fetchCrossChannelIfEnabled: (...args: unknown[]) => mockFetchCrossChannelIfEnabled(...args),
-  mapCrossChannelToApiFormat: vi.fn(() => []),
   buildKnownChannelEnvironments: vi.fn(() => ({
     '999888777666555444': {
       type: 'guild',
@@ -1413,125 +1410,6 @@ describe('MessageContextBuilder', () => {
         roles: ['Admin'],
         displayColor: '#00FF00',
       });
-    });
-
-    it('should continue without cross-channel history when fetch throws', async () => {
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
-        userId: 'user-uuid-123',
-        defaultPersonaId: 'test-persona-id',
-      });
-      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
-      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
-      mockExtractReferencesWithReplacement.mockResolvedValue({
-        references: [],
-        updatedContent: 'Hello',
-      });
-      mockResolveAllMentions.mockResolvedValue({
-        processedContent: 'Hello',
-        mentionedUsers: [],
-        mentionedChannels: [],
-        mentionedRoles: [],
-      });
-      mockFetchCrossChannelIfEnabled.mockRejectedValue(new Error('DB connection lost'));
-
-      const result = await builder.buildContext(mockMessage, mockPersonality, 'Hello', {
-        crossChannelHistoryEnabled: true,
-      });
-
-      // Should succeed despite cross-channel failure
-      expect(result).toBeDefined();
-      expect(result.context.crossChannelHistory).toBeUndefined();
-    });
-
-    it('should suppress cross-channel history when isWeighInMode is true', async () => {
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
-        userId: 'user-uuid-123',
-        defaultPersonaId: 'test-persona-id',
-      });
-      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
-      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
-      mockExtractReferencesWithReplacement.mockResolvedValue({
-        references: [],
-        updatedContent: 'Hello',
-      });
-      mockResolveAllMentions.mockResolvedValue({
-        processedContent: 'Hello',
-        mentionedUsers: [],
-        mentionedChannels: [],
-        mentionedRoles: [],
-      });
-
-      await builder.buildContext(mockMessage, mockPersonality, 'Hello', {
-        crossChannelHistoryEnabled: true,
-        isWeighInMode: true,
-      });
-
-      // Cross-channel should be called with enabled: false due to weigh-in mode
-      expect(mockFetchCrossChannelIfEnabled).toHaveBeenCalledWith(
-        expect.objectContaining({ enabled: false })
-      );
-    });
-
-    it('should suppress cross-channel history when incognito is true (chat with a message)', async () => {
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
-        userId: 'user-uuid-123',
-        defaultPersonaId: 'test-persona-id',
-      });
-      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
-      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
-      mockExtractReferencesWithReplacement.mockResolvedValue({
-        references: [],
-        updatedContent: 'Hello',
-      });
-      mockResolveAllMentions.mockResolvedValue({
-        processedContent: 'Hello',
-        mentionedUsers: [],
-        mentionedChannels: [],
-        mentionedRoles: [],
-      });
-
-      // incognito with a message: isWeighInMode is false, but incognito nulls the
-      // persona, so the persona-scoped cross-channel fetch must still be skipped.
-      await builder.buildContext(mockMessage, mockPersonality, 'Hello', {
-        crossChannelHistoryEnabled: true,
-        incognito: true,
-      });
-
-      expect(mockFetchCrossChannelIfEnabled).toHaveBeenCalledWith(
-        expect.objectContaining({ enabled: false })
-      );
-    });
-
-    it('enables cross-channel history for a PERSONAL weigh-in (incognito=false)', async () => {
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
-        userId: 'user-uuid-123',
-        defaultPersonaId: 'test-persona-id',
-      });
-      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
-      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
-      mockExtractReferencesWithReplacement.mockResolvedValue({
-        references: [],
-        updatedContent: 'Hello',
-      });
-      mockResolveAllMentions.mockResolvedValue({
-        processedContent: 'Hello',
-        mentionedUsers: [],
-        mentionedChannels: [],
-        mentionedRoles: [],
-      });
-
-      // Cross-channel and the persona are a unit: a personal weigh-in keeps its
-      // persona (incognito=false overrides the isWeighInMode default), so the
-      // fetch must be enabled even though it's a weigh-in.
-      await builder.buildContext(mockMessage, mockPersonality, 'Hello', {
-        crossChannelHistoryEnabled: true,
-        isWeighInMode: true,
-        incognito: false,
-      });
-
-      expect(mockFetchCrossChannelIfEnabled).toHaveBeenCalledWith(
-        expect.objectContaining({ enabled: true })
-      );
     });
 
     it('wires the our-webhook registry into the fetch via getOurPersonalityId', async () => {
