@@ -1,7 +1,7 @@
 ---
 name: tzurot-deployment
 description: 'Railway deployment procedures. Invoke with /tzurot-deployment for deploying, checking logs, and troubleshooting.'
-lastUpdated: '2026-04-20'
+lastUpdated: '2026-06-19'
 ---
 
 # Deployment Procedures
@@ -95,6 +95,17 @@ railway logs <DEPLOYMENT_ID> --service ai-worker --environment production --line
 The `--filter` flag uses Railway's query DSL (`@level:error`, quoted phrases like `"vision AND 404"`, etc.). For multi-token literal substring searches, single tokens often work better than quoted phrases — Railway's filter syntax doesn't always behave like grep.
 
 **When this matters**: investigations into bugs that surfaced just before a release deploy, or cross-deployment timeline traces. Surfaced 2026-04-25 during the LangChain reasoning-extraction investigation when the leaked request happened on the prior deployment.
+
+### Empty log results = debug the query, not the retention
+
+Railway retains logs; an empty or suspiciously short result almost always means the **query** is wrong, not that the logs "rolled off" or "aged out" (this is a named anti-pattern in `.claude/rules/00-critical.md` § "Don't Present Speculation as Fact"). The real culprits, in order of how often they bite:
+
+- **`--lines` has a cap (~5000).** Values like `6000`/`8000` fail with `Error in limit - Invalid input` and return **zero rows** — which looks identical to "no matching logs." Stay at `--lines 5000` or below; to reach further back, narrow by deployment ID (above) rather than raising `--lines`.
+- **Filter by the field the log actually carries.** A vision/image error logs `attachmentId` and `url`, not the top-level `requestId` — so `--filter "<requestId>"` silently misses it and you see only the job-start/complete lines. When the error isn't where you expect, it's logged under a different field: pull a window and `grep` locally instead of trusting one `--filter`.
+- **The `--filter` DSL is finicky.** Hyphenated tokens (`ref1-image`), quoted phrases (`"failed after"`), and special characters often match nothing. Prefer a single bare token, or pull `--lines 5000` into a file and `grep -iE` locally — local grep is predictable; the DSL is not.
+- **Ended/removed deploys are still queryable** by deployment ID (above). A `REMOVED` status does not mean the logs are gone.
+
+Surfaced 2026-06-19 chasing a prod vision `bad_request`: a `--lines 8000` query errored out to zero rows, and a `requestId` filter missed the error (logged under `attachmentId`) — both briefly mis-attributed to "logs rolled off." `--lines 5000` + local grep surfaced the full trace (a 403 on an `&amp;`-mangled embed URL) immediately.
 
 ## Environment Variables
 
