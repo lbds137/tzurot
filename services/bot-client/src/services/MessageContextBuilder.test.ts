@@ -534,6 +534,7 @@ describe('MessageContextBuilder', () => {
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: mockReferences,
         updatedContent: 'Check [Reference 1]',
+        rawReferences: mockReferences,
       });
       mockResolveAllMentions.mockResolvedValue({
         processedContent: 'Check [Reference 1]',
@@ -544,8 +545,12 @@ describe('MessageContextBuilder', () => {
 
       const result = await builder.buildContext(mockMessage, mockPersonality, 'Check this message');
 
-      expect(result.referencedMessages).toHaveLength(1);
-      expect(result.referencedMessages[0]).toMatchObject({
+      // The extraction output reaches the worker via the raw envelope's
+      // rawReferencedMessages (the former ContextBuildResult.referencedMessages
+      // return field was dead — never read — and has been removed).
+      const rawRefs = result.context.rawAssemblyInputs?.rawReferencedMessages;
+      expect(rawRefs).toHaveLength(1);
+      expect(rawRefs?.[0]).toMatchObject({
         referenceNumber: 1,
         content: 'Referenced content',
       });
@@ -759,7 +764,8 @@ describe('MessageContextBuilder', () => {
       const result = await builder.buildContext(mockMessage, mockPersonality, 'Hello');
 
       expect(result.context.referencedMessages).toBeUndefined();
-      expect(result.referencedMessages).toEqual([]);
+      // No references extracted → the raw envelope carries none either.
+      expect(result.context.rawAssemblyInputs?.rawReferencedMessages).toBeUndefined();
     });
 
     it('still resolves mentions (for rewriting) but the envelope omits mentionedPersonas', async () => {
