@@ -29,7 +29,6 @@ import { generate } from '../../utils/gatewayServiceCalls.js';
 import { clientsForUser } from '../../utils/gatewayClients.js';
 import { MessageContextBuilder } from '../MessageContextBuilder.js';
 import { ConversationPersistence } from '../ConversationPersistence.js';
-import { ReferenceEnrichmentService } from '../ReferenceEnrichmentService.js';
 import {
   handleNsfwVerification,
   sendVerificationConfirmation,
@@ -42,7 +41,6 @@ const logger = createLogger('PersonalityChatManager');
 export interface PersonalityChatManagerDeps {
   contextBuilder: MessageContextBuilder;
   persistence: ConversationPersistence;
-  referenceEnricher: ReferenceEnrichmentService;
   denylistCache?: DenylistCache;
 }
 
@@ -71,13 +69,11 @@ export type SubmitChatJobResult =
 export class PersonalityChatManager {
   private readonly contextBuilder: MessageContextBuilder;
   private readonly persistence: ConversationPersistence;
-  private readonly referenceEnricher: ReferenceEnrichmentService;
   private readonly denylistCache?: DenylistCache;
 
   constructor(deps: PersonalityChatManagerDeps) {
     this.contextBuilder = deps.contextBuilder;
     this.persistence = deps.persistence;
-    this.referenceEnricher = deps.referenceEnricher;
     this.denylistCache = deps.denylistCache;
   }
 
@@ -247,24 +243,18 @@ export class PersonalityChatManager {
       botUserId,
       crossChannelHistoryEnabled,
     });
-    const { context, personaId, messageContent, referencedMessages, conversationHistory } =
-      buildResult;
+    const { context, personaId, messageContent } = buildResult;
 
-    if (referencedMessages.length > 0) {
-      await this.referenceEnricher.enrichWithPersonaNames(
-        referencedMessages,
-        conversationHistory,
-        personality.id
-      );
-    }
-
+    // References are NOT persisted bot-client-side: the worker re-derives them
+    // from `rawReferencedMessages` in the envelope. (The previous
+    // `referencedMessages: context.referencedMessages` arg was a no-op — that
+    // field is never populated on the thin envelope.)
     await this.persistence.saveUserMessage({
       message,
       personality,
       personaId,
       messageContent,
       attachments: context.attachments,
-      referencedMessages: context.referencedMessages,
     });
 
     const userMessageTime = new Date();

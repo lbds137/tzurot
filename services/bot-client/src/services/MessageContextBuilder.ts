@@ -66,9 +66,10 @@ interface ContextBuildResult {
   personaName: string | null;
   /** Message content with Discord links replaced by [Reference N] */
   messageContent: string;
-  /** Referenced messages (from replies and message links) */
+  /** Referenced messages (extraction output). Surfaced only via the shipped
+   *  `rawReferencedMessages`; this return field has no remaining reader. */
   referencedMessages: ReferencedMessage[];
-  /** Conversation history (for reference enrichment) */
+  /** Conversation history — consumed by the weigh-in empty-history gate (chat.ts). */
   conversationHistory: ConversationMessage[];
 }
 
@@ -533,7 +534,7 @@ export class MessageContextBuilder {
       personaName,
       messageContent,
       referencedMessages,
-      conversationHistory: history, // Return for reference enrichment
+      conversationHistory: history, // Consumed by the weigh-in empty-history gate (chat.ts)
     };
   }
 }
