@@ -1,10 +1,14 @@
 /**
  * Tests for TranscriptRetriever
+ *
+ * The retriever is Redis-cache-only — there is no DB tier in bot-client (the
+ * worker owns the DB). A cache miss returns null; the worker recovers reference
+ * transcripts from its own DB tier, and aged-out extended-context transcripts
+ * are an accepted divergence. See the module docblock.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { TranscriptRetriever } from './TranscriptRetriever.js';
-import type { ConversationHistoryService } from '@tzurot/common-types';
 
 // Mock Redis cache - must use factory function for vi.mock
 vi.mock('../../redis.js', () => ({
@@ -30,25 +34,20 @@ vi.mock('@tzurot/common-types', async () => {
 
 describe('TranscriptRetriever', () => {
   let retriever: TranscriptRetriever;
-  let mockConversationHistoryService: ConversationHistoryService;
-  let mockVoiceTranscriptCache: any;
+  let mockVoiceTranscriptCache: { get: ReturnType<typeof vi.fn>; store: ReturnType<typeof vi.fn> };
 
   beforeEach(async () => {
     vi.clearAllMocks();
 
-    // Get the mocked cache
     const redisModule = await import('../../redis.js');
-    mockVoiceTranscriptCache = redisModule.voiceTranscriptCache;
+    mockVoiceTranscriptCache =
+      redisModule.voiceTranscriptCache as unknown as typeof mockVoiceTranscriptCache;
 
-    mockConversationHistoryService = {
-      getMessageByDiscordId: vi.fn(),
-    } as any;
-
-    retriever = new TranscriptRetriever(mockConversationHistoryService);
+    retriever = new TranscriptRetriever();
   });
 
-  describe('Redis Cache (Tier 1)', () => {
-    it('should return transcript from Redis cache when available', async () => {
+  describe('Redis cache hit', () => {
+    it('returns the transcript from the Redis cache when present', async () => {
       const transcript = 'This is a cached transcript';
       mockVoiceTranscriptCache.get.mockResolvedValue(transcript);
 
@@ -56,156 +55,9 @@ describe('TranscriptRetriever', () => {
 
       expect(result).toBe(transcript);
       expect(mockVoiceTranscriptCache.get).toHaveBeenCalledWith('https://example.com/voice.ogg');
-      // Should not check database if cache hit
-      expect(mockConversationHistoryService.getMessageByDiscordId).not.toHaveBeenCalled();
     });
 
-    it('should skip empty string from cache', async () => {
-      mockVoiceTranscriptCache.get.mockResolvedValue('');
-      vi.mocked(mockConversationHistoryService.getMessageByDiscordId).mockResolvedValue({
-        id: 1,
-        content: 'Database transcript',
-      } as any);
-
-      const result = await retriever.retrieveTranscript('msg-123', 'https://example.com/voice.ogg');
-
-      // Should fall through to database
-      expect(result).toBe('Database transcript');
-      expect(mockConversationHistoryService.getMessageByDiscordId).toHaveBeenCalled();
-    });
-
-    it('should skip null from cache', async () => {
-      mockVoiceTranscriptCache.get.mockResolvedValue(null);
-      vi.mocked(mockConversationHistoryService.getMessageByDiscordId).mockResolvedValue({
-        id: 1,
-        content: 'Database transcript',
-      } as any);
-
-      const result = await retriever.retrieveTranscript('msg-123', 'https://example.com/voice.ogg');
-
-      // Should fall through to database
-      expect(result).toBe('Database transcript');
-      expect(mockConversationHistoryService.getMessageByDiscordId).toHaveBeenCalled();
-    });
-
-    it('should skip undefined from cache', async () => {
-      mockVoiceTranscriptCache.get.mockResolvedValue(undefined);
-      vi.mocked(mockConversationHistoryService.getMessageByDiscordId).mockResolvedValue({
-        id: 1,
-        content: 'Database transcript',
-      } as any);
-
-      const result = await retriever.retrieveTranscript('msg-123', 'https://example.com/voice.ogg');
-
-      // Should fall through to database
-      expect(result).toBe('Database transcript');
-      expect(mockConversationHistoryService.getMessageByDiscordId).toHaveBeenCalled();
-    });
-  });
-
-  describe('Database (Tier 2)', () => {
-    it('should return transcript from database when cache misses', async () => {
-      mockVoiceTranscriptCache.get.mockResolvedValue(null);
-      vi.mocked(mockConversationHistoryService.getMessageByDiscordId).mockResolvedValue({
-        id: 1,
-        discordMessageId: 'msg-123',
-        content: 'Database transcript text',
-      } as any);
-
-      const result = await retriever.retrieveTranscript('msg-123', 'https://example.com/voice.ogg');
-
-      expect(result).toBe('Database transcript text');
-      expect(mockConversationHistoryService.getMessageByDiscordId).toHaveBeenCalledWith('msg-123');
-    });
-
-    it('should return null when message not found in database', async () => {
-      mockVoiceTranscriptCache.get.mockResolvedValue(null);
-      vi.mocked(mockConversationHistoryService.getMessageByDiscordId).mockResolvedValue(null);
-
-      const result = await retriever.retrieveTranscript('msg-123', 'https://example.com/voice.ogg');
-
-      expect(result).toBeNull();
-    });
-
-    it('should return null when database message has no content', async () => {
-      mockVoiceTranscriptCache.get.mockResolvedValue(null);
-      vi.mocked(mockConversationHistoryService.getMessageByDiscordId).mockResolvedValue({
-        id: 1,
-        content: null,
-      } as any);
-
-      const result = await retriever.retrieveTranscript('msg-123', 'https://example.com/voice.ogg');
-
-      expect(result).toBeNull();
-    });
-
-    it('should return null when database message has empty content', async () => {
-      mockVoiceTranscriptCache.get.mockResolvedValue(null);
-      vi.mocked(mockConversationHistoryService.getMessageByDiscordId).mockResolvedValue({
-        id: 1,
-        content: '',
-      } as any);
-
-      const result = await retriever.retrieveTranscript('msg-123', 'https://example.com/voice.ogg');
-
-      expect(result).toBeNull();
-    });
-  });
-
-  describe('Error Handling', () => {
-    it('should return null when Redis cache throws error', async () => {
-      mockVoiceTranscriptCache.get.mockRejectedValue(new Error('Redis connection failed'));
-      vi.mocked(mockConversationHistoryService.getMessageByDiscordId).mockResolvedValue({
-        id: 1,
-        content: 'Database transcript',
-      } as any);
-
-      const result = await retriever.retrieveTranscript('msg-123', 'https://example.com/voice.ogg');
-
-      // Should handle error gracefully and return null
-      expect(result).toBeNull();
-    });
-
-    it('should return null when database throws error', async () => {
-      mockVoiceTranscriptCache.get.mockResolvedValue(null);
-      vi.mocked(mockConversationHistoryService.getMessageByDiscordId).mockRejectedValue(
-        new Error('Database query failed')
-      );
-
-      const result = await retriever.retrieveTranscript('msg-123', 'https://example.com/voice.ogg');
-
-      // Should handle error gracefully and return null
-      expect(result).toBeNull();
-    });
-
-    it('should return null when both cache and database fail', async () => {
-      mockVoiceTranscriptCache.get.mockRejectedValue(new Error('Redis error'));
-      vi.mocked(mockConversationHistoryService.getMessageByDiscordId).mockRejectedValue(
-        new Error('Database error')
-      );
-
-      const result = await retriever.retrieveTranscript('msg-123', 'https://example.com/voice.ogg');
-
-      expect(result).toBeNull();
-    });
-  });
-
-  describe('Integration Scenarios', () => {
-    it('should prefer cache over database when both have data', async () => {
-      mockVoiceTranscriptCache.get.mockResolvedValue('Cached transcript');
-      vi.mocked(mockConversationHistoryService.getMessageByDiscordId).mockResolvedValue({
-        id: 1,
-        content: 'Database transcript',
-      } as any);
-
-      const result = await retriever.retrieveTranscript('msg-123', 'https://example.com/voice.ogg');
-
-      expect(result).toBe('Cached transcript');
-      // Should not query database if cache hit
-      expect(mockConversationHistoryService.getMessageByDiscordId).not.toHaveBeenCalled();
-    });
-
-    it('should handle long attachment URLs gracefully', async () => {
+    it('keys the cache lookup by attachment URL, not message id', async () => {
       const longUrl = 'https://example.com/' + 'a'.repeat(1000) + '/voice.ogg';
       mockVoiceTranscriptCache.get.mockResolvedValue('Transcript for long URL');
 
@@ -214,34 +66,41 @@ describe('TranscriptRetriever', () => {
       expect(result).toBe('Transcript for long URL');
       expect(mockVoiceTranscriptCache.get).toHaveBeenCalledWith(longUrl);
     });
+  });
 
-    it('should handle different message IDs correctly', async () => {
+  describe('Redis cache miss (no DB tier — null, not a DB fallback)', () => {
+    it('returns null on an empty-string cache value', async () => {
+      mockVoiceTranscriptCache.get.mockResolvedValue('');
+
+      const result = await retriever.retrieveTranscript('msg-123', 'https://example.com/voice.ogg');
+
+      expect(result).toBeNull();
+    });
+
+    it('returns null on a null cache value', async () => {
       mockVoiceTranscriptCache.get.mockResolvedValue(null);
 
-      vi.mocked(mockConversationHistoryService.getMessageByDiscordId)
-        .mockResolvedValueOnce({
-          id: 1,
-          discordMessageId: 'msg-123',
-          content: 'First transcript',
-        } as any)
-        .mockResolvedValueOnce({
-          id: 2,
-          discordMessageId: 'msg-456',
-          content: 'Second transcript',
-        } as any);
+      const result = await retriever.retrieveTranscript('msg-123', 'https://example.com/voice.ogg');
 
-      const result1 = await retriever.retrieveTranscript(
-        'msg-123',
-        'https://example.com/voice1.ogg'
-      );
-      const result2 = await retriever.retrieveTranscript(
-        'msg-456',
-        'https://example.com/voice2.ogg'
-      );
+      expect(result).toBeNull();
+    });
 
-      expect(result1).toBe('First transcript');
-      expect(result2).toBe('Second transcript');
-      expect(mockConversationHistoryService.getMessageByDiscordId).toHaveBeenCalledTimes(2);
+    it('returns null on an undefined cache value', async () => {
+      mockVoiceTranscriptCache.get.mockResolvedValue(undefined);
+
+      const result = await retriever.retrieveTranscript('msg-123', 'https://example.com/voice.ogg');
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('Error handling', () => {
+    it('returns null when the Redis cache throws', async () => {
+      mockVoiceTranscriptCache.get.mockRejectedValue(new Error('Redis connection failed'));
+
+      const result = await retriever.retrieveTranscript('msg-123', 'https://example.com/voice.ogg');
+
+      expect(result).toBeNull();
     });
   });
 });

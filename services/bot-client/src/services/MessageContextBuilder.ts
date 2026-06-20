@@ -135,7 +135,7 @@ export class MessageContextBuilder {
   private cachedBotSuffix: string | null = null;
 
   constructor(
-    private prisma: PrismaClient,
+    prisma: PrismaClient,
     personaResolver: PersonaResolver,
     private serviceClient: ServiceClient,
     denylistCache?: DenylistCache
@@ -145,7 +145,7 @@ export class MessageContextBuilder {
     this.mentionResolver = new MentionResolver(prisma, personaResolver);
     this.personaResolver = personaResolver;
     this.channelFetcher = new DiscordChannelFetcher();
-    this.transcriptRetriever = new TranscriptRetriever(this.conversationHistory);
+    this.transcriptRetriever = new TranscriptRetriever();
     this.denylistCache = denylistCache;
   }
 
@@ -332,7 +332,6 @@ export class MessageContextBuilder {
     maxReferences?: number;
   }): Promise<ReferencesAndMentionsResult> {
     return extractReferencesAndMentions({
-      prisma: this.prisma,
       mentionResolver: this.mentionResolver,
       message: opts.message,
       content: opts.content,

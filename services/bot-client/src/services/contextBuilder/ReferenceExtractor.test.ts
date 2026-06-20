@@ -8,7 +8,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Message } from 'discord.js';
 import { Collection } from 'discord.js';
-import type { ConversationMessage, LoadedPersonality, PrismaClient } from '@tzurot/common-types';
+import type { ConversationMessage, LoadedPersonality } from '@tzurot/common-types';
 
 // Hoist mock so it's available before module loading
 const { mockExtractReferences } = vi.hoisted(() => ({
@@ -51,7 +51,6 @@ import { extractReferencesAndMentions } from './ReferenceExtractor.js';
 import type { MentionResolver } from '../MentionResolver.js';
 
 describe('extractReferencesAndMentions', () => {
-  const mockPrisma = {} as PrismaClient;
   const mockPersonality = { id: 'personality-1' } as LoadedPersonality;
 
   function createMockMessage(overrides?: Partial<Message>): Message {
@@ -93,7 +92,6 @@ describe('extractReferencesAndMentions', () => {
     });
 
     const result = await extractReferencesAndMentions({
-      prisma: mockPrisma,
       mentionResolver: mockMentionResolver as unknown as MentionResolver,
       message: createMockMessage(),
       content: 'Hello world',
@@ -113,7 +111,6 @@ describe('extractReferencesAndMentions', () => {
 
   it('should return empty results in weigh-in mode', async () => {
     const result = await extractReferencesAndMentions({
-      prisma: mockPrisma,
       mentionResolver: mockMentionResolver as unknown as MentionResolver,
       message: createMockMessage(),
       content: 'Hello world',
@@ -142,7 +139,6 @@ describe('extractReferencesAndMentions', () => {
     });
 
     const result = await extractReferencesAndMentions({
-      prisma: mockPrisma,
       mentionResolver: mockMentionResolver as unknown as MentionResolver,
       message: createMockMessage(),
       content: 'Hello <link>',
@@ -168,7 +164,6 @@ describe('extractReferencesAndMentions', () => {
     });
 
     const result = await extractReferencesAndMentions({
-      prisma: mockPrisma,
       mentionResolver: mockMentionResolver as unknown as MentionResolver,
       message: createMockMessage({ id: 'msg-forward' } as Partial<Message>),
       content: 'Forwarded message with real content',
@@ -200,7 +195,6 @@ describe('extractReferencesAndMentions', () => {
 
     const message = createMockMessage({ id: 'forward-1', content: '' } as Partial<Message>);
     const result = await extractReferencesAndMentions({
-      prisma: mockPrisma,
       mentionResolver: mockMentionResolver as unknown as MentionResolver,
       message,
       content: effectiveContent,
@@ -220,7 +214,6 @@ describe('extractReferencesAndMentions', () => {
     ];
 
     await extractReferencesAndMentions({
-      prisma: mockPrisma,
       mentionResolver: mockMentionResolver as unknown as MentionResolver,
       message: createMockMessage(),
       content: 'Hello',

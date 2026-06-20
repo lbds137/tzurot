@@ -20,9 +20,6 @@ import {
 } from '../test/mocks/Discord.mock.js';
 import type { Client } from 'discord.js';
 
-// Create shared mock for ConversationHistoryService methods
-const mockGetMessageByDiscordId = vi.fn();
-
 // Mock Redis
 vi.mock('../redis.js', () => ({
   voiceTranscriptCache: {
@@ -31,7 +28,7 @@ vi.mock('../redis.js', () => ({
   },
 }));
 
-// Mock the logger and ConversationHistoryService
+// Mock the logger
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
@@ -42,9 +39,6 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     })),
-    ConversationHistoryService: class {
-      getMessageByDiscordId = mockGetMessageByDiscordId;
-    },
   };
 });
 
@@ -53,11 +47,9 @@ describe('MessageReferenceExtractor (Orchestration)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetMessageByDiscordId.mockReset();
 
     // Use 0ms delay for faster tests
     extractor = new MessageReferenceExtractor({
-      prisma: {} as any,
       maxReferences: 10,
       embedProcessingDelayMs: 0,
     });
@@ -261,7 +253,6 @@ describe('MessageReferenceExtractor (Orchestration)', () => {
 
       // Use extractor with limit of 10
       const limitedExtractor = new MessageReferenceExtractor({
-        prisma: {} as any,
         maxReferences: 10,
         embedProcessingDelayMs: 0,
       });
@@ -297,7 +288,6 @@ describe('MessageReferenceExtractor (Orchestration)', () => {
       Object.defineProperty(message, 'channel', { value: mockChannel, writable: true });
 
       const dedupExtractor = new MessageReferenceExtractor({
-        prisma: {} as any,
         maxReferences: 10,
         embedProcessingDelayMs: 0,
         conversationHistoryMessageIds: ['referenced-123'], // Mark as already in history
