@@ -94,6 +94,20 @@ vi.mock('./MentionResolver.js', () => ({
   },
 }));
 
+// The author's routing facts (internal id, persona, timezone, epoch) are now
+// resolved by `resolveUserContext` (which calls the gateway `routing-context`
+// endpoint — tested in UserContextResolver.test.ts). Mock it here so these
+// tests exercise buildContext's ORCHESTRATION given a resolved author bundle,
+// not the resolution mechanism. Override per-test for epoch / persona variants.
+const mockResolveUserContext = vi.fn();
+vi.mock('./contextBuilder/index.js', async importOriginal => {
+  const actual = await importOriginal<typeof import('./contextBuilder/index.js')>();
+  return {
+    ...actual,
+    resolveUserContext: (...args: unknown[]) => mockResolveUserContext(...args),
+  };
+});
+
 // Mock for DiscordChannelFetcher
 const mockFetchRecentMessages = vi.fn();
 const mockMergeWithHistory = vi.fn();
@@ -144,8 +158,22 @@ describe('MessageContextBuilder', () => {
       },
     } as unknown as PrismaClient;
 
-    // Create builder instance with mock PersonaResolver
-    builder = new MessageContextBuilder(mockPrisma, mockPersonaResolver as any);
+    // Default author bundle (resolveUserContext is mocked above). Mirrors the
+    // values the old userService/personaResolver/epoch mocks produced for the
+    // author, so the envelope-shape assertions stay stable.
+    mockResolveUserContext.mockResolvedValue({
+      internalUserId: 'internal-user-uuid',
+      discordUserId: 'user-123',
+      personaId: 'persona-123',
+      personaName: 'Test Persona',
+      userTimezone: undefined,
+      contextEpoch: undefined,
+      history: [],
+    });
+
+    // Create builder instance — serviceClient is a stub since resolveUserContext
+    // (the only consumer) is mocked.
+    builder = new MessageContextBuilder(mockPrisma, mockPersonaResolver as any, {} as any);
 
     // Get service instances to access mocks
     mockHistoryService = (builder as any).conversationHistory;
@@ -349,13 +377,16 @@ describe('MessageContextBuilder', () => {
     });
 
     it('should build complete context with user lookup and history', async () => {
-      // Setup mocks
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
-        userId: 'user-uuid-123',
-        defaultPersonaId: 'test-persona-id',
+      // The author bundle is resolved by the (mocked) routing-context call.
+      mockResolveUserContext.mockResolvedValue({
+        internalUserId: 'user-uuid-123',
+        discordUserId: 'user-123',
+        personaId: 'persona-123',
+        personaName: 'Test Persona',
+        userTimezone: undefined,
+        contextEpoch: undefined,
+        history: [],
       });
-      // PersonaResolver.resolve is already mocked in beforeEach
-      // PersonaResolver.resolve returns preferredName directly
       vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([
         {
           id: 'history-1',
@@ -378,18 +409,13 @@ describe('MessageContextBuilder', () => {
       // Execute
       const result = await builder.buildContext(mockMessage, mockPersonality, 'Hello world');
 
-      // Verify user service calls
-      expect(mockUserService.getOrCreateUser).toHaveBeenCalledWith(
-        'user-123',
-        'testuser',
+      // Author resolution is delegated to resolveUserContext (the routing-context
+      // call) with the effective user + personality + resolved display name.
+      expect(mockResolveUserContext).toHaveBeenCalledWith(
+        { id: 'user-123', username: 'testuser', bot: false },
+        mockPersonality,
         'Test Display Name',
-        undefined, // bio
-        false // isBot
-      );
-      // PersonaResolver uses Discord ID (not internal UUID)
-      expect(mockPersonaResolver.resolve).toHaveBeenCalledWith(
-        'user-123', // Discord ID
-        'personality-123'
+        expect.anything()
       );
 
       // Verify history retrieval. Args: (channelId, limit, contextEpoch, maxAge).
@@ -437,19 +463,15 @@ describe('MessageContextBuilder', () => {
       // Mock fetch to also return null (simulates member not fetchable)
       vi.mocked(mockMessage.guild!.members.fetch).mockResolvedValue(null as any);
 
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
-        userId: 'user-uuid-123',
-        defaultPersonaId: 'test-persona-id',
-      });
-      // Override to return null preferredName
-      mockPersonaResolver.resolve.mockResolvedValue({
-        config: {
-          personaId: 'persona-123',
-          preferredName: null,
-          pronouns: null,
-          content: '',
-        },
-        source: 'user-default',
+      // Author bundle with a null persona name (no preferred name resolved).
+      mockResolveUserContext.mockResolvedValue({
+        internalUserId: 'user-uuid-123',
+        discordUserId: 'user-123',
+        personaId: 'persona-123',
+        personaName: null,
+        userTimezone: undefined,
+        contextEpoch: undefined,
+        history: [],
       });
       vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
@@ -459,12 +481,13 @@ describe('MessageContextBuilder', () => {
 
       const result = await builder.buildContext(mockMessage, mockPersonality, 'Hello');
 
-      expect(mockUserService.getOrCreateUser).toHaveBeenCalledWith(
-        'user-123',
+      // With no member + no globalName, the display name falls back to username
+      // and is forwarded to the routing-context resolution.
+      expect(mockResolveUserContext).toHaveBeenCalledWith(
+        { id: 'user-123', username: 'testuser', bot: false },
+        mockPersonality,
         'testuser',
-        'testuser', // Falls back to username
-        undefined, // bio
-        false // isBot
+        expect.anything()
       );
       expect(result.context.activePersonaName).toBeUndefined();
     });
@@ -797,16 +820,16 @@ describe('MessageContextBuilder', () => {
     it('should apply context epoch filter when user has cleared history (STM)', async () => {
       const contextEpoch = new Date('2025-01-15T12:00:00Z');
 
-      // Set up the epoch in UserPersonaHistoryConfig
-      vi.mocked(mockPrisma.userPersonaHistoryConfig.findUnique).mockResolvedValue({
-        lastContextReset: contextEpoch,
-      } as any);
-
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
-        userId: 'user-uuid-123',
-        defaultPersonaId: 'test-persona-id',
+      // The epoch is now resolved server-side and returned in the author bundle.
+      mockResolveUserContext.mockResolvedValue({
+        internalUserId: 'user-uuid-123',
+        discordUserId: 'user-123',
+        personaId: 'persona-123',
+        personaName: 'Test Persona',
+        userTimezone: 'UTC',
+        contextEpoch,
+        history: [],
       });
-      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
       vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
@@ -821,20 +844,6 @@ describe('MessageContextBuilder', () => {
 
       await builder.buildContext(mockMessage, mockPersonality, 'Hello after clear');
 
-      // Verify the epoch was looked up
-      expect(mockPrisma.userPersonaHistoryConfig.findUnique).toHaveBeenCalledWith({
-        where: {
-          userId_personalityId_personaId: {
-            userId: 'user-uuid-123',
-            personalityId: 'personality-123',
-            personaId: 'persona-123',
-          },
-        },
-        select: {
-          lastContextReset: true,
-        },
-      });
-
       // Verify history was fetched WITH the context epoch (and no maxAge)
       expect(mockHistoryService.getChannelHistory).toHaveBeenCalledWith(
         'channel-123',
@@ -847,16 +856,16 @@ describe('MessageContextBuilder', () => {
     it('should NOT apply the per-user epoch in weigh-in mode even when one is set', async () => {
       const contextEpoch = new Date('2025-01-15T12:00:00Z');
 
-      // The invoking user HAS a recent STM reset...
-      vi.mocked(mockPrisma.userPersonaHistoryConfig.findUnique).mockResolvedValue({
-        lastContextReset: contextEpoch,
-      } as any);
-
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
-        userId: 'user-uuid-123',
-        defaultPersonaId: 'test-persona-id',
+      // The invoking user HAS a recent STM reset (returned in the author bundle)...
+      mockResolveUserContext.mockResolvedValue({
+        internalUserId: 'user-uuid-123',
+        discordUserId: 'user-123',
+        personaId: 'persona-123',
+        personaName: 'Test Persona',
+        userTimezone: 'UTC',
+        contextEpoch,
+        history: [],
       });
-      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
       vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],

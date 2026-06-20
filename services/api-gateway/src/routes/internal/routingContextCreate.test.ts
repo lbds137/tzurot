@@ -19,8 +19,9 @@ vi.mock('@tzurot/common-types', async () => {
   return {
     ...actual,
     createLogger: () => ({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() }),
-    // Stub the service constructors so the handler factory doesn't touch Prisma.
-    UserService: vi.fn(),
+    // Stub PersonaResolver (the handler constructs it directly) so the factory
+    // doesn't start its real cache-cleanup interval. UserService is reached via
+    // getOrCreateUserService, not a direct import, so it needs no stub here.
     PersonaResolver: vi.fn(),
     resolveRoutingContext: (...args: unknown[]) => mockResolveRoutingContext(...args),
   };
@@ -32,12 +33,12 @@ const VALID_BODY = {
   discordId: '278863839632818186',
   username: 'lila',
   displayName: 'Lila',
-  personalityId: 'personality-uuid',
+  personalityId: '550e8400-e29b-41d4-a716-446655440002',
 };
 
 const RESOLVED = {
   userId: '11111111-1111-1111-1111-111111111111',
-  personaId: 'persona-uuid',
+  personaId: '550e8400-e29b-41d4-a716-446655440003',
   personaName: 'Nyx',
   timezone: 'UTC',
   contextEpoch: '2026-06-20T00:00:00.000Z',
@@ -71,7 +72,7 @@ describe('POST /internal/v1/routing-context', () => {
       expect.anything(),
       expect.objectContaining({
         discordId: '278863839632818186',
-        personalityId: 'personality-uuid',
+        personalityId: '550e8400-e29b-41d4-a716-446655440002',
       })
     );
   });
