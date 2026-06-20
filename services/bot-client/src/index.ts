@@ -32,6 +32,7 @@ import {
   healthCheck,
 } from './utils/gatewayServiceCalls.js';
 import { WebhookManager } from './utils/WebhookManager.js';
+import { getServiceClient } from './utils/gatewayClients.js';
 import type { MessageHandler } from './handlers/MessageHandler.js';
 import { CommandHandler } from './handlers/CommandHandler.js';
 import { redis as botRedis, closeRedis } from './redis.js';
@@ -239,7 +240,12 @@ function createServices(): Services {
 
   // Message handling services
   const responseSender = new DiscordResponseSender(webhookManager);
-  const contextBuilder = new MessageContextBuilder(prisma, personaResolver, denylistCache);
+  const contextBuilder = new MessageContextBuilder(
+    prisma,
+    personaResolver,
+    getServiceClient(),
+    denylistCache
+  );
   const persistence = new ConversationPersistence();
   const voiceTranscription = new VoiceTranscriptionService();
   const referenceEnricher = new ReferenceEnrichmentService(userService, personaResolver);
