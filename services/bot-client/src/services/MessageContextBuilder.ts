@@ -15,7 +15,6 @@ import {
   ConversationHistoryService,
   UserService,
   createLogger,
-  mapCrossChannelToApiFormat,
   MESSAGE_LIMITS,
   isTypingChannel,
 } from '@tzurot/common-types';
@@ -48,7 +47,6 @@ import {
   extractReferencesAndMentions,
   type ReferencesAndMentionsResult,
 } from './contextBuilder/ReferenceExtractor.js';
-import { fetchCrossChannelIfEnabled } from './CrossChannelHistoryFetcher.js';
 
 const logger = createLogger('MessageContextBuilder');
 
@@ -361,7 +359,6 @@ export class MessageContextBuilder {
    * @param content - Message content (may be voice transcript)
    * @param options - Additional options including extended context
    */
-  // eslint-disable-next-line max-lines-per-function -- Coordinator method with 6 well-organized steps
   async buildContext(
     message: Message,
     personality: LoadedPersonality,
@@ -422,31 +419,10 @@ export class MessageContextBuilder {
     });
     const history = extendedContext.history;
 
-    // Step 4b: Fetch cross-channel history. Cross-channel and the persona are a
-    // unit — it's persona-scoped, so a personal summon (incognito:false),
-    // INCLUDING a personal weigh-in, gets it; only an incognito (anonymous)
-    // summon is disabled, since there's no persona to scope it to. Gated on the
-    // effective incognito (`incognito ?? isWeighInMode`), mirroring the epoch
-    // gate above and the worker-side ContextAssembler.
-    const crossChannelGroups = await fetchCrossChannelIfEnabled({
-      enabled:
-        options.crossChannelHistoryEnabled === true &&
-        (options.incognito ?? options.isWeighInMode) !== true,
-      channelId: message.channel.id,
-      personaId,
-      personalityId: personality.id,
-      dbLimit,
-      discordClient: message.client,
-      conversationHistoryService: this.conversationHistory,
-      maxAge: options.extendedContext?.maxAge,
-      contextEpoch,
-    }).catch((err: unknown) => {
-      logger.warn(
-        { err, personaId, personalityId: personality.id, channelId: message.channel.id },
-        'Cross-channel fetch failed, continuing without'
-      );
-      return undefined;
-    });
+    // Cross-channel history is re-derived worker-side (ContextAssembler queries
+    // the DB + gates on the persona/incognito state itself). bot-client only
+    // ships the cached channel-environment names (via rawAssemblyInputs) so the
+    // worker can decorate its groups — see buildKnownChannelEnvironments.
 
     // Step 5: Extract references and resolve mentions
     // maxReferences shares the same budget as maxMessages (no additive surprise)
@@ -508,10 +484,8 @@ export class MessageContextBuilder {
       activePersonaName: personaName ?? undefined,
       attachments: allAttachments.length > 0 ? allAttachments : undefined,
       environment: extractDiscordEnvironment(message),
-      crossChannelHistory:
-        crossChannelGroups !== undefined
-          ? mapCrossChannelToApiFormat(crossChannelGroups)
-          : undefined,
+      // crossChannelHistory is absent: the worker assembles cross-channel groups
+      // itself (ContextAssembler.assembleCrossChannel queries the DB directly).
       // Detect voice messages for TTS voice-only mode
       isVoiceMessage: hasVoiceAttachments(message),
       rawAssemblyInputs,
