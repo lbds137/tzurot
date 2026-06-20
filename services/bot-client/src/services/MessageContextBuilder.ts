@@ -20,6 +20,7 @@ import {
   isTypingChannel,
 } from '@tzurot/common-types';
 import type { Message } from 'discord.js';
+import type { ServiceClient } from '@tzurot/clients';
 import type { MessageContext } from '../types.js';
 import { extractDiscordEnvironment } from '../utils/discordContext.js';
 import { buildMessageContent } from '../utils/MessageContentBuilder.js';
@@ -137,6 +138,7 @@ export class MessageContextBuilder {
   constructor(
     private prisma: PrismaClient,
     personaResolver: PersonaResolver,
+    private serviceClient: ServiceClient,
     denylistCache?: DenylistCache
   ) {
     this.conversationHistory = new ConversationHistoryService(prisma);
@@ -380,11 +382,7 @@ export class MessageContextBuilder {
       { id: effectiveUser.id, username: effectiveUser.username, bot: effectiveUser.bot },
       personality,
       displayName,
-      {
-        userService: this.userService,
-        personaResolver: this.personaResolver,
-        prisma: this.prisma,
-      }
+      { serviceClient: this.serviceClient }
     );
     const { internalUserId, discordUserId, personaId, personaName, userTimezone } = userContext;
     // An incognito (anonymous) summon must NOT bound the shared channel history

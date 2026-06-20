@@ -1,21 +1,24 @@
 /**
  * User Context Resolver
  *
- * Handles resolving user identity, persona lookup, and context epoch.
+ * Resolves the message author's routing facts — internal user id, active
+ * persona, persona name, timezone, and the STM context-epoch — via the
+ * gateway's `routing-context` endpoint. The provisioning + persona cascade +
+ * epoch reads run server-side (where Prisma is legal) in one round-trip; this
+ * module is now a thin adapter that maps the response into the shape
+ * `MessageContextBuilder` expects.
  */
 
 import {
   createLogger,
-  type UserService,
-  type PersonaResolver,
-  type PrismaClient,
   type LoadedPersonality,
   type ConversationMessage,
 } from '@tzurot/common-types';
+import type { ServiceClient } from '@tzurot/clients';
 
 const logger = createLogger('UserContextResolver');
 
-/** Result of resolving user, persona, and history */
+/** Result of resolving user, persona, and (deferred) history. */
 interface UserContextResult {
   internalUserId: string;
   discordUserId: string;
@@ -26,56 +29,26 @@ interface UserContextResult {
   history: ConversationMessage[];
 }
 
-/** User info for context resolution */
+/** User info for context resolution. */
 interface UserInfo {
   id: string;
   username: string;
   bot?: boolean;
 }
 
-/** Dependencies for user context resolution */
+/** Dependencies for user context resolution. */
 interface UserContextDeps {
-  userService: UserService;
-  personaResolver: PersonaResolver;
-  prisma: PrismaClient;
+  serviceClient: ServiceClient;
 }
 
 /**
- * Look up the context epoch for STM clear feature.
- * Returns undefined if no epoch is set.
- *
- * @param prisma - Prisma client
- * @param internalUserId - Internal user UUID
- * @param personalityId - Personality ID
- * @param personaId - Persona ID
- * @returns Context epoch date or undefined
- */
-export async function lookupContextEpoch(
-  prisma: PrismaClient,
-  internalUserId: string,
-  personalityId: string,
-  personaId: string
-): Promise<Date | undefined> {
-  const historyConfig = await prisma.userPersonaHistoryConfig.findUnique({
-    where: {
-      userId_personalityId_personaId: {
-        userId: internalUserId,
-        personalityId,
-        personaId,
-      },
-    },
-    select: { lastContextReset: true },
-  });
-  return historyConfig?.lastContextReset ?? undefined;
-}
-
-/**
- * Resolve user identity, persona, and fetch context epoch.
+ * Resolve user identity, persona, timezone, and context epoch for the message
+ * author against the target personality.
  *
  * @param user - User info (from overrideUser or message.author)
  * @param personality - Target AI personality
- * @param displayName - Display name for persona creation
- * @param deps - Dependencies (userService, personaResolver, prisma)
+ * @param displayName - Display name for persona creation (provisioning seed)
+ * @param deps - Dependencies (the internal-gateway ServiceClient)
  * @returns Resolved user context info
  */
 export async function resolveUserContext(
@@ -84,62 +57,61 @@ export async function resolveUserContext(
   displayName: string,
   deps: UserContextDeps
 ): Promise<UserContextResult> {
-  const { userService, personaResolver, prisma } = deps;
+  const { serviceClient } = deps;
 
-  // Get internal user ID for database operations.
-  //
-  // `provisioned.defaultPersonaId` is available here but currently unused —
-  // PersonaResolver below re-resolves because Priority 1 (per-personality
-  // override in UserPersonalityConfig) can't be short-circuited from the
-  // provisioned value. If we ever split "resolve override vs fall back to
-  // default" into separate calls, this is the point where the default side
-  // could skip a query.
-  const provisioned = await userService.getOrCreateUser(
-    user.id,
-    user.username,
+  const result = await serviceClient.routingContextCreate({
+    discordId: user.id,
+    username: user.username,
     displayName,
-    undefined,
-    user.bot ?? false
-  );
+    isBot: user.bot ?? false,
+    personalityId: personality.id,
+  });
 
-  if (provisioned === null) {
-    throw new Error('Cannot process messages from bots');
+  if (!result.ok) {
+    // The bot-author rejection is the endpoint's 400; keep the original wording
+    // ONLY for that exact case (a defensive backstop — bots are filtered
+    // upstream). Any other failure for a bot author (network timeout, gateway
+    // 5xx) must surface its real status, not a misleading bot-rejection.
+    if (user.bot === true && result.status === 400) {
+      throw new Error('Cannot process messages from bots');
+    }
+    throw new Error(`Failed to resolve routing context (status ${result.status}): ${result.error}`);
   }
 
-  const internalUserId = provisioned.userId;
-
-  const discordUserId = user.id;
-  const personaResult = await personaResolver.resolve(discordUserId, personality.id);
-  const personaId = personaResult.config.personaId;
-  const personaName = personaResult.config.preferredName;
-  const userTimezone = await userService.getUserTimezone(internalUserId);
+  const { userId, personaId, personaName, timezone, contextEpoch } = result.data;
+  // contextEpoch is the STM-reset timestamp; the gateway returns it as an ISO
+  // string (or null). History filtering downstream still wants a Date.
+  const resolvedEpoch = contextEpoch !== null ? new Date(contextEpoch) : undefined;
 
   logger.debug(
-    { personaId, personaName, internalUserId, discordUserId, personalityId: personality.id },
-    'User persona lookup complete'
+    {
+      personaId,
+      personaName,
+      internalUserId: userId,
+      discordUserId: user.id,
+      personalityId: personality.id,
+    },
+    'User persona lookup complete (via routing-context)'
   );
-
-  // Look up context epoch (STM clear feature)
-  const contextEpoch = await lookupContextEpoch(prisma, internalUserId, personality.id, personaId);
-  if (contextEpoch !== undefined) {
+  if (resolvedEpoch !== undefined) {
+    // Grep anchor: the STM-clear epoch silently bounds the downstream history
+    // window, which is non-obvious — an explicit trace of when one is applied is
+    // worth keeping for operators debugging history truncation.
     logger.debug(
-      { personaId, contextEpoch: contextEpoch.toISOString() },
-      'Applying context epoch filter (STM clear)'
+      { personaId, contextEpoch: resolvedEpoch.toISOString() },
+      'Resolved STM context-epoch (history will be bounded by it)'
     );
   }
 
-  // Note: History fetching is deferred to buildContext which has access to options
-  // This allows choosing between personality-filtered or full channel history
-  // based on whether extended context is enabled.
-  const history: ConversationMessage[] = [];
-
   return {
-    internalUserId,
-    discordUserId,
+    internalUserId: userId,
+    discordUserId: user.id,
     personaId,
     personaName,
-    userTimezone,
-    contextEpoch,
-    history,
+    userTimezone: timezone,
+    contextEpoch: resolvedEpoch,
+    // History is fetched later in buildContext (it chooses personality-filtered
+    // vs full channel history based on options), so this stays empty here.
+    history: [],
   };
 }

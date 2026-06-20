@@ -216,11 +216,12 @@ export const RoutingContextRequestSchema = z.object({
   /** Message author's Discord snowflake — the provisioning + cascade key. */
   discordId: z.string().min(1).max(32),
   /**
-   * Discord username, for provisioning the user shell on first contact. Not
-   * `.min(1)`-constrained: Discord usernames are always non-empty at the
-   * call-site, so the cap is the only real bound.
+   * Discord username, for provisioning the user shell on first contact.
+   * `.min(1)` enforces the caller contract — Discord usernames are always
+   * non-empty, and an empty one would be stored verbatim as the user shell's
+   * username.
    */
-  username: z.string().max(255),
+  username: z.string().min(1).max(255),
   /**
    * Display name, for seeding the default persona's name on first contact.
    * May legitimately be blank (a user without a global display name), so it is
@@ -229,8 +230,12 @@ export const RoutingContextRequestSchema = z.object({
   displayName: z.string().max(255),
   /** True for bot authors; provisioning rejects them (returns 400). */
   isBot: z.boolean().optional(),
-  /** Target personality whose persona cascade to resolve (deterministic UUID). */
-  personalityId: z.string().min(1).max(64),
+  /**
+   * Target personality whose persona cascade to resolve. Always a deterministic
+   * v5 UUID (`generatePersonalityUuid`), so the `.uuid()` constraint is exact —
+   * the call-site (bot-client `MessageContextBuilder`) passes `personality.id`.
+   */
+  personalityId: z.string().uuid(),
 });
 export type RoutingContextRequest = z.infer<typeof RoutingContextRequestSchema>;
 
@@ -238,11 +243,12 @@ export const RoutingContextResponseSchema = z.object({
   /** Internal user UUID (FK for everything downstream). */
   userId: z.string().uuid(),
   /**
-   * Resolved active persona UUID (override → default cascade). Not `.uuid()`-
-   * constrained: the system-default fallback carries an empty string, which the
-   * epoch lookup treats as a non-matching key.
+   * Resolved active persona (override → default cascade): a UUID, OR the empty
+   * string for the system-default fallback (which the epoch lookup treats as a
+   * non-matching key). The union encodes both cases so a malformed non-UUID,
+   * non-empty id can't slip through.
    */
-  personaId: z.string(),
+  personaId: z.union([z.string().uuid(), z.literal('')]),
   /** Persona display name; null when the cascade has no preferred name. */
   personaName: z.string().nullable(),
   /** IANA timezone; `getUserTimezone` falls back to 'UTC', so always present. */
