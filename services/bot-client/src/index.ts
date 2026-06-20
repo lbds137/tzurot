@@ -13,7 +13,6 @@ import {
   isBotOwner,
   PersonalityService,
   CacheInvalidationService,
-  UserService,
   PersonaResolver,
   PersonaCacheInvalidationService,
   ChannelActivationCacheInvalidationService,
@@ -45,7 +44,6 @@ import { DiscordResponseSender } from './services/DiscordResponseSender.js';
 import { MessageContextBuilder } from './services/MessageContextBuilder.js';
 import { ConversationPersistence } from './services/ConversationPersistence.js';
 import { VoiceTranscriptionService } from './services/VoiceTranscriptionService.js';
-import { ReferenceEnrichmentService } from './services/ReferenceEnrichmentService.js';
 import { ReplyResolutionService } from './services/ReplyResolutionService.js';
 import { SlotDeliveryService } from './services/SlotDeliveryService.js';
 import { MultiTagCoordinator } from './services/MultiTagCoordinator.js';
@@ -205,7 +203,6 @@ function createServices(): Services {
   // Shared services (used by multiple processors)
   const personalityService = new PersonalityService(prisma);
   const conversationHistoryService = new ConversationHistoryService(prisma);
-  const userService = new UserService(prisma);
 
   // Routing-read loader: personality resolution for routing (mention parsing,
   // reply resolution, activation, multi-tag recovery, /character chat) goes
@@ -248,14 +245,12 @@ function createServices(): Services {
   );
   const persistence = new ConversationPersistence();
   const voiceTranscription = new VoiceTranscriptionService();
-  const referenceEnricher = new ReferenceEnrichmentService(userService, personaResolver);
   const replyResolver = new ReplyResolutionService(routingPersonalityLoader);
 
   // Personality chat pipeline (manager + Discord-shape adapter).
   const { personalityChatManager, personalityHandler } = buildPersonalityChatPipeline({
     contextBuilder,
     persistence,
-    referenceEnricher,
     denylistCache,
     jobTracker,
   });

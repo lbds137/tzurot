@@ -55,7 +55,6 @@ describe('PersonalityChatManager', () => {
   let manager: PersonalityChatManager;
   let mockContextBuilder: { buildContext: ReturnType<typeof vi.fn> };
   let mockPersistence: { saveUserMessage: ReturnType<typeof vi.fn> };
-  let mockReferenceEnricher: { enrichWithPersonaNames: ReturnType<typeof vi.fn> };
   let mockDenylistCache: { isPersonalityDenied: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
@@ -76,13 +75,11 @@ describe('PersonalityChatManager', () => {
       }),
     };
     mockPersistence = { saveUserMessage: vi.fn().mockResolvedValue(undefined) };
-    mockReferenceEnricher = { enrichWithPersonaNames: vi.fn().mockResolvedValue(undefined) };
     mockDenylistCache = { isPersonalityDenied: vi.fn().mockReturnValue(false) };
 
     manager = new PersonalityChatManager({
       contextBuilder: mockContextBuilder as any,
       persistence: mockPersistence as any,
-      referenceEnricher: mockReferenceEnricher as any,
       denylistCache: mockDenylistCache as any,
     });
   });
@@ -131,28 +128,6 @@ describe('PersonalityChatManager', () => {
       expect(result.kind).toBe('submitted');
       if (result.kind !== 'submitted') return;
       expect(result.trackingContext.isAutoResponse).toBe(true);
-    });
-
-    it('enriches references when present', async () => {
-      mockContextBuilder.buildContext.mockResolvedValueOnce({
-        context: {
-          attachments: [],
-          referencedMessages: [{ id: 'ref-1' }],
-          conversationHistory: [],
-        },
-        personaId: 'persona-123',
-        messageContent: 'Hi',
-        referencedMessages: [{ referenceNumber: 1 }],
-        conversationHistory: [{ id: 'conv-1' }],
-      });
-
-      await manager.submitChatJob({
-        message: createMockMessage(),
-        personality: createMockPersonality(),
-        content: 'Hi',
-      });
-
-      expect(mockReferenceEnricher.enrichWithPersonaNames).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -239,17 +214,6 @@ describe('PersonalityChatManager', () => {
       // and uses personality defaults rather than aborting the request.
       expect(result.kind).toBe('submitted');
       expect(mockContextBuilder.buildContext).toHaveBeenCalled();
-    });
-
-    it('skips reference enrichment when no references present', async () => {
-      // Default mock returns referencedMessages: [] — reference enricher should not fire
-      await manager.submitChatJob({
-        message: createMockMessage(),
-        personality: createMockPersonality(),
-        content: 'Hi',
-      });
-
-      expect(mockReferenceEnricher.enrichWithPersonaNames).not.toHaveBeenCalled();
     });
   });
 
@@ -375,17 +339,16 @@ describe('PersonalityChatManager', () => {
   });
 
   describe('submitChatJob - persistence', () => {
-    it('saves user message with attachments and references from buildContext', async () => {
+    it('saves the user message with attachments (references are worker-derived, not persisted here)', async () => {
       const attachments = [
         { url: 'https://x/y.png', contentType: 'image/png', name: 'y.png', size: 100 },
       ];
-      const referencedMessages = [{ referenceNumber: 1, content: 'prev' }];
 
       mockContextBuilder.buildContext.mockResolvedValueOnce({
-        context: { attachments, referencedMessages, conversationHistory: [] },
+        context: { attachments, referencedMessages: [], conversationHistory: [] },
         personaId: 'persona-1',
         messageContent: 'Hi',
-        referencedMessages,
+        referencedMessages: [{ referenceNumber: 1, content: 'prev' }],
         conversationHistory: [],
       });
 
@@ -395,9 +358,11 @@ describe('PersonalityChatManager', () => {
         content: 'Hi',
       });
 
-      expect(mockPersistence.saveUserMessage).toHaveBeenCalledWith(
-        expect.objectContaining({ attachments, referencedMessages })
-      );
+      // Attachments are persisted; references are NOT — the worker re-derives
+      // them from `rawReferencedMessages` in the envelope.
+      const call = mockPersistence.saveUserMessage.mock.calls[0][0];
+      expect(call).toMatchObject({ attachments });
+      expect(call.referencedMessages).toBeUndefined();
     });
   });
 

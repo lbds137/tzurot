@@ -165,4 +165,17 @@ describe('resolveUserContext', () => {
       /status 503.*gateway exploded/
     );
   });
+
+  it('surfaces the real status for a NON-bot request that 400s (not the bot message)', async () => {
+    // A non-bot 400 (e.g. malformed input slipping past local validation) must
+    // fall through to the generic status-bearing error, never the bot wording.
+    const deps = depsWith(
+      vi.fn().mockResolvedValue({ ok: false, error: 'validation error', status: 400 })
+    );
+    const user = { id: 'discord-123', username: 'alice', bot: false };
+
+    await expect(resolveUserContext(user, createMockPersonality(), 'Alice', deps)).rejects.toThrow(
+      /status 400.*validation error/
+    );
+  });
 });

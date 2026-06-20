@@ -87,8 +87,8 @@ export interface FetchOptions {
    *    (assistant; webhooks don't work in DMs).
    *  - A primary-bot message NOT in the registry → a relay-echo / transcript of
    *    USER content (`channel.send("**Name:** …")`), which is user-role content.
-   * Mirrors the dual-detection in `ReferenceEnrichmentService.isWebhookMessage`
-   * (registry primary, `webhookId` + bot-suffix as fallback). Optional, but the
+   * Dual-detection: registry primary, `webhookId` + bot-suffix as fallback.
+   * Optional, but the
    * fallback only covers GUILD webhooks (bot-suffix on the webhook username): if
    * this is omitted, primary-bot DM personality responses (no `webhookId`, no
    * suffix) are misclassified as relay-echoes (user role). Production always

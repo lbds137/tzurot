@@ -30,7 +30,6 @@ import { PersonalityMessageHandler } from './services/PersonalityMessageHandler.
 import { PersonalityChatManager } from './services/character/PersonalityChatManager.js';
 import { MessageContextBuilder } from './services/MessageContextBuilder.js';
 import { ConversationPersistence } from './services/ConversationPersistence.js';
-import { ReferenceEnrichmentService } from './services/ReferenceEnrichmentService.js';
 import { JobTracker } from './services/JobTracker.js';
 import { ResponseOrderingService } from './services/ResponseOrderingService.js';
 import { SlotDeliveryService } from './services/SlotDeliveryService.js';
@@ -54,7 +53,6 @@ import type { IPersonalityLoader } from './types/IPersonalityLoader.js';
 export function buildPersonalityChatPipeline(deps: {
   contextBuilder: MessageContextBuilder;
   persistence: ConversationPersistence;
-  referenceEnricher: ReferenceEnrichmentService;
   denylistCache: DenylistCache;
   jobTracker: JobTracker;
 }): {
@@ -64,7 +62,6 @@ export function buildPersonalityChatPipeline(deps: {
   const personalityChatManager = new PersonalityChatManager({
     contextBuilder: deps.contextBuilder,
     persistence: deps.persistence,
-    referenceEnricher: deps.referenceEnricher,
     denylistCache: deps.denylistCache,
   });
   const personalityHandler = new PersonalityMessageHandler({

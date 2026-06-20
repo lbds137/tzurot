@@ -329,9 +329,8 @@ export class DiscordChannelFetcher {
   /**
    * Classify a message's authorship for role + normalization decisions.
    *
-   * Mirrors the dual-detection in `ReferenceEnrichmentService.isWebhookMessage`
-   * (our-webhook registry primary, `webhookId` + bot-suffix as fallback). Three
-   * "ours" outcomes drive downstream handling:
+   * Dual-detection: our-webhook registry primary, `webhookId` + bot-suffix as
+   * fallback. Three "ours" outcomes drive downstream handling:
    *  - our guild webhook character reply → assistant
    *  - our DM personality response (primary bot, registered; webhooks don't work
    *    in DMs so it's sent as `**Personality:** …`) → assistant
