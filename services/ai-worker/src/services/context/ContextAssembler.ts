@@ -194,11 +194,31 @@ export class ContextAssembler {
       configOverrides?.maxMessages ?? MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES,
       MESSAGE_LIMITS.MAX_EXTENDED_CONTEXT
     );
-    const dbHistory = await this.deps.dataSource.getChannelHistory(
-      channelId,
-      limit,
-      contextEpoch,
-      configOverrides?.maxAge ?? undefined
+    // Exclude the trigger message from the assembled history. bot-client
+    // persists it to the gateway BEFORE submitting this job (durability for the
+    // next turn), and this hydration runs after — so the just-sent message is
+    // already in the channel history. It is also delivered as the live user
+    // turn, so without this filter it appears twice: once in the assembled
+    // history and again as the current message. (The bot-side history fetch
+    // reads before the persist and never saw it; the worker must drop it here.)
+    //
+    // Fetch one extra row when a trigger is present: it's always the newest row
+    // in the window (just persisted), so filtering it from a plain `limit`
+    // fetch would shrink history to limit-1 and drop the oldest message. The +1
+    // keeps a full limit-deep window after the filter. (A rare no-match — the
+    // trigger isn't in the DB — leaves limit+1, which is harmless.)
+    const triggerMessageId = jobContext.triggerMessageId;
+    const fetchLimit = triggerMessageId !== undefined ? limit + 1 : limit;
+    const dbHistory = (
+      await this.deps.dataSource.getChannelHistory(
+        channelId,
+        fetchLimit,
+        contextEpoch,
+        configOverrides?.maxAge ?? undefined
+      )
+    ).filter(
+      msg =>
+        triggerMessageId === undefined || !(msg.discordMessageId ?? []).includes(triggerMessageId)
     );
 
     // Step 4: envelope-carried extended context — batch-upsert the observed

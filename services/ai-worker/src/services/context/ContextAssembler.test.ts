@@ -173,6 +173,111 @@ describe('ContextAssembler.assembleCore', () => {
     expect(core.history).toHaveLength(1);
   });
 
+  it('excludes the trigger message from the assembled history (it ships as the live turn)', async () => {
+    // bot-client persists the trigger before submitting the job, so the channel
+    // history fetch includes it. The worker must drop it so the message does not
+    // appear both in the assembled history and as the current user turn.
+    const deps = makeDeps({
+      dataSource: {
+        getChannelHistory: vi.fn().mockResolvedValue([
+          {
+            id: 'm-prior',
+            role: MessageRole.User,
+            content: 'earlier message',
+            createdAt: new Date('2026-05-01T00:00:00Z'),
+            discordMessageId: ['d-prior'],
+          },
+          {
+            id: 'm-trigger',
+            role: MessageRole.User,
+            content: 'the message being answered',
+            createdAt: new Date('2026-05-01T00:01:00Z'),
+            discordMessageId: ['d-trigger'],
+          },
+        ]),
+      },
+    });
+    const assembler = new ContextAssembler(deps);
+
+    const core = await assembler.assembleCore(
+      makeJobContext({ triggerMessageId: 'd-trigger' }),
+      PERSONALITY,
+      { maxMessages: 30, maxAge: 7200 } as ResolvedConfigOverrides
+    );
+
+    // Over-fetches limit+1 (31) so dropping the trigger still leaves a full
+    // limit-deep window rather than limit-1.
+    expect(deps.dataSource.getChannelHistory).toHaveBeenCalledWith('chan-1', 31, undefined, 7200);
+    // Only the prior message survives; the trigger row is filtered out.
+    expect(core.history).toHaveLength(1);
+    expect(core.history[0].content).toBe('earlier message');
+  });
+
+  it('keeps history intact when the trigger is set but matches no row (no-match passthrough)', async () => {
+    const deps = makeDeps({
+      dataSource: {
+        getChannelHistory: vi.fn().mockResolvedValue([
+          {
+            id: 'm-x',
+            role: MessageRole.User,
+            content: 'unrelated',
+            createdAt: new Date('2026-05-01T00:00:00Z'),
+            discordMessageId: ['d-other'],
+          },
+        ]),
+      },
+    });
+    const assembler = new ContextAssembler(deps);
+
+    const core = await assembler.assembleCore(
+      makeJobContext({ triggerMessageId: 'd-trigger-not-present' }),
+      PERSONALITY,
+      undefined
+    );
+
+    // triggerMessageId is set but matches no row → nothing is filtered.
+    expect(core.history).toHaveLength(1);
+    expect(core.history[0].content).toBe('unrelated');
+  });
+
+  it('does not over-fetch (no limit+1) when no triggerMessageId is present', async () => {
+    const deps = makeDeps();
+    const assembler = new ContextAssembler(deps);
+
+    await assembler.assembleCore(makeJobContext({ triggerMessageId: undefined }), PERSONALITY, {
+      maxMessages: 30,
+      maxAge: 7200,
+    } as ResolvedConfigOverrides);
+
+    // No trigger → plain `limit`, no +1.
+    expect(deps.dataSource.getChannelHistory).toHaveBeenCalledWith('chan-1', 30, undefined, 7200);
+  });
+
+  it('keeps all history when no triggerMessageId is present', async () => {
+    const deps = makeDeps({
+      dataSource: {
+        getChannelHistory: vi.fn().mockResolvedValue([
+          {
+            id: 'm-a',
+            role: MessageRole.User,
+            content: 'a',
+            createdAt: new Date('2026-05-01T00:00:00Z'),
+            discordMessageId: ['d-a'],
+          },
+        ]),
+      },
+    });
+    const assembler = new ContextAssembler(deps);
+
+    const core = await assembler.assembleCore(
+      makeJobContext({ triggerMessageId: undefined }),
+      PERSONALITY,
+      undefined
+    );
+
+    expect(core.history).toHaveLength(1);
+  });
+
   it('falls back to the username when rawAuthorDisplayName is absent', async () => {
     const deps = makeDeps();
     const assembler = new ContextAssembler(deps);
