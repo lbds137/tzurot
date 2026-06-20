@@ -9,7 +9,6 @@ import {
   type PrismaClient,
   type PersonaResolver,
   type LoadedPersonality,
-  type ReferencedMessage,
   type ConversationMessage,
   type AttachmentMetadata,
   ConversationHistoryService,
@@ -64,9 +63,6 @@ interface ContextBuildResult {
   personaName: string | null;
   /** Message content with Discord links replaced by [Reference N] */
   messageContent: string;
-  /** Referenced messages (extraction output). Surfaced only via the shipped
-   *  `rawReferencedMessages`; this return field has no remaining reader. */
-  referencedMessages: ReferencedMessage[];
   /** Conversation history — consumed by the weigh-in empty-history gate (chat.ts). */
   conversationHistory: ConversationMessage[];
 }
@@ -506,7 +502,6 @@ export class MessageContextBuilder {
       personaId,
       personaName,
       messageContent,
-      referencedMessages,
       conversationHistory: history, // Consumed by the weigh-in empty-history gate (chat.ts)
     };
   }
