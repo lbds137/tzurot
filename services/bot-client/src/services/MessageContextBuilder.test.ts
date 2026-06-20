@@ -238,7 +238,7 @@ describe('MessageContextBuilder', () => {
   });
 
   describe('buildContext', () => {
-    it('omits rawAssemblyInputs by default (CONTEXT_RAW_ENVELOPE off)', async () => {
+    it('attaches rawAssemblyInputs — the worker re-derives the context from it', async () => {
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
         userId: 'user-uuid-123',
         defaultPersonaId: 'test-persona-id',
@@ -246,169 +246,106 @@ describe('MessageContextBuilder', () => {
       vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
-        updatedContent: 'Hello world',
+        updatedContent: 'REWRITTEN content',
+      });
+      // The mention resolver is the LAST rewriter — its output is the
+      // assembled messageContent.
+      mockResolveAllMentions.mockResolvedValue({
+        processedContent: 'REWRITTEN content',
+        mentionedUsers: [],
+        mentionedChannels: [],
+        mentionedRoles: [],
       });
 
-      const result = await builder.buildContext(mockMessage, mockPersonality, 'Hello world');
+      const result = await builder.buildContext(mockMessage, mockPersonality, '<@123> raw content');
 
-      expect(result.context.rawAssemblyInputs).toBeUndefined();
+      const raw = result.context.rawAssemblyInputs;
+      expect(raw).toBeDefined();
+      // The raw side carries Discord GROUND TRUTH (message.content verbatim) —
+      // not the transcript-bearing content param; messageContent carries the
+      // rewritten one.
+      expect(raw?.rawMessageContent).toBe('Hello world');
+      expect(result.context.messageContent).toBe('REWRITTEN content');
+      // Empty mentions collection → field omitted, not [].
+      expect(raw?.rawMentionedUsers).toBeUndefined();
+      // Channel-environment map comes from the Discord.js cache walk.
+      expect(raw?.knownChannelEnvironments?.['999888777666555444']).toMatchObject({
+        type: 'guild',
+      });
     });
 
-    it('attaches rawAssemblyInputs alongside the assembled payload when CONTEXT_RAW_ENVELOPE=true', async () => {
-      process.env.CONTEXT_RAW_ENVELOPE = 'true';
-      try {
-        vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
-          userId: 'user-uuid-123',
-          defaultPersonaId: 'test-persona-id',
-        });
-        vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
-        mockExtractReferencesWithReplacement.mockResolvedValue({
-          references: [],
-          updatedContent: 'REWRITTEN content',
-        });
-        // The mention resolver is the LAST rewriter — its output is the
-        // assembled messageContent.
-        mockResolveAllMentions.mockResolvedValue({
-          processedContent: 'REWRITTEN content',
-          mentionedUsers: [],
-          mentionedChannels: [],
-          mentionedRoles: [],
-        });
+    it("ships a thin kind:'envelope' payload (omits all 7 re-derivable fields)", async () => {
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
+        userId: 'user-uuid-123',
+        defaultPersonaId: 'test-persona-id',
+      });
+      // A non-empty history row proves conversationHistory is OMITTED on the
+      // envelope (the worker re-derives it), not merely empty.
+      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([
+        {
+          id: 'h1',
+          role: MessageRole.User,
+          content: 'prior',
+          createdAt: new Date('2026-01-01T00:00:00Z'),
+          personaId: 'p1',
+        },
+      ] as never);
+      // Populate the guild/attachment surfaces in the fetch result so the
+      // omission assertions below prove the ENVELOPE drops them, not that the
+      // mock simply left them empty. guildMemberInfo for the trigger user comes
+      // from the message's member mock; participantGuildInfo + images come from
+      // the fetch.
+      mockFetchRecentMessages.mockResolvedValue({
+        messages: [],
+        fetchedCount: 0,
+        filteredCount: 0,
+        participantGuildInfo: { 'discord:other': { roles: ['Member'] } },
+        imageAttachments: [{ url: 'https://cdn/x.png', contentType: 'image/png', id: 'x' }],
+      });
+      mockExtractReferencesWithReplacement.mockResolvedValue({
+        references: [],
+        updatedContent: 'REWRITTEN content',
+      });
+      mockResolveAllMentions.mockResolvedValue({
+        processedContent: 'REWRITTEN content',
+        mentionedUsers: [],
+        mentionedChannels: [],
+        mentionedRoles: [],
+      });
 
-        const result = await builder.buildContext(
-          mockMessage,
-          mockPersonality,
-          '<@123> raw content'
-        );
-
-        const raw = result.context.rawAssemblyInputs;
-        expect(raw).toBeDefined();
-        // The raw side carries Discord GROUND TRUTH (message.content
-        // verbatim) — not the transcript-bearing content param; the
-        // assembled side carries the rewritten one.
-        expect(raw?.rawMessageContent).toBe('Hello world');
-        expect(result.context.messageContent).toBe('REWRITTEN content');
-        // Empty mentions collection → field omitted, not [].
-        expect(raw?.rawMentionedUsers).toBeUndefined();
-        // Channel-environment map comes from the Discord.js cache walk.
-        expect(raw?.knownChannelEnvironments?.['999888777666555444']).toMatchObject({
-          type: 'guild',
-        });
-      } finally {
-        delete process.env.CONTEXT_RAW_ENVELOPE;
-      }
-    });
-
-    it("ships a thin kind:'envelope' payload (omits all 7 re-derivable fields) when CONTEXT_THIN_PAYLOAD=true", async () => {
-      process.env.CONTEXT_RAW_ENVELOPE = 'true';
-      process.env.CONTEXT_THIN_PAYLOAD = 'true';
-      try {
-        vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
-          userId: 'user-uuid-123',
-          defaultPersonaId: 'test-persona-id',
-        });
-        // A non-empty history row proves conversationHistory is OMITTED on
-        // thin (the worker re-derives it), not merely empty.
-        vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([
-          {
-            id: 'h1',
-            role: MessageRole.User,
-            content: 'prior',
-            createdAt: new Date('2026-01-01T00:00:00Z'),
-            personaId: 'p1',
+      // extendedContext + botUserId are required for the fetch above to run
+      // (it early-returns otherwise) — without them participantGuildInfo /
+      // imageAttachments would be unpopulated and the assertions below would
+      // be theater. maxImages > 0 so the image list isn't capped to nothing.
+      const result = await builder.buildContext(mockMessage, mockPersonality, 'raw content', {
+        extendedContext: {
+          maxMessages: 20,
+          maxAge: null,
+          maxImages: 10,
+          sources: {
+            maxMessages: 'personality',
+            maxAge: 'personality',
+            maxImages: 'personality',
           },
-        ] as never);
-        // Populate the guild/attachment surfaces in the fetch result so the
-        // omission assertions below prove the VARIANT drops them, not that the
-        // mock simply left them empty (the distinction the burn-in exit hinges
-        // on). guildMemberInfo for the trigger user comes from the message's
-        // member mock; participantGuildInfo + images come from the fetch.
-        mockFetchRecentMessages.mockResolvedValue({
-          messages: [],
-          fetchedCount: 0,
-          filteredCount: 0,
-          participantGuildInfo: { 'discord:other': { roles: ['Member'] } },
-          imageAttachments: [{ url: 'https://cdn/x.png', contentType: 'image/png', id: 'x' }],
-        });
-        mockExtractReferencesWithReplacement.mockResolvedValue({
-          references: [],
-          updatedContent: 'REWRITTEN content',
-        });
-        mockResolveAllMentions.mockResolvedValue({
-          processedContent: 'REWRITTEN content',
-          mentionedUsers: [],
-          mentionedChannels: [],
-          mentionedRoles: [],
-        });
+        },
+        botUserId: 'bot-123',
+      });
 
-        // extendedContext + botUserId are required for the fetch above to run
-        // (it early-returns otherwise) — without them participantGuildInfo /
-        // imageAttachments would be unpopulated and the assertions below would
-        // be theater. maxImages > 0 so the image list isn't capped to nothing.
-        const result = await builder.buildContext(mockMessage, mockPersonality, 'raw content', {
-          extendedContext: {
-            maxMessages: 20,
-            maxAge: null,
-            maxImages: 10,
-            sources: {
-              maxMessages: 'personality',
-              maxAge: 'personality',
-              maxImages: 'personality',
-            },
-          },
-          botUserId: 'bot-123',
-        });
-
-        expect(result.context.kind).toBe('envelope');
-        // The four core re-derivable fields are omitted; the worker assembles them.
-        expect(result.context.conversationHistory).toBeUndefined();
-        expect(result.context.referencedMessages).toBeUndefined();
-        expect(result.context.mentionedPersonas).toBeUndefined();
-        expect(result.context.referencedChannels).toBeUndefined();
-        // The three guild/attachment surfaces are omitted too — populated in
-        // the fetch mock above, so undefined here proves the variant omits
-        // them rather than the mock never setting them.
-        expect(result.context.participantGuildInfo).toBeUndefined();
-        expect(result.context.activePersonaGuildInfo).toBeUndefined();
-        expect(result.context.extendedContextAttachments).toBeUndefined();
-        // The envelope itself still ships (the worker's only input now), with
-        // the raw forms the worker re-derives from.
-        expect(result.context.rawAssemblyInputs?.rawParticipantGuildInfo).toBeDefined();
-      } finally {
-        delete process.env.CONTEXT_RAW_ENVELOPE;
-        delete process.env.CONTEXT_THIN_PAYLOAD;
-      }
-    });
-
-    it("ships a fat kind:'legacy' payload when thin is on but the envelope is off (misconfig fallback)", async () => {
-      process.env.CONTEXT_THIN_PAYLOAD = 'true';
-      // CONTEXT_RAW_ENVELOPE intentionally NOT set → no rawAssemblyInputs.
-      try {
-        vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
-          userId: 'user-uuid-123',
-          defaultPersonaId: 'test-persona-id',
-        });
-        vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
-        mockExtractReferencesWithReplacement.mockResolvedValue({
-          references: [],
-          updatedContent: 'content',
-        });
-        mockResolveAllMentions.mockResolvedValue({
-          processedContent: 'content',
-          mentionedUsers: [],
-          mentionedChannels: [],
-          mentionedRoles: [],
-        });
-
-        const result = await builder.buildContext(mockMessage, mockPersonality, 'content');
-
-        // Thin requires the envelope; without it we fall back to legacy.
-        expect(result.context.kind).toBe('legacy');
-        expect(result.context.rawAssemblyInputs).toBeUndefined();
-        expect(result.context.conversationHistory).toBeDefined();
-      } finally {
-        delete process.env.CONTEXT_THIN_PAYLOAD;
-      }
+      expect(result.context.kind).toBe('envelope');
+      // The four core re-derivable fields are omitted; the worker assembles them.
+      expect(result.context.conversationHistory).toBeUndefined();
+      expect(result.context.referencedMessages).toBeUndefined();
+      expect(result.context.mentionedPersonas).toBeUndefined();
+      expect(result.context.referencedChannels).toBeUndefined();
+      // The three guild/attachment surfaces are omitted too — populated in the
+      // fetch mock above, so undefined here proves the envelope omits them
+      // rather than the mock never setting them.
+      expect(result.context.participantGuildInfo).toBeUndefined();
+      expect(result.context.activePersonaGuildInfo).toBeUndefined();
+      expect(result.context.extendedContextAttachments).toBeUndefined();
+      // The envelope itself still ships (the worker's only input now), with the
+      // raw forms the worker re-derives from.
+      expect(result.context.rawAssemblyInputs?.rawParticipantGuildInfo).toBeDefined();
     });
 
     it('should build complete context with user lookup and history', async () => {
@@ -478,8 +415,10 @@ describe('MessageContextBuilder', () => {
         activePersonaName: 'Test Persona',
       });
 
-      expect(result.context.conversationHistory).toHaveLength(1);
-      expect(result.context.conversationHistory![0]).toMatchObject({
+      // The thin envelope omits conversationHistory (the worker re-derives it);
+      // the builder still returns the fetched history at the top level.
+      expect(result.conversationHistory).toHaveLength(1);
+      expect(result.conversationHistory[0]).toMatchObject({
         role: MessageRole.User,
         content: 'Previous message',
         discordUsername: 'prevuser', // Should be passed through for collision detection
@@ -545,7 +484,6 @@ describe('MessageContextBuilder', () => {
 
       const result = await builder.buildContext(mockMessage, mockPersonality, 'First message');
 
-      expect(result.context.conversationHistory).toEqual([]);
       expect(result.conversationHistory).toEqual([]);
       // Non-voice message should be false
       expect(result.context.isVoiceMessage).toBe(false);
@@ -592,7 +530,6 @@ describe('MessageContextBuilder', () => {
         content: 'Referenced content',
       });
       expect(result.messageContent).toBe('Check [Reference 1]');
-      expect(result.context.referencedMessages).toEqual(mockReferences);
     });
 
     it('should extract conversation history message IDs for deduplication', async () => {
@@ -805,8 +742,10 @@ describe('MessageContextBuilder', () => {
       expect(result.referencedMessages).toEqual([]);
     });
 
-    it('should resolve user mentions and include mentionedPersonas in context', async () => {
-      // Add mentioned users to the mock message
+    it('still resolves mentions (for rewriting) but the envelope omits mentionedPersonas', async () => {
+      // Add a mentioned user to the mock message — even with a real mention,
+      // the thin envelope ships no enriched mentionedPersonas (the worker
+      // re-derives them); resolution still runs to rewrite messageContent.
       const mockMentionedUser = {
         id: '123456',
         username: 'mentioneduser',
@@ -818,8 +757,6 @@ describe('MessageContextBuilder', () => {
         userId: 'user-uuid-123',
         defaultPersonaId: 'test-persona-id',
       });
-      // PersonaResolver.resolve is already mocked in beforeEach
-      // PersonaResolver.resolve returns preferredName directly
       vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
@@ -845,46 +782,15 @@ describe('MessageContextBuilder', () => {
         'Hey <@123456>, how are you?'
       );
 
-      // Verify mention resolution was called with message object
+      // Resolution still runs (its output rewrites messageContent).
       expect(mockResolveAllMentions).toHaveBeenCalledWith(
         'Hey <@123456>, how are you?',
         mockMessage,
         'personality-123'
       );
-
-      // Verify processed content
-      expect(result.messageContent).toBe('Hey @MentionedPersona, how are you?');
       expect(result.context.messageContent).toBe('Hey @MentionedPersona, how are you?');
 
-      // Verify mentionedPersonas is included in context
-      expect(result.context.mentionedPersonas).toEqual([
-        {
-          personaId: 'mentioned-persona-uuid',
-          personaName: 'MentionedPersona',
-        },
-      ]);
-    });
-
-    it('should not include mentionedPersonas when no mentions resolved', async () => {
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
-        userId: 'user-uuid-123',
-        defaultPersonaId: 'test-persona-id',
-      });
-      // PersonaResolver.resolve is already mocked in beforeEach
-      // PersonaResolver.resolve returns preferredName directly
-      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
-      mockExtractReferencesWithReplacement.mockResolvedValue({
-        references: [],
-        updatedContent: 'Hello world',
-      });
-      // resolveAllMentions returns no mentioned users (default mock behavior)
-
-      const result = await builder.buildContext(mockMessage, mockPersonality, 'Hello world');
-
-      // Verify mention resolution was called (always called now)
-      expect(mockResolveAllMentions).toHaveBeenCalled();
-
-      // Verify mentionedPersonas is undefined when no users were mentioned
+      // ...but the enriched field never ships — the worker re-derives it.
       expect(result.context.mentionedPersonas).toBeUndefined();
     });
 
@@ -910,6 +816,7 @@ describe('MessageContextBuilder', () => {
         processedContent: 'Hello after clear',
         mentionedUsers: [],
         mentionedChannels: [],
+        mentionedRoles: [],
       });
 
       await builder.buildContext(mockMessage, mockPersonality, 'Hello after clear');
@@ -995,6 +902,7 @@ describe('MessageContextBuilder', () => {
         processedContent: 'Hello',
         mentionedUsers: [],
         mentionedChannels: [],
+        mentionedRoles: [],
       });
 
       await builder.buildContext(mockMessage, mockPersonality, 'Hello');
@@ -1061,6 +969,7 @@ describe('MessageContextBuilder', () => {
         processedContent: 'Hello',
         mentionedUsers: [],
         mentionedChannels: [],
+        mentionedRoles: [],
       });
 
       const result = await builder.buildContext(mockMessage, mockPersonality, 'Hello', {
@@ -1127,6 +1036,7 @@ describe('MessageContextBuilder', () => {
         processedContent: 'Hello',
         mentionedUsers: [],
         mentionedChannels: [],
+        mentionedRoles: [],
       });
 
       const extendedContext = {
@@ -1187,6 +1097,7 @@ describe('MessageContextBuilder', () => {
         processedContent: 'Hello',
         mentionedUsers: [],
         mentionedChannels: [],
+        mentionedRoles: [],
       });
 
       await builder.buildContext(mockMessage, mockPersonality, 'Hello', {
@@ -1265,6 +1176,7 @@ describe('MessageContextBuilder', () => {
         processedContent: 'Hello',
         mentionedUsers: [],
         mentionedChannels: [],
+        mentionedRoles: [],
       });
 
       const result = await builder.buildContext(mockMessage, mockPersonality, 'Hello', {
@@ -1281,15 +1193,16 @@ describe('MessageContextBuilder', () => {
         botUserId: 'bot-123',
       });
 
-      // Should include the last 2 images (most recent, limited by maxImages)
-      // Note: buildContext returns { context, ... } so access via context property
-      expect(result.context.extendedContextAttachments).toHaveLength(2);
-      expect(result.context.extendedContextAttachments?.[0].url).toBe(
-        'https://cdn.discord.com/attachments/img2.png'
-      );
-      expect(result.context.extendedContextAttachments?.[1].url).toBe(
-        'https://cdn.discord.com/attachments/img3.gif'
-      );
+      // The thin envelope ships extended-context images RAW (uncapped) via
+      // rawAssemblyInputs — the worker applies maxImages. The legacy capped
+      // context.extendedContextAttachments no longer ships.
+      const rawImages = result.context.rawAssemblyInputs?.rawExtendedContextImageAttachments;
+      expect(rawImages).toHaveLength(3);
+      expect(rawImages?.map(a => a.url)).toEqual([
+        'https://cdn.discord.com/attachments/img1.jpg',
+        'https://cdn.discord.com/attachments/img2.png',
+        'https://cdn.discord.com/attachments/img3.gif',
+      ]);
     });
 
     it('should not collect images when maxImages is 0', async () => {
@@ -1335,6 +1248,7 @@ describe('MessageContextBuilder', () => {
         processedContent: 'Hello',
         mentionedUsers: [],
         mentionedChannels: [],
+        mentionedRoles: [],
       });
 
       const result = await builder.buildContext(mockMessage, mockPersonality, 'Hello', {
@@ -1444,6 +1358,7 @@ describe('MessageContextBuilder', () => {
         processedContent: 'Hello',
         mentionedUsers: [],
         mentionedChannels: [],
+        mentionedRoles: [],
       });
 
       const result = await builder.buildContext(mockMessage, mockPersonality, 'Hello', {
@@ -1477,19 +1392,18 @@ describe('MessageContextBuilder', () => {
       expect(extendedMessages[1].personaId).toBe('bob-persona-uuid');
       expect(extendedMessages[1].personaName).toBe('Bob Display');
 
-      // Verify participantGuildInfo keys were remapped
-      expect(result.context.participantGuildInfo).toBeDefined();
-      expect(result.context.participantGuildInfo?.['alice-persona-uuid']).toEqual({
+      // The thin envelope ships participantGuildInfo RAW (pre-resolution
+      // `discord:` keys) via rawAssemblyInputs — the worker re-resolves them.
+      // The bot no longer remaps keys to UUIDs on the shipped context.
+      const rawGuild = result.context.rawAssemblyInputs?.rawParticipantGuildInfo;
+      expect(rawGuild?.['discord:user-alice']).toEqual({
         roles: ['Member'],
         displayColor: '#FF0000',
       });
-      expect(result.context.participantGuildInfo?.['bob-persona-uuid']).toEqual({
+      expect(rawGuild?.['discord:user-bob']).toEqual({
         roles: ['Admin'],
         displayColor: '#00FF00',
       });
-      // Old keys should be gone
-      expect(result.context.participantGuildInfo?.['discord:user-alice']).toBeUndefined();
-      expect(result.context.participantGuildInfo?.['discord:user-bob']).toBeUndefined();
     });
 
     it('should continue without cross-channel history when fetch throws', async () => {
@@ -1507,6 +1421,7 @@ describe('MessageContextBuilder', () => {
         processedContent: 'Hello',
         mentionedUsers: [],
         mentionedChannels: [],
+        mentionedRoles: [],
       });
       mockFetchCrossChannelIfEnabled.mockRejectedValue(new Error('DB connection lost'));
 
@@ -1534,6 +1449,7 @@ describe('MessageContextBuilder', () => {
         processedContent: 'Hello',
         mentionedUsers: [],
         mentionedChannels: [],
+        mentionedRoles: [],
       });
 
       await builder.buildContext(mockMessage, mockPersonality, 'Hello', {
@@ -1562,6 +1478,7 @@ describe('MessageContextBuilder', () => {
         processedContent: 'Hello',
         mentionedUsers: [],
         mentionedChannels: [],
+        mentionedRoles: [],
       });
 
       // incognito with a message: isWeighInMode is false, but incognito nulls the
@@ -1591,6 +1508,7 @@ describe('MessageContextBuilder', () => {
         processedContent: 'Hello',
         mentionedUsers: [],
         mentionedChannels: [],
+        mentionedRoles: [],
       });
 
       // Cross-channel and the persona are a unit: a personal weigh-in keeps its

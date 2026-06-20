@@ -13,15 +13,12 @@ import {
   INTERVALS,
   type PrismaClient,
   type LoadedPersonality,
-  type MentionedPersona,
-  type ReferencedChannel,
   type ReferencedMessage,
   type ConversationMessage,
   type RawMentionedChannel,
   type RawMentionedRole,
 } from '@tzurot/common-types';
 import { MessageReferenceExtractor } from '../../handlers/MessageReferenceExtractor.js';
-import { isRawEnvelopeEnabled } from '../../utils/contextWritePath.js';
 import type { MentionResolver } from '../MentionResolver.js';
 
 const logger = createLogger('MessageContextBuilder');
@@ -30,12 +27,10 @@ const logger = createLogger('MessageContextBuilder');
 export interface ReferencesAndMentionsResult {
   messageContent: string;
   referencedMessages: ReferencedMessage[];
-  mentionedPersonas?: MentionedPersona[];
-  referencedChannels?: ReferencedChannel[];
   /**
-   * Raw-envelope fields (present only when CONTEXT_RAW_ENVELOPE=true):
-   * pre-enrichment reference snapshots plus the guild-cache-resolved channel
-   * and role mention data the worker needs to re-run content rewriting.
+   * Raw-envelope fields: pre-enrichment reference snapshots plus the
+   * guild-cache-resolved channel and role mention data the worker needs to
+   * re-run content rewriting.
    */
   rawReferencedMessages?: ReferencedMessage[];
   rawMentionedChannels?: RawMentionedChannel[];
@@ -78,8 +73,6 @@ export async function extractReferencesAndMentions(
     return {
       messageContent: content,
       referencedMessages: [],
-      mentionedPersonas: undefined,
-      referencedChannels: undefined,
     };
   }
 
@@ -130,37 +123,11 @@ export async function extractReferencesAndMentions(
 
   messageContent = mentionResult.processedContent;
 
-  let mentionedPersonas: MentionedPersona[] | undefined;
-  let referencedChannels: ReferencedChannel[] | undefined;
-
-  if (mentionResult.mentionedUsers.length > 0) {
-    mentionedPersonas = mentionResult.mentionedUsers.map(u => ({
-      personaId: u.personaId,
-      personaName: u.personaName,
-    }));
-    logger.debug({ mentionedCount: mentionedPersonas.length }, 'Resolved user mentions');
-  }
-
-  if (mentionResult.mentionedChannels.length > 0) {
-    referencedChannels = mentionResult.mentionedChannels.map(c => ({
-      channelId: c.channelId,
-      channelName: c.channelName,
-      topic: c.topic,
-      guildId: c.guildId,
-    }));
-    logger.debug(
-      { channelCount: referencedChannels.length },
-      'Resolved channel mentions for LTM scoping'
-    );
-  }
-
   const rawEnvelopeFields = captureRawEnvelopeFields(rawReferences, mentionResult);
 
   return {
     messageContent,
     referencedMessages,
-    mentionedPersonas,
-    referencedChannels,
     ...rawEnvelopeFields,
   };
 }
@@ -199,7 +166,6 @@ function logVoiceReplyDiagnostics(
 /**
  * Raw-envelope capture: the mention resolver already produced the
  * guild-cache-pure channel/role data — reuse it rather than re-scanning.
- * Undefined unless CONTEXT_RAW_ENVELOPE=true.
  */
 type RawEnvelopeFields = Pick<
   ReferencesAndMentionsResult,
@@ -209,14 +175,11 @@ type RawEnvelopeFields = Pick<
 function captureRawEnvelopeFields(
   rawReferences: ReferencedMessage[] | undefined,
   mentionResult: Awaited<ReturnType<MentionResolver['resolveAllMentions']>>
-): RawEnvelopeFields | undefined {
-  if (!isRawEnvelopeEnabled()) {
-    return undefined;
-  }
+): RawEnvelopeFields {
   return {
-    // No `?? []` fallback: when the envelope flag is on the extractor always
-    // produced an array, and if a future path legitimately passes undefined,
-    // ABSENT is the accurate signal to propagate (see schema semantics).
+    // No `?? []` fallback: the extractor always produced an array, and if a
+    // future path legitimately passes undefined, ABSENT is the accurate signal
+    // to propagate (see schema semantics).
     rawReferencedMessages: rawReferences,
     rawMentionedChannels: mentionResult.mentionedChannels.map(ch => ({
       channelId: ch.channelId,
