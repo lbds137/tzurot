@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { MessageRole, type ConversationMessage } from '@tzurot/common-types';
 import type { Message } from 'discord.js';
 
@@ -52,17 +52,8 @@ const makeConversationMessage = (overrides: Partial<ConversationMessage> = {}) =
     ...overrides,
   }) as ConversationMessage;
 
-afterEach(() => {
-  delete process.env.CONTEXT_RAW_ENVELOPE;
-});
-
 describe('captureRawExtendedContext', () => {
-  it('returns undefined when the envelope flag is off (no clone cost)', () => {
-    expect(captureRawExtendedContext({ messages: [makeConversationMessage()] })).toBeUndefined();
-  });
-
   it('deep-clones messages so later in-place persona resolution cannot leak in', () => {
-    process.env.CONTEXT_RAW_ENVELOPE = 'true';
     const original = makeConversationMessage({ personaId: 'discord:111' });
 
     const snapshot = captureRawExtendedContext({
@@ -80,7 +71,6 @@ describe('captureRawExtendedContext', () => {
   });
 
   it('deep-clones the guild map so later in-place key remapping cannot leak in', () => {
-    process.env.CONTEXT_RAW_ENVELOPE = 'true';
     const liveGuildInfo: Record<string, { roles: string[] }> = {
       'discord:111': { roles: ['Admin'] },
     };
@@ -102,7 +92,6 @@ describe('captureRawExtendedContext', () => {
   });
 
   it('leaves guild map and attachments undefined when the fetch produced none', () => {
-    process.env.CONTEXT_RAW_ENVELOPE = 'true';
     const snapshot = captureRawExtendedContext({
       messages: [],
       extendedContextUsers: [],
@@ -138,12 +127,7 @@ describe('toApiConversationMessage', () => {
 });
 
 describe('buildRawAssemblyInputs', () => {
-  it('returns undefined when the envelope flag is off', () => {
-    expect(buildRawAssemblyInputs(makeMessage(), undefined)).toBeUndefined();
-  });
-
   it('assembles the envelope: raw content, mention mapping, snapshot serialization, env map', () => {
-    process.env.CONTEXT_RAW_ENVELOPE = 'true';
     const snapshot = {
       messages: [makeConversationMessage()],
       extendedContextUsers: [
@@ -177,7 +161,6 @@ describe('buildRawAssemblyInputs', () => {
   });
 
   it('carries the author display name for worker-side getOrCreateUser parity', () => {
-    process.env.CONTEXT_RAW_ENVELOPE = 'true';
     const raw = buildRawAssemblyInputs(makeMessage([], 'plain'), undefined, {
       rawAuthorDisplayName: 'Vladlena',
     });
@@ -185,7 +168,6 @@ describe('buildRawAssemblyInputs', () => {
   });
 
   it('ships the raw guild surfaces: participant map, image list, active member info', () => {
-    process.env.CONTEXT_RAW_ENVELOPE = 'true';
     const snapshot = {
       messages: [],
       extendedContextUsers: [],
@@ -211,7 +193,6 @@ describe('buildRawAssemblyInputs', () => {
   });
 
   it('passes reference and channel/role mention raws through', () => {
-    process.env.CONTEXT_RAW_ENVELOPE = 'true';
     const raw = buildRawAssemblyInputs(makeMessage([], 'plain'), undefined, {
       rawReferencedMessages: [],
       rawMentionedChannels: [{ channelId: '1', channelName: 'general', guildId: 'g1' }],
@@ -225,7 +206,6 @@ describe('buildRawAssemblyInputs', () => {
   });
 
   it('captures Discord ground truth: empty content + dedicated routing transcript for voice', () => {
-    process.env.CONTEXT_RAW_ENVELOPE = 'true';
     mockGetVoiceTranscript.mockReturnValue('the spoken words');
 
     const raw = buildRawAssemblyInputs(makeMessage([], ''), undefined);
@@ -236,7 +216,6 @@ describe('buildRawAssemblyInputs', () => {
   });
 
   it('leaves rawRoutingTranscript absent for non-voice triggers', () => {
-    process.env.CONTEXT_RAW_ENVELOPE = 'true';
     mockGetVoiceTranscript.mockReturnValue(undefined);
 
     const raw = buildRawAssemblyInputs(makeMessage([], 'typed text'), undefined);
@@ -246,7 +225,6 @@ describe('buildRawAssemblyInputs', () => {
   });
 
   it('omits rawMentionedUsers when the mentions collection is empty', () => {
-    process.env.CONTEXT_RAW_ENVELOPE = 'true';
     const raw = buildRawAssemblyInputs(makeMessage([], 'plain'), undefined);
     expect(raw?.rawMentionedUsers).toBeUndefined();
     expect(raw?.rawExtendedContextMessages).toBeUndefined();

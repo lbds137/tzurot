@@ -4,41 +4,13 @@
  * The gateway-write helpers for bot-client's Discord-event conversation writes
  * (user/assistant persist, edit/delete sync). The gateway endpoints ARE the
  * write path — bot-client performs no local Prisma conversation writes for the
- * Discord-event surface. Also home to the raw-envelope / thin-payload flag
- * readers used by the context builder.
+ * Discord-event surface.
  */
 
 import { createLogger, SYNC_LIMITS, type MessageMetadata } from '@tzurot/common-types';
 import { getServiceClient } from './gatewayClients.js';
 
 const logger = createLogger('contextWritePath');
-
-/**
- * When true, bot-client attaches `rawAssemblyInputs` (raw Discord-origin
- * assembly inputs) to the job payload — the source ai-worker's ContextAssembler
- * re-derives the message context from. Required for the thin-envelope payload
- * ({@link isThinPayloadEnabled}): without the raw inputs the worker has nothing
- * to assemble from. Adds payload bytes per message.
- */
-export function isRawEnvelopeEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.CONTEXT_RAW_ENVELOPE === 'true';
-}
-
-/**
- * When true (and the raw envelope is also enabled), bot-client ships a THIN
- * context payload: it stamps `context.kind = 'envelope'` and OMITS the four
- * fields the worker now re-derives from `rawAssemblyInputs`
- * (conversationHistory, referencedMessages, mentionedPersonas,
- * referencedChannels). The worker MUST assemble for envelope-kind jobs.
- *
- * Gated on `isRawEnvelopeEnabled` at the call site — going thin without the
- * envelope would ship a kind:'envelope' payload the worker can't assemble (the
- * gateway schema's superRefine rejects it). Default off; flip on only AFTER the
- * worker that understands `kind` is deployed. Rollback = flag off + restart.
- */
-export function isThinPayloadEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.CONTEXT_THIN_PAYLOAD === 'true';
-}
 
 interface AssistantMessageWriteParams {
   channelId: string;

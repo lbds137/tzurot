@@ -79,48 +79,19 @@ describe('extractReferencesAndMentions', () => {
     });
   });
 
-  it('captures raw envelope fields when CONTEXT_RAW_ENVELOPE=true', async () => {
-    process.env.CONTEXT_RAW_ENVELOPE = 'true';
-    try {
-      mockExtractReferences.mockResolvedValue({
-        references: [],
-        updatedContent: 'Hello world',
-        rawReferences: [{ referenceNumber: 1, content: 'raw snapshot' }],
-      });
-      mockResolveAllMentions.mockResolvedValue({
-        processedContent: 'rewritten',
-        mentionedUsers: [],
-        mentionedChannels: [
-          { channelId: '1', channelName: 'general', topic: 'chat', guildId: 'g1' },
-        ],
-        mentionedRoles: [{ roleId: '2', roleName: 'mods', mentionable: true }],
-      });
+  it('captures raw envelope fields', async () => {
+    mockExtractReferences.mockResolvedValue({
+      references: [],
+      updatedContent: 'Hello world',
+      rawReferences: [{ referenceNumber: 1, content: 'raw snapshot' }],
+    });
+    mockResolveAllMentions.mockResolvedValue({
+      processedContent: 'rewritten',
+      mentionedUsers: [],
+      mentionedChannels: [{ channelId: '1', channelName: 'general', topic: 'chat', guildId: 'g1' }],
+      mentionedRoles: [{ roleId: '2', roleName: 'mods', mentionable: true }],
+    });
 
-      const result = await extractReferencesAndMentions({
-        prisma: mockPrisma,
-        mentionResolver: mockMentionResolver as unknown as MentionResolver,
-        message: createMockMessage(),
-        content: 'Hello world',
-        personality: mockPersonality,
-        history: [],
-        maxReferences: 50,
-      });
-
-      expect(result.rawReferencedMessages).toEqual([
-        { referenceNumber: 1, content: 'raw snapshot' },
-      ]);
-      expect(result.rawMentionedChannels).toEqual([
-        { channelId: '1', channelName: 'general', topic: 'chat', guildId: 'g1' },
-      ]);
-      expect(result.rawMentionedRoles).toEqual([
-        { roleId: '2', roleName: 'mods', mentionable: true },
-      ]);
-    } finally {
-      delete process.env.CONTEXT_RAW_ENVELOPE;
-    }
-  });
-
-  it('omits raw envelope fields when the flag is off', async () => {
     const result = await extractReferencesAndMentions({
       prisma: mockPrisma,
       mentionResolver: mockMentionResolver as unknown as MentionResolver,
@@ -131,9 +102,13 @@ describe('extractReferencesAndMentions', () => {
       maxReferences: 50,
     });
 
-    expect(result.rawReferencedMessages).toBeUndefined();
-    expect(result.rawMentionedChannels).toBeUndefined();
-    expect(result.rawMentionedRoles).toBeUndefined();
+    expect(result.rawReferencedMessages).toEqual([{ referenceNumber: 1, content: 'raw snapshot' }]);
+    expect(result.rawMentionedChannels).toEqual([
+      { channelId: '1', channelName: 'general', topic: 'chat', guildId: 'g1' },
+    ]);
+    expect(result.rawMentionedRoles).toEqual([
+      { roleId: '2', roleName: 'mods', mentionable: true },
+    ]);
   });
 
   it('should return empty results in weigh-in mode', async () => {
@@ -150,8 +125,6 @@ describe('extractReferencesAndMentions', () => {
 
     expect(result.messageContent).toBe('Hello world');
     expect(result.referencedMessages).toEqual([]);
-    expect(result.mentionedPersonas).toBeUndefined();
-    expect(result.referencedChannels).toBeUndefined();
     expect(mockExtractReferences).not.toHaveBeenCalled();
     expect(mockResolveAllMentions).not.toHaveBeenCalled();
   });
@@ -165,6 +138,7 @@ describe('extractReferencesAndMentions', () => {
       processedContent: 'Hello [1]',
       mentionedUsers: [],
       mentionedChannels: [],
+      mentionedRoles: [],
     });
 
     const result = await extractReferencesAndMentions({
@@ -181,50 +155,6 @@ describe('extractReferencesAndMentions', () => {
     expect(result.referencedMessages).toHaveLength(1);
   });
 
-  it('should include mentioned personas when present', async () => {
-    mockResolveAllMentions.mockResolvedValue({
-      processedContent: 'Hello @alice',
-      mentionedUsers: [{ personaId: 'p-1', personaName: 'alice' }],
-      mentionedChannels: [],
-    });
-
-    const result = await extractReferencesAndMentions({
-      prisma: mockPrisma,
-      mentionResolver: mockMentionResolver as unknown as MentionResolver,
-      message: createMockMessage(),
-      content: 'Hello @alice',
-      personality: mockPersonality,
-      history: [],
-      maxReferences: 50,
-    });
-
-    expect(result.mentionedPersonas).toEqual([{ personaId: 'p-1', personaName: 'alice' }]);
-  });
-
-  it('should include referenced channels when present', async () => {
-    mockResolveAllMentions.mockResolvedValue({
-      processedContent: 'Check #general',
-      mentionedUsers: [],
-      mentionedChannels: [
-        { channelId: 'ch-1', channelName: 'general', topic: 'Main chat', guildId: 'g-1' },
-      ],
-    });
-
-    const result = await extractReferencesAndMentions({
-      prisma: mockPrisma,
-      mentionResolver: mockMentionResolver as unknown as MentionResolver,
-      message: createMockMessage(),
-      content: 'Check #general',
-      personality: mockPersonality,
-      history: [],
-      maxReferences: 50,
-    });
-
-    expect(result.referencedChannels).toEqual([
-      { channelId: 'ch-1', channelName: 'general', topic: 'Main chat', guildId: 'g-1' },
-    ]);
-  });
-
   it('returns empty messageContent when mention resolution drops non-empty content', async () => {
     // The forward-bug shape: authoritative `content` is non-empty, but the
     // rewrite pipeline (link replacement → mention resolution) yields empty
@@ -234,6 +164,7 @@ describe('extractReferencesAndMentions', () => {
       processedContent: '',
       mentionedUsers: [],
       mentionedChannels: [],
+      mentionedRoles: [],
     });
 
     const result = await extractReferencesAndMentions({
@@ -264,6 +195,7 @@ describe('extractReferencesAndMentions', () => {
       processedContent: effectiveContent,
       mentionedUsers: [],
       mentionedChannels: [],
+      mentionedRoles: [],
     });
 
     const message = createMockMessage({ id: 'forward-1', content: '' } as Partial<Message>);

@@ -1,14 +1,12 @@
 /**
  * Raw assembly envelope construction.
  *
- * When CONTEXT_RAW_ENVELOPE=true, bot-client attaches the raw Discord-origin
- * assembly inputs ALONGSIDE the legacy assembled payload so ai-worker's
- * shadow context assembler can re-derive the context and diff it against the
- * bot-built one. Everything here is Discord-origin or pure mapping — no DB.
+ * bot-client attaches these raw Discord-origin assembly inputs to every job;
+ * ai-worker's ContextAssembler re-derives the whole message context from them.
+ * Everything here is Discord-origin or pure mapping — no DB.
  *
- * This module's output IS the future thin-envelope payload: at cutover the
- * legacy assembled fields stop shipping and this becomes the job's context
- * source.
+ * This module's output IS the thin-envelope payload: the re-derivable assembled
+ * fields don't ship, so this is the job's sole context source.
  */
 
 import type { Message } from 'discord.js';
@@ -25,7 +23,6 @@ import {
 } from '@tzurot/common-types';
 import type { z } from 'zod';
 import type { ExtendedContextUser, FetchResult } from '../channelFetcher/types.js';
-import { isRawEnvelopeEnabled } from '../../utils/contextWritePath.js';
 import { VoiceMessageProcessor } from '../../processors/VoiceMessageProcessor.js';
 import { buildKnownChannelEnvironments } from '../CrossChannelHistoryFetcher.js';
 
@@ -46,8 +43,6 @@ export interface RawExtendedContextSnapshot {
  * messages in place (placeholder personaIds → UUIDs) AND remaps the
  * participantGuildInfo keys — the worker-side assembler needs the
  * pre-resolution shape to re-run its own batch upsert + persona resolution.
- * Returns undefined when the envelope is off (structuredClone of up to 100
- * messages isn't free).
  */
 export function captureRawExtendedContext(
   fetchResult: Pick<
@@ -58,10 +53,7 @@ export function captureRawExtendedContext(
     | 'participantGuildInfo'
     | 'imageAttachments'
   >
-): RawExtendedContextSnapshot | undefined {
-  if (!isRawEnvelopeEnabled()) {
-    return undefined;
-  }
+): RawExtendedContextSnapshot {
   return {
     // Messages are deep-cloned because resolveExtendedContextPersonaIds
     // rewrites msg.personaId in place; the guild map is deep-cloned because
@@ -125,8 +117,7 @@ export function toApiConversationMessage(msg: ConversationMessage): ApiConversat
  * Assemble the raw envelope. `rawMessageContent` is Discord's
  * message.content VERBATIM (ground truth — empty for voice and forwarded
  * triggers); any bot-side STT transcript rides the dedicated
- * rawRoutingTranscript field instead, telemetry-only. Returns undefined
- * when the envelope is off.
+ * rawRoutingTranscript field instead, telemetry-only.
  */
 export function buildRawAssemblyInputs(
   message: Message,
@@ -140,10 +131,7 @@ export function buildRawAssemblyInputs(
     /** The triggering user's guild member info (raw form of activePersonaGuildInfo). */
     rawActiveGuildMemberInfo?: GuildMemberInfo;
   }
-): RawAssemblyInputs | undefined {
-  if (!isRawEnvelopeEnabled()) {
-    return undefined;
-  }
+): RawAssemblyInputs {
   return {
     rawMessageContent: message.content,
     rawRoutingTranscript: VoiceMessageProcessor.getVoiceTranscript(message),

@@ -25,7 +25,6 @@ import { extractDiscordEnvironment } from '../utils/discordContext.js';
 import { buildMessageContent } from '../utils/MessageContentBuilder.js';
 import { buildBlockDeniedChecker } from './contextBuilder/blockDeniedChecker.js';
 import { hasVoiceAttachments } from '../utils/forwardedMessageUtils.js';
-import { selectContextVariant } from './contextBuilder/contextVariant.js';
 import { MentionResolver } from './MentionResolver.js';
 import { DiscordChannelFetcher, type FetchableChannel } from './DiscordChannelFetcher.js';
 import { deriveBotSuffix } from '../utils/webhookNaming.js';
@@ -42,7 +41,6 @@ import type { ContextBuildOptions } from './contextBuilder/ContextBuildOptions.j
 import {
   buildRawAssemblyInputs,
   captureRawExtendedContext,
-  toApiConversationMessage,
   type RawExtendedContextSnapshot,
 } from './contextBuilder/RawEnvelopeBuilder.js';
 import {
@@ -461,8 +459,7 @@ export class MessageContextBuilder {
       isWeighInMode: options.isWeighInMode,
       maxReferences: options.extendedContext?.maxMessages,
     });
-    const { messageContent, referencedMessages, mentionedPersonas, referencedChannels } =
-      refsAndMentions;
+    const { messageContent, referencedMessages } = refsAndMentions;
 
     // Step 6: Convert conversation history to API format
     // Include messageMetadata so referenced messages can be formatted at prompt time
@@ -475,8 +472,8 @@ export class MessageContextBuilder {
       includeAttachments: false, // We only need attachment metadata, not text descriptions
     });
 
-    // Raw-envelope assembly inputs (worker-side shadow assembler burn-in);
-    // undefined unless CONTEXT_RAW_ENVELOPE=true.
+    // Raw-envelope assembly inputs: the Discord-origin source the worker's
+    // ContextAssembler re-derives the whole message context from. Always built.
     const rawAssemblyInputs = buildRawAssemblyInputs(message, extendedContext.raw, {
       rawReferencedMessages: refsAndMentions.rawReferencedMessages,
       rawMentionedChannels: refsAndMentions.rawMentionedChannels,
@@ -485,26 +482,11 @@ export class MessageContextBuilder {
       rawActiveGuildMemberInfo: guildMemberInfo,
     });
 
-    // Thin payload: kind:'envelope' omits the four fields the worker
-    // re-derives from rawAssemblyInputs; legacy keeps them. rawAssemblyInputs is
-    // undefined unless CONTEXT_RAW_ENVELOPE=true, so its presence is the
-    // envelope-enabled signal. See selectContextVariant.
-    const variant = selectContextVariant({
-      hasRawEnvelope: rawAssemblyInputs !== undefined,
-      fields: {
-        // discordUsername (disambiguation) + discordMessageId (quote dedup)
-        // are preserved by toApiConversationMessage.
-        conversationHistory: history.map(toApiConversationMessage),
-        referencedMessages,
-        mentionedPersonas,
-        referencedChannels,
-        activePersonaGuildInfo: guildMemberInfo,
-        participantGuildInfo: extendedContext.participantGuildInfo,
-        extendedContextAttachments: extendedContext.attachments,
-      },
-      logger,
-      channelId: message.channel.id,
-    });
+    // Thin envelope is the only payload shape: kind:'envelope' carries none of
+    // the re-derivable fields (conversationHistory, referencedMessages,
+    // mentions, the guild/attachment surfaces) — the worker assembles them all
+    // from rawAssemblyInputs.
+    const variant = { kind: 'envelope' as const };
 
     // Build complete context
     // Note: userId is the Discord ID (for BYOK resolution)
@@ -512,8 +494,8 @@ export class MessageContextBuilder {
     // discordUsername is used for disambiguation when persona name matches personality name
     // effectiveUser is either overrideUser (slash commands) or message.author (@mentions)
     const context: MessageContext = {
-      // kind + all re-derivable fields (legacy) or just kind (envelope) — the
-      // guild/attachment surfaces ride the variant now, omitted when thin.
+      // Just kind:'envelope' — the re-derivable fields never ship; the worker
+      // assembles them from rawAssemblyInputs below.
       ...variant,
       userId: discordUserId,
       userInternalId: internalUserId,
