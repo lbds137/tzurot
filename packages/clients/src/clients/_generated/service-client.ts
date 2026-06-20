@@ -174,6 +174,19 @@ export class ServiceClient {
     });
   }
 
+  async routingContextCreate(input: z.infer<typeof ROUTE_MANIFEST.routingContextCreate.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.routingContextCreate.output>>> {
+    const fullPath = '/api/internal/v1/routing-context';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      body: input,
+      outputSchema: ROUTE_MANIFEST.routingContextCreate.output,
+      timeoutMs: ROUTE_MANIFEST.routingContextCreate.timeoutMs,
+    });
+  }
+
   /**
    * @safeRead Server-side has no observable mutation — safe to cache client-side.
    */

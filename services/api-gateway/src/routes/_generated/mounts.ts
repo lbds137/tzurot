@@ -41,6 +41,7 @@ import { handlePersistAssistantMessage } from '../internal/conversationAssistant
 import { handlePersistUserMessage } from '../internal/conversationUserMessage.js';
 import { handleSyncConversation } from '../internal/conversationSync.js';
 import { handleLoadPersonalityInternal } from '../internal/personalityLoad.js';
+import { handleRoutingContextCreate } from '../internal/routingContextCreate.js';
 import { handleRecentUsers } from '../internal/usersRecent.js';
 import { handleGetModels } from '../internal/models.js';
 import { handleGetDenylistCache, handleAddDenylistEntry, handleListDenylistEntries, handleRemoveDenylistEntry } from '../admin/denylist.js';
@@ -107,6 +108,7 @@ export function mountInternalRoutes(app: Express, deps: RouteDeps): void {
   app.post('/api/internal/conversation/user-message', handlePersistUserMessage(deps));
   app.post('/api/internal/conversation/sync', handleSyncConversation(deps));
   app.get('/api/internal/personality/load', handleLoadPersonalityInternal(deps));
+  app.post('/api/internal/v1/routing-context', handleRoutingContextCreate(deps));
   app.get('/api/internal/users/recent', handleRecentUsers(deps));
   app.get('/api/internal/models', handleGetModels(deps));
   app.get('/api/internal/denylist/cache', handleGetDenylistCache(deps));

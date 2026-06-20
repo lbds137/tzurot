@@ -12,6 +12,8 @@ import {
   ConversationSyncRequestSchema,
   ConversationSyncResponseSchema,
   LoadPersonalityInternalResponseSchema,
+  RoutingContextRequestSchema,
+  RoutingContextResponseSchema,
 } from './internal.js';
 
 describe('DiscordSnowflakeSchema', () => {
@@ -442,6 +444,65 @@ describe('LoadPersonalityInternalResponseSchema', () => {
     expect(
       LoadPersonalityInternalResponseSchema.safeParse({ personality: { id: 'x', name: 'y' } })
         .success
+    ).toBe(false);
+  });
+});
+
+describe('RoutingContextRequestSchema', () => {
+  const valid = {
+    discordId: '278863839632818186',
+    username: 'lila',
+    displayName: 'Lila',
+    personalityId: 'personality-uuid',
+  };
+
+  it('accepts a minimal valid request (isBot omitted)', () => {
+    expect(RoutingContextRequestSchema.safeParse(valid).success).toBe(true);
+  });
+
+  it('accepts an explicit isBot flag', () => {
+    expect(RoutingContextRequestSchema.safeParse({ ...valid, isBot: true }).success).toBe(true);
+  });
+
+  it('rejects an empty discordId', () => {
+    expect(RoutingContextRequestSchema.safeParse({ ...valid, discordId: '' }).success).toBe(false);
+  });
+
+  it('rejects a missing personalityId', () => {
+    const { personalityId: _omit, ...withoutPersonality } = valid;
+    expect(RoutingContextRequestSchema.safeParse(withoutPersonality).success).toBe(false);
+  });
+});
+
+describe('RoutingContextResponseSchema', () => {
+  const valid = {
+    userId: '550e8400-e29b-41d4-a716-446655440000',
+    personaId: 'persona-uuid',
+    personaName: 'Nyx',
+    timezone: 'UTC',
+    contextEpoch: '2026-06-20T00:00:00.000Z',
+  };
+
+  it('accepts a fully-populated bundle', () => {
+    expect(RoutingContextResponseSchema.safeParse(valid).success).toBe(true);
+  });
+
+  it('accepts null personaName and null contextEpoch', () => {
+    expect(
+      RoutingContextResponseSchema.safeParse({ ...valid, personaName: null, contextEpoch: null })
+        .success
+    ).toBe(true);
+  });
+
+  it('rejects a non-UUID userId', () => {
+    expect(RoutingContextResponseSchema.safeParse({ ...valid, userId: 'not-a-uuid' }).success).toBe(
+      false
+    );
+  });
+
+  it('rejects a non-ISO contextEpoch', () => {
+    expect(
+      RoutingContextResponseSchema.safeParse({ ...valid, contextEpoch: 'yesterday' }).success
     ).toBe(false);
   });
 });

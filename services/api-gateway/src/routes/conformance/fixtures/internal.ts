@@ -218,6 +218,24 @@ export const internalFixtures: Record<string, ConformanceEntry> = {
     query: { nameOrId: 'conf-load-personality' },
   },
 
+  routingContextCreate: {
+    // Uses the already-provisioned actor's discordId so getOrCreateUser hits
+    // the existing-user path; the cascade resolves the actor's persona for the
+    // freshly-created personality and the bundle (userId/persona/timezone/epoch)
+    // is shaped against RoutingContextResponseSchema.
+    seed: async ctx => {
+      const personality = await createPersonality(ctx, 'conf-routing-context');
+      return {
+        body: {
+          discordId: ctx.actorDiscordId,
+          username: 'conf-routing-user',
+          displayName: 'Conf Routing User',
+          personalityId: personality.id,
+        },
+      };
+    },
+  },
+
   recentUsers: {
     // The provisioned actor row itself is the "recent user" — zero extra seed.
   },
