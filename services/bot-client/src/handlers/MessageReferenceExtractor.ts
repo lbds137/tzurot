@@ -16,7 +16,6 @@ import {
   ConversationHistoryService,
 } from '@tzurot/common-types';
 import { Message } from 'discord.js';
-import { isRawEnvelopeEnabled } from '../utils/contextWritePath.js';
 import { TranscriptRetriever } from './references/TranscriptRetriever.js';
 import { SnapshotFormatter } from './references/SnapshotFormatter.js';
 import { MessageFormatter } from './references/MessageFormatter.js';
@@ -176,7 +175,9 @@ export class MessageReferenceExtractor {
       effectiveContent ?? updatedMessage.content,
       crawlResult.messages,
       this.maxReferences,
-      { collectRaw: isRawEnvelopeEnabled() }
+      // Raw references always captured — the thin envelope is the only payload
+      // shape, and the worker re-derives from these.
+      { collectRaw: true }
     );
 
     return {

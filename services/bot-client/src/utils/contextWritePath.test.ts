@@ -12,8 +12,6 @@ vi.mock('./gatewayClients.js', () => ({
 }));
 
 import {
-  isRawEnvelopeEnabled,
-  isThinPayloadEnabled,
   persistAssistantMessageViaGateway,
   persistUserMessageViaGateway,
   syncConversationViaGateway,
@@ -28,22 +26,6 @@ const err = (status: number): { ok: false; error: string; status: number } => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
-});
-
-describe('isRawEnvelopeEnabled', () => {
-  it('is enabled only by the exact string "true"', () => {
-    expect(isRawEnvelopeEnabled({ CONTEXT_RAW_ENVELOPE: 'true' } as NodeJS.ProcessEnv)).toBe(true);
-    expect(isRawEnvelopeEnabled({ CONTEXT_RAW_ENVELOPE: '1' } as NodeJS.ProcessEnv)).toBe(false);
-    expect(isRawEnvelopeEnabled({} as NodeJS.ProcessEnv)).toBe(false);
-  });
-});
-
-describe('isThinPayloadEnabled', () => {
-  it('is enabled only by the exact string "true"', () => {
-    expect(isThinPayloadEnabled({ CONTEXT_THIN_PAYLOAD: 'true' } as NodeJS.ProcessEnv)).toBe(true);
-    expect(isThinPayloadEnabled({ CONTEXT_THIN_PAYLOAD: '1' } as NodeJS.ProcessEnv)).toBe(false);
-    expect(isThinPayloadEnabled({} as NodeJS.ProcessEnv)).toBe(false);
-  });
 });
 
 describe('persistAssistantMessageViaGateway', () => {
