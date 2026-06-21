@@ -41,6 +41,20 @@ const BOUNDARY_RULES: {
         severity: 'error',
       },
       {
+        // Prisma reaches bot-client via re-exports from the @tzurot/common-types
+        // barrel, not a direct @prisma/client import — depcruise (module-path
+        // matching) can't see the barrel re-export, so this symbol-level rule is
+        // the enforcement. Matches a forbidden DB-layer symbol in the same
+        // statement as a common-types `from`; every symbol in the alternation
+        // has a Prisma dependency chain. Keep the alternation in sync: add the
+        // export name of any new Prisma-backed @tzurot/common-types service here.
+        pattern:
+          /\b(getPrismaClient|disconnectPrisma|PrismaClient|PersonaResolver|PersonalityService|ConversationHistoryService|PersonaCacheInvalidationService|Prisma)\b[\s\S]*?from\s+['"]@tzurot\/common-types['"]/,
+        reason:
+          'bot-client must not import Prisma-backed code from @tzurot/common-types - these reach the database; use the gateway HTTP API (HttpPersonalityLoader, routing-context)',
+        severity: 'error',
+      },
+      {
         pattern: /from ['"]\.\.\/\.\.\/\.\.\/services\/ai-worker/,
         reason: 'bot-client must not import from ai-worker internals',
         severity: 'error',
@@ -140,27 +154,54 @@ function findTypeScriptFiles(dir: string): string[] {
 }
 
 /**
+ * Match a complete import/require statement, spanning newlines. Three forms:
+ *   1. `import … from '…'`        (named/default/namespace; the `…` may wrap lines)
+ *   2. `import '…'`               (side-effect import)
+ *   3. `require('…')`             (CommonJS)
+ * The lazy `[\s\S]*?` in form 1 stops at the first `from '…'`, so each statement
+ * is bounded to its own specifier and never bleeds into the next. A bare `from`
+ * inside a comment between the braces is skipped: it has no following quote, so
+ * the trailing `['"]…['"]` fails there and the engine backtracks to the real
+ * `from '…'`.
+ */
+const IMPORT_STATEMENT_RE =
+  /\bimport\b[\s\S]*?\bfrom\b\s*['"][^'"]+['"]|\bimport\s+['"][^'"]+['"]|\brequire\s*\(\s*['"][^'"]+['"]\s*\)/g;
+
+/**
+ * Extract each import/require statement as one logical string anchored to the
+ * 1-based line where it begins.
+ *
+ * Collapsing multi-line imports is load-bearing: the imported symbol names in a
+ * multi-line `import {\n  getPrismaClient,\n} from '…'` sit on their own lines.
+ * A line-by-line scan that only inspects lines containing the `import` keyword
+ * never sees them, so a symbol-level rule (e.g. "no getPrismaClient") would
+ * silently miss every multi-line import. Joining the statement first makes the
+ * symbol list and the module specifier matchable as one unit.
+ */
+function extractImportStatements(content: string): { line: number; text: string }[] {
+  const statements: { line: number; text: string }[] = [];
+  for (const match of content.matchAll(IMPORT_STATEMENT_RE)) {
+    const line = content.slice(0, match.index ?? 0).split('\n').length;
+    statements.push({ line, text: match[0] });
+  }
+  return statements;
+}
+
+/**
  * Check a single file for boundary violations
  */
 function checkFile(filePath: string, rules: (typeof BOUNDARY_RULES)[number]): Violation[] {
   const violations: Violation[] = [];
   const content = readFileSync(filePath, 'utf-8');
-  const lines = content.split('\n');
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-
-    // Skip non-import lines
-    if (!line.includes('import') && !line.includes('require')) {
-      continue;
-    }
-
+  for (const statement of extractImportStatements(content)) {
     for (const rule of rules.forbiddenImports) {
-      if (rule.pattern.test(line)) {
+      if (rule.pattern.test(statement.text)) {
         violations.push({
           file: filePath,
-          line: i + 1,
-          import: line.trim(),
+          line: statement.line,
+          // Collapse a possibly multi-line statement to one line for display.
+          import: statement.text.replace(/\s+/g, ' ').trim(),
           rule: rule.reason,
           severity: rule.severity,
         });

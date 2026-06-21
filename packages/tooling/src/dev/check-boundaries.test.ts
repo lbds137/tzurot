@@ -129,6 +129,65 @@ const prisma = new PrismaClient();
       expect(process.exitCode).toBe(1);
     });
 
+    it('should detect bot-client importing Prisma-backed code from the common-types barrel', async () => {
+      vi.mocked(readdirSync).mockImplementation(((dir: unknown) =>
+        String(dir).includes('bot-client/src') ? ['test.ts'] : []) as typeof readdirSync);
+      vi.mocked(statSync).mockReturnValue({ isDirectory: () => false } as ReturnType<
+        typeof statSync
+      >);
+      vi.mocked(readFileSync).mockReturnValue(
+        `import { getPrismaClient } from '@tzurot/common-types';`
+      );
+
+      await checkBoundaries();
+
+      const output = consoleLogSpy.mock.calls.flat().join(' ');
+      expect(output).toContain('boundary violation');
+      expect(output).toContain('Prisma-backed');
+      expect(process.exitCode).toBe(1);
+    });
+
+    it('should detect a Prisma-backed symbol in a MULTI-LINE common-types import', async () => {
+      // Regression guard: the old line-by-line scan skipped any line without the
+      // `import` keyword, so `getPrismaClient,` on its own line was invisible.
+      vi.mocked(readdirSync).mockImplementation(((dir: unknown) =>
+        String(dir).includes('bot-client/src') ? ['test.ts'] : []) as typeof readdirSync);
+      vi.mocked(statSync).mockReturnValue({ isDirectory: () => false } as ReturnType<
+        typeof statSync
+      >);
+      vi.mocked(readFileSync).mockReturnValue(
+        [
+          'import {',
+          '  createLogger,',
+          '  getPrismaClient,',
+          "} from '@tzurot/common-types';",
+        ].join('\n')
+      );
+
+      await checkBoundaries();
+
+      const output = consoleLogSpy.mock.calls.flat().join(' ');
+      expect(output).toContain('boundary violation');
+      expect(process.exitCode).toBe(1);
+    });
+
+    it('should detect the Prisma namespace imported from the common-types barrel', async () => {
+      vi.mocked(readdirSync).mockImplementation(((dir: unknown) =>
+        String(dir).includes('bot-client/src') ? ['test.ts'] : []) as typeof readdirSync);
+      vi.mocked(statSync).mockReturnValue({ isDirectory: () => false } as ReturnType<
+        typeof statSync
+      >);
+      vi.mocked(readFileSync).mockReturnValue(
+        `import type { Prisma } from '@tzurot/common-types';`
+      );
+
+      await checkBoundaries();
+
+      const output = consoleLogSpy.mock.calls.flat().join(' ');
+      expect(output).toContain('boundary violation');
+      expect(process.exitCode).toBe(1);
+    });
+
     it('should detect api-gateway importing from bot-client', async () => {
       vi.mocked(readdirSync).mockImplementation(((dir: unknown) => {
         const dirStr = String(dir);
@@ -184,6 +243,46 @@ import { Client } from 'discord.js';
       vi.mocked(readFileSync).mockReturnValue(`
 import { PersonalityConfig } from '@tzurot/common-types';
 `);
+
+      await checkBoundaries();
+
+      const output = consoleLogSpy.mock.calls.flat().join(' ');
+      expect(output).toContain('No boundary violations found');
+    });
+
+    it('should allow a multi-line common-types import with no Prisma-backed symbols', async () => {
+      vi.mocked(readdirSync).mockImplementation(((dir: unknown) =>
+        String(dir).includes('bot-client/src') ? ['test.ts'] : []) as typeof readdirSync);
+      vi.mocked(statSync).mockReturnValue({ isDirectory: () => false } as ReturnType<
+        typeof statSync
+      >);
+      vi.mocked(readFileSync).mockReturnValue(
+        [
+          'import {',
+          '  createLogger,',
+          '  PersonalityConfig,',
+          '  LoadedPersonality,',
+          "} from '@tzurot/common-types';",
+        ].join('\n')
+      );
+
+      await checkBoundaries();
+
+      const output = consoleLogSpy.mock.calls.flat().join(' ');
+      expect(output).toContain('No boundary violations found');
+    });
+
+    it('should allow a Prisma-named symbol imported from a non-barrel (local) module', async () => {
+      // The rule is scoped to `from '@tzurot/common-types'` — a local module that
+      // happens to export a same-named symbol must NOT trip it (no false positive).
+      vi.mocked(readdirSync).mockImplementation(((dir: unknown) =>
+        String(dir).includes('bot-client/src') ? ['test.ts'] : []) as typeof readdirSync);
+      vi.mocked(statSync).mockReturnValue({ isDirectory: () => false } as ReturnType<
+        typeof statSync
+      >);
+      vi.mocked(readFileSync).mockReturnValue(
+        `import { getPrismaClient } from './utils/localShim.js';`
+      );
 
       await checkBoundaries();
 

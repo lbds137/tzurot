@@ -5,10 +5,13 @@
 Scans every source file across services and packages for forbidden imports defined in `BOUNDARY_RULES`. The current rules enforce:
 
 - `bot-client` never imports from `@prisma/client` directly (must go through `api-gateway` HTTP endpoints)
+- `bot-client` never imports Prisma-backed code (`getPrismaClient`, `PrismaClient`, `PersonaResolver`, `PersonalityService`, `ConversationHistoryService`, `PersonaCacheInvalidationService`, …) re-exported from the `@tzurot/common-types` barrel
 - No cross-service imports (services may only import from `@tzurot/common-types`)
 - `ai-worker` internals are not exposed outside the service
 
-Adds errors and warnings; CI fails on errors. Complementary to `pnpm depcruise` (the heavier dependency-cruiser config), but tighter and faster — runs in the lint job in under a second.
+The scanner matches **whole import statements**, not single lines — a multi-line `import {\n  getPrismaClient,\n} from '@tzurot/common-types'` is collapsed to one logical unit before the rule patterns run, so symbol names on their own lines are visible. (A symbol-level rule is meaningless against the older line-by-line scan, which never saw the symbols.)
+
+Adds errors and warnings; CI fails on errors. Complementary to `pnpm depcruise` (the heavier dependency-cruiser config), but tighter and faster — runs in the lint job in under a second. **This symbol-level reach is also why guard:boundaries, not depcruise, owns the Prisma re-export rule**: dependency-cruiser matches resolved module paths and tracks the import edge to the common-types barrel (`index.ts`), so it cannot distinguish a Prisma-backed re-export from any other common-types import.
 
 ## Why it was built
 
