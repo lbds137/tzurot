@@ -39,9 +39,10 @@ import {
   getPersonalityLoader,
   getMessageContextBuilder,
   getConversationPersistence,
-  getPersonaResolver,
   getJobTracker,
 } from '../../services/serviceRegistry.js';
+import { resolveUserContext } from '../../services/contextBuilder/UserContextResolver.js';
+import { getServiceClient } from '../../utils/gatewayClients.js';
 import { generate } from '../../utils/gatewayServiceCalls.js';
 import type { MessageContext } from '../../types.js';
 import { resolveCharacterSlug, finalizeDeferredReply } from './randomPick.js';
@@ -449,9 +450,13 @@ async function runCharacterTurn(
       return;
     }
 
-    // 3. Resolve persona to get display name (quick lookup before sending message)
-    const personaResult = await getPersonaResolver().resolve(userId, personality.id);
-    const displayName = personaResult.config.preferredName ?? discordDisplayName;
+    // 3. Resolve persona (id + display name) via routing-context. bot-client
+    //    never touches Prisma — the gateway runs provisioning + the persona
+    //    cascade server-side and returns the resolved id + display name.
+    const userContext = await resolveUserContext(context.user, personality, discordDisplayName, {
+      serviceClient: getServiceClient(),
+    });
+    const displayName = userContext.personaName ?? discordDisplayName;
 
     // 4. Build extended context settings from personality
     const extendedContextSettings = buildExtendedContextSettings(personality);
@@ -473,7 +478,7 @@ async function runCharacterTurn(
             displayName,
             message,
             personality,
-            personaId: personaResult.config.personaId,
+            personaId: userContext.personaId,
             guildId: context.guild?.id ?? null,
             timestamp: userMessageTime,
           }

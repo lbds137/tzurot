@@ -43,19 +43,33 @@ const mockConversationPersistence = {
   saveUserMessageFromFields: vi.fn().mockResolvedValue(undefined),
 };
 
-const mockPersonaResolver = {
-  resolve: vi.fn().mockResolvedValue({
-    config: { personaId: 'persona-123', preferredName: null },
-  }),
-};
+const mockResolveUserContext = vi.fn();
 
 vi.mock('../../services/serviceRegistry.js', () => ({
   getPersonalityLoader: () => mockPersonalityService,
   getMessageContextBuilder: () => mockMessageContextBuilder,
   getConversationPersistence: () => mockConversationPersistence,
-  getPersonaResolver: () => mockPersonaResolver,
   getJobTracker: () => mockJobTracker,
 }));
+
+// chat.ts resolves the invoker's persona (id + display name) through the
+// routing-context helper — bot-client never touches Prisma. Mocking the helper
+// directly means the getServiceClient() stub it's handed is never exercised.
+vi.mock('../../services/contextBuilder/UserContextResolver.js', () => ({
+  resolveUserContext: (...args: unknown[]) => mockResolveUserContext(...args),
+}));
+
+/** Build a routing-context result; override `personaName`/`personaId` per case. */
+const buildUserContext = (overrides: Record<string, unknown> = {}) => ({
+  internalUserId: 'internal-user-1',
+  discordUserId: 'user-123',
+  personaId: 'persona-123',
+  personaName: null,
+  userTimezone: undefined,
+  contextEpoch: undefined,
+  history: [],
+  ...overrides,
+});
 
 // `generate` moved off GatewayClient to the gatewayServiceCalls module; route
 // it to the same holder so the existing assertions keep working unchanged.
@@ -69,9 +83,12 @@ vi.mock('../../utils/autocomplete/autocompleteCache.js', () => ({
 }));
 
 // Mock clientsFor — the cache + persona resolution mocks return data
-// directly, so a structurally empty userClient stub suffices.
+// directly, so a structurally empty userClient stub suffices. getServiceClient
+// is what chat.ts hands to the (mocked) resolveUserContext, so a bare stub is
+// enough — the helper ignores it.
 vi.mock('../../utils/gatewayClients.js', () => ({
   clientsFor: vi.fn(() => ({ userClient: {} })),
+  getServiceClient: vi.fn(() => ({})),
 }));
 
 vi.mock('../../redis.js', () => ({
@@ -202,9 +219,7 @@ describe('Character Chat Handler (push delivery)', () => {
     vi.clearAllMocks();
     vi.useFakeTimers();
     mockMessageContextBuilder.buildContext.mockResolvedValue(createMockContextBuildResult());
-    mockPersonaResolver.resolve.mockResolvedValue({
-      config: { personaId: 'persona-123', preferredName: null },
-    });
+    mockResolveUserContext.mockResolvedValue(buildUserContext());
   });
 
   afterEach(() => {
@@ -316,9 +331,7 @@ describe('Character Chat Handler (push delivery)', () => {
       const ctx = createMockContext('test-char', 'Hi', channel);
       mockPersonalityService.loadPersonality.mockResolvedValue(createMockPersonality());
       mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-1', requestId: 'req-1' });
-      mockPersonaResolver.resolve.mockResolvedValueOnce({
-        config: { personaId: 'persona-123', preferredName: 'Cool Name' },
-      });
+      mockResolveUserContext.mockResolvedValueOnce(buildUserContext({ personaName: 'Cool Name' }));
 
       await handleChat(ctx, mockConfig);
 
