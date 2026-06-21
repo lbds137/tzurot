@@ -10,11 +10,7 @@
  * - Import getJobTracker(), getWebhookManager(), etc. in commands
  */
 
-import type {
-  ConversationHistoryService,
-  PersonaResolver,
-  ChannelActivationCacheInvalidationService,
-} from '@tzurot/common-types';
+import type { ChannelActivationCacheInvalidationService } from '@tzurot/common-types';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import type { JobTracker } from './JobTracker.js';
 import type { WebhookManager } from '../utils/WebhookManager.js';
@@ -26,8 +22,6 @@ import type { DenylistCache } from './DenylistCache.js';
 let jobTracker: JobTracker | undefined;
 let webhookManager: WebhookManager | undefined;
 let personalityService: IPersonalityLoader | undefined;
-let conversationHistoryService: ConversationHistoryService | undefined;
-let personaResolver: PersonaResolver | undefined;
 let channelActivationCacheInvalidationService:
   | ChannelActivationCacheInvalidationService
   | undefined;
@@ -42,8 +36,6 @@ interface RegisteredServices {
   jobTracker: JobTracker;
   webhookManager: WebhookManager;
   personalityService: IPersonalityLoader;
-  conversationHistoryService: ConversationHistoryService;
-  personaResolver: PersonaResolver;
   channelActivationCacheInvalidationService: ChannelActivationCacheInvalidationService;
   messageContextBuilder: MessageContextBuilder;
   conversationPersistence: ConversationPersistence;
@@ -58,8 +50,6 @@ export function registerServices(services: RegisteredServices): void {
   jobTracker = services.jobTracker;
   webhookManager = services.webhookManager;
   personalityService = services.personalityService;
-  conversationHistoryService = services.conversationHistoryService;
-  personaResolver = services.personaResolver;
   channelActivationCacheInvalidationService = services.channelActivationCacheInvalidationService;
   messageContextBuilder = services.messageContextBuilder;
   conversationPersistence = services.conversationPersistence;
@@ -99,28 +89,6 @@ export function getPersonalityLoader(): IPersonalityLoader {
     throw new Error('Personality loader not registered. Call registerServices() first.');
   }
   return personalityService;
-}
-
-/**
- * Get the ConversationHistoryService instance
- * @throws Error if services not registered
- */
-export function getConversationHistoryService(): ConversationHistoryService {
-  if (conversationHistoryService === undefined) {
-    throw new Error('ConversationHistoryService not registered. Call registerServices() first.');
-  }
-  return conversationHistoryService;
-}
-
-/**
- * Get the PersonaResolver instance
- * @throws Error if services not registered
- */
-export function getPersonaResolver(): PersonaResolver {
-  if (personaResolver === undefined) {
-    throw new Error('PersonaResolver not registered. Call registerServices() first.');
-  }
-  return personaResolver;
 }
 
 /**
@@ -169,8 +137,6 @@ export function areServicesRegistered(): boolean {
     jobTracker !== undefined &&
     webhookManager !== undefined &&
     personalityService !== undefined &&
-    conversationHistoryService !== undefined &&
-    personaResolver !== undefined &&
     channelActivationCacheInvalidationService !== undefined &&
     messageContextBuilder !== undefined &&
     conversationPersistence !== undefined &&
@@ -191,8 +157,6 @@ export function resetServices(): void {
   jobTracker = undefined;
   webhookManager = undefined;
   personalityService = undefined;
-  conversationHistoryService = undefined;
-  personaResolver = undefined;
   channelActivationCacheInvalidationService = undefined;
   messageContextBuilder = undefined;
   conversationPersistence = undefined;

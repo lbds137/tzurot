@@ -7,8 +7,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type {
   PersonalityService,
-  ConversationHistoryService,
-  PersonaResolver,
   ChannelActivationCacheInvalidationService,
 } from '@tzurot/common-types';
 import type { JobTracker } from './JobTracker.js';
@@ -50,20 +48,6 @@ describe('serviceRegistry', () => {
       );
     });
 
-    it('should throw when getting ConversationHistoryService before registration', async () => {
-      const { getConversationHistoryService } = await import('./serviceRegistry.js');
-      expect(() => getConversationHistoryService()).toThrow(
-        'ConversationHistoryService not registered. Call registerServices() first.'
-      );
-    });
-
-    it('should throw when getting PersonaResolver before registration', async () => {
-      const { getPersonaResolver } = await import('./serviceRegistry.js');
-      expect(() => getPersonaResolver()).toThrow(
-        'PersonaResolver not registered. Call registerServices() first.'
-      );
-    });
-
     it('should throw when getting ChannelActivationCacheInvalidationService before registration', async () => {
       const { getChannelActivationCacheInvalidationService } = await import('./serviceRegistry.js');
       expect(() => getChannelActivationCacheInvalidationService()).toThrow(
@@ -95,10 +79,6 @@ describe('serviceRegistry', () => {
     const mockJobTracker = { track: vi.fn() } as unknown as JobTracker;
     const mockWebhookManager = { send: vi.fn() } as unknown as WebhookManager;
     const mockPersonalityService = { loadPersonality: vi.fn() } as unknown as PersonalityService;
-    const mockConversationHistoryService = {
-      getChannelHistory: vi.fn(),
-    } as unknown as ConversationHistoryService;
-    const mockPersonaResolver = { resolve: vi.fn() } as unknown as PersonaResolver;
     const mockChannelActivationCacheInvalidationService = {
       invalidateChannel: vi.fn(),
     } as unknown as ChannelActivationCacheInvalidationService;
@@ -116,8 +96,6 @@ describe('serviceRegistry', () => {
         jobTracker: mockJobTracker,
         webhookManager: mockWebhookManager,
         personalityService: mockPersonalityService,
-        conversationHistoryService: mockConversationHistoryService,
-        personaResolver: mockPersonaResolver,
         channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
         messageContextBuilder: mockMessageContextBuilder,
         conversationPersistence: mockConversationPersistence,
@@ -134,8 +112,6 @@ describe('serviceRegistry', () => {
         jobTracker: mockJobTracker,
         webhookManager: mockWebhookManager,
         personalityService: mockPersonalityService,
-        conversationHistoryService: mockConversationHistoryService,
-        personaResolver: mockPersonaResolver,
         channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
         messageContextBuilder: mockMessageContextBuilder,
         conversationPersistence: mockConversationPersistence,
@@ -152,8 +128,6 @@ describe('serviceRegistry', () => {
         jobTracker: mockJobTracker,
         webhookManager: mockWebhookManager,
         personalityService: mockPersonalityService,
-        conversationHistoryService: mockConversationHistoryService,
-        personaResolver: mockPersonaResolver,
         channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
         messageContextBuilder: mockMessageContextBuilder,
         conversationPersistence: mockConversationPersistence,
@@ -161,43 +135,6 @@ describe('serviceRegistry', () => {
       });
 
       expect(getPersonalityLoader()).toBe(mockPersonalityService);
-    });
-
-    it('should return registered ConversationHistoryService', async () => {
-      const { registerServices, getConversationHistoryService } =
-        await import('./serviceRegistry.js');
-
-      registerServices({
-        jobTracker: mockJobTracker,
-        webhookManager: mockWebhookManager,
-        personalityService: mockPersonalityService,
-        conversationHistoryService: mockConversationHistoryService,
-        personaResolver: mockPersonaResolver,
-        channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
-        messageContextBuilder: mockMessageContextBuilder,
-        conversationPersistence: mockConversationPersistence,
-        denylistCache: mockDenylistCache,
-      });
-
-      expect(getConversationHistoryService()).toBe(mockConversationHistoryService);
-    });
-
-    it('should return registered PersonaResolver', async () => {
-      const { registerServices, getPersonaResolver } = await import('./serviceRegistry.js');
-
-      registerServices({
-        jobTracker: mockJobTracker,
-        webhookManager: mockWebhookManager,
-        personalityService: mockPersonalityService,
-        conversationHistoryService: mockConversationHistoryService,
-        personaResolver: mockPersonaResolver,
-        channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
-        messageContextBuilder: mockMessageContextBuilder,
-        conversationPersistence: mockConversationPersistence,
-        denylistCache: mockDenylistCache,
-      });
-
-      expect(getPersonaResolver()).toBe(mockPersonaResolver);
     });
 
     it('should return registered ChannelActivationCacheInvalidationService', async () => {
@@ -208,8 +145,6 @@ describe('serviceRegistry', () => {
         jobTracker: mockJobTracker,
         webhookManager: mockWebhookManager,
         personalityService: mockPersonalityService,
-        conversationHistoryService: mockConversationHistoryService,
-        personaResolver: mockPersonaResolver,
         channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
         messageContextBuilder: mockMessageContextBuilder,
         conversationPersistence: mockConversationPersistence,
@@ -228,8 +163,6 @@ describe('serviceRegistry', () => {
         jobTracker: mockJobTracker,
         webhookManager: mockWebhookManager,
         personalityService: mockPersonalityService,
-        conversationHistoryService: mockConversationHistoryService,
-        personaResolver: mockPersonaResolver,
         channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
         messageContextBuilder: mockMessageContextBuilder,
         conversationPersistence: mockConversationPersistence,
@@ -246,8 +179,6 @@ describe('serviceRegistry', () => {
         jobTracker: mockJobTracker,
         webhookManager: mockWebhookManager,
         personalityService: mockPersonalityService,
-        conversationHistoryService: mockConversationHistoryService,
-        personaResolver: mockPersonaResolver,
         channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
         messageContextBuilder: mockMessageContextBuilder,
         conversationPersistence: mockConversationPersistence,
@@ -264,8 +195,6 @@ describe('serviceRegistry', () => {
         jobTracker: mockJobTracker,
         webhookManager: mockWebhookManager,
         personalityService: mockPersonalityService,
-        conversationHistoryService: mockConversationHistoryService,
-        personaResolver: mockPersonaResolver,
         channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
         messageContextBuilder: mockMessageContextBuilder,
         conversationPersistence: mockConversationPersistence,
@@ -286,8 +215,6 @@ describe('serviceRegistry', () => {
         jobTracker: { track: vi.fn() } as unknown as JobTracker,
         webhookManager: undefined,
         personalityService: undefined,
-        conversationHistoryService: undefined,
-        personaResolver: undefined,
         channelActivationCacheInvalidationService: undefined,
         messageContextBuilder: undefined,
         conversationPersistence: undefined,
@@ -296,8 +223,6 @@ describe('serviceRegistry', () => {
         jobTracker: JobTracker;
         webhookManager: WebhookManager;
         personalityService: PersonalityService;
-        conversationHistoryService: ConversationHistoryService;
-        personaResolver: PersonaResolver;
         channelActivationCacheInvalidationService: ChannelActivationCacheInvalidationService;
         messageContextBuilder: MessageContextBuilder;
         conversationPersistence: ConversationPersistence;
@@ -318,10 +243,6 @@ describe('serviceRegistry', () => {
       const mockJobTracker = { track: vi.fn() } as unknown as JobTracker;
       const mockWebhookManager = { send: vi.fn() } as unknown as WebhookManager;
       const mockPersonalityService = { loadPersonality: vi.fn() } as unknown as PersonalityService;
-      const mockConversationHistoryService = {
-        getChannelHistory: vi.fn(),
-      } as unknown as ConversationHistoryService;
-      const mockPersonaResolver = { resolve: vi.fn() } as unknown as PersonaResolver;
       const mockChannelActivationCacheInvalidationService = {
         invalidateChannel: vi.fn(),
       } as unknown as ChannelActivationCacheInvalidationService;
@@ -340,8 +261,6 @@ describe('serviceRegistry', () => {
         jobTracker: mockJobTracker,
         webhookManager: mockWebhookManager,
         personalityService: mockPersonalityService,
-        conversationHistoryService: mockConversationHistoryService,
-        personaResolver: mockPersonaResolver,
         channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
         messageContextBuilder: localMockMessageContextBuilder,
         conversationPersistence: localMockConversationPersistence,
