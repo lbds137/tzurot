@@ -1,15 +1,10 @@
 /**
  * MentionResolver Types
- * Type definitions for Discord mention resolution
+ * Type definitions for Discord channel/role mention resolution.
+ *
+ * User-mention resolution is NOT done bot-side (the worker re-derives it from
+ * the envelope), so there is no `mentionedUsers` shape here.
  */
-
-import type { ResolvedUserMention } from '@tzurot/common-types';
-
-/**
- * Information about a mentioned user's persona — the kernel's resolved shape,
- * re-named for this adapter's public API (one definition, no parallel type).
- */
-export type MentionedUserInfo = ResolvedUserMention;
 
 /**
  * Information about a mentioned channel
@@ -38,19 +33,12 @@ export interface ResolvedRole {
 }
 
 /**
- * Result of resolving user mentions in a message
+ * Result of resolving channel + role mentions in a message. User mentions are
+ * left raw (the worker re-derives user→persona rewriting from the envelope).
  */
-export interface MentionResolutionResult {
-  /** Message content with mentions replaced by names */
+export interface FullMentionResolutionResult {
+  /** Message content with channel/role mentions replaced by names (user mentions left raw). */
   processedContent: string;
-  /** Information about mentioned users */
-  mentionedUsers: MentionedUserInfo[];
-}
-
-/**
- * Result of resolving all mention types in a message
- */
-export interface FullMentionResolutionResult extends MentionResolutionResult {
   /** Information about mentioned channels (for LTM scoping) */
   mentionedChannels: ResolvedChannel[];
   /** Information about mentioned roles */

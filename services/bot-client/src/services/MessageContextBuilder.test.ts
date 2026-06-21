@@ -163,7 +163,7 @@ describe('MessageContextBuilder', () => {
 
     // Create builder instance — serviceClient is a stub since resolveUserContext
     // (the only consumer) is mocked.
-    builder = new MessageContextBuilder(mockPrisma, mockPersonaResolver as any, {} as any);
+    builder = new MessageContextBuilder({} as any);
 
     // conversationHistory is no longer a builder field — bot-client stopped
     // reading channel history from Postgres (the worker re-derives it from the
@@ -262,7 +262,7 @@ describe('MessageContextBuilder', () => {
     } as Message;
 
     // Default mock for resolveAllMentions - returns unchanged content with empty arrays
-    mockResolveAllMentions.mockResolvedValue({
+    mockResolveAllMentions.mockReturnValue({
       processedContent: 'Hello world',
       mentionedUsers: [],
       mentionedChannels: [],
@@ -283,7 +283,7 @@ describe('MessageContextBuilder', () => {
       });
       // The mention resolver is the LAST rewriter — its output is the
       // assembled messageContent.
-      mockResolveAllMentions.mockResolvedValue({
+      mockResolveAllMentions.mockReturnValue({
         processedContent: 'REWRITTEN content',
         mentionedUsers: [],
         mentionedChannels: [],
@@ -339,7 +339,7 @@ describe('MessageContextBuilder', () => {
         references: [],
         updatedContent: 'REWRITTEN content',
       });
-      mockResolveAllMentions.mockResolvedValue({
+      mockResolveAllMentions.mockReturnValue({
         processedContent: 'REWRITTEN content',
         mentionedUsers: [],
         mentionedChannels: [],
@@ -528,7 +528,7 @@ describe('MessageContextBuilder', () => {
         updatedContent: 'Check [Reference 1]',
         rawReferences: mockReferences,
       });
-      mockResolveAllMentions.mockResolvedValue({
+      mockResolveAllMentions.mockReturnValue({
         processedContent: 'Check [Reference 1]',
         mentionedUsers: [],
         mentionedChannels: [],
@@ -660,7 +660,7 @@ describe('MessageContextBuilder', () => {
         references: [],
         updatedContent: null,
       });
-      mockResolveAllMentions.mockResolvedValue({
+      mockResolveAllMentions.mockReturnValue({
         processedContent: '[no text content]',
         mentionedUsers: [],
         mentionedChannels: [],
@@ -723,7 +723,7 @@ describe('MessageContextBuilder', () => {
         references: [],
         updatedContent: 'Voice message',
       });
-      mockResolveAllMentions.mockResolvedValue({
+      mockResolveAllMentions.mockReturnValue({
         processedContent: 'Voice message',
         mentionedUsers: [],
         mentionedChannels: [],
@@ -758,10 +758,10 @@ describe('MessageContextBuilder', () => {
       expect(result.context.rawAssemblyInputs?.rawReferencedMessages).toBeUndefined();
     });
 
-    it('still resolves mentions (for rewriting) but the envelope omits mentionedPersonas', async () => {
-      // Add a mentioned user to the mock message — even with a real mention,
-      // the thin envelope ships no enriched mentionedPersonas (the worker
-      // re-derives them); resolution still runs to rewrite messageContent.
+    it('does NOT resolve user mentions bot-side (worker re-derives) — channel/role only', async () => {
+      // A real user mention stays RAW in the shipped content; the worker rewrites
+      // it to a persona name from rawMentionedUsers. resolveAllMentions runs only
+      // for channel/role (guild-cache), with the (content, guild) signature.
       const mockMentionedUser = {
         id: '123456',
         username: 'mentioneduser',
@@ -769,25 +769,13 @@ describe('MessageContextBuilder', () => {
       } as User;
       (mockMessage.mentions.users as Map<string, User>).set('123456', mockMentionedUser);
 
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
-        userId: 'user-uuid-123',
-        defaultPersonaId: 'test-persona-id',
-      });
-      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
         updatedContent: 'Hey <@123456>, how are you?',
       });
-      mockResolveAllMentions.mockResolvedValue({
-        processedContent: 'Hey @MentionedPersona, how are you?',
-        mentionedUsers: [
-          {
-            discordId: '123456',
-            userId: 'mentioned-user-uuid',
-            personaId: 'mentioned-persona-uuid',
-            personaName: 'MentionedPersona',
-          },
-        ],
+      // Channel/role rewriting leaves the user mention untouched.
+      mockResolveAllMentions.mockReturnValue({
+        processedContent: 'Hey <@123456>, how are you?',
         mentionedChannels: [],
         mentionedRoles: [],
       });
@@ -798,15 +786,15 @@ describe('MessageContextBuilder', () => {
         'Hey <@123456>, how are you?'
       );
 
-      // Resolution still runs (its output rewrites messageContent).
+      // Called with (content, guild) — no personalityId, no user resolution.
       expect(mockResolveAllMentions).toHaveBeenCalledWith(
         'Hey <@123456>, how are you?',
-        mockMessage,
-        'personality-123'
+        mockMessage.guild
       );
-      expect(result.context.messageContent).toBe('Hey @MentionedPersona, how are you?');
+      // The user mention ships RAW (the worker rewrites it).
+      expect(result.context.messageContent).toBe('Hey <@123456>, how are you?');
 
-      // ...but the enriched field never ships — the worker re-derives it.
+      // The enriched field never ships — the worker re-derives it.
       expect(result.context.mentionedPersonas).toBeUndefined();
     });
 
@@ -828,7 +816,7 @@ describe('MessageContextBuilder', () => {
         references: [],
         updatedContent: 'Hello after clear',
       });
-      mockResolveAllMentions.mockResolvedValue({
+      mockResolveAllMentions.mockReturnValue({
         processedContent: 'Hello after clear',
         mentionedUsers: [],
         mentionedChannels: [],
@@ -879,7 +867,7 @@ describe('MessageContextBuilder', () => {
         references: [],
         updatedContent: 'Weigh in',
       });
-      mockResolveAllMentions.mockResolvedValue({
+      mockResolveAllMentions.mockReturnValue({
         processedContent: 'Weigh in',
         mentionedUsers: [],
         mentionedChannels: [],
@@ -926,7 +914,7 @@ describe('MessageContextBuilder', () => {
         references: [],
         updatedContent: 'Hello',
       });
-      mockResolveAllMentions.mockResolvedValue({
+      mockResolveAllMentions.mockReturnValue({
         processedContent: 'Hello',
         mentionedUsers: [],
         mentionedChannels: [],
@@ -1005,7 +993,7 @@ describe('MessageContextBuilder', () => {
         references: [],
         updatedContent: 'Hello',
       });
-      mockResolveAllMentions.mockResolvedValue({
+      mockResolveAllMentions.mockReturnValue({
         processedContent: 'Hello',
         mentionedUsers: [],
         mentionedChannels: [],
@@ -1062,7 +1050,7 @@ describe('MessageContextBuilder', () => {
         references: [],
         updatedContent: 'hi',
       });
-      mockResolveAllMentions.mockResolvedValue({
+      mockResolveAllMentions.mockReturnValue({
         processedContent: 'hi',
         mentionedUsers: [],
         mentionedChannels: [],
@@ -1102,7 +1090,7 @@ describe('MessageContextBuilder', () => {
         references: [],
         updatedContent: '',
       });
-      mockResolveAllMentions.mockResolvedValue({
+      mockResolveAllMentions.mockReturnValue({
         processedContent: '',
         mentionedUsers: [],
         mentionedChannels: [],
@@ -1164,7 +1152,7 @@ describe('MessageContextBuilder', () => {
         references: [],
         updatedContent: 'Hello',
       });
-      mockResolveAllMentions.mockResolvedValue({
+      mockResolveAllMentions.mockReturnValue({
         processedContent: 'Hello',
         mentionedUsers: [],
         mentionedChannels: [],
@@ -1225,7 +1213,7 @@ describe('MessageContextBuilder', () => {
         references: [],
         updatedContent: 'Hello',
       });
-      mockResolveAllMentions.mockResolvedValue({
+      mockResolveAllMentions.mockReturnValue({
         processedContent: 'Hello',
         mentionedUsers: [],
         mentionedChannels: [],
@@ -1304,7 +1292,7 @@ describe('MessageContextBuilder', () => {
         references: [],
         updatedContent: 'Hello',
       });
-      mockResolveAllMentions.mockResolvedValue({
+      mockResolveAllMentions.mockReturnValue({
         processedContent: 'Hello',
         mentionedUsers: [],
         mentionedChannels: [],
@@ -1376,7 +1364,7 @@ describe('MessageContextBuilder', () => {
         references: [],
         updatedContent: 'Hello',
       });
-      mockResolveAllMentions.mockResolvedValue({
+      mockResolveAllMentions.mockReturnValue({
         processedContent: 'Hello',
         mentionedUsers: [],
         mentionedChannels: [],
@@ -1450,7 +1438,7 @@ describe('MessageContextBuilder', () => {
         references: [],
         updatedContent: 'Hello',
       });
-      mockResolveAllMentions.mockResolvedValue({
+      mockResolveAllMentions.mockReturnValue({
         processedContent: 'Hello',
         mentionedUsers: [],
         mentionedChannels: [],
@@ -1503,7 +1491,7 @@ describe('MessageContextBuilder', () => {
         references: [],
         updatedContent: 'content',
       });
-      mockResolveAllMentions.mockResolvedValue({
+      mockResolveAllMentions.mockReturnValue({
         processedContent: 'content',
         mentionedUsers: [],
         mentionedChannels: [],
