@@ -11,7 +11,6 @@ import {
   type LoadedPersonality,
   type ConversationMessage,
   type AttachmentMetadata,
-  ConversationHistoryService,
   createLogger,
   MESSAGE_LIMITS,
   isTypingChannel,
@@ -105,7 +104,6 @@ interface ExtendedContextParams {
  * constructor dependency or assert `Client.isReady()` here.
  */
 export class MessageContextBuilder {
-  private conversationHistory: ConversationHistoryService;
   private mentionResolver: MentionResolver;
   private channelFetcher: DiscordChannelFetcher;
   private transcriptRetriever: TranscriptRetriever;
@@ -130,7 +128,6 @@ export class MessageContextBuilder {
     private serviceClient: ServiceClient,
     denylistCache?: DenylistCache
   ) {
-    this.conversationHistory = new ConversationHistoryService(prisma);
     this.mentionResolver = new MentionResolver(prisma, personaResolver);
     this.channelFetcher = new DiscordChannelFetcher();
     this.transcriptRetriever = new TranscriptRetriever();
@@ -229,7 +226,7 @@ export class MessageContextBuilder {
       {
         channelId: message.channel.id,
         discordMessages: fetchResult.filteredCount,
-        dbMessages: history.length - fetchResult.messages.length + 1,
+        dbMessages: history.length,
         totalMerged: mergedHistory.length,
       },
       'Extended context merged with conversation history'
@@ -349,29 +346,18 @@ export class MessageContextBuilder {
     const contextEpoch =
       (options.incognito ?? options.isWeighInMode) === true ? undefined : userContext.contextEpoch;
 
-    // Step 3: Fetch conversation history from PostgreSQL
-    // Always fetch complete channel history (not personality-filtered)
-    // Use maxMessages from resolved LLM config or extended context settings
-    // Hard cap at MAX_EXTENDED_CONTEXT (100) as defense-in-depth against API validation bypass
-    // dbLimit caps the DB fetch to maxMessages from LlmConfig (hard cap MAX_EXTENDED_CONTEXT).
-    // maxAge mirrors the DiscordChannelFetcher filter so stale DB rows don't leak past
-    // the user's "forget after X" preference and starve cross-channel context.
-    const dbLimit = Math.min(
-      options.extendedContext?.maxMessages ?? MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES,
-      MESSAGE_LIMITS.MAX_EXTENDED_CONTEXT
-    );
-    const dbHistory = await this.conversationHistory.getChannelHistory(
-      message.channel.id,
-      dbLimit,
-      contextEpoch,
-      options.extendedContext?.maxAge
-    );
-
-    // Step 4: Fetch extended context from Discord (if enabled) and merge with DB history
+    // Step 3: Fetch extended context from Discord (if enabled).
+    // bot-client no longer reads channel history from Postgres — the worker's
+    // ContextAssembler re-fetches and re-merges it from the thin envelope. The
+    // base history passed here is empty: it now feeds ONLY the local
+    // reference-dedup, whose output is vestigial — the shipped rawReferences +
+    // rewritten content are dedup-invariant (locked by
+    // MessageReferenceExtractor.test.ts), and the Discord fetch's raw snapshot
+    // (the only reference data that ships) is captured independently of it.
     const extendedContext = await this.fetchExtendedContext({
       message,
       personality,
-      history: dbHistory,
+      history: [],
       contextEpoch,
       options,
     });
@@ -382,7 +368,7 @@ export class MessageContextBuilder {
     // ships the cached channel-environment names (via rawAssemblyInputs) so the
     // worker can decorate its groups — see buildKnownChannelEnvironments.
 
-    // Step 5: Extract references and resolve mentions
+    // Step 4: Extract references and resolve mentions
     // maxReferences shares the same budget as maxMessages (no additive surprise)
     const refsAndMentions = await this.extractRefsAndMentions({
       message,
@@ -394,7 +380,7 @@ export class MessageContextBuilder {
     });
     const { messageContent, referencedMessages } = refsAndMentions;
 
-    // Step 6: Convert conversation history to API format
+    // Step 5: Convert conversation history to API format
     // Include messageMetadata so referenced messages can be formatted at prompt time
     // Include tokenCount for accurate token budget calculations (avoids chars/4 fallback)
     // Extract attachments using unified buildMessageContent
