@@ -34,11 +34,11 @@ The word "contract" is overloaded in our docs. Resolve to two distinct things:
 
 ## Phased roadmap
 
-### Phase 1 — Reconcile the taxonomy (docs; foundational)
-- One canonical pyramid section in `docs/reference/guides/TESTING.md` using the 5-tier model above + the business/application-logic lens (which tier suits which kind of logic).
-- Reclassify `*.int.test.ts` as **component** (concept rename; file-suffix rename is optional and disruptive — decide).
-- Disambiguate schema vs. contract in `02-code-standards.md` + the `tzurot-testing` skill, and make the always-loaded rule *point at and one-line-summarize* the pyramid so the cross-service tiers are top-of-mind.
-- Rules/skills are review-gated (PR); `docs/` + this theme can go direct.
+### Phase 1 — Reconcile the taxonomy (docs; foundational) ✅ DONE (PR #1284)
+- ✅ Canonical `## Test Tier Taxonomy` section in `docs/reference/guides/TESTING.md` (5-tier model + business/application-logic lens), wrapped in a marked `<!-- canonical-test-tiers -->` block.
+- ✅ Reclassified `*.int.test.ts` as **component** by re-documenting (kept the suffix; rename deferred to the epic per user 2026-06-20).
+- ✅ Disambiguated schema vs. contract in `02-code-standards.md` + the `tzurot-testing` skill; the always-loaded rule now points at + one-line-summarizes the pyramid.
+- ✅ Both enforcement seeds shipped (see Enforcement below).
 
 ### Phase 1.5 — Pilot: audit the 2.5d-touched surface (near-term, right after the doc PR)
 Scope the FIRST audit to the code THIS Prisma-eviction epic changed — the highest-risk, freshest-context surface, and where the "worker re-derives what bot-client deleted" claim lives. Map each touched flow (routing-context, cross-channel, voice transcripts, participant-batch, weigh-in) to the 5 tiers and fill gaps in the right tier (e.g., the envelope contract test below). Doubles as a de-risking pilot of the audit METHODOLOGY on a bounded surface before the full Tzurot-wide Phase 2. **User directive 2026-06-20**: sequence this after the doc-reconciliation PR lands and before the broad audit; don't let it stall the active epic.
@@ -58,11 +58,13 @@ The drift recurred *because* it was docs-only (attention-based). Per `00-critica
 
 **Bulk (big epic) — the real teeth:** a `pnpm ops test:tier-audit` registered audit-class tool (WHY.md + canary + baseline + drift-detect, per `docs/reference/audit-enforcement.md`) that measures whether each service/flow carries the tiers it should and **fails CI on regression**. This is the per-area tier-coverage gap matrix with a ratchet — distinct from `test:audit`, which measures colocation, not tier coverage.
 
-**Seed (doc PR) — light down-payments, pick one or both:**
-1. **Anti-drift guard for the taxonomy itself** (cheapest; addresses the literal root cause). Make `TESTING.md` the single source of truth; the rule + skill carry a one-liner + link, NOT a competing table. A small tooling check fails CI if the rule/skill re-enumerate or contradict the canonical tier list. Stops the *doc* bleeding directly.
-2. **Report-only tier classification** (the measurement down-payment for the bulk). Extend `test:audit` (or a sibling) to classify each test file by tier (suffix-based: `.test.ts`=unit, `.int.test.ts`=component, `.e2e.test.ts` under `tests/e2e/`, contract under `tests/e2e/contracts/`) and print the per-package distribution. No gate yet — the ratchet is the bulk. Seeds exactly what the big-epic tool will gate on.
+**Seed (doc PR) — both shipped in PR #1284:**
+1. ✅ **`guard:test-taxonomy`** — anti-drift binary sync-check (the `guard:duplicate-exports` class, NOT audit-class). Fails CI if `TESTING.md` drops a canonical tier or if the rule/skill stop linking to the canonical block. Ties the doc to `CANONICAL_TEST_TIERS` (`packages/tooling/src/test/test-tiers.ts`). Wired into CI lint job + `pnpm quality`. **Known scope limit** (reviewer-accepted, not fixed): it checks pointer-presence, not anchor-validity — a `## Test Tier Taxonomy` heading rename would 404 the anchor while the guard stays green. Cheap to harden in the epic if it ever bites.
+2. ✅ **`test:tiers`** — report-only per-package tier distribution (`packages/tooling/src/test/tier-report.ts`). No gate. Shares the `test-tiers.ts` classifier kernel with the guard. The bulk `test:tier-audit` ratchet builds on this.
 
-Open decision: whether to rename `*.int.test.ts` → `*.component.test.ts` (truthful but disruptive — touches every int test + the runner config) or keep the suffix and just re-document its meaning. Lean **keep + re-document** for the seed; revisit a rename in the epic if the report shows it's worth it.
+Decided: keep `*.int.test.ts` / `*.e2e.test.ts` + re-document (done). A suffix **rename** (`*.component.test.ts` etc.) is revisited in the epic — disruptive (touches every int test + runner config), only if the tier report shows it's worth it.
+
+**Surfaced by `test:tiers` on first run** (filed to `cold/follow-ups.md`): **0** `*.schema.test.ts` files exist repo-wide — every schema test is a colocated `*.test.ts` (unit-tier). The `.schema.test.ts` suffix is documented + recognized by the classifier but unused. Adopt-or-drop decision deferred to Phase 2.
 
 ## Sources
 
@@ -70,4 +72,4 @@ Open decision: whether to rename `*.int.test.ts` → `*.component.test.ts` (trut
 
 ## Status
 
-Filed 2026-06-20. Foundational understanding captured here so it isn't lost; the active epic (2.5d) stays the focus. **Near-term sequence (user-directed 2026-06-20):** (1) merge PR #1283 → (2) interim "stop-the-bleeding" doc-reconciliation PR (Phase 1) → (3) Phase 1.5 pilot audit of the 2.5d-touched code → (4) finish the 2.5d epic (full `getChannelHistory` eviction + Phase 4). The full Tzurot-wide Phase 2/3 promotes to Active Epic later, with a council pass on scope first.
+Filed 2026-06-20. Foundational understanding captured here so it isn't lost; the active epic (2.5d) stays the focus. **Near-term sequence (user-directed 2026-06-20):** (1) ✅ merge PR #1283 → (2) ✅ interim "stop-the-bleeding" doc-reconciliation PR (Phase 1, **PR #1284, merged 2026-06-21**) → (3) **NEXT: Phase 1.5 pilot audit** of the 2.5d-touched code → (4) finish the 2.5d epic (full `getChannelHistory` eviction + Phase 4). The full Tzurot-wide Phase 2/3 promotes to Active Epic later, with a council pass on scope first.
