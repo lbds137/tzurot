@@ -4,6 +4,7 @@ _Ordered index of future themes. Grep-on-demand — not loaded at session start.
 
 > **Next theme: OPEN** — pick the next one when the Active Epic (`../active-epic.md`, PR-2n) completes. Choose by dependency + value; each substantial pick deserves its own council pass before plan-mode. The previous "Next Theme: CPD Clone Reduction" was completed differently by the 2026-05-16 campaign (reframed to filtered-metric + CI ratchet + documented boundary; close-out audit in [`docs/reference/CPD_CAMPAIGN_AUDIT.md`](../../docs/reference/CPD_CAMPAIGN_AUDIT.md)); its remaining work is the "Adjacent CPD Follow-Up Campaigns" theme below.
 
+- [Test-Pyramid Taxonomy + Methodical Coverage Audit](themes/test-pyramid-coverage-audit.md) — adopt the Clemson/Fowler 5-tier model (unit/component/integration/contract/e2e), reclassify our `.int` tests as component, disambiguate schema-vs-contract, then audit + fill coverage gaps (flagship: a bot-client→worker envelope contract test)
 - [Periodic Audit Enforcement Architecture](themes/periodic-audit-enforcement-architecture.md) — make the ~9 "run periodically" audit tools actually run without rotting
 - [User-feedback solicitation + revive v2 release-notes delivery](themes/user-feedback-solicitation-revive-v2-release-notes-delivery.md) — structured channel for non-direct-contact user feedback + release-notes DM blast
 - [Shapes.inc Fetcher Hardening (multi-item mini-epic)](themes/shapes-inc-fetcher-hardening.md) — harden shapes.inc fetch against API drift, bot-protection, graceful failure
