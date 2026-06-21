@@ -62,6 +62,16 @@ export function registerTestCommands(cli: CAC): void {
       }
     );
 
+  // Tier distribution report (report-only — no gate)
+  cli
+    .command('test:tiers', 'Report the per-package test-tier distribution (report-only)')
+    .option('--summary', 'Emit only the informational JSONL summary line')
+    .example('pnpm ops test:tiers')
+    .action(async (options: { summary?: boolean }) => {
+      const { runTierReport } = await import('../test/tier-report.js');
+      await runTierReport({ summary: options.summary });
+    });
+
   // Legacy command - contracts (deprecated)
   cli
     .command('test:audit-contracts', 'DEPRECATED: Use test:audit --category=contracts')
