@@ -116,6 +116,9 @@ describe('Character Chat Handler (push delivery)', () => {
       type,
       id: 'channel-123',
       name: 'test-channel',
+      // Real Discord channels always carry a back-reference to the client; the
+      // empty-channel synthetic anchor reads `channel.client.user` via it.
+      client: { user: { id: 'bot-user-123' } },
       send: vi.fn().mockResolvedValue(sentMessage),
       sendTyping: vi.fn().mockResolvedValue(undefined),
       messages: {
@@ -178,13 +181,12 @@ describe('Character Chat Handler (push delivery)', () => {
     ...overrides,
   });
 
-  const createMockContextBuildResult = (overrides: { conversationHistory?: unknown[] } = {}) => ({
+  const createMockContextBuildResult = () => ({
     context: {
       user: { discordId: 'user-123', username: 'testuser', displayName: 'testuser' },
       channelId: 'channel-123',
       serverId: 'guild-123',
       messageContent: 'Hello!',
-      conversationHistory: overrides.conversationHistory ?? [],
       environment: {
         type: 'guild' as const,
         guild: { id: 'guild-123', name: 'Test Guild' },
@@ -194,8 +196,6 @@ describe('Character Chat Handler (push delivery)', () => {
     personaId: 'persona-123',
     personaName: null,
     messageContent: 'Hello!',
-    referencedMessages: [],
-    conversationHistory: overrides.conversationHistory ?? [],
   });
 
   beforeEach(() => {
@@ -345,9 +345,7 @@ describe('Character Chat Handler (push delivery)', () => {
       const channel = createMockChannel(ChannelType.GuildText);
       const ctx = createMockContext('test-char', null, channel);
       mockPersonalityService.loadPersonality.mockResolvedValue(createMockPersonality());
-      mockMessageContextBuilder.buildContext.mockResolvedValueOnce(
-        createMockContextBuildResult({ conversationHistory: [{ id: 'msg-1' }] })
-      );
+      mockMessageContextBuilder.buildContext.mockResolvedValueOnce(createMockContextBuildResult());
       mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-1', requestId: 'req-1' });
 
       await handleChimeIn(ctx, mockConfig);
@@ -362,30 +360,47 @@ describe('Character Chat Handler (push delivery)', () => {
       );
     });
 
-    it('errors out when conversation history is empty', async () => {
+    it('submits unconditionally — no empty-history gate', async () => {
+      // A weigh-in is not gated on having prior conversation; it just generates
+      // (an empty/quiet room is valid to read). With an anchor message present,
+      // weigh-in submits regardless of whether the local history looks empty.
       const channel = createMockChannel(ChannelType.GuildText);
-      // Empty channel: messages.fetch returns empty
+      const ctx = createMockContext('test-char', null, channel);
+      mockPersonalityService.loadPersonality.mockResolvedValue(createMockPersonality());
+      mockMessageContextBuilder.buildContext.mockResolvedValueOnce(createMockContextBuildResult());
+      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-1', requestId: 'req-1' });
+
+      await handleChimeIn(ctx, mockConfig);
+
+      expect(channel.send).not.toHaveBeenCalledWith(
+        expect.stringContaining('Start a conversation first')
+      );
+      expect(mockJobTracker.trackJob).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ kind: 'slash', isWeighInMode: true })
+      );
+    });
+
+    it('weigh-in in a genuinely empty channel still submits (synthetic anchor, no error)', async () => {
+      // A channel with zero messages no longer aborts: getAnchorMessage falls
+      // back to a field-only synthetic anchor so the bot "reads an empty room"
+      // and generates rather than erroring out.
+      const channel = createMockChannel(ChannelType.GuildText);
       channel.messages.fetch = vi.fn().mockResolvedValue(createMockCollection([]));
       const ctx = createMockContext('test-char', null, channel);
       mockPersonalityService.loadPersonality.mockResolvedValue(createMockPersonality());
-
-      await handleChimeIn(ctx, mockConfig);
-
-      expect(channel.send).toHaveBeenCalledWith(expect.stringContaining('No conversation history'));
-      expect(mockJobTracker.trackJob).not.toHaveBeenCalled();
-    });
-
-    it('errors out when buildContext returns null history (build adjusted to weigh-in)', async () => {
-      const channel = createMockChannel(ChannelType.GuildText);
-      const ctx = createMockContext('test-char', null, channel);
-      mockPersonalityService.loadPersonality.mockResolvedValue(createMockPersonality());
-      // buildContext default returns empty history → adjustContextForWeighInMode returns false
       mockMessageContextBuilder.buildContext.mockResolvedValueOnce(createMockContextBuildResult());
+      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-1', requestId: 'req-1' });
 
       await handleChimeIn(ctx, mockConfig);
 
-      expect(channel.send).toHaveBeenCalledWith(expect.stringContaining('No conversation history'));
-      expect(mockJobTracker.trackJob).not.toHaveBeenCalled();
+      expect(channel.send).not.toHaveBeenCalledWith(
+        expect.stringContaining('No conversation history')
+      );
+      expect(mockJobTracker.trackJob).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ kind: 'slash', isWeighInMode: true })
+      );
     });
   });
 
@@ -460,9 +475,7 @@ describe('Character Chat Handler (push delivery)', () => {
       const channel = createMockChannel(ChannelType.GuildText);
       const ctx = createMockContext(null, null, channel);
       mockPersonalityService.loadPersonality.mockResolvedValue(createMockPersonality());
-      mockMessageContextBuilder.buildContext.mockResolvedValueOnce(
-        createMockContextBuildResult({ conversationHistory: [{ id: 'msg-1' }] })
-      );
+      mockMessageContextBuilder.buildContext.mockResolvedValueOnce(createMockContextBuildResult());
       mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-1', requestId: 'req-1' });
       mockGetCachedPersonalities.mockResolvedValueOnce({
         kind: 'ok',
