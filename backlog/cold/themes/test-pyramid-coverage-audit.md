@@ -40,14 +40,17 @@ The word "contract" is overloaded in our docs. Resolve to two distinct things:
 - Disambiguate schema vs. contract in `02-code-standards.md` + the `tzurot-testing` skill, and make the always-loaded rule *point at and one-line-summarize* the pyramid so the cross-service tiers are top-of-mind.
 - Rules/skills are review-gated (PR); `docs/` + this theme can go direct.
 
-### Phase 2 — Tier audit (discovery)
+### Phase 1.5 — Pilot: audit the 2.5d-touched surface (near-term, right after the doc PR)
+Scope the FIRST audit to the code THIS Prisma-eviction epic changed — the highest-risk, freshest-context surface, and where the "worker re-derives what bot-client deleted" claim lives. Map each touched flow (routing-context, cross-channel, voice transcripts, participant-batch, weigh-in) to the 5 tiers and fill gaps in the right tier (e.g., the envelope contract test below). Doubles as a de-risking pilot of the audit METHODOLOGY on a bounded surface before the full Tzurot-wide Phase 2. **User directive 2026-06-20**: sequence this after the doc-reconciliation PR lands and before the broad audit; don't let it stall the active epic.
+
+### Phase 2 — Tier audit (discovery; full Tzurot-wide)
 - Inventory every service/flow against the 5 tiers; produce a per-area gap matrix (what tier is missing where). The `test:audit` tool measures colocation, not tier coverage — this audit is behavioral.
 
 ### Phase 3 — Gap-fill (the big undertaking)
-- **Flagship**: a **bot-client → worker envelope contract test** (next to the BullMQ contract tests) that locks "given this `rawAssemblyInputs`, the worker assembles this context" — the thing 2.5d deleted code against. Highest leverage.
+- **Flagship**: a **bot-client → worker envelope contract test** (next to the BullMQ contract tests) that locks "given this `rawAssemblyInputs`, the worker assembles this context" — the thing 2.5d deleted code against. Highest leverage; a natural Phase-1.5 deliverable too.
 - Component test for the worker's `ContextAssembler` re-derivation against PGLite (real data, not the mocked `dataSource` the current unit test uses; `AIJobProcessor.int` deliberately stubs assembly — un-stub or add beside).
 - Weigh-in assembly component test (recent message → included; empty → still assembles) — locks the 2.5d slice-3+4 behavior change.
-- `buildContext`-with-synthetic-anchor unit lock (the field-only contract left unlocked in PR #1283).
+- ✅ `buildContext`-with-synthetic-anchor lock — **DONE in PR #1283**. Immediately caught a real bug: the synthetic anchor was missing `mentions.users`, which would have crashed an empty-channel weigh-in. Proof that the component-level (real-builder) test catches what buildContext-mocking unit tests structurally can't.
 
 ## Sources
 
@@ -56,4 +59,4 @@ The word "contract" is overloaded in our docs. Resolve to two distinct things:
 
 ## Status
 
-Filed 2026-06-20. Foundational understanding captured here so it isn't lost; the active epic (2.5d) stays the focus. Promote to Active Epic after 2.5d + Phase 4 close, with a council pass on scope first.
+Filed 2026-06-20. Foundational understanding captured here so it isn't lost; the active epic (2.5d) stays the focus. **Near-term sequence (user-directed 2026-06-20):** (1) merge PR #1283 → (2) interim "stop-the-bleeding" doc-reconciliation PR (Phase 1) → (3) Phase 1.5 pilot audit of the 2.5d-touched code → (4) finish the 2.5d epic (full `getChannelHistory` eviction + Phase 4). The full Tzurot-wide Phase 2/3 promotes to Active Epic later, with a council pass on scope first.
