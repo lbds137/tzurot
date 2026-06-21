@@ -19,7 +19,7 @@ import { createRequire } from 'module';
 import {
   createLogger,
   getConfig,
-  getPrismaClient,
+  createPrismaClient,
   PersonalityService,
   CacheInvalidationService,
   ApiKeyCacheInvalidationService,
@@ -366,7 +366,8 @@ function registerRoutes(app: Express, prisma: PrismaClient, services: ServicesCo
  */
 function createShutdownHandler(
   server: ReturnType<Express['listen']>,
-  services: ServicesContext
+  services: ServicesContext,
+  disposePrisma: () => Promise<void>
 ): () => Promise<void> {
   const {
     cacheRedis,
@@ -399,6 +400,9 @@ function createShutdownHandler(
     logger.info('Embedding service shut down');
 
     await closeQueue();
+
+    // dispose() logs 'Prisma client disconnected' itself — no second line here.
+    await disposePrisma();
 
     logger.info('Shutdown complete');
     process.exit(0);
@@ -433,7 +437,9 @@ async function main(): Promise<void> {
 
   // Create Express app with base middleware
   const app = express();
-  const prisma = getPrismaClient();
+  // api-gateway owns its PrismaClient (no cross-package singleton). Disposed in
+  // the shutdown handler below.
+  const { prisma, dispose: disposePrisma } = createPrismaClient();
   await prisma.$connect();
   logger.info('Database connection established');
 
@@ -481,7 +487,7 @@ async function main(): Promise<void> {
   });
 
   // Setup graceful shutdown
-  const shutdown = createShutdownHandler(server, services);
+  const shutdown = createShutdownHandler(server, services, disposePrisma);
   process.on('SIGTERM', () => void shutdown());
   process.on('SIGINT', () => void shutdown());
   process.on('uncaughtException', error => {

@@ -20,7 +20,7 @@
 
 import { writeFile, access, unlink } from 'fs/promises';
 import { basename } from 'path';
-import { getPrismaClient, createLogger } from '@tzurot/common-types';
+import { createPrismaClient, createLogger, DB_POOL_DEFAULTS } from '@tzurot/common-types';
 import {
   extractSlugFromFilename,
   extractTimestampFromFilename,
@@ -33,7 +33,6 @@ import {
 } from '../utils/avatarPaths.js';
 
 const logger = createLogger('avatar-sync');
-const prisma = getPrismaClient();
 
 /**
  * Attempts to delete a single avatar file, returning true on success
@@ -172,6 +171,11 @@ async function syncPersonalityAvatar(personality: {
 export async function syncAvatars(): Promise<void> {
   logger.info('Starting avatar sync from database...');
 
+  // One-off sequential startup migration: a small transient pool (not the
+  // full app size) so it doesn't compete with the main API pool. Disposed in
+  // `finally`.
+  const { prisma, dispose } = createPrismaClient({ max: DB_POOL_DEFAULTS.TRANSIENT_MAX });
+
   try {
     let syncedCount = 0;
     let skippedCount = 0;
@@ -227,6 +231,6 @@ export async function syncAvatars(): Promise<void> {
     logger.error({ err: error }, 'Failed to sync avatars');
     throw error;
   } finally {
-    await prisma.$disconnect();
+    await dispose();
   }
 }
