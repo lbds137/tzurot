@@ -11,7 +11,6 @@ import {
   MessageRole,
   CONTENT_TYPES,
   INTERVALS,
-  type LoadedPersonality,
   type ReferencedMessage,
   type ConversationMessage,
   type RawMentionedChannel,
@@ -41,7 +40,6 @@ interface ExtractReferencesOptions {
   mentionResolver: MentionResolver;
   message: Message;
   content: string;
-  personality: LoadedPersonality;
   history: ConversationMessage[];
   isWeighInMode?: boolean;
   /** Maximum number of references to extract. Shares budget with maxMessages. */
@@ -55,15 +53,7 @@ interface ExtractReferencesOptions {
 export async function extractReferencesAndMentions(
   opts: ExtractReferencesOptions
 ): Promise<ReferencesAndMentionsResult> {
-  const {
-    mentionResolver,
-    message,
-    content,
-    personality,
-    history,
-    isWeighInMode = false,
-    maxReferences,
-  } = opts;
+  const { mentionResolver, message, content, history, isWeighInMode = false, maxReferences } = opts;
   // In weigh-in mode, the anchor message is the latest channel message (not from the invoking user).
   // Its reply references are irrelevant to the weigh-in prompt — skip extraction entirely.
   if (isWeighInMode) {
@@ -110,12 +100,9 @@ export async function extractReferencesAndMentions(
   // longer clobbers authoritative content with empty top-level message text.
   let messageContent = updatedContent;
 
-  // Resolve all mentions
-  const mentionResult = await mentionResolver.resolveAllMentions(
-    messageContent,
-    message,
-    personality.id
-  );
+  // Resolve channel/role mentions (guild-cache). User mentions are left raw —
+  // the worker re-derives user→persona rewriting from the envelope.
+  const mentionResult = mentionResolver.resolveAllMentions(messageContent, message.guild);
 
   messageContent = mentionResult.processedContent;
 
