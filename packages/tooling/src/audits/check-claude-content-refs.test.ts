@@ -343,6 +343,7 @@ describe('findContentRefs (against real repo)', () => {
       'guard:dockerfile-dist',
       'guard:duplicate-exports',
       'guard:proposal-links',
+      'guard:test-taxonomy',
       'inspect:dlq',
       'inspect:queue',
       'inspect:tts-configs',
@@ -363,6 +364,7 @@ describe('findContentRefs (against real repo)', () => {
       'test:audit-contracts',
       'test:audit-services',
       'test:generate-schema',
+      'test:tiers',
       'voice-refs:audit',
       'xray',
     ]);

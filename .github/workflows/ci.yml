@@ -107,6 +107,9 @@ jobs:
       - name: Check claude/ command references resolve
         run: pnpm ops guard:claude-content-refs
 
+      - name: Check test-tier taxonomy is single-sourced
+        run: pnpm ops guard:test-taxonomy
+
       - name: Audit slash-command surface consistency
         run: pnpm ops commands:audit --summary
 

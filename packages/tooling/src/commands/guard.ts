@@ -88,4 +88,15 @@ export function registerGuardCommands(cli: CAC): void {
       const { checkClaudeContentRefs } = await import('../audits/check-claude-content-refs.js');
       await checkClaudeContentRefs(options);
     });
+
+  cli
+    .command(
+      'guard:test-taxonomy',
+      'Verify the test-tier taxonomy is single-sourced (TESTING.md) and linked from the rule + skill'
+    )
+    .example('ops guard:test-taxonomy')
+    .action(async () => {
+      const { checkTestTaxonomyCommand } = await import('../dev/check-test-taxonomy.js');
+      await checkTestTaxonomyCommand();
+    });
 }
