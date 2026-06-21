@@ -66,7 +66,6 @@ import {
   createLogger,
   type LLMGenerationResult,
   type LoadedPersonality,
-  type PersonaResolver,
   type TypingChannel,
   MULTI_TAG,
 } from '@tzurot/common-types';
@@ -87,7 +86,6 @@ export interface MultiTagRecoveryDeps {
   persistence: MultiTagPersistence;
   coordinator: MultiTagCoordinator;
   personalityService: IPersonalityLoader;
-  personaResolver: PersonaResolver;
   discordClient: Client;
   /**
    * BullMQ queue handle for the AI-requests queue. Used to poll the
@@ -400,11 +398,7 @@ export class MultiTagRecovery {
     // slot from the snapshot becomes a fallback-error in the flushed
     // burst — same as the prior implementation; this is not a regression).
     if (slotSnap.status !== 'pending') {
-      const personaId = await this.resolvePersonaIdOrFallback(
-        entrySnap.userId,
-        personality?.id ?? slotSnap.personalityId,
-        slotSnap.personalitySlug
-      );
+      const personaId = this.personaIdForSlot(slotSnap);
       if (personality === null) {
         stats.slotsAccessRevoked++;
         return { slot: this.buildRevokedSlot(slotSnap, personaId) };
@@ -418,22 +412,13 @@ export class MultiTagRecovery {
     // successfully, we can't render the result without the personality.
     if (personality === null) {
       stats.slotsAccessRevoked++;
-      const personaId = await this.resolvePersonaIdOrFallback(
-        entrySnap.userId,
-        slotSnap.personalityId,
-        slotSnap.personalitySlug
-      );
-      return { slot: this.buildRevokedSlot(slotSnap, personaId) };
+      return { slot: this.buildRevokedSlot(slotSnap, this.personaIdForSlot(slotSnap)) };
     }
 
-    // Pending slot, personality accessible: persona resolution and
-    // BullMQ state poll are independent, so dispatch them in parallel.
-    // Cuts the dominant-path recovery latency roughly in half (Prisma
-    // round-trip + Redis round-trip overlap instead of stacking).
-    const [personaId, outcome] = await Promise.all([
-      this.resolvePersonaIdOrFallback(entrySnap.userId, personality.id, slotSnap.personalitySlug),
-      pollPriorJobState(this.deps.queue, slotSnap.jobId),
-    ]);
+    // Pending slot, personality accessible. The persona is read from the
+    // snapshot (sync, no DB), so only the BullMQ state poll is awaited.
+    const personaId = this.personaIdForSlot(slotSnap);
+    const outcome = await pollPriorJobState(this.deps.queue, slotSnap.jobId);
     const baseSlot: RuntimeSlot = {
       slotIndex: slotSnap.slotIndex,
       personality,
@@ -485,9 +470,9 @@ export class MultiTagRecovery {
    * Build a runtime slot for an already-terminal snapshot slot. The
    * snapshot doesn't carry `result`, so the flushed burst will produce a
    * fallback error message for this slot via the existing deliverError
-   * path. The `personaId` is resolved via `PersonaResolver` upstream
-   * (see `rebuildSlot`), so persistence of the synthetic error message
-   * succeeds against the `personas.id` FK in the typical case.
+   * path. The `personaId` comes from the snapshot (`personaIdForSlot`, see
+   * `rebuildSlot`), so persistence of the synthetic error message succeeds
+   * against the `personas.id` FK in the typical case.
    */
   private buildPreservedTerminalSlot(
     slotSnap: SlotSnapshot,
@@ -509,11 +494,11 @@ export class MultiTagRecovery {
    * Build a sentinel slot for a personality that's no longer accessible
    * (deleted, ownership revoked, etc.). Status is forced to `'errored'`
    * so the group flushes a fallback error message in that position rather
-   * than silently dropping the slot. The `personaId` is resolved via
-   * `PersonaResolver` upstream (see `rebuildSlot`), so the synthetic
-   * error message persists against a real `personas.id` FK in the
-   * typical case — the user's conversation history records the
-   * "couldn't reach this personality" entry under their own persona.
+   * than silently dropping the slot. The `personaId` comes from the snapshot
+   * (`personaIdForSlot`, see `rebuildSlot`), so the synthetic error message
+   * persists against a real `personas.id` FK in the typical case — the user's
+   * conversation history records the "couldn't reach this personality" entry
+   * under their own persona.
    */
   private buildRevokedSlot(slotSnap: SlotSnapshot, personaId: string): RuntimeSlot {
     return {
@@ -528,44 +513,35 @@ export class MultiTagRecovery {
   }
 
   /**
-   * Resolve a real `personas.id` UUID for the slot via the PersonaResolver
-   * cascade (per-personality override → user default → first-owned-persona).
-   * Returns the resolved UUID, or a synthetic-string fallback when the
-   * cascade returns null (user has zero personas at all) OR the resolver
-   * call throws (transient Prisma blip). The synthetic-fallback path
-   * keeps the slot deliverable — the `saveAssistantMessage` try/catch
-   * in both deliverSuccess and deliverError swallows the FK violation
-   * so the user still gets their message, history just doesn't persist.
+   * The persona UUID to persist a recovered slot's assistant message against.
+   * Read from the SNAPSHOT (captured at fan-out time by `toSnapshot`) rather
+   * than re-resolved: recovery must not touch Prisma, and the fan-out-time
+   * persona is the historically-correct attribution — re-resolving now would
+   * mis-attribute to the user's CURRENT persona if it changed while the bot was
+   * down.
    *
-   * `fallbackSlug` is passed separately rather than derived from a
-   * `SlotSnapshot` argument because the synthetic-fallback string is
-   * the only thing the function needs from the slot; threading the full
-   * snapshot would be a leaky boundary.
+   * Falls back to a synthetic string when the snapshot carries no real persona:
+   * a system-default summon (`personaId === ''`) or a legacy snapshot predating
+   * the field (`personaId === undefined`, in-flight at the deploy that added
+   * it). The `saveAssistantMessage` try/catch in deliverSuccess/deliverError
+   * swallows the resulting FK violation so the slot still delivers — the user
+   * gets their message; history just doesn't persist for that rare case.
    */
-  private async resolvePersonaIdOrFallback(
-    discordUserId: string,
-    personalityId: string,
-    fallbackSlug: string
-  ): Promise<string> {
-    try {
-      const resolvedPersonaId = await this.deps.personaResolver.resolvePersonaIdOnly(
-        discordUserId,
-        personalityId
-      );
-      if (resolvedPersonaId !== null) {
-        return resolvedPersonaId;
-      }
-      logger.warn(
-        { discordUserId, personalityId },
-        'Recovery: PersonaResolver returned null (user has no personas); falling back to synthetic personaId'
-      );
-    } catch (err) {
-      logger.warn(
-        { err, discordUserId, personalityId },
-        'Recovery: PersonaResolver threw; falling back to synthetic personaId'
+  private personaIdForSlot(slotSnap: SlotSnapshot): string {
+    const personaId = slotSnap.personaId;
+    if (personaId !== undefined && personaId.length > 0) {
+      return personaId;
+    }
+    // Log only the legacy-snapshot case (no field at all) — that's the
+    // deploy-window canary worth watching. The `''` system-default case is a
+    // normal summon and would be noise. No PII: jobId + slug only.
+    if (personaId === undefined) {
+      logger.debug(
+        { jobId: slotSnap.jobId, personalitySlug: slotSnap.personalitySlug },
+        'Recovery: snapshot carries no personaId (predates the field); using synthetic fallback'
       );
     }
-    return `recovery-fallback-${fallbackSlug}`;
+    return `recovery-fallback-${slotSnap.personalitySlug}`;
   }
 
   private async fetchTypingChannel(channelId: string): Promise<TypingChannel | null> {
