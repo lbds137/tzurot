@@ -1,7 +1,7 @@
 ---
 name: tzurot-testing
 description: 'Testing procedures. Invoke with /tzurot-testing for test execution, coverage audits, and debugging test failures.'
-lastUpdated: '2026-02-13'
+lastUpdated: '2026-06-20'
 ---
 
 # Testing Procedures
@@ -50,11 +50,23 @@ pnpm ops test:audit --strict
 
 ## Test File Types
 
-| Type        | Pattern            | Location              | Infrastructure |
-| ----------- | ------------------ | --------------------- | -------------- |
-| Unit        | `*.test.ts`        | Next to source        | Fully mocked   |
-| Integration | `*.int.test.ts`    | Next to source        | PGLite         |
-| Schema      | `*.schema.test.ts` | `common-types/types/` | Zod only       |
+Tiers are canonically defined in **one place** —
+[Test Tier Taxonomy](../../../docs/reference/guides/TESTING.md#test-tier-taxonomy).
+This table is the suffix→tier quick reference; don't re-define the tiers here
+(the `pnpm ops guard:test-taxonomy` gate enforces the single-source link).
+
+| Suffix / location                   | Tier ([taxonomy](../../../docs/reference/guides/TESTING.md#test-tier-taxonomy)) | Infrastructure | Location               |
+| ----------------------------------- | ------------------------------------------------------------------------------- | -------------- | ---------------------- |
+| `*.test.ts`                         | Unit                                                                            | Fully mocked   | Next to source         |
+| `*.schema.test.ts`                  | Unit (schema validation)                                                        | Zod only       | Next to source         |
+| `*.int.test.ts`                     | **Component** (one service, PGLite)                                             | PGLite         | Next to source         |
+| `*.e2e.test.ts`                     | **Integration** (real DB+Redis)                                                 | Real services  | `tests/e2e/`           |
+| `tests/e2e/contracts/*.e2e.test.ts` | **Contract** (provider↔consumer)                                                | Real services  | `tests/e2e/contracts/` |
+
+> `.int` = component-tier, `.e2e` = integration-tier — the suffixes are historical
+> misnomers. **Schema test ≠ contract test**: a schema test validates one type's
+> own rules (unit-tier); a contract test verifies two services agree. Run
+> `pnpm ops test:tiers` for the per-package tier distribution.
 
 ## Debugging Test Failures
 

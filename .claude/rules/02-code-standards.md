@@ -120,6 +120,25 @@ logger.error(error, 'Failed to process');
 
 ## Testing Standards
 
+### Test Tiers (canonical: see TESTING.md)
+
+Tzurot uses Toby Clemson's 5-tier model — **unit** (mocked logic) · **component**
+(one whole service over PGLite; our `*.int.test.ts`) · **integration** (a module
+against a real external dep; our non-contract `tests/e2e/*.e2e.test.ts`) ·
+**contract** (provider↔consumer agreement; `tests/e2e/contracts/`) · **e2e**
+(full system). The canonical definitions live in **one place** —
+[Test Tier Taxonomy](../../docs/reference/guides/TESTING.md#test-tier-taxonomy).
+Do not re-define the tiers here or in the skill; link there (the
+`pnpm ops guard:test-taxonomy` CI gate enforces this single-sourcing).
+
+**Two suffixes are historical misnomers**: `*.int.test.ts` is **component**-tier
+(not integration), and `*.e2e.test.ts` is **integration**-tier (not true e2e).
+
+**Schema test ≠ contract test.** A `*.schema.test.ts` validates a single _type's
+own rules_ (which inputs a Zod schema accepts/rejects) — structurally **unit**-tier.
+A **contract test** verifies _two services agree_ on an interface. Don't file Zod
+schema tests under "contract."
+
 ### Core Principles
 
 1. Test behavior, not implementation
@@ -150,7 +169,7 @@ await assertion;
 
 ### When to Add Tests
 
-| Change             | Unit | Schema      | Integration                  |
+| Change             | Unit | Schema      | Component (`.int`)           |
 | ------------------ | ---- | ----------- | ---------------------------- |
 | New API endpoint   | ✅   | ✅ Required | ✅ If DB/multi-service       |
 | New `*.service.ts` | ✅   | If shared   | ✅ For complex DB operations |
