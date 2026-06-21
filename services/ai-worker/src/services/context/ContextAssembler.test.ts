@@ -10,6 +10,7 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 
 import {
   MessageRole,
+  rawAssemblyInputsSchema,
   type JobContext,
   type LoadedPersonality,
   type ResolvedConfigOverrides,
@@ -759,5 +760,80 @@ describe('ContextAssembler.assembleCore', () => {
     );
 
     expect(poisoned).toEqual(clean);
+  });
+});
+
+describe('ContextAssembler.assembleCore — schema-coupled re-derivation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // The cases above feed hand-built envelope objects. This one first round-trips a
+  // realistic envelope through `rawAssemblyInputsSchema` (the EXACT wire shape
+  // bot-client ships) and assembles from the PARSED result — proving the consumer
+  // re-derives correctly from a schema-valid envelope, not just from ad-hoc TS
+  // objects whose fields the schema might strip or coerce. Consumer half of the
+  // producer↔schema↔consumer contract (producer half: RawEnvelopeBuilder.test.ts;
+  // real-data half: ContextAssembler.int.test.ts).
+  it('assembles core surfaces from a schema-validated envelope', async () => {
+    const envelope = rawAssemblyInputsSchema.parse({
+      rawMessageContent: 'hello from the wire',
+      rawAuthorDisplayName: 'Vladlena',
+      rawParticipantGuildInfo: { 'discord:111': { roles: ['Admin'] } },
+      rawExtendedContextMessages: [
+        {
+          role: MessageRole.User,
+          content: 'earlier message',
+          createdAt: '2026-06-01T00:00:00.000Z',
+          personaId: 'discord:111',
+          discordUsername: 'alice',
+          discordMessageId: ['m-ext-1'],
+        },
+      ],
+      rawExtendedContextUsers: [{ discordId: '111', username: 'alice', displayName: 'Alice' }],
+    });
+
+    const deps = makeDeps({
+      dataSource: {
+        getChannelHistory: vi.fn().mockResolvedValue([]),
+        getUserTimezone: vi.fn().mockResolvedValue('America/New_York'),
+      },
+      userService: {
+        getOrCreateUser: vi.fn().mockResolvedValue({ userId: 'internal-1' }),
+        getOrCreateUsersInBatch: vi.fn().mockResolvedValue(new Map([['111', { userId: 'u-111' }]])),
+      },
+    });
+    const assembler = new ContextAssembler(deps);
+
+    const core = await assembler.assembleCore(
+      makeJobContext({ rawAssemblyInputs: envelope }),
+      PERSONALITY,
+      undefined
+    );
+
+    // Surfaces re-derived from the schema-valid envelope + faithful doubles.
+    expect(core.userTimezone).toBe('America/New_York');
+    expect(core.messageContent).toBe('hello from the wire');
+    expect(core.activePersonaId).toBe('persona-1');
+    // The extended-context message merged into the assembled history.
+    expect(core.history.some(m => m.content === 'earlier message')).toBe(true);
+    // The guild map survived re-keying (shared resolver remaps discord:* keys).
+    expect(core.participantGuildInfo).toBeDefined();
+    expect(Object.keys(core.participantGuildInfo ?? {})).toHaveLength(1);
+  });
+
+  it('assembles from a MINIMAL schema-valid envelope (content only)', async () => {
+    // The leanest legal envelope: only rawMessageContent. The schema accepts it;
+    // the consumer must too (history comes from DB alone, no extended context).
+    const envelope = rawAssemblyInputsSchema.parse({ rawMessageContent: 'just text' });
+    const core = await new ContextAssembler(makeDeps()).assembleCore(
+      makeJobContext({ rawAssemblyInputs: envelope }),
+      PERSONALITY,
+      undefined
+    );
+    expect(core.messageContent).toBe('just text');
+    expect(core.history).toEqual([]);
+    expect(core.participantGuildInfo).toBeUndefined();
+    expect(core.referencedMessages).toBeUndefined();
   });
 });

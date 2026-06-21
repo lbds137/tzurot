@@ -1,5 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
-import { MessageRole, type ConversationMessage } from '@tzurot/common-types';
+import {
+  MessageRole,
+  rawAssemblyInputsSchema,
+  type ConversationMessage,
+  type RawAssemblyInputs,
+} from '@tzurot/common-types';
 import type { Message } from 'discord.js';
 
 const { mockGetVoiceTranscript } = vi.hoisted(() => ({
@@ -228,5 +233,63 @@ describe('buildRawAssemblyInputs', () => {
     const raw = buildRawAssemblyInputs(makeMessage([], 'plain'), undefined);
     expect(raw?.rawMentionedUsers).toBeUndefined();
     expect(raw?.rawExtendedContextMessages).toBeUndefined();
+  });
+});
+
+describe('buildRawAssemblyInputs — producer↔schema conformance', () => {
+  // `rawAssemblyInputsSchema` IS the wire contract between this producer
+  // (bot-client) and the worker's ContextAssembler consumer. These cases run the
+  // REAL builder and assert its output is ACCEPTED by the schema — so a field the
+  // builder emits (or a shape it changes) can never silently diverge from what the
+  // worker validates against. This is the producer half of the consumer-driven
+  // contract; the consumer half is ContextAssembler.test.ts / .int.test.ts.
+  // Returns the Zod error message verbatim on failure (it names the offending
+  // field), or null on conformance — the caller asserts `.toBeNull()` so the
+  // assertion lives in the test body (vitest/expect-expect) AND failures stay legible.
+  const conformanceError = (raw: RawAssemblyInputs): string | null => {
+    const result = rawAssemblyInputsSchema.safeParse(raw);
+    return result.success ? null : result.error.message;
+  };
+
+  it('minimal envelope (plain text, no extended context) conforms', () => {
+    expect(
+      conformanceError(buildRawAssemblyInputs(makeMessage([], 'just text'), undefined))
+    ).toBeNull();
+  });
+
+  it('full envelope (mentions + extended context + reactors + env map) conforms', () => {
+    const snapshot = {
+      messages: [makeConversationMessage()],
+      extendedContextUsers: [
+        { discordId: '111', username: 'alice', displayName: 'Alice', isBot: false },
+      ],
+      reactorUsers: [{ discordId: '222', username: 'rea', isBot: true }],
+    };
+    const raw = buildRawAssemblyInputs(
+      makeMessage(
+        [{ id: '333', username: 'mention-target', globalName: 'Mention Target' }],
+        '<@333> raw content'
+      ),
+      snapshot
+    );
+    expect(conformanceError(raw)).toBeNull();
+  });
+
+  it('envelope with guild surfaces + refs + channel/role mentions conforms', () => {
+    const snapshot = {
+      messages: [],
+      extendedContextUsers: [],
+      reactorUsers: [],
+      participantGuildInfo: { 'discord:111': { roles: ['Admin'], displayColor: '#FF00FF' } },
+      imageAttachments: [{ url: 'https://cdn/img.png', contentType: 'image/png', id: 'a1' }],
+    };
+    const raw = buildRawAssemblyInputs(makeMessage([], 'plain'), snapshot, {
+      rawReferencedMessages: [],
+      rawMentionedChannels: [{ channelId: '1', channelName: 'general', guildId: 'g1' }],
+      rawMentionedRoles: [{ roleId: '2', roleName: 'mods', mentionable: false }],
+      rawActiveGuildMemberInfo: { roles: ['Mod'], joinedAt: '2024-01-01T00:00:00.000Z' },
+      rawAuthorDisplayName: 'Vladlena',
+    });
+    expect(conformanceError(raw)).toBeNull();
   });
 });
