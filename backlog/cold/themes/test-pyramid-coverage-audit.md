@@ -52,6 +52,18 @@ Scope the FIRST audit to the code THIS Prisma-eviction epic changed — the high
 - Weigh-in assembly component test (recent message → included; empty → still assembles) — locks the 2.5d slice-3+4 behavior change.
 - ✅ `buildContext`-with-synthetic-anchor lock — **DONE in PR #1283**. Immediately caught a real bug: the synthetic anchor was missing `mentions.users`, which would have crashed an empty-channel weigh-in. Proof that the component-level (real-builder) test catches what buildContext-mocking unit tests structurally can't.
 
+## Enforcement — the taxonomy must be mechanically enforced, not just documented
+
+The drift recurred *because* it was docs-only (attention-based). Per `00-critical.md` "Fix Recurring Failures Structurally" (rules → skills → hooks), the model has to be enforced or it re-rots. The **bulk** of the mechanism lands in the big epic; the **seed** lands in the interim doc-reconciliation PR (user directive 2026-06-20: "some mechanism for enforcement, even if the bulk lands later").
+
+**Bulk (big epic) — the real teeth:** a `pnpm ops test:tier-audit` registered audit-class tool (WHY.md + canary + baseline + drift-detect, per `docs/reference/audit-enforcement.md`) that measures whether each service/flow carries the tiers it should and **fails CI on regression**. This is the per-area tier-coverage gap matrix with a ratchet — distinct from `test:audit`, which measures colocation, not tier coverage.
+
+**Seed (doc PR) — light down-payments, pick one or both:**
+1. **Anti-drift guard for the taxonomy itself** (cheapest; addresses the literal root cause). Make `TESTING.md` the single source of truth; the rule + skill carry a one-liner + link, NOT a competing table. A small tooling check fails CI if the rule/skill re-enumerate or contradict the canonical tier list. Stops the *doc* bleeding directly.
+2. **Report-only tier classification** (the measurement down-payment for the bulk). Extend `test:audit` (or a sibling) to classify each test file by tier (suffix-based: `.test.ts`=unit, `.int.test.ts`=component, `.e2e.test.ts` under `tests/e2e/`, contract under `tests/e2e/contracts/`) and print the per-package distribution. No gate yet — the ratchet is the bulk. Seeds exactly what the big-epic tool will gate on.
+
+Open decision: whether to rename `*.int.test.ts` → `*.component.test.ts` (truthful but disruptive — touches every int test + the runner config) or keep the suffix and just re-document its meaning. Lean **keep + re-document** for the seed; revisit a rename in the epic if the report shows it's worth it.
+
 ## Sources
 
 - Toby Clemson, "Testing Strategies in a Microservice Architecture," martinfowler.com (2014) — the canonical 5-tier taxonomy this theme adopts.
