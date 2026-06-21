@@ -300,5 +300,55 @@ describe('MessageReferenceExtractor (Orchestration)', () => {
       expect(references[0].isDeduplicated).toBe(true);
       expect(references[0].content).toBe('Already in history - preserved as stub');
     });
+
+    it('ships dedup-INVARIANT rawReferences + content (getChannelHistory is vestigial for the envelope)', async () => {
+      // `conversationHistoryMessageIds` IS bot-client's getChannelHistory output. It
+      // drives the dedup decision, which routes a reference between the formatter's
+      // full and stub branches. This proves that decision changes ONLY the local
+      // enriched `references` (full vs stub) — the SHIPPED `rawReferences` and the
+      // rewritten content are byte-identical either way, because both branches push
+      // the same full raw snapshot and increment the same reference number. That
+      // invariance is precisely why the worker can re-derive dedup from the raw
+      // snapshots against its OWN history and bot-client's getChannelHistory read is
+      // vestigial for the thin envelope (2.5d getChannelHistory-eviction precondition).
+      const sharedReferenced = createMockMessage({
+        id: 'referenced-123',
+        content: 'Already in history - preserved as stub',
+        channel: createConfiguredChannel(),
+      });
+      // One shared referenced message → its createdAt is identical across both
+      // extractions, so the raw snapshot's timestamp is comparable (the mock's
+      // default createdAt is `new Date()`, which would otherwise drift per build).
+      const buildTrigger = (): ReturnType<typeof createMockMessage> => {
+        const message = createMockMessage({
+          id: 'msg-123',
+          reference: { messageId: 'referenced-123' } as any,
+          fetchReference: vi.fn().mockResolvedValue(sharedReferenced),
+        });
+        const mockChannel = createConfiguredChannel({
+          messages: { fetch: vi.fn().mockResolvedValue(message) },
+        });
+        Object.defineProperty(message, 'channel', { value: mockChannel, writable: true });
+        return message;
+      };
+      const extract = (historyIds: string[]) =>
+        new MessageReferenceExtractor({
+          maxReferences: 10,
+          embedProcessingDelayMs: 0,
+          conversationHistoryMessageIds: historyIds,
+        }).extractReferencesWithReplacement(buildTrigger());
+
+      const notDeduped = await extract([]); // ref NOT in history → full reference
+      const deduped = await extract(['referenced-123']); // ref in history → stubbed
+
+      // The dedup decision DID diverge the local enriched references...
+      expect(notDeduped.references[0].isDeduplicated).not.toBe(true);
+      expect(deduped.references[0].isDeduplicated).toBe(true);
+
+      // ...but the SHIPPED envelope fields are byte-identical — the dedup decision
+      // (and therefore getChannelHistory) leaves no trace on the wire.
+      expect(deduped.rawReferences).toEqual(notDeduped.rawReferences);
+      expect(deduped.updatedContent).toEqual(notDeduped.updatedContent);
+    });
   });
 });

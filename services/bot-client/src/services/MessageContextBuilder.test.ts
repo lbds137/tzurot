@@ -165,8 +165,14 @@ describe('MessageContextBuilder', () => {
     // (the only consumer) is mocked.
     builder = new MessageContextBuilder(mockPrisma, mockPersonaResolver as any, {} as any);
 
-    // Get service instances to access mocks
-    mockHistoryService = (builder as any).conversationHistory;
+    // conversationHistory is no longer a builder field — bot-client stopped
+    // reading channel history from Postgres (the worker re-derives it from the
+    // thin envelope). A standalone mock keeps legacy per-test getChannelHistory
+    // setups inert (they set return values on a never-called mock), mirroring the
+    // mockUserService handling below; see the backlog cleanup item.
+    mockHistoryService = {
+      getChannelHistory: vi.fn().mockResolvedValue([]),
+    } as unknown as ConversationHistoryService;
     // userService is no longer a builder field — the author path resolves via
     // the routing-context endpoint and the extended-context batch moved
     // worker-side. A standalone mock keeps legacy per-test setups inert (they
@@ -417,15 +423,9 @@ describe('MessageContextBuilder', () => {
         expect.anything()
       );
 
-      // Verify history retrieval. Args: (channelId, limit, contextEpoch, maxAge).
-      // Both contextEpoch and maxAge are undefined here — no STM clear, no
-      // extendedContext.maxAge set on this fixture.
-      expect(mockHistoryService.getChannelHistory).toHaveBeenCalledWith(
-        'channel-123',
-        50,
-        undefined,
-        undefined
-      );
+      // bot-client no longer reads channel history from Postgres — the worker
+      // re-derives the conversation history from the thin envelope.
+      expect(mockHistoryService.getChannelHistory).not.toHaveBeenCalled();
 
       // Verify context structure
       // Note: context.userId is the Discord ID (for BYOK), not the internal UUID
@@ -549,7 +549,7 @@ describe('MessageContextBuilder', () => {
       expect(result.messageContent).toBe('Check [Reference 1]');
     });
 
-    it('should extract conversation history message IDs for deduplication', async () => {
+    it('does NOT read channel history from Postgres (worker re-derives dedup)', async () => {
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
         userId: 'user-uuid-123',
         defaultPersonaId: 'test-persona-id',
@@ -587,10 +587,11 @@ describe('MessageContextBuilder', () => {
 
       await builder.buildContext(mockMessage, mockPersonality, 'Hello');
 
-      // Channel history is still fetched — its message ids feed the reference
-      // dedup that reads them — but it's no longer returned; the worker
-      // re-derives the conversation history from the raw envelope.
-      expect(mockHistoryService.getChannelHistory).toHaveBeenCalled();
+      // bot-client no longer reads channel history from Postgres for dedup. The
+      // shipped rawReferences are dedup-invariant (proven in
+      // MessageReferenceExtractor.test.ts), so the worker re-derives reference
+      // dedup from the raw envelope against its own assembled history.
+      expect(mockHistoryService.getChannelHistory).not.toHaveBeenCalled();
     });
 
     it('should extract attachments from message', async () => {
@@ -834,14 +835,29 @@ describe('MessageContextBuilder', () => {
         mentionedRoles: [],
       });
 
-      await builder.buildContext(mockMessage, mockPersonality, 'Hello after clear');
+      mockFetchRecentMessages.mockResolvedValue({
+        messages: [],
+        fetchedCount: 0,
+        filteredCount: 0,
+      });
 
-      // Verify history was fetched WITH the context epoch (and no maxAge)
-      expect(mockHistoryService.getChannelHistory).toHaveBeenCalledWith(
-        'channel-123',
-        50,
-        contextEpoch,
-        undefined
+      // Extended context enabled so the Discord fetch receives the epoch —
+      // bot-client no longer applies it to a Postgres read (the worker does).
+      await builder.buildContext(mockMessage, mockPersonality, 'Hello after clear', {
+        extendedContext: {
+          maxMessages: 50,
+          maxAge: null,
+          maxImages: 0,
+          sources: { maxMessages: 'personality', maxAge: 'personality', maxImages: 'personality' },
+        },
+        botUserId: 'bot-123',
+      });
+
+      // The context epoch flows to the Discord fetch (it filters which channel
+      // messages ship in the raw snapshot).
+      expect(mockFetchRecentMessages).toHaveBeenCalledWith(
+        mockMessage.channel,
+        expect.objectContaining({ contextEpoch })
       );
     });
 
@@ -870,18 +886,29 @@ describe('MessageContextBuilder', () => {
         mentionedRoles: [],
       });
 
+      mockFetchRecentMessages.mockResolvedValue({
+        messages: [],
+        fetchedCount: 0,
+        filteredCount: 0,
+      });
+
       await builder.buildContext(mockMessage, mockPersonality, 'Weigh in', {
         isWeighInMode: true,
+        extendedContext: {
+          maxMessages: 50,
+          maxAge: null,
+          maxImages: 0,
+          sources: { maxMessages: 'personality', maxAge: 'personality', maxImages: 'personality' },
+        },
+        botUserId: 'bot-123',
       });
 
       // ...but weigh-in is a channel-scoped anonymous summon, so that private
-      // reset must not bound the shared channel history. The epoch is dropped
-      // (undefined), not passed through.
-      expect(mockHistoryService.getChannelHistory).toHaveBeenCalledWith(
-        'channel-123',
-        50,
-        undefined,
-        undefined
+      // reset must not bound the shared channel. The epoch is dropped (undefined)
+      // before it reaches the Discord fetch, not passed through.
+      expect(mockFetchRecentMessages).toHaveBeenCalledWith(
+        mockMessage.channel,
+        expect.objectContaining({ contextEpoch: undefined })
       );
     });
 
@@ -906,14 +933,26 @@ describe('MessageContextBuilder', () => {
         mentionedRoles: [],
       });
 
-      await builder.buildContext(mockMessage, mockPersonality, 'Hello');
+      mockFetchRecentMessages.mockResolvedValue({
+        messages: [],
+        fetchedCount: 0,
+        filteredCount: 0,
+      });
 
-      // Verify history was fetched WITHOUT epoch (undefined) and without maxAge
-      expect(mockHistoryService.getChannelHistory).toHaveBeenCalledWith(
-        'channel-123',
-        50,
-        undefined,
-        undefined
+      await builder.buildContext(mockMessage, mockPersonality, 'Hello', {
+        extendedContext: {
+          maxMessages: 50,
+          maxAge: null,
+          maxImages: 0,
+          sources: { maxMessages: 'personality', maxAge: 'personality', maxImages: 'personality' },
+        },
+        botUserId: 'bot-123',
+      });
+
+      // No STM clear → no epoch reaches the Discord fetch.
+      expect(mockFetchRecentMessages).toHaveBeenCalledWith(
+        mockMessage.channel,
+        expect.objectContaining({ contextEpoch: undefined })
       );
     });
 
@@ -1003,9 +1042,10 @@ describe('MessageContextBuilder', () => {
         })
       );
 
-      // Verify merge was called (its result feeds the reference dedup internally;
-      // it's no longer returned — the worker re-derives history from the envelope).
-      expect(mockMergeWithHistory).toHaveBeenCalledWith(extendedMessages, dbHistory);
+      // Verify merge was called with an EMPTY base — bot-client no longer reads DB
+      // history (the worker re-derives history from the envelope). The merge result
+      // feeds only the local reference dedup, which is now vestigial.
+      expect(mockMergeWithHistory).toHaveBeenCalledWith(extendedMessages, []);
     });
 
     it('weigh-in omits `before` so the latest (anchor) message is READ, not excluded', async () => {
