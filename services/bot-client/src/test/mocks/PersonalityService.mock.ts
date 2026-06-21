@@ -1,11 +1,16 @@
 /**
- * Mock PersonalityService for testing
+ * Mock personality loader for testing
  *
- * Provides a test double for PersonalityService that avoids database calls
+ * Provides a test double for the personality-loading dependency (an
+ * `IPersonalityLoader` — the interface consumers like `findPersonalityMentions`
+ * actually accept) that avoids any gateway/database calls. bot-client never
+ * touches the Prisma-backed `PersonalityService`, so the mock is typed to the
+ * interface, not the concrete class.
  */
 
 import { vi } from 'vitest';
-import type { PersonalityService, LoadedPersonality } from '@tzurot/common-types';
+import type { LoadedPersonality } from '@tzurot/common-types';
+import type { IPersonalityLoader } from '../../types/IPersonalityLoader.js';
 
 interface MockPersonality {
   name: string;
@@ -15,28 +20,28 @@ interface MockPersonality {
 }
 
 /**
- * Create a mock PersonalityService with predefined personalities
+ * Create a mock personality loader with predefined personalities.
  *
  * @param personalities - List of personalities the mock should "know about"
- * @returns Type-safe mock PersonalityService that returns these personalities
+ * @returns Type-safe IPersonalityLoader mock that returns these personalities
  *
  * @example
  * ```typescript
- * const service = createMockPersonalityService([
+ * const loader = createMockPersonalityService([
  *   { name: 'Lilith', displayName: 'Lilith', systemPrompt: '...' },
  *   { name: 'Bambi Prime', displayName: 'Bambi Prime', systemPrompt: '...' },
  * ]);
  *
- * const result = await service.loadPersonality('Lilith');
+ * const result = await loader.loadPersonality('Lilith');
  * // Returns the mock personality object
  * ```
  */
-export function createMockPersonalityService(personalities: MockPersonality[]): PersonalityService {
+export function createMockPersonalityService(personalities: MockPersonality[]): IPersonalityLoader {
   const personalityMap = new Map(personalities.map(p => [p.name.toLowerCase(), p]));
 
-  // Create a mock that implements the PersonalityService interface methods we need
-  // We use double type assertion (as unknown as PersonalityService) because this is a test mock
-  // that only implements the methods we need, not the full class with all properties
+  // The mock implements only loadPersonality — the single method
+  // IPersonalityLoader (and its consumers, e.g. findPersonalityMentions) need —
+  // so the object satisfies the interface directly, no cast required.
   return {
     loadPersonality: vi.fn().mockImplementation((name: string) => {
       const personality = personalityMap.get(name.toLowerCase());
@@ -44,8 +49,8 @@ export function createMockPersonalityService(personalities: MockPersonality[]): 
         return Promise.resolve(null);
       }
 
-      // Return a minimal mock personality object
-      // In real code this would be a full LoadedPersonality from the database
+      // Return a minimal mock personality object.
+      // In real code this would be a full LoadedPersonality from the gateway.
       return Promise.resolve({
         id: `mock-id-${personality.name.toLowerCase()}`,
         name: personality.name,
@@ -62,8 +67,5 @@ export function createMockPersonalityService(personalities: MockPersonality[]): 
         voiceEnabled: false,
       } as unknown as LoadedPersonality);
     }),
-
-    // Add other PersonalityService methods as needed for tests
-    loadAllPersonalities: vi.fn().mockResolvedValue(personalities),
-  } as unknown as PersonalityService;
+  };
 }
