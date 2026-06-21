@@ -8,7 +8,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Message } from 'discord.js';
 import { Collection } from 'discord.js';
-import type { ConversationMessage, LoadedPersonality } from '@tzurot/common-types';
+import type { ConversationMessage } from '@tzurot/common-types';
 
 // Hoist mock so it's available before module loading
 const { mockExtractReferences } = vi.hoisted(() => ({
@@ -51,8 +51,6 @@ import { extractReferencesAndMentions } from './ReferenceExtractor.js';
 import type { MentionResolver } from '../MentionResolver.js';
 
 describe('extractReferencesAndMentions', () => {
-  const mockPersonality = { id: 'personality-1' } as LoadedPersonality;
-
   function createMockMessage(overrides?: Partial<Message>): Message {
     return {
       reference: null,
@@ -70,7 +68,7 @@ describe('extractReferencesAndMentions', () => {
       references: [],
       updatedContent: 'Hello world',
     });
-    mockResolveAllMentions.mockResolvedValue({
+    mockResolveAllMentions.mockReturnValue({
       processedContent: 'Hello world',
       mentionedUsers: [],
       mentionedChannels: [],
@@ -84,7 +82,7 @@ describe('extractReferencesAndMentions', () => {
       updatedContent: 'Hello world',
       rawReferences: [{ referenceNumber: 1, content: 'raw snapshot' }],
     });
-    mockResolveAllMentions.mockResolvedValue({
+    mockResolveAllMentions.mockReturnValue({
       processedContent: 'rewritten',
       mentionedUsers: [],
       mentionedChannels: [{ channelId: '1', channelName: 'general', topic: 'chat', guildId: 'g1' }],
@@ -95,7 +93,6 @@ describe('extractReferencesAndMentions', () => {
       mentionResolver: mockMentionResolver as unknown as MentionResolver,
       message: createMockMessage(),
       content: 'Hello world',
-      personality: mockPersonality,
       history: [],
       maxReferences: 50,
     });
@@ -114,7 +111,6 @@ describe('extractReferencesAndMentions', () => {
       mentionResolver: mockMentionResolver as unknown as MentionResolver,
       message: createMockMessage(),
       content: 'Hello world',
-      personality: mockPersonality,
       history: [],
       isWeighInMode: true,
       maxReferences: 50,
@@ -131,7 +127,7 @@ describe('extractReferencesAndMentions', () => {
       references: [{ referenceNumber: 1, content: 'quoted text', authorName: 'User' }],
       updatedContent: 'Hello [1]',
     });
-    mockResolveAllMentions.mockResolvedValue({
+    mockResolveAllMentions.mockReturnValue({
       processedContent: 'Hello [1]',
       mentionedUsers: [],
       mentionedChannels: [],
@@ -142,7 +138,6 @@ describe('extractReferencesAndMentions', () => {
       mentionResolver: mockMentionResolver as unknown as MentionResolver,
       message: createMockMessage(),
       content: 'Hello <link>',
-      personality: mockPersonality,
       history: [],
       maxReferences: 50,
     });
@@ -156,7 +151,7 @@ describe('extractReferencesAndMentions', () => {
     // rewrite pipeline (link replacement → mention resolution) yields empty
     // processed content. Content dropped by mention resolution must surface as
     // empty messageContent, never silently fall back to the original content.
-    mockResolveAllMentions.mockResolvedValue({
+    mockResolveAllMentions.mockReturnValue({
       processedContent: '',
       mentionedUsers: [],
       mentionedChannels: [],
@@ -167,7 +162,6 @@ describe('extractReferencesAndMentions', () => {
       mentionResolver: mockMentionResolver as unknown as MentionResolver,
       message: createMockMessage({ id: 'msg-forward' } as Partial<Message>),
       content: 'Forwarded message with real content',
-      personality: mockPersonality,
       history: [],
       maxReferences: 50,
     });
@@ -186,7 +180,7 @@ describe('extractReferencesAndMentions', () => {
       references: [],
       updatedContent: effectiveContent, // no links → echoed unchanged
     });
-    mockResolveAllMentions.mockResolvedValue({
+    mockResolveAllMentions.mockReturnValue({
       processedContent: effectiveContent,
       mentionedUsers: [],
       mentionedChannels: [],
@@ -198,7 +192,6 @@ describe('extractReferencesAndMentions', () => {
       mentionResolver: mockMentionResolver as unknown as MentionResolver,
       message,
       content: effectiveContent,
-      personality: mockPersonality,
       history: [],
       maxReferences: 50,
     });
@@ -217,7 +210,6 @@ describe('extractReferencesAndMentions', () => {
       mentionResolver: mockMentionResolver as unknown as MentionResolver,
       message: createMockMessage(),
       content: 'Hello',
-      personality: mockPersonality,
       history,
       maxReferences: 50,
     });

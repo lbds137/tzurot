@@ -237,12 +237,7 @@ function createServices(): Services {
 
   // Message handling services
   const responseSender = new DiscordResponseSender(webhookManager);
-  const contextBuilder = new MessageContextBuilder(
-    prisma,
-    personaResolver,
-    getServiceClient(),
-    denylistCache
-  );
+  const contextBuilder = new MessageContextBuilder(getServiceClient(), denylistCache);
   const persistence = new ConversationPersistence();
   const voiceTranscription = new VoiceTranscriptionService();
   const replyResolver = new ReplyResolutionService(routingPersonalityLoader);

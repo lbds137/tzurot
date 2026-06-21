@@ -6,8 +6,6 @@
  */
 
 import {
-  type PrismaClient,
-  type PersonaResolver,
   type LoadedPersonality,
   type ConversationMessage,
   type AttachmentMetadata,
@@ -123,12 +121,12 @@ export class MessageContextBuilder {
   private cachedBotSuffix: string | null = null;
 
   constructor(
-    prisma: PrismaClient,
-    personaResolver: PersonaResolver,
     private serviceClient: ServiceClient,
     denylistCache?: DenylistCache
   ) {
-    this.mentionResolver = new MentionResolver(prisma, personaResolver);
+    // MentionResolver is now a stateless guild-cache rewriter (channel/role only);
+    // user→persona resolution moved worker-side, so no Prisma/PersonaResolver here.
+    this.mentionResolver = new MentionResolver();
     this.channelFetcher = new DiscordChannelFetcher();
     this.transcriptRetriever = new TranscriptRetriever();
     this.denylistCache = denylistCache;
@@ -282,7 +280,6 @@ export class MessageContextBuilder {
   private async extractRefsAndMentions(opts: {
     message: Message;
     content: string;
-    personality: LoadedPersonality;
     history: ConversationMessage[];
     isWeighInMode?: boolean;
     maxReferences?: number;
@@ -291,7 +288,6 @@ export class MessageContextBuilder {
       mentionResolver: this.mentionResolver,
       message: opts.message,
       content: opts.content,
-      personality: opts.personality,
       history: opts.history,
       isWeighInMode: opts.isWeighInMode ?? false,
       maxReferences: opts.maxReferences ?? MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES,
@@ -373,7 +369,6 @@ export class MessageContextBuilder {
     const refsAndMentions = await this.extractRefsAndMentions({
       message,
       content,
-      personality,
       history,
       isWeighInMode: options.isWeighInMode,
       maxReferences: options.extendedContext?.maxMessages,
