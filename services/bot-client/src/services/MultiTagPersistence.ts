@@ -100,6 +100,17 @@ export interface SlotSnapshot {
   slotIndex: number;
   personalityId: string;
   personalitySlug: string;
+  /**
+   * The persona UUID resolved for this (user, personality) at fan-out time —
+   * captured here so crash-recovery persists the assistant message against the
+   * persona that was active WHEN THE MESSAGE WAS GENERATED, not the user's
+   * current persona (which may have changed while the bot was down). Empty
+   * string = system-default (no real persona). Optional for backward
+   * compatibility: snapshots written before this field existed lack it;
+   * recovery falls back to a synthetic id in that case. bot-client no longer
+   * re-resolves it (would need Prisma).
+   */
+  personaId?: string;
   source: SlotSource;
   isAutoResponse: boolean;
   jobId: string;
@@ -505,7 +516,10 @@ function parseSnapshotOrLog(key: string, raw: string | null): CoordinatorEntrySn
           s.personalityId.length > 0 &&
           typeof s.personalitySlug === 'string' &&
           s.personalitySlug.length > 0 &&
-          typeof s.source === 'string'
+          typeof s.source === 'string' &&
+          // Optional: snapshots predating this field lack personaId; recovery
+          // handles its absence with a synthetic id.
+          (s.personaId === undefined || typeof s.personaId === 'string')
       )
     ) {
       // Backwards-compat: snapshots written before the `truncated` field

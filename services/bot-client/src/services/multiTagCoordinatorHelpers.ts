@@ -85,6 +85,10 @@ export function toSnapshot(entry: RuntimeEntry): CoordinatorEntrySnapshot {
       slotIndex: s.slotIndex,
       personalityId: s.personality.id,
       personalitySlug: s.personality.slug,
+      // Persist the hot-path-resolved persona so recovery replays the
+      // historically-correct attribution instead of re-resolving (which would
+      // need Prisma + could attribute to a since-changed current persona).
+      personaId: s.personaId,
       source: s.source,
       isAutoResponse: s.isAutoResponse,
       jobId: s.jobId,
