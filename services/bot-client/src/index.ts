@@ -11,15 +11,9 @@ import { Redis } from 'ioredis';
 import {
   createLogger,
   isBotOwner,
-  PersonalityService,
   CacheInvalidationService,
-  PersonaResolver,
-  PersonaCacheInvalidationService,
   ChannelActivationCacheInvalidationService,
   DenylistCacheInvalidationService,
-  ConversationHistoryService,
-  disconnectPrisma,
-  getPrismaClient,
   getConfig,
   parseRedisUrl,
   createBullMQRedisConfig,
@@ -139,11 +133,8 @@ interface Services {
   jobFailureListener: JobFailureListener;
   responseOrderingService: ResponseOrderingService;
   webhookManager: WebhookManager;
-  personalityService: PersonalityService;
-  personaResolver: PersonaResolver;
   cacheRedis: Redis;
   cacheInvalidationService: CacheInvalidationService;
-  personaCacheInvalidationService: PersonaCacheInvalidationService;
   channelActivationCacheInvalidationService: ChannelActivationCacheInvalidationService;
   denylistCache: DenylistCache;
   denylistCacheInvalidationService: DenylistCacheInvalidationService;
@@ -181,11 +172,10 @@ function buildCacheRedis(): Redis {
  * This is where all dependencies are instantiated and wired together.
  * Full dependency injection - no service creates its own dependencies.
  */
-// eslint-disable-next-line max-lines-per-function -- composition root: every line is `const X = new Foo(...)` or a `buildY({...})` helper call. Length tracks the total service count, not branching complexity. Each block already extracts the cohesive wiring into helpers (`buildPersonalityChatPipeline`, `buildMultiTagStack`, `buildProcessorChain`); further splitting would fragment the top-down readability that composition roots want.
 function createServices(): Services {
-  // Composition Root: Create Prisma client for dependency injection
-  const prisma = getPrismaClient();
-  logger.info('Prisma client initialized');
+  // Composition Root. bot-client never touches Prisma — all DB-backed work
+  // goes through the gateway's internal endpoints (HTTP), so there is no
+  // PrismaClient here.
 
   // Initialize Redis for cache invalidation
   const cacheRedis = buildCacheRedis();
@@ -200,10 +190,6 @@ function createServices(): Services {
   // through `handleJobResult` instead of leaving them to the 10-min safety
   // timeout. See its module-level docstring for the dual-routing story.
 
-  // Shared services (used by multiple processors)
-  const personalityService = new PersonalityService(prisma);
-  const conversationHistoryService = new ConversationHistoryService(prisma);
-
   // Routing-read loader: personality resolution for routing (mention parsing,
   // reply resolution, activation, multi-tag recovery, /character chat) goes
   // through the gateway's internal endpoint with positive/negative caching
@@ -215,10 +201,6 @@ function createServices(): Services {
     cacheRedis,
     routingPersonalityLoader
   );
-
-  // Persona resolution with proper cache invalidation via Redis pub/sub
-  const personaResolver = new PersonaResolver(prisma, { enableCleanup: true });
-  const personaCacheInvalidationService = new PersonaCacheInvalidationService(cacheRedis);
 
   // Channel activation cache invalidation for horizontal scaling
   const channelActivationCacheInvalidationService = new ChannelActivationCacheInvalidationService(
@@ -317,8 +299,6 @@ function createServices(): Services {
     jobTracker,
     webhookManager,
     personalityService: routingPersonalityLoader,
-    conversationHistoryService,
-    personaResolver,
     channelActivationCacheInvalidationService,
     messageContextBuilder: contextBuilder,
     conversationPersistence: persistence,
@@ -332,11 +312,8 @@ function createServices(): Services {
     jobFailureListener,
     responseOrderingService,
     webhookManager,
-    personalityService,
-    personaResolver,
     cacheRedis,
     cacheInvalidationService,
-    personaCacheInvalidationService,
     channelActivationCacheInvalidationService,
     denylistCache,
     denylistCacheInvalidationService,
@@ -600,7 +577,6 @@ function handleShutdownSignal(signal: NodeJS.Signals): void {
     services.webhookManager.destroy();
     stopNotificationCacheCleanup();
     stopVerificationCleanupScheduler();
-    services.personaResolver.stopCleanup();
     // ioredis Redis#disconnect is synchronous (returns void) — kept outside
     // the awaited Promise.all because there's no Promise to await.
     services.cacheRedis.disconnect();
@@ -609,19 +585,17 @@ function handleShutdownSignal(signal: NodeJS.Signals): void {
     // block shutdown. Railway will SIGKILL after its grace window anyway;
     // better to exit cleanly when we can. Without the await, voided promises
     // returned ~immediately and process.exit ran before Discord WebSocket
-    // close handshake / Redis disconnect / Prisma cleanup completed.
+    // close handshake / Redis disconnect completed.
     const SHUTDOWN_TIMEOUT_MS = 5000;
     try {
       await Promise.race([
         Promise.all([
           services.cacheInvalidationService.unsubscribe(),
-          services.personaCacheInvalidationService.unsubscribe(),
           services.channelActivationCacheInvalidationService.unsubscribe(),
           services.denylistCacheInvalidationService.unsubscribe(),
           services.multiTagRecoveryQueue.close(),
           closeRedis(),
           client.destroy(),
-          disconnectPrisma(),
         ]),
         new Promise<never>((_resolve, reject) =>
           setTimeout(
@@ -640,17 +614,6 @@ function handleShutdownSignal(signal: NodeJS.Signals): void {
 }
 process.on('SIGTERM', handleShutdownSignal);
 process.on('SIGINT', handleShutdownSignal);
-
-/**
- * Verify database connection and log personality count
- */
-async function verifyDatabaseConnection(): Promise<void> {
-  logger.info('Verifying database connection...');
-  const tempPrisma = getPrismaClient();
-  const tempPersonalityService = new PersonalityService(tempPrisma);
-  const personalityList = await tempPersonalityService.loadAllPersonalities();
-  logger.info({ count: personalityList.length }, 'Found personalities in database');
-}
 
 /**
  * Start listening for job results and handle delivery to Discord
@@ -699,22 +662,11 @@ async function startResultsListener(): Promise<void> {
 }
 
 /**
- * Subscribe to all cache invalidation events (personality, persona, channel activation, denylist)
+ * Subscribe to all cache invalidation events (personality, channel activation, denylist)
  */
 async function subscribeToCacheInvalidation(): Promise<void> {
   await services.cacheInvalidationService.subscribe();
   logger.info('Subscribed to personality cache invalidation events');
-
-  await services.personaCacheInvalidationService.subscribe(event => {
-    if (event.type === 'user') {
-      services.personaResolver.invalidateUserCache(event.discordId);
-      logger.debug({ discordId: event.discordId }, 'Invalidated persona cache for user');
-    } else if (event.type === 'all') {
-      services.personaResolver.clearCache();
-      logger.debug('Invalidated all persona caches');
-    }
-  });
-  logger.info('Subscribed to persona cache invalidation events');
 
   await services.channelActivationCacheInvalidationService.subscribe(event => {
     if (event.type === 'channel') {
@@ -763,9 +715,6 @@ async function start(): Promise<void> {
       },
       'Configuration:'
     );
-
-    // Verify database connection
-    await verifyDatabaseConnection();
 
     // Auto-deploy commands if enabled
     if (envConfig.AUTO_DEPLOY_COMMANDS === 'true') {
