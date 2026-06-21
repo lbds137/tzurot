@@ -22,7 +22,7 @@
  * via DMChannel.send (the same surface @mention chat in DMs uses).
  */
 
-import type { Message } from 'discord.js';
+import { Collection, type Message } from 'discord.js';
 import {
   createLogger,
   isTypingChannel,
@@ -98,43 +98,80 @@ async function getAnchorMessage(
     return { success: true, message };
   }
 
-  // Weigh-in mode: Fetch the most recent message in channel as anchor
+  // Weigh-in mode: anchor on the latest channel message. The anchor only
+  // supplies the channel/client/guild and (for chat mode) the `before` cursor;
+  // in weigh-in the extended-context fetch omits `before`, so the anchor's id
+  // is unused and the latest message is READ (it's part of the room).
   const recentMessages = await channel.messages.fetch({ limit: 1 });
   const latestMessage = recentMessages.first();
-  if (latestMessage === undefined) {
-    return { success: false, error: '❌ No conversation history found in this channel.' };
+  if (latestMessage !== undefined) {
+    return { success: true, message: latestMessage };
   }
-  return { success: true, message: latestMessage };
+  // Genuinely empty channel: no message to anchor on. Weigh-in still "just
+  // works" — the worker reads an empty room and greets. buildContext reads only
+  // FIELDS off the anchor (never methods — locked by tests), so a field-only
+  // synthetic anchor built from the channel is safe here.
+  return { success: true, message: createSyntheticWeighInAnchor(channel) };
+}
+
+/**
+ * Build a field-only synthetic `Message` for a weigh-in in an empty channel.
+ *
+ * buildContext only READS from the anchor — it never mutates it or calls Discord
+ * API methods (no `.fetch`/`.reply`/`.react`). It DOES call Collection accessors
+ * (`.some`/`.size`/`.values`) on the field VALUES (`attachments`, `mentions.users`),
+ * so those carry real `Collection`s, not bare objects. For weigh-in the author/
+ * member are overridden and the id is unused, so an empty channel needs nothing
+ * real beyond the channel handle. MessageContextBuilder's field-only-anchor test
+ * runs buildContext through this exact shape — if a field this synthetic omits
+ * starts being read (as `mentions` once was), that test fails loudly rather than
+ * crashing at runtime.
+ */
+function createSyntheticWeighInAnchor(channel: TypingChannel): Message {
+  return {
+    // Never sent to Discord (weigh-in omits `before`, so the id is unused); a
+    // readable placeholder keeps any incidental debug log clear rather than ''.
+    id: 'synthetic-weigh-in-anchor',
+    channel,
+    client: channel.client,
+    guild: 'guild' in channel ? channel.guild : null,
+    author: channel.client?.user ?? null,
+    member: null,
+    content: '',
+    attachments: new Collection(),
+    embeds: [],
+    messageSnapshots: new Collection(),
+    reference: null,
+    // RawEnvelopeBuilder reads `mentions.users` (.size / .values()); an empty
+    // channel has no mentions, but the field must exist or the read throws.
+    mentions: { users: new Collection() },
+  } as unknown as Message;
 }
 
 /**
  * Apply the two orthogonal summon concerns to the built context:
  * - **Framing** (`isWeighInMode`): the prompt is a read-the-room system
- *   instruction, not a user message. Needs prior conversation history.
+ *   instruction, not a user message. A weigh-in is NOT gated on having prior
+ *   conversation — it just generates (an empty/quiet room is a valid thing to
+ *   read); the only structural precondition is an anchor message to build from
+ *   (see getAnchorMessage).
  * - **Anonymity** (`incognito`): drop the persona attribution (no `<from>` tag)
  *   so ai-worker skips persona + LTM read/write + epoch. A personal summon
  *   (`incognito=false`) keeps its persona while still using weigh-in framing.
  */
 function adjustContextForWeighInMode(
-  buildResult: { context: MessageContext; conversationHistory: unknown[] },
+  context: MessageContext,
   isWeighInMode: boolean,
   incognito: boolean
-): boolean {
-  // Read-the-room framing needs something to read.
-  if (isWeighInMode && buildResult.conversationHistory.length === 0) {
-    return false;
-  }
-
+): void {
   if (isWeighInMode) {
-    buildResult.context.isWeighIn = true;
+    context.isWeighIn = true;
   }
   if (incognito) {
-    buildResult.context.activePersonaId = undefined;
-    buildResult.context.activePersonaName = undefined;
+    context.activePersonaId = undefined;
+    context.activePersonaName = undefined;
   }
-  buildResult.context.incognito = incognito;
-
-  return true;
+  context.incognito = incognito;
 }
 
 /**
@@ -234,7 +271,7 @@ interface BuildChatContextParams {
  */
 async function buildChatContext(
   params: BuildChatContextParams
-): Promise<{ context: MessageContext; personaId: string } | null> {
+): Promise<{ context: MessageContext; personaId: string }> {
   const {
     anchorMessage,
     personality,
@@ -261,11 +298,9 @@ async function buildChatContext(
   );
 
   // Adjust context: weigh-in framing under isWeighInMode; anonymity (persona
-  // clear + incognito flag) under incognito.
-  const hasValidContext = adjustContextForWeighInMode(buildResult, isWeighInMode, incognito);
-  if (!hasValidContext) {
-    return null;
-  }
+  // clear + incognito flag) under incognito. A weigh-in is no longer gated on
+  // non-empty history — it just generates.
+  adjustContextForWeighInMode(buildResult.context, isWeighInMode, incognito);
 
   // Set trigger message ID for diagnostic tracking (chat mode only)
   if (!isWeighInMode) {
@@ -462,16 +497,8 @@ async function runCharacterTurn(
       incognito,
     });
 
-    if (buildResult === null) {
-      // Different error messages for weigh-in mode (no message) vs chat mode (with message)
-      const errorMsg = isWeighInMode
-        ? '❌ No conversation history found. Start a conversation first before using weigh-in mode.'
-        : '❌ Unable to build conversation context. Please try again.';
-      await channel.send(errorMsg);
-      return;
-    }
-
-    // 8. Submit job + register slash context. Result arrives via handleSlashJobResult.
+    // 8. Submit job + register slash context. Result arrives via
+    // handleSlashJobResult.
     await submitAndTrackJob({
       channel,
       personality,
