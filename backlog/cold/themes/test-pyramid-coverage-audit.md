@@ -11,7 +11,7 @@ Surfaced 2026-06-20 during the 2.5d Prisma-eviction epic. Two related problems:
 
 ## Canonical model — adopt Toby Clemson / Martin Fowler's microservice testing taxonomy
 
-(Capital One's published approach builds on this; sources below.) Five tiers:
+Five tiers (source below):
 
 | Tier | Scope | Real vs. stubbed | Our file type today |
 | --- | --- | --- | --- |
@@ -21,7 +21,7 @@ Surfaced 2026-06-20 during the 2.5d Prisma-eviction epic. Two related problems:
 | **Contract** | bilateral provider↔consumer agreement on a specific interface (consumer-driven) | neither full service booted — just the contract | `tests/e2e/contracts/BullMQJob{Producer,Consumer}.e2e.test.ts` — minimal |
 | **E2E** | system as a black box; full deployed ecosystem; user journeys | everything real | effectively none |
 
-Capital One overlay: **business logic → unit (local, fast)**; **application logic → contract + component-with-mocks (local) + integration/QA env (live deps)**. Principle: don't over-mock application logic (brittle) — prefer live-dependency tests in an integration environment.
+A useful lens on which tier suits which kind of logic: **business/domain logic → unit (local, fast)**; **cross-boundary/application logic → contract + component (local) + integration with live deps**. Principle: don't over-mock cross-boundary logic — mocks there are brittle and sacrifice the encapsulation the test is supposed to protect; prefer live-dependency tests.
 
 ## The two "schema test" definitions — DISAMBIGUATE
 
@@ -35,7 +35,7 @@ The word "contract" is overloaded in our docs. Resolve to two distinct things:
 ## Phased roadmap
 
 ### Phase 1 — Reconcile the taxonomy (docs; foundational)
-- One canonical pyramid section in `docs/reference/guides/TESTING.md` using the 5-tier model above + the Capital One business/application-logic overlay.
+- One canonical pyramid section in `docs/reference/guides/TESTING.md` using the 5-tier model above + the business/application-logic lens (which tier suits which kind of logic).
 - Reclassify `*.int.test.ts` as **component** (concept rename; file-suffix rename is optional and disruptive — decide).
 - Disambiguate schema vs. contract in `02-code-standards.md` + the `tzurot-testing` skill, and make the always-loaded rule *point at and one-line-summarize* the pyramid so the cross-service tiers are top-of-mind.
 - Rules/skills are review-gated (PR); `docs/` + this theme can go direct.
@@ -54,8 +54,7 @@ Scope the FIRST audit to the code THIS Prisma-eviction epic changed — the high
 
 ## Sources
 
-- Toby Clemson, "Testing Strategies in a Microservice Architecture," martinfowler.com (2014) — the 5-tier taxonomy.
-- Capital One Tech, "Design for testing Part 2: Business vs. application logic" — the business/application-logic overlay + what to run locally vs. in integration/QA.
+- Toby Clemson, "Testing Strategies in a Microservice Architecture," martinfowler.com (2014) — the canonical 5-tier taxonomy this theme adopts.
 
 ## Status
 
