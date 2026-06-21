@@ -40,8 +40,19 @@ The word "contract" is overloaded in our docs. Resolve to two distinct things:
 - ✅ Disambiguated schema vs. contract in `02-code-standards.md` + the `tzurot-testing` skill; the always-loaded rule now points at + one-line-summarizes the pyramid.
 - ✅ Both enforcement seeds shipped (see Enforcement below).
 
-### Phase 1.5 — Pilot: audit the 2.5d-touched surface (near-term, right after the doc PR)
-Scope the FIRST audit to the code THIS Prisma-eviction epic changed — the highest-risk, freshest-context surface, and where the "worker re-derives what bot-client deleted" claim lives. Map each touched flow (routing-context, cross-channel, voice transcripts, participant-batch, weigh-in) to the 5 tiers and fill gaps in the right tier (e.g., the envelope contract test below). Doubles as a de-risking pilot of the audit METHODOLOGY on a bounded surface before the full Tzurot-wide Phase 2. **User directive 2026-06-20**: sequence this after the doc-reconciliation PR lands and before the broad audit; don't let it stall the active epic.
+### Phase 1.5 — Pilot: audit the 2.5d-touched surface ✅ DONE (PR #1285)
+Scope the FIRST audit to the code THIS Prisma-eviction epic changed — the highest-risk, freshest-context surface, and where the "worker re-derives what bot-client deleted" claim lives.
+
+**What the audit found:** the envelope SHAPE was already schema-locked (`rawEnvelope.test`/`jobs.test`), so the gap was narrower than expected — real-producer-output conformance + real-consumer-derivation-against-real-data. The load-bearing "worker re-derives identical context" claim was verified only by mocked unit tests on each side INDEPENDENTLY; nothing tied real producer output → schema → real consumer derivation, and `AIJobProcessor.int` explicitly STUBS assembly out. Highest-risk surface, least-covered — exactly what a tier audit exists to catch.
+
+**What shipped (3 tests, colocated-per-side against the shared schema = consumer-driven contract):**
+- `RawEnvelopeBuilder.test.ts` — real `buildRawAssemblyInputs` output conforms to `rawAssemblyInputsSchema` (producer lock).
+- `ContextAssembler.test.ts` — schema-PARSED envelope → real `assembleCore` over faithful doubles (consumer lock at the schema boundary).
+- `ContextAssembler.int.test.ts` (NEW, component/PGLite) — un-stubs assembly: real `PrismaContextDataSource`+`UserService`+`PersonaResolver`, seeded users/personas/history, asserts re-derivation from real DB state. This is the real-data half `AIJobProcessor.int` skips.
+
+**Methodology validated** for the broad Phase 2: the gap-matrix → fill-in-the-right-tier approach worked, and corrected two wrong premises along the way (shape already locked; AIJobProcessor.int stubs assembly). Placement decision: colocated-per-side, NOT `tests/e2e/contracts/`, to avoid cross-service imports — the shared schema is the contract artifact each side verifies against.
+
+**Still open (not gaps this pilot filled, for Phase 2/3):** the worker's `assembleCore` over PGLite covers user/timezone/history/persona/trigger-exclusion; cross-channel decoration, reference enrichment, and content rewriting against real data remain mocked-only. A weigh-in-mode component assembly test (empty → still assembles) is also unwritten worker-side (bot-side locked in #1283).
 
 ### Phase 2 — Tier audit (discovery; full Tzurot-wide)
 - Inventory every service/flow against the 5 tiers; produce a per-area gap matrix (what tier is missing where). The `test:audit` tool measures colocation, not tier coverage — this audit is behavioral.
@@ -72,4 +83,4 @@ Decided: keep `*.int.test.ts` / `*.e2e.test.ts` + re-document (done). A suffix *
 
 ## Status
 
-Filed 2026-06-20. Foundational understanding captured here so it isn't lost; the active epic (2.5d) stays the focus. **Near-term sequence (user-directed 2026-06-20):** (1) ✅ merge PR #1283 → (2) ✅ interim "stop-the-bleeding" doc-reconciliation PR (Phase 1, **PR #1284, merged 2026-06-21**) → (3) **NEXT: Phase 1.5 pilot audit** of the 2.5d-touched code → (4) finish the 2.5d epic (full `getChannelHistory` eviction + Phase 4). The full Tzurot-wide Phase 2/3 promotes to Active Epic later, with a council pass on scope first.
+Filed 2026-06-20. Foundational understanding captured here so it isn't lost; the active epic (2.5d) stays the focus. **Near-term sequence (user-directed 2026-06-20):** (1) ✅ merge PR #1283 → (2) ✅ doc-reconciliation PR (Phase 1, **PR #1284**) → (3) ✅ Phase 1.5 pilot audit (**PR #1285, merged 2026-06-21**) → (4) **NEXT: finish the 2.5d epic** (full `getChannelHistory` eviction → Phase 4: `getPrismaClient` removal + depcruise tighten). The full Tzurot-wide Phase 2/3 promotes to Active Epic later, with a council pass on scope first.
