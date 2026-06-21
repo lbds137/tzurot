@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Use vi.hoisted to create mock functions before they're used in vi.mock
-const { mockWriteFile, mockAccess, mockUnlink, mockGlob, mockMkdir, mockFindMany, mockDisconnect } =
+const { mockWriteFile, mockAccess, mockUnlink, mockGlob, mockMkdir, mockFindMany, mockDispose } =
   vi.hoisted(() => ({
     mockWriteFile: vi.fn(),
     mockAccess: vi.fn(),
@@ -13,7 +13,7 @@ const { mockWriteFile, mockAccess, mockUnlink, mockGlob, mockMkdir, mockFindMany
     mockGlob: vi.fn(),
     mockMkdir: vi.fn(),
     mockFindMany: vi.fn(),
-    mockDisconnect: vi.fn(),
+    mockDispose: vi.fn(),
   }));
 
 // Mock fs/promises
@@ -27,12 +27,15 @@ vi.mock('fs/promises', () => ({
 
 // Mock Prisma client
 vi.mock('@tzurot/common-types', () => ({
-  getPrismaClient: () => ({
-    personality: {
-      findMany: mockFindMany,
+  createPrismaClient: () => ({
+    prisma: {
+      personality: {
+        findMany: mockFindMany,
+      },
     },
-    $disconnect: mockDisconnect,
+    dispose: mockDispose,
   }),
+  DB_POOL_DEFAULTS: { TRANSIENT_MAX: 5 },
   createLogger: () => ({
     info: vi.fn(),
     warn: vi.fn(),
@@ -75,7 +78,7 @@ describe('syncAvatars', () => {
       })
     );
     expect(mockWriteFile).not.toHaveBeenCalled();
-    expect(mockDisconnect).toHaveBeenCalled();
+    expect(mockDispose).toHaveBeenCalled();
   });
 
   it('should sync avatar from database when file does not exist', async () => {
@@ -99,7 +102,7 @@ describe('syncAvatars', () => {
       `/data/avatars/t/test-bot-${timestamp}.png`,
       avatarBuffer
     );
-    expect(mockDisconnect).toHaveBeenCalled();
+    expect(mockDispose).toHaveBeenCalled();
   });
 
   it('should skip syncing when versioned file already exists', async () => {
@@ -114,7 +117,7 @@ describe('syncAvatars', () => {
     await syncAvatars();
 
     expect(mockWriteFile).not.toHaveBeenCalled();
-    expect(mockDisconnect).toHaveBeenCalled();
+    expect(mockDispose).toHaveBeenCalled();
   });
 
   it('should skip personalities with invalid slugs', async () => {
@@ -129,7 +132,7 @@ describe('syncAvatars', () => {
 
     expect(mockWriteFile).not.toHaveBeenCalled();
     expect(mockMkdir).not.toHaveBeenCalled();
-    expect(mockDisconnect).toHaveBeenCalled();
+    expect(mockDispose).toHaveBeenCalled();
   });
 
   it('should cleanup old versions after syncing new avatar', async () => {
@@ -156,7 +159,7 @@ describe('syncAvatars', () => {
     // Should delete the old version, not the current one
     expect(mockUnlink).toHaveBeenCalledTimes(1);
     expect(mockUnlink).toHaveBeenCalledWith(`/data/avatars/t/test-bot-${oldTimestamp}.png`);
-    expect(mockDisconnect).toHaveBeenCalled();
+    expect(mockDispose).toHaveBeenCalled();
   });
 
   it('should cleanup legacy files without timestamps', async () => {
@@ -226,7 +229,7 @@ describe('syncAvatars', () => {
 
     // Should still write the file
     expect(mockWriteFile).toHaveBeenCalled();
-    expect(mockDisconnect).toHaveBeenCalled();
+    expect(mockDispose).toHaveBeenCalled();
   });
 
   it('should rethrow non-ENOENT glob errors', async () => {
@@ -246,7 +249,7 @@ describe('syncAvatars', () => {
     });
 
     await expect(syncAvatars()).rejects.toThrow('EACCES');
-    expect(mockDisconnect).toHaveBeenCalled();
+    expect(mockDispose).toHaveBeenCalled();
   });
 
   it('should handle unlink errors gracefully for cleanup', async () => {
@@ -271,7 +274,7 @@ describe('syncAvatars', () => {
 
     // Should still complete successfully
     expect(mockWriteFile).toHaveBeenCalled();
-    expect(mockDisconnect).toHaveBeenCalled();
+    expect(mockDispose).toHaveBeenCalled();
   });
 
   it('should ignore ENOENT errors during unlink (file already deleted)', async () => {
@@ -295,7 +298,7 @@ describe('syncAvatars', () => {
     await syncAvatars();
 
     expect(mockWriteFile).toHaveBeenCalled();
-    expect(mockDisconnect).toHaveBeenCalled();
+    expect(mockDispose).toHaveBeenCalled();
   });
 
   it('should sync multiple personalities', async () => {
@@ -324,14 +327,14 @@ describe('syncAvatars', () => {
       `/data/avatars/b/beta-${date2.getTime()}.png`,
       avatar2
     );
-    expect(mockDisconnect).toHaveBeenCalled();
+    expect(mockDispose).toHaveBeenCalled();
   });
 
   it('should handle database error and still disconnect', async () => {
     mockFindMany.mockRejectedValue(new Error('Database connection failed'));
 
     await expect(syncAvatars()).rejects.toThrow('Database connection failed');
-    expect(mockDisconnect).toHaveBeenCalled();
+    expect(mockDispose).toHaveBeenCalled();
   });
 
   it('should use correct subdirectory based on slug first character', async () => {
@@ -389,6 +392,6 @@ describe('syncAvatars', () => {
         skip: 1,
       })
     );
-    expect(mockDisconnect).toHaveBeenCalled();
+    expect(mockDispose).toHaveBeenCalled();
   });
 });
