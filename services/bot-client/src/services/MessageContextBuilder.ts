@@ -12,7 +12,6 @@ import {
   type ConversationMessage,
   type AttachmentMetadata,
   ConversationHistoryService,
-  UserService,
   createLogger,
   MESSAGE_LIMITS,
   isTypingChannel,
@@ -31,7 +30,6 @@ import { redisService } from '../redis.js';
 import type { DenylistCache } from './DenylistCache.js';
 import { TranscriptRetriever } from '../handlers/references/TranscriptRetriever.js';
 import {
-  resolveExtendedContextPersonaIds,
   extractGuildMemberInfo,
   resolveEffectiveMember,
   resolveUserContext,
@@ -63,8 +61,6 @@ interface ContextBuildResult {
   personaName: string | null;
   /** Message content with Discord links replaced by [Reference N] */
   messageContent: string;
-  /** Conversation history — consumed by the weigh-in empty-history gate (chat.ts). */
-  conversationHistory: ConversationMessage[];
 }
 
 type ParticipantGuildInfo = Record<
@@ -110,9 +106,7 @@ interface ExtendedContextParams {
  */
 export class MessageContextBuilder {
   private conversationHistory: ConversationHistoryService;
-  private userService: UserService;
   private mentionResolver: MentionResolver;
-  private personaResolver: PersonaResolver;
   private channelFetcher: DiscordChannelFetcher;
   private transcriptRetriever: TranscriptRetriever;
   private denylistCache?: DenylistCache;
@@ -137,9 +131,7 @@ export class MessageContextBuilder {
     denylistCache?: DenylistCache
   ) {
     this.conversationHistory = new ConversationHistoryService(prisma);
-    this.userService = new UserService(prisma);
     this.mentionResolver = new MentionResolver(prisma, personaResolver);
-    this.personaResolver = personaResolver;
     this.channelFetcher = new DiscordChannelFetcher();
     this.transcriptRetriever = new TranscriptRetriever();
     this.denylistCache = denylistCache;
@@ -161,7 +153,7 @@ export class MessageContextBuilder {
   /**
    * Fetch extended context from Discord channel and merge with history.
    */
-  // eslint-disable-next-line max-lines-per-function -- Cohesive extended context workflow with guard clauses and optional feature checks
+
   private async fetchExtendedContext(
     params: ExtendedContextParams
   ): Promise<ExtendedContextResult> {
@@ -196,7 +188,11 @@ export class MessageContextBuilder {
       message.channel as FetchableChannel,
       {
         limit: options.extendedContext.maxMessages,
-        before: message.id,
+        // Chat mode anchors on the user's NEW message and reads the history
+        // BEFORE it. Weigh-in ("read the room") anchors on the latest existing
+        // message, which IS part of the room — so it must be INCLUDED, not
+        // excluded. Omitting `before` fetches the most recent N (anchor and all).
+        before: options.isWeighInMode === true ? undefined : message.id,
         botUserId: options.botUserId,
         botSuffix: this.getBotSuffix(message),
         personalityName: personality.displayName,
@@ -215,45 +211,12 @@ export class MessageContextBuilder {
     // mutates fetchResult.messages in place. See captureRawExtendedContext.
     const rawSnapshot = captureRawExtendedContext(fetchResult);
 
-    // Create personas for extended context users AND reactor users
-    // Combine both arrays to handle in a single batch (reactors are users who reacted to messages)
-    const usersToResolve = [
-      ...(fetchResult.extendedContextUsers ?? []),
-      ...(fetchResult.reactorUsers ?? []),
-    ];
-    if (usersToResolve.length > 0) {
-      const userMap = await this.userService.getOrCreateUsersInBatch(usersToResolve);
-      logger.debug(
-        {
-          requested: usersToResolve.length,
-          extendedContextCount: fetchResult.extendedContextUsers?.length ?? 0,
-          reactorCount: fetchResult.reactorUsers?.length ?? 0,
-          created: userMap.size,
-        },
-        'Batch created personas for extended context and reactor users'
-      );
-
-      // Resolve personaIds for BOTH message authors AND reactors in one batch
-      // Also remaps participantGuildInfo keys to use the new UUIDs
-      const resolved = await resolveExtendedContextPersonaIds(
-        fetchResult.messages,
-        userMap,
-        personality.id,
-        this.personaResolver,
-        fetchResult.participantGuildInfo
-      );
-
-      if (resolved.total > 0) {
-        logger.debug(
-          {
-            messageCount: resolved.messageCount,
-            reactorCount: resolved.reactorCount,
-            total: resolved.total,
-          },
-          'Resolved extended context personaIds to UUIDs'
-        );
-      }
-    }
+    // Extended-context users/reactors are NOT provisioned or persona-resolved
+    // here — the worker re-runs the batch upsert + persona remap from the raw
+    // snapshot (ContextAssembler.mergeExtendedContext), and it overwrites the
+    // shipped participantGuildInfo with its own re-keyed version (ContextStep).
+    // bot-client's local merged history keeps the raw author placeholders; only
+    // message ids + timestamps feed the reference-dedup that still reads it.
 
     if (fetchResult.messages.length === 0) {
       return { history: mergedHistory, raw: rawSnapshot };
@@ -502,7 +465,6 @@ export class MessageContextBuilder {
       personaId,
       personaName,
       messageContent,
-      conversationHistory: history, // Consumed by the weigh-in empty-history gate (chat.ts)
     };
   }
 }

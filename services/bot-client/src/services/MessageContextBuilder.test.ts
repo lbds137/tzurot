@@ -6,15 +6,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MessageContextBuilder } from './MessageContextBuilder.js';
 import { redisService } from '../redis.js';
 import type { PrismaClient } from '@tzurot/common-types';
-import type {
-  Message,
-  Collection,
-  Attachment,
-  Guild,
-  GuildMember,
-  TextChannel,
-  User,
-} from 'discord.js';
+import { Collection } from 'discord.js';
+import type { Message, Attachment, Guild, GuildMember, TextChannel, User } from 'discord.js';
 import { MessageRole } from '@tzurot/common-types';
 import type { LoadedPersonality, ReferencedMessage } from '@tzurot/common-types';
 
@@ -174,7 +167,16 @@ describe('MessageContextBuilder', () => {
 
     // Get service instances to access mocks
     mockHistoryService = (builder as any).conversationHistory;
-    mockUserService = (builder as any).userService;
+    // userService is no longer a builder field — the author path resolves via
+    // the routing-context endpoint and the extended-context batch moved
+    // worker-side. A standalone mock keeps legacy per-test setups inert (they
+    // set return values on a never-called mock); see the backlog cleanup item.
+    mockUserService = {
+      getOrCreateUser: vi.fn(),
+      getOrCreateUsersInBatch: vi.fn().mockResolvedValue(new Map()),
+      getPersonaName: vi.fn(),
+      getUserTimezone: vi.fn(),
+    } as unknown as UserService;
 
     // Default mock for PersonaResolver.resolve
     mockPersonaResolver.resolve.mockResolvedValue({
@@ -438,15 +440,6 @@ describe('MessageContextBuilder', () => {
         activePersonaName: 'Test Persona',
       });
 
-      // The thin envelope omits conversationHistory (the worker re-derives it);
-      // the builder still returns the fetched history at the top level.
-      expect(result.conversationHistory).toHaveLength(1);
-      expect(result.conversationHistory[0]).toMatchObject({
-        role: MessageRole.User,
-        content: 'Previous message',
-        discordUsername: 'prevuser', // Should be passed through for collision detection
-      });
-
       // Verify return values
       expect(result.userId).toBe('user-uuid-123');
       expect(result.personaId).toBe('persona-123');
@@ -504,7 +497,6 @@ describe('MessageContextBuilder', () => {
 
       const result = await builder.buildContext(mockMessage, mockPersonality, 'First message');
 
-      expect(result.conversationHistory).toEqual([]);
       // Non-voice message should be false
       expect(result.context.isVoiceMessage).toBe(false);
     });
@@ -593,15 +585,12 @@ describe('MessageContextBuilder', () => {
         updatedContent: 'Hello',
       });
 
-      const result = await builder.buildContext(mockMessage, mockPersonality, 'Hello');
+      await builder.buildContext(mockMessage, mockPersonality, 'Hello');
 
-      // Verify conversation history was retrieved
-      expect(result.conversationHistory).toHaveLength(2);
-      expect(result.conversationHistory[0].discordMessageId).toEqual([
-        'discord-msg-1',
-        'discord-msg-2',
-      ]);
-      expect(result.conversationHistory[1].discordMessageId).toEqual(['discord-msg-3']);
+      // Channel history is still fetched — its message ids feed the reference
+      // dedup that reads them — but it's no longer returned; the worker
+      // re-derives the conversation history from the raw envelope.
+      expect(mockHistoryService.getChannelHistory).toHaveBeenCalled();
     });
 
     it('should extract attachments from message', async () => {
@@ -984,7 +973,7 @@ describe('MessageContextBuilder', () => {
         mentionedRoles: [],
       });
 
-      const result = await builder.buildContext(mockMessage, mockPersonality, 'Hello', {
+      await builder.buildContext(mockMessage, mockPersonality, 'Hello', {
         extendedContext: {
           maxMessages: 20,
           maxAge: null,
@@ -1014,11 +1003,102 @@ describe('MessageContextBuilder', () => {
         })
       );
 
-      // Verify merge was called
+      // Verify merge was called (its result feeds the reference dedup internally;
+      // it's no longer returned — the worker re-derives history from the envelope).
       expect(mockMergeWithHistory).toHaveBeenCalledWith(extendedMessages, dbHistory);
+    });
 
-      // Verify conversation history includes merged data
-      expect(result.conversationHistory).toHaveLength(2);
+    it('weigh-in omits `before` so the latest (anchor) message is READ, not excluded', async () => {
+      // Chat mode anchors on the user's NEW message and excludes it via
+      // `before: message.id`. Weigh-in anchors on the latest EXISTING message,
+      // which is part of the room and must be included → no `before` cursor.
+      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
+      mockFetchRecentMessages.mockResolvedValue({
+        messages: [],
+        fetchedCount: 0,
+        filteredCount: 0,
+      });
+      mockExtractReferencesWithReplacement.mockResolvedValue({
+        references: [],
+        updatedContent: 'hi',
+      });
+      mockResolveAllMentions.mockResolvedValue({
+        processedContent: 'hi',
+        mentionedUsers: [],
+        mentionedChannels: [],
+        mentionedRoles: [],
+      });
+
+      await builder.buildContext(mockMessage, mockPersonality, 'hi', {
+        extendedContext: {
+          maxMessages: 20,
+          maxAge: null,
+          maxImages: 0,
+          sources: { maxMessages: 'personality', maxAge: 'personality', maxImages: 'personality' },
+        },
+        botUserId: 'bot-123',
+        isWeighInMode: true,
+      });
+
+      expect(mockFetchRecentMessages).toHaveBeenCalledWith(
+        mockMessage.channel,
+        expect.objectContaining({ before: undefined })
+      );
+    });
+
+    it('builds a usable context from a field-only anchor (empty-channel weigh-in synthetic)', async () => {
+      // Locks the `createSyntheticWeighInAnchor` (chat.ts) field-only contract:
+      // buildContext must work given an anchor that exposes only FIELDS (no
+      // methods), mirroring the empty-channel synthetic. If buildContext ever
+      // calls a method on the anchor, this fails here instead of crashing at
+      // runtime for an empty-channel weigh-in.
+      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
+      mockFetchRecentMessages.mockResolvedValue({
+        messages: [],
+        fetchedCount: 0,
+        filteredCount: 0,
+      });
+      mockExtractReferencesWithReplacement.mockResolvedValue({
+        references: [],
+        updatedContent: '',
+      });
+      mockResolveAllMentions.mockResolvedValue({
+        processedContent: '',
+        mentionedUsers: [],
+        mentionedChannels: [],
+        mentionedRoles: [],
+      });
+
+      // Same shape createSyntheticWeighInAnchor produces: field-only, no methods.
+      const syntheticAnchor = {
+        id: '',
+        channel: mockMessage.channel,
+        client: mockMessage.client,
+        guild: mockMessage.guild,
+        author: mockMessage.author,
+        member: null,
+        content: '',
+        attachments: new Collection(),
+        embeds: [],
+        messageSnapshots: new Collection(),
+        reference: null,
+        mentions: { users: new Collection() },
+      } as unknown as Message;
+
+      const result = await builder.buildContext(syntheticAnchor, mockPersonality, 'read the room', {
+        extendedContext: {
+          maxMessages: 20,
+          maxAge: null,
+          maxImages: 0,
+          sources: { maxMessages: 'personality', maxAge: 'personality', maxImages: 'personality' },
+        },
+        botUserId: 'bot-123',
+        isWeighInMode: true,
+        overrideUser: mockMessage.author,
+      });
+
+      expect(result.context).toBeDefined();
+      expect(result.messageContent).toBeDefined();
     });
 
     it('caches botSuffix on first call and ignores subsequent client.user.tag changes', async () => {
@@ -1282,47 +1362,12 @@ describe('MessageContextBuilder', () => {
       expect(result.context.extendedContextAttachments).toBeUndefined();
     });
 
-    it('should resolve discord:XXXX personaIds to actual UUIDs when users are created', async () => {
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
-        userId: 'user-uuid-123',
-        defaultPersonaId: 'test-persona-id',
-      });
-      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
+    it('ships extended-context participants RAW (discord: keys) for the worker to re-resolve', async () => {
+      // The participant-batch upsert + persona-id remap moved worker-side: the
+      // bot ships the raw `discord:`-keyed snapshot and the worker re-runs the
+      // batch + re-keys participantGuildInfo (ContextStep overwrites the shipped
+      // one). bot-client neither provisions the participants nor remaps ids here.
       vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
-
-      // Mock batch user creation to return a mapping
-      const userMap = new Map([
-        ['user-alice', 'alice-uuid-123'],
-        ['user-bob', 'bob-uuid-456'],
-      ]);
-      vi.mocked(mockUserService.getOrCreateUsersInBatch).mockResolvedValue(userMap);
-
-      // Mock PersonaResolver.resolve to return different persona IDs
-      // Use mockImplementation instead of mockResolvedValueOnce for deterministic behavior
-      // with Promise.allSettled (call order isn't guaranteed with parallel resolution)
-      mockPersonaResolver.resolve.mockImplementation((discordId: string) => {
-        if (discordId === 'user-alice') {
-          return Promise.resolve({
-            config: {
-              personaId: 'alice-persona-uuid',
-              preferredName: 'Alice Display',
-              pronouns: null,
-            },
-            source: 'user-default',
-          });
-        }
-        if (discordId === 'user-bob') {
-          return Promise.resolve({
-            config: { personaId: 'bob-persona-uuid', preferredName: 'Bob Display', pronouns: null },
-            source: 'user-default',
-          });
-        }
-        // Default for current user (discordId = 'user-123')
-        return Promise.resolve({
-          config: { personaId: 'persona-123', preferredName: 'Test Persona', pronouns: null },
-          source: 'user-default',
-        });
-      });
 
       // Extended context messages with discord:XXXX format personaIds
       const extendedMessages = [
@@ -1346,7 +1391,6 @@ describe('MessageContextBuilder', () => {
         },
       ];
 
-      // Mock fetch result with extendedContextUsers
       mockFetchRecentMessages.mockResolvedValue({
         messages: extendedMessages,
         fetchedCount: 10,
@@ -1387,26 +1431,12 @@ describe('MessageContextBuilder', () => {
         botUserId: 'bot-123',
       });
 
-      // Verify batch user creation was called
-      expect(mockUserService.getOrCreateUsersInBatch).toHaveBeenCalledWith([
-        { discordId: 'user-alice', username: 'alice', isBot: false },
-        { discordId: 'user-bob', username: 'bob', isBot: false },
-      ]);
-
-      // Verify PersonaResolver.resolve was called for each extended context user
-      // First call is for the current user, then for alice, then for bob
-      expect(mockPersonaResolver.resolve).toHaveBeenCalledWith('user-alice', 'personality-123');
-      expect(mockPersonaResolver.resolve).toHaveBeenCalledWith('user-bob', 'personality-123');
-
-      // Verify personaIds were resolved to UUIDs in the messages
-      expect(extendedMessages[0].personaId).toBe('alice-persona-uuid');
-      expect(extendedMessages[0].personaName).toBe('Alice Display');
-      expect(extendedMessages[1].personaId).toBe('bob-persona-uuid');
-      expect(extendedMessages[1].personaName).toBe('Bob Display');
+      // The messages keep their raw discord: placeholders — no bot-side remap.
+      expect(extendedMessages[0].personaId).toBe('discord:user-alice');
+      expect(extendedMessages[1].personaId).toBe('discord:user-bob');
 
       // The thin envelope ships participantGuildInfo RAW (pre-resolution
       // `discord:` keys) via rawAssemblyInputs — the worker re-resolves them.
-      // The bot no longer remaps keys to UUIDs on the shipped context.
       const rawGuild = result.context.rawAssemblyInputs?.rawParticipantGuildInfo;
       expect(rawGuild?.['discord:user-alice']).toEqual({
         roles: ['Member'],
