@@ -22,7 +22,6 @@ import { randomUUID } from 'node:crypto';
 import { ConversationalRAGService } from '../../services/ConversationalRAGService.js';
 import {
   createLogger,
-  ConversationHistoryService,
   ApiErrorCategory,
   ApiErrorType,
   USER_ERROR_MESSAGES,
@@ -30,6 +29,7 @@ import {
   type LLMGenerationResult,
   type PrismaClient,
 } from '@tzurot/common-types';
+import { ConversationHistoryService } from '@tzurot/conversation-history';
 import { PersonaResolver, UserService } from '@tzurot/identity';
 import type {
   LlmConfigResolver,

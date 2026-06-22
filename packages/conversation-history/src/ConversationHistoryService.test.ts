@@ -3,10 +3,17 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { PrismaClient } from './prisma.js';
 import { ConversationHistoryService } from './ConversationHistoryService.js';
-import { MessageRole } from '../constants/index.js';
-import * as tokenCounter from '../utils/tokenCounter.js';
+import { MessageRole, type PrismaClient } from '@tzurot/common-types';
+
+// countTextTokens now lives in @tzurot/common-types (consumed by the production
+// service via the barrel), so intercept it through a partial mock rather than a
+// namespace spy — the latter doesn't reliably catch a re-exported binding.
+const { mockCountTextTokens } = vi.hoisted(() => ({ mockCountTextTokens: vi.fn() }));
+vi.mock('@tzurot/common-types', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+  return { ...actual, countTextTokens: mockCountTextTokens };
+});
 
 // Create mock Prisma client
 const createMockPrismaClient = () => {
@@ -39,8 +46,6 @@ describe('ConversationHistoryService - Token Count Caching', () => {
     // Create fresh mocks for each test
     mockPrismaClient = createMockPrismaClient();
     service = new ConversationHistoryService(mockPrismaClient as unknown as PrismaClient);
-    // Create fresh spy for each test
-    vi.spyOn(tokenCounter, 'countTextTokens');
   });
 
   describe('addMessage - Token Count Computation', () => {
@@ -49,7 +54,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
       const expectedTokenCount = 8; // Mocked value
 
       // Mock token counter to return predictable value
-      (tokenCounter.countTextTokens as any).mockReturnValue(expectedTokenCount);
+      mockCountTextTokens.mockReturnValue(expectedTokenCount);
 
       mockPrismaClient.conversationHistory.create.mockResolvedValue({
         id: 'msg-123',
@@ -68,7 +73,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
       });
 
       // Verify token counter was called
-      expect(tokenCounter.countTextTokens).toHaveBeenCalledWith(content);
+      expect(mockCountTextTokens).toHaveBeenCalledWith(content);
 
       // Verify token count was stored in database
       expect(mockPrismaClient.conversationHistory.create).toHaveBeenCalledWith({
@@ -83,7 +88,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
       const content = 'This is an AI response with more tokens than the user message!';
       const expectedTokenCount = 15;
 
-      (tokenCounter.countTextTokens as any).mockReturnValue(expectedTokenCount);
+      mockCountTextTokens.mockReturnValue(expectedTokenCount);
 
       mockPrismaClient.conversationHistory.create.mockResolvedValue({
         id: 'msg-456',
@@ -101,7 +106,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
         discordMessageId: ['discord-msg-1', 'discord-msg-2'], // Chunked message
       });
 
-      expect(tokenCounter.countTextTokens).toHaveBeenCalledWith(content);
+      expect(mockCountTextTokens).toHaveBeenCalledWith(content);
       expect(mockPrismaClient.conversationHistory.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           content,
@@ -114,7 +119,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
       const longContent = 'A'.repeat(10000); // Very long message
       const expectedTokenCount = 2500; // Approximate tokens
 
-      (tokenCounter.countTextTokens as any).mockReturnValue(expectedTokenCount);
+      mockCountTextTokens.mockReturnValue(expectedTokenCount);
 
       mockPrismaClient.conversationHistory.create.mockResolvedValue({
         id: 'msg-long',
@@ -131,7 +136,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
         guildId: null,
       });
 
-      expect(tokenCounter.countTextTokens).toHaveBeenCalledWith(longContent);
+      expect(mockCountTextTokens).toHaveBeenCalledWith(longContent);
       expect(mockPrismaClient.conversationHistory.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           tokenCount: expectedTokenCount,
@@ -143,7 +148,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
       const content = '';
       const expectedTokenCount = 0;
 
-      (tokenCounter.countTextTokens as any).mockReturnValue(expectedTokenCount);
+      mockCountTextTokens.mockReturnValue(expectedTokenCount);
 
       mockPrismaClient.conversationHistory.create.mockResolvedValue({
         id: 'msg-empty',
@@ -160,7 +165,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
         guildId: null,
       });
 
-      expect(tokenCounter.countTextTokens).toHaveBeenCalledWith(content);
+      expect(mockCountTextTokens).toHaveBeenCalledWith(content);
       expect(mockPrismaClient.conversationHistory.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           tokenCount: 0,
@@ -426,7 +431,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
         discordMessageId: ['discord-123'],
       });
 
-      (tokenCounter.countTextTokens as any).mockReturnValue(enrichedTokenCount);
+      mockCountTextTokens.mockReturnValue(enrichedTokenCount);
 
       mockPrismaClient.conversationHistory.update.mockResolvedValue({
         id: 'msg-123',
@@ -442,7 +447,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
       );
 
       expect(result).toBe(true);
-      expect(tokenCounter.countTextTokens).toHaveBeenCalledWith(enrichedContent);
+      expect(mockCountTextTokens).toHaveBeenCalledWith(enrichedContent);
       expect(mockPrismaClient.conversationHistory.update).toHaveBeenCalledWith({
         where: { id: 'msg-123' },
         data: {
@@ -464,7 +469,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
         tokenCount: 4,
       });
 
-      (tokenCounter.countTextTokens as any).mockReturnValue(largeTokenCount);
+      mockCountTextTokens.mockReturnValue(largeTokenCount);
 
       mockPrismaClient.conversationHistory.update.mockResolvedValue({
         id: 'msg-456',
@@ -479,7 +484,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
         enrichedContent
       );
 
-      expect(tokenCounter.countTextTokens).toHaveBeenCalledWith(enrichedContent);
+      expect(mockCountTextTokens).toHaveBeenCalledWith(enrichedContent);
       expect(mockPrismaClient.conversationHistory.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
@@ -501,7 +506,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
           embedsXml: ['<embed>keep me</embed>'],
         },
       });
-      (tokenCounter.countTextTokens as any).mockReturnValue(9);
+      mockCountTextTokens.mockReturnValue(9);
       mockPrismaClient.conversationHistory.update.mockResolvedValue({});
 
       await service.updateLastUserMessage('channel-123', 'personality-456', 'persona-789', 'new', {
@@ -714,10 +719,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
       const content2 = 'Second message';
       const content3 = 'Third message';
 
-      (tokenCounter.countTextTokens as any)
-        .mockReturnValueOnce(3)
-        .mockReturnValueOnce(3)
-        .mockReturnValueOnce(3);
+      mockCountTextTokens.mockReturnValueOnce(3).mockReturnValueOnce(3).mockReturnValueOnce(3);
 
       mockPrismaClient.conversationHistory.create.mockResolvedValue({
         id: 'msg-123',
@@ -750,10 +752,10 @@ describe('ConversationHistoryService - Token Count Caching', () => {
       });
 
       // Verify token counter was called exactly 3 times (once per message)
-      expect(tokenCounter.countTextTokens).toHaveBeenCalledTimes(3);
-      expect(tokenCounter.countTextTokens).toHaveBeenNthCalledWith(1, content1);
-      expect(tokenCounter.countTextTokens).toHaveBeenNthCalledWith(2, content2);
-      expect(tokenCounter.countTextTokens).toHaveBeenNthCalledWith(3, content3);
+      expect(mockCountTextTokens).toHaveBeenCalledTimes(3);
+      expect(mockCountTextTokens).toHaveBeenNthCalledWith(1, content1);
+      expect(mockCountTextTokens).toHaveBeenNthCalledWith(2, content2);
+      expect(mockCountTextTokens).toHaveBeenNthCalledWith(3, content3);
     });
 
     it('should NOT call countTextTokens when retrieving messages', async () => {
@@ -781,7 +783,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
       await service.getChannelHistory('channel-123', 20);
 
       // Token counter should NOT be called during retrieval
-      expect(tokenCounter.countTextTokens).not.toHaveBeenCalled();
+      expect(mockCountTextTokens).not.toHaveBeenCalled();
     });
   });
 

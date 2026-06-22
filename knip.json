@@ -33,6 +33,9 @@
     "packages/identity": {
       "entry": ["src/**/*.test.ts", "src/**/*.int.test.ts"]
     },
+    "packages/conversation-history": {
+      "entry": ["src/**/*.test.ts", "src/**/*.int.test.ts"]
+    },
     "packages/tooling": {
       "entry": ["src/**/*.test.ts"],
       "ignoreDependencies": ["eslint"]

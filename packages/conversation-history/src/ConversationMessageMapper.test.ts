@@ -6,17 +6,21 @@ import {
   conversationHistorySelect,
   type ConversationHistoryQueryResult,
 } from './ConversationMessageMapper.js';
-import { MessageRole } from '../constants/index.js';
+import { MessageRole } from '@tzurot/common-types';
 
-// Suppress logger warnings in tests
-vi.mock('../utils/logger.js', () => ({
-  createLogger: () => ({
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
-}));
+// Suppress logger warnings in tests (createLogger now comes from the barrel)
+vi.mock('@tzurot/common-types', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+  return {
+    ...actual,
+    createLogger: () => ({
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }),
+  };
+});
 
 describe('ConversationMessageMapper', () => {
   describe('conversationHistorySelect', () => {

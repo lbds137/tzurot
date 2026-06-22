@@ -3,9 +3,17 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { PrismaClient } from './prisma.js';
 import { ConversationSyncService } from './ConversationSyncService.js';
-import * as tokenCounter from '../utils/tokenCounter.js';
+import { type PrismaClient } from '@tzurot/common-types';
+
+// countTextTokens now lives in @tzurot/common-types (consumed by the production
+// service via the barrel), so intercept it through a partial mock rather than a
+// namespace spy — the latter doesn't reliably catch a re-exported binding.
+const { mockCountTextTokens } = vi.hoisted(() => ({ mockCountTextTokens: vi.fn() }));
+vi.mock('@tzurot/common-types', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+  return { ...actual, countTextTokens: mockCountTextTokens };
+});
 
 // Create mock Prisma client
 const createMockPrismaClient = () => {
@@ -31,11 +39,12 @@ describe('ConversationSyncService', () => {
   let mockPrismaClient: ReturnType<typeof createMockPrismaClient>;
 
   beforeEach(() => {
+    // Clear mock call history / return values between tests (matches the
+    // ConversationHistoryService test; mockCountTextTokens is hoisted module-wide)
+    vi.clearAllMocks();
     // Create fresh mocks for each test
     mockPrismaClient = createMockPrismaClient();
     service = new ConversationSyncService(mockPrismaClient as unknown as PrismaClient);
-    // Create fresh spy for each test
-    vi.spyOn(tokenCounter, 'countTextTokens');
   });
 
   describe('softDeleteMessage', () => {
@@ -122,7 +131,7 @@ describe('ConversationSyncService', () => {
       const newContent = 'Updated content from Discord';
       const expectedTokens = 5;
 
-      (tokenCounter.countTextTokens as ReturnType<typeof vi.fn>).mockReturnValue(expectedTokens);
+      mockCountTextTokens.mockReturnValue(expectedTokens);
       mockPrismaClient.conversationHistory.update.mockResolvedValue({
         id: 'msg-123',
         content: newContent,
@@ -132,7 +141,7 @@ describe('ConversationSyncService', () => {
       const result = await service.updateMessageContent('msg-123', newContent);
 
       expect(result).toBe(true);
-      expect(tokenCounter.countTextTokens).toHaveBeenCalledWith(newContent);
+      expect(mockCountTextTokens).toHaveBeenCalledWith(newContent);
       expect(mockPrismaClient.conversationHistory.update).toHaveBeenCalledWith({
         where: { id: 'msg-123' },
         data: {

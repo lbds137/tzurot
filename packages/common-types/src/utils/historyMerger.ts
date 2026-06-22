@@ -7,7 +7,7 @@
 
 import { createLogger } from './logger.js';
 import { NO_TEXT_CONTENT_PLACEHOLDER } from '../constants/message.js';
-import type { ConversationMessage } from '../services/ConversationMessageMapper.js';
+import type { ConversationMessage } from '../types/conversationMessage.js';
 
 const logger = createLogger('HistoryMerger');
 

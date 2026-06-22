@@ -26,9 +26,6 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
   return {
     ...actual,
-    ConversationHistoryService: class {
-      getChannelHistory = vi.fn();
-    },
     createLogger: () => ({
       info: vi.fn(),
       debug: vi.fn(),
@@ -119,25 +116,28 @@ vi.mock('./CrossChannelHistoryFetcher.js', () => ({
 }));
 
 // Import after mocks
-import { ConversationHistoryService } from '@tzurot/common-types';
 import { extractDiscordEnvironment } from '../utils/discordContext.js';
 import { extractAttachments } from '../utils/attachmentExtractor.js';
 import { MessageReferenceExtractor as _MessageReferenceExtractor } from '../handlers/MessageReferenceExtractor.js';
 
-// UserService now lives in @tzurot/identity, which bot-client cannot import
-// (Prisma-backed). This vestigial mock is no longer wired into the builder;
-// the local structural type keeps the legacy per-test setups compiling.
+// UserService + ConversationHistoryService now live in @tzurot/identity and
+// @tzurot/conversation-history — both Prisma-backed, so bot-client cannot import
+// them. These vestigial mocks are no longer wired into the builder; the local
+// structural types keep the legacy per-test setups compiling.
 type MockUserService = {
   getOrCreateUser: ReturnType<typeof vi.fn>;
   getOrCreateUsersInBatch: ReturnType<typeof vi.fn>;
   getPersonaName: ReturnType<typeof vi.fn>;
   getUserTimezone: ReturnType<typeof vi.fn>;
 };
+type MockConversationHistoryService = {
+  getChannelHistory: ReturnType<typeof vi.fn>;
+};
 
 describe('MessageContextBuilder', () => {
   let builder: MessageContextBuilder;
   let mockPrisma: PrismaClient;
-  let mockHistoryService: ConversationHistoryService;
+  let mockHistoryService: MockConversationHistoryService;
   let mockUserService: MockUserService;
   let mockPersonality: LoadedPersonality;
   let mockMessage: Message;
@@ -176,7 +176,7 @@ describe('MessageContextBuilder', () => {
     // mockUserService handling below; see the backlog cleanup item.
     mockHistoryService = {
       getChannelHistory: vi.fn().mockResolvedValue([]),
-    } as unknown as ConversationHistoryService;
+    } as unknown as MockConversationHistoryService;
     // userService is no longer a builder field — the author path resolves via
     // the routing-context endpoint and the extended-context batch moved
     // worker-side. A standalone mock keeps legacy per-test setups inert (they

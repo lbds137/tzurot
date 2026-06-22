@@ -22,11 +22,11 @@ import { type Response, type RequestHandler } from 'express';
 import {
   createLogger,
   generateConversationHistoryUuid,
-  ConversationHistoryService,
   MessageRole,
   PersistUserMessageRequestSchema,
   type PersistUserMessageResponse,
 } from '@tzurot/common-types';
+import { ConversationHistoryService } from '@tzurot/conversation-history';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { sendZodError } from '../../utils/zodHelpers.js';

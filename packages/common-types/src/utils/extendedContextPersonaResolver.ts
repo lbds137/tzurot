@@ -30,7 +30,7 @@
 
 import { createLogger } from './logger.js';
 import type { PersonaResolverLike } from '../types/personaResolution.js';
-import type { ConversationMessage } from '../services/ConversationMessageMapper.js';
+import type { ConversationMessage } from '../types/conversationMessage.js';
 import type { ReactionReactor } from '../types/schemas/message.js';
 import { INTERNAL_DISCORD_ID_PREFIX } from '../constants/personaId.js';
 

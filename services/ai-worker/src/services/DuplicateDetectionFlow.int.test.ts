@@ -20,13 +20,13 @@ import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import {
   PrismaClient,
-  ConversationHistoryService,
   MessageRole,
   generatePersonalityUuid,
   generateSystemPromptUuid,
   generatePersonaUuid,
   generateUserUuid,
 } from '@tzurot/common-types';
+import { ConversationHistoryService } from '@tzurot/conversation-history';
 import { isRecentDuplicate } from '../utils/crossTurnDetection.js';
 import { getRecentAssistantMessages } from '../utils/conversationHistoryUtils.js';
 import { createTestPGlite, loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';

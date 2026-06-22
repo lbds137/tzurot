@@ -9,6 +9,7 @@ export * from './types/ai.js';
 export * from './types/audio-provider.js';
 export * from './types/configResolution.js';
 export * from './types/personaResolution.js';
+export * from './types/conversationMessage.js';
 export * from './types/sttProvider.js';
 export * from './types/diagnostic.js';
 export * from './types/incognito.js';
@@ -96,9 +97,13 @@ export * from './services/TtsConfigCacheInvalidationService.js';
 export * from './services/SttResolverCacheInvalidationService.js';
 export * from './services/tts/TtsProvider.js';
 export * from './services/tts/TtsProviderError.js';
-export * from './services/ConversationHistoryService.js';
+// Prisma-backed conversation persistence (ConversationHistoryService,
+// ConversationSyncService, ConversationMessageMapper, referenceImageDescriptions)
+// lives in `@tzurot/conversation-history`. The data SHAPES it produces
+// (ConversationMessage / CrossChannelHistoryGroup) stay here in
+// types/conversationMessage.ts, and the PURE sync-diff util stays too — both are
+// consumed by bot-client, which can't depend on the Prisma-backed package.
 export * from './services/historyCutoff.js';
-export * from './services/ConversationSyncService.js';
 export * from './services/conversationSyncDiff.js';
 export * from './utils/historyMerger.js';
 export * from './utils/extendedContextPersonaResolver.js';

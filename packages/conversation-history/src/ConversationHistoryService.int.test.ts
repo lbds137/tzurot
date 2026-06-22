@@ -11,12 +11,11 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { PrismaClient } from './prisma.js';
 import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { createTestPGlite, loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
 import { ConversationHistoryService } from './ConversationHistoryService.js';
-import { MessageRole } from '../constants/index.js';
+import { PrismaClient, MessageRole } from '@tzurot/common-types';
 
 describe('ConversationHistoryService Component Test', () => {
   let prisma: PrismaClient;
