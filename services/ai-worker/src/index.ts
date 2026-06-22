@@ -24,7 +24,7 @@ import {
   getConfig,
   parseRedisUrl,
   createBullMQRedisConfig,
-  getPrismaClient,
+  createPrismaClient,
   CONTENT_TYPES,
   HealthStatus,
   QUEUE_CONFIG,
@@ -309,7 +309,9 @@ async function main(): Promise<void> {
   );
 
   // Initialize core infrastructure
-  const prisma = getPrismaClient();
+  // ai-worker owns its PrismaClient: constructed here, injected into every
+  // service that needs DB access, disposed in the shutdown handler below.
+  const { prisma, dispose: disposePrisma } = createPrismaClient();
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- REDIS_URL is validated at startup by validateRequiredEnvVars(), but TypeScript can't track validation across function boundaries
   const cacheRedis = new Redis(envConfig.REDIS_URL!);
   cacheRedis.on('error', err => logger.error({ err }, 'Cache Redis error'));
@@ -392,6 +394,9 @@ async function main(): Promise<void> {
     }
     await Promise.all(cleanupFns.map(fn => fn()));
     cacheRedis.disconnect();
+    // Dispose last: the workers above have stopped consuming jobs, so nothing
+    // else holds the pool. dispose() stops the pool-stats gauge + $disconnects.
+    await disposePrisma();
     logger.info('All connections closed');
     process.exit(0);
   };

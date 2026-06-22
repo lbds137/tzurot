@@ -11,8 +11,8 @@
 import { PgvectorMemoryAdapter } from './PgvectorMemoryAdapter.js';
 import {
   createLogger,
-  getPrismaClient,
   type LoadedPersonality,
+  type PrismaClient,
   generatePendingMemoryUuid,
 } from '@tzurot/common-types';
 import type { ConversationContext } from './ConversationalRAGTypes.js';
@@ -22,7 +22,10 @@ const logger = createLogger('LongTermMemoryService');
 export class LongTermMemoryService {
   private memoryManager?: PgvectorMemoryAdapter;
 
-  constructor(memoryManager?: PgvectorMemoryAdapter) {
+  constructor(
+    private readonly prisma: PrismaClient,
+    memoryManager?: PgvectorMemoryAdapter
+  ) {
     this.memoryManager = memoryManager;
   }
 
@@ -42,7 +45,7 @@ export class LongTermMemoryService {
     context: ConversationContext,
     personaId: string
   ): Promise<void> {
-    const prisma = getPrismaClient();
+    const { prisma } = this;
     let pendingMemoryId: string | null = null;
 
     try {

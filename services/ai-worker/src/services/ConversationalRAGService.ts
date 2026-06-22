@@ -16,8 +16,8 @@ import {
   MessageContent,
   createLogger,
   TEXT_LIMITS,
-  getPrismaClient,
   type LoadedPersonality,
+  type PrismaClient,
 } from '@tzurot/common-types';
 import { contentToText } from '../utils/baseMessageContent.js';
 import { logAndThrow } from '../utils/errorHandling.js';
@@ -49,13 +49,13 @@ import {
 import type { DiagnosticCollector } from './DiagnosticCollector.js';
 import type {
   ConversationContext,
-  PersonaLoadResult,
   ModelInvocationResult,
   ModelInvocationOptions,
   RAGResponse,
   GenerateResponseOptions,
   DeferredMemoryData,
 } from './ConversationalRAGTypes.js';
+import { loadPersonasAndResolveReferences } from './personaReferenceLoader.js';
 
 const logger = createLogger('ConversationalRAGService');
 
@@ -72,17 +72,18 @@ export class ConversationalRAGService {
   private memoryPersistence: MemoryPersistenceService;
 
   constructor(
+    private readonly prisma: PrismaClient,
     memoryManager?: PgvectorMemoryAdapter,
     personaResolver?: PersonaResolver,
     private readonly apiKeyResolver?: ApiKeyResolver
   ) {
     this.llmInvoker = new LLMInvoker();
-    this.memoryRetriever = new MemoryRetriever(memoryManager, personaResolver);
+    this.memoryRetriever = new MemoryRetriever(prisma, memoryManager, personaResolver);
     this.promptBuilder = new PromptBuilder();
-    const longTermMemory = new LongTermMemoryService(memoryManager);
+    const longTermMemory = new LongTermMemoryService(prisma, memoryManager);
     this.referencedMessageFormatter = new ReferencedMessageFormatter();
     this.contextWindowManager = new ContextWindowManager();
-    this.userReferenceResolver = new UserReferenceResolver(getPrismaClient());
+    this.userReferenceResolver = new UserReferenceResolver(prisma);
     this.contentBudgetManager = new ContentBudgetManager(
       this.promptBuilder,
       this.contextWindowManager
@@ -94,46 +95,6 @@ export class ConversationalRAGService {
       this.responsePostProcessor
     );
     this.memoryPersistence = new MemoryPersistenceService(longTermMemory, this.memoryRetriever);
-  }
-
-  /**
-   * Load participant personas and resolve user references in system prompt
-   */
-  private async loadPersonasAndResolveReferences(
-    personality: LoadedPersonality,
-    context: ConversationContext
-  ): Promise<PersonaLoadResult> {
-    // Fetch ALL participant personas from conversation history
-    // Pass personalityId for resolving per-personality persona overrides
-    const participantPersonas = await this.memoryRetriever.getAllParticipantPersonas(
-      context,
-      personality.id
-    );
-    if (participantPersonas.size > 0) {
-      const names = Array.from(participantPersonas.keys());
-      logger.info({ count: participantPersonas.size, names }, 'Loaded participant personas');
-    } else {
-      logger.debug('No participant personas found in conversation history');
-    }
-
-    // Resolve user references across all personality text fields (shapes.inc format mentions).
-    // Text-only transform: `@Lila` / `@[Lila](user:UUID)` / `<@discord_id>` in static personality
-    // fields are replaced with the bare persona name in the rendered prompt. Resolved personas
-    // are NOT injected into the participants list — personality fields are author-defined static
-    // content, not live conversation. Live participants come from chat-log scan
-    // (`extractParticipants`) and current-message @mentions (`mentionedPersonas`); a name
-    // appearing in a personality's example text does not mean that user is in the conversation.
-    const { resolvedPersonality: processedPersonality, resolvedPersonas } =
-      await this.userReferenceResolver.resolvePersonalityReferences(personality);
-
-    if (resolvedPersonas.length > 0) {
-      logger.info(
-        { count: resolvedPersonas.length },
-        'Resolved user refs in personality fields (text-only; not added to participants)'
-      );
-    }
-
-    return { participantPersonas, processedPersonality };
   }
 
   /** Invoke the model and clean up the response */
@@ -393,11 +354,22 @@ export class ConversationalRAGService {
 
       // Step 1.5: Enrich history with inline image descriptions + hydrated stored
       // references, using the cross-provider-resolved vision auth.
-      await enrichRagHistory({ context, personality, visionAuth, isGuestMode, sttDispatch });
+      await enrichRagHistory({
+        prisma: this.prisma,
+        context,
+        personality,
+        visionAuth,
+        isGuestMode,
+        sttDispatch,
+      });
 
       // Step 2: Load personas and resolve user references
-      const { participantPersonas, processedPersonality } =
-        await this.loadPersonasAndResolveReferences(personality, context);
+      const { participantPersonas, processedPersonality } = await loadPersonasAndResolveReferences(
+        this.memoryRetriever,
+        this.userReferenceResolver,
+        personality,
+        context
+      );
 
       // Step 3: Retrieve relevant memories
       const qPreview = inputs.searchQuery.substring(0, TEXT_LIMITS.LOG_PREVIEW);

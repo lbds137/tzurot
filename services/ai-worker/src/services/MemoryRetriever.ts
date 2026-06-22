@@ -10,11 +10,11 @@
 import { PgvectorMemoryAdapter, MemoryQueryOptions } from './PgvectorMemoryAdapter.js';
 import {
   createLogger,
-  getPrismaClient,
   AI_DEFAULTS,
   TEXT_LIMITS,
   formatMemoryTimestamp,
   type LoadedPersonality,
+  type PrismaClient,
   type ResolvedConfigOverrides,
 } from '@tzurot/common-types';
 import type {
@@ -38,10 +38,14 @@ export class MemoryRetriever {
   private memoryManager?: PgvectorMemoryAdapter;
   private personaResolver: PersonaResolver;
 
-  constructor(memoryManager?: PgvectorMemoryAdapter, personaResolver?: PersonaResolver) {
+  constructor(
+    prisma: PrismaClient,
+    memoryManager?: PgvectorMemoryAdapter,
+    personaResolver?: PersonaResolver
+  ) {
     this.memoryManager = memoryManager;
     // Create default PersonaResolver if not provided (for backwards compatibility)
-    this.personaResolver = personaResolver ?? new PersonaResolver(getPrismaClient());
+    this.personaResolver = personaResolver ?? new PersonaResolver(prisma);
   }
 
   /**

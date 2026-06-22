@@ -17,6 +17,7 @@ import {
   ApiErrorCategory,
   type LLMGenerationJobData,
   type LoadedPersonality,
+  type PrismaClient,
   REDIS_KEY_PREFIXES,
 } from '@tzurot/common-types';
 import { LLMGenerationHandler } from './LLMGenerationHandler.js';
@@ -87,6 +88,11 @@ function createMockRAGService() {
   };
 }
 
+// Injected into the handler. The pipeline's Prisma-backed children store it at
+// construction but never touch it here — ContextStep is stubbed and
+// diagnosticStorage is mocked, so the placeholder is sufficient.
+const mockPrisma = {} as unknown as PrismaClient;
+
 // Mock ApiKeyResolver
 function createMockApiKeyResolver() {
   return {
@@ -146,7 +152,7 @@ describe('LLMGenerationHandler', () => {
     vi.clearAllMocks();
 
     mockRAGService = createMockRAGService();
-    handler = new LLMGenerationHandler(mockRAGService as any);
+    handler = new LLMGenerationHandler(mockRAGService as any, mockPrisma);
 
     // Default mock implementations
     mockExtractParticipants.mockReturnValue([]);
@@ -683,6 +689,7 @@ describe('LLMGenerationHandler', () => {
         const mockApiKeyResolver = createMockApiKeyResolver();
         const handlerWithResolver = new LLMGenerationHandler(
           mockRAGService as any,
+          mockPrisma,
           mockApiKeyResolver
         );
 
@@ -723,6 +730,7 @@ describe('LLMGenerationHandler', () => {
         const mockApiKeyResolver = createMockApiKeyResolver();
         const handlerWithResolver = new LLMGenerationHandler(
           mockRAGService as any,
+          mockPrisma,
           mockApiKeyResolver
         );
 

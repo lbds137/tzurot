@@ -147,6 +147,26 @@ const prisma = new PrismaClient();
       expect(process.exitCode).toBe(1);
     });
 
+    it('should detect bot-client importing createPrismaClient from the common-types barrel', async () => {
+      // createPrismaClient is the Prisma entry point after the singleton eviction;
+      // bot-client owning a client would reintroduce the direct-DB boundary break.
+      vi.mocked(readdirSync).mockImplementation(((dir: unknown) =>
+        String(dir).includes('bot-client/src') ? ['test.ts'] : []) as typeof readdirSync);
+      vi.mocked(statSync).mockReturnValue({ isDirectory: () => false } as ReturnType<
+        typeof statSync
+      >);
+      vi.mocked(readFileSync).mockReturnValue(
+        `import { createPrismaClient } from '@tzurot/common-types';`
+      );
+
+      await checkBoundaries();
+
+      const output = consoleLogSpy.mock.calls.flat().join(' ');
+      expect(output).toContain('boundary violation');
+      expect(output).toContain('Prisma-backed');
+      expect(process.exitCode).toBe(1);
+    });
+
     it('should detect a Prisma-backed symbol in a MULTI-LINE common-types import', async () => {
       // Regression guard: the old line-by-line scan skipped any line without the
       // `import` keyword, so `getPrismaClient,` on its own line was invisible.

@@ -5,7 +5,7 @@
  * Extracted from GenerationStep to maintain file size limits.
  */
 
-import { createLogger, getPrismaClient } from '@tzurot/common-types';
+import { createLogger, type PrismaClient } from '@tzurot/common-types';
 import { sanitizeForJsonb } from '../../../../utils/jsonSanitizer.js';
 import type { DiagnosticCollector } from '../../../../services/DiagnosticCollector.js';
 
@@ -22,6 +22,7 @@ const logger = createLogger('DiagnosticStorage');
  * cleanup-diagnostic-logs job.
  */
 export function storeDiagnosticLog(
+  prisma: PrismaClient,
   collector: DiagnosticCollector,
   model: string,
   provider: string
@@ -33,7 +34,6 @@ export function storeDiagnosticLog(
   const sanitizedPayload = sanitizeForJsonb(payload);
 
   // Fire-and-forget: don't await, just log errors
-  const prisma = getPrismaClient();
   prisma.llmDiagnosticLog
     .create({
       data: {
