@@ -12,8 +12,8 @@
  *
  * Cross-package scan ↔ turbo cache contract:
  *
- * This test scans all six packages' src directories (see findSourceFiles
- * call below). Because the test physically lives in @tzurot/common-types,
+ * This test scans every workspace src directory (see the `dirs` list in the
+ * findSourceFiles call below). Because the test physically lives in @tzurot/common-types,
  * turbo.json overrides @tzurot/common-types#test to include sibling
  * services and packages src globs as cache inputs — without that, a new
  * file added under services/bot-client/src with no colocated test would
