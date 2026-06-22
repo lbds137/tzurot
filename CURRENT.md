@@ -14,7 +14,8 @@
 - **2p-1 ✅** — Prisma singleton evicted; every app/tool owns its `PrismaClient` via `createPrismaClient()`; `getPrismaClient()` + the module singleton DELETED (#1292/#1293/#1294).
 - **2p-2 ✅** — extracted **`@tzurot/config-resolver`** (the 5 resolver classes) (#1295).
 - **2p-3a ✅** — extracted **`@tzurot/identity`** (UserService, PersonaResolver + BaseConfigResolver, PersonalityService cluster, RoutingContextResolver); persona reverse-edge solved via the `CorePersonaConfig`/`PersonaResolverLike` contract that stays in common-types (#1299).
-- **➡️ 2p-3b NEXT** — extract `@tzurot/conversation-history`; then **2q** (Redis pub/sub split) closes the epic.
+- **2p-3b ✅** — extracted **`@tzurot/conversation-history`** (ConversationHistoryService, ConversationSyncService, referenceImageDescriptions, + the Prisma half of ConversationMessageMapper); `conversationSyncDiff` + the `ConversationMessage`/`CrossChannelHistoryGroup` shapes stay in common-types (bot-client consumes them) (#1300). **Prisma-backed `services/` extraction COMPLETE.**
+- **➡️ 2q NEXT** — split the Redis pub/sub publisher/subscriber pairs; closes the epic (modulo the 3 follow-up sweep clusters — see [`active-epic.md`](backlog/active-epic.md) close-out gate).
 
 Also: test-pyramid taxonomy single-sourcing + Phase-1 enforcement seeds (#1283–#1285). Full epic detail in [`backlog/active-epic.md`](backlog/active-epic.md). _beta.135 release notes: [tag v3.0.0-beta.135](https://github.com/lbds137/tzurot/releases/tag/v3.0.0-beta.135)._
 
