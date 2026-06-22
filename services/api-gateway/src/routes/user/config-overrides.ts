@@ -17,7 +17,6 @@ import { StatusCodes } from 'http-status-codes';
 import { z } from 'zod';
 import {
   createLogger,
-  ConfigCascadeResolver,
   Prisma,
   generateUserPersonalityConfigUuid,
   DISCORD_SNOWFLAKE,
@@ -26,6 +25,7 @@ import {
   ConfigOverridesSchema,
   type ConfigOverrideSource,
 } from '@tzurot/common-types';
+import { ConfigCascadeResolver } from '@tzurot/config-resolver';
 import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import {

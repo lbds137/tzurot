@@ -22,9 +22,9 @@ import {
   isVoiceEnabled,
   TimeoutError,
   type AudioProviderId,
-  type TtsConfigResolver,
   type TtsProviderId,
 } from '@tzurot/common-types';
+import type { TtsConfigResolver } from '@tzurot/config-resolver';
 import type { IPipelineStep, GenerationContext } from '../types.js';
 import { dispatchTts } from '../../../../services/voice/TtsDispatcher.js';
 import {

@@ -30,12 +30,14 @@ import {
   USER_ERROR_MESSAGES,
   type LLMGenerationJobData,
   type LLMGenerationResult,
-  type LlmConfigResolver,
   type PrismaClient,
-  type TtsConfigResolver,
-  type ConfigCascadeResolver,
-  type SttResolver,
 } from '@tzurot/common-types';
+import type {
+  LlmConfigResolver,
+  TtsConfigResolver,
+  ConfigCascadeResolver,
+  SttResolver,
+} from '@tzurot/config-resolver';
 import { PrismaContextDataSource } from '../../services/context/PrismaContextDataSource.js';
 import { ContextAssembler } from '../../services/context/ContextAssembler.js';
 import { VisionDescriptionWriter } from '../../services/context/visionDescriptionWriter.js';

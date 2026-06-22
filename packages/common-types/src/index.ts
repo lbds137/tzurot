@@ -7,6 +7,7 @@ export * from './constants/index.js';
 // Export types
 export * from './types/ai.js';
 export * from './types/audio-provider.js';
+export * from './types/configResolution.js';
 export * from './types/sttProvider.js';
 export * from './types/diagnostic.js';
 export * from './types/incognito.js';
@@ -78,13 +79,15 @@ export { normalizeRole, normalizeTimestamp } from './utils/messageNormalization.
 export * from './services/prisma.js';
 export * from './services/poolConfig.js';
 export * from './services/personality/index.js';
-export * from './services/BaseConfigResolver.js';
+// Config-resolution RESOLVERS (BaseConfigResolver, Llm/Tts/SttResolver,
+// ConfigCascadeResolver — the cascade-resolution logic) live in
+// `@tzurot/config-resolver`. The config MAPPERS + tts provider TYPES stay here:
+// they're data shapes consumed by common-types schemas + personality loading,
+// so moving them would cycle. The cache-invalidation siblings stay too pending
+// the pub/sub publisher/subscriber split.
 export * from './services/LlmConfigMapper.js';
-export * from './services/LlmConfigResolver.js';
 export * from './services/TtsConfigMapper.js';
-export * from './services/TtsConfigResolver.js';
 export * from './services/TtsConfigCacheInvalidationService.js';
-export * from './services/SttResolver.js';
 export * from './services/SttResolverCacheInvalidationService.js';
 export * from './services/tts/TtsProvider.js';
 export * from './services/tts/TtsProviderError.js';
@@ -106,7 +109,6 @@ export * from './services/ApiKeyCacheInvalidationService.js';
 export * from './services/LlmConfigCacheInvalidationService.js';
 export * from './services/PersonaCacheInvalidationService.js';
 export * from './services/ChannelActivationCacheInvalidationService.js';
-export * from './services/ConfigCascadeResolver.js';
 export * from './services/ConfigCascadeCacheInvalidationService.js';
 export * from './services/DenylistCacheInvalidationService.js';
 export { VoiceTranscriptCache } from './services/VoiceTranscriptCache.js';

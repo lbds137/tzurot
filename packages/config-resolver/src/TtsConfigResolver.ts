@@ -27,9 +27,9 @@ import {
   TTS_CONFIG_SELECT_WITH_NAME,
   mapTtsConfigFromDbWithName,
   type MappedTtsConfigWithName,
-} from './TtsConfigMapper.js';
-import type { PrismaClient } from './prisma.js';
-import type { ResolvedTtsConfig } from './tts/TtsProvider.js';
+  type PrismaClient,
+  type ResolvedTtsConfig,
+} from '@tzurot/common-types';
 
 /** Sentinel cache key for the free-default lookup (no userId/personalityId axis). */
 const FREE_DEFAULT_CACHE_KEY = '__free_default__';
@@ -41,9 +41,9 @@ const FREE_DEFAULT_CACHE_KEY = '__free_default__';
  *
  * `Object.freeze` on both the outer object AND the nested
  * `advancedParameters` map prevents callers from mutating the shared
- * module-level constant — a defensive guard against the failure mode
- * claude-review caught on PR #958: `result.config.advancedParameters['k'] = v`
- * silently poisoning the constant for every subsequent caller. We also
+ * module-level constant — a defensive guard against the failure mode where
+ * `result.config.advancedParameters['k'] = v` would otherwise silently poison
+ * the constant for every subsequent caller. We also
  * spread on return below; defense-in-depth.
  */
 const HARDCODED_FALLBACK: ResolvedTtsConfig = Object.freeze({
@@ -206,8 +206,8 @@ export class TtsConfigResolver extends BaseConfigResolver<
    * `tier` is the cascade tier the base waterfall is currently resolving
    * (either 'user-personality' or 'user-default'). It's baked into the inner
    * `ResolvedTtsConfig.source` so callers reading the inner field get the
-   * same answer as the outer `ConfigResolutionResult.source` — closes the
-   * mismatch claude-review flagged on PR #958.
+   * same answer as the outer `ConfigResolutionResult.source` — closing the
+   * inner/outer source mismatch.
    */
   protected mergeWithPersonality(
     _personality: LoadedTtsPersonality,
@@ -272,9 +272,8 @@ export class TtsConfigResolver extends BaseConfigResolver<
         configName: mapped.name,
       };
 
-      // The base's `ConfigResolutionSource` union now includes 'free-default'
-      // (PR 2 carry-over from #958), so the outer source matches the inner
-      // config.source — no more sentinel placeholder.
+      // The base's `ConfigResolutionSource` union includes 'free-default', so
+      // the outer source matches the inner config.source — no sentinel placeholder.
       this.cache.set(FREE_DEFAULT_CACHE_KEY, {
         config,
         source: config.source,

@@ -76,30 +76,12 @@ vi.mock('@tzurot/common-types', async () => {
       });
       unsubscribe = mockUnsubscribe;
     },
-    ConfigCascadeResolver: class {
-      clearCache = mockCascadeResolver.clearCache;
-      invalidateUserCache = mockCascadeResolver.invalidateUserCache;
-      invalidatePersonalityCache = mockCascadeResolver.invalidatePersonalityCache;
-      invalidateChannelCache = mockCascadeResolver.invalidateChannelCache;
-    },
     ConfigCascadeCacheInvalidationService: class {
       subscribe = vi.fn().mockImplementation((cb: SubscribeCallback) => {
         capturedCallbacks.cascade = cb;
         return Promise.resolve();
       });
       unsubscribe = mockUnsubscribe;
-    },
-    LlmConfigResolver: class {
-      clearCache = mockLlmConfigResolver.clearCache;
-      invalidateUserCache = mockLlmConfigResolver.invalidateUserCache;
-    },
-    TtsConfigResolver: class {
-      clearCache = mockTtsConfigResolver.clearCache;
-      invalidateUserCache = mockTtsConfigResolver.invalidateUserCache;
-    },
-    SttResolver: class {
-      clearCache = mockSttResolver.clearCache;
-      invalidateUserCache = mockSttResolver.invalidateUserCache;
     },
     SttResolverCacheInvalidationService: class {
       subscribe = vi.fn().mockImplementation((cb: SubscribeCallback) => {
@@ -110,6 +92,27 @@ vi.mock('@tzurot/common-types', async () => {
     },
   };
 });
+
+vi.mock('@tzurot/config-resolver', () => ({
+  ConfigCascadeResolver: class {
+    clearCache = mockCascadeResolver.clearCache;
+    invalidateUserCache = mockCascadeResolver.invalidateUserCache;
+    invalidatePersonalityCache = mockCascadeResolver.invalidatePersonalityCache;
+    invalidateChannelCache = mockCascadeResolver.invalidateChannelCache;
+  },
+  LlmConfigResolver: class {
+    clearCache = mockLlmConfigResolver.clearCache;
+    invalidateUserCache = mockLlmConfigResolver.invalidateUserCache;
+  },
+  TtsConfigResolver: class {
+    clearCache = mockTtsConfigResolver.clearCache;
+    invalidateUserCache = mockTtsConfigResolver.invalidateUserCache;
+  },
+  SttResolver: class {
+    clearCache = mockSttResolver.clearCache;
+    invalidateUserCache = mockSttResolver.invalidateUserCache;
+  },
+}));
 
 vi.mock('./services/ApiKeyResolver.js', () => ({
   ApiKeyResolver: class {

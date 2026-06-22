@@ -61,19 +61,22 @@ vi.mock('@tzurot/common-types', async importOriginal => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
-    // Explicit mock for resolvers used in resolve handler
-    LlmConfigResolver: class {
-      resolveConfig = mockResolveConfig;
-      stopCleanup = vi.fn();
-      clearCache = vi.fn();
-    },
-    ConfigCascadeResolver: class {
-      resolveOverrides = mockResolveOverrides;
-      stopCleanup = vi.fn();
-      clearCache = vi.fn();
-    },
   };
 });
+
+vi.mock('@tzurot/config-resolver', () => ({
+  // Explicit mock for resolvers used in resolve handler
+  LlmConfigResolver: class {
+    resolveConfig = mockResolveConfig;
+    stopCleanup = vi.fn();
+    clearCache = vi.fn();
+  },
+  ConfigCascadeResolver: class {
+    resolveOverrides = mockResolveOverrides;
+    stopCleanup = vi.fn();
+    clearCache = vi.fn();
+  },
+}));
 
 // Uses the shared mock at `src/services/__mocks__/AuthMiddleware.ts`
 // (auto-discovered by vitest). Passes `getOrCreateUserService` through to

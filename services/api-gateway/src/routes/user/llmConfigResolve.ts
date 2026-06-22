@@ -12,12 +12,11 @@ import { StatusCodes } from 'http-status-codes';
 import { z } from 'zod';
 import {
   createLogger,
-  LlmConfigResolver,
-  ConfigCascadeResolver,
   DISCORD_SNOWFLAKE,
   type PrismaClient,
   type LoadedPersonality,
 } from '@tzurot/common-types';
+import { LlmConfigResolver, ConfigCascadeResolver } from '@tzurot/config-resolver';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import type { AuthenticatedRequest } from '../../types.js';

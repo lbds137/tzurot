@@ -10,8 +10,8 @@ import {
   HARDCODED_CONFIG_DEFAULTS,
   type ConfigOverrideSource,
   type ResolvedConfigOverrides,
-  type ConfigCascadeResolver,
 } from '@tzurot/common-types';
+import type { ConfigCascadeResolver } from '@tzurot/config-resolver';
 import type { IPipelineStep, GenerationContext, ResolvedConfig } from '../types.js';
 
 const logger = createLogger('ConfigStep');

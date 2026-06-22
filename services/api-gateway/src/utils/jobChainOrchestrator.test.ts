@@ -8,11 +8,11 @@ import { flowProducer } from '../queue.js';
 import {
   JobType,
   type LoadedPersonality,
-  type LlmConfigResolver,
   type JobContext,
   type ResponseDestination,
   CONTENT_TYPES,
 } from '@tzurot/common-types';
+import type { LlmConfigResolver } from '@tzurot/config-resolver';
 
 // Mock the queue (flowProducer for job dependencies)
 vi.mock('../queue.js', () => ({

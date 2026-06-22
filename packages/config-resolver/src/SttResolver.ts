@@ -18,17 +18,17 @@
  * choice)" in dashboards.
  */
 
-import { createLogger } from '../utils/logger.js';
-import { TTLCache } from '../utils/TTLCache.js';
-import { INTERVALS } from '../constants/timing.js';
 import {
+  createLogger,
+  TTLCache,
+  INTERVALS,
   isSttProvider,
   isByokAudioProvider,
   type SttProvider,
   type SttResolutionSource,
-} from '../types/sttProvider.js';
+  type PrismaClient,
+} from '@tzurot/common-types';
 import type { Logger } from 'pino';
-import type { PrismaClient } from './prisma.js';
 
 export interface SttResolutionResult {
   provider: SttProvider;

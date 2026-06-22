@@ -7,7 +7,8 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import type { Response } from 'express';
-import type { PrismaClient, LlmConfigResolver, ConfigCascadeResolver } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types';
+import type { LlmConfigResolver, ConfigCascadeResolver } from '@tzurot/config-resolver';
 import { createResolveHandler, resolveConfigBodySchema } from './llmConfigResolve.js';
 import type { AuthenticatedRequest } from '../../types.js';
 
