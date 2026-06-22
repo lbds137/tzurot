@@ -7,7 +7,8 @@
 
 import { Router, type Request, type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, ConversationHistoryService } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types';
+import { ConversationHistoryService } from '@tzurot/conversation-history';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';

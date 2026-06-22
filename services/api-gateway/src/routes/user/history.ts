@@ -15,13 +15,13 @@ import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
   type PrismaClient,
-  ConversationHistoryService,
   generateUserPersonaHistoryConfigUuid,
   ClearHistorySchema,
   UndoHistorySchema,
   HardDeleteHistorySchema,
   HistoryStatsQuerySchema,
 } from '@tzurot/common-types';
+import { ConversationHistoryService } from '@tzurot/conversation-history';
 import { ConversationRetentionService } from '../../services/ConversationRetentionService.js';
 import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';

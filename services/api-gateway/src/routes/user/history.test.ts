@@ -21,11 +21,6 @@ const mockResolve = vi.fn();
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
 
-  // Create a mock class that returns our mock methods
-  class MockConversationHistoryService {
-    getHistoryStats = mockGetHistoryStats;
-  }
-
   return {
     ...actual,
     createLogger: () => ({
@@ -34,9 +29,14 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
-    ConversationHistoryService: MockConversationHistoryService,
   };
 });
+
+vi.mock('@tzurot/conversation-history', () => ({
+  ConversationHistoryService: class {
+    getHistoryStats = mockGetHistoryStats;
+  },
+}));
 
 vi.mock('@tzurot/identity', () => {
   class MockPersonaResolver {

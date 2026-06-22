@@ -6,43 +6,16 @@
  * of select objects and mapping logic used in 3+ query methods.
  */
 
-import { Prisma } from './prisma.js';
-import { createLogger } from '../utils/logger.js';
-import { MessageRole } from '../constants/index.js';
-import { messageMetadataSchema, type MessageMetadata } from '../types/schemas/index.js';
+import {
+  Prisma,
+  createLogger,
+  MessageRole,
+  messageMetadataSchema,
+  type MessageMetadata,
+  type ConversationMessage,
+} from '@tzurot/common-types';
 
 const logger = createLogger('ConversationMessageMapper');
-
-export interface ConversationMessage {
-  id: string;
-  role: MessageRole;
-  content: string;
-  tokenCount?: number; // Cached token count (computed once, reused on every request)
-  createdAt: Date;
-  personaId: string;
-  personaName?: string; // The user's persona name for display in context
-  discordUsername?: string; // Discord username for disambiguation when persona name matches personality name
-  discordMessageId: string[]; // Discord snowflake IDs for chunked messages (deduplication)
-  isForwarded?: boolean; // Whether this message was forwarded from another channel
-  messageMetadata?: MessageMetadata; // Structured metadata (referenced messages, attachments)
-  // AI personality info (for multi-AI channel attribution)
-  personalityId?: string; // The AI personality this message belongs to
-  personalityName?: string; // The AI personality's display name (for assistant messages)
-  // Channel info (always populated — used for cross-channel history grouping)
-  channelId: string; // Discord channel ID
-  guildId: string | null; // Discord guild ID (null for DMs)
-}
-
-/**
- * A group of messages from a single channel, used for cross-channel history results.
- * Groups are ordered by most recent activity (most recent channel first).
- * Messages within each group are in chronological order (oldest first).
- */
-export interface CrossChannelHistoryGroup {
-  channelId: string;
-  guildId: string | null;
-  messages: ConversationMessage[];
-}
 
 /**
  * Prisma select object for conversation history queries

@@ -9,16 +9,16 @@
  * Uses tombstones to prevent db-sync from restoring deleted messages.
  */
 
-import type { PrismaClient } from './prisma.js';
-import { createLogger } from '../utils/logger.js';
-import { countTextTokens } from '../utils/tokenCounter.js';
-import { SYNC_LIMITS } from '../constants/index.js';
 import {
+  createLogger,
+  countTextTokens,
+  SYNC_LIMITS,
   collateChunksForSync,
   contentsDiffer,
   getOldestObservedTimestamp,
+  type PrismaClient,
   type ObservedSyncMessage,
-} from './conversationSyncDiff.js';
+} from '@tzurot/common-types';
 
 const logger = createLogger('ConversationSyncService');
 

@@ -81,6 +81,7 @@ COPY --from=builder /app/node_modules/.pnpm ./node_modules/.pnpm
 COPY --from=builder /app/packages/common-types/dist ./packages/common-types/dist
 COPY --from=builder /app/packages/config-resolver/dist ./packages/config-resolver/dist
 COPY --from=builder /app/packages/identity/dist ./packages/identity/dist
+COPY --from=builder /app/packages/conversation-history/dist ./packages/conversation-history/dist
 COPY --from=builder /app/packages/embeddings/dist ./packages/embeddings/dist
 COPY --from=builder /app/services/api-gateway/dist ./services/api-gateway/dist
 

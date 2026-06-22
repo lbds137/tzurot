@@ -25,6 +25,7 @@
     "@langchain/openai": "^1.4.7",
     "@tzurot/common-types": "workspace:*",
     "@tzurot/config-resolver": "workspace:*",
+    "@tzurot/conversation-history": "workspace:*",
     "@tzurot/embeddings": "workspace:*",
     "@tzurot/identity": "workspace:*",
     "bullmq": "^5.78.1",
