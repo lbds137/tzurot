@@ -22,9 +22,9 @@
 
 import {
   createLogger,
-  getPrismaClient,
   type AIProvider,
   type LoadedPersonality,
+  type PrismaClient,
   type SttDispatch,
 } from '@tzurot/common-types';
 import { resolveVisionConfig } from './visionAuthResolver.js';
@@ -90,6 +90,7 @@ export async function resolveRagVisionAuth(
 
 /** Inputs for {@link enrichRagHistory}. */
 export interface EnrichRagHistoryOptions {
+  prisma: PrismaClient;
   context: ConversationContext;
   personality: LoadedPersonality;
   /** Resolved cross-provider vision auth (from {@link resolveRagVisionAuth}). */
@@ -104,7 +105,7 @@ export interface EnrichRagHistoryOptions {
  * a different provider than the main model don't 401.
  */
 export async function enrichRagHistory(opts: EnrichRagHistoryOptions): Promise<void> {
-  const { context, personality, visionAuth, isGuestMode, sttDispatch } = opts;
+  const { prisma, context, personality, visionAuth, isGuestMode, sttDispatch } = opts;
   const visionLoggingContext = {
     userId: context.userId,
     apiKeySource: deriveApiKeySource(isGuestMode, visionAuth.userApiKey),
@@ -112,7 +113,7 @@ export async function enrichRagHistory(opts: EnrichRagHistoryOptions): Promise<v
   await enrichConversationHistory(
     context.rawConversationHistory,
     context.preprocessedExtendedContextAttachments,
-    getPrismaClient(),
+    prisma,
     visionDescriptionCache,
     atts =>
       processAttachments(atts, personality, {

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import type { PrismaClient } from '@tzurot/common-types';
 
 const mockFindUnique = vi.hoisted(() => vi.fn());
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -8,9 +9,12 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   return {
     ...actual,
     createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
-    getPrismaClient: () => ({ user: { findUnique: mockFindUnique } }),
   };
 });
+
+// Prisma is injected into the resolver functions; this stub only needs the
+// single method they call.
+const mockPrisma = { user: { findUnique: mockFindUnique } } as unknown as PrismaClient;
 
 import {
   createDiagnosticCollectorForRequest,
@@ -24,7 +28,7 @@ describe('resolvePersonalityOwnerDiscordId', () => {
 
   it('returns the discordId when the User row exists', async () => {
     mockFindUnique.mockResolvedValue({ discordId: '111111111111111111' });
-    const result = await resolvePersonalityOwnerDiscordId('owner-uuid');
+    const result = await resolvePersonalityOwnerDiscordId(mockPrisma, 'owner-uuid');
     expect(result).toBe('111111111111111111');
     expect(mockFindUnique).toHaveBeenCalledWith({
       where: { id: 'owner-uuid' },
@@ -34,13 +38,13 @@ describe('resolvePersonalityOwnerDiscordId', () => {
 
   it('returns null when the User row was deleted (findUnique returns null)', async () => {
     mockFindUnique.mockResolvedValue(null);
-    const result = await resolvePersonalityOwnerDiscordId('owner-uuid');
+    const result = await resolvePersonalityOwnerDiscordId(mockPrisma, 'owner-uuid');
     expect(result).toBeNull();
   });
 
   it('returns null and does not throw when prisma throws (transient DB error)', async () => {
     mockFindUnique.mockRejectedValue(new Error('connect ECONNREFUSED'));
-    const result = await resolvePersonalityOwnerDiscordId('owner-uuid');
+    const result = await resolvePersonalityOwnerDiscordId(mockPrisma, 'owner-uuid');
     expect(result).toBeNull();
   });
 
@@ -48,7 +52,7 @@ describe('resolvePersonalityOwnerDiscordId', () => {
     // Defensive: shouldn't happen per schema (discordId is required), but
     // guards against a future schema that drops the column.
     mockFindUnique.mockResolvedValue({});
-    const result = await resolvePersonalityOwnerDiscordId('owner-uuid');
+    const result = await resolvePersonalityOwnerDiscordId(mockPrisma, 'owner-uuid');
     expect(result).toBeNull();
   });
 });
@@ -61,6 +65,7 @@ describe('createDiagnosticCollectorForRequest', () => {
   it('threads the resolved Discord ID into the collector meta', async () => {
     mockFindUnique.mockResolvedValue({ discordId: '111111111111111111' });
     const collector = await createDiagnosticCollectorForRequest({
+      prisma: mockPrisma,
       requestId: 'r1',
       personalityId: 'p1',
       personalityName: 'TestPersonality',
@@ -75,6 +80,7 @@ describe('createDiagnosticCollectorForRequest', () => {
   it('produces undefined personalityOwnerDiscordId in meta when owner resolution fails', async () => {
     mockFindUnique.mockRejectedValue(new Error('db down'));
     const collector = await createDiagnosticCollectorForRequest({
+      prisma: mockPrisma,
       requestId: 'r1',
       personalityId: 'p1',
       personalityName: 'TestPersonality',
@@ -88,6 +94,7 @@ describe('createDiagnosticCollectorForRequest', () => {
   it('passes through optional fields (triggerMessageId, serverId, channelId)', async () => {
     mockFindUnique.mockResolvedValue({ discordId: '999' });
     const collector = await createDiagnosticCollectorForRequest({
+      prisma: mockPrisma,
       requestId: 'r1',
       triggerMessageId: 'msg-1',
       personalityId: 'p1',
@@ -106,6 +113,7 @@ describe('createDiagnosticCollectorForRequest', () => {
   it('coerces undefined serverId to null in meta (DM convention)', async () => {
     mockFindUnique.mockResolvedValue({ discordId: '999' });
     const collector = await createDiagnosticCollectorForRequest({
+      prisma: mockPrisma,
       requestId: 'r1',
       personalityId: 'p1',
       personalityName: 'TestPersonality',

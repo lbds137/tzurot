@@ -22,7 +22,6 @@ import { randomUUID } from 'node:crypto';
 import { ConversationalRAGService } from '../../services/ConversationalRAGService.js';
 import {
   createLogger,
-  getPrismaClient,
   ConversationHistoryService,
   PersonaResolver,
   UserService,
@@ -32,6 +31,7 @@ import {
   type LLMGenerationJobData,
   type LLMGenerationResult,
   type LlmConfigResolver,
+  type PrismaClient,
   type TtsConfigResolver,
   type ConfigCascadeResolver,
   type SttResolver,
@@ -106,6 +106,7 @@ export class LLMGenerationHandler {
 
   constructor(
     ragService: ConversationalRAGService,
+    private readonly prisma: PrismaClient,
     apiKeyResolver?: ApiKeyResolver,
     options: {
       configResolver?: LlmConfigResolver;
@@ -141,7 +142,7 @@ export class LLMGenerationHandler {
     // user message post-vision (its own Prisma — an AI-domain write, same
     // class as memory writes).
     const visionDescriptionWriter = new VisionDescriptionWriter(
-      new ConversationHistoryService(getPrismaClient())
+      new ConversationHistoryService(prisma)
     );
 
     this.pipeline = [
@@ -153,10 +154,9 @@ export class LLMGenerationHandler {
       new DependencyStep(apiKeyResolver, visionDescriptionWriter),
       // Handler (and thus this pipeline) is constructed once at worker
       // startup — the data source, assembler, and their wrapped services are
-      // constructed once here (around the shared prisma singleton), not
-      // re-allocated per job.
-      this.buildContextStep(),
-      new GenerationStep(ragService, embeddingService),
+      // constructed once here, not re-allocated per job.
+      this.buildContextStep(prisma),
+      new GenerationStep(ragService, prisma, embeddingService),
       new TTSStep(ttsConfigResolver),
     ];
   }
@@ -275,8 +275,7 @@ export class LLMGenerationHandler {
    * data source plus the context assembler (user/persona re-derivation +
    * shared history merge against the raw envelope).
    */
-  private buildContextStep(): ContextStep {
-    const prisma = getPrismaClient();
+  private buildContextStep(prisma: PrismaClient): ContextStep {
     const dataSource = new PrismaContextDataSource(prisma);
     const assembler = new ContextAssembler({
       dataSource,
@@ -303,6 +302,7 @@ export class LLMGenerationHandler {
       return;
     }
     storeDiagnosticLog(
+      this.prisma,
       context.diagnosticCollector,
       context.result.metadata?.modelUsed ?? 'unknown',
       context.auth?.provider ?? 'unknown'

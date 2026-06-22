@@ -126,10 +126,10 @@ describe('audit-unified', () => {
    */
   function createServiceWithPrisma(): string {
     return `
-import { getPrismaClient } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types';
 
 export class TestService {
-  private prisma = getPrismaClient();
+  constructor(private readonly prisma: PrismaClient) {}
 
   async findUser(id: string) {
     return this.prisma.user.findUnique({ where: { id } });

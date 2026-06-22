@@ -108,7 +108,7 @@ export class AIJobProcessor {
     // Note: PersonaResolver is passed through to MemoryRetriever for persona-based memory retrieval
     this.ragService =
       ragService ??
-      new ConversationalRAGService(memoryManager, personaResolver, this.apiKeyResolver);
+      new ConversationalRAGService(prisma, memoryManager, personaResolver, this.apiKeyResolver);
 
     // Use provided LlmConfigResolver (for testing) or create new one (for production)
     // LlmConfigResolver handles user config overrides (per-personality and global default)
@@ -122,13 +122,18 @@ export class AIJobProcessor {
     // config provider directly — no cross-resolver dependency required.
     this.sttResolver = sttResolver ?? new SttResolver(prisma);
 
-    this.llmGenerationHandler = new LLMGenerationHandler(this.ragService, this.apiKeyResolver, {
-      configResolver: this.configResolver,
-      embeddingService,
-      cascadeResolver,
-      ttsConfigResolver: this.ttsConfigResolver,
-      sttResolver: this.sttResolver,
-    });
+    this.llmGenerationHandler = new LLMGenerationHandler(
+      this.ragService,
+      prisma,
+      this.apiKeyResolver,
+      {
+        configResolver: this.configResolver,
+        embeddingService,
+        cascadeResolver,
+        ttsConfigResolver: this.ttsConfigResolver,
+        sttResolver: this.sttResolver,
+      }
+    );
   }
 
   /**

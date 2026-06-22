@@ -14,7 +14,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ConversationalRAGService } from './ConversationalRAGService.js';
 import type { MemoryDocument } from './ConversationalRAGTypes.js';
-import type { AttachmentMetadata, ReferencedMessage } from '@tzurot/common-types';
+import type { AttachmentMetadata, PrismaClient, ReferencedMessage } from '@tzurot/common-types';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import type { ApiKeyResolver } from './ApiKeyResolver.js';
 import { CONTENT_TYPES, AttachmentType, AIProvider } from '@tzurot/common-types';
@@ -105,6 +105,11 @@ import {
 } from '../test/mocks/index.js';
 import { checkModelContextLength } from '../redis.js';
 
+// Prisma is injected into the constructor, but every DB-touching child
+// (MemoryRetriever, LongTermMemoryService, UserReferenceResolver) is mocked
+// above — so this placeholder is stored and never dereferenced.
+const mockPrisma = {} as unknown as PrismaClient;
+
 describe('ConversationalRAGService', () => {
   let service: ConversationalRAGService;
 
@@ -113,7 +118,7 @@ describe('ConversationalRAGService', () => {
     // Restore default mock implementations after mockReset clears them
     resetAllMocks();
     // Create service - this populates the mock instances via constructors
-    service = new ConversationalRAGService();
+    service = new ConversationalRAGService(mockPrisma);
   });
 
   afterEach(() => {
@@ -133,6 +138,7 @@ describe('ConversationalRAGService', () => {
         },
       });
       const serviceWithResolver = new ConversationalRAGService(
+        mockPrisma,
         undefined,
         undefined,
         {} as unknown as ApiKeyResolver

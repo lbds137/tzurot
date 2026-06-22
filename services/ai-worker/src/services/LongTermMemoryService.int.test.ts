@@ -23,13 +23,12 @@ import type { ConversationContext } from './ConversationalRAGTypes.js';
 // We need to use the same PrismaClient type that the service uses
 import { PrismaClient } from '@tzurot/common-types';
 
-// Mock common-types: getPrismaClient returns test instance, logger is silenced
-let testPrisma: PrismaClient;
+// Mock common-types: silence the logger. The PGlite-backed PrismaClient is
+// injected into the service via its constructor (no singleton to stub).
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
   return {
     ...actual,
-    getPrismaClient: () => testPrisma,
     createLogger: () => ({
       info: vi.fn(),
       warn: vi.fn(),
@@ -86,7 +85,6 @@ describe('LongTermMemoryService', () => {
 
     // Create Prisma client with PGlite adapter
     prisma = new PrismaClient({ adapter }) as PrismaClient;
-    testPrisma = prisma;
   }, 30000);
 
   beforeEach(async () => {
@@ -131,7 +129,7 @@ describe('LongTermMemoryService', () => {
         addMemory: vi.fn().mockResolvedValue(undefined),
       } as unknown as PgvectorMemoryAdapter;
 
-      const service = new LongTermMemoryService(mockMemoryManager);
+      const service = new LongTermMemoryService(prisma, mockMemoryManager);
 
       // Act
       await service.storeInteraction(
@@ -165,7 +163,7 @@ describe('LongTermMemoryService', () => {
         addMemory: vi.fn().mockRejectedValue(new Error('Vector storage failed')),
       } as unknown as PgvectorMemoryAdapter;
 
-      const service = new LongTermMemoryService(mockMemoryManager);
+      const service = new LongTermMemoryService(prisma, mockMemoryManager);
 
       // Act
       await service.storeInteraction(
@@ -186,7 +184,7 @@ describe('LongTermMemoryService', () => {
 
     it('should do nothing when memoryManager is undefined', async () => {
       // Arrange: No memory manager
-      const service = new LongTermMemoryService(undefined);
+      const service = new LongTermMemoryService(prisma, undefined);
 
       // Act
       await service.storeInteraction(testPersonality, 'Hello', 'Hi!', testContext, testPersonaId);
@@ -202,7 +200,7 @@ describe('LongTermMemoryService', () => {
         addMemory: vi.fn().mockResolvedValue(undefined),
       } as unknown as PgvectorMemoryAdapter;
 
-      const service = new LongTermMemoryService(mockMemoryManager);
+      const service = new LongTermMemoryService(prisma, mockMemoryManager);
       const contextWithSession: ConversationContext = {
         ...testContext,
         sessionId: 'test-session-123',
@@ -234,7 +232,7 @@ describe('LongTermMemoryService', () => {
         addMemory: vi.fn().mockResolvedValue(undefined),
       } as unknown as PgvectorMemoryAdapter;
 
-      const service = new LongTermMemoryService(mockMemoryManager);
+      const service = new LongTermMemoryService(prisma, mockMemoryManager);
       const dmContext: ConversationContext = {
         userId: testUserId,
         channelId: '',
@@ -260,7 +258,7 @@ describe('LongTermMemoryService', () => {
         addMemory: vi.fn().mockRejectedValue(new Error('Fail')),
       } as unknown as PgvectorMemoryAdapter;
 
-      const service = new LongTermMemoryService(mockMemoryManager);
+      const service = new LongTermMemoryService(prisma, mockMemoryManager);
 
       // Act: Store same interaction twice
       await service.storeInteraction(

@@ -12,6 +12,7 @@ import {
   ApiErrorType,
   generateErrorReferenceId,
   USER_ERROR_MESSAGES,
+  type PrismaClient,
   type ResolvedConfigOverrides,
   type SttDispatch,
   type AIProvider,
@@ -55,6 +56,7 @@ export class GenerationStep implements IPipelineStep {
 
   constructor(
     private readonly ragService: ConversationalRAGService,
+    private readonly prisma: PrismaClient,
     private readonly embeddingService?: EmbeddingServiceInterface
   ) {}
 
@@ -273,6 +275,7 @@ export class GenerationStep implements IPipelineStep {
     );
 
     const diagnosticCollector = await createDiagnosticCollectorForRequest({
+      prisma: this.prisma,
       requestId,
       triggerMessageId: jobContext.triggerMessageId,
       userId: jobContext.userId,
@@ -385,6 +388,7 @@ export class GenerationStep implements IPipelineStep {
 
         // Store diagnostic data for failures (fire-and-forget)
         storeDiagnosticLog(
+          this.prisma,
           diagnosticCollector,
           response.modelUsed ?? 'unknown',
           provider ?? 'unknown'
@@ -479,6 +483,7 @@ export class GenerationStep implements IPipelineStep {
       // Store diagnostic data even for failures (fire-and-forget)
       // This enables /admin debug to show what went wrong
       storeDiagnosticLog(
+        this.prisma,
         diagnosticCollector,
         effectivePersonality.model ?? 'unknown',
         provider ?? 'unknown'
