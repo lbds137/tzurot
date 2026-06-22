@@ -1,9 +1,9 @@
 /**
  * Prisma Client Service
  *
- * `createPrismaClient()` is the supported entry point — it builds an app-owned
- * client the caller injects + disposes. `getPrismaClient()` is the deprecated
- * cross-package singleton, retained only until its remaining consumers migrate.
+ * `createPrismaClient()` is the entry point — it builds an app-owned client the
+ * caller injects into the services that need it and disposes at shutdown. There
+ * is no shared singleton: lifecycle ownership lives with each app.
  *
  * Prisma 7.0 uses driver adapters for database connections; the generated
  * PrismaClient lives in packages/common-types/src/generated/prisma/.
@@ -23,8 +23,6 @@ import {
 
 const logger = createLogger('PrismaService');
 const config = getConfig();
-
-let prismaClient: PrismaClient | null = null;
 
 /**
  * A constructed Prisma client paired with its disposer. Each app constructs
@@ -87,8 +85,8 @@ export function createPrismaClient(opts?: { max?: number }): PrismaClientHandle 
 
   let disposed = false;
   const dispose = async (): Promise<void> => {
-    // Idempotent — the lifecycle pattern spreads to ai-worker (2p-1b), so a
-    // double-call (shutdown + a stray finally) must not $disconnect twice.
+    // Idempotent: a double-call (e.g. a shutdown handler plus a stray finally)
+    // must not $disconnect twice.
     if (disposed) {
       return;
     }
@@ -101,50 +99,6 @@ export function createPrismaClient(opts?: { max?: number }): PrismaClientHandle 
   };
 
   return { prisma, dispose };
-}
-
-/**
- * Get or create the Prisma client singleton
- * Uses the Prisma 7.0 driver adapter pattern with @prisma/adapter-pg
- *
- * @deprecated Being evicted. Use `createPrismaClient()` at the app composition
- * root and inject the client. This singleton is removed once its remaining
- * consumers (ai-worker, the tooling db commands) are migrated off it.
- */
-export function getPrismaClient(): PrismaClient {
-  if (!prismaClient) {
-    const dbUrl = process.env.DATABASE_URL;
-
-    // Prisma 7.0 driver adapter over an EXPLICIT pg.Pool. The adapter ignores
-    // `?connection_limit=` on DATABASE_URL, so the pool MUST be sized here —
-    // otherwise it silently uses pg's defaults (max=10, wait-forever acquisition)
-    // and starves under load. See poolConfig.ts for the full rationale.
-    const max = resolvePoolMax();
-    const connectionTimeoutMillis = resolveConnectionTimeoutMs();
-    const pool = new Pool({ connectionString: dbUrl, max, connectionTimeoutMillis });
-    pool.on('error', err => {
-      logger.error({ err }, 'pg.Pool idle-client error');
-    });
-    // No stop handle kept: this client is never disposed, so the gauge runs for
-    // the process lifetime.
-    startPoolStatsGauge(pool, logger, resolvePoolStatsIntervalMs(), max);
-
-    // disposeExternalPool: true so prismaClient.$disconnect() closes the pool we
-    // created (external pools are otherwise left open on disconnect).
-    const adapter = new PrismaPg(pool, { disposeExternalPool: true });
-
-    prismaClient = new PrismaClient({
-      adapter,
-      log: config.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-    });
-
-    logger.info(
-      { max, connectionTimeoutMillis },
-      'Prisma client initialized with configured pg.Pool'
-    );
-  }
-
-  return prismaClient;
 }
 
 // Re-export PrismaClient class and Prisma namespace for use by other services

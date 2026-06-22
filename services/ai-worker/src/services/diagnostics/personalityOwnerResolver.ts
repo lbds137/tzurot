@@ -15,7 +15,7 @@
  * invariant.
  */
 
-import { createLogger, getPrismaClient } from '@tzurot/common-types';
+import { createLogger, type PrismaClient } from '@tzurot/common-types';
 import { DiagnosticCollector } from '../DiagnosticCollector.js';
 
 const logger = createLogger('personalityOwnerResolver');
@@ -26,10 +26,11 @@ const logger = createLogger('personalityOwnerResolver');
  * found, transient DB error, no Prisma client).
  */
 export async function resolvePersonalityOwnerDiscordId(
+  prisma: PrismaClient,
   personalityOwnerInternalId: string
 ): Promise<string | null> {
   try {
-    const ownerUser = await getPrismaClient().user.findUnique({
+    const ownerUser = await prisma.user.findUnique({
       where: { id: personalityOwnerInternalId },
       select: { discordId: true },
     });
@@ -54,6 +55,7 @@ export async function resolvePersonalityOwnerDiscordId(
  * lean and centralizes the shape that diagnostic-meta needs at log creation.
  */
 export async function createDiagnosticCollectorForRequest(args: {
+  prisma: PrismaClient;
   requestId: string;
   triggerMessageId?: string;
   userId: string;
@@ -64,6 +66,7 @@ export async function createDiagnosticCollectorForRequest(args: {
   personalityOwnerInternalId: string;
 }): Promise<DiagnosticCollector> {
   const personalityOwnerDiscordId = await resolvePersonalityOwnerDiscordId(
+    args.prisma,
     args.personalityOwnerInternalId
   );
   return new DiagnosticCollector({

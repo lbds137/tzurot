@@ -49,7 +49,7 @@ const BOUNDARY_RULES: {
         // has a Prisma dependency chain. Keep the alternation in sync: add the
         // export name of any new Prisma-backed @tzurot/common-types service here.
         pattern:
-          /\b(getPrismaClient|disconnectPrisma|PrismaClient|PersonaResolver|PersonalityService|ConversationHistoryService|PersonaCacheInvalidationService|Prisma)\b[\s\S]*?from\s+['"]@tzurot\/common-types['"]/,
+          /\b(getPrismaClient|createPrismaClient|disconnectPrisma|PrismaClient|PersonaResolver|PersonalityService|ConversationHistoryService|PersonaCacheInvalidationService|Prisma)\b[\s\S]*?from\s+['"]@tzurot\/common-types['"]/,
         reason:
           'bot-client must not import Prisma-backed code from @tzurot/common-types - these reach the database; use the gateway HTTP API (HttpPersonalityLoader, routing-context)',
         severity: 'error',

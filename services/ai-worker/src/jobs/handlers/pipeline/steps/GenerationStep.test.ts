@@ -11,6 +11,7 @@ import {
   AttachmentType,
   type LLMGenerationJobData,
   type LoadedPersonality,
+  type PrismaClient,
   type ResolvedConfigOverrides,
 } from '@tzurot/common-types';
 import { GenerationStep } from './GenerationStep.js';
@@ -83,6 +84,16 @@ function createMockRAGService(): ConversationalRAGService {
   } as unknown as ConversationalRAGService;
 }
 
+// Injected into GenerationStep; covers the two methods the diagnostic path
+// touches (owner lookup + fire-and-forget log write) so process() runs without
+// a real database.
+function createMockPrisma(): PrismaClient {
+  return {
+    user: { findUnique: vi.fn().mockResolvedValue(null) },
+    llmDiagnosticLog: { create: vi.fn().mockResolvedValue(undefined) },
+  } as unknown as PrismaClient;
+}
+
 describe('GenerationStep', () => {
   let step: GenerationStep;
   let mockRAGService: ConversationalRAGService;
@@ -90,7 +101,7 @@ describe('GenerationStep', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockRAGService = createMockRAGService();
-    step = new GenerationStep(mockRAGService);
+    step = new GenerationStep(mockRAGService, createMockPrisma());
   });
 
   it('should have correct name', () => {

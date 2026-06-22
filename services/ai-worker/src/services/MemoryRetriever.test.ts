@@ -8,7 +8,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoryRetriever } from './MemoryRetriever.js';
 import type { PgvectorMemoryAdapter } from './PgvectorMemoryAdapter.js';
-import type { LoadedPersonality, ResolvedConfigOverrides } from '@tzurot/common-types';
+import type {
+  LoadedPersonality,
+  PrismaClient,
+  ResolvedConfigOverrides,
+} from '@tzurot/common-types';
 import type { ConversationContext } from './ConversationalRAGTypes.js';
 import type { PersonaResolver } from './resolvers/index.js';
 
@@ -20,16 +24,10 @@ const mockPersonaResolver = {
   resolveToUuid: vi.fn(),
 };
 
-// Mock getPrismaClient (still needed for PersonaResolver's default construction)
-const mockPrismaClient = {};
-
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
-  return {
-    ...actual,
-    getPrismaClient: vi.fn(() => mockPrismaClient),
-  };
-});
+// Injected via the constructor. PersonaResolver is mocked separately (below),
+// so this is only the placeholder the constructor stores — its methods are
+// never called through this object.
+const mockPrismaClient = {} as unknown as PrismaClient;
 
 // Mock PersonaResolver constructor
 vi.mock('./resolvers/index.js', () => ({
@@ -75,6 +73,7 @@ describe('MemoryRetriever', () => {
 
     // Inject mock PersonaResolver via constructor
     retriever = new MemoryRetriever(
+      mockPrismaClient,
       mockMemoryManager,
       mockPersonaResolver as unknown as PersonaResolver
     );
@@ -610,6 +609,7 @@ describe('MemoryRetriever', () => {
 
     it('should return empty array if memory manager not available', async () => {
       const retrieverWithoutMemory = new MemoryRetriever(
+        mockPrismaClient,
         undefined,
         mockPersonaResolver as unknown as PersonaResolver
       );

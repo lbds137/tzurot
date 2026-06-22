@@ -8,10 +8,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { LongTermMemoryService } from './LongTermMemoryService.js';
 import type { PgvectorMemoryAdapter } from './PgvectorMemoryAdapter.js';
-import type { LoadedPersonality } from '@tzurot/common-types';
+import type { LoadedPersonality, PrismaClient } from '@tzurot/common-types';
 import type { ConversationContext } from './ConversationalRAGTypes.js';
 
-// Mock Prisma client
+// Mock Prisma client (injected via constructor)
 const mockPendingMemoryCreate = vi.fn();
 const mockPendingMemoryDelete = vi.fn();
 const mockPendingMemoryUpdate = vi.fn();
@@ -22,7 +22,7 @@ const mockPrismaClient = {
     delete: mockPendingMemoryDelete,
     update: mockPendingMemoryUpdate,
   },
-};
+} as unknown as PrismaClient;
 
 // Mock dependencies
 vi.mock('@tzurot/common-types', async () => {
@@ -35,7 +35,6 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
-    getPrismaClient: () => mockPrismaClient,
   };
 });
 
@@ -78,24 +77,24 @@ describe('LongTermMemoryService', () => {
     mockPendingMemoryDelete.mockResolvedValue(undefined);
     mockPendingMemoryUpdate.mockResolvedValue(undefined);
 
-    service = new LongTermMemoryService(mockMemoryManager);
+    service = new LongTermMemoryService(mockPrismaClient, mockMemoryManager);
   });
 
   describe('constructor', () => {
     it('should accept memory manager', () => {
-      const serviceWithManager = new LongTermMemoryService(mockMemoryManager);
+      const serviceWithManager = new LongTermMemoryService(mockPrismaClient, mockMemoryManager);
       expect(serviceWithManager).toBeInstanceOf(LongTermMemoryService);
     });
 
     it('should work without memory manager', () => {
-      const serviceWithoutManager = new LongTermMemoryService();
+      const serviceWithoutManager = new LongTermMemoryService(mockPrismaClient);
       expect(serviceWithoutManager).toBeInstanceOf(LongTermMemoryService);
     });
   });
 
   describe('storeInteraction', () => {
     it('should return early when memory manager is undefined', async () => {
-      const serviceWithoutManager = new LongTermMemoryService();
+      const serviceWithoutManager = new LongTermMemoryService(mockPrismaClient);
 
       await serviceWithoutManager.storeInteraction(
         testPersonality,
