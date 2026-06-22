@@ -175,6 +175,21 @@ describe('callGateway', () => {
     }
   });
 
+  it('returns kind:schema (not network) when a 2xx body is not valid JSON', async () => {
+    // A 2xx response with a non-JSON body (204 No Content, a CDN HTML error
+    // page) makes response.json() throw. It's a contract violation, not a
+    // transport failure — must surface as 'schema' so a retry loop branching
+    // on 'network' doesn't retry it forever.
+    fetchSpy.mockResolvedValueOnce(new Response('<html>not json</html>', { status: 200 }));
+    const result = await callGateway(baseOpts);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.kind).toBe('schema');
+      expect(result.status).toBe(0);
+      expect(result.error).toMatch(/not valid JSON/i);
+    }
+  });
+
   it('returns kind:network when fetch rejects with a non-abort error', async () => {
     fetchSpy.mockRejectedValueOnce(new Error('ECONNREFUSED'));
     const result = await callGateway(baseOpts);

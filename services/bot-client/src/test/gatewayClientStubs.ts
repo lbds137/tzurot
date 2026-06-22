@@ -9,24 +9,33 @@
  */
 
 import type { ApiErrorSubcode } from '@tzurot/common-types';
-import type { GatewayResult, OwnerClient, ServiceClient, UserClient } from '@tzurot/clients';
+import type {
+  GatewayFailureKind,
+  GatewayResult,
+  OwnerClient,
+  ServiceClient,
+  UserClient,
+} from '@tzurot/clients';
 
 /** Build an `ok` GatewayResult. */
 export function makeOk<T>(data: T): GatewayResult<T> {
   return { ok: true, data };
 }
 
-/** Build an `err` GatewayResult with HTTP status + optional message and subcode. */
+/**
+ * Build an `err` GatewayResult with HTTP status + optional message and subcode.
+ * `kind` defaults from status (honoring `status > 0 ⟺ kind === 'http'`); pass it
+ * explicitly to stub a non-HTTP transport failure (timeout/network/schema/config).
+ */
 export function makeErr(
   status: number,
   message = 'fail',
-  code?: ApiErrorSubcode
+  code?: ApiErrorSubcode,
+  kind?: GatewayFailureKind
 ): GatewayResult<never> {
-  // Honor the transport invariant `status > 0 ⟺ kind === 'http'`; a status-0
-  // stub stands in for a generic transport failure (network is the default).
   return {
     ok: false,
-    kind: status > 0 ? 'http' : 'network',
+    kind: kind ?? (status > 0 ? 'http' : 'network'),
     error: message,
     status,
     ...(code === undefined ? {} : { code }),
