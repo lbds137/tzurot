@@ -14,23 +14,28 @@ const mockLogger = vi.hoisted(() => ({
   debug: vi.fn(),
 }));
 
-vi.mock('@tzurot/common-types', () => ({
-  createLogger: () => mockLogger,
-  VOICE_REFERENCE_LIMITS: {
-    ALLOWED_TYPES: [
-      'audio/wav',
-      'audio/mpeg',
-      'audio/ogg',
-      'audio/flac',
-      'audio/x-wav',
-      'audio/wave',
-    ],
-  },
-  // requireServiceAuth reads getConfig().INTERNAL_SERVICE_SECRET — stub
-  // it to a known value so the auth-protection test block can verify
-  // both rejection (missing/wrong header) and acceptance (matching header).
-  getConfig: () => ({ INTERNAL_SERVICE_SECRET: 'test-secret' }),
-}));
+vi.mock('@tzurot/common-types', async () => {
+  const actual =
+    await vi.importActual<typeof import('@tzurot/common-types')>('@tzurot/common-types');
+  return {
+    ...actual,
+    createLogger: () => mockLogger,
+    VOICE_REFERENCE_LIMITS: {
+      ALLOWED_TYPES: [
+        'audio/wav',
+        'audio/mpeg',
+        'audio/ogg',
+        'audio/flac',
+        'audio/x-wav',
+        'audio/wave',
+      ],
+    },
+    // requireServiceAuth reads getConfig().INTERNAL_SERVICE_SECRET — stub
+    // it to a known value so the auth-protection test block can verify
+    // both rejection (missing/wrong header) and acceptance (matching header).
+    getConfig: () => ({ INTERNAL_SERVICE_SECRET: 'test-secret' }),
+  };
+});
 
 vi.mock('../../utils/errorResponses.js', async () => {
   const actual = await vi.importActual<typeof import('../../utils/errorResponses.js')>(

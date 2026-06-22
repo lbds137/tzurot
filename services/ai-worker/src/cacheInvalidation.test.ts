@@ -43,7 +43,6 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
-    PersonalityService: class {},
     CacheInvalidationService: class {
       subscribe = vi.fn().mockResolvedValue(undefined);
       unsubscribe = mockUnsubscribe;
@@ -119,6 +118,10 @@ vi.mock('./services/ApiKeyResolver.js', () => ({
     clearCache = mockApiKeyResolver.clearCache;
     invalidateUserCache = mockApiKeyResolver.invalidateUserCache;
   },
+}));
+
+vi.mock('@tzurot/identity', () => ({
+  PersonalityService: class {},
 }));
 
 vi.mock('./services/resolvers/index.js', () => ({

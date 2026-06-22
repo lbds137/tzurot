@@ -15,18 +15,23 @@ vi.mock('../../utils/deduplicationCache.js', () => ({
   })),
 }));
 
-vi.mock('@tzurot/common-types', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-  // requireServiceAuth reads getConfig().INTERNAL_SERVICE_SECRET — stub
-  // it to a known value so the auth-protection test can verify rejection
-  // (missing header) and acceptance (matching header).
-  getConfig: () => ({ INTERNAL_SERVICE_SECRET: 'test-secret' }),
-}));
+vi.mock('@tzurot/common-types', async () => {
+  const actual =
+    await vi.importActual<typeof import('@tzurot/common-types')>('@tzurot/common-types');
+  return {
+    ...actual,
+    createLogger: () => ({
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+    }),
+    // requireServiceAuth reads getConfig().INTERNAL_SERVICE_SECRET — stub
+    // it to a known value so the auth-protection test can verify rejection
+    // (missing header) and acceptance (matching header).
+    getConfig: () => ({ INTERNAL_SERVICE_SECRET: 'test-secret' }),
+  };
+});
 
 // Mock only `ErrorResponses` (the call-site-specific shape) — let the real
 // `getStatusCode` run so any error code mapping is correct out of the box.

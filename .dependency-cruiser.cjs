@@ -18,6 +18,14 @@ module.exports = {
       to: { path: '(^|/)@tzurot/config-resolver|^packages/config-resolver/' },
     },
     {
+      name: 'bot-client-no-identity',
+      comment:
+        'bot-client must NEVER import @tzurot/identity — it is Prisma-backed (users/personas/personalities); use gateway APIs',
+      severity: 'error',
+      from: { path: '^services/bot-client/' },
+      to: { path: '(^|/)@tzurot/identity|^packages/identity/' },
+    },
+    {
       name: 'no-prod-import-test-factories',
       comment:
         '@tzurot/test-factories is a test-fixture package — production code must never import it',

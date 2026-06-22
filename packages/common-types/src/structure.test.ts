@@ -188,6 +188,7 @@ describe('Project Structure', () => {
       'packages/clients/src',
       'packages/common-types/src',
       'packages/config-resolver/src',
+      'packages/identity/src',
       'packages/embeddings/src',
       'packages/test-factories/src',
       'packages/test-utils/src',

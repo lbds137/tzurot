@@ -9,7 +9,6 @@
 import { Redis } from 'ioredis';
 import {
   createLogger,
-  PersonalityService,
   CacheInvalidationService,
   ApiKeyCacheInvalidationService,
   LlmConfigCacheInvalidationService,
@@ -19,6 +18,7 @@ import {
   SttResolverCacheInvalidationService,
   type PrismaClient,
 } from '@tzurot/common-types';
+import { PersonalityService } from '@tzurot/identity';
 import {
   ConfigCascadeResolver,
   LlmConfigResolver,

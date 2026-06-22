@@ -9,6 +9,7 @@
   "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"],
   "references": [
     { "path": "../../packages/common-types" },
-    { "path": "../../packages/config-resolver" }
+    { "path": "../../packages/config-resolver" },
+    { "path": "../../packages/identity" }
   ]
 }

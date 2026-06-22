@@ -3,6 +3,7 @@ import { defineWorkspace } from 'vitest/config';
 export default defineWorkspace([
   'packages/common-types',
   'packages/config-resolver',
+  'packages/identity',
   'packages/clients',
   'packages/test-factories',
   'services/ai-worker',

@@ -31,9 +31,13 @@
  * are visible in logs.
  */
 
-import { createLogger } from '../../utils/logger.js';
-import { isValidUUID, UUID_REGEX } from '../../constants/service.js';
-import type { PrismaClient } from '../prisma.js';
+import {
+  createLogger,
+  isValidUUID,
+  UUID_REGEX,
+  type PrismaClient,
+  type CorePersonaConfig,
+} from '@tzurot/common-types';
 import { BaseConfigResolver, type ResolutionResult } from './BaseConfigResolver.js';
 
 const logger = createLogger('PersonaResolver');
@@ -46,13 +50,9 @@ const SOURCE_USER_DEFAULT = 'user-default' as const;
  * Resolved persona data
  * @public used in PersonaResolver public method signatures
  */
-export interface ResolvedPersona {
-  /** Persona UUID */
-  personaId: string;
+export interface ResolvedPersona extends CorePersonaConfig {
   /** Persona name (profile name) */
   personaName: string;
-  /** User's preferred name */
-  preferredName: string | null;
   /** User's pronouns */
   pronouns: string | null;
   /** Persona content/description */

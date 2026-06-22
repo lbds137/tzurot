@@ -12,13 +12,17 @@
  *   placeholder persona in the same maintenance pass
  */
 
-import { type PrismaClient, Prisma } from './prisma.js';
-import { createLogger } from '../utils/logger.js';
-import { TTLCache } from '../utils/TTLCache.js';
-import { generateUserUuid, generatePersonaUuid } from '../utils/deterministicUuid.js';
-import { isBotOwner } from '../utils/ownerMiddleware.js';
-import { UNKNOWN_USER_DISCORD_ID } from '../constants/message.js';
-import { DEFAULT_PERSONA_DESCRIPTION } from '../constants/persona.js';
+import {
+  type PrismaClient,
+  Prisma,
+  createLogger,
+  TTLCache,
+  generateUserUuid,
+  generatePersonaUuid,
+  isBotOwner,
+  UNKNOWN_USER_DISCORD_ID,
+  DEFAULT_PERSONA_DESCRIPTION,
+} from '@tzurot/common-types';
 
 /**
  * User record with fields needed for post-read maintenance checks (superuser

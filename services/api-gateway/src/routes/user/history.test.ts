@@ -26,11 +26,6 @@ vi.mock('@tzurot/common-types', async () => {
     getHistoryStats = mockGetHistoryStats;
   }
 
-  // Mock PersonaResolver class
-  class MockPersonaResolver {
-    resolve = mockResolve;
-  }
-
   return {
     ...actual,
     createLogger: () => ({
@@ -40,8 +35,14 @@ vi.mock('@tzurot/common-types', async () => {
       error: vi.fn(),
     }),
     ConversationHistoryService: MockConversationHistoryService,
-    PersonaResolver: MockPersonaResolver,
   };
+});
+
+vi.mock('@tzurot/identity', () => {
+  class MockPersonaResolver {
+    resolve = mockResolve;
+  }
+  return { PersonaResolver: MockPersonaResolver };
 });
 
 // Local service — mock by module path, not via the @tzurot/common-types block above.

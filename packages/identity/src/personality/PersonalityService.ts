@@ -9,11 +9,13 @@
  * - TTLCache: In-memory caching with TTL (via lru-cache)
  */
 
-import type { PrismaClient } from '../prisma.js';
-import { createLogger } from '../../utils/logger.js';
-import { TIMEOUTS } from '../../constants/index.js';
-import type { LoadedPersonality } from '../../types/schemas/index.js';
-import { TTLCache } from '../../utils/TTLCache.js';
+import {
+  type PrismaClient,
+  createLogger,
+  TIMEOUTS,
+  type LoadedPersonality,
+  TTLCache,
+} from '@tzurot/common-types';
 import { PersonalityLoader } from './PersonalityLoader.js';
 import { mapToPersonality } from './PersonalityDefaults.js';
 

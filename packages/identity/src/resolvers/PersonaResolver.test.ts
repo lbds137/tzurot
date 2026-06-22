@@ -36,7 +36,8 @@ const { mockLogger } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('../../utils/logger.js', () => ({
+vi.mock('@tzurot/common-types', async importOriginal => ({
+  ...(await importOriginal<typeof import('@tzurot/common-types')>()),
   createLogger: () => mockLogger,
 }));
 

@@ -5,7 +5,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
-import { PersonalityService, type PrismaClient } from '@tzurot/common-types';
+import { type PrismaClient } from '@tzurot/common-types';
+import { PersonalityService } from '@tzurot/identity';
 import { handleLoadPersonalityInternal } from './personalityLoad.js';
 
 vi.mock('@tzurot/common-types', async () => {

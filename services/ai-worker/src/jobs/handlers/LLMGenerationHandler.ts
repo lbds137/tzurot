@@ -23,8 +23,6 @@ import { ConversationalRAGService } from '../../services/ConversationalRAGServic
 import {
   createLogger,
   ConversationHistoryService,
-  PersonaResolver,
-  UserService,
   ApiErrorCategory,
   ApiErrorType,
   USER_ERROR_MESSAGES,
@@ -32,6 +30,7 @@ import {
   type LLMGenerationResult,
   type PrismaClient,
 } from '@tzurot/common-types';
+import { PersonaResolver, UserService } from '@tzurot/identity';
 import type {
   LlmConfigResolver,
   TtsConfigResolver,
