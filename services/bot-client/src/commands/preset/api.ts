@@ -79,7 +79,8 @@ export async function updatePreset(
   if (!result.ok) {
     throw new DashboardUpdateError(
       `Failed to update preset: ${result.status} - ${result.error ?? 'Unknown'}`,
-      result.status
+      result.status,
+      result.kind
     );
   }
 
@@ -101,7 +102,8 @@ export async function updateGlobalPreset(
   if (!result.ok) {
     throw new DashboardUpdateError(
       `Failed to update global preset: ${result.status} - ${result.error ?? 'Unknown'}`,
-      result.status
+      result.status,
+      result.kind
     );
   }
 
@@ -135,8 +137,8 @@ export async function createPreset(
     throw new GatewayApiError(
       `Failed to create preset: ${result.status} - ${result.error ?? 'Unknown'}`,
       result.status,
-      result.code,
-      result.kind
+      result.kind,
+      result.code
     );
   }
 

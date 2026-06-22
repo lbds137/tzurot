@@ -78,7 +78,7 @@ describe('createClonedPreset', () => {
     // Name-bumping is server-owned. A NAME_COLLISION reaching the client means
     // the server already exhausted MAX_CLONE_NAME_ATTEMPTS — propagate, don't
     // retry (retrying would just re-hit the same server-side ceiling).
-    const collision = new GatewayApiError('still colliding', 400, 'NAME_COLLISION');
+    const collision = new GatewayApiError('still colliding', 400, 'http', 'NAME_COLLISION');
     mockCreatePreset.mockRejectedValueOnce(collision);
 
     await expect(createClonedPreset(sourceData, mkUserClient())).rejects.toBe(collision);
@@ -86,7 +86,7 @@ describe('createClonedPreset', () => {
   });
 
   it('propagates GatewayApiErrors with no sub-code immediately', async () => {
-    mockCreatePreset.mockRejectedValueOnce(new GatewayApiError('Bad request', 400));
+    mockCreatePreset.mockRejectedValueOnce(new GatewayApiError('Bad request', 400, 'http'));
 
     await expect(createClonedPreset(sourceData, mkUserClient())).rejects.toThrow('Bad request');
     expect(mockCreatePreset).toHaveBeenCalledTimes(1);

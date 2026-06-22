@@ -4,16 +4,20 @@
  * Every fetch-edit-PUT dashboard (preset, character, persona) shares two failure
  * shapes that need honest user-facing messaging:
  *
- *  - **Client-side abort (transport status 0)** — the gateway exceeded its write
- *    budget under load and the request aborted, even though the write frequently
- *    commits server-side a moment later. Claiming outright failure (and nudging
- *    "try again", which risks a duplicate write) is wrong; tell the user it may
- *    still be applying.
+ *  - **Outcome-uncertain abort (transport kind `'timeout'`/`'network'`)** — the
+ *    gateway exceeded its write budget under load (or the connection dropped) and
+ *    the request aborted, even though the write frequently commits server-side a
+ *    moment later. Claiming outright failure (and nudging "try again", which risks
+ *    a duplicate write) is wrong; tell the user it may still be applying. A
+ *    `'schema'` failure also carries `status: 0` but is NOT uncertain (the write
+ *    committed), so it falls through to the genuine-rejection branch.
  *  - **Genuine HTTP rejection (4xx/5xx)** — surface the gateway's actual message
  *    so the reason is visible instead of masked behind a generic "try again".
  *    The masked-400 failure mode is exactly what hid the `avatarData` null
  *    round-trip bug behind "Failed to update character. Please try again."
  */
+
+import type { GatewayFailureKind } from '@tzurot/clients';
 
 /** Conservative limit — leaves room for the "❌ " prefix and Discord's 2000-char cap */
 const MAX_DISCORD_CONTENT = 1800;
@@ -30,14 +34,19 @@ export const SAVE_TIMEOUT_NOTICE =
   'Give it a moment, then tap **🔄 Refresh** to confirm before saving again.';
 
 /**
- * Error thrown by dashboard writes, carrying the gateway response status so the
- * caller can tell a genuine rejection (HTTP 4xx/5xx) apart from a client-side
- * network/timeout abort (status 0), whose server-side outcome is uncertain.
+ * Error thrown by dashboard writes, carrying the gateway response `status` and
+ * the transport `kind` so the caller can tell a genuine rejection (HTTP 4xx/5xx)
+ * apart from an outcome-uncertain client-side abort (`'timeout'`/`'network'`).
+ *
+ * `kind` is what `isSaveTimeout` keys on — `status: 0` alone is ambiguous because
+ * a `'schema'` failure (gateway returned 200 OK but the response body didn't
+ * parse — the write DID commit) also carries `status: 0`, yet is NOT uncertain.
  */
 export class DashboardUpdateError extends Error {
   constructor(
     message: string,
-    readonly status: number
+    readonly status: number,
+    readonly kind: GatewayFailureKind
   ) {
     super(message);
     this.name = 'DashboardUpdateError';
@@ -66,12 +75,17 @@ export function extractApiErrorMessage(error: unknown): string | null {
 }
 
 /**
- * True when the error is a dashboard write that aborted client-side (status 0):
- * a network/timeout abort whose server-side outcome is uncertain, as opposed to
- * a definitive HTTP rejection.
+ * True when the error is a dashboard write whose server-side outcome is genuinely
+ * UNCERTAIN — a client-side `'timeout'` or `'network'` abort (the write may have
+ * committed before the connection dropped). Deliberately NOT keyed on `status: 0`:
+ * a `'schema'` failure also has `status: 0` but the write definitively committed
+ * (the gateway returned 200 OK; only the read-back body failed to parse), so the
+ * "may still be applying" notice would be a lie there.
  */
 export function isSaveTimeout(error: unknown): boolean {
-  return error instanceof DashboardUpdateError && error.status === 0;
+  return (
+    error instanceof DashboardUpdateError && (error.kind === 'timeout' || error.kind === 'network')
+  );
 }
 
 /**
