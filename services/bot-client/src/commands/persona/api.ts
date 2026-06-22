@@ -66,11 +66,12 @@ export async function updatePersona(
   if (!result.ok) {
     logger.warn({ userId, personaId, error: result.error }, 'Failed to update persona');
     // Throw (rather than return null) so the dashboard can surface the real
-    // gateway message and distinguish a status-0 client abort from an HTTP
-    // rejection — the same contract as updateCharacter / updatePreset.
+    // gateway message and distinguish an outcome-uncertain abort (timeout/network)
+    // from an HTTP rejection — the same contract as updateCharacter / updatePreset.
     throw new DashboardUpdateError(
       `Failed to update persona: ${result.status} - ${result.error ?? 'Unknown'}`,
-      result.status
+      result.status,
+      result.kind
     );
   }
 

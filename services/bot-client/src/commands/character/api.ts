@@ -246,12 +246,13 @@ export async function createCharacter(
   const result = await userClient.createPersonality(data);
 
   if (!result.ok) {
-    // Consistent with updateCharacter: carry the status (so a create flow could
-    // surface the honest status-0 notice) and guard the message against an
-    // undefined gateway error.
+    // Consistent with updateCharacter: carry the status + kind (so a create flow
+    // could surface the honest outcome-uncertain notice) and guard the message
+    // against an undefined gateway error.
     throw new DashboardUpdateError(
       `Failed to create character: ${result.status} - ${result.error ?? 'Unknown'}`,
-      result.status
+      result.status,
+      result.kind
     );
   }
 
@@ -270,12 +271,14 @@ export async function updateCharacter(
   const result = await userClient.updatePersonality(slug, omitEmptyRequiredText(data));
 
   if (!result.ok) {
-    // DashboardUpdateError carries the status so the dashboard can distinguish a
-    // client-side abort (0 → "still applying") from a real HTTP rejection (whose
-    // message it surfaces). The message format matches extractApiErrorMessage.
+    // DashboardUpdateError carries status + kind so the dashboard can distinguish
+    // an outcome-uncertain abort (timeout/network → "still applying") from a real
+    // HTTP rejection (whose message it surfaces). Message format matches
+    // extractApiErrorMessage.
     throw new DashboardUpdateError(
       `Failed to update character: ${result.status} - ${result.error ?? 'Unknown'}`,
-      result.status
+      result.status,
+      result.kind
     );
   }
 
