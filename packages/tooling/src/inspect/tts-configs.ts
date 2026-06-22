@@ -98,7 +98,7 @@ async function main() {
       console.warn('⚠️  Result may be truncated at the ' + ${takeLimit} + '-row take limit — re-run with a higher limit if you need to see all rows');
     }
   } finally {
-    await dispose();
+    await dispose().catch(() => undefined);
   }
 }
 

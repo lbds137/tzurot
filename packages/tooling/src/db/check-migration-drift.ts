@@ -92,6 +92,6 @@ export async function checkMigrationDrift(options: CheckDriftOptions = {}): Prom
       console.log(chalk.cyan(`  pnpm ops db:fix-drift ${driftedMigrations.join(' ')}`));
     }
   } finally {
-    await dispose();
+    await dispose().catch(() => undefined);
   }
 }

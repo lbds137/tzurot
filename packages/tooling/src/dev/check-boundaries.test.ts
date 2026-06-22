@@ -19,7 +19,10 @@ vi.mock('node:fs', () => ({
 }));
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { checkBoundaries } from './check-boundaries.js';
+import {
+  checkBoundaries,
+  BOT_CLIENT_BANNED_COMMON_TYPES_PRISMA_SYMBOLS,
+} from './check-boundaries.js';
 
 describe('checkBoundaries', () => {
   let consoleLogSpy: MockInstance;
@@ -136,7 +139,7 @@ const prisma = new PrismaClient();
         typeof statSync
       >);
       vi.mocked(readFileSync).mockReturnValue(
-        `import { getPrismaClient } from '@tzurot/common-types';`
+        `import { PrismaClient } from '@tzurot/common-types';`
       );
 
       await checkBoundaries();
@@ -169,7 +172,7 @@ const prisma = new PrismaClient();
 
     it('should detect a Prisma-backed symbol in a MULTI-LINE common-types import', async () => {
       // Regression guard: the old line-by-line scan skipped any line without the
-      // `import` keyword, so `getPrismaClient,` on its own line was invisible.
+      // `import` keyword, so `createPrismaClient,` on its own line was invisible.
       vi.mocked(readdirSync).mockImplementation(((dir: unknown) =>
         String(dir).includes('bot-client/src') ? ['test.ts'] : []) as typeof readdirSync);
       vi.mocked(statSync).mockReturnValue({ isDirectory: () => false } as ReturnType<
@@ -179,7 +182,7 @@ const prisma = new PrismaClient();
         [
           'import {',
           '  createLogger,',
-          '  getPrismaClient,',
+          '  createPrismaClient,',
           "} from '@tzurot/common-types';",
         ].join('\n')
       );
@@ -301,7 +304,7 @@ import { PersonalityConfig } from '@tzurot/common-types';
         typeof statSync
       >);
       vi.mocked(readFileSync).mockReturnValue(
-        `import { getPrismaClient } from './utils/localShim.js';`
+        `import { createPrismaClient } from './utils/localShim.js';`
       );
 
       await checkBoundaries();
@@ -382,5 +385,17 @@ import { formatMessage } from './utils/formatter.js';
       const output = consoleLogSpy.mock.calls.flat().join(' ');
       expect(output).toContain('Checking');
     });
+  });
+});
+
+describe('bot-client Prisma-symbol allowlist (drift guard)', () => {
+  it('every banned common-types Prisma symbol is still a real @tzurot/common-types export', async () => {
+    const commonTypes = await import('@tzurot/common-types');
+    for (const symbol of BOT_CLIENT_BANNED_COMMON_TYPES_PRISMA_SYMBOLS) {
+      expect(
+        symbol in commonTypes,
+        `"${symbol}" is in check-boundaries' bot-client ban list but is no longer exported from @tzurot/common-types — prune it from BOT_CLIENT_BANNED_COMMON_TYPES_PRISMA_SYMBOLS (the symbol was renamed, deleted, or moved to a dedicated package with its own depcruise ban).`
+      ).toBe(true);
+    }
   });
 });

@@ -151,7 +151,7 @@ export function isReExportFile(filePath: string): boolean {
 const PRISMA_PATTERNS = [
   /from\s+['"]@prisma\/client['"]/, // import from @prisma/client
   /from\s+['"]\..*prisma['"]/i, // import from local prisma
-  /getPrismaClient\s*\(/, // getPrismaClient() call
+  /createPrismaClient\s*\(/, // createPrismaClient() factory (post-singleton-eviction entry point)
   /new\s+PrismaClient\s*\(/, // new PrismaClient()
   /this\.prisma\./, // this.prisma.* usage
   /prisma\.\w+\.(findMany|findUnique|findFirst|create|update|delete|upsert|count|aggregate)/,

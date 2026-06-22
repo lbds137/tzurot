@@ -93,6 +93,6 @@ export async function fixMigrationDrift(
 
     console.log(chalk.green('Done!') + ' Run `npx prisma migrate status` to verify.');
   } finally {
-    await dispose();
+    await dispose().catch(() => undefined);
   }
 }

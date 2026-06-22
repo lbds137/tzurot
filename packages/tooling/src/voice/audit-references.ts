@@ -253,7 +253,7 @@ export async function auditReferences(options: AuditReferencesOptions = {}): Pro
       }
     }
   } finally {
-    await dispose();
+    await dispose().catch(() => undefined);
     // rm with recursive+force handles the case where any per-probe unlink
     // silently failed and left a file behind (rmdir would fail in that case).
     await rm(tmpDir, { recursive: true, force: true }).catch(() => {
