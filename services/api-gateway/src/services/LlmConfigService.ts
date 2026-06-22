@@ -14,7 +14,6 @@
 
 import {
   type PrismaClient,
-  type LlmConfigCacheInvalidationService,
   type LlmConfigCreateInput,
   type LlmConfigUpdateInput,
   LLM_CONFIG_LIST_SELECT,
@@ -26,6 +25,7 @@ import {
   createLogger,
   safeValidateAdvancedParams,
 } from '@tzurot/common-types';
+import { type LlmConfigCacheInvalidationService } from '@tzurot/cache-invalidation';
 
 import { isPrismaUniqueConstraintErrorOn } from '../utils/prismaErrors.js';
 import { CloneNameExhaustedError, AutoSuffixCollisionError } from './LlmConfigErrors.js';

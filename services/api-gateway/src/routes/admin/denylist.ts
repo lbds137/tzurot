@@ -17,8 +17,8 @@ import {
   denylistEntityTypeSchema,
   denylistScopeSchema,
   type PrismaClient,
-  type DenylistCacheInvalidationService,
 } from '@tzurot/common-types';
+import { type DenylistCacheInvalidationService } from '@tzurot/cache-invalidation';
 import { extractOwnerId, requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';

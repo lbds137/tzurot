@@ -11,13 +11,15 @@ import { Redis } from 'ioredis';
 import {
   createLogger,
   isBotOwner,
-  CacheInvalidationService,
-  ChannelActivationCacheInvalidationService,
-  DenylistCacheInvalidationService,
   getConfig,
   parseRedisUrl,
   createBullMQRedisConfig,
 } from '@tzurot/common-types';
+import {
+  CacheInvalidationService,
+  ChannelActivationCacheInvalidationService,
+  DenylistCacheInvalidationService,
+} from '@tzurot/cache-invalidation';
 import {
   invalidateChannelSettingsCache,
   clearAllChannelSettingsCache,

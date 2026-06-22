@@ -20,6 +20,9 @@ import {
   createLogger,
   getConfig,
   createPrismaClient,
+  type PrismaClient,
+} from '@tzurot/common-types';
+import {
   CacheInvalidationService,
   ApiKeyCacheInvalidationService,
   LlmConfigCacheInvalidationService,
@@ -27,8 +30,7 @@ import {
   SttResolverCacheInvalidationService,
   DenylistCacheInvalidationService,
   ConfigCascadeCacheInvalidationService,
-  type PrismaClient,
-} from '@tzurot/common-types';
+} from '@tzurot/cache-invalidation';
 import { PersonalityService } from '@tzurot/identity';
 import { ConfigCascadeResolver, LlmConfigResolver } from '@tzurot/config-resolver';
 import { ConversationRetentionService } from './services/ConversationRetentionService.js';

@@ -24,8 +24,8 @@ import {
   AdminSettingsSchema,
   ADMIN_SETTINGS_SINGLETON_ID,
   createLogger,
-  type ConfigCascadeCacheInvalidationService,
 } from '@tzurot/common-types';
+import { type ConfigCascadeCacheInvalidationService } from '@tzurot/cache-invalidation';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { mergeConfigOverrides } from '../../utils/configOverrideMerge.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';

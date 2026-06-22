@@ -8,17 +8,21 @@ import {
   isValidDenylistInvalidationEvent,
   type DenylistInvalidationEvent,
 } from './DenylistCacheInvalidationService.js';
-import { REDIS_CHANNELS } from '../constants/queue.js';
+import { REDIS_CHANNELS } from '@tzurot/common-types';
 
 // Mock logger
-vi.mock('../utils/logger.js', () => ({
-  createLogger: () => ({
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
-}));
+vi.mock('@tzurot/common-types', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+  return {
+    ...actual,
+    createLogger: () => ({
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }),
+  };
+});
 
 describe('DenylistCacheInvalidationService', () => {
   let mockRedis: ReturnType<typeof createMockRedis>;

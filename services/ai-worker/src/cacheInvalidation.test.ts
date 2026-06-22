@@ -43,54 +43,57 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
-    CacheInvalidationService: class {
-      subscribe = vi.fn().mockResolvedValue(undefined);
-      unsubscribe = mockUnsubscribe;
-    },
-    ApiKeyCacheInvalidationService: class {
-      subscribe = vi.fn().mockImplementation((cb: SubscribeCallback) => {
-        capturedCallbacks.apiKey = cb;
-        return Promise.resolve();
-      });
-      unsubscribe = mockUnsubscribe;
-    },
-    LlmConfigCacheInvalidationService: class {
-      subscribe = vi.fn().mockImplementation((cb: SubscribeCallback) => {
-        capturedCallbacks.llmConfig = cb;
-        return Promise.resolve();
-      });
-      unsubscribe = mockUnsubscribe;
-    },
-    TtsConfigCacheInvalidationService: class {
-      subscribe = vi.fn().mockImplementation((cb: SubscribeCallback) => {
-        capturedCallbacks.ttsConfig = cb;
-        return Promise.resolve();
-      });
-      unsubscribe = mockUnsubscribe;
-    },
-    PersonaCacheInvalidationService: class {
-      subscribe = vi.fn().mockImplementation((cb: SubscribeCallback) => {
-        capturedCallbacks.persona = cb;
-        return Promise.resolve();
-      });
-      unsubscribe = mockUnsubscribe;
-    },
-    ConfigCascadeCacheInvalidationService: class {
-      subscribe = vi.fn().mockImplementation((cb: SubscribeCallback) => {
-        capturedCallbacks.cascade = cb;
-        return Promise.resolve();
-      });
-      unsubscribe = mockUnsubscribe;
-    },
-    SttResolverCacheInvalidationService: class {
-      subscribe = vi.fn().mockImplementation((cb: SubscribeCallback) => {
-        capturedCallbacks.stt = cb;
-        return Promise.resolve();
-      });
-      unsubscribe = mockUnsubscribe;
-    },
   };
 });
+
+vi.mock('@tzurot/cache-invalidation', () => ({
+  CacheInvalidationService: class {
+    subscribe = vi.fn().mockResolvedValue(undefined);
+    unsubscribe = mockUnsubscribe;
+  },
+  ApiKeyCacheInvalidationService: class {
+    subscribe = vi.fn().mockImplementation((cb: SubscribeCallback) => {
+      capturedCallbacks.apiKey = cb;
+      return Promise.resolve();
+    });
+    unsubscribe = mockUnsubscribe;
+  },
+  LlmConfigCacheInvalidationService: class {
+    subscribe = vi.fn().mockImplementation((cb: SubscribeCallback) => {
+      capturedCallbacks.llmConfig = cb;
+      return Promise.resolve();
+    });
+    unsubscribe = mockUnsubscribe;
+  },
+  TtsConfigCacheInvalidationService: class {
+    subscribe = vi.fn().mockImplementation((cb: SubscribeCallback) => {
+      capturedCallbacks.ttsConfig = cb;
+      return Promise.resolve();
+    });
+    unsubscribe = mockUnsubscribe;
+  },
+  PersonaCacheInvalidationService: class {
+    subscribe = vi.fn().mockImplementation((cb: SubscribeCallback) => {
+      capturedCallbacks.persona = cb;
+      return Promise.resolve();
+    });
+    unsubscribe = mockUnsubscribe;
+  },
+  ConfigCascadeCacheInvalidationService: class {
+    subscribe = vi.fn().mockImplementation((cb: SubscribeCallback) => {
+      capturedCallbacks.cascade = cb;
+      return Promise.resolve();
+    });
+    unsubscribe = mockUnsubscribe;
+  },
+  SttResolverCacheInvalidationService: class {
+    subscribe = vi.fn().mockImplementation((cb: SubscribeCallback) => {
+      capturedCallbacks.stt = cb;
+      return Promise.resolve();
+    });
+    unsubscribe = mockUnsubscribe;
+  },
+}));
 
 vi.mock('@tzurot/config-resolver', () => ({
   ConfigCascadeResolver: class {

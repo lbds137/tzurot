@@ -190,6 +190,7 @@ describe('Project Structure', () => {
       'packages/config-resolver/src',
       'packages/identity/src',
       'packages/conversation-history/src',
+      'packages/cache-invalidation/src',
       'packages/embeddings/src',
       'packages/test-factories/src',
       'packages/test-utils/src',

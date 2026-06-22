@@ -15,7 +15,7 @@
  * - { type: 'all' } - Invalidate all LLM config caches (e.g., for global config changes)
  */
 
-import { REDIS_CHANNELS } from '../constants/queue.js';
+import { REDIS_CHANNELS } from '@tzurot/common-types';
 import {
   BaseCacheInvalidationService,
   createEventValidator,

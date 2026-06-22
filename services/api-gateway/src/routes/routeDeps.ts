@@ -28,16 +28,16 @@
 
 import type { Queue, QueueEvents } from 'bullmq';
 import type { Redis } from 'ioredis';
+import type { PrismaClient } from '@tzurot/common-types';
 import type {
   ApiKeyCacheInvalidationService,
   CacheInvalidationService,
   ConfigCascadeCacheInvalidationService,
   DenylistCacheInvalidationService,
   LlmConfigCacheInvalidationService,
-  PrismaClient,
   SttResolverCacheInvalidationService,
   TtsConfigCacheInvalidationService,
-} from '@tzurot/common-types';
+} from '@tzurot/cache-invalidation';
 import type { ConfigCascadeResolver, LlmConfigResolver } from '@tzurot/config-resolver';
 import type { ConversationRetentionService } from '../services/ConversationRetentionService.js';
 import type { OpenRouterModelCache } from '../services/OpenRouterModelCache.js';

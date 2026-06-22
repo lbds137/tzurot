@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
+    "@tzurot/cache-invalidation": "workspace:*",
     "@tzurot/common-types": "workspace:*",
     "@tzurot/config-resolver": "workspace:*",
     "@tzurot/conversation-history": "workspace:*",

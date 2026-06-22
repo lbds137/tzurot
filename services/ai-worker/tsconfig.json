@@ -11,6 +11,7 @@
     { "path": "../../packages/common-types" },
     { "path": "../../packages/config-resolver" },
     { "path": "../../packages/identity" },
-    { "path": "../../packages/conversation-history" }
+    { "path": "../../packages/conversation-history" },
+    { "path": "../../packages/cache-invalidation" }
   ]
 }
