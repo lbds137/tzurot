@@ -13,6 +13,15 @@ import { z } from 'zod';
 import type { ApiErrorSubcode } from '@tzurot/common-types';
 
 /**
+ * Transport failure category. Defined here (the dependency target) rather than
+ * in transport.ts so `GatewayApiError` can carry it without a transport↔errors
+ * import cycle; transport.ts imports it back for the `GatewayResult` envelope.
+ * The four non-HTTP kinds all carry `status: 0`; only `'http'` carries a real
+ * HTTP status (invariant: `status > 0 ⟺ kind === 'http'`).
+ */
+export type GatewayFailureKind = 'config' | 'network' | 'timeout' | 'schema' | 'http';
+
+/**
  * Wire shape of a gateway error body. Used by {@link parseErrorResponse}
  * to validate the JSON body via Zod rather than an unsafe cast — same
  * defensive validation the transport's success-path schema check
@@ -65,12 +74,19 @@ export interface ParsedErrorResponse {
 export class GatewayApiError extends Error {
   public readonly status: number;
   public readonly code?: ApiErrorSubcode;
+  /**
+   * Transport failure category propagated from `GatewayResult`, so try/catch
+   * callers can branch on `'timeout'` vs `'network'` vs `'schema'` without
+   * string-matching `message` — the same distinction the result path gets.
+   */
+  public readonly kind?: GatewayFailureKind;
 
-  constructor(message: string, status: number, code?: ApiErrorSubcode) {
+  constructor(message: string, status: number, code?: ApiErrorSubcode, kind?: GatewayFailureKind) {
     super(message);
     this.name = 'GatewayApiError';
     this.status = status;
     this.code = code;
+    this.kind = kind;
   }
 }
 
