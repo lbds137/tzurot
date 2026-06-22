@@ -7,7 +7,16 @@
 
 ## Unreleased on Develop (since beta.135)
 
-_Nothing yet — **v3.0.0-beta.135 shipped 2026-06-20** (#1275); develop is SHA-aligned with main. The beta.134→135 delta (2.5d cutover finale #1267/#1268/#1269/#1270, vision-403 fix #1274, trigger-dup fix #1272, LlmConfigResolver convergence #1258, read-timeout flip #1262, summon-anonymity union #1260, slash-command sweep #1263/#1264/#1265) is in the [release notes](https://github.com/lbds137/tzurot/releases/tag/v3.0.0-beta.135)._
+**Phase 2.5d bot-client Prisma eviction — COMPLETE** (#1286–#1291): every Prisma read in bot-client migrated to cached internal gateway routes (`routing-context` / `loadPersonality`); vestigial composition-root wiring deleted; bot-client now has **ZERO** Prisma usage, enforced by `guard:boundaries` (symbol-level, barrel-aware).
+
+**"Slim common-types" epic (PR-2p) — in progress:**
+
+- **2p-1 ✅** — Prisma singleton evicted; every app/tool owns its `PrismaClient` via `createPrismaClient()`; `getPrismaClient()` + the module singleton DELETED (#1292/#1293/#1294).
+- **2p-2 ✅** — extracted **`@tzurot/config-resolver`** (the 5 resolver classes) (#1295).
+- **2p-3a ✅** — extracted **`@tzurot/identity`** (UserService, PersonaResolver + BaseConfigResolver, PersonalityService cluster, RoutingContextResolver); persona reverse-edge solved via the `CorePersonaConfig`/`PersonaResolverLike` contract that stays in common-types (#1299).
+- **➡️ 2p-3b NEXT** — extract `@tzurot/conversation-history`; then **2q** (Redis pub/sub split) closes the epic.
+
+Also: test-pyramid taxonomy single-sourcing + Phase-1 enforcement seeds (#1283–#1285). Full epic detail in [`backlog/active-epic.md`](backlog/active-epic.md). _beta.135 release notes: [tag v3.0.0-beta.135](https://github.com/lbds137/tzurot/releases/tag/v3.0.0-beta.135)._
 
 **Pending validation**: the vision-403 fix (#1274) is dev-verified (referenced vxReddit embed described correctly, no `imageFetchFallback` marker); confirm it holds in **prod** — the soak window showed 286 image-403 `bad_request`s across 2 users, all of which this release fixes. **Post-merge cleanup**: ✅ inert `CONTEXT_*` Railway vars removed from dev + prod (2026-06-20).
 
@@ -15,16 +24,14 @@ _Nothing yet — **v3.0.0-beta.135 shipped 2026-06-20** (#1275); develop is SHA-
 
 ## Next Session Goal
 
-**Session 2026-06-18: shipped v3.0.0-beta.134** (#1256) — incognito mode + two prod-bug classes (DB-pool starvation, avatarData null round-trip) + an LHF sweep. All dev verification passed (incognito 4-case matrix, cross-channel-for-personal-summons, no-avatar edit) before the cut. **Only open thread: confirm the DB-pool fix (#1250) in prod under real load.** No forward thread pre-decided.
+**Active epic: "Slim common-types" (PR-2p).** 2p-3a (`@tzurot/identity`) shipped this session (#1299). **➡️ Immediate next: PR-2p-3b — extract `@tzurot/conversation-history`** (`ConversationHistoryService`, `ConversationSyncService`, `ConversationMessageMapper`, `conversationSyncDiff`, `referenceImageDescriptions`). Independent of identity. Watch the reverse-dependency direction (the 2p-2 lesson): `ConversationMessage` likely stays in common-types as a shared contract type — let the typecheck loop surface which types must relocate. The proven extraction template (#1295/#1299): scaffold → `git mv` → barrel/pointer → repoint consumers with split imports → wiring (tsconfig refs, vitest workspace, knip, depcruise bot-client ban, structure dirs, **Dockerfile dist copies up-front**, service package deps) → `pnpm install`. After 2p-3b, **PR-2q** (Redis pub/sub split) closes the epic.
 
-**Candidate next threads** (none greenlit):
+**Candidate threads when the epic pauses** (none greenlit):
 
-- **Type-enforce the personal/anonymous context coupling** (`cold/ideas.md`) — the discriminated-union refactor so the `isWeighIn`/`incognito`-vs-persona drift class becomes unrepresentable (the "enforce bundling" idea from the #1254 investigation).
-- **UX consistency audit (incl. parameter ordering)** (`cold/ideas.md`) — **user wants soonish** (asked 2026-06-18 off the `/character random` option reorder).
-- **Preset llm-config PUT timeout — track (a)** — the gateway-slowness root cause; the pool fix (#1250) is the leading candidate, so **re-check on prod** before treating it as still-open.
-- **Context-relocation epic 2.5d** — delete legacy + `MessageContextBuilder` + bot-client Prisma + all `CONTEXT_*` flags.
+- **Type-enforce the personal/anonymous context coupling** (`cold/ideas.md`) — discriminated-union refactor so the `isWeighIn`/`incognito`-vs-persona drift class becomes unrepresentable.
+- **UX consistency audit (incl. parameter ordering)** (`cold/ideas.md`) — **user wants soonish** (asked 2026-06-18).
 
-**Smaller follow-ups** in `backlog/cold/follow-ups.md`: bot-client holds its own Prisma pool (3×20 vs Railway's ~100), `characterInfo`/`personalityTraits` empty-string sibling of the avatarData class, round-trip-registry enforcement, incognito test-gaps + cosmetic cleanup — plus the older ones.
+**Smaller follow-ups** in `backlog/cold/follow-ups.md`: ai-worker `resolvers/index.ts` wrapper-barrel (filed this session), `LoadedTtsPersonality`→common-types, `createPrismaClient()` unit test, `PRISMA_PATTERNS` heuristic refresh — plus the older ones.
 
 ## Last Session — backlog restructure: HOT/COLD + granularity ladder (2026-06-17)
 
