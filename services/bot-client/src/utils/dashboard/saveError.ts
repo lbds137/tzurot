@@ -41,7 +41,7 @@ export const SAVE_TIMEOUT_NOTICE =
  * in sync with the dashboards' refresh control, same as SAVE_TIMEOUT_NOTICE.
  */
 export const SAVE_UNCONFIRMED_NOTICE =
-  '✅ Your change was saved, but I couldn’t read the confirmation back. ' +
+  "✅ Your change was saved, but I couldn't read the confirmation back. " +
   'Tap **🔄 Refresh** to verify — no need to save again.';
 
 /**
@@ -69,9 +69,10 @@ export class DashboardUpdateError extends Error {
  *
  * Gateway write errors follow the format "Failed to X <resource>: HTTP_STATUS -
  * api_message". This extracts the api_message portion for display. Returns null
- * for network errors (status 0 has a single-digit status that doesn't match the
- * 3-digit pattern) or unexpected formats, signaling callers to use a generic
- * fallback. Truncates to Discord's content limit to avoid silent send failures.
+ * for non-HTTP failure modes (timeout/network/schema/config all carry status 0,
+ * whose single digit doesn't match the 3-digit pattern) or unexpected formats,
+ * signaling callers to use a generic fallback. Truncates to Discord's content
+ * limit to avoid silent send failures.
  */
 export function extractApiErrorMessage(error: unknown): string | null {
   if (!(error instanceof Error)) {
