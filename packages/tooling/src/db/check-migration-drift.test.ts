@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import { createPrismaClient } from '@tzurot/common-types';
 
-const mockDispose = vi.fn();
+const mockDispose = vi.fn().mockResolvedValue(undefined);
 
 // Mock common-types
 vi.mock('@tzurot/common-types', () => ({

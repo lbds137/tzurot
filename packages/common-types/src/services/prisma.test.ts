@@ -1,0 +1,101 @@
+/**
+ * Unit tests for createPrismaClient() — the post-singleton-eviction entry point.
+ *
+ * Mocks pg.Pool, the generated PrismaClient, the driver adapter, and poolConfig
+ * so we can assert the lifecycle contract without a real database: pool sizing,
+ * the dispose() order (stop the stats gauge BEFORE $disconnect so no stale
+ * interval polls a closed pool), dispose() idempotency, and construction-failure
+ * teardown (no leaked pool/interval if the client throws past gauge start).
+ */
+
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+const { mockPool, mockPrisma, mockStopGauge, mockResolvePoolMax, mockStartGauge } = vi.hoisted(
+  () => ({
+    mockPool: { on: vi.fn(), end: vi.fn().mockResolvedValue(undefined) },
+    mockPrisma: { $disconnect: vi.fn().mockResolvedValue(undefined) },
+    mockStopGauge: vi.fn(),
+    mockResolvePoolMax: vi.fn(() => 20),
+    mockStartGauge: vi.fn(() => mockStopGauge),
+  })
+);
+
+// `new Pool()` / `new PrismaClient()` need constructor-capable mocks — a `function`
+// expression (not an arrow) so it's `new`-able and returns the mock instance.
+vi.mock('pg', () => ({
+  Pool: vi.fn(function () {
+    return mockPool;
+  }),
+}));
+vi.mock('../generated/prisma/client.js', () => ({
+  PrismaClient: vi.fn(function () {
+    return mockPrisma;
+  }),
+  Prisma: {},
+}));
+vi.mock('@prisma/adapter-pg', () => ({ PrismaPg: vi.fn() }));
+vi.mock('../utils/logger.js', () => ({
+  createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
+}));
+vi.mock('../config/config.js', () => ({ getConfig: () => ({ NODE_ENV: 'test' }) }));
+vi.mock('./poolConfig.js', () => ({
+  resolvePoolMax: mockResolvePoolMax,
+  resolveConnectionTimeoutMs: vi.fn(() => 10_000),
+  resolvePoolStatsIntervalMs: vi.fn(() => 0),
+  startPoolStatsGauge: mockStartGauge,
+}));
+
+import { Pool } from 'pg';
+import { PrismaClient } from '../generated/prisma/client.js';
+import { createPrismaClient } from './prisma.js';
+
+describe('createPrismaClient', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockResolvePoolMax.mockReturnValue(20);
+    mockStartGauge.mockReturnValue(mockStopGauge);
+  });
+
+  it('sizes the pool from resolvePoolMax() by default', () => {
+    createPrismaClient();
+    expect(Pool).toHaveBeenCalledWith(expect.objectContaining({ max: 20 }));
+  });
+
+  it('uses an explicit max override over resolvePoolMax()', () => {
+    createPrismaClient({ max: 5 });
+    expect(mockResolvePoolMax).not.toHaveBeenCalled();
+    expect(Pool).toHaveBeenCalledWith(expect.objectContaining({ max: 5 }));
+  });
+
+  it('dispose() stops the stats gauge BEFORE disconnecting', async () => {
+    const { dispose } = createPrismaClient();
+    await dispose();
+
+    expect(mockStopGauge).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.$disconnect).toHaveBeenCalledTimes(1);
+    // Order matters: a gauge polling a $disconnect-ed pool would throw.
+    expect(mockStopGauge.mock.invocationCallOrder[0]).toBeLessThan(
+      mockPrisma.$disconnect.mock.invocationCallOrder[0]
+    );
+  });
+
+  it('dispose() is idempotent — a double call disconnects only once', async () => {
+    const { dispose } = createPrismaClient();
+    await dispose();
+    await dispose();
+
+    expect(mockPrisma.$disconnect).toHaveBeenCalledTimes(1);
+    expect(mockStopGauge).toHaveBeenCalledTimes(1);
+  });
+
+  it('tears down the pool + gauge and rethrows if PrismaClient construction throws', () => {
+    vi.mocked(PrismaClient).mockImplementationOnce(function () {
+      throw new Error('client construction failed');
+    });
+
+    expect(() => createPrismaClient()).toThrow('client construction failed');
+    // No leaked interval or pool connections — both torn down before rethrow.
+    expect(mockStopGauge).toHaveBeenCalledTimes(1);
+    expect(mockPool.end).toHaveBeenCalledTimes(1);
+  });
+});
