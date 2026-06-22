@@ -14,15 +14,17 @@ import {
   ApiKeyCacheInvalidationService,
   LlmConfigCacheInvalidationService,
   PersonaCacheInvalidationService,
-  ConfigCascadeResolver,
   ConfigCascadeCacheInvalidationService,
-  LlmConfigResolver,
-  TtsConfigResolver,
   TtsConfigCacheInvalidationService,
-  SttResolver,
   SttResolverCacheInvalidationService,
   type PrismaClient,
 } from '@tzurot/common-types';
+import {
+  ConfigCascadeResolver,
+  LlmConfigResolver,
+  TtsConfigResolver,
+  SttResolver,
+} from '@tzurot/config-resolver';
 import { ApiKeyResolver } from './services/ApiKeyResolver.js';
 import { PersonaResolver } from './services/resolvers/index.js';
 

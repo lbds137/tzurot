@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TtsConfigResolver } from './TtsConfigResolver.js';
-import type { PrismaClient } from './prisma.js';
+import type { PrismaClient } from '@tzurot/common-types';
 
 // Hoisted logger spies so tests can assert severity (the WARN→ERROR upgrade
 // for personality-default lookup failures is a behavioral contract worth pinning).
@@ -9,14 +9,18 @@ const { mockLoggerError, mockLoggerWarn } = vi.hoisted(() => ({
   mockLoggerWarn: vi.fn(),
 }));
 
-vi.mock('../utils/logger.js', () => ({
-  createLogger: () => ({
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: mockLoggerWarn,
-    error: mockLoggerError,
-  }),
-}));
+vi.mock('@tzurot/common-types', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+  return {
+    ...actual,
+    createLogger: () => ({
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: mockLoggerWarn,
+      error: mockLoggerError,
+    }),
+  };
+});
 
 interface MockPrisma {
   user: { findFirst: ReturnType<typeof vi.fn> };

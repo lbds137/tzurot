@@ -28,10 +28,9 @@ import {
   SttResolverCacheInvalidationService,
   DenylistCacheInvalidationService,
   ConfigCascadeCacheInvalidationService,
-  ConfigCascadeResolver,
-  LlmConfigResolver,
   type PrismaClient,
 } from '@tzurot/common-types';
+import { ConfigCascadeResolver, LlmConfigResolver } from '@tzurot/config-resolver';
 import { ConversationRetentionService } from './services/ConversationRetentionService.js';
 
 // Routes

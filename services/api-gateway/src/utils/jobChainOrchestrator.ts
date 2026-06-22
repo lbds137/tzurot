@@ -20,13 +20,13 @@ import {
   type JobDependency,
   type JobContext,
   type ResponseDestination,
-  type LlmConfigResolver,
   type ConfigSourceId,
   JobStatus,
   audioTranscriptionJobDataSchema,
   imageDescriptionJobDataSchema,
   llmGenerationJobDataSchema,
 } from '@tzurot/common-types';
+import type { LlmConfigResolver } from '@tzurot/config-resolver';
 import { flowProducer } from '../queue.js';
 import type { FlowJob } from 'bullmq';
 

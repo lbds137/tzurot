@@ -28,6 +28,7 @@
     { "path": "./services/api-gateway" },
     { "path": "./services/ai-worker" },
     { "path": "./packages/common-types" },
+    { "path": "./packages/config-resolver" },
     { "path": "./packages/clients" },
     { "path": "./packages/test-factories" },
     { "path": "./tests" },

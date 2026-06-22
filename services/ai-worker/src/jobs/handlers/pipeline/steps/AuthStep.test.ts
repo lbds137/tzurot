@@ -17,7 +17,8 @@ import type {
   ApiKeyResolver,
   ApiKeyResolutionResult,
 } from '../../../../services/ApiKeyResolver.js';
-import type { LlmConfigResolver, SttResolver, SttProvider } from '@tzurot/common-types';
+import type { SttProvider } from '@tzurot/common-types';
+import type { LlmConfigResolver, SttResolver } from '@tzurot/config-resolver';
 
 // Mock common-types logger and isFreeModel
 vi.mock('@tzurot/common-types', async importOriginal => {
