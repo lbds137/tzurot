@@ -16,7 +16,8 @@
 - **2p-3a ✅** — extracted **`@tzurot/identity`** (UserService, PersonaResolver + BaseConfigResolver, PersonalityService cluster, RoutingContextResolver); persona reverse-edge solved via the `CorePersonaConfig`/`PersonaResolverLike` contract that stays in common-types (#1299).
 - **2p-3b ✅** — extracted **`@tzurot/conversation-history`** (ConversationHistoryService, ConversationSyncService, referenceImageDescriptions, + the Prisma half of ConversationMessageMapper); `conversationSyncDiff` + the `ConversationMessage`/`CrossChannelHistoryGroup` shapes stay in common-types (bot-client consumes them) (#1300). **Prisma-backed `services/` extraction COMPLETE.**
 - **2q ✅** — extracted **`@tzurot/cache-invalidation`** (Base + 9 Redis pub/sub invalidators + event contracts); council-settled dedicated-package shape (topology falsified the publisher/subscriber split); bot-client depends on it (Redis ≠ Prisma); `REDIS_CHANNELS` stays + now barrel-exported (#1302). **🏁 Extraction arc COMPLETE — common-types is now types/schemas/constants/utils only.**
-- **➡️ Epic remaining**: only the 3 follow-up sweep clusters (~29 items, gated in [`active-epic.md`](backlog/active-epic.md) close-out tracker). Cluster A (PR-2p, 7) now sweepable.
+- **Cluster A close-out ✅ COMPLETE** — 4 items in #1304 (`LoadedTtsPersonality`→common-types, ai-worker `resolvers/index.ts` wrapper kill, stale `UserService` eslint-exemption drop, `ioredis` override bump) + 4 in #1305 (`createPrismaClient()` unit test, `PRISMA_PATTERNS` heuristic refresh, `dispose()` error-handling alignment, `guard:boundaries` allowlist prune 9→3 + runtime drift-guard).
+- **➡️ Epic remaining**: **Cluster B** (~18 Phase-2.5 context-relocation items, **SWEEPABLE NOW** — the 2.5d soak/delete already shipped in beta.135; re-audit each for obsolescence) + **Cluster C** (3 test-infra) + a new **tooling-coverage** follow-up (honest metric + real-logic gaps — user-chosen 2026-06-22). All in the [`epic-log.md`](backlog/cold/epic-log.md) close-out tracker. Then: the queued dependency PRs.
 
 Also: test-pyramid taxonomy single-sourcing + Phase-1 enforcement seeds (#1283–#1285). Full epic detail in [`backlog/active-epic.md`](backlog/active-epic.md). _beta.135 release notes: [tag v3.0.0-beta.135](https://github.com/lbds137/tzurot/releases/tag/v3.0.0-beta.135)._
 
@@ -26,14 +27,14 @@ Also: test-pyramid taxonomy single-sourcing + Phase-1 enforcement seeds (#1283�
 
 ## Next Session Goal
 
-**Active epic: "Slim common-types" (PR-2p).** 2p-3a (`@tzurot/identity`) shipped this session (#1299). **➡️ Immediate next: PR-2p-3b — extract `@tzurot/conversation-history`** (`ConversationHistoryService`, `ConversationSyncService`, `ConversationMessageMapper`, `conversationSyncDiff`, `referenceImageDescriptions`). Independent of identity. Watch the reverse-dependency direction (the 2p-2 lesson): `ConversationMessage` likely stays in common-types as a shared contract type — let the typecheck loop surface which types must relocate. The proven extraction template (#1295/#1299): scaffold → `git mv` → barrel/pointer → repoint consumers with split imports → wiring (tsconfig refs, vitest workspace, knip, depcruise bot-client ban, structure dirs, **Dockerfile dist copies up-front**, service package deps) → `pnpm install`. After 2p-3b, **PR-2q** (Redis pub/sub split) closes the epic.
+**Active epic: "Slim common-types" (PR-2p) — extraction arc DONE, in close-out sweep.** All 4 packages extracted (config-resolver #1295, identity #1299, conversation-history #1300, cache-invalidation #1302); **Cluster A close-out COMPLETE** (#1304 + #1305). **➡️ Immediate next: Cluster B sweep** (~18 Phase-2.5 context-relocation / bot-client-Prisma-eviction follow-ups, **sweepable now** — re-audit each for obsolescence first; beta.135 already deleted the shadow + `CONTEXT_MODE` machinery, so anything referencing those is dead). Then **Cluster C** (3 test-infra) + the **tooling-coverage** follow-up (honest `coverage.exclude` for wrappers + real-gap tests). Full item list in [`backlog/cold/epic-log.md`](backlog/cold/epic-log.md). After the clusters: the queued **dependency PRs**.
 
 **Candidate threads when the epic pauses** (none greenlit):
 
 - **Type-enforce the personal/anonymous context coupling** (`cold/ideas.md`) — discriminated-union refactor so the `isWeighIn`/`incognito`-vs-persona drift class becomes unrepresentable.
 - **UX consistency audit (incl. parameter ordering)** (`cold/ideas.md`) — **user wants soonish** (asked 2026-06-18).
 
-**Smaller follow-ups** in `backlog/cold/follow-ups.md`: ai-worker `resolvers/index.ts` wrapper-barrel (filed this session), `LoadedTtsPersonality`→common-types, `createPrismaClient()` unit test, `PRISMA_PATTERNS` heuristic refresh — plus the older ones.
+**Smaller follow-ups** in `backlog/cold/follow-ups.md`: the new #1305 residuals (drift-guard missing-entries, `prisma.ts:77` `void pool.end()`, tooling-coverage honest-metric) — plus the older ones. (The Cluster A follow-ups shipped in #1304/#1305 and have been removed.)
 
 ## Last Session — backlog restructure: HOT/COLD + granularity ladder (2026-06-17)
 
