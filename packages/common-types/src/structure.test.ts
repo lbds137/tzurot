@@ -187,6 +187,7 @@ describe('Project Structure', () => {
       'services/bot-client/src',
       'packages/clients/src',
       'packages/common-types/src',
+      'packages/config-resolver/src',
       'packages/embeddings/src',
       'packages/test-factories/src',
       'packages/test-utils/src',
