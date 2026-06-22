@@ -37,7 +37,7 @@ import {
   SttResolver,
   type ConfigCascadeResolver,
 } from '@tzurot/config-resolver';
-import { PersonaResolver } from '../services/resolvers/index.js';
+import { PersonaResolver } from '@tzurot/identity';
 import { redisService } from '../redis.js';
 import { cleanupOldJobResults } from './CleanupJobResults.js';
 import { processAudioTranscriptionJob } from './AudioTranscriptionJob.js';

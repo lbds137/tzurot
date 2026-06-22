@@ -28,7 +28,7 @@ import { MemoryRetriever } from './MemoryRetriever.js';
 import { PromptBuilder } from './PromptBuilder.js';
 import { LongTermMemoryService } from './LongTermMemoryService.js';
 import { ContextWindowManager } from './context/ContextWindowManager.js';
-import { PersonaResolver } from './resolvers/index.js';
+import { PersonaResolver } from '@tzurot/identity';
 import { UserReferenceResolver } from './UserReferenceResolver.js';
 import { ContentBudgetManager } from './ContentBudgetManager.js';
 import { buildAttachmentDescriptions, countMediaAttachments } from './RAGUtils.js';

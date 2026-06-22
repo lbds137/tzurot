@@ -125,9 +125,6 @@ vi.mock('./services/ApiKeyResolver.js', () => ({
 
 vi.mock('@tzurot/identity', () => ({
   PersonalityService: class {},
-}));
-
-vi.mock('./services/resolvers/index.js', () => ({
   PersonaResolver: class {
     clearCache = mockPersonaResolver.clearCache;
     invalidateUserCache = mockPersonaResolver.invalidateUserCache;

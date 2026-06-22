@@ -462,9 +462,10 @@ export default tseslint.config(
   // create out to UserService would split the transaction. The
   // deterministic-UUID invariant is still enforced by the explicit
   // `generatePersonaUuid(name, user.id)` call.
+  // (UserService — now in @tzurot/identity — creates via a raw `$executeRaw`
+  // CTE, not the ORM `.create` the ban targets, so it needs no exemption.)
   {
     files: [
-      'packages/common-types/src/services/UserService.ts',
       'services/api-gateway/src/routes/user/persona/crud.ts',
       'services/api-gateway/src/routes/user/persona/override.ts',
     ],
