@@ -68,3 +68,13 @@ export interface ConfigResolutionResult extends BaseConfigResolutionResult<Resol
   /** Cascade-resolved config overrides (from ConfigCascadeResolver, returned by resolve endpoint) */
   overrides?: ResolvedConfigOverrides;
 }
+
+/**
+ * Minimal personality shape the TTS config resolver needs (mirrors the LLM
+ * pattern's `LoadedPersonality`, sized to TTS's narrower data needs). Lives here
+ * as a shared data shape rather than in the Prisma-backed `@tzurot/config-resolver`
+ * package — the resolution LOGIC stays there; the SHAPE is common-types' concern.
+ */
+export interface LoadedTtsPersonality {
+  id: string;
+}

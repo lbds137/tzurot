@@ -22,7 +22,7 @@ import type {
   ConversationContext,
   ParticipantInfo,
 } from './ConversationalRAGTypes.js';
-import { PersonaResolver, type PersonaPromptData } from './resolvers/index.js';
+import { PersonaResolver, type PersonaPromptData } from '@tzurot/identity';
 
 const logger = createLogger('MemoryRetriever');
 
