@@ -32,14 +32,13 @@ import type {
   ApiKeyCacheInvalidationService,
   CacheInvalidationService,
   ConfigCascadeCacheInvalidationService,
-  ConfigCascadeResolver,
   DenylistCacheInvalidationService,
   LlmConfigCacheInvalidationService,
-  LlmConfigResolver,
   PrismaClient,
   SttResolverCacheInvalidationService,
   TtsConfigCacheInvalidationService,
 } from '@tzurot/common-types';
+import type { ConfigCascadeResolver, LlmConfigResolver } from '@tzurot/config-resolver';
 import type { ConversationRetentionService } from '../services/ConversationRetentionService.js';
 import type { OpenRouterModelCache } from '../services/OpenRouterModelCache.js';
 

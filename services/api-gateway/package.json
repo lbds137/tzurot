@@ -23,6 +23,7 @@
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
     "@tzurot/common-types": "workspace:*",
+    "@tzurot/config-resolver": "workspace:*",
     "@tzurot/embeddings": "workspace:*",
     "bullmq": "^5.78.1",
     "express": "^5.2.1",

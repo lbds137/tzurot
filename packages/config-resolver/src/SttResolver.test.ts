@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SttResolver } from './SttResolver.js';
-import type { PrismaClient } from './prisma.js';
+import type { PrismaClient } from '@tzurot/common-types';
 
 // Minimal Prisma double — the resolver only consumes `prisma.user.findFirst`,
 // so a typed double is sufficient and avoids dragging the live Prisma client

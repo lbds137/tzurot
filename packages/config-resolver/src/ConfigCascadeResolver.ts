@@ -18,18 +18,18 @@
  * cleanup interval, same constructor options).
  */
 
-import { createLogger } from '../utils/logger.js';
-import { TTLCache } from '../utils/TTLCache.js';
-import { INTERVALS } from '../constants/timing.js';
 import {
+  createLogger,
+  TTLCache,
+  INTERVALS,
   ConfigOverridesSchema,
   HARDCODED_CONFIG_DEFAULTS,
+  ADMIN_SETTINGS_SINGLETON_ID,
   type ConfigOverrides,
   type ConfigOverrideSource,
   type ResolvedConfigOverrides,
-} from '../schemas/api/configOverrides.js';
-import { ADMIN_SETTINGS_SINGLETON_ID } from '../schemas/api/adminSettings.js';
-import type { PrismaClient } from './prisma.js';
+  type PrismaClient,
+} from '@tzurot/common-types';
 
 const logger = createLogger('ConfigCascadeResolver');
 
@@ -293,7 +293,7 @@ export class ConfigCascadeResolver {
     // Cache key format: userId|personalityId|channelId — personality is at position 1.
     // Prefix-match doesn't fit; iterate keys directly.
     // Snapshot before delete — lru-cache's generator iterator can compact
-    // mid-iteration (per claude-review on PR #958).
+    // mid-iteration.
     const snapshot = [...this.cache.keys()];
     for (const key of snapshot) {
       const parts = key.split('|');

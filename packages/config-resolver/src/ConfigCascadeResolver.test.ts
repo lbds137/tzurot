@@ -4,18 +4,21 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ConfigCascadeResolver } from './ConfigCascadeResolver.js';
-import { HARDCODED_CONFIG_DEFAULTS } from '../schemas/api/configOverrides.js';
-import { ADMIN_SETTINGS_SINGLETON_ID } from '../schemas/api/adminSettings.js';
+import { HARDCODED_CONFIG_DEFAULTS, ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types';
 
 // Mock logger
-vi.mock('../utils/logger.js', () => ({
-  createLogger: () => ({
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
-}));
+vi.mock('@tzurot/common-types', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+  return {
+    ...actual,
+    createLogger: () => ({
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }),
+  };
+});
 
 function createMockPrisma() {
   return {

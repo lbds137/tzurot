@@ -33,6 +33,13 @@ const mockResolveConfig = vi.fn();
 const mockResolveStt = vi.fn();
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+  return {
+    ...actual,
+    createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
+  };
+});
+
+vi.mock('@tzurot/config-resolver', () => {
   class FakeTtsConfigResolver {
     resolveConfig(...args: unknown[]) {
       return mockResolveConfig(...args);
@@ -44,8 +51,6 @@ vi.mock('@tzurot/common-types', async importOriginal => {
     }
   }
   return {
-    ...actual,
-    createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
     TtsConfigResolver: FakeTtsConfigResolver,
     SttResolver: FakeSttResolver,
   };

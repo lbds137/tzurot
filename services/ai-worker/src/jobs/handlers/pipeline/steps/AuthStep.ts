@@ -12,9 +12,8 @@ import {
   isFreeModel,
   type AudioProviderId,
   type SttDispatch,
-  type SttResolver,
-  type LlmConfigResolver,
 } from '@tzurot/common-types';
+import type { SttResolver, LlmConfigResolver } from '@tzurot/config-resolver';
 import type { ApiKeyResolver } from '../../../../services/ApiKeyResolver.js';
 import { ProviderRouter } from '../../../../services/ProviderRouter.js';
 import type { IPipelineStep, GenerationContext } from '../types.js';

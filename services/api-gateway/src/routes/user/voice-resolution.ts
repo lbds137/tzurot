@@ -21,11 +21,9 @@ import {
   type ResolvedTtsView,
   type ResolvedSttView,
   type ClonedVoicesSummary,
-  TtsConfigResolver,
-  type LoadedTtsPersonality,
-  SttResolver,
   GetVoiceResolutionQuerySchema,
 } from '@tzurot/common-types';
+import { TtsConfigResolver, SttResolver, type LoadedTtsPersonality } from '@tzurot/config-resolver';
 import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';

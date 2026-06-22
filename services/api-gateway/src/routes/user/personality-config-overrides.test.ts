@@ -45,10 +45,6 @@ vi.mock('@tzurot/common-types', async () => {
     getOrCreateUserShell = mockGetOrCreateUserShell;
   }
 
-  class MockConfigCascadeResolver {
-    resolveOverrides = mockResolveOverrides;
-  }
-
   return {
     ...actual,
     createLogger: () => ({
@@ -58,6 +54,14 @@ vi.mock('@tzurot/common-types', async () => {
       error: vi.fn(),
     }),
     UserService: MockUserService,
+  };
+});
+
+vi.mock('@tzurot/config-resolver', () => {
+  class MockConfigCascadeResolver {
+    resolveOverrides = mockResolveOverrides;
+  }
+  return {
     ConfigCascadeResolver: MockConfigCascadeResolver,
   };
 });

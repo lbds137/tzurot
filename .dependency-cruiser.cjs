@@ -10,6 +10,14 @@ module.exports = {
       to: { path: '@prisma/client' },
     },
     {
+      name: 'bot-client-no-config-resolver',
+      comment:
+        'bot-client must NEVER import @tzurot/config-resolver — it reads Prisma config tables; use gateway APIs',
+      severity: 'error',
+      from: { path: '^services/bot-client/' },
+      to: { path: '(^|/)@tzurot/config-resolver|^packages/config-resolver/' },
+    },
+    {
       name: 'no-prod-import-test-factories',
       comment:
         '@tzurot/test-factories is a test-fixture package — production code must never import it',

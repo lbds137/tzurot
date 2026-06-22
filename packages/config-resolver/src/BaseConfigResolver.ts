@@ -27,9 +27,13 @@
  * see `ConfigCascadeResolver` — different shape, different responsibility.
  */
 
-import { createLogger } from '../utils/logger.js';
-import { TTLCache } from '../utils/TTLCache.js';
-import { INTERVALS } from '../constants/timing.js';
+import {
+  createLogger,
+  TTLCache,
+  INTERVALS,
+  type ConfigResolutionSource,
+  type BaseConfigResolutionResult,
+} from '@tzurot/common-types';
 import type { Logger } from 'pino';
 
 /** Override row metadata returned by tier-specific Prisma queries. */
@@ -42,34 +46,6 @@ export interface ConfigOverrideEntry<TMappedOverride> {
 export interface UserWithDefault<TMappedOverride> {
   internalId: string;
   defaultOverride: ConfigOverrideEntry<TMappedOverride> | null;
-}
-
-/**
- * Source tier that provided the resolved config.
- *
- * The base waterfall walks `'user-personality' → 'user-default' → 'personality'`
- * — those three tiers are produced directly by the base. `'free-default'` and
- * `'hardcoded'` are tiers some subclasses (currently `TtsConfigResolver`)
- * fall through to inside `extractFromPersonality` when the personality has
- * no inline default. Subclasses signal those tiers via `getExtractSource()`
- * so the outer wrapper's `source` field matches the inner config's source
- * (closes the mismatch claude-review flagged on PR #958).
- */
-export type ConfigResolutionSource =
-  | 'user-personality'
-  | 'user-default'
-  | 'personality'
-  | 'free-default'
-  | 'hardcoded';
-
-/** Result of cascade resolution, with source tracking. */
-export interface BaseConfigResolutionResult<TResolved> {
-  /** Effective config (merged with personality defaults where applicable). */
-  config: TResolved;
-  /** Tier that provided the config. */
-  source: ConfigResolutionSource;
-  /** Name of the override config (omitted when source === 'personality'). */
-  configName?: string;
 }
 
 /** Constructor options shared across all subclasses. */

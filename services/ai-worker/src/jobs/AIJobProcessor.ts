@@ -12,10 +12,6 @@ import { PgvectorMemoryAdapter } from '../services/PgvectorMemoryAdapter.js';
 import type { EmbeddingServiceInterface } from '../utils/duplicateDetection.js';
 import { ApiKeyResolver } from '../services/ApiKeyResolver.js';
 import {
-  LlmConfigResolver,
-  TtsConfigResolver,
-  SttResolver,
-  type ConfigCascadeResolver,
   createLogger,
   AIProvider,
   type AnyJobData,
@@ -35,6 +31,12 @@ import {
   type PrismaClient,
   type Prisma,
 } from '@tzurot/common-types';
+import {
+  LlmConfigResolver,
+  TtsConfigResolver,
+  SttResolver,
+  type ConfigCascadeResolver,
+} from '@tzurot/config-resolver';
 import { PersonaResolver } from '../services/resolvers/index.js';
 import { redisService } from '../redis.js';
 import { cleanupOldJobResults } from './CleanupJobResults.js';

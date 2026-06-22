@@ -16,57 +16,24 @@
  * and the LLM-specific `getFreeDefaultConfig` lookup.
  */
 
-import { LLM_CONFIG_OVERRIDE_KEYS, type ConvertedLlmParams } from '../schemas/llmAdvancedParams.js';
 import {
+  LLM_CONFIG_OVERRIDE_KEYS,
   LLM_CONFIG_SELECT_WITH_NAME,
   mapLlmConfigFromDbWithName,
+  type LoadedPersonality,
   type MappedLlmConfigWithName,
-} from './LlmConfigMapper.js';
+  type PrismaClient,
+  type ResolvedLlmConfig,
+} from '@tzurot/common-types';
 import {
   BaseConfigResolver,
   type BaseConfigResolverOptions,
-  type BaseConfigResolutionResult,
   type ConfigOverrideEntry,
   type UserWithDefault,
 } from './BaseConfigResolver.js';
-import type { PrismaClient } from './prisma.js';
-import type { LoadedPersonality } from '../types/schemas/index.js';
-import type { ResolvedConfigOverrides } from '../schemas/api/configOverrides.js';
 
 /** Sentinel cache key for the free-default lookup (no userId/personalityId axis). */
 const FREE_DEFAULT_CACHE_KEY = '__free_default__';
-
-/**
- * Resolved LLM config values that can override personality defaults.
- *
- * Extends ConvertedLlmParams to include ALL parameters from advancedParameters JSONB,
- * plus database-specific fields (memory, context window, context settings).
- */
-export interface ResolvedLlmConfig extends ConvertedLlmParams {
-  model: string;
-  visionModel?: string | null;
-  memoryScoreThreshold?: number | null;
-  memoryLimit?: number | null;
-  contextWindowTokens?: number;
-  // Context settings (conversation history limits)
-  maxMessages?: number;
-  maxAge?: number | null;
-  maxImages?: number;
-}
-
-/**
- * Result of LLM config resolution.
- *
- * Extends `BaseConfigResolutionResult<ResolvedLlmConfig>` with the optional
- * `overrides` field that the gateway `/user/llm-config/resolve` endpoint adds
- * (cascade-resolved config overrides from `ConfigCascadeResolver`). The
- * resolver itself never sets `overrides` — it's populated by API callers
- * downstream of resolution.
- */
-export interface ConfigResolutionResult extends BaseConfigResolutionResult<ResolvedLlmConfig> {
-  /** Cascade-resolved config overrides (from ConfigCascadeResolver, returned by resolve endpoint) */
-  overrides?: ResolvedConfigOverrides;
-}
 
 /**
  * LLM Config Resolver — resolves user-specific config overrides.
