@@ -4,12 +4,8 @@
  */
 
 import { type Response, type RequestHandler } from 'express';
-import {
-  createLogger,
-  AIProvider,
-  type PrismaClient,
-  type ApiKeyCacheInvalidationService,
-} from '@tzurot/common-types';
+import { createLogger, AIProvider, type PrismaClient } from '@tzurot/common-types';
+import { type ApiKeyCacheInvalidationService } from '@tzurot/cache-invalidation';
 import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';

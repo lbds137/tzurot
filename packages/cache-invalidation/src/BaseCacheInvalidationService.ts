@@ -21,7 +21,7 @@
  * ```
  */
 
-import { createLogger } from '../utils/logger.js';
+import { createLogger } from '@tzurot/common-types';
 import type { Logger } from 'pino';
 import type { Redis } from 'ioredis';
 

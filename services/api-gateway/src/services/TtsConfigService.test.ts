@@ -17,7 +17,8 @@ import {
   TtsInvalidProviderError,
   type TtsConfigScope,
 } from './TtsConfigService.js';
-import type { PrismaClient, TtsConfigCacheInvalidationService } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types';
+import type { TtsConfigCacheInvalidationService } from '@tzurot/cache-invalidation';
 
 // Mock logger to keep test output clean
 vi.mock('@tzurot/common-types', async () => {

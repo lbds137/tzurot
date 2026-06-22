@@ -9,11 +9,11 @@ import {
   AdminPersonalityResponseSchema,
   createLogger,
   generatePersonalityUuid,
-  type CacheInvalidationService,
   PersonalityCreateSchema,
   type PersonalityCreateInput,
   Prisma,
 } from '@tzurot/common-types';
+import { type CacheInvalidationService } from '@tzurot/cache-invalidation';
 import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendContractSuccess } from '../../utils/responseHelpers.js';

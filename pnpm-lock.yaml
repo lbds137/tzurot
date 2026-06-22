@@ -144,6 +144,22 @@ importers:
         specifier: ^4.1.9
         version: 4.1.9(@types/node@25.9.3)(@vitest/coverage-v8@4.1.9)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
 
+  packages/cache-invalidation:
+    dependencies:
+      '@tzurot/common-types':
+        specifier: workspace:*
+        version: link:../common-types
+    devDependencies:
+      '@types/node':
+        specifier: ^25.9.3
+        version: 25.9.3
+      ioredis:
+        specifier: ^5.10.0
+        version: 5.11.1
+      pino:
+        specifier: ^10.3.1
+        version: 10.3.1
+
   packages/clients:
     dependencies:
       '@tzurot/common-types':
@@ -393,6 +409,9 @@ importers:
       '@langchain/openai':
         specifier: ^1.4.7
         version: 1.4.7(@langchain/core@1.1.49(openai@6.42.0(ws@8.21.0)(zod@4.4.3))(ws@8.21.0))(ws@8.21.0)
+      '@tzurot/cache-invalidation':
+        specifier: workspace:*
+        version: link:../../packages/cache-invalidation
       '@tzurot/common-types':
         specifier: workspace:*
         version: link:../../packages/common-types
@@ -445,6 +464,9 @@ importers:
       '@prisma/adapter-pg':
         specifier: ^7.8.0
         version: 7.8.0
+      '@tzurot/cache-invalidation':
+        specifier: workspace:*
+        version: link:../../packages/cache-invalidation
       '@tzurot/common-types':
         specifier: workspace:*
         version: link:../../packages/common-types
@@ -518,6 +540,9 @@ importers:
 
   services/bot-client:
     dependencies:
+      '@tzurot/cache-invalidation':
+        specifier: workspace:*
+        version: link:../../packages/cache-invalidation
       '@tzurot/clients':
         specifier: workspace:*
         version: link:../../packages/clients

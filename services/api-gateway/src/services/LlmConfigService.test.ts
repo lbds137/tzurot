@@ -11,7 +11,8 @@ import {
   CloneNameExhaustedError,
   type LlmConfigScope,
 } from './LlmConfigService.js';
-import type { PrismaClient, LlmConfigCacheInvalidationService } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types';
+import type { LlmConfigCacheInvalidationService } from '@tzurot/cache-invalidation';
 
 // Mock logger
 vi.mock('@tzurot/common-types', async () => {

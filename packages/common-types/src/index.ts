@@ -89,12 +89,14 @@ export * from './services/poolConfig.js';
 // ConfigCascadeResolver — the cascade-resolution logic) live in
 // `@tzurot/config-resolver`. The config MAPPERS + tts provider TYPES stay here:
 // they're data shapes consumed by common-types schemas + personality loading,
-// so moving them would cycle. The cache-invalidation siblings stay too pending
-// the pub/sub publisher/subscriber split.
+// so moving them would cycle. The Redis pub/sub cache-invalidation cluster
+// (BaseCacheInvalidationService + 9 invalidators + the event validators) now
+// lives in `@tzurot/cache-invalidation` — it's stateful runtime infra (each
+// instance owns a Redis subscriber), not types. Only the REDIS_CHANNELS
+// constant stays here (a pure constant bundled with the BullMQ queue names in
+// constants/queue.ts; the package imports the cache-channel subset from it).
 export * from './services/LlmConfigMapper.js';
 export * from './services/TtsConfigMapper.js';
-export * from './services/TtsConfigCacheInvalidationService.js';
-export * from './services/SttResolverCacheInvalidationService.js';
 export * from './services/tts/TtsProvider.js';
 export * from './services/tts/TtsProviderError.js';
 // Prisma-backed conversation persistence (ConversationHistoryService,
@@ -111,14 +113,6 @@ export * from './utils/referenceEnrichment.js';
 export * from './utils/messageLinkParser.js';
 export * from './utils/mentionRewriter.js';
 export * from './utils/crossChannelEnvironment.js';
-export * from './services/BaseCacheInvalidationService.js';
-export * from './services/CacheInvalidationService.js';
-export * from './services/ApiKeyCacheInvalidationService.js';
-export * from './services/LlmConfigCacheInvalidationService.js';
-export * from './services/PersonaCacheInvalidationService.js';
-export * from './services/ChannelActivationCacheInvalidationService.js';
-export * from './services/ConfigCascadeCacheInvalidationService.js';
-export * from './services/DenylistCacheInvalidationService.js';
 export { VoiceTranscriptCache } from './services/VoiceTranscriptCache.js';
 
 // NOTE: validated mock factories live in `@tzurot/test-factories` — they're

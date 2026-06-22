@@ -22,13 +22,8 @@
  *   routing for 60 s.
  */
 
-import {
-  createLogger,
-  TIMEOUTS,
-  TTLCache,
-  type LoadedPersonality,
-  type PersonalityCacheTarget,
-} from '@tzurot/common-types';
+import { createLogger, TIMEOUTS, TTLCache, type LoadedPersonality } from '@tzurot/common-types';
+import { type PersonalityCacheTarget } from '@tzurot/cache-invalidation';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import { getServiceClient } from '../utils/gatewayClients.js';
 

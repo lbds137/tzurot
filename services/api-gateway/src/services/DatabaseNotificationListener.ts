@@ -12,12 +12,11 @@
  */
 
 import { Client } from 'pg';
+import { createLogger, DATABASE_RECONNECT } from '@tzurot/common-types';
 import {
-  createLogger,
   isValidInvalidationEvent,
-  DATABASE_RECONNECT,
   type CacheInvalidationService,
-} from '@tzurot/common-types';
+} from '@tzurot/cache-invalidation';
 
 const logger = createLogger('DatabaseNotificationListener');
 
