@@ -5,12 +5,14 @@ import {
   computeFileChecksum,
   reconcileMigrationChecksum,
 } from './create-safe-migration.js';
-import { getPrismaClient, disconnectPrisma } from '@tzurot/common-types';
+import { createPrismaClient } from '@tzurot/common-types';
+
+const mockDispose = vi.fn();
 
 // Mock common-types for reconcileMigrationChecksum tests
 vi.mock('@tzurot/common-types', () => ({
-  getPrismaClient: vi.fn(),
-  disconnectPrisma: vi.fn(),
+  createPrismaClient: vi.fn(),
+  DB_POOL_DEFAULTS: { TRANSIENT_MAX: 5 },
 }));
 
 /**
@@ -291,8 +293,11 @@ describe('reconcileMigrationChecksum', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockExecuteRaw = vi.fn();
-    vi.mocked(getPrismaClient).mockReturnValue({ $executeRaw: mockExecuteRaw } as never);
-    vi.mocked(disconnectPrisma).mockResolvedValue(undefined as never);
+    vi.mocked(createPrismaClient).mockReturnValue({
+      prisma: { $executeRaw: mockExecuteRaw },
+      dispose: mockDispose,
+    } as never);
+    mockDispose.mockResolvedValue(undefined as never);
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
   });
 
@@ -305,7 +310,7 @@ describe('reconcileMigrationChecksum', () => {
 
     await reconcileMigrationChecksum('/migrations/20260228015810_test_migration', 'sanitized SQL');
 
-    expect(getPrismaClient).toHaveBeenCalled();
+    expect(createPrismaClient).toHaveBeenCalled();
     expect(mockExecuteRaw).toHaveBeenCalled();
     expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Checksum reconciled'));
   });
@@ -336,12 +341,12 @@ describe('reconcileMigrationChecksum', () => {
 
     await reconcileMigrationChecksum('/migrations/20260228015810_test_migration', 'SQL content');
 
-    expect(disconnectPrisma).toHaveBeenCalled();
+    expect(mockDispose).toHaveBeenCalled();
   });
 
-  it('should handle disconnectPrisma failure silently', async () => {
+  it('should handle dispose failure silently', async () => {
     mockExecuteRaw.mockResolvedValue(1);
-    vi.mocked(disconnectPrisma).mockRejectedValue(new Error('Already disconnected'));
+    mockDispose.mockRejectedValue(new Error('Already disconnected'));
 
     // Should not throw
     await reconcileMigrationChecksum('/migrations/20260228015810_test_migration', 'SQL content');

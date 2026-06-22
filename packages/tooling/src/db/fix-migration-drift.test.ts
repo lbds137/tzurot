@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
-import { getPrismaClient, disconnectPrisma } from '@tzurot/common-types';
+import { createPrismaClient } from '@tzurot/common-types';
+
+const mockDispose = vi.fn();
 
 // Mock common-types
 vi.mock('@tzurot/common-types', () => ({
-  getPrismaClient: vi.fn(),
-  disconnectPrisma: vi.fn(),
+  createPrismaClient: vi.fn(),
+  DB_POOL_DEFAULTS: { TRANSIENT_MAX: 5 },
 }));
 
 // Mock chalk
@@ -47,8 +49,9 @@ describe('fixMigrationDrift', () => {
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     mockExecuteRaw = vi.fn();
-    vi.mocked(getPrismaClient).mockReturnValue({
-      $executeRaw: mockExecuteRaw,
+    vi.mocked(createPrismaClient).mockReturnValue({
+      prisma: { $executeRaw: mockExecuteRaw },
+      dispose: mockDispose,
     } as never);
   });
 
@@ -79,7 +82,7 @@ describe('fixMigrationDrift', () => {
     await fixMigrationDrift(['test_migration']);
 
     expect(mockExecuteRaw).toHaveBeenCalled();
-    expect(disconnectPrisma).toHaveBeenCalled();
+    expect(mockDispose).toHaveBeenCalled();
 
     const output = consoleLogSpy.mock.calls.flat().join(' ');
     expect(output).toContain('Updated successfully');

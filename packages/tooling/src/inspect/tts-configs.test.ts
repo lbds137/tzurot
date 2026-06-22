@@ -48,10 +48,10 @@ describe('buildInspectorScript', () => {
     expect(buildInspectorScript(100)).not.toBe(buildInspectorScript(200));
   });
 
-  it('imports the prisma helpers from common-types', () => {
+  it('imports the prisma factory from common-types', () => {
     const script = buildInspectorScript(200);
     expect(script).toContain(
-      "import { getPrismaClient, disconnectPrisma } from '@tzurot/common-types';"
+      "import { createPrismaClient, DB_POOL_DEFAULTS } from '@tzurot/common-types';"
     );
   });
 

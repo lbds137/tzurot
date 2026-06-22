@@ -25,7 +25,6 @@ const logger = createLogger('PrismaService');
 const config = getConfig();
 
 let prismaClient: PrismaClient | null = null;
-let stopPoolStatsGauge: (() => void) | null = null;
 
 /**
  * A constructed Prisma client paired with its disposer. Each app constructs
@@ -126,7 +125,9 @@ export function getPrismaClient(): PrismaClient {
     pool.on('error', err => {
       logger.error({ err }, 'pg.Pool idle-client error');
     });
-    stopPoolStatsGauge = startPoolStatsGauge(pool, logger, resolvePoolStatsIntervalMs(), max);
+    // No stop handle kept: this client is never disposed, so the gauge runs for
+    // the process lifetime.
+    startPoolStatsGauge(pool, logger, resolvePoolStatsIntervalMs(), max);
 
     // disposeExternalPool: true so prismaClient.$disconnect() closes the pool we
     // created (external pools are otherwise left open on disconnect).
@@ -144,24 +145,6 @@ export function getPrismaClient(): PrismaClient {
   }
 
   return prismaClient;
-}
-
-/**
- * Disconnect the Prisma client (for graceful shutdown)
- *
- * @deprecated Paired with `getPrismaClient()` — being evicted. Use the
- * `dispose()` returned by `createPrismaClient()` instead.
- */
-export async function disconnectPrisma(): Promise<void> {
-  if (prismaClient) {
-    // Stop the gauge before disconnecting so a reconnect doesn't leave a stale
-    // interval polling the now-closed pool alongside the new one.
-    stopPoolStatsGauge?.();
-    stopPoolStatsGauge = null;
-    await prismaClient.$disconnect();
-    prismaClient = null;
-    logger.info('Prisma client disconnected');
-  }
 }
 
 // Re-export PrismaClient class and Prisma namespace for use by other services

@@ -1,10 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { getPrismaClient, disconnectPrisma } from '@tzurot/common-types';
+import { createPrismaClient } from '@tzurot/common-types';
+
+const mockDispose = vi.fn();
 
 // Mock common-types before importing
 vi.mock('@tzurot/common-types', () => ({
-  getPrismaClient: vi.fn(),
-  disconnectPrisma: vi.fn(),
+  createPrismaClient: vi.fn(),
+  DB_POOL_DEFAULTS: { TRANSIENT_MAX: 5 },
 }));
 
 // Mock chalk to simplify output testing
@@ -60,8 +62,9 @@ describe('getDatabaseHost', () => {
     const { inspectDatabase } = await import('./inspect-database.js');
 
     // Mock Prisma for the call
-    vi.mocked(getPrismaClient).mockReturnValue({
-      $queryRaw: vi.fn().mockResolvedValue([]),
+    vi.mocked(createPrismaClient).mockReturnValue({
+      prisma: { $queryRaw: vi.fn().mockResolvedValue([]) },
+      dispose: mockDispose,
     } as never);
 
     await inspectDatabase({ indexes: true });
@@ -81,8 +84,9 @@ describe('inspectDatabase', () => {
     vi.clearAllMocks();
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     mockQueryRaw = vi.fn();
-    vi.mocked(getPrismaClient).mockReturnValue({
-      $queryRaw: mockQueryRaw,
+    vi.mocked(createPrismaClient).mockReturnValue({
+      prisma: { $queryRaw: mockQueryRaw },
+      dispose: mockDispose,
     } as never);
   });
 
@@ -102,7 +106,7 @@ describe('inspectDatabase', () => {
     await inspectDatabase({ table: 'users' });
 
     expect(mockQueryRaw).toHaveBeenCalled();
-    expect(disconnectPrisma).toHaveBeenCalled();
+    expect(mockDispose).toHaveBeenCalled();
   });
 
   it('should exit with code 1 when table not found', async () => {
@@ -155,7 +159,7 @@ describe('inspectDatabase', () => {
 
     // Should have made multiple queries
     expect(mockQueryRaw).toHaveBeenCalledTimes(4);
-    expect(disconnectPrisma).toHaveBeenCalled();
+    expect(mockDispose).toHaveBeenCalled();
   });
 
   it('should report failed migrations', async () => {

@@ -23,7 +23,7 @@ import { writeFile, unlink, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import chalk from 'chalk';
-import { getPrismaClient, disconnectPrisma } from '@tzurot/common-types';
+import { createPrismaClient, DB_POOL_DEFAULTS } from '@tzurot/common-types';
 import {
   type Environment,
   validateEnvironment,
@@ -183,7 +183,7 @@ export async function auditReferences(options: AuditReferencesOptions = {}): Pro
     process.env.DATABASE_URL = databaseUrl;
   }
 
-  const prisma = getPrismaClient();
+  const { prisma, dispose } = createPrismaClient({ max: DB_POOL_DEFAULTS.TRANSIENT_MAX });
   const tmpDir = await mkdtemp(join(tmpdir(), 'voice-refs-audit-'));
   try {
     const rawRows = await prisma.personality.findMany({
@@ -253,7 +253,7 @@ export async function auditReferences(options: AuditReferencesOptions = {}): Pro
       }
     }
   } finally {
-    await disconnectPrisma();
+    await dispose();
     // rm with recursive+force handles the case where any per-probe unlink
     // silently failed and left a file behind (rmdir would fail in that case).
     await rm(tmpDir, { recursive: true, force: true }).catch(() => {

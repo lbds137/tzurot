@@ -10,7 +10,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import chalk from 'chalk';
-import { getPrismaClient, disconnectPrisma } from '@tzurot/common-types';
+import { createPrismaClient, DB_POOL_DEFAULTS } from '@tzurot/common-types';
 import {
   type Environment,
   validateEnvironment,
@@ -53,7 +53,7 @@ function getLocalMigrations(migrationsPath: string): string[] {
  * Show migration status using direct database query (for local env)
  */
 async function showStatusDirect(migrationsPath: string): Promise<void> {
-  const prisma = getPrismaClient();
+  const { prisma, dispose } = createPrismaClient({ max: DB_POOL_DEFAULTS.TRANSIENT_MAX });
 
   try {
     // Get migrations from database
@@ -117,7 +117,7 @@ async function showStatusDirect(migrationsPath: string): Promise<void> {
 
     console.log('\n' + '═'.repeat(60));
   } finally {
-    await disconnectPrisma();
+    await dispose();
   }
 }
 
