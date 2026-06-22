@@ -24,6 +24,6 @@
   },
   "devDependencies": {
     "@tzurot/test-utils": "workspace:*",
-    "@types/node": "^25.9.3"
+    "@types/node": "^26.0.0"
   }
 }
