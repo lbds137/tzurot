@@ -2,6 +2,55 @@
 
 _Per-PR slice history, council verdicts, scoping tables, and burn-in results for the Active Epic. Grep-on-demand — the roadmap + current phase live in [`../active-epic.md`](../active-epic.md)._
 
+### 🧹 Epic close-out — follow-up sweep tracker (definition of done)
+
+The "Slim common-types" epic spawned **three** follow-up clusters across its phases. **No phase is "done" until its cluster is swept** — and the epic itself isn't closed until all three are. Every item below is also a row in [`follow-ups.md`](follow-ups.md) with its own trigger; this is the consolidated promote-list so the sweep is one place, not a scavenger hunt. (Regenerate Cluster B by grepping `follow-ups.md` for `ContextStep|envelope|HttpPersonalityLoader|MessageContextBuilder|routing-context|CONTEXT_MODE|getChannelHistory|shadow`.)
+
+**Cluster A — PR-2p Prisma-backed extraction (7). Trigger: dedicated "2p close-out" PR after PR-2q, or fold into 2q where cohesive.**
+
+- [ ] `createPrismaClient()` unit test (2p-1; unblocked)
+- [ ] `PRISMA_PATTERNS` test-audit heuristic refresh (2p-1b-ii)
+- [ ] `dispose()` error-handling alignment across the tooling db commands (2p-1)
+- [ ] `guard:boundaries` Prisma-symbol allowlist-drift backstop (2p)
+- [ ] `LoadedTtsPersonality` → common-types types file (2p-2)
+- [ ] Collapse the ai-worker `services/resolvers/index.ts` wrapper re-export (2p-3a)
+- [ ] Repoint/drop the stale `UserService.ts` eslint exemption path (2p-3a leftover)
+
+**Cluster B — Phase 2.5 context-relocation / bot-client Prisma eviction (~19). Trigger: when the 2.5d prod-soak closes + the 2.5d-delete ships (the legacy paths several of these reference die then).**
+
+- _Dead-code / vestigial (die with 2.5d-delete):_
+  - [ ] Remove dead extended-context assembly from `MessageContextBuilder.fetchExtendedContext`
+  - [ ] Vestigial `MessageContext.conversationHistory` envelope field
+  - [ ] Remove vestigial `mockUserService` + `mockHistoryService` setups in `MessageContextBuilder.test.ts`
+  - [ ] Post-`CONTEXT_MODE`-removal cleanup in bot-client (flatten + rename)
+  - [ ] `ContextStep.assertEnvelopeJob` could return the narrowed assembler
+  - [ ] Extract the `ContextStep` pass-through test stub to test-utils
+- _HttpPersonalityLoader hardening:_
+  - [ ] Single-flight dedup for concurrent misses
+  - [ ] Surgical eviction for invalidation
+- _Envelope / reference-shape contracts:_
+  - [ ] Partial-map fragility in `writeReferenceImageDescriptions`
+  - [ ] `buildDedupedReferenceStub` over-limit content contract
+  - [ ] Promote extended-context voice transcripts to the worker (flat-list pattern)
+  - [ ] Conditional-spread `sttDivergence` out of shadow logs when uncompared
+- _Invariants / observability / latency:_
+  - [ ] Document the worker-overwrite invariant at `ContextStep.ts:56`
+  - [ ] Audit the two `resolveSummonAnonymity` calls stay in sync if `applyAssembledContext` is restructured
+  - [ ] Guard against re-snapshotting a synthetic `recovery-fallback-*` personaId
+  - [ ] Collapse the double `routing-context` round-trip in the `/character` chat path
+  - [ ] `MessageContextBuilder.cachedBotSuffix` — promote the pre-login note to a hard invariant
+  - [ ] Add a startup gateway-reachability probe to bot-client
+  - [ ] `GatewayResult.status: 0` — disambiguate network / timeout / schema failure (gateway HTTP client from the eviction)
+  - [ ] PR #1283 cosmetic review nits (the 2.5d pilot-audit sweep)
+
+**Cluster C — Phase 1 test-infra (`@tzurot/test-factories` / `test-utils`) (3). Trigger: opportunistic — fold into the epic close-out sweep or whenever the test-infra packages are next touched.**
+
+- [ ] Structural-test coverage gap as the test-infra packages grow
+- [ ] Turbo cache-staleness window for `@tzurot/test-utils` `typecheck:spec`
+- [ ] `no-prod-import-test-factories` depcruise rule lacks a `packages/test-utils/` exemption
+
+**Per `06-backlog.md` "Promoting a theme to Active Epic", a phase's cluster is swept BEFORE the next `cold/queue.md` theme is promoted. This list is the gate; check items off as they ship.**
+
 #### Scoping pass — COMPLETE 2026-06-04 (verified call-surface enumeration)
 
 bot-client's Prisma usage is **entirely message-pipeline**, in three functional clusters. Every operation below is verified from actual call sites (method-call grep, tests excluded), not from service surfaces.
