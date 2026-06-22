@@ -23,7 +23,7 @@
     "@tzurot/common-types": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^25.9.3",
+    "@types/node": "^26.0.0",
     "ioredis": "^5.11.1",
     "pino": "^10.3.1"
   }
