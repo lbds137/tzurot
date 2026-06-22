@@ -20,10 +20,10 @@
     "typecheck:spec": "tsc --noEmit --project tsconfig.spec.json"
   },
   "dependencies": {
-    "@tzurot/common-types": "workspace:*",
-    "pino": "^10.3.1"
+    "@tzurot/common-types": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^25.9.3"
+    "@types/node": "^25.9.3",
+    "pino": "^10.3.1"
   }
 }
