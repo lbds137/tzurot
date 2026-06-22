@@ -22,15 +22,25 @@ describe('makeOk', () => {
 });
 
 describe('makeErr', () => {
-  it('returns ok=false with status + default error message', () => {
-    expect(makeErr(404)).toEqual({ ok: false, error: 'fail', status: 404 });
+  it('returns ok=false with status + default error message, kind derived from status', () => {
+    expect(makeErr(404)).toEqual({ ok: false, kind: 'http', error: 'fail', status: 404 });
   });
 
   it('accepts a custom error message', () => {
     expect(makeErr(500, 'database down')).toEqual({
       ok: false,
+      kind: 'http',
       error: 'database down',
       status: 500,
+    });
+  });
+
+  it('derives kind=network for a status-0 (non-HTTP) transport failure', () => {
+    expect(makeErr(0, 'ECONNREFUSED')).toEqual({
+      ok: false,
+      kind: 'network',
+      error: 'ECONNREFUSED',
+      status: 0,
     });
   });
 });

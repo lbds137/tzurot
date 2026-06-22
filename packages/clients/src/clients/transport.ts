@@ -43,14 +43,31 @@ import {
 } from '@tzurot/common-types';
 import { GatewayApiError, parseErrorResponse } from './errors.js';
 
-/** Result envelope mirroring the legacy `callGatewayApi` discriminated union. */
+/**
+ * Result envelope mirroring the legacy `callGatewayApi` discriminated union.
+ *
+ * The `kind` discriminant lets callers branch on the failure *category* without
+ * string-matching `error`. The four non-HTTP kinds all carry `status: 0`; only
+ * `kind: 'http'` carries a real HTTP status, so the invariant is
+ * `status > 0  ⟺  kind === 'http'`. `code` and `issues` are likewise
+ * kind-scoped: `code` is an HTTP-layer subcode (only meaningful for `'http'`),
+ * and `issues` holds the raw Zod problems (only populated for `'schema'`).
+ */
+export type GatewayFailureKind = 'config' | 'network' | 'timeout' | 'schema' | 'http';
+
 export type GatewayResult<T> =
   | { ok: true; data: T }
   | {
       ok: false;
+      /** Failure category — branch on this instead of string-matching `error`. */
+      kind: GatewayFailureKind;
       error: string;
+      /** HTTP status when `kind === 'http'`; `0` for every other kind. */
       status: number;
+      /** HTTP-layer error subcode; only set for `kind === 'http'`. */
       code?: ApiErrorSubcode;
+      /** Raw Zod validation problems; only set for `kind === 'schema'`. */
+      issues?: z.ZodIssue[];
     };
 
 /** Options accepted by {@link callGateway}. */
@@ -86,6 +103,25 @@ export interface TransportOptions {
 }
 
 /**
+ * Classify an error thrown by `fetch` into the failure envelope: a timeout
+ * (the `AbortSignal.timeout` fired) vs a genuine network error (DNS/TLS/reset).
+ * Kept separate from {@link callGateway} so the main request flow stays under
+ * the cognitive-complexity budget.
+ */
+function classifyThrownError(error: unknown): {
+  kind: 'timeout' | 'network';
+  error: string;
+} {
+  const isAbort = isTimeoutError(error);
+  const message = isAbort
+    ? 'Request timeout (gateway slow or unavailable)'
+    : error instanceof Error
+      ? error.message
+      : 'Unknown error';
+  return { kind: isAbort ? 'timeout' : 'network', error: message };
+}
+
+/**
  * Make a single gateway request. Returns a `GatewayResult` envelope; the
  * caller decides whether to throw or branch.
  *
@@ -117,7 +153,7 @@ export async function callGateway<T>(options: TransportOptions): Promise<Gateway
     timeoutMs ?? (isWriteMethod ? GATEWAY_TIMEOUTS.WRITE : GATEWAY_TIMEOUTS.DEFERRED);
 
   if (baseUrl.length === 0) {
-    return { ok: false, error: 'baseUrl is empty', status: 0 };
+    return { ok: false, kind: 'config', error: 'baseUrl is empty', status: 0 };
   }
 
   // Strip a single trailing slash so a misconfigured `GATEWAY_URL=...example.test/`
@@ -148,6 +184,7 @@ export async function callGateway<T>(options: TransportOptions): Promise<Gateway
       onWarn?.({ path, method, status: response.status }, 'Request failed');
       return {
         ok: false,
+        kind: 'http',
         error: parsed.message,
         status: response.status,
         code: parsed.code,
@@ -169,8 +206,10 @@ export async function callGateway<T>(options: TransportOptions): Promise<Gateway
         );
         return {
           ok: false,
+          kind: 'schema',
           error: `Response schema validation failed: ${validation.error.message}`,
           status: 0,
+          issues: validation.error.issues,
         };
       }
       return { ok: true, data: validation.data as T };
@@ -178,15 +217,9 @@ export async function callGateway<T>(options: TransportOptions): Promise<Gateway
 
     return { ok: true, data: json as T };
   } catch (error) {
-    const isAbort = isTimeoutError(error);
-    const errorMessage = isAbort
-      ? 'Request timeout (gateway slow or unavailable)'
-      : error instanceof Error
-        ? error.message
-        : 'Unknown error';
-
-    onWarn?.({ path, method, errorMessage, isTimeout: isAbort }, 'Request error');
-    return { ok: false, error: errorMessage, status: 0 };
+    const { kind, error: errorMessage } = classifyThrownError(error);
+    onWarn?.({ path, method, errorMessage, isTimeout: kind === 'timeout' }, 'Request error');
+    return { ok: false, kind, error: errorMessage, status: 0 };
   }
 }
 
