@@ -291,4 +291,18 @@ describe('callGatewayOrThrow', () => {
     expect(error).toBeInstanceOf(GatewayApiError);
     expect(error).toMatchObject({ status: 0, kind: 'timeout' });
   });
+
+  it('throws GatewayApiError carrying kind:schema + the Zod issues on contract drift', async () => {
+    // The raw Zod issues forward to the throw path too, so try/catch callers can
+    // inspect contract drift structurally instead of re-parsing the message.
+    const schema = z.object({ tz: z.string() });
+    fetchSpy.mockResolvedValueOnce(jsonResponse({ wrong: 'shape' }));
+    const error = await callGatewayOrThrow({ ...baseOpts, outputSchema: schema }).catch(
+      (e: unknown) => e
+    );
+    expect(error).toBeInstanceOf(GatewayApiError);
+    expect(error).toMatchObject({ status: 0, kind: 'schema' });
+    expect((error as GatewayApiError).issues).toEqual(expect.any(Array));
+    expect((error as GatewayApiError).issues?.length ?? 0).toBeGreaterThan(0);
+  });
 });

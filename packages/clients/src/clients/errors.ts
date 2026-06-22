@@ -83,13 +83,26 @@ export class GatewayApiError extends Error {
    */
   public readonly kind: GatewayFailureKind;
   public readonly code?: ApiErrorSubcode;
+  /**
+   * Raw Zod validation problems, forwarded from `GatewayResult` — only set when
+   * `kind === 'schema'`. Mirrors the result path so try/catch callers can inspect
+   * contract drift structurally instead of re-parsing `message`.
+   */
+  public readonly issues?: z.ZodIssue[];
 
-  constructor(message: string, status: number, kind: GatewayFailureKind, code?: ApiErrorSubcode) {
+  constructor(
+    message: string,
+    status: number,
+    kind: GatewayFailureKind,
+    code?: ApiErrorSubcode,
+    issues?: z.ZodIssue[]
+  ) {
     super(message);
     this.name = 'GatewayApiError';
     this.status = status;
     this.kind = kind;
     this.code = code;
+    this.issues = issues;
   }
 }
 

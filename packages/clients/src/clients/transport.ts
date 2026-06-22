@@ -271,7 +271,7 @@ export async function callGateway<T>(options: TransportOptions): Promise<Gateway
 export async function callGatewayOrThrow<T>(options: TransportOptions): Promise<T> {
   const result = await callGateway<T>(options);
   if (!result.ok) {
-    throw new GatewayApiError(result.error, result.status, result.kind, result.code);
+    throw new GatewayApiError(result.error, result.status, result.kind, result.code, result.issues);
   }
   return result.data;
 }
