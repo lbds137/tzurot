@@ -15,11 +15,14 @@ vi.mock('@tzurot/common-types', async importOriginal => {
       getCrossChannelHistory = mockGetCrossChannelHistory;
       getMessageByDiscordId = mockGetMessageByDiscordId;
     },
-    UserService: class {
-      getUserTimezone = mockGetUserTimezone;
-    },
   };
 });
+
+vi.mock('@tzurot/identity', () => ({
+  UserService: class {
+    getUserTimezone = mockGetUserTimezone;
+  },
+}));
 
 import { PrismaContextDataSource } from './PrismaContextDataSource.js';
 import type { PrismaClient } from '@tzurot/common-types';

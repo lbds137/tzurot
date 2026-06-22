@@ -25,6 +25,7 @@
     "@tzurot/common-types": "workspace:*",
     "@tzurot/config-resolver": "workspace:*",
     "@tzurot/embeddings": "workspace:*",
+    "@tzurot/identity": "workspace:*",
     "bullmq": "^5.78.1",
     "express": "^5.2.1",
     "helmet": "^8.2.0",

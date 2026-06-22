@@ -29,15 +29,14 @@ import {
   type JobContext,
   type LoadedPersonality,
   type MentionedPersona,
-  type PersonaResolver,
   resolveSummonAnonymity,
   type RawAssemblyInputs,
   type ReferencedChannel,
   type ReferencedMessage,
   type ResolvedConfigOverrides,
   type SummonAnonymity,
-  type UserService,
 } from '@tzurot/common-types';
+import type { PersonaResolver, UserService } from '@tzurot/identity';
 import { rewriteRawContent, type RewrittenContent } from './contentRewriter.js';
 import { enrichRawReferences } from './referenceEnricher.js';
 import type { ContextDataSource } from './types.js';

@@ -21,11 +21,10 @@
 import { type Response, type RequestHandler } from 'express';
 import {
   createLogger,
-  PersonaResolver,
-  resolveRoutingContext,
   RoutingContextRequestSchema,
   type RoutingContextResponse,
 } from '@tzurot/common-types';
+import { PersonaResolver, resolveRoutingContext } from '@tzurot/identity';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';

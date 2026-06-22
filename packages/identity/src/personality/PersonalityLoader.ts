@@ -3,13 +3,18 @@
  * Database query logic for loading personalities from PostgreSQL
  */
 
-import type { PrismaClient } from '../prisma.js';
-import { createLogger } from '../../utils/logger.js';
-import { isBotOwner } from '../../utils/ownerMiddleware.js';
-import { getConfig } from '../../config/index.js';
-import { isValidUUID, SYNC_LIMITS } from '../../constants/index.js';
+import {
+  type PrismaClient,
+  createLogger,
+  isBotOwner,
+  getConfig,
+  isValidUUID,
+  SYNC_LIMITS,
+  LLM_CONFIG_SELECT,
+  mapLlmConfigFromDb,
+  type MappedLlmConfig,
+} from '@tzurot/common-types';
 import type { DatabasePersonality } from './PersonalityValidator.js';
-import { LLM_CONFIG_SELECT, mapLlmConfigFromDb, type MappedLlmConfig } from '../LlmConfigMapper.js';
 
 const logger = createLogger('PersonalityLoader');
 

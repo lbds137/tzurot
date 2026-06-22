@@ -19,8 +19,6 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import {
   MessageRole,
   PrismaClient,
-  UserService,
-  PersonaResolver,
   generateUserUuid,
   generatePersonaUuid,
   generatePersonalityUuid,
@@ -30,6 +28,7 @@ import {
   type JobContext,
   type LoadedPersonality,
 } from '@tzurot/common-types';
+import { UserService, PersonaResolver } from '@tzurot/identity';
 import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { createTestPGlite, loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';

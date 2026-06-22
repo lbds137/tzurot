@@ -29,12 +29,6 @@ vi.mock('@tzurot/common-types', async importOriginal => {
     ConversationHistoryService: class {
       getChannelHistory = vi.fn();
     },
-    UserService: class {
-      getOrCreateUser = vi.fn();
-      getOrCreateUsersInBatch = vi.fn().mockResolvedValue(new Map());
-      getPersonaName = vi.fn();
-      getUserTimezone = vi.fn();
-    },
     createLogger: () => ({
       info: vi.fn(),
       debug: vi.fn(),
@@ -125,16 +119,26 @@ vi.mock('./CrossChannelHistoryFetcher.js', () => ({
 }));
 
 // Import after mocks
-import { ConversationHistoryService, UserService } from '@tzurot/common-types';
+import { ConversationHistoryService } from '@tzurot/common-types';
 import { extractDiscordEnvironment } from '../utils/discordContext.js';
 import { extractAttachments } from '../utils/attachmentExtractor.js';
 import { MessageReferenceExtractor as _MessageReferenceExtractor } from '../handlers/MessageReferenceExtractor.js';
+
+// UserService now lives in @tzurot/identity, which bot-client cannot import
+// (Prisma-backed). This vestigial mock is no longer wired into the builder;
+// the local structural type keeps the legacy per-test setups compiling.
+type MockUserService = {
+  getOrCreateUser: ReturnType<typeof vi.fn>;
+  getOrCreateUsersInBatch: ReturnType<typeof vi.fn>;
+  getPersonaName: ReturnType<typeof vi.fn>;
+  getUserTimezone: ReturnType<typeof vi.fn>;
+};
 
 describe('MessageContextBuilder', () => {
   let builder: MessageContextBuilder;
   let mockPrisma: PrismaClient;
   let mockHistoryService: ConversationHistoryService;
-  let mockUserService: UserService;
+  let mockUserService: MockUserService;
   let mockPersonality: LoadedPersonality;
   let mockMessage: Message;
 
@@ -182,7 +186,7 @@ describe('MessageContextBuilder', () => {
       getOrCreateUsersInBatch: vi.fn().mockResolvedValue(new Map()),
       getPersonaName: vi.fn(),
       getUserTimezone: vi.fn(),
-    } as unknown as UserService;
+    } as unknown as MockUserService;
 
     // Default mock for PersonaResolver.resolve
     mockPersonaResolver.resolve.mockResolvedValue({

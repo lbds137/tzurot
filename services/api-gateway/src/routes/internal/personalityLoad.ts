@@ -20,11 +20,8 @@
 
 import { type Response, type RequestHandler } from 'express';
 import { z } from 'zod';
-import {
-  createLogger,
-  PersonalityService,
-  type LoadPersonalityInternalResponse,
-} from '@tzurot/common-types';
+import { createLogger, type LoadPersonalityInternalResponse } from '@tzurot/common-types';
+import { PersonalityService } from '@tzurot/identity';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { sendZodError } from '../../utils/zodHelpers.js';

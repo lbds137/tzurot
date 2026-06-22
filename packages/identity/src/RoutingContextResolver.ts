@@ -15,11 +15,14 @@
  * collapses ~4 serialized HTTP hops on the hot path into one round-trip.
  */
 
-import { type PrismaClient } from './prisma.js';
+import {
+  type PrismaClient,
+  createLogger,
+  type RoutingContextRequest,
+  type RoutingContextResponse,
+} from '@tzurot/common-types';
 import type { UserService } from './UserService.js';
 import type { PersonaResolver } from './resolvers/PersonaResolver.js';
-import { createLogger } from '../utils/logger.js';
-import type { RoutingContextRequest, RoutingContextResponse } from '../schemas/api/internal.js';
 
 const logger = createLogger('RoutingContextResolver');
 

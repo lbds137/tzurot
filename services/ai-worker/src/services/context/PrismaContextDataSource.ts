@@ -12,11 +12,11 @@
 
 import {
   ConversationHistoryService,
-  UserService,
   type ConversationMessage,
   type CrossChannelHistoryGroup,
   type PrismaClient,
 } from '@tzurot/common-types';
+import { UserService } from '@tzurot/identity';
 import type { ContextDataSource, CrossChannelHistoryParams } from './types.js';
 
 export class PrismaContextDataSource implements ContextDataSource {

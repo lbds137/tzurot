@@ -244,6 +244,22 @@ importers:
         specifier: ^25.9.3
         version: 25.9.3
 
+  packages/identity:
+    dependencies:
+      '@tzurot/common-types':
+        specifier: workspace:*
+        version: link:../common-types
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: ^25.9.3
+        version: 25.9.3
+      '@tzurot/test-utils':
+        specifier: workspace:*
+        version: link:../test-utils
+
   packages/test-factories:
     dependencies:
       '@tzurot/common-types':
@@ -373,6 +389,9 @@ importers:
       '@tzurot/embeddings':
         specifier: workspace:*
         version: link:../../packages/embeddings
+      '@tzurot/identity':
+        specifier: workspace:*
+        version: link:../../packages/identity
       bullmq:
         specifier: ^5.78.1
         version: 5.78.1(redis@6.0.0)
@@ -419,6 +438,9 @@ importers:
       '@tzurot/embeddings':
         specifier: workspace:*
         version: link:../../packages/embeddings
+      '@tzurot/identity':
+        specifier: workspace:*
+        version: link:../../packages/identity
       bullmq:
         specifier: ^5.78.1
         version: 5.78.1(redis@6.0.0)

@@ -4,9 +4,7 @@
  */
 
 import { z } from 'zod';
-import { Prisma } from '../prisma.js';
-import { createLogger } from '../../utils/logger.js';
-import type { PersonalityCharacterFields } from '../../schemas/api/personality.js';
+import { Prisma, createLogger, type PersonalityCharacterFields } from '@tzurot/common-types';
 
 // Re-export Decimal type for convenience
 type Decimal = Prisma.Decimal;

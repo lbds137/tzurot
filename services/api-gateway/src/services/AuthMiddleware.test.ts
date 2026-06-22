@@ -32,15 +32,18 @@ vi.mock('@tzurot/common-types', async () => {
     ...actual,
     getConfig: vi.fn(),
     isBotOwner: (userId: string) => mockIsBotOwnerFn(userId),
-    // UserService used by requireProvisionedUser. Class shape just needs
-    // `getOrCreateUser`; the middleware never calls other methods.
-    // Using a class (not an arrow-function mockImplementation) so `new
-    // UserService(...)` is a valid constructor call.
-    UserService: class MockUserService {
-      getOrCreateUser = mockGetOrCreateUser;
-    },
   };
 });
+
+// UserService used by requireProvisionedUser. Class shape just needs
+// `getOrCreateUser`; the middleware never calls other methods. Using a class
+// (not an arrow-function mockImplementation) so `new UserService(...)` is a
+// valid constructor call.
+vi.mock('@tzurot/identity', () => ({
+  UserService: class MockUserService {
+    getOrCreateUser = mockGetOrCreateUser;
+  },
+}));
 
 describe('authMiddleware', () => {
   describe('extractOwnerId', () => {
