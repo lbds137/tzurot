@@ -13,5 +13,8 @@
  * History:
  *   v1 — initial (Prisma auto-detection + `*.service.ts` glob +
  *        Zod schema enumeration).
+ *   v2 — PRISMA_PATTERNS: replaced the dead `getPrismaClient(` matcher
+ *        (deleted in the singleton eviction) with `createPrismaClient(`,
+ *        the post-eviction Prisma entry point.
  */
-export const TEST_AUDIT_IMPL_VERSION = 1;
+export const TEST_AUDIT_IMPL_VERSION = 2;

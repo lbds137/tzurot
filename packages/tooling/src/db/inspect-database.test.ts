@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createPrismaClient } from '@tzurot/common-types';
 
-const mockDispose = vi.fn();
+const mockDispose = vi.fn().mockResolvedValue(undefined);
 
 // Mock common-types before importing
 vi.mock('@tzurot/common-types', () => ({

@@ -28,6 +28,26 @@ interface Violation {
 }
 
 // Define boundary rules
+/**
+ * Prisma CLIENT symbols that still live in `@tzurot/common-types` and must not be
+ * imported by bot-client (they reach the database). The former Prisma-backed
+ * SERVICES (PersonaResolver, PersonalityService, ConversationHistoryService, the
+ * cache invalidators) were extracted to dedicated packages — each carries its own
+ * `bot-client → package` depcruise ban — and getPrismaClient/disconnectPrisma were
+ * deleted. Exported so the drift test in check-boundaries.test.ts asserts every
+ * entry is a real common-types export; a stale entry (a symbol that's since been
+ * renamed/deleted/moved) then fails CI instead of silently no-op-matching.
+ */
+export const BOT_CLIENT_BANNED_COMMON_TYPES_PRISMA_SYMBOLS = [
+  'createPrismaClient',
+  'PrismaClient',
+  'Prisma',
+] as const;
+
+const BOT_CLIENT_PRISMA_SYMBOL_PATTERN = new RegExp(
+  `\\b(${BOT_CLIENT_BANNED_COMMON_TYPES_PRISMA_SYMBOLS.join('|')})\\b[\\s\\S]*?from\\s+['"]@tzurot/common-types['"]`
+);
+
 const BOUNDARY_RULES: {
   service: string;
   forbiddenImports: { pattern: RegExp; reason: string; severity: 'error' | 'warning' }[];
@@ -44,12 +64,9 @@ const BOUNDARY_RULES: {
         // Prisma reaches bot-client via re-exports from the @tzurot/common-types
         // barrel, not a direct @prisma/client import — depcruise (module-path
         // matching) can't see the barrel re-export, so this symbol-level rule is
-        // the enforcement. Matches a forbidden DB-layer symbol in the same
-        // statement as a common-types `from`; every symbol in the alternation
-        // has a Prisma dependency chain. Keep the alternation in sync: add the
-        // export name of any new Prisma-backed @tzurot/common-types service here.
-        pattern:
-          /\b(getPrismaClient|createPrismaClient|disconnectPrisma|PrismaClient|PersonaResolver|PersonalityService|ConversationHistoryService|PersonaCacheInvalidationService|Prisma)\b[\s\S]*?from\s+['"]@tzurot\/common-types['"]/,
+        // the enforcement. Banned symbols + rationale live on
+        // BOT_CLIENT_BANNED_COMMON_TYPES_PRISMA_SYMBOLS above (drift-tested).
+        pattern: BOT_CLIENT_PRISMA_SYMBOL_PATTERN,
         reason:
           'bot-client must not import Prisma-backed code from @tzurot/common-types - these reach the database; use the gateway HTTP API (HttpPersonalityLoader, routing-context)',
         severity: 'error',

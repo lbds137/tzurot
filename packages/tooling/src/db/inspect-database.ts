@@ -276,6 +276,6 @@ export async function inspectDatabase(options: InspectOptions = {}): Promise<voi
     console.log(chalk.dim('   pnpm ops db:inspect --indexes       Show only indexes'));
     console.log('');
   } finally {
-    await dispose();
+    await dispose().catch(() => undefined);
   }
 }

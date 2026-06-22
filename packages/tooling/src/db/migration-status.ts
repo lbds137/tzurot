@@ -117,7 +117,7 @@ async function showStatusDirect(migrationsPath: string): Promise<void> {
 
     console.log('\n' + '═'.repeat(60));
   } finally {
-    await dispose();
+    await dispose().catch(() => undefined);
   }
 }
 
