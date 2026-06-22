@@ -41,7 +41,7 @@ import {
   GATEWAY_TIMEOUTS,
   isTimeoutError,
 } from '@tzurot/common-types';
-import { GatewayApiError, parseErrorResponse } from './errors.js';
+import { GatewayApiError, type GatewayFailureKind, parseErrorResponse } from './errors.js';
 
 /**
  * Result envelope mirroring the legacy `callGatewayApi` discriminated union.
@@ -52,9 +52,9 @@ import { GatewayApiError, parseErrorResponse } from './errors.js';
  * `status > 0  ⟺  kind === 'http'`. `code` and `issues` are likewise
  * kind-scoped: `code` is an HTTP-layer subcode (only meaningful for `'http'`),
  * and `issues` holds the raw Zod problems (only populated for `'schema'`).
+ * `GatewayFailureKind` lives in `./errors.js` (cycle-avoidance) and reaches
+ * `@tzurot/clients` consumers via that module's barrel export.
  */
-export type GatewayFailureKind = 'config' | 'network' | 'timeout' | 'schema' | 'http';
-
 export type GatewayResult<T> =
   | { ok: true; data: T }
   | {
@@ -271,7 +271,7 @@ export async function callGateway<T>(options: TransportOptions): Promise<Gateway
 export async function callGatewayOrThrow<T>(options: TransportOptions): Promise<T> {
   const result = await callGateway<T>(options);
   if (!result.ok) {
-    throw new GatewayApiError(result.error, result.status, result.code);
+    throw new GatewayApiError(result.error, result.status, result.code, result.kind);
   }
   return result.data;
 }
