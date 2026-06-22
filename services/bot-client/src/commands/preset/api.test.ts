@@ -255,12 +255,9 @@ describe('createPreset', () => {
   });
 
   it('throws GatewayApiError carrying status + code on failure', async () => {
-    stub.createUserLlmConfig.mockResolvedValue({
-      ok: false,
-      error: 'You already have a config named "Foo"',
-      status: 400,
-      code: 'NAME_COLLISION',
-    } as never);
+    stub.createUserLlmConfig.mockResolvedValue(
+      makeErr(400, 'You already have a config named "Foo"', 'NAME_COLLISION')
+    );
 
     // Catch the rejection once so we can inspect class + shape without
     // re-invoking createPreset (which would re-consume the one-shot mock).
@@ -272,20 +269,20 @@ describe('createPreset', () => {
     expect(err).toBeInstanceOf(GatewayApiError);
     expect(err.status).toBe(400);
     expect(err.code).toBe('NAME_COLLISION');
+    // kind propagates through the result→throw boundary, so try/catch callers
+    // can branch on failure category just like result-based callers.
+    expect(err.kind).toBe('http');
   });
 
   it('throws GatewayApiError with undefined code when gateway sends no sub-code', async () => {
-    stub.createUserLlmConfig.mockResolvedValue({
-      ok: false,
-      error: 'Some other failure',
-      status: 500,
-    } as never);
+    stub.createUserLlmConfig.mockResolvedValue(makeErr(500, 'Some other failure'));
 
     await expect(
       createPreset({ name: 'Foo', model: 'm', provider: 'p' }, asUserClient(stub))
     ).rejects.toMatchObject({
       status: 500,
       code: undefined,
+      kind: 'http',
     });
   });
 });
