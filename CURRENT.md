@@ -15,7 +15,8 @@
 - **2p-2 ✅** — extracted **`@tzurot/config-resolver`** (the 5 resolver classes) (#1295).
 - **2p-3a ✅** — extracted **`@tzurot/identity`** (UserService, PersonaResolver + BaseConfigResolver, PersonalityService cluster, RoutingContextResolver); persona reverse-edge solved via the `CorePersonaConfig`/`PersonaResolverLike` contract that stays in common-types (#1299).
 - **2p-3b ✅** — extracted **`@tzurot/conversation-history`** (ConversationHistoryService, ConversationSyncService, referenceImageDescriptions, + the Prisma half of ConversationMessageMapper); `conversationSyncDiff` + the `ConversationMessage`/`CrossChannelHistoryGroup` shapes stay in common-types (bot-client consumes them) (#1300). **Prisma-backed `services/` extraction COMPLETE.**
-- **➡️ 2q NEXT** — split the Redis pub/sub publisher/subscriber pairs; closes the epic (modulo the 3 follow-up sweep clusters — see [`active-epic.md`](backlog/active-epic.md) close-out gate).
+- **2q ✅** — extracted **`@tzurot/cache-invalidation`** (Base + 9 Redis pub/sub invalidators + event contracts); council-settled dedicated-package shape (topology falsified the publisher/subscriber split); bot-client depends on it (Redis ≠ Prisma); `REDIS_CHANNELS` stays + now barrel-exported (#1302). **🏁 Extraction arc COMPLETE — common-types is now types/schemas/constants/utils only.**
+- **➡️ Epic remaining**: only the 3 follow-up sweep clusters (~29 items, gated in [`active-epic.md`](backlog/active-epic.md) close-out tracker). Cluster A (PR-2p, 7) now sweepable.
 
 Also: test-pyramid taxonomy single-sourcing + Phase-1 enforcement seeds (#1283–#1285). Full epic detail in [`backlog/active-epic.md`](backlog/active-epic.md). _beta.135 release notes: [tag v3.0.0-beta.135](https://github.com/lbds137/tzurot/releases/tag/v3.0.0-beta.135)._
 
