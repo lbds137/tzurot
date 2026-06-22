@@ -1,0 +1,29 @@
+{
+  "name": "@tzurot/conversation-history",
+  "version": "3.0.0-beta.135",
+  "private": true,
+  "type": "module",
+  "description": "Prisma-backed conversation persistence: history retrieval, channel sync, and reference-image-description writes",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "clean": "find src -name '*.js' -type f -delete && find src -name '*.js.map' -type f -delete",
+    "build": "tsc",
+    "pretest": "npm run clean",
+    "test": "vitest",
+    "test:watch": "vitest --watch",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src --max-warnings=0",
+    "lint:fix": "eslint src --fix",
+    "format": "prettier --write .",
+    "typecheck": "tsc --noEmit",
+    "typecheck:spec": "tsc --noEmit --project tsconfig.spec.json"
+  },
+  "dependencies": {
+    "@tzurot/common-types": "workspace:*"
+  },
+  "devDependencies": {
+    "@tzurot/test-utils": "workspace:*",
+    "@types/node": "^25.9.3"
+  }
+}

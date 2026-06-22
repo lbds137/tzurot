@@ -228,6 +228,19 @@ importers:
         specifier: ^10.3.1
         version: 10.3.1
 
+  packages/conversation-history:
+    dependencies:
+      '@tzurot/common-types':
+        specifier: workspace:*
+        version: link:../common-types
+    devDependencies:
+      '@types/node':
+        specifier: ^25.9.3
+        version: 25.9.3
+      '@tzurot/test-utils':
+        specifier: workspace:*
+        version: link:../test-utils
+
   packages/embeddings:
     dependencies:
       '@huggingface/transformers':
@@ -386,6 +399,9 @@ importers:
       '@tzurot/config-resolver':
         specifier: workspace:*
         version: link:../../packages/config-resolver
+      '@tzurot/conversation-history':
+        specifier: workspace:*
+        version: link:../../packages/conversation-history
       '@tzurot/embeddings':
         specifier: workspace:*
         version: link:../../packages/embeddings
@@ -435,6 +451,9 @@ importers:
       '@tzurot/config-resolver':
         specifier: workspace:*
         version: link:../../packages/config-resolver
+      '@tzurot/conversation-history':
+        specifier: workspace:*
+        version: link:../../packages/conversation-history
       '@tzurot/embeddings':
         specifier: workspace:*
         version: link:../../packages/embeddings

@@ -8,25 +8,24 @@
  * - ConversationMessageMapper: Data transformation
  */
 
-import type { PrismaClient } from './prisma.js';
-import { createLogger } from '../utils/logger.js';
-import { MessageRole } from '../constants/index.js';
-import { countTextTokens } from '../utils/tokenCounter.js';
-import type { MessageMetadata } from '../types/schemas/index.js';
+import {
+  createLogger,
+  MessageRole,
+  countTextTokens,
+  generateConversationHistoryUuid,
+  computeHistoryCutoff,
+  type PrismaClient,
+  type MessageMetadata,
+  type ConversationMessage,
+  type CrossChannelHistoryGroup,
+} from '@tzurot/common-types';
 import {
   conversationHistorySelect,
   conversationRecencyOrderBy,
   mapToConversationMessage,
   mapToConversationMessages,
-  type ConversationMessage,
-  type CrossChannelHistoryGroup,
 } from './ConversationMessageMapper.js';
-import { generateConversationHistoryUuid } from '../utils/deterministicUuid.js';
-import { computeHistoryCutoff } from './historyCutoff.js';
 import { writeReferenceImageDescriptions } from './referenceImageDescriptions.js';
-
-// Re-export types for consumers that import from this module
-export type { ConversationMessage, CrossChannelHistoryGroup } from './ConversationMessageMapper.js';
 
 const logger = createLogger('ConversationHistoryService');
 

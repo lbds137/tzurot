@@ -13,7 +13,7 @@
  * built here when resolution fails.
  */
 
-import type { ConversationMessage } from '../services/ConversationMessageMapper.js';
+import type { ConversationMessage } from '../types/conversationMessage.js';
 import type { DiscordEnvironment } from '../types/schemas/discord.js';
 import type { CrossChannelHistoryGroupEntry } from '../types/schemas/message.js';
 

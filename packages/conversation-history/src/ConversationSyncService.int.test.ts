@@ -10,13 +10,12 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { PrismaClient } from './prisma.js';
 import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { createTestPGlite, loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
 import { ConversationSyncService } from './ConversationSyncService.js';
 import { ConversationHistoryService } from './ConversationHistoryService.js';
-import { MessageRole } from '../constants/index.js';
+import { PrismaClient, MessageRole } from '@tzurot/common-types';
 
 describe('ConversationSyncService Integration Test', () => {
   let prisma: PrismaClient;

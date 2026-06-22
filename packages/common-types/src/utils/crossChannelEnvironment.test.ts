@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { MessageRole } from '../constants/index.js';
-import type { CrossChannelHistoryGroup } from '../services/ConversationMessageMapper.js';
+import type { CrossChannelHistoryGroup } from '../types/conversationMessage.js';
 import { buildFallbackEnvironment, mapCrossChannelToApiFormat } from './crossChannelEnvironment.js';
 
 describe('buildFallbackEnvironment', () => {

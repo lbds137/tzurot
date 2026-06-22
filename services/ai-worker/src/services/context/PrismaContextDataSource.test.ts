@@ -10,13 +10,16 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   return {
     ...actual,
     createLogger: () => ({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() }),
-    ConversationHistoryService: class {
-      getChannelHistory = mockGetChannelHistory;
-      getCrossChannelHistory = mockGetCrossChannelHistory;
-      getMessageByDiscordId = mockGetMessageByDiscordId;
-    },
   };
 });
+
+vi.mock('@tzurot/conversation-history', () => ({
+  ConversationHistoryService: class {
+    getChannelHistory = mockGetChannelHistory;
+    getCrossChannelHistory = mockGetCrossChannelHistory;
+    getMessageByDiscordId = mockGetMessageByDiscordId;
+  },
+}));
 
 vi.mock('@tzurot/identity', () => ({
   UserService: class {

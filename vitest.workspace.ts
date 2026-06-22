@@ -4,6 +4,7 @@ export default defineWorkspace([
   'packages/common-types',
   'packages/config-resolver',
   'packages/identity',
+  'packages/conversation-history',
   'packages/clients',
   'packages/test-factories',
   'services/ai-worker',

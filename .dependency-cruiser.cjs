@@ -26,6 +26,14 @@ module.exports = {
       to: { path: '(^|/)@tzurot/identity|^packages/identity/' },
     },
     {
+      name: 'bot-client-no-conversation-history',
+      comment:
+        'bot-client must NEVER import @tzurot/conversation-history — it is Prisma-backed (conversation persistence); use gateway APIs. The ConversationMessage data shapes + conversationSyncDiff util stay in @tzurot/common-types for bot-client.',
+      severity: 'error',
+      from: { path: '^services/bot-client/' },
+      to: { path: '(^|/)@tzurot/conversation-history|^packages/conversation-history/' },
+    },
+    {
       name: 'no-prod-import-test-factories',
       comment:
         '@tzurot/test-factories is a test-fixture package — production code must never import it',

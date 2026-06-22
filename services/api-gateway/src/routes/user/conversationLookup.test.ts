@@ -12,11 +12,6 @@ const mockGetMessageByDiscordId = vi.fn();
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
 
-  // Create a mock class that returns our mock methods
-  class MockConversationHistoryService {
-    getMessageByDiscordId = mockGetMessageByDiscordId;
-  }
-
   return {
     ...actual,
     createLogger: () => ({
@@ -25,9 +20,14 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
-    ConversationHistoryService: MockConversationHistoryService,
   };
 });
+
+vi.mock('@tzurot/conversation-history', () => ({
+  ConversationHistoryService: class {
+    getMessageByDiscordId = mockGetMessageByDiscordId;
+  },
+}));
 
 vi.mock('../../utils/asyncHandler.js', () => ({
   asyncHandler: vi.fn(fn => fn),
