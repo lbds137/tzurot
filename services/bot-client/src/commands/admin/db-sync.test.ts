@@ -45,7 +45,7 @@ function ok<T>(data: T): GatewayResult<T> {
 }
 
 function err(status: number, message = 'fail'): GatewayResult<never> {
-  return { ok: false, error: message, status };
+  return { ok: false, kind: status > 0 ? 'http' : 'network', error: message, status };
 }
 
 describe('handleDbSync', () => {
