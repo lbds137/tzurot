@@ -16,7 +16,7 @@ The "Slim common-types" epic spawned **three** follow-up clusters across its pha
 - [ ] Collapse the ai-worker `services/resolvers/index.ts` wrapper re-export (2p-3a)
 - [ ] Repoint/drop the stale `UserService.ts` eslint exemption path (2p-3a leftover)
 
-**Cluster B — Phase 2.5 context-relocation / bot-client Prisma eviction (~19). Trigger: when the 2.5d prod-soak closes + the 2.5d-delete ships (the legacy paths several of these reference die then).**
+**Cluster B — Phase 2.5 context-relocation / bot-client Prisma eviction (~18). Trigger: SWEEPABLE NOW.** _(Correction 2026-06-22: the original "wait for the 2.5d prod-soak + delete" trigger was already satisfied — the soak came back clean (~14h) and the 2.5d-delete shipped in beta.135 (#1267–1270). Phase 2.5 is COMPLETE. Re-audit each item for obsolescence before sweeping — beta.135 deleted the shadow + CONTEXT_MODE machinery, so anything referencing those is dead.)_
 
 - _Dead-code / vestigial (die with 2.5d-delete):_
   - [ ] Remove dead extended-context assembly from `MessageContextBuilder.fetchExtendedContext`
@@ -32,7 +32,7 @@ The "Slim common-types" epic spawned **three** follow-up clusters across its pha
   - [ ] Partial-map fragility in `writeReferenceImageDescriptions`
   - [ ] `buildDedupedReferenceStub` over-limit content contract
   - [ ] Promote extended-context voice transcripts to the worker (flat-list pattern)
-  - [ ] Conditional-spread `sttDivergence` out of shadow logs when uncompared
+  - [x] ~~Conditional-spread `sttDivergence` out of shadow logs~~ — **OBSOLETE** (beta.135 deleted the shadow machinery; `sttDivergence`/`shadowAssembly` no longer exist)
 - _Invariants / observability / latency:_
   - [ ] Document the worker-overwrite invariant at `ContextStep.ts:56`
   - [ ] Audit the two `resolveSummonAnonymity` calls stay in sync if `applyAssembledContext` is restructured
