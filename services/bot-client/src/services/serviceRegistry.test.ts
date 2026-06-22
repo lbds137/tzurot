@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import type { ChannelActivationCacheInvalidationService } from '@tzurot/common-types';
+import type { ChannelActivationCacheInvalidationService } from '@tzurot/cache-invalidation';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import type { JobTracker } from './JobTracker.js';
 import type { WebhookManager } from '../utils/WebhookManager.js';

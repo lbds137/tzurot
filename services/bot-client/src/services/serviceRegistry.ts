@@ -10,7 +10,7 @@
  * - Import getJobTracker(), getWebhookManager(), etc. in commands
  */
 
-import type { ChannelActivationCacheInvalidationService } from '@tzurot/common-types';
+import type { ChannelActivationCacheInvalidationService } from '@tzurot/cache-invalidation';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import type { JobTracker } from './JobTracker.js';
 import type { WebhookManager } from '../utils/WebhookManager.js';

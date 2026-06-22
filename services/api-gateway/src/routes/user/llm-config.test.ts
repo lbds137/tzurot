@@ -154,7 +154,7 @@ const mockPrisma = {
 const mockCacheInvalidation = {
   invalidateUserLlmConfig: vi.fn().mockResolvedValue(undefined),
   invalidateAll: vi.fn().mockResolvedValue(undefined),
-} as unknown as import('@tzurot/common-types').LlmConfigCacheInvalidationService;
+} as unknown as import('@tzurot/cache-invalidation').LlmConfigCacheInvalidationService;
 
 import { createLlmConfigRoutes } from './llm-config.js';
 import { getRouteHandler, findRoute } from '../../test/expressRouterUtils.js';

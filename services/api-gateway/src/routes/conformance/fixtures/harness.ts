@@ -14,12 +14,11 @@
 
 import express, { type Express } from 'express';
 import request from 'supertest';
+import { PrismaClient, resetConfig } from '@tzurot/common-types';
 import {
   CacheInvalidationService,
   DenylistCacheInvalidationService,
-  PrismaClient,
-  resetConfig,
-} from '@tzurot/common-types';
+} from '@tzurot/cache-invalidation';
 import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import {

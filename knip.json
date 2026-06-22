@@ -36,6 +36,9 @@
     "packages/conversation-history": {
       "entry": ["src/**/*.test.ts", "src/**/*.int.test.ts"]
     },
+    "packages/cache-invalidation": {
+      "entry": ["src/**/*.test.ts"]
+    },
     "packages/tooling": {
       "entry": ["src/**/*.test.ts"],
       "ignoreDependencies": ["eslint"]

@@ -86,6 +86,7 @@ COPY --from=builder /app/node_modules/.pnpm ./node_modules/.pnpm
 # or the runtime image will be missing it (ERR_MODULE_NOT_FOUND at startup).
 # Keep in sync with the prod `dependencies` in services/bot-client/package.json.
 COPY --from=builder /app/packages/common-types/dist ./packages/common-types/dist
+COPY --from=builder /app/packages/cache-invalidation/dist ./packages/cache-invalidation/dist
 COPY --from=builder /app/packages/clients/dist ./packages/clients/dist
 COPY --from=builder /app/services/bot-client/dist ./services/bot-client/dist
 

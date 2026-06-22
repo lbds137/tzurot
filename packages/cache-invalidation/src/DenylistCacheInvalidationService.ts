@@ -15,7 +15,7 @@
  * - { type: 'all' } - Full cache reload (for migrations or bulk changes)
  */
 
-import { REDIS_CHANNELS } from '../constants/queue.js';
+import { REDIS_CHANNELS } from '@tzurot/common-types';
 import { BaseCacheInvalidationService } from './BaseCacheInvalidationService.js';
 import type { Redis } from 'ioredis';
 

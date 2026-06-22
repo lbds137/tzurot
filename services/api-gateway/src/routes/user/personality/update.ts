@@ -9,12 +9,12 @@ import {
   GetPersonalityResponseSchema,
   isBotOwner,
   type PrismaClient,
-  type CacheInvalidationService,
   PersonalityUpdateSchema,
   type PersonalityUpdateInput,
   PERSONALITY_DETAIL_SELECT,
   Prisma,
 } from '@tzurot/common-types';
+import { type CacheInvalidationService } from '@tzurot/cache-invalidation';
 import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendContractSuccess, sendError } from '../../../utils/responseHelpers.js';

@@ -23,6 +23,7 @@
   "dependencies": {
     "@langchain/core": "^1.1.49",
     "@langchain/openai": "^1.4.7",
+    "@tzurot/cache-invalidation": "workspace:*",
     "@tzurot/common-types": "workspace:*",
     "@tzurot/config-resolver": "workspace:*",
     "@tzurot/conversation-history": "workspace:*",

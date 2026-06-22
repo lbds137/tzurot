@@ -7,10 +7,10 @@ import { Router, type Request, type RequestHandler, type Response } from 'expres
 import {
   AdminPersonalityResponseSchema,
   createLogger,
-  type CacheInvalidationService,
   PersonalityUpdateSchema,
   type PersonalityUpdateInput,
 } from '@tzurot/common-types';
+import { type CacheInvalidationService } from '@tzurot/cache-invalidation';
 import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import type { RouteDeps } from '../routeDeps.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';

@@ -6,7 +6,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
 import { createAdminLlmConfigRoutes } from './llm-config.js';
-import type { PrismaClient, LlmConfigCacheInvalidationService } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types';
+import type { LlmConfigCacheInvalidationService } from '@tzurot/cache-invalidation';
 import { getAllRoutes } from '../../test/expressRouterUtils.js';
 
 // Mock the admin auth middleware

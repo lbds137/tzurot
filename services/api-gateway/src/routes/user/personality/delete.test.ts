@@ -412,7 +412,7 @@ describe('DELETE /user/personality/:slug', () => {
     it('should call cache invalidation service when provided', async () => {
       const mockCacheInvalidationService = {
         invalidatePersonality: vi.fn().mockResolvedValue(undefined),
-      } as unknown as import('@tzurot/common-types').CacheInvalidationService;
+      } as unknown as import('@tzurot/cache-invalidation').CacheInvalidationService;
 
       const router = createPersonalityRoutes({
         prisma: mockPrisma as unknown as PrismaClient,
@@ -432,7 +432,7 @@ describe('DELETE /user/personality/:slug', () => {
     it('should not fail when cache invalidation throws error', async () => {
       const mockCacheInvalidationService = {
         invalidatePersonality: vi.fn().mockRejectedValue(new Error('Redis connection failed')),
-      } as unknown as import('@tzurot/common-types').CacheInvalidationService;
+      } as unknown as import('@tzurot/cache-invalidation').CacheInvalidationService;
 
       const router = createPersonalityRoutes({
         prisma: mockPrisma as unknown as PrismaClient,

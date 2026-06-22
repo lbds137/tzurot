@@ -492,7 +492,7 @@ describe('PUT /user/personality/:slug (update)', () => {
     it('should call cache invalidation service when avatar is updated', async () => {
       const mockCacheInvalidationService = {
         invalidatePersonality: vi.fn().mockResolvedValue(undefined),
-      } as unknown as import('@tzurot/common-types').CacheInvalidationService;
+      } as unknown as import('@tzurot/cache-invalidation').CacheInvalidationService;
 
       const router = createPersonalityRoutes({
         prisma: mockPrisma as unknown as PrismaClient,
@@ -515,7 +515,7 @@ describe('PUT /user/personality/:slug (update)', () => {
     it('should not fail when cache invalidation throws error', async () => {
       const mockCacheInvalidationService = {
         invalidatePersonality: vi.fn().mockRejectedValue(new Error('Cache service unavailable')),
-      } as unknown as import('@tzurot/common-types').CacheInvalidationService;
+      } as unknown as import('@tzurot/cache-invalidation').CacheInvalidationService;
 
       const router = createPersonalityRoutes({
         prisma: mockPrisma as unknown as PrismaClient,
@@ -537,7 +537,7 @@ describe('PUT /user/personality/:slug (update)', () => {
     it('should not call cache invalidation when no avatar update', async () => {
       const mockCacheInvalidationService = {
         invalidatePersonality: vi.fn().mockResolvedValue(undefined),
-      } as unknown as import('@tzurot/common-types').CacheInvalidationService;
+      } as unknown as import('@tzurot/cache-invalidation').CacheInvalidationService;
 
       const router = createPersonalityRoutes({
         prisma: mockPrisma as unknown as PrismaClient,
@@ -808,7 +808,7 @@ describe('PUT /user/personality/:slug (update)', () => {
 
       const mockCacheInvalidationService = {
         invalidatePersonality: vi.fn().mockResolvedValue(undefined),
-      } as unknown as import('@tzurot/common-types').CacheInvalidationService;
+      } as unknown as import('@tzurot/cache-invalidation').CacheInvalidationService;
 
       const router = createPersonalityRoutes({
         prisma: mockPrisma as unknown as PrismaClient,

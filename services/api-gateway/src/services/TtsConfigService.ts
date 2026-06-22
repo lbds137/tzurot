@@ -28,7 +28,6 @@
 import {
   Prisma,
   type PrismaClient,
-  type TtsConfigCacheInvalidationService,
   type TtsConfigCreateInput,
   type TtsConfigUpdateInput,
   TTS_CONFIG_LIST_SELECT,
@@ -40,6 +39,7 @@ import {
   isTtsProviderId,
   createLogger,
 } from '@tzurot/common-types';
+import { type TtsConfigCacheInvalidationService } from '@tzurot/cache-invalidation';
 
 import { isPrismaUniqueConstraintErrorOn } from '../utils/prismaErrors.js';
 import { bootstrapTtsSystemGlobalsIfNeeded } from './TtsConfigBootstrap.js';

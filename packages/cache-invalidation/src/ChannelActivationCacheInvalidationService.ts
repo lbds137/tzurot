@@ -20,7 +20,7 @@
  * - { type: 'all' } - Invalidate all channel activation caches (for edge cases)
  */
 
-import { REDIS_CHANNELS } from '../constants/queue.js';
+import { REDIS_CHANNELS } from '@tzurot/common-types';
 import {
   BaseCacheInvalidationService,
   createEventValidator,

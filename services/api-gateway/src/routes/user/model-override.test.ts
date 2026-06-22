@@ -564,7 +564,7 @@ describe('/user/model-override routes', () => {
       const router = createModelOverrideRoutes({
         prisma: mockPrisma as unknown as PrismaClient,
         llmConfigCacheInvalidation:
-          mockInvalidation as unknown as import('@tzurot/common-types').LlmConfigCacheInvalidationService,
+          mockInvalidation as unknown as import('@tzurot/cache-invalidation').LlmConfigCacheInvalidationService,
       });
       const handler = getHandler(router, 'put', '/default');
       const { req, res } = createMockReqRes({ configId: '22222222-2222-4222-a222-222222222222' });
@@ -587,7 +587,7 @@ describe('/user/model-override routes', () => {
       const router = createModelOverrideRoutes({
         prisma: mockPrisma as unknown as PrismaClient,
         llmConfigCacheInvalidation:
-          mockInvalidation as unknown as import('@tzurot/common-types').LlmConfigCacheInvalidationService,
+          mockInvalidation as unknown as import('@tzurot/cache-invalidation').LlmConfigCacheInvalidationService,
       });
       const handler = getHandler(router, 'put', '/default');
       const { req, res } = createMockReqRes({ configId: '22222222-2222-4222-a222-222222222222' });
@@ -744,7 +744,7 @@ describe('/user/model-override routes', () => {
       const router = createModelOverrideRoutes({
         prisma: mockPrisma as unknown as PrismaClient,
         llmConfigCacheInvalidation:
-          mockInvalidation as unknown as import('@tzurot/common-types').LlmConfigCacheInvalidationService,
+          mockInvalidation as unknown as import('@tzurot/cache-invalidation').LlmConfigCacheInvalidationService,
       });
       const handler = getHandler(router, 'delete', '/default');
       const { req, res } = createMockReqRes();
@@ -767,7 +767,7 @@ describe('/user/model-override routes', () => {
       const router = createModelOverrideRoutes({
         prisma: mockPrisma as unknown as PrismaClient,
         llmConfigCacheInvalidation:
-          mockInvalidation as unknown as import('@tzurot/common-types').LlmConfigCacheInvalidationService,
+          mockInvalidation as unknown as import('@tzurot/cache-invalidation').LlmConfigCacheInvalidationService,
       });
       const handler = getHandler(router, 'delete', '/default');
       const { req, res } = createMockReqRes();

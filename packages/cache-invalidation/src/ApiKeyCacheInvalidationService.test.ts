@@ -8,7 +8,7 @@ import {
   isValidApiKeyInvalidationEvent,
   type ApiKeyInvalidationEvent,
 } from './ApiKeyCacheInvalidationService.js';
-import { REDIS_CHANNELS } from '../constants/queue.js';
+import { REDIS_CHANNELS } from '@tzurot/common-types';
 
 describe('ApiKeyCacheInvalidationService', () => {
   let mockRedis: ReturnType<typeof createMockRedis>;

@@ -16,7 +16,7 @@
  * - { type: 'all' } - Full cache clear
  */
 
-import { REDIS_CHANNELS } from '../constants/queue.js';
+import { REDIS_CHANNELS } from '@tzurot/common-types';
 import {
   BaseCacheInvalidationService,
   createEventValidator,

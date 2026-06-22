@@ -6,7 +6,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
 import { createUpdatePersonalityRoute } from './updatePersonality.js';
-import type { PrismaClient, CacheInvalidationService } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types';
+import type { CacheInvalidationService } from '@tzurot/cache-invalidation';
 import { optimizeAvatar } from '../../utils/imageProcessor.js';
 
 // Mock AuthMiddleware

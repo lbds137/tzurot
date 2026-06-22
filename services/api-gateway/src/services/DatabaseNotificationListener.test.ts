@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import type { CacheInvalidationService } from '@tzurot/common-types';
+import type { CacheInvalidationService } from '@tzurot/cache-invalidation';
 
 // Mock pg Client - must be at module scope BEFORE importing the service
 vi.mock('pg', () => {
@@ -52,7 +52,9 @@ describe('DatabaseNotificationListener', () => {
     });
 
     listener = new DatabaseNotificationListener(
-      'postgresql://test:test@localhost:5432/test',
+      // No credentials in the literal — the pg Client is mocked, so the value is
+      // opaque; a `user:pass@` form only trips secretlint's connection-string rule.
+      'postgresql://localhost:5432/test',
       mockCacheService as unknown as CacheInvalidationService
     );
   });
