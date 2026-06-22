@@ -1,12 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import { getPrismaClient, disconnectPrisma } from '@tzurot/common-types';
+import { createPrismaClient } from '@tzurot/common-types';
+
+const mockDispose = vi.fn();
 
 // Mock common-types
 vi.mock('@tzurot/common-types', () => ({
-  getPrismaClient: vi.fn(),
-  disconnectPrisma: vi.fn(),
+  createPrismaClient: vi.fn(),
+  DB_POOL_DEFAULTS: { TRANSIENT_MAX: 5 },
 }));
 
 // Mock chalk
@@ -46,8 +48,9 @@ describe('checkMigrationDrift', () => {
     vi.clearAllMocks();
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     mockQueryRaw = vi.fn();
-    vi.mocked(getPrismaClient).mockReturnValue({
-      $queryRaw: mockQueryRaw,
+    vi.mocked(createPrismaClient).mockReturnValue({
+      prisma: { $queryRaw: mockQueryRaw },
+      dispose: mockDispose,
     } as never);
   });
 
@@ -71,7 +74,7 @@ describe('checkMigrationDrift', () => {
     await checkMigrationDrift();
 
     expect(mockQueryRaw).toHaveBeenCalled();
-    expect(disconnectPrisma).toHaveBeenCalled();
+    expect(mockDispose).toHaveBeenCalled();
   });
 
   it('should report drift when checksums differ', async () => {
