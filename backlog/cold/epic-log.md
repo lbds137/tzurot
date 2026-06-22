@@ -9,12 +9,13 @@ The "Slim common-types" epic spawned **three** follow-up clusters across its pha
 **Cluster A — PR-2p Prisma-backed extraction (7). Trigger: dedicated "2p close-out" PR after PR-2q, or fold into 2q where cohesive.**
 
 - [ ] `createPrismaClient()` unit test (2p-1; unblocked)
-- [ ] `PRISMA_PATTERNS` test-audit heuristic refresh (2p-1b-ii)
+- [ ] `PRISMA_PATTERNS` test-audit heuristic refresh (2p-1b-ii) — _note: the dead `getPrismaClient(` pattern; also the `guard:boundaries` allowlist below is stale post-extraction (lists moved symbols)_
 - [ ] `dispose()` error-handling alignment across the tooling db commands (2p-1)
-- [ ] `guard:boundaries` Prisma-symbol allowlist-drift backstop (2p)
-- [ ] `LoadedTtsPersonality` → common-types types file (2p-2)
-- [ ] Collapse the ai-worker `services/resolvers/index.ts` wrapper re-export (2p-3a)
-- [ ] Repoint/drop the stale `UserService.ts` eslint exemption path (2p-3a leftover)
+- [ ] `guard:boundaries` Prisma-symbol allowlist prune + drift backstop (2p) — _the allowlist lists 6 now-moved/deleted symbols; prune to `createPrismaClient`/`PrismaClient`/`Prisma`, then add the drift-test_
+- [x] ~~`LoadedTtsPersonality` → common-types types file~~ ✅ #1304
+- [x] ~~Collapse the ai-worker `services/resolvers/index.ts` wrapper re-export~~ ✅ #1304
+- [x] ~~Repoint/drop the stale `UserService.ts` eslint exemption path~~ ✅ #1304 (dropped — UserService uses a `$executeRaw` CTE, not the ORM `.create` the ban targets)
+- [x] ~~Bump the stale root `ioredis: ^5.10.0` override~~ ✅ #1304
 
 **Cluster B — Phase 2.5 context-relocation / bot-client Prisma eviction (~18). Trigger: SWEEPABLE NOW.** _(Correction 2026-06-22: the original "wait for the 2.5d prod-soak + delete" trigger was already satisfied — the soak came back clean (~14h) and the 2.5d-delete shipped in beta.135 (#1267–1270). Phase 2.5 is COMPLETE. Re-audit each item for obsolescence before sweeping — beta.135 deleted the shadow + CONTEXT_MODE machinery, so anything referencing those is dead.)_
 
