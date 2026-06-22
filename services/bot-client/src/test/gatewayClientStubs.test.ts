@@ -43,6 +43,15 @@ describe('makeErr', () => {
       status: 0,
     });
   });
+
+  it('accepts an explicit kind override (timeout for a status-0 stub)', () => {
+    expect(makeErr(0, 'Request timeout', undefined, 'timeout')).toEqual({
+      ok: false,
+      kind: 'timeout',
+      error: 'Request timeout',
+      status: 0,
+    });
+  });
 });
 
 describe('client cast helpers', () => {

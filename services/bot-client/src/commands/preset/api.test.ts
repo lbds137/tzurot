@@ -169,7 +169,7 @@ describe('updatePreset', () => {
   });
 
   it('throws DashboardUpdateError carrying the gateway status (0 on client-side timeout)', async () => {
-    stub.updateUserLlmConfig.mockResolvedValue(makeErr(0, 'Request timeout'));
+    stub.updateUserLlmConfig.mockResolvedValue(makeErr(0, 'Request timeout', undefined, 'timeout'));
 
     await expect(updatePreset('preset-123', {}, asUserClient(stub))).rejects.toMatchObject({
       name: 'DashboardUpdateError',
@@ -219,7 +219,9 @@ describe('updateGlobalPreset', () => {
   });
 
   it('throws DashboardUpdateError carrying the gateway status (0 on client-side timeout)', async () => {
-    stub.updateGlobalLlmConfig.mockResolvedValue(makeErr(0, 'Request timeout'));
+    stub.updateGlobalLlmConfig.mockResolvedValue(
+      makeErr(0, 'Request timeout', undefined, 'timeout')
+    );
 
     await expect(updateGlobalPreset('preset-123', {}, asOwnerClient(stub))).rejects.toMatchObject({
       name: 'DashboardUpdateError',

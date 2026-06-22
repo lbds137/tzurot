@@ -194,7 +194,7 @@ describe('updatePersona', () => {
   });
 
   it('throws with status 0 on a client-side abort', async () => {
-    stub.updatePersona.mockResolvedValue(makeErr(0, 'Request timeout'));
+    stub.updatePersona.mockResolvedValue(makeErr(0, 'Request timeout', undefined, 'timeout'));
 
     await expect(
       updatePersona(
