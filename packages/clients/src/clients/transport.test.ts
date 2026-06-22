@@ -44,7 +44,7 @@ afterEach(() => {
 describe('callGateway', () => {
   it('returns ok: false when baseUrl is empty (no fetch issued)', async () => {
     const result = await callGateway({ ...baseOpts, baseUrl: '' });
-    expect(result).toEqual({ ok: false, error: 'baseUrl is empty', status: 0 });
+    expect(result).toEqual({ ok: false, kind: 'config', error: 'baseUrl is empty', status: 0 });
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
@@ -142,6 +142,7 @@ describe('callGateway', () => {
     const result = await callGateway(baseOpts);
     expect(result).toEqual({
       ok: false,
+      kind: 'http',
       error: 'Not found',
       status: 404,
       code: 'NOT_FOUND',
@@ -158,30 +159,36 @@ describe('callGateway', () => {
     }
   });
 
-  it('returns ok: false with status 0 when outputSchema fails validation', async () => {
+  it('returns kind:schema with the raw Zod issues when outputSchema fails validation', async () => {
     const schema = z.object({ tz: z.string() });
     fetchSpy.mockResolvedValueOnce(jsonResponse({ wrong: 'shape' }));
     const result = await callGateway({ ...baseOpts, outputSchema: schema });
     expect(result.ok).toBe(false);
     if (!result.ok) {
+      expect(result.kind).toBe('schema');
       expect(result.status).toBe(0);
       expect(result.error).toMatch(/schema validation failed/i);
+      // The raw Zod issues ride along so callers can debug contract drift
+      // without re-parsing the stringified message.
+      expect(result.issues).toEqual(expect.any(Array));
+      expect(result.issues?.length ?? 0).toBeGreaterThan(0);
     }
   });
 
-  it('returns ok: false with status 0 when fetch rejects (network error)', async () => {
+  it('returns kind:network when fetch rejects with a non-abort error', async () => {
     fetchSpy.mockRejectedValueOnce(new Error('ECONNREFUSED'));
     const result = await callGateway(baseOpts);
-    expect(result).toEqual({ ok: false, error: 'ECONNREFUSED', status: 0 });
+    expect(result).toEqual({ ok: false, kind: 'network', error: 'ECONNREFUSED', status: 0 });
   });
 
-  it('returns the timeout-specific error message on AbortError', async () => {
+  it('returns kind:timeout with the timeout-specific message on AbortError', async () => {
     const abortError = new Error('aborted');
     abortError.name = 'TimeoutError';
     fetchSpy.mockRejectedValueOnce(abortError);
     const result = await callGateway(baseOpts);
     expect(result.ok).toBe(false);
     if (!result.ok) {
+      expect(result.kind).toBe('timeout');
       expect(result.error).toBe('Request timeout (gateway slow or unavailable)');
     }
   });

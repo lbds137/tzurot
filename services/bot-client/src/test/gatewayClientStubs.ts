@@ -22,7 +22,15 @@ export function makeErr(
   message = 'fail',
   code?: ApiErrorSubcode
 ): GatewayResult<never> {
-  return { ok: false, error: message, status, ...(code === undefined ? {} : { code }) };
+  // Honor the transport invariant `status > 0 ⟺ kind === 'http'`; a status-0
+  // stub stands in for a generic transport failure (network is the default).
+  return {
+    ok: false,
+    kind: status > 0 ? 'http' : 'network',
+    error: message,
+    status,
+    ...(code === undefined ? {} : { code }),
+  };
 }
 
 /**
