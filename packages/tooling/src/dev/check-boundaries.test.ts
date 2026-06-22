@@ -1,4 +1,13 @@
-import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeAll,
+  beforeEach,
+  afterEach,
+  type MockInstance,
+} from 'vitest';
 
 // Mock chalk
 vi.mock('chalk', () => ({
@@ -389,8 +398,18 @@ import { formatMessage } from './utils/formatter.js';
 });
 
 describe('bot-client Prisma-symbol allowlist (drift guard)', () => {
-  it('every banned common-types Prisma symbol is still a real @tzurot/common-types export', async () => {
-    const commonTypes = await import('@tzurot/common-types');
+  // Loading the full @tzurot/common-types barrel pulls in the generated Prisma
+  // client, which is heavy to transform+load the first time. Done once in
+  // beforeAll (with a generous hook timeout) so the import cost lands in setup,
+  // not under the 5s per-test budget: when every package's vitest runs at once
+  // under concurrent CI load, the first-time barrel load can exceed the default
+  // test timeout even though the assertion itself is instant.
+  let commonTypes: typeof import('@tzurot/common-types');
+  beforeAll(async () => {
+    commonTypes = await import('@tzurot/common-types');
+  }, 30_000);
+
+  it('every banned common-types Prisma symbol is still a real @tzurot/common-types export', () => {
     for (const symbol of BOT_CLIENT_BANNED_COMMON_TYPES_PRISMA_SYMBOLS) {
       expect(
         symbol in commonTypes,
