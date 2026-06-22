@@ -120,5 +120,9 @@ export function buildDashboardSaveErrorContent(error: unknown, resource: string)
   if (error instanceof DashboardUpdateError && error.kind === 'schema') {
     return SAVE_UNCONFIRMED_NOTICE;
   }
+  // 'http' (4xx/5xx) and 'config' (empty baseUrl) intentionally fall through here:
+  // HTTP rejections surface the gateway's own message via extractApiErrorMessage,
+  // and a 'config' failure means the service is misconfigured — not a user error,
+  // so the generic "try again" fallback is the honest, harmless default.
   return `❌ ${extractApiErrorMessage(error) ?? `Failed to update ${resource}. Please try again.`}`;
 }

@@ -66,7 +66,12 @@ export type GatewayResult<T> =
       status: number;
       /** HTTP-layer error subcode; only set for `kind === 'http'`. */
       code?: ApiErrorSubcode;
-      /** Raw Zod validation problems; only set for `kind === 'schema'`. */
+      /**
+       * Raw Zod validation problems. Set for the schema-VALIDATION sub-case of
+       * `kind === 'schema'`; `undefined` for the JSON-PARSE sub-case (a 2xx body
+       * that isn't valid JSON has no Zod issues to report). Both sub-cases mean
+       * the same thing — "write committed, response unreadable".
+       */
       issues?: z.ZodIssue[];
     };
 
