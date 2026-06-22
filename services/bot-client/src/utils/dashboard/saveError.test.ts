@@ -9,6 +9,7 @@ import {
   isSaveTimeout,
   buildDashboardSaveErrorContent,
   SAVE_TIMEOUT_NOTICE,
+  SAVE_UNCONFIRMED_NOTICE,
 } from './saveError.js';
 
 describe('DashboardUpdateError', () => {
@@ -105,18 +106,19 @@ describe('buildDashboardSaveErrorContent', () => {
     expect(content).not.toContain('❌');
   });
 
-  it('does NOT show the timeout notice on a schema failure (write committed)', () => {
+  it('shows the "saved, refresh to verify" notice on a schema failure (write committed)', () => {
     // status 0 but kind 'schema' → outcome is certain (the write committed; only
-    // the read-back body failed to parse), so surface a failure message instead
-    // of the misleading "may still be applying" notice.
+    // the read-back body failed to parse). Not "may still be applying" (uncertain)
+    // and not "try again" (risks a duplicate write) — the write definitively saved.
     const error = new DashboardUpdateError(
       'Failed to update character: 0 - Response body is not valid JSON',
       0,
       'schema'
     );
     const content = buildDashboardSaveErrorContent(error, 'character');
+    expect(content).toBe(SAVE_UNCONFIRMED_NOTICE);
     expect(content).not.toBe(SAVE_TIMEOUT_NOTICE);
-    expect(content).toContain('❌');
+    expect(content).not.toContain('❌'); // not a failure framing — the write committed
   });
 
   it('surfaces the real gateway message on a genuine HTTP rejection', () => {

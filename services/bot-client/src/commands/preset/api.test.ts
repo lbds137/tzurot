@@ -161,19 +161,25 @@ describe('updatePreset', () => {
   });
 
   it('should throw on error without message', async () => {
-    stub.updateUserLlmConfig.mockResolvedValue({ ok: false, status: 500 } as never);
+    // `as never` intentionally omits the type-required `error` to exercise the
+    // throw site's `?? 'Unknown'` defensive fallback; `kind` is set so the thrown
+    // DashboardUpdateError carries a valid kind rather than undefined.
+    stub.updateUserLlmConfig.mockResolvedValue({ ok: false, status: 500, kind: 'http' } as never);
 
     await expect(updatePreset('preset-123', {}, asUserClient(stub))).rejects.toThrow(
       'Failed to update preset: 500 - Unknown'
     );
   });
 
-  it('throws DashboardUpdateError carrying the gateway status (0 on client-side timeout)', async () => {
+  it('throws DashboardUpdateError carrying status + kind (0/timeout on client-side timeout)', async () => {
     stub.updateUserLlmConfig.mockResolvedValue(makeErr(0, 'Request timeout', undefined, 'timeout'));
 
+    // kind:'timeout' must survive the throw — isSaveTimeout keys on it, so a
+    // dropped result.kind would silently hide the "may still be applying" notice.
     await expect(updatePreset('preset-123', {}, asUserClient(stub))).rejects.toMatchObject({
       name: 'DashboardUpdateError',
       status: 0,
+      kind: 'timeout',
     });
   });
 });
@@ -211,14 +217,16 @@ describe('updateGlobalPreset', () => {
   });
 
   it('throws with Unknown when gateway has no error message', async () => {
-    stub.updateGlobalLlmConfig.mockResolvedValue({ ok: false, status: 500 } as never);
+    // `as never` omits the type-required `error` to exercise the `?? 'Unknown'`
+    // fallback; `kind` is set so the thrown DashboardUpdateError carries a valid kind.
+    stub.updateGlobalLlmConfig.mockResolvedValue({ ok: false, status: 500, kind: 'http' } as never);
 
     await expect(updateGlobalPreset('preset-123', {}, asOwnerClient(stub))).rejects.toThrow(
       'Failed to update global preset: 500 - Unknown'
     );
   });
 
-  it('throws DashboardUpdateError carrying the gateway status (0 on client-side timeout)', async () => {
+  it('throws DashboardUpdateError carrying status + kind (0/timeout on client-side timeout)', async () => {
     stub.updateGlobalLlmConfig.mockResolvedValue(
       makeErr(0, 'Request timeout', undefined, 'timeout')
     );
@@ -226,6 +234,7 @@ describe('updateGlobalPreset', () => {
     await expect(updateGlobalPreset('preset-123', {}, asOwnerClient(stub))).rejects.toMatchObject({
       name: 'DashboardUpdateError',
       status: 0,
+      kind: 'timeout',
     });
   });
 });
