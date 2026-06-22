@@ -246,11 +246,16 @@ describe('callGatewayOrThrow', () => {
       message: 'Forbidden',
       status: 403,
       code: 'AUTH_REQUIRED',
+      kind: 'http',
     });
   });
 
-  it('throws GatewayApiError on network failure (status 0)', async () => {
+  it('throws GatewayApiError carrying kind:network on a network failure', async () => {
     fetchSpy.mockRejectedValueOnce(new Error('ECONNREFUSED'));
-    await expect(callGatewayOrThrow(baseOpts)).rejects.toBeInstanceOf(GatewayApiError);
+    // kind propagates to the throw path so try/catch callers get the same
+    // network-vs-timeout distinction the result path has.
+    const error = await callGatewayOrThrow(baseOpts).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(GatewayApiError);
+    expect(error).toMatchObject({ status: 0, kind: 'network' });
   });
 });
