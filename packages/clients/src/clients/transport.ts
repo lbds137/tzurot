@@ -122,6 +122,64 @@ function classifyThrownError(error: unknown): {
 }
 
 /**
+ * Read and (optionally) schema-validate a 2xx response body. A body that isn't
+ * valid JSON (204 No Content, a CDN HTML error page, …) and a Zod validation
+ * failure are BOTH contract violations, so both surface as `kind: 'schema'`
+ * with `status: 0` — never as `'network'`, which a retry loop would wrongly
+ * treat as transient and retry forever. Extracted so `callGateway` stays under
+ * the cognitive-complexity budget.
+ */
+async function readValidatedBody(args: {
+  response: Response;
+  outputSchema: z.ZodTypeAny | undefined;
+  onWarn: TransportOptions['onWarn'];
+  path: string;
+  method: string;
+}): Promise<{ ok: true; data: unknown } | { ok: false; result: GatewayResult<never> }> {
+  const { response, outputSchema, onWarn, path, method } = args;
+
+  let json: unknown;
+  try {
+    json = await response.json();
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : 'parse error';
+    onWarn?.({ path, method, error: detail }, 'Response body is not valid JSON');
+    return {
+      ok: false,
+      result: {
+        ok: false,
+        kind: 'schema',
+        error: `Response body is not valid JSON: ${detail}`,
+        status: 0,
+      },
+    };
+  }
+
+  if (outputSchema === undefined) {
+    return { ok: true, data: json };
+  }
+
+  const validation = outputSchema.safeParse(json);
+  if (!validation.success) {
+    onWarn?.(
+      { path, method, issues: validation.error.issues },
+      'Response schema validation failed'
+    );
+    return {
+      ok: false,
+      result: {
+        ok: false,
+        kind: 'schema',
+        error: `Response schema validation failed: ${validation.error.message}`,
+        status: 0,
+        issues: validation.error.issues,
+      },
+    };
+  }
+  return { ok: true, data: validation.data };
+}
+
+/**
  * Make a single gateway request. Returns a `GatewayResult` envelope; the
  * caller decides whether to throw or branch.
  *
@@ -191,34 +249,16 @@ export async function callGateway<T>(options: TransportOptions): Promise<Gateway
       };
     }
 
-    const json = await response.json();
-
-    if (outputSchema !== undefined) {
-      const validation = outputSchema.safeParse(json);
-      if (!validation.success) {
-        onWarn?.(
-          {
-            path,
-            method,
-            issues: validation.error.issues,
-          },
-          'Response schema validation failed'
-        );
-        return {
-          ok: false,
-          kind: 'schema',
-          error: `Response schema validation failed: ${validation.error.message}`,
-          status: 0,
-          issues: validation.error.issues,
-        };
-      }
-      return { ok: true, data: validation.data as T };
+    const parsed = await readValidatedBody({ response, outputSchema, onWarn, path, method });
+    if (!parsed.ok) {
+      return parsed.result;
     }
-
-    return { ok: true, data: json as T };
+    return { ok: true, data: parsed.data as T };
   } catch (error) {
     const { kind, error: errorMessage } = classifyThrownError(error);
-    onWarn?.({ path, method, errorMessage, isTimeout: kind === 'timeout' }, 'Request error');
+    // Pass `kind` (not a collapsed boolean) so log consumers keep the
+    // network-vs-timeout distinction; `error` field name matches the HTTP path.
+    onWarn?.({ path, method, error: errorMessage, kind }, 'Request error');
     return { ok: false, kind, error: errorMessage, status: 0 };
   }
 }
