@@ -45,12 +45,6 @@ const { mockGetOrCreateUser, mockGetOrCreateUserShell, mockResolveOverrides } = 
 // Mock dependencies before imports
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
-
-  class MockUserService {
-    getOrCreateUser = mockGetOrCreateUser;
-    getOrCreateUserShell = mockGetOrCreateUserShell;
-  }
-
   return {
     ...actual,
     createLogger: () => ({
@@ -59,10 +53,19 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
-    UserService: MockUserService,
     generateUserPersonalityConfigUuid: vi.fn(
       (userId: string, personalityId: string) => `upc-${userId}-${personalityId}`
     ),
+  };
+});
+
+vi.mock('@tzurot/identity', () => {
+  class MockUserService {
+    getOrCreateUser = mockGetOrCreateUser;
+    getOrCreateUserShell = mockGetOrCreateUserShell;
+  }
+  return {
+    UserService: MockUserService,
   };
 });
 

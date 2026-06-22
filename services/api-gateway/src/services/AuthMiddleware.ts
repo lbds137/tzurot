@@ -6,13 +6,8 @@
  */
 
 import type { Request, Response, NextFunction } from 'express';
-import {
-  getConfig,
-  createLogger,
-  isBotOwner,
-  UserService,
-  type PrismaClient,
-} from '@tzurot/common-types';
+import { getConfig, createLogger, isBotOwner, type PrismaClient } from '@tzurot/common-types';
+import { UserService } from '@tzurot/identity';
 import { ErrorResponses, getStatusCode } from '../utils/errorResponses.js';
 import type { AuthenticatedRequest, ProvisionedRequest } from '../types.js';
 

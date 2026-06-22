@@ -1,9 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { resolveRoutingContext, type RoutingContextDeps } from './RoutingContextResolver.js';
-import type { PrismaClient } from './prisma.js';
+import type { PrismaClient, RoutingContextRequest } from '@tzurot/common-types';
 import type { UserService } from './UserService.js';
 import type { PersonaResolver } from './resolvers/PersonaResolver.js';
-import type { RoutingContextRequest } from '../schemas/api/internal.js';
 
 const REQUEST: RoutingContextRequest = {
   discordId: '278863839632818186',

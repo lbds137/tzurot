@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import type { ConversationMessage, PersonaResolver } from '../index.js';
+import type { ConversationMessage, PersonaResolverLike } from '../index.js';
 import { MessageRole } from '../index.js';
 import {
   collectAllDiscordIdsNeedingResolution,
@@ -35,7 +35,7 @@ function createMessage(partial: Partial<ConversationMessage>): ConversationMessa
 // Helper to create mock PersonaResolver
 function createMockPersonaResolver(
   resolveMap: Record<string, { personaId: string; preferredName: string | null }>
-): PersonaResolver {
+): PersonaResolverLike {
   return {
     resolverName: 'mock-resolver',
     resolve: vi.fn().mockImplementation(async (discordId: string) => {
@@ -64,7 +64,7 @@ function createMockPersonaResolver(
     clearPersonaCache: vi.fn(),
     clearShadowBanCache: vi.fn(),
     clearDisabledChannelCache: vi.fn(),
-  } as unknown as PersonaResolver;
+  } as unknown as PersonaResolverLike;
 }
 
 describe('ExtendedContextPersonaResolver', () => {

@@ -29,7 +29,7 @@
  */
 
 import { createLogger } from './logger.js';
-import type { PersonaResolver } from '../services/resolvers/PersonaResolver.js';
+import type { PersonaResolverLike } from '../types/personaResolution.js';
 import type { ConversationMessage } from '../services/ConversationMessageMapper.js';
 import type { ReactionReactor } from '../types/schemas/message.js';
 import { INTERNAL_DISCORD_ID_PREFIX } from '../constants/personaId.js';
@@ -144,7 +144,7 @@ export function collectAllDiscordIdsNeedingResolution(
 export async function batchResolvePersonas(
   discordIds: Set<string>,
   personalityId: string,
-  personaResolver: PersonaResolver
+  personaResolver: PersonaResolverLike
 ): Promise<Map<string, { personaId: string; preferredName: string | null | undefined }>> {
   const resolvedMap = new Map<
     string,
@@ -342,7 +342,7 @@ export async function resolveExtendedContextPersonaIds(
   messages: ConversationMessage[],
   userMap: Map<string, string>,
   personalityId: string,
-  personaResolver: PersonaResolver,
+  personaResolver: PersonaResolverLike,
   participantGuildInfo?: ParticipantGuildInfo
 ): Promise<PersonaResolutionResult> {
   // Collect ALL discordIds (message authors + reactors) in one pass.

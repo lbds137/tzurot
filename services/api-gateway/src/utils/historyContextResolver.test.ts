@@ -16,11 +16,14 @@ vi.mock('@tzurot/common-types', async importOriginal => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
-    PersonaResolver: vi.fn().mockImplementation(() => ({
-      resolve: vi.fn(),
-    })),
   };
 });
+
+vi.mock('@tzurot/identity', () => ({
+  PersonaResolver: vi.fn().mockImplementation(() => ({
+    resolve: vi.fn(),
+  })),
+}));
 
 describe('resolveHistoryContext', () => {
   let mockPrisma: {

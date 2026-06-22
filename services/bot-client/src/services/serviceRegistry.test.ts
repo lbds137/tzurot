@@ -5,10 +5,8 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import type {
-  PersonalityService,
-  ChannelActivationCacheInvalidationService,
-} from '@tzurot/common-types';
+import type { ChannelActivationCacheInvalidationService } from '@tzurot/common-types';
+import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import type { JobTracker } from './JobTracker.js';
 import type { WebhookManager } from '../utils/WebhookManager.js';
 import type { MessageContextBuilder } from './MessageContextBuilder.js';
@@ -78,7 +76,7 @@ describe('serviceRegistry', () => {
   describe('after registration', () => {
     const mockJobTracker = { track: vi.fn() } as unknown as JobTracker;
     const mockWebhookManager = { send: vi.fn() } as unknown as WebhookManager;
-    const mockPersonalityService = { loadPersonality: vi.fn() } as unknown as PersonalityService;
+    const mockPersonalityService = { loadPersonality: vi.fn() } as unknown as IPersonalityLoader;
     const mockChannelActivationCacheInvalidationService = {
       invalidateChannel: vi.fn(),
     } as unknown as ChannelActivationCacheInvalidationService;
@@ -222,7 +220,7 @@ describe('serviceRegistry', () => {
       } as unknown as {
         jobTracker: JobTracker;
         webhookManager: WebhookManager;
-        personalityService: PersonalityService;
+        personalityService: IPersonalityLoader;
         channelActivationCacheInvalidationService: ChannelActivationCacheInvalidationService;
         messageContextBuilder: MessageContextBuilder;
         conversationPersistence: ConversationPersistence;
@@ -242,7 +240,7 @@ describe('serviceRegistry', () => {
 
       const mockJobTracker = { track: vi.fn() } as unknown as JobTracker;
       const mockWebhookManager = { send: vi.fn() } as unknown as WebhookManager;
-      const mockPersonalityService = { loadPersonality: vi.fn() } as unknown as PersonalityService;
+      const mockPersonalityService = { loadPersonality: vi.fn() } as unknown as IPersonalityLoader;
       const mockChannelActivationCacheInvalidationService = {
         invalidateChannel: vi.fn(),
       } as unknown as ChannelActivationCacheInvalidationService;

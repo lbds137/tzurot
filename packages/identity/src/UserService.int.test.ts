@@ -13,19 +13,17 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
-import { PrismaClient } from './prisma.js';
+import { PrismaClient, generatePersonaUuid, isBotOwner } from '@tzurot/common-types';
 import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { UserService } from './UserService.js';
-import { generatePersonaUuid } from '../utils/deterministicUuid.js';
 import { createTestPGlite, loadPGliteSchema } from '@tzurot/test-utils';
 
 // Mock isBotOwner - will be configured per test
-vi.mock('../utils/ownerMiddleware.js', () => ({
+vi.mock('@tzurot/common-types', async importOriginal => ({
+  ...(await importOriginal<typeof import('@tzurot/common-types')>()),
   isBotOwner: vi.fn().mockReturnValue(false),
 }));
-
-import { isBotOwner } from '../utils/ownerMiddleware.js';
 
 describe('UserService', () => {
   let prisma: PrismaClient;
@@ -370,9 +368,9 @@ describe('UserService', () => {
 
       const defaultPersonaId = user!.defaultPersonaId!;
 
-      await expect(
-        prisma.persona.delete({ where: { id: defaultPersonaId } })
-      ).rejects.toThrow(/foreign key/i);
+      await expect(prisma.persona.delete({ where: { id: defaultPersonaId } })).rejects.toThrow(
+        /foreign key/i
+      );
 
       // Persona still exists; default_persona_id still points to it
       const personaStillExists = await prisma.persona.findUnique({

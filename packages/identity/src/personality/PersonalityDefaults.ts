@@ -3,15 +3,16 @@
  * Default value merging and placeholder replacement logic for personalities
  */
 
-import type { LoadedPersonality } from '../../types/schemas/index.js';
 import {
+  type LoadedPersonality,
   MODEL_DEFAULTS,
   AI_DEFAULTS,
   MESSAGE_LIMITS,
   PLACEHOLDERS,
-} from '../../constants/index.js';
+  mapLlmConfigFromDb,
+  type MappedLlmConfig,
+} from '@tzurot/common-types';
 import type { DatabasePersonality } from './PersonalityValidator.js';
-import { mapLlmConfigFromDb, type MappedLlmConfig } from '../LlmConfigMapper.js';
 
 /**
  * Get a config value with cascade: personality > global > fallback

@@ -1,15 +1,14 @@
 {
-  "name": "@tzurot/ai-worker",
+  "name": "@tzurot/identity",
   "version": "3.0.0-beta.135",
   "private": true,
   "type": "module",
-  "description": "AI processing worker service for Tzurot bot",
+  "description": "User / persona / personality provisioning + routing-context resolution (Prisma-backed identity services)",
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
     "clean": "find src -name '*.js' -type f -delete && find src -name '*.js.map' -type f -delete",
-    "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js",
     "pretest": "npm run clean",
     "test": "vitest",
     "test:watch": "vitest --watch",
@@ -21,23 +20,11 @@
     "typecheck:spec": "tsc --noEmit --project tsconfig.spec.json"
   },
   "dependencies": {
-    "@langchain/core": "^1.1.49",
-    "@langchain/openai": "^1.4.7",
     "@tzurot/common-types": "workspace:*",
-    "@tzurot/config-resolver": "workspace:*",
-    "@tzurot/embeddings": "workspace:*",
-    "@tzurot/identity": "workspace:*",
-    "bullmq": "^5.78.1",
-    "fast-xml-parser": "^5.9.0",
-    "ioredis": "^5.11.1",
-    "langchain": "^1.4.5",
-    "onnxruntime-node": "^1.26.0",
-    "pino": "^10.3.1",
-    "sharp": "^0.35.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@types/node": "^25.9.3",
-    "@tzurot/test-utils": "workspace:*"
+    "@tzurot/test-utils": "workspace:*",
+    "@types/node": "^25.9.3"
   }
 }

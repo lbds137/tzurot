@@ -21,7 +21,7 @@
     "packages/common-types": {
       "entry": ["src/**/*.test.ts", "src/**/*.int.test.ts"],
       "includeEntryExports": true,
-      "ignoreDependencies": ["openai", "pg"],
+      "ignoreDependencies": ["openai", "pg", "@prisma/client", "prisma"],
       "ignoreMembers": ["ECONNRESET", "ETIMEDOUT", "ENOTFOUND", "ECONNREFUSED"]
     },
     "packages/clients": {
@@ -29,6 +29,9 @@
     },
     "packages/config-resolver": {
       "entry": ["src/**/*.test.ts"]
+    },
+    "packages/identity": {
+      "entry": ["src/**/*.test.ts", "src/**/*.int.test.ts"]
     },
     "packages/tooling": {
       "entry": ["src/**/*.test.ts"],

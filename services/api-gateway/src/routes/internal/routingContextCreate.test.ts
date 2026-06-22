@@ -19,9 +19,18 @@ vi.mock('@tzurot/common-types', async () => {
   return {
     ...actual,
     createLogger: () => ({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() }),
-    // Stub PersonaResolver (the handler constructs it directly) so the factory
-    // doesn't start its real cache-cleanup interval. UserService is reached via
-    // getOrCreateUserService, not a direct import, so it needs no stub here.
+  };
+});
+
+// Partial-mock identity: stub PersonaResolver (the handler constructs it
+// directly) so the factory doesn't start its real cache-cleanup interval, and
+// stub resolveRoutingContext to isolate the HTTP layer. UserService is reached
+// via getOrCreateUserService (the real AuthMiddleware path), so keep the real
+// export by spreading the actual module.
+vi.mock('@tzurot/identity', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/identity')>('@tzurot/identity');
+  return {
+    ...actual,
     PersonaResolver: vi.fn(),
     resolveRoutingContext: (...args: unknown[]) => mockResolveRoutingContext(...args),
   };

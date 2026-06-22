@@ -4,17 +4,17 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { CacheInvalidationService } from './CacheInvalidationService.js';
-import { PersonalityService } from './personality/index.js';
+import {
+  CacheInvalidationService,
+  type PersonalityCacheTarget,
+} from './CacheInvalidationService.js';
 import { REDIS_CHANNELS } from '../constants/queue.js';
 import type { Redis } from 'ioredis';
-import type { PrismaClient } from './prisma.js';
 
 describe('CacheInvalidationService', () => {
   let mockRedis: Redis;
   let mockSubscriber: Redis;
-  let mockPrisma: PrismaClient;
-  let mockPersonalityService: PersonalityService;
+  let mockPersonalityService: PersonalityCacheTarget;
   let service: CacheInvalidationService;
   let messageHandlers: Map<string, (channel: string, message: string) => void>;
 
@@ -40,13 +40,13 @@ describe('CacheInvalidationService', () => {
       publish: vi.fn().mockResolvedValue(1), // Returns number of subscribers
     } as unknown as Redis;
 
-    // Mock Prisma
-    mockPrisma = {} as PrismaClient;
-
-    // Mock PersonalityService
-    mockPersonalityService = new PersonalityService(mockPrisma);
-    vi.spyOn(mockPersonalityService, 'invalidatePersonality');
-    vi.spyOn(mockPersonalityService, 'invalidateAll');
+    // Stub the personality cache target — the service depends only on the
+    // PersonalityCacheTarget interface, not the concrete PersonalityService
+    // (which now lives in @tzurot/identity).
+    mockPersonalityService = {
+      invalidatePersonality: vi.fn(),
+      invalidateAll: vi.fn(),
+    };
 
     service = new CacheInvalidationService(mockRedis, mockPersonalityService);
   });

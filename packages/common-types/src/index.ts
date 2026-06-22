@@ -8,6 +8,7 @@ export * from './constants/index.js';
 export * from './types/ai.js';
 export * from './types/audio-provider.js';
 export * from './types/configResolution.js';
+export * from './types/personaResolution.js';
 export * from './types/sttProvider.js';
 export * from './types/diagnostic.js';
 export * from './types/incognito.js';
@@ -78,7 +79,11 @@ export { normalizeRole, normalizeTimestamp } from './utils/messageNormalization.
 // Export services
 export * from './services/prisma.js';
 export * from './services/poolConfig.js';
-export * from './services/personality/index.js';
+// Identity / provisioning services (UserService, PersonaResolver,
+// PersonalityService, RoutingContextResolver) live in `@tzurot/identity`. The
+// shared persona contract (CorePersonaConfig / PersonaResolverLike) stays here
+// in types/personaResolution.ts so common-types utils + bot-client can type
+// against it without depending on the Prisma-backed identity package.
 // Config-resolution RESOLVERS (BaseConfigResolver, Llm/Tts/SttResolver,
 // ConfigCascadeResolver — the cascade-resolution logic) live in
 // `@tzurot/config-resolver`. The config MAPPERS + tts provider TYPES stay here:
@@ -101,8 +106,6 @@ export * from './utils/referenceEnrichment.js';
 export * from './utils/messageLinkParser.js';
 export * from './utils/mentionRewriter.js';
 export * from './utils/crossChannelEnvironment.js';
-export * from './services/UserService.js';
-export * from './services/RoutingContextResolver.js';
 export * from './services/BaseCacheInvalidationService.js';
 export * from './services/CacheInvalidationService.js';
 export * from './services/ApiKeyCacheInvalidationService.js';
@@ -112,9 +115,6 @@ export * from './services/ChannelActivationCacheInvalidationService.js';
 export * from './services/ConfigCascadeCacheInvalidationService.js';
 export * from './services/DenylistCacheInvalidationService.js';
 export { VoiceTranscriptCache } from './services/VoiceTranscriptCache.js';
-
-// Export resolvers (cascading configuration resolution)
-export * from './services/resolvers/index.js';
 
 // NOTE: validated mock factories live in `@tzurot/test-factories` — they're
 // test-only mock-builders, not runtime types, so they don't belong in the
