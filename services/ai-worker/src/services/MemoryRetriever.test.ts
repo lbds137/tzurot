@@ -14,7 +14,7 @@ import type {
   ResolvedConfigOverrides,
 } from '@tzurot/common-types';
 import type { ConversationContext } from './ConversationalRAGTypes.js';
-import type { PersonaResolver } from './resolvers/index.js';
+import type { PersonaResolver } from '@tzurot/identity';
 
 // Mock PersonaResolver
 const mockPersonaResolver = {
@@ -29,10 +29,14 @@ const mockPersonaResolver = {
 // never called through this object.
 const mockPrismaClient = {} as unknown as PrismaClient;
 
-// Mock PersonaResolver constructor
-vi.mock('./resolvers/index.js', () => ({
-  PersonaResolver: vi.fn().mockImplementation(() => mockPersonaResolver),
-}));
+// Mock PersonaResolver constructor (now imported directly from @tzurot/identity)
+vi.mock('@tzurot/identity', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/identity')>();
+  return {
+    ...actual,
+    PersonaResolver: vi.fn().mockImplementation(() => mockPersonaResolver),
+  };
+});
 
 describe('MemoryRetriever', () => {
   let retriever: MemoryRetriever;

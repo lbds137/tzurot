@@ -17,7 +17,7 @@ import {
   TtsConfigCacheInvalidationService,
   SttResolverCacheInvalidationService,
 } from '@tzurot/cache-invalidation';
-import { PersonalityService } from '@tzurot/identity';
+import { PersonalityService, PersonaResolver } from '@tzurot/identity';
 import {
   ConfigCascadeResolver,
   LlmConfigResolver,
@@ -25,7 +25,6 @@ import {
   SttResolver,
 } from '@tzurot/config-resolver';
 import { ApiKeyResolver } from './services/ApiKeyResolver.js';
-import { PersonaResolver } from './services/resolvers/index.js';
 
 const logger = createLogger('ai-worker-cache');
 

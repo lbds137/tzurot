@@ -29,6 +29,7 @@ import {
   type MappedTtsConfigWithName,
   type PrismaClient,
   type ResolvedTtsConfig,
+  type LoadedTtsPersonality,
 } from '@tzurot/common-types';
 
 /** Sentinel cache key for the free-default lookup (no userId/personalityId axis). */
@@ -52,17 +53,6 @@ const HARDCODED_FALLBACK: ResolvedTtsConfig = Object.freeze({
   advancedParameters: Object.freeze({}),
   source: 'hardcoded',
 });
-
-/**
- * Lightweight wrapper passed as the `personalityConfig` argument to
- * `resolveConfig`. Carries just the personalityId — the resolver queries
- * PersonalityDefaultTtsConfig + the system free default itself when extract
- * is invoked. Mirrors the LLM pattern's `LoadedPersonality` in shape, sized
- * to TTS's narrower data needs.
- */
-export interface LoadedTtsPersonality {
-  id: string;
-}
 
 /**
  * TTS Config Resolver — resolves user-specific config overrides.
