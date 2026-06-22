@@ -208,24 +208,46 @@ describe('callGateway', () => {
     }
   });
 
-  it('invokes onWarn for non-2xx responses', async () => {
+  it('invokes onWarn for non-2xx responses with kind:http', async () => {
     const onWarn = vi.fn();
     fetchSpy.mockResolvedValueOnce(jsonResponse({ message: 'Forbidden' }, { status: 403 }));
     await callGateway({ ...baseOpts, onWarn });
     expect(onWarn).toHaveBeenCalledWith(
-      expect.objectContaining({ path: baseOpts.path, method: 'GET', status: 403 }),
+      expect.objectContaining({ path: baseOpts.path, method: 'GET', kind: 'http', status: 403 }),
       'Request failed'
     );
   });
 
-  it('invokes onWarn for schema-validation failures (separate from HTTP errors)', async () => {
+  it('invokes onWarn for schema-validation failures with kind:schema', async () => {
     const onWarn = vi.fn();
     const schema = z.object({ tz: z.string() });
     fetchSpy.mockResolvedValueOnce(jsonResponse({ wrong: 'shape' }));
     await callGateway({ ...baseOpts, outputSchema: schema, onWarn });
     expect(onWarn).toHaveBeenCalledWith(
-      expect.objectContaining({ path: baseOpts.path, method: 'GET', issues: expect.any(Array) }),
+      expect.objectContaining({
+        path: baseOpts.path,
+        method: 'GET',
+        kind: 'schema',
+        issues: expect.any(Array),
+      }),
       'Response schema validation failed'
+    );
+  });
+
+  it('invokes onWarn on the catch branch with kind and the error message', async () => {
+    // The thrown-error path (network/timeout) logs `kind` + `error` so an operator
+    // can filter by failure category, consistent with the result envelope.
+    const onWarn = vi.fn();
+    fetchSpy.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+    await callGateway({ ...baseOpts, onWarn });
+    expect(onWarn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: baseOpts.path,
+        method: 'GET',
+        kind: 'network',
+        error: 'ECONNREFUSED',
+      }),
+      'Request error'
     );
   });
 });

@@ -209,7 +209,7 @@ describe('updatePersona', () => {
         asUserClient(stub),
         TEST_USER_ID
       )
-    ).rejects.toMatchObject({ name: 'DashboardUpdateError', status: 0 });
+    ).rejects.toMatchObject({ name: 'DashboardUpdateError', status: 0, kind: 'timeout' });
   });
 });
 

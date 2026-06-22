@@ -34,6 +34,17 @@ export const SAVE_TIMEOUT_NOTICE =
   'Give it a moment, then tap **🔄 Refresh** to confirm before saving again.';
 
 /**
+ * Notice shown when a write committed (gateway returned 200 OK) but the response
+ * body couldn't be read back (transport kind `'schema'`). The outcome is certain —
+ * the change saved — so "try again" would be wrong (it risks a duplicate write);
+ * tell the user it saved and to refresh to confirm. Keep the **🔄 Refresh** label
+ * in sync with the dashboards' refresh control, same as SAVE_TIMEOUT_NOTICE.
+ */
+export const SAVE_UNCONFIRMED_NOTICE =
+  '✅ Your change was saved, but I couldn’t read the confirmation back. ' +
+  'Tap **🔄 Refresh** to verify — no need to save again.';
+
+/**
  * Error thrown by dashboard writes, carrying the gateway response `status` and
  * the transport `kind` so the caller can tell a genuine rejection (HTTP 4xx/5xx)
  * apart from an outcome-uncertain client-side abort (`'timeout'`/`'network'`).
@@ -90,7 +101,8 @@ export function isSaveTimeout(error: unknown): boolean {
 
 /**
  * Build the user-facing content for a failed dashboard save:
- *  - status-0 abort (network/timeout) → the honest "may still be applying" notice
+ *  - outcome-uncertain abort (timeout/network) → the honest "may still be applying" notice
+ *  - write-committed-but-unconfirmed (kind 'schema') → the "saved, refresh to verify" notice
  *  - genuine HTTP rejection → the extracted gateway message
  *  - anything else → a generic per-resource failure
  *
@@ -100,6 +112,13 @@ export function isSaveTimeout(error: unknown): boolean {
 export function buildDashboardSaveErrorContent(error: unknown, resource: string): string {
   if (isSaveTimeout(error)) {
     return SAVE_TIMEOUT_NOTICE;
+  }
+  // A 'schema' failure means the gateway returned 200 OK (the write committed) but
+  // the body couldn't be read back — "try again" would be wrong (risks a duplicate
+  // write), and the generic fallback would fire anyway since extractApiErrorMessage
+  // requires a 3-digit status the status-0 message can't supply.
+  if (error instanceof DashboardUpdateError && error.kind === 'schema') {
+    return SAVE_UNCONFIRMED_NOTICE;
   }
   return `❌ ${extractApiErrorMessage(error) ?? `Failed to update ${resource}. Please try again.`}`;
 }
