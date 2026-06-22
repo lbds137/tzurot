@@ -33,16 +33,7 @@ _Focus: common-types has drifted past "types" into a grab-bag. Post-clients-extr
 
   **➡️ Next: PR-2p-3b — extract `@tzurot/conversation-history`** (`ConversationHistoryService`, `ConversationSyncService`, `ConversationMessageMapper`, `conversationSyncDiff`, `referenceImageDescriptions`). Independent of identity (neither imports the other). `ConversationMessage` may need to stay in common-types as a shared contract type (decide via the typecheck loop). Closes the "Slim common-types" epic except PR-2q.
 
-  **🧹 PR-2p epic close-out sweep — definition of done (gate before the next theme is promoted).** The epic is NOT complete until these epic-spawned follow-ups are resolved — via a dedicated "2p close-out sweep" PR after PR-2q, or folded into PR-2q where cohesive. All live in `cold/follow-ups.md` with fix-shape + trigger; this is the consolidated promote-list so the sweep is one grep, not a scavenger hunt:
-  - [ ] `createPrismaClient()` unit test (2p-1; now unblocked)
-  - [ ] `PRISMA_PATTERNS` test-audit heuristic refresh (2p-1b-ii)
-  - [ ] `dispose()` error-handling alignment across the tooling db commands (2p-1)
-  - [ ] `guard:boundaries` Prisma-symbol allowlist-drift backstop (2p)
-  - [ ] `LoadedTtsPersonality` → common-types types file (2p-2)
-  - [ ] Collapse the ai-worker `services/resolvers/index.ts` wrapper re-export (2p-3a)
-  - [ ] Repoint/drop the stale `UserService.ts` eslint exemption path (2p-3a leftover)
-
-  Per `06-backlog.md` "Promoting a theme to Active Epic", the epic's follow-up sweep runs BEFORE the next `cold/queue.md` theme is promoted — this checklist makes that gate concrete rather than memory-dependent. (The context-relocation 2.5d epic's own follow-up cluster gets the same treatment when its prod soak closes.)
+  **🧹 Epic close-out — follow-up sweep is the definition of done (gate before the next theme is promoted).** This epic spawned **three** follow-up clusters across its phases (~29 items): **A** — PR-2p Prisma-backed extraction (7; sweep after PR-2q); **B** — Phase 2.5 context-relocation (~19; sweep when the 2.5d prod-soak closes + 2.5d-delete ships); **C** — Phase 1 test-infra (3; opportunistic). The full checklist with per-item triggers is in [`cold/epic-log.md` → "Epic close-out — follow-up sweep tracker"](cold/epic-log.md). **No phase is "done" until its cluster is swept, and the epic isn't closed until all three are.** Per `06-backlog.md` "Promoting a theme to Active Epic", that sweep runs BEFORE the next `cold/queue.md` theme is promoted — the tracker makes the gate concrete rather than memory-dependent.
 - **PR-2q** — split the pub/sub publisher/subscriber pairs to their ends. Redis-based, independent of the Prisma work. Last.
 
 ### Phase 2.5 — fix the bot-client→Prisma drift (✅ COMPLETE 2026-06-21 — PR-2p is now the current phase)
