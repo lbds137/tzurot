@@ -258,4 +258,15 @@ describe('callGatewayOrThrow', () => {
     expect(error).toBeInstanceOf(GatewayApiError);
     expect(error).toMatchObject({ status: 0, kind: 'network' });
   });
+
+  it('throws GatewayApiError carrying kind:timeout on a TimeoutError', async () => {
+    // The most user-relevant failure on a slow gateway — callGatewayOrThrow is a
+    // separate code path from callGateway, so assert the kind propagates here too.
+    const abortError = new Error('aborted');
+    abortError.name = 'TimeoutError';
+    fetchSpy.mockRejectedValueOnce(abortError);
+    const error = await callGatewayOrThrow(baseOpts).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(GatewayApiError);
+    expect(error).toMatchObject({ status: 0, kind: 'timeout' });
+  });
 });
