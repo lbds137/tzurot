@@ -12,22 +12,38 @@ import {
 } from './saveError.js';
 
 describe('DashboardUpdateError', () => {
-  it('carries the gateway status and is an Error subclass', () => {
-    const err = new DashboardUpdateError('Failed to update preset: 0 - Request timeout', 0);
+  it('carries the gateway status + kind and is an Error subclass', () => {
+    const err = new DashboardUpdateError(
+      'Failed to update preset: 0 - Request timeout',
+      0,
+      'timeout'
+    );
     expect(err).toBeInstanceOf(Error);
     expect(err.name).toBe('DashboardUpdateError');
     expect(err.status).toBe(0);
+    expect(err.kind).toBe('timeout');
     expect(err.message).toContain('Request timeout');
   });
 });
 
 describe('isSaveTimeout', () => {
-  it('is true only for a DashboardUpdateError with status 0', () => {
-    expect(isSaveTimeout(new DashboardUpdateError('boom', 0))).toBe(true);
+  it('is true for an outcome-uncertain timeout abort', () => {
+    expect(isSaveTimeout(new DashboardUpdateError('boom', 0, 'timeout'))).toBe(true);
+  });
+
+  it('is true for a network abort (outcome also uncertain)', () => {
+    expect(isSaveTimeout(new DashboardUpdateError('boom', 0, 'network'))).toBe(true);
+  });
+
+  it('is FALSE for a schema failure despite status 0 — the write committed', () => {
+    // A 'schema' failure means the gateway returned 200 OK but the response body
+    // didn't parse; the write definitively committed, so "may still be applying"
+    // would be a lie. This is the gap the kind discriminant closes.
+    expect(isSaveTimeout(new DashboardUpdateError('boom', 0, 'schema'))).toBe(false);
   });
 
   it('is false for a DashboardUpdateError with a real HTTP status', () => {
-    expect(isSaveTimeout(new DashboardUpdateError('boom: 400 - bad', 400))).toBe(false);
+    expect(isSaveTimeout(new DashboardUpdateError('boom: 400 - bad', 400, 'http'))).toBe(false);
   });
 
   it('is false for a plain Error or non-error value', () => {
@@ -77,18 +93,37 @@ describe('extractApiErrorMessage', () => {
 });
 
 describe('buildDashboardSaveErrorContent', () => {
-  it('shows the honest "may still be applying" notice on a status-0 timeout', () => {
-    const error = new DashboardUpdateError('Failed to update character: 0 - Request timeout', 0);
+  it('shows the honest "may still be applying" notice on a timeout abort', () => {
+    const error = new DashboardUpdateError(
+      'Failed to update character: 0 - Request timeout',
+      0,
+      'timeout'
+    );
     const content = buildDashboardSaveErrorContent(error, 'character');
     expect(content).toBe(SAVE_TIMEOUT_NOTICE);
     expect(content).toContain('may still be applying');
     expect(content).not.toContain('❌');
   });
 
+  it('does NOT show the timeout notice on a schema failure (write committed)', () => {
+    // status 0 but kind 'schema' → outcome is certain (the write committed; only
+    // the read-back body failed to parse), so surface a failure message instead
+    // of the misleading "may still be applying" notice.
+    const error = new DashboardUpdateError(
+      'Failed to update character: 0 - Response body is not valid JSON',
+      0,
+      'schema'
+    );
+    const content = buildDashboardSaveErrorContent(error, 'character');
+    expect(content).not.toBe(SAVE_TIMEOUT_NOTICE);
+    expect(content).toContain('❌');
+  });
+
   it('surfaces the real gateway message on a genuine HTTP rejection', () => {
     const error = new DashboardUpdateError(
       'Failed to update character: 400 - avatarData: Invalid input: expected string, received null',
-      400
+      400,
+      'http'
     );
     expect(buildDashboardSaveErrorContent(error, 'character')).toBe(
       '❌ avatarData: Invalid input: expected string, received null'

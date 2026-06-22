@@ -7,21 +7,28 @@ import { GatewayApiError, parseErrorResponse } from './errors.js';
 import { API_ERROR_SUBCODE } from '@tzurot/common-types';
 
 describe('GatewayApiError', () => {
-  it('preserves status + code on construction', () => {
-    const err = new GatewayApiError('Persona not found', 404, API_ERROR_SUBCODE.NAME_COLLISION);
+  it('preserves status + kind + code on construction', () => {
+    const err = new GatewayApiError(
+      'Persona not found',
+      404,
+      'http',
+      API_ERROR_SUBCODE.NAME_COLLISION
+    );
     expect(err.message).toBe('Persona not found');
     expect(err.status).toBe(404);
+    expect(err.kind).toBe('http');
     expect(err.code).toBe('NAME_COLLISION');
     expect(err.name).toBe('GatewayApiError');
   });
 
-  it('omits code when none provided', () => {
-    const err = new GatewayApiError('Something else', 500);
+  it('omits code when none provided but keeps the required kind', () => {
+    const err = new GatewayApiError('Request timeout', 0, 'timeout');
+    expect(err.kind).toBe('timeout');
     expect(err.code).toBeUndefined();
   });
 
   it('is instanceof Error so existing catch blocks still match', () => {
-    const err = new GatewayApiError('msg', 400);
+    const err = new GatewayApiError('msg', 400, 'http');
     expect(err instanceof Error).toBe(true);
   });
 });

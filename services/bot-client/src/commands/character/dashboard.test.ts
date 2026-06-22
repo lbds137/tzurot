@@ -243,7 +243,8 @@ describe('Character Dashboard', () => {
       vi.mocked(api.updateCharacter).mockRejectedValue(
         new DashboardUpdateError(
           'Failed to update character: 400 - avatarData: Invalid input: expected string, received null',
-          400
+          400,
+          'http'
         )
       );
 

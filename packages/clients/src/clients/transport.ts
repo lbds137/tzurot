@@ -143,7 +143,7 @@ async function readValidatedBody(args: {
     json = await response.json();
   } catch (error) {
     const detail = error instanceof Error ? error.message : 'parse error';
-    onWarn?.({ path, method, error: detail }, 'Response body is not valid JSON');
+    onWarn?.({ path, method, kind: 'schema', error: detail }, 'Response body is not valid JSON');
     return {
       ok: false,
       result: {
@@ -162,7 +162,7 @@ async function readValidatedBody(args: {
   const validation = outputSchema.safeParse(json);
   if (!validation.success) {
     onWarn?.(
-      { path, method, issues: validation.error.issues },
+      { path, method, kind: 'schema', issues: validation.error.issues },
       'Response schema validation failed'
     );
     return {
@@ -239,7 +239,7 @@ export async function callGateway<T>(options: TransportOptions): Promise<Gateway
 
     if (!response.ok) {
       const parsed = await parseErrorResponse(response);
-      onWarn?.({ path, method, status: response.status }, 'Request failed');
+      onWarn?.({ path, method, kind: 'http', status: response.status }, 'Request failed');
       return {
         ok: false,
         kind: 'http',
@@ -271,7 +271,7 @@ export async function callGateway<T>(options: TransportOptions): Promise<Gateway
 export async function callGatewayOrThrow<T>(options: TransportOptions): Promise<T> {
   const result = await callGateway<T>(options);
   if (!result.ok) {
-    throw new GatewayApiError(result.error, result.status, result.code, result.kind);
+    throw new GatewayApiError(result.error, result.status, result.kind, result.code);
   }
   return result.data;
 }

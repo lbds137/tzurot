@@ -73,20 +73,23 @@ export interface ParsedErrorResponse {
  */
 export class GatewayApiError extends Error {
   public readonly status: number;
-  public readonly code?: ApiErrorSubcode;
   /**
    * Transport failure category propagated from `GatewayResult`, so try/catch
    * callers can branch on `'timeout'` vs `'network'` vs `'schema'` without
    * string-matching `message` — the same distinction the result path gets.
+   * Required (not optional): every construction site has the result's `kind`
+   * in hand, so callers can write an exhaustive `switch (err.kind)` with no
+   * null-branch.
    */
-  public readonly kind?: GatewayFailureKind;
+  public readonly kind: GatewayFailureKind;
+  public readonly code?: ApiErrorSubcode;
 
-  constructor(message: string, status: number, code?: ApiErrorSubcode, kind?: GatewayFailureKind) {
+  constructor(message: string, status: number, kind: GatewayFailureKind, code?: ApiErrorSubcode) {
     super(message);
     this.name = 'GatewayApiError';
     this.status = status;
-    this.code = code;
     this.kind = kind;
+    this.code = code;
   }
 }
 

@@ -495,7 +495,7 @@ describe('handleModalSubmit', () => {
     // write may have committed server-side, so the user gets the honest notice
     // rather than a hard "Failed, try again".
     mockUpdatePreset.mockRejectedValue(
-      new DashboardUpdateError('Failed to update preset: 0 - Request timeout', 0)
+      new DashboardUpdateError('Failed to update preset: 0 - Request timeout', 0, 'timeout')
     );
 
     await handleModalSubmit(createMockModalInteraction('preset::modal::preset-123::identity'));
@@ -1100,6 +1100,7 @@ describe('handleButton', () => {
         new GatewayApiError(
           'Failed to create preset: 400 - You already have a config named "Test Preset (Copy)"',
           400,
+          'http',
           'NAME_COLLISION'
         )
       );
@@ -1207,6 +1208,7 @@ describe('handleButton', () => {
         new GatewayApiError(
           'Failed to create preset: 400 - You already have a config named "Test Preset (Copy 20)"',
           400,
+          'http',
           'NAME_COLLISION'
         )
       );
