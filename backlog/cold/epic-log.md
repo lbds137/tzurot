@@ -6,12 +6,12 @@ _Per-PR slice history, council verdicts, scoping tables, and burn-in results for
 
 The "Slim common-types" epic spawned **three** follow-up clusters across its phases. **No phase is "done" until its cluster is swept** — and the epic itself isn't closed until all three are. Every item below is also a row in [`follow-ups.md`](follow-ups.md) with its own trigger; this is the consolidated promote-list so the sweep is one place, not a scavenger hunt. (Regenerate Cluster B by grepping `follow-ups.md` for `ContextStep|envelope|HttpPersonalityLoader|MessageContextBuilder|routing-context|CONTEXT_MODE|getChannelHistory|shadow`.)
 
-**Cluster A — PR-2p Prisma-backed extraction (7). Trigger: dedicated "2p close-out" PR after PR-2q, or fold into 2q where cohesive.**
+**Cluster A — PR-2p Prisma-backed extraction (8). Trigger: dedicated "2p close-out" PR after PR-2q, or fold into 2q where cohesive. ✅ CLUSTER COMPLETE (4 items #1304, 4 items #1305).**
 
-- [ ] `createPrismaClient()` unit test (2p-1; unblocked)
-- [ ] `PRISMA_PATTERNS` test-audit heuristic refresh (2p-1b-ii) — _note: the dead `getPrismaClient(` pattern; also the `guard:boundaries` allowlist below is stale post-extraction (lists moved symbols)_
-- [ ] `dispose()` error-handling alignment across the tooling db commands (2p-1)
-- [ ] `guard:boundaries` Prisma-symbol allowlist prune + drift backstop (2p) — _the allowlist lists 6 now-moved/deleted symbols; prune to `createPrismaClient`/`PrismaClient`/`Prisma`, then add the drift-test_
+- [x] ~~`createPrismaClient()` unit test (2p-1; unblocked)~~ ✅ #1305 (`prisma.test.ts`)
+- [x] ~~`PRISMA_PATTERNS` test-audit heuristic refresh (2p-1b-ii)~~ ✅ #1305 (`getPrismaClient(` → `createPrismaClient(`; `TEST_AUDIT_IMPL_VERSION` 1→2 + baseline refresh)
+- [x] ~~`dispose()` error-handling alignment across the tooling db commands (2p-1)~~ ✅ #1305 (`dispose().catch(() => undefined)` across 6 commands; `mockResolvedValue(undefined)` across 4 test files)
+- [x] ~~`guard:boundaries` Prisma-symbol allowlist prune + drift backstop (2p)~~ ✅ #1305 (pruned 9→3 = `createPrismaClient`/`PrismaClient`/`Prisma`; runtime drift-guard test added; the 4 moved services are covered by package-level depcruise bans — verified)
 - [x] ~~`LoadedTtsPersonality` → common-types types file~~ ✅ #1304
 - [x] ~~Collapse the ai-worker `services/resolvers/index.ts` wrapper re-export~~ ✅ #1304
 - [x] ~~Repoint/drop the stale `UserService.ts` eslint exemption path~~ ✅ #1304 (dropped — UserService uses a `$executeRaw` CTE, not the ORM `.create` the ban targets)
