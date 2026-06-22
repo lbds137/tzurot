@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import crypto from 'node:crypto';
 import path from 'node:path';
 import chalk from 'chalk';
-import { getPrismaClient, disconnectPrisma } from '@tzurot/common-types';
+import { createPrismaClient, DB_POOL_DEFAULTS } from '@tzurot/common-types';
 import {
   type Environment,
   validateEnvironment,
@@ -42,7 +42,7 @@ export async function fixMigrationDrift(
   validateEnvironment(env);
   showEnvironmentBanner(env);
 
-  const prisma = getPrismaClient();
+  const { prisma, dispose } = createPrismaClient({ max: DB_POOL_DEFAULTS.TRANSIENT_MAX });
   // Default to prisma/migrations relative to cwd (monorepo root)
   const migrationsDir = options.migrationsPath ?? path.join(process.cwd(), 'prisma', 'migrations');
 
@@ -93,6 +93,6 @@ export async function fixMigrationDrift(
 
     console.log(chalk.green('Done!') + ' Run `npx prisma migrate status` to verify.');
   } finally {
-    await disconnectPrisma();
+    await dispose();
   }
 }

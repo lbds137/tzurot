@@ -77,10 +77,10 @@ export async function inspectTtsConfigs(options: InspectTtsConfigsOptions): Prom
  */
 export function buildInspectorScript(takeLimit: number): string {
   return `
-import { getPrismaClient, disconnectPrisma } from '@tzurot/common-types';
+import { createPrismaClient, DB_POOL_DEFAULTS } from '@tzurot/common-types';
 
 async function main() {
-  const prisma = getPrismaClient();
+  const { prisma, dispose } = createPrismaClient({ max: DB_POOL_DEFAULTS.TRANSIENT_MAX });
   try {
     const rows = await prisma.ttsConfig.findMany({
       select: { id: true, ownerId: true, name: true, isGlobal: true, provider: true },
@@ -98,7 +98,7 @@ async function main() {
       console.warn('⚠️  Result may be truncated at the ' + ${takeLimit} + '-row take limit — re-run with a higher limit if you need to see all rows');
     }
   } finally {
-    await disconnectPrisma();
+    await dispose();
   }
 }
 

@@ -24,7 +24,7 @@ import { readFileSync, writeFileSync, readdirSync, statSync, mkdirSync } from 'n
 import { join, basename } from 'node:path';
 import { createInterface } from 'node:readline';
 import chalk from 'chalk';
-import { getPrismaClient, disconnectPrisma } from '@tzurot/common-types';
+import { createPrismaClient, DB_POOL_DEFAULTS } from '@tzurot/common-types';
 import {
   type Environment,
   validateEnvironment,
@@ -243,9 +243,13 @@ export async function reconcileMigrationChecksum(
   const migrationName = basename(migrationDir);
   const checksum = computeFileChecksum(sanitizedContent);
 
+  // `dispose` is hoisted so the `finally` can reach it; constructing inside the
+  // try keeps a construction failure on the non-fatal "could not reconcile" path.
+  let dispose: (() => Promise<void>) | undefined;
   try {
-    const prisma = getPrismaClient();
-    await prisma.$executeRaw`
+    const handle = createPrismaClient({ max: DB_POOL_DEFAULTS.TRANSIENT_MAX });
+    dispose = handle.dispose;
+    await handle.prisma.$executeRaw`
       UPDATE _prisma_migrations
       SET checksum = ${checksum}
       WHERE migration_name = ${migrationName}
@@ -259,7 +263,7 @@ export async function reconcileMigrationChecksum(
     console.log(chalk.dim(`   (Could not reconcile checksum: ${String(error)})`));
   } finally {
     // Best-effort disconnect — may already be disconnected
-    await disconnectPrisma().catch(() => undefined);
+    await dispose?.().catch(() => undefined);
   }
 }
 

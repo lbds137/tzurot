@@ -9,7 +9,7 @@
  */
 
 import chalk from 'chalk';
-import { getPrismaClient, disconnectPrisma } from '@tzurot/common-types';
+import { createPrismaClient, DB_POOL_DEFAULTS } from '@tzurot/common-types';
 import {
   type Environment,
   validateEnvironment,
@@ -79,7 +79,7 @@ interface MigrationRow {
   applied_steps_count: number;
 }
 
-type PrismaClient = ReturnType<typeof getPrismaClient>;
+type PrismaClient = ReturnType<typeof createPrismaClient>['prisma'];
 
 async function inspectIndexes(prisma: PrismaClient): Promise<void> {
   console.log(chalk.bold('\n📊 DATABASE INDEXES'));
@@ -252,7 +252,7 @@ export async function inspectDatabase(options: InspectOptions = {}): Promise<voi
     process.env.DATABASE_URL = databaseUrl;
   }
 
-  const prisma = getPrismaClient();
+  const { prisma, dispose } = createPrismaClient({ max: DB_POOL_DEFAULTS.TRANSIENT_MAX });
 
   console.log(chalk.bold('🔍 DATABASE INSPECTOR'));
   console.log('═'.repeat(70));
@@ -276,6 +276,6 @@ export async function inspectDatabase(options: InspectOptions = {}): Promise<voi
     console.log(chalk.dim('   pnpm ops db:inspect --indexes       Show only indexes'));
     console.log('');
   } finally {
-    await disconnectPrisma();
+    await dispose();
   }
 }
