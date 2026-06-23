@@ -81,6 +81,27 @@ describe('enrichRawReferences', () => {
     expect(result[0].content).toBe('[image/png: board.png]');
   });
 
+  it('strips the bot’s own TTS audio marker when stubbing a duplicate voice reply-target', async () => {
+    const result = await enrichRawReferences({
+      rawReferences: [
+        rawRef({
+          webhookId: 'wh-1', // personality reply delivered via webhook
+          content: 'You are allowed to be furious about this',
+          attachments: [
+            { url: 'https://cdn/v.ogg', contentType: 'audio/ogg', name: 'lilith-tts.ogg' },
+          ],
+        }),
+      ],
+      history: [historyRow('ref-1', new Date(NOW - 5_000))],
+      retrieveTranscript: noTranscript,
+      nowMs: NOW,
+    });
+    expect(result[0].isDeduplicated).toBe(true);
+    // The bot's own audio is delivery of its own text, not an attachment the model
+    // should reason about — only the text survives, no [audio/ogg: …] marker.
+    expect(result[0].content).toBe('You are allowed to be furious about this');
+  });
+
   it('stubs a recent webhook reference via the time fallback', async () => {
     const result = await enrichRawReferences({
       rawReferences: [rawRef({ webhookId: 'wh-1' })],

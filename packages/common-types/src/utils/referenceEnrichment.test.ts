@@ -6,8 +6,10 @@ import {
   appendVoiceTranscripts,
   buildDedupedReferenceStub,
   isDuplicateReference,
+  stripBotVoiceAttachments,
   type ReferenceDedupCandidate,
 } from './referenceEnrichment.js';
+import type { AttachmentMetadata } from '../types/schemas/discord.js';
 
 const NOW = new Date('2026-06-01T12:00:00Z').getTime();
 
@@ -185,6 +187,73 @@ describe('buildDedupedReferenceStub', () => {
     const stub = buildDedupedReferenceStub(ref);
     // Every marker survives untruncated, markers-first, with the short text after.
     expect(stub.content).toBe(`${expectedMarkers}\n\nhi`);
+  });
+});
+
+describe('stripBotVoiceAttachments', () => {
+  const audio: AttachmentMetadata = {
+    url: 'https://cdn/v.ogg',
+    contentType: 'audio/ogg',
+    name: 'lilith-tts.ogg',
+  };
+  const image: AttachmentMetadata = {
+    url: 'https://cdn/x.png',
+    contentType: 'image/png',
+    name: 'x.png',
+  };
+
+  function refWith(
+    partial: Partial<Pick<ReferencedMessage, 'authorIsBot' | 'webhookId' | 'attachments'>>
+  ): ReferencedMessage {
+    return {
+      referenceNumber: 1,
+      discordMessageId: 'msg-1',
+      discordUserId: 'user-1',
+      authorUsername: 'someone',
+      authorDisplayName: 'Someone',
+      content: 'hi',
+      embeds: '',
+      timestamp: '2026-06-01T11:59:00.000Z',
+      locationContext: '',
+      ...partial,
+    };
+  }
+
+  it('drops a bot-authored reply’s own audio attachment', () => {
+    const result = stripBotVoiceAttachments(refWith({ authorIsBot: true, attachments: [audio] }));
+    expect(result.attachments).toEqual([]);
+  });
+
+  it('drops audio on a webhook-authored reply (authorIsBot unset)', () => {
+    const result = stripBotVoiceAttachments(refWith({ webhookId: 'wh-1', attachments: [audio] }));
+    expect(result.attachments).toEqual([]);
+  });
+
+  it('keeps a bot-authored image (real content, not TTS delivery)', () => {
+    const result = stripBotVoiceAttachments(refWith({ authorIsBot: true, attachments: [image] }));
+    expect(result.attachments).toEqual([image]);
+  });
+
+  it('strips only the audio from a bot-authored mixed attachment set', () => {
+    const result = stripBotVoiceAttachments(
+      refWith({ authorIsBot: true, attachments: [audio, image] })
+    );
+    expect(result.attachments).toEqual([image]);
+  });
+
+  it('keeps a user-authored voice message (genuine content, transcribed elsewhere)', () => {
+    const ref = refWith({ attachments: [audio] }); // no authorIsBot, no webhookId
+    expect(stripBotVoiceAttachments(ref)).toBe(ref);
+  });
+
+  it('returns the same reference when a bot reply has no audio to strip', () => {
+    const ref = refWith({ authorIsBot: true, attachments: [image] });
+    expect(stripBotVoiceAttachments(ref)).toBe(ref);
+  });
+
+  it('returns the same reference when there are no attachments', () => {
+    const ref = refWith({ authorIsBot: true });
+    expect(stripBotVoiceAttachments(ref)).toBe(ref);
   });
 });
 
