@@ -11,6 +11,7 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 import {
   MessageRole,
   rawAssemblyInputsSchema,
+  type ConversationMessage,
   type JobContext,
   type LoadedPersonality,
   type ResolvedConfigOverrides,
@@ -835,5 +836,171 @@ describe('ContextAssembler.assembleCore — schema-coupled re-derivation', () =>
     expect(core.history).toEqual([]);
     expect(core.participantGuildInfo).toBeUndefined();
     expect(core.referencedMessages).toBeUndefined();
+  });
+});
+
+describe('ContextAssembler — extended-context voice transcript re-resolution', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const voiceRef = {
+    url: 'https://cdn/v.ogg',
+    originalUrl: 'https://cdn/v.ogg',
+    contentType: 'audio/ogg',
+    isVoiceMessage: true,
+    sourceDiscordMessageId: 'd-voice',
+  };
+
+  // An extended-context voice message (id d-voice) shipped with its voice ref;
+  // `shipped` sets the transcript the bot already resolved (a cache HIT), absent
+  // = the aged-out case the worker re-resolves.
+  function voiceJobContext(shipped?: string[]): JobContext {
+    return makeJobContext({
+      rawAssemblyInputs: {
+        rawMessageContent: 'hello',
+        rawExtendedContextMessages: [
+          {
+            role: MessageRole.User,
+            content: '[voice message]',
+            discordMessageId: ['d-voice'],
+            ...(shipped !== undefined ? { messageMetadata: { voiceTranscripts: shipped } } : {}),
+          },
+        ],
+        rawExtendedContextVoiceMessages: [voiceRef],
+      },
+    });
+  }
+
+  function transcriptsOf(core: { history: ConversationMessage[] }): string[] | undefined {
+    const msg = core.history.find(m => (m.discordMessageId ?? []).includes('d-voice'));
+    return msg?.messageMetadata?.voiceTranscripts;
+  }
+
+  it('passes the transcript through from the DB row content without calling STT', async () => {
+    const deps = makeDeps({
+      dataSource: {
+        getMessageByDiscordId: vi.fn().mockResolvedValue({ content: 'db transcript' }),
+      },
+    });
+    const stt = vi.fn().mockResolvedValue('stt transcript');
+    const core = await new ContextAssembler(deps).assembleCore(
+      voiceJobContext(),
+      PERSONALITY,
+      undefined,
+      {
+        reTranscribeVoiceViaStt: stt,
+      }
+    );
+    expect(transcriptsOf(core)).toEqual(['db transcript']);
+    expect(stt).not.toHaveBeenCalled();
+  });
+
+  it('falls back to STT when the message is not in the DB', async () => {
+    const deps = makeDeps({
+      dataSource: { getMessageByDiscordId: vi.fn().mockResolvedValue(null) },
+    });
+    const stt = vi.fn().mockResolvedValue('stt transcript');
+    const core = await new ContextAssembler(deps).assembleCore(
+      voiceJobContext(),
+      PERSONALITY,
+      undefined,
+      {
+        reTranscribeVoiceViaStt: stt,
+      }
+    );
+    expect(transcriptsOf(core)).toEqual(['stt transcript']);
+    expect(stt).toHaveBeenCalledOnce();
+  });
+
+  it('leaves a message that already shipped a transcript untouched (no DB/STT lookup)', async () => {
+    const getMessageByDiscordId = vi.fn().mockResolvedValue({ content: 'db transcript' });
+    const deps = makeDeps({ dataSource: { getMessageByDiscordId } });
+    const stt = vi.fn();
+    const core = await new ContextAssembler(deps).assembleCore(
+      voiceJobContext(['already here']),
+      PERSONALITY,
+      undefined,
+      { reTranscribeVoiceViaStt: stt }
+    );
+    expect(transcriptsOf(core)).toEqual(['already here']);
+    expect(getMessageByDiscordId).not.toHaveBeenCalled();
+    expect(stt).not.toHaveBeenCalled();
+  });
+
+  it('degrades gracefully (no transcript) when both DB and STT miss', async () => {
+    const deps = makeDeps({
+      dataSource: { getMessageByDiscordId: vi.fn().mockResolvedValue(null) },
+    });
+    const stt = vi.fn().mockResolvedValue(null);
+    const core = await new ContextAssembler(deps).assembleCore(
+      voiceJobContext(),
+      PERSONALITY,
+      undefined,
+      {
+        reTranscribeVoiceViaStt: stt,
+      }
+    );
+    expect(transcriptsOf(core)).toBeUndefined();
+  });
+
+  it('caps re-resolution to the newest refs when the count exceeds the cap', async () => {
+    const N = 12; // > EXTENDED_CONTEXT_VOICE_REDERIVE_CAP (10)
+    const ids = Array.from({ length: N }, (_, i) => `d-voice-${i}`); // collector order: oldest-first
+    const deps = makeDeps({
+      dataSource: {
+        getMessageByDiscordId: vi.fn(async (id: string) => ({ content: `db-${id}` })),
+      },
+    });
+    const core = await new ContextAssembler(deps).assembleCore(
+      makeJobContext({
+        rawAssemblyInputs: {
+          rawMessageContent: 'hello',
+          rawExtendedContextMessages: ids.map(id => ({
+            role: MessageRole.User,
+            content: '[voice message]',
+            discordMessageId: [id],
+          })),
+          rawExtendedContextVoiceMessages: ids.map(id => ({
+            ...voiceRef,
+            sourceDiscordMessageId: id,
+          })),
+        },
+      }),
+      PERSONALITY,
+      undefined,
+      { reTranscribeVoiceViaStt: vi.fn() }
+    );
+    const transcriptFor = (id: string): string[] | undefined =>
+      core.history.find(m => (m.discordMessageId ?? []).includes(id))?.messageMetadata
+        ?.voiceTranscripts;
+    // The two OLDEST refs are dropped by the cap...
+    expect(transcriptFor('d-voice-0')).toBeUndefined();
+    expect(transcriptFor('d-voice-1')).toBeUndefined();
+    // ...the newest 10 are re-resolved.
+    expect(transcriptFor('d-voice-2')).toEqual(['db-d-voice-2']);
+    expect(transcriptFor('d-voice-11')).toEqual(['db-d-voice-11']);
+  });
+
+  it('skips a voice ref with no sourceDiscordMessageId (no DB/STT lookup)', async () => {
+    const getMessageByDiscordId = vi.fn();
+    const deps = makeDeps({ dataSource: { getMessageByDiscordId } });
+    const stt = vi.fn();
+    await new ContextAssembler(deps).assembleCore(
+      makeJobContext({
+        rawAssemblyInputs: {
+          rawMessageContent: 'hello',
+          rawExtendedContextMessages: [
+            { role: MessageRole.User, content: 'x', discordMessageId: ['d1'] },
+          ],
+          rawExtendedContextVoiceMessages: [
+            { url: 'https://cdn/v.ogg', contentType: 'audio/ogg', isVoiceMessage: true }, // no sourceDiscordMessageId
+          ],
+        },
+      }),
+      PERSONALITY,
+      undefined,
+      { reTranscribeVoiceViaStt: stt }
+    );
+    expect(getMessageByDiscordId).not.toHaveBeenCalled();
+    expect(stt).not.toHaveBeenCalled();
   });
 });

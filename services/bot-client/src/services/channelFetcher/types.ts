@@ -43,8 +43,18 @@ export interface FetchResult {
   filteredCount: number;
   /** Raw Discord messages for opportunistic sync (if needed) */
   rawMessages?: Collection<string, Message>;
-  /** Image attachments collected from extended context messages (newest first) */
+  /** Image attachments collected from extended context messages, in collection
+   * order (OLDEST-first — only the `messages` array is reversed to newest-first).
+   * The worker caps with slice(-maxImages) to keep the newest. */
   imageAttachments?: AttachmentMetadata[];
+  /**
+   * Voice attachments from extended-context messages whose transcript the bot
+   * could NOT resolve at fetch time (cache miss + no bot-reply in window). The
+   * worker re-resolves these (DB-first, STT-fallback). Each carries
+   * `sourceDiscordMessageId` so the worker can match it to its message. Same
+   * OLDEST-first collection order as imageAttachments (worker takes the newest tail).
+   */
+  voiceAttachments?: AttachmentMetadata[];
   /** Guild info for participants (keyed by personaId, e.g., 'discord:123456789') */
   participantGuildInfo?: Record<string, ParticipantGuildInfo>;
   /** Unique users from extended context for batch persona creation */

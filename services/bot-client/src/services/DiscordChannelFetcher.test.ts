@@ -1460,6 +1460,48 @@ describe('DiscordChannelFetcher', () => {
       expect(result.messages[0].messageMetadata?.voiceTranscripts?.join('') ?? '').not.toContain(
         'Fallback transcript'
       );
+      // Resolved transcript ⇒ no re-resolution ref shipped to the worker.
+      expect(result.voiceAttachments ?? []).toHaveLength(0);
+    });
+
+    it('ships a voice attachment ref when the transcript could not be resolved', async () => {
+      const voiceMessageId = 'voice-unresolved-1';
+      const messages = [
+        createMockMessage({
+          id: voiceMessageId,
+          content: '',
+          authorId: 'user1',
+          authorUsername: 'alice',
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+          attachments: new Map([
+            [
+              'att1',
+              {
+                id: 'att1',
+                url: 'https://cdn.discord.com/voice-message.ogg',
+                contentType: 'audio/ogg',
+                name: 'voice-message.ogg',
+                duration: 5,
+                waveform: 'abc',
+              },
+            ],
+          ]),
+        }),
+      ];
+      const channel = createMockChannel(messages);
+      // No DB transcript, no bot reply in window ⇒ unresolved.
+      const getTranscript = vi.fn().mockResolvedValue(null);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId: 'bot123',
+        getTranscript,
+      });
+
+      expect(result.messages[0].messageMetadata?.voiceTranscripts ?? []).toHaveLength(0);
+      // The worker re-resolves these (DB-first, STT-fallback).
+      expect(result.voiceAttachments).toHaveLength(1);
+      expect(result.voiceAttachments?.[0].sourceDiscordMessageId).toBe(voiceMessageId);
+      expect(result.voiceAttachments?.[0].isVoiceMessage).toBe(true);
     });
 
     it('should fall back to bot reply when DB returns null', async () => {

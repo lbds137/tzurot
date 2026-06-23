@@ -35,6 +35,9 @@ export interface RawExtendedContextSnapshot {
   participantGuildInfo?: Record<string, GuildMemberInfo>;
   /** Uncapped extended-context image list (each carries sourceDiscordMessageId). */
   imageAttachments?: AttachmentMetadata[];
+  /** Extended-context voice attachments the bot couldn't transcribe at fetch time
+   * (each carries sourceDiscordMessageId); the worker re-resolves them. */
+  voiceAttachments?: AttachmentMetadata[];
 }
 
 /**
@@ -52,6 +55,7 @@ export function captureRawExtendedContext(
     | 'reactorUsers'
     | 'participantGuildInfo'
     | 'imageAttachments'
+    | 'voiceAttachments'
   >
 ): RawExtendedContextSnapshot {
   return {
@@ -69,6 +73,8 @@ export function captureRawExtendedContext(
         : undefined,
     imageAttachments:
       fetchResult.imageAttachments !== undefined ? [...fetchResult.imageAttachments] : undefined,
+    voiceAttachments:
+      fetchResult.voiceAttachments !== undefined ? [...fetchResult.voiceAttachments] : undefined,
   };
 }
 
@@ -157,6 +163,7 @@ export function buildRawAssemblyInputs(
     rawReactorUsers: raw?.reactorUsers.map(toRawDiscordUser),
     rawParticipantGuildInfo: raw?.participantGuildInfo,
     rawExtendedContextImageAttachments: raw?.imageAttachments,
+    rawExtendedContextVoiceMessages: raw?.voiceAttachments,
     knownChannelEnvironments: buildKnownChannelEnvironments(message.client),
   };
 }
