@@ -23,7 +23,7 @@ The "Slim common-types" epic spawned **three** follow-up clusters across its pha
   - [x] ~~Remove dead extended-context assembly from `MessageContextBuilder.fetchExtendedContext`~~ ✅ #1307 (B1 — dropped the unread `attachments`/`participantGuildInfo` fields + computation; worker re-derives from the raw envelope). _Residual (fold into the MCB.test cleanup below): stale "resolveExtendedContextPersonaIds below mutates… / ContextStep overwrites the shipped one" comments at `MessageContextBuilder.ts:195` + `.test.ts:1400`, and the two now-theater image tests (`should collect images when maxImages > 0` / `…is 0`) whose `maxImages` input no longer affects the assertion — they verify the raw-uncapped path, so re-title/simplify._
   - [ ] Vestigial `MessageContext.conversationHistory` envelope field _(wire-shape: touches shared `RequestContext` + the worker's logging reads of `context.conversationHistory` — verify the worker telemetry stays correct before dropping)_
   - [x] ~~Remove vestigial `mockUserService` + `mockHistoryService` setups in `MessageContextBuilder.test.ts`~~ ✅ #1308 (removed ~54 dead setups + 2 degenerate assertions, net −227 lines; folded in the B1 residual — stale comments + theater test re-titles)
-  - [ ] Post-`CONTEXT_MODE`-removal cleanup in bot-client (flatten + rename)
+  - [~] Post-`CONTEXT_MODE`-removal cleanup in bot-client (flatten + rename) — rename ✅ #1311 (`contextWritePath`→`gatewayWriteHelpers`); `ConversationPersistence` flatten parked (injected service, lateral style change not a defect)
   - [x] ~~`ContextStep.assertEnvelopeJob` could return the narrowed assembler~~ ✅ #1310 (returns narrowed `ContextAssembler`, threaded into `sourceHistory`; dropped the `no-non-null-assertion` disable)
   - [ ] Extract the `ContextStep` pass-through test stub to test-utils
 - _HttpPersonalityLoader hardening:_
@@ -42,7 +42,7 @@ The "Slim common-types" epic spawned **three** follow-up clusters across its pha
   - [ ] `MessageContextBuilder.cachedBotSuffix` — promote the pre-login note to a hard invariant
   - [ ] Add a startup gateway-reachability probe to bot-client
   - [x] ~~`GatewayResult.status: 0` — disambiguate network / timeout / schema failure~~ ✅ #1306 (council-verified `kind: config|network|timeout|schema|http` discriminant; propagated to `GatewayApiError` + `DashboardUpdateError`; fixed the `isSaveTimeout` status-0 conflation as a bonus correctness win)
-  - [ ] PR #1283 cosmetic review nits (the 2.5d pilot-audit sweep)
+  - [x] ~~PR #1283 cosmetic review nits (the 2.5d pilot-audit sweep)~~ ✅ #1311 (3 live nits fixed: id-match, strengthened assertion, author-null-safe comment; the 4th — orphaned blank line — was already gone)
 
 **Cluster C — Phase 1 test-infra (`@tzurot/test-factories` / `test-utils`) (3). Trigger: opportunistic — fold into the epic close-out sweep or whenever the test-infra packages are next touched.**
 
