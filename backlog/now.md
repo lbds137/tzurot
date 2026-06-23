@@ -24,7 +24,7 @@ _Active bugs observed in production. Fix before new features. Cleared issues are
 
 _Small tasks that can be done between major features. Good for momentum._
 
-_(empty)_
+- 🐛 **[FIX] `hasVoiceAttachment` false-positives on video attachments → bot apologizes for not transcribing videos** — Production: a directly-uploaded **MP4 video** (e.g. `RDT_…mp4`) triggers the voice-transcription path and the bot replies "Sorry, I couldn't transcribe that voice message." **Root cause (confirmed by code + repro):** `VoiceTranscriptionService.hasVoiceAttachment` (`services/bot-client/src/services/VoiceTranscriptionService.ts:~204`) — the gate `VoiceMessageProcessor` uses — checks `(contentType.startsWith('audio/') ?? false) || a.duration !== null`. The **`||`** is wrong: video attachments carry a `duration`, so `duration !== null` alone passes the gate. Its two sibling helpers (`hasVoiceAttachments` plural, `hasForwardedVoiceAttachment` in `forwardedMessageUtils.ts`) correctly use **`&&`** — their comments literally warn "Checking duration alone would false-positive on video attachments (MP4, GIF)." The gate just has the wrong operator. **Fix:** change `||` → `&&` in `hasVoiceAttachment` (match the siblings: `audio/` content-type AND `duration !== null`); add a regression test (a `video/mp4` attachment with a duration must NOT be a voice message). Optionally suppress the user-facing apology when no genuine audio source resolves (silently skip). Surfaced 2026-06-22 (user prod report w/ the MP4 URL).
 
 ---
 
