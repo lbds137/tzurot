@@ -314,8 +314,7 @@ describe('MessageContextBuilder', () => {
       });
 
       expect(result.context.kind).toBe('envelope');
-      // The four core re-derivable fields are omitted; the worker assembles them.
-      expect(result.context.conversationHistory).toBeUndefined();
+      // The three core re-derivable fields are omitted; the worker assembles them.
       expect(result.context.referencedMessages).toBeUndefined();
       expect(result.context.mentionedPersonas).toBeUndefined();
       expect(result.context.referencedChannels).toBeUndefined();

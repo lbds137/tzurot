@@ -650,13 +650,6 @@ describe('LLMGenerationHandler', () => {
             channelId: 'channel-789',
             serverId: 'server-012',
             sessionId: 'session-xyz',
-            conversationHistory: [
-              {
-                role: 'user' as any,
-                content: 'Previous message',
-                createdAt: '2025-01-01T12:00:00Z',
-              },
-            ],
           },
         });
         const job = { id: 'job-rag', data: jobData } as Job<LLMGenerationJobData>;
