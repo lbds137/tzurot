@@ -41,7 +41,7 @@ The "Slim common-types" epic spawned **three** follow-up clusters across its pha
   - [ ] Collapse the double `routing-context` round-trip in the `/character` chat path
   - [ ] `MessageContextBuilder.cachedBotSuffix` — promote the pre-login note to a hard invariant
   - [ ] Add a startup gateway-reachability probe to bot-client
-  - [ ] `GatewayResult.status: 0` — disambiguate network / timeout / schema failure (gateway HTTP client from the eviction)
+  - [x] ~~`GatewayResult.status: 0` — disambiguate network / timeout / schema failure~~ ✅ #1306 (council-verified `kind: config|network|timeout|schema|http` discriminant; propagated to `GatewayApiError` + `DashboardUpdateError`; fixed the `isSaveTimeout` status-0 conflation as a bonus correctness win)
   - [ ] PR #1283 cosmetic review nits (the 2.5d pilot-audit sweep)
 
 **Cluster C — Phase 1 test-infra (`@tzurot/test-factories` / `test-utils`) (3). Trigger: opportunistic — fold into the epic close-out sweep or whenever the test-infra packages are next touched.**
