@@ -22,7 +22,7 @@ The "Slim common-types" epic spawned **three** follow-up clusters across its pha
 - _Dead-code / vestigial (die with 2.5d-delete):_
   - [x] ~~Remove dead extended-context assembly from `MessageContextBuilder.fetchExtendedContext`~~ ✅ #1307 (B1 — dropped the unread `attachments`/`participantGuildInfo` fields + computation; worker re-derives from the raw envelope). _Residual (fold into the MCB.test cleanup below): stale "resolveExtendedContextPersonaIds below mutates… / ContextStep overwrites the shipped one" comments at `MessageContextBuilder.ts:195` + `.test.ts:1400`, and the two now-theater image tests (`should collect images when maxImages > 0` / `…is 0`) whose `maxImages` input no longer affects the assertion — they verify the raw-uncapped path, so re-title/simplify._
   - [ ] Vestigial `MessageContext.conversationHistory` envelope field _(wire-shape: touches shared `RequestContext` + the worker's logging reads of `context.conversationHistory` — verify the worker telemetry stays correct before dropping)_
-  - [ ] Remove vestigial `mockUserService` + `mockHistoryService` setups in `MessageContextBuilder.test.ts` _(+ fold in the B1 residual above — same file)_
+  - [x] ~~Remove vestigial `mockUserService` + `mockHistoryService` setups in `MessageContextBuilder.test.ts`~~ ✅ #1308 (removed ~54 dead setups + 2 degenerate assertions, net −227 lines; folded in the B1 residual — stale comments + theater test re-titles)
   - [ ] Post-`CONTEXT_MODE`-removal cleanup in bot-client (flatten + rename)
   - [ ] `ContextStep.assertEnvelopeJob` could return the narrowed assembler
   - [ ] Extract the `ContextStep` pass-through test stub to test-utils
