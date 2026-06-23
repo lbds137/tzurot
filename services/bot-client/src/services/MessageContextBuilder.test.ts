@@ -465,7 +465,7 @@ describe('MessageContextBuilder', () => {
       expect(result.messageContent).toBe('Check [Reference 1]');
     });
 
-    it('does NOT read channel history from Postgres (worker re-derives dedup)', async () => {
+    it('does not run the extended-context fetch by default (no Postgres history service wired for dedup)', async () => {
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
         updatedContent: 'Hello',
