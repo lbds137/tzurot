@@ -907,7 +907,7 @@ describe('MessageContextBuilder', () => {
 
       // Same shape createSyntheticWeighInAnchor produces: field-only, no methods.
       const syntheticAnchor = {
-        id: '',
+        id: 'synthetic-weigh-in-anchor',
         channel: mockMessage.channel,
         client: mockMessage.client,
         guild: mockMessage.guild,
@@ -933,7 +933,9 @@ describe('MessageContextBuilder', () => {
         overrideUser: mockMessage.author,
       });
 
-      expect(result.context).toBeDefined();
+      // Higher-confidence than a bare toBeDefined: the field-only anchor produced a
+      // usable context with the anchor's channel id propagated through.
+      expect(result.context.channelId).toBe('channel-123');
       expect(result.messageContent).toBeDefined();
     });
 

@@ -136,6 +136,9 @@ function createSyntheticWeighInAnchor(channel: TypingChannel): Message {
     channel,
     client: channel.client,
     guild: 'guild' in channel ? channel.guild : null,
+    // May be null pre-login, but that's safe: the weigh-in call passes
+    // `overrideUser`, so MessageContextBuilder resolves the user identity from
+    // that — never from this anchor's `author`.
     author: channel.client?.user ?? null,
     member: null,
     content: '',
