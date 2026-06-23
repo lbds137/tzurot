@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  formatDedupedQuote,
   formatForwardedQuote,
   formatQuoteElement,
   type ForwardedMessageContent,
@@ -396,6 +397,22 @@ describe('QuoteFormatter', () => {
       expect(result).toContain('<image filename="a.png">Image A</image>');
       expect(result).toContain('<image filename="b.png">Image B</image>');
       expect(result).toContain('<image filename="c.png">Image C</image>');
+    });
+  });
+
+  describe('formatDedupedQuote', () => {
+    it('prepends the referenced-message marker before a user reply-target preview', () => {
+      const result = formatDedupedQuote({ from: 'Alice', role: 'user', content: 'some text' });
+      expect(result).toContain('[Referenced message — full text in <chat_log>]');
+      expect(result).toContain('some text');
+      expect(result).toContain('role="user"');
+    });
+
+    it('renders a marker-only stub (no preview) when content is empty', () => {
+      // The bot's-own-reply-target case: no self-preview to invite continuation.
+      const result = formatDedupedQuote({ from: 'Lilith', role: 'assistant', content: '' });
+      expect(result).toContain('<content>[Referenced message — full text in <chat_log>]</content>');
+      expect(result).toContain('role="assistant"');
     });
   });
 });

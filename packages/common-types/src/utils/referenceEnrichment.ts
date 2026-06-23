@@ -85,6 +85,23 @@ export function isDuplicateReference(
 }
 
 /**
+ * Whether a reference was posted by a bot account or webhook (as opposed to a
+ * human Discord user) — true for `authorIsBot` or any non-empty `webhookId`.
+ * This is the broad "machine-authored" signal; it does NOT identify *which* bot,
+ * so it intentionally matches PluralKit / other webhooks too. Callers that need
+ * "is this OUR persona's own line" (e.g. the `role="assistant"` quote signal)
+ * must additionally name-match the active persona — this predicate alone is only
+ * safe where any bot/webhook is the right scope (stripping the bot's own TTS
+ * audio, building marker-only dedup stubs).
+ */
+export function isBotAuthoredReference(reference: ReferencedMessage): boolean {
+  return (
+    reference.authorIsBot === true ||
+    (reference.webhookId !== undefined && reference.webhookId.length > 0)
+  );
+}
+
+/**
  * Drop a bot/webhook-authored reference's own audio attachments.
  *
  * A personality reply is delivered via webhook with its TTS rendered as an
@@ -98,10 +115,7 @@ export function isDuplicateReference(
  * `audio/*` is dropped, so a bot-posted image (real content) still survives.
  */
 export function stripBotVoiceAttachments(reference: ReferencedMessage): ReferencedMessage {
-  const isBotAuthored =
-    reference.authorIsBot === true ||
-    (reference.webhookId !== undefined && reference.webhookId.length > 0);
-  if (!isBotAuthored || reference.attachments === undefined) {
+  if (!isBotAuthoredReference(reference) || reference.attachments === undefined) {
     return reference;
   }
   const kept = reference.attachments.filter(
@@ -130,26 +144,36 @@ export function stripBotVoiceAttachments(reference: ReferencedMessage): Referenc
  * already does, via `formatDedupedQuote`.
  */
 export function buildDedupedReferenceStub(reference: ReferencedMessage): ReferencedMessage {
-  const limit = TEXT_LIMITS.DEDUP_STUB_CONTENT;
-  const truncatedContent =
-    reference.content.length > limit
-      ? reference.content.substring(0, limit) + '...'
-      : reference.content;
-  // Markers go FIRST so they survive downstream re-truncation: formatDedupedQuote
-  // applies DEDUP_STUB_CONTENT to the COMBINED (markers + text) string and trims
-  // from the end, so the effective text budget there is DEDUP_STUB_CONTENT minus
-  // the marker length. Squeezing the text hint is acceptable — the full message
-  // (the thing the stub points at) is in history regardless; the marker is not.
-  const attachmentMarkers = (reference.attachments ?? [])
-    .map(att => `[${att.contentType}: ${att.name ?? 'attachment'}]`)
-    .join('\n');
-  const content = [attachmentMarkers, truncatedContent].filter(s => s.length > 0).join('\n\n');
+  // Bot-authored stubs carry NO preview. A snippet of the model's own prior text
+  // is exactly the "continue this fragment" trigger; the full message is in
+  // <chat_log> regardless, so the marker (added downstream) is enough. User
+  // reply-targets keep a short preview — genuine content the model may need.
+  let content = '';
+  if (!isBotAuthoredReference(reference)) {
+    const limit = TEXT_LIMITS.DEDUP_STUB_CONTENT;
+    const truncatedContent =
+      reference.content.length > limit
+        ? reference.content.substring(0, limit) + '...'
+        : reference.content;
+    // Markers go FIRST so they survive downstream re-truncation: formatDedupedQuote
+    // applies DEDUP_STUB_CONTENT to the COMBINED (markers + text) string and trims
+    // from the end, so the effective text budget there is DEDUP_STUB_CONTENT minus
+    // the marker length. Squeezing the text hint is acceptable — the full message
+    // (the thing the stub points at) is in history regardless; the marker is not.
+    const attachmentMarkers = (reference.attachments ?? [])
+      .map(att => `[${att.contentType}: ${att.name ?? 'attachment'}]`)
+      .join('\n');
+    content = [attachmentMarkers, truncatedContent].filter(s => s.length > 0).join('\n\n');
+  }
   return {
     referenceNumber: reference.referenceNumber,
     discordMessageId: reference.discordMessageId,
     discordUserId: reference.discordUserId,
     authorUsername: reference.authorUsername,
     authorDisplayName: reference.authorDisplayName,
+    // Preserved so the formatter can derive the role="assistant" quote signal.
+    authorIsBot: reference.authorIsBot,
+    webhookId: reference.webhookId,
     content,
     embeds: '',
     timestamp: reference.timestamp,

@@ -5,6 +5,7 @@ import type { ReferencedMessage } from '../types/schemas/message.js';
 import {
   appendVoiceTranscripts,
   buildDedupedReferenceStub,
+  isBotAuthoredReference,
   isDuplicateReference,
   stripBotVoiceAttachments,
   type ReferenceDedupCandidate,
@@ -98,12 +99,13 @@ describe('isDuplicateReference', () => {
   });
 });
 
-function fullReference(content: string): ReferencedMessage {
+// Defaults to non-bot: bot-authored stubs are now marker-only (empty content), so the
+// dedup-content assertions below need a user-authored reference to keep their text.
+function fullReference(content: string, botAuthored = false): ReferencedMessage {
   return {
     referenceNumber: 3,
     discordMessageId: 'msg-9',
-    webhookId: 'wh-1',
-    authorIsBot: true,
+    ...(botAuthored ? { webhookId: 'wh-1', authorIsBot: true } : {}),
     discordUserId: 'user-1',
     authorUsername: 'someone',
     authorDisplayName: 'Someone',
@@ -187,6 +189,47 @@ describe('buildDedupedReferenceStub', () => {
     const stub = buildDedupedReferenceStub(ref);
     // Every marker survives untruncated, markers-first, with the short text after.
     expect(stub.content).toBe(`${expectedMarkers}\n\nhi`);
+  });
+
+  it('emits a marker-only stub (empty content) for the bot’s own reply-target', () => {
+    // A snippet of the bot's own prior text is the "continue this fragment" trigger;
+    // the full message is in <chat_log> regardless, so bot-authored stubs carry no
+    // preview and no attachment markers. The marker is prepended downstream.
+    const stub = buildDedupedReferenceStub(fullReference('the bot said this earlier', true));
+    expect(stub.content).toBe('');
+  });
+
+  it('preserves authorIsBot/webhookId so the formatter can derive role="assistant"', () => {
+    const stub = buildDedupedReferenceStub(fullReference('x', true));
+    expect(stub.authorIsBot).toBe(true);
+    expect(stub.webhookId).toBe('wh-1');
+  });
+});
+
+describe('isBotAuthoredReference', () => {
+  const base: ReferencedMessage = {
+    referenceNumber: 1,
+    discordMessageId: 'm1',
+    discordUserId: 'u1',
+    authorUsername: 'someone',
+    authorDisplayName: 'Someone',
+    content: 'hi',
+    embeds: '',
+    timestamp: '2026-06-01T11:59:00.000Z',
+    locationContext: '',
+  };
+
+  it('is true when authorIsBot is set', () => {
+    expect(isBotAuthoredReference({ ...base, authorIsBot: true })).toBe(true);
+  });
+  it('is true for a non-empty webhookId (authorIsBot unset)', () => {
+    expect(isBotAuthoredReference({ ...base, webhookId: 'wh-1' })).toBe(true);
+  });
+  it('is false for a plain user reference', () => {
+    expect(isBotAuthoredReference(base)).toBe(false);
+  });
+  it('is false for an empty webhookId', () => {
+    expect(isBotAuthoredReference({ ...base, webhookId: '' })).toBe(false);
   });
 });
 

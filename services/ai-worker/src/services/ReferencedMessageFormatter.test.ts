@@ -205,7 +205,9 @@ describe('ReferencedMessageFormatter', () => {
 
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
 
-      expect(result).toContain('<quote number="1" from="Test User" username="testuser">');
+      expect(result).toContain(
+        '<quote number="1" from="Test User" username="testuser" role="user">'
+      );
       expect(result).toContain('</quote>');
       // Location is now pre-formatted XML from bot-client (DRY with current message context)
       expect(result).toContain('<location type="guild">');
@@ -258,7 +260,9 @@ describe('ReferencedMessageFormatter', () => {
 
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
 
-      expect(result).toContain('<quote number="1" from="Test User" username="testuser">');
+      expect(result).toContain(
+        '<quote number="1" from="Test User" username="testuser" role="user">'
+      );
       // Empty content should not generate <content> tag
       expect(result).not.toContain('<content>');
     });
@@ -292,11 +296,69 @@ describe('ReferencedMessageFormatter', () => {
 
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
 
-      expect(result).toContain('<quote number="1" from="User One" username="user1">');
+      expect(result).toContain('<quote number="1" from="User One" username="user1" role="user">');
       expect(result).toContain('First message');
 
-      expect(result).toContain('<quote number="2" from="User Two" username="user2">');
+      expect(result).toContain('<quote number="2" from="User Two" username="user2" role="user">');
       expect(result).toContain('Second message');
+    });
+
+    it('marks a non-deduped reference from the current persona role="assistant"', async () => {
+      // A non-deduped reference from the CURRENT persona (bot/webhook AND a display
+      // name matching the persona — here carrying a webhook suffix) reads as the
+      // model's own prior line. Prefix-match on displayName absorbs the suffix.
+      const references: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'msg-bot-1',
+          discordUserId: 'bot-user-id',
+          authorUsername: 'Test Bot 🤖',
+          authorDisplayName: 'Test Bot 🤖',
+          content: 'Something I said earlier',
+          embeds: '',
+          timestamp: '2025-11-04T00:00:00Z',
+          locationContext:
+            '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
+          authorIsBot: true,
+          webhookId: 'wh-1',
+        },
+      ];
+
+      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+
+      expect(result).toContain(
+        '<quote number="1" from="Test Bot 🤖" username="Test Bot 🤖" role="assistant">'
+      );
+      expect(result).toContain('<content>Something I said earlier</content>');
+    });
+
+    it('marks a non-deduped third-party bot/webhook reference role="user"', async () => {
+      // A bot/webhook message NOT from our persona (a PluralKit-proxied human,
+      // another bot) must read as role="user" — the model should respond to it,
+      // not treat it as its own line. The persona name-match scopes this; bot
+      // authorship alone is not enough — that breadth is the misfire to avoid.
+      const references: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'msg-pk-1',
+          discordUserId: 'pk-user-id',
+          authorUsername: 'SomeoneElse',
+          authorDisplayName: 'SomeoneElse',
+          content: 'a proxied human message',
+          embeds: '',
+          timestamp: '2025-11-04T00:00:00Z',
+          locationContext:
+            '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
+          authorIsBot: true,
+          webhookId: 'pk-webhook',
+        },
+      ];
+
+      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+
+      expect(result).toContain(
+        '<quote number="1" from="SomeoneElse" username="SomeoneElse" role="user">'
+      );
     });
   });
 
@@ -319,10 +381,76 @@ describe('ReferencedMessageFormatter', () => {
 
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
 
-      expect(result).toContain('<quote number="1" from="Alice" username="alice123">');
-      expect(result).toContain('[Reply target — full message is in conversation above]');
+      expect(result).toContain('<quote number="1" from="Alice" username="alice123" role="user">');
+      expect(result).toContain('[Referenced message — full text in <chat_log>]');
       expect(result).toContain('Some truncated content...');
       expect(result).toContain('</quote>');
+    });
+
+    it('includes a <contextual_references> instruction on how to read quotes', async () => {
+      const references: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'm',
+          discordUserId: 'u',
+          authorUsername: 'a',
+          authorDisplayName: 'A',
+          content: 'hi',
+          embeds: '',
+          timestamp: '2025-12-06T00:00:00Z',
+          locationContext: '',
+        },
+      ];
+      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+      expect(result).toContain('<instruction>');
+      expect(result).toContain('role="assistant" is one of your own earlier lines');
+    });
+
+    it('marks a deduped reply-target from the current persona role="assistant" (marker-only)', async () => {
+      // The stub builder empties the current persona's content (no self-preview);
+      // the formatter derives role="assistant" from the bot-gate + persona match.
+      const references: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'm',
+          discordUserId: 'u',
+          authorUsername: 'Test Bot 🤖',
+          authorDisplayName: 'Test Bot 🤖',
+          webhookId: 'wh-1',
+          authorIsBot: true,
+          content: '',
+          embeds: '',
+          timestamp: '2025-12-06T00:00:00Z',
+          locationContext: '',
+          isDeduplicated: true,
+        },
+      ];
+      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+      expect(result).toContain('role="assistant"');
+      expect(result).toContain('[Referenced message — full text in <chat_log>]');
+    });
+
+    it('marks a deduped third-party bot/webhook reply-target role="user"', async () => {
+      // A deduped stub from a non-persona bot/webhook (PluralKit, another bot) is
+      // role="user" — same persona-scoping as the non-deduped path.
+      const references: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'm',
+          discordUserId: 'u',
+          authorUsername: 'SomeoneElse',
+          authorDisplayName: 'SomeoneElse',
+          webhookId: 'pk-webhook',
+          authorIsBot: true,
+          content: 'proxied text',
+          embeds: '',
+          timestamp: '2025-12-06T00:00:00Z',
+          locationContext: '',
+          isDeduplicated: true,
+        },
+      ];
+      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+      expect(result).toContain('role="user"');
     });
 
     it('should not process attachments for deduped stubs', async () => {
@@ -751,7 +879,9 @@ describe('ReferencedMessageFormatter', () => {
 
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
 
-      expect(result).toContain('<quote number="1" from="Test User" username="testuser">');
+      expect(result).toContain(
+        '<quote number="1" from="Test User" username="testuser" role="user">'
+      );
       expect(result).toContain('Just text');
       expect(result).not.toContain('<attachments>');
     });
@@ -774,7 +904,9 @@ describe('ReferencedMessageFormatter', () => {
 
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
 
-      expect(result).toContain('<quote number="1" from="Test User" username="testuser">');
+      expect(result).toContain(
+        '<quote number="1" from="Test User" username="testuser" role="user">'
+      );
       expect(result).toContain('Just text');
       expect(result).not.toContain('<attachments>');
     });
@@ -823,7 +955,9 @@ describe('ReferencedMessageFormatter', () => {
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
 
       // Should NOT have forwarded attribute
-      expect(result).toContain('<quote number="1" from="Test User" username="testuser">');
+      expect(result).toContain(
+        '<quote number="1" from="Test User" username="testuser" role="user">'
+      );
       expect(result).not.toContain('forwarded="true"');
       expect(result).not.toContain('type="forward"');
     });
@@ -859,7 +993,9 @@ describe('ReferencedMessageFormatter', () => {
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
 
       // First reference - regular
-      expect(result).toContain('<quote number="1" from="Test User" username="testuser">');
+      expect(result).toContain(
+        '<quote number="1" from="Test User" username="testuser" role="user">'
+      );
 
       // Second reference - forwarded (uses shared QuoteFormatter format)
       expect(result).toContain('<quote type="forward" from="Unknown">');

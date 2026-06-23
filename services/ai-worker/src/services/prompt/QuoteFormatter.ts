@@ -166,8 +166,12 @@ export function formatForwardedQuote(content: ForwardedMessageContent): string {
   });
 }
 
-/** Prefix for deduplicated reference stubs */
-const DEDUP_REPLY_TARGET_PREFIX = '[Reply target — full message is in conversation above]';
+/**
+ * Prefix for deduplicated reference stubs. Order-agnostic (points to <chat_log>
+ * rather than "above" — references are assembled BEFORE <chat_log>) and drops
+ * the "reply target" Discord-UI jargon, which read as a task to the model.
+ */
+const DEDUP_REPLY_TARGET_PREFIX = '[Referenced message — full text in <chat_log>]';
 
 /**
  * Options for formatting a deduplicated reference stub.
@@ -180,11 +184,13 @@ export interface DedupedQuoteOptions {
   from: string;
   /** Author username (real-time refs only) */
   username?: string;
+  /** Speaker role — `assistant` marks one of the bot's own prior messages. */
+  role?: 'user' | 'assistant';
   /** Structured timestamp as child element */
   timestamp?: { absolute: string; relative: string };
   /** Pre-formatted timestamp as attribute */
   timeFormatted?: string;
-  /** Original message content (will be truncated) */
+  /** Original message content (will be truncated). Empty → marker-only stub. */
   content: string;
 }
 
@@ -197,12 +203,19 @@ export function formatDedupedQuote(opts: DedupedQuoteOptions): string {
   const truncated =
     opts.content.length > limit ? opts.content.substring(0, limit) + '...' : opts.content;
 
+  // Empty content (e.g. a bot's own reply-target) → marker only, no trailing blank.
+  const content =
+    truncated.length > 0
+      ? `${DEDUP_REPLY_TARGET_PREFIX}\n\n${truncated}`
+      : DEDUP_REPLY_TARGET_PREFIX;
+
   return formatQuoteElement({
     number: opts.number,
     from: opts.from,
     username: opts.username,
+    role: opts.role,
     timestamp: opts.timestamp,
     timeFormatted: opts.timeFormatted,
-    content: `${DEDUP_REPLY_TARGET_PREFIX}\n\n${truncated}`,
+    content,
   });
 }
