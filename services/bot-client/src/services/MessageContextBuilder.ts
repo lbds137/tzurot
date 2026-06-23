@@ -8,7 +8,6 @@
 import {
   type LoadedPersonality,
   type ConversationMessage,
-  type AttachmentMetadata,
   createLogger,
   MESSAGE_LIMITS,
   isTypingChannel,
@@ -60,16 +59,9 @@ interface ContextBuildResult {
   messageContent: string;
 }
 
-type ParticipantGuildInfo = Record<
-  string,
-  { roles: string[]; displayColor?: string; joinedAt?: string }
->;
-
 /** Result of fetching extended context from Discord */
 interface ExtendedContextResult {
   history: ConversationMessage[];
-  attachments?: AttachmentMetadata[];
-  participantGuildInfo?: ParticipantGuildInfo;
   /**
    * Raw-envelope snapshot (present only when CONTEXT_RAW_ENVELOPE=true):
    * the Discord-fetched messages BEFORE persona-ID resolution mutates them
@@ -154,8 +146,6 @@ export class MessageContextBuilder {
   ): Promise<ExtendedContextResult> {
     const { message, personality, history, contextEpoch, options } = params;
     let mergedHistory = history;
-    let attachments: AttachmentMetadata[] | undefined;
-    let participantGuildInfo: ExtendedContextResult['participantGuildInfo'];
 
     if (options.extendedContext === undefined || options.botUserId === undefined) {
       return { history: mergedHistory };
@@ -208,10 +198,10 @@ export class MessageContextBuilder {
 
     // Extended-context users/reactors are NOT provisioned or persona-resolved
     // here — the worker re-runs the batch upsert + persona remap from the raw
-    // snapshot (ContextAssembler.mergeExtendedContext), and it overwrites the
-    // shipped participantGuildInfo with its own re-keyed version (ContextStep).
-    // bot-client's local merged history keeps the raw author placeholders; only
-    // message ids + timestamps feed the reference-dedup that still reads it.
+    // snapshot (ContextAssembler.mergeExtendedContext) and re-derives guild info +
+    // image attachments from it, so bot-client ships neither. bot-client's local
+    // merged history keeps the raw author placeholders; only message ids +
+    // timestamps feed the reference-dedup that still reads it.
 
     if (fetchResult.messages.length === 0) {
       return { history: mergedHistory, raw: rawSnapshot };
@@ -230,33 +220,6 @@ export class MessageContextBuilder {
       'Extended context merged with conversation history'
     );
 
-    // Collect image attachments
-    const maxImages = options.extendedContext.maxImages ?? 0;
-    if (maxImages > 0 && fetchResult.imageAttachments && fetchResult.imageAttachments.length > 0) {
-      attachments = fetchResult.imageAttachments.slice(-maxImages);
-      logger.debug(
-        {
-          channelId: message.channel.id,
-          availableImages: fetchResult.imageAttachments.length,
-          maxImages,
-          selectedImages: attachments.length,
-        },
-        'Collected extended context images for processing'
-      );
-    }
-
-    // Capture participant guild info
-    if (fetchResult.participantGuildInfo) {
-      participantGuildInfo = fetchResult.participantGuildInfo;
-      logger.debug(
-        {
-          channelId: message.channel.id,
-          participantCount: Object.keys(participantGuildInfo).length,
-        },
-        'Collected participant guild info from extended context'
-      );
-    }
-
     // Opportunistic sync (fire and forget)
     // This is idempotent and safe for concurrent execution:
     // - Only updates EXISTING messages (no creates = no duplicate writes)
@@ -273,7 +236,7 @@ export class MessageContextBuilder {
         });
     }
 
-    return { history: mergedHistory, attachments, participantGuildInfo, raw: rawSnapshot };
+    return { history: mergedHistory, raw: rawSnapshot };
   }
 
   /** Extract referenced messages and resolve mentions - delegates to ReferenceExtractor */
