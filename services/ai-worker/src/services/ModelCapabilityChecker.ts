@@ -13,6 +13,7 @@ import {
   createLogger,
   REDIS_KEY_PREFIXES,
   AI_DEFAULTS,
+  TTLCache,
   type OpenRouterModel,
 } from '@tzurot/common-types';
 
@@ -27,10 +28,15 @@ interface CachedCapabilities {
   supportsReasoning: boolean;
   /** The model's real context length in tokens; null when resolved via pattern fallback (Redis unavailable or model not in cache). */
   contextLength: number | null;
-  timestamp: number;
 }
 
-const capabilityCache = new Map<string, CachedCapabilities>();
+// TTLCache bounds memory (LRU) and expires entries on access, replacing an
+// unbounded Map + manual timestamp checks. maxSize 500 comfortably covers the
+// OpenRouter catalog (~300 models, plus `:free` variants) with headroom.
+const capabilityCache = new TTLCache<CachedCapabilities>({
+  ttl: AI_DEFAULTS.MODEL_CAPABILITY_CACHE_TTL_MS,
+  maxSize: 500,
+});
 
 /** Normalize model ID for cache key (strip :free suffix) */
 function normalizeModelId(modelId: string): string {
@@ -73,7 +79,6 @@ async function resolveFromRedis(
       supportsVision: model.architecture.input_modalities.includes('image'),
       supportsReasoning: model.supported_parameters.includes('reasoning'),
       contextLength: model.context_length,
-      timestamp: Date.now(),
     };
 
     capabilityCache.set(normalizedId, capabilities);
@@ -101,9 +106,9 @@ async function resolveFromRedis(
 async function getCapabilities(modelId: string, redis: Redis): Promise<CachedCapabilities> {
   const normalizedId = normalizeModelId(modelId);
 
-  // Check in-memory cache first
+  // Check in-memory cache first (TTLCache returns null on miss/expiry)
   const cached = capabilityCache.get(normalizedId);
-  if (cached && Date.now() - cached.timestamp < AI_DEFAULTS.MODEL_CAPABILITY_CACHE_TTL_MS) {
+  if (cached !== null) {
     return cached;
   }
 
@@ -118,7 +123,6 @@ async function getCapabilities(modelId: string, redis: Redis): Promise<CachedCap
     supportsVision: hasVisionSupportFallback(modelId),
     supportsReasoning: hasReasoningSupportFallback(modelId),
     contextLength: null,
-    timestamp: Date.now(),
   };
 
   capabilityCache.set(normalizedId, capabilities);

@@ -83,11 +83,13 @@ describe('Identity provisioning integration (c88ae5b7 regression guard)', () => 
     `);
 
     userService = new UserService(prisma);
-    // cacheTtlMs: 0 disables PersonaResolver's in-memory cache so tests
-    // exercise the real resolution path every call. The cache is the
-    // safe-by-default for prod (hit rate > 95%) but hides the provisioning
-    // integration we want to pin here.
-    personaResolver = new PersonaResolver(prisma, { cacheTtlMs: 0 });
+    // cacheTtlMs: 1 (1ms) effectively disables PersonaResolver's in-memory
+    // cache so tests exercise the real resolution path every call — each PGLite
+    // round-trip exceeds 1ms, so an entry is always expired by the next call.
+    // NOTE: must be 1, not 0 — lru-cache treats ttl:0 as "no TTL" (never
+    // expire), which would cache forever and hide the provisioning integration
+    // we want to pin here. The cache is safe-by-default for prod (hit rate > 95%).
+    personaResolver = new PersonaResolver(prisma, { cacheTtlMs: 1 });
   }, 30000);
 
   afterAll(async () => {

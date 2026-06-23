@@ -38,7 +38,11 @@ import {
   type PrismaClient,
   type CorePersonaConfig,
 } from '@tzurot/common-types';
-import { BaseConfigResolver, type ResolutionResult } from './BaseConfigResolver.js';
+import {
+  BaseConfigResolver,
+  type BaseConfigResolverOptions,
+  type ResolutionResult,
+} from './BaseConfigResolver.js';
 
 const logger = createLogger('PersonaResolver');
 
@@ -102,7 +106,7 @@ const SYSTEM_DEFAULT_PERSONA: ResolvedPersona = {
 export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
   protected readonly resolverName = 'PersonaResolver';
 
-  constructor(prisma: PrismaClient, options?: { cacheTtlMs?: number; enableCleanup?: boolean }) {
+  constructor(prisma: PrismaClient, options?: BaseConfigResolverOptions) {
     super(prisma, options);
   }
 
