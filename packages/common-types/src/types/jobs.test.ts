@@ -35,7 +35,6 @@ import {
   shapesExportResultSchema,
 } from './shapes-import.js';
 import { JobType, JobStatus } from '../constants/queue.js';
-import { MessageRole } from '../constants/message.js';
 import {
   MINIMAL_CONTEXT,
   AUDIO_ATTACHMENT,
@@ -328,14 +327,6 @@ describe('BullMQ Job Contract Tests', () => {
           sessionId: 'session-123',
           activePersonaId: 'persona-123',
           activePersonaName: 'TestPersona',
-          conversationHistory: [
-            {
-              role: MessageRole.User,
-              content: 'Previous message',
-              tokenCount: 10,
-              createdAt: new Date().toISOString(),
-            },
-          ],
           attachments: [
             {
               url: 'https://example.com/file.pdf',

@@ -24,7 +24,6 @@ import {
   mentionedPersonaSchema,
   referencedChannelSchema,
   attachmentMetadataSchema,
-  apiConversationMessageSchema,
   referencedMessageSchema,
   discordEnvironmentSchema,
   guildMemberInfoSchema,
@@ -34,7 +33,6 @@ import {
   type ConfigSourceId,
 } from './schemas/index.js';
 import { JobType, JobStatus } from '../constants/queue.js';
-import { MessageRole } from '../constants/message.js';
 import type { SttProvider } from './sttProvider.js';
 
 /**
@@ -57,9 +55,9 @@ export interface JobDependency {
 export interface JobContext {
   /**
    * Context-payload variant discriminant. `'envelope'` means the producer
-   * (bot-client) omitted the re-derivable legacy fields (conversationHistory,
-   * referencedMessages, mentionedPersonas, referencedChannels) and the worker
-   * MUST assemble them from `rawAssemblyInputs`. `'legacy'` (the default for
+   * (bot-client) omitted the re-derivable legacy fields (referencedMessages,
+   * mentionedPersonas, referencedChannels) and the worker MUST assemble them
+   * from `rawAssemblyInputs`. `'legacy'` (the default for
    * absent — i.e. in-flight jobs from an older bot) means the legacy fields are
    * authoritative. See jobContextBaseSchema.
    *
@@ -90,23 +88,6 @@ export interface JobContext {
    * @example { 'discord:user-123': { roles: ['Admin', 'Developer'], displayColor: '#FF5733' } }
    */
   participantGuildInfo?: Record<string, GuildMemberInfo>;
-  conversationHistory?: {
-    id?: string;
-    role: MessageRole;
-    content: string;
-    tokenCount?: number;
-    createdAt?: string;
-    /** User's persona ID */
-    personaId?: string;
-    /** User's persona display name */
-    personaName?: string;
-    /** Discord username for disambiguation when persona name matches personality name */
-    discordUsername?: string;
-    /** AI personality ID (for multi-AI channel attribution) */
-    personalityId?: string;
-    /** AI personality's display name (for multi-AI channel attribution) */
-    personalityName?: string;
-  }[];
   /** Attachments from triggering message */
   attachments?: AttachmentMetadata[];
   /** Image attachments from extended context (limited by maxImages setting) */
@@ -384,7 +365,6 @@ const jobContextBaseSchema = z.object({
   activePersonaName: z.string().optional(),
   activePersonaGuildInfo: guildMemberInfoSchema.optional(),
   participantGuildInfo: z.record(z.string(), guildMemberInfoSchema).optional(),
-  conversationHistory: z.array(apiConversationMessageSchema).optional(),
   attachments: z.array(attachmentMetadataSchema).optional(),
   extendedContextAttachments: z.array(attachmentMetadataSchema).optional(),
   environment: discordEnvironmentSchema.optional(),

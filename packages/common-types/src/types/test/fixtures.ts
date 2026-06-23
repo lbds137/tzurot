@@ -6,7 +6,6 @@
  * to maintain DRY principle and ensure consistency in test data.
  */
 
-import { MessageRole } from '../../constants/message.js';
 import type { LoadedPersonality, RequestContext, AttachmentMetadata } from '../api-types.js';
 import type { ResponseDestination } from '../jobs.js';
 
@@ -48,13 +47,6 @@ export const FULL_CONTEXT: RequestContext = {
   sessionId: 'session-123',
   activePersonaId: 'persona-123',
   activePersonaName: 'TestPersona',
-  conversationHistory: [
-    {
-      role: MessageRole.User,
-      content: 'Previous message',
-      createdAt: new Date().toISOString(),
-    },
-  ],
   attachments: [
     {
       url: 'https://example.com/file.pdf',

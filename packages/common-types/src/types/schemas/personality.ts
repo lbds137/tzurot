@@ -12,11 +12,7 @@ import {
   guildMemberInfoSchema,
 } from './discord.js';
 import { rawAssemblyInputsSchema } from './rawEnvelope.js';
-import {
-  apiConversationMessageSchema,
-  crossChannelHistoryGroupSchema,
-  referencedMessageSchema,
-} from './message.js';
+import { crossChannelHistoryGroupSchema, referencedMessageSchema } from './message.js';
 
 /**
  * Custom Fields Schema
@@ -167,9 +163,9 @@ export const referencedChannelSchema = z.object({
  */
 export const requestContextSchema = z.object({
   // Context-payload variant. 'envelope' means the producer omitted the
-  // re-derivable legacy fields (conversationHistory, referencedMessages,
-  // mentionedPersonas, referencedChannels) and the worker MUST assemble them
-  // from rawAssemblyInputs. Optional here (kept off the inferred type's
+  // re-derivable legacy fields (referencedMessages, mentionedPersonas,
+  // referencedChannels) and the worker MUST assemble them from
+  // rawAssemblyInputs. Optional here (kept off the inferred type's
   // required set so existing RequestContext construction sites don't all need
   // it); absent is treated as legacy by consumers (worker reads `?? 'legacy'`,
   // jobContextBaseSchema defaults it). The envelope-requires-rawAssemblyInputs
@@ -196,8 +192,6 @@ export const requestContextSchema = z.object({
   // Guild info for other participants (from extended context, keyed by personaId)
   // Note: Only available for extended context participants; DB history doesn't store guild info
   participantGuildInfo: z.record(z.string(), guildMemberInfoSchema).optional(),
-  // Conversation history
-  conversationHistory: z.array(apiConversationMessageSchema).optional(),
   // Attachments (from triggering message)
   attachments: z.array(attachmentMetadataSchema).optional(),
   // Extended context attachments (proactively fetched images, limited by maxImages setting)

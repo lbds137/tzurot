@@ -179,16 +179,16 @@ describe('generate', () => {
       { slug: 'lila' } as never,
       {
         messageContent: 'hi',
-        conversationHistory: undefined,
+        userId: 'u-1',
       } as never
     );
     expect(result).toEqual({ jobId: 'j-1', requestId: 'r-1' });
-    // `message` is hoisted from context.messageContent; conversationHistory is
-    // defaulted to [] and nested inside the context payload.
+    // `message` is hoisted from context.messageContent; the context object is
+    // forwarded as the nested `context` payload.
     expect(mockServiceClient.aiGenerate).toHaveBeenCalledWith(
       expect.objectContaining({
         message: 'hi',
-        context: expect.objectContaining({ conversationHistory: [] }),
+        context: expect.objectContaining({ userId: 'u-1' }),
       })
     );
   });
