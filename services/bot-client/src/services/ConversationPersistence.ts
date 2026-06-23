@@ -25,7 +25,7 @@ import { buildMessageContent } from '../utils/MessageContentBuilder.js';
 import {
   persistAssistantMessageViaGateway,
   persistUserMessageViaGateway,
-} from '../utils/contextWritePath.js';
+} from '../utils/gatewayWriteHelpers.js';
 
 const logger = createLogger('ConversationPersistence');
 
