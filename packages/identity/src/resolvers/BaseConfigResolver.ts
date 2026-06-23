@@ -51,7 +51,7 @@
  * @see PersonaResolver - Switch strategy implementation
  */
 
-import { createLogger, INTERVALS, type PrismaClient } from '@tzurot/common-types';
+import { createLogger, INTERVALS, TTLCache, type PrismaClient } from '@tzurot/common-types';
 
 const logger = createLogger('BaseConfigResolver');
 
@@ -67,12 +67,21 @@ export interface ResolutionResult<T> {
   sourceName?: string;
 }
 
-/**
- * Cache entry with TTL
- */
-interface CacheEntry<T> {
-  result: ResolutionResult<T>;
-  expiresAt: number;
+/** Constructor options shared across all resolver subclasses. */
+export interface BaseConfigResolverOptions {
+  /**
+   * TTL for cache entries in milliseconds. Defaults to API_KEY_CACHE_TTL.
+   * NOTE: passing 0 does NOT disable the cache — lru-cache treats `ttl: 0` as
+   * "no TTL" (never expire). Use 1ms to effectively disable caching in tests.
+   */
+  cacheTtlMs?: number;
+  /**
+   * Test-only: inject a clock function for fake-timer compatibility with
+   * TTLCache. lru-cache's default `performance.now()` is NOT mocked by
+   * `vi.useFakeTimers`; passing `() => Date.now()` makes TTL respect them.
+   * @internal
+   */
+  now?: () => number;
 }
 
 /**
@@ -80,23 +89,24 @@ interface CacheEntry<T> {
  */
 export abstract class BaseConfigResolver<T> {
   protected prisma: PrismaClient;
-  protected cache = new Map<string, CacheEntry<T>>();
-  protected readonly cacheTtlMs: number;
-  private cleanupInterval: ReturnType<typeof setInterval> | null = null;
+  protected readonly cache: TTLCache<ResolutionResult<T>>;
 
   /**
    * Name of this resolver for logging purposes
    */
   protected abstract readonly resolverName: string;
 
-  constructor(prisma: PrismaClient, options?: { cacheTtlMs?: number; enableCleanup?: boolean }) {
+  constructor(prisma: PrismaClient, options?: BaseConfigResolverOptions) {
     this.prisma = prisma;
-    this.cacheTtlMs = options?.cacheTtlMs ?? INTERVALS.API_KEY_CACHE_TTL;
-
-    // Start periodic cleanup of expired cache entries
-    if (options?.enableCleanup !== false) {
-      this.startCleanupInterval();
-    }
+    this.cache = new TTLCache<ResolutionResult<T>>({
+      ttl: options?.cacheTtlMs ?? INTERVALS.API_KEY_CACHE_TTL,
+      // Persona/config resolution is on the memory-retrieval hot path and fans
+      // out per-(user, context); 1000 small entries bounds memory firmly while
+      // tolerating busy multi-user channels. Replaces an unbounded Map whose
+      // periodic setInterval sweep was a documented horizontal-scaling blocker.
+      maxSize: 1000,
+      now: options?.now,
+    });
   }
 
   /**
@@ -115,15 +125,15 @@ export abstract class BaseConfigResolver<T> {
       };
     }
 
-    // Check cache
+    // Check cache (TTLCache returns null on miss; expiry is enforced internally).
     const cacheKey = this.getCacheKey(userId, contextId);
     const cached = this.cache.get(cacheKey);
-    if (cached && cached.expiresAt > Date.now()) {
+    if (cached !== null) {
       logger.debug(
         { resolver: this.resolverName, userId, contextId, source: 'cache' },
         'Config resolved from cache'
       );
-      return cached.result;
+      return cached;
     }
 
     try {
@@ -186,10 +196,7 @@ export abstract class BaseConfigResolver<T> {
    * Cache a resolution result
    */
   protected cacheResult(key: string, result: ResolutionResult<T>): void {
-    this.cache.set(key, {
-      result,
-      expiresAt: Date.now() + this.cacheTtlMs,
-    });
+    this.cache.set(key, result);
   }
 
   /**
@@ -197,11 +204,9 @@ export abstract class BaseConfigResolver<T> {
    * Call when user updates their configuration
    */
   invalidateUserCache(userId: string): void {
-    for (const key of this.cache.keys()) {
-      if (key.startsWith(`${userId}:`)) {
-        this.cache.delete(key);
-      }
-    }
+    // Cache keys are `${userId}:${contextId}` — the trailing colon prevents a
+    // prefix collision (user "12" doesn't match "123:").
+    this.cache.invalidateByPrefix(`${userId}:`);
     logger.debug({ resolver: this.resolverName, userId }, 'Invalidated cache for user');
   }
 
@@ -211,52 +216,5 @@ export abstract class BaseConfigResolver<T> {
   clearCache(): void {
     this.cache.clear();
     logger.debug({ resolver: this.resolverName }, 'Cleared all cache');
-  }
-
-  /**
-   * Stop cleanup interval (call on shutdown)
-   */
-  stopCleanup(): void {
-    if (this.cleanupInterval) {
-      clearInterval(this.cleanupInterval);
-      this.cleanupInterval = null;
-    }
-  }
-
-  /**
-   * Start periodic cleanup of expired cache entries
-   *
-   * NOTE: This setInterval is a known horizontal scaling blocker (see CLAUDE.md).
-   * TODO: Migrate to BullMQ repeatable jobs for multi-instance deployments.
-   */
-  private startCleanupInterval(): void {
-    this.cleanupInterval = setInterval(() => {
-      this.cleanupExpiredEntries();
-    }, INTERVALS.CACHE_CLEANUP);
-
-    // Ensure interval doesn't prevent process exit
-    this.cleanupInterval.unref();
-  }
-
-  /**
-   * Remove expired entries from cache
-   */
-  private cleanupExpiredEntries(): void {
-    const now = Date.now();
-    let removedCount = 0;
-
-    for (const [key, entry] of this.cache) {
-      if (entry.expiresAt <= now) {
-        this.cache.delete(key);
-        removedCount++;
-      }
-    }
-
-    if (removedCount > 0) {
-      logger.debug(
-        { resolver: this.resolverName, removedCount, remaining: this.cache.size },
-        'Cleaned up expired cache entries'
-      );
-    }
   }
 }

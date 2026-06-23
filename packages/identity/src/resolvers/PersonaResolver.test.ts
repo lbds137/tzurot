@@ -46,12 +46,7 @@ describe('PersonaResolver', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // Disable cleanup interval in tests
-    resolver = new PersonaResolver(mockPrismaClient as any, { enableCleanup: false });
-  });
-
-  afterEach(() => {
-    resolver.stopCleanup();
+    resolver = new PersonaResolver(mockPrismaClient as any);
   });
 
   describe('resolve (full configuration)', () => {
@@ -638,7 +633,7 @@ describe('PersonaResolver', () => {
     });
   });
 
-  describe('cleanup interval', () => {
+  describe('cache expiry (TTLCache)', () => {
     beforeEach(() => {
       vi.useFakeTimers();
     });
@@ -647,22 +642,12 @@ describe('PersonaResolver', () => {
       vi.useRealTimers();
     });
 
-    it('should start cleanup interval when enabled', () => {
-      const resolverWithCleanup = new PersonaResolver(mockPrismaClient as any, {
-        enableCleanup: true,
-      });
-
-      // Should have started the interval
-      expect(resolverWithCleanup).toBeDefined();
-
-      // Cleanup
-      resolverWithCleanup.stopCleanup();
-    });
-
-    it('should clean up expired entries when interval fires', async () => {
-      const resolverWithCleanup = new PersonaResolver(mockPrismaClient as any, {
-        enableCleanup: true,
+    it('expires cached entries after the TTL, then re-queries', async () => {
+      // Inject `now: () => Date.now()` so TTLCache (which uses performance.now()
+      // by default, NOT mocked by fake timers) respects vi.advanceTimersByTime.
+      const resolverWithTtl = new PersonaResolver(mockPrismaClient as any, {
         cacheTtlMs: 1000, // 1 second TTL for testing
+        now: () => Date.now(),
       });
 
       mockPrismaClient.user.findUnique.mockResolvedValue({
@@ -677,43 +662,18 @@ describe('PersonaResolver', () => {
         ownedPersonas: [],
       });
 
-      // Populate cache
-      await resolverWithCleanup.resolve('user-1', 'personality-1');
+      // Populate cache (1 query)
+      await resolverWithTtl.resolve('user-1', 'personality-1');
       expect(mockPrismaClient.user.findUnique).toHaveBeenCalledTimes(1);
 
-      // Should use cache
-      await resolverWithCleanup.resolve('user-1', 'personality-1');
+      // Within TTL → cache hit, no new query
+      await resolverWithTtl.resolve('user-1', 'personality-1');
       expect(mockPrismaClient.user.findUnique).toHaveBeenCalledTimes(1);
 
-      // Advance time past TTL
+      // Advance past the TTL → entry expired on next access, re-queries
       vi.advanceTimersByTime(2000);
-
-      // Advance time past cleanup interval (60s)
-      vi.advanceTimersByTime(60000);
-
-      // Now cache entry should be expired - next call should query again
-      await resolverWithCleanup.resolve('user-1', 'personality-1');
+      await resolverWithTtl.resolve('user-1', 'personality-1');
       expect(mockPrismaClient.user.findUnique).toHaveBeenCalledTimes(2);
-
-      // Cleanup
-      resolverWithCleanup.stopCleanup();
-    });
-
-    it('should handle stopCleanup when no interval is running', () => {
-      // Resolver created with cleanup disabled
-      expect(() => resolver.stopCleanup()).not.toThrow();
-    });
-
-    it('should be safe to call stopCleanup multiple times', () => {
-      const resolverWithCleanup = new PersonaResolver(mockPrismaClient as any, {
-        enableCleanup: true,
-      });
-
-      // Stop multiple times - should not throw
-      expect(() => {
-        resolverWithCleanup.stopCleanup();
-        resolverWithCleanup.stopCleanup();
-      }).not.toThrow();
     });
   });
 });
