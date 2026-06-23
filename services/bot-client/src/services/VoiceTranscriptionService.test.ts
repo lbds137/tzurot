@@ -55,12 +55,12 @@ describe('VoiceTranscriptionService', () => {
   });
 
   describe('hasVoiceAttachment', () => {
-    it('should detect voice attachment by audio content type', () => {
+    it('detects a voice message (audio content-type AND duration)', () => {
       const message = createMockMessage({
         attachments: [
           {
             contentType: 'audio/ogg',
-            duration: null,
+            duration: 5.2,
           },
         ],
       });
@@ -68,7 +68,9 @@ describe('VoiceTranscriptionService', () => {
       expect(service.hasVoiceAttachment(message)).toBe(true);
     });
 
-    it('should detect voice attachment by duration property', () => {
+    it('does NOT treat a duration on a non-audio attachment as voice (guards against video)', () => {
+      // A duration alone is not enough — a non-audio attachment that happens to
+      // carry a duration (video, binary) is not a voice message.
       const message = createMockMessage({
         attachments: [
           {
@@ -78,7 +80,23 @@ describe('VoiceTranscriptionService', () => {
         ],
       });
 
-      expect(service.hasVoiceAttachment(message)).toBe(true);
+      expect(service.hasVoiceAttachment(message)).toBe(false);
+    });
+
+    it('does NOT transcribe a video attachment despite its duration (the MP4 false-positive)', () => {
+      // Regression: a directly-uploaded MP4 (video/mp4 + duration) was treated as
+      // a voice message because the gate used `audio/* OR duration`; the bot then
+      // replied "Sorry, I couldn't transcribe that voice message." on videos.
+      const message = createMockMessage({
+        attachments: [
+          {
+            contentType: 'video/mp4',
+            duration: 30,
+          },
+        ],
+      });
+
+      expect(service.hasVoiceAttachment(message)).toBe(false);
     });
 
     it('should return false for non-voice attachments', () => {

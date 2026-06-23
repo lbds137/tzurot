@@ -199,9 +199,13 @@ export class VoiceTranscriptionService {
    * Uses centralized utilities from forwardedMessageUtils.ts for consistent forwarded message handling.
    */
   hasVoiceAttachment(message: Message): boolean {
-    // Check direct attachments
+    // Check direct attachments. A Discord voice message has an audio content-type
+    // AND a duration — require BOTH (matching hasVoiceAttachments /
+    // hasForwardedVoiceAttachment in forwardedMessageUtils). The previous `||`
+    // false-positived on video attachments (MP4, GIF), which also carry a
+    // `duration`, so the bot tried to transcribe videos and apologized.
     const hasDirectAudio = message.attachments.some(
-      a => (a.contentType?.startsWith(CONTENT_TYPES.AUDIO_PREFIX) ?? false) || a.duration !== null
+      a => (a.contentType?.startsWith(CONTENT_TYPES.AUDIO_PREFIX) ?? false) && a.duration !== null
     );
 
     if (hasDirectAudio) {
