@@ -34,6 +34,7 @@ import {
   appendVoiceTranscripts,
   buildDedupedReferenceStub,
   isDuplicateReference,
+  stripBotVoiceAttachments,
   type ConversationMessage,
   type ReferencedMessage,
   type TranscriptRetrieveFn,
@@ -78,7 +79,11 @@ export async function enrichRawReferences(
   // Promise.all preserves input order, so wire order (and the adopted
   // reference numbers) survive the parallel enrichment.
   return Promise.all(
-    rawReferences.map(async (raw): Promise<ReferencedMessage> => {
+    rawReferences.map(async (rawInput): Promise<ReferencedMessage> => {
+      // Strip the personality's own TTS audio before either render branch: a
+      // bot-authored reply's `audio/*` attachment is delivery of its own text,
+      // not content the model should see as "an audio message I sent".
+      const raw = stripBotVoiceAttachments(rawInput);
       const duplicate = isDuplicateReference(
         {
           discordMessageId: raw.discordMessageId,

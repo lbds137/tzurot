@@ -14,6 +14,7 @@
  */
 
 import { TEXT_LIMITS } from '../constants/discord.js';
+import { CONTENT_TYPES } from '../constants/media.js';
 import { INTERVALS } from '../constants/timing.js';
 import type { AttachmentMetadata } from '../types/schemas/discord.js';
 import type { ReferencedMessage } from '../types/schemas/message.js';
@@ -81,6 +82,34 @@ export function isDuplicateReference(
   }
 
   return false;
+}
+
+/**
+ * Drop a bot/webhook-authored reference's own audio attachments.
+ *
+ * A personality reply is delivered via webhook with its TTS rendered as an
+ * `audio/*` file attachment. That audio is system-generated *delivery* of the
+ * bot's own text — not content the model "attached" — so surfacing it (folded as
+ * an `[audio/…]` marker into a dedup stub, or as an attachment line in a full
+ * quote) makes the model reason about "an audio message I sent". User voice
+ * messages (user-authored, transcribed) are genuine content and are untouched.
+ *
+ * Identity is by authorship (`authorIsBot`/`webhookId`), not filename; only
+ * `audio/*` is dropped, so a bot-posted image (real content) still survives.
+ */
+export function stripBotVoiceAttachments(reference: ReferencedMessage): ReferencedMessage {
+  const isBotAuthored =
+    reference.authorIsBot === true ||
+    (reference.webhookId !== undefined && reference.webhookId.length > 0);
+  if (!isBotAuthored || reference.attachments === undefined) {
+    return reference;
+  }
+  const kept = reference.attachments.filter(
+    att => !att.contentType.startsWith(CONTENT_TYPES.AUDIO_PREFIX)
+  );
+  return kept.length === reference.attachments.length
+    ? reference
+    : { ...reference, attachments: kept };
 }
 
 /**
