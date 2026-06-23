@@ -18,16 +18,19 @@ import {
   type LoadedPersonality,
 } from '@tzurot/common-types';
 import { HumanMessage, AIMessage } from '@langchain/core/messages';
-import { ContextStep } from './ContextStep.js';
+import { ContextStep, reTranscribeExtendedContextVoice } from './ContextStep.js';
+import type { AttachmentMetadata } from '@tzurot/common-types';
 import type { GenerationContext, ResolvedConfig } from '../types.js';
 
 // Use vi.hoisted to create mock functions before they're used in vi.mock
-const { mockExtractParticipants, mockConvertConversationHistory, mockLogger } = vi.hoisted(() => ({
-  mockExtractParticipants: vi.fn(),
-  mockConvertConversationHistory: vi.fn(),
-  // Module-level mock logger so tests can assert call shape on warn/info
-  mockLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
-}));
+const { mockExtractParticipants, mockConvertConversationHistory, mockTranscribeAudio, mockLogger } =
+  vi.hoisted(() => ({
+    mockExtractParticipants: vi.fn(),
+    mockConvertConversationHistory: vi.fn(),
+    mockTranscribeAudio: vi.fn(),
+    // Module-level mock logger so tests can assert call shape on warn/info
+    mockLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+  }));
 
 // Mock common-types logger — use the hoisted mockLogger so tests can inspect
 // log calls for race-window telemetry assertions.
@@ -42,6 +45,10 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 vi.mock('../../../utils/conversationUtils.js', () => ({
   extractParticipants: mockExtractParticipants,
   convertConversationHistory: mockConvertConversationHistory,
+}));
+
+vi.mock('../../../../services/multimodal/AudioProcessor.js', () => ({
+  transcribeAudio: mockTranscribeAudio,
 }));
 
 const TEST_PERSONALITY: LoadedPersonality = {
@@ -862,5 +869,39 @@ describe('ContextStep', () => {
         expect.stringContaining('Race-window telemetry')
       );
     });
+  });
+});
+
+describe('reTranscribeExtendedContextVoice', () => {
+  const attachment = {
+    url: 'https://cdn/v.ogg',
+    originalUrl: 'https://cdn/v.ogg',
+    contentType: 'audio/ogg',
+    isVoiceMessage: true,
+  } as AttachmentMetadata;
+
+  beforeEach(() => vi.clearAllMocks());
+
+  it('returns the transcribed text on success', async () => {
+    mockTranscribeAudio.mockResolvedValue({ text: 'a transcript' });
+    expect(await reTranscribeExtendedContextVoice(attachment, { provider: 'mistral' })).toBe(
+      'a transcript'
+    );
+  });
+
+  it('defaults to the voice-engine dispatch when no STT was resolved', async () => {
+    mockTranscribeAudio.mockResolvedValue({ text: 'voice-engine transcript' });
+    await reTranscribeExtendedContextVoice(attachment, undefined);
+    expect(mockTranscribeAudio).toHaveBeenCalledWith(attachment, { provider: 'voice-engine' });
+  });
+
+  it('returns null on empty text', async () => {
+    mockTranscribeAudio.mockResolvedValue({ text: '' });
+    expect(await reTranscribeExtendedContextVoice(attachment, undefined)).toBeNull();
+  });
+
+  it('returns null (graceful) when transcription throws', async () => {
+    mockTranscribeAudio.mockRejectedValue(new Error('expired CDN url'));
+    expect(await reTranscribeExtendedContextVoice(attachment, undefined)).toBeNull();
   });
 });

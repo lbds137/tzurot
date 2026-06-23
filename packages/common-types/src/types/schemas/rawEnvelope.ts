@@ -137,6 +137,18 @@ export const rawAssemblyInputsSchema = z.object({
    */
   rawExtendedContextImageAttachments: z.array(attachmentMetadataSchema).optional(),
   /**
+   * Voice attachments from extended-context messages whose transcript the bot
+   * could NOT resolve at fetch time (aged out of the 5-min Redis cache, and no
+   * bot transcript-reply was in the window). Each carries `sourceDiscordMessageId`
+   * so the worker can re-resolve and inject the transcript: DB-first via
+   * getMessageByDiscordId (the row content IS the transcript for persisted voice),
+   * STT-fallback on the attachment url for never-persisted ambient voice. Shipped
+   * only for the messages that need re-resolution — a cache HIT ships its
+   * transcript on the message itself. ABSENT = fetch didn't run; EMPTY = fetch ran
+   * and every voice message already had its transcript.
+   */
+  rawExtendedContextVoiceMessages: z.array(attachmentMetadataSchema).optional(),
+  /**
    * Guild member info for the TRIGGERING user (message.member), the raw form
    * of activePersonaGuildInfo. Keyless scalar — no persona re-keying needed.
    * ABSENT = DM or member data unavailable.
