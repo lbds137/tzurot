@@ -24,7 +24,7 @@ The "Slim common-types" epic spawned **three** follow-up clusters across its pha
   - [ ] Vestigial `MessageContext.conversationHistory` envelope field _(wire-shape: touches shared `RequestContext` + the worker's logging reads of `context.conversationHistory` — verify the worker telemetry stays correct before dropping)_
   - [x] ~~Remove vestigial `mockUserService` + `mockHistoryService` setups in `MessageContextBuilder.test.ts`~~ ✅ #1308 (removed ~54 dead setups + 2 degenerate assertions, net −227 lines; folded in the B1 residual — stale comments + theater test re-titles)
   - [ ] Post-`CONTEXT_MODE`-removal cleanup in bot-client (flatten + rename)
-  - [ ] `ContextStep.assertEnvelopeJob` could return the narrowed assembler
+  - [x] ~~`ContextStep.assertEnvelopeJob` could return the narrowed assembler~~ ✅ #1310 (returns narrowed `ContextAssembler`, threaded into `sourceHistory`; dropped the `no-non-null-assertion` disable)
   - [ ] Extract the `ContextStep` pass-through test stub to test-utils
 - _HttpPersonalityLoader hardening:_
   - [ ] Single-flight dedup for concurrent misses
@@ -35,8 +35,8 @@ The "Slim common-types" epic spawned **three** follow-up clusters across its pha
   - [ ] Promote extended-context voice transcripts to the worker (flat-list pattern)
   - [x] ~~Conditional-spread `sttDivergence` out of shadow logs~~ — **OBSOLETE** (beta.135 deleted the shadow machinery; `sttDivergence`/`shadowAssembly` no longer exist)
 - _Invariants / observability / latency:_
-  - [ ] Document the worker-overwrite invariant at `ContextStep.ts:56`
-  - [ ] Audit the two `resolveSummonAnonymity` calls stay in sync if `applyAssembledContext` is restructured
+  - [x] ~~Document the worker-overwrite invariant at `ContextStep.ts:56`~~ ✅ #1310 (4-line WHY comment on the unconditional `job.data.message` overwrite)
+  - [x] ~~Audit the two `resolveSummonAnonymity` calls stay in sync if `applyAssembledContext` is restructured~~ ✅ #1310 (legacy-deleted trigger fired; verified still-agree, dropped the stale legacy-mode clause; coupling already pinned by the writeback + builder tests)
   - [ ] Guard against re-snapshotting a synthetic `recovery-fallback-*` personaId
   - [ ] Collapse the double `routing-context` round-trip in the `/character` chat path
   - [ ] `MessageContextBuilder.cachedBotSuffix` — promote the pre-login note to a hard invariant
