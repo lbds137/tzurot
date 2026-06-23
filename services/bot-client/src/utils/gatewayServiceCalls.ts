@@ -231,10 +231,7 @@ export async function generate(
   const result = await getServiceClient().aiGenerate({
     personality,
     message: context.messageContent,
-    context: {
-      ...context,
-      conversationHistory: context.conversationHistory ?? [],
-    },
+    context,
   });
   if (!result.ok) {
     logger.error({ status: result.status, error: result.error }, 'Failed to submit job');

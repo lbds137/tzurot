@@ -268,7 +268,6 @@ export class PersonalityChatManager {
       {
         jobId,
         personalityName: personality.displayName,
-        historyLength: context.conversationHistory?.length ?? 0,
       },
       'Job submitted successfully, awaiting async result'
     );

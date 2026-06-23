@@ -20,7 +20,6 @@ import {
   type LoadedPersonality,
   type RequestContext,
   type TranscribeResponse,
-  MessageRole,
 } from '@tzurot/common-types';
 import type { DeferralMode, SafeCommandContext } from './utils/commandContext/index.js';
 
@@ -32,17 +31,8 @@ export type { GenerateResponse, LoadedPersonality, TranscribeResponse };
  * Bot-specific context that gets sent to api-gateway
  * Extends RequestContext from common-types with bot-specific messageContent field
  */
-export interface MessageContext extends Omit<RequestContext, 'conversationHistory'> {
+export interface MessageContext extends RequestContext {
   messageContent: string;
-  conversationHistory?: {
-    id?: string; // Internal UUID for deduplication
-    role: MessageRole;
-    content: string;
-    createdAt?: string;
-    personaId?: string; // Which persona said this message
-    personaName?: string; // Persona's name for context
-    discordUsername?: string; // Discord username for disambiguation when persona name matches personality name
-  }[];
   crossChannelHistory?: CrossChannelHistoryGroupEntry[];
 }
 
