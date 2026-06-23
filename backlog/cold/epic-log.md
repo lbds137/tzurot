@@ -52,6 +52,8 @@ The "Slim common-types" epic spawned **three** follow-up clusters across its pha
 
 **Per `06-backlog.md` "Promoting a theme to Active Epic", a phase's cluster is swept BEFORE the next `cold/queue.md` theme is promoted. This list is the gate; check items off as they ship.**
 
+**🧹 Sweep status (2026-06-23): COMPLETE.** Cluster A ✅ shipped (#1304/#1305). **Cluster B + Cluster C SWEPT** — every remaining `[ ]` item was re-audited this session and confirmed **trigger-gated/parked** (no fired triggers): single-flight dedup + surgical eviction are perf-gated; the `ContextStep` stub waits for a 3rd consumer; `writeReferenceImageDescriptions` partial-map + `buildDedupedReferenceStub` over-limit wait for a new caller; the `recovery-fallback` guard + `cachedBotSuffix` invariant + startup gateway-reachability probe are a coupled "do-when-a-startup-gateway-assertion-is-added" set; the depcruise `test-utils` exemption waits for the rule to fire; the structural-test/turbo-cache items are deliberate stopgaps, not defects. They stay as follow-up rows and promote when triggered. The only non-gated close-out item is the **tooling-coverage** PR (dev-experience), **deferred to post-release** per user call (2026-06-23). **Extraction + sweep complete → the gate to promote the next `cold/queue.md` theme is open.**
+
 #### Scoping pass — COMPLETE 2026-06-04 (verified call-surface enumeration)
 
 bot-client's Prisma usage is **entirely message-pipeline**, in three functional clusters. Every operation below is verified from actual call sites (method-call grep, tests excluded), not from service surfaces.
