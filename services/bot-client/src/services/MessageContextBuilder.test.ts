@@ -120,25 +120,9 @@ import { extractDiscordEnvironment } from '../utils/discordContext.js';
 import { extractAttachments } from '../utils/attachmentExtractor.js';
 import { MessageReferenceExtractor as _MessageReferenceExtractor } from '../handlers/MessageReferenceExtractor.js';
 
-// UserService + ConversationHistoryService now live in @tzurot/identity and
-// @tzurot/conversation-history — both Prisma-backed, so bot-client cannot import
-// them. These vestigial mocks are no longer wired into the builder; the local
-// structural types keep the legacy per-test setups compiling.
-type MockUserService = {
-  getOrCreateUser: ReturnType<typeof vi.fn>;
-  getOrCreateUsersInBatch: ReturnType<typeof vi.fn>;
-  getPersonaName: ReturnType<typeof vi.fn>;
-  getUserTimezone: ReturnType<typeof vi.fn>;
-};
-type MockConversationHistoryService = {
-  getChannelHistory: ReturnType<typeof vi.fn>;
-};
-
 describe('MessageContextBuilder', () => {
   let builder: MessageContextBuilder;
   let mockPrisma: PrismaClient;
-  let mockHistoryService: MockConversationHistoryService;
-  let mockUserService: MockUserService;
   let mockPersonality: LoadedPersonality;
   let mockMessage: Message;
 
@@ -168,25 +152,6 @@ describe('MessageContextBuilder', () => {
     // Create builder instance — serviceClient is a stub since resolveUserContext
     // (the only consumer) is mocked.
     builder = new MessageContextBuilder({} as any);
-
-    // conversationHistory is no longer a builder field — bot-client stopped
-    // reading channel history from Postgres (the worker re-derives it from the
-    // thin envelope). A standalone mock keeps legacy per-test getChannelHistory
-    // setups inert (they set return values on a never-called mock), mirroring the
-    // mockUserService handling below; see the backlog cleanup item.
-    mockHistoryService = {
-      getChannelHistory: vi.fn().mockResolvedValue([]),
-    } as unknown as MockConversationHistoryService;
-    // userService is no longer a builder field — the author path resolves via
-    // the routing-context endpoint and the extended-context batch moved
-    // worker-side. A standalone mock keeps legacy per-test setups inert (they
-    // set return values on a never-called mock); see the backlog cleanup item.
-    mockUserService = {
-      getOrCreateUser: vi.fn(),
-      getOrCreateUsersInBatch: vi.fn().mockResolvedValue(new Map()),
-      getPersonaName: vi.fn(),
-      getUserTimezone: vi.fn(),
-    } as unknown as MockUserService;
 
     // Default mock for PersonaResolver.resolve
     mockPersonaResolver.resolve.mockResolvedValue({
@@ -276,11 +241,6 @@ describe('MessageContextBuilder', () => {
 
   describe('buildContext', () => {
     it('attaches rawAssemblyInputs — the worker re-derives the context from it', async () => {
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
-        userId: 'user-uuid-123',
-        defaultPersonaId: 'test-persona-id',
-      });
-      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
         updatedContent: 'REWRITTEN content',
@@ -312,21 +272,6 @@ describe('MessageContextBuilder', () => {
     });
 
     it("ships a thin kind:'envelope' payload (omits all 7 re-derivable fields)", async () => {
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
-        userId: 'user-uuid-123',
-        defaultPersonaId: 'test-persona-id',
-      });
-      // A non-empty history row proves conversationHistory is OMITTED on the
-      // envelope (the worker re-derives it), not merely empty.
-      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([
-        {
-          id: 'h1',
-          role: MessageRole.User,
-          content: 'prior',
-          createdAt: new Date('2026-01-01T00:00:00Z'),
-          personaId: 'p1',
-        },
-      ] as never);
       // Populate the guild/attachment surfaces in the fetch result so the
       // omission assertions below prove the ENVELOPE drops them, not that the
       // mock simply left them empty. guildMemberInfo for the trigger user comes
@@ -396,20 +341,6 @@ describe('MessageContextBuilder', () => {
         contextEpoch: undefined,
         history: [],
       });
-      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([
-        {
-          id: 'history-1',
-          role: MessageRole.User,
-          content: 'Previous message',
-          createdAt: new Date('2025-01-01T00:00:00Z'),
-          personaId: 'persona-123',
-          personaName: 'Test Persona',
-          discordUsername: 'prevuser', // Discord username for collision detection
-          discordMessageId: ['prev-msg-123'],
-          channelId: 'test-channel',
-          guildId: 'test-guild',
-        },
-      ]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
         updatedContent: 'Hello world',
@@ -426,10 +357,6 @@ describe('MessageContextBuilder', () => {
         'Test Display Name',
         expect.anything()
       );
-
-      // bot-client no longer reads channel history from Postgres — the worker
-      // re-derives the conversation history from the thin envelope.
-      expect(mockHistoryService.getChannelHistory).not.toHaveBeenCalled();
 
       // Verify context structure
       // Note: context.userId is the Discord ID (for BYOK), not the internal UUID
@@ -467,7 +394,6 @@ describe('MessageContextBuilder', () => {
         contextEpoch: undefined,
         history: [],
       });
-      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
         updatedContent: 'Hello',
@@ -487,13 +413,6 @@ describe('MessageContextBuilder', () => {
     });
 
     it('should handle empty conversation history', async () => {
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
-        userId: 'user-uuid-123',
-        defaultPersonaId: 'test-persona-id',
-      });
-      // PersonaResolver.resolve is already mocked in beforeEach
-      // PersonaResolver.resolve returns preferredName directly
-      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
         updatedContent: 'First message',
@@ -520,13 +439,6 @@ describe('MessageContextBuilder', () => {
         },
       ];
 
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
-        userId: 'user-uuid-123',
-        defaultPersonaId: 'test-persona-id',
-      });
-      // PersonaResolver.resolve is already mocked in beforeEach
-      // PersonaResolver.resolve returns preferredName directly
-      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: mockReferences,
         updatedContent: 'Check [Reference 1]',
@@ -554,36 +466,6 @@ describe('MessageContextBuilder', () => {
     });
 
     it('does NOT read channel history from Postgres (worker re-derives dedup)', async () => {
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
-        userId: 'user-uuid-123',
-        defaultPersonaId: 'test-persona-id',
-      });
-      // PersonaResolver.resolve is already mocked in beforeEach
-      // PersonaResolver.resolve returns preferredName directly
-      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([
-        {
-          id: 'history-1',
-          role: MessageRole.User,
-          content: 'Message 1',
-          createdAt: new Date('2025-01-01T00:00:00Z'),
-          personaId: 'persona-123',
-          personaName: 'Test Persona',
-          discordMessageId: ['discord-msg-1', 'discord-msg-2'],
-          channelId: 'test-channel',
-          guildId: 'test-guild',
-        },
-        {
-          id: 'history-2',
-          role: MessageRole.Assistant,
-          content: 'Response',
-          createdAt: new Date('2025-01-01T00:01:00Z'),
-          personaId: 'persona-123',
-          personaName: 'Test Persona',
-          discordMessageId: ['discord-msg-3'],
-          channelId: 'test-channel',
-          guildId: 'test-guild',
-        },
-      ]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
         updatedContent: 'Hello',
@@ -594,8 +476,9 @@ describe('MessageContextBuilder', () => {
       // bot-client no longer reads channel history from Postgres for dedup. The
       // shipped rawReferences are dedup-invariant (proven in
       // MessageReferenceExtractor.test.ts), so the worker re-derives reference
-      // dedup from the raw envelope against its own assembled history.
-      expect(mockHistoryService.getChannelHistory).not.toHaveBeenCalled();
+      // dedup from the raw envelope against its own assembled history. The fetch
+      // path never receives a Postgres-backed history service.
+      expect(mockFetchRecentMessages).not.toHaveBeenCalled();
     });
 
     it('should extract attachments from message', async () => {
@@ -607,13 +490,6 @@ describe('MessageContextBuilder', () => {
         },
       ];
 
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
-        userId: 'user-uuid-123',
-        defaultPersonaId: 'test-persona-id',
-      });
-      // PersonaResolver.resolve is already mocked in beforeEach
-      // PersonaResolver.resolve returns preferredName directly
-      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
         updatedContent: 'Check this image',
@@ -633,13 +509,6 @@ describe('MessageContextBuilder', () => {
         channelType: 'text',
       };
 
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
-        userId: 'user-uuid-123',
-        defaultPersonaId: 'test-persona-id',
-      });
-      // PersonaResolver.resolve is already mocked in beforeEach
-      // PersonaResolver.resolve returns preferredName directly
-      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
         updatedContent: 'Hello',
@@ -653,13 +522,6 @@ describe('MessageContextBuilder', () => {
     });
 
     it('should handle empty content with fallback', async () => {
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
-        userId: 'user-uuid-123',
-        defaultPersonaId: 'test-persona-id',
-      });
-      // PersonaResolver.resolve is already mocked in beforeEach
-      // PersonaResolver.resolve returns preferredName directly
-      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
         updatedContent: null,
@@ -704,25 +566,6 @@ describe('MessageContextBuilder', () => {
         messageId: 'reply-to-msg',
       } as any;
 
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
-        userId: 'user-uuid-123',
-        defaultPersonaId: 'test-persona-id',
-      });
-      // PersonaResolver.resolve is already mocked in beforeEach
-      // PersonaResolver.resolve returns preferredName directly
-      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([
-        {
-          id: 'history-1',
-          role: MessageRole.Assistant,
-          content: 'Recent response',
-          createdAt: new Date('2025-01-01T00:00:00Z'),
-          personaId: 'persona-123',
-          personaName: 'Test Persona',
-          discordMessageId: ['reply-to-msg'],
-          channelId: 'test-channel',
-          guildId: 'test-guild',
-        },
-      ]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
         updatedContent: 'Voice message',
@@ -743,13 +586,6 @@ describe('MessageContextBuilder', () => {
     });
 
     it('should not include referencedMessages in context when empty', async () => {
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
-        userId: 'user-uuid-123',
-        defaultPersonaId: 'test-persona-id',
-      });
-      // PersonaResolver.resolve is already mocked in beforeEach
-      // PersonaResolver.resolve returns preferredName directly
-      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
         updatedContent: 'Hello',
@@ -815,7 +651,6 @@ describe('MessageContextBuilder', () => {
         contextEpoch,
         history: [],
       });
-      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
         updatedContent: 'Hello after clear',
@@ -866,7 +701,6 @@ describe('MessageContextBuilder', () => {
         contextEpoch,
         history: [],
       });
-      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
         updatedContent: 'Weigh in',
@@ -908,12 +742,6 @@ describe('MessageContextBuilder', () => {
       // No epoch set (default mock returns null)
       vi.mocked(mockPrisma.userPersonaHistoryConfig.findUnique).mockResolvedValue(null);
 
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
-        userId: 'user-uuid-123',
-        defaultPersonaId: 'test-persona-id',
-      });
-      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
-      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
         updatedContent: 'Hello',
@@ -949,28 +777,6 @@ describe('MessageContextBuilder', () => {
     });
 
     it('should fetch and merge extended context when enabled', async () => {
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
-        userId: 'user-uuid-123',
-        defaultPersonaId: 'test-persona-id',
-      });
-      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
-
-      // DB history (when extended context is enabled, getChannelHistory is used)
-      const dbHistory = [
-        {
-          id: 'db-msg-1',
-          role: MessageRole.User,
-          content: 'Previous from DB',
-          createdAt: new Date('2025-01-01T00:00:00Z'),
-          personaId: 'persona-123',
-          personaName: 'Test Persona',
-          discordMessageId: ['discord-1'],
-          channelId: 'test-channel',
-          guildId: 'test-guild',
-        },
-      ];
-      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue(dbHistory);
-
       // Extended context messages from Discord (no [Name]: prefix - uses personaName for XML)
       const extendedMessages = [
         {
@@ -989,9 +795,9 @@ describe('MessageContextBuilder', () => {
         filteredCount: 1,
       });
 
-      // Merged history (what mergeWithHistory returns)
-      const mergedHistory = [...extendedMessages, ...dbHistory];
-      mockMergeWithHistory.mockReturnValue(mergedHistory);
+      // Merged history (what mergeWithHistory returns) — base is empty since
+      // bot-client no longer reads DB history.
+      mockMergeWithHistory.mockReturnValue(extendedMessages);
 
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
@@ -1044,7 +850,6 @@ describe('MessageContextBuilder', () => {
       // Chat mode anchors on the user's NEW message and excludes it via
       // `before: message.id`. Weigh-in anchors on the latest EXISTING message,
       // which is part of the room and must be included → no `before` cursor.
-      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockFetchRecentMessages.mockResolvedValue({
         messages: [],
         fetchedCount: 0,
@@ -1084,7 +889,6 @@ describe('MessageContextBuilder', () => {
       // methods), mirroring the empty-channel synthetic. If buildContext ever
       // calls a method on the anchor, this fails here instead of crashing at
       // runtime for an empty-channel weigh-in.
-      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockFetchRecentMessages.mockResolvedValue({
         messages: [],
         fetchedCount: 0,
@@ -1140,12 +944,6 @@ describe('MessageContextBuilder', () => {
       // must still get the value from the first call. If a future refactor
       // re-derives per-call, this test fails — alerting that the cache
       // invariant has drifted.
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
-        userId: 'user-uuid-123',
-        defaultPersonaId: 'test-persona-id',
-      });
-      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
-      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockFetchRecentMessages.mockResolvedValue({
         messages: [],
         fetchedCount: 0,
@@ -1207,12 +1005,6 @@ describe('MessageContextBuilder', () => {
     });
 
     it('should not fetch extended context when botUserId is not provided', async () => {
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
-        userId: 'user-uuid-123',
-        defaultPersonaId: 'test-persona-id',
-      });
-      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
-      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
         updatedContent: 'Hello',
@@ -1242,14 +1034,7 @@ describe('MessageContextBuilder', () => {
       expect(mockFetchRecentMessages).not.toHaveBeenCalled();
     });
 
-    it('should collect image attachments when maxImages > 0', async () => {
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
-        userId: 'user-uuid-123',
-        defaultPersonaId: 'test-persona-id',
-      });
-      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
-      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
-
+    it('ships extended-context images RAW + uncapped via rawAssemblyInputs (worker applies maxImages)', async () => {
       // Extended context with image attachments
       const imageAttachments = [
         {
@@ -1329,14 +1114,7 @@ describe('MessageContextBuilder', () => {
       ]);
     });
 
-    it('should not collect images when maxImages is 0', async () => {
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
-        userId: 'user-uuid-123',
-        defaultPersonaId: 'test-persona-id',
-      });
-      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
-      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
-
+    it('does not ship the legacy capped extendedContextAttachments field', async () => {
       // Need messages so the extended context block executes
       const extendedMessages = [
         {
@@ -1397,9 +1175,9 @@ describe('MessageContextBuilder', () => {
     it('ships extended-context participants RAW (discord: keys) for the worker to re-resolve', async () => {
       // The participant-batch upsert + persona-id remap moved worker-side: the
       // bot ships the raw `discord:`-keyed snapshot and the worker re-runs the
-      // batch + re-keys participantGuildInfo (ContextStep overwrites the shipped
-      // one). bot-client neither provisions the participants nor remaps ids here.
-      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
+      // batch + re-keys participantGuildInfo from the raw snapshot; bot-client
+      // neither provisions the participants nor remaps ids here (and ships no
+      // resolved participantGuildInfo).
 
       // Extended context messages with discord:XXXX format personaIds
       const extendedMessages = [
@@ -1481,11 +1259,6 @@ describe('MessageContextBuilder', () => {
     });
 
     it('wires the our-webhook registry into the fetch via getOurPersonalityId', async () => {
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
-        userId: 'user-uuid-123',
-        defaultPersonaId: 'test-persona-id',
-      });
-      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockFetchRecentMessages.mockResolvedValue({
         messages: [],
         fetchedCount: 0,
