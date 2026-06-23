@@ -53,6 +53,10 @@ function applyAssembledContext(job: GenerationContext['job'], assembled: Assembl
   if (jobContext.rawAssemblyInputs?.rawActiveGuildMemberInfo !== undefined) {
     jobContext.activePersonaGuildInfo = assembled.activePersonaGuildInfo;
   }
+  // Unconditionally overwrites bot-client's raw message content (which may still
+  // carry unresolved user mentions) with the worker's re-derivation. The entire
+  // bot-client Prisma eviction rests on this running for every job — there is no
+  // legacy fallback, and skipping it would ship the unrewritten content.
   job.data.message = assembled.messageContent;
 }
 
@@ -111,8 +115,8 @@ export class ContextStep implements IPipelineStep {
       throw new Error('[ContextStep] ConfigStep must run before ContextStep');
     }
 
-    this.assertEnvelopeJob(jobContext);
-    const historyEntries = await this.sourceHistory(context);
+    const assembler = this.assertEnvelopeJob(jobContext);
+    const historyEntries = await this.sourceHistory(context, assembler);
 
     // Calculate oldest timestamp from conversation history AND referenced messages
     // (for LTM deduplication - prevents verbatim repetition when replying to AI messages)
@@ -224,8 +228,14 @@ export class ContextStep implements IPipelineStep {
    * rather than silently mis-assemble. `kind` is read with `?? 'legacy'`
    * because ValidationStep discards its parsed copy, so the schema default
    * never materializes on the raw job.data.
+   *
+   * Returns the (now narrowed, non-undefined) assembler so the caller threads it
+   * into {@link sourceHistory} explicitly — making the "assembler is wired" proof
+   * a value dependency rather than an implicit call-order coupling.
    */
-  private assertEnvelopeJob(jobContext: GenerationContext['job']['data']['context']): void {
+  private assertEnvelopeJob(
+    jobContext: GenerationContext['job']['data']['context']
+  ): ContextAssembler {
     if ((jobContext.kind ?? 'legacy') !== 'envelope') {
       throw new Error(
         "[ContextStep] every job must carry context.kind 'envelope'; legacy job " +
@@ -235,6 +245,7 @@ export class ContextStep implements IPipelineStep {
     if (this.contextAssembler === undefined) {
       throw new Error("[ContextStep] context.kind 'envelope' requires a wired ContextAssembler");
     }
+    return this.contextAssembler;
   }
 
   /**
@@ -242,14 +253,15 @@ export class ContextStep implements IPipelineStep {
    * `historyEntries` comes from `assembleCore` (createdAt normalized Date → ISO
    * for the string-typed consumers), and the assembled surfaces are applied
    * onto jobContext by {@link applyAssembledContext} so the downstream
-   * conversationContextBuilder reads them. The assembler is guaranteed wired by
-   * {@link assertEnvelopeJob}, run earlier in {@link process}.
+   * conversationContextBuilder reads them. The `assembler` is the non-undefined
+   * value returned by {@link assertEnvelopeJob}, threaded in by {@link process}.
    */
-  private async sourceHistory(context: GenerationContext): Promise<PromptHistorySource> {
+  private async sourceHistory(
+    context: GenerationContext,
+    assembler: ContextAssembler
+  ): Promise<PromptHistorySource> {
     const { job } = context;
     const jobContext = job.data.context;
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- assertEnvelopeJob (run in process() before this) throws when the assembler is unwired
-    const assembler = this.contextAssembler!;
 
     const assembled = await assembler.assembleCore(
       jobContext,
