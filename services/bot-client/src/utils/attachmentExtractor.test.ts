@@ -177,6 +177,36 @@ describe('extractAttachments', () => {
       expect(result![0].duration).toBeUndefined();
     });
 
+    it('should NOT mark a video as a voice message even when it carries a duration', () => {
+      // A video carries a duration but a video/* content-type, so isVoiceMessage must
+      // be false — duration alone is not a sufficient signal for a voice message.
+      const video = createMockAttachment('vid', {
+        contentType: 'video/mp4',
+        name: 'clip.mp4',
+        duration: 30,
+      });
+      const collection = createAttachmentCollection([video]);
+
+      const result = extractAttachments(collection);
+
+      expect(result![0].isVoiceMessage).toBe(false);
+    });
+
+    it('should fall back to duration when content-type is absent', () => {
+      // Discord omits content-type on some forwarded voice snapshots; the raw
+      // attachment is passed to isVoiceAttachment so the duration fallback still fires.
+      const voiceNoType = createMockAttachment('vmsg', {
+        contentType: null,
+        name: 'voice-message.ogg',
+        duration: 4.2,
+      });
+      const collection = createAttachmentCollection([voiceNoType]);
+
+      const result = extractAttachments(collection);
+
+      expect(result![0].isVoiceMessage).toBe(true);
+    });
+
     it('should set duration to undefined when null', () => {
       const attachment = createMockAttachment('123', { duration: null });
       const collection = createAttachmentCollection([attachment]);
