@@ -32,7 +32,7 @@ The "Slim common-types" epic spawned **three** follow-up clusters across its pha
 - _Envelope / reference-shape contracts:_
   - [ ] Partial-map fragility in `writeReferenceImageDescriptions`
   - [ ] `buildDedupedReferenceStub` over-limit content contract
-  - [ ] Promote extended-context voice transcripts to the worker (flat-list pattern)
+  - [x] ~~Promote extended-context voice transcripts to the worker (flat-list pattern)~~ ✅ #1314 (DB-first / STT-fallback re-derive — bot-client ships `rawExtendedContextVoiceMessages` refs only for aged-out (empty-transcript) voice; worker re-resolves via `getMessageByDiscordId` → `transcribeAudio` fallback, cap 10 newest-tail. Design corrected from council STT-only after confirming the transcript already lives in `conversation_history`)
   - [x] ~~Conditional-spread `sttDivergence` out of shadow logs~~ — **OBSOLETE** (beta.135 deleted the shadow machinery; `sttDivergence`/`shadowAssembly` no longer exist)
 - _Invariants / observability / latency:_
   - [x] ~~Document the worker-overwrite invariant at `ContextStep.ts:56`~~ ✅ #1310 (4-line WHY comment on the unconditional `job.data.message` overwrite)
