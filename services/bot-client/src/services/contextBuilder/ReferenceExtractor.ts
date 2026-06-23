@@ -9,7 +9,6 @@ import type { Message } from 'discord.js';
 import {
   createLogger,
   MessageRole,
-  CONTENT_TYPES,
   INTERVALS,
   type ReferencedMessage,
   type ConversationMessage,
@@ -17,6 +16,7 @@ import {
   type RawMentionedRole,
 } from '@tzurot/common-types';
 import { MessageReferenceExtractor } from '../../handlers/MessageReferenceExtractor.js';
+import { isVoiceAttachment } from '../../utils/voiceAttachment.js';
 import type { MentionResolver } from '../MentionResolver.js';
 
 const logger = createLogger('MessageContextBuilder');
@@ -121,11 +121,7 @@ function logVoiceReplyDiagnostics(
   content: string,
   history: ConversationMessage[]
 ): void {
-  const hasVoiceAttachment = message.attachments.some(
-    a =>
-      (a.contentType?.startsWith(CONTENT_TYPES.AUDIO_PREFIX) ?? false) ||
-      (a.duration !== null && a.duration !== undefined)
-  );
+  const hasVoiceAttachment = message.attachments.some(isVoiceAttachment);
   if (!hasVoiceAttachment) {
     return;
   }

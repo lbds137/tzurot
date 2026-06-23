@@ -28,6 +28,7 @@ import {
 import { type AttachmentMetadata } from '@tzurot/common-types';
 import { extractAttachments } from './attachmentExtractor.js';
 import { extractEmbedImages } from './embedImageExtractor.js';
+import { isVoiceAttachment } from './voiceAttachment.js';
 
 /**
  * Content extracted from a forwarded message or its snapshots
@@ -295,9 +296,13 @@ export function hasForwardedContent(message: Message): boolean {
 /**
  * Check if a forwarded message contains voice message attachments.
  *
- * Voice messages in forwarded content are detected by:
- * - contentType starting with 'audio/'
- * - duration property being present
+ * Reads the precomputed `AttachmentMetadata.isVoiceMessage` flag rather than
+ * re-running {@link isVoiceAttachment} here: `extractAllForwardedContent` →
+ * `extractAttachments` already evaluated the predicate against the RAW attachment
+ * (before normalizing a null content-type to `application/octet-stream`), so the
+ * flag preserves the duration fallback for content-type-absent voice snapshots.
+ * Calling `isVoiceAttachment` on the already-normalized metadata here would lose
+ * that fallback and disagree with the flag on the very same object.
  *
  * @param message - Discord message (should be a forwarded message)
  * @returns true if the forwarded message contains voice attachments
@@ -308,13 +313,7 @@ export function hasForwardedVoiceAttachment(message: Message): boolean {
   }
 
   const { attachments } = extractAllForwardedContent(message);
-
-  // Require audio contentType AND duration to avoid false positives from video attachments.
-  // Don't rely on isVoiceMessage alone — extractAttachments sets it based on duration !== null,
-  // which is also true for video attachments.
-  return attachments.some(
-    a => a.contentType?.startsWith('audio/') === true && a.duration !== undefined
-  );
+  return attachments.some(a => a.isVoiceMessage === true);
 }
 
 /**
@@ -322,12 +321,7 @@ export function hasForwardedVoiceAttachment(message: Message): boolean {
  * or within forwarded message snapshots.
  */
 export function hasVoiceAttachments(message: Message): boolean {
-  // Discord voice messages have both audio contentType AND a duration.
-  // Checking duration alone would false-positive on video attachments (MP4, GIF).
-  // Discord.js Attachment.duration is `number | null` → check !== null.
-  const hasDirectVoice = message.attachments.some(
-    a => (a.contentType?.startsWith('audio/') ?? false) && a.duration !== null
-  );
+  const hasDirectVoice = message.attachments.some(isVoiceAttachment);
   return hasDirectVoice || hasForwardedVoiceAttachment(message);
 }
 

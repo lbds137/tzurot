@@ -55,7 +55,7 @@ describe('VoiceTranscriptionService', () => {
   });
 
   describe('hasVoiceAttachment', () => {
-    it('detects a voice message (audio content-type AND duration)', () => {
+    it('detects a voice message (audio content-type + duration)', () => {
       const message = createMockMessage({
         attachments: [
           {
@@ -84,9 +84,8 @@ describe('VoiceTranscriptionService', () => {
     });
 
     it('does NOT transcribe a video attachment despite its duration (the MP4 false-positive)', () => {
-      // Regression: a directly-uploaded MP4 (video/mp4 + duration) was treated as
-      // a voice message because the gate used `audio/* OR duration`; the bot then
-      // replied "Sorry, I couldn't transcribe that voice message." on videos.
+      // A video carries a duration but a video/* content-type, so it must not be
+      // treated as a voice message — the gate requires audio content-type AND duration.
       const message = createMockMessage({
         attachments: [
           {
@@ -139,7 +138,7 @@ describe('VoiceTranscriptionService', () => {
       expect(service.hasVoiceAttachment(message)).toBe(true);
     });
 
-    it('should detect voice attachment in snapshot by duration', () => {
+    it('does NOT treat a forwarded duration-only (non-audio) snapshot attachment as voice', () => {
       const message = createMockMessage({
         attachments: [],
         messageSnapshots: [
@@ -157,7 +156,28 @@ describe('VoiceTranscriptionService', () => {
         ],
       });
 
-      expect(service.hasVoiceAttachment(message)).toBe(true);
+      expect(service.hasVoiceAttachment(message)).toBe(false);
+    });
+
+    it('does NOT treat a forwarded video snapshot attachment as voice (MP4 false-positive)', () => {
+      const message = createMockMessage({
+        attachments: [],
+        messageSnapshots: [
+          {
+            attachments: [
+              {
+                url: 'https://cdn.discord.com/video/forwarded.mp4',
+                contentType: 'video/mp4',
+                name: 'clip.mp4',
+                size: 500000,
+                duration: 30.0,
+              },
+            ],
+          },
+        ],
+      });
+
+      expect(service.hasVoiceAttachment(message)).toBe(false);
     });
 
     it('should return false when forwarded snapshot has no audio', () => {

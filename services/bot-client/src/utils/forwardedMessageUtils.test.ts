@@ -33,7 +33,7 @@ function createMockMessage(options: {
     content?: string;
     attachments?: Array<{
       url: string;
-      contentType?: string;
+      contentType?: string | null;
       name?: string;
       size?: number;
       duration?: number;
@@ -79,7 +79,10 @@ function createMockMessage(options: {
         snap.attachments.forEach((att, attIndex) => {
           snapAttachments.set(`snap-att-${attIndex}`, {
             url: att.url,
-            contentType: att.contentType ?? 'application/octet-stream',
+            // Preserve an explicit null (Discord omits content-type on some
+            // forwarded snapshots) so the real extractAttachments normalization is
+            // exercised; default only when the key is absent.
+            contentType: 'contentType' in att ? att.contentType : 'application/octet-stream',
             name: att.name ?? `snap-file-${attIndex}`,
             size: att.size ?? 1000,
             duration: att.duration ?? null,
@@ -500,6 +503,29 @@ describe('forwardedMessageUtils', () => {
       });
 
       expect(hasForwardedVoiceAttachment(message)).toBe(false);
+    });
+
+    it('should detect a forwarded voice snapshot when Discord omits the content-type', () => {
+      // Reads the precomputed isVoiceMessage flag (set on the RAW attachment before
+      // extractAttachments normalizes null → octet-stream), so the duration fallback
+      // still applies. Calling isVoiceAttachment on the normalized metadata would
+      // miss this case.
+      const message = createMockMessage({
+        referenceType: MessageReferenceType.Forward,
+        snapshots: [
+          {
+            attachments: [
+              {
+                url: 'https://cdn.discord.com/voice/forwarded.ogg',
+                contentType: null,
+                duration: 6.5,
+              },
+            ],
+          },
+        ],
+      });
+
+      expect(hasForwardedVoiceAttachment(message)).toBe(true);
     });
 
     it('should return false when forwarded message has no voice attachments', () => {

@@ -7,6 +7,7 @@
 
 import { Collection, Snowflake, Attachment } from 'discord.js';
 import { type AttachmentMetadata, CONTENT_TYPES } from '@tzurot/common-types';
+import { isVoiceAttachment } from './voiceAttachment.js';
 
 /**
  * Extract attachment metadata from a Discord message's attachments collection
@@ -29,8 +30,11 @@ export function extractAttachments(
     contentType: attachment.contentType ?? CONTENT_TYPES.BINARY,
     name: attachment.name,
     size: attachment.size,
-    // Discord.js v14 voice message metadata
-    isVoiceMessage: attachment.duration !== null,
+    // Discord.js v14 voice message metadata. Pass the RAW attachment (its
+    // contentType is still `string | null` here) so a genuine voice message with
+    // an omitted content-type hits isVoiceAttachment's duration fallback, while a
+    // video (which carries a duration but a `video/*` content-type) is rejected.
+    isVoiceMessage: isVoiceAttachment(attachment),
     duration: attachment.duration ?? undefined,
     waveform: attachment.waveform ?? undefined,
   }));

@@ -19,6 +19,7 @@ import {
 } from '@tzurot/common-types';
 import { voiceTranscriptCache } from '../redis.js';
 import { hasForwardedSnapshots, getSnapshots } from '../utils/forwardedMessageUtils.js';
+import { isVoiceAttachment } from '../utils/voiceAttachment.js';
 import { sendTypingIndicator } from '../utils/typingErrorClassifier.js';
 import { classifyBotAudio } from '../utils/botAudioClassifier.js';
 
@@ -118,9 +119,7 @@ function extractAudioFromSnapshot(snapshot: {
   }
 
   return Array.from(snapshot.attachments.values())
-    .filter(
-      a => (a.contentType?.startsWith(CONTENT_TYPES.AUDIO_PREFIX) ?? false) || a.duration !== null
-    )
+    .filter(isVoiceAttachment)
     .map(attachment => ({
       url: attachment.url,
       originalUrl: attachment.url,
@@ -132,7 +131,10 @@ function extractAudioFromSnapshot(snapshot: {
           : CONTENT_TYPES.BINARY,
       name: attachment.name,
       size: attachment.size,
-      isVoiceMessage: attachment.duration !== null,
+      // Always true here (these attachments already passed the isVoiceAttachment
+      // filter above) — routed through the shared predicate so no duration-only
+      // copy of the heuristic survives to drift.
+      isVoiceMessage: isVoiceAttachment(attachment),
       duration: attachment.duration ?? undefined,
       waveform: attachment.waveform ?? undefined,
     }));
@@ -155,9 +157,7 @@ function snapshotHasAudio(snapshot: {
     return false;
   }
 
-  return Array.from(snapshot.attachments.values()).some(
-    a => (a.contentType?.startsWith(CONTENT_TYPES.AUDIO_PREFIX) ?? false) || a.duration !== null
-  );
+  return Array.from(snapshot.attachments.values()).some(isVoiceAttachment);
 }
 
 /**
@@ -199,14 +199,8 @@ export class VoiceTranscriptionService {
    * Uses centralized utilities from forwardedMessageUtils.ts for consistent forwarded message handling.
    */
   hasVoiceAttachment(message: Message): boolean {
-    // Check direct attachments. A Discord voice message has an audio content-type
-    // AND a duration — require BOTH (matching hasVoiceAttachments /
-    // hasForwardedVoiceAttachment in forwardedMessageUtils). The previous `||`
-    // false-positived on video attachments (MP4, GIF), which also carry a
-    // `duration`, so the bot tried to transcribe videos and apologized.
-    const hasDirectAudio = message.attachments.some(
-      a => (a.contentType?.startsWith(CONTENT_TYPES.AUDIO_PREFIX) ?? false) && a.duration !== null
-    );
+    // Direct attachments (forwarded snapshots handled below).
+    const hasDirectAudio = message.attachments.some(isVoiceAttachment);
 
     if (hasDirectAudio) {
       return true;
