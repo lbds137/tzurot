@@ -81,7 +81,7 @@ describe('enrichRawReferences', () => {
     expect(result[0].content).toBe('[image/png: board.png]');
   });
 
-  it('strips the bot’s own TTS audio marker when stubbing a duplicate voice reply-target', async () => {
+  it('emits a marker-only stub for the bot’s own deduped voice reply-target', async () => {
     const result = await enrichRawReferences({
       rawReferences: [
         rawRef({
@@ -97,9 +97,11 @@ describe('enrichRawReferences', () => {
       nowMs: NOW,
     });
     expect(result[0].isDeduplicated).toBe(true);
-    // The bot's own audio is delivery of its own text, not an attachment the model
-    // should reason about — only the text survives, no [audio/ogg: …] marker.
-    expect(result[0].content).toBe('You are allowed to be furious about this');
+    // A bot-authored reply-target is the model's own prior line; a snippet of it is a
+    // "continue this fragment" trigger, and the full message is in <chat_log>. So the
+    // bot's deduped stub is marker-only — no audio marker AND no text preview. (The
+    // audio-strip still applies to non-deduped bot quotes, which keep their text.)
+    expect(result[0].content).toBe('');
   });
 
   it('stubs a recent webhook reference via the time fallback', async () => {

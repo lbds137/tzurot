@@ -60,7 +60,17 @@ describe('HardcodedConstraints', () => {
       expect(OUTPUT_CONSTRAINTS).toContain('<from_id>');
       expect(OUTPUT_CONSTRAINTS).toContain('<user>');
       expect(OUTPUT_CONSTRAINTS).toContain('<message>');
+      // <quote> and <contextual_references> are prompt-structure tags the model
+      // must never reproduce in its output — same class as <from_id>/<user>/<message>.
+      expect(OUTPUT_CONSTRAINTS).toContain('<quote>');
+      expect(OUTPUT_CONSTRAINTS).toContain('<contextual_references>');
       expect(OUTPUT_CONSTRAINTS).toContain('assembly artifacts');
+    });
+
+    it('should anchor the model to the user’s current message, not continuing its own prior text', () => {
+      // Defuses the self-reply / chat-log-ends-with-bot continuation trigger.
+      expect(OUTPUT_CONSTRAINTS).toContain("Respond to the user's current message");
+      expect(OUTPUT_CONSTRAINTS).toContain('never as an unfinished turn to continue or extend');
     });
 
     it('should prohibit parroting', () => {

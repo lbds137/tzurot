@@ -36,7 +36,8 @@ You are a helpful assistant. Always be kind and helpful.
 <output_constraints>
 <constraint>Output the raw response text only; do not include name labels, timestamps, or speaker prefixes.</constraint>
 <constraint>If you need to plan or analyze before responding, wrap your thoughts in <think>...</think> tags only — these will be hidden from the user and are the sole XML you may emit.</constraint>
-<constraint>Never emit input-format scaffolding in your output: tags like <from_id>, <user>, or <message> are assembly artifacts from the conversation context and must never appear in your response.</constraint>
+<constraint>Never emit input-format scaffolding in your output: tags like <from_id>, <user>, <message>, <quote>, or <contextual_references> are assembly artifacts from the conversation context and must never appear in your response.</constraint>
+<constraint>Respond to the user's current message. The conversation history and quoted references may include your own earlier messages — treat those as context, never as an unfinished turn to continue or extend.</constraint>
 <constraint>Never repeat or parrot back what was just said. Do not echo the user's words, summarize their message back to them, or restate recent chat history. Advance the conversation with original thoughts and reactions.</constraint>
 </output_constraints>"
 `;
@@ -95,7 +96,8 @@ You are a helpful assistant. Always be kind and helpful.
 <output_constraints>
 <constraint>Output the raw response text only; do not include name labels, timestamps, or speaker prefixes.</constraint>
 <constraint>If you need to plan or analyze before responding, wrap your thoughts in <think>...</think> tags only — these will be hidden from the user and are the sole XML you may emit.</constraint>
-<constraint>Never emit input-format scaffolding in your output: tags like <from_id>, <user>, or <message> are assembly artifacts from the conversation context and must never appear in your response.</constraint>
+<constraint>Never emit input-format scaffolding in your output: tags like <from_id>, <user>, <message>, <quote>, or <contextual_references> are assembly artifacts from the conversation context and must never appear in your response.</constraint>
+<constraint>Respond to the user's current message. The conversation history and quoted references may include your own earlier messages — treat those as context, never as an unfinished turn to continue or extend.</constraint>
 <constraint>Never repeat or parrot back what was just said. Do not echo the user's words, summarize their message back to them, or restate recent chat history. Advance the conversation with original thoughts and reactions.</constraint>
 </output_constraints>"
 `;
@@ -173,7 +175,8 @@ You are a helpful assistant. Always be kind and helpful.
 <output_constraints>
 <constraint>Output the raw response text only; do not include name labels, timestamps, or speaker prefixes.</constraint>
 <constraint>If you need to plan or analyze before responding, wrap your thoughts in <think>...</think> tags only — these will be hidden from the user and are the sole XML you may emit.</constraint>
-<constraint>Never emit input-format scaffolding in your output: tags like <from_id>, <user>, or <message> are assembly artifacts from the conversation context and must never appear in your response.</constraint>
+<constraint>Never emit input-format scaffolding in your output: tags like <from_id>, <user>, <message>, <quote>, or <contextual_references> are assembly artifacts from the conversation context and must never appear in your response.</constraint>
+<constraint>Respond to the user's current message. The conversation history and quoted references may include your own earlier messages — treat those as context, never as an unfinished turn to continue or extend.</constraint>
 <constraint>Never repeat or parrot back what was just said. Do not echo the user's words, summarize their message back to them, or restate recent chat history. Advance the conversation with original thoughts and reactions.</constraint>
 </output_constraints>"
 `;
@@ -220,7 +223,8 @@ You are a helpful assistant. Always be kind and helpful.
 <output_constraints>
 <constraint>Output the raw response text only; do not include name labels, timestamps, or speaker prefixes.</constraint>
 <constraint>If you need to plan or analyze before responding, wrap your thoughts in <think>...</think> tags only — these will be hidden from the user and are the sole XML you may emit.</constraint>
-<constraint>Never emit input-format scaffolding in your output: tags like <from_id>, <user>, or <message> are assembly artifacts from the conversation context and must never appear in your response.</constraint>
+<constraint>Never emit input-format scaffolding in your output: tags like <from_id>, <user>, <message>, <quote>, or <contextual_references> are assembly artifacts from the conversation context and must never appear in your response.</constraint>
+<constraint>Respond to the user's current message. The conversation history and quoted references may include your own earlier messages — treat those as context, never as an unfinished turn to continue or extend.</constraint>
 <constraint>Never repeat or parrot back what was just said. Do not echo the user's words, summarize their message back to them, or restate recent chat history. Advance the conversation with original thoughts and reactions.</constraint>
 </output_constraints>"
 `;

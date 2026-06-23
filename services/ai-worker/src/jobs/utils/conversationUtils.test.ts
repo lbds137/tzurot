@@ -868,7 +868,7 @@ describe('Conversation Utilities', () => {
 
       // Deduped refs are now preserved as lightweight stubs (not dropped)
       expect(result).toContain('<quoted_messages>');
-      expect(result).toContain('[Reply target — full message is in conversation above]');
+      expect(result).toContain('[Referenced message — full text in <chat_log>]');
       expect(result).toContain('from="Bob"');
       expect(result).toContain('from="Alice"');
       expect(result).toContain('Replying to your earlier message');
