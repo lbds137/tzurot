@@ -192,8 +192,8 @@ export class MessageContextBuilder {
       }
     );
 
-    // Snapshot must happen HERE — resolveExtendedContextPersonaIds below
-    // mutates fetchResult.messages in place. See captureRawExtendedContext.
+    // Capture the raw envelope snapshot of the fetched messages for the worker
+    // (which re-derives persona ids, guild info, and image attachments from it).
     const rawSnapshot = captureRawExtendedContext(fetchResult);
 
     // Extended-context users/reactors are NOT provisioned or persona-resolved
