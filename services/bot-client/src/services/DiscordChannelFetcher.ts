@@ -22,6 +22,7 @@ import {
 } from '@tzurot/common-types';
 import { buildMessageContent, hasMessageContent } from '../utils/MessageContentBuilder.js';
 import { isUserContentMessage } from '../utils/messageTypeUtils.js';
+import { collectExtendedContextAttachments } from './channelFetcher/extendedContextAttachmentCollector.js';
 import { resolveHistoryLinks } from '../utils/HistoryLinkResolver.js';
 import { extractPersonalityName, stripBotSuffix } from '../utils/webhookNaming.js';
 
@@ -138,6 +139,8 @@ export class DiscordChannelFetcher {
         rawMessages: discordMessages, // For opportunistic sync
         imageAttachments:
           processResult.imageAttachments.length > 0 ? processResult.imageAttachments : undefined,
+        voiceAttachments:
+          processResult.voiceAttachments.length > 0 ? processResult.voiceAttachments : undefined,
         participantGuildInfo: participantCount > 0 ? processResult.participantGuildInfo : undefined,
         extendedContextUsers: userCount > 0 ? processResult.extendedContextUsers : undefined,
         reactorUsers: reactorCount > 0 ? processResult.reactorUsers : undefined,
@@ -171,12 +174,14 @@ export class DiscordChannelFetcher {
   ): Promise<{
     messages: ConversationMessage[];
     imageAttachments: AttachmentMetadata[];
+    voiceAttachments: AttachmentMetadata[];
     participantGuildInfo: Record<string, ParticipantGuildInfo>;
     extendedContextUsers: ExtendedContextUser[];
     reactorUsers: ExtendedContextUser[];
   }> {
     const result: ConversationMessage[] = [];
     const collectedImageAttachments: AttachmentMetadata[] = [];
+    const collectedVoiceAttachments: AttachmentMetadata[] = [];
     const participantGuildInfo: Record<string, ParticipantGuildInfo> = {};
     const uniqueUsers = new Map<string, ExtendedContextUser>();
     const messageIdToIndex = new Map<string, number>();
@@ -263,13 +268,12 @@ export class DiscordChannelFetcher {
         messageIdToIndex.set(msg.id, result.length);
         result.push(conversionResult.message);
 
-        // Collect image attachments
-        if (conversionResult.attachments.length > 0) {
-          const images = conversionResult.attachments
-            .filter(a => a.contentType?.startsWith('image/') && a.isVoiceMessage !== true)
-            .map(img => ({ ...img, sourceDiscordMessageId: msg.id }));
-          collectedImageAttachments.push(...images);
-        }
+        collectExtendedContextAttachments(
+          conversionResult,
+          msg.id,
+          collectedImageAttachments,
+          collectedVoiceAttachments
+        );
 
         // Collect guild info + unique user info for participant/persona
         // resolution — but ONLY for messages authored by a real (non-bot) user.
@@ -320,6 +324,7 @@ export class DiscordChannelFetcher {
     return {
       messages: result.reverse(),
       imageAttachments: collectedImageAttachments,
+      voiceAttachments: collectedVoiceAttachments,
       participantGuildInfo: limitedParticipantGuildInfo,
       extendedContextUsers,
       reactorUsers,

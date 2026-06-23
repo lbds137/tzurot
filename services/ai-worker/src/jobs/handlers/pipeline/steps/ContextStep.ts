@@ -5,7 +5,12 @@
  * and oldest timestamp calculation for LTM deduplication.
  */
 
-import { createLogger, type MessageRole } from '@tzurot/common-types';
+import {
+  createLogger,
+  type MessageRole,
+  type AttachmentMetadata,
+  type SttDispatch,
+} from '@tzurot/common-types';
 import {
   extractParticipants,
   convertConversationHistory,
@@ -14,9 +19,34 @@ import type {
   AssembledCore,
   ContextAssembler,
 } from '../../../../services/context/ContextAssembler.js';
+import { transcribeAudio } from '../../../../services/multimodal/AudioProcessor.js';
 import type { IPipelineStep, GenerationContext, Participant, PreparedContext } from '../types.js';
 
 const logger = createLogger('ContextStep');
+
+/**
+ * STT fallback for an extended-context voice transcript the assembler's DB-first
+ * lookup misses (never-persisted ambient voice). `transcribeAudio` is itself
+ * Redis-cache-first, so a still-cached transcript costs no STT call. Failures
+ * (expired Discord CDN url, no provider) degrade to null — the message simply
+ * keeps no transcript, same as before this feature. Defaults to the self-hosted
+ * voice-engine dispatch when no BYOK STT was resolved (mirrors AttachmentProcessor).
+ */
+export async function reTranscribeExtendedContextVoice(
+  attachment: AttachmentMetadata,
+  sttDispatch: SttDispatch | undefined
+): Promise<string | null> {
+  try {
+    const result = await transcribeAudio(attachment, sttDispatch ?? { provider: 'voice-engine' });
+    return result.text.length > 0 ? result.text : null;
+  } catch (err) {
+    logger.warn(
+      { err, originalUrl: attachment.originalUrl ?? attachment.url },
+      'Extended-context voice re-transcription failed; keeping the message transcript-less'
+    );
+    return null;
+  }
+}
 
 /**
  * Apply the assembler's output onto the worker's local job.data in place. This
@@ -263,11 +293,16 @@ export class ContextStep implements IPipelineStep {
     const { job } = context;
     const jobContext = job.data.context;
 
+    const sttDispatch = context.auth?.sttDispatch;
     const assembled = await assembler.assembleCore(
       jobContext,
       job.data.personality,
       context.configOverrides,
-      { referenceDedupNowMs: job.timestamp }
+      {
+        referenceDedupNowMs: job.timestamp,
+        reTranscribeVoiceViaStt: attachment =>
+          reTranscribeExtendedContextVoice(attachment, sttDispatch),
+      }
     );
     applyAssembledContext(job, assembled);
 

@@ -23,6 +23,7 @@ import {
   mergeWithHistory,
   resolveExtendedContextPersonaIds,
   MESSAGE_LIMITS,
+  type AttachmentMetadata,
   type ConversationMessage,
   type CrossChannelHistoryGroupEntry,
   type GuildMemberInfo,
@@ -102,7 +103,26 @@ export interface AssembleCoreOptions {
    * timestamp. Undefined disables the time fallback (exact-id dedup only).
    */
   referenceDedupNowMs?: number;
+  /**
+   * STT fallback for extended-context voice transcripts the DB-first lookup
+   * misses (never-persisted ambient voice). Returns the transcript text, or
+   * null on failure (expired CDN url, no usable provider). Built by ContextStep
+   * with the resolved `sttDispatch`; passing it as a callback keeps the
+   * assembler decoupled from the audio/STT machinery (mirrors how the reference
+   * retriever is a callback). Absent ⇒ DB-only re-resolution.
+   */
+  reTranscribeVoiceViaStt?: (attachment: AttachmentMetadata) => Promise<string | null>;
 }
+
+/**
+ * Upper bound on extended-context voice transcripts re-resolved per turn. The
+ * DB-first tier makes most resolutions cheap lookups, but this caps the
+ * worst-case fan-out (incl. the STT fallback) so it can't dominate assembly
+ * latency on a channel with many aged-out voice messages. 10 is ~2× headroom
+ * over the typical extended-context voice count (a handful per window); raise it
+ * only if real rooms routinely exceed that and lose tail transcripts.
+ */
+const EXTENDED_CONTEXT_VOICE_REDERIVE_CAP = 10;
 
 export interface ContextAssemblerDeps {
   dataSource: ContextDataSource;
@@ -232,6 +252,17 @@ export class ContextAssembler {
         channelId,
         guildId: jobContext.serverId ?? null,
       }
+    );
+
+    // Step 4.5: re-resolve transcripts for extended-context voice messages the
+    // bot couldn't transcribe at fetch time (aged out of its Redis cache). The
+    // transcript text the bot already produced lives in the DB for persisted
+    // voice; STT only re-runs for never-persisted ambient voice. Mutates the
+    // matching history messages in place before reference enrichment reads them.
+    await this.injectExtendedContextVoiceTranscripts(
+      history,
+      raw.rawExtendedContextVoiceMessages,
+      options
     );
 
     // Step 5: re-derive reference enrichment from the raw snapshots —
@@ -502,5 +533,82 @@ export class ContextAssembler {
     }
 
     return { history: mergeWithHistory(messages, dbHistory), participantGuildInfo };
+  }
+
+  /**
+   * Re-resolve transcripts for extended-context voice messages the bot shipped
+   * unresolved (`rawExtendedContextVoiceMessages` — cache miss at fetch time),
+   * and inject them onto the matching history messages in place. Bounded +
+   * parallelized; skips any message that already carries a transcript (a cache
+   * HIT shipped its text on the message itself).
+   */
+  private async injectExtendedContextVoiceTranscripts(
+    history: ConversationMessage[],
+    voiceRefs: AttachmentMetadata[] | undefined,
+    options: AssembleCoreOptions | undefined
+  ): Promise<void> {
+    if (voiceRefs === undefined || voiceRefs.length === 0) {
+      return;
+    }
+    // The refs arrive in collector order — OLDEST-first (bot-client reverses only
+    // the `messages` array before shipping, not the attachment lists). Take the
+    // newest TAIL so the cap, when it bites, keeps the most-recent unresolved voice
+    // — the right priority for room awareness. (slice(-n) returns the whole array
+    // when there are fewer than n, so no length guard is needed.)
+    if (voiceRefs.length > EXTENDED_CONTEXT_VOICE_REDERIVE_CAP) {
+      // Operational signal: a high-activity voice channel silently loses the
+      // oldest transcripts under the cap; log so it's traceable.
+      logger.info(
+        { total: voiceRefs.length, cap: EXTENDED_CONTEXT_VOICE_REDERIVE_CAP },
+        'Extended-context voice cap reached; oldest unresolved transcripts dropped'
+      );
+    }
+    const capped = voiceRefs.slice(-EXTENDED_CONTEXT_VOICE_REDERIVE_CAP);
+    await Promise.all(
+      capped.map(async ref => {
+        const sourceId = ref.sourceDiscordMessageId;
+        if (sourceId === undefined || sourceId.length === 0) {
+          return;
+        }
+        const target = history.find(m => (m.discordMessageId ?? []).includes(sourceId));
+        // Only re-resolve when the message lacks a transcript — a cache HIT
+        // shipped its transcript on the message metadata already. The pre-await
+        // guard is race-safe because Discord allows one audio attachment per voice
+        // message, so the collector ships at most one ref per sourceDiscordMessageId
+        // — no two concurrent tasks target the same message.
+        if (target === undefined || (target.messageMetadata?.voiceTranscripts?.length ?? 0) > 0) {
+          return;
+        }
+        // resolveVoiceTranscript never returns an empty string (both tiers guard
+        // length), so a non-null result is always a usable transcript.
+        const transcript = await this.resolveVoiceTranscript(sourceId, ref, options);
+        if (transcript !== null) {
+          target.messageMetadata = { ...target.messageMetadata, voiceTranscripts: [transcript] };
+        }
+      })
+    );
+  }
+
+  /**
+   * DB-first, STT-fallback transcript resolution for one extended-context voice
+   * message. The persisted row's content IS the transcript (identical to the
+   * reference retriever) — cheap and always preferred; STT only re-runs for
+   * never-persisted ambient voice the bot transcribed for display but never
+   * stored. Returns null when neither yields text (graceful: no transcript).
+   */
+  private async resolveVoiceTranscript(
+    discordMessageId: string,
+    attachment: AttachmentMetadata,
+    options: AssembleCoreOptions | undefined
+  ): Promise<string | null> {
+    // Same DB tier as the reference retriever (the `retrieveTranscript` closure in
+    // enrichReferences): both do getMessageByDiscordId → row.content. Kept as
+    // separate sites because that closure binds its own dedup window; if the DB
+    // access pattern changes, update both.
+    const row = await this.deps.dataSource.getMessageByDiscordId(discordMessageId);
+    if (row?.content !== undefined && row.content.length > 0) {
+      return row.content;
+    }
+    return (await options?.reTranscribeVoiceViaStt?.(attachment)) ?? null;
   }
 }
