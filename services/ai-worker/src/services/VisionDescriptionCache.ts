@@ -20,10 +20,10 @@
  * See git history / release notes for the original vision negative-cache incident.
  */
 
-import { createHash } from 'node:crypto';
 import type { Redis } from 'ioredis';
 import {
   createLogger,
+  deriveAttachmentCacheKey,
   REDIS_KEY_PREFIXES,
   INTERVALS,
   TEXT_LIMITS,
@@ -182,35 +182,24 @@ export class VisionDescriptionCache {
   }
 
   /**
-   * Generate cache key from attachment ID (preferred) or URL (fallback).
-   *
-   * Priority:
-   * 1. If attachmentId is provided, use it directly (stable Discord snowflake)
-   * 2. Otherwise, hash the URL with query params stripped (for URL stability)
+   * Generate cache key from attachment ID (preferred) or query-stripped URL
+   * hash (fallback). Delegates to the shared `deriveAttachmentCacheKey` so the
+   * voice + vision caches share one normalization strategy.
    */
   private getCacheKey(options: VisionCacheKeyOptions): string {
-    if (options.attachmentId !== undefined && options.attachmentId !== '') {
-      return `${REDIS_KEY_PREFIXES.VISION_DESCRIPTION}id:${options.attachmentId}`;
-    }
-
-    // Fallback: Strip query params and hash the base URL
-    // Discord CDN URLs like: https://cdn.discordapp.com/attachments/123/456/image.png?ex=...&is=...&hm=...
-    // Becomes: https://cdn.discordapp.com/attachments/123/456/image.png
-    const baseUrl = options.url.split('?')[0];
-    const urlHash = createHash('sha256').update(baseUrl).digest('hex');
-    return `${REDIS_KEY_PREFIXES.VISION_DESCRIPTION}url:${urlHash}`;
+    return deriveAttachmentCacheKey(REDIS_KEY_PREFIXES.VISION_DESCRIPTION, {
+      id: options.attachmentId,
+      url: options.url,
+    });
   }
 
   /**
    * Generate failure cache key (separate namespace from success cache).
    */
   private getFailureKey(options: VisionCacheKeyOptions): string {
-    if (options.attachmentId !== undefined && options.attachmentId !== '') {
-      return `${REDIS_KEY_PREFIXES.VISION_FAILURE}id:${options.attachmentId}`;
-    }
-
-    const baseUrl = options.url.split('?')[0];
-    const urlHash = createHash('sha256').update(baseUrl).digest('hex');
-    return `${REDIS_KEY_PREFIXES.VISION_FAILURE}url:${urlHash}`;
+    return deriveAttachmentCacheKey(REDIS_KEY_PREFIXES.VISION_FAILURE, {
+      id: options.attachmentId,
+      url: options.url,
+    });
   }
 }

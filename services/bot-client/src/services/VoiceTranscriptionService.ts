@@ -308,8 +308,10 @@ export class VoiceTranscriptionService {
         'Transcription complete'
       );
 
-      // Cache BEFORE Discord replies (5-min TTL via voiceTranscriptCache default).
-      // Key by `originalUrl` — same field ai-worker reads in `lookupCachedTranscript`. Explicit field reference survives future refactors that might diverge `url` from `originalUrl`.
+      // Cache BEFORE Discord replies (default TTL via voiceTranscriptCache).
+      // Pass `originalUrl` — same field ai-worker reads in `lookupCachedTranscript`;
+      // the cache strips the volatile CDN signature query so store and lookup
+      // derive the same key regardless of which signed URL each side holds.
       const voiceAttachment = attachments[0]; // We know there's at least one
       if (voiceAttachment !== undefined && voiceAttachment !== null) {
         await voiceTranscriptCache.store(voiceAttachment.originalUrl, response.content);
@@ -436,11 +438,12 @@ export class VoiceTranscriptionService {
       { slugs, attachmentCount: attachments.length },
       'Skipping STT for own-bot forwarded voice message'
     );
-    // Cache the placeholder so a re-forward of the same attachment URL hits
-    // the cache instead of re-running this classifier (cheap, but consistent
-    // with the existing cache pattern for human-authored transcripts).
+    // Cache the placeholder so a re-forward of the same attachment hits the
+    // cache instead of re-running this classifier (cheap, but consistent with
+    // the existing cache pattern for human-authored transcripts). Pass
+    // `originalUrl` to match store-1 + the ai-worker lookup key.
     for (const attachment of attachments) {
-      await voiceTranscriptCache.store(attachment.url, placeholder);
+      await voiceTranscriptCache.store(attachment.originalUrl, placeholder);
     }
     // Visible reply so the user (and channel) see acknowledgment of the
     // forward. Without this, a forwarded voice message would produce no
