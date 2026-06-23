@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-06-20'
+lastUpdated: '2026-06-23'
 ---
 
 # Git Workflow Procedures
@@ -121,6 +121,23 @@ Dependabot PRs have three distinct cleanup paths — using the wrong one wastes 
 **Key constraint**: `@dependabot rebase` **refuses to run** if any commit on the branch is authored by someone other than dependabot. GitHub's "Update branch" UI button appears to rebase, but it actually adds a merge commit authored by `github-actions[bot]` — which poisons the branch for `rebase`. Once that happens, `recreate` is the only in-band recovery.
 
 **Rule of thumb**: don't hit "Update branch" on dependabot PRs. Use the chat command. If you do hit it by accident, don't waste time on `rebase` — go straight to `recreate`.
+
+## Workflow-file changes target `main`, not `develop`
+
+GitHub Actions that validate against the **default branch (`main`)** — notably **`claude-review`** and the `@claude` responder — refuse to run on a PR unless their workflow file is byte-identical to the version on `main`. A "security skip": it stops an untrusted PR from altering the very workflow that reviews it.
+
+**Consequence**: any change to a `.github/workflows/*.yml` file that lands on `develop` first **silently disables those reviews on every PR** — they pass as a green ~10-15s no-op (`"Skipping action due to workflow validation"`, no review posted) — until the change reaches `main`. Under the normal flow that's only at the next release, and the release PR's own review skips too, so it compounds across the whole cycle.
+
+**Rule**: For any `.github/workflows/` change, open a PR **cut from `main` and targeting `main`** — never branch from `develop` for this (a develop-based branch targeting `main` drags all of develop's unmerged commits into the diff). The moment it merges, run `pnpm ops release:finalize` to resync `develop` onto `main` — do this before other work piles onto `develop`, since every commit added there (and every open feature branch) then needs rebasing onto the resynced `develop`. Do NOT let a workflow change reach `main` via the routine `develop→main` release merge.
+
+**This bites most often with dependabot** bumps that touch workflow files (e.g. an `actions/checkout` major bump) — dependabot opens them against `develop`. When a dependabot PR (or any PR) touches `.github/workflows/`, **cherry-pick just the workflow hunk into a fresh `main`-cut PR** and merge that first, rather than letting the change reach `develop`. (There's no `@dependabot retarget` command; re-pointing a develop-based PR's base at `main` via the GitHub UI would drag all of develop's unmerged commits into the diff, so cherry-picking the hunk is the clean path.)
+
+**Recovery — a workflow change already landed on `develop`** (the disruptive case; infrequent but real):
+
+1. Branch off `main`, sync just the affected workflow file(s) to develop's state (`git checkout origin/develop -- .github/workflows/<file>`), commit, PR against `main`. (Pattern: PR #1318 — `actions/checkout` bump.)
+2. Merge to `main` (needs explicit approval — `main` always does).
+3. Rebase `develop` onto `main` so the two don't diverge on the workflow file (`pnpm ops release:finalize`, or manual `git rebase origin/main` + `--force-with-lease`).
+4. **Order matters — do step 3 first.** For each open PR: rebase the feature branch onto the updated `develop` (`git rebase develop`) and push. The push itself re-triggers the review on the new HEAD, which now carries the updated workflow in its ancestry — so the validation passes. Do **not** reach for `gh run rerun`: it re-runs the _old_ commit's checkout, whose workflow bytes still mismatch `main`, so it keeps skipping. The rebase-push is the only reliable trigger (the PR's review validates the PR branch's _own_ HEAD workflow against `main`).
 
 ## Rebase Procedure
 
