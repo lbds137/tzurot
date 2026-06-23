@@ -20,9 +20,9 @@ The "Slim common-types" epic spawned **three** follow-up clusters across its pha
 **Cluster B — Phase 2.5 context-relocation / bot-client Prisma eviction (~18). Trigger: SWEEPABLE NOW.** _(Correction 2026-06-22: the original "wait for the 2.5d prod-soak + delete" trigger was already satisfied — the soak came back clean (~14h) and the 2.5d-delete shipped in beta.135 (#1267–1270). Phase 2.5 is COMPLETE. Re-audit each item for obsolescence before sweeping — beta.135 deleted the shadow + CONTEXT_MODE machinery, so anything referencing those is dead.)_
 
 - _Dead-code / vestigial (die with 2.5d-delete):_
-  - [ ] Remove dead extended-context assembly from `MessageContextBuilder.fetchExtendedContext`
-  - [ ] Vestigial `MessageContext.conversationHistory` envelope field
-  - [ ] Remove vestigial `mockUserService` + `mockHistoryService` setups in `MessageContextBuilder.test.ts`
+  - [x] ~~Remove dead extended-context assembly from `MessageContextBuilder.fetchExtendedContext`~~ ✅ #1307 (B1 — dropped the unread `attachments`/`participantGuildInfo` fields + computation; worker re-derives from the raw envelope). _Residual (fold into the MCB.test cleanup below): stale "resolveExtendedContextPersonaIds below mutates… / ContextStep overwrites the shipped one" comments at `MessageContextBuilder.ts:195` + `.test.ts:1400`, and the two now-theater image tests (`should collect images when maxImages > 0` / `…is 0`) whose `maxImages` input no longer affects the assertion — they verify the raw-uncapped path, so re-title/simplify._
+  - [ ] Vestigial `MessageContext.conversationHistory` envelope field _(wire-shape: touches shared `RequestContext` + the worker's logging reads of `context.conversationHistory` — verify the worker telemetry stays correct before dropping)_
+  - [ ] Remove vestigial `mockUserService` + `mockHistoryService` setups in `MessageContextBuilder.test.ts` _(+ fold in the B1 residual above — same file)_
   - [ ] Post-`CONTEXT_MODE`-removal cleanup in bot-client (flatten + rename)
   - [ ] `ContextStep.assertEnvelopeJob` could return the narrowed assembler
   - [ ] Extract the `ContextStep` pass-through test stub to test-utils
