@@ -15,7 +15,7 @@ import {
   persistAssistantMessageViaGateway,
   persistUserMessageViaGateway,
   syncConversationViaGateway,
-} from './contextWritePath.js';
+} from './gatewayWriteHelpers.js';
 
 const ok = <T>(data: T): { ok: true; data: T } => ({ ok: true, data });
 const err = (status: number): { ok: false; error: string; status: number } => ({

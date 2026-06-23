@@ -10,7 +10,7 @@
 import { createLogger, SYNC_LIMITS, type MessageMetadata } from '@tzurot/common-types';
 import { getServiceClient } from './gatewayClients.js';
 
-const logger = createLogger('contextWritePath');
+const logger = createLogger('gatewayWriteHelpers');
 
 interface AssistantMessageWriteParams {
   channelId: string;

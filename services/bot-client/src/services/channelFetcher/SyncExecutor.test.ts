@@ -10,12 +10,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Collection } from 'discord.js';
 import type { Message } from 'discord.js';
 
-vi.mock('../../utils/contextWritePath.js', () => ({
+vi.mock('../../utils/gatewayWriteHelpers.js', () => ({
   syncConversationViaGateway: vi.fn().mockResolvedValue({ updated: 0, deleted: 0 }),
 }));
 
 import { executeDatabaseSync, toObservedSyncMessages } from './SyncExecutor.js';
-import { syncConversationViaGateway } from '../../utils/contextWritePath.js';
+import { syncConversationViaGateway } from '../../utils/gatewayWriteHelpers.js';
 
 function createMockMessage(id: string, content: string, createdAt: Date): Message {
   return { id, content, createdAt } as unknown as Message;

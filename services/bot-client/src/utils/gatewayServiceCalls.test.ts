@@ -3,7 +3,7 @@ import { JobStatus } from '@tzurot/common-types';
 
 // Mock the ServiceClient factory + the service-secret accessor so the helpers
 // run without real config/network. (The context write-path helpers live in
-// contextWritePath.ts with their own colocated tests.)
+// gatewayWriteHelpers.ts with their own colocated tests.)
 const mockServiceClient = {
   getChannelSettings: vi.fn(),
   getAdminSettingsInternal: vi.fn(),
