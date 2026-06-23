@@ -96,8 +96,17 @@ export const INTERVALS = {
   MESSAGE_TIMESTAMP_TOLERANCE: 15000,
   /** Webhook message tracking TTL in Redis (7 days in seconds) */
   WEBHOOK_MESSAGE_TTL: 7 * 24 * 60 * 60,
-  /** Voice transcript cache TTL in Redis (5 minutes in seconds) */
-  VOICE_TRANSCRIPT_TTL: 5 * 60,
+  /**
+   * Voice transcript cache TTL in Redis (1 hour in seconds). Matches
+   * VISION_DESCRIPTION_TTL: the cache key is derived from the immutable
+   * attachment id / query-stripped CDN path (see `deriveAttachmentCacheKey`),
+   * so a transcript stays valid as long as the attachment exists — a generous
+   * TTL is pure upside and the value is a small string. Re-derivation for
+   * aged-out extended-context voice no longer depends on this cache (the worker
+   * falls back to the DB row), so this is a hot-path optimization, not a
+   * correctness dependency.
+   */
+  VOICE_TRANSCRIPT_TTL: 60 * 60,
   /** Vision description cache TTL in Redis (1 hour in seconds - image URLs are stable for a while) */
   VISION_DESCRIPTION_TTL: 60 * 60,
   /**
