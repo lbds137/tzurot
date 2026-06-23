@@ -9,7 +9,7 @@
 
 import type { Message, Collection } from 'discord.js';
 import type { ObservedSyncMessage } from '@tzurot/common-types';
-import { syncConversationViaGateway } from '../../utils/contextWritePath.js';
+import { syncConversationViaGateway } from '../../utils/gatewayWriteHelpers.js';
 import type { SyncResult } from './types.js';
 
 /**

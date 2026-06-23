@@ -30,7 +30,7 @@ vi.mock('../utils/MessageContentBuilder.js', () => ({
 
 // The conversation write IS the gateway endpoint — bot-client performs no
 // local Prisma write for this surface.
-vi.mock('../utils/contextWritePath.js', () => ({
+vi.mock('../utils/gatewayWriteHelpers.js', () => ({
   persistAssistantMessageViaGateway: vi.fn().mockResolvedValue(undefined),
   persistUserMessageViaGateway: vi.fn().mockResolvedValue(undefined),
 }));
@@ -38,7 +38,7 @@ vi.mock('../utils/contextWritePath.js', () => ({
 import {
   persistAssistantMessageViaGateway,
   persistUserMessageViaGateway,
-} from '../utils/contextWritePath.js';
+} from '../utils/gatewayWriteHelpers.js';
 
 describe('ConversationPersistence', () => {
   let persistence: ConversationPersistence;
