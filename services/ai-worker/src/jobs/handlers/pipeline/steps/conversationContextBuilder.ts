@@ -18,17 +18,17 @@ export function buildConversationContext(
   // Resolve the personal-vs-incognito union once here so the memory consumers
   // (LTM read/write skip) switch on `summonAnonymity.kind` instead of each
   // re-deriving `incognito ?? isWeighIn`. A personal summon always carries its
-  // persona (the bot or the worker assembler resolved it); if the wire id is
-  // somehow absent, the resolver fail-safes to incognito rather than building a
-  // persona-less personal arm.
+  // persona (the worker assembler resolved it); if the wire id is somehow absent,
+  // the resolver fail-safes to incognito rather than building a persona-less
+  // personal arm.
   //
   // This agrees with the assembler's own resolveSummonAnonymity call by
-  // construction: in service mode ContextStep.applyAssembledContext writes the
-  // assembler's resolved activePersonaId onto jobContext BEFORE this step runs,
-  // so both see the same id; in legacy mode the assembler never runs, so this is
-  // the sole resolution point. The fail-safe therefore never fires for a real
-  // personal summon — it can't diverge from the assembler. (If that writeback is
-  // ever removed, the two calls could disagree on kind — keep them in sync.)
+  // construction: ContextStep.applyAssembledContext writes the assembler's
+  // resolved activePersonaId onto jobContext BEFORE this step runs, so both see
+  // the same id and resolve the same `kind`. The fail-safe therefore never fires
+  // for a real personal summon — it can't diverge from the assembler. (If that
+  // writeback is ever removed, the two calls could disagree on kind — keep them
+  // in sync.)
   const summonAnonymity = resolveSummonAnonymity(jobContext, {
     activePersonaId: jobContext.activePersonaId,
     activePersonaName: jobContext.activePersonaName ?? null,
