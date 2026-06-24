@@ -176,7 +176,7 @@ export class MultiTagCoordinator {
     if (runtimeSlots.length === 0) {
       logger.info(
         { sourceMessageId: input.message.id, anyInfraError },
-        'All multi-tag slots denied — nothing to coordinate'
+        'All multi-tag slots failed (denied or errored) — nothing to coordinate'
       );
       // User-facing notice: pre-PR per-processor flow surfaced denial via
       // the respective trigger processor (e.g., ActivatedChannelProcessor's
