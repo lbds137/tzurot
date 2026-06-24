@@ -12,6 +12,7 @@ import {
 } from './api.js';
 import { mockGetPersonaResponse, mockListPersonasResponse } from '@tzurot/test-factories';
 import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
+import { InfraError, GatewayClientError } from '@tzurot/clients';
 
 const TEST_PERSONA_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
 const OTHER_PERSONA_ID = 'b2c3d4e5-f6a7-8901-bcde-f12345678901';
@@ -72,6 +73,22 @@ describe('fetchPersona', () => {
 
     expect(result).toBeNull();
   });
+
+  it('throws InfraError on an infra failure — never a silent null "not found"', async () => {
+    stub.getPersona.mockResolvedValue(makeErr(503, 'Bad Gateway'));
+
+    await expect(fetchPersona(TEST_PERSONA_ID, asUserClient(stub), TEST_USER_ID)).rejects.toThrow(
+      InfraError
+    );
+  });
+
+  it('throws GatewayClientError (not "try again") on a non-404 4xx', async () => {
+    stub.getPersona.mockResolvedValue(makeErr(403, 'Forbidden'));
+
+    await expect(fetchPersona(TEST_PERSONA_ID, asUserClient(stub), TEST_USER_ID)).rejects.toThrow(
+      GatewayClientError
+    );
+  });
 });
 
 describe('fetchDefaultPersona', () => {
@@ -115,12 +132,10 @@ describe('fetchDefaultPersona', () => {
     expect(result).toBeNull();
   });
 
-  it('should return null when list fails', async () => {
+  it('throws InfraError when the list fetch fails (infra) — not a silent "no personas"', async () => {
     stub.listPersonas.mockResolvedValue(makeErr(500, 'Failed to fetch'));
 
-    const result = await fetchDefaultPersona(asUserClient(stub), TEST_USER_ID);
-
-    expect(result).toBeNull();
+    await expect(fetchDefaultPersona(asUserClient(stub), TEST_USER_ID)).rejects.toThrow(InfraError);
   });
 });
 
@@ -282,11 +297,11 @@ describe('isDefaultPersona', () => {
     expect(result).toBe(false);
   });
 
-  it('should return false on API failure', async () => {
+  it('throws InfraError on an infra failure — fail-CLOSED so the delete guard cannot be bypassed', async () => {
     stub.listPersonas.mockResolvedValue(makeErr(500, 'Failed'));
 
-    const result = await isDefaultPersona(TEST_PERSONA_ID, asUserClient(stub));
-
-    expect(result).toBe(false);
+    // Old behavior returned false → a transient blip let the default persona be
+    // deleted. Now it throws so the delete aborts (caught upstream → "try again").
+    await expect(isDefaultPersona(TEST_PERSONA_ID, asUserClient(stub))).rejects.toThrow(InfraError);
   });
 });
