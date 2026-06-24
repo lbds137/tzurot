@@ -41,6 +41,18 @@ const forbidden = <T>(): GatewayResult<T> => ({
   error: 'Forbidden',
   status: 403,
 });
+const configError = <T>(): GatewayResult<T> => ({
+  ok: false,
+  kind: 'config',
+  error: 'Missing baseUrl',
+  status: 0,
+});
+const schemaError = <T>(): GatewayResult<T> => ({
+  ok: false,
+  kind: 'schema',
+  error: 'Response failed Zod validation',
+  status: 0,
+});
 
 describe('InfraError', () => {
   it('is an Error carrying the failure kind + status', () => {
@@ -83,6 +95,8 @@ describe('nullOn404', () => {
   it.each([
     ['timeout', timeout()],
     ['network', network()],
+    ['config', configError()],
+    ['schema', schemaError()],
     ['5xx', serverError()],
   ])('throws InfraError on an infra failure (%s) — never a silent null', (_label, failure) => {
     expect(() => nullOn404(failure)).toThrow(InfraError);
@@ -106,6 +120,8 @@ describe('emptyOn404', () => {
   it.each([
     ['timeout', timeout<number[]>()],
     ['network', network<number[]>()],
+    ['config', configError<number[]>()],
+    ['schema', schemaError<number[]>()],
     ['5xx', serverError<number[]>()],
   ])('throws InfraError on an infra failure (%s)', (_label, failure) => {
     expect(() => emptyOn404(failure)).toThrow(InfraError);

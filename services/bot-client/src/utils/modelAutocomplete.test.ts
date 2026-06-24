@@ -5,6 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ModelAutocompleteOption } from '@tzurot/common-types';
 import type { ServiceClient } from '@tzurot/clients';
+import { InfraError, GatewayClientError } from '@tzurot/clients';
 import { makeOk, makeErr } from '../test/gatewayClientStubs.js';
 
 vi.mock('@tzurot/common-types', async () => {
@@ -105,6 +106,26 @@ describe('modelAutocomplete', () => {
     it('returns [] when the client throws', async () => {
       getModelsMock.mockRejectedValue(new Error('Network error'));
       expect(await fetchModels()).toEqual([]);
+    });
+
+    it('strict: throws InfraError on an infra failure (5xx) — not a silent []', async () => {
+      getModelsMock.mockResolvedValue(makeErr(503, 'Bad Gateway'));
+      await expect(fetchModels({ strict: true })).rejects.toThrow(InfraError);
+    });
+
+    it('strict: throws InfraError on a transport failure (status 0)', async () => {
+      getModelsMock.mockResolvedValue(makeErr(0, 'timed out', undefined, 'timeout'));
+      await expect(fetchModels({ strict: true })).rejects.toThrow(InfraError);
+    });
+
+    it('strict: throws GatewayClientError (not "try again") on a non-404 4xx', async () => {
+      getModelsMock.mockResolvedValue(makeErr(403, 'Forbidden'));
+      await expect(fetchModels({ strict: true })).rejects.toThrow(GatewayClientError);
+    });
+
+    it('strict: returns the model list on success', async () => {
+      getModelsMock.mockResolvedValue(okModels(sampleTextModels));
+      expect(await fetchModels({ strict: true })).toEqual(sampleTextModels);
     });
   });
 
