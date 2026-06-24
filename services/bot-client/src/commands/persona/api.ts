@@ -6,7 +6,7 @@
  */
 
 import { createLogger, type PersonaUpdateInput } from '@tzurot/common-types';
-import { type UserClient } from '@tzurot/clients';
+import { nullOn404, type UserClient } from '@tzurot/clients';
 import { DashboardUpdateError } from '../../utils/dashboard/saveError.js';
 import type { PersonaDetails, PersonaSummary } from './types.js';
 
@@ -22,12 +22,16 @@ export async function fetchPersona(
 ): Promise<PersonaDetails | null> {
   const result = await userClient.getPersona(personaId);
 
-  if (!result.ok) {
+  // A 404 is a normal miss (returned as null below, not logged); any other
+  // failure is real, worth a persona-scoped trace before nullOn404 throws it.
+  if (!result.ok && result.status !== 404) {
     logger.warn({ userId, personaId, error: result.error }, 'Failed to fetch persona');
-    return null;
   }
 
-  return result.data.persona;
+  // Pattern B: null ONLY on a genuine 404; nullOn404 throws InfraError (infra →
+  // "try again") / GatewayClientError (non-404 4xx), so a transient blip never
+  // reads to the user as "persona not found".
+  return nullOn404(result)?.persona ?? null;
 }
 
 /**
@@ -39,12 +43,15 @@ export async function fetchDefaultPersona(
 ): Promise<PersonaDetails | null> {
   const listResult = await userClient.listPersonas();
 
-  if (!listResult.ok) {
+  if (!listResult.ok && listResult.status !== 404) {
     logger.warn({ userId, error: listResult.error }, 'Failed to fetch persona list');
-    return null;
   }
 
-  const defaultPersona = listResult.data.personas.find((p: PersonaSummary) => p.isDefault);
+  // listPersonas has no meaningful 404 (an empty list is a 200 with []), so
+  // nullOn404 effectively throws on every infra/4xx failure — a transient blip
+  // can't read to the user as "you have no personas".
+  const data = nullOn404(listResult);
+  const defaultPersona = data?.personas.find((p: PersonaSummary) => p.isDefault);
   if (defaultPersona === undefined) {
     return null;
   }
@@ -103,12 +110,10 @@ export async function isDefaultPersona(
   personaId: string,
   userClient: UserClient
 ): Promise<boolean> {
-  const listResult = await userClient.listPersonas();
-
-  if (!listResult.ok) {
-    return false;
-  }
-
-  const persona = listResult.data.personas.find((p: PersonaSummary) => p.id === personaId);
+  // nullOn404 throws on infra/4xx so the delete guard fails CLOSED — a transient
+  // blip aborts the delete (the throw is caught upstream → "try again") rather
+  // than reading "not default" and letting the user's default persona be deleted.
+  const data = nullOn404(await userClient.listPersonas());
+  const persona = data?.personas.find((p: PersonaSummary) => p.id === personaId);
   return persona?.isDefault ?? false;
 }
