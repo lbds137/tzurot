@@ -68,10 +68,9 @@ export const userShapesRoutes = {
     output: ShapesAuthStatusResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
-    // DEFERRED budget: the status check probes the external
-    // shapes.inc session for validity, so the upstream round-trip can exceed
-    // the 2500ms autocomplete default.
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
+    // No timeoutMs: GET defaults to DEFERRED. The handler is a local
+    // credential-row lookup (userCredential.findFirst), not an external
+    // probe, so the default budget is more than enough.
   },
 
   // ============================================================================
@@ -117,9 +116,10 @@ export const userShapesRoutes = {
     output: ListShapesImportJobsResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
-    // DEFERRED budget: post-defer job-status poll in the import
-    // dashboard, consistent with the import-start budget.
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
+    // No timeoutMs: GET defaults to DEFERRED. The handler is a local DB
+    // job-status query, not an external shapes.inc call — the default budget
+    // is the invariant. Adding an external enrichment call here would need an
+    // explicit budget + externalCallBudgetMs (see storeShapesAuth/listShapes).
   },
 
   // ============================================================================
@@ -145,8 +145,9 @@ export const userShapesRoutes = {
     output: ListShapesExportJobsResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
-    // DEFERRED budget: post-defer job-status poll in the export
-    // dashboard, consistent with the export-start budget.
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
+    // No timeoutMs: GET defaults to DEFERRED. The handler is a local DB
+    // job-status query, not an external shapes.inc call — the default budget
+    // is the invariant. Adding an external enrichment call here would need an
+    // explicit budget + externalCallBudgetMs (see storeShapesAuth/listShapes).
   },
 } as const satisfies Record<string, RouteDef>;

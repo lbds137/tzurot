@@ -11,7 +11,7 @@
  * (UUID → cascade → epoch); per-read routes would cost ~4 serialized HTTP hops
  * on the single most latency-sensitive path in the system. The persona cascade
  * runs here, where Prisma is legal, instead of being reimplemented in
- * bot-client. The orchestration lives in `resolveRoutingContext` (common-types)
+ * bot-client. The orchestration lives in `resolveRoutingContext` (identity)
  * so it is unit-tested independently of HTTP.
  *
  * **Authentication**: `X-Service-Auth` enforcement happens upstream via the
@@ -37,8 +37,8 @@ const logger = createLogger('internal-routing-context');
 /** POST /api/internal/v1/routing-context — hot-path routing-fact resolution. */
 export const handleRoutingContextCreate = (deps: RouteDeps): RequestHandler => {
   // Shared per-PrismaClient UserService (registry-wide cache + invalidation).
-  // PersonaResolver is constructed once at mount time (matching
-  // historyContextResolver) so its cache + cleanup interval span the process.
+  // PersonaResolver is constructed once at mount (not per request) so its
+  // in-memory cache stays warm across requests.
   const userService = getOrCreateUserService(deps.prisma);
   const personaResolver = new PersonaResolver(deps.prisma);
 

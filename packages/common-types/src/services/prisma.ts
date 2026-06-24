@@ -74,7 +74,11 @@ export function createPrismaClient(opts?: { max?: number }): PrismaClientHandle 
     });
   } catch (err) {
     stopGauge();
-    void pool.end();
+    pool
+      .end()
+      .catch(poolErr =>
+        logger.warn({ err: poolErr }, 'pool.end() failed during construction-cleanup')
+      );
     throw err;
   }
 
