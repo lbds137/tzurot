@@ -43,10 +43,6 @@ export const userShapesRoutes = {
     input: StoreShapesAuthInputSchema,
     output: StoreShapesAuthResponseSchema,
     requiresProvisionedUser: true,
-    // DEFERRED budget: the gateway validates the supplied
-    // shapes.inc session cookie against the external service before storing,
-    // so the gateway's own response is slow — well past the 2500ms default.
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   deleteShapesAuth: {
@@ -56,9 +52,6 @@ export const userShapesRoutes = {
     id: 'deleteShapesAuth',
     output: DeleteShapesAuthResponseSchema,
     requiresProvisionedUser: true,
-    // DEFERRED budget: post-defer credential-management action,
-    // consistent with the store/status siblings on the same /auth path.
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   getShapesAuthStatus: {
@@ -107,10 +100,6 @@ export const userShapesRoutes = {
     input: StartShapesImportInputSchema,
     output: StartShapesImportResponseSchema,
     requiresProvisionedUser: true,
-    // DEFERRED budget: the start handler fetches shape data from
-    // the external shapes.inc service before enqueueing the import job, so the
-    // submit response is slow — past the 2500ms autocomplete default.
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   listShapesImportJobs: {
@@ -139,10 +128,6 @@ export const userShapesRoutes = {
     input: StartShapesExportInputSchema,
     output: StartShapesExportResponseSchema,
     requiresProvisionedUser: true,
-    // DEFERRED budget: export submit runs from a post-defer
-    // dashboard action and may do non-trivial setup before enqueueing the
-    // job — past the 2500ms autocomplete default.
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   listShapesExportJobs: {

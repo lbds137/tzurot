@@ -88,7 +88,6 @@ export class UserClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.setTimezone.output,
-      timeoutMs: ROUTE_MANIFEST.setTimezone.timeoutMs,
     });
   }
 
@@ -335,7 +334,6 @@ export class UserClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.setTtsOverride.output,
-      timeoutMs: ROUTE_MANIFEST.setTtsOverride.timeoutMs,
     });
   }
 
@@ -352,7 +350,6 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.deleteTtsOverride.output,
-      timeoutMs: ROUTE_MANIFEST.deleteTtsOverride.timeoutMs,
     });
   }
 
@@ -392,7 +389,6 @@ export class UserClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.setTtsDefaultConfig.output,
-      timeoutMs: ROUTE_MANIFEST.setTtsDefaultConfig.timeoutMs,
     });
   }
 
@@ -409,7 +405,6 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.clearTtsDefaultConfig.output,
-      timeoutMs: ROUTE_MANIFEST.clearTtsDefaultConfig.timeoutMs,
     });
   }
 
@@ -449,7 +444,6 @@ export class UserClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.setSttDefaultProvider.output,
-      timeoutMs: ROUTE_MANIFEST.setSttDefaultProvider.timeoutMs,
     });
   }
 
@@ -466,7 +460,6 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.clearSttDefaultProvider.output,
-      timeoutMs: ROUTE_MANIFEST.clearSttDefaultProvider.timeoutMs,
     });
   }
 
@@ -507,7 +500,6 @@ export class UserClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.setModelOverride.output,
-      timeoutMs: ROUTE_MANIFEST.setModelOverride.timeoutMs,
     });
   }
 
@@ -524,7 +516,6 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.deleteModelOverride.output,
-      timeoutMs: ROUTE_MANIFEST.deleteModelOverride.timeoutMs,
     });
   }
 
@@ -565,7 +556,6 @@ export class UserClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.setDefaultModelConfig.output,
-      timeoutMs: ROUTE_MANIFEST.setDefaultModelConfig.timeoutMs,
     });
   }
 
@@ -582,7 +572,6 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.clearDefaultModelConfig.output,
-      timeoutMs: ROUTE_MANIFEST.clearDefaultModelConfig.timeoutMs,
     });
   }
 
@@ -750,7 +739,6 @@ export class UserClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.createPersona.output,
-      timeoutMs: ROUTE_MANIFEST.createPersona.timeoutMs,
     });
   }
 
@@ -771,7 +759,6 @@ export class UserClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.updatePersona.output,
-      timeoutMs: ROUTE_MANIFEST.updatePersona.timeoutMs,
     });
   }
 
@@ -788,7 +775,6 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.deletePersona.output,
-      timeoutMs: ROUTE_MANIFEST.deletePersona.timeoutMs,
     });
   }
 
@@ -805,7 +791,6 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.setPersonaDefault.output,
-      timeoutMs: ROUTE_MANIFEST.setPersonaDefault.timeoutMs,
     });
   }
 
@@ -866,7 +851,6 @@ export class UserClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.setPersonaOverride.output,
-      timeoutMs: ROUTE_MANIFEST.setPersonaOverride.timeoutMs,
     });
   }
 
@@ -883,7 +867,6 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.clearPersonaOverride.output,
-      timeoutMs: ROUTE_MANIFEST.clearPersonaOverride.timeoutMs,
     });
   }
 
@@ -901,7 +884,6 @@ export class UserClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.createPersonaOverride.output,
-      timeoutMs: ROUTE_MANIFEST.createPersonaOverride.timeoutMs,
     });
   }
 
@@ -1227,7 +1209,6 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.removeWalletKey.output,
-      timeoutMs: ROUTE_MANIFEST.removeWalletKey.timeoutMs,
     });
   }
 
@@ -1339,7 +1320,6 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.deleteVoice.output,
-      timeoutMs: ROUTE_MANIFEST.deleteVoice.timeoutMs,
     });
   }
 
@@ -1715,7 +1695,6 @@ export class UserClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.updateUserDefaults.output,
-      timeoutMs: ROUTE_MANIFEST.updateUserDefaults.timeoutMs,
     });
   }
 
@@ -1732,7 +1711,6 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.clearUserDefaults.output,
-      timeoutMs: ROUTE_MANIFEST.clearUserDefaults.timeoutMs,
     });
   }
 
@@ -1770,7 +1748,6 @@ export class UserClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.updatePersonalityOverrides.output,
-      timeoutMs: ROUTE_MANIFEST.updatePersonalityOverrides.timeoutMs,
     });
   }
 
@@ -1824,7 +1801,6 @@ export class UserClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.updatePersonalityConfigDefaults.output,
-      timeoutMs: ROUTE_MANIFEST.updatePersonalityConfigDefaults.timeoutMs,
     });
   }
 
@@ -1842,7 +1818,6 @@ export class UserClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.storeShapesAuth.output,
-      timeoutMs: ROUTE_MANIFEST.storeShapesAuth.timeoutMs,
     });
   }
 
@@ -1859,7 +1834,6 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.deleteShapesAuth.output,
-      timeoutMs: ROUTE_MANIFEST.deleteShapesAuth.timeoutMs,
     });
   }
 
@@ -1917,7 +1891,6 @@ export class UserClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.startShapesImport.output,
-      timeoutMs: ROUTE_MANIFEST.startShapesImport.timeoutMs,
     });
   }
 
@@ -1955,7 +1928,6 @@ export class UserClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.startShapesExport.output,
-      timeoutMs: ROUTE_MANIFEST.startShapesExport.timeoutMs,
     });
   }
 

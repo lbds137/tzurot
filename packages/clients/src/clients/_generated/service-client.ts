@@ -88,7 +88,6 @@ export class ServiceClient {
       method: 'POST',
       path: fullPath,
       outputSchema: ROUTE_MANIFEST.aiConfirmDelivery.output,
-      timeoutMs: ROUTE_MANIFEST.aiConfirmDelivery.timeoutMs,
     });
   }
 
@@ -101,7 +100,6 @@ export class ServiceClient {
       path: fullPath,
       body: input,
       outputSchema: ROUTE_MANIFEST.setDmSession.output,
-      timeoutMs: ROUTE_MANIFEST.setDmSession.timeoutMs,
     });
   }
 
@@ -129,7 +127,6 @@ export class ServiceClient {
       path: fullPath,
       body: input,
       outputSchema: ROUTE_MANIFEST.persistAssistantMessage.output,
-      timeoutMs: ROUTE_MANIFEST.persistAssistantMessage.timeoutMs,
     });
   }
 
@@ -142,7 +139,6 @@ export class ServiceClient {
       path: fullPath,
       body: input,
       outputSchema: ROUTE_MANIFEST.persistUserMessage.output,
-      timeoutMs: ROUTE_MANIFEST.persistUserMessage.timeoutMs,
     });
   }
 
@@ -155,7 +151,6 @@ export class ServiceClient {
       path: fullPath,
       body: input,
       outputSchema: ROUTE_MANIFEST.syncConversation.output,
-      timeoutMs: ROUTE_MANIFEST.syncConversation.timeoutMs,
     });
   }
 
@@ -183,7 +178,6 @@ export class ServiceClient {
       path: fullPath,
       body: input,
       outputSchema: ROUTE_MANIFEST.routingContextCreate.output,
-      timeoutMs: ROUTE_MANIFEST.routingContextCreate.timeoutMs,
     });
   }
 
@@ -240,7 +234,6 @@ export class ServiceClient {
       path: fullPath,
       body: input,
       outputSchema: ROUTE_MANIFEST.updateDiagnosticResponseIds.output,
-      timeoutMs: ROUTE_MANIFEST.updateDiagnosticResponseIds.timeoutMs,
     });
   }
 
