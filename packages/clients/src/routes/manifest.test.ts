@@ -204,9 +204,12 @@ describe('central route manifest', () => {
   });
 
   it('mutation routes allow at least the WRITE budget (20s) — no sub-floor writes', () => {
-    // Pool acquisition alone can block up to DATABASE_POOL_CONN_TIMEOUT_MS (10s),
-    // so a write timeout below ~10s aborts client-side while the gateway is still
-    // acquiring a connection — let alone executing. The method-aware default
+    // Pool acquisition alone can block up to DATABASE_POOL_CONN_TIMEOUT_MS (10s —
+    // env-tunable, default in `@tzurot/common-types` poolConfig.ts), so a write
+    // timeout below ~10s aborts client-side while the gateway is still acquiring a
+    // connection — let alone executing. (Load-bearing assumption: if that pool
+    // ceiling is ever raised toward WRITE (20s), this floor must rise with it.)
+    // The method-aware default
     // already gives mutations the WRITE budget (20s); the failure mode is a route
     // that EXPLICITLY overrides to a tighter read budget (GATEWAY_RPC 5s, DEFERRED
     // 10s). That is the class behind the user-message-persist "character

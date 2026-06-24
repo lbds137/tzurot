@@ -1818,6 +1818,7 @@ export class UserClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.storeShapesAuth.output,
+      timeoutMs: ROUTE_MANIFEST.storeShapesAuth.timeoutMs,
     });
   }
 

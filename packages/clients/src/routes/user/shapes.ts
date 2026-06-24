@@ -43,6 +43,12 @@ export const userShapesRoutes = {
     input: StoreShapesAuthInputSchema,
     output: StoreShapesAuthResponseSchema,
     requiresProvisionedUser: true,
+    // Preflights the cookie against shapes.inc before persisting (handler's
+    // probeShapesSession), so this POST blocks on a synchronous external
+    // round-trip — same shape as listShapes. EXTERNAL_PROVIDER (40s) outwaits
+    // the EXTERNAL_SHAPES_API_CALL budget; the manifest guard enforces the gap.
+    timeoutMs: GATEWAY_TIMEOUTS.EXTERNAL_PROVIDER,
+    externalCallBudgetMs: VALIDATION_TIMEOUTS.EXTERNAL_SHAPES_API_CALL,
   },
 
   deleteShapesAuth: {
