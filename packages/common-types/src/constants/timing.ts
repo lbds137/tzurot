@@ -242,6 +242,11 @@ export const VALIDATION_TIMEOUTS = {
    *  ElevenLabs and Mistral. 30 seconds covers slow networks and burst load
    *  on either provider's voices endpoints. */
   EXTERNAL_AUDIO_API_CALL: 30_000,
+  /** Timeout for the shapes.inc catalog fetch (`GET /shapes`). Shorter than the
+   *  others because the shapes list endpoint is a simple read, not an inference
+   *  or auth round-trip. Shared so the route's `externalCallBudgetMs` and the
+   *  handler's AbortController reference one value. */
+  EXTERNAL_SHAPES_API_CALL: 15_000,
 } as const;
 
 /**

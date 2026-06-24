@@ -230,6 +230,26 @@ describe('handleApikeyModalSubmit', () => {
       });
     });
 
+    it('should handle a transport timeout (status 0) with a browse hint', async () => {
+      // status 0 = bot-client transport timeout/drop (a slow provider probe
+      // outlasting the client timeout). The gateway may have saved the key after
+      // the client gave up, so the message points at browse instead of the
+      // generic "Unable to Save".
+      stub.setWalletKey.mockResolvedValue(
+        makeErr(0, 'Request timeout (gateway slow or unavailable)')
+      );
+
+      const interaction = createMockInteraction(
+        'settings::apikey::set::zai-coding',
+        'zai-key-slow-probe'
+      );
+      await handleApikeyModalSubmit(interaction);
+
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Request Timed Out'),
+      });
+    });
+
     it('should handle generic gateway error', async () => {
       stub.setWalletKey.mockResolvedValue(makeErr(500, 'Internal error'));
 

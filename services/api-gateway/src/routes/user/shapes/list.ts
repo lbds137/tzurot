@@ -16,6 +16,7 @@ import {
   CREDENTIAL_TYPES,
   SHAPES_BASE_URL,
   SHAPES_USER_AGENT,
+  VALIDATION_TIMEOUTS,
 } from '@tzurot/common-types';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
@@ -26,7 +27,7 @@ import type { RouteDeps } from '../../routeDeps.js';
 
 const logger = createLogger('shapes-list');
 
-const REQUEST_TIMEOUT_MS = 15_000;
+const REQUEST_TIMEOUT_MS = VALIDATION_TIMEOUTS.EXTERNAL_SHAPES_API_CALL;
 
 interface ShapesListItem {
   id: string;

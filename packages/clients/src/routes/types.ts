@@ -286,6 +286,21 @@ export interface RouteDef<
    * manifest invariant test caps timeoutMs at 60_000 to enforce this.
    */
   readonly timeoutMs?: number;
+  /**
+   * Worst-case internal timeout of any external-provider call this route's
+   * handler makes — the SAME constant the handler passes to its
+   * `AbortSignal.timeout`/`AbortController` (e.g. `VALIDATION_TIMEOUTS.API_KEY_VALIDATION`).
+   *
+   * Declaring it makes the cross-layer timeout invariant a tested contract term:
+   * the manifest test asserts `timeoutMs >= externalCallBudgetMs + overhead`, so a
+   * route that blocks on a slow third party can never be left with a CLIENT timeout
+   * shorter than the work it triggers. That mismatch is the failure class where a slow
+   * provider validation probe (e.g. a 30s key-save check) outruns a 10s client timeout
+   * and the client aborts while the gateway is still succeeding.
+   *
+   * Omit for routes that only touch the DB / local work (the overwhelming majority).
+   */
+  readonly externalCallBudgetMs?: number;
 }
 
 /**

@@ -178,6 +178,17 @@ function getErrorMessage(
         'If the problem persists, contact support.'
       );
 
+    case 0:
+      // Transport-level failure (client timeout or dropped connection). A slow
+      // provider validation can outlast the client timeout while the gateway
+      // still completes the save, so point the user at browse to confirm rather
+      // than blindly retrying and creating churn.
+      return (
+        '⏳ **Request Timed Out**\n\n' +
+        "The request didn't complete in time. Your key may already have been saved —\n" +
+        'check `/settings apikey browse` before trying again.'
+      );
+
     default:
       // Unknown error - still provide friendly message
       return (
