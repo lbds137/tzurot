@@ -203,6 +203,46 @@ describe('central route manifest', () => {
     }
   });
 
+  it('mutation routes allow at least the WRITE budget (20s) — no sub-floor writes', () => {
+    // Pool acquisition alone can block up to DATABASE_POOL_CONN_TIMEOUT_MS (10s),
+    // so a write timeout below ~10s aborts client-side while the gateway is still
+    // acquiring a connection — let alone executing. The method-aware default
+    // already gives mutations the WRITE budget (20s); the failure mode is a route
+    // that EXPLICITLY overrides to a tighter read budget (GATEWAY_RPC 5s, DEFERRED
+    // 10s). That is the class behind the user-message-persist "character
+    // unavailable" prod incident — a transient DB spike outran a 5s persist budget.
+    //
+    // EXEMPTION: a POST that is semantically a READ (resolves/looks-up, never
+    // mutates) may carry a tighter budget IF it is in AUTOCOMPLETE_TIER — those are
+    // the deliberate tight-read routes (e.g. resolveUserLlmConfig, which fast-fails
+    // to personality defaults on timeout). A genuine write is never in that set.
+    //
+    // Unlike the opt-in externalCallBudgetMs check, this covers EVERY route by
+    // default: a new write cannot slip through simply by not declaring a field.
+    const MUTATION_METHODS = new Set<string>(['post', 'put', 'patch', 'delete']);
+    const violations: string[] = [];
+    for (const [key, route] of entries) {
+      if (!MUTATION_METHODS.has(route.method)) {
+        continue; // GET = read; reads have their own DEFERRED/AUTOCOMPLETE budget
+      }
+      if (AUTOCOMPLETE_TIER.has(key)) {
+        continue; // POST-shaped read, deliberately tight (registered + justified above)
+      }
+      const effective = route.timeoutMs ?? GATEWAY_TIMEOUTS.WRITE;
+      if (effective < GATEWAY_TIMEOUTS.WRITE) {
+        violations.push(`${key} (${route.method.toUpperCase()}): ${effective}ms`);
+      }
+    }
+    expect(
+      violations,
+      `These mutation routes have an effective timeout below the ${GATEWAY_TIMEOUTS.WRITE}ms WRITE ` +
+        `floor. A mutation must tolerate a transient pool-acquisition wait (up to 10s) plus the ` +
+        `write itself. Fix: delete the explicit timeoutMs so each inherits the WRITE default — ` +
+        `or, if a POST is truly a read, add it to AUTOCOMPLETE_TIER with a justification.\n  ` +
+        violations.join('\n  ')
+    ).toEqual([]);
+  });
+
   it('GET routes do not declare an input body schema', () => {
     // GET-with-body is broken in the field — Node's fetch (and many
     // intermediaries) drop the body, so a manifest entry like
