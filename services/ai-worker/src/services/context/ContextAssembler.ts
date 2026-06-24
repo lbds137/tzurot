@@ -579,11 +579,23 @@ export class ContextAssembler {
         if (target === undefined || (target.messageMetadata?.voiceTranscripts?.length ?? 0) > 0) {
           return;
         }
-        // resolveVoiceTranscript never returns an empty string (both tiers guard
-        // length), so a non-null result is always a usable transcript.
-        const transcript = await this.resolveVoiceTranscript(sourceId, ref, options);
-        if (transcript !== null) {
-          target.messageMetadata = { ...target.messageMetadata, voiceTranscripts: [transcript] };
+        try {
+          // resolveVoiceTranscript never returns an empty string (both tiers guard
+          // length), so a non-null result is always a usable transcript.
+          const transcript = await this.resolveVoiceTranscript(sourceId, ref, options);
+          if (transcript !== null) {
+            target.messageMetadata = { ...target.messageMetadata, voiceTranscripts: [transcript] };
+          }
+        } catch (err) {
+          // These transcripts are optional enhancements to existing history
+          // messages. A single failure — most plausibly a DB error in the
+          // resolve path's getMessageByDiscordId tier (the STT tier already
+          // degrades to null internally) — must skip this one ref, never reject
+          // the Promise.all and abort context assembly for the whole job.
+          logger.warn(
+            { err, sourceId },
+            'Extended-context voice transcript re-resolution failed; leaving the message transcript-less'
+          );
         }
       })
     );
