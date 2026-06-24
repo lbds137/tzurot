@@ -43,7 +43,13 @@
     },
     "typecheck": {
       "dependsOn": ["^build"],
-      "inputs": ["src/**", "testing/**", "debug/**", "migrations/**", "utils/**", "tsconfig.json"],
+      "inputs": ["src/**", "tsconfig.json"],
+      "outputs": [],
+      "cache": true
+    },
+    "@tzurot/scripts#typecheck": {
+      "dependsOn": ["^build"],
+      "inputs": ["src/**", "debug/**", "migrations/**", "utils/**", "testing/**", "tsconfig.json"],
       "outputs": [],
       "cache": true
     },
