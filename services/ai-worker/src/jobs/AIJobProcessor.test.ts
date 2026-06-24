@@ -183,6 +183,13 @@ describe('AIJobProcessor', () => {
     vi.restoreAllMocks();
   });
 
+  it('constructs its own RAG service + resolvers when none are injected (production default path)', () => {
+    // Exercises the `?? new ...` DI-default branches — notably the
+    // ConversationalRAGService default-construction — that every injected-mock
+    // test skips. Proves the no-DI production wiring constructs without throwing.
+    expect(() => new AIJobProcessor({ prisma: mockPrisma })).not.toThrow();
+  });
+
   describe('constructor', () => {
     it('should create instance with injected dependencies', () => {
       expect(processor).toBeInstanceOf(AIJobProcessor);

@@ -94,6 +94,36 @@ describe('resolveRoutingContext', () => {
     expect(result?.contextEpoch).toBeNull();
   });
 
+  it('short-circuits the epoch lookup for a system-default persona (empty personaId)', async () => {
+    // personaId === '' is the system-default sentinel. persona_id is a @db.Uuid
+    // column, so a findUnique keyed on '' throws `invalid input syntax for type
+    // uuid` at runtime — it does NOT miss. The guard must skip the query so the
+    // whole resolution doesn't blow up on every system-default-persona user.
+    const findUnique = vi
+      .fn()
+      .mockRejectedValue(new Error('invalid input syntax for type uuid: ""'));
+    const { deps } = buildDeps({
+      resolve: vi.fn().mockResolvedValue({
+        config: { personaId: '', preferredName: 'Default' },
+        source: 'system-default',
+      }),
+      findUnique,
+    });
+
+    const result = await resolveRoutingContext(deps, REQUEST);
+
+    expect(result).toEqual({
+      userId: 'user-uuid',
+      personaId: '',
+      personaName: 'Default',
+      timezone: 'UTC',
+      contextEpoch: null,
+    });
+    // The guard short-circuits before the uuid-typed query ever runs — the
+    // rejecting mock proves resolution survives what would be a Postgres throw.
+    expect(findUnique).not.toHaveBeenCalled();
+  });
+
   it('passes a null preferredName through as personaName', async () => {
     const { deps } = buildDeps({
       resolve: vi.fn().mockResolvedValue({

@@ -37,7 +37,10 @@ export interface RoutingContextDeps {
  * Look up the STM context-epoch (last-reset timestamp) for a
  * (user, personality, persona) triple. Returns `undefined` when no reset has
  * been recorded — the common case. A system-default persona (`personaId === ''`)
- * never matches a row, which mirrors the pre-relocation behaviour.
+ * is short-circuited before the query: `persona_id` is a `@db.Uuid` column, so
+ * Postgres rejects `''` with `invalid input syntax for type uuid` (a thrown
+ * error, not a graceful miss). The empty sentinel can never own a
+ * history-config row anyway, so returning `undefined` is the correct no-op.
  */
 async function lookupContextEpoch(
   prisma: PrismaClient,
@@ -45,6 +48,9 @@ async function lookupContextEpoch(
   personalityId: string,
   personaId: string
 ): Promise<Date | undefined> {
+  if (personaId.length === 0) {
+    return undefined;
+  }
   const historyConfig = await prisma.userPersonaHistoryConfig.findUnique({
     where: {
       userId_personalityId_personaId: { userId, personalityId, personaId },
