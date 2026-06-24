@@ -292,6 +292,11 @@ export function createMockMessage(overrides: MockInput<Message> = EMPTY_OVERRIDE
     id,
     content: 'Test message',
     author: createMockUser(),
+    // Real Discord messages always carry these; mocks need them for authorship
+    // classification (applicationId vs the running bot's own client.user.id).
+    applicationId: null,
+    webhookId: null,
+    client: { user: { id: 'mock-client-bot-id' } } as unknown as Message['client'],
     channel: defaultChannel,
     guild: defaultGuild,
     // Add convenience getters that Discord.js Messages have

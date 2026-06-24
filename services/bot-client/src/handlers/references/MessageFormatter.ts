@@ -19,6 +19,7 @@ import { extractAttachments } from '../../utils/attachmentExtractor.js';
 import { extractEmbedImages } from '../../utils/embedImageExtractor.js';
 import { EmbedParser } from '../../utils/EmbedParser.js';
 import { TranscriptRetriever } from './TranscriptRetriever.js';
+import { classifyReferenceAuthorRole } from './authorRole.js';
 import {
   isForwardedMessage,
   hasForwardedSnapshots,
@@ -106,23 +107,6 @@ export class MessageFormatter {
 
     const { content, attachments } = this.resolveMessageContent(message, messageIsForwarded);
 
-    // Temporary probe: capture the owning applicationId for webhook references, to
-    // verify whether proxy webhooks (PluralKit/Tupperbox) carry one — the signal the
-    // authorship classifier needs to tell a proxied human from a non-persona bot.
-    // Logged at info so it surfaces on dev's default level. Remove after capture.
-    if (message.webhookId !== null) {
-      logger.info(
-        {
-          probe: 'applicationId',
-          refMsgId: message.id,
-          webhookId: message.webhookId,
-          applicationId: message.applicationId,
-          authorIsBot: message.author.bot,
-        },
-        '[PROBE] webhook reference authorship signals'
-      );
-    }
-
     return {
       attachments,
       reference: {
@@ -131,6 +115,14 @@ export class MessageFormatter {
         webhookId: message.webhookId ?? undefined,
         // Presence-encoded: gates the worker-side time-fallback dedup re-run.
         authorIsBot: message.author.bot === true || undefined,
+        // Classified here (only bot-client has applicationId + our own id); carried to
+        // both the live prompt and the stored-history snapshot so role is decided once.
+        authorRole: classifyReferenceAuthorRole({
+          webhookId: message.webhookId,
+          authorIsBot: message.author.bot,
+          applicationId: message.applicationId,
+          clientUserId: message.client.user?.id,
+        }),
         discordUserId: message.author.id,
         authorUsername: message.author.username,
         authorDisplayName: message.author.displayName ?? message.author.username,

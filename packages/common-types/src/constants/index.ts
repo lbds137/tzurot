@@ -143,3 +143,6 @@ export { CACHE_KEY_PREFIXES } from './redis-keys.js';
 
 // Persona-ID placeholder prefix (pre-resolution extended-context records)
 export { INTERNAL_DISCORD_ID_PREFIX } from './personaId.js';
+
+// Known message-proxy application IDs (PluralKit/TupperBox) for authorship classification
+export { KNOWN_PROXY_APP_IDS } from './proxyBots.js';

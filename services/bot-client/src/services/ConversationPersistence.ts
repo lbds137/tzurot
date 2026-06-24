@@ -44,6 +44,9 @@ function convertToStoredReferences(references: ReferencedMessage[]): StoredRefer
     locationContext: ref.locationContext,
     attachments: ref.attachments,
     isForwarded: ref.isForwarded,
+    // Carry the classification forward so the stored-history quote renders the same
+    // role as the live one (classify-once in MessageFormatter, render in the worker).
+    authorRole: ref.authorRole,
   }));
 }
 

@@ -33,6 +33,7 @@
 import {
   appendVoiceTranscripts,
   buildDedupedReferenceStub,
+  isBotAuthoredReference,
   isDuplicateReference,
   stripBotVoiceAttachments,
   type ConversationMessage,
@@ -88,8 +89,7 @@ export async function enrichRawReferences(
         {
           discordMessageId: raw.discordMessageId,
           timestampMs: new Date(raw.timestamp).getTime(),
-          isWebhookOrBotAuthored:
-            (raw.webhookId !== undefined && raw.webhookId.length > 0) || raw.authorIsBot === true,
+          isWebhookOrBotAuthored: isBotAuthoredReference(raw),
         },
         dedupHistory,
         nowMs

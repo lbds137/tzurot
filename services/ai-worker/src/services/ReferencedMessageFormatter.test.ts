@@ -303,62 +303,105 @@ describe('ReferencedMessageFormatter', () => {
       expect(result).toContain('Second message');
     });
 
-    it('marks a non-deduped reference from the current persona role="assistant"', async () => {
-      // A non-deduped reference from the CURRENT persona (bot/webhook AND a display
-      // name matching the persona — here carrying a webhook suffix) reads as the
-      // model's own prior line. Prefix-match on displayName absorbs the suffix.
+    it('renders authorRole="assistant" on a non-deduped quote', async () => {
+      // The worker renders the role stamped at classification time (bot-client) — it
+      // no longer derives it. authorRole="assistant" = one of our own personas.
       const references: ReferencedMessage[] = [
         {
           referenceNumber: 1,
           discordMessageId: 'msg-bot-1',
           discordUserId: 'bot-user-id',
-          authorUsername: 'Test Bot 🤖',
-          authorDisplayName: 'Test Bot 🤖',
+          authorUsername: 'Lilith',
+          authorDisplayName: 'Lilith',
           content: 'Something I said earlier',
           embeds: '',
           timestamp: '2025-11-04T00:00:00Z',
           locationContext:
             '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
-          authorIsBot: true,
-          webhookId: 'wh-1',
+          authorRole: 'assistant',
         },
       ];
 
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
 
       expect(result).toContain(
-        '<quote number="1" from="Test Bot 🤖" username="Test Bot 🤖" role="assistant">'
+        '<quote number="1" from="Lilith" username="Lilith" role="assistant">'
       );
       expect(result).toContain('<content>Something I said earlier</content>');
     });
 
-    it('marks a non-deduped third-party bot/webhook reference role="user"', async () => {
-      // A bot/webhook message NOT from our persona (a PluralKit-proxied human,
-      // another bot) must read as role="user" — the model should respond to it,
-      // not treat it as its own line. The persona name-match scopes this; bot
-      // authorship alone is not enough — that breadth is the misfire to avoid.
+    it('renders authorRole="bot" on a non-deduped quote (non-persona automation)', async () => {
+      // A non-persona bot/webhook (e.g. MEE6, an unrecognized proxy) reads as
+      // role="bot": not us, not the human the user is addressing.
       const references: ReferencedMessage[] = [
         {
           referenceNumber: 1,
-          discordMessageId: 'msg-pk-1',
-          discordUserId: 'pk-user-id',
-          authorUsername: 'SomeoneElse',
-          authorDisplayName: 'SomeoneElse',
-          content: 'a proxied human message',
+          discordMessageId: 'msg-bot-2',
+          discordUserId: 'other-bot-id',
+          authorUsername: 'SomeBot',
+          authorDisplayName: 'SomeBot',
+          content: 'an automated message',
           embeds: '',
           timestamp: '2025-11-04T00:00:00Z',
           locationContext:
             '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
-          authorIsBot: true,
-          webhookId: 'pk-webhook',
+          authorRole: 'bot',
         },
       ];
 
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
 
-      expect(result).toContain(
-        '<quote number="1" from="SomeoneElse" username="SomeoneElse" role="user">'
-      );
+      expect(result).toContain('<quote number="1" from="SomeBot" username="SomeBot" role="bot">');
+    });
+
+    it('falls back to role="user" when authorRole is absent and the author is not a persona', async () => {
+      // Pre-classifier / deploy-window references carry no authorRole. The name-match
+      // fallback resolves a non-persona author to user — a missing signal never
+      // mislabels a human as our own line.
+      const references: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'msg-legacy',
+          discordUserId: 'user-x',
+          authorUsername: 'someone',
+          authorDisplayName: 'Someone',
+          content: 'legacy message',
+          embeds: '',
+          timestamp: '2025-11-04T00:00:00Z',
+          locationContext:
+            '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
+        },
+      ];
+
+      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+
+      expect(result).toContain('<quote number="1" from="Someone" username="someone" role="user">');
+    });
+
+    it('falls back to role="assistant" when authorRole is absent but the author matches the active personality', async () => {
+      // Deploy-window safety: an old bot-client (pre-classifier) can send a live ref
+      // with no authorRole. Without the name-match fallback, our own personality's
+      // reply-target would read as role="user" until both services finish deploying,
+      // re-opening the self-reply confusion the classifier prevents. mockPersonality's
+      // displayName is 'Test Bot', so a 'Test Bot'-authored ref resolves to assistant.
+      const references: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'msg-self',
+          discordUserId: 'bot-x',
+          authorUsername: 'test-bot',
+          authorDisplayName: 'Test Bot',
+          content: 'our own earlier line',
+          embeds: '',
+          timestamp: '2025-11-04T00:00:00Z',
+          locationContext:
+            '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
+        },
+      ];
+
+      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+
+      expect(result).toContain('role="assistant"');
     });
   });
 
@@ -403,21 +446,23 @@ describe('ReferencedMessageFormatter', () => {
       ];
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
       expect(result).toContain('<instruction>');
+      // Assert all three role clauses — a future edit dropping one would otherwise
+      // pass undetected since the assistant clause's substring stays present.
       expect(result).toContain('role="assistant" is one of your own earlier lines');
+      expect(result).toContain('role="user" is a person');
+      expect(result).toContain('role="bot" is a different bot or automated webhook');
     });
 
-    it('marks a deduped reply-target from the current persona role="assistant" (marker-only)', async () => {
-      // The stub builder empties the current persona's content (no self-preview);
-      // the formatter derives role="assistant" from the bot-gate + persona match.
+    it('renders authorRole="assistant" on a deduped reply-target (marker-only)', async () => {
+      // Deduped stub from our own persona: role="assistant", marker-only content.
       const references: ReferencedMessage[] = [
         {
           referenceNumber: 1,
           discordMessageId: 'm',
           discordUserId: 'u',
-          authorUsername: 'Test Bot 🤖',
-          authorDisplayName: 'Test Bot 🤖',
-          webhookId: 'wh-1',
-          authorIsBot: true,
+          authorUsername: 'Lilith',
+          authorDisplayName: 'Lilith',
+          authorRole: 'assistant',
           content: '',
           embeds: '',
           timestamp: '2025-12-06T00:00:00Z',
@@ -426,23 +471,23 @@ describe('ReferencedMessageFormatter', () => {
         },
       ];
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
-      expect(result).toContain('role="assistant"');
+      expect(result).toContain(
+        '<quote number="1" from="Lilith" username="Lilith" role="assistant">'
+      );
       expect(result).toContain('[Referenced message — full text in <chat_log>]');
     });
 
-    it('marks a deduped third-party bot/webhook reply-target role="user"', async () => {
-      // A deduped stub from a non-persona bot/webhook (PluralKit, another bot) is
-      // role="user" — same persona-scoping as the non-deduped path.
+    it('renders authorRole="bot" on a deduped third-party reply-target', async () => {
+      // A deduped stub from a non-persona bot/webhook reads as role="bot".
       const references: ReferencedMessage[] = [
         {
           referenceNumber: 1,
           discordMessageId: 'm',
           discordUserId: 'u',
-          authorUsername: 'SomeoneElse',
-          authorDisplayName: 'SomeoneElse',
-          webhookId: 'pk-webhook',
-          authorIsBot: true,
-          content: 'proxied text',
+          authorUsername: 'SomeBot',
+          authorDisplayName: 'SomeBot',
+          authorRole: 'bot',
+          content: 'automated text',
           embeds: '',
           timestamp: '2025-12-06T00:00:00Z',
           locationContext: '',
@@ -450,7 +495,7 @@ describe('ReferencedMessageFormatter', () => {
         },
       ];
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
-      expect(result).toContain('role="user"');
+      expect(result).toContain('<quote number="1" from="SomeBot" username="SomeBot" role="bot">');
     });
 
     it('should not process attachments for deduped stubs', async () => {

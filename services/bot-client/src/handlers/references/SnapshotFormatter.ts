@@ -94,6 +94,10 @@ export class SnapshotFormatter {
             .join('\n')
         : '';
 
+    // No authorRole: Discord message snapshots strip author identity (no applicationId
+    // or bot flags), so a forwarded reference can't be classified here and resolves to
+    // role="user" via the worker's name-match fallback. Known Discord-API limitation —
+    // a forwarded persona voice/text message reads as user, not assistant.
     return {
       referenceNumber,
       discordMessageId: forwardedFrom.id, // Use forward message ID (snapshot doesn't have its own)

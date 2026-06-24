@@ -13,30 +13,8 @@ import {
   type StoredReferencedMessage,
 } from '@tzurot/common-types';
 import { formatQuoteElement, formatDedupedQuote } from '../../services/prompt/QuoteFormatter.js';
+import { deriveRefRole } from '../../services/prompt/referenceRole.js';
 import type { RawHistoryEntry } from './conversationTypes.js';
-
-/**
- * Check if author name matches any AI personality (for role inference)
- */
-function isAuthorAssistant(
-  authorName: string,
-  personalityName: string,
-  allPersonalityNames?: Set<string>
-): boolean {
-  const authorLower = authorName.toLowerCase();
-  if (authorLower.startsWith(personalityName.toLowerCase())) {
-    return true;
-  }
-  if (allPersonalityNames === undefined) {
-    return false;
-  }
-  for (const name of allPersonalityNames) {
-    if (authorLower.startsWith(name.toLowerCase())) {
-      return true;
-    }
-  }
-  return false;
-}
 
 /**
  * Format a single stored reference as a <quote> element.
@@ -56,9 +34,7 @@ function formatStoredReferencedMessage(
 ): string {
   // Use hydrated persona name if available, fall back to original Discord display name
   const authorName = ref.resolvedPersonaName ?? (ref.authorDisplayName || ref.authorUsername);
-  const role = isAuthorAssistant(authorName, personalityName, allPersonalityNames)
-    ? 'assistant'
-    : 'user';
+  const role = deriveRefRole(ref.authorRole, authorName, personalityName, allPersonalityNames);
 
   // Format location if present (should be XML formatted by bot-client using shared formatLocationAsXml)
   // Skip legacy Markdown format (from old stored data) - detectable by "**Server**" or
@@ -144,8 +120,10 @@ export function formatQuotedSection(
   // Deduped refs: lightweight stubs with truncated content and reply-target note
   const formattedDeduped = dedupedRefs.map(ref => {
     const authorName = ref.resolvedPersonaName ?? (ref.authorDisplayName || ref.authorUsername);
+    const role = deriveRefRole(ref.authorRole, authorName, personalityName, allPersonalityNames);
     return formatDedupedQuote({
       from: authorName,
+      role,
       timeFormatted:
         ref.timestamp !== undefined && ref.timestamp.length > 0
           ? formatPromptTimestamp(ref.timestamp)

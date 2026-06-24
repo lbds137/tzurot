@@ -90,6 +90,7 @@ describe('MessageFormatter', () => {
         discordUserId: 'user-456',
         authorUsername: 'TestUser',
         authorDisplayName: 'TestUser', // Mock uses username when displayName not explicitly set
+        authorRole: 'user', // human author (no webhook, not a bot) → user
         content: 'Hello world',
         embeds: [],
         timestamp: '2025-01-01T12:00:00.000Z',
@@ -152,6 +153,36 @@ describe('MessageFormatter', () => {
       const result = await formatter.formatMessage(message, 1);
 
       expect(result.authorIsBot).toBeUndefined();
+    });
+
+    it('stamps authorRole="assistant" for our own bot webhook (applicationId === client id)', async () => {
+      // Wiring check: applicationId matching the mock's client.user.id classifies as
+      // our own persona. (Mock client.user.id is 'mock-client-bot-id'.)
+      const message = createMockMessage({
+        applicationId: 'mock-client-bot-id',
+        webhookId: 'wh-self',
+        author: createMockUser({ username: 'Lilith', bot: true }),
+        attachments: new Map() as any,
+        embeds: [],
+      });
+
+      const result = await formatter.formatMessage(message, 1);
+
+      expect(result.authorRole).toBe('assistant');
+    });
+
+    it('stamps authorRole="bot" for a non-persona webhook (different applicationId)', async () => {
+      const message = createMockMessage({
+        applicationId: 'some-other-app',
+        webhookId: 'wh-other',
+        author: createMockUser({ username: 'MEE6', bot: true }),
+        attachments: new Map() as any,
+        embeds: [],
+      });
+
+      const result = await formatter.formatMessage(message, 1);
+
+      expect(result.authorRole).toBe('bot');
     });
 
     it('should use username as displayName when displayName is null', async () => {

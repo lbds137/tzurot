@@ -11,7 +11,12 @@
  * to provide context about the quote source.
  */
 
-import { escapeXml, escapeXmlContent, TEXT_LIMITS } from '@tzurot/common-types';
+import {
+  escapeXml,
+  escapeXmlContent,
+  TEXT_LIMITS,
+  type ReferenceAuthorRole,
+} from '@tzurot/common-types';
 
 /**
  * Options for formatting a single <quote> element.
@@ -28,8 +33,8 @@ export interface QuoteElementOptions {
   fromId?: string;
   /** Author username */
   username?: string;
-  /** Speaker role */
-  role?: 'user' | 'assistant';
+  /** Speaker role: assistant (our persona), user (a person), or bot (other automation) */
+  role?: ReferenceAuthorRole;
   /** Pre-formatted timestamp string (for t="" attribute on <quote>) */
   timeFormatted?: string;
   /** Structured timestamp (for <time> child element) */
@@ -184,8 +189,8 @@ export interface DedupedQuoteOptions {
   from: string;
   /** Author username (real-time refs only) */
   username?: string;
-  /** Speaker role — `assistant` marks one of the bot's own prior messages. */
-  role?: 'user' | 'assistant';
+  /** Speaker role — `assistant` (our persona), `user` (a person), `bot` (other automation). */
+  role?: ReferenceAuthorRole;
   /** Structured timestamp as child element */
   timestamp?: { absolute: string; relative: string };
   /** Pre-formatted timestamp as attribute */

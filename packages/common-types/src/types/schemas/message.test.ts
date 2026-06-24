@@ -10,6 +10,7 @@ import {
   crossChannelMessageSchema,
   crossChannelHistoryGroupSchema,
   referencedMessageSchema,
+  referenceAuthorRoleSchema,
   type CrossChannelMessage,
   type CrossChannelHistoryGroupEntry,
 } from './message.js';
@@ -216,5 +217,34 @@ describe('referencedMessageSchema', () => {
   it('rejects an explicit false (presence-encoding enforced at parse time)', () => {
     const result = referencedMessageSchema.safeParse({ ...base, authorIsBot: false });
     expect(result.success).toBe(false);
+  });
+
+  it('accepts a reference without authorRole (legacy / pre-classifier)', () => {
+    const result = referencedMessageSchema.safeParse(base);
+    expect(result.success).toBe(true);
+    expect(result.success && result.data.authorRole).toBeUndefined();
+  });
+
+  it('accepts a valid authorRole', () => {
+    const result = referencedMessageSchema.safeParse({ ...base, authorRole: 'bot' });
+    expect(result.success).toBe(true);
+    expect(result.success && result.data.authorRole).toBe('bot');
+  });
+
+  it('rejects an invalid authorRole', () => {
+    const result = referencedMessageSchema.safeParse({ ...base, authorRole: 'system' });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('referenceAuthorRoleSchema', () => {
+  it('accepts the three valid roles', () => {
+    for (const role of ['assistant', 'user', 'bot'] as const) {
+      expect(referenceAuthorRoleSchema.safeParse(role).success).toBe(true);
+    }
+  });
+
+  it('rejects an unknown role', () => {
+    expect(referenceAuthorRoleSchema.safeParse('system').success).toBe(false);
   });
 });

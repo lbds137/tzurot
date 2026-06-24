@@ -230,6 +230,48 @@ describe('ConversationPersistence', () => {
       });
     });
 
+    it('carries authorRole through to the stored reference snapshot', async () => {
+      // The classify-once link: bot-client classified the role; convertToStoredReferences
+      // must persist it so the stored-history quote renders the same role as the live one.
+      // Deleting `authorRole: ref.authorRole` there would make this assertion fail.
+      const mockMessage = createMockMessage({
+        id: 'discord-msg-role',
+        channelId: 'channel-123',
+        guildId: 'guild-123',
+      });
+
+      const referencedMessages: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'ref-role-1',
+          discordUserId: 'user-456',
+          authorUsername: 'somebot',
+          authorDisplayName: 'SomeBot',
+          content: 'automated output',
+          embeds: '',
+          timestamp: '2025-01-01T10:00:00Z',
+          locationContext: 'Test Guild > #general',
+          authorRole: 'bot',
+        },
+      ];
+
+      await persistence.saveUserMessage({
+        message: mockMessage,
+        personality: mockPersonality,
+        personaId: 'persona-uuid-123',
+        messageContent: 'Replying to [Reference 1]',
+        referencedMessages,
+      });
+
+      expect(persistUserMessageViaGateway).toHaveBeenCalledWith(
+        expect.objectContaining({
+          messageMetadata: {
+            referencedMessages: [expect.objectContaining({ authorRole: 'bot' })],
+          },
+        })
+      );
+    });
+
     it('should persist isForwarded in messageMetadata for forwarded messages', async () => {
       const { isForwardedMessage } = await import('../utils/forwardedMessageUtils.js');
       vi.mocked(isForwardedMessage).mockReturnValueOnce(true);
