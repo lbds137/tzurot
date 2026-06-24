@@ -209,11 +209,10 @@ describe('central route manifest', () => {
     // timeout below ~10s aborts client-side while the gateway is still acquiring a
     // connection — let alone executing. (Load-bearing assumption: if that pool
     // ceiling is ever raised toward WRITE (20s), this floor must rise with it.)
-    // The method-aware default
-    // already gives mutations the WRITE budget (20s); the failure mode is a route
-    // that EXPLICITLY overrides to a tighter read budget (GATEWAY_RPC 5s, DEFERRED
-    // 10s). That is the class behind the user-message-persist "character
-    // unavailable" prod incident — a transient DB spike outran a 5s persist budget.
+    // The method-aware default already gives mutations the WRITE budget (20s); the
+    // failure mode is a route that EXPLICITLY overrides to a tighter read budget
+    // (GATEWAY_RPC 5s, DEFERRED 10s) — a sub-floor write that aborts client-side
+    // before the gateway finishes acquiring a connection.
     //
     // EXEMPTION: a POST that is semantically a READ (resolves/looks-up, never
     // mutates) may carry a tighter budget IF it is in AUTOCOMPLETE_TIER — those are
