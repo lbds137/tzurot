@@ -61,6 +61,14 @@ export interface FetchCatalogOptions {
   search?: string;
   /** OpenRouter fetch cap (gateway max is 1000). */
   limit?: number;
+  /**
+   * Propagated to the OpenRouter `fetchModels` call: when true, a transient/infra
+   * failure THROWS (so a single-model lookup surfaces "try again") instead of
+   * silently returning a partial catalog (z.ai-only) that reads as "model not
+   * found". The z.ai static entries are still merged in; only the OpenRouter
+   * fetch can fail. Used by {@link fetchCatalogModelById}; omit for autocomplete.
+   */
+  strict?: boolean;
 }
 
 /**
@@ -149,6 +157,7 @@ export async function fetchModelCatalog(
     imageGenOnly: capability === 'image-gen',
     search,
     limit: options.limit ?? 100,
+    strict: options.strict,
   });
 
   const byKey = new Map<string, CatalogModel>();
@@ -195,7 +204,10 @@ export async function fetchModelCatalog(
 
 /**
  * Look up a single model by its exact slug, across both sources. Returns null
- * when no model matches. Used by `/models view` and the browse-select card.
+ * ONLY when no model genuinely matches; THROWS `InfraError` / `GatewayClientError`
+ * on a gateway failure, so the caller's try/catch can show "try again" rather
+ * than a false "not found" (the OpenRouter half could be absent only because the
+ * fetch failed). Used by `/models view` and the browse-select card.
  */
 export async function fetchCatalogModelById(id: string): Promise<CatalogModel | null> {
   // The gateway `search` is a substring match over name/id, and the z.ai merge
@@ -203,7 +215,7 @@ export async function fetchCatalogModelById(id: string): Promise<CatalogModel | 
   // the model from whichever source(s) it lives in. A high limit ensures the
   // exact match isn't truncated out when the slug is a substring of many models
   // (e.g. "gpt"). We then pin the exact id.
-  const candidates = await fetchModelCatalog({ search: id, limit: 1000 });
+  const candidates = await fetchModelCatalog({ search: id, limit: 1000, strict: true });
   const target = id.toLowerCase();
   return candidates.find(m => m.id.toLowerCase() === target) ?? null;
 }

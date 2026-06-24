@@ -70,6 +70,11 @@ export class InfraError extends Error {
  * command framework shows its generic error text, not the "try again" message;
  * a caller wanting a resource-specific message (e.g. "you don't have access")
  * can catch this type.
+ *
+ * Distinct from {@link GatewayApiError}: that one is thrown by the transport
+ * layer (the `callGatewayOrThrow` promise-based path); `GatewayClientError` is
+ * thrown by these result-collapse helpers when a `GatewayResult` carries a
+ * non-404 4xx.
  */
 export class GatewayClientError extends Error {
   /** The 4xx status the gateway returned (e.g. 401/403/409). */

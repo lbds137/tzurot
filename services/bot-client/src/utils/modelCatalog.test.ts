@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ModelAutocompleteOption } from '@tzurot/common-types';
+import { InfraError } from '@tzurot/clients';
 
 // Mock the OpenRouter fetch layer so tests control the OpenRouter side of the
 // merge; the z.ai catalog half comes from the real listZaiCodingPlanModels().
@@ -154,6 +155,19 @@ describe('fetchCatalogModelById', () => {
   it('returns null when nothing matches exactly', async () => {
     fetchModelsMock.mockResolvedValue([model({ id: 'anthropic/claude-sonnet-4' })]);
     expect(await fetchCatalogModelById('anthropic/claude')).toBeNull();
+  });
+
+  it('uses strict mode so a gateway failure surfaces as "try again", not a false "not found"', async () => {
+    fetchModelsMock.mockResolvedValue([model({ id: 'anthropic/claude-sonnet-4' })]);
+    await fetchCatalogModelById('anthropic/claude-sonnet-4');
+    expect(fetchModelsMock).toHaveBeenCalledWith(expect.objectContaining({ strict: true }));
+  });
+
+  it('propagates an InfraError instead of swallowing it into a null "not found"', async () => {
+    fetchModelsMock.mockRejectedValue(
+      new InfraError({ ok: false, kind: 'timeout', error: 'timed out', status: 0 })
+    );
+    await expect(fetchCatalogModelById('anthropic/claude-sonnet-4')).rejects.toThrow(InfraError);
   });
 });
 
