@@ -161,9 +161,6 @@ export const userOwnershipRoutes = {
     input: PersonaCreateSchema,
     output: CreatePersonaResponseSchema,
     requiresProvisionedUser: true,
-    // DEFERRED budget: persona create runs from a post-defer
-    // modal submit, not the autocomplete hot path.
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   updatePersona: {
@@ -176,9 +173,6 @@ export const userOwnershipRoutes = {
     output: UpdatePersonaResponseSchema,
     requiresProvisionedUser: true,
     meta: { idempotent: true },
-    // DEFERRED budget: persona edit runs from a post-defer modal
-    // submit, not the autocomplete hot path.
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   deletePersona: {
@@ -189,9 +183,6 @@ export const userOwnershipRoutes = {
     params: { id: z.string() },
     output: DeletePersonaResponseSchema,
     requiresProvisionedUser: true,
-    // DEFERRED budget: persona delete runs from a post-defer
-    // confirmation, not the autocomplete hot path.
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   setPersonaDefault: {
@@ -202,9 +193,6 @@ export const userOwnershipRoutes = {
     params: { id: z.string() },
     output: SetDefaultPersonaResponseSchema,
     requiresProvisionedUser: true,
-    // DEFERRED budget: set-default runs from a post-defer
-    // dashboard action, not the autocomplete hot path.
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   // ============================================================================
@@ -248,9 +236,6 @@ export const userOwnershipRoutes = {
     output: SetOverrideResponseSchema,
     requiresProvisionedUser: true,
     meta: { idempotent: true },
-    // DEFERRED budget: override pinning runs from a post-defer
-    // dashboard action, not the autocomplete hot path.
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   clearPersonaOverride: {
@@ -261,9 +246,6 @@ export const userOwnershipRoutes = {
     params: { personalitySlug: z.string() },
     output: ClearOverrideResponseSchema,
     requiresProvisionedUser: true,
-    // DEFERRED budget: override clearing runs from a post-defer
-    // dashboard action, not the autocomplete hot path.
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   // Create a new persona AND set it as override for a personality in a single
@@ -282,9 +264,5 @@ export const userOwnershipRoutes = {
     input: PersonaCreateSchema,
     output: CreateOverrideResponseSchema,
     requiresProvisionedUser: true,
-    // DEFERRED budget: create-persona-and-pin runs in a single
-    // server-side transaction from a post-defer modal submit, not the
-    // autocomplete hot path; the transaction work needs the longer budget.
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 } as const satisfies Record<string, RouteDef>;

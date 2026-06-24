@@ -114,7 +114,6 @@ export const internalRoutes = {
     params: { jobId: z.string() },
     output: AiConfirmDeliveryResponseSchema,
     serviceOnly: true,
-    timeoutMs: TIMEOUTS.GATEWAY_RPC,
   },
 
   /**
@@ -130,7 +129,6 @@ export const internalRoutes = {
     input: DmSessionSetRequestSchema,
     output: DmSessionSetResponseSchema,
     serviceOnly: true,
-    timeoutMs: TIMEOUTS.GATEWAY_RPC,
   },
 
   /**
@@ -170,7 +168,6 @@ export const internalRoutes = {
     input: PersistAssistantMessageRequestSchema,
     output: PersistAssistantMessageResponseSchema,
     serviceOnly: true,
-    timeoutMs: TIMEOUTS.GATEWAY_RPC,
   },
 
   /**
@@ -189,7 +186,6 @@ export const internalRoutes = {
     input: PersistUserMessageRequestSchema,
     output: PersistUserMessageResponseSchema,
     serviceOnly: true,
-    timeoutMs: TIMEOUTS.GATEWAY_RPC,
   },
 
   /**
@@ -207,7 +203,6 @@ export const internalRoutes = {
     input: ConversationSyncRequestSchema,
     output: ConversationSyncResponseSchema,
     serviceOnly: true,
-    timeoutMs: TIMEOUTS.GATEWAY_RPC,
   },
 
   /**
@@ -250,7 +245,6 @@ export const internalRoutes = {
     input: RoutingContextRequestSchema,
     output: RoutingContextResponseSchema,
     serviceOnly: true,
-    timeoutMs: TIMEOUTS.GATEWAY_PROVISIONING,
   },
 
   /**
@@ -337,7 +331,6 @@ export const internalRoutes = {
     input: DiagnosticUpdateSchema,
     output: DiagnosticUpdateResponseSchema,
     serviceOnly: true,
-    timeoutMs: TIMEOUTS.GATEWAY_RPC,
   },
 
   /**

@@ -85,8 +85,6 @@ export const userConfigOverrideRoutes = {
     input: ConfigOverridesSchema,
     output: UpdateConfigDefaultsResponseSchema,
     requiresProvisionedUser: true,
-    // PATCH + resolve handshake (paired with resolveUserDefaults).
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   clearUserDefaults: {
@@ -96,10 +94,6 @@ export const userConfigOverrideRoutes = {
     id: 'clearUserDefaults',
     output: ClearUserConfigDefaultsResponseSchema,
     requiresProvisionedUser: true,
-    // DEFERRED budget: clear-then-resolve handshake in the settings dashboard;
-    // consistent budget with the GET/PATCH on the same /defaults path prevents
-    // the follow-up resolve from timing out.
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   resolveCascade: {
@@ -128,9 +122,6 @@ export const userConfigOverrideRoutes = {
     input: ConfigOverridesSchema,
     output: UpdatePersonalityConfigOverridesResponseSchema,
     requiresProvisionedUser: true,
-    // PATCH + resolve form a paired handshake; consistent budget across
-    // both prevents the resolve from timing out after a successful PATCH.
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   clearPersonalityOverrides: {
@@ -179,7 +170,5 @@ export const userConfigOverrideRoutes = {
     input: ConfigOverridesSchema,
     output: UpdateConfigDefaultsResponseSchema,
     requiresProvisionedUser: true,
-    // Same PATCH + resolve handshake invariant as updatePersonalityOverrides.
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 } as const satisfies Record<string, RouteDef>;

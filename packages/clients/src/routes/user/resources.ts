@@ -275,7 +275,6 @@ export const userResourceRoutes = {
     params: { provider: z.string() },
     output: RemoveWalletKeyResponseSchema,
     requiresProvisionedUser: true,
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   testWalletKey: {
@@ -370,6 +369,5 @@ export const userResourceRoutes = {
     params: { provider: z.string(), voiceId: z.string() },
     output: DeleteVoiceResponseSchema,
     requiresProvisionedUser: true,
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 } as const satisfies Record<string, RouteDef>;

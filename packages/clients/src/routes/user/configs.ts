@@ -89,7 +89,6 @@ export const userConfigRoutes = {
     output: SetTimezoneResponseSchema,
     requiresProvisionedUser: true,
     meta: { idempotent: true },
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   // ============================================================================
@@ -248,12 +247,6 @@ export const userConfigRoutes = {
     timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
-  // Override writes (this and the model/stt overrides below) deliberately keep
-  // DEFERRED (10s) rather than WRITE: they're single-row upserts with no
-  // validation cascade or cache-invalidation fan-out, so 10s is ample. The
-  // method-aware transport default backstops any future write route that omits
-  // a timeout (it gets WRITE), so leaving these at DEFERRED is a conscious
-  // shorter-budget choice, not an oversight.
   setTtsOverride: {
     audience: 'user',
     method: 'put',
@@ -263,7 +256,6 @@ export const userConfigRoutes = {
     output: SetTtsOverrideResponseSchema,
     requiresProvisionedUser: true,
     meta: { idempotent: true },
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   deleteTtsOverride: {
@@ -274,7 +266,6 @@ export const userConfigRoutes = {
     params: { personalityId: z.string() },
     output: DeleteTtsOverrideResponseSchema,
     requiresProvisionedUser: true,
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   getTtsDefaultConfig: {
@@ -296,7 +287,6 @@ export const userConfigRoutes = {
     output: SetTtsDefaultConfigResponseSchema,
     requiresProvisionedUser: true,
     meta: { idempotent: true },
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   clearTtsDefaultConfig: {
@@ -306,7 +296,6 @@ export const userConfigRoutes = {
     id: 'clearTtsDefaultConfig',
     output: ClearTtsDefaultConfigResponseSchema,
     requiresProvisionedUser: true,
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   // ============================================================================
@@ -335,7 +324,6 @@ export const userConfigRoutes = {
     output: SetSttDefaultProviderResponseSchema,
     requiresProvisionedUser: true,
     meta: { idempotent: true },
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   clearSttDefaultProvider: {
@@ -345,7 +333,6 @@ export const userConfigRoutes = {
     id: 'clearSttDefaultProvider',
     output: ClearSttDefaultProviderResponseSchema,
     requiresProvisionedUser: true,
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   // ============================================================================
@@ -372,7 +359,6 @@ export const userConfigRoutes = {
     output: SetModelOverrideResponseSchema,
     requiresProvisionedUser: true,
     meta: { idempotent: true },
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   deleteModelOverride: {
@@ -383,7 +369,6 @@ export const userConfigRoutes = {
     params: { personalityId: z.string() },
     output: DeleteModelOverrideResponseSchema,
     requiresProvisionedUser: true,
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   getDefaultModelConfig: {
@@ -409,7 +394,6 @@ export const userConfigRoutes = {
     output: SetDefaultConfigResponseSchema,
     requiresProvisionedUser: true,
     meta: { idempotent: true },
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
   clearDefaultModelConfig: {
@@ -419,6 +403,5 @@ export const userConfigRoutes = {
     id: 'clearDefaultModelConfig',
     output: ClearDefaultConfigResponseSchema,
     requiresProvisionedUser: true,
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 } as const satisfies Record<string, RouteDef>;
