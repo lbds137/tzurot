@@ -942,6 +942,45 @@ describe('ContextAssembler — extended-context voice transcript re-resolution',
     expect(transcriptsOf(core)).toBeUndefined();
   });
 
+  it('isolates a single ref failure — a throwing DB lookup degrades that ref, not the batch', async () => {
+    // One ref's DB lookup throws (e.g. a connection error); the other resolves.
+    // The throwing ref must degrade to no-transcript while the sibling still
+    // gets its transcript — a single failure must NOT reject the Promise.all and
+    // abort context assembly for the whole job.
+    const okRef = { ...voiceRef, sourceDiscordMessageId: 'd-ok' };
+    const throwRef = { ...voiceRef, sourceDiscordMessageId: 'd-throw' };
+    const deps = makeDeps({
+      dataSource: {
+        getMessageByDiscordId: vi.fn(async (id: string) => {
+          if (id === 'd-throw') {
+            throw new Error('DB connection error');
+          }
+          return { content: 'db transcript ok' };
+        }),
+      },
+    });
+    const ctx = makeJobContext({
+      rawAssemblyInputs: {
+        rawMessageContent: 'hello',
+        rawExtendedContextMessages: [
+          { role: MessageRole.User, content: '[voice message]', discordMessageId: ['d-ok'] },
+          { role: MessageRole.User, content: '[voice message]', discordMessageId: ['d-throw'] },
+        ],
+        rawExtendedContextVoiceMessages: [okRef, throwRef],
+      },
+    });
+
+    const core = await new ContextAssembler(deps).assembleCore(ctx, PERSONALITY, undefined, {
+      reTranscribeVoiceViaStt: vi.fn().mockResolvedValue(null),
+    });
+
+    // assembleCore resolved (no throw); sibling resolved, failed ref left transcript-less.
+    const okMsg = core.history.find(m => (m.discordMessageId ?? []).includes('d-ok'));
+    const throwMsg = core.history.find(m => (m.discordMessageId ?? []).includes('d-throw'));
+    expect(okMsg?.messageMetadata?.voiceTranscripts).toEqual(['db transcript ok']);
+    expect(throwMsg?.messageMetadata?.voiceTranscripts).toBeUndefined();
+  });
+
   it('caps re-resolution to the newest refs when the count exceeds the cap', async () => {
     const N = 12; // > EXTENDED_CONTEXT_VOICE_REDERIVE_CAP (10)
     const ids = Array.from({ length: N }, (_, i) => `d-voice-${i}`); // collector order: oldest-first
