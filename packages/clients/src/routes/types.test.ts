@@ -29,6 +29,10 @@ describe('asActor', () => {
     const id = asActor('999');
     expectTypeOf(id).toEqualTypeOf<ActorDiscordId>();
   });
+
+  it('throws with a descriptive message on an empty string id', () => {
+    expect(() => asActor('')).toThrow('asActor: id must be non-empty');
+  });
 });
 
 describe('asSubject', () => {
@@ -40,6 +44,10 @@ describe('asSubject', () => {
   it('produces a value assignable to SubjectDiscordId at the type level', () => {
     const id = asSubject('222');
     expectTypeOf(id).toEqualTypeOf<SubjectDiscordId>();
+  });
+
+  it('throws with a descriptive message on an empty string id', () => {
+    expect(() => asSubject('')).toThrow('asSubject: id must be non-empty');
   });
 });
 
