@@ -46,6 +46,12 @@ export type SubjectDiscordId = string & { readonly [SubjectBrand]: true };
  * @param id The raw Discord snowflake (e.g., `interaction.user.id`)
  */
 export function asActor(id: string): ActorDiscordId {
+  // Defense in depth: the brand is currently only minted from
+  // `interaction.user.id` (always a non-empty snowflake), but an empty string
+  // would silently satisfy the cast and forward as a blank `X-User-Id`.
+  if (id.length === 0) {
+    throw new TypeError('asActor: id must be non-empty');
+  }
   return id as ActorDiscordId;
 }
 
@@ -56,6 +62,12 @@ export function asActor(id: string): ActorDiscordId {
  * @param id The raw Discord snowflake of the target user
  */
 export function asSubject(id: string): SubjectDiscordId {
+  // Defense in depth — a stronger case than asActor: a subject id can arrive
+  // from `?userId=` (user-controlled query string, see RouteDef.acceptsSubject),
+  // so an empty value would silently mint a blank SubjectDiscordId.
+  if (id.length === 0) {
+    throw new TypeError('asSubject: id must be non-empty');
+  }
   return id as SubjectDiscordId;
 }
 
