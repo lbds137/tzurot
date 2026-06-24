@@ -22,6 +22,9 @@ export * from './routes/manifest.js';
 // Shared gateway client transport + error helpers.
 export * from './clients/errors.js';
 export * from './clients/transport.js';
+// InfraError + result-collapse helpers (distinguish a genuine 404 from an
+// infrastructure failure when consuming a GatewayResult).
+export * from './clients/resultHelpers.js';
 // Generated client classes — re-exported from the package entry point so
 // downstream consumers (bot-client) can import them without reaching into
 // _generated/ paths.

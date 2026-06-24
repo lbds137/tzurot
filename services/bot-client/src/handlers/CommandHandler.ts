@@ -6,6 +6,7 @@
  */
 
 import { createLogger } from '@tzurot/common-types';
+import { InfraError } from '@tzurot/clients';
 import {
   Collection,
   ChatInputCommandInteraction,
@@ -25,6 +26,20 @@ import { getCommandFiles } from '../utils/commandFileUtils.js';
 const logger = createLogger('CommandHandler');
 const ERROR_REPLY_FAILED_MSG =
   '[CommandHandler] Could not send error reply (interaction likely already acknowledged)';
+
+/**
+ * User-facing text for a top-level command/interaction error. An `InfraError`
+ * (a gateway call failed for an infrastructure reason — timeout/network/5xx,
+ * surfaced via the Pattern-B result helpers in `@tzurot/clients`) gets a
+ * "try again" message, so a transient blip never reads to the user as a
+ * definitive failure of the command. Everything else keeps the
+ * command-specific fallback.
+ */
+export function infraAwareErrorText(error: unknown, fallback: string): string {
+  return error instanceof InfraError
+    ? "⚠️ Couldn't reach the server right now — please try again in a moment."
+    : fallback;
+}
 
 // Get directory name for ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -207,7 +222,10 @@ export class CommandHandler {
     } catch (error) {
       logger.error({ err: error, commandName }, 'Error executing command');
       try {
-        await this.sendErrorReply(interaction, 'There was an error executing this command!');
+        await this.sendErrorReply(
+          interaction,
+          infraAwareErrorText(error, 'There was an error executing this command!')
+        );
       } catch (replyError) {
         logger.debug({ err: replyError }, ERROR_REPLY_FAILED_MSG);
       }
@@ -255,7 +273,10 @@ export class CommandHandler {
     } catch (error) {
       logger.error({ err: error, customId }, `Error in modal: ${commandName}`);
       try {
-        await this.sendErrorReply(interaction, 'There was an error processing this interaction!');
+        await this.sendErrorReply(
+          interaction,
+          infraAwareErrorText(error, 'There was an error processing this interaction!')
+        );
       } catch (replyError) {
         logger.debug({ err: replyError, customId }, ERROR_REPLY_FAILED_MSG);
       }
@@ -335,7 +356,10 @@ export class CommandHandler {
     } catch (error) {
       logger.error({ err: error, customId, commandName }, 'Error in component interaction');
       try {
-        await this.sendErrorReply(interaction, 'There was an error processing this interaction!');
+        await this.sendErrorReply(
+          interaction,
+          infraAwareErrorText(error, 'There was an error processing this interaction!')
+        );
       } catch (replyError) {
         logger.debug({ err: replyError, customId }, ERROR_REPLY_FAILED_MSG);
       }
