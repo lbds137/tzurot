@@ -106,6 +106,23 @@ export class MessageFormatter {
 
     const { content, attachments } = this.resolveMessageContent(message, messageIsForwarded);
 
+    // Temporary probe: capture the owning applicationId for webhook references, to
+    // verify whether proxy webhooks (PluralKit/Tupperbox) carry one — the signal the
+    // authorship classifier needs to tell a proxied human from a non-persona bot.
+    // Logged at info so it surfaces on dev's default level. Remove after capture.
+    if (message.webhookId !== null) {
+      logger.info(
+        {
+          probe: 'applicationId',
+          refMsgId: message.id,
+          webhookId: message.webhookId,
+          applicationId: message.applicationId,
+          authorIsBot: message.author.bot,
+        },
+        '[PROBE] webhook reference authorship signals'
+      );
+    }
+
     return {
       attachments,
       reference: {
