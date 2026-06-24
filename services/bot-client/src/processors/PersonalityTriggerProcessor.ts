@@ -228,7 +228,7 @@ export class PersonalityTriggerProcessor implements IMessageProcessor {
       if (shouldNotifyUser(channelId, userId)) {
         await message
           .reply({
-            content: `📍 This channel has **${personalityName}** activated, but it's a private personality you don't have access to. You can still @mention other personalities or ask the personality owner for access.`,
+            content: `📍 This channel has **${personalityName}** activated, but it's a private character you don't have access to. You can still @mention other characters or ask the character owner for access.`,
             allowedMentions: { parse: [], repliedUser: false },
           })
           .catch(err =>
