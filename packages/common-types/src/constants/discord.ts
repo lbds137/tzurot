@@ -110,6 +110,13 @@ export const GATEWAY_TIMEOUTS = {
   /** Extended timeout for bulk operations (e.g., clearing all cloned voices).
    *  These involve multiple sequential/batched external API calls. */
   BULK_OPERATION: 30_000,
+  /** Client timeout for a route whose handler makes a SINGLE synchronous
+   *  external-provider call (key validation, voice-provider list, shapes fetch).
+   *  Must exceed the handler's internal call budget (the VALIDATION_TIMEOUTS.* —
+   *  ≤30s today) plus auth/provisioning/DB/network overhead, so the client
+   *  outwaits the gateway instead of aborting while it's still succeeding. Pair
+   *  with a route's `externalCallBudgetMs`; the manifest test enforces the gap. */
+  EXTERNAL_PROVIDER: 40_000,
 } as const;
 
 /**

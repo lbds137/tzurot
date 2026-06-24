@@ -142,6 +142,32 @@ describe('central route manifest', () => {
     }
   });
 
+  it('routes declaring externalCallBudgetMs give the client enough timeout to outwait it', () => {
+    // The cross-layer timeout invariant. A route whose handler makes a synchronous
+    // external-provider call (key validation, voice-provider list, shapes fetch)
+    // declares that call's internal budget via externalCallBudgetMs. The CLIENT
+    // timeout must exceed it by an overhead margin (auth + provisioning + DB +
+    // network beyond the external call) — else the client aborts while the gateway
+    // is still succeeding and the user sees a spurious failure. The canonical case:
+    // a 30s provider validation probe behind a 10s client timeout.
+    const OVERHEAD_MS = 3000;
+    for (const [key, route] of entries) {
+      if (route.externalCallBudgetMs === undefined) {
+        continue;
+      }
+      expect(
+        route.timeoutMs,
+        `${key} declares externalCallBudgetMs but no timeoutMs`
+      ).toBeDefined();
+      expect(
+        route.timeoutMs,
+        `${key} timeoutMs (${String(route.timeoutMs)}) must be >= externalCallBudgetMs ` +
+          `(${route.externalCallBudgetMs}) + ${OVERHEAD_MS}ms overhead so the client outwaits ` +
+          `the handler's external call instead of aborting mid-success`
+      ).toBeGreaterThanOrEqual(route.externalCallBudgetMs + OVERHEAD_MS);
+    }
+  });
+
   it('only AUTOCOMPLETE_TIER routes use the tight AUTOCOMPLETE budget', () => {
     // The read default is DEFERRED (10s, safe). The AUTOCOMPLETE budget (2.5s) is
     // the dangerous tier — it aborts a read that takes >2.5s under load (the

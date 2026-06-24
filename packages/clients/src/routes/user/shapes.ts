@@ -23,6 +23,7 @@ import {
   StartShapesImportResponseSchema,
   StoreShapesAuthInputSchema,
   StoreShapesAuthResponseSchema,
+  VALIDATION_TIMEOUTS,
 } from '@tzurot/common-types';
 
 import type { RouteDef } from '../types.js';
@@ -86,11 +87,12 @@ export const userShapesRoutes = {
     output: ListShapesResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
-    // Dual-context route: the browse/import flows fetch this post-defer (it
-    // queries the external shapes.inc catalog and needs the longer budget),
-    // while autocomplete callers are bounded by Discord's own 3s deadline
-    // regardless of this value. DEFERRED serves the slower consumer.
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
+    externalCallBudgetMs: VALIDATION_TIMEOUTS.EXTERNAL_SHAPES_API_CALL,
+    // The handler queries the external shapes.inc catalog (up to
+    // EXTERNAL_SHAPES_API_CALL = 15s), so the client must outwait it.
+    // Autocomplete callers are bounded by Discord's own 3s deadline regardless;
+    // this budget serves the browse/import deferred-handler path.
+    timeoutMs: GATEWAY_TIMEOUTS.EXTERNAL_PROVIDER,
   },
 
   // ============================================================================

@@ -45,6 +45,7 @@ import {
   UpdateChannelGuildRequestSchema,
   UpdateChannelGuildResponseSchema,
   UsageStatsSchema,
+  VALIDATION_TIMEOUTS,
   VerifyNsfwResponseSchema,
 } from '@tzurot/common-types';
 
@@ -262,7 +263,8 @@ export const userResourceRoutes = {
     input: SetWalletKeySchema,
     output: SetWalletKeyResponseSchema,
     requiresProvisionedUser: true,
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
+    externalCallBudgetMs: VALIDATION_TIMEOUTS.API_KEY_VALIDATION,
+    timeoutMs: GATEWAY_TIMEOUTS.EXTERNAL_PROVIDER,
   },
 
   removeWalletKey: {
@@ -284,11 +286,12 @@ export const userResourceRoutes = {
     input: TestWalletKeySchema,
     output: TestWalletKeyResponseSchema,
     requiresProvisionedUser: true,
-    // Post-defer dashboard action (not a slash-command hot path), and the
-    // gateway handler synchronously probes the provider's auth/credits
-    // endpoint before responding — so the gateway's own response is slow.
-    // DEFERRED gives the bot→gateway hop enough headroom for that probe.
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
+    externalCallBudgetMs: VALIDATION_TIMEOUTS.API_KEY_VALIDATION,
+    // The gateway handler synchronously probes the provider's auth/credits
+    // endpoint (up to API_KEY_VALIDATION = 30s) before responding, so the
+    // bot→gateway hop must outwait that probe. DEFERRED (10s) aborted mid-probe
+    // while the gateway was still succeeding; EXTERNAL_PROVIDER gives the headroom.
+    timeoutMs: GATEWAY_TIMEOUTS.EXTERNAL_PROVIDER,
   },
 
   // ============================================================================
@@ -323,10 +326,12 @@ export const userResourceRoutes = {
     output: ListVoicesResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
-    // Dual-context route: autocomplete callers are bounded by Discord's
-    // own 3s deadline, so the longer budget exists for the deferred-handler
-    // paths where a list fetch may run alongside other Prisma work.
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
+    externalCallBudgetMs: VALIDATION_TIMEOUTS.EXTERNAL_AUDIO_API_CALL,
+    // The handler fans out to the ElevenLabs/Mistral voices endpoints (parallel,
+    // up to EXTERNAL_AUDIO_API_CALL = 30s worst case), so the client must outwait
+    // it. Autocomplete callers are bounded by Discord's own 3s deadline
+    // regardless; this budget serves the deferred-handler path.
+    timeoutMs: GATEWAY_TIMEOUTS.EXTERNAL_PROVIDER,
   },
 
   listVoiceModels: {
@@ -337,10 +342,12 @@ export const userResourceRoutes = {
     output: ListVoiceModelsResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
-    // DEFERRED budget: fetches the provider's available-models
-    // catalog (third-party round-trip) for the post-defer voice dashboard;
-    // the 2500ms autocomplete default is too tight for the upstream call.
-    timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
+    externalCallBudgetMs: VALIDATION_TIMEOUTS.EXTERNAL_AUDIO_API_CALL,
+    // Fetches the provider's available-models catalog (third-party round-trip,
+    // up to EXTERNAL_AUDIO_API_CALL = 30s). Cached (5-min TTL) so hits are cheap,
+    // but a cache miss runs the full call — the client must outwait it, not abort
+    // at the 10s DEFERRED budget.
+    timeoutMs: GATEWAY_TIMEOUTS.EXTERNAL_PROVIDER,
   },
 
   clearVoices: {
