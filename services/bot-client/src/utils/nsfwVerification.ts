@@ -284,7 +284,7 @@ export async function sendVerificationConfirmation(
 ): Promise<void> {
   try {
     const msg = await channel.send(
-      '✅ **NSFW verification complete!** You can now chat with personalities anywhere.'
+      '✅ **NSFW verification complete!** You can now chat with characters anywhere.'
     );
     // Short-lived timer (10s) - acceptable if lost on restart; worst case is
     // an extra confirmation message in channel. Not worth Redis tracking.
