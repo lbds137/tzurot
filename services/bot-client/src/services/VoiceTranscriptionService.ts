@@ -255,11 +255,11 @@ export class VoiceTranscriptionService {
     // reliable signal that the inner audio came from our own TTS is the
     // attachment filename, which we control at upload time. The classifier
     // check itself is synchronous (regex per attachment) — the async cache
-    // write + reply only fire on the matched branch, keeping the unmatched
+    // write only fires on the matched branch, keeping the unmatched
     // path microtask-equivalent to the pre-fix behavior.
     const ownAuthoredSlugs = this.classifyAsOwnBotAudio(message, attachments);
     if (ownAuthoredSlugs !== null) {
-      return this.handleOwnBotAudio(message, attachments, ownAuthoredSlugs, hasMention, isReply);
+      return this.handleOwnBotAudio(attachments, ownAuthoredSlugs, hasMention, isReply);
     }
 
     let typingInterval: NodeJS.Timeout | undefined;
@@ -421,12 +421,15 @@ export class VoiceTranscriptionService {
   }
 
   /**
-   * Async path for bot-authored audio: cache the placeholder, post a
-   * visible reply for channel acknowledgment, return placeholder as the
-   * transcript. Called only when `classifyAsOwnBotAudio` matched.
+   * Async path for bot-authored audio: cache the placeholder and return it as
+   * the transcript (model-facing context only), then bail. Deliberately
+   * silent — the skip is logged, never announced in-channel. "We didn't
+   * re-transcribe our own TTS" is an implementation detail the user shouldn't
+   * see; if the forward addresses the bot (mention/reply), the persona handler
+   * still produces a normal response using the cached placeholder as context.
+   * Called only when `classifyAsOwnBotAudio` matched.
    */
   private async handleOwnBotAudio(
-    message: Message,
     attachments: TranscriptionAttachment[],
     slugs: string[],
     hasMention: boolean,
@@ -445,20 +448,6 @@ export class VoiceTranscriptionService {
     for (const attachment of attachments) {
       await voiceTranscriptCache.store(attachment.originalUrl, placeholder);
     }
-    // Visible reply so the user (and channel) see acknowledgment of the
-    // forward. Without this, a forwarded voice message would produce no
-    // visible bot output, which reads as the bot ignoring the message.
-    await message
-      .reply({
-        content: placeholder,
-        allowedMentions: { parse: [], repliedUser: false },
-      })
-      .catch(replyError => {
-        logger.warn(
-          { err: replyError, messageId: message.id },
-          'Failed to send own-bot-audio placeholder reply'
-        );
-      });
     return {
       transcript: placeholder,
       continueToPersonalityHandler: hasMention || isReply,
