@@ -151,13 +151,25 @@ describe('handleEditPersona', () => {
       expect(mockEditReply).toHaveBeenCalled();
     });
 
-    it('should show error when user has no personas', async () => {
-      stub.listPersonas.mockResolvedValue(makeErr(500, 'No default persona'));
+    it('should show "no personas" when the user genuinely has none (empty list)', async () => {
+      stub.listPersonas.mockResolvedValue(makeOk(mockListPersonasResponse([])));
 
       await handleEditPersona(createMockContext(), null);
 
       expect(mockEditReply).toHaveBeenCalledWith({
         content: expect.stringContaining("don't have any personas"),
+      });
+    });
+
+    it('shows "try again" (not "no personas") when the persona-list fetch fails (infra)', async () => {
+      // Previously a 500 here read as "you have no personas" — the conflation
+      // this epic fixes. fetchDefaultPersona now throws → edit.ts catch.
+      stub.listPersonas.mockResolvedValue(makeErr(500, 'Gateway error'));
+
+      await handleEditPersona(createMockContext(), null);
+
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('try again'),
       });
     });
   });
