@@ -526,7 +526,7 @@ describe('NSFW Verification Utilities', () => {
       await sendVerificationConfirmation(mockChannel, 5000);
 
       expect(mockChannel.send).toHaveBeenCalledWith(
-        '✅ **NSFW verification complete!** You can now chat with personalities anywhere.'
+        '✅ **NSFW verification complete!** You can now chat with characters anywhere.'
       );
 
       // Message should not be deleted yet

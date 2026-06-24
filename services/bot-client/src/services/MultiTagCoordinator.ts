@@ -151,9 +151,16 @@ export class MultiTagCoordinator {
     // and the dense numbering is the canonical view.
     const runtimeSlots: RuntimeSlot[] = [];
     let nextIndex = 0;
+    let anyInfraError = false;
     for (const submission of slotSubmissions) {
-      if (submission === null) {
-        continue; // denied slot — skip silently
+      if (submission === 'denied' || submission === 'errored') {
+        // A failed slot is not coordinated; its REASON drives the all-denied
+        // notice below — a transient 'errored' must not read to the user as the
+        // character being unavailable.
+        if (submission === 'errored') {
+          anyInfraError = true;
+        }
+        continue;
       }
       runtimeSlots.push({
         slotIndex: nextIndex++,
@@ -168,7 +175,7 @@ export class MultiTagCoordinator {
 
     if (runtimeSlots.length === 0) {
       logger.info(
-        { sourceMessageId: input.message.id },
+        { sourceMessageId: input.message.id, anyInfraError },
         'All multi-tag slots denied — nothing to coordinate'
       );
       // User-facing notice: pre-PR per-processor flow surfaced denial via
@@ -189,8 +196,11 @@ export class MultiTagCoordinator {
       // this notice belongs to a different message.
       try {
         await input.message.reply(
-          '❌ None of the tagged personalities are currently available. ' +
-            'They may be private, on the denylist, or restricted in this channel.'
+          anyInfraError
+            ? "⏳ Couldn't get a response just now — something's slow on our end. " +
+                'Please try again in a moment.'
+            : '❌ None of the tagged characters are currently available. ' +
+                'They may be private, on the denylist, or restricted in this channel.'
         );
       } catch (err) {
         logger.warn(
@@ -487,12 +497,11 @@ export class MultiTagCoordinator {
 
   /**
    * Submit one slot's AI job through the chat manager. Returns submission
-   * details on success or null on denial (denylist / NSFW gate).
+   * details on success, `'denied'` on a genuine refusal (denylist / NSFW gate),
+   * or `'errored'` when submission throws (transient infra failure, e.g. a
+   * gateway write-timeout persisting the trigger message).
    */
-  private async submitSlot(
-    input: StartFanOutInput,
-    resolved: ResolvedSlot
-  ): Promise<SlotSubmission | null> {
+  private async submitSlot(input: StartFanOutInput, resolved: ResolvedSlot): Promise<SlotOutcome> {
     try {
       const result = await this.deps.chatManager.submitChatJob({
         message: input.message,
@@ -509,7 +518,7 @@ export class MultiTagCoordinator {
           },
           'Multi-tag slot denied — omitting from fan-out'
         );
-        return null;
+        return 'denied';
       }
       // Register with JobTracker for typing-indicator refresh + context
       // storage, but skip ordering-service registration (the coordinator
@@ -529,7 +538,7 @@ export class MultiTagCoordinator {
         { err, personalityId: resolved.personality.id, sourceMessageId: input.message.id },
         'Multi-tag slot submission threw — synthesizing as errored slot'
       );
-      return null;
+      return 'errored';
     }
   }
 
@@ -662,3 +671,18 @@ interface SlotSubmission {
   source: SlotSource;
   isAutoResponse: boolean;
 }
+
+/**
+ * The outcome of one slot submission:
+ * - `SlotSubmission` — a live job to coordinate.
+ * - `'denied'` — a genuine refusal: the character can't respond (private,
+ *   denylisted, NSFW-gated, or restricted here). The input was understood; the
+ *   character simply isn't available.
+ * - `'errored'` — an infrastructure failure: the submission threw (e.g. a
+ *   gateway write-timeout while persisting the trigger message). Transient, so
+ *   the honest user-facing response is "try again", not "unavailable".
+ *
+ * Collapsing both failures to `null` (the prior shape) made the all-denied
+ * notice blame the character for what was really a transient backend hiccup.
+ */
+type SlotOutcome = SlotSubmission | 'denied' | 'errored';

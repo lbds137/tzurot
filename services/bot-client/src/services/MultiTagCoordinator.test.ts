@@ -228,6 +228,72 @@ describe('MultiTagCoordinator', () => {
       expect(coordinator.ownsJob('job-Bob')).toBe(false);
     });
 
+    it('sends the unavailable notice (characters) when every slot is genuinely denied', async () => {
+      const msg = buildMessage();
+      chatManager.submitChatJob.mockResolvedValue({ kind: 'denied', reason: 'denylist' });
+
+      await coordinator.startFanOut({
+        message: msg,
+        channel: buildChannel(),
+        slots: [buildResolvedSlot(buildPersonality('Alice'))],
+        content: 'hi',
+        truncated: false,
+      });
+
+      expect(vi.mocked(msg.reply)).toHaveBeenCalledWith(
+        expect.stringContaining('None of the tagged characters are currently available')
+      );
+    });
+
+    it('sends the try-again notice — not "unavailable" — when a slot fails with an infra error', async () => {
+      const msg = buildMessage();
+      // submitSlot catches the throw and synthesizes an 'errored' (not 'denied')
+      // slot; the all-denied notice must blame the backend, not the character.
+      chatManager.submitChatJob.mockRejectedValue(
+        new Error('User-message persist failed via gateway: 0 Request timeout')
+      );
+
+      await coordinator.startFanOut({
+        message: msg,
+        channel: buildChannel(),
+        slots: [buildResolvedSlot(buildPersonality('Alice'))],
+        content: 'hi',
+        truncated: false,
+      });
+
+      expect(vi.mocked(msg.reply)).toHaveBeenCalledWith(
+        expect.stringContaining("something's slow on our end")
+      );
+      expect(vi.mocked(msg.reply)).not.toHaveBeenCalledWith(
+        expect.stringContaining('currently available')
+      );
+    });
+
+    it('prefers the try-again notice when any slot errored, even alongside a genuine denial', async () => {
+      const msg = buildMessage();
+      chatManager.submitChatJob.mockImplementation(async ({ personality }) => {
+        if (personality.id === 'id-Alice') {
+          throw new Error('gateway timeout');
+        }
+        return { kind: 'denied', reason: 'denylist' };
+      });
+
+      await coordinator.startFanOut({
+        message: msg,
+        channel: buildChannel(),
+        slots: [
+          buildResolvedSlot(buildPersonality('Alice')),
+          buildResolvedSlot(buildPersonality('Bob')),
+        ],
+        content: 'hi',
+        truncated: false,
+      });
+
+      expect(vi.mocked(msg.reply)).toHaveBeenCalledWith(
+        expect.stringContaining("something's slow on our end")
+      );
+    });
+
     it('refuses fan-out after shutdown begins', async () => {
       await coordinator.beginShutdown();
       await coordinator.startFanOut({
