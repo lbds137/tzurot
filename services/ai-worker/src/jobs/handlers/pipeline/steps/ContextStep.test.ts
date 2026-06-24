@@ -386,6 +386,30 @@ describe('ContextStep', () => {
       expect(result.preparedContext?.oldestHistoryTimestamp).toBeUndefined();
     });
 
+    it('wires reTranscribeVoiceViaStt through to the STT helper (extended-context voice)', async () => {
+      const attachment = {
+        url: 'https://cdn.discord/voice.ogg',
+        contentType: 'audio/ogg',
+      } as unknown as AttachmentMetadata;
+      mockTranscribeAudio.mockResolvedValue({ text: 'recovered transcript' });
+
+      // The assembler invokes the callback the step wired in, exercising
+      // sourceHistory's reTranscribeVoiceViaStt → reTranscribeExtendedContextVoice
+      // path (otherwise dead under a mocked assembler that never calls back).
+      let calledText: string | null = 'unset';
+      const assembleCore = vi.fn().mockImplementation(async (_ctx, _pers, _ovr, opts) => {
+        calledText = await opts.reTranscribeVoiceViaStt(attachment);
+        return makeAssembled();
+      });
+      const envStep = new ContextStep({ assembleCore } as never);
+
+      await envStep.process({ job: envelopeJob(), startTime: Date.now(), config });
+
+      expect(calledText).toBe('recovered transcript');
+      // No sttDispatch on the test context → the helper defaults to voice-engine.
+      expect(mockTranscribeAudio).toHaveBeenCalledWith(attachment, { provider: 'voice-engine' });
+    });
+
     it('should call extractParticipants with the assembled history + active persona', async () => {
       const history = [
         { role: MessageRole.User, content: 'Hello', personaId: 'user-1', personaName: 'Alice' },

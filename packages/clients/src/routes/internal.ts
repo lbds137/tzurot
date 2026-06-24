@@ -250,7 +250,7 @@ export const internalRoutes = {
     input: RoutingContextRequestSchema,
     output: RoutingContextResponseSchema,
     serviceOnly: true,
-    timeoutMs: TIMEOUTS.GATEWAY_RPC,
+    timeoutMs: TIMEOUTS.GATEWAY_PROVISIONING,
   },
 
   /**

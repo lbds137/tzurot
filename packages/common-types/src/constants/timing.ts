@@ -50,6 +50,17 @@ export const TIMEOUTS = {
    * Short enough that a hung gateway surfaces quickly; long enough to
    * cover Railway internal-network latency under normal load. */
   GATEWAY_RPC: 5_000,
+  /** Timeout for the routing-context provisioning RPC (15 s). Unlike the light
+   *  read RPCs on GATEWAY_RPC (5 s), this POST provisions the user + default
+   *  persona on first contact — a multi-table write transaction, then a persona
+   *  cascade resolve and an STM epoch lookup, all sequential on the hottest
+   *  path. Under cold-start or pool contention (a single connection acquisition
+   *  can block up to DATABASE_POOL_CONN_TIMEOUT_MS = 10 s) the 5 s read budget
+   *  falsely aborts a still-succeeding first-contact write, dropping a new
+   *  user's first message. 15 s absorbs that while staying tighter than the 20 s
+   *  user-facing WRITE budget — a hung internal RPC should surface faster than a
+   *  user-initiated mutation. */
+  GATEWAY_PROVISIONING: 15_000,
   /** Timeout for bot-client → api-gateway bulk-payload reads (10 s).
    * Used for endpoints that return larger payloads — currently the
    * denylist cache bootstrap. Distinct from GATEWAY_RPC because the
