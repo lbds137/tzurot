@@ -171,9 +171,11 @@ export function buildDedupedReferenceStub(reference: ReferencedMessage): Referen
     discordUserId: reference.discordUserId,
     authorUsername: reference.authorUsername,
     authorDisplayName: reference.authorDisplayName,
-    // Preserved so the formatter can derive the role="assistant" quote signal.
+    // authorIsBot/webhookId still gate the content-emptying above; authorRole is the
+    // carried-through classification the formatter renders as the <quote role> signal.
     authorIsBot: reference.authorIsBot,
     webhookId: reference.webhookId,
+    authorRole: reference.authorRole,
     content,
     embeds: '',
     timestamp: reference.timestamp,

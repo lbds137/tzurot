@@ -57,15 +57,18 @@ const { mockFormatQuoteElement, mockFormatDedupedQuote } = vi.hoisted(() => {
 
   const fdq = vi
     .fn()
-    .mockImplementation((opts: { from: string; timeFormatted?: string; content: string }) => {
-      const truncated =
-        opts.content.length > 100 ? opts.content.substring(0, 100) + '...' : opts.content;
-      return fqe({
-        from: opts.from,
-        timeFormatted: opts.timeFormatted,
-        content: `[Referenced message — full text in <chat_log>]\n\n${truncated}`,
-      });
-    });
+    .mockImplementation(
+      (opts: { from: string; role?: string; timeFormatted?: string; content: string }) => {
+        const truncated =
+          opts.content.length > 100 ? opts.content.substring(0, 100) + '...' : opts.content;
+        return fqe({
+          from: opts.from,
+          role: opts.role,
+          timeFormatted: opts.timeFormatted,
+          content: `[Referenced message — full text in <chat_log>]\n\n${truncated}`,
+        });
+      }
+    );
 
   return { mockFormatQuoteElement: fqe, mockFormatDedupedQuote: fdq };
 });
@@ -287,6 +290,30 @@ describe('xmlMetadataFormatters', () => {
       expect(result).toContain('[Referenced message — full text in <chat_log>]');
       expect(result).toContain('Duplicated message that is in history');
       expect(result).toContain('from="User One"');
+    });
+
+    it('renders role="bot" on a deduped stub from a non-persona bot reference', () => {
+      // Stored authorRole flows through the deduped path too — regression guard against
+      // the role attribute being dropped between deriveRefRole and formatDedupedQuote.
+      const msg = makeEntry({
+        messageMetadata: {
+          referencedMessages: [
+            {
+              discordMessageId: 'already-in-history',
+              authorUsername: 'somebot',
+              authorDisplayName: 'SomeBot',
+              authorRole: 'bot',
+              content: 'Automated webhook output',
+              timestamp: '2026-01-01T00:00:00.000Z',
+              locationContext: '',
+            },
+          ],
+        },
+      });
+
+      const historyIds = new Set(['already-in-history']);
+      const result = formatQuotedSection(msg, 'user', personalityName, historyIds, undefined);
+      expect(result).toContain('role="bot"');
     });
 
     it('truncates long content in deduped stubs to ~100 chars', () => {

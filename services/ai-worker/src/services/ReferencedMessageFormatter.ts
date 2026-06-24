@@ -14,7 +14,6 @@ import {
   type AIProvider,
   TEXT_LIMITS,
   formatTimestampWithDelta,
-  isBotAuthoredReference,
 } from '@tzurot/common-types';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import {
@@ -23,6 +22,7 @@ import {
   formatDedupedQuote,
   type ForwardedMessageContent,
 } from './prompt/QuoteFormatter.js';
+import { deriveRefRole } from './prompt/referenceRole.js';
 import { processAttachmentsParallel } from './AttachmentProcessor.js';
 import { extractXmlTextContent } from '../utils/xmlTextExtractor.js';
 
@@ -35,38 +35,7 @@ const logger = createLogger('ReferencedMessageFormatter');
  * bot's own words read as a turn to continue. Kept as a named constant so the wording
  * is visible alongside the other prompt-text constants instead of buried inline.
  */
-const CONTEXTUAL_REFERENCES_INSTRUCTION = `<instruction>Messages the user's current message is replying to or quoting — read them only to understand what the user is responding to. A quote marked role="assistant" is one of your own earlier lines that the user is now addressing; treat it as context and respond to the user's current message. A stubbed quote's full text appears in <chat_log>.</instruction>`;
-
-/**
- * True when a reference is the CURRENT persona's own prior message: posted by a
- * bot/webhook AND with an author name matching the active persona. This is the
- * signal for role="assistant" on a quote — only the persona's own lines should
- * read as "your own earlier output" (so the model treats them as context, not a
- * turn to continue).
- *
- * Prefix-match on displayName because the bot posts persona replies under the
- * webhook username `${displayName}${botSuffix}` (see WebhookManager), and the
- * worker can't reconstruct that runtime suffix — a startsWith on displayName is
- * the robust match. The bot-authored gate is what keeps a human who merely
- * shares the persona's name classified as role="user": a PluralKit-proxied human
- * is bot-authored but the name won't match; a real user named like the persona
- * isn't bot-authored. Scope is the CURRENT persona only — a sibling persona's
- * message reads as role="user" so the model responds to it.
- */
-function isCurrentPersonaReference(
-  ref: ReferencedMessage,
-  personality: LoadedPersonality
-): boolean {
-  if (!isBotAuthoredReference(ref)) {
-    return false;
-  }
-  const personaName = personality.displayName.toLowerCase();
-  if (personaName.length === 0) {
-    return false;
-  }
-  const authorName = (ref.authorDisplayName ?? ref.authorUsername ?? '').toLowerCase();
-  return authorName.startsWith(personaName);
-}
+const CONTEXTUAL_REFERENCES_INSTRUCTION = `<instruction>Messages the user's current message is replying to or quoting — read them only to understand what the user is responding to. A quote's role says who wrote it: role="assistant" is one of your own earlier lines (context, never a turn to continue or extend); role="user" is a person; role="bot" is a different bot or automated webhook — not you, and not the human you're replying to. Respond to the user's current message. A stubbed quote's full text appears in <chat_log>.</instruction>`;
 
 /**
  * Auth context for reference-attachment processing. `userApiKey` is the key for
@@ -134,7 +103,11 @@ export class ReferencedMessageFormatter {
             number: ref.referenceNumber,
             from: ref.authorDisplayName,
             username: ref.authorUsername,
-            role: isCurrentPersonaReference(ref, personality) ? 'assistant' : 'user',
+            role: deriveRefRole(
+              ref.authorRole,
+              ref.authorDisplayName || ref.authorUsername,
+              personality.displayName
+            ),
             timestamp:
               absolute.length > 0 && relative.length > 0 ? { absolute, relative } : undefined,
             content: ref.content,
@@ -218,7 +191,11 @@ export class ReferencedMessageFormatter {
       number: ref.referenceNumber,
       from: ref.authorDisplayName,
       username: ref.authorUsername,
-      role: isCurrentPersonaReference(ref, personality) ? 'assistant' : 'user',
+      role: deriveRefRole(
+        ref.authorRole,
+        ref.authorDisplayName || ref.authorUsername,
+        personality.displayName
+      ),
       timestamp: absolute.length > 0 && relative.length > 0 ? { absolute, relative } : undefined,
       content: ref.content || undefined,
       locationContext: ref.locationContext,

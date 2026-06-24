@@ -39,6 +39,17 @@ export const apiConversationMessageSchema = z.object({
 });
 
 /**
+ * How a referenced message's author relates to the model — drives the
+ * `<quote role>` signal. `assistant` = one of our own personas (our bot's
+ * webhook); `user` = a human (incl. proxy-system-relayed humans); `bot` = a
+ * non-persona bot/webhook. Classified once in bot-client (which has the Discord
+ * message's `applicationId`) and carried to both the live prompt and the
+ * stored-history snapshot.
+ */
+export const referenceAuthorRoleSchema = z.enum(['assistant', 'user', 'bot']);
+export type ReferenceAuthorRole = z.infer<typeof referenceAuthorRoleSchema>;
+
+/**
  * Referenced message schema
  * Used when a user references other messages via replies or message links
  */
@@ -51,6 +62,9 @@ export const referencedMessageSchema = z.object({
   // dedup fallback, which the worker-side assembler re-runs from raw
   // reference snapshots — it cannot ask Discord about the author itself.
   authorIsBot: z.literal(true).optional(),
+  // Precomputed authorship role (bot-client classifies via applicationId, which the
+  // worker can't see). Absent on legacy refs → worker falls back to name-based role.
+  authorRole: referenceAuthorRoleSchema.optional(),
   discordUserId: z.string(), // Discord user ID for persona lookup
   authorUsername: z.string(),
   authorDisplayName: z.string(),
@@ -90,6 +104,9 @@ export const storedReferencedMessageSchema = z.object({
   isForwarded: z.boolean().optional(),
   // Persistent — set by bot-client when resolving links
   authorDiscordId: z.string().optional(),
+  // Persistent — carried from the live reference's classification (see
+  // referenceAuthorRoleSchema). Absent on pre-classifier history → name fallback.
+  authorRole: referenceAuthorRoleSchema.optional(),
   // Ephemeral — set by hydration in ai-worker before prompt formatting
   resolvedPersonaId: z.string().optional(),
   resolvedPersonaName: z.string().optional(),
