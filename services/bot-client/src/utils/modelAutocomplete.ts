@@ -12,6 +12,7 @@ import {
   type ModelAutocompleteOption,
 } from '@tzurot/common-types';
 import { getServiceClient } from './gatewayClients.js';
+import { nullOn404 } from '@tzurot/clients';
 
 const logger = createLogger('model-autocomplete-client');
 
@@ -29,6 +30,14 @@ interface FetchModelsOptions {
   search?: string;
   /** Maximum number of results */
   limit?: number;
+  /**
+   * When true, a non-404 failure THROWS (`InfraError` for infra / `GatewayClientError`
+   * for a 4xx) instead of returning `[]` — so a transient gateway failure surfaces
+   * as "try again", not as an empty catalog that reads to the user as "model not
+   * found". Used by the catalog lookup that feeds `/models view` + browse-select.
+   * Omit (lenient `[]`-on-error) for autocomplete, where an empty dropdown is fine.
+   */
+  strict?: boolean;
 }
 
 /**
@@ -69,6 +78,18 @@ export async function fetchModels(
     query.limit = String(options.limit);
   }
 
+  if (options.strict === true) {
+    // Strict path (catalog → /models view + browse-select): a transient/infra
+    // failure must surface as "try again", NOT as an empty catalog that reads
+    // to the user as "model not found". nullOn404 throws InfraError (5xx /
+    // timeout / network) or GatewayClientError (non-404 4xx); getModels has no
+    // meaningful 404, so a 404 maps to empty.
+    const data = nullOn404(await getServiceClient().getModels(query));
+    return data?.models ?? [];
+  }
+
+  // Lenient path (autocomplete): never throw — an empty dropdown beats an
+  // error popup for a transient blip.
   try {
     const result = await getServiceClient().getModels(query);
     if (!result.ok) {

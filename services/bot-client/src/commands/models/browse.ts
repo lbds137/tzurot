@@ -374,7 +374,7 @@ export async function handleBrowseSelect(interaction: StringSelectMenuInteractio
   } catch (error) {
     logger.error({ err: error, modelId }, 'Failed to render model card from browse');
     await interaction.followUp({
-      content: '❌ Failed to load that model.',
+      content: '❌ Failed to load that model. Please try again.',
       flags: MessageFlags.Ephemeral,
     });
   }
