@@ -4,10 +4,10 @@
  * Usage: tsx scripts/set-default-llm-config.ts <name-or-id>
  */
 
-import { getPrismaClient } from '@tzurot/common-types';
+import { createPrismaClient, DB_POOL_DEFAULTS } from '@tzurot/common-types';
 import { Redis } from 'ioredis';
 
-const prisma = getPrismaClient();
+const { prisma, dispose } = createPrismaClient({ max: DB_POOL_DEFAULTS.TRANSIENT_MAX });
 const redis = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379');
 
 async function setDefaultConfig(nameOrId: string) {
@@ -42,7 +42,8 @@ async function setDefaultConfig(nameOrId: string) {
       console.log(`  - ${c.name} (${c.id})${c.isDefault ? ' [DEFAULT]' : ''}`);
     }
 
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
 
   console.log(`Found: ${config.name} (${config.id})`);
@@ -86,40 +87,41 @@ async function setDefaultConfig(nameOrId: string) {
     console.log(`\nAll services will now use: ${config.name}`);
   } catch (error) {
     console.error('❌ Failed to set default config:', error);
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 
 async function main() {
-  const nameOrId = process.argv[2];
+  try {
+    const nameOrId = process.argv[2];
 
-  if (!nameOrId) {
-    console.log('Usage: tsx scripts/set-default-llm-config.ts <name-or-id>\n');
-    console.log('Examples:');
-    console.log('  tsx scripts/set-default-llm-config.ts "Sonnet 4.5"');
-    console.log('  tsx scripts/set-default-llm-config.ts haiku');
-    console.log('  tsx scripts/set-default-llm-config.ts 45b59b67-9c7f-52a8-bd72-b629d6e67a71\n');
+    if (!nameOrId) {
+      console.log('Usage: tsx scripts/set-default-llm-config.ts <name-or-id>\n');
+      console.log('Examples:');
+      console.log('  tsx scripts/set-default-llm-config.ts "Sonnet 4.5"');
+      console.log('  tsx scripts/set-default-llm-config.ts haiku');
+      console.log('  tsx scripts/set-default-llm-config.ts 45b59b67-9c7f-52a8-bd72-b629d6e67a71\n');
 
-    console.log('Available global configs:');
-    const configs = await prisma.llmConfig.findMany({
-      where: { isGlobal: true },
-      select: { id: true, name: true, isDefault: true },
-    });
+      console.log('Available global configs:');
+      const configs = await prisma.llmConfig.findMany({
+        where: { isGlobal: true },
+        select: { id: true, name: true, isDefault: true },
+      });
 
-    for (const c of configs) {
-      console.log(`  - ${c.name}${c.isDefault ? ' [DEFAULT]' : ''}`);
+      for (const c of configs) {
+        console.log(`  - ${c.name}${c.isDefault ? ' [DEFAULT]' : ''}`);
+      }
+
+      process.exitCode = 1;
+      return;
     }
 
-    process.exit(1);
-  }
-
-  try {
     await setDefaultConfig(nameOrId);
   } catch (error) {
     console.error('Error:', error);
-    process.exit(1);
+    process.exitCode = 1;
   } finally {
-    await prisma.$disconnect();
+    await dispose();
     await redis.disconnect();
   }
 }

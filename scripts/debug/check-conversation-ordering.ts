@@ -3,9 +3,9 @@
  * Check for ordering issues in conversation_history
  */
 
-import { getPrismaClient } from '@tzurot/common-types';
+import { createPrismaClient, DB_POOL_DEFAULTS } from '@tzurot/common-types';
 
-const prisma = getPrismaClient();
+const { prisma, dispose } = createPrismaClient({ max: DB_POOL_DEFAULTS.TRANSIENT_MAX });
 
 async function main() {
   console.log('Checking conversation history ordering...\n');
@@ -80,8 +80,11 @@ async function main() {
     console.log('   3. Pairing user->assistant in sequence');
     console.log('   4. Skipping malformed pairs');
   }
-
-  await prisma.$disconnect();
 }
 
-main().catch(console.error);
+main()
+  .catch(err => {
+    console.error(err);
+    process.exitCode = 1;
+  })
+  .finally(() => dispose());

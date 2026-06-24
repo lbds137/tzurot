@@ -1,9 +1,9 @@
-import { getPrismaClient } from '@tzurot/common-types';
+import { createPrismaClient, DB_POOL_DEFAULTS } from '@tzurot/common-types';
 import { createHash } from 'crypto';
-import { readFileSync, readdirSync } from 'fs';
+import { readFileSync } from 'fs';
 import { join } from 'path';
 
-const prisma = getPrismaClient();
+const { prisma, dispose } = createPrismaClient({ max: DB_POOL_DEFAULTS.TRANSIENT_MAX });
 
 async function verifyChecksums() {
   console.log('Checking migration checksums...\n');
@@ -46,10 +46,13 @@ async function verifyChecksums() {
     }
   }
 
-  await prisma.$disconnect();
-
   console.log('\n' + (allMatch ? '✅ All checksums match!' : '❌ Checksum mismatches found!'));
-  process.exit(allMatch ? 0 : 1);
+  process.exitCode = allMatch ? 0 : 1;
 }
 
-verifyChecksums().catch(console.error);
+verifyChecksums()
+  .catch(err => {
+    console.error(err);
+    process.exitCode = 1;
+  })
+  .finally(() => dispose());
