@@ -1049,7 +1049,10 @@ describe('VoiceTranscriptionService', () => {
         );
       });
 
-      it('posts a visible Discord reply for channel acknowledgment', async () => {
+      it('does NOT post a visible reply — the skip is silent (log-only)', async () => {
+        // The "we didn't re-transcribe our own TTS" notice is an implementation
+        // detail; users shouldn't see it. We cache the placeholder for the
+        // model's context but post nothing to the channel.
         const message = createMockMessage({
           attachments: [],
           messageSnapshots: [
@@ -1070,10 +1073,7 @@ describe('VoiceTranscriptionService', () => {
         await service.transcribe(message, false, false);
 
         const replyMock = (message as unknown as { reply: ReturnType<typeof vi.fn> }).reply;
-        expect(replyMock).toHaveBeenCalledTimes(1);
-        const replyArg = replyMock.mock.calls[0]?.[0] as { content: string };
-        expect(replyArg.content).toContain('Forwarded voice message');
-        expect(replyArg.content).toContain('lila-zot-lilit');
+        expect(replyMock).not.toHaveBeenCalled();
       });
 
       it('preserves continueToPersonalityHandler when forward has a mention/reply', async () => {
