@@ -4,9 +4,9 @@
  * This should only allow one row with isDefault = true
  */
 
-import { getPrismaClient } from '@tzurot/common-types';
+import { createPrismaClient, DB_POOL_DEFAULTS } from '@tzurot/common-types';
 
-const prisma = getPrismaClient();
+const { prisma, dispose } = createPrismaClient({ max: DB_POOL_DEFAULTS.TRANSIENT_MAX });
 
 async function verifyConstraint() {
   console.log('🔍 Checking LLM configs...\n');
@@ -85,9 +85,9 @@ async function main() {
     await verifyConstraint();
   } catch (error) {
     console.error('Error:', error);
-    process.exit(1);
+    process.exitCode = 1;
   } finally {
-    await prisma.$disconnect();
+    await dispose();
   }
 }
 

@@ -13,7 +13,7 @@
  *   pnpm ops run --env prod --force tsx scripts/debug/check-user-persona-state.ts <uuid>
  */
 
-import { getPrismaClient } from '@tzurot/common-types';
+import { createPrismaClient, DB_POOL_DEFAULTS } from '@tzurot/common-types';
 
 // UUID comes in as a positional CLI argument. argv[0]=node, argv[1]=script,
 // argv[2]=uuid. Using argv (not process.env) because CodeQL's sensitive-data
@@ -30,7 +30,7 @@ if (!UUID_PATTERN.test(targetUuid)) {
   process.exit(1);
 }
 
-const prisma = getPrismaClient();
+const { prisma, dispose } = createPrismaClient({ max: DB_POOL_DEFAULTS.TRANSIENT_MAX });
 
 async function main(): Promise<void> {
   console.log(`\n=== Investigating UUID: ${targetUuid} ===\n`);
@@ -148,10 +148,11 @@ async function main(): Promise<void> {
   }
 
   console.log('\n=== Done ===\n');
-  await prisma.$disconnect();
 }
 
-main().catch(err => {
-  console.error('FAILED:', err);
-  process.exit(1);
-});
+main()
+  .catch(err => {
+    console.error('FAILED:', err);
+    process.exitCode = 1;
+  })
+  .finally(() => dispose());

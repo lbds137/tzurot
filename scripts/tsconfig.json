@@ -6,6 +6,13 @@
     "noEmit": true,
     "outDir": "dist"
   },
-  "include": ["src/**/*.ts", "testing/**/*.ts"],
+  "references": [{ "path": "../packages/common-types" }, { "path": "../packages/embeddings" }],
+  "include": [
+    "src/**/*.ts",
+    "testing/**/*.ts",
+    "debug/**/*.ts",
+    "migrations/**/*.ts",
+    "utils/**/*.ts"
+  ],
   "exclude": ["node_modules", "dist"]
 }

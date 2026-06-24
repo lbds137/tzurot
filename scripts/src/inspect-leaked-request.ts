@@ -1,6 +1,6 @@
-import { getPrismaClient, disconnectPrisma } from '@tzurot/common-types';
+import { createPrismaClient, DB_POOL_DEFAULTS } from '@tzurot/common-types';
 
-const prisma = getPrismaClient();
+const { prisma, dispose } = createPrismaClient({ max: DB_POOL_DEFAULTS.TRANSIENT_MAX });
 
 async function main() {
   const log = await prisma.llmDiagnosticLog.findUnique({
@@ -48,6 +48,6 @@ async function main() {
 main()
   .catch(e => {
     console.error(e);
-    process.exit(1);
+    process.exitCode = 1;
   })
-  .finally(() => disconnectPrisma());
+  .finally(() => dispose());

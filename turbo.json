@@ -43,7 +43,7 @@
     },
     "typecheck": {
       "dependsOn": ["^build"],
-      "inputs": ["src/**", "tsconfig.json"],
+      "inputs": ["src/**", "testing/**", "debug/**", "migrations/**", "utils/**", "tsconfig.json"],
       "outputs": [],
       "cache": true
     },

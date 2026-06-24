@@ -6,6 +6,7 @@
   "description": "Utility scripts for Tzurot development and operations",
   "scripts": {
     "db:fix-phantom": "tsx src/db/fix-phantom-migration.ts",
+    "typecheck": "tsc --noEmit",
     "test": "echo \"No tests yet\"",
     "test:watch": "vitest"
   },
@@ -13,6 +14,7 @@
     "@tzurot/common-types": "workspace:*",
     "@tzurot/embeddings": "workspace:*",
     "dotenv": "^17.4.2",
+    "ioredis": "^5.11.1",
     "tsx": "^4.22.4",
     "zod": "^4.4.3"
   },

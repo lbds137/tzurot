@@ -10,13 +10,13 @@
  * broader health signal (the two should normally agree for default personas).
  */
 
-import { getPrismaClient } from '@tzurot/common-types';
+import { createPrismaClient, DB_POOL_DEFAULTS } from '@tzurot/common-types';
 
 // Upper bound on scan size; far above the expected total personas count at
 // this stage (per 03-database rules, all findMany must have an explicit take).
 const SCAN_LIMIT = 10_000;
 
-const prisma = getPrismaClient();
+const { prisma, dispose } = createPrismaClient({ max: DB_POOL_DEFAULTS.TRANSIENT_MAX });
 
 async function main(): Promise<void> {
   const snowflakeRegex = /^\d{17,19}$/;
@@ -117,10 +117,11 @@ async function main(): Promise<void> {
   }
 
   console.log('\n=== Done ===\n');
-  await prisma.$disconnect();
 }
 
-main().catch(err => {
-  console.error('FAILED:', err);
-  process.exit(1);
-});
+main()
+  .catch(err => {
+    console.error('FAILED:', err);
+    process.exitCode = 1;
+  })
+  .finally(() => dispose());

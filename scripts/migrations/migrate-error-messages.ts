@@ -12,9 +12,9 @@
  *   --verbose    Show detailed output for each personality
  */
 
-import { getPrismaClient } from '../../packages/common-types/src/services/prisma.js';
+import { createPrismaClient, DB_POOL_DEFAULTS } from '@tzurot/common-types';
 
-const prisma = getPrismaClient();
+const { prisma, dispose } = createPrismaClient({ max: DB_POOL_DEFAULTS.TRANSIENT_MAX });
 
 interface CustomFields {
   errorMessage?: string;
@@ -114,9 +114,9 @@ async function main(): Promise<void> {
     await migrateErrorMessages(dryRun, verbose);
   } catch (error) {
     console.error('❌ Migration failed:', error);
-    process.exit(1);
+    process.exitCode = 1;
   } finally {
-    await prisma.$disconnect();
+    await dispose();
   }
 }
 
