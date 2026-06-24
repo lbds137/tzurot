@@ -6,13 +6,13 @@
  * @usage DATABASE_URL="..." pnpm --filter @tzurot/scripts run db:fix-phantom -- <migration_name>
  */
 
-import { getPrismaClient, disconnectPrisma } from '@tzurot/common-types';
+import { createPrismaClient, DB_POOL_DEFAULTS } from '@tzurot/common-types';
 
 const migrationName = process.argv[2] || '20260102050920_add_image_description_cache';
 
-async function main() {
-  const prisma = getPrismaClient();
+const { prisma, dispose } = createPrismaClient({ max: DB_POOL_DEFAULTS.TRANSIENT_MAX });
 
+async function main() {
   console.log(`\n🔍 Checking for migration: ${migrationName}...\n`);
 
   // 1. Check if it exists
@@ -44,12 +44,11 @@ async function main() {
     '\n📋 Recent migrations:',
     recent.map(r => r.migration_name)
   );
-
-  await disconnectPrisma();
 }
 
-main().catch(async e => {
-  console.error(e);
-  await disconnectPrisma();
-  process.exit(1);
-});
+main()
+  .catch(e => {
+    console.error(e);
+    process.exitCode = 1;
+  })
+  .finally(() => dispose());

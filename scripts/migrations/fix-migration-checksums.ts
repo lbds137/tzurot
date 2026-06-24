@@ -8,7 +8,7 @@
 import { createHash } from 'crypto';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { getPrismaClient } from '@tzurot/common-types';
+import { createPrismaClient, DB_POOL_DEFAULTS } from '@tzurot/common-types';
 
 const migrations = [
   '20251107130153_convert_discord_message_id_to_array',
@@ -16,9 +16,9 @@ const migrations = [
   '20251127015433_replace_birthday_with_int_fields',
 ];
 
-async function fixChecksums() {
-  const prisma = getPrismaClient();
+const { prisma, dispose } = createPrismaClient({ max: DB_POOL_DEFAULTS.TRANSIENT_MAX });
 
+async function fixChecksums() {
   for (const migrationName of migrations) {
     const migrationPath = join(
       process.cwd(),
@@ -49,8 +49,12 @@ async function fixChecksums() {
     console.log('✓ Updated\n');
   }
 
-  await prisma.$disconnect();
   console.log('All checksums fixed!');
 }
 
-fixChecksums().catch(console.error);
+fixChecksums()
+  .catch(err => {
+    console.error(err);
+    process.exitCode = 1;
+  })
+  .finally(() => dispose());
