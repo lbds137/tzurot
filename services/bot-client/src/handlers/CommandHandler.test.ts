@@ -5,7 +5,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { CommandHandler } from './CommandHandler.js';
+import { CommandHandler, infraAwareErrorText } from './CommandHandler.js';
+import { InfraError } from '@tzurot/clients';
 import { Collection, MessageFlags, SlashCommandBuilder } from 'discord.js';
 import type {
   ChatInputCommandInteraction,
@@ -37,6 +38,24 @@ vi.mock('node:fs', () => ({
 }));
 
 import { readdirSync, statSync } from 'node:fs';
+
+describe('infraAwareErrorText', () => {
+  const fallback = 'There was an error executing this command!';
+
+  it('returns a "try again" message for an InfraError (transient gateway failure)', () => {
+    const err = new InfraError({ ok: false, kind: 'timeout', error: 'timed out', status: 0 });
+    expect(infraAwareErrorText(err, fallback)).toContain('try again');
+    expect(infraAwareErrorText(err, fallback)).not.toBe(fallback);
+  });
+
+  it('returns the command-specific fallback for a non-infra Error', () => {
+    expect(infraAwareErrorText(new Error('boom'), fallback)).toBe(fallback);
+  });
+
+  it('returns the fallback for a non-Error throwable', () => {
+    expect(infraAwareErrorText('string error', fallback)).toBe(fallback);
+  });
+});
 
 describe('CommandHandler', () => {
   let handler: CommandHandler;
