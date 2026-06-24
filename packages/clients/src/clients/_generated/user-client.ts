@@ -1854,7 +1854,6 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.getShapesAuthStatus.output,
-      timeoutMs: ROUTE_MANIFEST.getShapesAuthStatus.timeoutMs,
     });
   }
 
@@ -1911,7 +1910,6 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.listShapesImportJobs.output,
-      timeoutMs: ROUTE_MANIFEST.listShapesImportJobs.timeoutMs,
     });
   }
 
@@ -1948,7 +1946,6 @@ export class UserClient {
         'X-User-DisplayName': encodeURIComponent(this.user.displayName),
       },
       outputSchema: ROUTE_MANIFEST.listShapesExportJobs.output,
-      timeoutMs: ROUTE_MANIFEST.listShapesExportJobs.timeoutMs,
     });
   }
 
