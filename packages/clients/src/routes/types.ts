@@ -46,8 +46,8 @@ export type SubjectDiscordId = string & { readonly [SubjectBrand]: true };
  * @param id The raw Discord snowflake (e.g., `interaction.user.id`)
  */
 export function asActor(id: string): ActorDiscordId {
-  // Defense in depth: the brand is currently only minted from
-  // `interaction.user.id` (always a non-empty snowflake), but an empty string
+  // Defense in depth: the brand is minted at the Discord interaction boundary
+  // (`interaction.user.id`, always a non-empty snowflake); an empty string
   // would silently satisfy the cast and forward as a blank `X-User-Id`.
   if (id.length === 0) {
     throw new TypeError('asActor: id must be non-empty');
