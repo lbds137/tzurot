@@ -436,8 +436,10 @@ async function runCharacterTurn(
   );
 
   try {
-    // 1. Load and validate personality
-    const personality = await getPersonalityLoader().loadPersonality(characterSlug, userId);
+    // 1. Load and validate personality. STRICT: a gateway failure throws (caught
+    // below → "try again"); `null` means the character genuinely doesn't exist /
+    // isn't accessible. A transient failure must not surface as a false "not found".
+    const personality = await getPersonalityLoader().loadPersonalityStrict(characterSlug, userId);
     if (!personality) {
       await context.editReply({ content: `❌ Character "${characterSlug}" not found.` });
       return;

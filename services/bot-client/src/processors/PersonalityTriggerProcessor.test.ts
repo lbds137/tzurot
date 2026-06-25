@@ -7,6 +7,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ChannelType, type Message } from 'discord.js';
 import { type LoadedPersonality, MULTI_TAG } from '@tzurot/common-types';
+import { InfraError, GatewayClientError } from '@tzurot/clients';
 import { PersonalityTriggerProcessor } from './PersonalityTriggerProcessor.js';
 
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -78,14 +79,22 @@ function buildMessage(overrides: Record<string, unknown> = {}): Message {
 }
 
 describe('PersonalityTriggerProcessor', () => {
-  let personalityService: { loadPersonality: ReturnType<typeof vi.fn> };
+  let personalityService: {
+    loadPersonality: ReturnType<typeof vi.fn>;
+    loadPersonalityStrict: ReturnType<typeof vi.fn>;
+  };
   let replyResolver: { resolvePersonality: ReturnType<typeof vi.fn> };
   let coordinator: { startFanOut: ReturnType<typeof vi.fn> };
   let processor: PersonalityTriggerProcessor;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    personalityService = { loadPersonality: vi.fn() };
+    personalityService = { loadPersonality: vi.fn(), loadPersonalityStrict: vi.fn() };
+    // PTP's activated-channel resolution uses loadPersonalityStrict; mirror
+    // loadPersonality so each test's mockResolvedValue applies to both.
+    personalityService.loadPersonalityStrict.mockImplementation((...args: unknown[]) =>
+      (personalityService.loadPersonality as (...a: unknown[]) => unknown)(...args)
+    );
     replyResolver = { resolvePersonality: vi.fn().mockResolvedValue(null) };
     vi.mocked(getChannelSettingsCached).mockResolvedValue({
       hasSettings: false,
@@ -249,6 +258,69 @@ describe('PersonalityTriggerProcessor', () => {
         source: 'mention',
         isAutoResponse: false,
       });
+    });
+
+    it('swallows an infra failure silently (resilience catch, NOT the private-character notice)', async () => {
+      // Behaviour change: an infra failure loading the activated personality
+      // previously returned null → the "private character" notice. Now it THROWS
+      // → resolveActivatedPersonality's resilience catch → no slot, no notice.
+      vi.mocked(getChannelSettingsCached).mockResolvedValue({
+        hasSettings: true,
+        settings: { personalitySlug: 'ambient', personalityName: 'Ambient' },
+      } as Awaited<ReturnType<typeof getChannelSettingsCached>>);
+      personalityService.loadPersonalityStrict.mockRejectedValueOnce(
+        new InfraError({ ok: false, kind: 'network', status: 0, error: 'boom' })
+      );
+      vi.mocked(findPersonalityMentions).mockResolvedValue([]);
+
+      const message = buildMessage({ content: 'just chatting' });
+      const result = await processor.process(message);
+
+      // No slots → processor declines (chain continues), and crucially:
+      expect(result).toBe(false);
+      expect(coordinator.startFanOut).not.toHaveBeenCalled();
+      // The private-character notice must NOT fire on an infra failure.
+      expect(message.reply).not.toHaveBeenCalled();
+    });
+
+    it('swallows a GatewayClientError (non-404 4xx, e.g. 403) silently too — same resilience path', async () => {
+      // A non-404 4xx is also a thrown failure, not a genuine miss — it must reach
+      // the resilience catch (no slot, no notice), same as the InfraError case.
+      vi.mocked(getChannelSettingsCached).mockResolvedValue({
+        hasSettings: true,
+        settings: { personalitySlug: 'ambient', personalityName: 'Ambient' },
+      } as Awaited<ReturnType<typeof getChannelSettingsCached>>);
+      personalityService.loadPersonalityStrict.mockRejectedValueOnce(
+        new GatewayClientError({ ok: false, kind: 'http', status: 403, error: 'forbidden' })
+      );
+      vi.mocked(findPersonalityMentions).mockResolvedValue([]);
+
+      const message = buildMessage({ content: 'just chatting' });
+      const result = await processor.process(message);
+
+      expect(result).toBe(false);
+      expect(coordinator.startFanOut).not.toHaveBeenCalled();
+      expect(message.reply).not.toHaveBeenCalled();
+    });
+
+    it('still shows the private-character notice on a GENUINE miss (200 null, not infra)', async () => {
+      // The inverse of the test above: a genuine null (personality deleted /
+      // access revoked) must STILL reach the private-character notice path.
+      vi.mocked(getChannelSettingsCached).mockResolvedValue({
+        hasSettings: true,
+        settings: { personalitySlug: 'ambient', personalityName: 'Ambient' },
+      } as Awaited<ReturnType<typeof getChannelSettingsCached>>);
+      personalityService.loadPersonalityStrict.mockResolvedValue(null);
+      vi.mocked(findPersonalityMentions).mockResolvedValue([]);
+
+      const message = buildMessage({ content: 'just chatting' });
+      const result = await processor.process(message);
+
+      expect(result).toBe(false);
+      expect(coordinator.startFanOut).not.toHaveBeenCalled();
+      expect(message.reply).toHaveBeenCalledWith(
+        expect.objectContaining({ content: expect.stringContaining('private character') })
+      );
     });
 
     it('dedupes when activation and mention resolve to the same personality (first occurrence wins)', async () => {
