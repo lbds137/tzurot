@@ -30,12 +30,13 @@ Scoped the first audit to the freshest, highest-risk surface. Found the envelope
 
 `test:audit` measures colocation, not tier coverage — this audit is behavioral.
 
-### Phase 3 — Gap-fill (the big undertaking) ⏳
+### Phase 3 — Gap-fill ✅ DONE
 
-- ✅ **Flagship DONE (#1340)** — bot-client→worker envelope contract via the **golden-fixture** pattern: committed fixtures in `@tzurot/test-utils` are the contract artifact; a producer guard (bot-client, `toMatchFileSnapshot`) + consumer derivation over the same fixture (ai-worker, PGLite) lock "given this `rawAssemblyInputs`, the worker assembles this context" — no cross-package import/mock (the structural block; council-reshaped). Locks the seam 2.5d deleted code against.
-- Component tests for the worker `ContextAssembler` over PGLite — cross-channel decoration, reference enrichment, and content rewriting against real data remain mocked-only.
-- Weigh-in assembly component test (recent message → included; empty → still assembles).
+- ✅ **Flagship (#1340)** — bot-client→worker envelope contract via the **golden-fixture** pattern: committed fixtures in `@tzurot/test-utils` are the contract artifact; a producer guard (bot-client, `toMatchFileSnapshot`) + consumer derivation over the same fixture (ai-worker, PGLite) lock "given this `rawAssemblyInputs`, the worker assembles this context" — no cross-package import/mock (the structural block; council-reshaped). Locks the seam 2.5d deleted code against.
+- ✅ **`ContextAssembler` component tests over PGLite (#1345)** — the four previously mocked-only seams now have real-data coverage: cross-channel decoration (real persona-scoped fetch + env-map vs fallback), reference enrichment (voice-transcript re-derivation + dedup stub), content rewriting (DB-fallback mention resolution → correct persona), and weigh-in/incognito (empty-channel assembly + incognito short-circuit). 2 → 8 cases; no production bug surfaced (the worker re-derivation claim is now locked by real data, not mocks).
 - ✅ `buildContext`-synthetic-anchor lock (#1283 — caught a real empty-channel weigh-in crash; proof the component-level test catches what buildContext-mocking unit tests structurally can't).
+
+**Epic status: every headline DONE — only the consolidated grab-bag remains (below).**
 
 ### Enforcement — ✅ RESOLVED: no standalone tier-audit ratchet (council 2026-06-25)
 
