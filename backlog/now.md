@@ -14,7 +14,7 @@ _None currently._ The DB connection-pool-starvation timeouts (surfaced 2026-06-1
 
 ### 🎯 Current Focus (max 3)
 
-1. **Test-Pyramid Taxonomy + Coverage Audit — Phase 2 (tier-gap matrix)** — promoted to Active Epic 2026-06-25 (see [`active-epic.md`](active-epic.md)). Phase 1 (taxonomy docs, #1284) + Phase 1.5 (2.5d pilot audit, #1285) shipped. **Next:** a **council pass** to scope Phase 2/3 + the enforcement bulk (per the "substantial pick earns a council pass before plan-mode" rule), then plan-mode. Phase 2 = inventory every service/flow against the 5 tiers → per-area gap matrix; Phase 3 = gap-fill (flagship: a bot-client→worker envelope contract test); enforcement bulk = a `test:tier-audit` ratchet.
+1. **Test-Pyramid Taxonomy + Coverage Audit — active epic** (see [`active-epic.md`](active-epic.md)). Phase 1 (#1284) + Phase 1.5 (#1285) shipped; **council pass done 2026-06-25** (GLM-5.2 / Kimi-K2.7-code / Qwen-3.7-max) → it reframed Phase 2 from a hand-authored matrix to a **code-derived coverage topology** (cross-service surfaces → required/actual tiers; lockfile-diff in CI). **Suffix rename shipped (#1339)**: `.int`→`.component`, `.e2e`→`.integration`/`.contract`, `schema` file-kind dropped, `classifyTestFile` now pure-suffix. **Next: PR B** — the flagship bot-client→worker envelope **contract test** + a minimal `coverage-topology` skeleton (plan approved, `/home/deck/.claude/plans/floofy-rolling-crane.md`). Then Phase 2 discovery (full topology generator) → Phase 4 enforcement (`test:tier-audit` ratchet).
 
 ---
 
