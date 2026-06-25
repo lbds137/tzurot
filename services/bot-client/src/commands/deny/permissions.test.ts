@@ -215,6 +215,20 @@ describe('checkDenyPermission', () => {
       expect(context.editReply).toHaveBeenCalledWith('❌ Character "missing-character" not found.');
     });
 
+    it('denies with a "try again" message (not "not found") on an infra failure', async () => {
+      // A gateway blip (5xx/network) must not read as "the character doesn't exist".
+      stub.getPersonality.mockResolvedValue(makeErr(503, 'Bad gateway'));
+      const context = createMockContext();
+
+      const result = await checkDenyPermission(context, 'PERSONALITY', null, 'lilith');
+
+      expect(result.allowed).toBe(false);
+      expect(context.editReply).toHaveBeenCalledWith(
+        expect.stringContaining('please try again in a moment')
+      );
+      expect(context.editReply).not.toHaveBeenCalledWith(expect.stringContaining('not found'));
+    });
+
     it('should deny when personality option missing', async () => {
       const context = createMockContext();
 

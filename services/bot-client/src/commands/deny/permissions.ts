@@ -7,7 +7,9 @@
  * 3. Character creators: PERSONALITY scope for characters they own
  */
 
+import { escapeMarkdown } from 'discord.js';
 import { isBotOwner } from '@tzurot/common-types';
+import { isInfraFailure } from '@tzurot/clients';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { requireManageMessagesContext } from '../../utils/permissions.js';
 import {
@@ -102,7 +104,14 @@ async function checkPersonalityPermission(
   const result = await userClient.getPersonality(personalitySlug);
 
   if (!result.ok) {
-    await context.editReply(`❌ Character "${personalitySlug}" not found.`);
+    // Distinguish "can't reach the gateway" (transient, retryable) from a genuine
+    // not-found / access-denied. A blip must not read as "the character doesn't
+    // exist" — fail safe (still DENIED) but tell the user to retry.
+    await context.editReply(
+      isInfraFailure(result)
+        ? "⚠️ Couldn't reach the server right now — please try again in a moment."
+        : `❌ Character "${escapeMarkdown(personalitySlug)}" not found.`
+    );
     return DENIED;
   }
 

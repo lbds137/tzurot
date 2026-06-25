@@ -137,6 +137,14 @@ describe('fetchDefaultPersona', () => {
 
     await expect(fetchDefaultPersona(asUserClient(stub), TEST_USER_ID)).rejects.toThrow(InfraError);
   });
+
+  it('throws GatewayClientError on a non-404 4xx (request rejected) — not a silent "no personas"', async () => {
+    stub.listPersonas.mockResolvedValue(makeErr(403, 'Forbidden'));
+
+    await expect(fetchDefaultPersona(asUserClient(stub), TEST_USER_ID)).rejects.toThrow(
+      GatewayClientError
+    );
+  });
 });
 
 describe('updatePersona', () => {
@@ -303,5 +311,13 @@ describe('isDefaultPersona', () => {
     // Old behavior returned false → a transient blip let the default persona be
     // deleted. Now it throws so the delete aborts (caught upstream → "try again").
     await expect(isDefaultPersona(TEST_PERSONA_ID, asUserClient(stub))).rejects.toThrow(InfraError);
+  });
+
+  it('throws GatewayClientError on a non-404 4xx — also fail-CLOSED so the delete aborts', async () => {
+    stub.listPersonas.mockResolvedValue(makeErr(403, 'Forbidden'));
+
+    await expect(isDefaultPersona(TEST_PERSONA_ID, asUserClient(stub))).rejects.toThrow(
+      GatewayClientError
+    );
   });
 });
