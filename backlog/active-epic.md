@@ -20,9 +20,19 @@ Canonical `## Test Tier Taxonomy` block in TESTING.md; `.int` reclassified as co
 
 Scoped the first audit to the freshest, highest-risk surface. Found the envelope SHAPE was already schema-locked, but nothing tied real-producer-output → schema → real-consumer-derivation. Shipped 3 tests (producer-conformance, consumer-at-schema-boundary, and a NEW component/PGLite assembler test that un-stubs what `AIJobProcessor.int` skips). Methodology (gap-matrix → fill-the-right-tier) validated for Phase 2.
 
-### Phase 2 — Tzurot-wide tier audit (discovery) ⏳ NEXT
+### Phase 2 — code-derived coverage topology (sliced 2a → 2b)
 
-**Council pass done 2026-06-25** (GLM-5.2 / Kimi-K2.7 / Qwen-3.7) → reframed from a hand-authored matrix to a **code-derived coverage topology**: a generator walks `ROUTE_MANIFEST` (`@tzurot/clients`) + every `JobType` (`@tzurot/common-types`), derives each surface's actual tiers from the test files (the `coverageTopology.ts` skeleton from #1340 is the seed), and lockfile-diffs in CI. **Key reconciliation (from #1340):** golden-fixture contracts (producer guard + consumer derivation over a shared fixture, NO `*.contract.test.ts` file) satisfy the `contract` tier — so the generator must recognize a per-surface mechanism marker, NOT naively suffix-derive, or it reports a false `contract` gap on the context-assembly surface. `test:audit` measures colocation, not tier coverage — this audit is behavioral.
+**Council pass done 2026-06-25** (GLM-5.2 / Kimi-K2.7 / Qwen-3.7) → reframed from a hand-authored matrix to a **code-derived coverage topology**.
+
+**2a ✅ SHIPPED (#1341)** — `generateCoverageTopology()` enumerates every cross-service surface from code: one per `ROUTE_MANIFEST` route + the 3 payload-bearing `JobType`s + the context-assembly envelope (154 surfaces). Each carries a `mechanism` marker (route-conformance / bullmq-contract / golden-fixture) and **requires the tier its mechanism provides** (route→component since the conformance harness is a component-tier test that verifies the route's I/O contract; jobs/envelope→contract) — which resolves #1340's false-contract-gap concern via the per-surface mechanism marker. Report-only (`pnpm ops topology:generate`); `actualTiers` is optimistic (= requiredTiers per mechanism).
+
+**2b ⏳ NEXT** — mechanism-PRESENCE verification + the gate:
+
+- Verify each mechanism's test actually exists (downgrade `actualTiers` to empty → real gap): jobs via the `audit-unified.ts` `(\w+Schema)\.safeParse` grep over `tests/e2e/contracts/`; routes via the conformance harness/registry; envelope via the golden-fixture. This inherently validates the `JOB_PAYLOAD_SCHEMAS` labels against real schema names.
+- `--write` (commit `coverage-topology.json`, `.prettierignore`d) + `topology:check` **lockfile-diff CI gate** (Pattern B, like `codegen:routes --check`) wired into `pnpm quality` + ci.yml.
+- **Fold in the #1341 review items** (all scoped "before the phase closes"): export `EXEMPT_ROUTE_IDS` + fix the test count assertion (`− EXEMPT.size`); add the `producer` test assertion; a compile-time exhaustiveness guard for `JOB_PAYLOAD_SCHEMAS` (a future payload-bearing `JobType` must be classified, not silently missed); trim the Phase-marker phasing prose from the module JSDoc + `MECHANISM_TIER` doc + the `topology:generate` CLI note (keep the invariant, drop roadmap-rot); condense the `producer:'client'` comment.
+
+`test:audit` measures colocation, not tier coverage — this audit is behavioral.
 
 ### Phase 3 — Gap-fill (the big undertaking) ⏳
 
