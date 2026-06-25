@@ -103,7 +103,7 @@ describe('Memory Incognito Handlers', () => {
 
   describe('handleIncognitoEnable', () => {
     it('should enable incognito mode for specific personality', async () => {
-      mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: 'personality-uuid-123' });
       mockGetPersonalityName.mockResolvedValue('Lilith');
       stub.enableIncognito.mockResolvedValue(
         makeOk({
@@ -171,7 +171,7 @@ describe('Memory Incognito Handlers', () => {
     });
 
     it('should show info embed when already active', async () => {
-      mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: 'personality-uuid-123' });
       mockGetPersonalityName.mockResolvedValue('Lilith');
       stub.enableIncognito.mockResolvedValue(
         makeOk({
@@ -202,7 +202,7 @@ describe('Memory Incognito Handlers', () => {
     });
 
     it('should handle personality not found', async () => {
-      mockResolvePersonalityId.mockResolvedValue(null);
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'not-found' });
 
       const context = createMockContext({ character: 'unknown' });
       await handleIncognitoEnable(context);
@@ -213,8 +213,22 @@ describe('Memory Incognito Handlers', () => {
       expect(stub.enableIncognito).not.toHaveBeenCalled();
     });
 
+    it('shows "try again" (unavailable), not "not found", on an infra failure', async () => {
+      // The personality list couldn't be fetched — must NOT claim the character
+      // doesn't exist.
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'unavailable' });
+
+      const context = createMockContext({ character: 'lilith' });
+      await handleIncognitoEnable(context);
+
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Autocomplete was unavailable'),
+      });
+      expect(stub.enableIncognito).not.toHaveBeenCalled();
+    });
+
     it('should handle API error', async () => {
-      mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: 'personality-uuid-123' });
       mockGetPersonalityName.mockResolvedValue('Lilith');
       stub.enableIncognito.mockResolvedValue(makeErr(500, 'Server error'));
 
@@ -252,7 +266,7 @@ describe('Memory Incognito Handlers', () => {
 
   describe('handleIncognitoDisable', () => {
     it('should disable incognito mode successfully', async () => {
-      mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: 'personality-uuid-123' });
       mockGetPersonalityName.mockResolvedValue('Lilith');
       stub.disableIncognito.mockResolvedValue(
         makeOk({
@@ -289,7 +303,7 @@ describe('Memory Incognito Handlers', () => {
     });
 
     it('should show info when incognito was not active', async () => {
-      mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: 'personality-uuid-123' });
       mockGetPersonalityName.mockResolvedValue('Lilith');
       stub.disableIncognito.mockResolvedValue(
         makeOk({
@@ -308,7 +322,7 @@ describe('Memory Incognito Handlers', () => {
     });
 
     it('should handle personality not found', async () => {
-      mockResolvePersonalityId.mockResolvedValue(null);
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'not-found' });
 
       const context = createMockContext({ character: 'unknown' });
       await handleIncognitoDisable(context);
@@ -318,8 +332,20 @@ describe('Memory Incognito Handlers', () => {
       });
     });
 
+    it('shows "try again" (unavailable), not "not found", on an infra failure', async () => {
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'unavailable' });
+
+      const context = createMockContext({ character: 'lilith' });
+      await handleIncognitoDisable(context);
+
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Autocomplete was unavailable'),
+      });
+      expect(stub.disableIncognito).not.toHaveBeenCalled();
+    });
+
     it('should handle API error', async () => {
-      mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: 'personality-uuid-123' });
       stub.disableIncognito.mockResolvedValue(makeErr(500, 'Server error'));
 
       const context = createMockContext({ character: 'lilith' });
@@ -502,7 +528,7 @@ describe('Memory Incognito Handlers', () => {
 
   describe('handleIncognitoForget', () => {
     it('should delete recent memories successfully', async () => {
-      mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: 'personality-uuid-123' });
       mockGetPersonalityName.mockResolvedValue('Lilith');
       stub.incognitoForget.mockResolvedValue(
         makeOk({
@@ -545,7 +571,7 @@ describe('Memory Incognito Handlers', () => {
     });
 
     it('should show info when no memories found', async () => {
-      mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: 'personality-uuid-123' });
       mockGetPersonalityName.mockResolvedValue('Lilith');
       stub.incognitoForget.mockResolvedValue(
         makeOk({
@@ -565,7 +591,7 @@ describe('Memory Incognito Handlers', () => {
     });
 
     it('should handle personality not found', async () => {
-      mockResolvePersonalityId.mockResolvedValue(null);
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'not-found' });
 
       const context = createMockContext({ character: 'unknown' });
       await handleIncognitoForget(context);
@@ -576,8 +602,20 @@ describe('Memory Incognito Handlers', () => {
       expect(stub.incognitoForget).not.toHaveBeenCalled();
     });
 
+    it('shows "try again" (unavailable), not "not found", on an infra failure', async () => {
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'unavailable' });
+
+      const context = createMockContext({ character: 'lilith', timeframe: '5m' });
+      await handleIncognitoForget(context);
+
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Autocomplete was unavailable'),
+      });
+      expect(stub.incognitoForget).not.toHaveBeenCalled();
+    });
+
     it('should handle API error', async () => {
-      mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: 'personality-uuid-123' });
       stub.incognitoForget.mockResolvedValue(makeErr(500, 'Server error'));
 
       const context = createMockContext({ character: 'lilith' });

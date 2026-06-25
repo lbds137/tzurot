@@ -164,7 +164,7 @@ beforeEach(() => {
 
 describe('handlePurge (slash command entry)', () => {
   it('shows error when personality not found', async () => {
-    mockResolvePersonalityId.mockResolvedValue(null);
+    mockResolvePersonalityId.mockResolvedValue({ kind: 'not-found' });
     const context = createMockContext('unknown-personality');
 
     await handlePurge(context);
@@ -174,8 +174,20 @@ describe('handlePurge (slash command entry)', () => {
     });
   });
 
+  it('shows "try again" (unavailable), not "not found", when the personality list is unavailable', async () => {
+    mockResolvePersonalityId.mockResolvedValue({ kind: 'unavailable' });
+    const context = createMockContext('lilith');
+
+    await handlePurge(context);
+
+    expect(context.editReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('Autocomplete was unavailable'),
+    });
+    expect(stub.getStats).not.toHaveBeenCalled();
+  });
+
   it('shows error when stats API fails', async () => {
-    mockResolvePersonalityId.mockResolvedValue(PERSONALITY_ID);
+    mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: PERSONALITY_ID });
     stub.getStats.mockResolvedValue(makeErr(500, 'Server error'));
     const context = createMockContext();
 
@@ -187,7 +199,7 @@ describe('handlePurge (slash command entry)', () => {
   });
 
   it('shows 404 message when personality not in stats', async () => {
-    mockResolvePersonalityId.mockResolvedValue(PERSONALITY_ID);
+    mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: PERSONALITY_ID });
     stub.getStats.mockResolvedValue(makeErr(404, 'Not found'));
     const context = createMockContext();
 
@@ -199,7 +211,7 @@ describe('handlePurge (slash command entry)', () => {
   });
 
   it('shows "no memories" message when nothing to purge', async () => {
-    mockResolvePersonalityId.mockResolvedValue(PERSONALITY_ID);
+    mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: PERSONALITY_ID });
     stub.getStats.mockResolvedValue(
       makeOk({
         personalityId: PERSONALITY_ID,
@@ -222,7 +234,7 @@ describe('handlePurge (slash command entry)', () => {
   });
 
   it('renders warning embed + buttons (does NOT awaitMessageComponent)', async () => {
-    mockResolvePersonalityId.mockResolvedValue(PERSONALITY_ID);
+    mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: PERSONALITY_ID });
     stub.getStats.mockResolvedValue(
       makeOk({
         personalityId: PERSONALITY_ID,

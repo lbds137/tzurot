@@ -5,6 +5,7 @@
  * used across browse, search, stats, purge, and focus commands.
  */
 
+import { escapeMarkdown } from 'discord.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
   AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
@@ -14,15 +15,58 @@ import type { UserClient } from '@tzurot/clients';
 import { resolvePersonalityId } from './autocomplete.js';
 
 /**
+ * Shared resolve-or-reply core. Maps a {@link ResolvedPersonality} to either the
+ * UUID or a user-facing error reply (returning `null`). Distinguishes the two
+ * failure shapes the infra-vs-negative fix introduced:
+ *   - `not-found` → definitive "❌ Character X not found"
+ *   - `unavailable` → "try again" ({@link AUTOCOMPLETE_UNAVAILABLE_MESSAGE}) —
+ *     the personality list couldn't be fetched, so we must NOT claim the
+ *     character doesn't exist.
+ *
+ * The `switch` is exhaustive by design: adding a new `ResolvedPersonality` kind
+ * makes this fail to compile (no trailing return), forcing the caller wording
+ * to be considered. Both wrappers below delegate here; they differ only in how
+ * they treat empty input.
+ */
+async function resolveOrReply(
+  context: DeferredCommandContext,
+  userClient: UserClient,
+  personalityInput: string
+): Promise<string | null> {
+  if (isAutocompleteErrorSentinel(personalityInput)) {
+    await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
+    return null;
+  }
+
+  const resolved = await resolvePersonalityId(userClient, personalityInput);
+  switch (resolved.kind) {
+    case 'found':
+      return resolved.id;
+    case 'unavailable':
+      await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
+      return null;
+    case 'not-found':
+      await context.editReply({
+        content: `❌ Character "${escapeMarkdown(personalityInput)}" not found. Use autocomplete to select a valid character.`,
+      });
+      return null;
+    default: {
+      // Exhaustiveness guard: a new ResolvedPersonality kind fails to compile here.
+      const _exhaustive: never = resolved;
+      return _exhaustive;
+    }
+  }
+}
+
+/**
  * Resolve an optional personality input to an ID.
  *
  * **Important contract**: on resolution failure, this function calls
- * `context.editReply` itself to surface the "not found" error to the
- * user, then returns `null`. Callers MUST return early when they see
- * `null` — sending a second reply via `editReply` would cause Discord
- * to reject the duplicate and the user would see "This interaction
- * failed." The error reply is handled here to centralize the
- * user-facing wording across browse, search, stats, purge, and focus.
+ * `context.editReply` itself to surface the error to the user, then returns
+ * `null`. Callers MUST return early when they see `null` — sending a second
+ * reply via `editReply` would cause Discord to reject the duplicate and the user
+ * would see "This interaction failed." The error reply is handled here to
+ * centralize the user-facing wording across browse, search, stats, purge, and focus.
  *
  * @returns one of:
  *   - `undefined` — input was null/empty, no filter to apply
@@ -40,48 +84,27 @@ export async function resolveOptionalPersonality(
     return undefined;
   }
 
-  if (isAutocompleteErrorSentinel(personalityInput)) {
-    await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
-    return null;
-  }
-
-  const resolved = await resolvePersonalityId(userClient, personalityInput);
-  if (resolved === null) {
-    await context.editReply({
-      content: `❌ Character "${personalityInput}" not found. Use autocomplete to select a valid character.`,
-    });
-    return null;
-  }
-
-  return resolved;
+  return resolveOrReply(context, userClient, personalityInput);
 }
 
 /**
  * Resolve a required personality input to an ID.
  *
  * Same null-means-replied contract as {@link resolveOptionalPersonality}:
- * on failure, this function sends an error reply via `context.editReply`
- * and returns `null`. Callers MUST return early without sending any
- * further reply to avoid Discord's double-reply rejection.
+ * on failure, this function sends an error reply via `context.editReply` and
+ * returns `null`. The reply distinguishes a genuine miss ("not found") from an
+ * infra failure ("try again") — see {@link resolveOrReply}. Callers MUST return
+ * early on `null` without sending any further reply to avoid Discord's
+ * double-reply rejection.
  *
- * @returns The resolved personality UUID on success, or `null` if
- *   resolution failed (in which case the error reply has already been sent).
+ * @returns The resolved personality UUID on success, or `null` if resolution
+ *   failed (in which case the error reply — "not found" or "try again" — has
+ *   already been sent).
  */
 export async function resolveRequiredPersonality(
   context: DeferredCommandContext,
   userClient: UserClient,
   personalityInput: string
 ): Promise<string | null> {
-  if (isAutocompleteErrorSentinel(personalityInput)) {
-    await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
-    return null;
-  }
-
-  const resolved = await resolvePersonalityId(userClient, personalityInput);
-  if (resolved === null) {
-    await context.editReply({
-      content: `❌ Character "${personalityInput}" not found. Use autocomplete to select a valid character.`,
-    });
-  }
-  return resolved;
+  return resolveOrReply(context, userClient, personalityInput);
 }

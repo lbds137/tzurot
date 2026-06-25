@@ -64,26 +64,26 @@ describe('Memory Autocomplete', () => {
       const user = mkUser();
       const result = await resolvePersonalityId(user, 'lilith');
 
-      expect(result).toBe('uuid-1');
+      expect(result).toEqual({ kind: 'found', id: 'uuid-1' });
       expect(mockGetCachedPersonalities).toHaveBeenCalledWith(user);
     });
 
     it('should resolve personality by ID', async () => {
       const result = await resolvePersonalityId(mkUser(), 'uuid-2');
 
-      expect(result).toBe('uuid-2');
+      expect(result).toEqual({ kind: 'found', id: 'uuid-2' });
     });
 
     it('should resolve personality by name (case-insensitive)', async () => {
       const result = await resolvePersonalityId(mkUser(), 'ZEPHYR');
 
-      expect(result).toBe('uuid-3');
+      expect(result).toEqual({ kind: 'found', id: 'uuid-3' });
     });
 
-    it('should return null for unknown personality', async () => {
+    it('should return not-found for an unknown personality (list loaded, no match)', async () => {
       const result = await resolvePersonalityId(mkUser(), 'unknown');
 
-      expect(result).toBeNull();
+      expect(result).toEqual({ kind: 'not-found' });
     });
 
     it('should prefer slug match over name match', async () => {
@@ -97,15 +97,15 @@ describe('Memory Autocomplete', () => {
       const result = await resolvePersonalityId(mkUser(), 'aria');
 
       // Should find the original 'aria' by slug first
-      expect(result).toBe('uuid-2');
+      expect(result).toEqual({ kind: 'found', id: 'uuid-2' });
     });
 
-    it('should return null when cache returns error', async () => {
+    it('should return unavailable when the personality list can not be fetched (infra)', async () => {
       mockGetCachedPersonalities.mockResolvedValue({ kind: 'error', error: 'Backend down' });
 
       const result = await resolvePersonalityId(mkUser(), 'lilith');
 
-      expect(result).toBeNull();
+      expect(result).toEqual({ kind: 'unavailable' });
     });
   });
 
