@@ -217,7 +217,14 @@ export class PersonalityTriggerProcessor implements IMessageProcessor {
 
     const { personalitySlug, personalityName } = channelSettings.settings;
 
-    const personality = await this.deps.personalityService.loadPersonality(personalitySlug, userId);
+    // STRICT: a gateway FAILURE throws → caught by resolveActivatedPersonality's
+    // resilience catch → no activation slot (silent), NOT the "private character"
+    // notice below. `null` means the activated persona genuinely isn't accessible
+    // to this user (200 with personality:null) → the notice is correct.
+    const personality = await this.deps.personalityService.loadPersonalityStrict(
+      personalitySlug,
+      userId
+    );
 
     if (personality === null) {
       logger.debug(

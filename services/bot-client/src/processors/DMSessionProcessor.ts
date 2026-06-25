@@ -17,6 +17,7 @@ import type { Message, DMChannel } from 'discord.js';
 import { createLogger, type LoadedPersonality } from '@tzurot/common-types';
 import type { IMessageProcessor } from './IMessageProcessor.js';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
+import { InfraError, GatewayClientError } from '@tzurot/clients';
 import {
   getChannelSettingsCached,
   setDmSessionPersonality,
@@ -116,9 +117,28 @@ export class DMSessionProcessor implements IMessageProcessor {
     // already loaded it (uses the same userId as access scope) — reuse the
     // cached object in that case to avoid a redundant DB roundtrip. The
     // fast-path returns only the ID (cheap to re-load via TTLCache).
-    const personality =
-      resolved.personality ??
-      (await this.personalityService.loadPersonality(resolved.personalityId, userId));
+    // STRICT: the session IS active, so a gateway FAILURE must not read as
+    // "no active conversation". loadPersonalityStrict throws on infra/4xx →
+    // surface "try again"; `null` means the persona was genuinely deleted /
+    // access revoked → the help path below.
+    let personality: LoadedPersonality | null;
+    try {
+      personality =
+        resolved.personality ??
+        (await this.personalityService.loadPersonalityStrict(resolved.personalityId, userId));
+    } catch (error) {
+      if (error instanceof InfraError || error instanceof GatewayClientError) {
+        logger.warn(
+          { err: error, userId, personalityId: resolved.personalityId },
+          'Persona load failed for an active DM session; surfacing retry'
+        );
+        await message.reply(
+          "⏳ Couldn't reach the server just now — please try again in a moment."
+        );
+        return true;
+      }
+      throw error;
+    }
 
     if (!personality) {
       // Personality deleted or access revoked - send help
