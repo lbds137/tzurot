@@ -16,15 +16,18 @@ export function registerTopologyCommands(cli: CAC): void {
     )
     .example('pnpm ops topology:generate')
     .action(async () => {
-      const { buildCoverageTopology, surfaceGap } = await import('../topology/coverageTopology.js');
-      const topology = buildCoverageTopology();
+      const { generateCoverageTopology, surfaceGap } =
+        await import('../topology/coverageTopology.js');
+      const topology = generateCoverageTopology();
       console.log(JSON.stringify(topology, null, 2));
 
       const gaps = topology.surfaces.filter(s => surfaceGap(s).length > 0);
       console.log(`\n${topology.surfaces.length} surface(s); ${gaps.length} with a tier gap.`);
       console.log(
-        'NOTE: skeleton — seeded with 1 proven surface. The full ROUTE_MANIFEST + JobType walk ' +
-          '(deriving actualTiers from tests) is Phase 2 of the test-pyramid epic; report-only, no gate.'
+        'NOTE: report-only. Surfaces are enumerated from ROUTE_MANIFEST + JobType payload ' +
+          'schemas + the context-assembly envelope; actualTiers is optimistic-from-mechanism. ' +
+          'Phase 2b adds --write (commit the artifact), mechanism-presence verification, and the ' +
+          'lockfile-diff CI gate; the test:tier-audit ratchet is Phase 4.'
       );
     });
 }
