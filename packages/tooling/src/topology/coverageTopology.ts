@@ -1,27 +1,33 @@
 /**
- * Coverage topology — code-derived registry of cross-service surfaces (Phase 2).
+ * Coverage topology — code-derived registry of cross-service surfaces.
  *
- * Enumerates every cross-service "surface" from code — HTTP routes (`ROUTE_MANIFEST`),
- * BullMQ job payloads (`JobType` + `*JobDataSchema`), and the context-assembly
- * envelope — and records, per surface, the test tiers it SHOULD carry
- * (`requiredTiers`) vs. what it HAS (`actualTiers`), plus the coverage MECHANISM
- * that provides it. This is the discovery artifact the eventual `test:tier-audit`
- * ratchet (Phase 4) gates on; committed + lockfile-diffed in CI (Phase 2b).
+ * Enumerates every cross-service "surface" from code — HTTP routes
+ * (`ROUTE_MANIFEST`), payload-bearing BullMQ jobs (`JobType` + `*JobDataSchema`),
+ * and the bot-client→worker context-assembly envelope — and records, per surface,
+ * the test tiers it SHOULD carry (`requiredTiers`) vs. the tiers it actually HAS
+ * (`actualTiers`), plus the coverage MECHANISM that provides it. A surface whose
+ * mechanism's test is absent has empty `actualTiers`, so `surfaceGap` reports it.
  *
  * Coverage is **mechanism-based per surface class** (NOT a fuzzy global
- * schema-grep): each class has one known coverage mechanism —
- *  - http-route      → the route-conformance harness (component tier)
- *  - bullmq-job      → the BullMQ producer/consumer contract tests (contract tier)
+ * schema-grep): each class has exactly one coverage mechanism, and a surface is
+ * "covered" iff that mechanism's test is present on disk —
+ *  - http-route       → the route-conformance harness (component tier)
+ *  - bullmq-job       → the BullMQ producer/consumer contract tests (contract tier)
  *  - context-envelope → the golden-fixture contract (contract tier)
  *
- * Phase 2a (this) enumerates surfaces + assigns each its mechanism + an OPTIMISTIC
- * mechanism-implied `actualTiers` (assumes the mechanism's test is present).
- * Phase 2b VERIFIES presence (downgrades `actualTiers` when a mechanism's test is
- * missing) and adds the lockfile-diff CI gate.
+ * The generated topology is committed (`packages/tooling/coverage-topology.json`)
+ * and byte-compared in CI via `topology:check` — a new or newly-uncovered surface
+ * shows up as a one-line diff a reviewer closes or exempts. The hard ratchet that
+ * FAILS on a missing required tier is a separate, later tool (`test:tier-audit`).
  */
+
+import { writeFileSync } from 'node:fs';
+import { resolve, dirname, join } from 'node:path';
 
 import { ROUTE_MANIFEST } from '@tzurot/clients';
 import { JobType } from '@tzurot/common-types';
+
+import { findFiles, fileExists, readFile } from '../test/audit-utils.js';
 import type { TestTier } from '../test/test-tiers.js';
 
 /** How a surface's contract coverage is provided. */
@@ -41,7 +47,7 @@ export interface CoverageSurface {
   mechanism: CoverageSurfaceMechanism;
   /** Tiers this surface SHOULD carry. */
   requiredTiers: TestTier[];
-  /** Tiers it currently HAS (Phase 2a: optimistic from mechanism; 2b verifies). */
+  /** Tiers it actually HAS (= its mechanism's tier iff that mechanism's test is present). */
   actualTiers: TestTier[];
 }
 
@@ -50,24 +56,21 @@ export interface CoverageTopology {
   surfaces: CoverageSurface[];
 }
 
+/** Repo-relative path of the committed topology artifact (byte-compared in CI). */
+export const COVERAGE_TOPOLOGY_PATH = 'packages/tooling/coverage-topology.json';
+
 /** The required tiers a surface is MISSING (empty = fully covered). */
 export function surfaceGap(surface: CoverageSurface): TestTier[] {
   return surface.requiredTiers.filter(tier => !surface.actualTiers.includes(tier));
 }
 
 /**
- * The tier each mechanism provides — and which therefore IS the surface's
- * required coverage. A cross-service surface's contract is verified by its
- * mechanism, NOT necessarily by a literal `*.contract.test.ts`:
- *  - the route-conformance harness is a **component**-tier test that verifies
- *    each route's request↔response against its declared schema (contract-level
- *    verification, component-tier file) — so a route requires `component`, not a
- *    separate contract-tier file;
- *  - the BullMQ + golden-fixture mechanisms are **contract**-tier.
- *
- * `requiredTiers` = `actualTiers` = [this tier] in Phase 2a (optimistic: the
- * mechanism's test is assumed present). Phase 2b verifies presence and empties
- * `actualTiers` when the mechanism's test is missing, surfacing a real gap.
+ * The tier each mechanism provides — which IS the surface's required coverage. A
+ * cross-service contract is verified by its mechanism, NOT necessarily by a
+ * literal `*.contract.test.ts`: the route-conformance harness is a
+ * **component**-tier test that checks each route's request↔response against its
+ * declared schema, so a route requires `component`; the BullMQ and golden-fixture
+ * mechanisms are **contract**-tier.
  */
 const MECHANISM_TIER: Record<CoverageSurfaceMechanism, TestTier> = {
   'route-conformance': 'component',
@@ -76,86 +79,214 @@ const MECHANISM_TIER: Record<CoverageSurfaceMechanism, TestTier> = {
 };
 
 /**
- * BullMQ job types that carry a cross-service payload schema (the producer↔consumer
- * contract). Shapes import/export have no `*JobDataSchema` (no discriminated payload
- * contract), so they are not BullMQ-contract surfaces.
+ * Every JobType, classified: a payload-bearing job maps to its cross-service
+ * `*JobDataSchema` name (the producer↔consumer contract); a job with no
+ * discriminated payload schema (Shapes import/export) maps to `null`. The
+ * `Record<JobType, …>` is the exhaustiveness guard — a newly-added JobType will
+ * not compile until it is classified here, so a future payload-bearing job can't
+ * be silently omitted from the topology.
  */
-const JOB_PAYLOAD_SCHEMAS: Record<
-  JobType.AudioTranscription | JobType.ImageDescription | JobType.LLMGeneration,
-  string
-> = {
+const JOB_SCHEMA_BY_TYPE: Record<JobType, string | null> = {
   [JobType.AudioTranscription]: 'audioTranscriptionJobDataSchema',
   [JobType.ImageDescription]: 'imageDescriptionJobDataSchema',
   [JobType.LLMGeneration]: 'llmGenerationJobDataSchema',
+  [JobType.ShapesImport]: null,
+  [JobType.ShapesExport]: null,
 };
+
+/** The payload-bearing subset (non-null entries) — one BullMQ-contract surface each. */
+const JOB_PAYLOAD_SCHEMAS: readonly { jobType: JobType; schemaRef: string }[] = Object.entries(
+  JOB_SCHEMA_BY_TYPE
+)
+  .filter((entry): entry is [JobType, string] => entry[1] !== null)
+  .map(([jobType, schemaRef]) => ({ jobType, schemaRef }));
 
 /**
  * Route ids exempt from the cross-service contract requirement (not real
  * contracts: static asset serving, liveness). Capped — NOT a growable knownGaps;
- * each future entry carries an inline-comment reason. Empty for now.
+ * each future entry carries an inline reason. Exported as an array (the test reads
+ * `.length`); `generateCoverageTopology` derives a local Set for O(1) per-route
+ * lookup. Empty for now.
  */
-const EXEMPT_ROUTE_IDS = new Set<string>();
+export const EXEMPT_ROUTE_IDS: readonly string[] = [];
+
+/** Files whose existence proves each mechanism is live (repo-relative). */
+const CONFORMANCE_HARNESS =
+  'services/api-gateway/src/routes/conformance/conformance.component.test.ts';
+const GOLDEN_FIXTURE_PRODUCER =
+  'services/bot-client/src/services/contextBuilder/RawEnvelopeContract.producer.test.ts';
+const GOLDEN_FIXTURE_CONSUMER =
+  'services/ai-worker/src/services/context/RawEnvelopeContract.consumer.component.test.ts';
+const BULLMQ_CONTRACT_DIR = 'tests/e2e/contracts';
+
+interface MechanismPresence {
+  /** The route-conformance harness exists (covers all manifest routes via its registry bijection). */
+  routeConformance: boolean;
+  /** Both halves of the golden-fixture envelope contract exist. */
+  goldenFixture: boolean;
+  /** Job schema names referenced by a `.safeParse(`/`.parse(` call in a BullMQ contract test. */
+  bullmqSchemas: Set<string>;
+}
+
+/**
+ * Probe the filesystem ONCE for each mechanism's presence. Route + envelope are
+ * mechanism-level (one harness covers every route via its registry bijection; the
+ * two envelope tests are the single golden-fixture contract); BullMQ is per-job
+ * (each schema name must appear in a contract test). Schema references are matched
+ * with the same `(\w+Schema)\.(safeParse|parse)` primitive the unified test-audit
+ * uses.
+ */
+function buildMechanismPresence(projectRoot: string): MechanismPresence {
+  const bullmqSchemas = new Set<string>();
+  const contractFiles = findFiles(join(projectRoot, BULLMQ_CONTRACT_DIR), /\.contract\.test\.ts$/);
+  for (const file of contractFiles) {
+    // eslint-disable-next-line regexp/no-super-linear-move -- Input is developer-authored TS source (trusted, bounded by file size); ReDoS not a real attack surface
+    for (const match of readFile(file).matchAll(/(\w+Schema)\.(?:safeParse|parse)\(/g)) {
+      bullmqSchemas.add(match[1]);
+    }
+  }
+  return {
+    routeConformance: fileExists(join(projectRoot, CONFORMANCE_HARNESS)),
+    goldenFixture:
+      fileExists(join(projectRoot, GOLDEN_FIXTURE_PRODUCER)) &&
+      fileExists(join(projectRoot, GOLDEN_FIXTURE_CONSUMER)),
+    bullmqSchemas,
+  };
+}
+
+type SurfaceSeed = Omit<CoverageSurface, 'requiredTiers' | 'actualTiers'>;
+
+/**
+ * Whether each mechanism's coverage is present for a given surface. Keyed by
+ * mechanism (a `Record`, like `MECHANISM_TIER`) so a newly-added
+ * `CoverageSurfaceMechanism` is a compile error here rather than a silent
+ * fall-through to the wrong branch.
+ */
+const MECHANISM_PRESENT: Record<
+  CoverageSurfaceMechanism,
+  (seed: SurfaceSeed, presence: MechanismPresence) => boolean
+> = {
+  'route-conformance': (_seed, presence) => presence.routeConformance,
+  'golden-fixture': (_seed, presence) => presence.goldenFixture,
+  'bullmq-contract': (seed, presence) => presence.bullmqSchemas.has(seed.schemaRef),
+};
+
+/** Resolve a seed to a full surface: requiredTiers from its mechanism, actualTiers iff present. */
+function buildSurface(seed: SurfaceSeed, presence: MechanismPresence): CoverageSurface {
+  const tier = MECHANISM_TIER[seed.mechanism];
+  const present = MECHANISM_PRESENT[seed.mechanism](seed, presence);
+  return { ...seed, requiredTiers: [tier], actualTiers: present ? [tier] : [] };
+}
 
 /**
  * Build the code-derived coverage topology by walking `ROUTE_MANIFEST` + the
- * BullMQ payload schemas + the context-assembly envelope. Surfaces are sorted by
- * id for a stable, diff-clean committed artifact.
+ * payload-bearing BullMQ jobs + the context-assembly envelope, verifying each
+ * surface's coverage mechanism against `projectRoot`. Surfaces are sorted by id
+ * for a stable, diff-clean committed artifact.
  */
-export function generateCoverageTopology(): CoverageTopology {
+export function generateCoverageTopology(projectRoot: string = defaultRootDir()): CoverageTopology {
+  const presence = buildMechanismPresence(projectRoot);
+  const exempt = new Set(EXEMPT_ROUTE_IDS);
   const surfaces: CoverageSurface[] = [];
 
   // HTTP routes — each manifest entry is a cross-service surface (typed client →
   // api-gateway handler), covered by the route-conformance harness.
   for (const [id, route] of Object.entries(ROUTE_MANIFEST)) {
-    if (EXEMPT_ROUTE_IDS.has(id)) continue;
-    surfaces.push({
-      id: `client:api-gateway:${id}`,
-      kind: 'http-route',
-      // 'client' = the typed-client layer, not a single service: routes are
-      // called via the generated typed client by whichever service holds it
-      // (internal routes are service-to-service; user/admin are bot-client), so
-      // there's no single producer. The mechanism (route-conformance), not the
-      // producer, drives coverage.
-      producer: 'client',
-      consumer: 'api-gateway',
-      // The route's input/output Zod schemas are named consts in the manifest;
-      // the route id is the stable surface identifier (the conformance harness,
-      // not a schema-grep, is the coverage mechanism).
-      schemaRef: `${route.method.toUpperCase()} ${route.path}`,
-      mechanism: 'route-conformance',
-      requiredTiers: [MECHANISM_TIER['route-conformance']],
-      actualTiers: [MECHANISM_TIER['route-conformance']],
-    });
+    if (exempt.has(id)) continue;
+    surfaces.push(
+      buildSurface(
+        {
+          id: `client:api-gateway:${id}`,
+          kind: 'http-route',
+          // 'client' = the typed-client layer (no single producer service; internal
+          // routes are service-to-service, user/admin are bot-client). The
+          // mechanism, not the producer, drives coverage.
+          producer: 'client',
+          consumer: 'api-gateway',
+          schemaRef: `${route.method.toUpperCase()} ${route.path}`,
+          mechanism: 'route-conformance',
+        },
+        presence
+      )
+    );
   }
 
   // BullMQ jobs — api-gateway produces, ai-worker consumes; the payload schema is
   // the contract, covered by the BullMQ producer/consumer contract tests.
-  for (const [jobType, schemaRef] of Object.entries(JOB_PAYLOAD_SCHEMAS)) {
-    surfaces.push({
-      id: `api-gateway:ai-worker:${jobType}`,
-      kind: 'bullmq-job',
-      producer: 'api-gateway',
-      consumer: 'ai-worker',
-      schemaRef,
-      mechanism: 'bullmq-contract',
-      requiredTiers: [MECHANISM_TIER['bullmq-contract']],
-      actualTiers: [MECHANISM_TIER['bullmq-contract']],
-    });
+  for (const { jobType, schemaRef } of JOB_PAYLOAD_SCHEMAS) {
+    surfaces.push(
+      buildSurface(
+        {
+          id: `api-gateway:ai-worker:${jobType}`,
+          kind: 'bullmq-job',
+          producer: 'api-gateway',
+          consumer: 'ai-worker',
+          schemaRef,
+          mechanism: 'bullmq-contract',
+        },
+        presence
+      )
+    );
   }
 
-  // The bot-client→ai-worker context-assembly envelope (locked by the
-  // golden-fixture contract).
-  surfaces.push({
-    id: 'bot-client:ai-worker:context-assembly',
-    kind: 'context-envelope',
-    producer: 'bot-client',
-    consumer: 'ai-worker',
-    schemaRef: 'rawAssemblyInputsSchema',
-    mechanism: 'golden-fixture',
-    requiredTiers: [MECHANISM_TIER['golden-fixture']],
-    actualTiers: [MECHANISM_TIER['golden-fixture']],
-  });
+  // The bot-client→ai-worker context-assembly envelope (golden-fixture contract).
+  surfaces.push(
+    buildSurface(
+      {
+        id: 'bot-client:ai-worker:context-assembly',
+        kind: 'context-envelope',
+        producer: 'bot-client',
+        consumer: 'ai-worker',
+        schemaRef: 'rawAssemblyInputsSchema',
+        mechanism: 'golden-fixture',
+      },
+      presence
+    )
+  );
 
   surfaces.sort((a, b) => a.id.localeCompare(b.id));
   return { schema: 'coverage-topology/v1', surfaces };
+}
+
+/**
+ * Serialize for the committed artifact: `JSON.stringify(…, 2)` + trailing
+ * newline. The file is byte-compared by `topology:check`, so it MUST be
+ * `.prettierignore`d (prettier collapses short arrays and breaks the compare) —
+ * same contract as `command-manifest.json` and the contract fixtures.
+ */
+function serializeCoverageTopology(topology: CoverageTopology): string {
+  return `${JSON.stringify(topology, null, 2)}\n`;
+}
+
+/** Generate + write the committed topology artifact. Returns the absolute path. */
+export function writeCoverageTopology(projectRoot: string = defaultRootDir()): string {
+  const path = join(projectRoot, COVERAGE_TOPOLOGY_PATH);
+  writeFileSync(path, serializeCoverageTopology(generateCoverageTopology(projectRoot)));
+  return path;
+}
+
+interface TopologyCheckResult {
+  /** True when the committed file matches freshly-generated output byte-for-byte. */
+  upToDate: boolean;
+  /** Absolute path of the committed artifact. */
+  path: string;
+  /** True when the committed file is absent entirely (never generated/committed). */
+  missing: boolean;
+}
+
+/** Regenerate the topology and byte-compare it against the committed artifact (CI drift gate). */
+export function checkCoverageTopology(projectRoot: string = defaultRootDir()): TopologyCheckResult {
+  const path = join(projectRoot, COVERAGE_TOPOLOGY_PATH);
+  if (!fileExists(path)) return { upToDate: false, path, missing: true };
+  const expected = serializeCoverageTopology(generateCoverageTopology(projectRoot));
+  return { upToDate: readFile(path) === expected, path, missing: false };
+}
+
+/**
+ * The monorepo root, resolved from this module's location. The layout mirrors
+ * between src/ (dev, tsx) and dist/ (built), so the same step count reaches root
+ * in either context:  topology/ → {src|dist}/ → tooling/ → packages/ → root.
+ */
+function defaultRootDir(): string {
+  return resolve(dirname(new URL(import.meta.url).pathname), '..', '..', '..', '..');
 }
