@@ -73,7 +73,6 @@ const KNOWN_SUBCOMMAND_NAMES = new Set<string>([
   'kick',
   'servers',
   'db-sync',
-  'stop-sequences',
   'purge',
   'search',
   'hard-delete',

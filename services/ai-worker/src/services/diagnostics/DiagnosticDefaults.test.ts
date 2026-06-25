@@ -45,7 +45,6 @@ describe('DiagnosticDefaults', () => {
     expect(getDefaultLlmConfig()).toEqual({
       model: '[not recorded]',
       provider: '[not recorded]',
-      stopSequences: [],
       allParams: {},
     });
   });
@@ -54,7 +53,6 @@ describe('DiagnosticDefaults', () => {
     expect(getDefaultLlmResponse()).toEqual({
       rawContent: '[not recorded]',
       finishReason: 'unknown',
-      stopSequenceTriggered: null,
       promptTokens: 0,
       completionTokens: 0,
       modelUsed: '[not recorded]',

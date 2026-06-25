@@ -296,7 +296,6 @@ export class DiagnosticCollector {
       frequencyPenalty: data.frequencyPenalty,
       presencePenalty: data.presencePenalty,
       repetitionPenalty: data.repetitionPenalty,
-      stopSequences: data.stopSequences,
       allParams: {
         // Core
         model: data.model,
@@ -314,7 +313,6 @@ export class DiagnosticCollector {
         topA: data.topA,
         seed: data.seed,
         // Output control
-        stop: data.stop,
         logitBias: data.logitBias,
         responseFormat: data.responseFormat,
         showThinking: data.showThinking,
@@ -354,7 +352,6 @@ export class DiagnosticCollector {
     this.llmResponse = {
       rawContent: data.rawContent,
       finishReason: data.finishReason,
-      stopSequenceTriggered: data.stopSequenceTriggered,
       promptTokens: data.promptTokens,
       completionTokens: data.completionTokens,
       modelUsed: data.modelUsed,
@@ -377,7 +374,6 @@ export class DiagnosticCollector {
     this.llmResponse = {
       rawContent: data.rawContent ?? '[empty — LLM returned no content]',
       finishReason: data.finishReason ?? FINISH_REASONS.UNKNOWN,
-      stopSequenceTriggered: data.stopSequenceTriggered ?? null,
       promptTokens: data.promptTokens ?? 0,
       completionTokens: data.completionTokens ?? 0,
       modelUsed: data.modelUsed ?? 'unknown',

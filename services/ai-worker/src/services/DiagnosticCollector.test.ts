@@ -390,7 +390,6 @@ describe('DiagnosticCollector', () => {
         frequencyPenalty: 0.0,
         presencePenalty: 0.1,
         repetitionPenalty: 1.0,
-        stopSequences: ['Human:', 'User:'],
       });
 
       const payload = collector.finalize();
@@ -398,14 +397,12 @@ describe('DiagnosticCollector', () => {
       expect(payload.llmConfig.model).toBe('claude-3-5-sonnet-20241022');
       expect(payload.llmConfig.provider).toBe('anthropic');
       expect(payload.llmConfig.temperature).toBe(0.8);
-      expect(payload.llmConfig.stopSequences).toEqual(['Human:', 'User:']);
     });
 
     it('should handle optional parameters', () => {
       collector.recordLlmConfig({
         model: 'gpt-4',
         provider: 'openai',
-        stopSequences: [],
       });
 
       const payload = collector.finalize();
@@ -422,7 +419,6 @@ describe('DiagnosticCollector', () => {
         minP: 0.1,
         topA: 0.5,
         seed: 42,
-        stopSequences: [],
       });
 
       const payload = collector.finalize();
@@ -441,7 +437,6 @@ describe('DiagnosticCollector', () => {
           enabled: true,
         },
         showThinking: true,
-        stopSequences: [],
       });
 
       const payload = collector.finalize();
@@ -460,7 +455,6 @@ describe('DiagnosticCollector', () => {
         transforms: ['middle-out'],
         route: 'fallback',
         verbosity: 'high',
-        stopSequences: [],
       });
 
       const payload = collector.finalize();
@@ -474,15 +468,12 @@ describe('DiagnosticCollector', () => {
       collector.recordLlmConfig({
         model: 'openai/gpt-4o',
         provider: 'openai',
-        stop: ['###', '---'],
         logitBias: { '123': -100 },
         responseFormat: { type: 'json_object' },
-        stopSequences: [],
       });
 
       const payload = collector.finalize();
 
-      expect(payload.llmConfig.allParams.stop).toEqual(['###', '---']);
       expect(payload.llmConfig.allParams.logitBias).toEqual({ '123': -100 });
       expect(payload.llmConfig.allParams.responseFormat).toEqual({ type: 'json_object' });
     });
@@ -495,7 +486,6 @@ describe('DiagnosticCollector', () => {
       collector.recordLlmResponse({
         rawContent: 'The answer is 4.',
         finishReason: 'stop',
-        stopSequenceTriggered: null,
         promptTokens: 50,
         completionTokens: 10,
         modelUsed: 'claude-3-5-sonnet-20241022',
@@ -506,32 +496,16 @@ describe('DiagnosticCollector', () => {
       expect(payload.llmResponse).toEqual({
         rawContent: 'The answer is 4.',
         finishReason: 'stop',
-        stopSequenceTriggered: null,
         promptTokens: 50,
         completionTokens: 10,
         modelUsed: 'claude-3-5-sonnet-20241022',
       });
     });
 
-    it('should record stop sequence when triggered', () => {
-      collector.recordLlmResponse({
-        rawContent: 'Some response',
-        finishReason: 'stop_sequence',
-        stopSequenceTriggered: 'Human:',
-        promptTokens: 100,
-        completionTokens: 20,
-        modelUsed: 'gpt-4',
-      });
-
-      const payload = collector.finalize();
-      expect(payload.llmResponse.stopSequenceTriggered).toBe('Human:');
-    });
-
     it('should record reasoning debug info when provided', () => {
       collector.recordLlmResponse({
         rawContent: 'Response with reasoning',
         finishReason: 'stop',
-        stopSequenceTriggered: null,
         promptTokens: 200,
         completionTokens: 50,
         modelUsed: 'deepseek/deepseek-r1',
@@ -563,7 +537,6 @@ describe('DiagnosticCollector', () => {
       collector.recordLlmResponse({
         rawContent: 'Simple response',
         finishReason: 'stop',
-        stopSequenceTriggered: null,
         promptTokens: 50,
         completionTokens: 10,
         modelUsed: 'gpt-4o',
@@ -785,7 +758,6 @@ describe('DiagnosticCollector', () => {
       collector.recordLlmResponse({
         rawContent: 'Response',
         finishReason: 'stop',
-        stopSequenceTriggered: null,
         promptTokens: 10,
         completionTokens: 5,
         modelUsed: 'test-model',
@@ -825,7 +797,6 @@ describe('DiagnosticCollector', () => {
       expect(payload.llmConfig).toEqual({
         model: '[not recorded]',
         provider: '[not recorded]',
-        stopSequences: [],
         allParams: {},
       });
     });
@@ -836,7 +807,6 @@ describe('DiagnosticCollector', () => {
       expect(payload.llmResponse).toEqual({
         rawContent: '[not recorded]',
         finishReason: 'unknown',
-        stopSequenceTriggered: null,
         promptTokens: 0,
         completionTokens: 0,
         modelUsed: '[not recorded]',
@@ -890,7 +860,6 @@ describe('DiagnosticCollector', () => {
       collector.recordLlmConfig({
         model: 'claude-3-5-sonnet',
         provider: 'anthropic',
-        stopSequences: [],
       });
 
       // Then error occurs
@@ -999,7 +968,6 @@ describe('DiagnosticCollector', () => {
       expect(payload.llmResponse).toEqual({
         rawContent: '[error — see error data]',
         finishReason: 'unknown',
-        stopSequenceTriggered: null,
         promptTokens: 0,
         completionTokens: 0,
         modelUsed: 'z-ai/glm-5',
@@ -1012,7 +980,6 @@ describe('DiagnosticCollector', () => {
       collector.recordLlmResponse({
         rawContent: 'Hello! I am the response.',
         finishReason: 'stop',
-        stopSequenceTriggered: null,
         promptTokens: 100,
         completionTokens: 50,
         modelUsed: 'openai/gpt-4o',
@@ -1067,7 +1034,6 @@ describe('DiagnosticCollector', () => {
       collector.recordLlmResponse({
         rawContent: 'First attempt response',
         finishReason: 'stop',
-        stopSequenceTriggered: null,
         promptTokens: 10,
         completionTokens: 5,
         modelUsed: 'test-model',
@@ -1100,7 +1066,6 @@ describe('DiagnosticCollector', () => {
       collector.recordLlmResponse({
         rawContent: 'First',
         finishReason: 'stop',
-        stopSequenceTriggered: null,
         promptTokens: 10,
         completionTokens: 5,
         modelUsed: 'test-model',
@@ -1114,7 +1079,6 @@ describe('DiagnosticCollector', () => {
       collector.recordLlmResponse({
         rawContent: 'Second',
         finishReason: 'stop',
-        stopSequenceTriggered: null,
         promptTokens: 20,
         completionTokens: 10,
         modelUsed: 'test-model',

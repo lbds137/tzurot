@@ -55,7 +55,6 @@ import { handleCreateGlobalPersonality } from '../admin/createPersonality.js';
 import { handleUpdateGlobalPersonality } from '../admin/updatePersonality.js';
 import { handleListGlobalLlmConfigs, handleGetGlobalLlmConfig, handleCreateGlobalLlmConfig, handleUpdateGlobalLlmConfig, handleSetGlobalLlmConfigDefault, handleSetGlobalLlmConfigFreeDefault, handleDeleteGlobalLlmConfig } from '../admin/llm-config.js';
 import { handleListGlobalTtsConfigs, handleGetGlobalTtsConfig, handleCreateGlobalTtsConfig, handleUpdateGlobalTtsConfig, handleSetGlobalTtsConfigDefault, handleSetGlobalTtsConfigFreeDefault, handleDeleteGlobalTtsConfig } from '../admin/tts-config.js';
-import { handleGetStopSequencesStats } from '../admin/stopSequences.js';
 import { handleGetAdminUsageStats } from '../admin/usage.js';
 import { handleGetTimezone, handleSetTimezone } from '../user/timezone.js';
 import { handleListUserLlmConfigs, handleGetUserLlmConfig, handleCreateUserLlmConfig, handleUpdateUserLlmConfig, handleDeleteUserLlmConfig, handleResolveUserLlmConfig } from '../user/llm-config.js';
@@ -133,7 +132,6 @@ export function mountAdminRoutes(app: Express, deps: RouteDeps): void {
   app.get('/api/admin/settings', requireUserAuth(), requireOwnerAuth(), handleGetAdminSettings(deps));
   app.patch('/api/admin/settings/config-defaults', requireUserAuth(), requireOwnerAuth(), handleUpdateAdminSettings(deps));
   app.delete('/api/admin/settings/config-defaults', requireUserAuth(), requireOwnerAuth(), handleClearAdminSettings(deps));
-  app.get('/api/admin/stop-sequences', requireUserAuth(), requireOwnerAuth(), handleGetStopSequencesStats(deps));
   app.get('/api/admin/usage', requireUserAuth(), requireOwnerAuth(), handleGetAdminUsageStats(deps));
   app.patch('/api/admin/personality/:slug', requireUserAuth(), requireOwnerAuth(), handleUpdateGlobalPersonality(deps));
   app.get('/api/admin/llm-config/:id', requireUserAuth(), requireOwnerAuth(), handleGetGlobalLlmConfig(deps));

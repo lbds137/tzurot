@@ -54,13 +54,11 @@ function createMockPayload(overrides?: Partial<DiagnosticPayload>): DiagnosticPa
       model: 'claude-3-5-sonnet',
       provider: 'anthropic',
       temperature: 0.8,
-      stopSequences: [],
       allParams: {},
     },
     llmResponse: {
       rawContent: 'Hi there!',
       finishReason: 'stop',
-      stopSequenceTriggered: null,
       promptTokens: 50,
       completionTokens: 10,
       modelUsed: 'claude-3-5-sonnet-20241022',
@@ -400,24 +398,6 @@ describe('buildDiagnosticEmbed', () => {
     const embed = buildDiagnosticEmbed(payload);
     const responseField = embed.toJSON().fields?.find(f => f.name.includes('Response'));
     expect(responseField?.value).toContain('Completion Tokens:** 47 ⚠️ LOW');
-  });
-
-  it('shows — for stop sequence when none triggered (instead of hiding the line)', () => {
-    const payload = createMockPayload();
-    payload.llmResponse.stopSequenceTriggered = null;
-
-    const embed = buildDiagnosticEmbed(payload);
-    const responseField = embed.toJSON().fields?.find(f => f.name.includes('Response'));
-    expect(responseField?.value).toContain('Stop Sequence:** —');
-  });
-
-  it('shows the actual stop sequence in code formatting when one triggered', () => {
-    const payload = createMockPayload();
-    payload.llmResponse.stopSequenceTriggered = '</message>';
-
-    const embed = buildDiagnosticEmbed(payload);
-    const responseField = embed.toJSON().fields?.find(f => f.name.includes('Response'));
-    expect(responseField?.value).toContain('Stop Sequence:** `</message>`');
   });
 
   it('shows memory score range in Memory field when memories exist', () => {

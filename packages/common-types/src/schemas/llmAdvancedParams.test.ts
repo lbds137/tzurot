@@ -187,13 +187,6 @@ describe('LLM Advanced Params Schema', () => {
       expect(() => OutputParamsSchema.parse({ max_tokens: -100 })).toThrow();
     });
 
-    it('should accept stop sequences', () => {
-      expect(OutputParamsSchema.parse({ stop: ['END', 'STOP'] })).toEqual({
-        stop: ['END', 'STOP'],
-      });
-      expect(OutputParamsSchema.parse({ stop: [] })).toEqual({ stop: [] });
-    });
-
     it('should accept logit_bias', () => {
       const params = { logit_bias: { '1234': 50, '5678': -50 } };
       expect(OutputParamsSchema.parse(params)).toEqual(params);
@@ -270,7 +263,6 @@ describe('LLM Advanced Params Schema', () => {
         },
         // Output
         max_tokens: 4096,
-        stop: ['END'],
         // OpenRouter
         transforms: ['middle-out'],
       };
@@ -479,15 +471,13 @@ describe('LLM Advanced Params Schema', () => {
       expect(result.seed).toBe(42);
     });
 
-    it('should convert output params (stop, logitBias, responseFormat, showThinking)', () => {
+    it('should convert output params (logitBias, responseFormat, showThinking)', () => {
       const input: AdvancedParams = {
-        stop: ['END', 'STOP'],
         logit_bias: { '1234': 50, '5678': -50 },
         response_format: { type: 'json_object' },
         show_thinking: true,
       };
       const result = advancedParamsToConfigFormat(input);
-      expect(result.stop).toEqual(['END', 'STOP']);
       expect(result.logitBias).toEqual({ '1234': 50, '5678': -50 });
       expect(result.responseFormat).toEqual({ type: 'json_object' });
       expect(result.showThinking).toBe(true);
@@ -538,7 +528,6 @@ describe('LLM Advanced Params Schema', () => {
         seed: 42,
         // Output
         max_tokens: 4096,
-        stop: ['END'],
         logit_bias: { '1234': 50 },
         response_format: { type: 'text' },
         show_thinking: true,
@@ -561,7 +550,6 @@ describe('LLM Advanced Params Schema', () => {
         topA: 0.5,
         seed: 42,
         maxTokens: 4096,
-        stop: ['END'],
         logitBias: { '1234': 50 },
         responseFormat: { type: 'text' },
         showThinking: true,
@@ -581,7 +569,6 @@ describe('LLM Advanced Params Schema', () => {
       expect(result.topA).toBeUndefined();
       expect(result.seed).toBeUndefined();
       expect(result.reasoning).toBeUndefined();
-      expect(result.stop).toBeUndefined();
       expect(result.transforms).toBeUndefined();
       expect(result.showThinking).toBeUndefined();
     });
@@ -647,7 +634,6 @@ describe('LLM Advanced Params Schema', () => {
         'topA',
         'seed',
         'maxTokens',
-        'stop',
         'logitBias',
         'responseFormat',
         'showThinking',
@@ -687,10 +673,9 @@ describe('LLM Advanced Params Schema', () => {
       }
     });
 
-    it('should have exactly 20 keys', () => {
+    it('should have exactly 19 keys', () => {
       // This test ensures we notice if keys are accidentally added or removed
-      // Phase 3: Removed 5 context/memory keys (moved to ConfigOverrides cascade)
-      expect(LLM_CONFIG_OVERRIDE_KEYS.length).toBe(20);
+      expect(LLM_CONFIG_OVERRIDE_KEYS.length).toBe(19);
     });
   });
 });

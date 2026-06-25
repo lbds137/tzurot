@@ -55,7 +55,6 @@ import {
   RemoveDenylistResponseSchema,
   SetDefaultLlmConfigResponseSchema,
   SetDefaultTtsConfigResponseSchema,
-  StopSequencesResponseSchema,
   TtsConfigCreateSchema,
   TtsConfigUpdateSchema,
   UpdateLlmConfigResponseSchema,
@@ -422,16 +421,6 @@ export const adminRoutes = {
     // Inline minimal-envelope response; too trivial to warrant a named
     // schema export. Matches the cleanup-route inline-schema pattern above.
     output: z.object({ success: z.literal(true) }),
-  },
-
-  /** GET /api/admin/stop-sequences — Observability for ai-worker truncation stats. */
-  getStopSequencesStats: {
-    audience: 'admin',
-    method: 'get',
-    path: '/stop-sequences',
-    id: 'getStopSequencesStats',
-    output: StopSequencesResponseSchema,
-    meta: { safeRead: true },
   },
 
   /**

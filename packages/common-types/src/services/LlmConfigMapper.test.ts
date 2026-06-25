@@ -75,7 +75,6 @@ describe('LlmConfigMapper', () => {
           seed: 42,
           // Output
           max_tokens: 4096,
-          stop: ['END'],
           logit_bias: { '1234': 50 },
           response_format: { type: 'json_object' },
           show_thinking: true,
@@ -105,7 +104,6 @@ describe('LlmConfigMapper', () => {
 
       // Output
       expect(result.maxTokens).toBe(4096);
-      expect(result.stop).toEqual(['END']);
       expect(result.logitBias).toEqual({ '1234': 50 });
       expect(result.responseFormat).toEqual({ type: 'json_object' });
       expect(result.showThinking).toBe(true);

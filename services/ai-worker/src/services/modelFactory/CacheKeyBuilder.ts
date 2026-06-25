@@ -57,7 +57,6 @@ export function getModelCacheKey(modelConfig: ModelConfig): string {
     cacheVal(modelConfig.seed),
     // Output
     cacheVal(modelConfig.maxTokens),
-    cacheArr(modelConfig.stop),
     cacheVal(modelConfig.responseFormat?.type),
     cacheVal(modelConfig.showThinking),
     // Reasoning - all fields affect reasoning param in modelKwargs

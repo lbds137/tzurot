@@ -38,7 +38,6 @@ import {
 import { handleKick } from './kick.js';
 import { handleUsage } from './usage.js';
 import { handleCleanup } from './cleanup.js';
-import { handleStopSequences } from './stop-sequences.js';
 import { handleHealth } from './health.js';
 import { handleMetrics } from './metrics.js';
 import { handlePresence } from './presence.js';
@@ -64,7 +63,6 @@ const adminRouter = createSubcommandContextRouter(
     kick: handleKick,
     usage: handleUsage,
     cleanup: handleCleanup,
-    'stop-sequences': handleStopSequences,
     health: handleHealth,
     metrics: handleMetrics,
     presence: handlePresence,
@@ -273,11 +271,6 @@ export default defineCommand({
     )
     .addSubcommand(subcommand =>
       subcommand.setName('settings').setDescription('Open global settings dashboard')
-    )
-    .addSubcommand(subcommand =>
-      subcommand
-        .setName('stop-sequences')
-        .setDescription('View stop sequence activation statistics')
     )
     .addSubcommand(subcommand =>
       subcommand.setName('health').setDescription('Check bot health and connected services')

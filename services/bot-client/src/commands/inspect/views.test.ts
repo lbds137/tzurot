@@ -62,13 +62,11 @@ function createMockPayload(overrides?: Partial<DiagnosticPayload>): DiagnosticPa
       model: 'claude-3-5-sonnet',
       provider: 'anthropic',
       temperature: 0.8,
-      stopSequences: [],
       allParams: {},
     },
     llmResponse: {
       rawContent: 'Hi there!',
       finishReason: 'stop',
-      stopSequenceTriggered: null,
       promptTokens: 50,
       completionTokens: 10,
       modelUsed: 'claude-3-5-sonnet-20241022',

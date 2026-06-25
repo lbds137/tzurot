@@ -151,14 +151,6 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
     "type": 1,
   },
   {
-    "description": "View stop sequence activation statistics",
-    "description_localizations": undefined,
-    "name": "stop-sequences",
-    "name_localizations": undefined,
-    "options": [],
-    "type": 1,
-  },
-  {
     "description": "Check bot health and connected services",
     "description_localizations": undefined,
     "name": "health",

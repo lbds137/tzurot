@@ -60,7 +60,6 @@ export function getDefaultLlmConfig(): DiagnosticLlmConfig {
   return {
     model: NOT_RECORDED,
     provider: NOT_RECORDED,
-    stopSequences: [],
     allParams: {},
   };
 }
@@ -69,7 +68,6 @@ export function getDefaultLlmResponse(): DiagnosticLlmResponse {
   return {
     rawContent: NOT_RECORDED,
     finishReason: FINISH_REASONS.UNKNOWN,
-    stopSequenceTriggered: null,
     promptTokens: 0,
     completionTokens: 0,
     modelUsed: NOT_RECORDED,
