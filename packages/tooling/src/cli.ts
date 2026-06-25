@@ -32,6 +32,7 @@ import { registerGuardCommands } from './commands/guard.js';
 import { registerVoiceCommands } from './commands/voice.js';
 import { registerCpdCommands } from './commands/cpd.js';
 import { registerCodegenCommands } from './commands/codegen.js';
+import { registerTopologyCommands } from './commands/topology.js';
 
 // Read version from package.json dynamically
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -57,6 +58,7 @@ registerGuardCommands(cli);
 registerVoiceCommands(cli);
 registerCpdCommands(cli);
 registerCodegenCommands(cli);
+registerTopologyCommands(cli);
 
 // Global options
 cli.help();
