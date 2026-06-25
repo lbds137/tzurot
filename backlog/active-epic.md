@@ -22,11 +22,11 @@ Scoped the first audit to the freshest, highest-risk surface. Found the envelope
 
 ### Phase 2 — Tzurot-wide tier audit (discovery) ⏳ NEXT
 
-Inventory every service/flow against the 5 tiers; produce a per-area gap matrix (what tier is missing where). `test:audit` measures colocation, not tier coverage — this audit is behavioral. **Gated on a council pass to scope Phase 2/3 + the enforcement bulk before plan-mode** (per `06-backlog.md` "each substantial pick earns a council pass before plan-mode").
+**Council pass done 2026-06-25** (GLM-5.2 / Kimi-K2.7 / Qwen-3.7) → reframed from a hand-authored matrix to a **code-derived coverage topology**: a generator walks `ROUTE_MANIFEST` (`@tzurot/clients`) + every `JobType` (`@tzurot/common-types`), derives each surface's actual tiers from the test files (the `coverageTopology.ts` skeleton from #1340 is the seed), and lockfile-diffs in CI. **Key reconciliation (from #1340):** golden-fixture contracts (producer guard + consumer derivation over a shared fixture, NO `*.contract.test.ts` file) satisfy the `contract` tier — so the generator must recognize a per-surface mechanism marker, NOT naively suffix-derive, or it reports a false `contract` gap on the context-assembly surface. `test:audit` measures colocation, not tier coverage — this audit is behavioral.
 
 ### Phase 3 — Gap-fill (the big undertaking) ⏳
 
-- **Flagship**: a bot-client→worker envelope contract test (beside the BullMQ contract tests) locking "given this `rawAssemblyInputs`, the worker assembles this context" — the thing 2.5d deleted code against.
+- ✅ **Flagship DONE (#1340)** — bot-client→worker envelope contract via the **golden-fixture** pattern: committed fixtures in `@tzurot/test-utils` are the contract artifact; a producer guard (bot-client, `toMatchFileSnapshot`) + consumer derivation over the same fixture (ai-worker, PGLite) lock "given this `rawAssemblyInputs`, the worker assembles this context" — no cross-package import/mock (the structural block; council-reshaped). Locks the seam 2.5d deleted code against.
 - Component tests for the worker `ContextAssembler` over PGLite — cross-channel decoration, reference enrichment, and content rewriting against real data remain mocked-only.
 - Weigh-in assembly component test (recent message → included; empty → still assembles).
 - ✅ `buildContext`-synthetic-anchor lock (#1283 — caught a real empty-channel weigh-in crash; proof the component-level test catches what buildContext-mocking unit tests structurally can't).
@@ -40,14 +40,23 @@ A registered audit-class tool (WHY.md + canary + baseline + drift-detect, per `d
 - Suffix **rename** — ✅ DONE (#1339): `.int.test.ts`→`.component.test.ts`, `.e2e.test.ts`→`.integration.test.ts` / `.contract.test.ts`; `classifyTestFile` is now a pure suffix check (directory-location rule gone).
 - `.schema.test.ts` adopt-or-drop — ✅ DROPPED (#1339): the `schema` file-kind is gone; a Zod schema test is a plain `*.test.ts` (unit-tier).
 
-### Next: PR B (flagship + topology skeleton)
+### PR B ✅ SHIPPED (#1340)
 
-The council reframed Phase 2 (was "hand-authored tier-gap matrix") into a **code-derived coverage topology** — a generated registry of cross-service surfaces (route-manifest entries + BullMQ payload schemas) → required/actual tiers, lockfile-diffed in CI. PR B lands the flagship + a minimal skeleton; the full generator is Phase 2/discovery, the `test:tier-audit` ratchet is the enforcement bulk. Plan: `/home/deck/.claude/plans/floofy-rolling-crane.md`.
+Golden-fixture flagship + a report-only coverage-topology skeleton (`coverageTopology.ts` + `pnpm ops topology:generate`, seeded with the locked context-assembly surface). Plan: `/home/deck/.claude/plans/floofy-rolling-crane.md`. **Next headline:** Phase 2 builds the full topology generator; the `test:tier-audit` ratchet is the enforcement bulk.
 
-### Rename loose-ends — DO within this epic (not deferred to "someday")
+### Epic grab-bag — consolidated cleanup PR (after the headline items)
 
-Surfaced by #1339 claude-review; all direct consequences of the rename, so they close out as part of the epic — not cold/follow-ups trigger-gated items.
+Per user 2026-06-25: consolidate the epic's non-blocking review nits into ONE grab-bag cleanup PR after the headline work (Phase 2/3/enforcement), not a PR per nit. All are direct consequences of #1339/#1340 — epic-scoped, tracked here (not cold/follow-ups).
 
-- [ ] **Trivial cleanup** (a quick PR, or fold into PR B): drop the dead `.component.test.ts` guards subsumed by the `.test.ts` check in `audit-unified.ts:70` + `scripts/audit-route-auth-matrix.ts:517` + `knip.json` (verify knip glob semantics first); and fix `audit-unified.ts:235` — its `findTestedSchemas` filters `.contract.test.ts` but `readdirSync` is non-recursive so that branch is dead (drop it, or make the scan recursive if contract-schema coverage should count). [#1339 introduced the `:235` dead branch.]
-- [ ] **`ci.yml` "integration"→"component" naming** (its own careful PR): step label L344 (cosmetic), job name `integration-tests:` L290, Codecov `flags: integration` L362, coverage dir L361 + the coupled `reportsDirectory` in `vitest.component.config.ts`. **Coordinate**: the job name is likely a required branch-protection check (rename → update protection or the old name blocks merges forever); the flag rename resets Codecov trend history. `ci.yml` edits are safe on develop (claude-review lives in `claude-code-review.yml`). Either rename all four in sync (+ branch-protection update) or keep `flags: integration` as a stable label.
-- [ ] **Rename `tests/e2e/` dir** (low priority): holds integration + contract, no real e2e; update `vitest.integration.config.ts` include glob + `audit-unified.ts` `e2eTestsDir`. Do when a true e2e test is added or during a `tests/` reorg.
+**From #1339 (suffix rename):**
+
+- [ ] Drop dead `.component.test.ts` guards subsumed by the `.test.ts` check: `audit-unified.ts:70`, `scripts/audit-route-auth-matrix.ts:517`, `knip.json` (verify knip glob semantics first). Fix `audit-unified.ts:235` — its `findTestedSchemas` filters `.contract.test.ts` but `readdirSync` is non-recursive so that branch is dead (drop it, or make the scan recursive if contract-schema coverage should count). [#1339 introduced the `:235` dead branch.]
+- [ ] `ci.yml` "integration"→"component" naming: step label L344, job name `integration-tests:` L290, Codecov `flags: integration` L362, coverage dir L361 + the coupled `reportsDirectory` in `vitest.component.config.ts`. **Coordinate**: the job name is likely a required branch-protection check (rename → update protection, else the old name blocks merges forever); the flag rename resets Codecov trend history. `ci.yml` edits are safe on develop (claude-review lives in `claude-code-review.yml`). Rename all four in sync (+ branch-protection update) OR keep `flags: integration` as a stable label.
+- [ ] Rename `tests/e2e/` dir (low priority; the suffix carries the tier now) — update `vitest.integration.config.ts` include glob + `audit-unified.ts` `e2eTestsDir`. Do when a true e2e test arrives or a `tests/` reorg.
+
+**From #1340 (golden-fixture contract):**
+
+- [ ] Path-traversal guard on `contractFixtureFile(name)` — reject `..` / leading-`/` (test-only infra; defense-in-depth per 00-critical's path rules).
+- [ ] Direct unit test for `loadContractFixture` (currently only exercised via the consumer test).
+- [ ] Enrich the envelope contract with more fixture scenarios: **`with-channel-environment`** (the cross-channel `knownChannelEnvironments` seam — untested in #1340; the core content+extended-context seam IS locked), **voice** (empty content + `rawRoutingTranscript`), and a **personal-summon** scenario that exercises mention rewriting (#1340's anonymous-summon path passes raw content through by design, so mention-rewrite producer→consumer isn't asserted yet).
+- [ ] JSDoc nits: `contractFixtures.ts` `as T` — note callers validate via `rawAssemblyInputsSchema.parse()`; `stableJson` in the producer test — note the trailing-newline-required-by-fixture-format assumption.
