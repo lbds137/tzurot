@@ -92,7 +92,6 @@ export interface LlmConfigData {
   topA?: number;
   seed?: number;
   // Output control
-  stop?: string[];
   logitBias?: Record<string, number>;
   responseFormat?: { type: 'text' | 'json_object' };
   showThinking?: boolean;
@@ -102,8 +101,6 @@ export interface LlmConfigData {
   transforms?: string[];
   route?: 'fallback';
   verbosity?: 'low' | 'medium' | 'high';
-  // Stop sequences (generated at runtime)
-  stopSequences: string[];
 }
 
 /**
@@ -112,7 +109,6 @@ export interface LlmConfigData {
 export interface LlmResponseData {
   rawContent: string;
   finishReason: string;
-  stopSequenceTriggered: string | null;
   promptTokens: number;
   completionTokens: number;
   modelUsed: string;

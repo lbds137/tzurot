@@ -117,13 +117,6 @@ describe('getModelCacheKey', () => {
     expect(getModelCacheKey(config1)).not.toBe(getModelCacheKey(config2));
   });
 
-  it('should differentiate by stop sequences', () => {
-    const config1: ModelConfig = { modelName: 'model-1', stop: ['STOP'] };
-    const config2: ModelConfig = { modelName: 'model-1', stop: ['END'] };
-
-    expect(getModelCacheKey(config1)).not.toBe(getModelCacheKey(config2));
-  });
-
   it('should differentiate by transforms', () => {
     const config1: ModelConfig = { modelName: 'model-1', transforms: ['middle-out'] };
     const config2: ModelConfig = { modelName: 'model-1', transforms: [] };

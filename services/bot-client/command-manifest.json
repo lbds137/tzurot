@@ -144,12 +144,6 @@
           },
           {
             "type": 1,
-            "name": "stop-sequences",
-            "description": "View stop sequence activation statistics",
-            "options": []
-          },
-          {
-            "type": 1,
             "name": "health",
             "description": "Check bot health and connected services",
             "options": []

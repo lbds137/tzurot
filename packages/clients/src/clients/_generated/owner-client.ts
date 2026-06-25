@@ -451,23 +451,6 @@ export class OwnerClient {
   /**
    * @safeRead Server-side has no observable mutation — safe to cache client-side.
    */
-  async getStopSequencesStats(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getStopSequencesStats.output>>> {
-    const fullPath = '/api/admin/stop-sequences';
-    return callGateway({
-      baseUrl: this.baseUrl,
-      serviceSecret: this.serviceSecret,
-      method: 'GET',
-      path: fullPath,
-      headers: {
-        'X-User-Id': this.actor,
-      },
-      outputSchema: ROUTE_MANIFEST.getStopSequencesStats.output,
-    });
-  }
-
-  /**
-   * @safeRead Server-side has no observable mutation — safe to cache client-side.
-   */
   async getAdminUsageStats(options: { timeframe?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getAdminUsageStats.output>>> {
     const fullPath = '/api/admin/usage' + buildQueryString([['timeframe', options.timeframe]]);
     return callGateway({

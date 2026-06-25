@@ -207,8 +207,6 @@ export const adminFixtures: Record<string, ConformanceEntry> = {
     },
   },
 
-  getStopSequencesStats: {},
-
   getAdminUsageStats: {
     query: { timeframe: '7d' },
   },

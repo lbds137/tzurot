@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { LLMInvoker, supportsStopSequences } from './LLMInvoker.js';
+import { LLMInvoker } from './LLMInvoker.js';
 import { BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { TIMEOUTS, ApiErrorType, ApiErrorCategory } from '@tzurot/common-types';
@@ -20,16 +20,6 @@ vi.mock('./ModelFactory.js', () => ({
     return `${modelName || 'default'}_${apiKey || 'default'}_${temperature ?? 'none'}`;
   }),
 }));
-
-// Mock StopSequenceTracker (keep real inferNonXmlStop, mock recordStopSequenceActivation)
-const mockRecordStopSequenceActivation = vi.fn();
-vi.mock('./StopSequenceTracker.js', async importOriginal => {
-  const actual = await importOriginal<typeof import('./StopSequenceTracker.js')>();
-  return {
-    ...actual,
-    recordStopSequenceActivation: (...args: unknown[]) => mockRecordStopSequenceActivation(...args),
-  };
-});
 
 // Spy on withRetry to verify options passed from LLMInvoker
 const mockWithRetry = vi.fn<(...args: unknown[]) => unknown>();
@@ -1096,29 +1086,6 @@ describe('LLMInvoker', () => {
         expect(result.content).toBe('Complete response');
       });
 
-      it('should log info when stop sequence triggered', async () => {
-        const mockModel = {
-          invoke: vi.fn().mockResolvedValue({
-            content: 'Response stopped by',
-            response_metadata: {
-              finish_reason: 'stop_sequence',
-              stop: '\nUser:', // The stop sequence that triggered
-            },
-          }),
-        } as any as BaseChatModel;
-
-        const messages: BaseMessage[] = [new HumanMessage('Hello')];
-
-        const result = await invoker.invokeWithRetry({
-          model: mockModel,
-          messages,
-          modelName: 'test-model',
-          stopSequences: ['\nUser:', '\nHuman:', '</message>'],
-        });
-
-        expect(result.content).toBe('Response stopped by');
-      });
-
       it('should handle Anthropic stop_reason field name', async () => {
         const mockModel = {
           invoke: vi.fn().mockResolvedValue({
@@ -1206,212 +1173,6 @@ describe('LLMInvoker', () => {
         });
 
         expect(result.content).toBe('Response with usage stats');
-      });
-
-      it('should include stop sequence count in log context', async () => {
-        const mockModel = {
-          invoke: vi.fn().mockResolvedValue({
-            content: 'Response',
-            response_metadata: {
-              finish_reason: 'stop',
-            },
-          }),
-        } as any as BaseChatModel;
-
-        const messages: BaseMessage[] = [new HumanMessage('Hello')];
-
-        await invoker.invokeWithRetry({
-          model: mockModel,
-          messages,
-          modelName: 'test-model',
-          stopSequences: ['</message>', '\nUser:', '\nHuman:'],
-        });
-
-        // Just verify it completes successfully with stop sequences configured
-        expect(mockModel.invoke).toHaveBeenCalledWith(
-          messages,
-          expect.objectContaining({
-            stop: ['</message>', '\nUser:', '\nHuman:'],
-          })
-        );
-      });
-
-      it('should filter out stop sequences for models that do not support them', async () => {
-        const mockModel = {
-          invoke: vi.fn().mockResolvedValue({
-            content: 'Response from GLM',
-            response_metadata: {
-              finish_reason: 'stop',
-            },
-          }),
-        } as any as BaseChatModel;
-
-        const messages: BaseMessage[] = [new HumanMessage('Hello')];
-
-        await invoker.invokeWithRetry({
-          model: mockModel,
-          messages,
-          modelName: 'z-ai/glm-4.5-air:free',
-          stopSequences: ['</message>', '\nUser:', '\nHuman:'],
-        });
-
-        // Stop sequences should NOT be passed to the model
-        expect(mockModel.invoke).toHaveBeenCalledWith(
-          messages,
-          expect.not.objectContaining({
-            stop: expect.anything(),
-          })
-        );
-      });
-
-      it('should pass stop sequences for models that support them', async () => {
-        const mockModel = {
-          invoke: vi.fn().mockResolvedValue({
-            content: 'Response from Claude',
-            response_metadata: {
-              finish_reason: 'stop',
-            },
-          }),
-        } as any as BaseChatModel;
-
-        const messages: BaseMessage[] = [new HumanMessage('Hello')];
-
-        await invoker.invokeWithRetry({
-          model: mockModel,
-          messages,
-          modelName: 'anthropic/claude-sonnet-4.5',
-          stopSequences: ['</message>', '\nUser:'],
-        });
-
-        // Stop sequences SHOULD be passed to the model
-        expect(mockModel.invoke).toHaveBeenCalledWith(
-          messages,
-          expect.objectContaining({
-            stop: ['</message>', '\nUser:'],
-          })
-        );
-      });
-
-      it('should record stop sequence when provider reports stoppedAt with natural finish_reason', async () => {
-        // Provider returns finish_reason: "stop" with stop: "\nLilith:" — the reordered
-        // if/else ensures stoppedAt is checked before isNaturalStop
-        const mockModel = {
-          invoke: vi.fn().mockResolvedValue({
-            content: 'Let me respond as',
-            response_metadata: {
-              finish_reason: 'stop',
-              stop: '\nLilith:',
-            },
-          }),
-        } as any as BaseChatModel;
-
-        const messages: BaseMessage[] = [new HumanMessage('Hello')];
-
-        await invoker.invokeWithRetry({
-          model: mockModel,
-          messages,
-          modelName: 'test-model',
-          stopSequences: ['</message>', '<message', '\nLilith:'],
-        });
-
-        expect(mockRecordStopSequenceActivation).toHaveBeenCalledWith('\nLilith:', 'test-model');
-      });
-
-      it('should infer stop sequence when finish_reason is stop but content lacks </message>', async () => {
-        // Provider says "stop" but doesn't report which sequence fired.
-        // Content doesn't end with </message>, so a non-XML stop likely triggered.
-        const mockModel = {
-          invoke: vi.fn().mockResolvedValue({
-            content: 'Let me respond as',
-            response_metadata: {
-              finish_reason: 'stop',
-            },
-          }),
-        } as any as BaseChatModel;
-
-        const messages: BaseMessage[] = [new HumanMessage('Hello')];
-
-        await invoker.invokeWithRetry({
-          model: mockModel,
-          messages,
-          modelName: 'test-model',
-          stopSequences: ['</message>', '<message'],
-        });
-
-        expect(mockRecordStopSequenceActivation).toHaveBeenCalledWith(
-          'inferred:non-xml-stop',
-          'test-model'
-        );
-      });
-
-      it('should not infer stop sequence when content ends with </message>', async () => {
-        const mockModel = {
-          invoke: vi.fn().mockResolvedValue({
-            content: 'Here is my response</message>',
-            response_metadata: {
-              finish_reason: 'stop',
-            },
-          }),
-        } as any as BaseChatModel;
-
-        const messages: BaseMessage[] = [new HumanMessage('Hello')];
-
-        await invoker.invokeWithRetry({
-          model: mockModel,
-          messages,
-          modelName: 'test-model',
-          stopSequences: ['</message>', '<message'],
-        });
-
-        // Natural completion — no stop sequence recorded
-        expect(mockRecordStopSequenceActivation).not.toHaveBeenCalled();
-      });
-
-      it('should not infer stop sequence when no stop sequences were configured', async () => {
-        const mockModel = {
-          invoke: vi.fn().mockResolvedValue({
-            content: 'Some partial response',
-            response_metadata: {
-              finish_reason: 'stop',
-            },
-          }),
-        } as any as BaseChatModel;
-
-        const messages: BaseMessage[] = [new HumanMessage('Hello')];
-
-        await invoker.invokeWithRetry({
-          model: mockModel,
-          messages,
-          modelName: 'test-model',
-          // No stopSequences passed
-        });
-
-        expect(mockRecordStopSequenceActivation).not.toHaveBeenCalled();
-      });
-
-      it('should skip inference for array content (multimodal responses)', async () => {
-        // Multimodal responses have array content — inference should be skipped
-        // entirely to avoid false positives (array content never ends with </message>)
-        const mockModel = {
-          invoke: vi.fn().mockResolvedValue({
-            content: [{ type: 'text', text: 'partial response' }],
-            response_metadata: {
-              finish_reason: 'stop',
-            },
-          }),
-        } as any as BaseChatModel;
-
-        const messages: BaseMessage[] = [new HumanMessage('Hello')];
-
-        await invoker.invokeWithRetry({
-          model: mockModel,
-          messages,
-          modelName: 'test-model',
-          stopSequences: ['</message>', '<message'],
-        });
-
-        // Array content → typeof check fails → falls through to isNaturalStop
-        expect(mockRecordStopSequenceActivation).not.toHaveBeenCalled();
       });
     });
   });
@@ -1845,75 +1606,6 @@ describe('LLMInvoker', () => {
       expect(mockIsCreditExhausted).not.toHaveBeenCalled();
       expect(mockIsRateLimited).not.toHaveBeenCalled();
       expect(mockInvoke).toHaveBeenCalledTimes(1);
-    });
-  });
-});
-
-describe('supportsStopSequences', () => {
-  describe('models that DO NOT support stop sequences', () => {
-    it('should return false for GLM 4.5 Air variants', () => {
-      expect(supportsStopSequences('z-ai/glm-4.5-air:free')).toBe(false);
-      expect(supportsStopSequences('z-ai/glm-4.5-air')).toBe(false);
-      expect(supportsStopSequences('glm-4.5-air:free')).toBe(false);
-    });
-
-    it('should return false for Gemini 3 Pro Preview', () => {
-      expect(supportsStopSequences('google/gemini-3-pro-preview')).toBe(false);
-      expect(supportsStopSequences('gemini-3-pro-preview')).toBe(false);
-    });
-
-    it('should return false for Gemma 3 27B free tier', () => {
-      expect(supportsStopSequences('google/gemma-3-27b-it:free')).toBe(false);
-      expect(supportsStopSequences('gemma-3-27b-it:free')).toBe(false);
-    });
-
-    it('should return false for Llama 3.3 70B free tier', () => {
-      expect(supportsStopSequences('meta-llama/llama-3.3-70b-instruct:free')).toBe(false);
-      expect(supportsStopSequences('llama-3.3-70b-instruct:free')).toBe(false);
-    });
-
-    it('should return false for DeepSeek R1-0528 free tier', () => {
-      expect(supportsStopSequences('deepseek/deepseek-r1-0528:free')).toBe(false);
-      expect(supportsStopSequences('deepseek-r1-0528:free')).toBe(false);
-    });
-  });
-
-  describe('models that DO support stop sequences', () => {
-    it('should return true for GLM 4.6 and 4.7 (paid versions support stop)', () => {
-      expect(supportsStopSequences('z-ai/glm-4.6')).toBe(true);
-      expect(supportsStopSequences('z-ai/glm-4.7')).toBe(true);
-    });
-
-    it('should return true for Gemini 3 Flash Preview', () => {
-      expect(supportsStopSequences('google/gemini-3-flash-preview')).toBe(true);
-    });
-
-    it('should return true for Gemini 2.5 models', () => {
-      expect(supportsStopSequences('google/gemini-2.5-flash')).toBe(true);
-      expect(supportsStopSequences('google/gemini-2.5-pro')).toBe(true);
-    });
-
-    it('should return true for Claude models', () => {
-      expect(supportsStopSequences('anthropic/claude-sonnet-4.5')).toBe(true);
-      expect(supportsStopSequences('anthropic/claude-haiku-4.5')).toBe(true);
-      expect(supportsStopSequences('anthropic/claude-opus-4.5')).toBe(true);
-    });
-
-    it('should return true for DeepSeek models', () => {
-      expect(supportsStopSequences('deepseek/deepseek-v3.2')).toBe(true);
-      expect(supportsStopSequences('tngtech/deepseek-r1t-chimera:free')).toBe(true);
-    });
-
-    it('should return true for Kimi K2 Thinking', () => {
-      expect(supportsStopSequences('moonshotai/kimi-k2-thinking')).toBe(true);
-    });
-
-    it('should return true for Mistral models', () => {
-      expect(supportsStopSequences('mistralai/mistral-small-3.1-24b-instruct:free')).toBe(true);
-    });
-
-    it('should return true for Hermes models', () => {
-      expect(supportsStopSequences('nousresearch/hermes-3-llama-3.1-405b:free')).toBe(true);
     });
   });
 });

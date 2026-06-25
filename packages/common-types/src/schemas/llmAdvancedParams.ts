@@ -112,9 +112,6 @@ export const OutputParamsSchema = z.object({
   /** Maximum tokens in the response (not including reasoning tokens) */
   max_tokens: z.number().int().positive().optional(),
 
-  /** Stop sequences - generation stops when any of these are encountered */
-  stop: z.array(z.string()).optional(),
-
   /** Logit bias - adjust probability of specific tokens (-100 to 100) */
   logit_bias: z.record(z.string(), z.number().min(-100).max(100)).optional(),
 
@@ -280,7 +277,7 @@ export interface ConvertedReasoningConfig {
  * Parameter categories:
  * - Sampling (basic): temperature, topP, topK, frequencyPenalty, presencePenalty, repetitionPenalty
  * - Sampling (advanced): minP, topA, seed
- * - Output: maxTokens, stop, logitBias, responseFormat, showThinking
+ * - Output: maxTokens, logitBias, responseFormat, showThinking
  * - Reasoning: reasoning object (for thinking models)
  * - OpenRouter-specific: transforms, route, verbosity
  */
@@ -300,7 +297,6 @@ export interface ConvertedLlmParams {
 
   // Output control
   maxTokens?: number;
-  stop?: string[];
   logitBias?: Record<string, number>;
   responseFormat?: { type: 'text' | 'json_object' };
   showThinking?: boolean;
@@ -360,7 +356,6 @@ export function advancedParamsToConfigFormat(params: AdvancedParams): ConvertedL
 
     // Output control
     maxTokens: params.max_tokens,
-    stop: params.stop,
     logitBias: params.logit_bias,
     responseFormat: params.response_format,
     showThinking: params.show_thinking,
@@ -389,7 +384,7 @@ export function advancedParamsToConfigFormat(params: AdvancedParams): ConvertedL
  * - Core: visionModel
  * - Basic sampling: temperature, topP, topK, frequencyPenalty, presencePenalty, repetitionPenalty
  * - Advanced sampling: minP, topA, seed
- * - Output control: maxTokens, stop, logitBias, responseFormat, showThinking
+ * - Output control: maxTokens, logitBias, responseFormat, showThinking
  * - Reasoning: reasoning (for thinking models)
  * - OpenRouter-specific: transforms, route, verbosity
  * - Memory/context: memoryScoreThreshold, memoryLimit, contextWindowTokens
@@ -410,7 +405,6 @@ export const LLM_CONFIG_OVERRIDE_KEYS = [
   'seed',
   // Output control
   'maxTokens',
-  'stop',
   'logitBias',
   'responseFormat',
   'showThinking',

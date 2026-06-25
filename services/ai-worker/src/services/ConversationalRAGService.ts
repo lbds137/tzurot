@@ -162,7 +162,6 @@ export class ConversationalRAGService {
       topA: personality.topA,
       seed: personality.seed,
       // Output control
-      stop: personality.stop,
       logitBias: personality.logitBias,
       responseFormat: personality.responseFormat,
       showThinking: personality.showThinking,
@@ -192,7 +191,6 @@ export class ConversationalRAGService {
         effectiveTemperature: retryConfig?.temperatureOverride ?? personality.temperature,
         effectiveFrequencyPenalty:
           retryConfig?.frequencyPenaltyOverride ?? personality.frequencyPenalty,
-        stopSequences: [], // Disabled — stripResponseArtifacts() handles XML cleanup
       });
       diagnosticCollector.markLlmInvocationStart();
     }

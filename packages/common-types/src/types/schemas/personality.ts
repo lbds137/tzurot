@@ -75,7 +75,6 @@ export const loadedPersonalitySchema = z.object({
   seed: z.number().optional(),
 
   // Output control
-  stop: z.array(z.string()).optional(),
   logitBias: z.record(z.string(), z.number()).optional(),
   responseFormat: z
     .object({
