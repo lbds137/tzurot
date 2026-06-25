@@ -1,8 +1,11 @@
 {
-  "version": 10,
-  "lastUpdated": "2026-06-22T19:30:31.634Z",
+  "version": 11,
+  "lastUpdated": "2026-06-25T21:36:40.265Z",
   "services": {
     "detectedPrismaServices": [
+      "packages/conversation-history/src/ConversationHistoryService.ts",
+      "packages/conversation-history/src/ConversationSyncService.ts",
+      "packages/identity/src/UserService.ts",
       "services/ai-worker/src/services/LongTermMemoryService.ts",
       "services/api-gateway/src/services/ConversationRetentionService.ts",
       "services/api-gateway/src/services/LlmConfigService.ts",
@@ -19,9 +22,9 @@
   },
   "meta": {
     "toolVersion": "test-audit/1.0",
-    "configHash": "718cedf41ddc",
+    "configHash": "d3f26f6a5928",
     "nodeVersion": "v24.11.1",
-    "generatedFromSha": "2fc7eeba264c3b7c949ce66aaa07540d085bc5b2",
-    "generatedAt": "2026-06-22T19:30:31.634Z"
+    "generatedFromSha": "018f535fb0a9ae40d1cadfd29714e12a62b793e3",
+    "generatedAt": "2026-06-25T21:36:40.265Z"
   }
 }

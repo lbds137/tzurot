@@ -64,6 +64,12 @@ function findServiceFiles(projectRoot: string): string[] {
     join(projectRoot, 'services/api-gateway/src'),
     join(projectRoot, 'services/bot-client/src'),
     join(projectRoot, 'packages/common-types/src'),
+    // Packages outside `services/` that hold Prisma-backed services. Scanned so
+    // their component-test coverage is ratcheted too — otherwise deleting one of
+    // their component tests would silently drop the gate. Add a package here when
+    // it gains a Prisma-using `*Service.ts`.
+    join(projectRoot, 'packages/identity/src'),
+    join(projectRoot, 'packages/conversation-history/src'),
   ];
 
   for (const dir of serviceDirs) {
