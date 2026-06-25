@@ -188,6 +188,18 @@ describe('Memory Focus Handlers', () => {
       });
       expect(stub.setFocus).not.toHaveBeenCalled();
     });
+
+    it('shows "try again" (unavailable), not "not found", when the personality list is unavailable', async () => {
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'unavailable' });
+
+      const context = createMockContext('lilith');
+      await handleFocusDisable(context);
+
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Autocomplete was unavailable'),
+      });
+      expect(stub.setFocus).not.toHaveBeenCalled();
+    });
   });
 
   describe('handleFocusStatus', () => {
@@ -257,6 +269,18 @@ describe('Memory Focus Handlers', () => {
 
       expect(mockEditReply).toHaveBeenCalledWith({
         content: expect.stringContaining('unknown'),
+      });
+      expect(stub.getFocus).not.toHaveBeenCalled();
+    });
+
+    it('shows "try again" (unavailable), not "not found", when the personality list is unavailable', async () => {
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'unavailable' });
+
+      const context = createMockContext('lilith');
+      await handleFocusStatus(context);
+
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Autocomplete was unavailable'),
       });
       expect(stub.getFocus).not.toHaveBeenCalled();
     });
