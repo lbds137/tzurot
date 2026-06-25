@@ -46,6 +46,16 @@ export interface RouteDeps {
   // Always required — every handler needs DB access.
   readonly prisma: PrismaClient;
 
+  /**
+   * Dedicated fast-pool client for the latency-sensitive conversation-event
+   * persist writes (user/assistant message). Tight, staggered finite timeouts
+   * so a stuck single-row write fails fast + LOUD instead of hanging to
+   * bot-client's ~20s abort. Optional: only the two persist handlers use it
+   * (`deps.fastPrisma ?? deps.prisma`), and it degrades to the main pool if the
+   * gateway didn't build one. See `fastPoolConnectionOptions` + `verifyPoolTimeouts`.
+   */
+  readonly fastPrisma?: PrismaClient;
+
   // ---- Cache-invalidation services (route-specific) ----------------------
 
   /** Generic invalidation orchestrator — used by /admin/invalidate-cache. */

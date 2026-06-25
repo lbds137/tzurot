@@ -9,7 +9,7 @@
  * PrismaClient lives in packages/common-types/src/generated/prisma/.
  */
 
-import { Pool } from 'pg';
+import { Pool, type PoolConfig } from 'pg';
 import { PrismaClient } from '../generated/prisma/client.js';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { createLogger } from '../utils/logger.js';
@@ -35,6 +35,22 @@ export interface PrismaClientHandle {
   dispose: () => Promise<void>;
 }
 
+export interface CreatePrismaClientOptions {
+  /**
+   * Pool-size override. Defaults to `resolvePoolMax()` (the long-running app
+   * size); pass `DB_POOL_DEFAULTS.TRANSIENT_MAX` for one-shot scripts/migrations.
+   */
+  max?: number;
+  /**
+   * Extra `pg.Pool` fields, spread LAST over the base config. Omitted → the
+   * main pool's behavior is unchanged. The fast pool (conversation-event
+   * persist writes) passes `query_timeout` / `keepAlive` + the GUC `options`
+   * startup string + a tighter `connectionTimeoutMillis` via
+   * `fastPoolConnectionOptions().poolOverrides`.
+   */
+  poolOverrides?: Partial<PoolConfig>;
+}
+
 /**
  * Construct a fresh PrismaClient over a configured pg.Pool. NOT a singleton —
  * each call builds an independent client + pool. The caller owns the lifecycle:
@@ -44,8 +60,10 @@ export interface PrismaClientHandle {
  * @param opts.max - Pool size override. Defaults to `resolvePoolMax()` (the
  *   long-running app size); pass `DB_POOL_DEFAULTS.TRANSIENT_MAX` for one-shot
  *   scripts/migrations that don't warrant the full pool.
+ * @param opts.poolOverrides - Extra `pg.Pool` fields (fast pool: timeouts +
+ *   GUC `options` startup string). Omitted → main-pool behavior unchanged.
  */
-export function createPrismaClient(opts?: { max?: number }): PrismaClientHandle {
+export function createPrismaClient(opts?: CreatePrismaClientOptions): PrismaClientHandle {
   const dbUrl = process.env.DATABASE_URL;
 
   // Prisma 7.0 driver adapter over an EXPLICIT pg.Pool. The adapter ignores
@@ -54,7 +72,14 @@ export function createPrismaClient(opts?: { max?: number }): PrismaClientHandle 
   // and starves under load. See poolConfig.ts for the full rationale.
   const max = opts?.max ?? resolvePoolMax();
   const connectionTimeoutMillis = resolveConnectionTimeoutMs();
-  const pool = new Pool({ connectionString: dbUrl, max, connectionTimeoutMillis });
+  // poolOverrides spread LAST so the fast pool can override connectionTimeoutMillis
+  // and add query_timeout/keepAlive/options without disturbing the main-pool path.
+  const pool = new Pool({
+    connectionString: dbUrl,
+    max,
+    connectionTimeoutMillis,
+    ...opts?.poolOverrides,
+  });
   pool.on('error', err => {
     logger.error({ err }, 'pg.Pool idle-client error');
   });
@@ -103,6 +128,43 @@ export function createPrismaClient(opts?: { max?: number }): PrismaClientHandle 
   };
 
   return { prisma, dispose };
+}
+
+/**
+ * Boot-time probe: assert the fast pool's `statement_timeout` / `lock_timeout`
+ * GUCs actually applied through the adapter, throwing (failing boot) on
+ * mismatch. Guards against a connection pooler silently stripping the Postgres
+ * `options` startup string — which would revert us to the silent-hang bug with
+ * no signal. Runs through the PrismaClient (the same connection path the app
+ * uses), so it verifies adapter-drawn connections carry the GUCs.
+ *
+ * `pg_settings.setting` reports each timeout in its base unit (ms), so the
+ * comparison is a direct integer match — robust to the `current_setting()`
+ * `'5s'`-style human normalization.
+ */
+export async function verifyPoolTimeouts(
+  prisma: PrismaClient,
+  expected: { statementTimeoutMs: number; lockTimeoutMs: number }
+): Promise<void> {
+  const rows = await prisma.$queryRaw<{ name: string; setting: string }[]>`
+    SELECT name, setting FROM pg_settings WHERE name IN ('statement_timeout', 'lock_timeout')
+  `;
+  const got: Record<string, number> = {};
+  for (const row of rows) {
+    got[row.name] = Number(row.setting);
+  }
+  if (
+    got.statement_timeout !== expected.statementTimeoutMs ||
+    got.lock_timeout !== expected.lockTimeoutMs
+  ) {
+    throw new Error(
+      `Fast-pool DB timeouts did not apply: expected statement_timeout=` +
+        `${expected.statementTimeoutMs}ms, lock_timeout=${expected.lockTimeoutMs}ms; got ` +
+        `${JSON.stringify(got)}. The Postgres 'options' startup string was likely stripped ` +
+        `(connection pooler?) — fix before serving traffic.`
+    );
+  }
+  logger.info(got, 'Fast-pool DB timeouts verified');
 }
 
 // Re-export PrismaClient class and Prisma namespace for use by other services

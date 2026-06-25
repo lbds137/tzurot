@@ -30,6 +30,7 @@ import { ConversationHistoryService } from '@tzurot/conversation-history';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
+import { classifyDbTimeout } from '../../utils/dbTimeout.js';
 import type { RouteDeps } from '../routeDeps.js';
 
 const logger = createLogger('internal-conversation-assistant-message');
@@ -40,7 +41,9 @@ function chunkIdsMatch(a: string[], b: string[]): boolean {
 
 /** POST /api/internal/conversation/assistant-message — persist a delivered assistant turn. */
 export const handlePersistAssistantMessage = (deps: RouteDeps): RequestHandler => {
-  const { prisma } = deps;
+  // Run the persist on the dedicated fast pool (tight, self-labeling timeouts);
+  // fall back to the main pool if the gateway didn't build a fast client.
+  const prisma = deps.fastPrisma ?? deps.prisma;
   const historyService = new ConversationHistoryService(prisma);
 
   return asyncHandler(async (req, res: Response) => {
@@ -88,6 +91,7 @@ export const handlePersistAssistantMessage = (deps: RouteDeps): RequestHandler =
       return;
     }
 
+    const startedAt = Date.now();
     try {
       await historyService.addMessage({
         channelId,
@@ -107,6 +111,21 @@ export const handlePersistAssistantMessage = (deps: RouteDeps): RequestHandler =
       // coincidental row appearing in the same window.
       const isRace = (error as { code?: string }).code === 'P2002';
       if (!isRace) {
+        // Self-label a fast-pool timeout for the prod diagnostic before
+        // rethrowing (asyncHandler turns it into the gateway's 5xx).
+        const timeout = classifyDbTimeout(error);
+        if (timeout.label !== 'other') {
+          logger.error(
+            {
+              label: timeout.label,
+              sqlstate: timeout.sqlstate,
+              durationMs: Date.now() - startedAt,
+              channelId,
+              id,
+            },
+            'Assistant-message persist hit a fast-pool DB timeout'
+          );
+        }
         throw error;
       }
       const raced = await compareExisting();
