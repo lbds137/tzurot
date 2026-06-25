@@ -12,16 +12,15 @@ import {
 } from '@tzurot/common-types';
 import { handlePersistUserMessage } from './conversationUserMessage.js';
 
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
     ...actual,
-    createLogger: () => ({
-      info: vi.fn(),
-      debug: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    }),
+    createLogger: () => mockLogger,
   };
 });
 
@@ -180,5 +179,44 @@ describe('POST /internal/conversation/user-message', () => {
       .send({ ...VALID_BODY, discordMessageId: 'nope' });
 
     expect(response.status).toBe(400);
+  });
+
+  it('routes the persist through fastPrisma when one is provided', async () => {
+    const fast = {
+      conversationHistory: {
+        findUnique: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue({}),
+      },
+    };
+    const fastApp = express();
+    fastApp.use(express.json());
+    fastApp.post(
+      '/internal/conversation/user-message',
+      handlePersistUserMessage({
+        prisma: mockPrisma as unknown as PrismaClient,
+        fastPrisma: fast as unknown as PrismaClient,
+      })
+    );
+
+    await request(fastApp).post('/internal/conversation/user-message').send(VALID_BODY);
+
+    expect(fast.conversationHistory.create).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.conversationHistory.create).not.toHaveBeenCalled();
+  });
+
+  it('self-labels a fast-pool statement_timeout in the logs (the prod diagnostic)', async () => {
+    mockPrisma.conversationHistory.create.mockRejectedValue(
+      Object.assign(new Error('canceling statement due to statement timeout'), { code: '57014' })
+    );
+
+    const response = await request(app)
+      .post('/internal/conversation/user-message')
+      .send(VALID_BODY);
+
+    expect(response.status).toBe(500);
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ label: 'statement-timeout', sqlstate: '57014' }),
+      expect.stringContaining('DB timeout')
+    );
   });
 });

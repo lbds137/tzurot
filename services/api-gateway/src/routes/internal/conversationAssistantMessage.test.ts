@@ -12,16 +12,15 @@ import {
 } from '@tzurot/common-types';
 import { handlePersistAssistantMessage } from './conversationAssistantMessage.js';
 
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
     ...actual,
-    createLogger: () => ({
-      info: vi.fn(),
-      debug: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    }),
+    createLogger: () => mockLogger,
   };
 });
 
@@ -183,5 +182,44 @@ describe('POST /internal/conversation/assistant-message', () => {
       .send({ ...VALID_BODY, userMessageTime: 'yesterday' });
 
     expect(response.status).toBe(400);
+  });
+
+  it('routes the persist through fastPrisma when one is provided', async () => {
+    const fast = {
+      conversationHistory: {
+        findUnique: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue({}),
+      },
+    };
+    const fastApp = express();
+    fastApp.use(express.json());
+    fastApp.post(
+      '/internal/conversation/assistant-message',
+      handlePersistAssistantMessage({
+        prisma: mockPrisma as unknown as PrismaClient,
+        fastPrisma: fast as unknown as PrismaClient,
+      })
+    );
+
+    await request(fastApp).post('/internal/conversation/assistant-message').send(VALID_BODY);
+
+    expect(fast.conversationHistory.create).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.conversationHistory.create).not.toHaveBeenCalled();
+  });
+
+  it('self-labels a fast-pool lock_timeout in the logs (the prod diagnostic)', async () => {
+    mockPrisma.conversationHistory.create.mockRejectedValue(
+      Object.assign(new Error('canceling statement due to lock timeout'), { code: '55P03' })
+    );
+
+    const response = await request(app)
+      .post('/internal/conversation/assistant-message')
+      .send(VALID_BODY);
+
+    expect(response.status).toBe(500);
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ label: 'lock-timeout', sqlstate: '55P03' }),
+      expect.stringContaining('DB timeout')
+    );
   });
 });

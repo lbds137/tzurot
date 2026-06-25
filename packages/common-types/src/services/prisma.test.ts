@@ -47,7 +47,7 @@ vi.mock('./poolConfig.js', () => ({
 
 import { Pool } from 'pg';
 import { PrismaClient } from '../generated/prisma/client.js';
-import { createPrismaClient } from './prisma.js';
+import { createPrismaClient, verifyPoolTimeouts } from './prisma.js';
 
 describe('createPrismaClient', () => {
   beforeEach(() => {
@@ -65,6 +65,25 @@ describe('createPrismaClient', () => {
     createPrismaClient({ max: 5 });
     expect(mockResolvePoolMax).not.toHaveBeenCalled();
     expect(Pool).toHaveBeenCalledWith(expect.objectContaining({ max: 5 }));
+  });
+
+  it('spreads poolOverrides into the Pool config (fast-pool timeouts + GUC options)', () => {
+    createPrismaClient({
+      max: 5,
+      poolOverrides: {
+        query_timeout: 6000,
+        keepAlive: true,
+        options: '-c statement_timeout=5000 -c lock_timeout=2000',
+      },
+    });
+    expect(Pool).toHaveBeenCalledWith(
+      expect.objectContaining({
+        max: 5,
+        query_timeout: 6000,
+        keepAlive: true,
+        options: '-c statement_timeout=5000 -c lock_timeout=2000',
+      })
+    );
   });
 
   it('dispose() stops the stats gauge BEFORE disconnecting', async () => {
@@ -97,5 +116,35 @@ describe('createPrismaClient', () => {
     // No leaked interval or pool connections — both torn down before rethrow.
     expect(mockStopGauge).toHaveBeenCalledTimes(1);
     expect(mockPool.end).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('verifyPoolTimeouts', () => {
+  // pg_settings.setting reports timeouts in ms; the probe does a direct int match.
+  const fakePrisma = (rows: { name: string; setting: string }[]): PrismaClient =>
+    ({ $queryRaw: vi.fn().mockResolvedValue(rows) }) as unknown as PrismaClient;
+
+  it('resolves when statement_timeout + lock_timeout match the expected ms', async () => {
+    await expect(
+      verifyPoolTimeouts(
+        fakePrisma([
+          { name: 'statement_timeout', setting: '5000' },
+          { name: 'lock_timeout', setting: '2000' },
+        ]),
+        { statementTimeoutMs: 5000, lockTimeoutMs: 2000 }
+      )
+    ).resolves.toBeUndefined();
+  });
+
+  it('throws when a GUC did not apply (options stripped → defaults to 0)', async () => {
+    await expect(
+      verifyPoolTimeouts(
+        fakePrisma([
+          { name: 'statement_timeout', setting: '0' },
+          { name: 'lock_timeout', setting: '0' },
+        ]),
+        { statementTimeoutMs: 5000, lockTimeoutMs: 2000 }
+      )
+    ).rejects.toThrow(/did not apply/);
   });
 });
