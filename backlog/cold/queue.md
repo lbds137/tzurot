@@ -2,9 +2,8 @@
 
 _Ordered index of future themes. Grep-on-demand — not loaded at session start. Each links to its file in `themes/`._
 
-> **Next theme: OPEN** — pick the next one when the Active Epic (`../active-epic.md`, PR-2n) completes. Choose by dependency + value; each substantial pick deserves its own council pass before plan-mode. The previous "Next Theme: CPD Clone Reduction" was completed differently by the 2026-05-16 campaign (reframed to filtered-metric + CI ratchet + documented boundary; close-out audit in [`docs/reference/CPD_CAMPAIGN_AUDIT.md`](../../docs/reference/CPD_CAMPAIGN_AUDIT.md)); its remaining work is the "Adjacent CPD Follow-Up Campaigns" theme below.
+> **Next theme: OPEN** — pick the next one when the Active Epic (`../active-epic.md`, Test-Pyramid Taxonomy + Coverage Audit) completes. Choose by dependency + value; each substantial pick deserves its own council pass before plan-mode. The previous "Next Theme: CPD Clone Reduction" was completed differently by the 2026-05-16 campaign (reframed to filtered-metric + CI ratchet + documented boundary; close-out audit in [`docs/reference/CPD_CAMPAIGN_AUDIT.md`](../../docs/reference/CPD_CAMPAIGN_AUDIT.md)); its remaining work is the "Adjacent CPD Follow-Up Campaigns" theme below.
 
-- [Test-Pyramid Taxonomy + Methodical Coverage Audit](themes/test-pyramid-coverage-audit.md) — adopt the Clemson/Fowler 5-tier model (unit/component/integration/contract/e2e), reclassify our `.int` tests as component, disambiguate schema-vs-contract, then audit + fill coverage gaps (flagship: a bot-client→worker envelope contract test)
 - [Periodic Audit Enforcement Architecture](themes/periodic-audit-enforcement-architecture.md) — make the ~9 "run periodically" audit tools actually run without rotting
 - [User-feedback solicitation + revive v2 release-notes delivery](themes/user-feedback-solicitation-revive-v2-release-notes-delivery.md) — structured channel for non-direct-contact user feedback + release-notes DM blast
 - [Shapes.inc Fetcher Hardening (multi-item mini-epic)](themes/shapes-inc-fetcher-hardening.md) — harden shapes.inc fetch against API drift, bot-protection, graceful failure
@@ -28,7 +27,8 @@ _Ordered index of future themes. Grep-on-demand — not loaded at session start.
 - [`/voice` + `/inspect` UX Polish (mini-epic)](themes/voice-inspect-ux-polish.md) — fix UX rough edges on `/voice` and `/inspect` surfaces
 - [Self-Hosted TTS + BYOK Re-Evaluation](themes/self-hosted-tts-byok-re-evaluation.md) — re-evaluate TTS engines after NeuTTS Air abandoned; BYOK quality-shopping
 - [Adjacent CPD Follow-Up Campaigns](themes/adjacent-cpd-follow-up-campaigns.md) — four deferred DRY-extraction campaigns from the 2026-05-16 close-out
-- **Slim common-types (PR-2n)** → now the Active Epic; see [../active-epic.md](../active-epic.md)
+- **Slim common-types (PR-2n)** → ✅ COMPLETE (extraction arc + close-out sweep done 2026-06-23; historical log in [epic-log.md](epic-log.md))
+- **Test-Pyramid Taxonomy + Coverage Audit** → now the Active Epic; see [../active-epic.md](../active-epic.md) (detailed theme writeup retained at [themes/test-pyramid-coverage-audit.md](themes/test-pyramid-coverage-audit.md))
 - [Multimodal Input — file (PDF/doc) + video forwarding](themes/multimodal-input-file-video-forwarding.md) — capture/forward video + file modalities to capable models, surface in `/models`
 - [Type-Assertion Audit + Deterministic Ratchet](themes/type-assertion-audit-deterministic-ratchet.md) — triage untyped casts + deterministic gate against new unsafe assertions
 - [Deterministic Test-Quality Tooling](themes/deterministic-test-quality-tooling.md) — mutation testing + job-payload contract so seam bugs fail the build
