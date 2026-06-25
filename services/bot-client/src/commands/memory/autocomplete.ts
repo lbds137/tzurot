@@ -25,42 +25,62 @@ export async function handlePersonalityAutocomplete(
 }
 
 /**
- * Resolve a personality slug to its UUID
- * Uses the autocomplete cache for performance
+ * Tri-state result of resolving a personality slug/ID/name to a UUID.
+ *
+ * The `not-found` vs `unavailable` split is the whole point: a genuine miss
+ * (the personality list loaded fine but the slug isn't in it) must surface a
+ * definitive "not found", while an infra failure fetching the list must surface
+ * "try again". Collapsing both to `null` was the infra-vs-negative bug — an
+ * unreachable gateway told the user their character "doesn't exist".
+ */
+export type ResolvedPersonality =
+  | { kind: 'found'; id: string }
+  | { kind: 'not-found' }
+  | { kind: 'unavailable' };
+
+/**
+ * Resolve a personality slug/ID/name to its UUID via the autocomplete cache.
  *
  * @param userClient - Typed gateway client bound to the caller (for cache lookup)
  * @param slugOrId - Personality slug or ID from user input
- * @returns Personality UUID or null if not found
+ * @returns a {@link ResolvedPersonality} — `found` with the UUID, `not-found`
+ *   when the list loaded but the input matched nothing, or `unavailable` when
+ *   the personality list itself couldn't be fetched (infra failure).
  */
 export async function resolvePersonalityId(
   userClient: UserClient,
   slugOrId: string
-): Promise<string | null> {
+): Promise<ResolvedPersonality> {
   const result = await getCachedPersonalities(userClient);
   if (result.kind === 'error') {
-    return null;
+    // Fetching the personality list FAILED (network/5xx/etc.) — this is NOT a
+    // genuine miss. Signal "unavailable" so callers show "try again" rather than
+    // a false "not found". (getCachedPersonalities only returns `error` on a
+    // fetch failure; a successful fetch returns `ok` with a possibly-empty list.)
+    return { kind: 'unavailable' };
   }
   const personalities = result.value;
 
   // Try to find by slug first (most common case from autocomplete)
   const bySlug = personalities.find(p => p.slug === slugOrId);
   if (bySlug !== undefined) {
-    return bySlug.id;
+    return { kind: 'found', id: bySlug.id };
   }
 
   // Try to find by ID (in case user pasted an ID directly)
   const byId = personalities.find(p => p.id === slugOrId);
   if (byId !== undefined) {
-    return byId.id;
+    return { kind: 'found', id: byId.id };
   }
 
   // Try to find by name (fuzzy match for user convenience)
   const byName = personalities.find(p => p.name.toLowerCase() === slugOrId.toLowerCase());
   if (byName !== undefined) {
-    return byName.id;
+    return { kind: 'found', id: byName.id };
   }
 
-  return null;
+  // List loaded fine, input genuinely matched nothing.
+  return { kind: 'not-found' };
 }
 
 /**

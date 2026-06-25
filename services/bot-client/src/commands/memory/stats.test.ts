@@ -75,7 +75,7 @@ describe('handleStats', () => {
   }
 
   it('should get stats successfully', async () => {
-    mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
+    mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: 'personality-uuid-123' });
     stub.getStats.mockResolvedValue(
       makeOk({
         personalityId: 'personality-uuid-123',
@@ -106,7 +106,7 @@ describe('handleStats', () => {
   it('should show focus mode active indicator', async () => {
     const mockEmbed = { addFields: vi.fn().mockReturnThis() };
     mockCreateInfoEmbed.mockReturnValue(mockEmbed);
-    mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
+    mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: 'personality-uuid-123' });
 
     stub.getStats.mockResolvedValue(
       makeOk({
@@ -133,7 +133,7 @@ describe('handleStats', () => {
   it('should show no profile message when personaId is null', async () => {
     const mockEmbed = { addFields: vi.fn().mockReturnThis() };
     mockCreateInfoEmbed.mockReturnValue(mockEmbed);
-    mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
+    mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: 'personality-uuid-123' });
 
     stub.getStats.mockResolvedValue(
       makeOk({
@@ -167,7 +167,7 @@ describe('handleStats', () => {
   });
 
   it('should handle personality not found from resolver', async () => {
-    mockResolvePersonalityId.mockResolvedValue(null);
+    mockResolvePersonalityId.mockResolvedValue({ kind: 'not-found' });
 
     const context = createMockContext('unknown');
     await handleStats(context);
@@ -178,8 +178,20 @@ describe('handleStats', () => {
     expect(stub.getStats).not.toHaveBeenCalled();
   });
 
+  it('shows "try again" (unavailable), not "not found", when the personality list is unavailable', async () => {
+    mockResolvePersonalityId.mockResolvedValue({ kind: 'unavailable' });
+
+    const context = createMockContext('lilith');
+    await handleStats(context);
+
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('Autocomplete was unavailable'),
+    });
+    expect(stub.getStats).not.toHaveBeenCalled();
+  });
+
   it('should handle personality not found (404)', async () => {
-    mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
+    mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: 'personality-uuid-123' });
     stub.getStats.mockResolvedValue(makeErr(404, 'Not found'));
 
     const context = createMockContext('unknown');
@@ -191,7 +203,7 @@ describe('handleStats', () => {
   });
 
   it('should handle generic API error', async () => {
-    mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
+    mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: 'personality-uuid-123' });
     stub.getStats.mockResolvedValue(makeErr(500, 'Server error'));
 
     const context = createMockContext();

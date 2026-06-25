@@ -56,24 +56,52 @@ function formatSessionInfo(session: SessionWithTime, personalityName?: string): 
 }
 
 /**
- * Resolve personality input to ID, handling 'all' specially
- * @returns { id: personality UUID or 'all', name: display name or null }
+ * Resolve the incognito `character` option (a slug/ID, or the literal "all") to
+ * a target, replying with the right error and returning `null` on the failure
+ * shapes. Shared by enable / disable / forget, which all accept the same
+ * "or all" input. Distinguishes a genuine miss ("not found") from an infra
+ * failure fetching the personality list ("try again") — collapsing both to a
+ * false "not found" was the infra-vs-negative bug.
+ *
+ * @returns the resolved `{ id, name }` (id is a UUID or the literal `'all'`), or
+ *   `null` after having ALREADY replied (sentinel / not-found / unavailable).
+ *   Callers MUST return early on `null` to avoid a double Discord reply.
  */
-async function resolvePersonalityOrAll(
+async function resolveIncognitoTargetOrReply(
+  context: DeferredCommandContext,
   userClient: UserClient,
   personalityInput: string
 ): Promise<{ id: string; name: string | null } | null> {
+  if (isAutocompleteErrorSentinel(personalityInput)) {
+    await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
+    return null;
+  }
+
   if (personalityInput.toLowerCase() === 'all') {
     return { id: 'all', name: ALL_PERSONALITIES_LABEL };
   }
 
-  const personalityId = await resolvePersonalityId(userClient, personalityInput);
-  if (personalityId === null) {
-    return null;
+  const resolved = await resolvePersonalityId(userClient, personalityInput);
+  switch (resolved.kind) {
+    case 'found': {
+      const name = await getPersonalityName(userClient, resolved.id);
+      return { id: resolved.id, name };
+    }
+    case 'unavailable':
+      // Infra failure fetching the personality list — "try again", not "not found".
+      await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
+      return null;
+    case 'not-found':
+      await context.editReply({
+        content: `❌ Character "${escapeMarkdown(personalityInput)}" not found. Use autocomplete to select a valid character, or type "all" for all characters.`,
+      });
+      return null;
+    default: {
+      // Exhaustiveness guard: a new ResolvedPersonality kind fails to compile here.
+      const _exhaustive: never = resolved;
+      return _exhaustive;
+    }
   }
-
-  const name = await getPersonalityName(userClient, personalityId);
-  return { id: personalityId, name };
 }
 
 /**
@@ -86,18 +114,9 @@ export async function handleIncognitoEnable(context: DeferredCommandContext): Pr
   const personalityInput = options.character();
   const duration = options.duration() as IncognitoDuration;
 
-  if (isAutocompleteErrorSentinel(personalityInput)) {
-    await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
-    return;
-  }
-
   try {
-    const resolved = await resolvePersonalityOrAll(userClient, personalityInput);
-
+    const resolved = await resolveIncognitoTargetOrReply(context, userClient, personalityInput);
     if (resolved === null) {
-      await context.editReply({
-        content: `❌ Character "${personalityInput}" not found. Use autocomplete to select a valid character, or type "all" for all characters.`,
-      });
       return;
     }
 
@@ -142,18 +161,9 @@ export async function handleIncognitoDisable(context: DeferredCommandContext): P
   const options = memoryIncognitoDisableOptions(context.interaction);
   const personalityInput = options.character();
 
-  if (isAutocompleteErrorSentinel(personalityInput)) {
-    await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
-    return;
-  }
-
   try {
-    const resolved = await resolvePersonalityOrAll(userClient, personalityInput);
-
+    const resolved = await resolveIncognitoTargetOrReply(context, userClient, personalityInput);
     if (resolved === null) {
-      await context.editReply({
-        content: `❌ Character "${personalityInput}" not found. Use autocomplete to select a valid character, or type "all" for all characters.`,
-      });
       return;
     }
 
@@ -252,18 +262,9 @@ export async function handleIncognitoForget(context: DeferredCommandContext): Pr
   const personalityInput = options.character();
   const timeframe = options.timeframe();
 
-  if (isAutocompleteErrorSentinel(personalityInput)) {
-    await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
-    return;
-  }
-
   try {
-    const resolved = await resolvePersonalityOrAll(userClient, personalityInput);
-
+    const resolved = await resolveIncognitoTargetOrReply(context, userClient, personalityInput);
     if (resolved === null) {
-      await context.editReply({
-        content: `❌ Character "${personalityInput}" not found. Use autocomplete to select a valid character, or type "all" for all characters.`,
-      });
       return;
     }
 

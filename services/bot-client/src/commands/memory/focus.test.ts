@@ -80,7 +80,7 @@ describe('Memory Focus Handlers', () => {
 
   describe('handleFocusEnable', () => {
     it('should enable focus mode successfully', async () => {
-      mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: 'personality-uuid-123' });
       stub.setFocus.mockResolvedValue(
         makeOk({
           personalityId: 'personality-uuid-123',
@@ -105,7 +105,7 @@ describe('Memory Focus Handlers', () => {
     });
 
     it('should handle personality not found', async () => {
-      mockResolvePersonalityId.mockResolvedValue(null);
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'not-found' });
 
       const context = createMockContext('unknown');
       await handleFocusEnable(context);
@@ -116,8 +116,20 @@ describe('Memory Focus Handlers', () => {
       expect(stub.setFocus).not.toHaveBeenCalled();
     });
 
+    it('shows "try again" (unavailable), not "not found", when the personality list is unavailable', async () => {
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'unavailable' });
+
+      const context = createMockContext('lilith');
+      await handleFocusEnable(context);
+
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Autocomplete was unavailable'),
+      });
+      expect(stub.setFocus).not.toHaveBeenCalled();
+    });
+
     it('should handle API error', async () => {
-      mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: 'personality-uuid-123' });
       stub.setFocus.mockResolvedValue(makeErr(500, 'Server error'));
 
       const context = createMockContext();
@@ -142,7 +154,7 @@ describe('Memory Focus Handlers', () => {
 
   describe('handleFocusDisable', () => {
     it('should disable focus mode successfully', async () => {
-      mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: 'personality-uuid-123' });
       stub.setFocus.mockResolvedValue(
         makeOk({
           personalityId: 'personality-uuid-123',
@@ -166,7 +178,7 @@ describe('Memory Focus Handlers', () => {
     });
 
     it('should handle personality not found', async () => {
-      mockResolvePersonalityId.mockResolvedValue(null);
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'not-found' });
 
       const context = createMockContext('unknown');
       await handleFocusDisable(context);
@@ -180,7 +192,7 @@ describe('Memory Focus Handlers', () => {
 
   describe('handleFocusStatus', () => {
     it('should show status when focus mode is enabled', async () => {
-      mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: 'personality-uuid-123' });
       mockGetPersonalityName.mockResolvedValue('Lilith');
       stub.getFocus.mockResolvedValue(
         makeOk({
@@ -200,7 +212,7 @@ describe('Memory Focus Handlers', () => {
     });
 
     it('should show status when focus mode is disabled', async () => {
-      mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: 'personality-uuid-123' });
       mockGetPersonalityName.mockResolvedValue('Lilith');
       stub.getFocus.mockResolvedValue(
         makeOk({
@@ -219,7 +231,7 @@ describe('Memory Focus Handlers', () => {
     });
 
     it('should use personality slug when name not found', async () => {
-      mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: 'personality-uuid-123' });
       mockGetPersonalityName.mockResolvedValue(null);
       stub.getFocus.mockResolvedValue(
         makeOk({
@@ -238,7 +250,7 @@ describe('Memory Focus Handlers', () => {
     });
 
     it('should handle personality not found', async () => {
-      mockResolvePersonalityId.mockResolvedValue(null);
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'not-found' });
 
       const context = createMockContext('unknown');
       await handleFocusStatus(context);
@@ -250,7 +262,7 @@ describe('Memory Focus Handlers', () => {
     });
 
     it('should handle API error', async () => {
-      mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: 'personality-uuid-123' });
       stub.getFocus.mockResolvedValue(makeErr(500, 'Server error'));
 
       const context = createMockContext();
