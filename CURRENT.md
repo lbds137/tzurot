@@ -1,27 +1,21 @@
 # Current
 
-> **Version**: v3.0.0-beta.136 (released 2026-06-24) — **no migrations.** Headliners: **Slim-common-types epic close-out** — 4 packages extracted (`@tzurot/cache-invalidation`, `config-resolver`, `identity`, `conversation-history`); common-types is now types/schemas/constants/utils only. **Phase 2.5 context-assembly cutover** — Prisma fully evicted from bot-client; the worker owns context assembly (cross-channel history, voice transcripts, persona + user-mention resolution). **applicationId-based 3-way reference authorship** (assistant/user/bot) replaces name-matching. **External-call timeout contract** — `GatewayResult` `kind` discriminant + tested `externalCallBudgetMs` route budget. Plus voice fixes (own-TTS not surfaced in refs, video-transcription guard, aged-out voice re-resolution + graceful degradation) and two latent bugs the holistic release review caught pre-merge (empty-persona uuid throw via #1325, `Promise.all` voice-injection abort via #1326). **Mechanics**: 127-commit release; rebase-merge hit GitHub's large-PR bug → clean FF of main to develop (byte-identical SHAs, so `release:finalize` was a no-op); 3 holistic-review rounds (round-1/2 real bugs fixed pre-merge, round-3 findings → fast-follow). _Prior: v3.0.0-beta.135 (#1275) — Phase 2.5d cutover finale._
+> **Version**: v3.0.0-beta.137 (released 2026-06-25) — **no migrations.** Headliners: **infra-vs-negative bug-class fix** — gateway failures (timeout/network/5xx) no longer read as a false "Character not found"; a new `InfraError` / result-collapse foundation (`@tzurot/clients`) lets personality/persona/model/memory lookups + the `/deny` guard distinguish "server unreachable → try again" from "genuinely doesn't exist" (the original `/character random` prod bug, fixed across all 5 sites; #1331–1336). **Dead stop-sequence feature removed** end-to-end (command, gateway endpoint, `StopSequenceTracker`, the dead `stopSequences` param path, `personality.stop` plumbing, diagnostic fields; `+27/−1691`, #1337) — disabled long ago, never cleaned up. Plus a 20s write-timeout floor on mutation routes (#1327), honest multi-tag denial wording (#1328), and a `scripts` typecheck task (#1329). **Mechanics**: 16-commit release; clean rebase-merge + `release:finalize` SHA-aligned develop; 1 holistic-review round (LGTM, 2 non-blocking follow-ups → backlog). _Prior: v3.0.0-beta.136 (2026-06-24) — Slim-common-types epic + Phase 2.5 cutover._
 > **🚧 Release freeze status**: LIFTED. No release in progress.
 
 ---
 
-## Unreleased on Develop (since beta.136)
+## Unreleased on Develop (since beta.137)
 
-**Released v3.0.0-beta.136 on 2026-06-24** (see version header; notes: [tag v3.0.0-beta.136](https://github.com/lbds137/tzurot/releases/tag/v3.0.0-beta.136)). The Slim-common-types epic + Phase 2.5 cutover + all the voice/reference/timeout work shipped — full detail in git history and the release notes. FF-merged main → develop (byte-identical SHAs); prod auto-deploying.
+**Released v3.0.0-beta.137 on 2026-06-25** (see version header; notes: [tag v3.0.0-beta.137](https://github.com/lbds137/tzurot/releases/tag/v3.0.0-beta.137)). The infra-vs-negative class fix + stop-sequence removal + write-timeout floor + cleanups shipped — full detail in git history and the release notes. The beta.136 round-3 fast-follow (the `scripts` typecheck task + `createPrismaClient` migration) also shipped here as #1329. `release:finalize` SHA-aligned develop with main; prod auto-deploying.
 
-**Immediate fast-follow — beta.136 holistic-review round-3 findings** (one focused PR, not release-blocking):
-
-- **`scripts/` Prisma API breakage**: 10+ scripts still import the removed `getPrismaClient`/`disconnectPrisma` (the epic left only `createPrismaClient`) → hard crash on next run (manual ops/migration tooling, not the bot runtime). **Structural gap**: the `scripts/` package has no `typecheck` turbo task, which is why CI didn't catch it — fix the scripts AND wire a `scripts` typecheck so the class can't recur.
-- **`historyContextResolver` per-request `PersonaResolver`** (`api-gateway`, `:78`): constructed inside the route → its `TTLCache` is defeated (fresh empty cache per call). Lift to mount-time (match `routingContextCreate`). Pre-existing perf bug; the epic touched the import, not the construction.
-- **`routingContextCreate` JSDoc** says `resolveRoutingContext` lives in `common-types`; it's in `@tzurot/identity`.
-
-(Round-3 finding — `void pool.end()` unawaited in `createPrismaClient` — was already in `cold/follow-ups.md`. Round-1/2 findings #2/#3/#4 and round-2 #2/#4 also filed there.)
+_Nothing unreleased on develop yet._
 
 ---
 
 ## Next Session Goal
 
-**Slim-common-types epic (PR-2p) — COMPLETE, shipped in beta.136.** All 4 packages extracted (config-resolver, identity, conversation-history, cache-invalidation); Cluster A/B/C closed or trigger-gated-parked; the Phase 2.5 context-assembly cutover is done (bot-client has zero Prisma). **➡️ Immediate next: the beta.136 round-3 fast-follow PR** — `scripts/` Prisma-API breakage + a new `scripts` typecheck task, `historyContextResolver` mount-time `PersonaResolver`, and the `routingContextCreate` JSDoc fix (detail in the Unreleased section above). **Then**: promote the next theme from [`cold/queue.md`](backlog/cold/queue.md) (each substantial pick earns a council pass before plan-mode). Parked epic residuals (7 trigger-gated Cluster B items, Cluster C test-infra, the tooling-coverage honest-metric) stay in [`epic-log.md`](backlog/cold/epic-log.md) until their triggers fire.
+**beta.137 shipped — the infra-vs-negative bug-class sweep + the dead stop-sequence removal are done.** All 5 sites of the false-"Character not found" prod bug are structurally fixed (`InfraError` foundation + strict/lenient loader split), and a whole vestigial feature is gone. The beta.136 round-3 fast-follow (the `scripts` typecheck task) shipped here too (#1329). **➡️ Immediate next: promote the next theme from [`cold/queue.md`](backlog/cold/queue.md)** (each substantial pick earns a council pass before plan-mode). Two non-blocking follow-ups from the beta.137 holistic review are in [`cold/follow-ups.md`](backlog/cold/follow-ups.md): `chat.ts` `escapeMarkdown` consistency + the lenient-loader 403-routing signal. Parked epic residuals stay in [`epic-log.md`](backlog/cold/epic-log.md) until their triggers fire.
 
 **Candidate threads when the epic pauses** (none greenlit):
 
