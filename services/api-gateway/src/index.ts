@@ -20,6 +20,8 @@ import {
   createLogger,
   getConfig,
   createPrismaClient,
+  fastPoolConnectionOptions,
+  verifyPoolTimeouts,
   type PrismaClient,
 } from '@tzurot/common-types';
 import {
@@ -245,7 +247,12 @@ async function initializeServices(prisma: PrismaClient): Promise<ServicesContext
 /**
  * Register all routes on the Express app
  */
-function registerRoutes(app: Express, prisma: PrismaClient, services: ServicesContext): void {
+function registerRoutes(
+  app: Express,
+  prisma: PrismaClient,
+  fastPrisma: PrismaClient,
+  services: ServicesContext
+): void {
   const {
     cacheRedis,
     retentionService,
@@ -319,6 +326,7 @@ function registerRoutes(app: Express, prisma: PrismaClient, services: ServicesCo
 
   const routeDeps: RouteDeps = {
     prisma,
+    fastPrisma,
     cacheInvalidationService,
     llmConfigCacheInvalidation,
     ttsConfigCacheInvalidation,
@@ -444,6 +452,27 @@ async function main(): Promise<void> {
   await prisma.$connect();
   logger.info('Database connection established');
 
+  // Dedicated fast pool for the latency-sensitive conversation-event persist
+  // writes (user/assistant message) — tight, self-labeling DB timeouts so a
+  // stuck single-row write fails fast + LOUD instead of hanging silently to
+  // bot-client's ~20s write abort. The main pool above is untouched, so legit
+  // long ops (pgvector search, Shapes import/export, retention) are exempt by
+  // architecture. See poolConfig's fastPoolConnectionOptions.
+  const fastCfg = fastPoolConnectionOptions();
+  const { prisma: fastPrisma, dispose: disposeFastPrisma } = createPrismaClient({
+    max: fastCfg.max,
+    poolOverrides: fastCfg.poolOverrides,
+  });
+  await fastPrisma.$connect();
+  // Boot probe: fail fast if the GUC `options` startup string didn't apply
+  // (e.g. a connection pooler stripped it) — otherwise the tight timeouts are
+  // silently absent and we revert to the original silent-hang bug.
+  await verifyPoolTimeouts(fastPrisma, {
+    statementTimeoutMs: fastCfg.statementTimeoutMs,
+    lockTimeoutMs: fastCfg.lockTimeoutMs,
+  });
+  logger.info('Fast-pool Prisma client established (conversation-event persists)');
+
   // Trust one reverse-proxy hop (Railway sits behind a single edge proxy).
   // Used by Express to populate req.protocol / req.hostname / req.secure
   // from forwarded headers, and by access logging via req.ip.
@@ -470,7 +499,7 @@ async function main(): Promise<void> {
 
   // Initialize services and register routes
   const services = await initializeServices(prisma);
-  registerRoutes(app, prisma, services);
+  registerRoutes(app, prisma, fastPrisma, services);
   app.use(globalErrorHandler(config.env === 'production'));
 
   // Start server
@@ -488,7 +517,12 @@ async function main(): Promise<void> {
   });
 
   // Setup graceful shutdown
-  const shutdown = createShutdownHandler(server, services, disposePrisma);
+  // Dispose both DB clients on shutdown (fast pool first, then the main pool).
+  const disposeAllPrisma = async (): Promise<void> => {
+    await disposeFastPrisma();
+    await disposePrisma();
+  };
+  const shutdown = createShutdownHandler(server, services, disposeAllPrisma);
   process.on('SIGTERM', () => void shutdown());
   process.on('SIGINT', () => void shutdown());
   process.on('uncaughtException', error => {

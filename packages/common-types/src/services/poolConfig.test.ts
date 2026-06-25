@@ -5,9 +5,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   DB_POOL_DEFAULTS,
+  FAST_POOL_DEFAULTS,
   resolvePoolMax,
   resolveConnectionTimeoutMs,
   resolvePoolStatsIntervalMs,
+  resolveFastPoolMax,
+  resolveFastLockTimeoutMs,
+  resolveFastStatementTimeoutMs,
+  resolveFastQueryTimeoutMs,
+  fastPoolConnectionOptions,
   startPoolStatsGauge,
   transientPoolOptions,
   type PoolStatsSource,
@@ -62,6 +68,75 @@ describe('transientPoolOptions', () => {
       max: DB_POOL_DEFAULTS.TRANSIENT_MAX,
       connectionTimeoutMillis: 2000,
     });
+  });
+});
+
+describe('fast-pool resolvers', () => {
+  it('default to FAST_POOL_DEFAULTS when unset', () => {
+    expect(resolveFastPoolMax({})).toBe(FAST_POOL_DEFAULTS.MAX);
+    expect(resolveFastLockTimeoutMs({})).toBe(FAST_POOL_DEFAULTS.LOCK_TIMEOUT_MS);
+    expect(resolveFastStatementTimeoutMs({})).toBe(FAST_POOL_DEFAULTS.STATEMENT_TIMEOUT_MS);
+    expect(resolveFastQueryTimeoutMs({})).toBe(FAST_POOL_DEFAULTS.QUERY_TIMEOUT_MS);
+  });
+
+  it('read valid overrides and fall back on garbage / sub-minimum', () => {
+    expect(resolveFastLockTimeoutMs({ DB_FAST_LOCK_TIMEOUT_MS: '1500' })).toBe(1500);
+    expect(resolveFastStatementTimeoutMs({ DB_FAST_STATEMENT_TIMEOUT_MS: '0' })).toBe(
+      FAST_POOL_DEFAULTS.STATEMENT_TIMEOUT_MS
+    );
+    expect(resolveFastQueryTimeoutMs({ DB_FAST_QUERY_TIMEOUT_MS: 'nope' })).toBe(
+      FAST_POOL_DEFAULTS.QUERY_TIMEOUT_MS
+    );
+  });
+});
+
+describe('fastPoolConnectionOptions', () => {
+  it('builds the staggered ladder + GUC options string with defaults', () => {
+    const cfg = fastPoolConnectionOptions({});
+    expect(cfg.statementTimeoutMs).toBe(FAST_POOL_DEFAULTS.STATEMENT_TIMEOUT_MS);
+    expect(cfg.lockTimeoutMs).toBe(FAST_POOL_DEFAULTS.LOCK_TIMEOUT_MS);
+    // Ladder invariant: lock < statement < query so exactly one fires first.
+    expect(cfg.lockTimeoutMs).toBeLessThan(cfg.statementTimeoutMs);
+    expect(cfg.statementTimeoutMs).toBeLessThan(cfg.poolOverrides.query_timeout);
+    expect(cfg.max).toBe(FAST_POOL_DEFAULTS.MAX);
+    expect(cfg.poolOverrides).toMatchObject({
+      connectionTimeoutMillis: FAST_POOL_DEFAULTS.CONNECTION_TIMEOUT_MS,
+      query_timeout: FAST_POOL_DEFAULTS.QUERY_TIMEOUT_MS,
+      keepAlive: true,
+    });
+    expect(cfg.poolOverrides.options).toBe(
+      `-c statement_timeout=${FAST_POOL_DEFAULTS.STATEMENT_TIMEOUT_MS} ` +
+        `-c lock_timeout=${FAST_POOL_DEFAULTS.LOCK_TIMEOUT_MS} ` +
+        `-c idle_in_transaction_session_timeout=${FAST_POOL_DEFAULTS.IDLE_IN_TX_TIMEOUT_MS}`
+    );
+    // Must NEVER set the superuser-only log_lock_waits — would break non-superuser connections.
+    expect(cfg.poolOverrides.options).not.toContain('log_lock_waits');
+  });
+
+  it('honors env overrides in the options string', () => {
+    // Keep the ladder valid (lock < statement < query) — bump query above statement.
+    const cfg = fastPoolConnectionOptions({
+      DB_FAST_STATEMENT_TIMEOUT_MS: '8000',
+      DB_FAST_LOCK_TIMEOUT_MS: '3000',
+      DB_FAST_QUERY_TIMEOUT_MS: '9000',
+    });
+    expect(cfg.poolOverrides.options).toContain('-c statement_timeout=8000');
+    expect(cfg.poolOverrides.options).toContain('-c lock_timeout=3000');
+    expect(cfg.poolOverrides.query_timeout).toBe(9000);
+  });
+
+  it('throws when an env override inverts the lock < statement < query ladder', () => {
+    // lock >= statement
+    expect(() =>
+      fastPoolConnectionOptions({
+        DB_FAST_LOCK_TIMEOUT_MS: '9000',
+        DB_FAST_STATEMENT_TIMEOUT_MS: '3000',
+      })
+    ).toThrow(/ladder violated/);
+    // statement >= query_timeout (default query is 6000)
+    expect(() => fastPoolConnectionOptions({ DB_FAST_STATEMENT_TIMEOUT_MS: '9000' })).toThrow(
+      /ladder violated/
+    );
   });
 });
 
