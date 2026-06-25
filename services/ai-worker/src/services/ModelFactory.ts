@@ -158,17 +158,6 @@ function addIfDefined<T>(kwargs: Record<string, unknown>, key: string, value: T 
   }
 }
 
-/** Add an array to kwargs if non-empty */
-function addIfNonEmpty(
-  kwargs: Record<string, unknown>,
-  key: string,
-  value: unknown[] | undefined
-): void {
-  if (value !== undefined && value.length > 0) {
-    kwargs[key] = value;
-  }
-}
-
 /** Add an object to kwargs if it has keys */
 function addIfHasKeys(
   kwargs: Record<string, unknown>,
@@ -230,7 +219,6 @@ function buildModelKwargs(modelConfig: ModelConfig): Record<string, unknown> {
   addIfDefined(kwargs, 'seed', modelConfig.seed);
 
   // Output control
-  addIfNonEmpty(kwargs, 'stop', modelConfig.stop);
   addIfHasKeys(kwargs, 'logit_bias', modelConfig.logitBias);
   addIfDefined(kwargs, 'response_format', modelConfig.responseFormat);
 

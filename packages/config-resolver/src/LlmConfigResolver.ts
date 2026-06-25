@@ -208,7 +208,6 @@ export class LlmConfigResolver extends BaseConfigResolver<
         seed: mapped.seed,
         // Output
         maxTokens: mapped.maxTokens,
-        stop: mapped.stop,
         logitBias: mapped.logitBias,
         responseFormat: mapped.responseFormat,
         showThinking: mapped.showThinking,

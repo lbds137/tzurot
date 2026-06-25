@@ -156,8 +156,8 @@ function buildModelField(
 }
 
 /**
- * Build the Response field with finish-reason emoji decoration, LOW completion-
- * tokens warning, and always-show stop-sequence (— when none triggered).
+ * Build the Response field with finish-reason emoji decoration and a LOW
+ * completion-tokens warning.
  */
 function buildResponseField(llmResponse: DiagnosticPayload['llmResponse']): {
   name: string;
@@ -166,15 +166,12 @@ function buildResponseField(llmResponse: DiagnosticPayload['llmResponse']): {
 } {
   const lowTokenWarning =
     llmResponse.completionTokens < 100 && llmResponse.completionTokens > 0 ? ' ⚠️ LOW' : '';
-  const stopSequenceDisplay =
-    llmResponse.stopSequenceTriggered !== null ? `\`${llmResponse.stopSequenceTriggered}\`` : '—';
   return {
     name: '📤 Response',
     value: [
       `**Finish Reason:** ${formatFinishReason(llmResponse.finishReason)}`,
       `**Prompt Tokens:** ${llmResponse.promptTokens}`,
       `**Completion Tokens:** ${llmResponse.completionTokens}${lowTokenWarning}`,
-      `**Stop Sequence:** ${stopSequenceDisplay}`,
     ].join('\n'),
     inline: true,
   };

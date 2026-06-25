@@ -37,13 +37,11 @@ function createMockPayload(overrides?: Partial<DiagnosticPayload>): DiagnosticPa
     llmConfig: {
       model: 'z-ai/glm-4.7',
       provider: 'openrouter',
-      stopSequences: [],
       allParams: {},
     },
     llmResponse: {
       rawContent: 'Hello!',
       finishReason: 'stop',
-      stopSequenceTriggered: null,
       promptTokens: 100,
       completionTokens: 47,
       modelUsed: 'z-ai/glm-4.7',
@@ -171,7 +169,6 @@ describe('buildQuickCopySummaryView', () => {
       llmResponse: {
         rawContent: 'Hi',
         finishReason: 'stop',
-        stopSequenceTriggered: null,
         promptTokens: 100,
         completionTokens: 47,
         modelUsed: 'z-ai/glm-4.7',

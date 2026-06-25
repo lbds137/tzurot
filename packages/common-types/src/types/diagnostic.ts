@@ -218,8 +218,6 @@ export interface DiagnosticLlmConfig {
   presencePenalty?: number;
   /** Repetition penalty */
   repetitionPenalty?: number;
-  /** Stop sequences configured */
-  stopSequences: string[];
   /** All parameters for completeness */
   allParams: Record<string, unknown>;
 }
@@ -232,8 +230,6 @@ export interface DiagnosticLlmResponse {
   rawContent: string;
   /** Finish reason from the API */
   finishReason: string;
-  /** Which stop sequence triggered (if any) */
-  stopSequenceTriggered: string | null;
   /** Tokens in the prompt */
   promptTokens: number;
   /** Tokens in the completion */

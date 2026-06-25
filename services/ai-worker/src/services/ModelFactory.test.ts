@@ -339,23 +339,6 @@ describe('ModelFactory', () => {
     // Output control parameters
     // ===================================
 
-    it('should pass stop sequences via modelKwargs', () => {
-      const config: ModelConfig = {
-        modelName: 'test-model',
-        stop: ['STOP', 'END'],
-      };
-
-      createChatModel(config);
-
-      expect(mockChatOpenAI).toHaveBeenCalledWith(
-        expect.objectContaining({
-          modelKwargs: expect.objectContaining({
-            stop: ['STOP', 'END'],
-          }),
-        })
-      );
-    });
-
     it('should pass logitBias via modelKwargs', () => {
       const config: ModelConfig = {
         modelName: 'test-model',
@@ -585,7 +568,6 @@ describe('ModelFactory', () => {
         topA: 0.5,
         seed: 42,
         // Output
-        stop: ['END'],
         responseFormat: { type: 'text' },
         // Reasoning (effort only - maxTokens would conflict)
         reasoning: { effort: 'high' },
@@ -606,7 +588,6 @@ describe('ModelFactory', () => {
         min_p: 0.1,
         top_a: 0.5,
         seed: 42,
-        stop: ['END'],
         response_format: { type: 'text' },
         reasoning: { effort: 'high' },
       });

@@ -7,7 +7,6 @@
 
 import type { DiagnosticCollector } from '../DiagnosticCollector.js';
 import { resolveFinishReason, type LoadedPersonality } from '@tzurot/common-types';
-import { inferNonXmlStop } from '../StopSequenceTracker.js';
 import { hasThinkingBlocks } from '../../utils/thinkingExtraction.js';
 import { contentToText } from '../../utils/baseMessageContent.js';
 import type { LlmResponseData } from './DiagnosticTypes.js';
@@ -24,8 +23,6 @@ export interface ParsedResponseMetadata {
     finish_reason?: string;
     stop_reason?: string;
     finishReason?: string;
-    stop?: string;
-    stop_sequence?: string;
     reasoning_details?: unknown[];
     /**
      * Diagnostic info populated by extractAndPopulateOpenRouterReasoning from the
@@ -78,19 +75,12 @@ interface LlmConfigDiagnosticOptions {
   personality: LoadedPersonality;
   effectiveTemperature: number | undefined;
   effectiveFrequencyPenalty: number | undefined;
-  stopSequences: string[];
 }
 
 /** Record the LLM config to the diagnostic collector */
 export function recordLlmConfigDiagnostic(opts: LlmConfigDiagnosticOptions): void {
-  const {
-    collector,
-    modelName,
-    personality,
-    effectiveTemperature,
-    effectiveFrequencyPenalty,
-    stopSequences,
-  } = opts;
+  const { collector, modelName, personality, effectiveTemperature, effectiveFrequencyPenalty } =
+    opts;
   collector.recordLlmConfig({
     model: modelName,
     provider: modelName.split('/')[0] || 'unknown',
@@ -104,7 +94,6 @@ export function recordLlmConfigDiagnostic(opts: LlmConfigDiagnosticOptions): voi
     minP: personality.minP,
     topA: personality.topA,
     seed: personality.seed,
-    stop: personality.stop,
     logitBias: personality.logitBias,
     responseFormat: personality.responseFormat,
     showThinking: personality.showThinking,
@@ -112,18 +101,7 @@ export function recordLlmConfigDiagnostic(opts: LlmConfigDiagnosticOptions): voi
     transforms: personality.transforms,
     route: personality.route,
     verbosity: personality.verbosity,
-    stopSequences,
   });
-}
-
-/** Extract stop sequence from response metadata */
-function resolveStopSequence(meta: ParsedResponseMetadata['responseMetadata']): string | null {
-  const rawStop = meta?.stop;
-  const rawStopSeq = meta?.stop_sequence;
-  return (
-    (typeof rawStop === 'string' ? rawStop : null) ??
-    (typeof rawStopSeq === 'string' ? rawStopSeq : null)
-  );
 }
 
 /** Build reasoning debug info for diagnostics */
@@ -193,21 +171,13 @@ export function recordLlmResponseDiagnostic(
   collector: DiagnosticCollector,
   rawContent: string,
   modelName: string,
-  metadata: ParsedResponseMetadata,
-  stopSequences?: string[]
+  metadata: ParsedResponseMetadata
 ): void {
   const finishReason = resolveFinishReason(metadata.responseMetadata);
-
-  // Resolve provider-reported stop sequence, or infer from content
-  let stopSequenceTriggered = resolveStopSequence(metadata.responseMetadata);
-  if (stopSequenceTriggered === null && inferNonXmlStop(rawContent, finishReason, stopSequences)) {
-    stopSequenceTriggered = 'inferred:non-xml-stop';
-  }
 
   collector.recordLlmResponse({
     rawContent,
     finishReason,
-    stopSequenceTriggered,
     promptTokens: metadata.usageMetadata?.input_tokens ?? 0,
     completionTokens: metadata.usageMetadata?.output_tokens ?? 0,
     modelUsed: modelName,

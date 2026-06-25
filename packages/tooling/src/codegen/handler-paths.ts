@@ -83,7 +83,6 @@ const PATH_MAP: Readonly<Record<string, string>> = {
   dbSync: '../admin/dbSync.js',
   invalidateCache: '../admin/invalidateCache.js',
   getAdminUsageStats: '../admin/usage.js',
-  getStopSequencesStats: '../admin/stopSequences.js',
 
   // Admin settings
   clearAdminSettings: ADMIN_SETTINGS,

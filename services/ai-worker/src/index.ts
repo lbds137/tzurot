@@ -34,7 +34,6 @@ import {
 } from '@tzurot/common-types';
 import { validateRequiredEnvVars, buildHealthResponse, checkVoiceEngineHealth } from './startup.js';
 import { setupCacheInvalidation } from './cacheInvalidation.js';
-import { initStopSequenceRedis } from './services/StopSequenceTracker.js';
 
 // ============================================================================
 // CONSTANTS
@@ -315,9 +314,6 @@ async function main(): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- REDIS_URL is validated at startup by validateRequiredEnvVars(), but TypeScript can't track validation across function boundaries
   const cacheRedis = new Redis(envConfig.REDIS_URL!);
   cacheRedis.on('error', err => logger.error({ err }, 'Cache Redis error'));
-
-  // Initialize stop sequence Redis persistence (cross-service stats)
-  initStopSequenceRedis(cacheRedis);
 
   // Set up cache invalidation for all resolvers
   const cacheResult = await setupCacheInvalidation({ cacheRedis, prisma });

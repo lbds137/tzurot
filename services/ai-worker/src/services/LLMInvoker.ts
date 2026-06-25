@@ -39,7 +39,6 @@ import {
   parseApiError,
   ApiError,
 } from '../utils/apiErrorParser.js';
-import { recordStopSequenceActivation, inferNonXmlStop } from './StopSequenceTracker.js';
 import { type RateLimitCache, assertValidCacheKeyId } from './RateLimitCache.js';
 import type { CreditExhaustionCache } from './CreditExhaustionCache.js';
 import { rateLimitCache, creditExhaustionCache } from '../redis.js';
@@ -50,53 +49,6 @@ import {
 } from '../utils/reasoningModelUtils.js';
 
 const logger = createLogger('LLMInvoker');
-
-/**
- * Models that do NOT support the 'stop' parameter.
- *
- * These patterns are based on OpenRouter's supported_parameters for each model.
- * When stop sequences are passed to these models, they return 400 Bad Request.
- *
- * Research source: OpenRouter model API pages (January 2026)
- * - glm-4.5-air: Only supports temperature, top_p, max_tokens, stop (max 1), thinking, tools, tool_choice
- * - gemini-3-pro-preview: Only supports temperature, top_p, frequency_penalty
- * - gemma free tier (3-27b-it / 4-31b-it): Only supports max_tokens, temperature, presence_penalty, repetition_penalty, frequency_penalty
- * - llama-3.3-70b-instruct:free: Only supports max_tokens, temperature, presence_penalty, repetition_penalty, frequency_penalty, tool_choice, tools
- *
- * TODO: Make this configurable via database (see BACKLOG.md)
- */
-const MODELS_WITHOUT_STOP_SUPPORT: RegExp[] = [
-  // Z-AI GLM 4.5 Air variants (but NOT GLM 4.6, 4.7 which do support stop)
-  /glm-4\.5-air/i,
-  // Google Gemini 3 Pro Preview (but NOT Gemini 3 Flash which does support stop)
-  /gemini-3-pro-preview/i,
-  // Google Gemma free tier (3-27b-it superseded by 4-31b-it; both have the
-  // same restricted parameter set on the OpenRouter free route). The size
-  // group is `\d+b` rather than an explicit alternation so future variants
-  // inherit the restriction by default — if a new variant turns out to
-  // support stop sequences, the false-negative cost is just a slightly
-  // over-conservative filter, not a 400 error.
-  /gemma-[34]-\d+b-it:free/i,
-  // Meta Llama 3.3 70B free tier
-  /llama-3\.3-70b-instruct:free/i,
-  // DeepSeek R1-0528 free tier (stop not in supported_parameters)
-  /deepseek-r1-0528:free/i,
-];
-
-/**
- * Check if a model supports stop sequences.
- *
- * @param modelName - The model identifier (e.g., "z-ai/glm-4.5-air:free")
- * @returns true if the model supports stop sequences, false otherwise
- */
-export function supportsStopSequences(modelName: string): boolean {
-  for (const pattern of MODELS_WITHOUT_STOP_SUPPORT) {
-    if (pattern.test(modelName)) {
-      return false;
-    }
-  }
-  return true;
-}
 
 /**
  * Default cooldown applied when a 429 lacks a usable `X-RateLimit-Reset`
@@ -159,8 +111,6 @@ interface InvokeWithRetryOptions {
   imageCount?: number;
   /** Number of audio attachments in the request (for timeout calculation) */
   audioCount?: number;
-  /** Optional array of sequences that will stop generation (identity bleeding prevention) */
-  stopSequences?: string[];
 }
 
 export class LLMInvoker {
@@ -196,18 +146,9 @@ export class LLMInvoker {
    * - Dynamic global timeout based on attachment count
    * - Per-attempt timeout using LLM_PER_ATTEMPT constant
    * - Reasoning model support (o1, Claude 3.7+, Gemini Thinking)
-   * - Stop sequences to enforce XML turn boundaries and prevent identity bleeding
    */
   async invokeWithRetry(options: InvokeWithRetryOptions): Promise<BaseMessage> {
-    const {
-      model,
-      messages,
-      modelName,
-      cacheKeyId = '',
-      imageCount = 0,
-      audioCount = 0,
-      stopSequences,
-    } = options;
+    const { model, messages, modelName, cacheKeyId = '', imageCount = 0, audioCount = 0 } = options;
 
     if (cacheKeyId.length === 0) {
       // An empty `cacheKeyId` skips both caches entirely — currently used by
@@ -248,18 +189,6 @@ export class LLMInvoker {
     // LLM always gets full independent timeout budget (480s = 8 minutes)
     const globalTimeoutMs = TIMEOUTS.LLM_INVOCATION;
 
-    // Filter stop sequences for models that don't support them
-    // This prevents 400 Bad Request errors from models like GLM 4.5 Air, Gemma 3 free, etc.
-    const modelSupportsStop = supportsStopSequences(modelName);
-    const effectiveStopSequences = modelSupportsStop ? stopSequences : undefined;
-
-    if (stopSequences && stopSequences.length > 0 && !modelSupportsStop) {
-      logger.warn(
-        { modelName, stopSequenceCount: stopSequences.length },
-        'Model does not support stop sequences - filtering them out to prevent 400 errors'
-      );
-    }
-
     // Get reasoning model config for special handling
     const reasoningConfig = getReasoningModelConfig(modelName);
     const isReasoningModel = reasoningConfig.type !== ReasoningModelType.Standard;
@@ -288,26 +217,16 @@ export class LLMInvoker {
         isReasoningModel,
         originalMessageCount: messages.length,
         transformedMessageCount: transformedMessages.length,
-        stopSequenceCount: effectiveStopSequences?.length ?? 0,
-        stopSequencesFiltered: !modelSupportsStop && (stopSequences?.length ?? 0) > 0,
       },
       `Dynamic timeout calculated: ${globalTimeoutMs}ms (job: ${jobTimeout}ms)`
     );
-
-    if (effectiveStopSequences && effectiveStopSequences.length > 0) {
-      logger.debug(
-        { stopSequences: effectiveStopSequences },
-        'Using stop sequences for identity bleeding prevention'
-      );
-    }
 
     // Use retryService for consistent retry behavior
     // Fast-fail on permanent errors (auth, quota, content policy, etc.)
     let result;
     try {
       result = await withRetry(
-        () =>
-          this.invokeSingleAttempt(model, transformedMessages, modelName, effectiveStopSequences),
+        () => this.invokeSingleAttempt(model, transformedMessages, modelName),
         {
           maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
           globalTimeoutMs,
@@ -537,25 +456,17 @@ export class LLMInvoker {
    * @param model - LangChain chat model to invoke
    * @param messages - Message array to send to the model
    * @param modelName - Model name for logging
-   * @param stopSequences - Optional stop sequences for identity bleeding prevention
    * @throws Error on timeout, network errors, empty responses, or censored responses
    * @private
    */
   private async invokeSingleAttempt(
     model: BaseChatModel,
     messages: BaseMessage[],
-    modelName: string,
-    stopSequences?: string[]
+    modelName: string
   ): Promise<BaseMessage> {
-    // Build invoke options with timeout and optional stop sequences
-    const invokeOptions: { timeout: number; stop?: string[] } = {
+    const invokeOptions: { timeout: number } = {
       timeout: TIMEOUTS.LLM_PER_ATTEMPT,
     };
-
-    // Add stop sequences if provided (identity bleeding prevention)
-    if (stopSequences && stopSequences.length > 0) {
-      invokeOptions.stop = stopSequences;
-    }
 
     // Invoke with per-attempt timeout (3 minutes per attempt)
     const response = await model.invoke(messages, invokeOptions);
@@ -569,7 +480,7 @@ export class LLMInvoker {
 
     // Log finish_reason for completion quality diagnostics
     // This helps identify models that fail to emit stop tokens (hallucinated turn bug)
-    this.logFinishReason(response, modelName, stopSequences);
+    this.logFinishReason(response, modelName);
 
     // Guard against empty responses (treat as retryable error)
     // Handle both string content and multimodal array content
@@ -617,18 +528,13 @@ export class LLMInvoker {
   }
 
   /**
-   * Log finish_reason and related metadata for completion quality diagnostics.
+   * Log finish_reason and token usage for completion-quality diagnostics.
    *
    * This helps identify:
-   * - Models that hit token limits (finish_reason: "length") - may cause truncated responses
-   * - Models that naturally stopped (finish_reason: "stop") - ideal case
-   * - Stop sequences that triggered (finish_reason: "stop_sequence") - our safety measures working
+   * - Models that hit token limits (finish_reason: "length") - may truncate responses
+   * - Models that completed naturally (finish_reason: "stop") - the ideal case
    */
-  private logFinishReason(
-    response: BaseMessage,
-    modelName: string,
-    stopSequences?: string[]
-  ): void {
+  private logFinishReason(response: BaseMessage, modelName: string): void {
     const metadata = (response as { response_metadata?: Record<string, unknown> })
       .response_metadata;
 
@@ -638,44 +544,21 @@ export class LLMInvoker {
     }
 
     const finishReason = resolveFinishReason(metadata);
-    const stoppedAt = metadata.stop ?? metadata.stop_sequence ?? null;
     const usage = metadata.usage as
       | { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
       | undefined;
 
     const logContext: Record<string, unknown> = { modelName, finishReason };
-    if (stoppedAt !== null) {
-      logContext.stoppedAt = stoppedAt;
-    }
     if (usage !== undefined) {
       logContext.promptTokens = usage.prompt_tokens;
       logContext.completionTokens = usage.completion_tokens;
       logContext.totalTokens = usage.total_tokens;
-    }
-    if (stopSequences !== undefined && stopSequences.length > 0) {
-      logContext.stopSequenceCount = stopSequences.length;
     }
 
     if (finishReason === FINISH_REASONS.LENGTH) {
       logger.info(
         logContext,
         'WARNING: Model hit token limit (finish_reason: length) - response may be truncated'
-      );
-    } else if (stoppedAt !== null) {
-      const sequenceStr = typeof stoppedAt === 'string' ? stoppedAt : JSON.stringify(stoppedAt);
-      recordStopSequenceActivation(sequenceStr, modelName);
-      logger.info(
-        logContext,
-        'Stop sequence triggered - prevented potential identity bleeding or hallucination'
-      );
-    } else if (
-      typeof response.content === 'string' &&
-      inferNonXmlStop(response.content, finishReason, stopSequences)
-    ) {
-      recordStopSequenceActivation('inferred:non-xml-stop', modelName);
-      logger.info(
-        logContext,
-        'Possible stop sequence activation — response ended without </message> (heuristic, may be a false positive)'
       );
     } else if (isNaturalStop(finishReason)) {
       logger.debug(logContext, 'Model completed naturally');
