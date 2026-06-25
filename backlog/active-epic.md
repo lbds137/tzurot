@@ -35,7 +35,19 @@ Inventory every service/flow against the 5 tiers; produce a per-area gap matrix 
 
 A registered audit-class tool (WHY.md + canary + baseline + drift-detect, per `docs/reference/audit-enforcement.md`) that measures whether each service/flow carries the tiers it should and **fails CI on regression** — the per-area gap matrix with a ratchet, building on the `test:tiers` classifier. The drift recurred because the model was docs-only (attention-based); this gives it teeth. (Seeds shipped in #1284; this is the bulk.)
 
-### Open sub-decisions (fold into the council pass / Phase 2)
+### Resolved sub-decisions
 
-- Suffix **rename** (`*.component.test.ts`) — disruptive (touches every int test + runner config); only if the tier report shows it's worth it.
-- `.schema.test.ts` adopt-or-drop — `test:tiers` found **0** exist repo-wide; the suffix is documented + classifier-recognized but unused.
+- Suffix **rename** — ✅ DONE (#1339): `.int.test.ts`→`.component.test.ts`, `.e2e.test.ts`→`.integration.test.ts` / `.contract.test.ts`; `classifyTestFile` is now a pure suffix check (directory-location rule gone).
+- `.schema.test.ts` adopt-or-drop — ✅ DROPPED (#1339): the `schema` file-kind is gone; a Zod schema test is a plain `*.test.ts` (unit-tier).
+
+### Next: PR B (flagship + topology skeleton)
+
+The council reframed Phase 2 (was "hand-authored tier-gap matrix") into a **code-derived coverage topology** — a generated registry of cross-service surfaces (route-manifest entries + BullMQ payload schemas) → required/actual tiers, lockfile-diffed in CI. PR B lands the flagship + a minimal skeleton; the full generator is Phase 2/discovery, the `test:tier-audit` ratchet is the enforcement bulk. Plan: `/home/deck/.claude/plans/floofy-rolling-crane.md`.
+
+### Rename loose-ends — DO within this epic (not deferred to "someday")
+
+Surfaced by #1339 claude-review; all direct consequences of the rename, so they close out as part of the epic — not cold/follow-ups trigger-gated items.
+
+- [ ] **Trivial cleanup** (a quick PR, or fold into PR B): drop the dead `.component.test.ts` guards subsumed by the `.test.ts` check in `audit-unified.ts:70` + `scripts/audit-route-auth-matrix.ts:517` + `knip.json` (verify knip glob semantics first); and fix `audit-unified.ts:235` — its `findTestedSchemas` filters `.contract.test.ts` but `readdirSync` is non-recursive so that branch is dead (drop it, or make the scan recursive if contract-schema coverage should count). [#1339 introduced the `:235` dead branch.]
+- [ ] **`ci.yml` "integration"→"component" naming** (its own careful PR): step label L344 (cosmetic), job name `integration-tests:` L290, Codecov `flags: integration` L362, coverage dir L361 + the coupled `reportsDirectory` in `vitest.component.config.ts`. **Coordinate**: the job name is likely a required branch-protection check (rename → update protection or the old name blocks merges forever); the flag rename resets Codecov trend history. `ci.yml` edits are safe on develop (claude-review lives in `claude-code-review.yml`). Either rename all four in sync (+ branch-protection update) or keep `flags: integration` as a stable label.
+- [ ] **Rename `tests/e2e/` dir** (low priority): holds integration + contract, no real e2e; update `vitest.integration.config.ts` include glob + `audit-unified.ts` `e2eTestsDir`. Do when a true e2e test is added or during a `tests/` reorg.
