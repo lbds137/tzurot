@@ -19,13 +19,9 @@ import {
   memoryDeleteOptions,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import {
-  AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
-  isAutocompleteErrorSentinel,
-} from '../../utils/apiCheck.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { createWarningEmbed, createSuccessEmbed } from '../../utils/commandHelpers.js';
-import { resolvePersonalityId } from './autocomplete.js';
+import { resolveRequiredPersonality } from './resolveHelpers.js';
 
 const logger = createLogger('memory-batch-delete');
 
@@ -62,19 +58,12 @@ export async function handleBatchDelete(context: DeferredCommandContext): Promis
   const personalityInput = options.character();
   const timeframe = options.timeframe();
 
-  if (isAutocompleteErrorSentinel(personalityInput)) {
-    await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
-    return;
-  }
-
   try {
-    // Resolve personality slug to ID
-    const personalityId = await resolvePersonalityId(userClient, personalityInput);
-
+    // resolveRequiredPersonality handles the sentinel, genuine-miss ("not found"),
+    // and infra-failure ("try again") cases — replying + returning null for each.
+    // Kept inside the try so an unexpected throw still reaches the catch below.
+    const personalityId = await resolveRequiredPersonality(context, userClient, personalityInput);
     if (personalityId === null) {
-      await context.editReply({
-        content: `❌ Character "${personalityInput}" not found. Use autocomplete to select a valid character.`,
-      });
       return;
     }
 

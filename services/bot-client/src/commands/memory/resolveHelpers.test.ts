@@ -60,7 +60,7 @@ describe('resolveOptionalPersonality', () => {
   });
 
   it('should return resolved ID when personality is found', async () => {
-    mockResolvePersonalityId.mockResolvedValue('personality-uuid');
+    mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: 'personality-uuid' });
 
     const user = mkUser();
     const result = await resolveOptionalPersonality(context, user, 'my-persona');
@@ -69,13 +69,21 @@ describe('resolveOptionalPersonality', () => {
   });
 
   it('should return null and send error reply when personality is not found', async () => {
-    mockResolvePersonalityId.mockResolvedValue(null);
+    mockResolvePersonalityId.mockResolvedValue({ kind: 'not-found' });
 
     const result = await resolveOptionalPersonality(context, mkUser(), 'unknown');
     expect(result).toBeNull();
     expect(mockEditReply).toHaveBeenCalledWith({
       content: '❌ Character "unknown" not found. Use autocomplete to select a valid character.',
     });
+  });
+
+  it('returns null and sends autocomplete-unavailable reply when the list is unavailable (infra)', async () => {
+    mockResolvePersonalityId.mockResolvedValue({ kind: 'unavailable' });
+
+    const result = await resolveOptionalPersonality(context, mkUser(), 'my-persona');
+    expect(result).toBeNull();
+    expect(mockEditReply).toHaveBeenCalledWith({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
   });
 
   // Guards the sentinel path so the user gets "autocomplete unavailable"
@@ -106,7 +114,7 @@ describe('resolveRequiredPersonality', () => {
   });
 
   it('should return resolved ID when personality is found', async () => {
-    mockResolvePersonalityId.mockResolvedValue('personality-uuid');
+    mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: 'personality-uuid' });
 
     const user = mkUser();
     const result = await resolveRequiredPersonality(context, user, 'my-persona');
@@ -115,7 +123,7 @@ describe('resolveRequiredPersonality', () => {
   });
 
   it('should return null and send error reply when personality is not found', async () => {
-    mockResolvePersonalityId.mockResolvedValue(null);
+    mockResolvePersonalityId.mockResolvedValue({ kind: 'not-found' });
 
     const result = await resolveRequiredPersonality(context, mkUser(), 'unknown');
     expect(result).toBeNull();
@@ -124,8 +132,16 @@ describe('resolveRequiredPersonality', () => {
     });
   });
 
+  it('returns null and sends autocomplete-unavailable reply when the list is unavailable (infra)', async () => {
+    mockResolvePersonalityId.mockResolvedValue({ kind: 'unavailable' });
+
+    const result = await resolveRequiredPersonality(context, mkUser(), 'my-persona');
+    expect(result).toBeNull();
+    expect(mockEditReply).toHaveBeenCalledWith({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
+  });
+
   it('should not send error reply on success', async () => {
-    mockResolvePersonalityId.mockResolvedValue('personality-uuid');
+    mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: 'personality-uuid' });
 
     await resolveRequiredPersonality(context, mkUser(), 'my-persona');
     expect(mockEditReply).not.toHaveBeenCalled();

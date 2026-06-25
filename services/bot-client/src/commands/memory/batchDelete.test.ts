@@ -109,7 +109,7 @@ describe('handleBatchDelete', () => {
 
   describe('validation', () => {
     it('should show error when personality not found', async () => {
-      mockResolvePersonalityId.mockResolvedValue(null);
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'not-found' });
       const context = createMockContext('unknown-personality');
 
       await handleBatchDelete(context);
@@ -119,8 +119,20 @@ describe('handleBatchDelete', () => {
       });
     });
 
+    it('shows "try again" (unavailable), not "not found", when the personality list is unavailable', async () => {
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'unavailable' });
+      const context = createMockContext('lilith');
+
+      await handleBatchDelete(context);
+
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Autocomplete was unavailable'),
+      });
+      expect(stub.batchDeletePreview).not.toHaveBeenCalled();
+    });
+
     it('should resolve personality slug to ID', async () => {
-      mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: 'personality-uuid-123' });
       stub.batchDeletePreview.mockResolvedValue(
         makeOk({
           wouldDelete: 0,
@@ -146,7 +158,7 @@ describe('handleBatchDelete', () => {
 
   describe('preview', () => {
     beforeEach(() => {
-      mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: 'personality-uuid-123' });
     });
 
     it('should show error when preview API fails', async () => {
@@ -214,7 +226,7 @@ describe('handleBatchDelete', () => {
 
   describe('confirmation dialog', () => {
     beforeEach(() => {
-      mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: 'personality-uuid-123' });
       stub.batchDeletePreview.mockResolvedValue(
         makeOk({
           wouldDelete: 5,
@@ -271,7 +283,7 @@ describe('handleBatchDelete', () => {
 
   describe('deletion', () => {
     beforeEach(() => {
-      mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: 'personality-uuid-123' });
     });
 
     it('should perform deletion using the previewToken when user confirms', async () => {
