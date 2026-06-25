@@ -28,3 +28,9 @@ backlog/
 # onto single lines, which would permanently break that comparison. Exclude so
 # the generator output stays the source of truth.
 services/bot-client/command-manifest.json
+
+# Cross-service contract fixtures. The producer test (`RawEnvelopeContract.producer.test.ts`,
+# `toMatchFileSnapshot`) compares its `JSON.stringify(…, 2)` output byte-for-byte
+# against these committed files; prettier collapses short arrays onto single lines,
+# breaking that comparison on every regeneration. Same rationale as the manifest above.
+packages/test-utils/fixtures/contracts/

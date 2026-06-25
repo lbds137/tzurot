@@ -1,0 +1,18 @@
+{
+  "rawMessageContent": "hello from the contract test",
+  "rawAuthorDisplayName": "Contract User",
+  "knownChannelEnvironments": {
+    "channel-cross-1": {
+      "type": "guild",
+      "guild": {
+        "id": "guild-1",
+        "name": "Contract Guild"
+      },
+      "channel": {
+        "id": "channel-cross-1",
+        "name": "cross-channel",
+        "type": "GUILD_TEXT"
+      }
+    }
+  }
+}
