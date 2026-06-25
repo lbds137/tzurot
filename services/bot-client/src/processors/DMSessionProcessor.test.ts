@@ -9,6 +9,7 @@ import { ChannelType, Collection } from 'discord.js';
 import { DMSessionProcessor } from './DMSessionProcessor.js';
 import type { Message, DMChannel, Client } from 'discord.js';
 import type { LoadedPersonality } from '@tzurot/common-types';
+import { InfraError } from '@tzurot/clients';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import type { PersonalityMessageHandler } from '../services/PersonalityMessageHandler.js';
 
@@ -133,6 +134,7 @@ describe('DMSessionProcessor', () => {
   };
   let mockPersonalityService: {
     loadPersonality: ReturnType<typeof vi.fn>;
+    loadPersonalityStrict: ReturnType<typeof vi.fn>;
   };
   let mockPersonalityHandler: {
     handleMessage: ReturnType<typeof vi.fn>;
@@ -170,7 +172,13 @@ describe('DMSessionProcessor', () => {
 
     mockPersonalityService = {
       loadPersonality: vi.fn(),
+      loadPersonalityStrict: vi.fn(),
     };
+    // DMSessionProcessor's active-session path uses loadPersonalityStrict;
+    // mirror loadPersonality so each test's mockResolvedValue applies to both.
+    mockPersonalityService.loadPersonalityStrict.mockImplementation((...args: unknown[]) =>
+      (mockPersonalityService.loadPersonality as (...a: unknown[]) => unknown)(...args)
+    );
 
     mockPersonalityHandler = {
       handleMessage: vi.fn(),
@@ -720,6 +728,58 @@ describe('DMSessionProcessor', () => {
         'follow-up',
         { isAutoResponse: true }
       );
+    });
+
+    it('surfaces "try again" (not the help message) when an active-session load hits an infra failure', async () => {
+      const channel = createMockDMChannel();
+      const message = createMockMessage({ channel, botId: 'bot-123', content: 'follow-up' });
+      vi.mocked(isDMChannel).mockReturnValue(true);
+
+      vi.mocked(getChannelSettingsCached).mockResolvedValue({
+        hasSettings: true,
+        settings: {
+          activatedPersonalityId: 'lilith-id',
+          personalitySlug: 'lilith',
+          personalityName: 'Lilith',
+          autoRespond: true,
+        },
+      } as Awaited<ReturnType<typeof getChannelSettingsCached>>);
+
+      // The session IS active, but the strict load fails for an infra reason. The
+      // user must see "try again", NOT the "no active conversation" help message.
+      mockPersonalityService.loadPersonalityStrict.mockRejectedValueOnce(
+        new InfraError({ ok: false, kind: 'timeout', status: 0, error: 'boom' })
+      );
+
+      const result = await processor.process(message);
+
+      expect(result).toBe(true);
+      expect(message.reply).toHaveBeenCalledWith(expect.stringContaining('try again'));
+      // Must NOT fall through to the help path (that's the false-"no session" bug).
+      expect(mockPersonalityHandler.handleMessage).not.toHaveBeenCalled();
+    });
+
+    it('re-throws a non-infra error from an active-session load (not swallowed as a miss)', async () => {
+      const channel = createMockDMChannel();
+      const message = createMockMessage({ channel, botId: 'bot-123', content: 'follow-up' });
+      vi.mocked(isDMChannel).mockReturnValue(true);
+
+      vi.mocked(getChannelSettingsCached).mockResolvedValue({
+        hasSettings: true,
+        settings: {
+          activatedPersonalityId: 'lilith-id',
+          personalitySlug: 'lilith',
+          personalityName: 'Lilith',
+          autoRespond: true,
+        },
+      } as Awaited<ReturnType<typeof getChannelSettingsCached>>);
+
+      // A thrown error that is neither InfraError nor GatewayClientError is a real
+      // bug — it must propagate, not get silently turned into the help path.
+      mockPersonalityService.loadPersonalityStrict.mockRejectedValueOnce(new Error('unexpected'));
+
+      await expect(processor.process(message)).rejects.toThrow('unexpected');
+      expect(mockPersonalityHandler.handleMessage).not.toHaveBeenCalled();
     });
   });
 

@@ -9,13 +9,20 @@ vi.mock('../utils/gatewayClients.js', () => ({
 }));
 
 import { TIMEOUTS } from '@tzurot/common-types';
+import { InfraError, GatewayClientError } from '@tzurot/clients';
 import { HttpPersonalityLoader, NEGATIVE_TTL_MS } from './HttpPersonalityLoader.js';
 
 const PERSONALITY = { id: 'pers-1', name: 'Lila', slug: 'lila' };
 
 const ok = <T>(data: T): { ok: true; data: T } => ({ ok: true, data });
-const err = (status: number): { ok: false; error: string; status: number } => ({
+// `kind` mirrors the real GatewayResult invariant (status>0 ⟺ 'http') so the
+// strict helpers classify correctly: a 5xx / non-http → InfraError, a non-404
+// 4xx → GatewayClientError.
+const err = (
+  status: number
+): { ok: false; kind: 'http' | 'network'; error: string; status: number } => ({
   ok: false,
+  kind: status > 0 ? 'http' : 'network',
   error: 'boom',
   status,
 });
@@ -96,6 +103,52 @@ describe('HttpPersonalityLoader', () => {
 
     expect(retry?.id).toBe('pers-1');
     expect(mockServiceClient.loadPersonalityInternal).toHaveBeenCalledTimes(2);
+  });
+
+  it('loadPersonalityStrict throws InfraError on an infra failure (5xx) — not a silent null', async () => {
+    mockServiceClient.loadPersonalityInternal.mockResolvedValue(err(503));
+    await expect(loader.loadPersonalityStrict('lila', 'user-1')).rejects.toThrow(InfraError);
+  });
+
+  it('loadPersonalityStrict throws GatewayClientError on a non-404 4xx', async () => {
+    mockServiceClient.loadPersonalityInternal.mockResolvedValue(err(403));
+    await expect(loader.loadPersonalityStrict('lila', 'user-1')).rejects.toThrow(
+      GatewayClientError
+    );
+  });
+
+  it('loadPersonalityStrict returns null ONLY for a genuine miss (200 with personality:null)', async () => {
+    mockServiceClient.loadPersonalityInternal.mockResolvedValue(ok({ personality: null }));
+    expect(await loader.loadPersonalityStrict('ghost', 'user-1')).toBeNull();
+  });
+
+  it('loadPersonalityStrict does NOT negative-cache an infra failure (throw happens first)', async () => {
+    mockServiceClient.loadPersonalityInternal.mockResolvedValueOnce(err(503));
+    await expect(loader.loadPersonalityStrict('lila', 'user-1')).rejects.toThrow(InfraError);
+    mockServiceClient.loadPersonalityInternal.mockResolvedValueOnce(
+      ok({ personality: PERSONALITY })
+    );
+    expect((await loader.loadPersonalityStrict('lila', 'user-1'))?.id).toBe('pers-1');
+    expect(mockServiceClient.loadPersonalityInternal).toHaveBeenCalledTimes(2);
+  });
+
+  it('loadPersonalityStrict throws InfraError on a NETWORK failure (status 0, kind network)', async () => {
+    // A network/timeout failure carries status 0 / kind!=='http' — still infra,
+    // never a 404. Documents that "network failure ≠ not found" like the 5xx case.
+    mockServiceClient.loadPersonalityInternal.mockResolvedValue(err(0));
+    await expect(loader.loadPersonalityStrict('lila', 'user-1')).rejects.toThrow(InfraError);
+  });
+
+  it('loadPersonality (lenient wrapper) collapses an infra failure to null for routing', async () => {
+    mockServiceClient.loadPersonalityInternal.mockResolvedValue(err(503));
+    expect(await loader.loadPersonality('lila', 'user-1')).toBeNull();
+  });
+
+  it('loadPersonality (lenient wrapper) re-throws a non-gateway error (not an infra failure)', async () => {
+    // A thrown error that is neither InfraError nor GatewayClientError is a real
+    // bug, not a transient miss — the wrapper must propagate it, not swallow it.
+    mockServiceClient.loadPersonalityInternal.mockRejectedValue(new Error('unexpected boom'));
+    await expect(loader.loadPersonality('lila', 'user-1')).rejects.toThrow('unexpected boom');
   });
 
   it('keys the cache by userId — access control results are not shared across users', async () => {

@@ -21,6 +21,7 @@ import { handleChat, handleRandom, handleChimeIn } from './chat.js';
 import type { GuildMember } from 'discord.js';
 import { ChannelType } from 'discord.js';
 import type { EnvConfig } from '@tzurot/common-types';
+import { InfraError } from '@tzurot/clients';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
 const mockGatewayClient = {
@@ -33,6 +34,7 @@ const mockJobTracker = {
 
 const mockPersonalityService = {
   loadPersonality: vi.fn(),
+  loadPersonalityStrict: vi.fn(),
 };
 
 const mockMessageContextBuilder = {
@@ -217,6 +219,11 @@ describe('Character Chat Handler (push delivery)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // chat.ts calls loadPersonalityStrict; mirror loadPersonality so each test's
+    // loadPersonality.mockResolvedValue(...) applies to both (override for infra).
+    mockPersonalityService.loadPersonalityStrict.mockImplementation((...args) =>
+      mockPersonalityService.loadPersonality(...args)
+    );
     vi.useFakeTimers();
     mockMessageContextBuilder.buildContext.mockResolvedValue(createMockContextBuildResult());
     mockResolveUserContext.mockResolvedValue(buildUserContext());
@@ -235,6 +242,25 @@ describe('Character Chat Handler (push delivery)', () => {
       await handleChat(ctx, mockConfig);
 
       expect(ctx.editReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('not found'),
+      });
+    });
+
+    it('shows "try again" (not "not found") when loadPersonalityStrict throws an InfraError', async () => {
+      const ctx = createMockContext('test-char', 'Hello!');
+      // STRICT path: an infra failure must surface as "try again", never a false
+      // "not found". The generic runCharacterTurn catch handles it.
+      mockPersonalityService.loadPersonalityStrict.mockRejectedValueOnce(
+        new InfraError({ ok: false, kind: 'timeout', status: 0, error: 'boom' })
+      );
+
+      await handleChat(ctx, mockConfig);
+
+      expect(ctx.editReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Please try again'),
+      });
+      // Must NOT show the false "not found".
+      expect(ctx.editReply).not.toHaveBeenCalledWith({
         content: expect.stringContaining('not found'),
       });
     });

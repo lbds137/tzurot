@@ -26,6 +26,7 @@ import { createLogger, TIMEOUTS, TTLCache, type LoadedPersonality } from '@tzuro
 import { type PersonalityCacheTarget } from '@tzurot/cache-invalidation';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import { getServiceClient } from '../utils/gatewayClients.js';
+import { InfraError, GatewayClientError, nullOn404 } from '@tzurot/clients';
 
 const logger = createLogger('HttpPersonalityLoader');
 
@@ -75,7 +76,18 @@ export class HttpPersonalityLoader implements IPersonalityLoader, PersonalityCac
     return `${userId ?? ''}\x00${nameOrId.toLowerCase()}`;
   }
 
-  async loadPersonality(nameOrId: string, userId?: string): Promise<LoadedPersonality | null> {
+  /**
+   * Strict load: returns `null` ONLY for a genuine miss (the endpoint responds
+   * 200 with `personality: null` — not found / access denied), and THROWS on a
+   * gateway FAILURE (`nullOn404` → `InfraError` for infra, `GatewayClientError`
+   * for a non-404 4xx). An infra failure is NOT negative-cached — a blip must
+   * not blind future loads for the negative TTL. User-facing callers use this so
+   * a transient failure surfaces as "try again" rather than a false "not found".
+   */
+  async loadPersonalityStrict(
+    nameOrId: string,
+    userId?: string
+  ): Promise<LoadedPersonality | null> {
     const key = this.cacheKey(nameOrId, userId);
 
     const cached = this.positiveCache.get(key);
@@ -86,16 +98,14 @@ export class HttpPersonalityLoader implements IPersonalityLoader, PersonalityCac
       return null;
     }
 
-    const result = await getServiceClient().loadPersonalityInternal({ nameOrId, userId });
-    if (!result.ok) {
-      // Transport/server error — NOT a definitive miss. Return null for this
-      // call (routing treats unknown as no-match, same as legacy DB errors)
-      // but don't cache it.
-      logger.warn({ status: result.status }, 'Personality load via gateway failed');
-      return null;
-    }
-
-    const personality = result.data.personality;
+    // This endpoint signals "not found" as a 200 with personality:null, never a
+    // 404 — so every non-404 `!ok` is a real gateway error: nullOn404 throws it
+    // (infra → InfraError, non-404 4xx → GatewayClientError) WITHOUT caching. A
+    // stray 404 (contract violation) is the one error code nullOn404 collapses to
+    // null instead of throwing — it then falls through to the defensive
+    // genuine-miss path below (negative-cached), converging with the 200-null case.
+    const data = nullOn404(await getServiceClient().loadPersonalityInternal({ nameOrId, userId }));
+    const personality = data?.personality ?? null;
     if (personality === null) {
       this.negativeCache.set(key, true);
       return null;
@@ -103,6 +113,28 @@ export class HttpPersonalityLoader implements IPersonalityLoader, PersonalityCac
 
     this.positiveCache.set(key, personality);
     return personality;
+  }
+
+  /**
+   * Lenient load for ROUTING / mention-parsing: collapses every gateway failure
+   * to `null` ("treat unknown as no-match"). A transient blip must not blind
+   * routing, so the failure is swallowed and — crucially — NOT negative-cached
+   * (`loadPersonalityStrict` throws before the negative-cache write). Wraps
+   * {@link loadPersonalityStrict}; only re-classifies its thrown failures.
+   */
+  async loadPersonality(nameOrId: string, userId?: string): Promise<LoadedPersonality | null> {
+    try {
+      return await this.loadPersonalityStrict(nameOrId, userId);
+    } catch (error) {
+      if (error instanceof InfraError || error instanceof GatewayClientError) {
+        logger.warn(
+          { status: error.status },
+          'Personality load via gateway failed; treating as no-match for routing'
+        );
+        return null;
+      }
+      throw error;
+    }
   }
 
   /**

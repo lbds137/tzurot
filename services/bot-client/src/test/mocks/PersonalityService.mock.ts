@@ -39,33 +39,37 @@ interface MockPersonality {
 export function createMockPersonalityService(personalities: MockPersonality[]): IPersonalityLoader {
   const personalityMap = new Map(personalities.map(p => [p.name.toLowerCase(), p]));
 
-  // The mock implements only loadPersonality — the single method
-  // IPersonalityLoader (and its consumers, e.g. findPersonalityMentions) need —
-  // so the object satisfies the interface directly, no cast required.
-  return {
-    loadPersonality: vi.fn().mockImplementation((name: string) => {
-      const personality = personalityMap.get(name.toLowerCase());
-      if (!personality) {
-        return Promise.resolve(null);
-      }
+  // Shared resolve impl backs BOTH loadPersonality (routing) and
+  // loadPersonalityStrict (user-facing) with the same lookup, so the object
+  // satisfies the interface directly. A test that needs the strict path to
+  // THROW overrides `loadPersonalityStrict` with `mockRejectedValue`.
+  const resolve = (name: string): Promise<LoadedPersonality | null> => {
+    const personality = personalityMap.get(name.toLowerCase());
+    if (!personality) {
+      return Promise.resolve(null);
+    }
 
-      // Return a minimal mock personality object.
-      // In real code this would be a full LoadedPersonality from the gateway.
-      return Promise.resolve({
-        id: `mock-id-${personality.name.toLowerCase()}`,
-        name: personality.name,
-        displayName: personality.displayName,
-        systemPrompt: personality.systemPrompt,
-        avatarUrl: personality.avatarUrl ?? null,
-        slug: personality.name.toLowerCase(),
-        model: 'mock-model',
-        temperature: 0.8,
-        maxTokens: 1000,
-        contextWindowTokens: 131072,
-        characterInfo: '',
-        personalityTraits: '',
-        voiceEnabled: false,
-      } as unknown as LoadedPersonality);
-    }),
+    // Return a minimal mock personality object.
+    // In real code this would be a full LoadedPersonality from the gateway.
+    return Promise.resolve({
+      id: `mock-id-${personality.name.toLowerCase()}`,
+      name: personality.name,
+      displayName: personality.displayName,
+      systemPrompt: personality.systemPrompt,
+      avatarUrl: personality.avatarUrl ?? null,
+      slug: personality.name.toLowerCase(),
+      model: 'mock-model',
+      temperature: 0.8,
+      maxTokens: 1000,
+      contextWindowTokens: 131072,
+      characterInfo: '',
+      personalityTraits: '',
+      voiceEnabled: false,
+    } as unknown as LoadedPersonality);
+  };
+
+  return {
+    loadPersonality: vi.fn().mockImplementation(resolve),
+    loadPersonalityStrict: vi.fn().mockImplementation(resolve),
   };
 }
