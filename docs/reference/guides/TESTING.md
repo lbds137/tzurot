@@ -71,13 +71,13 @@ Five tiers, ordered most-isolated → most-integrated:
 
 <!-- canonical-test-tiers:start -->
 
-| Tier            | Scope                                                                                                                    | Real vs. stubbed                                                    | Our file convention                                                |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| **Unit**        | one class / small group; business logic                                                                                  | all collaborators mocked (solitary) or real-but-observed (sociable) | `*.test.ts`                                                        |
-| **Component**   | one whole service in isolation; its datastore is part of the unit                                                        | external _services_ stubbed; datastore real (PGLite)                | `*.int.test.ts` — the suffix says "int"; the tier is **component** |
-| **Integration** | a module against ONE real external dependency; verifies the communication path (protocol, serialization, error handling) | the external dep is real (or a faithful double)                     | `*.e2e.test.ts` outside `tests/e2e/contracts/` (real DB+Redis)     |
-| **Contract**    | bilateral provider↔consumer agreement on a specific interface (consumer-driven)                                          | neither full service booted — just the contract                     | `tests/e2e/contracts/*.e2e.test.ts`                                |
-| **E2E**         | the system as a black box; full deployed ecosystem; user journeys                                                        | everything real                                                     | effectively none today                                             |
+| Tier            | Scope                                                                                                                    | Real vs. stubbed                                                    | Our file convention                                         |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------- | ----------------------------------------------------------- |
+| **Unit**        | one class / small group; business logic                                                                                  | all collaborators mocked (solitary) or real-but-observed (sociable) | `*.test.ts`                                                 |
+| **Component**   | one whole service in isolation; its datastore is part of the unit                                                        | external _services_ stubbed; datastore real (PGLite)                | `*.component.test.ts`                                       |
+| **Integration** | a module against ONE real external dependency; verifies the communication path (protocol, serialization, error handling) | the external dep is real (or a faithful double)                     | `*.integration.test.ts` (under `tests/e2e/`, real DB+Redis) |
+| **Contract**    | bilateral provider↔consumer agreement on a specific interface (consumer-driven)                                          | neither full service booted — just the contract                     | `*.contract.test.ts` (under `tests/e2e/contracts/`)         |
+| **E2E**         | the system as a black box; full deployed ecosystem; user journeys                                                        | everything real                                                     | effectively none today                                      |
 
 <!-- canonical-test-tiers:end -->
 
@@ -86,11 +86,10 @@ Cross-boundary / application logic → **contract** + **component** (local) and
 **integration** against live deps. Don't over-mock cross-boundary logic — mocks
 there are brittle and sacrifice the very encapsulation the test is meant to protect.
 
-> **Suffix ≠ tier.** Two of our suffixes are historical misnomers: `*.int.test.ts`
-> is **component**-tier (not integration), and `*.e2e.test.ts` is **integration**-tier
-> (not true end-to-end). Renaming the suffixes is tracked as a follow-up; for now
-> the suffix is the mechanical signal and this table is the authority on what it means.
-> Run `pnpm ops test:tiers` for the current per-package distribution.
+> **Suffix = tier.** Each suffix names its tier directly — `*.component.test.ts`,
+> `*.integration.test.ts`, `*.contract.test.ts`, and plain `*.test.ts` for unit.
+> Classification is a pure suffix check (no directory-location rule). Run
+> `pnpm ops test:tiers` for the current per-package distribution.
 
 ### Schema tests are unit-tier, NOT contract tests
 
@@ -99,9 +98,9 @@ The word "contract" is overloaded — resolve it to two distinct things:
 - **Schema test** — validates a single _type's own rules_ (which inputs a Zod
   schema accepts/rejects). Structurally a **unit** test of one type. It is NOT a
   cross-service contract. Conventionally colocated as plain `*.test.ts` next to
-  the schema (e.g. `schemas/api/persona.ts` → `schemas/api/persona.test.ts`). A
-  `*.schema.test.ts` suffix is recognized by `pnpm ops test:tiers` but currently
-  unused — every schema test today is a `*.test.ts` file counted in the unit tier.
+  the schema (e.g. `schemas/api/persona.ts` → `schemas/api/persona.test.ts`).
+  There is no dedicated schema suffix — every schema test is a `*.test.ts` file
+  counted in the unit tier.
 - **Contract test** (the tier above) — verifies _two services agree_ on an
   interface (consumer-driven). The BullMQ producer/consumer pair is the only
   current example. Reserve the words "contract test" for this.
@@ -159,16 +158,17 @@ services/bot-client/
 ### Test File Naming
 
 Tzurot uses a **naming convention based on infrastructure needs**. Each suffix
-maps to a [canonical tier](#test-tier-taxonomy) — note the two suffixes whose
-name doesn't match their tier:
+maps directly to its [canonical tier](#test-tier-taxonomy):
 
-| Extension                           | Tier ([taxonomy](#test-tier-taxonomy)) | Infrastructure  | Location               |
-| ----------------------------------- | -------------------------------------- | --------------- | ---------------------- |
-| `*.test.ts`                         | Unit                                   | Fully mocked    | Co-located with source |
-| `*.schema.test.ts`                  | Unit (schema validation)               | Zod only        | Co-located with source |
-| `*.int.test.ts`                     | **Component** (one service, PGLite)    | PGLite database | Co-located with source |
-| `*.e2e.test.ts`                     | **Integration** (real DB+Redis)        | Real services   | `tests/e2e/`           |
-| `tests/e2e/contracts/*.e2e.test.ts` | **Contract** (provider↔consumer)       | Real services   | `tests/e2e/contracts/` |
+| Extension               | Tier ([taxonomy](#test-tier-taxonomy)) | Infrastructure  | Location               |
+| ----------------------- | -------------------------------------- | --------------- | ---------------------- |
+| `*.test.ts`             | Unit                                   | Fully mocked    | Co-located with source |
+| `*.component.test.ts`   | **Component** (one service, PGLite)    | PGLite database | Co-located with source |
+| `*.integration.test.ts` | **Integration** (real DB+Redis)        | Real services   | `tests/e2e/`           |
+| `*.contract.test.ts`    | **Contract** (provider↔consumer)       | Real services   | `tests/e2e/contracts/` |
+
+(A Zod schema test is just a unit test — a plain `*.test.ts`, not a distinct
+suffix. See "Schema tests are unit-tier" above.)
 
 **Examples:**
 
@@ -177,23 +177,23 @@ services/ai-worker/src/
 ├── jobs/
 │   ├── AIJobProcessor.ts
 │   ├── AIJobProcessor.test.ts     ← Unit test (all mocked)
-│   └── AIJobProcessor.int.test.ts ← Integration test (PGLite)
+│   └── AIJobProcessor.component.test.ts ← Component test (PGLite)
 └── services/
     ├── PersonalityService.ts
     └── PersonalityService.test.ts ← Unit test (all mocked)
 
 packages/common-types/src/types/
-├── personality.schema.test.ts     ← Schema test (Zod only)
+├── personality.schema.test.ts     ← schema validation (unit-tier; just a *.test.ts)
 
 tests/e2e/
-├── database.e2e.test.ts           ← E2E test (real DB+Redis)
+├── database.integration.test.ts     ← Integration test (real DB+Redis)
 └── contracts/
-    └── BullMQJobConsumer.e2e.test.ts ← Cross-service contract test
+    └── BullMQJobConsumer.contract.test.ts ← Cross-service contract test
 ```
 
 **Key Principles:**
 
-- **Name by infrastructure**: If it needs PGLite → `.int.test.ts`
+- **Name by infrastructure**: If it needs PGLite → `.component.test.ts`
 - **Co-locate by default**: Tests live next to the code they test
 - **Centralize only cross-service**: `tests/e2e/` for multi-service flows
 
@@ -224,12 +224,11 @@ Use this decision guide when creating new tests:
 - Testing retry logic (with fake timers)
 - Testing formatters and helpers
 
-#### Component Tests (`.int.test.ts`)
+#### Component Tests (`.component.test.ts`)
 
-> **Tier: component** (see [taxonomy](#test-tier-taxonomy)). The `.int` suffix is
-> a historical misnomer — these boot one whole service in isolation with its
-> datastore (PGLite) as part of the unit; external _services_ stay stubbed.
-> That's Clemson's "component," not "integration."
+> **Tier: component** (see [taxonomy](#test-tier-taxonomy)). These boot one whole
+> service in isolation with its datastore (PGLite) as part of the unit; external
+> _services_ stay stubbed. That's Clemson's "component," not "integration."
 
 **Use when:**
 
@@ -318,12 +317,14 @@ beforeAll(async () => {
 - Testing the BullMQ job producer/consumer contract
 - Locking a `rawAssemblyInputs` envelope shape between bot-client and the worker
 
-#### Integration & E2E Tests (`.e2e.test.ts`)
+#### Integration & Contract Tests (`.integration.test.ts` / `.contract.test.ts`)
 
-> **Tier: integration** in practice (see [taxonomy](#test-tier-taxonomy)). Despite
-> the `.e2e` suffix, our non-contract `tests/e2e/` tests exercise a module against
-> real external deps (Postgres, Redis) — Clemson's "integration." True black-box
-> **E2E** (full deployed ecosystem, user journeys) is effectively none today.
+> **Tiers: integration + contract** (see [taxonomy](#test-tier-taxonomy)). Both
+> live under `tests/e2e/`: `*.integration.test.ts` exercises a module against real
+> external deps (Postgres, Redis) — Clemson's "integration" — and
+> `tests/e2e/contracts/*.contract.test.ts` locks a provider↔consumer agreement.
+> True black-box **E2E** (full deployed ecosystem, user journeys) is effectively
+> none today; the `tests/e2e/` directory name is legacy — the suffix carries the tier.
 
 **Use when:**
 
@@ -347,19 +348,18 @@ beforeAll(async () => {
 
 ```
 Does it need real infrastructure (Postgres / Redis)?
-├── NO → Does it validate a single Zod type's own rules?
-│        ├── YES → *.schema.test.ts                       (unit tier)
-│        └── NO  → *.test.ts                              (unit tier)
+├── NO → *.test.ts                                        (unit tier)
+│        (a Zod schema test is just a unit test — no special suffix)
 │
 └── YES → Is it a provider↔consumer interface agreement?
-          ├── YES → tests/e2e/contracts/*.e2e.test.ts     (contract tier)
+          ├── YES → tests/e2e/contracts/*.contract.test.ts   (contract tier)
           └── NO  → One whole service over PGLite, or real external deps?
-                    ├── one service / PGLite → *.int.test.ts          (component tier)
-                    └── real external deps   → tests/e2e/*.e2e.test.ts (integration tier)
+                    ├── one service / PGLite → *.component.test.ts             (component tier)
+                    └── real external deps   → tests/e2e/*.integration.test.ts (integration tier)
 ```
 
-> Tier names follow the [Test Tier Taxonomy](#test-tier-taxonomy). The file
-> suffix is the mechanical signal; the tier is what it _means_.
+> Tier names follow the [Test Tier Taxonomy](#test-tier-taxonomy); each suffix
+> names its tier directly.
 
 ### Test Structure
 

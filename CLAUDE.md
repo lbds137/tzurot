@@ -11,7 +11,7 @@ Discord bot with AI personas. TypeScript monorepo on Railway.
 ```bash
 pnpm dev              # Start all services
 pnpm test             # Run unit tests
-pnpm test:int         # Run integration tests (after command structure changes)
+pnpm test:component   # Run component tests (after command structure changes)
 pnpm quality          # lint + codegen-drift + knip + cpd + cpd:check + depcruise + typecheck + typecheck:spec + backlog:lint
 pnpm ops db:migrate --env dev  # Run migrations
 ```

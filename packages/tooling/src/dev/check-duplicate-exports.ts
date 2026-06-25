@@ -134,7 +134,6 @@ export function isSourceFile(entry: string): boolean {
     entry.endsWith('.ts') &&
     !entry.endsWith('.test.ts') &&
     !entry.endsWith('.d.ts') &&
-    !entry.endsWith('.int.test.ts') &&
     entry !== 'test-utils.ts'
   );
 }

@@ -775,7 +775,7 @@ describe('ContextAssembler.assembleCore — schema-coupled re-derivation', () =>
   // re-derives correctly from a schema-valid envelope, not just from ad-hoc TS
   // objects whose fields the schema might strip or coerce. Consumer half of the
   // producer↔schema↔consumer contract (producer half: RawEnvelopeBuilder.test.ts;
-  // real-data half: ContextAssembler.int.test.ts).
+  // real-data half: ContextAssembler.component.test.ts).
   it('assembles core surfaces from a schema-validated envelope', async () => {
     const envelope = rawAssemblyInputsSchema.parse({
       rawMessageContent: 'hello from the wire',

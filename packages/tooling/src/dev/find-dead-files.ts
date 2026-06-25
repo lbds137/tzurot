@@ -70,7 +70,6 @@ export function hasNonTestImporters(filePath: string, searchDirs: string[]): boo
         '--include=*.ts',
         '--exclude=*.test.ts',
         '--exclude=*.spec.ts',
-        '--exclude=*.int.test.ts',
         `/${name}\\.js['"]`,
         ...searchDirs,
       ],

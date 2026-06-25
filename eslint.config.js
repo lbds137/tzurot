@@ -563,13 +563,13 @@ export default tseslint.config(
       ],
     },
   },
-  // Unit tests only: ban real wall-clock delays. Integration tests
-  // (*.int.test.ts) legitimately wait on real Redis/PGLite I/O, so they're
+  // Unit tests only: ban real wall-clock delays. Component tests
+  // (*.component.test.ts) legitimately wait on real Redis/PGLite I/O, so they're
   // exempt. The Date.now() ban was evaluated and dropped — 279 legitimate
   // non-timing uses (ID/timestamp generation) made it pure noise.
   {
     files: ['**/*.test.ts', '**/*.spec.ts'],
-    ignores: ['**/*.int.test.ts'],
+    ignores: ['**/*.component.test.ts'],
     rules: {
       'no-restricted-syntax': [
         'error',
@@ -582,27 +582,27 @@ export default tseslint.config(
           selector:
             "CallExpression[callee.name='setTimeout'][arguments.1.type='Literal'][arguments.1.value>0]",
           message:
-            'Real setTimeout delay in a unit test causes flakes — use vi.useFakeTimers() + vi.advanceTimersByTimeAsync(). Real delays are allowed in *.int.test.ts.',
+            'Real setTimeout delay in a unit test causes flakes — use vi.useFakeTimers() + vi.advanceTimersByTimeAsync(). Real delays are allowed in *.component.test.ts.',
         },
       ],
     },
   },
-  // Integration tests legitimately do things the production no-restricted-syntax
+  // Component tests legitimately do things the production no-restricted-syntax
   // bans forbid: seed/query the users table directly (fixtures), and wait on real
   // Redis/PGLite I/O. Turning the rule off for them is a blunt instrument — it
   // disables ALL selectors, including ones not specific to route handlers (e.g.
-  // the pino-logger ban), so a stray console.log in an int test would NOT be
-  // caught here. That blast radius is accepted: int tests are fixture/IO code, not
+  // the pino-logger ban), so a stray console.log in a component test would NOT be
+  // caught here. That blast radius is accepted: component tests are fixture/IO code, not
   // production paths, and listing per-selector exceptions isn't worth the churn.
   //
   // Ordering contract: flat config is last-match-wins per rule, so this block MUST
-  // remain the LAST one matching *.int.test.ts. It overrides the routes-scoped
+  // remain the LAST one matching *.component.test.ts. It overrides the routes-scoped
   // block (`services/api-gateway/src/routes/**`) that would otherwise re-apply the
-  // identity/discordId bans to int tests under routes/. If a later block matches
-  // *.int.test.ts and sets no-restricted-syntax, it silently re-enables those bans.
-  // Non-int test files keep the setTimeout ban via the block above.
+  // identity/discordId bans to component tests under routes/. If a later block matches
+  // *.component.test.ts and sets no-restricted-syntax, it silently re-enables those bans.
+  // Non-component test files keep the setTimeout ban via the block above.
   {
-    files: ['**/*.int.test.ts'],
+    files: ['**/*.component.test.ts'],
     rules: {
       'no-restricted-syntax': 'off',
     },

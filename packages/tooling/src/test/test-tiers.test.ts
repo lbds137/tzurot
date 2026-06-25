@@ -22,8 +22,14 @@ describe('CANONICAL_TEST_TIERS', () => {
     ]);
   });
 
-  it('does NOT include schema (schema is a unit-tier variant, not a tier)', () => {
+  it('does NOT include schema (a schema test is a plain unit test, not a tier)', () => {
     expect(CANONICAL_TEST_TIERS).not.toContain('schema');
+  });
+});
+
+describe('TEST_FILE_KINDS', () => {
+  it('is the four mechanically-distinguishable kinds (schema kind dropped)', () => {
+    expect([...TEST_FILE_KINDS]).toEqual(['unit', 'component', 'integration', 'contract']);
   });
 });
 
@@ -34,17 +40,14 @@ describe('TIER_FOR_KIND', () => {
     }
   });
 
-  it('rolls schema and unit kinds both up to the unit tier', () => {
-    expect(TIER_FOR_KIND.schema).toBe('unit');
+  it('maps the unit kind to the unit tier', () => {
     expect(TIER_FOR_KIND.unit).toBe('unit');
   });
 
-  it('maps the int-suffix component kind to the component tier', () => {
+  it('maps each renamed suffix kind to its same-named tier', () => {
     expect(TIER_FOR_KIND.component).toBe('component');
-  });
-
-  it('maps the non-contract e2e-suffix kind to the integration tier', () => {
     expect(TIER_FOR_KIND.integration).toBe('integration');
+    expect(TIER_FOR_KIND.contract).toBe('contract');
   });
 
   it('keeps every kind documented with a mechanical match rule', () => {
@@ -60,24 +63,24 @@ describe('classifyTestFile', () => {
     expect(classifyTestFile('services/bot-client/src/foo.test.ts')).toBe('unit');
   });
 
-  it('classifies a schema test by its .schema suffix', () => {
-    expect(classifyTestFile('packages/common-types/src/types/persona.schema.test.ts')).toBe(
-      'schema'
-    );
+  it('classifies a .schema-suffixed file as unit (schema kind dropped)', () => {
+    expect(classifyTestFile('packages/common-types/src/types/persona.schema.test.ts')).toBe('unit');
   });
 
-  it('classifies an .int.test.ts as component (not the suffix-literal "int")', () => {
-    expect(classifyTestFile('services/ai-worker/src/jobs/AIJobProcessor.int.test.ts')).toBe(
+  it('classifies a .component.test.ts as component', () => {
+    expect(classifyTestFile('services/ai-worker/src/jobs/AIJobProcessor.component.test.ts')).toBe(
       'component'
     );
   });
 
-  it('classifies a non-contract e2e test as integration', () => {
-    expect(classifyTestFile('tests/e2e/database.e2e.test.ts')).toBe('integration');
+  it('classifies a .integration.test.ts as integration', () => {
+    expect(classifyTestFile('tests/e2e/database.integration.test.ts')).toBe('integration');
   });
 
-  it('classifies an e2e test under tests/e2e/contracts/ as contract', () => {
-    expect(classifyTestFile('tests/e2e/contracts/BullMQJobConsumer.e2e.test.ts')).toBe('contract');
+  it('classifies a .contract.test.ts as contract (suffix carries the tier, not location)', () => {
+    expect(classifyTestFile('tests/e2e/contracts/BullMQJobConsumer.contract.test.ts')).toBe(
+      'contract'
+    );
   });
 
   it('returns null for non-test files', () => {
@@ -86,17 +89,9 @@ describe('classifyTestFile', () => {
     expect(classifyTestFile('services/bot-client/src/foo.d.ts')).toBeNull();
   });
 
-  it('normalizes Windows separators before the location check', () => {
-    expect(classifyTestFile('tests\\e2e\\contracts\\BullMQJobProducer.e2e.test.ts')).toBe(
+  it('normalizes Windows separators before the suffix check', () => {
+    expect(classifyTestFile('tests\\e2e\\contracts\\BullMQJobProducer.contract.test.ts')).toBe(
       'contract'
-    );
-  });
-
-  it('treats schema-suffixed files as schema even when not in common-types', () => {
-    // Colocation rule allows schema tests anywhere; classification is by suffix,
-    // not location.
-    expect(classifyTestFile('services/api-gateway/src/schemas/api/persona.schema.test.ts')).toBe(
-      'schema'
     );
   });
 });

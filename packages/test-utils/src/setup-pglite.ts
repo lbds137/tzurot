@@ -53,7 +53,7 @@ const __dirname = dirname(__filename);
  * Postgres extension set (`vector`, `citext`).
  *
  * Prefer this over `new PGlite({ extensions: { vector, citext } })` in
- * `.int.test.ts` / `.e2e.test.ts` files — when a new extension is added
+ * `.component.test.ts` / `.integration.test.ts` / `.contract.test.ts` files — when a new extension is added
  * to the standard set, the change lands here once instead of at every call site.
  *
  * @example
