@@ -67,7 +67,7 @@ const __dirname = dirname(__filename);
 /** Repo-root-relative path to `prisma/migrations/`. */
 function migrationsDir(): string {
   // Resolve relative to this test file. Service lives at
-  // services/api-gateway/src/services/DatabaseSyncService.int.test.ts;
+  // services/api-gateway/src/services/DatabaseSyncService.component.test.ts;
   // repo root is four `..` up (services/api-gateway/src/services/ → repo).
   const repoRoot = join(__dirname, '..', '..', '..', '..');
   return join(repoRoot, 'prisma', 'migrations');

@@ -70,7 +70,7 @@ function findServiceFiles(projectRoot: string): string[] {
     const files = findFiles(dir, /Service\.ts$/);
     for (const file of files) {
       // Skip test files
-      if (file.endsWith('.test.ts') || file.endsWith('.int.test.ts')) continue;
+      if (file.endsWith('.test.ts') || file.endsWith('.component.test.ts')) continue;
 
       // Skip re-export files
       if (isReExportFile(file)) continue;
@@ -84,7 +84,7 @@ function findServiceFiles(projectRoot: string): string[] {
 }
 
 /**
- * Find services that have integration tests (*.int.test.ts)
+ * Find services that have component tests (*.component.test.ts)
  */
 function findTestedServices(projectRoot: string, services: string[]): string[] {
   const tested: string[] = [];
@@ -94,9 +94,9 @@ function findTestedServices(projectRoot: string, services: string[]): string[] {
     const dir = dirname(fullPath);
     const baseName = basename(service, '.ts');
 
-    const intTestPath = join(dir, `${baseName}.int.test.ts`);
+    const componentTestPath = join(dir, `${baseName}.component.test.ts`);
 
-    if (fileExists(intTestPath)) {
+    if (fileExists(componentTestPath)) {
       tested.push(service);
     }
   }
@@ -229,10 +229,12 @@ function findTestedSchemas(projectRoot: string): string[] {
     }
   }
 
-  // Also check e2e tests for schema usage
+  // Also check the real-dependency tiers (integration + contract) for schema usage
   const e2eTestsDir = join(projectRoot, 'tests/e2e');
   if (existsSync(e2eTestsDir)) {
-    const e2eFiles = readdirSync(e2eTestsDir).filter(f => f.endsWith('.e2e.test.ts'));
+    const e2eFiles = readdirSync(e2eTestsDir).filter(
+      f => f.endsWith('.integration.test.ts') || f.endsWith('.contract.test.ts')
+    );
 
     for (const file of e2eFiles) {
       const content = readFile(join(e2eTestsDir, file));

@@ -117,8 +117,8 @@ function globSourceFiles(repoRoot: string, sourceGlobs: string[]): string[] {
   const project = new Project({ compilerOptions: { allowJs: false, skipLibCheck: true } });
   for (const glob of sourceGlobs) {
     // `**/*.test.ts` matches any filename ending in `.test.ts`, including
-    // `Foo.int.test.ts` / `Foo.spec.test.ts` — verified empirically. No
-    // separate `*.int.test.ts` exclusion needed.
+    // `Foo.component.test.ts` / `Foo.spec.test.ts` — verified empirically. No
+    // separate `*.component.test.ts` exclusion needed.
     project.addSourceFilesAtPaths([
       `${repoRoot}/${glob}`,
       `!${repoRoot}/${glob.replace(/\*\.ts$/, '*.test.ts')}`,

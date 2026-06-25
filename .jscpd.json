@@ -11,7 +11,7 @@
     "**/_generated/**",
     "**/*.test.ts",
     "**/*.spec.ts",
-    "**/*.int.test.ts",
+    "**/*.component.test.ts",
     "**/test/**",
     "**/mocks/**",
     "prisma/**",

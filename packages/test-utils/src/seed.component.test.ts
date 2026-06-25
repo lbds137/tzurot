@@ -8,9 +8,9 @@
  * preserves semantics keeps the test green.
  *
  * Test-utils has no vitest config of its own; this file is picked up by
- * the root `vitest.int.config.ts` via its `**\/*.int.test.ts` glob, which
+ * the root `vitest.component.config.ts` via its `**\/*.component.test.ts` glob, which
  * means it runs alongside every other integration test under `pnpm
- * test:int`.
+ * test:component`.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';

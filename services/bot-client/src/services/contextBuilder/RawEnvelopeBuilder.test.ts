@@ -242,7 +242,7 @@ describe('buildRawAssemblyInputs — producer↔schema conformance', () => {
   // REAL builder and assert its output is ACCEPTED by the schema — so a field the
   // builder emits (or a shape it changes) can never silently diverge from what the
   // worker validates against. This is the producer half of the consumer-driven
-  // contract; the consumer half is ContextAssembler.test.ts / .int.test.ts.
+  // contract; the consumer half is ContextAssembler.test.ts / .component.test.ts.
   // Returns the Zod error message verbatim on failure (it names the offending
   // field), or null on conformance — the caller asserts `.toBeNull()` so the
   // assertion lives in the test body (vitest/expect-expect) AND failures stay legible.

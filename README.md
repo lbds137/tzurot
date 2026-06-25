@@ -177,7 +177,7 @@ Tzurot is fully managed via Discord slash commands. For the complete reference (
 ```bash
 pnpm build            # Build all services
 pnpm test             # Run unit tests
-pnpm test:int         # Run integration tests
+pnpm test:component   # Run component tests
 pnpm quality          # Lint + CPD + depcruise + typecheck
 pnpm format           # Format code
 pnpm ops --help       # CLI tooling reference

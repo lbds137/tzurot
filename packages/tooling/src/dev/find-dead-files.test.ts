@@ -113,7 +113,7 @@ describe('find-dead-files', () => {
 
     it('should filter vitest config files', async () => {
       const { filterFalsePositives } = await import('./find-dead-files.js');
-      expect(filterFalsePositives(['vitest.e2e.config.ts'])).toEqual([]);
+      expect(filterFalsePositives(['vitest.integration.config.ts'])).toEqual([]);
     });
 
     it('should filter root-level *.config.ts files', async () => {

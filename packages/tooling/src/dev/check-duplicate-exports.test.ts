@@ -37,8 +37,8 @@ describe('isSourceFile', () => {
     expect(isSourceFile('types.d.ts')).toBe(false);
   });
 
-  it('rejects .int.test.ts files', () => {
-    expect(isSourceFile('CommandHandler.int.test.ts')).toBe(false);
+  it('rejects .component.test.ts files', () => {
+    expect(isSourceFile('CommandHandler.component.test.ts')).toBe(false);
   });
 
   it('rejects test-utils.ts', () => {

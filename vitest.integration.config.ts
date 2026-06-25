@@ -7,11 +7,12 @@ import { TEST_TIMEOUTS } from './packages/common-types/src/constants/timing.js';
 process.env.PROD_DATABASE_URL ??= process.env.DATABASE_URL ?? '';
 
 /**
- * Vitest configuration for E2E tests (*.e2e.test.ts)
+ * Vitest configuration for the real-dependency tiers run from tests/:
+ * integration (*.integration.test.ts) and contract (*.contract.test.ts).
  *
- * E2E tests:
- * - Test cross-service flows (api-gateway + ai-worker, BullMQ contracts)
- * - Live in tests/e2e/ directory
+ * Both share one runtime profile:
+ * - Test cross-service flows / live external deps (real DB, BullMQ contracts)
+ * - Live under tests/e2e/ (contract tests under tests/e2e/contracts/)
  * - Use real timing (no fake timers)
  * - Coverage disabled (tests real external services)
  */
@@ -26,20 +27,20 @@ export default defineConfig({
     globals: true,
     environment: 'node',
 
-    // Only run E2E tests in tests/e2e/
-    include: ['tests/e2e/**/*.e2e.test.ts'],
+    // Run the integration + contract tiers under tests/
+    include: ['tests/e2e/**/*.integration.test.ts', 'tests/e2e/**/*.contract.test.ts'],
     exclude: ['**/node_modules/**', '**/dist/**', '**/*.d.ts'],
 
-    // E2E tests need longer timeouts
+    // These tiers need longer timeouts
     testTimeout: TEST_TIMEOUTS.INTEGRATION_TEST,
     hookTimeout: TEST_TIMEOUTS.INTEGRATION_HOOK,
 
-    // Use REAL timers for E2E tests
+    // Use REAL timers (no fake timers)
     fakeTimers: {
       toFake: [],
     },
 
-    // Run E2E tests sequentially
+    // Run sequentially
     pool: 'forks',
     poolOptions: {
       forks: {
@@ -47,7 +48,7 @@ export default defineConfig({
       },
     },
 
-    // E2E tests don't contribute coverage (test real external services)
+    // These tiers don't contribute coverage (test real external services)
     coverage: {
       enabled: false,
     },

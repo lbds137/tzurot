@@ -1,7 +1,7 @@
 ---
 name: tzurot-testing
 description: 'Testing procedures. Invoke with /tzurot-testing for test execution, coverage audits, and debugging test failures.'
-lastUpdated: '2026-06-20'
+lastUpdated: '2026-06-25'
 ---
 
 # Testing Procedures
@@ -55,18 +55,17 @@ Tiers are canonically defined in **one place** —
 This table is the suffix→tier quick reference; don't re-define the tiers here
 (the `pnpm ops guard:test-taxonomy` gate enforces the single-source link).
 
-| Suffix / location                   | Tier ([taxonomy](../../../docs/reference/guides/TESTING.md#test-tier-taxonomy)) | Infrastructure | Location               |
-| ----------------------------------- | ------------------------------------------------------------------------------- | -------------- | ---------------------- |
-| `*.test.ts`                         | Unit                                                                            | Fully mocked   | Next to source         |
-| `*.schema.test.ts`                  | Unit (schema validation)                                                        | Zod only       | Next to source         |
-| `*.int.test.ts`                     | **Component** (one service, PGLite)                                             | PGLite         | Next to source         |
-| `*.e2e.test.ts`                     | **Integration** (real DB+Redis)                                                 | Real services  | `tests/e2e/`           |
-| `tests/e2e/contracts/*.e2e.test.ts` | **Contract** (provider↔consumer)                                                | Real services  | `tests/e2e/contracts/` |
+| Suffix / location       | Tier ([taxonomy](../../../docs/reference/guides/TESTING.md#test-tier-taxonomy)) | Infrastructure | Location               |
+| ----------------------- | ------------------------------------------------------------------------------- | -------------- | ---------------------- |
+| `*.test.ts`             | Unit                                                                            | Fully mocked   | Next to source         |
+| `*.component.test.ts`   | **Component** (one service, PGLite)                                             | PGLite         | Next to source         |
+| `*.integration.test.ts` | **Integration** (real DB+Redis)                                                 | Real services  | `tests/e2e/`           |
+| `*.contract.test.ts`    | **Contract** (provider↔consumer)                                                | Real services  | `tests/e2e/contracts/` |
 
-> `.int` = component-tier, `.e2e` = integration-tier — the suffixes are historical
-> misnomers. **Schema test ≠ contract test**: a schema test validates one type's
-> own rules (unit-tier); a contract test verifies two services agree. Run
-> `pnpm ops test:tiers` for the per-package tier distribution.
+> Each suffix names its tier directly. **Schema test ≠ contract test**: a Zod
+> schema test (a plain `*.test.ts`) validates one type's own rules (unit-tier); a
+> contract test verifies two services agree. Run `pnpm ops test:tiers` for the
+> per-package tier distribution.
 
 ## Debugging Test Failures
 
@@ -142,25 +141,25 @@ describe('UserService', () => {
 
 **⚠️ ALWAYS use `loadPGliteSchema()`** - NEVER create tables manually!
 
-## Integration Test Triggers
+## Component Test Triggers
 
-Integration tests (`*.int.test.ts`) run separately from unit tests and are **not** included in `pnpm test` or pre-push hooks.
+Component tests (`*.component.test.ts`) run separately from unit tests and are **not** included in `pnpm test` or pre-push hooks.
 
-**Always run `pnpm test:int` after:**
+**Always run `pnpm test:component` after:**
 
-| Change                           | Why                                                                   |
-| -------------------------------- | --------------------------------------------------------------------- |
-| Add/remove slash command options | `CommandHandler.int.test.ts` snapshots capture full command structure |
-| Add/remove subcommands           | Same snapshot tests                                                   |
-| Restructure command directories  | `getCommandFiles()` discovery changes affect command loading          |
-| Change component prefix routing  | Integration tests verify button/select menu routing                   |
+| Change                           | Why                                                                         |
+| -------------------------------- | --------------------------------------------------------------------------- |
+| Add/remove slash command options | `CommandHandler.component.test.ts` snapshots capture full command structure |
+| Add/remove subcommands           | Same snapshot tests                                                         |
+| Restructure command directories  | `getCommandFiles()` discovery changes affect command loading                |
+| Change component prefix routing  | Component tests verify button/select menu routing                           |
 
-**Update snapshots with:** `pnpm vitest run --config vitest.int.config.ts <file> --update`
+**Update snapshots with:** `pnpm vitest run --config vitest.component.config.ts <file> --update`
 
 ## Definition of Done
 
-- [ ] New service files have `.int.test.ts`
-- [ ] New API schemas have `.schema.test.ts`
+- [ ] New service files have `.component.test.ts`
+- [ ] New API schemas have a colocated `.test.ts` (unit-tier; no dedicated schema suffix)
 - [ ] Coverage doesn't drop (Codecov enforces 80%)
 - [ ] Run `pnpm ops test:audit` to verify no new gaps
 
