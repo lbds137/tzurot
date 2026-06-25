@@ -346,6 +346,58 @@ export class SimpleService {
       expect(result).toBe(false);
     });
 
+    // Parameterized over EACH new serviceDirs entry independently: a Prisma
+    // service under the extracted package, with no component test and not in the
+    // baseline, must be flagged. If the dir weren't scanned (a path typo in
+    // serviceDirs), findServiceFiles would miss it and the audit would wrongly
+    // pass — so a `false` result proves THAT package is in scope. One case per
+    // dir so a typo in either entry fails its own case.
+    it.each(['packages/identity/src', 'packages/conversation-history/src'])(
+      'scans extracted package %s so its Prisma services are ratcheted',
+      async (pkgDir: string) => {
+        mockExistsSync.mockImplementation((path: string) => {
+          if (path.includes('.component.test.ts')) return false;
+          if (path.includes('test-coverage-baseline')) return true;
+          if (path.includes(pkgDir)) return true;
+          return false;
+        });
+
+        mockReaddirSync.mockImplementation((dir: string) =>
+          dir.includes(pkgDir) ? ['ExtractedService.ts'] : []
+        );
+
+        mockStatSync.mockImplementation((path: string) => ({
+          isDirectory: () => !path.includes('.ts'),
+          isFile: () => path.includes('.ts'),
+        }));
+
+        mockReadFileSync.mockImplementation((path: string) => {
+          if (path.includes('test-coverage-baseline')) {
+            return JSON.stringify({
+              version: 1,
+              lastUpdated: '2024-01-01',
+              services: { knownGaps: [] }, // ExtractedService NOT in baseline → new gap
+              contracts: { knownGaps: [] },
+              notes: {
+                serviceExemptionCriteria: 'Services are auto-detected for Prisma usage',
+                contractExemptionCriteria: 'None',
+              },
+              meta: VALID_BASELINE_META,
+            });
+          }
+          if (path.includes('ExtractedService.ts')) {
+            return createServiceWithPrisma();
+          }
+          return '';
+        });
+
+        const { auditUnified } = await import('./audit-unified.js');
+        const result = await auditUnified();
+
+        expect(result).toBe(false);
+      }
+    );
+
     it('should auto-exempt services without Prisma usage', async () => {
       mockExistsSync.mockImplementation((path: string) => {
         if (path.includes('.component.test.ts')) return false;

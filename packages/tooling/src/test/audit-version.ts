@@ -16,5 +16,8 @@
  *   v2 — PRISMA_PATTERNS: replaced the dead `getPrismaClient(` matcher
  *        (deleted in the singleton eviction) with `createPrismaClient(`,
  *        the post-eviction Prisma entry point.
+ *   v3 — serviceDirs: added `packages/identity` + `packages/conversation-history`
+ *        (Prisma-service packages extracted into standalone packages, previously
+ *        outside the scan scope) so their component-test coverage is ratcheted.
  */
-export const TEST_AUDIT_IMPL_VERSION = 2;
+export const TEST_AUDIT_IMPL_VERSION = 3;
