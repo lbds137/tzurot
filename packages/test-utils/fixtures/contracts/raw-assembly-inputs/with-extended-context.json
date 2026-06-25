@@ -1,0 +1,46 @@
+{
+  "rawMessageContent": "<@333> with context",
+  "rawAuthorDisplayName": "Contract User",
+  "rawMentionedUsers": [
+    {
+      "discordId": "333",
+      "username": "target",
+      "displayName": "Target"
+    }
+  ],
+  "rawExtendedContextMessages": [
+    {
+      "id": "ext-1",
+      "role": "user",
+      "content": "an earlier message from the channel",
+      "createdAt": "2026-06-01T09:00:00.000Z",
+      "personaId": "discord:444",
+      "discordUsername": "earlier-user",
+      "discordMessageId": [
+        "ext-dm-1"
+      ]
+    }
+  ],
+  "rawExtendedContextUsers": [
+    {
+      "discordId": "444",
+      "username": "earlier-user",
+      "displayName": "Earlier"
+    }
+  ],
+  "rawReactorUsers": [],
+  "knownChannelEnvironments": {
+    "channel-cross-1": {
+      "type": "guild",
+      "guild": {
+        "id": "guild-1",
+        "name": "Contract Guild"
+      },
+      "channel": {
+        "id": "channel-cross-1",
+        "name": "cross-channel",
+        "type": "GUILD_TEXT"
+      }
+    }
+  }
+}
