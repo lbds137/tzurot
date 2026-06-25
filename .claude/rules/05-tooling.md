@@ -6,7 +6,7 @@
 # Development
 pnpm dev              # Start all services
 pnpm test             # Run unit tests
-pnpm test:int         # Run integration tests (snapshots, cross-service)
+pnpm test:component   # Run component tests (snapshots, cross-service)
 pnpm quality          # lint + codegen-drift + knip + cpd + cpd:check + depcruise + typecheck + typecheck:spec + backlog:lint
 pnpm lint             # Lint all packages
 pnpm lint:errors      # Show only errors
@@ -35,7 +35,7 @@ pnpm test && pnpm quality
 # Running both as background tasks simultaneously
 ```
 
-This applies to all heavy commands: `pnpm test`, `pnpm test:int`, `pnpm quality`,
+This applies to all heavy commands: `pnpm test`, `pnpm test:component`, `pnpm quality`,
 `pnpm typecheck`. Run one at a time, wait for completion, then run the next.
 
 ## Ops CLI (`pnpm ops`)

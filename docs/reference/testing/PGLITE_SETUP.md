@@ -6,7 +6,7 @@ Integration tests in Tzurot v3 use PGLite (in-memory PostgreSQL with pgvector) f
 
 ```bash
 # Run integration tests (no DATABASE_URL needed)
-pnpm test:int
+pnpm test:component
 
 # Schema is auto-generated from Prisma
 pnpm ops test:generate-schema
@@ -49,16 +49,18 @@ afterAll(async () => {
 
 ## Test File Naming
 
-| Type        | Pattern            | Location        | Infrastructure |
-| ----------- | ------------------ | --------------- | -------------- |
-| Unit        | `*.test.ts`        | Next to source  | Fully mocked   |
-| Integration | `*.int.test.ts`    | Next to source  | PGLite         |
-| Schema      | `*.schema.test.ts` | `common-types/` | Zod only       |
-| E2E         | `*.e2e.test.ts`    | `tests/e2e/`    | Real services  |
+| Type        | Pattern                 | Location               | Infrastructure |
+| ----------- | ----------------------- | ---------------------- | -------------- |
+| Unit        | `*.test.ts`             | Next to source         | Fully mocked   |
+| Component   | `*.component.test.ts`   | Next to source         | PGLite         |
+| Integration | `*.integration.test.ts` | `tests/e2e/`           | Real services  |
+| Contract    | `*.contract.test.ts`    | `tests/e2e/contracts/` | Real services  |
+
+(A Zod schema test is just a unit `*.test.ts` — no dedicated suffix.)
 
 ## When to Use Integration vs Unit Tests
 
-### Use Integration Tests (\*.int.test.ts) For
+### Use Component Tests (\*.component.test.ts) For
 
 - Database operations with complex queries (joins, transactions)
 - Services that depend on Prisma
@@ -70,7 +72,7 @@ afterAll(async () => {
 - Discord interaction handlers (mock the session/API)
 - Logic that doesn't depend on database
 
-### Use E2E Tests (\*.e2e.test.ts) For
+### Use Integration / Contract Tests (\*.integration.test.ts / \*.contract.test.ts) For
 
 - Cross-service flows (BullMQ contracts)
 - Database connectivity smoke tests

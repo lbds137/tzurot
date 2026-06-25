@@ -11,7 +11,7 @@
  * - Delete constraints (personality + user override references)
  * - setAsDefault / setAsFreeDefault transactional clearing
  *
- * Mirrors LlmConfigService.int.test.ts shape.
+ * Mirrors LlmConfigService.component.test.ts shape.
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';

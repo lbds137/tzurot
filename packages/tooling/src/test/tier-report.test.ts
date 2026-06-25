@@ -16,8 +16,8 @@ describe('packageOf', () => {
   });
 
   it('keeps the two-segment label for tests/e2e', () => {
-    expect(packageOf('tests/e2e/database.e2e.test.ts')).toBe('tests/e2e');
-    expect(packageOf('tests/e2e/contracts/BullMQJobConsumer.e2e.test.ts')).toBe('tests/e2e');
+    expect(packageOf('tests/e2e/database.integration.test.ts')).toBe('tests/e2e');
+    expect(packageOf('tests/e2e/contracts/BullMQJobConsumer.contract.test.ts')).toBe('tests/e2e');
   });
 
   it('falls back to the first segment otherwise', () => {
@@ -29,11 +29,11 @@ describe('buildTierReport', () => {
   const paths = [
     'services/bot-client/src/a.test.ts',
     'services/bot-client/src/b.test.ts',
-    'services/bot-client/src/c.int.test.ts',
-    'services/ai-worker/src/d.int.test.ts',
+    'services/bot-client/src/c.component.test.ts',
+    'services/ai-worker/src/d.component.test.ts',
     'packages/common-types/src/e.schema.test.ts',
-    'tests/e2e/database.e2e.test.ts',
-    'tests/e2e/contracts/BullMQJobConsumer.e2e.test.ts',
+    'tests/e2e/database.integration.test.ts',
+    'tests/e2e/contracts/BullMQJobConsumer.contract.test.ts',
     'README.md', // ignored — not a test file
     'services/bot-client/src/f.ts', // ignored — not a test file
   ];
@@ -44,16 +44,15 @@ describe('buildTierReport', () => {
 
   it('counts file-kinds correctly', () => {
     const { byKind } = buildTierReport(paths);
-    expect(byKind.unit).toBe(2);
-    expect(byKind.component).toBe(2); // the two .int.test.ts
-    expect(byKind.schema).toBe(1);
-    expect(byKind.integration).toBe(1); // non-contract .e2e
-    expect(byKind.contract).toBe(1); // contracts/ .e2e
+    expect(byKind.unit).toBe(3); // a, b, + the schema-suffixed e (schema kind dropped → unit)
+    expect(byKind.component).toBe(2); // the two .component.test.ts
+    expect(byKind.integration).toBe(1); // the .integration.test.ts
+    expect(byKind.contract).toBe(1); // the .contract.test.ts
   });
 
-  it('rolls schema and unit into the unit tier; surfaces e2e tier as 0', () => {
+  it('rolls bare-unit and schema-suffixed files into the unit tier; surfaces e2e tier as 0', () => {
     const { byTier } = buildTierReport(paths);
-    expect(byTier.unit).toBe(3); // 2 unit + 1 schema
+    expect(byTier.unit).toBe(3); // 2 bare unit + 1 schema-suffixed (all unit-tier)
     expect(byTier.component).toBe(2);
     expect(byTier.integration).toBe(1);
     expect(byTier.contract).toBe(1);
@@ -91,7 +90,7 @@ describe('runTierReport', () => {
     try {
       await runTierReport({
         summary: true,
-        paths: ['services/bot-client/src/a.test.ts', 'services/bot-client/src/b.int.test.ts'],
+        paths: ['services/bot-client/src/a.test.ts', 'services/bot-client/src/b.component.test.ts'],
       });
     } finally {
       console.log = original;

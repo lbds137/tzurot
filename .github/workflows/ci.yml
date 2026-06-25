@@ -342,7 +342,7 @@ jobs:
           DATABASE_URL: postgresql://postgres:test_ci_password@localhost:5432/tzurot_test
 
       - name: Run integration tests with coverage
-        run: pnpm test:int -- --coverage
+        run: pnpm test:component -- --coverage
         env:
           DATABASE_URL: postgresql://postgres:test_ci_password@localhost:5432/tzurot_test
           REDIS_URL: redis://localhost:6379

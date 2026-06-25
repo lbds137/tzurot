@@ -30,7 +30,7 @@ export function printServiceSection(result: ServiceAuditResult, verbose: boolean
   console.log('📦 SERVICE TESTS (DB interaction testing)');
   console.log('─'.repeat(60));
   console.log(`Total services:     ${result.allServices.length}`);
-  console.log(`With Prisma:        ${result.servicesWithPrisma.length} (need .int.test.ts)`);
+  console.log(`With Prisma:        ${result.servicesWithPrisma.length} (need .component.test.ts)`);
   console.log(`Without Prisma:     ${result.servicesWithoutPrisma.length} (auto-exempt)`);
   console.log(`Covered:            ${result.testedServices.length}`);
   console.log(`Gaps:               ${result.untestedServices.length}`);
@@ -74,7 +74,7 @@ export function printServiceSection(result: ServiceAuditResult, verbose: boolean
   }
 
   if (result.newGaps.length > 0) {
-    console.log('💡 To fix: Add a .int.test.ts file for these services');
+    console.log('💡 To fix: Add a .component.test.ts file for these services');
     console.log('   Or add @audit-ignore: database-testing comment to opt out');
     console.log('   Or run: pnpm ops test:audit --update\n');
   }

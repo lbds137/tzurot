@@ -54,7 +54,7 @@ Prevents new `*Service.ts` files from being added without tests.
 ### How It Works
 
 1. Finds all `*Service.ts` files in services/ and packages/
-2. Checks which have `.int.test.ts` files
+2. Checks which have `.component.test.ts` files
 3. Compares against baseline's `services.knownGaps`
 4. **Fails CI** if NEW services are added without tests
 
@@ -102,7 +102,7 @@ pnpm ops test:audit --verbose
 
 # 2. Pick a gap and write tests
 # Example: Close gap for PersonalityService
-# Create: services/api-gateway/src/services/PersonalityService.int.test.ts
+# Create: services/api-gateway/src/services/PersonalityService.component.test.ts
 
 # 3. Update baseline to record progress
 pnpm ops test:audit --update
@@ -157,7 +157,7 @@ Codecov runs on every PR. Coverage report shows:
 Total services:     23
 Exempt:             17 (no direct Prisma calls)
 Auditable:          6
-Covered:            3 (via .int.test.ts)
+Covered:            3 (via .component.test.ts)
 Gaps:               3
 
 📋 Known gaps (from baseline):

@@ -4,7 +4,7 @@
  * Scope: covers the `comparisonReport` field added in PR #833 for incident
  * post-mortem correlation. The core duplicate-detection logic (hash, Jaccard,
  * bigram, semantic) is exercised end-to-end via
- * `services/DuplicateDetectionFlow.int.test.ts` — this file focuses narrowly
+ * `services/DuplicateDetectionFlow.component.test.ts` — this file focuses narrowly
  * on the structure and correctness of the diagnostic data that surfaces when
  * a near-duplicate investigation needs ground truth.
  */

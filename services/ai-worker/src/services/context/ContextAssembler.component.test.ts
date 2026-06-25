@@ -1,7 +1,7 @@
 /**
  * Component test: `ContextAssembler.assembleCore` against REAL PGLite.
  *
- * This un-stubs what `AIJobProcessor.int.test.ts` deliberately skips — that test
+ * This un-stubs what `AIJobProcessor.component.test.ts` deliberately skips — that test
  * stubs the ENTIRE ContextStep because the real assembler reads Prisma, which its
  * harness didn't wire. Here we wire the REAL `PrismaContextDataSource` +
  * `UserService` + `PersonaResolver` over PGLite, seed real users/personas/history,

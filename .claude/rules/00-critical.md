@@ -225,7 +225,7 @@ If post-merge feedback surfaces from claude-review on a tiny fixup, it can alway
 - **NEVER modify tests to make them pass** - fix the implementation
 - **Coverage required**: 80% minimum, Codecov blocks PRs below threshold
 - Run `pnpm test` before pushing - no exceptions
-- Run `pnpm test:int` when changes affect: slash command options/structure, command file discovery, or service integration points. The `CommandHandler.int.test.ts` has **snapshot tests** that break on any command option change.
+- Run `pnpm test:component` when changes affect: slash command options/structure, command file discovery, or service integration points. The `CommandHandler.component.test.ts` has **snapshot tests** that break on any command option change.
 
 ### Test Coverage Baseline
 

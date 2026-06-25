@@ -84,7 +84,7 @@ function findTypeScriptFiles(dir: string, includeTests: boolean): string[] {
 function isTypeScriptSource(filename: string, includeTests: boolean): boolean {
   if (!filename.endsWith('.ts')) return false;
   if (filename.endsWith('.d.ts')) return false;
-  if (!includeTests && (filename.endsWith('.test.ts') || filename.endsWith('.int.test.ts'))) {
+  if (!includeTests && filename.endsWith('.test.ts')) {
     return false;
   }
   return true;

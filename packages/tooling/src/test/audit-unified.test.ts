@@ -235,7 +235,7 @@ export class SimpleService {
 
     it('should pass when all gaps are known in baseline', async () => {
       mockExistsSync.mockImplementation((path: string) => {
-        if (path.includes('.int.test.ts')) return false;
+        if (path.includes('.component.test.ts')) return false;
         if (path.includes('test-coverage-baseline')) return true;
         if (path.includes('common-types/src/schemas/api')) return true;
         if (path.includes('common-types/src/types')) return true;
@@ -295,7 +295,7 @@ export class SimpleService {
 
     it('should fail when new service gaps are found (services with Prisma)', async () => {
       mockExistsSync.mockImplementation((path: string) => {
-        if (path.includes('.int.test.ts')) return false;
+        if (path.includes('.component.test.ts')) return false;
         if (path.includes('test-coverage-baseline')) return true;
         if (path.includes('common-types/src/schemas/api')) return true;
         if (path.includes('common-types/src/types')) return true;
@@ -348,7 +348,7 @@ export class SimpleService {
 
     it('should auto-exempt services without Prisma usage', async () => {
       mockExistsSync.mockImplementation((path: string) => {
-        if (path.includes('.int.test.ts')) return false;
+        if (path.includes('.component.test.ts')) return false;
         if (path.includes('test-coverage-baseline')) return true;
         if (path.includes('common-types/src/schemas/api')) return true;
         if (path.includes('common-types/src/types')) return true;
@@ -402,7 +402,7 @@ export class SimpleService {
 
     it('should update baseline when --update flag is passed', async () => {
       mockExistsSync.mockImplementation((path: string) => {
-        if (path.includes('.int.test.ts')) return false;
+        if (path.includes('.component.test.ts')) return false;
         if (path.includes('test-coverage-baseline')) return true;
         if (path.includes('common-types/src/schemas/api')) return true;
         if (path.includes('common-types/src/types')) return true;

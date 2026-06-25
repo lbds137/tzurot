@@ -123,21 +123,21 @@ logger.error(error, 'Failed to process');
 ### Test Tiers (canonical: see TESTING.md)
 
 Tzurot uses Toby Clemson's 5-tier model — **unit** (mocked logic) · **component**
-(one whole service over PGLite; our `*.int.test.ts`) · **integration** (a module
-against a real external dep; our non-contract `tests/e2e/*.e2e.test.ts`) ·
-**contract** (provider↔consumer agreement; `tests/e2e/contracts/`) · **e2e**
+(one whole service over PGLite; our `*.component.test.ts`) · **integration** (a module
+against a real external dep; our `tests/e2e/*.integration.test.ts`) ·
+**contract** (provider↔consumer agreement; `tests/e2e/contracts/*.contract.test.ts`) · **e2e**
 (full system). The canonical definitions live in **one place** —
 [Test Tier Taxonomy](../../docs/reference/guides/TESTING.md#test-tier-taxonomy).
 Do not re-define the tiers here or in the skill; link there (the
 `pnpm ops guard:test-taxonomy` CI gate enforces this single-sourcing).
 
-**Two suffixes are historical misnomers**: `*.int.test.ts` is **component**-tier
-(not integration), and `*.e2e.test.ts` is **integration**-tier (not true e2e).
+**Suffixes match tiers**: `*.component.test.ts` (component), `*.integration.test.ts`
+(integration), `*.contract.test.ts` (contract), plain `*.test.ts` (unit).
 
-**Schema test ≠ contract test.** A `*.schema.test.ts` validates a single _type's
-own rules_ (which inputs a Zod schema accepts/rejects) — structurally **unit**-tier.
-A **contract test** verifies _two services agree_ on an interface. Don't file Zod
-schema tests under "contract."
+**Schema test ≠ contract test.** A Zod schema test (a plain `*.test.ts`) validates a
+single _type's own rules_ (which inputs the schema accepts/rejects) — structurally
+**unit**-tier. A **contract test** verifies _two services agree_ on an interface.
+Don't file Zod schema tests under "contract."
 
 ### Core Principles
 
@@ -175,7 +175,7 @@ await assertion;
 | New `*.service.ts` | ✅   | If shared   | ✅ For complex DB operations |
 | Bug fix            | ✅   | If schema   | If multi-component           |
 
-**Integration test procedures**: See `/tzurot-testing` skill. Always run `pnpm test:int` after command structure changes.
+**Integration test procedures**: See `/tzurot-testing` skill. Always run `pnpm test:component` after command structure changes.
 
 ### Schema Test Colocation
 

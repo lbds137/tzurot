@@ -27,8 +27,8 @@ export default defineConfig({
       '**/dist/**',
       '**/*.d.ts',
       '**/tzurot-legacy/**',
-      '**/*.int.test.ts', // Integration tests use vitest.int.config.ts
-      'tests/e2e/**', // E2E tests use vitest.e2e.config.ts
+      '**/*.component.test.ts', // Component tests use vitest.component.config.ts
+      'tests/e2e/**', // Integration + contract tests use vitest.integration.config.ts
     ],
     coverage: {
       provider: 'v8',

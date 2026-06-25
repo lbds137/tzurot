@@ -16,7 +16,7 @@
 
 // Structural typing so this package can stay off `@tzurot/common-types` as a
 // runtime dependency. The cycle is subtle: common-types is a PRODUCTION peer,
-// but its own `.int.test.ts` files consume this package, so common-types
+// but its own `.component.test.ts` files consume this package, so common-types
 // listing test-utils as a devDependency creates a Turbo build-DAG cycle the
 // moment test-utils starts depending on common-types at any level. Breaking
 // it cleanly requires either extracting shared constants to a third package
