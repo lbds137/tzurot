@@ -92,6 +92,14 @@ jobs:
         # produce. To fix locally: `pnpm ops codegen:routes` then commit.
         run: pnpm ops codegen:routes --check
 
+      - name: Enforce coverage-topology drift
+        # Byte-compares the committed coverage-topology.json against what the
+        # current code (ROUTE_MANIFEST + JobType payload schemas + the context
+        # envelope) would generate. Fails if a new or newly-uncovered
+        # cross-service surface isn't reflected in the committed artifact.
+        # To fix locally: `pnpm ops topology:generate --write` then commit.
+        run: pnpm ops topology:check
+
       - name: Check for duplicate export names
         run: pnpm ops guard:duplicate-exports
 

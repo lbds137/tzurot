@@ -34,3 +34,9 @@ services/bot-client/command-manifest.json
 # against these committed files; prettier collapses short arrays onto single lines,
 # breaking that comparison on every regeneration. Same rationale as the manifest above.
 packages/test-utils/fixtures/contracts/
+
+# Auto-generated coverage topology. `topology:check` byte-compares the committed
+# file against `JSON.stringify(…, 2)` output; prettier collapses the short tier
+# arrays onto single lines, breaking that comparison on every regeneration. Same
+# rationale as the command manifest and contract fixtures above.
+packages/tooling/coverage-topology.json
