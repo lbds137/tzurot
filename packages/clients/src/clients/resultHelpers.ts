@@ -92,8 +92,13 @@ export class GatewayClientError extends Error {
  * non-HTTP kind (`network`/`timeout`/`config`/`schema`, `status: 0`) or an HTTP
  * 5xx. An HTTP 4xx is a CLIENT error — the request was rejected, so retrying the
  * same request won't help; those become {@link GatewayClientError}.
+ *
+ * Exported for non-throwing classification contexts (e.g. permission guards that
+ * return a result rather than throw): callers that can't use {@link nullOn404}'s
+ * throw semantics still need to split "can't reach the server → try again" from
+ * "rejected/absent → definitive error".
  */
-function isInfraFailure(failure: GatewayFailure): boolean {
+export function isInfraFailure(failure: GatewayFailure): boolean {
   return failure.kind !== 'http' || failure.status >= 500;
 }
 
