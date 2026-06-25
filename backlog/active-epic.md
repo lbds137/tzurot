@@ -37,9 +37,11 @@ Scoped the first audit to the freshest, highest-risk surface. Found the envelope
 - Weigh-in assembly component test (recent message → included; empty → still assembles).
 - ✅ `buildContext`-synthetic-anchor lock (#1283 — caught a real empty-channel weigh-in crash; proof the component-level test catches what buildContext-mocking unit tests structurally can't).
 
-### Enforcement bulk — `test:tier-audit` ratchet ⏳
+### Enforcement — ✅ RESOLVED: no standalone tier-audit ratchet (council 2026-06-25)
 
-A registered audit-class tool (WHY.md + canary + baseline + drift-detect, per `docs/reference/audit-enforcement.md`) that measures whether each service/flow carries the tiers it should and **fails CI on regression** — the per-area gap matrix with a ratchet, building on the `test:tiers` classifier. The drift recurred because the model was docs-only (attention-based); this gives it teeth. (Seeds shipped in #1284; this is the bulk.)
+A 3-model council (GLM-5.2 / Kimi-K2.7 / Qwen-3.7) **unanimously rejected** building a standalone `test:tier-audit` per-area tier-matrix ratchet: it would duplicate `test:audit` (artifact→tier: Prisma-service→component, schema→contract) + `topology:check` (the 154 cross-service surfaces), and — with integration=1 / e2e=0 in the current distribution — a broad "every area needs every tier" gate would baseline almost the whole repo as a meaningless `knownGaps` dump (Qwen: _"guarding an empty room"_). **Decision**: enforcement = `test:audit` + `topology:check`; **`test:tiers` stays the report-only dashboard** (the compass for where to invest). The residual is COVERAGE, not tooling.
+
+**Shipped the one council-endorsed extension (#1344)** — `test:audit` now scans the extracted packages (`packages/identity` + `packages/conversation-history`) so their Prisma services are ratcheted too (the slimming epic had moved them outside the audit's hardcoded dir list). A flow-level integration/e2e gate (Kimi's "declared-flow" layer in `topology:check`, baseline + sunset) is **deferred until that coverage exists to lock** — i.e. after Phase 3. Two follow-ups filed to `cold/follow-ups.md` (the `*Loader.ts` naming gap; auto-discovering `packages/*/src`).
 
 ### Resolved sub-decisions
 
