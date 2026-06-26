@@ -204,6 +204,18 @@ Another paragraph here with more content.`;
       expect(stripBotFooters(content)).toBe('Hello world!');
     });
 
+    it('should strip model footer with explicit provider attribution', () => {
+      const content =
+        'Hello world!\n-# Model: [glm-5.2](<https://example.com>) • via Z.AI Coding Plan';
+      expect(stripBotFooters(content)).toBe('Hello world!');
+    });
+
+    it('should strip model footer with provider attribution and auto badge', () => {
+      const content =
+        'Hello world!\n-# Model: [z-ai/glm-5.2](<https://example.com>) • via OpenRouter • 📍 auto';
+      expect(stripBotFooters(content)).toBe('Hello world!');
+    });
+
     it('should strip guest mode footer', () => {
       const content = 'Hello world!\n-# 🆓 Using free model (no API key required)';
       expect(stripBotFooters(content)).toBe('Hello world!');
