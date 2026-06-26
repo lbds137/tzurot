@@ -944,7 +944,7 @@ describe('VisionProcessor', () => {
     });
 
     describe('skipNegativeCache option', () => {
-      it('should skip negative cache check when skipNegativeCache is true', async () => {
+      it('should re-attempt a TRANSIENT cached failure when skipNegativeCache is true', async () => {
         mockVisionCacheGetFailure.mockResolvedValue({
           category: 'rate_limit',
           cachedAt: '2026-04-28T18:22:42.000Z',
@@ -960,11 +960,37 @@ describe('VisionProcessor', () => {
           skipNegativeCache: true,
         });
 
-        // Should NOT check failure cache
-        expect(mockVisionCacheGetFailure).not.toHaveBeenCalled();
-        // Should call the vision API directly
+        // The check now always runs, but a TRANSIENT failure (rate_limit) is not honored on
+        // this path — it may have cleared, so we re-attempt the vision API rather than
+        // returning the cached fallback.
+        expect(mockVisionCacheGetFailure).toHaveBeenCalled();
         expect(mockModelInvoke).toHaveBeenCalledTimes(1);
         expect(result).toBe('Mocked image description');
+      });
+
+      it('should HONOR an attachment-bound cached failure even when skipNegativeCache is true', async () => {
+        // A permanently-dead image (e.g. expired Discord CDN URL → media_not_found) must
+        // NOT re-storm across providers every turn it sits in context. The reference path
+        // honors the attachment-bound cached failure and short-circuits to the fallback.
+        mockVisionCacheGetFailure.mockResolvedValue({
+          category: 'media_not_found',
+          cachedAt: '2026-04-28T18:22:42.000Z',
+        });
+        mockCheckModelVisionSupport.mockResolvedValue(true);
+
+        const personality = createMockPersonality({
+          model: 'gpt-4o',
+          visionModel: undefined,
+        });
+
+        const result = await describeImage(mockAttachment, personality, false, undefined, {
+          skipNegativeCache: true,
+        });
+
+        expect(mockVisionCacheGetFailure).toHaveBeenCalled();
+        // No vision call — the cross-provider storm is prevented.
+        expect(mockModelInvoke).not.toHaveBeenCalled();
+        expect(result).toBe('[Image unavailable: image unavailable]');
       });
 
       it('should still check negative cache when skipNegativeCache is false', async () => {
@@ -1306,9 +1332,11 @@ describe('VisionProcessor', () => {
           skipNegativeCache: true,
         });
 
-        // Should bypass both caches
+        // Positive cache is fully bypassed (skipCache); the negative cache is still
+        // CHECKED (always), but the cached failure here is TRANSIENT (rate_limit) so the
+        // skip path doesn't honor it — we re-attempt the vision API.
         expect(mockVisionCacheGet).not.toHaveBeenCalled();
-        expect(mockVisionCacheGetFailure).not.toHaveBeenCalled();
+        expect(mockVisionCacheGetFailure).toHaveBeenCalled();
         // Should call vision API directly
         expect(mockModelInvoke).toHaveBeenCalledTimes(1);
         expect(result).toBe('Mocked image description');
