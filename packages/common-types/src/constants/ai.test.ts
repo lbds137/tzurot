@@ -99,6 +99,15 @@ describe('buildModelInfoUrl', () => {
       );
     });
 
+    it('should strip the z-ai/ prefix before the catalog lookup', () => {
+      // A `z-ai/`-prefixed model can reach the z.ai branch (e.g. an auto-promotion
+      // fallback whose model retains the prefix). The prefix must be stripped so
+      // the dedicated docs page resolves instead of the generic overview fallback.
+      expect(buildModelInfoUrl('z-ai/glm-5.2', 'zai-coding')).toBe(
+        'https://docs.z.ai/guides/llm/glm-5.2'
+      );
+    });
+
     it('should fall back to the coding-plan overview for unknown z.ai models', () => {
       // Defensive: shouldn't fire for promoted routes (promotion requires
       // catalog membership), but covers stale/manual `provider: 'zai-coding'`

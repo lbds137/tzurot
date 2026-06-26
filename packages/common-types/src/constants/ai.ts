@@ -357,7 +357,14 @@ export function buildModelInfoUrl(model: string, provider: string | undefined): 
   // module evaluation — by the time any consumer calls this function, the
   // enum is fully populated.
   if (provider === AIProvider.ZaiCoding) {
-    return ZAI_MODEL_CATALOG[model.toLowerCase()]?.docsUrl ?? ZAI_CODING_OVERVIEW_URL;
+    // Strip the `z-ai/` namespace prefix before the catalog lookup: the catalog
+    // keys are bare (`glm-5.2`), but a prefixed `z-ai/glm-5.2` can reach here
+    // (e.g. an auto-promotion fallback whose model retains the prefix). Mirrors
+    // `getZaiCodingPlanContextLength`'s prefix tolerance so the docs link
+    // resolves instead of falling back to the generic overview page.
+    const lower = model.toLowerCase();
+    const bare = lower.startsWith(ZAI_MODEL_PREFIX) ? lower.slice(ZAI_MODEL_PREFIX.length) : lower;
+    return ZAI_MODEL_CATALOG[bare]?.docsUrl ?? ZAI_CODING_OVERVIEW_URL;
   }
   // OpenRouter (and any unknown provider — falls through to OpenRouter as
   // the historical default; ElevenLabs is voice-only and never hits this

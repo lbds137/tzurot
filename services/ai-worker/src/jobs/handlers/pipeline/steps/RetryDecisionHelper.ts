@@ -21,6 +21,23 @@ export interface FallbackResponse {
 }
 
 /**
+ * Inject preserved reasoning into a response that lacks its own. Some models
+ * don't reliably emit reasoning at escalated retry temperature, so the retry
+ * loop carries forward reasoning captured on an earlier attempt. Mutates the
+ * response in place. No-op when the response already has reasoning or there's
+ * nothing preserved to restore.
+ */
+export function restoreThinking(response: RAGResponse, preserved: string | undefined): void {
+  if (
+    (response.thinkingContent === undefined || response.thinkingContent.length === 0) &&
+    preserved !== undefined &&
+    preserved.length > 0
+  ) {
+    response.thinkingContent = preserved;
+  }
+}
+
+/**
  * Fallback quality ranking: duplicate > leaked-thinking > empty.
  * - duplicate: in-character content, just repeated
  * - leaked-thinking: has content, just wrong kind (raw CoT)
