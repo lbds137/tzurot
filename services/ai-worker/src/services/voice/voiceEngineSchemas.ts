@@ -47,3 +47,10 @@ export const healthResponseSchema = z.object({
 export const voicesResponseSchema = z.object({
   voices: z.array(z.object({ id: z.string(), type: z.string().optional() })),
 });
+
+/**
+ * FastAPI error body — `{ detail }`. `.parse()` is strict on object shape: a
+ * non-object or non-JSON body throws a ZodError, which the caller's catch falls
+ * back to the HTTP statusText. Only `detail` (the message) is read when present.
+ */
+export const errorDetailSchema = z.object({ detail: z.string().optional() });
