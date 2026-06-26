@@ -47,6 +47,8 @@ export interface GenerateAttemptOpts {
   configOverrides?: ResolvedConfigOverrides;
   /** Provider the attempt routes to — drives the context-window cap source. */
   effectiveProvider?: AIProvider;
+  /** LLM transient-retry budget override; set to 1 on the fail-fast primary attempt. */
+  maxLlmAttempts?: number;
 }
 
 export interface GenerateAttemptResult {
@@ -54,6 +56,15 @@ export interface GenerateAttemptResult {
   duplicateRetries: number;
   emptyRetries: number;
   leakedThinkingRetries: number;
+  /**
+   * The provider that actually served the request when it differs from the
+   * configured/promoted provider — set to `OpenRouter` only when the fallback
+   * swap fired. `undefined` on the happy path (no swap), where the caller's
+   * resolved provider is already the effective one. Drives the response
+   * footer's model-info link so an OpenRouter-served request links to the
+   * OpenRouter model card, not the z.ai docs page.
+   */
+  effectiveProviderUsed?: AIProvider;
 }
 
 type GenerateAttempt = (opts: GenerateAttemptOpts) => Promise<GenerateAttemptResult>;
@@ -85,7 +96,10 @@ export async function runWithAutoPromotionFallback(
   }
 
   try {
-    return await attempt(opts);
+    // Fail fast on the primary attempt: a fallback exists, so a transient z.ai
+    // failure (429/overload) should swap to OpenRouter immediately rather than
+    // burning the full ~3×retry budget (a z.ai 429 can take ~110s per attempt).
+    return await attempt({ ...opts, maxLlmAttempts: 1 });
   } catch (originalError) {
     logger.warn(
       {
@@ -106,7 +120,7 @@ export async function runWithAutoPromotionFallback(
     };
 
     try {
-      return await attempt({
+      const fallbackResult = await attempt({
         ...opts,
         personality: fallbackPersonality,
         apiKey: fallback.apiKey,
@@ -115,6 +129,9 @@ export async function runWithAutoPromotionFallback(
         // so the context-window cap must now derive from OpenRouter, not z.ai.
         effectiveProvider: AIProvider.OpenRouter,
       });
+      // OpenRouter actually served this request (the promoted z.ai call failed),
+      // so report it as the effective provider for the footer model-info link.
+      return { ...fallbackResult, effectiveProviderUsed: AIProvider.OpenRouter };
     } catch (fallbackError) {
       logger.error(
         { jobId: opts.jobId, err: originalError, fallbackErr: fallbackError },

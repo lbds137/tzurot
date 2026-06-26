@@ -110,11 +110,13 @@ describe('runWithAutoPromotionFallback', () => {
 
     expect(attempt).toHaveBeenCalledTimes(2);
     // First call: original opts (zai-coding personality + zai key); the cap
-    // source stays z.ai for the promoted attempt.
+    // source stays z.ai for the promoted attempt. Capped at a single LLM attempt
+    // so a z.ai transient/429 swaps to the fallback immediately (no 3×retry burn).
     expect(attempt.mock.calls[0]?.[0]).toMatchObject({
       personality: { provider: 'zai-coding', model: 'glm-5.1' },
       apiKey: 'zai-key',
       effectiveProvider: AIProvider.ZaiCoding,
+      maxLlmAttempts: 1,
     });
     // Second call: swapped to openrouter personality + fallback key, and the
     // cap source swaps to OpenRouter too (the fallback runs there).
@@ -124,7 +126,11 @@ describe('runWithAutoPromotionFallback', () => {
       isGuestMode: false,
       effectiveProvider: AIProvider.OpenRouter,
     });
-    expect(result).toBe(fallbackResult);
+    // The fallback keeps the default retry budget — only the primary fails fast.
+    expect(attempt.mock.calls[1]?.[0]?.maxLlmAttempts).toBeUndefined();
+    // Result is the fallback's, tagged with the effective provider (OpenRouter)
+    // so the response footer links to the OpenRouter model card, not z.ai docs.
+    expect(result).toEqual({ ...fallbackResult, effectiveProviderUsed: AIProvider.OpenRouter });
   });
 
   it('should propagate ORIGINAL error when fallback retry also fails', async () => {

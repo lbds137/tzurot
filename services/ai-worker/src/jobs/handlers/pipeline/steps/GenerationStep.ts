@@ -42,6 +42,7 @@ import {
   logRetrySuccess,
   selectBetterFallback,
   logFallbackUsed,
+  restoreThinking,
   type FallbackResponse,
 } from './RetryDecisionHelper.js';
 import { storeDiagnosticLog } from './diagnosticStorage.js';
@@ -59,17 +60,6 @@ export class GenerationStep implements IPipelineStep {
     private readonly prisma: PrismaClient,
     private readonly embeddingService?: EmbeddingServiceInterface
   ) {}
-
-  /** Inject preserved reasoning into a response that lacks its own */
-  private restoreThinking(response: RAGResponse, preserved: string | undefined): void {
-    if (
-      (response.thinkingContent === undefined || response.thinkingContent.length === 0) &&
-      preserved !== undefined &&
-      preserved.length > 0
-    ) {
-      response.thinkingContent = preserved;
-    }
-  }
 
   /**
    * Generate response with cross-turn duplication and empty response retry.
@@ -93,6 +83,7 @@ export class GenerationStep implements IPipelineStep {
     diagnosticCollector?: DiagnosticCollector;
     configOverrides?: ResolvedConfigOverrides;
     effectiveProvider?: AIProvider;
+    maxLlmAttempts?: number;
   }): Promise<{
     response: RAGResponse;
     duplicateRetries: number;
@@ -151,6 +142,9 @@ export class GenerationStep implements IPipelineStep {
           // Capped from the provider the request actually hits: z.ai-direct uses
           // z.ai's documented limit, OpenRouter fallthrough uses the OR cache.
           effectiveProvider,
+          // 1 for the auto-promotion primary attempt (fail fast → OpenRouter
+          // fallback on a z.ai transient/429); undefined elsewhere (default budget).
+          maxLlmAttempts: opts.maxLlmAttempts,
         });
       } catch (error) {
         // LLM invocation failed entirely. If we have a fallback from a prior
@@ -158,7 +152,7 @@ export class GenerationStep implements IPipelineStep {
         // instead of propagating the error and losing valid content.
         if (fallback !== undefined) {
           logFallbackUsed(fallback, jobId);
-          this.restoreThinking(fallback.response, preservedThinking);
+          restoreThinking(fallback.response, preservedThinking);
           return {
             response: fallback.response,
             duplicateRetries,
@@ -186,7 +180,7 @@ export class GenerationStep implements IPipelineStep {
       }
       if (emptyAction === 'return') {
         emptyRetries++;
-        this.restoreThinking(response, preservedThinking);
+        restoreThinking(response, preservedThinking);
         return { response, duplicateRetries, emptyRetries, leakedThinkingRetries };
       }
 
@@ -227,7 +221,7 @@ export class GenerationStep implements IPipelineStep {
             leakedThinkingRetries,
           });
         }
-        this.restoreThinking(response, preservedThinking);
+        restoreThinking(response, preservedThinking);
         return { response, duplicateRetries, emptyRetries, leakedThinkingRetries };
       }
 
@@ -243,7 +237,7 @@ export class GenerationStep implements IPipelineStep {
         isGuestMode,
       });
       if (dupAction === 'return') {
-        this.restoreThinking(response, preservedThinking);
+        restoreThinking(response, preservedThinking);
         return { response, duplicateRetries, emptyRetries, leakedThinkingRetries };
       }
     }
@@ -315,26 +309,31 @@ export class GenerationStep implements IPipelineStep {
       // request to z.ai-direct: if the z.ai call fails entirely (any error — most likely
       // catalog-drift 404 or auth issue from a stale whitelist), retry once via the
       // pre-computed OpenRouter fallback route. Defense in depth on the whitelist.
-      const { response, duplicateRetries, emptyRetries, leakedThinkingRetries } =
-        await runWithAutoPromotionFallback(
-          opts => this.generateWithDuplicateRetry(opts),
-          {
-            personality: effectivePersonality,
-            message: message as MessageContent,
-            conversationContext,
-            recentAssistantMessages,
-            apiKey,
-            sttDispatch: auth.sttDispatch,
-            isGuestMode,
-            jobId: job.id,
-            diagnosticCollector,
-            configOverrides: context.configOverrides,
-            // Primary attempt routes to the resolved provider; the fallback
-            // wrapper overrides this to OpenRouter if it swaps to the fallback.
-            effectiveProvider: provider,
-          },
-          auth.wasAutoPromoted === true ? auth.fallback : undefined
-        );
+      const {
+        response,
+        duplicateRetries,
+        emptyRetries,
+        leakedThinkingRetries,
+        effectiveProviderUsed,
+      } = await runWithAutoPromotionFallback(
+        opts => this.generateWithDuplicateRetry(opts),
+        {
+          personality: effectivePersonality,
+          message: message as MessageContent,
+          conversationContext,
+          recentAssistantMessages,
+          apiKey,
+          sttDispatch: auth.sttDispatch,
+          isGuestMode,
+          jobId: job.id,
+          diagnosticCollector,
+          configOverrides: context.configOverrides,
+          // Primary attempt routes to the resolved provider; the fallback
+          // wrapper overrides this to OpenRouter if it swaps to the fallback.
+          effectiveProvider: provider,
+        },
+        auth.wasAutoPromoted === true ? auth.fallback : undefined
+      );
 
       // Store memory ONCE after retry loop completes with a valid response.
       // This prevents duplicate memories when retries occur (the fix for the
@@ -412,7 +411,7 @@ export class GenerationStep implements IPipelineStep {
             metadata: {
               processingTimeMs,
               modelUsed: response.modelUsed,
-              providerUsed: provider,
+              providerUsed: effectiveProviderUsed ?? provider,
               configSource,
               isGuestMode,
               // Include thinking content so it can be shown even on failure
@@ -441,7 +440,9 @@ export class GenerationStep implements IPipelineStep {
             tokensOut: response.tokensOut,
             processingTimeMs,
             modelUsed: response.modelUsed,
-            providerUsed: provider,
+            // Effective provider after any auto-promotion fallback swap (OpenRouter
+            // when the promoted z.ai call failed), so the footer links correctly.
+            providerUsed: effectiveProviderUsed ?? provider,
             configSource,
             isGuestMode,
             crossTurnDuplicateDetected: duplicateRetries > 0,

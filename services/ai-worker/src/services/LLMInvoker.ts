@@ -111,6 +111,13 @@ interface InvokeWithRetryOptions {
   imageCount?: number;
   /** Number of audio attachments in the request (for timeout calculation) */
   audioCount?: number;
+  /**
+   * Override for the transient-retry attempt count. Defaults to
+   * `RETRY_CONFIG.MAX_ATTEMPTS`. Callers set this to 1 to fail fast on the first
+   * error when a higher-level fallback (e.g. ProviderRouter's OpenRouter
+   * passthrough) is the intended recovery path rather than in-place retry.
+   */
+  maxAttempts?: number;
 }
 
 export class LLMInvoker {
@@ -148,7 +155,15 @@ export class LLMInvoker {
    * - Reasoning model support (o1, Claude 3.7+, Gemini Thinking)
    */
   async invokeWithRetry(options: InvokeWithRetryOptions): Promise<BaseMessage> {
-    const { model, messages, modelName, cacheKeyId = '', imageCount = 0, audioCount = 0 } = options;
+    const {
+      model,
+      messages,
+      modelName,
+      cacheKeyId = '',
+      imageCount = 0,
+      audioCount = 0,
+      maxAttempts = RETRY_CONFIG.MAX_ATTEMPTS,
+    } = options;
 
     if (cacheKeyId.length === 0) {
       // An empty `cacheKeyId` skips both caches entirely — currently used by
@@ -228,7 +243,7 @@ export class LLMInvoker {
       result = await withRetry(
         () => this.invokeSingleAttempt(model, transformedMessages, modelName),
         {
-          maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
+          maxAttempts,
           globalTimeoutMs,
           logger,
           operationName: `LLM invocation (${modelName})`,
