@@ -10,7 +10,11 @@
  *
  * Coverage is **mechanism-based per surface class** (NOT a fuzzy global
  * schema-grep): each class has exactly one coverage mechanism, and a surface is
- * "covered" iff that mechanism's test is present on disk —
+ * "covered" iff that mechanism's test EXERCISES the real producer/consumer —
+ * proven statically by the test IMPORTING the real symbol (`REAL_IMPORTS`), not
+ * merely by a file existing or a schema string appearing. A circular test (a
+ * hand-written payload validated against its own schema, importing neither the
+ * real producer nor consumer) fails this and is reported as a gap —
  *  - http-route       → the route-conformance harness (component tier)
  *  - bullmq-job       → the BullMQ producer/consumer contract tests (contract tier)
  *  - context-envelope → the golden-fixture contract (contract tier)
@@ -29,6 +33,7 @@ import { JobType } from '@tzurot/common-types';
 
 import { findFiles, fileExists, readFile } from '../test/audit-utils.js';
 import type { TestTier } from '../test/test-tiers.js';
+import { fileImportsSymbol } from './importAssertions.js';
 
 /** How a surface's contract coverage is provided. */
 export type CoverageSurfaceMechanism = 'route-conformance' | 'bullmq-contract' | 'golden-fixture';
@@ -110,31 +115,90 @@ const JOB_PAYLOAD_SCHEMAS: readonly { jobType: JobType; schemaRef: string }[] = 
  */
 export const EXEMPT_ROUTE_IDS: readonly string[] = [];
 
-/** Files whose existence proves each mechanism is live (repo-relative). */
+/** The contract test files whose REAL imports prove each mechanism is live (repo-relative). */
 const CONFORMANCE_HARNESS =
   'services/api-gateway/src/routes/conformance/conformance.component.test.ts';
 const GOLDEN_FIXTURE_PRODUCER =
   'services/bot-client/src/services/contextBuilder/RawEnvelopeContract.producer.test.ts';
 const GOLDEN_FIXTURE_CONSUMER =
   'services/ai-worker/src/services/context/RawEnvelopeContract.consumer.contract.test.ts';
+const BULLMQ_PRODUCER_TEST =
+  'services/api-gateway/src/utils/BullMQJobChainContract.producer.test.ts';
 const BULLMQ_CONTRACT_DIR = 'tests/e2e/contracts';
 
+/**
+ * The REAL producer/consumer symbol each mechanism's test must import — the
+ * execution-check that tells a real contract test apart from a CIRCULAR one
+ * (which imports its own schema but neither the real producer nor consumer).
+ * Each entry is (file, exported symbol, module-specifier fragment). `noUnusedLocals`
+ * (root tsconfig) guarantees a present import is USED, so importing the symbol is
+ * sufficient proof the test exercises it — no call-site analysis needed.
+ *
+ * Maintenance: renaming a source module (or moving a test file) requires updating
+ * the matching `from`/`file` here. The check fails CLOSED — the surface shows as
+ * uncovered and `topology:check` fires — so a stale entry is loud, never silent.
+ */
+const REAL_IMPORTS = {
+  /** The harness drives the real route replay from the manifest + the per-route registry. */
+  conformanceRegistry: {
+    file: CONFORMANCE_HARNESS,
+    symbol: 'CONFORMANCE_REGISTRY',
+    // Leading `/` anchors to the path separator: a sibling whose name merely
+    // contains "registry" without a preceding slash won't match. (Scoped to one
+    // file anyway, so this is defense-in-depth against a careless future entry.)
+    from: '/fixtures/registry',
+  },
+  conformanceManifest: {
+    file: CONFORMANCE_HARNESS,
+    symbol: 'ROUTE_MANIFEST',
+    from: '@tzurot/clients',
+  },
+  /** The envelope golden-fixture: producer runs the real builder, consumer runs the real assembler. */
+  envelopeProducer: {
+    file: GOLDEN_FIXTURE_PRODUCER,
+    symbol: 'buildRawAssemblyInputs',
+    from: '/RawEnvelopeBuilder',
+  },
+  envelopeConsumer: {
+    file: GOLDEN_FIXTURE_CONSUMER,
+    symbol: 'ContextAssembler',
+    // Leading `/` so a sibling like `./PrismaContextAssembler.js` can't match by substring.
+    from: '/ContextAssembler',
+  },
+  /**
+   * The BullMQ golden-fixture producer runs the real job-chain orchestrator. ONE
+   * check covers all three job surfaces: the producer test exercises all three job
+   * types (its audio+image and text-only scenarios emit audio/image/llm payloads),
+   * and per-job discrimination is the consumer-side `bullmqSchemas` scan — so a
+   * future payload-bearing job added without a contract test still gaps via that
+   * gate, even though this coarse producer-import boolean stays true.
+   */
+  bullmqProducer: {
+    file: BULLMQ_PRODUCER_TEST,
+    symbol: 'createJobChain',
+    from: '/jobChainOrchestrator',
+  },
+} as const;
+
 interface MechanismPresence {
-  /** The route-conformance harness exists (covers all manifest routes via its registry bijection). */
-  routeConformance: boolean;
-  /** Both halves of the golden-fixture envelope contract exist. */
-  goldenFixture: boolean;
+  /** The conformance harness imports the real route manifest + per-route registry (drives the replay). */
+  routeImportsReal: boolean;
+  /** Producer imports the real envelope builder AND consumer imports the real assembler. */
+  envelopeImportsReal: boolean;
+  /** The BullMQ producer test imports the real `createJobChain` (so the fixture is real output). */
+  bullmqProducerImportsReal: boolean;
   /** Job schema names referenced by a `.safeParse(`/`.parse(` call in a BullMQ contract test. */
   bullmqSchemas: Set<string>;
 }
 
 /**
- * Probe the filesystem ONCE for each mechanism's presence. Route + envelope are
- * mechanism-level (one harness covers every route via its registry bijection; the
- * two envelope tests are the single golden-fixture contract); BullMQ is per-job
- * (each schema name must appear in a contract test). Schema references are matched
- * with the same `(\w+Schema)\.(safeParse|parse)` primitive the unified test-audit
- * uses.
+ * Probe the filesystem ONCE for each mechanism. The EXECUTION check is whether the
+ * mechanism's test IMPORTS the real producer/consumer symbol (`REAL_IMPORTS`) — a
+ * circular test (hand-written payload vs. its own schema, importing neither side)
+ * fails it. The import probe returns false for an absent file, so it also subsumes
+ * the old file-existence check. BullMQ additionally keeps the per-job schema scan
+ * (the real consumer-validation gate), matched with the same
+ * `(\w+Schema)\.(safeParse|parse)` primitive the unified test-audit uses.
  */
 function buildMechanismPresence(projectRoot: string): MechanismPresence {
   const bullmqSchemas = new Set<string>();
@@ -145,11 +209,14 @@ function buildMechanismPresence(projectRoot: string): MechanismPresence {
       bullmqSchemas.add(match[1]);
     }
   }
+  const imports = (spec: { file: string; symbol: string; from: string }): boolean =>
+    fileImportsSymbol(join(projectRoot, spec.file), spec.symbol, spec.from);
   return {
-    routeConformance: fileExists(join(projectRoot, CONFORMANCE_HARNESS)),
-    goldenFixture:
-      fileExists(join(projectRoot, GOLDEN_FIXTURE_PRODUCER)) &&
-      fileExists(join(projectRoot, GOLDEN_FIXTURE_CONSUMER)),
+    routeImportsReal:
+      imports(REAL_IMPORTS.conformanceRegistry) && imports(REAL_IMPORTS.conformanceManifest),
+    envelopeImportsReal:
+      imports(REAL_IMPORTS.envelopeProducer) && imports(REAL_IMPORTS.envelopeConsumer),
+    bullmqProducerImportsReal: imports(REAL_IMPORTS.bullmqProducer),
     bullmqSchemas,
   };
 }
@@ -166,9 +233,10 @@ const MECHANISM_PRESENT: Record<
   CoverageSurfaceMechanism,
   (seed: SurfaceSeed, presence: MechanismPresence) => boolean
 > = {
-  'route-conformance': (_seed, presence) => presence.routeConformance,
-  'golden-fixture': (_seed, presence) => presence.goldenFixture,
-  'bullmq-contract': (seed, presence) => presence.bullmqSchemas.has(seed.schemaRef),
+  'route-conformance': (_seed, presence) => presence.routeImportsReal,
+  'golden-fixture': (_seed, presence) => presence.envelopeImportsReal,
+  'bullmq-contract': (seed, presence) =>
+    presence.bullmqSchemas.has(seed.schemaRef) && presence.bullmqProducerImportsReal,
 };
 
 /** Resolve a seed to a full surface: requiredTiers from its mechanism, actualTiers iff present. */
