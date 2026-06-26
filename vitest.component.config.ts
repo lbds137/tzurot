@@ -53,11 +53,11 @@ export default defineConfig({
     fileParallelism: false,
 
     // Coverage configuration for component tests
-    // Upload separately to Codecov with 'integration' flag
+    // Upload separately to Codecov with the 'component' flag
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'lcov'],
-      reportsDirectory: './coverage/integration',
+      reportsDirectory: './coverage/component',
       enabled: false, // Enable with --coverage flag
       // All three roots must be listed: this config runs from the repo root,
       // so a bare 'src/**' matches nothing — without the services glob, no

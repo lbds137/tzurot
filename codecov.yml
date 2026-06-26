@@ -43,8 +43,8 @@ flags:
   voice-engine:
     paths:
       - services/voice-engine/
-  # Integration tests cover all services
-  integration:
+  # Component tests (PGLite) cover all services + packages
+  component:
     paths:
       - services/
       - packages/

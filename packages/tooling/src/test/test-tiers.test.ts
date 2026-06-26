@@ -74,7 +74,7 @@ describe('classifyTestFile', () => {
   });
 
   it('classifies a .integration.test.ts as integration', () => {
-    expect(classifyTestFile('tests/e2e/database.integration.test.ts')).toBe('integration');
+    expect(classifyTestFile('tests/e2e/example-flow.integration.test.ts')).toBe('integration');
   });
 
   it('classifies a .contract.test.ts as contract (suffix carries the tier, not location)', () => {

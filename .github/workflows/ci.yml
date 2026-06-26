@@ -295,24 +295,12 @@ jobs:
       - name: Run type checking
         run: pnpm run typecheck
 
-  integration-tests:
+  # Component tier (PGLite, in-process) + the real-dependency tiers (integration
+  # + contract). Only Redis is a real external dependency here — every DB-backed
+  # test uses in-process PGLite, so no Postgres service is provisioned.
+  component-tests:
     runs-on: ubuntu-latest
     services:
-      postgres:
-        image: ankane/pgvector:latest
-        env:
-          POSTGRES_USER: postgres
-          # Non-sensitive test password for ephemeral CI database
-          POSTGRES_PASSWORD: test_ci_password
-          POSTGRES_DB: tzurot_test
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
       redis:
         image: redis:7-alpine
         options: >-
@@ -344,30 +332,29 @@ jobs:
       - name: Build packages
         run: pnpm --filter './packages/*' build
 
-      - name: Run database migrations
-        run: npx prisma migrate deploy
-        env:
-          DATABASE_URL: postgresql://postgres:test_ci_password@localhost:5432/tzurot_test
-
       - name: Run component tests with coverage
         run: pnpm test:component -- --coverage
         env:
+          # Dummy URL: DB-backed tests use in-process PGLite; this only satisfies
+          # the config layer's non-empty DATABASE_URL check (no Postgres is provisioned).
           DATABASE_URL: postgresql://postgres:test_ci_password@localhost:5432/tzurot_test
           REDIS_URL: redis://localhost:6379
           CI: true
 
-      # Real-dependency tiers: integration (*.integration.test.ts) + contract
-      # (*.contract.test.ts, incl. the golden-fixture envelope consumer and the
-      # BullMQ producer/consumer pair). Previously run in NO CI job — so the
-      # contract tier the coverage topology relies on never actually executed.
+      # Real-dependency tiers: contract (*.contract.test.ts — the golden-fixture
+      # envelope consumer + the BullMQ pair) + integration (*.integration.test.ts,
+      # currently none). The coverage topology's mechanism-presence check assumes
+      # these tiers execute + gate in CI; this step is that gate. `if: !cancelled()`
+      # so a component-test failure doesn't hide the contract tier's own result.
       - name: Run integration + contract tiers
+        if: ${{ !cancelled() }}
         run: pnpm test:integration
         env:
           DATABASE_URL: postgresql://postgres:test_ci_password@localhost:5432/tzurot_test
           REDIS_URL: redis://localhost:6379
           CI: true
 
-      - name: Upload integration coverage to Codecov
+      - name: Upload component coverage to Codecov
         if: ${{ !cancelled() }}
         uses: codecov/codecov-action@v7
         with:
@@ -377,8 +364,8 @@ jobs:
           # codecov/codecov-action#1955). pip keeps its own integrity checks.
           use_pypi: true
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./coverage/integration/lcov.info
-          flags: integration
+          files: ./coverage/component/lcov.info
+          flags: component
           fail_ci_if_error: true
           verbose: true
 
