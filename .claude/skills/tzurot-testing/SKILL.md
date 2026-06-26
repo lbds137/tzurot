@@ -1,7 +1,7 @@
 ---
 name: tzurot-testing
 description: 'Testing procedures. Invoke with /tzurot-testing for test execution, coverage audits, and debugging test failures.'
-lastUpdated: '2026-06-25'
+lastUpdated: '2026-06-26'
 ---
 
 # Testing Procedures
@@ -21,6 +21,12 @@ pnpm --filter @tzurot/ai-worker test
 
 # Run specific file
 pnpm test -- MyService.test.ts
+
+# Run the component tier (PGLite) — NOT included in `pnpm test`
+pnpm test:component
+
+# Run the integration + contract tiers (real Redis/Postgres) — NOT in `pnpm test`
+pnpm test:integration
 
 # Run with coverage
 pnpm test:coverage
@@ -66,6 +72,25 @@ This table is the suffix→tier quick reference; don't re-define the tiers here
 > schema test (a plain `*.test.ts`) validates one type's own rules (unit-tier); a
 > contract test verifies two services agree. Run `pnpm ops test:tiers` for the
 > per-package tier distribution.
+
+### Verify with the config that runs the tier (CRITICAL)
+
+**The unit `pnpm test` config EXCLUDES the `.component` / `.integration` /
+`.contract` suffixes.** A contract/integration/component test "passes" under
+`pnpm test` by NOT running at all — so a green unit run is NOT evidence it works.
+
+| Suffix                                         | Verify with             |
+| ---------------------------------------------- | ----------------------- |
+| `*.test.ts` (unit)                             | `pnpm test`             |
+| `*.component.test.ts`                          | `pnpm test:component`   |
+| `*.integration.test.ts` / `*.contract.test.ts` | `pnpm test:integration` |
+
+When you touch a `.contract` / `.integration` test, run `pnpm test:integration`
+(Redis + Postgres up: `podman start tzurot-redis tzurot-postgres`); a
+`.component` test, `pnpm test:component`. `pnpm test` / `pnpm --filter <pkg> test`
+is the unit tier ONLY. CI's `component-tests` job runs `test:component` +
+`test:integration`, so it catches what a unit-only local run silently skipped —
+don't let CI be the first thing that actually executes your contract test.
 
 ## Debugging Test Failures
 
