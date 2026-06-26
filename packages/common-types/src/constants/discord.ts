@@ -265,23 +265,53 @@ export const BOT_FOOTER_TEXT = {
 } as const;
 
 /**
+ * Provider value → human-readable footer label, derived from the slash-command
+ * choices so the two never drift. Used to make the served-by provider explicit
+ * in the model footer (e.g. "via Z.AI Coding Plan" vs "via OpenRouter") rather
+ * than leaving users to infer it from the `z-ai/` vendor-prefix on the model.
+ */
+const PROVIDER_FOOTER_LABEL: Readonly<Record<string, string>> = Object.fromEntries(
+  DISCORD_PROVIDER_CHOICES.map(choice => [choice.value, choice.name])
+);
+
+/** Options for {@link buildModelFooterText}. */
+export interface ModelFooterOptions {
+  /**
+   * Provider that actually served the request (the EFFECTIVE provider after any
+   * auto-promotion fallback). Rendered as "• via <label>" when it maps to a
+   * known label; omitted otherwise.
+   */
+  provider?: string;
+  /** Include the auto-response badge on the same line. */
+  withAutoBadge?: boolean;
+}
+
+/**
  * Build a model footer line for Discord messages.
  *
  * @param modelUsed - Model name to display
  * @param modelUrl - Full URL to the model card
- * @param withAutoBadge - Include auto-response badge on same line
+ * @param options - Provider attribution + auto-badge modifiers
  * @returns Footer line WITHOUT leading newline (caller adds `-# ` prefix)
  */
 export function buildModelFooterText(
   modelUsed: string,
   modelUrl: string,
-  withAutoBadge = false
+  options: ModelFooterOptions = {}
 ): string {
+  const { provider, withAutoBadge = false } = options;
   // Defensive: sanitize model name to prevent markdown injection
   // (brackets and angle brackets could break link syntax)
   const sanitizedModel = modelUsed.replace(/[[\]()<>]/g, '');
-  const base = `Model: [${sanitizedModel}](<${modelUrl}>)`;
-  return withAutoBadge ? `${base}${BOT_FOOTER_TEXT.AUTO_BADGE_COMPACT}` : base;
+  let text = `Model: [${sanitizedModel}](<${modelUrl}>)`;
+  const providerLabel = provider !== undefined ? PROVIDER_FOOTER_LABEL[provider] : undefined;
+  if (providerLabel !== undefined) {
+    text += ` • via ${providerLabel}`;
+  }
+  if (withAutoBadge) {
+    text += BOT_FOOTER_TEXT.AUTO_BADGE_COMPACT;
+  }
+  return text;
 }
 
 /**
@@ -306,8 +336,13 @@ export function buildModelFooterText(
  * NOTE: Keep these patterns in sync with BOT_FOOTER_TEXT constants above.
  */
 export const BOT_FOOTER_PATTERNS = {
-  /** Model indicator (with optional auto badge on same line) */
-  MODEL: /(?:^|\n)-# Model: \[[^\]]+\]\(<[^>]+>\)(?: • 📍 auto)?/g,
+  /**
+   * Model indicator, plus any same-line ` • …` tail (provider attribution
+   * "• via <provider>" and/or the "• 📍 auto" badge). The tail is bounded to
+   * the footer line (`[^\n]+`), so it strips the whole indicator without
+   * over-reaching into following content.
+   */
+  MODEL: /(?:^|\n)-# Model: \[[^\]]+\]\(<[^>]+>\)(?: • [^\n]+)?/g,
   /** Guest mode notice - uses GUEST_MODE.FOOTER_MESSAGE from ai.ts */
   GUEST_MODE: /(?:^|\n)-# 🆓 Using free model \(no API key required\)/g,
   /** Auto-response indicator (standalone) */

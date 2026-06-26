@@ -276,7 +276,10 @@ export class DiscordResponseSender {
     let footer = '';
     if (showModelFooter !== false && modelUsed !== undefined && modelUsed.length > 0) {
       const modelUrl = buildModelInfoUrl(modelUsed, providerUsed);
-      footer += `\n-# ${buildModelFooterText(modelUsed, modelUrl, isAutoResponse === true)}`;
+      footer += `\n-# ${buildModelFooterText(modelUsed, modelUrl, {
+        provider: providerUsed,
+        withAutoBadge: isAutoResponse === true,
+      })}`;
     } else if (isAutoResponse === true) {
       footer += `\n-# ${BOT_FOOTER_TEXT.AUTO_RESPONSE}`;
     }
