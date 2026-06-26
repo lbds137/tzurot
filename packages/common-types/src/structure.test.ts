@@ -80,8 +80,8 @@ const EXCLUDE_PATTERNS = [
   /\/factories\//,
   /\/test-factories\/src\//,
   // `@tzurot/test-utils` is pure test infrastructure: `seed.ts` (exercised by
-  // `seed.component.test.ts`), `RedisClientMock.ts`, and `setup-pglite.ts` — mocks and
-  // PGLite/Redis setup that the colocated-unit-test rule doesn't apply to.
+  // `seed.component.test.ts`) and `setup-pglite.ts` — PGLite + real-Redis setup
+  // that the colocated-unit-test rule doesn't apply to.
   /\/test-utils\/src\//,
   // Service singletons and caches (thin wrappers around Prisma/Redis/external APIs)
   /Service\.ts$/,

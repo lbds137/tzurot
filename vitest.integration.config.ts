@@ -40,13 +40,11 @@ export default defineConfig({
       toFake: [],
     },
 
-    // Run sequentially
+    // Run test files sequentially (no parallel forks). Real-dependency tiers must
+    // not race each other on shared state. Replaces the Vitest-3
+    // `poolOptions.forks.singleFork`, which Vitest 4 ignores.
     pool: 'forks',
-    poolOptions: {
-      forks: {
-        singleFork: true,
-      },
-    },
+    fileParallelism: false,
 
     // These tiers don't contribute coverage (test real external services)
     coverage: {

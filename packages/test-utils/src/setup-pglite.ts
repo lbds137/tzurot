@@ -1,9 +1,10 @@
 /**
- * Integration Test Setup
+ * Component/Contract Test Setup
  *
- * Environment-aware setup:
- * - Local: Use Redis mock (optionally PGlite for database tests)
- * - CI (GITHUB_ACTIONS): Use real Redis via Service Containers
+ * Redis: a REAL ioredis connection in every environment (local, pre-push, CI),
+ * scoped to a dedicated logical DB (db 15) that is flushed on setup + cleanup.
+ * There is no mock — a mock that disagrees with real Redis is a source of false
+ * confidence, and "green locally" must mean the same thing as "green in CI".
  *
  * PGLite Schema Management:
  * - Schema SQL is auto-generated from Prisma using `prisma migrate diff`
@@ -22,11 +23,10 @@ import { Redis as IORedis } from 'ioredis';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createRedisClientMock } from './RedisClientMock.js';
 
 /**
  * Test environment interface
- * - redis: Always available (mock or real based on environment)
+ * - redis: a real ioredis connection on the dedicated test DB (db 15)
  * - prisma: Optional - tests that need it should set it up themselves
  * - cleanup: Function to clean up resources
  */
@@ -37,12 +37,11 @@ export interface TestEnvironment {
 }
 
 /**
- * Detect if we're running in CI (GitHub Actions)
- * NOTE: Pre-push hook sets CI=true, but we only want real Redis/Postgres in actual CI
+ * Dedicated Redis logical DB for tests. Real data lives on db 0; tests run on
+ * db 15 and flush it on setup + cleanup, so a test run is isolated per file and
+ * can never clobber other data even if REDIS_URL points at a shared instance.
  */
-function isCI(): boolean {
-  return process.env.GITHUB_ACTIONS === 'true';
-}
+const TEST_REDIS_DB = 15;
 
 // Get the directory of this file for resolving the schema path
 const __filename = fileURLToPath(import.meta.url);
@@ -112,33 +111,45 @@ export function loadPGliteSchema(): string {
  * testEnv.prisma = new PrismaClient({ adapter });
  * ```
  */
-export function setupTestEnvironment(): Promise<TestEnvironment> {
-  if (isCI()) {
-    // In CI, use real Redis from service containers
-    const redisUrl = process.env.REDIS_URL ?? 'redis://localhost:6379';
-    const url = new URL(redisUrl);
-    const redis: IORedis = new IORedis({
-      host: url.hostname,
-      port: parseInt(url.port, 10) || 6379,
-      password: url.password || undefined,
-      username: url.username || undefined,
-    });
+export async function setupTestEnvironment(): Promise<TestEnvironment> {
+  const redisUrl = process.env.REDIS_URL ?? 'redis://localhost:6379';
+  const url = new URL(redisUrl);
+  const port = parseInt(url.port, 10) || 6379;
+  const redis = new IORedis({
+    host: url.hostname,
+    port,
+    password: url.password || undefined,
+    username: url.username || undefined,
+    db: TEST_REDIS_DB,
+    // Fail fast with a clear message instead of hanging when Redis is down.
+    lazyConnect: true,
+    maxRetriesPerRequest: 1,
+    retryStrategy: () => null,
+  });
 
-    return Promise.resolve({
-      redis,
-      cleanup: async () => {
-        await redis.quit();
-      },
-    });
-  } else {
-    // Local: use Redis mock
-    const redis: IORedis = createRedisClientMock();
+  // ioredis crashes the process on an unhandled 'error' event; swallow it here.
+  // Command-level failures still reject their own promises, so tests fail loudly.
+  redis.on('error', () => undefined);
 
-    return Promise.resolve({
-      redis,
-      cleanup: async () => {
-        await redis.quit();
-      },
-    });
+  try {
+    await redis.connect();
+  } catch (err) {
+    throw new Error(
+      `Test Redis is unreachable at ${url.hostname}:${port}. ` +
+        'Start the container: `podman start tzurot-redis`. ' +
+        `(${err instanceof Error ? err.message : String(err)})`,
+      { cause: err }
+    );
   }
+
+  // Each test file starts from a clean DB (component/contract runs are sequential).
+  await redis.flushdb();
+
+  return {
+    redis,
+    cleanup: async () => {
+      await redis.flushdb().catch(() => undefined);
+      await redis.quit().catch(() => undefined);
+    },
+  };
 }

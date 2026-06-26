@@ -3,8 +3,7 @@
  *
  * Shared test infrastructure for Tzurot services:
  * - PGLite schema loading and initialization
- * - Redis mock for integration tests
- * - CI environment detection
+ * - Real Redis connection setup on a dedicated test DB
  */
 
 export {
