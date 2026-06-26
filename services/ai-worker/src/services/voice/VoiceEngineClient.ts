@@ -17,6 +17,7 @@ import {
   transcribeResponseSchema,
   healthResponseSchema,
   voicesResponseSchema,
+  errorDetailSchema,
 } from './voiceEngineSchemas.js';
 
 const logger = createLogger('VoiceEngineClient');
@@ -228,9 +229,10 @@ export class VoiceEngineClient {
 
   private async extractErrorDetail(response: globalThis.Response): Promise<string> {
     try {
-      const body = (await response.json()) as { detail?: string };
+      const body = errorDetailSchema.parse(await response.json());
       return body.detail ?? response.statusText;
     } catch {
+      // Non-`{detail}` / non-JSON error body — fall back to the HTTP status text.
       return response.statusText;
     }
   }
