@@ -319,6 +319,14 @@ export interface ModelInvocationOptions {
   retryConfig?: DuplicateRetryConfig;
   /** Diagnostic collector for the "flight recorder" system */
   diagnosticCollector?: DiagnosticCollectorRef;
+  /**
+   * Override for the LLM transient-retry attempt count (default
+   * `RETRY_CONFIG.MAX_ATTEMPTS`). The auto-promotion fallback sets this to 1 for
+   * the primary (z.ai) attempt so a transient failure (e.g. a 429 overload)
+   * falls through to the OpenRouter fallback immediately instead of burning the
+   * full ~3×retry budget. The fallback attempt keeps the default.
+   */
+  maxLlmAttempts?: number;
 }
 
 /**
@@ -384,4 +392,11 @@ export interface GenerateResponseOptions {
    * catalog safety-net (see `resolveEffectiveContextWindow`).
    */
   effectiveProvider?: AIProvider;
+  /**
+   * Override for the LLM transient-retry attempt count (default
+   * `RETRY_CONFIG.MAX_ATTEMPTS`). Forwarded to `invokeWithRetry`. Set to 1 by the
+   * auto-promotion fallback for the primary (z.ai) attempt so a transient
+   * failure falls through to the OpenRouter fallback fast.
+   */
+  maxLlmAttempts?: number;
 }

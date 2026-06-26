@@ -109,6 +109,7 @@ export class ConversationalRAGService {
       referencedMessagesDescriptions,
       userApiKey,
       retryConfig,
+      maxLlmAttempts,
       diagnosticCollector: diagnosticCollectorRef,
     } = opts;
     // Cast from opaque DiagnosticCollectorRef to concrete type (safe — callers always pass DiagnosticCollector)
@@ -204,6 +205,7 @@ export class ConversationalRAGService {
       cacheKeyId,
       imageCount,
       audioCount,
+      maxAttempts: maxLlmAttempts,
     });
 
     // Non-text parts (thinking blocks, images) are intentionally excluded —
@@ -424,6 +426,7 @@ export class ConversationalRAGService {
         referencedMessagesDescriptions: inputs.referencedMessagesDescriptions,
         userApiKey,
         retryConfig,
+        maxLlmAttempts: options.maxLlmAttempts,
         diagnosticCollector,
       });
 
