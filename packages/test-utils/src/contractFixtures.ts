@@ -31,3 +31,14 @@ export function contractFixtureFile(name: string): string {
 export function loadContractFixture<T = unknown>(name: string): T {
   return JSON.parse(readFileSync(contractFixtureFile(name), 'utf-8')) as T;
 }
+
+/**
+ * Stable, pretty JSON (2-space, trailing newline) for a committed contract
+ * fixture written via `toMatchFileSnapshot(contractFixtureFile(...))`. The single
+ * home for the serialization convention so producer fixtures across services stay
+ * byte-identical (a future change — sorted keys, a replacer — lands in one place).
+ * Fixture dirs are `.prettierignore`d, so this form is the source of truth.
+ */
+export function stableFixtureJson(value: unknown): string {
+  return `${JSON.stringify(value, null, 2)}\n`;
+}

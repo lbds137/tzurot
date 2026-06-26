@@ -1,0 +1,140 @@
+{
+  "name": "llm-generation",
+  "data": {
+    "requestId": "fixture-req",
+    "jobType": "llm-generation",
+    "personality": {
+      "id": "pers-fixture",
+      "name": "FixtureBot",
+      "displayName": "Fixture Bot",
+      "slug": "fixturebot",
+      "ownerId": "owner-fixture",
+      "systemPrompt": "Fixture prompt",
+      "model": "resolved/model",
+      "provider": "openrouter",
+      "temperature": 0.7,
+      "maxTokens": 1000,
+      "contextWindowTokens": 4096,
+      "characterInfo": "Fixture character",
+      "personalityTraits": "Fixture traits",
+      "voiceEnabled": false,
+      "visionModel": "resolved/vision-model"
+    },
+    "message": "What is in this audio and image?",
+    "context": {
+      "userId": "fixture-user",
+      "channelId": "fixture-channel",
+      "attachments": [
+        {
+          "url": "https://cdn.example/voice.ogg",
+          "name": "voice.ogg",
+          "contentType": "audio/ogg",
+          "size": 1024
+        },
+        {
+          "url": "https://cdn.example/photo.png",
+          "name": "photo.png",
+          "contentType": "image/png",
+          "size": 2048
+        }
+      ]
+    },
+    "responseDestination": {
+      "type": "discord",
+      "channelId": "fixture-channel",
+      "webhookUrl": "https://discord.com/api/webhooks/fixture"
+    },
+    "configSource": "user-personality",
+    "dependencies": [
+      {
+        "jobId": "audio-fixture-req-audio-0",
+        "type": "audio-transcription",
+        "status": "queued",
+        "resultKey": "job-result:fixture-user:audio-fixture-req-audio-0"
+      },
+      {
+        "jobId": "image-fixture-req-image",
+        "type": "image-description",
+        "status": "queued",
+        "resultKey": "job-result:fixture-user:image-fixture-req-image"
+      }
+    ]
+  },
+  "queueName": "test-queue",
+  "opts": {
+    "jobId": "llm-fixture-req"
+  },
+  "children": [
+    {
+      "name": "audio-transcription",
+      "data": {
+        "requestId": "fixture-req-audio-0",
+        "jobType": "audio-transcription",
+        "attachment": {
+          "url": "https://cdn.example/voice.ogg",
+          "name": "voice.ogg",
+          "contentType": "audio/ogg",
+          "size": 1024
+        },
+        "context": {
+          "userId": "fixture-user",
+          "channelId": "fixture-channel"
+        },
+        "responseDestination": {
+          "type": "discord",
+          "channelId": "fixture-channel",
+          "webhookUrl": "https://discord.com/api/webhooks/fixture"
+        }
+      },
+      "queueName": "test-queue",
+      "opts": {
+        "jobId": "audio-fixture-req-audio-0"
+      }
+    },
+    {
+      "name": "image-description",
+      "data": {
+        "requestId": "fixture-req-image",
+        "jobType": "image-description",
+        "attachments": [
+          {
+            "url": "https://cdn.example/photo.png",
+            "name": "photo.png",
+            "contentType": "image/png",
+            "size": 2048
+          }
+        ],
+        "personality": {
+          "id": "pers-fixture",
+          "name": "FixtureBot",
+          "displayName": "Fixture Bot",
+          "slug": "fixturebot",
+          "ownerId": "owner-fixture",
+          "systemPrompt": "Fixture prompt",
+          "model": "resolved/model",
+          "provider": "openrouter",
+          "temperature": 0.7,
+          "maxTokens": 1000,
+          "contextWindowTokens": 4096,
+          "characterInfo": "Fixture character",
+          "personalityTraits": "Fixture traits",
+          "voiceEnabled": false,
+          "visionModel": "resolved/vision-model"
+        },
+        "context": {
+          "userId": "fixture-user",
+          "channelId": "fixture-channel"
+        },
+        "responseDestination": {
+          "type": "discord",
+          "channelId": "fixture-channel",
+          "webhookUrl": "https://discord.com/api/webhooks/fixture"
+        }
+      },
+      "queueName": "test-queue",
+      "opts": {
+        "jobId": "image-fixture-req-image"
+      }
+    }
+  ]
+}

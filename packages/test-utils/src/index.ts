@@ -13,4 +13,4 @@ export {
   type TestEnvironment,
 } from './setup-pglite.js';
 export { seedUserWithPersona, type SeedUserWithPersonaOptions } from './seed.js';
-export { contractFixtureFile, loadContractFixture } from './contractFixtures.js';
+export { contractFixtureFile, loadContractFixture, stableFixtureJson } from './contractFixtures.js';

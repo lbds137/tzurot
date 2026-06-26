@@ -18,7 +18,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { contractFixtureFile } from '@tzurot/test-utils';
+import { contractFixtureFile, stableFixtureJson } from '@tzurot/test-utils';
 import { MessageRole, type ConversationMessage } from '@tzurot/common-types';
 import type { Message } from 'discord.js';
 
@@ -50,9 +50,6 @@ const makeMessage = (
     mentions: { users: new Map(mentions.map(m => [m.id, m])) },
   }) as unknown as Message;
 
-/** Stable, pretty JSON (trailing newline) so the committed fixture is diff-clean. */
-const stableJson = (v: unknown): string => `${JSON.stringify(v, null, 2)}\n`;
-
 describe('RawEnvelope contract — producer fixture generation', () => {
   // Per 02-code-standards "Fake Timers (ALWAYS Use)". This test uses no timers
   // and only an explicit fixed date string (not Date.now()/argless new Date()),
@@ -70,7 +67,7 @@ describe('RawEnvelope contract — producer fixture generation', () => {
       undefined,
       { rawAuthorDisplayName: 'Contract User' }
     );
-    await expect(stableJson(envelope)).toMatchFileSnapshot(
+    await expect(stableFixtureJson(envelope)).toMatchFileSnapshot(
       contractFixtureFile('raw-assembly-inputs/base.json')
     );
   });
@@ -99,7 +96,7 @@ describe('RawEnvelope contract — producer fixture generation', () => {
       },
       { rawAuthorDisplayName: 'Contract User' }
     );
-    await expect(stableJson(envelope)).toMatchFileSnapshot(
+    await expect(stableFixtureJson(envelope)).toMatchFileSnapshot(
       contractFixtureFile('raw-assembly-inputs/with-extended-context.json')
     );
   });
