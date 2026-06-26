@@ -36,9 +36,13 @@ import type { TestTier } from '../test/test-tiers.js';
 import { fileImportsSymbol } from './importAssertions.js';
 
 /** How a surface's contract coverage is provided. */
-export type CoverageSurfaceMechanism = 'route-conformance' | 'bullmq-contract' | 'golden-fixture';
+export type CoverageSurfaceMechanism =
+  | 'route-conformance'
+  | 'bullmq-contract'
+  | 'golden-fixture'
+  | 'voice-engine-contract';
 
-export type CoverageSurfaceKind = 'http-route' | 'bullmq-job' | 'context-envelope';
+export type CoverageSurfaceKind = 'http-route' | 'bullmq-job' | 'context-envelope' | 'voice-engine';
 
 export interface CoverageSurface {
   /** Stable id, e.g. `api-gateway:ai-worker:llm-generation`. */
@@ -81,6 +85,7 @@ const MECHANISM_TIER: Record<CoverageSurfaceMechanism, TestTier> = {
   'route-conformance': 'component',
   'bullmq-contract': 'contract',
   'golden-fixture': 'contract',
+  'voice-engine-contract': 'contract',
 };
 
 /**
@@ -125,6 +130,8 @@ const GOLDEN_FIXTURE_CONSUMER =
 const BULLMQ_PRODUCER_TEST =
   'services/api-gateway/src/utils/BullMQJobChainContract.producer.test.ts';
 const BULLMQ_CONTRACT_DIR = 'tests/e2e/contracts';
+const VOICE_ENGINE_CONSUMER_TEST =
+  'services/ai-worker/src/services/voice/VoiceEngineContract.consumer.contract.test.ts';
 
 /**
  * The REAL producer/consumer symbol each mechanism's test must import — the
@@ -178,6 +185,18 @@ const REAL_IMPORTS = {
     symbol: 'createJobChain',
     from: '/jobChainOrchestrator',
   },
+  /**
+   * The voice-engine JSON contract is cross-LANGUAGE: the PRODUCER is the Python
+   * service, enforced by the `voice-engine-test` CI job (a pytest asserts each real
+   * endpoint's output equals the committed fixture) — NOT topology-visible (this
+   * tool is TS-only). The topology tracks the TS CONSUMER half: the contract test
+   * imports the real response Zod schemas it validates the shared fixtures against.
+   */
+  voiceEngineConsumer: {
+    file: VOICE_ENGINE_CONSUMER_TEST,
+    symbol: 'transcribeResponseSchema',
+    from: '/voiceEngineSchemas',
+  },
 } as const;
 
 interface MechanismPresence {
@@ -187,6 +206,8 @@ interface MechanismPresence {
   envelopeImportsReal: boolean;
   /** The BullMQ producer test imports the real `createJobChain` (so the fixture is real output). */
   bullmqProducerImportsReal: boolean;
+  /** The voice-engine consumer test imports the real response Zod schemas (TS half; Python half is CI-enforced). */
+  voiceEngineImportsReal: boolean;
   /** Job schema names referenced by a `.safeParse(`/`.parse(` call in a BullMQ contract test. */
   bullmqSchemas: Set<string>;
 }
@@ -217,6 +238,7 @@ function buildMechanismPresence(projectRoot: string): MechanismPresence {
     envelopeImportsReal:
       imports(REAL_IMPORTS.envelopeProducer) && imports(REAL_IMPORTS.envelopeConsumer),
     bullmqProducerImportsReal: imports(REAL_IMPORTS.bullmqProducer),
+    voiceEngineImportsReal: imports(REAL_IMPORTS.voiceEngineConsumer),
     bullmqSchemas,
   };
 }
@@ -237,6 +259,7 @@ const MECHANISM_PRESENT: Record<
   'golden-fixture': (_seed, presence) => presence.envelopeImportsReal,
   'bullmq-contract': (seed, presence) =>
     presence.bullmqSchemas.has(seed.schemaRef) && presence.bullmqProducerImportsReal,
+  'voice-engine-contract': (_seed, presence) => presence.voiceEngineImportsReal,
 };
 
 /** Resolve a seed to a full surface: requiredTiers from its mechanism, actualTiers iff present. */
@@ -307,6 +330,25 @@ export function generateCoverageTopology(projectRoot: string = defaultRootDir())
         consumer: 'ai-worker',
         schemaRef: 'rawAssemblyInputsSchema',
         mechanism: 'golden-fixture',
+      },
+      presence
+    )
+  );
+
+  // The voice-engine JSON-response contract (cross-language: Python producer →
+  // ai-worker consumer). One aggregate surface for the JSON shapes; the Python
+  // producer is CI-enforced (voice-engine-test), the TS consumer is topology-tracked.
+  surfaces.push(
+    buildSurface(
+      {
+        id: 'voice-engine:ai-worker:json-responses',
+        kind: 'voice-engine',
+        producer: 'voice-engine',
+        consumer: 'ai-worker',
+        // The module that exports the response schemas (this mechanism checks the
+        // consumer's import, not schemaRef — so this is a label, not a key).
+        schemaRef: 'voiceEngineSchemas',
+        mechanism: 'voice-engine-contract',
       },
       presence
     )
