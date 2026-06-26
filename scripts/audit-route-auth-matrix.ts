@@ -517,7 +517,7 @@ function main(): void {
   for (const file of project.getSourceFiles()) {
     const path = file.getFilePath();
     if (!path.includes('/services/api-gateway/src/routes/')) continue;
-    if (path.endsWith('.test.ts') || path.endsWith('.component.test.ts')) continue;
+    if (path.endsWith('.test.ts')) continue; // `.component.test.ts` ends with `.test.ts`
     routes.push(...collectRoutesFromFile(file, project));
   }
 

@@ -24,10 +24,24 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
  * directory, e.g. `raw-assembly-inputs/base.json`.
  */
 export function contractFixtureFile(name: string): string {
+  // Defense-in-depth (test-only infra, but per 00-critical's path rules): a `name`
+  // containing `..` or a leading `/` could resolve outside the committed fixtures
+  // dir. Reject it rather than silently reading an arbitrary file. The `..` check is
+  // position-agnostic — a hyphen-adjacent `old..new.json` is rejected too; committed
+  // fixture names are kebab-case path segments, so this never collides in practice.
+  if (name.includes('..') || name.startsWith('/')) {
+    throw new Error(`Invalid contract fixture name (path traversal rejected): ${name}`);
+  }
   return join(__dirname, '../fixtures/contracts', name);
 }
 
-/** Read + `JSON.parse` a committed contract fixture by its `name` (see above). */
+/**
+ * Read + `JSON.parse` a committed contract fixture by its `name` (see above). The
+ * `as T` is an UNVALIDATED convenience cast, not a guarantee — consumer contract
+ * tests are expected to feed the result through their real schema's `.parse()`
+ * (e.g. `rawAssemblyInputsSchema.parse(loadContractFixture(...))`), which is the
+ * actual drift check.
+ */
 export function loadContractFixture<T = unknown>(name: string): T {
   return JSON.parse(readFileSync(contractFixtureFile(name), 'utf-8')) as T;
 }
