@@ -214,6 +214,12 @@ podman start tzurot-redis tzurot-postgres
 pnpm dev
 ```
 
+**Running tests:** unit tests (`pnpm test`) need no services. **Component tests
+(`pnpm test:component`) and the integration + contract tiers (`pnpm test:integration`)
+require Redis** — start it first (`podman start tzurot-redis`) or you'll get a clear
+"Test Redis is unreachable" error. Tests use in-process PGLite for the database, so no
+Postgres is needed.
+
 ## Documentation
 
 ### Project Status & Planning

@@ -3,7 +3,7 @@
   "version": "3.0.0-beta.137",
   "private": true,
   "type": "module",
-  "description": "Integration + contract test home. Tests run via the root `pnpm test:integration` (vitest.integration.config.ts), which globs `**/*.{integration,contract}.test.ts` repo-wide — not a per-package script. This package exists to declare the workspace deps those tests import.",
+  "description": "Integration + contract tests for Tzurot services (run via the root `pnpm test:integration`; see vitest.integration.config.ts).",
   "scripts": {},
   "dependencies": {
     "@tzurot/ai-worker": "workspace:*",

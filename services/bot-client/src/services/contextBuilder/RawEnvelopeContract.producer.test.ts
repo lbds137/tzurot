@@ -6,7 +6,7 @@
  * `--update` regenerates the fixtures; CI COMPARES (strict). Drift → CI fails →
  * regenerate-on-purpose and commit the diff.
  *
- * The ai-worker consumer test (`RawEnvelopeContract.consumer.component.test.ts`)
+ * The ai-worker consumer test (`RawEnvelopeContract.consumer.contract.test.ts`)
  * reads these SAME fixtures and feeds them to the real `ContextAssembler`. The
  * committed fixture IS the contract artifact — the two services share data, not
  * code, so neither imports the other (depcruise boundary stays intact). See
