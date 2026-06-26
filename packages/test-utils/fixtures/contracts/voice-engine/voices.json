@@ -1,0 +1,8 @@
+{
+  "voices": [
+    {
+      "id": "contract-voice",
+      "type": "cached"
+    }
+  ]
+}
