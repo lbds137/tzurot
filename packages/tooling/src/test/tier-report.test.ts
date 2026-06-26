@@ -16,7 +16,7 @@ describe('packageOf', () => {
   });
 
   it('keeps the two-segment label for tests/e2e', () => {
-    expect(packageOf('tests/e2e/database.integration.test.ts')).toBe('tests/e2e');
+    expect(packageOf('tests/e2e/example-flow.integration.test.ts')).toBe('tests/e2e');
     expect(packageOf('tests/e2e/contracts/BullMQJobConsumer.contract.test.ts')).toBe('tests/e2e');
   });
 
@@ -32,7 +32,7 @@ describe('buildTierReport', () => {
     'services/bot-client/src/c.component.test.ts',
     'services/ai-worker/src/d.component.test.ts',
     'packages/common-types/src/e.schema.test.ts',
-    'tests/e2e/database.integration.test.ts',
+    'tests/e2e/example-flow.integration.test.ts', // synthetic — the integration tier is currently empty
     'tests/e2e/contracts/BullMQJobConsumer.contract.test.ts',
     'README.md', // ignored — not a test file
     'services/bot-client/src/f.ts', // ignored — not a test file

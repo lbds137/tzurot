@@ -12,9 +12,16 @@ process.env.PROD_DATABASE_URL ??= process.env.DATABASE_URL ?? '';
  *
  * Both share one runtime profile:
  * - Test cross-service flows / live external deps (real DB, BullMQ contracts)
- * - Live under tests/e2e/ (contract tests under tests/e2e/contracts/)
+ * - May be colocated with the code they lock (*.contract.test.ts anywhere) or
+ *   live under tests/e2e/ (e.g. the BullMQ pair) — matched by suffix, repo-wide
  * - Use real timing (no fake timers)
- * - Coverage disabled (tests real external services)
+ * - Coverage disabled — these tiers verify cross-service behavior / contracts,
+ *   not in-service line coverage (the component + unit tiers carry coverage)
+ *
+ * CI note: the `component-tests` job runs this config but provisions ONLY Redis
+ * (no Postgres) — every current test here uses in-process PGLite or static
+ * fixtures. A real-Postgres `*.integration.test.ts` would hit ECONNREFUSED and
+ * needs a Postgres service added to that job (or its own job) first.
  */
 export default defineConfig({
   resolve: {
