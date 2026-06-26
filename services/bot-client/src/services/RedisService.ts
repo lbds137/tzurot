@@ -16,12 +16,12 @@ export class RedisService {
   /**
    * Store webhook message -> personality mapping
    * @param messageId Discord message ID
-   * @param personalityName Personality name
+   * @param personalityId Personality UUID
    * @param ttlSeconds Time to live in seconds (default: 7 days)
    */
   async storeWebhookMessage(
     messageId: string,
-    personalityName: string,
+    personalityId: string,
     ttlSeconds: number = INTERVALS.WEBHOOK_MESSAGE_TTL
   ): Promise<void> {
     try {
@@ -29,28 +29,28 @@ export class RedisService {
       await this.redis.setex(
         `${REDIS_KEY_PREFIXES.WEBHOOK_MESSAGE}${messageId}`,
         ttlSeconds,
-        personalityName
+        personalityId
       );
-      logger.debug({ messageId, personalityName }, 'Stored webhook message');
+      logger.debug({ messageId, personalityId }, 'Stored webhook message');
     } catch (error) {
       logger.error({ err: error, messageId }, 'Failed to store webhook message');
     }
   }
 
   /**
-   * Get personality name from webhook message ID
+   * Get personality UUID from webhook message ID
    * @param messageId Discord message ID
-   * @returns Personality name or null if not found
+   * @returns Personality UUID or null if not found
    */
   async getWebhookPersonality(messageId: string): Promise<string | null> {
     try {
-      const personalityName = await this.redis.get(
+      const personalityId = await this.redis.get(
         `${REDIS_KEY_PREFIXES.WEBHOOK_MESSAGE}${messageId}`
       );
-      if (personalityName !== undefined && personalityName !== null && personalityName.length > 0) {
-        logger.debug({ messageId, personalityName }, 'Retrieved webhook message');
+      if (personalityId !== undefined && personalityId !== null && personalityId.length > 0) {
+        logger.debug({ messageId, personalityId }, 'Retrieved webhook message');
       }
-      return personalityName;
+      return personalityId;
     } catch (error) {
       logger.error({ err: error, messageId }, 'Failed to get webhook message');
       return null;

@@ -302,6 +302,9 @@ describe('DiscordChannelFetcher', () => {
       // UUID; the username carries the human-readable name). No suffix to strip.
       expect(assistantMsg!.personalityName).toBe('TestBot');
       expect(assistantMsg!.personaName).toBeUndefined();
+      // The registry-resolved UUID is threaded through so ai-worker can remap
+      // attribution to the unique name (display names can collide).
+      expect(assistantMsg!.personalityId).toBe('personality-uuid');
     });
 
     it('extracts personality name from webhook " · BotName" suffix (registry-miss fallback)', async () => {
@@ -332,6 +335,8 @@ describe('DiscordChannelFetcher', () => {
       expect(assistantMsg).toBeDefined();
       // Should extract "Lila" from "Lila · תשב", not use "CurrentPersonality"
       expect(assistantMsg!.personalityName).toBe('Lila');
+      // Registry miss → no UUID; ai-worker keeps the display-name attribution.
+      expect(assistantMsg!.personalityId).toBeUndefined();
     });
 
     it('extracts personality name from webhook legacy " | BotName" suffix (back-compat)', async () => {

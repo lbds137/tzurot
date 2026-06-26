@@ -1318,6 +1318,52 @@ describe('Conversation Utilities', () => {
 
       expect(result).not.toContain('<voice_transcripts>');
     });
+
+    it('should skip voice_transcripts for assistant messages (bot output duplicates content)', () => {
+      // The bot's own voice output is TTS of its message text, so a transcript
+      // would just repeat `content`. Rendering both produced the duplicate.
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'assistant',
+          content: 'This is my spoken reply.',
+          personalityName: 'TestBot',
+          messageMetadata: {
+            voiceTranscripts: ['This is my spoken reply.'],
+          },
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      expect(result).not.toContain('<voice_transcripts>');
+      // The text still appears once, as the message body.
+      expect(result).toContain('This is my spoken reply.');
+      expect(result.match(/This is my spoken reply\./g)).toHaveLength(1);
+    });
+
+    it('keeps user transcripts but drops assistant transcripts in mixed history', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: '',
+          personaName: 'Alice',
+          messageMetadata: { voiceTranscripts: ['User said this out loud'] },
+        },
+        {
+          role: 'assistant',
+          content: 'Bot reply text',
+          personalityName: 'TestBot',
+          messageMetadata: { voiceTranscripts: ['Bot reply text'] },
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      // User's spoken words survive (the transcript is their only record)...
+      expect(result).toContain('<transcript>User said this out loud</transcript>');
+      // ...but the bot's transcript does not duplicate its message body.
+      expect(result).not.toContain('<transcript>Bot reply text</transcript>');
+    });
   });
 
   describe('getFormattedMessageCharLength', () => {

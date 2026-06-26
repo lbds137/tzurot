@@ -57,6 +57,11 @@ export interface RawHistoryEntry {
   // AI personality info (for multi-AI channel attribution)
   /** The AI personality ID this message belongs to */
   personalityId?: string;
-  /** The AI personality's display name (for assistant message attribution) */
+  /**
+   * The AI personality's unique name (for assistant message attribution).
+   * Unique rather than display name so two personalities sharing a display
+   * name (e.g. "Fallen Emily" / "Emily" both displaying "Emily") stay
+   * distinguishable in the chat log.
+   */
   personalityName?: string;
 }

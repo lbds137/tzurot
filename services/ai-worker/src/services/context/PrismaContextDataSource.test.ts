@@ -32,9 +32,11 @@ import type { PrismaClient } from '@tzurot/common-types';
 
 const mockFindUnique = vi.fn();
 const mockUserFindUnique = vi.fn();
+const mockPersonalityFindMany = vi.fn();
 const fakePrisma = {
   userPersonaHistoryConfig: { findUnique: mockFindUnique },
   user: { findUnique: mockUserFindUnique },
+  personality: { findMany: mockPersonalityFindMany },
 } as unknown as PrismaClient;
 
 describe('PrismaContextDataSource', () => {
@@ -152,5 +154,35 @@ describe('PrismaContextDataSource', () => {
     await expect(
       source.getContextEpoch('internal-1', 'pers-1', 'persona-1')
     ).resolves.toBeUndefined();
+  });
+
+  describe('getPersonalityNamesByIds', () => {
+    it('returns a id→name map for the queried ids', async () => {
+      mockPersonalityFindMany.mockResolvedValue([
+        { id: 'pers-1', name: 'Emily' },
+        { id: 'pers-2', name: 'Fallen Emily' },
+      ]);
+
+      const result = await source.getPersonalityNamesByIds(['pers-1', 'pers-2']);
+
+      expect(mockPersonalityFindMany).toHaveBeenCalledWith({
+        where: { id: { in: ['pers-1', 'pers-2'] } },
+        select: { id: true, name: true },
+        take: 2,
+      });
+      expect(result).toEqual(
+        new Map([
+          ['pers-1', 'Emily'],
+          ['pers-2', 'Fallen Emily'],
+        ])
+      );
+    });
+
+    it('short-circuits to an empty map without querying when given no ids', async () => {
+      const result = await source.getPersonalityNamesByIds([]);
+
+      expect(result.size).toBe(0);
+      expect(mockPersonalityFindMany).not.toHaveBeenCalled();
+    });
   });
 });

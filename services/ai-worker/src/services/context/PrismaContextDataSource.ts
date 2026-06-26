@@ -81,4 +81,16 @@ export class PrismaContextDataSource implements ContextDataSource {
     });
     return historyConfig?.lastContextReset ?? undefined;
   }
+
+  async getPersonalityNamesByIds(ids: string[]): Promise<Map<string, string>> {
+    if (ids.length === 0) {
+      return new Map();
+    }
+    const rows = await this.prisma.personality.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, name: true },
+      take: ids.length,
+    });
+    return new Map(rows.map(row => [row.id, row.name]));
+  }
 }
