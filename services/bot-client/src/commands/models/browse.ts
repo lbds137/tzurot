@@ -157,7 +157,7 @@ interface BrowseView {
   page: number;
   capability: CapabilityFilter;
   sort: ModelSort;
-  search: string | null;
+  query: string | null;
   capped: boolean;
 }
 
@@ -169,13 +169,13 @@ const ACTIVE_SORT_LABEL: Record<ModelSort, string> = {
 };
 
 function buildBrowseEmbed(view: BrowseView, pageItems: BrowseModel[]): EmbedBuilder {
-  const { items, page, capability, sort, search, capped } = view;
+  const { items, page, capability, sort, query, capped } = view;
   const startIdx = page * MODELS_PER_PAGE;
 
   const lines: string[] = [];
   const filterBits = [
     capability !== 'all' ? `capability: ${capability}` : '',
-    search !== null ? `search: "${search}"` : '',
+    query !== null ? `query: "${query}"` : '',
     `sorted: ${ACTIVE_SORT_LABEL[sort]}`,
   ].filter(Boolean);
   lines.push(`_${filterBits.join(' · ')}_`);
@@ -201,7 +201,7 @@ function buildBrowseEmbed(view: BrowseView, pageItems: BrowseModel[]): EmbedBuil
   embed.setFooter({
     text: joinFooter(
       pluralize(items.length, { singular: 'model', plural: 'models' }),
-      capped && `first ${BROWSE_FETCH_LIMIT} — refine with search for more`,
+      capped && `first ${BROWSE_FETCH_LIMIT} — refine with a query for more`,
       '🆓 free  ✅ you can use  🔒 needs a key  ❔ unverified  📌 global preset  🔀 router  ⚡ z.ai'
     ),
   });
@@ -213,13 +213,13 @@ function buildBrowseComponents(
   pageItems: BrowseModel[],
   totalPages: number
 ): BrowseActionRow[] {
-  const { page, capability, sort, search } = view;
+  const { page, capability, sort, query } = view;
   const startIdx = page * MODELS_PER_PAGE;
   const components: BrowseActionRow[] = [];
 
   const selectRow = buildBrowseSelectMenu<BrowseModel>({
     items: pageItems,
-    customId: browseHelpers.buildSelect(page, capability, sort, search),
+    customId: browseHelpers.buildSelect(page, capability, sort, query),
     placeholder: 'Select a model to view its card...',
     startIndex: startIdx,
     formatItem: model => ({
@@ -239,7 +239,7 @@ function buildBrowseComponents(
         totalPages,
         filter: capability,
         currentSort: sort,
-        query: search,
+        query,
         buildCustomId: browseHelpers.build,
         buildInfoId: browseHelpers.buildInfo,
         sortToggle,
@@ -273,12 +273,12 @@ function buildBrowsePage(view: BrowseView): { embed: EmbedBuilder; components: B
 async function loadAnnotatedModels(
   interaction: ClientCarryingInteraction,
   capability: CapabilityFilter,
-  search: string | null,
+  query: string | null,
   sort: ModelSort
 ): Promise<BrowseModel[]> {
   const { userClient } = clientsFor(interaction);
   const [catalog, activeProviders, globalPresetModelIds] = await Promise.all([
-    fetchModelCatalog({ capability, search: search ?? undefined, limit: BROWSE_FETCH_LIMIT }),
+    fetchModelCatalog({ capability, search: query ?? undefined, limit: BROWSE_FETCH_LIMIT }),
     getActiveProviders(userClient, interaction.user.id),
     getGlobalPresetModelIds(userClient),
   ]);
@@ -295,21 +295,21 @@ async function loadAnnotatedModels(
 export async function handleBrowse(context: DeferredCommandContext): Promise<void> {
   const options = modelsBrowseOptions(context.interaction);
   const capability = (options.capability() ?? 'all') as CapabilityFilter;
-  const search = options.query();
+  const query = options.query();
   const sort: ModelSort = 'default';
 
   try {
-    const models = await loadAnnotatedModels(context.interaction, capability, search, sort);
+    const models = await loadAnnotatedModels(context.interaction, capability, query, sort);
     const { embed, components } = buildBrowsePage({
       items: models,
       page: 0,
       capability,
       sort,
-      search,
+      query,
       capped: models.length >= BROWSE_FETCH_LIMIT,
     });
     await context.editReply({ embeds: [embed], components });
-    logger.info({ count: models.length, capability, search, sort }, 'Browse models');
+    logger.info({ count: models.length, capability, query, sort }, 'Browse models');
   } catch (error) {
     logger.error({ err: error }, 'Failed to browse models');
     await context.editReply('❌ Failed to load models. Please try again.');
@@ -332,7 +332,7 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
       page: parsed.page,
       capability: parsed.filter,
       sort: parsed.sort,
-      search: parsed.query,
+      query: parsed.query,
       capped: models.length >= BROWSE_FETCH_LIMIT,
     });
     await interaction.editReply({ embeds: [embed], components });
