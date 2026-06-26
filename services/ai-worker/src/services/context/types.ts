@@ -87,4 +87,22 @@ export interface ContextDataSource {
    * simply absent from the map.
    */
   getPersonalityNamesByIds(ids: string[]): Promise<Map<string, string>>;
+
+  /**
+   * Persisted user identities keyed by Discord message id, for relay-echo
+   * recovery. A `/character chat` relay-echo (the bot reposting user input as
+   * `**Name:** …`) is bot-authored, so the extended-context fetch can't see the
+   * human behind it — it arrives role=user with no personaId and the bot's
+   * webhook name as discordUsername. But the same message was persisted with the
+   * human's persona, so we recover it by discord message id. Only user-role rows
+   * carrying a real persona are returned; unknown ids are simply absent.
+   */
+  getUserIdentitiesByDiscordIds(discordIds: string[]): Promise<Map<string, RelayEchoUserIdentity>>;
+}
+
+/** The human identity behind a persisted (relay-echo) user message. */
+export interface RelayEchoUserIdentity {
+  personaId: string;
+  personaName: string;
+  discordUsername: string;
 }

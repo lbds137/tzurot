@@ -28,15 +28,17 @@ vi.mock('@tzurot/identity', () => ({
 }));
 
 import { PrismaContextDataSource } from './PrismaContextDataSource.js';
-import type { PrismaClient } from '@tzurot/common-types';
+import { MessageRole, type PrismaClient } from '@tzurot/common-types';
 
 const mockFindUnique = vi.fn();
 const mockUserFindUnique = vi.fn();
 const mockPersonalityFindMany = vi.fn();
+const mockConversationHistoryFindMany = vi.fn();
 const fakePrisma = {
   userPersonaHistoryConfig: { findUnique: mockFindUnique },
   user: { findUnique: mockUserFindUnique },
   personality: { findMany: mockPersonalityFindMany },
+  conversationHistory: { findMany: mockConversationHistoryFindMany },
 } as unknown as PrismaClient;
 
 describe('PrismaContextDataSource', () => {
@@ -183,6 +185,61 @@ describe('PrismaContextDataSource', () => {
 
       expect(result.size).toBe(0);
       expect(mockPersonalityFindMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getUserIdentitiesByDiscordIds', () => {
+    it('maps persisted user rows to identities keyed by discord message id', async () => {
+      mockConversationHistoryFindMany.mockResolvedValue([
+        {
+          discordMessageId: ['d-relay-1'],
+          personaId: 'persona-uuid',
+          persona: { name: 'lila', preferredName: 'Lila', owner: { username: 'lbds137' } },
+        },
+      ]);
+
+      const result = await source.getUserIdentitiesByDiscordIds(['d-relay-1', 'd-relay-2']);
+
+      // Assert the contract (bounded query + user-scoped, id-matched) without
+      // over-coupling to the exact select shape.
+      expect(mockConversationHistoryFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            discordMessageId: { hasSome: ['d-relay-1', 'd-relay-2'] },
+            role: MessageRole.User,
+          },
+          take: 2,
+        })
+      );
+      expect(result).toEqual(
+        new Map([
+          [
+            'd-relay-1',
+            { personaId: 'persona-uuid', personaName: 'Lila', discordUsername: 'lbds137' },
+          ],
+        ])
+      );
+    });
+
+    it('falls back to persona.name when preferredName is null', async () => {
+      mockConversationHistoryFindMany.mockResolvedValue([
+        {
+          discordMessageId: ['d-x'],
+          personaId: 'p2',
+          persona: { name: 'canonical', preferredName: null, owner: { username: 'u' } },
+        },
+      ]);
+
+      const result = await source.getUserIdentitiesByDiscordIds(['d-x']);
+
+      expect(result.get('d-x')?.personaName).toBe('canonical');
+    });
+
+    it('short-circuits to an empty map without querying when given no ids', async () => {
+      const result = await source.getUserIdentitiesByDiscordIds([]);
+
+      expect(result.size).toBe(0);
+      expect(mockConversationHistoryFindMany).not.toHaveBeenCalled();
     });
   });
 });

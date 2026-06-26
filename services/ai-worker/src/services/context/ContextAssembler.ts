@@ -41,6 +41,7 @@ import {
 import type { PersonaResolver, UserService } from '@tzurot/identity';
 import { rewriteRawContent, type RewrittenContent } from './contentRewriter.js';
 import { enrichRawReferences } from './referenceEnricher.js';
+import { recoverRelayEchoIdentities } from './relayEchoRecovery.js';
 import type { ContextDataSource } from './types.js';
 
 const logger = createLogger('ContextAssembler');
@@ -537,6 +538,11 @@ export class ContextAssembler {
         participantGuildInfo
       );
     }
+
+    // Recover the human behind relay-echoes AFTER persona resolution (which strips
+    // their unresolvable bot personaId to ''), so they re-unify with the human's
+    // direct messages instead of fragmenting under the bot's webhook name.
+    await recoverRelayEchoIdentities(messages, this.deps.dataSource);
 
     return { history: mergeWithHistory(messages, dbHistory), participantGuildInfo };
   }
