@@ -349,8 +349,19 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:test_ci_password@localhost:5432/tzurot_test
 
-      - name: Run integration tests with coverage
+      - name: Run component tests with coverage
         run: pnpm test:component -- --coverage
+        env:
+          DATABASE_URL: postgresql://postgres:test_ci_password@localhost:5432/tzurot_test
+          REDIS_URL: redis://localhost:6379
+          CI: true
+
+      # Real-dependency tiers: integration (*.integration.test.ts) + contract
+      # (*.contract.test.ts, incl. the golden-fixture envelope consumer and the
+      # BullMQ producer/consumer pair). Previously run in NO CI job — so the
+      # contract tier the coverage topology relies on never actually executed.
+      - name: Run integration + contract tiers
+        run: pnpm test:integration
         env:
           DATABASE_URL: postgresql://postgres:test_ci_password@localhost:5432/tzurot_test
           REDIS_URL: redis://localhost:6379

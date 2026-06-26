@@ -27,8 +27,10 @@ export default defineConfig({
     globals: true,
     environment: 'node',
 
-    // Run the integration + contract tiers under tests/
-    include: ['tests/e2e/**/*.integration.test.ts', 'tests/e2e/**/*.contract.test.ts'],
+    // Run the integration + contract tiers. Contract tests may be colocated with
+    // the code they lock (e.g. the golden-fixture consumer test in ai-worker) or
+    // live under tests/e2e/ (the BullMQ pair) — match both by suffix, repo-wide.
+    include: ['**/*.integration.test.ts', '**/*.contract.test.ts'],
     exclude: ['**/node_modules/**', '**/dist/**', '**/*.d.ts'],
 
     // These tiers need longer timeouts
