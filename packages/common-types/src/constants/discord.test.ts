@@ -141,20 +141,62 @@ describe('Bot Footer Text Constants', () => {
     });
 
     it('should build model footer with auto badge when requested', () => {
-      const result = buildModelFooterText('gpt-4', 'https://openrouter.ai/models/gpt-4', true);
+      const result = buildModelFooterText('gpt-4', 'https://openrouter.ai/models/gpt-4', {
+        withAutoBadge: true,
+      });
       expect(result).toBe('Model: [gpt-4](<https://openrouter.ai/models/gpt-4>) • 📍 auto');
     });
 
-    it('should produce output that matches BOT_FOOTER_PATTERNS.MODEL', () => {
-      // Without auto badge
-      const basic = `-# ${buildModelFooterText('test/model', 'https://example.com/model')}`;
-      BOT_FOOTER_PATTERNS.MODEL.lastIndex = 0;
-      expect(BOT_FOOTER_PATTERNS.MODEL.test(basic)).toBe(true);
+    it('appends explicit provider attribution for a known provider', () => {
+      const openRouter = buildModelFooterText('z-ai/glm-5.2', 'https://example.com/m', {
+        provider: 'openrouter',
+      });
+      expect(openRouter).toBe('Model: [z-ai/glm-5.2](<https://example.com/m>) • via OpenRouter');
 
-      // With auto badge
-      const withAuto = `-# ${buildModelFooterText('test/model', 'https://example.com/model', true)}`;
-      BOT_FOOTER_PATTERNS.MODEL.lastIndex = 0;
-      expect(BOT_FOOTER_PATTERNS.MODEL.test(withAuto)).toBe(true);
+      const zai = buildModelFooterText('glm-5.2', 'https://example.com/m', {
+        provider: 'zai-coding',
+      });
+      expect(zai).toBe('Model: [glm-5.2](<https://example.com/m>) • via Z.AI Coding Plan');
+    });
+
+    it('orders provider attribution before the auto badge', () => {
+      const result = buildModelFooterText('glm-5.2', 'https://example.com/m', {
+        provider: 'zai-coding',
+        withAutoBadge: true,
+      });
+      expect(result).toBe(
+        'Model: [glm-5.2](<https://example.com/m>) • via Z.AI Coding Plan • 📍 auto'
+      );
+    });
+
+    it('omits provider attribution for an unknown or absent provider', () => {
+      expect(buildModelFooterText('gpt-4', 'https://example.com/m')).toBe(
+        'Model: [gpt-4](<https://example.com/m>)'
+      );
+      expect(
+        buildModelFooterText('gpt-4', 'https://example.com/m', { provider: 'not-a-provider' })
+      ).toBe('Model: [gpt-4](<https://example.com/m>)');
+    });
+
+    it('should produce output that matches BOT_FOOTER_PATTERNS.MODEL', () => {
+      // Every shape the builder can emit must be strippable by the footer regex,
+      // or footers leak into stored history / duplicate-detection comparisons.
+      const cases = [
+        buildModelFooterText('test/model', 'https://example.com/model'),
+        buildModelFooterText('test/model', 'https://example.com/model', { withAutoBadge: true }),
+        buildModelFooterText('test/model', 'https://example.com/model', { provider: 'openrouter' }),
+        buildModelFooterText('test/model', 'https://example.com/model', {
+          provider: 'zai-coding',
+          withAutoBadge: true,
+        }),
+      ];
+      for (const built of cases) {
+        const line = `-# ${built}`;
+        BOT_FOOTER_PATTERNS.MODEL.lastIndex = 0;
+        expect(BOT_FOOTER_PATTERNS.MODEL.test(line)).toBe(true);
+        // And the strip removes the entire footer line, leaving nothing behind.
+        expect(line.replace(BOT_FOOTER_PATTERNS.MODEL, '')).toBe('');
+      }
     });
 
     it('should sanitize model name to prevent markdown injection', () => {
