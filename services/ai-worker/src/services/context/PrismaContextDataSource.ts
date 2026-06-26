@@ -11,13 +11,18 @@
  */
 
 import {
+  MessageRole,
   type ConversationMessage,
   type CrossChannelHistoryGroup,
   type PrismaClient,
 } from '@tzurot/common-types';
 import { ConversationHistoryService } from '@tzurot/conversation-history';
 import { UserService } from '@tzurot/identity';
-import type { ContextDataSource, CrossChannelHistoryParams } from './types.js';
+import type {
+  ContextDataSource,
+  CrossChannelHistoryParams,
+  RelayEchoUserIdentity,
+} from './types.js';
 
 export class PrismaContextDataSource implements ContextDataSource {
   private readonly history: ConversationHistoryService;
@@ -92,5 +97,53 @@ export class PrismaContextDataSource implements ContextDataSource {
       take: ids.length,
     });
     return new Map(rows.map(row => [row.id, row.name]));
+  }
+
+  async getUserIdentitiesByDiscordIds(
+    discordIds: string[]
+  ): Promise<Map<string, RelayEchoUserIdentity>> {
+    if (discordIds.length === 0) {
+      return new Map();
+    }
+    // A persisted message's `discordMessageId` is an array (a long reply can span
+    // several Discord messages); `hasSome` matches any row containing one of the
+    // queried ids. Scope to user rows carrying a real persona — relay-echoes were
+    // saved with the human's personaId, which is exactly what we want to recover.
+    const rows = await this.prisma.conversationHistory.findMany({
+      where: {
+        discordMessageId: { hasSome: discordIds },
+        role: MessageRole.User,
+      },
+      select: {
+        discordMessageId: true,
+        personaId: true,
+        persona: {
+          select: {
+            name: true,
+            preferredName: true,
+            owner: { select: { username: true } },
+          },
+        },
+      },
+      take: discordIds.length,
+    });
+
+    const queried = new Set(discordIds);
+    const byDiscordId = new Map<string, RelayEchoUserIdentity>();
+    for (const row of rows) {
+      const identity: RelayEchoUserIdentity = {
+        personaId: row.personaId,
+        personaName: row.persona.preferredName ?? row.persona.name,
+        discordUsername: row.persona.owner.username,
+      };
+      for (const id of row.discordMessageId) {
+        // first row wins for a given id (findMany has no inherent ordering, but a
+        // relay-echo is a single Discord message → exactly one matching row)
+        if (queried.has(id) && !byDiscordId.has(id)) {
+          byDiscordId.set(id, identity);
+        }
+      }
+    }
+    return byDiscordId;
   }
 }
