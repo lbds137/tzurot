@@ -30,6 +30,7 @@ function makeDeps(overrides: Partial<Record<string, unknown>> = {}): ContextAsse
       getContextEpoch: vi.fn().mockResolvedValue(undefined),
       getMessageByDiscordId: vi.fn().mockResolvedValue(null),
       findUserByDiscordId: vi.fn().mockResolvedValue(null),
+      getPersonalityNamesByIds: vi.fn().mockResolvedValue(new Map()),
       ...(overrides.dataSource as object),
     } as unknown as ContextDataSource,
     userService: {
@@ -839,6 +840,139 @@ describe('ContextAssembler.assembleCore — schema-coupled re-derivation', () =>
   });
 });
 
+describe('ContextAssembler — extended-context personality-name remap', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  function extCtx(messages: unknown[]): JobContext {
+    return makeJobContext({
+      rawAssemblyInputs: {
+        rawMessageContent: 'hello',
+        rawExtendedContextMessages: messages,
+      },
+    } as Partial<JobContext>);
+  }
+
+  it('remaps assistant attribution to the unique name via personalityId', async () => {
+    const deps = makeDeps({
+      dataSource: {
+        getPersonalityNamesByIds: vi
+          .fn()
+          .mockResolvedValue(new Map([['pers-fallen', 'Fallen Emily']])),
+      },
+    });
+    const ctx = extCtx([
+      {
+        role: MessageRole.Assistant,
+        content: 'hi from the other one',
+        personalityName: 'Emily', // webhook display name (shared, ambiguous)
+        personalityId: 'pers-fallen',
+        discordMessageId: ['d-1'],
+      },
+    ]);
+
+    const core = await new ContextAssembler(deps).assembleCore(ctx, PERSONALITY, undefined);
+
+    const msg = core.history.find(m => (m.discordMessageId ?? []).includes('d-1'));
+    expect(msg?.personalityName).toBe('Fallen Emily');
+    expect(deps.dataSource.getPersonalityNamesByIds).toHaveBeenCalledWith(['pers-fallen']);
+  });
+
+  it('keeps display-name attribution when the id is unresolved (registry miss)', async () => {
+    const deps = makeDeps({
+      dataSource: { getPersonalityNamesByIds: vi.fn().mockResolvedValue(new Map()) },
+    });
+    const ctx = extCtx([
+      {
+        role: MessageRole.Assistant,
+        content: 'hi',
+        personalityName: 'Emily',
+        // no personalityId → registry miss; nothing to resolve
+        discordMessageId: ['d-2'],
+      },
+    ]);
+
+    const core = await new ContextAssembler(deps).assembleCore(ctx, PERSONALITY, undefined);
+
+    const msg = core.history.find(m => (m.discordMessageId ?? []).includes('d-2'));
+    expect(msg?.personalityName).toBe('Emily');
+    expect(deps.dataSource.getPersonalityNamesByIds).not.toHaveBeenCalled();
+  });
+
+  it('remaps resolvable ids, leaves unresolvable ones and user messages untouched', async () => {
+    // Mixed batch in one call: a resolvable assistant id, an unresolvable one
+    // (deleted/evicted personality), and a user message. Exercises the loop's
+    // skip-non-assistant path and the no-match keep-display-name path together.
+    const deps = makeDeps({
+      dataSource: {
+        getPersonalityNamesByIds: vi
+          .fn()
+          .mockResolvedValue(new Map([['pers-known', 'Fallen Emily']])),
+      },
+    });
+    const ctx = extCtx([
+      {
+        role: MessageRole.Assistant,
+        content: 'resolvable',
+        personalityName: 'Emily',
+        personalityId: 'pers-known',
+        discordMessageId: ['d-known'],
+      },
+      {
+        role: MessageRole.Assistant,
+        content: 'unresolvable',
+        personalityName: 'Emily',
+        personalityId: 'pers-gone', // not in the returned map
+        discordMessageId: ['d-gone'],
+      },
+      {
+        role: MessageRole.User,
+        content: 'a human message',
+        personaName: 'Lila',
+        discordMessageId: ['d-user'],
+      },
+    ]);
+
+    const core = await new ContextAssembler(deps).assembleCore(ctx, PERSONALITY, undefined);
+
+    const known = core.history.find(m => (m.discordMessageId ?? []).includes('d-known'));
+    const gone = core.history.find(m => (m.discordMessageId ?? []).includes('d-gone'));
+    const user = core.history.find(m => (m.discordMessageId ?? []).includes('d-user'));
+    expect(known?.personalityName).toBe('Fallen Emily'); // resolved → unique name
+    expect(gone?.personalityName).toBe('Emily'); // unresolved → keeps display name
+    expect(user?.personaName).toBe('Lila'); // user untouched
+    // Both assistant ids are queried; the user message contributes none.
+    expect(deps.dataSource.getPersonalityNamesByIds).toHaveBeenCalledWith([
+      'pers-known',
+      'pers-gone',
+    ]);
+  });
+
+  it('does not remap user messages', async () => {
+    const deps = makeDeps({
+      dataSource: {
+        getPersonalityNamesByIds: vi
+          .fn()
+          .mockResolvedValue(new Map([['pers-x', 'ShouldNotApply']])),
+      },
+    });
+    const ctx = extCtx([
+      {
+        role: MessageRole.User,
+        content: 'a human message',
+        personaName: 'Lila',
+        personalityId: 'pers-x', // present but role=user → must be ignored
+        discordMessageId: ['d-3'],
+      },
+    ]);
+
+    const core = await new ContextAssembler(deps).assembleCore(ctx, PERSONALITY, undefined);
+
+    const msg = core.history.find(m => (m.discordMessageId ?? []).includes('d-3'));
+    expect(msg?.personaName).toBe('Lila');
+    expect(deps.dataSource.getPersonalityNamesByIds).not.toHaveBeenCalled();
+  });
+});
+
 describe('ContextAssembler — extended-context voice transcript re-resolution', () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -922,6 +1056,40 @@ describe('ContextAssembler — extended-context voice transcript re-resolution',
       { reTranscribeVoiceViaStt: stt }
     );
     expect(transcriptsOf(core)).toEqual(['already here']);
+    expect(getMessageByDiscordId).not.toHaveBeenCalled();
+    expect(stt).not.toHaveBeenCalled();
+  });
+
+  it("skips the bot's own (assistant) voice output — no DB/STT lookup, no transcript", async () => {
+    // The bot's voice output is TTS of its message text, so re-resolving a
+    // transcript would be a wasted STT call and the chat-log renderer drops
+    // assistant transcripts anyway. The skip must fire even though the message
+    // is present in history (i.e. it's the assistant-role guard, not the
+    // missing-target guard, that short-circuits).
+    const getMessageByDiscordId = vi.fn().mockResolvedValue({ content: 'db transcript' });
+    const deps = makeDeps({ dataSource: { getMessageByDiscordId } });
+    const stt = vi.fn().mockResolvedValue('stt transcript');
+    const ctx = makeJobContext({
+      rawAssemblyInputs: {
+        rawMessageContent: 'hello',
+        rawExtendedContextMessages: [
+          {
+            role: MessageRole.Assistant,
+            content: 'bot spoken reply',
+            discordMessageId: ['d-voice'],
+          },
+        ],
+        rawExtendedContextVoiceMessages: [voiceRef],
+      },
+    });
+
+    const core = await new ContextAssembler(deps).assembleCore(ctx, PERSONALITY, undefined, {
+      reTranscribeVoiceViaStt: stt,
+    });
+
+    const botMsg = core.history.find(m => (m.discordMessageId ?? []).includes('d-voice'));
+    expect(botMsg?.role).toBe(MessageRole.Assistant);
+    expect(botMsg?.messageMetadata?.voiceTranscripts).toBeUndefined();
     expect(getMessageByDiscordId).not.toHaveBeenCalled();
     expect(stt).not.toHaveBeenCalled();
   });

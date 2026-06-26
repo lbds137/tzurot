@@ -48,7 +48,12 @@ describe('ConversationMessageMapper', () => {
     it('includes personality relation for multi-AI attribution', () => {
       expect(conversationHistorySelect.personality).toBeDefined();
       expect(conversationHistorySelect.personality.select.name).toBe(true);
-      expect(conversationHistorySelect.personality.select.displayName).toBe(true);
+    });
+
+    it('does not select displayName (attribution uses the unique name)', () => {
+      // Locks the fix for same-display-name persona collisions: displayName must
+      // not be fetched, so it can't be reintroduced into attribution.
+      expect('displayName' in conversationHistorySelect.personality.select).toBe(false);
     });
   });
 
@@ -135,7 +140,6 @@ describe('ConversationMessageMapper', () => {
       },
       personality: {
         name: 'TestBot',
-        displayName: 'Test Bot Display',
       },
       ...overrides,
     });
@@ -238,6 +242,32 @@ describe('ConversationMessageMapper', () => {
       expect(result.role).toBe(MessageRole.Assistant);
     });
 
+    it('uses the unique personality name for attribution', () => {
+      const record = createMockRecord({
+        role: MessageRole.Assistant,
+        personality: { name: 'Fallen Emily' },
+      });
+
+      const result = mapToConversationMessage(record);
+
+      expect(result.personalityName).toBe('Fallen Emily');
+    });
+
+    it('keeps same-display-name personalities distinct via their unique names', () => {
+      // The bug: two personalities both display "Emily" but have distinct names.
+      // Attribution must reflect the names, or the chat log collapses them.
+      const fallen = mapToConversationMessage(
+        createMockRecord({ role: MessageRole.Assistant, personality: { name: 'Fallen Emily' } })
+      );
+      const emily = mapToConversationMessage(
+        createMockRecord({ role: MessageRole.Assistant, personality: { name: 'Emily' } })
+      );
+
+      expect(fallen.personalityName).toBe('Fallen Emily');
+      expect(emily.personalityName).toBe('Emily');
+      expect(fallen.personalityName).not.toBe(emily.personalityName);
+    });
+
     it('restores isForwarded from messageMetadata', () => {
       const record = createMockRecord({
         messageMetadata: {
@@ -314,7 +344,7 @@ describe('ConversationMessageMapper', () => {
             preferredName: null,
             owner: { username: 'user1' },
           },
-          personality: { name: 'TestBot', displayName: 'Test Bot' },
+          personality: { name: 'TestBot' },
         },
         {
           id: 'msg-2',
@@ -333,7 +363,7 @@ describe('ConversationMessageMapper', () => {
             preferredName: 'AI',
             owner: { username: 'system' },
           },
-          personality: { name: 'TestBot', displayName: 'Test Bot' },
+          personality: { name: 'TestBot' },
         },
       ];
 
@@ -361,7 +391,7 @@ describe('ConversationMessageMapper', () => {
           discordMessageId: [],
           messageMetadata: null,
           persona: { name: 'N', preferredName: null, owner: { username: 'u' } },
-          personality: { name: 'TestBot', displayName: null },
+          personality: { name: 'TestBot' },
         },
         {
           id: 'second',
@@ -376,7 +406,7 @@ describe('ConversationMessageMapper', () => {
           discordMessageId: [],
           messageMetadata: null,
           persona: { name: 'N', preferredName: null, owner: { username: 'u' } },
-          personality: { name: 'TestBot', displayName: null },
+          personality: { name: 'TestBot' },
         },
       ];
 

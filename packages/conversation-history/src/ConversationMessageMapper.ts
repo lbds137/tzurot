@@ -44,11 +44,12 @@ export const conversationHistorySelect = {
       },
     },
   },
-  // Include personality relation for assistant message attribution in multi-AI channels
+  // Include personality relation for assistant message attribution in multi-AI channels.
+  // Only `name` is needed — attribution uses the unique name, never displayName
+  // (see mapToConversationMessage for why).
   personality: {
     select: {
       name: true,
-      displayName: true,
     },
   },
 } as const satisfies Prisma.ConversationHistorySelect;
@@ -113,9 +114,14 @@ export function mapToConversationMessage(
     discordMessageId: record.discordMessageId,
     isForwarded: metadata?.isForwarded === true ? true : undefined,
     messageMetadata: metadata,
-    // AI personality info for multi-AI channel attribution
+    // AI personality info for multi-AI channel attribution.
+    // Use the unique `name`, not `displayName`: two personalities can share a
+    // display name (e.g. "Fallen Emily" and "Emily" both displaying "Emily"),
+    // which collapses their chat-log attribution into an indistinguishable
+    // `from="Emily"`. `name` is the disambiguating identifier, and matches how
+    // the active personality is already named throughout the prompt.
     personalityId: record.personalityId,
-    personalityName: record.personality.displayName ?? record.personality.name,
+    personalityName: record.personality.name,
     // Channel info for cross-channel history
     channelId: record.channelId,
     guildId: record.guildId,

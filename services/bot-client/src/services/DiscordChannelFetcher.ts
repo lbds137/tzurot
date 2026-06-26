@@ -349,7 +349,12 @@ export class DiscordChannelFetcher {
     msg: Message,
     options: FetchOptions,
     authorName: string
-  ): Promise<{ isOurMessage: boolean; isOurAssistant: boolean }> {
+  ): Promise<{
+    isOurMessage: boolean;
+    isOurAssistant: boolean;
+    /** Resolved personality UUID (registry hit) — drives unique-name attribution. */
+    registeredPersonalityId: string | null;
+  }> {
     const isPrimaryBot = msg.author.id === options.botUserId;
     const hasWebhookId =
       msg.webhookId !== undefined && msg.webhookId !== null && msg.webhookId.length > 0;
@@ -376,6 +381,7 @@ export class DiscordChannelFetcher {
     return {
       isOurMessage: isOurWebhook || isOurDmResponse || isOurRelayEcho,
       isOurAssistant: isOurWebhook || isOurDmResponse,
+      registeredPersonalityId,
     };
   }
 
@@ -390,7 +396,7 @@ export class DiscordChannelFetcher {
   ): Promise<{ message: ConversationMessage; attachments: AttachmentMetadata[] } | null> {
     const authorName =
       msg.member?.displayName ?? msg.author.globalName ?? msg.author.username ?? 'Unknown';
-    const { isOurMessage, isOurAssistant } = await this.classifyAuthorship(
+    const { isOurMessage, isOurAssistant, registeredPersonalityId } = await this.classifyAuthorship(
       msg,
       options,
       authorName
@@ -483,6 +489,11 @@ export class DiscordChannelFetcher {
         role === MessageRole.Assistant
           ? (prefixName ?? extractPersonalityName(authorName, options.botSuffix ?? ''))
           : undefined,
+      // The UUID lets ai-worker remap personalityName to the unique name, since
+      // the webhook-derived name above is the (possibly-shared) display name.
+      // Null when the registry missed — attribution falls back to the name above.
+      personalityId:
+        role === MessageRole.Assistant ? (registeredPersonalityId ?? undefined) : undefined,
       channelId: msg.channelId,
       guildId: msg.guildId,
     };
