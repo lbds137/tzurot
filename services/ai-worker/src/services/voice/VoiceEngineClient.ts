@@ -13,6 +13,12 @@ import {
   TimeoutError,
 } from '@tzurot/common-types';
 
+import {
+  transcribeResponseSchema,
+  healthResponseSchema,
+  voicesResponseSchema,
+} from './voiceEngineSchemas.js';
+
 const logger = createLogger('VoiceEngineClient');
 
 export interface TranscriptionResult {
@@ -74,8 +80,11 @@ export class VoiceEngineClient {
       throw new VoiceEngineError(response.status, detail);
     }
 
-    // Safe cast — we control the voice-engine response format (see server.py transcribe())
-    return (await response.json()) as TranscriptionResult;
+    // Runtime-validate the contract shape (voiceEngineSchemas + the cross-language
+    // contract fixtures). A drift throws a ZodError that PROPAGATES to the caller (a
+    // contract mismatch is a programming error, not a retryable transient) — far
+    // better than leaking undefined down the transcription path.
+    return transcribeResponseSchema.parse(await response.json());
   }
 
   /**
@@ -100,13 +109,18 @@ export class VoiceEngineClient {
       if (!response.ok) {
         return { asr: false, tts: false };
       }
-      // Safe cast — we control the voice-engine /health response (see server.py health())
-      const body = (await response.json()) as { asr_loaded?: boolean; tts_loaded?: boolean };
+      // Runtime-validate via the shared contract schema; a drift throws and is
+      // caught below (health degrades to false — never trusts a malformed response).
+      const body = healthResponseSchema.parse(await response.json());
       return {
-        asr: body.asr_loaded === true,
-        tts: body.tts_loaded === true,
+        asr: body.asr_loaded,
+        tts: body.tts_loaded,
       };
-    } catch {
+    } catch (err) {
+      // Degrade to unhealthy on ANY failure (timeout, network, or a ZodError from
+      // a drifted /health shape). Log so a schema drift is distinguishable from a
+      // transient — a silent `{ asr: false, tts: false }` otherwise looks identical.
+      logger.warn({ err }, 'Voice engine health check failed or returned an unexpected shape');
       return { asr: false, tts: false };
     }
   }
@@ -170,8 +184,10 @@ export class VoiceEngineClient {
       throw new VoiceEngineError(response.status, detail);
     }
 
-    // Safe cast — we control the voice-engine /v1/voices response (see server.py list_voices())
-    const body = (await response.json()) as { voices: { id: string }[] };
+    // Runtime-validate the contract shape (shared fixtures + voiceEngineSchemas). A
+    // drift throws a ZodError that propagates (programming error, not retryable);
+    // unlike getHealth, which swallows its parse error and degrades to unhealthy.
+    const body = voicesResponseSchema.parse(await response.json());
     return body.voices.map(v => v.id);
   }
 

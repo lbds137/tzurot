@@ -2156,6 +2156,20 @@
       "actualTiers": [
         "component"
       ]
+    },
+    {
+      "id": "voice-engine:ai-worker:json-responses",
+      "kind": "voice-engine",
+      "producer": "voice-engine",
+      "consumer": "ai-worker",
+      "schemaRef": "voiceEngineSchemas",
+      "mechanism": "voice-engine-contract",
+      "requiredTiers": [
+        "contract"
+      ],
+      "actualTiers": [
+        "contract"
+      ]
     }
   ]
 }
