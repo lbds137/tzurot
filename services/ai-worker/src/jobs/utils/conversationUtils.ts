@@ -154,7 +154,11 @@ export function formatSingleHistoryEntryAsXml(
   );
   const imageSection = formatImageSection(msg);
   const embedsSection = formatEmbedsSection(msg);
-  const voiceSection = formatVoiceSection(msg);
+  // The bot's own voice output (assistant role) is TTS of its message text, so
+  // its transcript merely duplicates `content`. Only render transcripts for
+  // inbound (user) voice, where the transcript is the sole record of what was
+  // said. Without this guard, the bot's lines appear twice in the chat log.
+  const voiceSection = normalizedRole === 'assistant' ? '' : formatVoiceSection(msg);
   const reactionsSection = formatReactionsSection(msg);
 
   // For forwarded messages, use shared QuoteFormatter for consistency

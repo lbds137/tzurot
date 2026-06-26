@@ -23,6 +23,7 @@ import {
   mergeWithHistory,
   resolveExtendedContextPersonaIds,
   MESSAGE_LIMITS,
+  MessageRole,
   type AttachmentMetadata,
   type ConversationMessage,
   type CrossChannelHistoryGroupEntry,
@@ -512,6 +513,11 @@ export class ContextAssembler {
 
     const messages = rawMessages.map(m => fromApiMessage(m, location.channelId, location.guildId));
 
+    // Extended-context assistant messages arrive attributed by webhook display
+    // name (which two personalities can share). Remap to the unique name via the
+    // bot-resolved personalityId so the chat log keeps them distinct.
+    await this.remapExtendedContextPersonalityNames(messages);
+
     // The shared resolver remaps the guild map's `discord:*` keys to persona
     // UUIDs IN PLACE — clone so the job's envelope object stays pristine.
     // When no users resolve, the bot keeps its unremapped map; returning the
@@ -533,6 +539,39 @@ export class ContextAssembler {
     }
 
     return { history: mergeWithHistory(messages, dbHistory), participantGuildInfo };
+  }
+
+  /**
+   * Overwrite extended-context assistant messages' `personalityName` with the
+   * unique personality name resolved from `personalityId`. The bot-side fetcher
+   * can only derive the webhook display name, which two personalities may share;
+   * the unique name is what disambiguates them in the chat log. Messages without
+   * a resolved personalityId (registry miss) keep the display-name attribution.
+   */
+  private async remapExtendedContextPersonalityNames(
+    messages: ConversationMessage[]
+  ): Promise<void> {
+    const ids = [
+      ...new Set(
+        messages
+          .filter(m => m.role === MessageRole.Assistant)
+          .map(m => m.personalityId)
+          .filter((id): id is string => id !== undefined && id.length > 0)
+      ),
+    ];
+    if (ids.length === 0) {
+      return;
+    }
+    const nameById = await this.deps.dataSource.getPersonalityNamesByIds(ids);
+    for (const message of messages) {
+      if (message.role !== MessageRole.Assistant || message.personalityId === undefined) {
+        continue;
+      }
+      const uniqueName = nameById.get(message.personalityId);
+      if (uniqueName !== undefined && uniqueName.length > 0) {
+        message.personalityName = uniqueName;
+      }
+    }
   }
 
   /**
@@ -571,6 +610,12 @@ export class ContextAssembler {
           return;
         }
         const target = history.find(m => (m.discordMessageId ?? []).includes(sourceId));
+        // Skip the bot's own (assistant) voice output: its transcript would just
+        // duplicate the message text, and the chat-log renderer drops assistant
+        // transcripts anyway — so re-resolving one is a wasted STT call.
+        if (target?.role === MessageRole.Assistant) {
+          return;
+        }
         // Only re-resolve when the message lacks a transcript — a cache HIT
         // shipped its transcript on the message metadata already. The pre-await
         // guard is race-safe because Discord allows one audio attachment per voice
