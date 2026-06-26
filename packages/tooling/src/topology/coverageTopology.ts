@@ -116,7 +116,7 @@ const CONFORMANCE_HARNESS =
 const GOLDEN_FIXTURE_PRODUCER =
   'services/bot-client/src/services/contextBuilder/RawEnvelopeContract.producer.test.ts';
 const GOLDEN_FIXTURE_CONSUMER =
-  'services/ai-worker/src/services/context/RawEnvelopeContract.consumer.component.test.ts';
+  'services/ai-worker/src/services/context/RawEnvelopeContract.consumer.contract.test.ts';
 const BULLMQ_CONTRACT_DIR = 'tests/e2e/contracts';
 
 interface MechanismPresence {

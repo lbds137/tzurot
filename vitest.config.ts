@@ -28,7 +28,9 @@ export default defineConfig({
       '**/*.d.ts',
       '**/tzurot-legacy/**',
       '**/*.component.test.ts', // Component tests use vitest.component.config.ts
-      'tests/e2e/**', // Integration + contract tests use vitest.integration.config.ts
+      '**/*.integration.test.ts', // Integration tier uses vitest.integration.config.ts
+      '**/*.contract.test.ts', // Contract tier uses vitest.integration.config.ts (colocated or under tests/e2e/)
+      'tests/e2e/**', // Belt-and-suspenders for anything else under tests/e2e/
     ],
     coverage: {
       provider: 'v8',
