@@ -31,6 +31,7 @@ function makeDeps(overrides: Partial<Record<string, unknown>> = {}): ContextAsse
       getMessageByDiscordId: vi.fn().mockResolvedValue(null),
       findUserByDiscordId: vi.fn().mockResolvedValue(null),
       getPersonalityNamesByIds: vi.fn().mockResolvedValue(new Map()),
+      getUserIdentitiesByDiscordIds: vi.fn().mockResolvedValue(new Map()),
       ...(overrides.dataSource as object),
     } as unknown as ContextDataSource,
     userService: {
@@ -970,6 +971,57 @@ describe('ContextAssembler — extended-context personality-name remap', () => {
     const msg = core.history.find(m => (m.discordMessageId ?? []).includes('d-3'));
     expect(msg?.personaName).toBe('Lila');
     expect(deps.dataSource.getPersonalityNamesByIds).not.toHaveBeenCalled();
+  });
+});
+
+describe('ContextAssembler — relay-echo identity recovery', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  function extCtx(messages: unknown[]): JobContext {
+    return makeJobContext({
+      rawAssemblyInputs: {
+        rawMessageContent: 'hello',
+        rawExtendedContextMessages: messages,
+      },
+    } as Partial<JobContext>);
+  }
+
+  it('recovers the human behind a relay-echo (empty personaId) from the persisted row', async () => {
+    const deps = makeDeps({
+      dataSource: {
+        getUserIdentitiesByDiscordIds: vi
+          .fn()
+          .mockResolvedValue(
+            new Map([
+              [
+                'd-relay',
+                { personaId: 'persona-uuid', personaName: 'Lila', discordUsername: 'lbds137' },
+              ],
+            ])
+          ),
+      },
+    });
+    const ctx = extCtx([
+      {
+        role: MessageRole.User,
+        content: 'poke',
+        personaName: 'Lila', // recovered from the **Lila:** prefix bot-side
+        personaId: '', // bot-authored → resolver stripped it
+        discordUsername: 'Rotzot · bot', // the bot's webhook name
+        discordMessageId: ['d-relay'],
+      },
+    ]);
+
+    const core = await new ContextAssembler(deps).assembleCore(ctx, PERSONALITY, undefined);
+
+    // Integration: the recovery runs through assembleCore AFTER persona
+    // resolution (the detailed branch cases are unit-tested in
+    // relayEchoRecovery.test.ts).
+    const msg = core.history.find(m => (m.discordMessageId ?? []).includes('d-relay'));
+    expect(msg?.personaId).toBe('persona-uuid');
+    expect(msg?.personaName).toBe('Lila');
+    expect(msg?.discordUsername).toBe('lbds137'); // unified with the human's direct messages
+    expect(deps.dataSource.getUserIdentitiesByDiscordIds).toHaveBeenCalledWith(['d-relay']);
   });
 });
 
