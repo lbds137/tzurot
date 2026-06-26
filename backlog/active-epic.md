@@ -36,7 +36,27 @@ Scoped the first audit to the freshest, highest-risk surface. Found the envelope
 - ✅ **`ContextAssembler` component tests over PGLite (#1345)** — the four previously mocked-only seams now have real-data coverage: cross-channel decoration (real persona-scoped fetch + env-map vs fallback), reference enrichment (voice-transcript re-derivation + dedup stub), content rewriting (DB-fallback mention resolution → correct persona), and weigh-in/incognito (empty-channel assembly + incognito short-circuit). 2 → 8 cases; no production bug surfaced (the worker re-derivation claim is now locked by real data, not mocks).
 - ✅ `buildContext`-synthetic-anchor lock (#1283 — caught a real empty-channel weigh-in crash; proof the component-level test catches what buildContext-mocking unit tests structurally can't).
 
-**Epic status: every headline DONE — only the consolidated grab-bag remains (below).**
+**Epic status: Phases 1–3 DONE. A 2026-06-25 audit + council reframing opened Phase 4 (below) — the real remaining leverage.**
+
+### Phase 4 — Seam Contract Coverage (ACTIVE)
+
+_Focus: populate the contract tier deliberately — recent prod bugs cluster at service seams, and the tier was hollow._
+
+**Audit (2026-06-25):** the unit base + 19 PGLite component tests are solid; the shakiness is the upper pyramid. The "integration" tier was 1 PGLite infra-smoke test (mislabeled); the "contract" tier was 2 **circular** BullMQ tests (hand-write a payload, validate it against the schema it was written to satisfy — never import producer code) + the 1 genuinely-real golden-fixture contract mis-tiered as `component`; **none ran in CI**. Plus a CI/local Redis mock-split (`isCI()` → real redis in CI, low-fidelity mock locally) that hid bugs.
+
+**Council (GLM-5.2 / Kimi-K2.7 / Qwen-3.7, 2026-06-25):** contract tests are **mid-pyramid** (seam scope, unit cost) — populate by **behavioral shape** (~15–25, not per-route); pattern = real producer → schema → real consumer **in-memory** (queue/Redis round-trips are separate _integration_ tests, kept distinct); **real Redis everywhere** (keystone); enforce via topology **presence→execution** upgrade + an **import-assertion** anti-circularity guard (every required seam needs a passing test that imports both real producer + consumer). Owner scope: "full core + voice-engine." Full plan: `~/.claude/plans/floofy-rolling-crane.md`.
+
+Roadmap:
+
+- ✅ **PR1 — Redis keystone (#1346)**: real Redis everywhere; deleted the `isCI()` mock-split + `RedisClientMock`; fixed 2 latent bugs it hid (Vitest 4 `singleFork` silently ignored → cross-fork `flushdb` race, fixed via `fileParallelism: false`; `localhost`→`::1` IPv6 ECONNREFUSED, fixed via 127.0.0.1 test default).
+- [ ] **PR2 — tier honesty**: reclassify the golden-fixture consumer test `component`→`contract` (+ update `coverageTopology.ts` path refs, widen the integration config include to `**/*.contract.test.ts`, exclude `.contract` from the unit config); delete the PGLite infra-smoke `tests/e2e/database.integration.test.ts`; run the contract tier in CI; rename the misnamed `integration-tests` job → `component-tests` + drop its dead Postgres service/migration (keep Redis) + flag `integration`→`component` (ci.yml + codecov.yml); fold in the README/TESTING Redis-prerequisite note.
+- [ ] **PR3 — BullMQ queue contract**: rewrite the 2 circular tests → real `jobChainOrchestrator` producer → worker schema → real handler, per JobType.
+- [ ] **PR4 — envelope scenarios**: parameterize the golden-fixture for cross-channel env / voice / mention-rewrite (the #1340 grab-bag scenarios).
+- [ ] **PR5 — execution-check ratchet**: topology presence→execution + import-assertion anti-circularity guard + baseline/ratchet.
+- [ ] **PR6 — voice-engine schema-first**: Pydantic→JSON-Schema contract artifact; TS + Python both validate the committed fixtures (TS↔Python drift).
+- _Long tail (backlog):_ HTTP bot-client→gateway by-shape ([`cold/follow-ups.md`](cold/follow-ups.md) "Contract tests for HTTP API"); Redis pub/sub cache-invalidation contracts. e2e tier stays 0 by conscious choice (a post-deploy smoke check is the better solo spend).
+
+The pre-2.5d grab-bag (#1339/#1340/#1342/#1345 nits) folds into the relevant PR above where files overlap (ci.yml naming nits → PR2; envelope scenarios → PR4).
 
 ### Enforcement — ✅ RESOLVED: no standalone tier-audit ratchet (council 2026-06-25)
 
