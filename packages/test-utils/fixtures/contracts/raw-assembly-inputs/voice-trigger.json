@@ -1,0 +1,19 @@
+{
+  "rawMessageContent": "",
+  "rawRoutingTranscript": "the spoken words from a voice note",
+  "rawAuthorDisplayName": "Voice User",
+  "knownChannelEnvironments": {
+    "channel-cross-1": {
+      "type": "guild",
+      "guild": {
+        "id": "guild-1",
+        "name": "Contract Guild"
+      },
+      "channel": {
+        "id": "channel-cross-1",
+        "name": "cross-channel",
+        "type": "GUILD_TEXT"
+      }
+    }
+  }
+}

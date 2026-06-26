@@ -15,13 +15,17 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import {
   PrismaClient,
+  MessageRole,
   generateUserUuid,
   generatePersonaUuid,
   generatePersonalityUuid,
   generateSystemPromptUuid,
+  generateConversationHistoryUuid,
   rawAssemblyInputsSchema,
   type JobContext,
   type LoadedPersonality,
+  type ResolvedConfigOverrides,
+  type DiscordEnvironment,
 } from '@tzurot/common-types';
 import { UserService, PersonaResolver } from '@tzurot/identity';
 import {
@@ -38,6 +42,9 @@ import { PrismaContextDataSource } from './PrismaContextDataSource.js';
 const DISCORD_USER_ID = '123456789012345678';
 const CHANNEL_ID = 'test-channel-987';
 const GUILD_ID = 'test-guild-654';
+// A real 18-digit snowflake — the mention rewriter drops ids that fail
+// isValidDiscordId, so the personal-summon-mention fixture must use a valid one.
+const MENTIONED_DISCORD_ID = '700700700700700700';
 
 /** Parse a committed contract fixture through the real wire schema. */
 const fixtureEnvelope = (name: string) =>
@@ -89,6 +96,52 @@ describe('RawEnvelope contract — consumer derivation over PGLite', () => {
     // (mirrors ContextAssembler.component.test.ts).
     personality = { id: personalityId, name: 'ContractBot' } as LoadedPersonality;
 
+    // Cross-channel rows for the with-channel-environment fixture: same
+    // persona+personality the trigger user resolves to (cross-channel history is
+    // persona-scoped), in OTHER channels. channel-cross-1 is in the fixture's env
+    // map (decorated by its name); channel-cross-3 is NOT (falls back to id-only).
+    // channel-cross-2 is in the env map but seeded with NO rows — the consumer
+    // must not emit a spurious group for it (asserted in the cross-channel test).
+    const contractPersonaId = generatePersonaUuid('contract-user', userId);
+    const seedCrossTurn = (chId: string, content: string, createdAt: Date, dmId: string) =>
+      prisma.conversationHistory.create({
+        data: {
+          id: generateConversationHistoryUuid(chId, personalityId, contractPersonaId, createdAt),
+          channelId: chId,
+          guildId: GUILD_ID,
+          personalityId,
+          personaId: contractPersonaId,
+          role: MessageRole.User,
+          content,
+          discordMessageId: [dmId],
+          createdAt,
+        },
+      });
+    await seedCrossTurn(
+      'channel-cross-1',
+      'cross turn in channel one',
+      new Date('2026-06-01T09:00:00Z'),
+      'xc-1'
+    );
+    await seedCrossTurn(
+      'channel-cross-3',
+      'cross turn in channel three',
+      new Date('2026-06-01T08:00:00Z'),
+      'xc-3'
+    );
+
+    // The @-mentioned user in the personal-summon-mention fixture, with a persona
+    // named 'Mentioned' — the rewrite resolves the mention to this name. The id is
+    // a real snowflake because resolveUserMentions drops toy ids via isValidDiscordId.
+    const mentionedUserId = generateUserUuid(MENTIONED_DISCORD_ID);
+    await seedUserWithPersona(prisma, {
+      userId: mentionedUserId,
+      personaId: generatePersonaUuid('mentioned', mentionedUserId),
+      discordId: MENTIONED_DISCORD_ID,
+      username: 'mentioned',
+      personaName: 'Mentioned',
+    });
+
     assembler = new ContextAssembler({
       dataSource: new PrismaContextDataSource(prisma),
       userService: new UserService(prisma),
@@ -135,9 +188,69 @@ describe('RawEnvelope contract — consumer derivation over PGLite', () => {
     // history — the key derivation this envelope field enables.
     expect(core.history.map(m => m.content)).toContain('an earlier message from the channel');
     // The producer's rawMessageContent still drives the consumer's messageContent.
-    // (Mention-token REWRITING is summon-mode- and personality-dependent — the
-    // mention kernel's domain, covered by mentionRewriter's own tests — not the
-    // envelope→consumer seam this contract locks.)
     expect(core.messageContent).toContain('with context');
+  });
+
+  it('voice-trigger fixture: the routing transcript stays telemetry-only (content empty)', async () => {
+    const core = await assembler.assembleCore(
+      jobContext(fixtureEnvelope('voice-trigger')),
+      personality,
+      undefined
+    );
+
+    // A voice trigger ships EMPTY rawMessageContent + the bot-side STT text on
+    // rawRoutingTranscript (telemetry). The worker derives its OWN transcript via
+    // the attachment path, so the assembled prompt content must stay empty here —
+    // the routing transcript must NOT leak into it. Locks the ground-truth
+    // content/transcript split end-to-end (producer emits the split; consumer
+    // respects it).
+    expect(core.messageContent).toBe('');
+  });
+
+  it('with-channel-environment fixture: cross-channel groups decorate from the envelope env map', async () => {
+    const core = await assembler.assembleCore(
+      jobContext(fixtureEnvelope('with-channel-environment')),
+      personality,
+      // Partial cast: the cross-channel path reads crossChannelHistoryEnabled and
+      // guards the other required fields (maxMessages/maxAge) with ?? fallbacks, so
+      // leaving them unset is safe here.
+      { crossChannelHistoryEnabled: true } as ResolvedConfigOverrides
+    );
+
+    expect(core.crossChannelHistory).toBeDefined();
+    const groups = core.crossChannelHistory ?? [];
+    const allContent = groups.flatMap(g => g.messages.map(m => m.content));
+    // The persona-scoped DB query returns both other channels' rows...
+    expect(allContent).toContain('cross turn in channel one');
+    expect(allContent).toContain('cross turn in channel three');
+
+    // ...decorated from the envelope's knownChannelEnvironments: channel-cross-1
+    // is in the map (named), channel-cross-3 is not (id-only fallback). This is
+    // the producer→consumer seam — the env names come from the REAL fixture map.
+    const byChannel = (id: string): DiscordEnvironment | undefined =>
+      groups.find(g => g.channelEnvironment.channel.id === id)?.channelEnvironment;
+    expect(byChannel('channel-cross-1')?.channel.name).toBe('cross-channel-one');
+    expect(byChannel('channel-cross-3')?.channel.name).toBe('unknown-channel');
+    // channel-cross-2 is in the env map but has no seeded rows → no group. The
+    // query is history-first (the env map only decorates fetched rows), so an
+    // in-map channel with no history must not produce a spurious group.
+    expect(byChannel('channel-cross-2')).toBeUndefined();
+  });
+
+  it('personal-summon-mention fixture: the mentioned user resolves + the token is rewritten', async () => {
+    const core = await assembler.assembleCore(
+      jobContext(fixtureEnvelope('personal-summon-mention')),
+      personality,
+      undefined
+    );
+
+    // The mention id rides the producer's rawMentionedUsers (the normal
+    // path, distinct from the component test's DB-fallback). A personal summon
+    // rewrites the token out and surfaces the resolved persona — locking that the
+    // consumer consumes rawMentionedUsers the producer actually emits.
+    expect(core.messageContent).not.toContain(`<@${MENTIONED_DISCORD_ID}>`);
+    expect(core.mentionedPersonas).toContainEqual(
+      expect.objectContaining({ personaName: 'Mentioned' })
+    );
   });
 });
