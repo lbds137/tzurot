@@ -178,6 +178,17 @@ describe('Bot Footer Text Constants', () => {
       ).toBe('Model: [gpt-4](<https://example.com/m>)');
     });
 
+    it('never surfaces a VOICE provider as an LLM footer label (structural guard)', () => {
+      // elevenlabs / mistral are in DISCORD_PROVIDER_CHOICES but are voice providers; the
+      // LLM_FOOTER_PROVIDERS allowlist keeps them out of the model footer even if a future
+      // change wired one into the LLM `providerUsed` path.
+      for (const voiceProvider of ['elevenlabs', 'mistral']) {
+        expect(
+          buildModelFooterText('gpt-4', 'https://example.com/m', { provider: voiceProvider })
+        ).toBe('Model: [gpt-4](<https://example.com/m>)');
+      }
+    });
+
     it('should produce output that matches BOT_FOOTER_PATTERNS.MODEL', () => {
       // Every shape the builder can emit must be strippable by the footer regex,
       // or footers leak into stored history / duplicate-detection comparisons.
