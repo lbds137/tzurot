@@ -12,6 +12,7 @@ import {
   COVERAGE_TOPOLOGY_PATH,
   EXEMPT_ROUTE_IDS,
 } from './coverageTopology.js';
+import { clearFileImportCache } from './importAssertions.js';
 
 describe('generateCoverageTopology', () => {
   // Default root resolves to the repo root, so presence checks run against the
@@ -77,6 +78,57 @@ describe('generateCoverageTopology', () => {
     expect(empty.surfaces.length).toBe(topology.surfaces.length);
     expect(empty.surfaces.every(s => s.actualTiers.length === 0)).toBe(true);
     expect(empty.surfaces.every(s => surfaceGap(s).length === 1)).toBe(true);
+  });
+
+  it('flags a CIRCULAR bullmq test (schemas referenced, but producer never imports createJobChain) as a gap', () => {
+    // The execution-check's whole point: the OLD presence check ("a schema
+    // safeParse appears") marks the jobs covered even for a circular test that
+    // hand-rolls its payload. The producer-import requirement closes that — schema
+    // present AND producer imports the REAL createJobChain.
+    const tmpRoot = mkdtempSync(join(tmpdir(), 'topo-circular-'));
+    const bullmqJobs = (root: string) =>
+      generateCoverageTopology(root).surfaces.filter(s => s.kind === 'bullmq-job');
+    const producerPath = join(
+      tmpRoot,
+      'services/api-gateway/src/utils/BullMQJobChainContract.producer.test.ts'
+    );
+    // Clear before the try (not in finally) for a known-empty starting state. No
+    // finally-clear needed: tmpRoot paths are distinct from real project paths, so
+    // the entries left here don't interfere with checkCoverageTopology's real-path
+    // reads (those cache-miss and re-read fresh).
+    clearFileImportCache();
+    try {
+      // A consumer-side contract test referencing all three job schemas — enough
+      // for the old presence check to consider the jobs covered.
+      const contractDir = join(tmpRoot, 'tests/e2e/contracts');
+      mkdirSync(contractDir, { recursive: true });
+      writeFileSync(
+        join(contractDir, 'jobs.contract.test.ts'),
+        'audioTranscriptionJobDataSchema.safeParse(x);\n' +
+          'imageDescriptionJobDataSchema.safeParse(x);\n' +
+          'llmGenerationJobDataSchema.parse(x);\n'
+      );
+      mkdirSync(dirname(producerPath), { recursive: true });
+
+      // Circular: the producer hand-rolls a payload, importing the SCHEMA but never
+      // the real createJobChain. All three job surfaces must still gap.
+      writeFileSync(
+        producerPath,
+        "import { llmGenerationJobDataSchema } from '@tzurot/common-types';\n"
+      );
+      expect(bullmqJobs(tmpRoot).every(s => surfaceGap(s).length === 1)).toBe(true);
+
+      // Contrast: import the real producer → the jobs are now covered. (Clear the
+      // per-path import cache between the two reads of the same file.)
+      clearFileImportCache();
+      writeFileSync(
+        producerPath,
+        "import { createJobChain } from './jobChainOrchestrator.js';\ncreateJobChain();\n"
+      );
+      expect(bullmqJobs(tmpRoot).every(s => s.actualTiers.length === 1)).toBe(true);
+    } finally {
+      rmSync(tmpRoot, { recursive: true, force: true });
+    }
   });
 });
 
