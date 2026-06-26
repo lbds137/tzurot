@@ -185,7 +185,14 @@ describe('RawEnvelope contract — producer fixture generation', () => {
     vi.useFakeTimers();
   });
   afterEach(() => {
-    vi.restoreAllMocks();
+    // resetAllMocks (not restoreAllMocks): these mocks are `vi.fn()`, not `vi.spyOn`
+    // spies, so restoreAllMocks is a no-op on them and — critically — leaves any
+    // queued `mockReturnValueOnce` in place. A scenario that throws before consuming
+    // its queued value would then leak it into the next scenario. reset clears the
+    // once-queue between cases. Vitest 4's mockReset preserves the original
+    // `vi.fn(factory)` implementation, so the default env-map / undefined-transcript
+    // impls survive (verified: fixtures regenerate byte-identical).
+    vi.resetAllMocks();
   });
 
   it.each(SCENARIOS)(

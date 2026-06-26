@@ -205,6 +205,12 @@ describe('RawEnvelope contract — consumer derivation over PGLite', () => {
     // content/transcript split end-to-end (producer emits the split; consumer
     // respects it).
     expect(core.messageContent).toBe('');
+    // Secondary leak path: the telemetry transcript must not surface in the
+    // assembled HISTORY either (not just the current-message content). The fixture's
+    // routing transcript is "the spoken words from a voice note" — assert no history
+    // entry carries it, so a future regression that folds rawRoutingTranscript into
+    // history is caught here too.
+    expect(core.history.map(m => m.content)).not.toContain('the spoken words from a voice note');
   });
 
   it('with-channel-environment fixture: cross-channel groups decorate from the envelope env map', async () => {

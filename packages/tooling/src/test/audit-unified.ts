@@ -75,8 +75,8 @@ function findServiceFiles(projectRoot: string): string[] {
   for (const dir of serviceDirs) {
     const files = findFiles(dir, /Service\.ts$/);
     for (const file of files) {
-      // Skip test files
-      if (file.endsWith('.test.ts') || file.endsWith('.component.test.ts')) continue;
+      // Skip test files (`.component.test.ts` ends with `.test.ts`, so one check covers both)
+      if (file.endsWith('.test.ts')) continue;
 
       // Skip re-export files
       if (isReExportFile(file)) continue;
@@ -235,23 +235,11 @@ function findTestedSchemas(projectRoot: string): string[] {
     }
   }
 
-  // Also check the real-dependency tiers (integration + contract) for schema usage
-  const e2eTestsDir = join(projectRoot, 'tests/e2e');
-  if (existsSync(e2eTestsDir)) {
-    const e2eFiles = readdirSync(e2eTestsDir).filter(
-      f => f.endsWith('.integration.test.ts') || f.endsWith('.contract.test.ts')
-    );
-
-    for (const file of e2eFiles) {
-      const content = readFile(join(e2eTestsDir, file));
-
-      // eslint-disable-next-line regexp/no-super-linear-move -- Input is developer-authored TS source (trusted, bounded by file size); ReDoS not a real attack surface
-      const schemaUsageMatches = content.matchAll(/(\w+Schema)\.safeParse/g);
-      for (const match of schemaUsageMatches) {
-        tested.push(`e2e:${match[1]}`);
-      }
-    }
-  }
+  // NOTE: there is intentionally no `tests/e2e/` scan here. That tier's tests live
+  // under subdirectories (`tests/e2e/contracts/`), which a non-recursive readdir
+  // never reached — and even recursed, those tests exercise job/envelope schemas,
+  // not the `schemas/api/` schemas this audit tracks. The colocated scan above is
+  // the whole signal.
 
   return [...new Set(tested)].sort();
 }
