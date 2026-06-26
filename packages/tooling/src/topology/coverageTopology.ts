@@ -50,7 +50,13 @@ export interface CoverageSurface {
   kind: CoverageSurfaceKind;
   producer: string;
   consumer: string;
-  /** The shared schema/type (or route id) that identifies the contract artifact. */
+  /**
+   * The shared schema/type that identifies the contract artifact — a `*Schema` name
+   * (bullmq/envelope), a module label (voice-engine), or the `METHOD /path` signature
+   * (http-route). NOT a unique key: several of the manifest's routes share a `METHOD
+   * /path` where global/user variants sit behind different auth middleware. `id` is the
+   * unique key; diff/dedupe on `id`, not `schemaRef`.
+   */
   schemaRef: string;
   /** How this surface's contract coverage is provided (the per-surface marker). */
   mechanism: CoverageSurfaceMechanism;
@@ -150,10 +156,10 @@ const REAL_IMPORTS = {
   conformanceRegistry: {
     file: CONFORMANCE_HARNESS,
     symbol: 'CONFORMANCE_REGISTRY',
-    // Leading `/` anchors to the path separator: a sibling whose name merely
-    // contains "registry" without a preceding slash won't match. (Scoped to one
-    // file anyway, so this is defense-in-depth against a careless future entry.)
-    from: '/fixtures/registry',
+    // Anchored both sides: leading `/` excludes a name-prefix sibling
+    // (`mock-fixtures/registry`); the trailing `.` (the extension dot) excludes a
+    // name-suffix sibling (`registry-v2.js`). Defense-in-depth — scoped to one file.
+    from: '/fixtures/registry.',
   },
   conformanceManifest: {
     file: CONFORMANCE_HARNESS,
@@ -164,13 +170,14 @@ const REAL_IMPORTS = {
   envelopeProducer: {
     file: GOLDEN_FIXTURE_PRODUCER,
     symbol: 'buildRawAssemblyInputs',
-    from: '/RawEnvelopeBuilder',
+    from: '/RawEnvelopeBuilder.',
   },
   envelopeConsumer: {
     file: GOLDEN_FIXTURE_CONSUMER,
     symbol: 'ContextAssembler',
-    // Leading `/` so a sibling like `./PrismaContextAssembler.js` can't match by substring.
-    from: '/ContextAssembler',
+    // Anchored both sides: leading `/` excludes `./PrismaContextAssembler.js`, the
+    // trailing `.` excludes `./ContextAssemblerV2.js`.
+    from: '/ContextAssembler.',
   },
   /**
    * The BullMQ golden-fixture producer runs the real job-chain orchestrator. ONE
@@ -183,7 +190,7 @@ const REAL_IMPORTS = {
   bullmqProducer: {
     file: BULLMQ_PRODUCER_TEST,
     symbol: 'createJobChain',
-    from: '/jobChainOrchestrator',
+    from: '/jobChainOrchestrator.',
   },
   /**
    * The voice-engine JSON contract is cross-LANGUAGE: the PRODUCER is the Python
@@ -195,7 +202,7 @@ const REAL_IMPORTS = {
   voiceEngineConsumer: {
     file: VOICE_ENGINE_CONSUMER_TEST,
     symbol: 'transcribeResponseSchema',
-    from: '/voiceEngineSchemas',
+    from: '/voiceEngineSchemas.',
   },
 } as const;
 

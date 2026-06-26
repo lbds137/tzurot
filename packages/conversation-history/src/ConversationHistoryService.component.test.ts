@@ -29,6 +29,15 @@ describe('ConversationHistoryService Component Test', () => {
   const testChannelId = '123456789012345678';
   const testGuildId = '987654321098765432';
 
+  // A row's id is a DETERMINISTIC UUID over (channelId, personalityId, personaId,
+  // createdAt). When a loop inserts rows sharing the first three keys and lets
+  // createdAt default to `new Date()`, two inserts in the same millisecond collide
+  // on the id → `Unique constraint failed on (id)` (an intermittent CI flake). Seed a
+  // strictly-increasing explicit timestamp per row so each id is deterministic AND
+  // unique; the 1s spacing also pins the insertion order the assertions rely on.
+  const seededTimestamp = (i: number): Date =>
+    new Date(new Date('2026-06-01T00:00:00Z').getTime() + i * 1000);
+
   beforeAll(async () => {
     // Set up PGlite (in-memory Postgres via WASM) with pgvector extension
     // Note: PGlite initialization is CPU-intensive and may be slow when running
@@ -182,7 +191,10 @@ describe('ConversationHistoryService Component Test', () => {
 
   describe('getChannelHistory', () => {
     it('should return messages in chronological order (oldest first)', async () => {
-      // Sequential awaits ensure created_at timestamps preserve insertion order
+      // Explicit strictly-increasing timestamps pin insertion order AND keep each
+      // deterministic-UUID row distinct (relying on default `new Date()` is flaky:
+      // sub-ms inserts can both tie the ordering and collide the id — see the
+      // seededTimestamp note above).
       await service.addMessage({
         channelId: testChannelId,
         personalityId: testPersonalityId,
@@ -190,6 +202,7 @@ describe('ConversationHistoryService Component Test', () => {
         role: MessageRole.User,
         content: 'First message',
         guildId: testGuildId,
+        timestamp: seededTimestamp(0),
       });
       await service.addMessage({
         channelId: testChannelId,
@@ -198,6 +211,7 @@ describe('ConversationHistoryService Component Test', () => {
         role: MessageRole.Assistant,
         content: 'Second message',
         guildId: testGuildId,
+        timestamp: seededTimestamp(1),
       });
       await service.addMessage({
         channelId: testChannelId,
@@ -206,6 +220,7 @@ describe('ConversationHistoryService Component Test', () => {
         role: MessageRole.User,
         content: 'Third message',
         guildId: testGuildId,
+        timestamp: seededTimestamp(2),
       });
 
       const history = await service.getChannelHistory(testChannelId, 10);
@@ -226,6 +241,7 @@ describe('ConversationHistoryService Component Test', () => {
           role: MessageRole.User,
           content: `Message ${i}`,
           guildId: testGuildId,
+          timestamp: seededTimestamp(i),
         });
       }
 
@@ -271,6 +287,7 @@ describe('ConversationHistoryService Component Test', () => {
           role: MessageRole.User,
           content: `Page message ${i}`,
           guildId: testGuildId,
+          timestamp: seededTimestamp(i),
         });
       }
 
@@ -317,6 +334,7 @@ describe('ConversationHistoryService Component Test', () => {
           role: MessageRole.User,
           content: `Limit test ${i}`,
           guildId: testGuildId,
+          timestamp: seededTimestamp(i),
         });
       }
 
@@ -589,7 +607,8 @@ describe('ConversationHistoryService Component Test', () => {
 
   describe('getHistoryStats', () => {
     it('should return correct message counts', async () => {
-      // Add user messages
+      // Add user messages (explicit distinct timestamps keep the three same-key
+      // rows from colliding on their deterministic UUID — see seededTimestamp note)
       await service.addMessage({
         channelId: testChannelId,
         personalityId: testPersonalityId,
@@ -597,6 +616,7 @@ describe('ConversationHistoryService Component Test', () => {
         role: MessageRole.User,
         content: 'User message 1',
         guildId: testGuildId,
+        timestamp: seededTimestamp(0),
       });
       await service.addMessage({
         channelId: testChannelId,
@@ -605,6 +625,7 @@ describe('ConversationHistoryService Component Test', () => {
         role: MessageRole.User,
         content: 'User message 2',
         guildId: testGuildId,
+        timestamp: seededTimestamp(1),
       });
 
       // Add assistant messages
@@ -615,6 +636,7 @@ describe('ConversationHistoryService Component Test', () => {
         role: MessageRole.Assistant,
         content: 'Assistant message 1',
         guildId: testGuildId,
+        timestamp: seededTimestamp(2),
       });
 
       const stats = await service.getHistoryStats(testChannelId, testPersonalityId);
@@ -889,7 +911,9 @@ describe('ConversationHistoryService Component Test', () => {
       const chExclude = 'cross-chrono-ch1';
       const chOther = 'cross-chrono-ch2';
 
-      // Add messages in sequence
+      // Add messages in sequence — explicit distinct timestamps pin the order the
+      // assertions below rely on AND keep the same-key rows' deterministic UUIDs
+      // unique (see seededTimestamp note).
       await service.addMessage({
         channelId: chOther,
         personalityId: testPersonalityId,
@@ -897,6 +921,7 @@ describe('ConversationHistoryService Component Test', () => {
         role: MessageRole.User,
         content: 'First',
         guildId: testGuildId,
+        timestamp: seededTimestamp(0),
       });
       await service.addMessage({
         channelId: chOther,
@@ -905,6 +930,7 @@ describe('ConversationHistoryService Component Test', () => {
         role: MessageRole.Assistant,
         content: 'Second',
         guildId: testGuildId,
+        timestamp: seededTimestamp(1),
       });
       await service.addMessage({
         channelId: chOther,
@@ -913,6 +939,7 @@ describe('ConversationHistoryService Component Test', () => {
         role: MessageRole.User,
         content: 'Third',
         guildId: testGuildId,
+        timestamp: seededTimestamp(2),
       });
 
       const result = await service.getCrossChannelHistory(

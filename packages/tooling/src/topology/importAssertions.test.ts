@@ -7,12 +7,11 @@ import { describe, it, expect, vi } from 'vitest';
 // load) that can exceed the default 5s timeout. 30s gives sufficient headroom.
 vi.setConfig({ testTimeout: 30_000 });
 
-import {
-  parseNamedImports,
-  contentImportsSymbol,
-  fileImportsSymbol,
-  clearFileImportCache,
-} from './importAssertions.js';
+import { parseNamedImports, fileImportsSymbol, clearFileImportCache } from './importAssertions.js';
+
+/** The match `fileImportsSymbol` applies, over parsed content (no file I/O). */
+const contentImportsSymbol = (content: string, symbol: string, from: string): boolean =>
+  parseNamedImports(content).some(i => i.symbol === symbol && i.source.includes(from));
 
 describe('parseNamedImports', () => {
   it('extracts each VALUE named import with its module specifier', () => {

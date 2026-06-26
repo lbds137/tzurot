@@ -8,9 +8,14 @@
  * the real consumer — imports no real symbol and is therefore reported as a gap.
  *
  * Why an import check is enough (no call-site/witness analysis): the repo's root
- * tsconfig sets `noUnusedLocals: true`, so an imported symbol that is never used
- * is a `tsc` error. A *present* import is therefore necessarily *used* — detecting
- * the import alone proves the test exercises the real symbol. This guarantee holds
+ * tsconfig sets `noUnusedLocals: true`, so an imported VALUE symbol that is never
+ * referenced is a `tsc` error. So a present import proves the binding is in scope
+ * and not dead-code-eliminated by esbuild — strictly, that much, not that the
+ * symbol is *invoked at runtime*. The residual gap: a `typeof RealProducer`
+ * reference satisfies `noUnusedLocals` from a type position without ever calling
+ * it. That's an ADVERSARIAL shape, not an accidental one (a contributor writing a
+ * real contract test calls the producer), so it's accepted — closing it would need
+ * call-witness AST, which the council judged gold-plating. The guarantee also holds
  * end-to-end only because CI runs `typecheck` alongside `test` (vitest/esbuild
  * transpile away an unused import; tsc is what rejects it).
  *
@@ -72,28 +77,6 @@ export function parseNamedImports(content: string): NamedImport[] {
     }
   }
   return result;
-}
-
-/**
- * True iff `content` has a named import of `symbol` whose module specifier
- * includes `fromModuleMatch` (a substring match — the producer/consumer modules
- * are imported by relative path or package name, both stable enough to match on).
- *
- * Anchor `fromModuleMatch` with a leading `/` for a relative module (e.g.
- * `/ContextAssembler`) so a sibling like `./PrismaContextAssembler.js` can't
- * satisfy the check by substring; a distinctive package name (`@tzurot/clients`)
- * needs no anchor.
- *
- * @remarks Serial-only — delegates to {@link parseNamedImports} (see its remarks).
- */
-export function contentImportsSymbol(
-  content: string,
-  symbol: string,
-  fromModuleMatch: string
-): boolean {
-  return parseNamedImports(content).some(
-    i => i.symbol === symbol && i.source.includes(fromModuleMatch)
-  );
 }
 
 // The probe queries the same file for multiple symbols (e.g. the conformance
