@@ -131,7 +131,13 @@ export interface VisionLoggingContext {
  * Bundling these reduces param count (was 6 with separate `loggingContext`).
  */
 export interface DescribeImageOptions {
-  /** Skip negative cache check — set to true when called within a retry loop */
+  /**
+   * Skip the negative-cache check for TRANSIENT failures — set when called within a retry
+   * loop / on the reference path, so a just-cached transient failure can't defeat the
+   * retry. ATTACHMENT-BOUND failures (dead URL, removed model, content-policy, censored)
+   * are STILL honored even when this is true, so a permanently-dead image is suppressed
+   * instead of re-storming across providers every turn it sits in context.
+   */
   skipNegativeCache?: boolean;
   /** Skip positive cache check — set to true to force re-processing */
   skipCache?: boolean;
@@ -385,9 +391,10 @@ async function invokeVisionModel(
  * stay in sync. Enforced by the invariant test in `VisionProcessor.test.ts` so that
  * adding a category to one but not the other fails CI.
  *
- * Exported for the invariant test only — call sites should use
+ * Exported for the invariant test only — EXTERNAL call sites should use
  * `buildFailureFallback` / `VISION_FAILURE_CACHE_POLICY` rather than reading this set
- * directly.
+ * directly. (The in-module `checkNegativeCache` reads it as a membership predicate to
+ * decide which cached failures the retry-loop / reference path honors.)
  */
 // eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: immutable lookup set used as a constant. Exported only to enable the cache-policy/fallback-set invariant test in VisionProcessor.test.ts.
 export const ATTACHMENT_BOUND_FAILURE_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Set([
@@ -437,14 +444,28 @@ function buildFailureFallback(
 /**
  * Check negative cache for a previous failure.
  * Returns a fallback string if a failure is cached, or null to proceed with the API call.
+ *
+ * `attachmentBoundOnly` (the retry-loop / reference path) honors ONLY failures bound to
+ * the attachment itself (dead URL, removed model, content-policy, censored) — those can't
+ * recover for this attachment, so re-attempting every turn the image sits in context just
+ * re-storms across providers (observed adding ~100s of latency per turn). Transient
+ * failures (rate-limit, quota, server) are NOT honored in this mode: they may have
+ * cleared, and short-circuiting them would defeat the retry that exists to catch recovery.
  */
 async function checkNegativeCache(
   cacheKeyOptions: { attachmentId?: string; url: string },
   attachmentId: string | undefined,
-  apiKeySource: 'user' | 'system' | undefined
+  apiKeySource: 'user' | 'system' | undefined,
+  options: { attachmentBoundOnly?: boolean } = {}
 ): Promise<string | null> {
   const failureEntry = await visionDescriptionCache.getFailure(cacheKeyOptions);
   if (failureEntry === null) {
+    return null;
+  }
+  if (
+    options.attachmentBoundOnly === true &&
+    !ATTACHMENT_BOUND_FAILURE_CATEGORIES.has(failureEntry.category)
+  ) {
     return null;
   }
   logger.info(
@@ -613,17 +634,19 @@ export async function describeImage(
     }
   }
 
-  // Check negative cache to avoid re-hammering failed images
-  // Skip when called within a retry loop — the negative cache would defeat retries
-  if (options?.skipNegativeCache !== true) {
-    const failureFallback = await checkNegativeCache(
-      cacheKeyOptions,
-      attachment.id,
-      loggingContext.apiKeySource
-    );
-    if (failureFallback !== null) {
-      return failureFallback;
-    }
+  // Check the negative cache to avoid re-hammering failed images. On the retry-loop /
+  // reference path (`skipNegativeCache`) we still honor ATTACHMENT-BOUND failures (a dead
+  // URL / removed model won't recover for this attachment, so re-attempting every turn it
+  // sits in context just re-storms across providers) but skip transient ones so the retry
+  // can still catch recovery.
+  const failureFallback = await checkNegativeCache(
+    cacheKeyOptions,
+    attachment.id,
+    loggingContext.apiKeySource,
+    { attachmentBoundOnly: options?.skipNegativeCache === true }
+  );
+  if (failureFallback !== null) {
+    return failureFallback;
   }
 
   const systemPrompt =
