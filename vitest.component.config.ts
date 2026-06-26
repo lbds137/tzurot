@@ -5,7 +5,10 @@ import { TEST_TIMEOUTS } from './packages/common-types/src/constants/timing.js';
 // Set up test environment variables before anything else
 // This prevents config validation errors when importing services
 process.env.PROD_DATABASE_URL ??= process.env.DATABASE_URL ?? '';
-process.env.REDIS_URL ??= 'redis://localhost:6379';
+// 127.0.0.1, not `localhost`: on hosts where `localhost` resolves to ::1 (IPv6)
+// first, an IPv4-only Redis bind refuses the connection (ECONNREFUSED ::1). CI
+// sets REDIS_URL explicitly, so this default only affects local runs.
+process.env.REDIS_URL ??= 'redis://127.0.0.1:6379';
 
 /**
  * Vitest configuration for component tests (*.component.test.ts)
@@ -41,14 +44,13 @@ export default defineConfig({
       toFake: [],
     },
 
-    // Run component tests sequentially (not in parallel)
-    // This prevents database conflicts and makes debugging easier
+    // Run test files sequentially (no parallel forks). REQUIRED for correctness:
+    // the Redis-backed component tests share one real Redis test DB, so concurrent
+    // files would let one file's flushdb wipe another's data mid-test. Also lowers
+    // peak memory (parallel forks OOM constrained machines). Replaces the Vitest-3
+    // `poolOptions.forks.singleFork`, which Vitest 4 ignores.
     pool: 'forks',
-    poolOptions: {
-      forks: {
-        singleFork: true,
-      },
-    },
+    fileParallelism: false,
 
     // Coverage configuration for component tests
     // Upload separately to Codecov with 'integration' flag

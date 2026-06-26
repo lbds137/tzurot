@@ -130,16 +130,16 @@ describe('RedisService Integration', () => {
       expect(retrieved).toBe(specialName);
     });
 
-    it('should handle empty personality name', async () => {
+    it('should round-trip an empty personality name as an empty string', async () => {
       const messageId = '666666666666666666';
       const emptyName = '';
 
       await redisService.storeWebhookMessage(messageId, emptyName);
 
-      // Empty string might be treated as null by Redis mock
+      // Redis stores and returns an empty string verbatim (the key exists with a
+      // zero-length value) — it is NOT coerced to null.
       const retrieved = await redisService.getWebhookPersonality(messageId);
-      // Accept either empty string or null (implementation-dependent)
-      expect([emptyName, null]).toContain(retrieved);
+      expect(retrieved).toBe('');
     });
   });
 });
