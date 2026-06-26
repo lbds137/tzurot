@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { ZodError } from 'zod';
 import { VoiceRegistrationService } from './VoiceRegistrationService.js';
 import { VoiceEngineError } from './VoiceEngineClient.js';
 import type { VoiceEngineClient } from './VoiceEngineClient.js';
@@ -112,6 +113,28 @@ describe('VoiceRegistrationService', () => {
     );
     expect(mockVoiceEngineClient.registerVoice).toHaveBeenCalledWith(
       'fallback-voice',
+      expect.any(Buffer),
+      'audio/wav'
+    );
+  });
+
+  it('should attempt registration when listVoices throws a ZodError (contract drift)', async () => {
+    // A drifted /v1/voices shape makes listVoices throw a ZodError. This takes the
+    // ERROR-log branch (contract drift is a programming error, not a transient) but
+    // still falls through to registration — so the observable behavior matches the
+    // generic-failure case above; the distinct branch is what this exercises.
+    mockVoiceEngineClient.listVoices.mockRejectedValue(new ZodError([]));
+    mockVoiceEngineClient.registerVoice.mockResolvedValue(undefined);
+    mockFetch.mockResolvedValue({
+      ok: true,
+      arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(50)),
+      headers: { get: vi.fn().mockReturnValue('audio/wav') },
+    });
+
+    await service.ensureVoiceRegistered('drift-voice');
+
+    expect(mockVoiceEngineClient.registerVoice).toHaveBeenCalledWith(
+      'drift-voice',
       expect.any(Buffer),
       'audio/wav'
     );

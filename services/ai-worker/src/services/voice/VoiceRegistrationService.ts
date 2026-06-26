@@ -7,6 +7,8 @@
  * status in-memory (TTLCache, 30 min) to avoid redundant registration calls.
  */
 
+import { ZodError } from 'zod';
+
 import { createLogger, TTLCache, isTransientNetworkError } from '@tzurot/common-types';
 import { VoiceEngineError, type VoiceEngineClient } from './VoiceEngineClient.js';
 import { fetchVoiceReference } from './voiceReferenceHelper.js';
@@ -98,7 +100,18 @@ export class VoiceRegistrationService {
         return;
       }
     } catch (error) {
-      logger.warn({ err: error, slug }, 'Failed to list voices, attempting registration');
+      // A ZodError means the voice-engine /v1/voices response drifted from its
+      // contract (a programming error, NOT a transient) — log at ERROR so it's
+      // distinguishable from a cold-start network failure (the warn case). Either
+      // way we fall through and attempt registration.
+      if (error instanceof ZodError) {
+        logger.error(
+          { err: error, slug },
+          'voice-engine /v1/voices response failed schema validation (contract drift)'
+        );
+      } else {
+        logger.warn({ err: error, slug }, 'Failed to list voices, attempting registration');
+      }
     }
 
     // Fetch reference audio from api-gateway
