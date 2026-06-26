@@ -191,8 +191,11 @@ packages/common-types/src/types/
 services/ai-worker/src/services/context/
 └── RawEnvelopeContract.consumer.contract.test.ts ← Contract test, colocated with the code it locks
 
+services/api-gateway/src/utils/
+└── BullMQJobChainContract.producer.test.ts ← Producer fixture-writer (unit-tier; see note below)
+
 tests/e2e/contracts/
-└── BullMQJobConsumer.contract.test.ts ← Contract test with no single home (cross-service)
+└── BullMQJobChain.contract.test.ts ← Contract test reading a committed producer fixture (cross-service)
 ```
 
 **Key Principles:**
@@ -200,6 +203,34 @@ tests/e2e/contracts/
 - **Name by infrastructure**: If it needs PGLite → `.component.test.ts`
 - **Co-locate by default**: Tests live next to the code they test
 - **Centralize only cross-service**: `tests/e2e/` for multi-service flows
+
+#### Golden-fixture contract tests (producer ↔ consumer)
+
+A cross-service contract is verified with a committed JSON fixture, not a shared
+import (the depcruise boundary forbids one service importing another). Two halves:
+
+- **Producer fixture-writer** — a colocated `*.producer.test.ts` (e.g.
+  `BullMQJobChainContract.producer.test.ts`) drives the **real** producer with
+  mocked external deps and snapshots its output to `@tzurot/test-utils`
+  (`stableFixtureJson` + `toMatchFileSnapshot(contractFixtureFile(...))`).
+  **It runs at the unit tier** — despite "Contract" in the name it bears the plain
+  `*.test.ts` suffix, because it only exercises the producer with mocks. (The
+  tier-classifier keys on suffix; `*.producer.test.ts` is intentionally unit.)
+- **Consumer contract test** — a `*.contract.test.ts` reads the SAME committed
+  fixture and validates it against the consumer's entry schemas / real code.
+
+**Regenerating a contract fixture** (when the producer's output legitimately
+changes, CI fails the strict compare — regenerate on purpose and commit the diff):
+
+```bash
+# BullMQ job chain
+pnpm --filter @tzurot/api-gateway exec vitest run BullMQJobChainContract.producer --update
+# Raw assembly envelope
+pnpm --filter @tzurot/bot-client exec vitest run RawEnvelopeContract.producer --update
+```
+
+The fixture directories under `packages/test-utils/fixtures/contracts/` are
+`.prettierignore`d so the committed `stableFixtureJson` form is the source of truth.
 
 ### When to Use Each Test Type
 

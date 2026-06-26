@@ -1,0 +1,39 @@
+{
+  "name": "llm-generation",
+  "data": {
+    "requestId": "fixture-req-text",
+    "jobType": "llm-generation",
+    "personality": {
+      "id": "pers-fixture",
+      "name": "FixtureBot",
+      "displayName": "Fixture Bot",
+      "slug": "fixturebot",
+      "ownerId": "owner-fixture",
+      "systemPrompt": "Fixture prompt",
+      "model": "resolved/model",
+      "provider": "openrouter",
+      "temperature": 0.7,
+      "maxTokens": 1000,
+      "contextWindowTokens": 4096,
+      "characterInfo": "Fixture character",
+      "personalityTraits": "Fixture traits",
+      "voiceEnabled": false,
+      "visionModel": "resolved/vision-model"
+    },
+    "message": "just a plain text message",
+    "context": {
+      "userId": "fixture-user",
+      "channelId": "fixture-channel"
+    },
+    "responseDestination": {
+      "type": "discord",
+      "channelId": "fixture-channel",
+      "webhookUrl": "https://discord.com/api/webhooks/fixture"
+    },
+    "configSource": "user-personality"
+  },
+  "queueName": "test-queue",
+  "opts": {
+    "jobId": "llm-fixture-req-text"
+  }
+}
