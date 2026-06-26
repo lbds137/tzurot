@@ -265,13 +265,28 @@ export const BOT_FOOTER_TEXT = {
 } as const;
 
 /**
+ * Provider values that serve LLM (text) generation — the ONLY ones eligible for the
+ * model footer's "via <label>". `DISCORD_PROVIDER_CHOICES` deliberately mixes LLM
+ * (openrouter, zai-coding) and voice (elevenlabs, mistral) providers; only LLM providers
+ * ever populate the model footer's `providerUsed`, so this allowlist makes that
+ * constraint STRUCTURAL — a voice provider can never surface as "• via ElevenLabs (Voice)"
+ * on an LLM response even if a future change wired one into the LLM `providerUsed` path.
+ * Add a new entry here when a new LLM provider is added to `DISCORD_PROVIDER_CHOICES`.
+ */
+const LLM_FOOTER_PROVIDERS: ReadonlySet<(typeof DISCORD_PROVIDER_CHOICES)[number]['value']> =
+  new Set(['openrouter', 'zai-coding']);
+
+/**
  * Provider value → human-readable footer label, derived from the slash-command
- * choices so the two never drift. Used to make the served-by provider explicit
- * in the model footer (e.g. "via Z.AI Coding Plan" vs "via OpenRouter") rather
- * than leaving users to infer it from the `z-ai/` vendor-prefix on the model.
+ * choices (filtered to LLM providers) so the two never drift. Used to make the
+ * served-by provider explicit in the model footer (e.g. "via Z.AI Coding Plan" vs
+ * "via OpenRouter") rather than leaving users to infer it from the `z-ai/` vendor-prefix.
  */
 const PROVIDER_FOOTER_LABEL: Readonly<Record<string, string>> = Object.fromEntries(
-  DISCORD_PROVIDER_CHOICES.map(choice => [choice.value, choice.name])
+  DISCORD_PROVIDER_CHOICES.filter(choice => LLM_FOOTER_PROVIDERS.has(choice.value)).map(choice => [
+    choice.value,
+    choice.name,
+  ])
 );
 
 /** Options for {@link buildModelFooterText}. */
