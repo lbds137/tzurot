@@ -186,7 +186,7 @@ function toNumber(value: unknown): number | null {
  * type; an unrecognized value defensively falls back to the default kind rather than
  * propagating an unknown discriminator through the resolver cascade.
  */
-function toConfigKind(value: string): ConfigKind {
+export function toConfigKind(value: string): ConfigKind {
   if ((CONFIG_KINDS as readonly string[]).includes(value)) {
     return value as ConfigKind;
   }
@@ -194,7 +194,10 @@ function toConfigKind(value: string): ConfigKind {
   // kind reaches here via schema drift or a partial deploy, the silent floor to 'text'
   // would make a vision row resolve as text and quietly fall to the vision fallback.
   // Warn so the drift is observable rather than invisible.
-  logger.warn({ actual: value }, 'Unknown LlmConfig.kind — flooring to default (text)');
+  logger.warn(
+    { actual: value, validKinds: CONFIG_KINDS },
+    'Unknown LlmConfig.kind — flooring to default (text)'
+  );
   return DEFAULT_CONFIG_KIND;
 }
 

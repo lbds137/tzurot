@@ -231,6 +231,19 @@ describe('VisionConfigResolver', () => {
       expect(result).toBeNull();
     });
 
+    it('negative-caches the null result (second call does not re-query)', async () => {
+      mockPrisma.llmConfig.findFirst.mockResolvedValue(null);
+
+      const first = await resolver.getGlobalDefaultConfig();
+      const second = await resolver.getGlobalDefaultConfig();
+
+      expect(first).toBeNull();
+      expect(second).toBeNull();
+      // The pre-seed window (no global default row) must not re-query the DB on
+      // every call — the negative cache short-circuits the second lookup.
+      expect(mockPrisma.llmConfig.findFirst).toHaveBeenCalledTimes(1);
+    });
+
     it('caches the global-default result (second call hits cache)', async () => {
       mockPrisma.llmConfig.findFirst.mockResolvedValue(
         visionRow({ model: 'global-vision-default', name: 'global-vision' })

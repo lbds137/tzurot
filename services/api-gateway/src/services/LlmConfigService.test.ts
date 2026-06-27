@@ -563,6 +563,7 @@ describe('LlmConfigService', () => {
 
   describe('setAsDefault', () => {
     it('should clear existing default and set new one', async () => {
+      prisma.llmConfig.findUnique.mockResolvedValue({ kind: 'text' });
       prisma.llmConfig.updateMany.mockResolvedValue({ count: 1 });
       prisma.llmConfig.update.mockResolvedValue({ id: 'config-123', isDefault: true });
 
@@ -575,6 +576,7 @@ describe('LlmConfigService', () => {
 
   describe('setAsFreeDefault', () => {
     it('should clear existing free default and set new one', async () => {
+      prisma.llmConfig.findUnique.mockResolvedValue({ kind: 'text' });
       prisma.llmConfig.updateMany.mockResolvedValue({ count: 1 });
       prisma.llmConfig.update.mockResolvedValue({ id: 'config-123', isFreeDefault: true });
 
