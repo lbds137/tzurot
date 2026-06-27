@@ -16,7 +16,6 @@ function createTestConfig(overrides: Partial<FlattenedPresetData> = {}): Flatten
     description: '',
     model: 'anthropic/claude-sonnet-4',
     provider: 'openrouter',
-    visionModel: '',
     isGlobal: false,
     isOwned: true,
     canEdit: true,

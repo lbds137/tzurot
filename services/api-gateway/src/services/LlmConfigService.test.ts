@@ -83,7 +83,6 @@ const sampleConfigDetail = {
   description: 'A test config',
   model: 'anthropic/claude-sonnet-4',
   provider: 'openrouter',
-  visionModel: null,
   isGlobal: true,
   isDefault: false,
   isFreeDefault: false,
@@ -168,12 +167,12 @@ describe('LlmConfigService', () => {
       // First call: global configs
       expect(prisma.llmConfig.findMany).toHaveBeenNthCalledWith(
         1,
-        expect.objectContaining({ where: { isGlobal: true } })
+        expect.objectContaining({ where: { isGlobal: true, kind: 'text' } })
       );
       // Second call: user's own configs
       expect(prisma.llmConfig.findMany).toHaveBeenNthCalledWith(
         2,
-        expect.objectContaining({ where: { ownerId: 'user-123', isGlobal: false } })
+        expect.objectContaining({ where: { ownerId: 'user-123', isGlobal: false, kind: 'text' } })
       );
     });
   });
@@ -594,7 +593,7 @@ describe('LlmConfigService', () => {
 
       expect(result).toEqual({ exists: false });
       expect(prisma.llmConfig.findFirst).toHaveBeenCalledWith({
-        where: { name: 'Test Name', isGlobal: true },
+        where: { name: 'Test Name', isGlobal: true, kind: 'text' },
         select: { id: true },
       });
     });
@@ -607,7 +606,7 @@ describe('LlmConfigService', () => {
 
       expect(result).toEqual({ exists: true, conflictId: 'existing-config' });
       expect(prisma.llmConfig.findFirst).toHaveBeenCalledWith({
-        where: { name: 'Test Name', ownerId: 'user-123' },
+        where: { name: 'Test Name', ownerId: 'user-123', kind: 'text' },
         select: { id: true },
       });
     });
@@ -621,6 +620,7 @@ describe('LlmConfigService', () => {
         where: {
           name: 'Test Name',
           isGlobal: true,
+          kind: 'text',
           id: { not: 'current-config-id' },
         },
         select: { id: true },
@@ -640,9 +640,10 @@ describe('LlmConfigService', () => {
 
       expect(result).toEqual({ exists: true, conflictId: 'someone-elses-global' });
       expect(prisma.llmConfig.findFirst).toHaveBeenCalledTimes(2);
-      // Second call queries the global namespace
+      // Second call queries the global namespace (kind='text' mirrors the
+      // per-kind partial-unique index it pre-empts)
       expect(prisma.llmConfig.findFirst).toHaveBeenNthCalledWith(2, {
-        where: { name: 'MyVoice-bob', isGlobal: true },
+        where: { name: 'MyVoice-bob', isGlobal: true, kind: 'text' },
         select: { id: true },
       });
     });
@@ -669,7 +670,7 @@ describe('LlmConfigService', () => {
 
       expect(prisma.llmConfig.findFirst).toHaveBeenCalledTimes(1);
       expect(prisma.llmConfig.findFirst).toHaveBeenCalledWith({
-        where: { name: 'Test Name', ownerId: 'user-123' },
+        where: { name: 'Test Name', ownerId: 'user-123', kind: 'text' },
         select: { id: true },
       });
     });
@@ -752,7 +753,6 @@ describe('LlmConfigService', () => {
         description: 'A test config',
         model: 'anthropic/claude-sonnet-4',
         provider: 'openrouter',
-        visionModel: null,
         isGlobal: true,
         isDefault: false,
         isFreeDefault: false,

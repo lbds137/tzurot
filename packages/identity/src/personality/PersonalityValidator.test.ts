@@ -13,7 +13,6 @@ describe('PersonalityValidator', () => {
       const config = {
         model: 'anthropic/claude-sonnet-4.5',
         provider: 'openrouter',
-        visionModel: 'anthropic/claude-sonnet-4.5',
         temperature: 0.7,
         maxTokens: 4096,
         topP: 0.9,
@@ -130,7 +129,6 @@ describe('PersonalityValidator', () => {
       const dbConfig = {
         model: 'anthropic/claude-sonnet-4.5',
         provider: 'openrouter',
-        visionModel: null,
         temperature: new Decimal(0.7),
         maxTokens: 4096,
         topP: null,

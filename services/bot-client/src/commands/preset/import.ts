@@ -27,7 +27,6 @@ interface ImportedPresetData {
   description?: string;
   provider?: string;
   model?: string;
-  visionModel?: string;
   contextWindowTokens?: number;
   advancedParameters?: {
     temperature?: number;
@@ -62,7 +61,6 @@ export const PRESET_JSON_TEMPLATE = `{
   "description": "A description of what this preset is for (optional)",
   "provider": "anthropic",
   "model": "anthropic/claude-sonnet-4",
-  "visionModel": "anthropic/claude-sonnet-4 (optional)",
   "contextWindowTokens": 131072,
   "advancedParameters": {
     "temperature": 0.7,
@@ -87,7 +85,6 @@ const IMPORT_FIELD_DEFS: ImportFieldDef[] = [
   { key: 'description', label: 'Description' },
   { key: 'provider', label: 'Provider' },
   { key: 'model', label: 'Model' },
-  { key: 'visionModel', label: 'Vision Model' },
   { key: 'contextWindowTokens', label: 'Context Window Tokens' },
   { key: 'advancedParameters', label: 'Advanced Parameters' },
 ];
@@ -153,9 +150,6 @@ function buildImportPayload(data: ImportedPresetData): Record<string, unknown> {
   if (data.provider !== undefined && data.provider !== '') {
     payload.provider = data.provider;
   }
-  if (data.visionModel !== undefined && data.visionModel !== '') {
-    payload.visionModel = data.visionModel;
-  }
   if (data.contextWindowTokens !== undefined) {
     payload.contextWindowTokens = data.contextWindowTokens;
   }
@@ -183,7 +177,6 @@ async function createPresetFromImport(
     model: payload.model,
     provider: payload.provider,
     description: payload.description,
-    visionModel: payload.visionModel,
     contextWindowTokens: payload.contextWindowTokens,
     advancedParameters: payload.advancedParameters,
   } as Parameters<UserClient['createUserLlmConfig']>[0]);

@@ -428,6 +428,19 @@ describe('Deterministic UUID Generation', () => {
       const llmId = generateSystemGlobalLlmConfigUuid('shared-name');
       expect(ttsId).not.toBe(llmId);
     });
+
+    it('pins the exact UUIDs for the seeded vision system-global names (drift guard)', () => {
+      // These IDs are baked into VisionConfigBootstrap's createMany seed. If this helper
+      // ever changes, the seeded rows would orphan (db-sync `llm_configs_owner_id_name_key`
+      // collisions) — this test fails loudly so the change is caught before it ships.
+      // Recompute + re-pin ONLY alongside a recovery migration that realigns existing rows.
+      expect(generateSystemGlobalLlmConfigUuid('vision-default')).toBe(
+        '56af57f3-7446-560b-858e-8c1c672df9c0'
+      );
+      expect(generateSystemGlobalLlmConfigUuid('vision-free-default')).toBe(
+        'b0bdc63b-e081-5ed7-a2cf-276e4f959f70'
+      );
+    });
   });
 
   describe('generateByokTtsConfigUuid', () => {

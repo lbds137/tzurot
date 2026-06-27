@@ -126,7 +126,6 @@ describe('LlmConfigResolver', () => {
           name: 'User Override Config',
           model: 'google/gemini-2.0-flash',
           provider: 'openrouter',
-          visionModel: null,
           advancedParameters: {
             temperature: 0.5,
             max_tokens: 2048,
@@ -145,7 +144,6 @@ describe('LlmConfigResolver', () => {
       expect(result.config.temperature).toBe(0.5);
       expect(result.config.maxTokens).toBe(2048);
       // Personality defaults used for null override values
-      expect(result.config.visionModel).toBe('anthropic/claude-sonnet-4');
       expect(result.config.topP).toBe(0.9);
     });
 
@@ -157,7 +155,6 @@ describe('LlmConfigResolver', () => {
           name: 'User Global Config',
           model: 'openai/gpt-4o',
           provider: 'openrouter',
-          visionModel: 'openai/gpt-4o',
           advancedParameters: {
             temperature: 0.3,
           },
@@ -202,7 +199,6 @@ describe('LlmConfigResolver', () => {
           name: 'JSONB Config',
           model: 'anthropic/claude-sonnet-4',
           provider: 'openrouter',
-          visionModel: null,
           advancedParameters: {
             temperature: 0.42,
             top_p: 0.85,
@@ -382,7 +378,6 @@ describe('LlmConfigResolver', () => {
           name: 'Partial Override',
           model: 'google/gemini-2.0-flash',
           provider: 'openrouter',
-          visionModel: null, // null - should use personality default
           advancedParameters: {
             temperature: 0.5,
             top_k: 50,
@@ -405,7 +400,6 @@ describe('LlmConfigResolver', () => {
       expect(result.config.memoryLimit).toBeUndefined();
 
       // Personality defaults for null/undefined values
-      expect(result.config.visionModel).toBe('anthropic/claude-sonnet-4');
       expect(result.config.topP).toBe(0.9);
       expect(result.config.maxTokens).toBe(4096);
       expect(result.config.contextWindowTokens).toBe(128000);
@@ -419,7 +413,6 @@ describe('LlmConfigResolver', () => {
           name: 'No Params Config',
           model: 'google/gemini-2.0-flash',
           provider: 'openrouter',
-          visionModel: null,
           advancedParameters: null, // No JSONB params set
           memoryScoreThreshold: null,
           memoryLimit: null,
@@ -454,7 +447,6 @@ describe('LlmConfigResolver', () => {
           name: 'R1 Config',
           model: 'deepseek/deepseek-r1',
           provider: 'openrouter',
-          visionModel: null,
           advancedParameters: {
             reasoning: { effort: 'high', enabled: true }, // Override reasoning
             // showThinking not set - should use personality default
@@ -583,7 +575,6 @@ describe('LlmConfigResolver', () => {
           name: 'Decimal Config',
           model: 'test/model',
           provider: 'openrouter',
-          visionModel: null,
           advancedParameters: null,
           memoryScoreThreshold: mockDecimal,
           memoryLimit: null,
@@ -606,7 +597,6 @@ describe('LlmConfigResolver', () => {
           name: 'Bad Config',
           model: 'test/model',
           provider: 'openrouter',
-          visionModel: null,
           advancedParameters: 'not-an-object', // Invalid JSONB
           memoryScoreThreshold: null,
           memoryLimit: null,
@@ -641,7 +631,6 @@ describe('LlmConfigResolver', () => {
         name: 'Free Default Config',
         model: 'google/gemini-2.0-flash:free',
         provider: 'openrouter',
-        visionModel: null,
         advancedParameters: {
           temperature: 0.7,
           top_p: 0.9,
@@ -669,7 +658,6 @@ describe('LlmConfigResolver', () => {
         name: 'Free Default Config',
         model: 'google/gemini-2.0-flash:free',
         provider: 'openrouter',
-        visionModel: null,
         advancedParameters: {
           temperature: 0.7,
         },
@@ -692,7 +680,6 @@ describe('LlmConfigResolver', () => {
         name: 'Free Default Config',
         model: 'google/gemini-2.0-flash:free',
         provider: 'openrouter',
-        visionModel: null,
         advancedParameters: {
           temperature: 0.7,
         },
@@ -730,7 +717,6 @@ describe('LlmConfigResolver', () => {
         name: 'Free Default Config',
         model: 'google/gemini-2.0-flash:free',
         provider: 'openrouter',
-        visionModel: null,
         advancedParameters: {
           temperature: 0.7,
           top_p: 0.9,
@@ -761,7 +747,6 @@ describe('LlmConfigResolver', () => {
         name: 'Free Default Config',
         model: 'google/gemini-2.0-flash:free',
         provider: 'openrouter',
-        visionModel: null,
         advancedParameters: {
           temperature: 0.7,
         },

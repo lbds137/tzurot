@@ -32,7 +32,6 @@ describe('LLM Config API Contract Tests', () => {
       description: 'A test configuration',
       model: 'openai/gpt-4o-mini',
       provider: 'openrouter',
-      visionModel: 'openai/gpt-4o',
       isGlobal: true,
       isDefault: true,
       isFreeDefault: false,
@@ -47,13 +46,6 @@ describe('LLM Config API Contract Tests', () => {
 
     it('should validate config with null description', () => {
       const config = { ...validConfig, description: null };
-
-      const result = LlmConfigSummarySchema.safeParse(config);
-      expect(result.success).toBe(true);
-    });
-
-    it('should validate config with null visionModel', () => {
-      const config = { ...validConfig, visionModel: null };
 
       const result = LlmConfigSummarySchema.safeParse(config);
       expect(result.success).toBe(true);
@@ -134,7 +126,6 @@ describe('LLM Config API Contract Tests', () => {
       description: null,
       provider: 'openrouter',
       model: 'openai/gpt-4o-mini',
-      visionModel: null,
       isGlobal: true,
       isDefault: false,
       isFreeDefault: false,
@@ -197,7 +188,6 @@ describe('LLM Config API Contract Tests', () => {
             description: 'System default',
             model: 'openai/gpt-4o-mini',
             provider: 'openrouter',
-            visionModel: null,
             isGlobal: true,
             isDefault: true,
             isFreeDefault: false,
@@ -210,7 +200,6 @@ describe('LLM Config API Contract Tests', () => {
             description: null,
             model: 'anthropic/claude-sonnet-4',
             provider: 'openrouter',
-            visionModel: 'anthropic/claude-sonnet-4',
             isGlobal: false,
             isDefault: false,
             isFreeDefault: false,
@@ -241,7 +230,6 @@ describe('LLM Config API Contract Tests', () => {
           description: 'A custom preset',
           model: 'anthropic/claude-sonnet-4',
           provider: 'openrouter',
-          visionModel: null,
           isGlobal: false,
           isDefault: false,
           isFreeDefault: false,
@@ -391,7 +379,6 @@ describe('LLM Config API Contract Tests', () => {
         ...validCreateInput,
         description: 'A detailed description',
         provider: 'openrouter',
-        visionModel: 'anthropic/claude-sonnet-4',
         advancedParameters: { temperature: 0.7, maxTokens: 2000 },
         memoryScoreThreshold: 0.75,
         memoryLimit: 50,
@@ -409,7 +396,6 @@ describe('LLM Config API Contract Tests', () => {
       const inputWithNulls = {
         ...validCreateInput,
         description: null,
-        visionModel: null,
         maxAge: null,
       };
 
@@ -537,7 +523,6 @@ describe('LLM Config API Contract Tests', () => {
         description: 'Updated description',
         provider: 'anthropic',
         model: 'claude-sonnet-4',
-        visionModel: 'claude-sonnet-4',
         advancedParameters: { temperature: 0.5 },
         memoryScoreThreshold: 0.9,
         memoryLimit: 75,
@@ -555,7 +540,6 @@ describe('LLM Config API Contract Tests', () => {
     it('should validate clearing nullable fields with null', () => {
       const clearingUpdate = {
         description: null,
-        visionModel: null,
         maxAge: null,
       };
 
@@ -626,7 +610,6 @@ describe('LLM Config API Contract Tests', () => {
       description: null,
       provider: 'openrouter',
       model: 'openai/gpt-4o-mini',
-      visionModel: null,
       isGlobal: true,
       isDefault: false,
       isFreeDefault: false,
@@ -658,7 +641,6 @@ describe('LLM Config API Contract Tests', () => {
         description: null,
         provider: 'openrouter',
         model: 'openai/gpt-4o-mini',
-        visionModel: null,
         isGlobal: true,
         isDefault: false,
         isFreeDefault: false,

@@ -24,6 +24,8 @@ model User {
   nsfwVerified          Boolean                    @default(false) @map("nsfw_verified")
   nsfwVerifiedAt        DateTime?                  @map("nsfw_verified_at")
   defaultLlmConfigId    String?                    @map("default_llm_config_id") @db.Uuid
+  /// Default-fallback: null means "use the personality/free vision-config cascade."
+  defaultVisionConfigId String?                    @map("default_vision_config_id") @db.Uuid
   defaultTtsConfigId    String?                    @map("default_tts_config_id") @db.Uuid
   /// User-level STT provider override written by /voice stt set. When NULL,
   /// transcription derives from the user's default TTS provider (BYOK pairs
@@ -43,6 +45,7 @@ model User {
   channelSettings       ChannelSettings[]
   adminSettingsUpdates  AdminSettings[]
   defaultLlmConfig      LlmConfig?                 @relation("UserDefaultLlmConfig", fields: [defaultLlmConfigId], references: [id], onDelete: SetNull)
+  defaultVisionConfig   LlmConfig?                 @relation("UserDefaultVisionConfig", fields: [defaultVisionConfigId], references: [id], onDelete: SetNull)
   defaultTtsConfig      TtsConfig?                 @relation("UserDefaultTtsConfig", fields: [defaultTtsConfigId], references: [id], onDelete: SetNull)
   defaultPersona        Persona?                   @relation("UserDefaultPersona", fields: [defaultPersonaId], references: [id], onDelete: Restrict)
   ownedLlmConfigs       LlmConfig[]                @relation("LlmConfigOwner")
@@ -55,6 +58,7 @@ model User {
 
   @@index([discordId])
   @@index([defaultLlmConfigId])
+  @@index([defaultVisionConfigId])
   @@index([defaultTtsConfigId])
   @@index([defaultPersonaId])
   @@map("users")
@@ -120,22 +124,22 @@ model UserApiKey {
 }
 
 model Persona {
-  id                          String                     @id @db.Uuid
-  name                        String                     @db.Citext
-  description                 String?
-  content                     String
-  preferredName               String?                    @map("preferred_name") @db.VarChar(255)
-  pronouns                    String?                    @db.VarChar(100)
-  ownerId                     String                     @map("owner_id") @db.Uuid
-  createdAt                   DateTime                   @default(now()) @map("created_at")
-  updatedAt                   DateTime                   @updatedAt @map("updated_at")
-  conversationHistory         ConversationHistory[]
-  memories                    Memory[]
-  owner                       User                       @relation("PersonaOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  usersWithAsDefault          User[]                     @relation("UserDefaultPersona")
-  shapesPersonaMappings       ShapesPersonaMapping[]
-  personalityConfigs          UserPersonalityConfig[]
-  historyConfigs              UserPersonaHistoryConfig[] @relation("personaHistoryConfigs")
+  id                    String                     @id @db.Uuid
+  name                  String                     @db.Citext
+  description           String?
+  content               String
+  preferredName         String?                    @map("preferred_name") @db.VarChar(255)
+  pronouns              String?                    @db.VarChar(100)
+  ownerId               String                     @map("owner_id") @db.Uuid
+  createdAt             DateTime                   @default(now()) @map("created_at")
+  updatedAt             DateTime                   @updatedAt @map("updated_at")
+  conversationHistory   ConversationHistory[]
+  memories              Memory[]
+  owner                 User                       @relation("PersonaOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  usersWithAsDefault    User[]                     @relation("UserDefaultPersona")
+  shapesPersonaMappings ShapesPersonaMapping[]
+  personalityConfigs    UserPersonalityConfig[]
+  historyConfigs        UserPersonaHistoryConfig[] @relation("personaHistoryConfigs")
 
   @@unique([ownerId, name])
   @@index([ownerId])
@@ -157,43 +161,50 @@ model SystemPrompt {
 }
 
 model LlmConfig {
-  id                          String                     @id @db.Uuid
-  name                        String                     @db.Citext
-  description                 String?
-  ownerId                     String                     @map("owner_id") @db.Uuid
-  isGlobal                    Boolean                    @default(false) @map("is_global")
-  isDefault                   Boolean                    @default(false) @map("is_default")
+  id                                String                           @id @db.Uuid
+  name                              String                           @db.Citext
+  description                       String?
+  /// Discriminates text-model presets (kind='text') from vision-model presets
+  /// (kind='vision'). A vision config's `model` field IS the vision model — there is no
+  /// nested vision field. Per-kind defaults are enforced by partial unique indexes.
+  kind                              String                           @default("text") @db.VarChar(10)
+  ownerId                           String                           @map("owner_id") @db.Uuid
+  isGlobal                          Boolean                          @default(false) @map("is_global")
+  isDefault                         Boolean                          @default(false) @map("is_default")
   /// Default config for guest mode (users without API keys). Only one should be true.
   /// Enforced by partial unique index: llm_configs_free_default_unique (WHERE is_free_default = true)
-  isFreeDefault               Boolean                    @default(false) @map("is_free_default")
-  provider                    String                     @default("openrouter") @db.VarChar(20)
-  model                       String                     @db.VarChar(255)
-  visionModel                 String?                    @map("vision_model") @db.VarChar(255)
+  isFreeDefault                     Boolean                          @default(false) @map("is_free_default")
+  provider                          String                           @default("openrouter") @db.VarChar(20)
+  model                             String                           @db.VarChar(255)
   /// JSONB field for provider-specific parameters (temperature, topP, topK, etc.)
   /// See AdvancedParamsSchema in common-types for validation
-  advancedParameters          Json?                      @map("advanced_parameters")
-  memoryScoreThreshold        Decimal                    @default(0.5) @map("memory_score_threshold") @db.Decimal(3, 2)
-  memoryLimit                 Int                        @default(20) @map("memory_limit")
-  contextWindowTokens         Int                        @default(131072) @map("context_window_tokens")
+  advancedParameters                Json?                            @map("advanced_parameters")
+  memoryScoreThreshold              Decimal                          @default(0.5) @map("memory_score_threshold") @db.Decimal(3, 2)
+  memoryLimit                       Int                              @default(20) @map("memory_limit")
+  contextWindowTokens               Int                              @default(131072) @map("context_window_tokens")
   // Context settings - typed columns for stable app config (not JSONB)
   // These control how many messages to fetch from conversation history
   /// Max messages to fetch from DB/Discord channel history (default: 50, capped at 100)
-  maxMessages                 Int                        @default(50) @map("max_messages")
+  maxMessages                       Int                              @default(50) @map("max_messages")
   /// Max age in seconds for messages (null = no limit)
-  maxAge                      Int?                       @map("max_age")
+  maxAge                            Int?                             @map("max_age")
   /// Max images to proactively process from extended context (default: 10, capped at 20)
-  maxImages                   Int                        @default(10) @map("max_images")
-  createdAt                   DateTime                   @default(now()) @map("created_at")
-  updatedAt                   DateTime                   @updatedAt @map("updated_at")
-  owner                       User                       @relation("LlmConfigOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  personalitiesUsingAsDefault PersonalityDefaultConfig[]
-  userPersonalityConfigs      UserPersonalityConfig[]
-  usersWithAsDefault          User[]                     @relation("UserDefaultLlmConfig")
+  maxImages                         Int                              @default(10) @map("max_images")
+  createdAt                         DateTime                         @default(now()) @map("created_at")
+  updatedAt                         DateTime                         @updatedAt @map("updated_at")
+  owner                             User                             @relation("LlmConfigOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  personalitiesUsingAsDefault       PersonalityDefaultConfig[]
+  personalitiesUsingAsVisionDefault PersonalityVisionDefaultConfig[]
+  userPersonalityConfigs            UserPersonalityConfig[]          @relation("UserPersonalityLlmConfig")
+  userPersonalityVisionConfigs      UserPersonalityConfig[]          @relation("UserPersonalityVisionConfig")
+  usersWithAsDefault                User[]                           @relation("UserDefaultLlmConfig")
+  usersWithAsVisionDefault          User[]                           @relation("UserDefaultVisionConfig")
 
   @@unique([ownerId, name], map: "llm_configs_owner_id_name_key")
   @@index([ownerId])
   @@index([isGlobal])
   @@index([isFreeDefault])
+  @@index([kind])
   @@map("llm_configs")
 }
 
@@ -206,6 +217,17 @@ model PersonalityDefaultConfig {
 
   @@index([llmConfigId])
   @@map("personality_default_configs")
+}
+
+model PersonalityVisionDefaultConfig {
+  personalityId String      @id @unique @map("personality_id") @db.Uuid
+  llmConfigId   String      @map("llm_config_id") @db.Uuid
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+  llmConfig     LlmConfig   @relation(fields: [llmConfigId], references: [id], onDelete: Cascade)
+  personality   Personality @relation(fields: [personalityId], references: [id], onDelete: Cascade)
+
+  @@index([llmConfigId])
+  @@map("personality_vision_default_configs")
 }
 
 model TtsConfig {
@@ -253,51 +275,52 @@ model PersonalityDefaultTtsConfig {
 }
 
 model Personality {
-  id                         String   @id @db.Uuid
-  name                       String   @db.VarChar(255)
-  displayName                String?  @map("display_name") @db.VarChar(255)
-  slug                       String   @unique @db.VarChar(255)
-  systemPromptId             String?  @map("system_prompt_id") @db.Uuid
-  ownerId                    String   @map("owner_id") @db.Uuid
-  characterInfo              String   @map("character_info")
-  personalityTraits          String   @map("personality_traits")
-  personalityTone            String?  @map("personality_tone")
-  personalityAge             String?  @map("personality_age")
-  personalityAppearance      String?  @map("personality_appearance")
-  personalityLikes           String?  @map("personality_likes")
-  personalityDislikes        String?  @map("personality_dislikes")
-  conversationalGoals        String?  @map("conversational_goals")
-  conversationalExamples     String?  @map("conversational_examples")
-  customFields               Json?    @map("custom_fields")
-  errorMessage               String?  @map("error_message")
-  birthMonth                 Int?     @map("birth_month")
-  birthDay                   Int?     @map("birth_day")
-  birthYear                  Int?     @map("birth_year")
-  isPublic                   Boolean  @default(true) @map("is_public")
-  voiceEnabled               Boolean  @default(false) @map("voice_enabled")
-  voiceSettings              Json?    @map("voice_settings")
-  imageEnabled               Boolean  @default(false) @map("image_enabled")
-  imageSettings              Json?    @map("image_settings")
-  avatarData                 Bytes?   @map("avatar_data")
-  voiceReferenceData         Bytes?   @map("voice_reference_data")
-  voiceReferenceType         String?  @map("voice_reference_type") @db.VarChar(50)
+  id                     String  @id @db.Uuid
+  name                   String  @db.VarChar(255)
+  displayName            String? @map("display_name") @db.VarChar(255)
+  slug                   String  @unique @db.VarChar(255)
+  systemPromptId         String? @map("system_prompt_id") @db.Uuid
+  ownerId                String  @map("owner_id") @db.Uuid
+  characterInfo          String  @map("character_info")
+  personalityTraits      String  @map("personality_traits")
+  personalityTone        String? @map("personality_tone")
+  personalityAge         String? @map("personality_age")
+  personalityAppearance  String? @map("personality_appearance")
+  personalityLikes       String? @map("personality_likes")
+  personalityDislikes    String? @map("personality_dislikes")
+  conversationalGoals    String? @map("conversational_goals")
+  conversationalExamples String? @map("conversational_examples")
+  customFields           Json?   @map("custom_fields")
+  errorMessage           String? @map("error_message")
+  birthMonth             Int?    @map("birth_month")
+  birthDay               Int?    @map("birth_day")
+  birthYear              Int?    @map("birth_year")
+  isPublic               Boolean @default(true) @map("is_public")
+  voiceEnabled           Boolean @default(false) @map("voice_enabled")
+  voiceSettings          Json?   @map("voice_settings")
+  imageEnabled           Boolean @default(false) @map("image_enabled")
+  imageSettings          Json?   @map("image_settings")
+  avatarData             Bytes?  @map("avatar_data")
+  voiceReferenceData     Bytes?  @map("voice_reference_data")
+  voiceReferenceType     String? @map("voice_reference_type") @db.VarChar(50)
   /// JSONB config cascade defaults (personality tier). Validated against ConfigOverridesSchema at runtime.
-  configDefaults             Json?    @map("config_defaults")
+  configDefaults         Json?   @map("config_defaults")
 
-  createdAt             DateTime                   @default(now()) @map("created_at")
-  updatedAt             DateTime                   @updatedAt @map("updated_at")
-  channelSettings       ChannelSettings[]
-  aliases               PersonalityAlias[]
-  conversationHistory   ConversationHistory[]
-  memories              Memory[]
-  owner                 User                          @relation("PersonalityOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  systemPrompt          SystemPrompt?                 @relation(fields: [systemPromptId], references: [id])
-  defaultConfigLink     PersonalityDefaultConfig?
-  defaultTtsConfigLink  PersonalityDefaultTtsConfig?
-  owners                PersonalityOwner[]
-  userConfigs           UserPersonalityConfig[]
-  personaHistoryConfigs UserPersonaHistoryConfig[]
-  importJobs            ImportJob[]
+  createdAt               DateTime                        @default(now()) @map("created_at")
+  updatedAt               DateTime                        @updatedAt @map("updated_at")
+  channelSettings         ChannelSettings[]
+  aliases                 PersonalityAlias[]
+  conversationHistory     ConversationHistory[]
+  memories                Memory[]
+  owner                   User                            @relation("PersonalityOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  systemPrompt            SystemPrompt?                   @relation(fields: [systemPromptId], references: [id])
+  defaultConfigLink       PersonalityDefaultConfig?
+  defaultVisionConfigLink PersonalityVisionDefaultConfig?
+  defaultTtsConfigLink    PersonalityDefaultTtsConfig?
+  owners                  PersonalityOwner[]
+  userConfigs             UserPersonalityConfig[]
+  personaHistoryConfigs   UserPersonaHistoryConfig[]
+  importJobs              ImportJob[]
 
   @@index([slug])
   @@index([ownerId])
@@ -345,27 +368,30 @@ model PersonalityAlias {
 /// of each slice means "no override for this slice on this (user, personality)."
 /// State-machine-style pattern — null is meaningful per-field.
 model UserPersonalityConfig {
-  id               String   @id @db.Uuid
-  userId           String   @map("user_id") @db.Uuid
-  personalityId    String   @map("personality_id") @db.Uuid
+  id              String   @id @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  personalityId   String   @map("personality_id") @db.Uuid
   /// Default-fallback: null means "use the user's default persona for this personality."
-  personaId        String?  @map("persona_id") @db.Uuid
+  personaId       String?  @map("persona_id") @db.Uuid
   /// Default-fallback: null means "use the user/personality LLM cascade."
-  llmConfigId      String?  @map("llm_config_id") @db.Uuid
+  llmConfigId     String?  @map("llm_config_id") @db.Uuid
+  /// Default-fallback: null means "use the user/personality vision-config cascade."
+  visionConfigId  String?  @map("vision_config_id") @db.Uuid
   /// Default-fallback: null means "use the user/personality TTS cascade."
-  ttsConfigId      String?  @map("tts_config_id") @db.Uuid
+  ttsConfigId     String?  @map("tts_config_id") @db.Uuid
   /// Default-fallback: JSONB config cascade overrides (user+personality tier).
   /// Null means "no per-personality config-overrides for this user; fall through
   /// to user/global tier." Validated against ConfigOverridesSchema at runtime.
-  configOverrides  Json?    @map("config_overrides")
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  configOverrides Json?    @map("config_overrides")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
-  llmConfig   LlmConfig?  @relation(fields: [llmConfigId], references: [id], onDelete: SetNull)
-  ttsConfig   TtsConfig?  @relation("UserPersonalityTtsConfig", fields: [ttsConfigId], references: [id], onDelete: SetNull)
-  persona     Persona?    @relation(fields: [personaId], references: [id], onDelete: SetNull)
-  personality Personality @relation(fields: [personalityId], references: [id], onDelete: Cascade)
-  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  llmConfig    LlmConfig?  @relation("UserPersonalityLlmConfig", fields: [llmConfigId], references: [id], onDelete: SetNull)
+  visionConfig LlmConfig?  @relation("UserPersonalityVisionConfig", fields: [visionConfigId], references: [id], onDelete: SetNull)
+  ttsConfig    TtsConfig?  @relation("UserPersonalityTtsConfig", fields: [ttsConfigId], references: [id], onDelete: SetNull)
+  persona      Persona?    @relation(fields: [personaId], references: [id], onDelete: SetNull)
+  personality  Personality @relation(fields: [personalityId], references: [id], onDelete: Cascade)
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, personalityId])
   @@index([userId])

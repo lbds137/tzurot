@@ -30,7 +30,6 @@ export function flattenPresetData(data: PresetData): FlattenedPresetData {
     description: data.description ?? '',
     provider: data.provider,
     model: data.model,
-    visionModel: data.visionModel ?? '',
     isGlobal: data.isGlobal,
     isOwned: data.isOwned,
     canEdit: data.permissions.canEdit,
@@ -67,7 +66,7 @@ export function flattenPresetData(data: PresetData): FlattenedPresetData {
 const OMIT_WHEN_EMPTY_FIELDS = ['name', 'provider', 'model'] as const;
 
 /** Form fields where empty string means "clear the value" (send null) */
-const NULL_WHEN_EMPTY_FIELDS = ['description', 'visionModel'] as const;
+const NULL_WHEN_EMPTY_FIELDS = ['description'] as const;
 
 /** Numeric sampling/output params; FlattenedPresetData holds them as form strings */
 const NUMERIC_PARAMS = [

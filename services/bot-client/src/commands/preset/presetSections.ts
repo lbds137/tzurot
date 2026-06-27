@@ -61,13 +61,12 @@ export const identitySection: SectionDefinition<FlattenedPresetData> = {
   id: 'identity',
   label: '📝 Identity',
   description: 'Name, description, and model',
-  fieldIds: ['name', 'description', 'provider', 'model', 'visionModel'],
+  fieldIds: ['name', 'description', 'provider', 'model'],
   fields: [
     f('name', 'Preset Name', 'My Custom Preset', 100, true),
     f('description', 'Description', 'Optimized for creative writing tasks', 200),
     f('provider', 'Provider', 'openrouter', 50),
     f('model', 'Model ID', 'anthropic/claude-sonnet-4', 200, true),
-    f('visionModel', 'Vision Model (optional)', 'anthropic/claude-sonnet-4', 200),
   ],
   getStatus: data => {
     if (!data.name || !data.model) {
@@ -83,9 +82,6 @@ export const identitySection: SectionDefinition<FlattenedPresetData> = {
     if (data.model) {
       const zaiBadge = data.requiresZaiKey === true ? ' ⚠️ requires z.ai key' : '';
       parts.push(`**Model:** \`${data.model}\`${zaiBadge}`);
-    }
-    if (data.visionModel) {
-      parts.push(`**Vision:** \`${data.visionModel}\``);
     }
     return parts.length > 0 ? parts.join('\n') : '_Not configured_';
   },

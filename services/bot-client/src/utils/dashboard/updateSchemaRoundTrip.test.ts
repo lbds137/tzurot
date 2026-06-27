@@ -101,7 +101,6 @@ const presetDetailWithNulls: PresetData = {
   description: null,
   provider: 'openrouter',
   model: 'anthropic/claude-sonnet-4',
-  visionModel: null,
   isGlobal: false,
   isOwned: true,
   permissions: { canEdit: true, canDelete: true },

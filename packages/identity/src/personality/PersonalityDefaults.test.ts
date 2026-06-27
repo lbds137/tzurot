@@ -175,7 +175,7 @@ describe('PersonalityDefaults', () => {
           llmConfig: {
             model: 'anthropic/claude-sonnet-4.5',
             provider: 'openrouter',
-            visionModel: 'anthropic/claude-sonnet-4.5',
+            kind: 'text',
             advancedParameters: {
               temperature: 0.7,
               max_tokens: 4096,
@@ -198,7 +198,6 @@ describe('PersonalityDefaults', () => {
       expect(result.slug).toBe('test-bot');
       expect(result.systemPrompt).toBe('You are a helpful assistant named TestBot');
       expect(result.model).toBe('anthropic/claude-sonnet-4.5');
-      expect(result.visionModel).toBe('anthropic/claude-sonnet-4.5');
       expect(result.temperature).toBe(0.7);
       expect(result.maxTokens).toBe(4096);
       // Avatar URL includes path-based cache-busting (timestamp in filename)
@@ -216,7 +215,7 @@ describe('PersonalityDefaults', () => {
       const globalConfig: MappedLlmConfig = {
         model: 'global-model',
         provider: 'openrouter',
-        visionModel: 'global-vision-model',
+        kind: 'text',
         temperature: 0.8,
         maxTokens: 2048,
         memoryScoreThreshold: 0.6,
@@ -230,7 +229,6 @@ describe('PersonalityDefaults', () => {
       const result = mapToPersonality(dbPersonality, globalConfig, mockLogger);
 
       expect(result.model).toBe('global-model');
-      expect(result.visionModel).toBe('global-vision-model');
       expect(result.temperature).toBe(0.8);
       expect(result.maxTokens).toBe(2048);
       expect(result.displayName).toBe('TestBot'); // Falls back to name
@@ -279,7 +277,7 @@ describe('PersonalityDefaults', () => {
           llmConfig: {
             model: 'deepseek/deepseek-r1',
             provider: 'openrouter',
-            visionModel: null,
+            kind: 'text',
             advancedParameters: {
               temperature: 0.7,
               top_p: 0.95,
@@ -325,7 +323,7 @@ describe('PersonalityDefaults', () => {
       const globalConfig: MappedLlmConfig = {
         model: 'global-model',
         provider: 'openrouter',
-        visionModel: null,
+        kind: 'text',
         temperature: 0.8,
         maxTokens: 2048,
         memoryScoreThreshold: 0.6,
@@ -361,7 +359,7 @@ describe('PersonalityDefaults', () => {
           llmConfig: {
             model: 'z-ai/glm-4.5-air:free',
             provider: 'openrouter',
-            visionModel: null,
+            kind: 'text',
             advancedParameters: {
               temperature: 1,
               top_p: 0.95,
@@ -397,7 +395,7 @@ describe('PersonalityDefaults', () => {
           llmConfig: {
             model: 'anthropic/claude-sonnet-4.5',
             provider: 'openrouter',
-            visionModel: null,
+            kind: 'text',
             advancedParameters: {
               temperature: 0.7,
               max_tokens: 16384, // Explicitly set
@@ -458,7 +456,7 @@ describe('PersonalityDefaults', () => {
           llmConfig: {
             model: 'test-model',
             provider: 'openrouter',
-            visionModel: null,
+            kind: 'text',
             advancedParameters: {
               temperature: 0.7,
               max_tokens: 4096,
@@ -492,7 +490,7 @@ describe('PersonalityDefaults', () => {
       const globalConfig: MappedLlmConfig = {
         model: 'global-model',
         provider: 'openrouter',
-        visionModel: null,
+        kind: 'text',
         temperature: 0.7,
         maxTokens: 2048,
         memoryScoreThreshold: 0.5,
@@ -536,7 +534,7 @@ describe('PersonalityDefaults', () => {
           llmConfig: {
             model: 'anthropic/claude-3-opus',
             provider: 'openrouter',
-            visionModel: null,
+            kind: 'text',
             advancedParameters: {
               temperature: 0.9,
               max_tokens: 4096,
@@ -555,7 +553,7 @@ describe('PersonalityDefaults', () => {
       const globalConfig: MappedLlmConfig = {
         model: 'openai/gpt-4',
         provider: 'openrouter',
-        visionModel: null,
+        kind: 'text',
         temperature: 0.5,
         maxTokens: 2048,
         memoryScoreThreshold: 0.5,

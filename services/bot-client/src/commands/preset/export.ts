@@ -17,14 +17,7 @@ const logger = createLogger('preset-export');
  * Excludes: id (generated on import), isGlobal (toggle in dashboard),
  * isOwned/permissions (computed server-side)
  */
-const EXPORT_FIELDS = [
-  'name',
-  'description',
-  'provider',
-  'model',
-  'visionModel',
-  'contextWindowTokens',
-] as const;
+const EXPORT_FIELDS = ['name', 'description', 'provider', 'model', 'contextWindowTokens'] as const;
 
 /** Sampling parameter keys to extract from preset params */
 const SAMPLING_PARAMS = [

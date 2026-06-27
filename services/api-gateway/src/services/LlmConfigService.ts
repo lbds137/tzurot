@@ -65,7 +65,6 @@ interface RawConfigList {
   description: string | null;
   provider: string;
   model: string;
-  visionModel: string | null;
   isGlobal: boolean;
   isDefault: boolean;
   isFreeDefault: boolean;
@@ -95,7 +94,6 @@ interface FormattedConfigSummary {
   description: string | null;
   provider: string;
   model: string;
-  visionModel: string | null;
   isGlobal: boolean;
   isDefault: boolean;
   isFreeDefault: boolean;
@@ -110,7 +108,6 @@ interface FormattedConfigDetail {
   description: string | null;
   provider: string;
   model: string;
-  visionModel: string | null;
   isGlobal: boolean;
   isDefault: boolean;
   isFreeDefault: boolean;
@@ -165,9 +162,13 @@ export class LlmConfigService {
    * - USER scope: Global configs + user's own configs
    */
   async list(scope: LlmConfigScope): Promise<RawConfigList[]> {
+    // All queries here are scoped to kind='text': this is the TEXT-preset CRUD
+    // surface. Vision configs share the llm_configs table (kind='vision') but are
+    // seeded/DB-only in Phase 1 — they must not appear in the preset list/autocomplete.
     if (scope.type === 'GLOBAL') {
-      // Admin: List all configs
+      // Admin: List all text configs
       return this.prisma.llmConfig.findMany({
+        where: { kind: 'text' },
         select: LLM_CONFIG_LIST_SELECT,
         orderBy: [
           { isDefault: 'desc' },
@@ -182,13 +183,13 @@ export class LlmConfigService {
     // User scope: Global configs + user's own configs
     const [globalConfigs, userConfigs] = await Promise.all([
       this.prisma.llmConfig.findMany({
-        where: { isGlobal: true },
+        where: { isGlobal: true, kind: 'text' },
         select: LLM_CONFIG_LIST_SELECT,
         orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
         take: 100,
       }),
       this.prisma.llmConfig.findMany({
-        where: { ownerId: scope.userId, isGlobal: false },
+        where: { ownerId: scope.userId, isGlobal: false, kind: 'text' },
         select: LLM_CONFIG_LIST_SELECT,
         orderBy: { name: 'asc' },
         take: 100,
@@ -241,7 +242,8 @@ export class LlmConfigService {
           isDefault: false,
           provider: data.provider ?? LLM_CONFIG_DEFAULTS.provider,
           model: data.model.trim(),
-          visionModel: data.visionModel ?? null,
+          // kind defaults to 'text' (DB default) — this CRUD surface manages text
+          // presets only; vision configs are seeded/DB-only in Phase 1.
           advancedParameters: data.advancedParameters ?? undefined,
           // Memory settings — memoryScoreThreshold and memoryLimit are
           // NOT NULL with `@default(0.5)` / `@default(20)` in the schema.
@@ -342,6 +344,7 @@ export class LlmConfigService {
     const existing = await this.prisma.llmConfig.findMany({
       where: {
         ownerId,
+        kind: 'text',
         OR: [
           { name: stripped },
           { name: { startsWith: `${stripped} (Copy)`, mode: 'insensitive' } },
@@ -392,9 +395,6 @@ export class LlmConfigService {
     }
     if (data.model !== undefined) {
       updateData.model = data.model.trim();
-    }
-    if (data.visionModel !== undefined) {
-      updateData.visionModel = data.visionModel;
     }
     if (data.advancedParameters !== undefined) {
       updateData.advancedParameters = data.advancedParameters;
@@ -459,9 +459,19 @@ export class LlmConfigService {
    */
   async setAsDefault(configId: string): Promise<void> {
     await this.prisma.$transaction(async tx => {
-      // Clear existing default
+      // Resolve the target's kind so we clear the existing default WITHIN that kind
+      // only. text and vision each carry their own isDefault (per-kind partial unique
+      // index `llm_configs_default_unique`), so an unscoped clear would wipe the other
+      // kind's default — e.g. setting a text default would silently un-set the vision
+      // global default and collapse vision resolution to the hardcoded fallback.
+      const target = await tx.llmConfig.findUnique({
+        where: { id: configId },
+        select: { kind: true },
+      });
+      const kind = target?.kind ?? 'text';
+      // Clear existing default for this kind
       await tx.llmConfig.updateMany({
-        where: { isDefault: true },
+        where: { isDefault: true, kind },
         data: { isDefault: false },
       });
       // Set new default
@@ -484,9 +494,16 @@ export class LlmConfigService {
    */
   async setAsFreeDefault(configId: string): Promise<void> {
     await this.prisma.$transaction(async tx => {
-      // Clear existing free default
+      // Per-kind clear — see setAsDefault: isFreeDefault is unique per kind
+      // (`llm_configs_free_default_unique`), so the clear must not cross kinds.
+      const target = await tx.llmConfig.findUnique({
+        where: { id: configId },
+        select: { kind: true },
+      });
+      const kind = target?.kind ?? 'text';
+      // Clear existing free default for this kind
       await tx.llmConfig.updateMany({
-        where: { isFreeDefault: true },
+        where: { isFreeDefault: true, kind },
         data: { isFreeDefault: false },
       });
       // Set new free default
@@ -537,7 +554,7 @@ export class LlmConfigService {
     if (scope.type === 'GLOBAL') {
       // Admin: Check among global configs only
       const existing = await this.prisma.llmConfig.findFirst({
-        where: { name: trimmedName, isGlobal: true, ...excludeClause },
+        where: { name: trimmedName, isGlobal: true, kind: 'text', ...excludeClause },
         select: { id: true },
       });
       return existing === null ? { exists: false } : { exists: true, conflictId: existing.id };
@@ -548,6 +565,9 @@ export class LlmConfigService {
     const ownClause: Record<string, unknown> = {
       name: trimmedName,
       ownerId: scope.userId,
+      // Text-preset namespace only (kind='vision' configs are seeded globals, not
+      // user-owned) — keeps the app check aligned with the per-kind unique index.
+      kind: 'text',
       ...excludeClause,
     };
     const ownPromise = this.prisma.llmConfig.findFirst({
@@ -561,7 +581,10 @@ export class LlmConfigService {
     }
 
     const globalPromise = this.prisma.llmConfig.findFirst({
-      where: { name: trimmedName, isGlobal: true, ...excludeClause },
+      // kind='text' mirrors the partial-unique index this check pre-empts
+      // (`llm_configs_global_name_unique` is UNIQUE (kind, name) WHERE is_global);
+      // without it a text promotion would falsely collide with a same-named vision global.
+      where: { name: trimmedName, isGlobal: true, kind: 'text', ...excludeClause },
       select: { id: true },
     });
     const [own, global] = await Promise.all([ownPromise, globalPromise]);
@@ -621,7 +644,6 @@ export class LlmConfigService {
       description: raw.description,
       provider: raw.provider,
       model: raw.model,
-      visionModel: raw.visionModel,
       isGlobal: raw.isGlobal,
       isDefault: raw.isDefault,
       isFreeDefault: raw.isFreeDefault,
@@ -652,7 +674,6 @@ export class LlmConfigService {
       description: raw.description,
       provider: raw.provider,
       model: raw.model,
-      visionModel: raw.visionModel,
       isGlobal: raw.isGlobal,
       isDefault: raw.isDefault,
       isFreeDefault: raw.isFreeDefault,

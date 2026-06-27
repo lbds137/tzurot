@@ -26,7 +26,7 @@ import {
   imageDescriptionJobDataSchema,
   llmGenerationJobDataSchema,
 } from '@tzurot/common-types';
-import type { LlmConfigResolver } from '@tzurot/config-resolver';
+import type { LlmConfigResolver, VisionConfigResolver } from '@tzurot/config-resolver';
 import { flowProducer } from '../queue.js';
 import type { FlowJob } from 'bullmq';
 
@@ -280,73 +280,76 @@ function processAttachmentsForJobs(
 }
 
 /**
- * Resolve the user's effective LLM config ONCE and stamp the resolved
- * `model`/`visionModel` onto the personality, so every job in the chain (the
- * conversation job AND the image-description child job) shares the same
- * user-cascaded values. Without this, the image-description job consumes the
- * personality SEED model (the global paid default applied at load time) because
- * it never runs ai-worker's `ConfigStep` cascade.
+ * Resolve the user's effective TEXT model AND vision model ONCE and stamp both onto
+ * the personality, so every job in the chain (the conversation job AND the
+ * image-description child job) shares the same user-cascaded values. Without this,
+ * the image-description job would consume the personality SEED values (the load-time
+ * defaults) because it never runs ai-worker's `ConfigStep` cascade.
  *
- * `provider` is intentionally NOT stamped: `ResolvedLlmConfig` carries no
- * provider (all configs are OpenRouter; ai-worker's ProviderRouter auto-promotes
- * by model-name prefix), so the configured seed provider must survive for
- * AuthStep's routing to fire.
+ * The TEXT model (`personality.model`) and the VISION model (`personality.visionModel`,
+ * the carrier `selectVisionModel` reads at priority 1) resolve through INDEPENDENT
+ * cascades — `LlmConfigResolver` (kind='text') and `VisionConfigResolver` (kind='vision').
+ * Vision stamps regardless of the text source, since it's its own config axis.
  *
- * Fails open: a resolver throw (or no resolver wired) falls back to the seed
- * personality — never block job creation on config resolution.
+ * `provider` is intentionally NOT stamped: `ResolvedLlmConfig` carries no provider
+ * (all configs are OpenRouter; ai-worker's ProviderRouter auto-promotes by model-name
+ * prefix), so the configured seed provider must survive for AuthStep's routing to fire.
+ *
+ * Fails open per axis: a resolver throw (or no resolver wired) leaves that axis on the
+ * seed value — never block job creation on config resolution. An unstamped vision model
+ * (undefined) makes `selectVisionModel` fall to priority-2/3; the guest downgrade of a
+ * stamped paid vision model stays in AuthStep.
  */
 async function stampResolvedConfig(
   personality: LoadedPersonality,
   userId: string,
   requestId: string,
-  llmConfigResolver?: LlmConfigResolver
+  llmConfigResolver?: LlmConfigResolver,
+  visionConfigResolver?: VisionConfigResolver
 ): Promise<{ personality: LoadedPersonality; configSource: ConfigSourceId }> {
-  if (llmConfigResolver === undefined) {
-    return { personality, configSource: 'personality' };
-  }
+  let stamped = personality;
+  let configSource: ConfigSourceId = 'personality';
 
-  try {
-    const resolved = await llmConfigResolver.resolveConfig(userId, personality.id, personality);
-
-    // Only the two user-override tiers stamp a model onto the personality.
-    // - 'personality': the resolved model equals the seed already → return it
-    //   unchanged (no spread, and the source stays 'personality').
-    // - 'free-default'/'hardcoded': LlmConfigResolver should never produce these
-    //   (they're TtsConfigResolver tiers). Warn so the contract violation stays
-    //   observable (the demoted ConfigStep used to throw), and leave the seed
-    //   untouched — don't stamp a model while reporting source 'personality'.
-    if (resolved.source === 'free-default' || resolved.source === 'hardcoded') {
+  // TEXT model: stamp personality.model from the user cascade.
+  if (llmConfigResolver !== undefined) {
+    try {
+      const resolved = await llmConfigResolver.resolveConfig(userId, personality.id, personality);
+      // Only the two user-override tiers stamp a model.
+      // - 'personality': the resolved model equals the seed already → leave unchanged.
+      // - 'free-default'/'hardcoded': LlmConfigResolver should never produce these
+      //   (TtsConfigResolver tiers). Warn so the contract violation stays observable.
+      if (resolved.source === 'free-default' || resolved.source === 'hardcoded') {
+        logger.warn(
+          { requestId, personalityId: personality.id, unexpectedSource: resolved.source },
+          'LlmConfigResolver returned a TTS-only config source — using personality seed'
+        );
+      } else if (resolved.source !== 'personality') {
+        // user-personality | user-default → stamp the resolved (already-merged) model.
+        stamped = { ...stamped, model: resolved.config.model };
+        configSource = resolved.source;
+      }
+    } catch (error) {
       logger.warn(
-        { requestId, personalityId: personality.id, unexpectedSource: resolved.source },
-        'LlmConfigResolver returned a TTS-only config source — using personality seed'
+        { err: error, requestId, personalityId: personality.id },
+        'LLM config resolution failed at job-chain build — using personality seed'
       );
-      return { personality, configSource: 'personality' };
     }
-    if (resolved.source === 'personality') {
-      return { personality, configSource: 'personality' };
-    }
-
-    // user-personality | user-default → stamp the resolved model/visionModel.
-    // `resolved.config` is already merged with personality fallbacks, so `model`
-    // is the final value. Only overwrite `visionModel` when the resolved config
-    // carries one — otherwise keep the personality's own (mirrors
-    // LlmConfigResolver's `override ?? personality` merge).
-    const resolvedVisionModel = resolved.config.visionModel;
-    const effectivePersonality: LoadedPersonality = {
-      ...personality,
-      model: resolved.config.model,
-      ...(resolvedVisionModel !== null && resolvedVisionModel !== undefined
-        ? { visionModel: resolvedVisionModel }
-        : {}),
-    };
-    return { personality: effectivePersonality, configSource: resolved.source };
-  } catch (error) {
-    logger.warn(
-      { err: error, requestId, personalityId: personality.id },
-      'LLM config resolution failed at job-chain build — using personality seed'
-    );
-    return { personality, configSource: 'personality' };
   }
+
+  // VISION model: stamp personality.visionModel from the INDEPENDENT vision cascade.
+  if (visionConfigResolver !== undefined) {
+    try {
+      const vision = await visionConfigResolver.resolveConfig(userId, personality.id, personality);
+      stamped = { ...stamped, visionModel: vision.config.model };
+    } catch (error) {
+      logger.warn(
+        { err: error, requestId, personalityId: personality.id },
+        'Vision config resolution failed at job-chain build — leaving vision model unstamped'
+      );
+    }
+  }
+
+  return { personality: stamped, configSource };
 }
 
 /** Base params shared by every preprocessing job in a chain (per-job suffix/ref added at call site). */
@@ -447,20 +450,29 @@ export async function createJobChain(params: {
   responseDestination: ResponseDestination;
   userApiKey?: string;
   llmConfigResolver?: LlmConfigResolver;
+  visionConfigResolver?: VisionConfigResolver;
 }): Promise<string> {
-  const { requestId, message, context, responseDestination, userApiKey, llmConfigResolver } =
-    params;
+  const {
+    requestId,
+    message,
+    context,
+    responseDestination,
+    userApiKey,
+    llmConfigResolver,
+    visionConfigResolver,
+  } = params;
 
   const config = await import('@tzurot/common-types').then(m => m.getConfig());
   const QUEUE_NAME = config.QUEUE_NAME;
 
-  // Resolve the user's effective LLM config once and stamp it onto the
+  // Resolve the user's effective text + vision models once and stamp both onto the
   // personality used by EVERY job in this chain (conversation + image-desc).
   const { personality, configSource } = await stampResolvedConfig(
     params.personality,
     context.userId,
     requestId,
-    llmConfigResolver
+    llmConfigResolver,
+    visionConfigResolver
   );
 
   // Build child jobs (preprocessing jobs that must complete before the LLM job).

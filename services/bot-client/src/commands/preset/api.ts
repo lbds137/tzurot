@@ -119,7 +119,6 @@ export async function createPreset(
     model: string;
     provider?: string;
     description?: string;
-    visionModel?: string;
     /**
      * When true, server bumps the `(Copy N)` suffix on name collision
      * instead of returning NAME_COLLISION. Used by the clone flow so a

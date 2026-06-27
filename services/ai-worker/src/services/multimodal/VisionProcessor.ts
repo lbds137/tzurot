@@ -371,6 +371,7 @@ async function invokeVisionModel(
     await visionDescriptionCache.storeFailure({
       attachmentId: attachment.id,
       url: attachment.url,
+      model: modelName,
       category: errorInfo.category,
     });
 
@@ -453,7 +454,7 @@ function buildFailureFallback(
  * cleared, and short-circuiting them would defeat the retry that exists to catch recovery.
  */
 async function checkNegativeCache(
-  cacheKeyOptions: { attachmentId?: string; url: string },
+  cacheKeyOptions: { attachmentId?: string; url: string; model?: string },
   attachmentId: string | undefined,
   apiKeySource: 'user' | 'system' | undefined,
   options: { attachmentBoundOnly?: boolean } = {}
@@ -483,6 +484,12 @@ async function checkNegativeCache(
 /**
  * Select the vision model to use based on personality config and model capabilities.
  * Priority: personality.visionModel > main model with vision > fallback model.
+ *
+ * NOTE (vision-config epic): `personality.visionModel` (priority 1) is no longer the
+ * old per-preset LlmConfig column — it's the carrier the gateway stamps from the
+ * VisionConfigResolver cascade (user → personality → global vision default). So on the
+ * main job-chain path priority 1 reflects the resolved vision config; priorities 2/3
+ * remain the fallback for paths that don't stamp (e.g. direct ImageDescriptionJob).
  *
  * Exported so callers (e.g., `DependencyStep`) can pre-compute the effective
  * vision model name and pass it to `resolveVisionAuth.effectiveVisionModel` —
@@ -608,8 +615,18 @@ export async function describeImage(
     'describeImage called - checking vision model configuration'
   );
 
-  // Check cache first to avoid duplicate vision API calls
-  const cacheKeyOptions = { attachmentId: attachment.id, url: attachment.url };
+  // Resolve the vision model FIRST — the cache keys are namespaced by model (a model
+  // swap must re-attempt rather than replay the old model's entry), so it's needed
+  // before any cache read. Honor a caller-supplied model (from the gateway's
+  // VisionConfigResolver stamping / resolveVisionConfig) over internal selection — the
+  // resolver may have forced a free-tier downgrade selectVisionModel wouldn't reproduce.
+  const usedModel =
+    options.model !== undefined && options.model.length > 0
+      ? options.model
+      : await selectVisionModel(personality, isGuestMode);
+
+  // Check cache first to avoid duplicate vision API calls (keyed by attachment + model).
+  const cacheKeyOptions = { attachmentId: attachment.id, url: attachment.url, model: usedModel };
   if (options?.skipCache !== true) {
     const cachedDescription = await visionDescriptionCache.get(cacheKeyOptions);
     if (cachedDescription !== null) {
@@ -654,13 +671,6 @@ export async function describeImage(
       ? personality.systemPrompt
       : undefined;
 
-  // Honor a caller-supplied model (from `resolveVisionConfig`) over internal
-  // selection — the unified resolver may have forced a free-tier downgrade that
-  // `selectVisionModel` would not reproduce for an authenticated user.
-  const usedModel =
-    options.model !== undefined && options.model.length > 0
-      ? options.model
-      : await selectVisionModel(personality, isGuestMode);
   // Derive the provider from the RESOLVED vision model when the caller didn't
   // supply one. An undefined provider makes createChatModel fall back to the
   // env-default AI_PROVIDER, which misroutes cross-provider personalities (e.g.
@@ -685,10 +695,7 @@ export async function describeImage(
   // Cache the description for future use (Redis L1 only).
   // Uses shared validation to prevent error-like descriptions from polluting the cache.
   if (isValidVisionDescription(description)) {
-    await visionDescriptionCache.store(
-      { attachmentId: attachment.id, url: attachment.url },
-      description
-    );
+    await visionDescriptionCache.store(cacheKeyOptions, description);
   }
 
   return description;

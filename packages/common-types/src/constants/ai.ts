@@ -182,6 +182,22 @@ export const MODEL_DEFAULTS = {
 } as const;
 
 /**
+ * Config-kind discriminator for the shared `llm_configs` table. A config row is a
+ * text-model preset or a vision-model preset (future: image / video). Vision (and
+ * future-modality) configs REUSE the same table + cascade + CRUD as text,
+ * distinguished only by `kind`.
+ *
+ * Single source of truth: the Prisma column default, the resolver queries, the
+ * `LlmConfigService` filters, and (Phase 2) the slash-command `kind` choices all
+ * reference this — so adding a modality is a one-line change here, with the type
+ * system enforcing exhaustiveness at every switch on a `ConfigKind`.
+ */
+export const CONFIG_KINDS = ['text', 'vision'] as const;
+export type ConfigKind = (typeof CONFIG_KINDS)[number];
+/** Default kind for a newly-created config — matches the Prisma `kind` column default. */
+export const DEFAULT_CONFIG_KIND: ConfigKind = 'text';
+
+/**
  * Voice naming prefix for Tzurot-managed clones across all TTS providers.
  *
  * Cross-service contract: both ai-worker (clone creation) and api-gateway

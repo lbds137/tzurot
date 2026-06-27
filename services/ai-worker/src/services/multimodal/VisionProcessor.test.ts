@@ -14,6 +14,7 @@ import {
   AI_DEFAULTS,
   ERROR_MESSAGES,
   INTERVALS,
+  MODEL_DEFAULTS,
   VISION_FAILURE_CACHE_POLICY,
 } from '@tzurot/common-types';
 
@@ -549,9 +550,12 @@ describe('VisionProcessor', () => {
         const result = await describeImage(mockAttachment, personality);
 
         expect(result).toBe(cachedDescription);
+        // gpt-4o lacks vision in this test (mock unset → false), so selectVisionModel
+        // falls through to the paid fallback; the cache key is namespaced by it.
         expect(mockVisionCacheGet).toHaveBeenCalledWith({
           attachmentId: mockAttachment.id,
           url: mockAttachment.url,
+          model: MODEL_DEFAULTS.VISION_FALLBACK,
         });
         // Should NOT call the vision API
         expect(mockModelInvoke).not.toHaveBeenCalled();
@@ -571,13 +575,16 @@ describe('VisionProcessor', () => {
         const result = await describeImage(mockAttachment, personality);
 
         expect(result).toBe('Mocked image description');
+        // gpt-4o has vision here (mock → true), so it IS the used model; the cache
+        // keys (read + write) are namespaced by it.
         expect(mockVisionCacheGet).toHaveBeenCalledWith({
           attachmentId: mockAttachment.id,
           url: mockAttachment.url,
+          model: 'gpt-4o',
         });
         expect(mockModelInvoke).toHaveBeenCalledTimes(1);
         expect(mockVisionCacheStore).toHaveBeenCalledWith(
-          { attachmentId: mockAttachment.id, url: mockAttachment.url },
+          { attachmentId: mockAttachment.id, url: mockAttachment.url, model: 'gpt-4o' },
           'Mocked image description'
         );
       });
@@ -596,10 +603,11 @@ describe('VisionProcessor', () => {
           'Vision API error'
         );
 
-        // Should have checked cache
+        // Should have checked cache (namespaced by the gpt-4o vision model)
         expect(mockVisionCacheGet).toHaveBeenCalledWith({
           attachmentId: mockAttachment.id,
           url: mockAttachment.url,
+          model: 'gpt-4o',
         });
         // Should NOT have stored anything (API failed)
         expect(mockVisionCacheStore).not.toHaveBeenCalled();
@@ -776,10 +784,12 @@ describe('VisionProcessor', () => {
         expect(mockVisionCacheGet).toHaveBeenCalledWith({
           attachmentId: mockAttachment.id,
           url: mockAttachment.url,
+          model: 'gpt-4o',
         });
         expect(mockVisionCacheGetFailure).toHaveBeenCalledWith({
           attachmentId: mockAttachment.id,
           url: mockAttachment.url,
+          model: 'gpt-4o',
         });
         expect(mockModelInvoke).toHaveBeenCalledTimes(1);
       });
@@ -803,6 +813,7 @@ describe('VisionProcessor', () => {
           attachmentId: mockAttachment.id,
           url: mockAttachment.url,
           category: 'transient',
+          model: 'gpt-4o',
         });
       });
 
@@ -832,6 +843,7 @@ describe('VisionProcessor', () => {
           attachmentId: mockAttachment.id,
           url: mockAttachment.url,
           category: 'authentication',
+          model: 'gpt-4o',
         });
       });
 
@@ -863,6 +875,7 @@ describe('VisionProcessor', () => {
           attachmentId: mockAttachment.id,
           url: mockAttachment.url,
           category: 'content_policy',
+          model: 'gpt-4o',
         });
       });
 
@@ -894,6 +907,7 @@ describe('VisionProcessor', () => {
           attachmentId: mockAttachment.id,
           url: mockAttachment.url,
           category: 'timeout',
+          model: 'gpt-4o',
         });
       });
 
@@ -925,6 +939,7 @@ describe('VisionProcessor', () => {
           attachmentId: mockAttachment.id,
           url: mockAttachment.url,
           category: 'rate_limit',
+          model: 'gpt-4o',
         });
       });
 

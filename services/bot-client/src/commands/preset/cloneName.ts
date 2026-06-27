@@ -48,10 +48,6 @@ export async function createClonedPreset(
         sourceData.description !== undefined && sourceData.description.length > 0
           ? sourceData.description
           : undefined,
-      visionModel:
-        sourceData.visionModel !== undefined && sourceData.visionModel.length > 0
-          ? sourceData.visionModel
-          : undefined,
       autoSuffixOnCollision: true,
     },
     userClient

@@ -5,7 +5,12 @@
  * between dev and prod databases to avoid unique constraint violations during sync.
  */
 
-import { type PrismaClient, createLogger } from '@tzurot/common-types';
+import {
+  type PrismaClient,
+  CONFIG_KINDS,
+  type ConfigKind,
+  createLogger,
+} from '@tzurot/common-types';
 
 const logger = createLogger('db-sync-llm-config');
 
@@ -20,6 +25,7 @@ let pendingResolutions: SingletonResolution[] = [];
 
 interface LlmConfigWithFlags {
   id: string;
+  kind: string;
   isDefault: boolean;
   isFreeDefault: boolean;
   updatedAt: Date;
@@ -43,34 +49,56 @@ export async function prepareLlmConfigSingletonFlags(
   const [devConfigs, prodConfigs] = await Promise.all([
     devClient.llmConfig.findMany({
       where: { OR: [{ isDefault: true }, { isFreeDefault: true }] },
-      select: { id: true, isDefault: true, isFreeDefault: true, updatedAt: true },
+      select: { id: true, kind: true, isDefault: true, isFreeDefault: true, updatedAt: true },
     }),
     prodClient.llmConfig.findMany({
       where: { OR: [{ isDefault: true }, { isFreeDefault: true }] },
-      select: { id: true, isDefault: true, isFreeDefault: true, updatedAt: true },
+      select: { id: true, kind: true, isDefault: true, isFreeDefault: true, updatedAt: true },
     }),
   ]);
 
-  // Handle is_default singleton
-  await resolveSingletonFlag(devClient, prodClient, devConfigs, prodConfigs, 'isDefault');
-
-  // Handle is_free_default singleton
-  await resolveSingletonFlag(devClient, prodClient, devConfigs, prodConfigs, 'isFreeDefault');
+  // The default / free-default singletons are PER KIND — the partial unique indexes
+  // (`llm_configs_default_unique`, `llm_configs_free_default_unique`) are scoped to
+  // `kind`, so a text default and a vision default coexist. Resolve each (kind, flag)
+  // group independently; resolving globally would clobber one kind's default with the
+  // other's during sync.
+  for (const kind of CONFIG_KINDS) {
+    await resolveSingletonFlag({
+      devClient,
+      prodClient,
+      devConfigs,
+      prodConfigs,
+      flagName: 'isDefault',
+      kind,
+    });
+    await resolveSingletonFlag({
+      devClient,
+      prodClient,
+      devConfigs,
+      prodConfigs,
+      flagName: 'isFreeDefault',
+      kind,
+    });
+  }
 }
 
 /**
  * Resolve a singleton boolean flag between dev and prod
  * Clears the flag on the "losing" config (older updated_at)
  */
-async function resolveSingletonFlag(
-  devClient: PrismaClient,
-  prodClient: PrismaClient,
-  devConfigs: LlmConfigWithFlags[],
-  prodConfigs: LlmConfigWithFlags[],
-  flagName: 'isDefault' | 'isFreeDefault'
-): Promise<void> {
-  const devWithFlag = devConfigs.find(c => c[flagName]);
-  const prodWithFlag = prodConfigs.find(c => c[flagName]);
+interface ResolveSingletonFlagArgs {
+  devClient: PrismaClient;
+  prodClient: PrismaClient;
+  devConfigs: LlmConfigWithFlags[];
+  prodConfigs: LlmConfigWithFlags[];
+  flagName: 'isDefault' | 'isFreeDefault';
+  kind: ConfigKind;
+}
+
+async function resolveSingletonFlag(args: ResolveSingletonFlagArgs): Promise<void> {
+  const { devClient, prodClient, devConfigs, prodConfigs, flagName, kind } = args;
+  const devWithFlag = devConfigs.find(c => c[flagName] && c.kind === kind);
+  const prodWithFlag = prodConfigs.find(c => c[flagName] && c.kind === kind);
 
   // No conflict if only one database has the flag set
   if (!devWithFlag || !prodWithFlag) {
@@ -89,6 +117,7 @@ async function resolveSingletonFlag(
   logger.info(
     {
       flagName,
+      kind,
       devConfigId: devWithFlag.id,
       devUpdatedAt: devWithFlag.updatedAt,
       prodConfigId: prodWithFlag.id,

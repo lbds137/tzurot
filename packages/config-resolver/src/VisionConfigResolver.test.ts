@@ -1,0 +1,245 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { VisionConfigResolver } from './VisionConfigResolver.js';
+import { MODEL_DEFAULTS, type PrismaClient } from '@tzurot/common-types';
+
+// Hoisted logger spies so tests can assert the WARN→ERROR upgrade for a failed
+// personality-default lookup (a behavioral contract, mirroring TtsConfigResolver).
+const { mockLoggerError, mockLoggerWarn } = vi.hoisted(() => ({
+  mockLoggerError: vi.fn(),
+  mockLoggerWarn: vi.fn(),
+}));
+
+vi.mock('@tzurot/common-types', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+  return {
+    ...actual,
+    createLogger: () => ({
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: mockLoggerWarn,
+      error: mockLoggerError,
+    }),
+  };
+});
+
+interface MockPrisma {
+  user: { findFirst: ReturnType<typeof vi.fn> };
+  userPersonalityConfig: { findFirst: ReturnType<typeof vi.fn> };
+  personalityVisionDefaultConfig: { findUnique: ReturnType<typeof vi.fn> };
+  llmConfig: { findFirst: ReturnType<typeof vi.fn> };
+}
+
+function createMockPrisma(): MockPrisma {
+  return {
+    user: { findFirst: vi.fn() },
+    userPersonalityConfig: { findFirst: vi.fn() },
+    personalityVisionDefaultConfig: { findUnique: vi.fn() },
+    llmConfig: { findFirst: vi.fn() },
+  };
+}
+
+/**
+ * A complete `kind='vision'` LlmConfig row in the shape the shared LLM mapper
+ * (`LLM_CONFIG_SELECT_WITH_NAME`) reads. Vision configs ARE LlmConfig rows, so the
+ * resolver reuses that mapper — only `model` + `name` end up in the resolved result.
+ */
+function visionRow(over: { model?: string; name?: string } = {}): Record<string, unknown> {
+  return {
+    model: over.model ?? 'qwen/qwen3-vl-235b-a22b-instruct',
+    kind: 'vision',
+    provider: 'openrouter',
+    advancedParameters: null,
+    memoryScoreThreshold: null,
+    memoryLimit: null,
+    contextWindowTokens: 8192,
+    maxMessages: 20,
+    maxAge: null,
+    maxImages: 4,
+    name: over.name ?? 'vision-cfg',
+  };
+}
+
+const FAKE_PERSONALITY = { id: 'p-uuid-123' };
+
+describe('VisionConfigResolver', () => {
+  let mockPrisma: MockPrisma;
+  let resolver: VisionConfigResolver;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mockPrisma = createMockPrisma();
+    resolver = new VisionConfigResolver(mockPrisma as unknown as PrismaClient, {
+      cacheTtlMs: 60_000,
+      enableCleanup: false,
+      now: () => Date.now(),
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  describe('resolveConfig cascade', () => {
+    it('returns the user per-personality override (tier 1)', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'internal-x',
+        defaultVisionConfigId: null,
+        defaultVisionConfig: null,
+      });
+      mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue({
+        visionConfig: visionRow({ model: 'user-pers-vision', name: 'user-pers-override' }),
+      });
+
+      const result = await resolver.resolveConfig('user-x', 'p-uuid-123', FAKE_PERSONALITY);
+
+      expect(result.source).toBe('user-personality');
+      expect(result.config.source).toBe('user-personality');
+      expect(result.config.model).toBe('user-pers-vision');
+      expect(result.configName).toBe('user-pers-override');
+    });
+
+    it('returns the user global default when no per-personality override (tier 2)', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'internal-x',
+        defaultVisionConfigId: 'cfg-id',
+        defaultVisionConfig: visionRow({ model: 'user-default-vision', name: 'my-vision-default' }),
+      });
+      mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue(null);
+
+      const result = await resolver.resolveConfig('user-x', 'p-uuid-123', FAKE_PERSONALITY);
+
+      expect(result.source).toBe('user-default');
+      expect(result.config.source).toBe('user-default');
+      expect(result.config.model).toBe('user-default-vision');
+      expect(result.configName).toBe('my-vision-default');
+    });
+
+    it('falls through to PersonalityVisionDefaultConfig (tier 3) when the user has no overrides', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'internal-x',
+        defaultVisionConfigId: null,
+        defaultVisionConfig: null,
+      });
+      mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue(null);
+      mockPrisma.personalityVisionDefaultConfig.findUnique.mockResolvedValue({
+        llmConfig: visionRow({ model: 'persona-vision', name: 'persona-vision-default' }),
+      });
+
+      const result = await resolver.resolveConfig('user-x', 'p-uuid-123', FAKE_PERSONALITY);
+
+      // Tier 3 surfaces as the 'personality' (system-default) tier.
+      expect(result.source).toBe('personality');
+      expect(result.config.source).toBe('personality');
+      expect(result.config.model).toBe('persona-vision');
+    });
+
+    it('falls through to the global vision default (tier 4) when no personality default', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'internal-x',
+        defaultVisionConfigId: null,
+        defaultVisionConfig: null,
+      });
+      mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue(null);
+      mockPrisma.personalityVisionDefaultConfig.findUnique.mockResolvedValue(null);
+      mockPrisma.llmConfig.findFirst.mockResolvedValue(
+        visionRow({ model: 'global-vision-default', name: 'global-vision' })
+      );
+
+      const result = await resolver.resolveConfig('user-x', 'p-uuid-123', FAKE_PERSONALITY);
+
+      // The global vision default is surfaced as the 'personality' (system-default) tier,
+      // mirroring how the text resolver surfaces its baked-in global default.
+      expect(result.source).toBe('personality');
+      expect(result.config.model).toBe('global-vision-default');
+    });
+
+    it('falls through to the hardcoded fallback (tier 5) when no DB row at any tier', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'internal-x',
+        defaultVisionConfigId: null,
+        defaultVisionConfig: null,
+      });
+      mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue(null);
+      mockPrisma.personalityVisionDefaultConfig.findUnique.mockResolvedValue(null);
+      mockPrisma.llmConfig.findFirst.mockResolvedValue(null);
+
+      const result = await resolver.resolveConfig('user-x', 'p-uuid-123', FAKE_PERSONALITY);
+
+      expect(result.source).toBe('hardcoded');
+      expect(result.config.source).toBe('hardcoded');
+      expect(result.config.model).toBe(MODEL_DEFAULTS.VISION_FALLBACK);
+    });
+
+    it('returns the hardcoded fallback with no userId, no personality default, no global default', async () => {
+      mockPrisma.personalityVisionDefaultConfig.findUnique.mockResolvedValue(null);
+      mockPrisma.llmConfig.findFirst.mockResolvedValue(null);
+
+      const result = await resolver.resolveConfig(undefined, 'p-uuid-123', FAKE_PERSONALITY);
+
+      expect(result.source).toBe('hardcoded');
+      expect(result.config.model).toBe(MODEL_DEFAULTS.VISION_FALLBACK);
+      // No userId → user-tier lookups skipped.
+      expect(mockPrisma.user.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('logs at ERROR severity when the PersonalityVisionDefaultConfig lookup throws (not WARN)', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'internal-x',
+        defaultVisionConfigId: null,
+        defaultVisionConfig: null,
+      });
+      mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue(null);
+      mockPrisma.personalityVisionDefaultConfig.findUnique.mockRejectedValue(
+        new Error('connection refused')
+      );
+      mockPrisma.llmConfig.findFirst.mockResolvedValue(
+        visionRow({ model: 'global-vision-default', name: 'global-vision' })
+      );
+
+      const result = await resolver.resolveConfig('user-x', 'p-uuid-123', FAKE_PERSONALITY);
+
+      // Still falls through to the global default — no behavior regression.
+      expect(result.config.model).toBe('global-vision-default');
+
+      const errorCall = mockLoggerError.mock.calls.find(call =>
+        String(call[1]).includes('Failed to load PersonalityVisionDefaultConfig')
+      );
+      expect(errorCall).toBeDefined();
+      expect((errorCall![0] as Record<string, unknown>).personalityId).toBe('p-uuid-123');
+    });
+  });
+
+  describe('getGlobalDefaultConfig', () => {
+    it('queries scoped to kind=vision AND isGlobal AND isDefault', async () => {
+      mockPrisma.llmConfig.findFirst.mockResolvedValue(
+        visionRow({ model: 'global-vision-default', name: 'global-vision' })
+      );
+
+      await resolver.getGlobalDefaultConfig();
+
+      expect(mockPrisma.llmConfig.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { kind: 'vision', isGlobal: true, isDefault: true },
+        })
+      );
+    });
+
+    it('returns null when no global vision default row exists', async () => {
+      mockPrisma.llmConfig.findFirst.mockResolvedValue(null);
+      const result = await resolver.getGlobalDefaultConfig();
+      expect(result).toBeNull();
+    });
+
+    it('caches the global-default result (second call hits cache)', async () => {
+      mockPrisma.llmConfig.findFirst.mockResolvedValue(
+        visionRow({ model: 'global-vision-default', name: 'global-vision' })
+      );
+
+      await resolver.getGlobalDefaultConfig();
+      await resolver.getGlobalDefaultConfig();
+
+      expect(mockPrisma.llmConfig.findFirst).toHaveBeenCalledTimes(1);
+    });
+  });
+});

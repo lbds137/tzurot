@@ -381,7 +381,6 @@ export function advancedParamsToConfigFormat(params: AdvancedParams): ConvertedL
  * config resolution. Used by both LlmConfigResolver and ConfigStep for consistency.
  *
  * Categories:
- * - Core: visionModel
  * - Basic sampling: temperature, topP, topK, frequencyPenalty, presencePenalty, repetitionPenalty
  * - Advanced sampling: minP, topA, seed
  * - Output control: maxTokens, logitBias, responseFormat, showThinking
@@ -390,8 +389,6 @@ export function advancedParamsToConfigFormat(params: AdvancedParams): ConvertedL
  * - Memory/context: memoryScoreThreshold, memoryLimit, contextWindowTokens
  */
 export const LLM_CONFIG_OVERRIDE_KEYS = [
-  // Core model
-  'visionModel',
   // Basic sampling
   'temperature',
   'topP',

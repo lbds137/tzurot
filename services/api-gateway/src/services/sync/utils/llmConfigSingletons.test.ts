@@ -68,7 +68,13 @@ describe('llmConfigSingletons', () => {
 
     it('should not update when only one database has the flag', async () => {
       devClient.llmConfig.findMany.mockResolvedValue([
-        { id: 'config-1', isDefault: true, isFreeDefault: false, updatedAt: new Date() },
+        {
+          id: 'config-1',
+          kind: 'text',
+          isDefault: true,
+          isFreeDefault: false,
+          updatedAt: new Date(),
+        },
       ]);
       prodClient.llmConfig.findMany.mockResolvedValue([]);
 
@@ -84,6 +90,7 @@ describe('llmConfigSingletons', () => {
     it('should not update when same config has flag in both databases', async () => {
       const sharedConfig = {
         id: 'config-1',
+        kind: 'text',
         isDefault: true,
         isFreeDefault: false,
         updatedAt: new Date(),
@@ -103,12 +110,14 @@ describe('llmConfigSingletons', () => {
     it('should clear flag in prod and set on dev config in prod when dev is newer', async () => {
       const devConfig = {
         id: 'dev-config',
+        kind: 'text',
         isDefault: true,
         isFreeDefault: false,
         updatedAt: new Date('2025-01-02'),
       };
       const prodConfig = {
         id: 'prod-config',
+        kind: 'text',
         isDefault: true,
         isFreeDefault: false,
         updatedAt: new Date('2025-01-01'),
@@ -139,12 +148,14 @@ describe('llmConfigSingletons', () => {
     it('should clear flag in dev and set on prod config in dev when prod is newer', async () => {
       const devConfig = {
         id: 'dev-config',
+        kind: 'text',
         isDefault: true,
         isFreeDefault: false,
         updatedAt: new Date('2025-01-01'),
       };
       const prodConfig = {
         id: 'prod-config',
+        kind: 'text',
         isDefault: true,
         isFreeDefault: false,
         updatedAt: new Date('2025-01-02'),
@@ -175,12 +186,14 @@ describe('llmConfigSingletons', () => {
     it('should track pending resolution when winner config does not exist in other env', async () => {
       const devConfig = {
         id: 'dev-config',
+        kind: 'text',
         isDefault: true,
         isFreeDefault: false,
         updatedAt: new Date('2025-01-02'),
       };
       const prodConfig = {
         id: 'prod-config',
+        kind: 'text',
         isDefault: true,
         isFreeDefault: false,
         updatedAt: new Date('2025-01-01'),
@@ -208,12 +221,14 @@ describe('llmConfigSingletons', () => {
     it('should handle isFreeDefault flag conflicts', async () => {
       const devConfig = {
         id: 'dev-config',
+        kind: 'text',
         isDefault: false,
         isFreeDefault: true,
         updatedAt: new Date('2025-01-02'),
       };
       const prodConfig = {
         id: 'prod-config',
+        kind: 'text',
         isDefault: false,
         isFreeDefault: true,
         updatedAt: new Date('2025-01-01'),
@@ -243,12 +258,14 @@ describe('llmConfigSingletons', () => {
       const devConfigs = [
         {
           id: 'dev-default',
+          kind: 'text',
           isDefault: true,
           isFreeDefault: false,
           updatedAt: new Date('2025-01-02'),
         },
         {
           id: 'dev-free',
+          kind: 'text',
           isDefault: false,
           isFreeDefault: true,
           updatedAt: new Date('2025-01-01'),
@@ -257,12 +274,14 @@ describe('llmConfigSingletons', () => {
       const prodConfigs = [
         {
           id: 'prod-default',
+          kind: 'text',
           isDefault: true,
           isFreeDefault: false,
           updatedAt: new Date('2025-01-01'),
         },
         {
           id: 'prod-free',
+          kind: 'text',
           isDefault: false,
           isFreeDefault: true,
           updatedAt: new Date('2025-01-02'),
@@ -325,12 +344,14 @@ describe('llmConfigSingletons', () => {
       // Setup: dev wins but config doesn't exist in prod yet
       const devConfig = {
         id: 'dev-config',
+        kind: 'text',
         isDefault: true,
         isFreeDefault: false,
         updatedAt: new Date('2025-01-02'),
       };
       const prodConfig = {
         id: 'prod-config',
+        kind: 'text',
         isDefault: true,
         isFreeDefault: false,
         updatedAt: new Date('2025-01-01'),
@@ -365,12 +386,14 @@ describe('llmConfigSingletons', () => {
       // Setup: prod wins but config doesn't exist in dev yet
       const devConfig = {
         id: 'dev-config',
+        kind: 'text',
         isDefault: true,
         isFreeDefault: false,
         updatedAt: new Date('2025-01-01'),
       };
       const prodConfig = {
         id: 'prod-config',
+        kind: 'text',
         isDefault: true,
         isFreeDefault: false,
         updatedAt: new Date('2025-01-02'),
@@ -405,12 +428,14 @@ describe('llmConfigSingletons', () => {
       // Setup: dev wins but config doesn't exist in prod
       const devConfig = {
         id: 'dev-config',
+        kind: 'text',
         isDefault: true,
         isFreeDefault: false,
         updatedAt: new Date('2025-01-02'),
       };
       const prodConfig = {
         id: 'prod-config',
+        kind: 'text',
         isDefault: true,
         isFreeDefault: false,
         updatedAt: new Date('2025-01-01'),
@@ -442,12 +467,14 @@ describe('llmConfigSingletons', () => {
       // Setup: dev wins but config doesn't exist in prod
       const devConfig = {
         id: 'dev-config',
+        kind: 'text',
         isDefault: true,
         isFreeDefault: false,
         updatedAt: new Date('2025-01-02'),
       };
       const prodConfig = {
         id: 'prod-config',
+        kind: 'text',
         isDefault: true,
         isFreeDefault: false,
         updatedAt: new Date('2025-01-01'),

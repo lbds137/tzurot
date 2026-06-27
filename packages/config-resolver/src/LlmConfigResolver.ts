@@ -194,7 +194,6 @@ export class LlmConfigResolver extends BaseConfigResolver<
       // The mapper already returns undefined for missing values, matching ConvertedLlmParams
       const config: ResolvedLlmConfig = {
         model: mapped.model,
-        visionModel: mapped.visionModel,
         // Basic sampling - directly from mapper (undefined if not set)
         temperature: mapped.temperature,
         topP: mapped.topP,

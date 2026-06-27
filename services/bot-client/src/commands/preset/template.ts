@@ -26,7 +26,6 @@ export async function handleTemplate(context: DeferredCommandContext): Promise<v
     '**Model format:** `provider/model-name` (e.g., `anthropic/claude-sonnet-4`)\n\n' +
     '**Optional sections:**\n' +
     '• `description` - What this preset is for\n' +
-    '• `visionModel` - Model for image analysis\n' +
     '• `contextWindowTokens` - Token budget for context window\n' +
     '• `advancedParameters` - Temperature, reasoning settings, etc.';
 

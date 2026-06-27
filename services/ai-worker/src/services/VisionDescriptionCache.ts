@@ -10,8 +10,11 @@
  *   (content-policy, dead URL, missing model) get 60min cooldowns.
  *
  * Cache key strategy:
- * 1. Prefer Discord attachment ID (stable snowflake) when available
- * 2. Fall back to URL hash (with query params stripped) for embed images
+ * 1. Namespace by the resolved vision model — so swapping the model (e.g. changing the
+ *    global vision default) re-attempts immediately instead of replaying a poisoned /
+ *    wrong-model entry for the OLD model
+ * 2. Then prefer Discord attachment ID (stable snowflake) when available
+ * 3. Fall back to URL hash (with query params stripped) for embed images
  *
  * History note: a PostgreSQL L2 layer existed prior to v3.0.0-beta.110 to
  * survive Redis restarts. It was removed because (a) Discord attachments are
@@ -39,6 +42,13 @@ interface VisionCacheKeyOptions {
   attachmentId?: string;
   /** Image URL (fallback) */
   url: string;
+  /**
+   * Resolved vision model that produced (or will produce) the entry. Namespaces the
+   * cache key so a model swap re-attempts immediately instead of replaying a
+   * poisoned/wrong-model entry for the old model. Optional: a missing model uses the
+   * un-namespaced (legacy) key.
+   */
+  model?: string;
 }
 
 /** Options for storing a description (success path) */
@@ -187,19 +197,39 @@ export class VisionDescriptionCache {
    * voice + vision caches share one normalization strategy.
    */
   private getCacheKey(options: VisionCacheKeyOptions): string {
-    return deriveAttachmentCacheKey(REDIS_KEY_PREFIXES.VISION_DESCRIPTION, {
-      id: options.attachmentId,
-      url: options.url,
-    });
+    return deriveAttachmentCacheKey(
+      this.prefixWithModel(REDIS_KEY_PREFIXES.VISION_DESCRIPTION, options.model),
+      {
+        id: options.attachmentId,
+        url: options.url,
+      }
+    );
   }
 
   /**
    * Generate failure cache key (separate namespace from success cache).
    */
   private getFailureKey(options: VisionCacheKeyOptions): string {
-    return deriveAttachmentCacheKey(REDIS_KEY_PREFIXES.VISION_FAILURE, {
-      id: options.attachmentId,
-      url: options.url,
-    });
+    return deriveAttachmentCacheKey(
+      this.prefixWithModel(REDIS_KEY_PREFIXES.VISION_FAILURE, options.model),
+      {
+        id: options.attachmentId,
+        url: options.url,
+      }
+    );
+  }
+
+  /**
+   * Namespace a key prefix by the resolved vision model so entries are per-(attachment,
+   * model) — a model swap re-attempts rather than replaying the old model's entry. The
+   * model is sanitized (only `[A-Za-z0-9._-]` survive) so it can't introduce the `:`
+   * key delimiter. A missing model returns the bare prefix (legacy un-namespaced key).
+   */
+  private prefixWithModel(prefix: string, model?: string): string {
+    if (model === undefined || model.length === 0) {
+      return prefix;
+    }
+    const safeModel = model.replace(/[^a-zA-Z0-9._-]/g, '_');
+    return `${prefix}:${safeModel}`;
   }
 }

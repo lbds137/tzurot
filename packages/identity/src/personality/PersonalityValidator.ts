@@ -53,7 +53,6 @@ function coerceToNumber(val: unknown): number | undefined {
 export const LlmConfigSchema = z
   .object({
     model: z.string().nullable().optional(), // Nullable for extra safety despite DB constraint
-    visionModel: z.string().nullable().optional(),
     temperature: z.preprocess(coerceToNumber, z.number().min(0).max(2).optional()),
     maxTokens: z.preprocess(coerceToNumber, z.number().int().positive().max(1000000).optional()),
     topP: z.preprocess(coerceToNumber, z.number().min(0).max(1).optional()),
@@ -106,7 +105,7 @@ export function parseLlmConfig(dbConfig: unknown): LlmConfig {
  */
 export interface DatabaseLlmConfig {
   model: string;
-  visionModel: string | null;
+  kind: string;
   provider: string; // 'openrouter' | 'zai-coding' | future enum values
   advancedParameters: unknown; // JSONB - validated via Zod in mapper
   memoryScoreThreshold: Decimal | null;

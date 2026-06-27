@@ -18,7 +18,6 @@ export interface PresetData {
   description: string | null;
   provider: string;
   model: string;
-  visionModel: string | null;
   isGlobal: boolean;
   isDefault?: boolean;
   isFreeDefault?: boolean;
@@ -72,7 +71,6 @@ export interface FlattenedPresetData {
   description: string;
   provider: string;
   model: string;
-  visionModel: string;
   isGlobal: boolean;
   isOwned: boolean;
   canEdit: boolean;
