@@ -4,6 +4,7 @@ import {
   transcribeResponseSchema,
   healthResponseSchema,
   voicesResponseSchema,
+  errorDetailSchema,
 } from './voiceEngineSchemas.js';
 
 describe('voiceEngineSchemas', () => {
@@ -53,6 +54,26 @@ describe('voiceEngineSchemas', () => {
 
     it('rejects a voice item missing its id', () => {
       expect(() => voicesResponseSchema.parse({ voices: [{ type: 'cached' }] })).toThrow();
+    });
+  });
+
+  describe('errorDetailSchema', () => {
+    it('accepts a string detail', () => {
+      expect(errorDetailSchema.parse({ detail: 'Voice not found' })).toEqual({
+        detail: 'Voice not found',
+      });
+    });
+
+    it('accepts a missing detail (undefined)', () => {
+      expect(errorDetailSchema.parse({})).toEqual({});
+    });
+
+    it('accepts a null detail (FastAPI can send detail: null) — nullish, not a throw', () => {
+      expect(errorDetailSchema.parse({ detail: null })).toEqual({ detail: null });
+    });
+
+    it('rejects a non-string, non-null detail (type drift)', () => {
+      expect(() => errorDetailSchema.parse({ detail: 42 })).toThrow();
     });
   });
 });
