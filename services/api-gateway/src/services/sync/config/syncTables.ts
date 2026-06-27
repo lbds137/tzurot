@@ -24,6 +24,8 @@ export const EXCLUDED_TABLES: Record<string, string> = {
     'Character-level LLM preset defaults - dev/prod may use different models for testing',
   personality_default_tts_configs:
     'Character-level TTS preset defaults - dev/prod may use different voices for testing (mirrors personality_default_configs)',
+  personality_vision_default_configs:
+    'Character-level vision preset defaults - dev/prod may use different vision models for testing (mirrors personality_default_configs/tts)',
 
   // Transient/ephemeral data
   pending_memories: 'Transient queue data for memory processing',
@@ -89,12 +91,18 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     pk: 'id',
     createdAt: 'created_at',
     updatedAt: 'updated_at',
-    uuidColumns: ['id', 'default_llm_config_id', 'default_persona_id', 'default_tts_config_id'],
+    uuidColumns: [
+      'id',
+      'default_llm_config_id',
+      'default_persona_id',
+      'default_tts_config_id',
+      'default_vision_config_id',
+    ],
     timestampColumns: ['created_at', 'updated_at'],
-    // Three FK columns on users reference rows in tables that come AFTER
+    // Four FK columns on users reference rows in tables that come AFTER
     // users in SYNC_TABLE_ORDER (personas, llm_configs, tts_configs are
     // all synced after users so their owner_id NOT-NULL FKs back to users
-    // can be satisfied). All three FKs are made DEFERRABLE so the sync
+    // can be satisfied). All four FKs are made DEFERRABLE so the sync
     // transaction can issue SET CONSTRAINTS … DEFERRED and let Postgres
     // validate the references at COMMIT time, when every cross-table
     // referenced row exists:
@@ -102,6 +110,8 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     //     DEFERRABLE since migration 20260418010642 (the original circular-FK fix).
     //   - default_tts_config_id (nullable): DEFERRABLE since migration
     //     20260504065151 (added when the TTS feature shipped).
+    //   - default_vision_config_id (nullable, → llm_configs vision-kind row):
+    //     DEFERRABLE since migration 20260627040007 (the vision_config_kind migration).
     // Nullability is orthogonal to DEFERRABLE: deferral controls *when* the FK
     // reference is validated (at COMMIT, after the referenced row is synced),
     // not whether the column may be NULL. A non-NULL FK still needs deferral
@@ -181,6 +191,7 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
       'persona_id',
       'llm_config_id',
       'tts_config_id',
+      'vision_config_id',
     ],
     timestampColumns: ['created_at', 'updated_at'],
     // persona_id, llm_config_id, and tts_config_id are synced directly (not
