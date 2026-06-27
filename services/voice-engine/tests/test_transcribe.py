@@ -304,6 +304,32 @@ def test_merge_overlap_fully_duplicate_right() -> None:
     assert server._merge_overlap("one two three", "two three") == "one two three"
 
 
+def test_merge_overlap_standalone_punct_no_false_drop() -> None:
+    # Standalone punctuation tokens normalize to "" and must NOT anchor an overlap.
+    # No real words are shared here, so nothing is dropped (both dots survive).
+    assert (
+        server._merge_overlap("first window ends here .", ". second window begins")
+        == "first window ends here . . second window begins"
+    )
+
+
+def test_merge_overlap_standalone_punct_keeps_right_word() -> None:
+    # The empty-token false match used to drop right's leading "!"; it must survive.
+    assert server._merge_overlap("we paused ?", "! brand new sentence") == "we paused ? ! brand new sentence"
+
+
+def test_merge_overlap_dedups_through_leading_punct() -> None:
+    # Real overlap is "sure"; right's leading "--" must not block the dedup, and the
+    # "--" is dropped along with the duplicated "sure" (no "sure -- sure").
+    assert server._merge_overlap("i think -- sure", "-- sure thing buddy") == "i think -- sure thing buddy"
+
+
+def test_merge_overlap_dedups_multiword_overlap_with_interspersed_punct() -> None:
+    # Overlap is "foo . bar" with punctuation INSIDE it. The match is on the content
+    # tokens (foo, bar); the whole overlap region — punctuation included — is dropped.
+    assert server._merge_overlap("alpha foo . bar", "foo . bar gamma") == "alpha foo . bar gamma"
+
+
 def test_join_chunk_texts_skips_empty_windows() -> None:
     assert server._join_chunk_texts(["hello", "", "   ", "world"]) == "hello world"
 
