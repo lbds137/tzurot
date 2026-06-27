@@ -183,6 +183,18 @@ export class VisionConfigResolver extends BaseConfigResolver<
   }
 
   /**
+   * Clear both caches on invalidation. The base only clears the positive cache
+   * (`this.cache`); the negative-default sentinel must be cleared too. Otherwise a
+   * pub/sub invalidation fired right after an admin creates the first global vision
+   * default would leave the stale "no global default" marker in place, and the new
+   * default would stay invisible until the sentinel's TTL naturally expired.
+   */
+  override clearCache(): void {
+    super.clearCache();
+    this.noGlobalDefaultCache.clear();
+  }
+
+  /**
    * Get the global vision default (kind='vision' AND isGlobal AND isDefault). Cached
    * under the base's free-default sentinel slot — it's the no-axis system default for
    * the vision kind. Returns null if no such row exists (callers fall to hardcoded).
@@ -194,7 +206,7 @@ export class VisionConfigResolver extends BaseConfigResolver<
     }
 
     // Negative-cache hit: a recent query found no global default — skip the DB.
-    if (this.noGlobalDefaultCache.get(GLOBAL_DEFAULT_CACHE_KEY) !== null) {
+    if (this.noGlobalDefaultCache.has(GLOBAL_DEFAULT_CACHE_KEY)) {
       return null;
     }
 
