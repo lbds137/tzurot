@@ -12,6 +12,7 @@
 **Unreleased since beta.139:**
 
 - **#1361** `test: fix the conversation-history UUID-collision flake + beta.139 review follow-ups` — completed the deterministic-UUID flake fix #1358 missed (4 more same-key multi-insert sites re-flaked on the beta.139 release CI; now exhaustively seeded) + the 3 non-blocking #1360 review follow-ups (relay-echo multi-ID coverage + mutation doc, `errorDetailSchema.nullish()`, `fileImportsSymbol` concurrency JSDoc).
+- **#1364** `feat: vision as a first-class config kind (Phase 1)` — **⚠️ CONTAINS A MIGRATION** (`20260627040007_vision_config_kind`: adds `kind` discriminator, drops `visionModel`, per-kind partial-unique default indexes + vision FK/join columns). **Applied to dev 2026-06-27; prod migration still pending the release.** Vision is now a first-class config axis reusing `LlmConfig` via `kind: 'text'|'vision'` — global paid (`qwen/qwen3.7-plus`) + free vision defaults, cascade overrides, `VisionConfigResolver` + gateway stamping, `VisionConfigBootstrap` seed (runs on api-gateway startup). Includes the bootstrap-window stamp guard, kind-scoped admin CRUD, and partial-unique-index PGLite test coverage (harvester). Round-2 review nits → `cold/follow-ups.md`. Phases 2 (editing surface) + 3 (auto-fallback) remain.
 
 ---
 
