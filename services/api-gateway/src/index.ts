@@ -34,7 +34,12 @@ import {
   ConfigCascadeCacheInvalidationService,
 } from '@tzurot/cache-invalidation';
 import { PersonalityService } from '@tzurot/identity';
-import { ConfigCascadeResolver, LlmConfigResolver } from '@tzurot/config-resolver';
+import {
+  ConfigCascadeResolver,
+  LlmConfigResolver,
+  VisionConfigResolver,
+} from '@tzurot/config-resolver';
+import { bootstrapVisionSystemGlobalsIfNeeded } from './services/VisionConfigBootstrap.js';
 import { ConversationRetentionService } from './services/ConversationRetentionService.js';
 
 // Routes
@@ -119,6 +124,7 @@ interface ServicesContext {
   cascadeInvalidation: ConfigCascadeCacheInvalidationService;
   cascadeResolver: ConfigCascadeResolver;
   llmConfigResolver: LlmConfigResolver;
+  visionConfigResolver: VisionConfigResolver;
   modelCache: OpenRouterModelCache;
   dbNotificationListener: DatabaseNotificationListener;
 }
@@ -194,16 +200,33 @@ async function initializeServices(prisma: PrismaClient): Promise<ServicesContext
   // moment a user's LLM config changes, closing the cache-TTL window where a job
   // could otherwise be stamped with the pre-change model.
   const llmConfigResolver = new LlmConfigResolver(prisma);
+  // Vision configs ARE LlmConfig rows (kind='vision'), so they share the SAME
+  // cache-invalidation pub/sub as text configs — a preset/config edit must clear the
+  // vision resolver's cache (incl. its global-default slot) too.
+  const visionConfigResolver = new VisionConfigResolver(prisma);
   await llmConfigCacheInvalidation.subscribe(event => {
     if (event.type === 'user') {
       llmConfigResolver.invalidateUserCache(event.discordId);
+      visionConfigResolver.invalidateUserCache(event.discordId);
     } else {
       // 'all' and 'config' aren't user-keyed — a preset edit can touch any
       // cached user (and the free-default entry), so clear the whole cache.
       llmConfigResolver.clearCache();
+      visionConfigResolver.clearCache();
     }
   });
-  logger.info('LlmConfigResolver initialized with cache invalidation');
+  logger.info('LlmConfigResolver + VisionConfigResolver initialized with cache invalidation');
+
+  // Seed the global vision defaults (kind='vision') so the resolver stamps a real model
+  // instead of the hardcoded last-resort fallback. Idempotent + superuser-gated; fails
+  // open — a bootstrap error must not block gateway startup (vision degrades to the
+  // hardcoded fallback until the seed lands).
+  await bootstrapVisionSystemGlobalsIfNeeded(prisma).catch(err =>
+    logger.warn(
+      { err },
+      'Vision config bootstrap failed at startup — vision uses the hardcoded fallback until seeded'
+    )
+  );
 
   const modelCache = new OpenRouterModelCache(cacheRedis);
 
@@ -239,6 +262,7 @@ async function initializeServices(prisma: PrismaClient): Promise<ServicesContext
     cascadeInvalidation,
     cascadeResolver,
     llmConfigResolver,
+    visionConfigResolver,
     modelCache,
     dbNotificationListener,
   };
@@ -265,6 +289,7 @@ function registerRoutes(
     cascadeInvalidation,
     cascadeResolver,
     llmConfigResolver,
+    visionConfigResolver,
     modelCache,
   } = services;
 
@@ -312,7 +337,10 @@ function registerRoutes(
   app.use('/voice-references', createVoiceReferenceRouter(prisma));
   logger.info('Voice references route registered (service-auth protected)');
 
-  app.use('/ai', createAIRouter({ prisma, aiQueue, queueEvents, llmConfigResolver }));
+  app.use(
+    '/ai',
+    createAIRouter({ prisma, aiQueue, queueEvents, llmConfigResolver, visionConfigResolver })
+  );
   logger.info('AI routes registered');
 
   // ---- Codegen-mounted /api/{internal,admin,user} routes ------------------
@@ -337,6 +365,7 @@ function registerRoutes(
     retentionService,
     cascadeResolver,
     llmConfigResolver,
+    visionConfigResolver,
     modelCache,
     redis: cacheRedis,
     aiQueue,

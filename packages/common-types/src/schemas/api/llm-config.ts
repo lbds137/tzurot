@@ -87,7 +87,6 @@ export const LlmConfigCreateSchema = z.object({
   // Optional string fields
   description: z.string().max(500).optional().nullable(),
   provider: z.string().max(50).optional(),
-  visionModel: z.string().max(200).optional().nullable(),
 
   // AI behavior settings
   advancedParameters: AdvancedParamsSchema.optional(),
@@ -134,7 +133,6 @@ export const LlmConfigUpdateSchema = z.object({
 
   // Nullable DB fields: empty string → null (clear the value)
   description: nullableString(500),
-  visionModel: nullableString(200),
 
   // AI behavior settings
   advancedParameters: AdvancedParamsSchema.optional(),
@@ -167,7 +165,6 @@ export const LLM_CONFIG_LIST_SELECT = {
   description: true,
   provider: true,
   model: true,
-  visionModel: true,
   isGlobal: true,
   isDefault: true,
   isFreeDefault: true,
@@ -234,7 +231,6 @@ export const LlmConfigSummarySchema = z.object({
   description: z.string().nullable(),
   provider: z.string(),
   model: z.string(),
-  visionModel: z.string().nullable(),
   isGlobal: z.boolean(),
   isDefault: z.boolean(),
   isFreeDefault: z.boolean(),

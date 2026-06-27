@@ -377,7 +377,6 @@ export async function handleCloneButton(
     delete updatePayload.model;
     delete updatePayload.provider;
     delete updatePayload.description;
-    delete updatePayload.visionModel;
 
     // Copy visibility setting (isGlobal)
     if (sourceData.isGlobal === true) {

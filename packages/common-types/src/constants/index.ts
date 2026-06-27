@@ -9,6 +9,8 @@ export {
   AI_DEFAULTS,
   AI_ENDPOINTS,
   MODEL_DEFAULTS,
+  CONFIG_KINDS,
+  DEFAULT_CONFIG_KIND,
   TTS_VOICE_NAME_PREFIX,
   AIProvider,
   GUEST_MODE,
@@ -20,7 +22,7 @@ export {
   listZaiCodingPlanModels,
   buildModelInfoUrl,
 } from './ai.js';
-export type { ZaiCodingPlanModelInfo } from './ai.js';
+export type { ZaiCodingPlanModelInfo, ConfigKind } from './ai.js';
 
 // Timing constants
 export {

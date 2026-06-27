@@ -17,6 +17,7 @@ CREATE TABLE "users" (
     "nsfw_verified" BOOLEAN NOT NULL DEFAULT false,
     "nsfw_verified_at" TIMESTAMP(3),
     "default_llm_config_id" UUID,
+    "default_vision_config_id" UUID,
     "default_tts_config_id" UUID,
     "default_stt_provider_id" VARCHAR(20),
     "default_persona_id" UUID NOT NULL,
@@ -101,13 +102,13 @@ CREATE TABLE "llm_configs" (
     "id" UUID NOT NULL,
     "name" CITEXT NOT NULL,
     "description" TEXT,
+    "kind" VARCHAR(10) NOT NULL DEFAULT 'text',
     "owner_id" UUID NOT NULL,
     "is_global" BOOLEAN NOT NULL DEFAULT false,
     "is_default" BOOLEAN NOT NULL DEFAULT false,
     "is_free_default" BOOLEAN NOT NULL DEFAULT false,
     "provider" VARCHAR(20) NOT NULL DEFAULT 'openrouter',
     "model" VARCHAR(255) NOT NULL,
-    "vision_model" VARCHAR(255),
     "advanced_parameters" JSONB,
     "memory_score_threshold" DECIMAL(3,2) NOT NULL DEFAULT 0.5,
     "memory_limit" INTEGER NOT NULL DEFAULT 20,
@@ -128,6 +129,15 @@ CREATE TABLE "personality_default_configs" (
     "updated_at" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "personality_default_configs_pkey" PRIMARY KEY ("personality_id")
+);
+
+-- CreateTable
+CREATE TABLE "personality_vision_default_configs" (
+    "personality_id" UUID NOT NULL,
+    "llm_config_id" UUID NOT NULL,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "personality_vision_default_configs_pkey" PRIMARY KEY ("personality_id")
 );
 
 -- CreateTable
@@ -223,6 +233,7 @@ CREATE TABLE "user_personality_configs" (
     "personality_id" UUID NOT NULL,
     "persona_id" UUID,
     "llm_config_id" UUID,
+    "vision_config_id" UUID,
     "tts_config_id" UUID,
     "config_overrides" JSONB,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -463,6 +474,9 @@ CREATE INDEX "users_discord_id_idx" ON "users"("discord_id");
 CREATE INDEX "users_default_llm_config_id_idx" ON "users"("default_llm_config_id");
 
 -- CreateIndex
+CREATE INDEX "users_default_vision_config_id_idx" ON "users"("default_vision_config_id");
+
+-- CreateIndex
 CREATE INDEX "users_default_tts_config_id_idx" ON "users"("default_tts_config_id");
 
 -- CreateIndex
@@ -514,6 +528,9 @@ CREATE INDEX "llm_configs_is_global_idx" ON "llm_configs"("is_global");
 CREATE INDEX "llm_configs_is_free_default_idx" ON "llm_configs"("is_free_default");
 
 -- CreateIndex
+CREATE INDEX "llm_configs_kind_idx" ON "llm_configs"("kind");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "llm_configs_owner_id_name_key" ON "llm_configs"("owner_id", "name");
 
 -- CreateIndex
@@ -521,6 +538,12 @@ CREATE UNIQUE INDEX "personality_default_configs_personality_id_key" ON "persona
 
 -- CreateIndex
 CREATE INDEX "personality_default_configs_llm_config_id_idx" ON "personality_default_configs"("llm_config_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "personality_vision_default_configs_personality_id_key" ON "personality_vision_default_configs"("personality_id");
+
+-- CreateIndex
+CREATE INDEX "personality_vision_default_configs_llm_config_id_idx" ON "personality_vision_default_configs"("llm_config_id");
 
 -- CreateIndex
 CREATE INDEX "tts_configs_owner_id_idx" ON "tts_configs"("owner_id");
@@ -739,6 +762,9 @@ CREATE UNIQUE INDEX "export_jobs_user_id_source_slug_source_service_format_key" 
 ALTER TABLE "users" ADD CONSTRAINT "users_default_llm_config_id_fkey" FOREIGN KEY ("default_llm_config_id") REFERENCES "llm_configs"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "users" ADD CONSTRAINT "users_default_vision_config_id_fkey" FOREIGN KEY ("default_vision_config_id") REFERENCES "llm_configs"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "users" ADD CONSTRAINT "users_default_tts_config_id_fkey" FOREIGN KEY ("default_tts_config_id") REFERENCES "tts_configs"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -766,6 +792,12 @@ ALTER TABLE "personality_default_configs" ADD CONSTRAINT "personality_default_co
 ALTER TABLE "personality_default_configs" ADD CONSTRAINT "personality_default_configs_personality_id_fkey" FOREIGN KEY ("personality_id") REFERENCES "personalities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "personality_vision_default_configs" ADD CONSTRAINT "personality_vision_default_configs_llm_config_id_fkey" FOREIGN KEY ("llm_config_id") REFERENCES "llm_configs"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "personality_vision_default_configs" ADD CONSTRAINT "personality_vision_default_configs_personality_id_fkey" FOREIGN KEY ("personality_id") REFERENCES "personalities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "tts_configs" ADD CONSTRAINT "tts_configs_owner_id_fkey" FOREIGN KEY ("owner_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -791,6 +823,9 @@ ALTER TABLE "personality_aliases" ADD CONSTRAINT "personality_aliases_personalit
 
 -- AddForeignKey
 ALTER TABLE "user_personality_configs" ADD CONSTRAINT "user_personality_configs_llm_config_id_fkey" FOREIGN KEY ("llm_config_id") REFERENCES "llm_configs"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "user_personality_configs" ADD CONSTRAINT "user_personality_configs_vision_config_id_fkey" FOREIGN KEY ("vision_config_id") REFERENCES "llm_configs"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "user_personality_configs" ADD CONSTRAINT "user_personality_configs_tts_config_id_fkey" FOREIGN KEY ("tts_config_id") REFERENCES "tts_configs"("id") ON DELETE SET NULL ON UPDATE CASCADE;

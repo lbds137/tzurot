@@ -20,7 +20,6 @@ describe('flattenPresetData', () => {
       description: 'A test preset',
       model: 'anthropic/claude-sonnet-4',
       provider: 'openrouter',
-      visionModel: 'anthropic/claude-sonnet-4',
       isGlobal: false,
       isOwned: true,
       permissions: { canEdit: true, canDelete: true },
@@ -35,20 +34,18 @@ describe('flattenPresetData', () => {
     expect(result.description).toBe('A test preset');
     expect(result.provider).toBe('openrouter');
     expect(result.model).toBe('anthropic/claude-sonnet-4');
-    expect(result.visionModel).toBe('anthropic/claude-sonnet-4');
     expect(result.isGlobal).toBe(false);
     expect(result.isOwned).toBe(true);
     expect(result.contextWindowTokens).toBe('8192');
   });
 
-  it('should handle null description and visionModel', () => {
+  it('should handle null description', () => {
     const preset: PresetData = {
       id: 'preset-123',
       name: 'My Preset',
       description: null,
       model: 'anthropic/claude-sonnet-4',
       provider: 'openrouter',
-      visionModel: null,
       isGlobal: true,
       isOwned: false,
       permissions: { canEdit: false, canDelete: false },
@@ -59,7 +56,6 @@ describe('flattenPresetData', () => {
     const result = flattenPresetData(preset);
 
     expect(result.description).toBe('');
-    expect(result.visionModel).toBe('');
   });
 
   it('should flatten sampling params', () => {
@@ -69,7 +65,6 @@ describe('flattenPresetData', () => {
       description: null,
       model: 'anthropic/claude-sonnet-4',
       provider: 'openrouter',
-      visionModel: null,
       isGlobal: false,
       isOwned: true,
       permissions: { canEdit: true, canDelete: true },
@@ -99,7 +94,6 @@ describe('flattenPresetData', () => {
       description: null,
       model: 'anthropic/claude-sonnet-4',
       provider: 'openrouter',
-      visionModel: null,
       isGlobal: false,
       isOwned: true,
       permissions: { canEdit: true, canDelete: true },
@@ -129,7 +123,6 @@ describe('flattenPresetData', () => {
       description: null,
       model: 'anthropic/claude-sonnet-4',
       provider: 'openrouter',
-      visionModel: null,
       isGlobal: false,
       isOwned: true,
       permissions: { canEdit: true, canDelete: true },
@@ -159,7 +152,6 @@ describe('flattenPresetData', () => {
       description: null,
       model: 'anthropic/claude-sonnet-4',
       provider: 'openrouter',
-      visionModel: null,
       isGlobal: false,
       isOwned: true,
       permissions: { canEdit: true, canDelete: true },
@@ -183,7 +175,6 @@ describe('flattenPresetData', () => {
       description: null,
       model: 'z-ai/glm-5.2',
       provider: 'openrouter',
-      visionModel: null,
       isGlobal: true,
       isOwned: false,
       permissions: { canEdit: false, canDelete: false },
@@ -207,7 +198,6 @@ describe('unflattenPresetData', () => {
       description: 'Updated description',
       model: 'anthropic/claude-opus-4',
       provider: 'openrouter',
-      visionModel: 'anthropic/claude-sonnet-4',
     };
 
     const result = unflattenPresetData(flat);
@@ -216,7 +206,6 @@ describe('unflattenPresetData', () => {
     expect(result.description).toBe('Updated description');
     expect(result.provider).toBe('openrouter');
     expect(result.model).toBe('anthropic/claude-opus-4');
-    expect(result.visionModel).toBe('anthropic/claude-sonnet-4');
   });
 
   it('should set description to null when empty', () => {
@@ -227,16 +216,6 @@ describe('unflattenPresetData', () => {
     const result = unflattenPresetData(flat);
 
     expect(result.description).toBeNull();
-  });
-
-  it('should set visionModel to null when empty', () => {
-    const flat: Partial<FlattenedPresetData> = {
-      visionModel: '',
-    };
-
-    const result = unflattenPresetData(flat);
-
-    expect(result.visionModel).toBeNull();
   });
 
   it('should unflatten numeric sampling params', () => {
@@ -431,9 +410,9 @@ describe('PRESET_DASHBOARD_CONFIG', () => {
     const identitySection = PRESET_DASHBOARD_CONFIG.sections[0];
 
     it('should have correct fields', () => {
-      expect(identitySection.fields).toHaveLength(5);
+      expect(identitySection.fields).toHaveLength(4);
       const keys = identitySection.fields.map(f => f.id);
-      expect(keys).toEqual(['name', 'description', 'provider', 'model', 'visionModel']);
+      expect(keys).toEqual(['name', 'description', 'provider', 'model']);
     });
 
     it('should return EMPTY status when no name or model', () => {

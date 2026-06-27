@@ -27,7 +27,7 @@ import {
   type JobContext,
   type ResponseDestination,
 } from '@tzurot/common-types';
-import type { LlmConfigResolver } from '@tzurot/config-resolver';
+import type { LlmConfigResolver, VisionConfigResolver } from '@tzurot/config-resolver';
 
 // Mock the queue (capture the FlowProducer.add payload without a real queue)
 vi.mock('../queue.js', () => ({ flowProducer: { add: vi.fn() } }));
@@ -41,17 +41,26 @@ vi.mock('@tzurot/common-types', async () => {
 import { createJobChain } from './jobChainOrchestrator.js';
 import { flowProducer } from '../queue.js';
 
-// Stub the LLM config resolver to take the PRODUCTION path: real callers
-// (generate.ts) always pass `deps.llmConfigResolver`, so `stampResolvedConfig`
-// resolves a user-tier config and stamps the model onto the embedded
-// personality. Omitting it would capture the no-resolver fallback
-// (configSource: 'personality', raw seed) — an unrepresentative shape.
+// Stub BOTH config resolvers to take the PRODUCTION path: real callers
+// (generate.ts) always pass `deps.llmConfigResolver` AND `deps.visionConfigResolver`,
+// so `stampResolvedConfig` resolves a user-tier TEXT config (→ personality.model)
+// and an INDEPENDENT vision config (→ personality.visionModel carrier). Omitting
+// them would capture the no-resolver fallback (configSource: 'personality', raw
+// seed, no vision) — an unrepresentative shape.
 const resolverStub: LlmConfigResolver = {
   resolveConfig: vi.fn().mockResolvedValue({
     source: 'user-personality',
-    config: { model: 'resolved/model', visionModel: 'resolved/vision-model' },
+    config: { model: 'resolved/model' },
   }),
 } as unknown as LlmConfigResolver;
+
+// The vision cascade is its own axis: config.model IS the vision model carrier.
+const visionResolverStub: VisionConfigResolver = {
+  resolveConfig: vi.fn().mockResolvedValue({
+    source: 'personality',
+    config: { model: 'resolved/vision-model' },
+  }),
+} as unknown as VisionConfigResolver;
 
 const PERSONALITY: LoadedPersonality = {
   id: 'pers-fixture',
@@ -119,6 +128,7 @@ describe('BullMQ job-chain contract — producer fixture generation', () => {
       context,
       responseDestination: RESPONSE_DESTINATION,
       llmConfigResolver: resolverStub,
+      visionConfigResolver: visionResolverStub,
     });
 
     const flowCall = vi.mocked(flowProducer.add).mock.calls[0][0] as unknown as {
@@ -156,6 +166,7 @@ describe('BullMQ job-chain contract — producer fixture generation', () => {
       context,
       responseDestination: RESPONSE_DESTINATION,
       llmConfigResolver: resolverStub,
+      visionConfigResolver: visionResolverStub,
     });
 
     const flowCall = vi.mocked(flowProducer.add).mock.calls[0][0] as unknown as {

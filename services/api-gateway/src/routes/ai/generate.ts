@@ -73,6 +73,7 @@ export const handleAiGenerate = (deps: RouteDeps): RequestHandler =>
         responseDestination: { type: 'api' as const },
         userApiKey: request.userApiKey,
         llmConfigResolver: deps.llmConfigResolver,
+        visionConfigResolver: deps.visionConfigResolver,
       });
 
       await deduplicationCache.cacheRequest(request, requestId, jobId);

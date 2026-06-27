@@ -55,7 +55,6 @@ const mockPresetData: PresetData = {
   description: 'A test preset',
   model: 'anthropic/claude-sonnet-4',
   provider: 'openrouter',
-  visionModel: null,
   isGlobal: false,
   isOwned: true,
   permissions: { canEdit: true, canDelete: true },

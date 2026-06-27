@@ -45,7 +45,6 @@ export interface BaseConfigResolutionResult<TResolved> {
  */
 export interface ResolvedLlmConfig extends ConvertedLlmParams {
   model: string;
-  visionModel?: string | null;
   memoryScoreThreshold?: number | null;
   memoryLimit?: number | null;
   contextWindowTokens?: number;
@@ -77,4 +76,24 @@ export interface ConfigResolutionResult extends BaseConfigResolutionResult<Resol
  */
 export interface LoadedTtsPersonality {
   id: string;
+}
+
+/**
+ * Minimal personality shape the VISION config resolver needs (mirrors
+ * `LoadedTtsPersonality`). The vision personality-default lives in the
+ * PersonalityVisionDefaultConfig join table, so only the id is needed here.
+ */
+export interface LoadedVisionPersonality {
+  id: string;
+}
+
+/**
+ * Effective resolved VISION config. Vision-description calls consume only the
+ * model name (no sampling params apply), so this is minimal — plus the cascade
+ * source/name for diagnostics and the BaseConfigResolver source-tracking contract.
+ */
+export interface ResolvedVisionConfig {
+  model: string;
+  source: ConfigResolutionSource;
+  configName?: string;
 }

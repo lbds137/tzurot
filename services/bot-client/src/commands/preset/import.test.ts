@@ -194,7 +194,6 @@ describe('Preset Import', () => {
         data: createValidPresetData({
           description: 'A description',
           provider: 'anthropic',
-          visionModel: 'anthropic/claude-sonnet-4',
         }),
       });
       stub.createUserLlmConfig.mockResolvedValue(makeOk({ config: { id: 'new-preset-id' } }));
@@ -206,7 +205,6 @@ describe('Preset Import', () => {
       expect(stub.createUserLlmConfig).toHaveBeenCalledWith(
         expect.objectContaining({
           description: 'A description',
-          visionModel: 'anthropic/claude-sonnet-4',
         })
       );
     });

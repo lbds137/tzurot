@@ -24,8 +24,8 @@ vi.mock('./api.js', () => ({
 // Imported after the mock so the factory resolves before module load.
 const { generateClonedName, createClonedPreset } = await import('./cloneName.js');
 
-// Cast: `createClonedPreset` only reads name / model / provider / description /
-// visionModel off the source, but FlattenedPresetData requires ~20 fields. The
+// Cast: `createClonedPreset` only reads name / model / provider / description
+// off the source, but FlattenedPresetData requires ~20 fields. The
 // rest are irrelevant to this test file and would add noise.
 const sourceData = {
   id: 'preset-123',

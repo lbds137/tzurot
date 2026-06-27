@@ -126,27 +126,19 @@ export function generateSystemGlobalTtsConfigUuid(name: string): string {
 /**
  * Deterministic UUID for a system-global LlmConfig row.
  *
- * Mirrors {@link generateSystemGlobalTtsConfigUuid}. Currently unused — LLM
- * has no migration-seeded globals or bootstrap loop today. Exported for
- * symmetry and to reserve the namespace for future use (e.g., if Phase 3
- * STT cutover adds a system-global free-tier LLM mapping).
+ * Mirrors {@link generateSystemGlobalTtsConfigUuid}. Used by `VisionConfigBootstrap`
+ * to seed the vision system globals (`kind='vision'` LlmConfig rows) with stable IDs,
+ * so dev and prod assign the same UUID for the same well-known name. Without this,
+ * `/admin db-sync` fails with `llm_configs_owner_id_name_key` collisions because each
+ * env would generate its own random UUID for the same logical row.
  *
- * **Knip note**: this export has no production callers by design. As of
- * v3.0.0-beta.116, `pnpm knip` does not flag it (the test in
- * `deterministicUuid.test.ts` and the barrel `export *` from the
- * common-types entry point satisfy reachability). If a future knip
- * configuration starts flagging future-reserved exports, suppress with a
- * `knip-ignore` directive that points at this JSDoc rather than removing
- * the helper.
- *
- * **When adding the first LLM system-global**, follow the TTS pattern:
- * (a) bootstrap the row with this helper, (b) add a pinned-value test in
- * `deterministicUuid.test.ts` asserting the exact UUID for the well-known
- * name (matches the test for kyutai-self-hosted etc.), and (c) if rows
- * already exist in any env with non-deterministic IDs, write a recovery
- * migration mirroring `20260504140720_align_tts_globals_to_deterministic_ids`.
- * The cross-pinning (helper test + migration SQL + service test) is the
- * mechanism that prevents migration-vs-helper drift.
+ * Scoped to system-globals only (names are code-defined, stable, never renamed by
+ * users). Do NOT use for user-created configs — see {@link generateLlmConfigUuid}'s
+ * deprecation notice for the rename-collision rationale that drove user-created configs
+ * to UUIDv7. A pinned-value test in `deterministicUuid.test.ts` asserts the exact UUIDs
+ * for the seeded names; that cross-pinning (helper test + bootstrap) prevents drift — if
+ * rows already exist in any env with non-deterministic IDs, write a recovery migration
+ * mirroring `20260504140720_align_tts_globals_to_deterministic_ids`.
  */
 export function generateSystemGlobalLlmConfigUuid(name: string): string {
   return uuidv5(`llm_config_global:${name}`, TZUROT_NAMESPACE);

@@ -203,4 +203,43 @@ describe('VisionDescriptionCache', () => {
       expect(result).toBeNull();
     });
   });
+
+  describe('model namespacing (cache key includes the resolved vision model)', () => {
+    it('produces different keys for different models on the same attachment', async () => {
+      await cache.store({ attachmentId: '123', url: 'u', model: 'qwen/qwen3.7-plus' }, 'desc-a');
+      await cache.store({ attachmentId: '123', url: 'u', model: 'openai/gpt-4o' }, 'desc-b');
+
+      const keyA = mockRedis.setex.mock.calls[0][0] as string;
+      const keyB = mockRedis.setex.mock.calls[1][0] as string;
+      // Different models → different keys, so a model swap re-attempts instead of
+      // replaying the old model's cached entry.
+      expect(keyA).not.toBe(keyB);
+      // ...but both still key off the same attachment id.
+      expect(keyA).toContain('id:123');
+      expect(keyB).toContain('id:123');
+    });
+
+    it('sanitizes the model segment so it cannot inject the key delimiter', async () => {
+      await cache.store({ attachmentId: '123', url: 'u', model: 'qwen/qwen3.7-plus' }, 'desc');
+      const key = mockRedis.setex.mock.calls[0][0] as string;
+      expect(key).toContain('qwen_qwen3.7-plus'); // '/' → '_'
+    });
+
+    it('falls back to the un-namespaced legacy key when no model is given', async () => {
+      await cache.store({ attachmentId: '123', url: 'u' }, 'desc');
+      const key = mockRedis.setex.mock.calls[0][0] as string;
+      expect(key).toBe(`${REDIS_KEY_PREFIXES.VISION_DESCRIPTION}id:123`);
+    });
+
+    it('also namespaces the failure-cache key by model', async () => {
+      await cache.storeFailure({
+        attachmentId: '123',
+        url: 'u',
+        model: 'qwen/qwen3.7-plus',
+        category: ApiErrorCategory.AUTHENTICATION,
+      });
+      const key = mockRedis.setex.mock.calls[0][0] as string;
+      expect(key).toContain('qwen_qwen3.7-plus');
+    });
+  });
 });

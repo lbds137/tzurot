@@ -137,7 +137,6 @@ describe('AIJobProcessor Component Test', () => {
         ownerId: testUser.id,
         model: 'anthropic/claude-sonnet-4',
         provider: 'openrouter',
-        visionModel: 'anthropic/claude-sonnet-4',
         advancedParameters: {
           temperature: 0.7,
           maxTokens: 4000,
