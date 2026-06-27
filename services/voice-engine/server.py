@@ -459,13 +459,31 @@ def _merge_overlap(left: str, right: str, max_words: int = STT_OVERLAP_DEDUP_MAX
         return left
     left_norm = [_normalize_token(w) for w in left_words]
     right_norm = [_normalize_token(w) for w in right_words]
-    overlap = 0
-    max_k = min(max_words, len(left_words), len(right_words))
+    # Match on CONTENT tokens only. A purely-punctuation token normalizes to ""
+    # (e.g. ".", "--", "?"); leaving empties in the comparison breaks it two ways:
+    #   - two empties compare equal → a false overlap anchored on non-content, which
+    #     silently drops a real word at the seam; and
+    #   - an empty inside a genuine overlap blocks the match → the whole overlap
+    #     region is duplicated.
+    # So we compare the non-empty subsequences and map the matched length back to
+    # ORIGINAL right-token positions for the drop (carrying along any punctuation
+    # interspersed within the matched overlap).
+    left_real = [t for t in left_norm if t]
+    right_real_idx = [i for i, t in enumerate(right_norm) if t]
+    right_real = [right_norm[i] for i in right_real_idx]
+    overlap_words = 0
+    max_k = min(max_words, len(left_real), len(right_real))
     for k in range(max_k, 0, -1):
-        if left_norm[-k:] == right_norm[:k]:
-            overlap = k
+        if left_real[-k:] == right_real[:k]:
+            overlap_words = k
             break
-    surviving = right_words[overlap:]
+    if overlap_words == 0:
+        surviving = right_words
+    else:
+        # Drop original right tokens up to and including the last matched content
+        # token (so leading + interspersed punctuation in the overlap goes too).
+        drop_until = right_real_idx[overlap_words - 1] + 1
+        surviving = right_words[drop_until:]
     if not surviving:
         return left
     return f"{left} {' '.join(surviving)}"
