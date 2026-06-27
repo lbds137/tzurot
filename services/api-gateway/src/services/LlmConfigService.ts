@@ -24,6 +24,8 @@ import {
   stripCopySuffix,
   createLogger,
   safeValidateAdvancedParams,
+  toConfigKind,
+  type ConfigKind,
 } from '@tzurot/common-types';
 import { type LlmConfigCacheInvalidationService } from '@tzurot/cache-invalidation';
 
@@ -452,12 +454,6 @@ export class LlmConfigService {
   // --------------------------------------------------------------------------
 
   /**
-   * Set a config as the system default.
-   * Clears any existing default first.
-   *
-   * @param configId - ID of config to set as default
-   */
-  /**
    * Resolve a config's kind and assert it exists, so the singleton-flag clear
    * (isDefault / isFreeDefault) stays scoped to that kind. text and vision each carry
    * their own per-kind partial-unique default (`llm_configs_default_unique` /
@@ -467,8 +463,12 @@ export class LlmConfigService {
    * routes guard with findGlobalConfigOrSendError first, so a null here is a
    * delete-between-fetch-and-set race, and a vanished config must never drive a clear.
    * kind is immutable, so resolving it outside the clear+set transaction is safe.
+   *
+   * Returns a narrowed ConfigKind (via toConfigKind) rather than the raw Prisma
+   * `string`: callers pass it straight into the `updateMany` kind filter, so a DB
+   * drift value gets surfaced (toConfigKind warns) instead of flowing through silently.
    */
-  private async resolveTargetKindOrThrow(configId: string, op: string): Promise<string> {
+  private async resolveTargetKindOrThrow(configId: string, op: string): Promise<ConfigKind> {
     const target = await this.prisma.llmConfig.findUnique({
       where: { id: configId },
       select: { kind: true },
@@ -476,9 +476,15 @@ export class LlmConfigService {
     if (target === null) {
       throw new Error(`${op}: config ${configId} not found`);
     }
-    return target.kind;
+    return toConfigKind(target.kind);
   }
 
+  /**
+   * Set a config as the system default.
+   * Clears any existing default first.
+   *
+   * @param configId - ID of config to set as default
+   */
   async setAsDefault(configId: string): Promise<void> {
     const kind = await this.resolveTargetKindOrThrow(configId, 'setAsDefault');
     await this.prisma.$transaction(async tx => {
