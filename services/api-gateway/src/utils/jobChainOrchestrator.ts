@@ -340,7 +340,15 @@ async function stampResolvedConfig(
   if (visionConfigResolver !== undefined) {
     try {
       const vision = await visionConfigResolver.resolveConfig(userId, personality.id, personality);
-      stamped = { ...stamped, visionModel: vision.config.model };
+      // Skip the hardcoded-fallback tier (source='hardcoded' → MODEL_DEFAULTS.VISION_FALLBACK,
+      // the slow model the resolver only returns before the vision globals are seeded).
+      // Stamping it would make selectVisionModel priority-1 fire and force the fallback even
+      // when the main model has native vision — the exact timeout this epic targets. Leaving
+      // it unstamped lets priority-2 (main-model-vision) win during the bootstrap window.
+      // Symmetric with the text leg, which skips the 'personality' (= seed) source.
+      if (vision.source !== 'hardcoded') {
+        stamped = { ...stamped, visionModel: vision.config.model };
+      }
     } catch (error) {
       logger.warn(
         { err: error, requestId, personalityId: personality.id },
