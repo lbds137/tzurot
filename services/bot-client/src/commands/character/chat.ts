@@ -91,7 +91,7 @@ type GetAnchorMessageResult = AnchorMessageResult | AnchorMessageError;
 /**
  * Get an anchor message for context building.
  * Chat mode: send user message and return it.
- * Weigh-in mode: a synthetic, content-less anchor (see below).
+ * Weigh-in mode: a synthetic anchor carrying WEIGH_IN_MESSAGE (see below).
  */
 async function getAnchorMessage(
   channel: TypingChannel,
