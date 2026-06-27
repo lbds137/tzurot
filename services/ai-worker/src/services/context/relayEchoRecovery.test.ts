@@ -81,4 +81,51 @@ describe('recoverRelayEchoIdentities', () => {
 
     expect(dataSource.getUserIdentitiesByDiscordIds).not.toHaveBeenCalled();
   });
+
+  it('scans past a non-matching id to a later match (multi-part reply)', async () => {
+    // A long reply spans several Discord messages, so discordMessageId can hold
+    // multiple ids; the loop must skip a non-matching one and recover from a later one.
+    const messages = [relayEcho({ discordMessageId: ['d-miss', 'd-hit'] })];
+    const dataSource = {
+      getUserIdentitiesByDiscordIds: vi
+        .fn()
+        .mockResolvedValue(
+          new Map([
+            [
+              'd-hit',
+              { personaId: 'persona-uuid', personaName: 'Lila', discordUsername: 'lbds137' },
+            ],
+          ])
+        ),
+    };
+
+    await recoverRelayEchoIdentities(messages, dataSource);
+
+    expect(messages[0].personaId).toBe('persona-uuid');
+    expect(messages[0].personaName).toBe('Lila');
+    expect(messages[0].discordUsername).toBe('lbds137');
+  });
+
+  it('uses the FIRST matching id when several match (break wins)', async () => {
+    const messages = [relayEcho({ discordMessageId: ['d-first', 'd-second'] })];
+    const dataSource = {
+      getUserIdentitiesByDiscordIds: vi.fn().mockResolvedValue(
+        new Map([
+          [
+            'd-first',
+            { personaId: 'first-uuid', personaName: 'Lila', discordUsername: 'first-user' },
+          ],
+          [
+            'd-second',
+            { personaId: 'second-uuid', personaName: 'Lila', discordUsername: 'second-user' },
+          ],
+        ])
+      ),
+    };
+
+    await recoverRelayEchoIdentities(messages, dataSource);
+
+    expect(messages[0].personaId).toBe('first-uuid');
+    expect(messages[0].discordUsername).toBe('first-user');
+  });
 });
