@@ -40,6 +40,12 @@ function hasResolvedPersonaId(personaId: string | undefined): boolean {
  * place. Must run AFTER persona resolution (which strips the bot personaId to
  * ''). Messages with a resolved personaId, or with no matching persisted row,
  * are left untouched (graceful fallback to the bot-name attribution).
+ *
+ * MUTATES the `messages` elements in place (personaId / personaName /
+ * discordUsername); callers must not alias elements they need to keep pristine.
+ * Safe as long as callers always fetch fresh per-request rows; a caller passing
+ * objects from a shared cache (e.g. an L2 in-memory history layer) must clone them
+ * first.
  */
 export async function recoverRelayEchoIdentities(
   messages: ConversationMessage[],
