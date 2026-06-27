@@ -17,7 +17,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { handleChat, handleRandom, handleChimeIn } from './chat.js';
+import { handleChat, handleRandom, handleChimeIn, WEIGH_IN_MESSAGE } from './chat.js';
 import type { GuildMember } from 'discord.js';
 import { ChannelType } from 'discord.js';
 import type { EnvConfig } from '@tzurot/common-types';
@@ -135,6 +135,9 @@ describe('Character Chat Handler (push delivery)', () => {
       type,
       id: 'channel-123',
       name: 'test-channel',
+      // Real guild channels carry a `guild` (the synthetic anchor reads
+      // channel.guild.id for its guildId, used by denylist scoping).
+      guild: { id: 'guild-123', name: 'Test Guild' },
       // Real Discord channels always carry a back-reference to the client; the
       // empty-channel synthetic anchor reads `channel.client.user` via it.
       client: { user: { id: 'bot-user-123' } },
@@ -463,11 +466,16 @@ describe('Character Chat Handler (push delivery)', () => {
       const anchorArg = mockMessageContextBuilder.buildContext.mock.calls[0][0] as {
         id: string;
         content: string;
+        guildId: string | null;
+        channelId: string;
       };
       expect(anchorArg.id).toBe('synthetic-weigh-in-anchor');
-      expect(anchorArg.id).not.toBe('latest-msg');
       // The current turn is the read-the-room instruction, not a real message.
-      expect(anchorArg.content).toBe('[Reply naturally to the context above]');
+      expect(anchorArg.content).toBe(WEIGH_IN_MESSAGE);
+      // guildId/channelId must be populated (they're Discord.js getters, absent on
+      // the plain synthetic) so denylist scoping still works in weigh-in.
+      expect(anchorArg.guildId).toBe('guild-123');
+      expect(anchorArg.channelId).toBe('channel-123');
       // getAnchorMessage no longer reaches for the latest channel message at all.
       expect(channel.messages.fetch).not.toHaveBeenCalled();
     });
