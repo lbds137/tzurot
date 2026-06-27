@@ -9,9 +9,13 @@
 
 **Released v3.0.0-beta.140 on 2026-06-27** (see version header; notes: [tag v3.0.0-beta.140](https://github.com/lbds137/tzurot/releases/tag/v3.0.0-beta.140)). Vision as a first-class config (#1364, with the `vision_config_kind` migration — applied to dev + prod, globals seeded), long-audio STT chunking (#1363), and the UUID-collision test-flake fix (#1361) shipped. `release:finalize` SHA-aligned develop with main.
 
-**Unreleased since beta.140:** _(none yet)_
+**Unreleased since beta.140** (3 PRs to develop, no migrations):
 
-**➡️ Next: vision-epic follow-up release** — bundle the items the Phase-1 work deferred (all in `backlog/cold/`): the **release-review findings** (2 bugs — `_merge_overlap` punctuation false-match; fail-fast `storeFailure` missing `model`; 2 gaps — `getGlobalDefaultConfig` null-caching; `getById` missing `kind:'text'`), the **Phase-1 review nits** (M1/M3/L5/L6), the **db-sync config gaps + deterministic guard**, the **`PersonalityLoader` INFO-level failure log**, and the **breaking-migration deploy-window** design question — then **Phase 2** (vision editing surface). The `active-epic.md` slot holds the Model Configuration Overhaul epic (`cold/themes/model-configuration-overhaul.md`).
+- **#1368 — weigh-in prod-bug fix** (the bug the user reported): `/character random` / `/character chime-in` with no message no longer feeds the latest channel message — including a _different character's_ reply and a TTS→STT round-trip of it — back as the user turn. It now anchors on the synthetic `WEIGH_IN_MESSAGE` (the latest message stays in history). Bonus: restored guild/channel-scoped denylist checks the synthetic anchor was silently skipping. **On dev now; reaches prod with the next release.**
+- **#1366 — Phase-1 vision-config review nits** (M1/M3/L5/L6: kind-type narrowing via `toConfigKind`, loud `resolveTargetKindOrThrow` throw, `validKinds` in the warn, `configSource` text-axis comment) + the `VisionConfigResolver.clearCache` negative-default-sentinel fix.
+- **#1367 — db-sync vision-schema config gaps closed** (`personality_vision_default_configs` excluded, 2 UUID FKs registered) + a deterministic build-time guard (`syncValidation.component.test.ts` fails CI if a future migration adds an uncategorized table/UUID-FK) + the vision DEFERRABLE FK now covered by the Ouroboros precondition test.
+
+**➡️ Next: vision-epic follow-up release** — still-open deferred items (all in `backlog/cold/`): the **release-review findings** still pending (`_merge_overlap` punctuation false-match; #2 fail-fast `storeFailure` missing `model`; #4 `getById` missing `kind:'text'` → Phase 2), the two **new round-3 nits** (`resolveTargetKindOrThrow` 500-vs-404; `validateSyncConfig` phantom-`EXCLUDED_TABLES` detection), and the **breaking-migration deploy-window** design question — then **Phase 2** (vision editing surface). The `active-epic.md` slot holds the Model Configuration Overhaul epic (`cold/themes/model-configuration-overhaul.md`).
 
 ---
 
