@@ -66,8 +66,12 @@ function validateChannel(context: DeferredCommandContext): TypingChannel | null 
  * Weigh-in mode indicator message
  * Minimal prompt that tells the AI to respond to conversation context
  * without meta-awareness of being explicitly invoked.
+ *
+ * Exported so the synthetic-anchor test can assert against it rather than a
+ * fragile string literal (a wording change then surfaces at the import, not as
+ * a confusing value mismatch).
  */
-const WEIGH_IN_MESSAGE = '[Reply naturally to the context above]';
+export const WEIGH_IN_MESSAGE = '[Reply naturally to the context above]';
 
 /**
  * Result of getting the anchor message for context building
@@ -145,6 +149,12 @@ function createSyntheticWeighInAnchor(channel: TypingChannel): Message {
     channel,
     client: channel.client,
     guild: 'guild' in channel ? channel.guild : null,
+    // guildId/channelId are Discord.js prototype getters — absent on this plain
+    // object — but buildBlockDeniedChecker (via MessageContextBuilder) reads them
+    // to scope denylist lookups. Without them, guild- and channel-scoped blocks
+    // would silently no-op on every weigh-in; populate them from the channel.
+    guildId: 'guild' in channel ? channel.guild.id : null,
+    channelId: channel.id,
     // May be null pre-login, but that's safe: the weigh-in call passes
     // `overrideUser`, so MessageContextBuilder resolves the user identity from
     // that — never from this anchor's `author`.
