@@ -689,6 +689,7 @@ describe('Admin LLM Config Routes', () => {
         id: 'config-id',
         name: 'My Config',
         isGlobal: true,
+        kind: 'text',
         memoryScoreThreshold: { toNumber: () => 0.5 },
         memoryLimit: 20,
       });
@@ -756,6 +757,7 @@ describe('Admin LLM Config Routes', () => {
         id: 'config-id',
         name: 'Free Config',
         isGlobal: true,
+        kind: 'text',
         model: 'meta-llama/llama-3.3-70b-instruct:free',
         provider: 'openrouter',
         memoryScoreThreshold: { toNumber: () => 0.5 },
@@ -1133,6 +1135,7 @@ describe('Admin LLM Config Routes', () => {
         id: 'config-id',
         name: 'Free Config',
         isGlobal: true,
+        kind: 'text',
         model: 'meta-llama/llama-3.3-70b-instruct:free',
         provider: 'openrouter',
         memoryScoreThreshold: { toNumber: () => 0.5 },

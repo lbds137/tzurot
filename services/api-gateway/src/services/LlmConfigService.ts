@@ -457,24 +457,35 @@ export class LlmConfigService {
    *
    * @param configId - ID of config to set as default
    */
+  /**
+   * Resolve a config's kind and assert it exists, so the singleton-flag clear
+   * (isDefault / isFreeDefault) stays scoped to that kind. text and vision each carry
+   * their own per-kind partial-unique default (`llm_configs_default_unique` /
+   * `llm_configs_free_default_unique`), so an unscoped clear would wipe the OTHER kind's
+   * default — e.g. a text set-default silently un-setting the vision global default and
+   * collapsing vision resolution to the hardcoded fallback. Throws loud on a missing row:
+   * routes guard with findGlobalConfigOrSendError first, so a null here is a
+   * delete-between-fetch-and-set race, and a vanished config must never drive a clear.
+   * kind is immutable, so resolving it outside the clear+set transaction is safe.
+   */
+  private async resolveTargetKindOrThrow(configId: string, op: string): Promise<string> {
+    const target = await this.prisma.llmConfig.findUnique({
+      where: { id: configId },
+      select: { kind: true },
+    });
+    if (target === null) {
+      throw new Error(`${op}: config ${configId} not found`);
+    }
+    return target.kind;
+  }
+
   async setAsDefault(configId: string): Promise<void> {
+    const kind = await this.resolveTargetKindOrThrow(configId, 'setAsDefault');
     await this.prisma.$transaction(async tx => {
-      // Resolve the target's kind so we clear the existing default WITHIN that kind
-      // only. text and vision each carry their own isDefault (per-kind partial unique
-      // index `llm_configs_default_unique`), so an unscoped clear would wipe the other
-      // kind's default — e.g. setting a text default would silently un-set the vision
-      // global default and collapse vision resolution to the hardcoded fallback.
-      const target = await tx.llmConfig.findUnique({
-        where: { id: configId },
-        select: { kind: true },
-      });
-      const kind = target?.kind ?? 'text';
-      // Clear existing default for this kind
       await tx.llmConfig.updateMany({
         where: { isDefault: true, kind },
         data: { isDefault: false },
       });
-      // Set new default
       await tx.llmConfig.update({
         where: { id: configId },
         data: { isDefault: true },
@@ -493,20 +504,12 @@ export class LlmConfigService {
    * @param configId - ID of config to set as free default
    */
   async setAsFreeDefault(configId: string): Promise<void> {
+    const kind = await this.resolveTargetKindOrThrow(configId, 'setAsFreeDefault');
     await this.prisma.$transaction(async tx => {
-      // Per-kind clear — see setAsDefault: isFreeDefault is unique per kind
-      // (`llm_configs_free_default_unique`), so the clear must not cross kinds.
-      const target = await tx.llmConfig.findUnique({
-        where: { id: configId },
-        select: { kind: true },
-      });
-      const kind = target?.kind ?? 'text';
-      // Clear existing free default for this kind
       await tx.llmConfig.updateMany({
         where: { isFreeDefault: true, kind },
         data: { isFreeDefault: false },
       });
-      // Set new free default
       await tx.llmConfig.update({
         where: { id: configId },
         data: { isFreeDefault: true },

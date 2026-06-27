@@ -36,6 +36,8 @@ import {
   LLM_CONFIG_SELECT_WITH_NAME,
   mapLlmConfigFromDbWithName,
   MODEL_DEFAULTS,
+  TTLCache,
+  INTERVALS,
   type MappedLlmConfigWithName,
   type PrismaClient,
   type ResolvedVisionConfig,
@@ -62,9 +64,22 @@ export class VisionConfigResolver extends BaseConfigResolver<
 > {
   private prisma: PrismaClient;
 
+  /**
+   * Negative-result cache for the global vision default. The positive cache
+   * (`this.cache`) can't store a null result (TTLCache rejects null values), so
+   * without this every pre-seed call (no global default row yet) would re-query
+   * the DB. A truthy marker under GLOBAL_DEFAULT_CACHE_KEY short-circuits those
+   * repeated misses for the same TTL window the positive cache uses.
+   */
+  private readonly noGlobalDefaultCache: TTLCache<true>;
+
   constructor(prisma: PrismaClient, options?: BaseConfigResolverOptions) {
     super('VisionConfigResolver', options);
     this.prisma = prisma;
+    this.noGlobalDefaultCache = new TTLCache<true>({
+      ttl: options?.cacheTtlMs ?? INTERVALS.API_KEY_CACHE_TTL,
+      now: options?.now,
+    });
   }
 
   /** Tier 2: look up the user by Discord ID with their global default vision config joined. */
@@ -178,6 +193,11 @@ export class VisionConfigResolver extends BaseConfigResolver<
       return cached.config;
     }
 
+    // Negative-cache hit: a recent query found no global default — skip the DB.
+    if (this.noGlobalDefaultCache.get(GLOBAL_DEFAULT_CACHE_KEY) !== null) {
+      return null;
+    }
+
     try {
       const globalConfig = await this.prisma.llmConfig.findFirst({
         where: { kind: 'vision', isGlobal: true, isDefault: true },
@@ -188,6 +208,7 @@ export class VisionConfigResolver extends BaseConfigResolver<
         this.logger.debug(
           'No global vision default (kind=vision, isGlobal, isDefault) in database'
         );
+        this.noGlobalDefaultCache.set(GLOBAL_DEFAULT_CACHE_KEY, true);
         return null;
       }
 
