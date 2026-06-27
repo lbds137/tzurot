@@ -204,6 +204,19 @@ export interface LLMGenerationJobData extends BaseJobData {
 export type AnyJobData = AudioTranscriptionJobData | ImageDescriptionJobData | LLMGenerationJobData;
 
 /**
+ * Why an audio transcription failed. Carried across the BullMQ/Redis job boundary
+ * (where Error instances can't survive serialization) so bot-client can pick the
+ * right user-facing message: a self-hosted STT timeout or an over-the-cap "too long"
+ * read very differently from a generic failure. Set only when `success === false`.
+ *
+ * - `timeout`     — voice-engine STT exceeded its budget (long audio / slow CPU).
+ * - `too_long`    — audio exceeded the hard duration cap (rejected before inference).
+ * - `unavailable` — no STT provider produced text (BYOK failed + voice-engine down/empty).
+ * - `other`       — any other failure.
+ */
+export type SttFailureReason = 'timeout' | 'too_long' | 'unavailable' | 'other';
+
+/**
  * Audio transcription result
  */
 export interface AudioTranscriptionResult {
@@ -219,6 +232,9 @@ export interface AudioTranscriptionResult {
   sourceReferenceNumber?: number;
   /** Error message if failed */
   error?: string;
+  /** Machine-readable failure cause (set only when success=false). Drives the
+   *  bot-client's user-facing message — see {@link SttFailureReason}. */
+  failureReason?: SttFailureReason;
   /** Which STT provider produced the transcript; surfaced as user-visible attribution. */
   provider?: SttProvider;
   /**
@@ -306,6 +322,8 @@ export const audioTranscriptionResultSchema = z.object({
   sourceReferenceNumber: z.number().optional(),
   /** Error message if failed */
   error: z.string().optional(),
+  /** Machine-readable failure cause (set only when success=false) — see SttFailureReason. */
+  failureReason: z.enum(['timeout', 'too_long', 'unavailable', 'other']).optional(),
   metadata: z
     .object({
       processingTimeMs: z.number().optional(),

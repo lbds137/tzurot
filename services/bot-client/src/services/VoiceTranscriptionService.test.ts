@@ -35,7 +35,7 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
-import { splitMessage } from '@tzurot/common-types';
+import { splitMessage, AudioTooLongError } from '@tzurot/common-types';
 import { voiceTranscriptCache } from '../redis.js';
 import { transcribe } from '../utils/gatewayServiceCalls.js';
 
@@ -655,6 +655,30 @@ describe('VoiceTranscriptionService', () => {
       expect(result).toBeNull();
       expect(message.reply).toHaveBeenCalledWith({
         content: expect.stringContaining('taking too long'),
+        allowedMentions: { parse: [], repliedUser: false },
+      });
+    });
+
+    it('should show a "too long" message when transcription rejects with AudioTooLongError', async () => {
+      const message = createMockMessage({
+        attachments: [
+          {
+            url: 'https://cdn.discord.com/voice/123.ogg',
+            contentType: 'audio/ogg',
+            name: 'voice.ogg',
+            size: 50000,
+            duration: 800,
+          },
+        ],
+      });
+
+      vi.mocked(transcribe).mockRejectedValue(new AudioTooLongError('Audio too long (800s).'));
+
+      const result = await service.transcribe(message, false, false);
+
+      expect(result).toBeNull();
+      expect(message.reply).toHaveBeenCalledWith({
+        content: expect.stringContaining('too long'),
         allowedMentions: { parse: [], repliedUser: false },
       });
     });

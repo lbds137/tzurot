@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { JobStatus } from '@tzurot/common-types';
+import { JobStatus, TimeoutError, AudioTooLongError } from '@tzurot/common-types';
 
 // Mock the ServiceClient factory + the service-secret accessor so the helpers
 // run without real config/network. (The context write-path helpers live in
@@ -217,6 +217,44 @@ describe('raw-fetch helpers (allow-listed)', () => {
     expect(result.content).toBe('hello world');
     const url = fetchSpy.mock.calls[0][0] as string;
     expect(url).toContain('/ai/transcribe?wait=true');
+  });
+
+  it('transcribe reconstructs a TimeoutError from failureReason=timeout', async () => {
+    // A failed job RESOLVES (success:false) → arrives as Completed with empty content
+    // + failureReason. transcribe must surface it as the typed error so the bot shows
+    // "taking too long" rather than the generic message.
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        jobId: 'jt-timeout',
+        status: JobStatus.Completed,
+        result: { success: false, content: '', failureReason: 'timeout' },
+      }),
+    } as Response);
+
+    await expect(transcribe([{ url: 'a', contentType: 'audio/ogg' }], 'user-1')).rejects.toThrow(
+      TimeoutError
+    );
+  });
+
+  it('transcribe reconstructs an AudioTooLongError from failureReason=too_long', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        jobId: 'jt-toolong',
+        status: JobStatus.Completed,
+        result: {
+          success: false,
+          content: '',
+          failureReason: 'too_long',
+          error: 'Audio too long (800s). Maximum is 720s.',
+        },
+      }),
+    } as Response);
+
+    await expect(transcribe([{ url: 'a', contentType: 'audio/ogg' }], 'user-1')).rejects.toThrow(
+      AudioTooLongError
+    );
   });
 
   it('healthCheck returns true on a 2xx and false on throw', async () => {

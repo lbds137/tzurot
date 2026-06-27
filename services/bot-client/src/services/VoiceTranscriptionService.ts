@@ -13,6 +13,7 @@ import {
   CONTENT_TYPES,
   DISCORD_LIMITS,
   isTimeoutError,
+  isTooLongError,
   sttProviderDisplayName,
   sttProviderInfoUrl,
   type SttProvider,
@@ -349,7 +350,9 @@ export class VoiceTranscriptionService {
 
       const userMessage = isTimeoutError(error)
         ? 'Sorry, transcription is taking too long \u2014 the voice service may be starting up. Please try again in a moment.'
-        : "Sorry, I couldn't transcribe that voice message.";
+        : isTooLongError(error)
+          ? 'Sorry, that voice message is too long to transcribe. Please try sending a shorter one.'
+          : "Sorry, I couldn't transcribe that voice message.";
 
       await message
         .reply({

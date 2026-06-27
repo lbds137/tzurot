@@ -34,10 +34,24 @@ from tests.helpers import FakeTranscription  # noqa: E402 -- must import after s
 
 @pytest.fixture(autouse=True)
 def _reset_state() -> Generator[None, None, None]:
-    """Clear models, voice_cache, and voice_locks before each test to prevent leaks."""
+    """Clear models/voice_cache/voice_locks and rebind the module-level asyncio
+    primitives before each test.
+
+    The inference semaphore + ASR lock are created at import time and bind to the
+    first event loop that awaits them. pytest-asyncio runs each test in a fresh loop,
+    so without rebinding, a concurrent-request test raises 'bound to a different event
+    loop'. Re-creating them here (no running loop, so they bind lazily to each test's
+    own loop on first use) keeps them loop-consistent across the suite.
+    """
+    import asyncio
+
+    import server
+
     models.clear()
     voice_cache.clear()
     _voice_locks.clear()
+    server._inference_semaphore = asyncio.Semaphore(server._INFERENCE_CONCURRENCY)
+    server._asr_inference_lock = asyncio.Lock()
     yield
     models.clear()
     voice_cache.clear()

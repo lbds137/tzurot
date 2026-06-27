@@ -20,8 +20,15 @@ export const TIMEOUTS = {
   // Individual component timeouts (PER ATTEMPT - with 3 retries via job chain)
   /** Vision model invocation timeout per attempt (90 seconds - handles slow models and high-res images) */
   VISION_MODEL: 90000,
-  /** Voice engine / STT transcription timeout per attempt (180 seconds - handles long voice messages up to ~15 min) */
-  VOICE_ENGINE_API: 180000,
+  /** Voice engine / STT transcription budget per call (8 minutes).
+   * The voice-engine chunks audio longer than its chunk threshold into windows
+   * (see server.py STT_CHUNK_*), so this covers a chunked transcription up to the
+   * ~12-min cap (MAX_AUDIO_DURATION_SEC) on Railway CPU. NeMo Parakeet runs ~0.5×
+   * realtime on CPU; a 6-min single blob took ~213s in prod and blew the prior 180s
+   * value. Conservative — tune down from the `inference_sec` / `rtf` fields the
+   * voice-engine logs per transcription. Also the default per-call HTTP timeout for
+   * VoiceEngineClient, so it applies to TTS too (a generous max, harmless there). */
+  VOICE_ENGINE_API: 480000,
   /** Audio file download timeout (30 seconds - Discord CDN is fast) */
   AUDIO_FETCH: 30000,
   /** LLM invocation timeout for all retry attempts combined (8 minutes) */
@@ -33,15 +40,17 @@ export const TIMEOUTS = {
   SYSTEM_OVERHEAD: 15000,
   /** Job wait timeout in gateway (10 minutes - Railway safety buffer) */
   JOB_WAIT: 600000,
-  /** Client-side timeout for STT transcription gateway requests (4 minutes).
-   * Must exceed AUDIO_FETCH (30s) + VOICE_ENGINE_API (180s) + a queue/network
-   * margin — otherwise the bot-client AbortSignal fires while ai-worker is
-   * still mid-call. 240s = 30 + 180 + 30s margin. Covers the observed
-   * Railway-serverless cold-start (~135s end-to-end) with headroom for
-   * queue latency when the downstream steps approach their individual caps.
-   * Stays well under JOB_WAIT (10 min) so user feedback stays timely on
-   * real hangs. Bump this if `AUDIO_FETCH` or `VOICE_ENGINE_API` change. */
-  STT_GATEWAY: 240_000,
+  /** Client-side (bot-client) timeout for STT transcription gateway requests (9 min).
+   * Must exceed AUDIO_FETCH (30s) + VOICE_ENGINE_API (480s) + a queue/network
+   * margin — otherwise the bot-client AbortSignal fires while ai-worker is still
+   * mid-call. 540s = 30 + 480 + 30s margin. Stays under JOB_WAIT (10 min) so the
+   * gateway keeps the job alive (and caches the transcript) slightly longer than the
+   * bot waits — on a real hang the bot still surfaces "taking too long" first.
+   * Conservative for the ~12-min audio cap; tune alongside VOICE_ENGINE_API from prod
+   * logs. NOTE: a first-message Railway-serverless cold-start (~135s) stacks on top of
+   * the transcription and can clip this for a long first message — the keep-warm
+   * backlog item addresses that. Bump if AUDIO_FETCH or VOICE_ENGINE_API change. */
+  STT_GATEWAY: 540_000,
   /** BullMQ worker lock duration - maximum time a job can run before being considered stalled (20 minutes - safety net for hung jobs) */
   WORKER_LOCK_DURATION: 20 * 60 * 1000,
   /** Default timeout for bot-client → api-gateway internal RPC calls (5 s).

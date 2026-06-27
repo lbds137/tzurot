@@ -21,6 +21,8 @@ import {
   CONTENT_TYPES,
   JobStatus,
   TIMEOUTS,
+  TimeoutError,
+  AudioTooLongError,
   TTLCache,
   type GetChannelSettingsResponse,
   type GetAdminSettingsResponse,
@@ -369,6 +371,24 @@ async function transcribeOnce(
   if (data.status !== JobStatus.Completed) {
     throw new Error(`Transcription job ${data.jobId} status: ${data.status}`);
   }
+
+  // A failed transcription RESOLVES the job (success:false) rather than rejecting, so
+  // it arrives here as a Completed status with empty content + a structured
+  // failureReason. Reconstruct a typed error from that reason — Error instances can't
+  // survive the BullMQ/Redis job boundary, so failureReason is the wire carrier — so
+  // VoiceTranscriptionService can show "taking too long" / "too long" instead of the
+  // generic "couldn't transcribe".
+  const failureReason = data.result?.failureReason;
+  if (failureReason === 'timeout') {
+    // VOICE_ENGINE_API is the timeout that actually fires upstream (the ai-worker's
+    // per-call STT budget); STT_GATEWAY is the bot's own wall. Use the upstream value
+    // so TimeoutError.timeoutMs is accurate if it's ever read for diagnostics.
+    throw new TimeoutError(TIMEOUTS.VOICE_ENGINE_API, 'voice transcription');
+  }
+  if (failureReason === 'too_long') {
+    throw new AudioTooLongError(data.result?.error);
+  }
+
   if (
     data.result?.content === undefined ||
     data.result.content === null ||
