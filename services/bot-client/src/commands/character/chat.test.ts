@@ -421,9 +421,9 @@ describe('Character Chat Handler (push delivery)', () => {
     });
 
     it('weigh-in in a genuinely empty channel still submits (synthetic anchor, no error)', async () => {
-      // A channel with zero messages no longer aborts: getAnchorMessage falls
-      // back to a field-only synthetic anchor so the bot "reads an empty room"
-      // and generates rather than erroring out.
+      // Weigh-in always anchors on a field-only synthetic message regardless of
+      // channel contents, so an empty channel still submits — the bot "reads an
+      // empty room" and generates rather than erroring out.
       const channel = createMockChannel(ChannelType.GuildText);
       channel.messages.fetch = vi.fn().mockResolvedValue(createMockCollection([]));
       const ctx = createMockContext('test-char', null, channel);
@@ -440,6 +440,36 @@ describe('Character Chat Handler (push delivery)', () => {
         expect.any(String),
         expect.objectContaining({ kind: 'slash', isWeighInMode: true })
       );
+    });
+
+    it('anchors on a synthetic message — never the latest channel message (regression)', async () => {
+      // Regression: weigh-in (no message) used to anchor on the latest channel
+      // message, so the thin-envelope assembler re-derived the current turn from
+      // that message's content + voice transcript — feeding a DIFFERENT
+      // character's reply (and a TTS round-trip of it) back as the "user" turn.
+      // The fix anchors on a synthetic, content-only message; the latest message
+      // reaches the prompt as history instead. createMockChannel's default fetch
+      // returns a 'latest-msg' — the old code would have used it as the anchor;
+      // the fix must not touch it.
+      const channel = createMockChannel(ChannelType.GuildText);
+      const ctx = createMockContext('test-char', null, channel);
+      mockPersonalityService.loadPersonality.mockResolvedValue(createMockPersonality());
+      mockMessageContextBuilder.buildContext.mockResolvedValueOnce(createMockContextBuildResult());
+      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-1', requestId: 'req-1' });
+
+      await handleChimeIn(ctx, mockConfig);
+
+      expect(mockMessageContextBuilder.buildContext).toHaveBeenCalledTimes(1);
+      const anchorArg = mockMessageContextBuilder.buildContext.mock.calls[0][0] as {
+        id: string;
+        content: string;
+      };
+      expect(anchorArg.id).toBe('synthetic-weigh-in-anchor');
+      expect(anchorArg.id).not.toBe('latest-msg');
+      // The current turn is the read-the-room instruction, not a real message.
+      expect(anchorArg.content).toBe('[Reply naturally to the context above]');
+      // getAnchorMessage no longer reaches for the latest channel message at all.
+      expect(channel.messages.fetch).not.toHaveBeenCalled();
     });
   });
 
