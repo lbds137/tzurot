@@ -87,7 +87,7 @@ type GetAnchorMessageResult = AnchorMessageResult | AnchorMessageError;
 /**
  * Get an anchor message for context building.
  * Chat mode: send user message and return it.
- * Weigh-in mode: fetch the latest message in channel.
+ * Weigh-in mode: a synthetic, content-less anchor (see below).
  */
 async function getAnchorMessage(
   channel: TypingChannel,
@@ -99,33 +99,42 @@ async function getAnchorMessage(
     return { success: true, message };
   }
 
-  // Weigh-in mode: anchor on the latest channel message. The anchor only
-  // supplies the channel/client/guild and (for chat mode) the `before` cursor;
-  // in weigh-in the extended-context fetch omits `before`, so the anchor's id
-  // is unused and the latest message is READ (it's part of the room).
-  const recentMessages = await channel.messages.fetch({ limit: 1 });
-  const latestMessage = recentMessages.first();
-  if (latestMessage !== undefined) {
-    return { success: true, message: latestMessage };
-  }
-  // Genuinely empty channel: no message to anchor on. Weigh-in still "just
-  // works" — the worker reads an empty room and greets. buildContext reads only
-  // FIELDS off the anchor (never methods — locked by tests), so a field-only
-  // synthetic anchor built from the channel is safe here.
+  // Weigh-in mode: the current turn carries NO real user message — the
+  // personality is asked to read the room and respond. Anchor on a synthetic,
+  // content-less message carrying only WEIGH_IN_MESSAGE.
+  //
+  // We must NOT anchor on the real latest channel message: the thin-envelope
+  // assembler re-derives the current turn from anchor.content + the anchor's
+  // voice transcript (RawEnvelopeBuilder's rawMessageContent / rawRoutingTranscript),
+  // so a real anchor leaks the latest message's text AND transcribes its voice
+  // attachment into the current turn — even when that message is from a
+  // different character. The latest message still reaches the prompt as
+  // HISTORY: the extended-context fetch omits `before` in weigh-in
+  // (MessageContextBuilder), so it includes the most recent N messages (the
+  // anchor's id is unused) where voice transcripts get the proper
+  // <voice_transcripts> wrapper.
   return { success: true, message: createSyntheticWeighInAnchor(channel) };
 }
 
 /**
- * Build a field-only synthetic `Message` for a weigh-in in an empty channel.
+ * Build a field-only synthetic `Message` — the anchor for EVERY weigh-in turn,
+ * not just empty channels.
+ *
+ * The anchor's `content` is WEIGH_IN_MESSAGE: the thin-envelope assembler
+ * re-derives the current turn from anchor.content, so this is what becomes the
+ * "read the room" user turn. We deliberately do NOT anchor on the real latest
+ * channel message — that would leak its text + voice transcript into the current
+ * turn (see getAnchorMessage). The real recent messages arrive as HISTORY via
+ * the extended-context fetch instead.
  *
  * buildContext only READS from the anchor — it never mutates it or calls Discord
  * API methods (no `.fetch`/`.reply`/`.react`). It DOES call Collection accessors
  * (`.some`/`.size`/`.values`) on the field VALUES (`attachments`, `mentions.users`),
  * so those carry real `Collection`s, not bare objects. For weigh-in the author/
- * member are overridden and the id is unused, so an empty channel needs nothing
- * real beyond the channel handle. MessageContextBuilder's field-only-anchor test
- * runs buildContext through this exact shape — if a field this synthetic omits
- * starts being read (as `mentions` once was), that test fails loudly rather than
+ * member are overridden and the id is unused, so nothing real beyond the channel
+ * handle is needed. MessageContextBuilder's field-only-anchor test runs
+ * buildContext through this exact shape — if a field this synthetic omits starts
+ * being read (as `mentions` once was), that test fails loudly rather than
  * crashing at runtime.
  */
 function createSyntheticWeighInAnchor(channel: TypingChannel): Message {
@@ -141,13 +150,15 @@ function createSyntheticWeighInAnchor(channel: TypingChannel): Message {
     // that — never from this anchor's `author`.
     author: channel.client?.user ?? null,
     member: null,
-    content: '',
+    // The read-the-room instruction IS the weigh-in current turn — the worker
+    // builds the turn from anchor.content. No real channel message is used.
+    content: WEIGH_IN_MESSAGE,
     attachments: new Collection(),
     embeds: [],
     messageSnapshots: new Collection(),
     reference: null,
-    // RawEnvelopeBuilder reads `mentions.users` (.size / .values()); an empty
-    // channel has no mentions, but the field must exist or the read throws.
+    // RawEnvelopeBuilder reads `mentions.users` (.size / .values()); the
+    // synthetic anchor has no mentions, but the field must exist or the read throws.
     mentions: { users: new Collection() },
   } as unknown as Message;
 }
