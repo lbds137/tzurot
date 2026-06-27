@@ -299,7 +299,7 @@ describe('ConversationHistoryService Component Test', () => {
     });
 
     it('should indicate no more pages when exhausted', async () => {
-      // Add 2 messages
+      // Add 2 messages (explicit timestamps so the same-key rows can't collide)
       await service.addMessage({
         channelId: testChannelId,
         personalityId: testPersonalityId,
@@ -307,6 +307,7 @@ describe('ConversationHistoryService Component Test', () => {
         role: MessageRole.User,
         content: 'Only message 1',
         guildId: testGuildId,
+        timestamp: seededTimestamp(0),
       });
       await service.addMessage({
         channelId: testChannelId,
@@ -315,6 +316,7 @@ describe('ConversationHistoryService Component Test', () => {
         role: MessageRole.User,
         content: 'Only message 2',
         guildId: testGuildId,
+        timestamp: seededTimestamp(1),
       });
 
       // Request more than exist
@@ -491,7 +493,10 @@ describe('ConversationHistoryService Component Test', () => {
 
   describe('getChannelHistory with contextEpoch', () => {
     it('should filter out messages before epoch', async () => {
-      // Add first message
+      // Explicit seeded timestamps (not real-clock + setTimeout): the epoch sits at
+      // index 1, between the message at index 0 (before) and index 2 (after) — no
+      // message coincides with it, and the same-key rows can't collide on their
+      // deterministic UUID (see seededTimestamp note).
       await service.addMessage({
         channelId: testChannelId,
         personalityId: testPersonalityId,
@@ -499,14 +504,9 @@ describe('ConversationHistoryService Component Test', () => {
         role: MessageRole.User,
         content: 'Old message before epoch',
         guildId: testGuildId,
+        timestamp: seededTimestamp(0),
       });
-
-      // Wait a bit to ensure different timestamp
-      await new Promise(resolve => setTimeout(resolve, 50));
-      const epochTime = new Date();
-      await new Promise(resolve => setTimeout(resolve, 50));
-
-      // Add second message after epoch
+      const epochTime = seededTimestamp(1);
       await service.addMessage({
         channelId: testChannelId,
         personalityId: testPersonalityId,
@@ -514,6 +514,7 @@ describe('ConversationHistoryService Component Test', () => {
         role: MessageRole.User,
         content: 'New message after epoch',
         guildId: testGuildId,
+        timestamp: seededTimestamp(2),
       });
 
       // Without epoch - should see both
@@ -534,11 +535,11 @@ describe('ConversationHistoryService Component Test', () => {
         role: MessageRole.User,
         content: 'Old message',
         guildId: testGuildId,
+        timestamp: seededTimestamp(0),
       });
 
-      // Set epoch to future
-      const futureEpoch = new Date();
-      futureEpoch.setDate(futureEpoch.getDate() + 1);
+      // Epoch well after the seeded message — deterministic, no real clock.
+      const futureEpoch = seededTimestamp(100);
 
       const history = await service.getChannelHistory(testChannelId, 10, futureEpoch);
       expect(history).toEqual([]);
@@ -547,7 +548,10 @@ describe('ConversationHistoryService Component Test', () => {
 
   describe('getHistory (paginated) with contextEpoch', () => {
     it('should filter paginated results by epoch', async () => {
-      // Add messages before epoch
+      // Seeded timestamps: two "before" rows at indices 0,1 and two "after" rows at
+      // 2,3. The epoch sits strictly BETWEEN index 1 and 2 (a message coincides with
+      // index 1, so the boundary is t1+500ms — excludes "Before epoch 2", includes
+      // "After epoch 1"). Deterministic + collision-free (see seededTimestamp note).
       await service.addMessage({
         channelId: testChannelId,
         personalityId: testPersonalityId,
@@ -555,6 +559,7 @@ describe('ConversationHistoryService Component Test', () => {
         role: MessageRole.User,
         content: 'Before epoch 1',
         guildId: testGuildId,
+        timestamp: seededTimestamp(0),
       });
       await service.addMessage({
         channelId: testChannelId,
@@ -563,11 +568,10 @@ describe('ConversationHistoryService Component Test', () => {
         role: MessageRole.User,
         content: 'Before epoch 2',
         guildId: testGuildId,
+        timestamp: seededTimestamp(1),
       });
 
-      await new Promise(resolve => setTimeout(resolve, 50));
-      const epochTime = new Date();
-      await new Promise(resolve => setTimeout(resolve, 50));
+      const epochTime = new Date(seededTimestamp(1).getTime() + 500);
 
       // Add messages after epoch
       await service.addMessage({
@@ -577,6 +581,7 @@ describe('ConversationHistoryService Component Test', () => {
         role: MessageRole.User,
         content: 'After epoch 1',
         guildId: testGuildId,
+        timestamp: seededTimestamp(2),
       });
       await service.addMessage({
         channelId: testChannelId,
@@ -585,6 +590,7 @@ describe('ConversationHistoryService Component Test', () => {
         role: MessageRole.User,
         content: 'After epoch 2',
         guildId: testGuildId,
+        timestamp: seededTimestamp(3),
       });
 
       // Without epoch - should see all 4
@@ -659,7 +665,9 @@ describe('ConversationHistoryService Component Test', () => {
     });
 
     it('should filter stats by epoch', async () => {
-      // Add messages before epoch
+      // Seeded timestamps: two "before" rows at indices 0,1; the epoch sits strictly
+      // between index 1 and 2 (t1+500ms); one "after" row at index 2. Deterministic +
+      // collision-free for the same-key rows (see seededTimestamp note).
       await service.addMessage({
         channelId: testChannelId,
         personalityId: testPersonalityId,
@@ -667,6 +675,7 @@ describe('ConversationHistoryService Component Test', () => {
         role: MessageRole.User,
         content: 'Before epoch',
         guildId: testGuildId,
+        timestamp: seededTimestamp(0),
       });
       await service.addMessage({
         channelId: testChannelId,
@@ -675,11 +684,10 @@ describe('ConversationHistoryService Component Test', () => {
         role: MessageRole.Assistant,
         content: 'Before epoch response',
         guildId: testGuildId,
+        timestamp: seededTimestamp(1),
       });
 
-      await new Promise(resolve => setTimeout(resolve, 50));
-      const epochTime = new Date();
-      await new Promise(resolve => setTimeout(resolve, 50));
+      const epochTime = new Date(seededTimestamp(1).getTime() + 500);
 
       // Add messages after epoch
       await service.addMessage({
@@ -689,6 +697,7 @@ describe('ConversationHistoryService Component Test', () => {
         role: MessageRole.User,
         content: 'After epoch',
         guildId: testGuildId,
+        timestamp: seededTimestamp(2),
       });
 
       // Stats without epoch
