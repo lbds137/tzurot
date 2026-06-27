@@ -153,9 +153,14 @@ function createEditConfigHandler(
       () =>
         prisma.llmConfig.findUnique({
           where: { id: configId },
-          select: { id: true, name: true, isGlobal: true },
+          select: { id: true, name: true, isGlobal: true, kind: true },
         }),
-      { notFoundResource: CONFIG_RESOURCE, resourceLabel: CONFIG_LABEL, operation: 'edit' }
+      {
+        notFoundResource: CONFIG_RESOURCE,
+        resourceLabel: CONFIG_LABEL,
+        operation: 'edit',
+        requireKind: 'text',
+      }
     );
     if (existing === null) {
       return;
@@ -198,12 +203,13 @@ function createSetDefaultHandler(service: LlmConfigService, prisma: PrismaClient
       () =>
         prisma.llmConfig.findUnique({
           where: { id: configId },
-          select: { id: true, name: true, isGlobal: true },
+          select: { id: true, name: true, isGlobal: true, kind: true },
         }),
       {
         notFoundResource: CONFIG_RESOURCE,
         resourceLabel: CONFIG_LABEL,
         operation: 'set as system default',
+        requireKind: 'text',
       }
     );
     if (config === null) {
@@ -226,12 +232,13 @@ function createSetFreeDefaultHandler(service: LlmConfigService, prisma: PrismaCl
       () =>
         prisma.llmConfig.findUnique({
           where: { id: configId },
-          select: { id: true, name: true, isGlobal: true, model: true },
+          select: { id: true, name: true, isGlobal: true, model: true, kind: true },
         }),
       {
         notFoundResource: CONFIG_RESOURCE,
         resourceLabel: CONFIG_LABEL,
         operation: 'set as free tier default',
+        requireKind: 'text',
       }
     );
     if (config === null) {
@@ -263,9 +270,21 @@ function createDeleteConfigHandler(service: LlmConfigService, prisma: PrismaClie
       () =>
         prisma.llmConfig.findUnique({
           where: { id: configId },
-          select: { id: true, name: true, isGlobal: true, isDefault: true, isFreeDefault: true },
+          select: {
+            id: true,
+            name: true,
+            isGlobal: true,
+            isDefault: true,
+            isFreeDefault: true,
+            kind: true,
+          },
         }),
-      { notFoundResource: CONFIG_RESOURCE, resourceLabel: CONFIG_LABEL, operation: 'delete' }
+      {
+        notFoundResource: CONFIG_RESOURCE,
+        resourceLabel: CONFIG_LABEL,
+        operation: 'delete',
+        requireKind: 'text',
+      }
     );
     if (config === null) {
       return;

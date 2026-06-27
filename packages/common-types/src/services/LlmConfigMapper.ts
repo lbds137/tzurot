@@ -187,9 +187,15 @@ function toNumber(value: unknown): number | null {
  * propagating an unknown discriminator through the resolver cascade.
  */
 function toConfigKind(value: string): ConfigKind {
-  return (CONFIG_KINDS as readonly string[]).includes(value)
-    ? (value as ConfigKind)
-    : DEFAULT_CONFIG_KIND;
+  if ((CONFIG_KINDS as readonly string[]).includes(value)) {
+    return value as ConfigKind;
+  }
+  // Should never fire (the column is constrained + defaulted) — but if a malformed
+  // kind reaches here via schema drift or a partial deploy, the silent floor to 'text'
+  // would make a vision row resolve as text and quietly fall to the vision fallback.
+  // Warn so the drift is observable rather than invisible.
+  logger.warn({ actual: value }, 'Unknown LlmConfig.kind — flooring to default (text)');
+  return DEFAULT_CONFIG_KIND;
 }
 
 export function mapLlmConfigFromDb(raw: RawLlmConfigFromDb): MappedLlmConfig {

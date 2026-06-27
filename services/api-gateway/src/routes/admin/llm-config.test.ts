@@ -731,6 +731,23 @@ describe('Admin LLM Config Routes', () => {
       expect(response.status).toBe(400);
       expect(response.body.message).toMatch(/only global/i);
     });
+
+    it('rejects a kind=vision config (vision is seed/DB-only on the text surface)', async () => {
+      // The requireKind:'text' gate makes a vision UUID look not-found here, so an admin
+      // can't flip the vision default through the text-preset admin surface in Phase 1.
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'vision-default',
+        name: 'vision-default',
+        isGlobal: true,
+        kind: 'vision',
+      });
+
+      const response = await request(app).put('/admin/llm-config/vision-default/set-default');
+
+      expect(response.status).toBe(404);
+      // The vision default must NOT have been touched through the text surface.
+      expect(prisma.llmConfig.updateMany).not.toHaveBeenCalled();
+    });
   });
 
   describe('PUT /admin/llm-config/:id/set-free-default', () => {
@@ -849,6 +866,24 @@ describe('Admin LLM Config Routes', () => {
 
       expect(response.status).toBe(400);
       expect(response.body.message).toMatch(/only.*global/i);
+    });
+
+    it('rejects deleting a kind=vision config (guards the seeded vision default)', async () => {
+      // Without the requireKind:'text' gate, an admin could DELETE the seeded
+      // vision-default via the text surface, dropping vision to the hardcoded fallback.
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'vision-default',
+        name: 'vision-default',
+        isGlobal: true,
+        isDefault: true,
+        isFreeDefault: false,
+        kind: 'vision',
+      });
+
+      const response = await request(app).delete('/admin/llm-config/vision-default');
+
+      expect(response.status).toBe(404);
+      expect(prisma.llmConfig.delete).not.toHaveBeenCalled();
     });
 
     it('should reject deleting the system default config', async () => {

@@ -866,4 +866,146 @@ describe('LlmConfigService Integration', () => {
       expect(hit.exists).toBe(true);
     });
   });
+
+  describe('per-kind partial-unique constraints (DB-level, via PGLite)', () => {
+    // Guards the hand-written partial-unique indexes Prisma can't represent (harvested
+    // into the PGLite schema by generate-schema.ts): text and vision each get their OWN
+    // default / free-default / global-name namespace. This is the core "vision is a
+    // first-class, independently-defaulted config axis" guarantee — verified against the
+    // real Postgres engine (PGLite), since the unit tier mocks the DB and can't see it.
+    // Generic over the overrides so their keys (id, name, kind, …) survive in the
+    // return type — a non-generic `Record<string, unknown>` param would erase them and
+    // leave the merged object missing the required `id`/`name` at the type level.
+    const baseConfig = <T extends Record<string, unknown>>(overrides: T) => ({
+      model: 'test/model',
+      provider: 'openrouter',
+      ownerId: adminUserId,
+      contextWindowTokens: 100000,
+      maxMessages: 25,
+      maxImages: 5,
+      ...overrides,
+    });
+
+    it('allows one text default AND one vision default to coexist (per-kind isDefault)', async () => {
+      await prisma.llmConfig.create({
+        data: baseConfig({
+          id: newLlmConfigId(),
+          name: 'text-default',
+          kind: 'text',
+          isGlobal: true,
+          isDefault: true,
+        }),
+      });
+      // Same isDefault=true but kind='vision' → must NOT collide with the text default.
+      await expect(
+        prisma.llmConfig.create({
+          data: baseConfig({
+            id: newLlmConfigId(),
+            name: 'vision-default',
+            kind: 'vision',
+            isGlobal: true,
+            isDefault: true,
+          }),
+        })
+      ).resolves.toBeDefined();
+    });
+
+    it('rejects a second default of the same kind (llm_configs_default_unique)', async () => {
+      await prisma.llmConfig.create({
+        data: baseConfig({
+          id: newLlmConfigId(),
+          name: 'first-default',
+          kind: 'text',
+          isGlobal: true,
+          isDefault: true,
+        }),
+      });
+      await expect(
+        prisma.llmConfig.create({
+          data: baseConfig({
+            id: newLlmConfigId(),
+            name: 'second-default',
+            kind: 'text',
+            isGlobal: true,
+            isDefault: true,
+          }),
+        })
+      ).rejects.toThrow();
+    });
+
+    it('allows one text + one vision free-default to coexist (per-kind isFreeDefault)', async () => {
+      await prisma.llmConfig.create({
+        data: baseConfig({
+          id: newLlmConfigId(),
+          name: 'text-free',
+          kind: 'text',
+          isGlobal: true,
+          isFreeDefault: true,
+        }),
+      });
+      await expect(
+        prisma.llmConfig.create({
+          data: baseConfig({
+            id: newLlmConfigId(),
+            name: 'vision-free',
+            kind: 'vision',
+            isGlobal: true,
+            isFreeDefault: true,
+          }),
+        })
+      ).resolves.toBeDefined();
+    });
+
+    it('scopes the global-name unique by kind (same name, different kind coexist)', async () => {
+      // Different owners on purpose: the owner-scoped `owner_id+name` unique would fire
+      // first for same-owner rows. `llm_configs_global_name_unique` is what guards
+      // CROSS-owner global name clashes, and it's scoped by kind — so the same global
+      // name under different kinds must coexist.
+      await prisma.llmConfig.create({
+        data: baseConfig({
+          id: newLlmConfigId(),
+          name: 'shared-name',
+          kind: 'text',
+          isGlobal: true,
+          ownerId: adminUserId,
+        }),
+      });
+      await expect(
+        prisma.llmConfig.create({
+          data: baseConfig({
+            id: newLlmConfigId(),
+            name: 'shared-name',
+            kind: 'vision',
+            isGlobal: true,
+            ownerId: testUserId,
+          }),
+        })
+      ).resolves.toBeDefined();
+    });
+
+    it('rejects two cross-owner global configs of the same kind+name (llm_configs_global_name_unique)', async () => {
+      // Different owners bypass `owner_id+name`, isolating the global-name partial unique:
+      // two GLOBAL configs of the same kind+name must be rejected regardless of owner.
+      await prisma.llmConfig.create({
+        data: baseConfig({
+          id: newLlmConfigId(),
+          name: 'dup',
+          kind: 'text',
+          isGlobal: true,
+          ownerId: adminUserId,
+        }),
+      });
+      await expect(
+        prisma.llmConfig.create({
+          data: baseConfig({
+            id: newLlmConfigId(),
+            name: 'dup',
+            kind: 'text',
+            isGlobal: true,
+            ownerId: testUserId,
+          }),
+        })
+      ).rejects.toThrow();
+    });
+  });
 });
