@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { TimeoutError, isTimeoutError, normalizeErrorForLogging } from './errors.js';
+import {
+  TimeoutError,
+  isTimeoutError,
+  AudioTooLongError,
+  isTooLongError,
+  normalizeErrorForLogging,
+} from './errors.js';
 
 describe('TimeoutError', () => {
   it('constructs with timeoutMs, operationName, and formatted message', () => {
@@ -36,6 +42,39 @@ describe('isTimeoutError', () => {
     expect(isTimeoutError(null)).toBe(false);
     expect(isTimeoutError('TimeoutError')).toBe(false);
     expect(isTimeoutError({ name: 'TimeoutError' })).toBe(false);
+  });
+});
+
+describe('AudioTooLongError', () => {
+  it('uses the provided detail as the message', () => {
+    const err = new AudioTooLongError('Audio too long (800s). Maximum is 720s.');
+    expect(err.name).toBe('AudioTooLongError');
+    expect(err.message).toBe('Audio too long (800s). Maximum is 720s.');
+  });
+
+  it('falls back to a default message when no detail is given', () => {
+    const err = new AudioTooLongError();
+    expect(err.name).toBe('AudioTooLongError');
+    expect(err.message).toBe('Audio exceeds the maximum supported duration');
+  });
+});
+
+describe('isTooLongError', () => {
+  it('returns true for our AudioTooLongError class', () => {
+    expect(isTooLongError(new AudioTooLongError())).toBe(true);
+  });
+
+  it('returns true for a native Error tagged with name "AudioTooLongError"', () => {
+    const err = new Error('too long');
+    err.name = 'AudioTooLongError';
+    expect(isTooLongError(err)).toBe(true);
+  });
+
+  it('returns false for a TimeoutError and generic/non-Error values', () => {
+    expect(isTooLongError(new TimeoutError(1, 'op'))).toBe(false);
+    expect(isTooLongError(new Error('boom'))).toBe(false);
+    expect(isTooLongError(null)).toBe(false);
+    expect(isTooLongError({ name: 'AudioTooLongError' })).toBe(false);
   });
 });
 

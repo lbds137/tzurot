@@ -11,16 +11,56 @@ import {
   createLogger,
   CONTENT_TYPES,
   RETRY_CONFIG,
+  isTimeoutError,
+  isTooLongError,
   type AudioTranscriptionJobData,
   type AudioTranscriptionResult,
+  type SttFailureReason,
   audioTranscriptionJobDataSchema,
   type SttDispatch,
 } from '@tzurot/common-types';
 import { transcribeAudio } from '../services/multimodal/AudioProcessor.js';
-import { withRetry } from '../utils/retry.js';
+import { withRetry, RetryError } from '../utils/retry.js';
 import { checkQueueAge } from '../utils/jobAgeGate.js';
 
 const logger = createLogger('AudioTranscriptionJob');
+
+/**
+ * Outer-retry eligibility for the transcription job. Three classes fast-fail —
+ * re-running them just wastes time on a guaranteed-identical failure, and re-grinding
+ * a timeout would blow the (now larger) budget up to 3×:
+ *   - config errors ("No STT provider available") — no provider appears on retry
+ *   - timeouts — audio too slow for the budget; a retry hits the same wall
+ *   - too-long — a deterministic over-the-cap rejection
+ * Everything else (transient network / 5xx) stays retryable.
+ */
+function isRetryableTranscriptionError(err: unknown): boolean {
+  if (err instanceof Error && err.message.startsWith('No STT provider available')) {
+    return false;
+  }
+  if (isTimeoutError(err) || isTooLongError(err)) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Map a transcription failure's ROOT cause to the wire-level reason code carried in
+ * the job result (Error instances can't survive the BullMQ/Redis boundary, so
+ * bot-client reconstructs the right user message from this code).
+ */
+function classifyFailureReason(root: unknown): SttFailureReason {
+  if (isTimeoutError(root)) {
+    return 'timeout';
+  }
+  if (isTooLongError(root)) {
+    return 'too_long';
+  }
+  if (root instanceof Error && root.message.startsWith('No STT provider available')) {
+    return 'unavailable';
+  }
+  return 'other';
+}
 
 /**
  * Process audio transcription job
@@ -84,8 +124,7 @@ export async function processAudioTranscriptionJob(
     // instead of wasting ~30s on guaranteed-identical failures.
     const result = await withRetry(() => transcribeAudio(attachment, sttOpts), {
       maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
-      shouldRetry: err =>
-        !(err instanceof Error && err.message.startsWith('No STT provider available')),
+      shouldRetry: isRetryableTranscriptionError,
       logger,
       operationName: `Audio transcription (${attachment.name})`,
     });
@@ -126,12 +165,22 @@ export async function processAudioTranscriptionJob(
   } catch (error) {
     const processingTimeMs = Date.now() - startTime;
 
-    logger.error({ err: error, jobId: job.id, requestId }, 'Audio transcription failed');
+    // withRetry wraps the cause in a RetryError; unwrap to classify the root cause so
+    // bot-client can render a precise message ("too long" / "taking too long") instead
+    // of the generic failure.
+    const root = error instanceof RetryError ? error.lastError : error;
+    const failureReason = classifyFailureReason(root);
+
+    logger.error(
+      { err: error, jobId: job.id, requestId, failureReason },
+      'Audio transcription failed'
+    );
 
     return {
       requestId,
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
+      failureReason,
       attachmentUrl: attachment.url,
       attachmentName: attachment.name,
       sourceReferenceNumber,

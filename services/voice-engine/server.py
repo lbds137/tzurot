@@ -16,6 +16,7 @@ import os
 import re
 import secrets
 import tempfile
+import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager, suppress
 from functools import partial
@@ -106,6 +107,26 @@ MAX_TTS_TEXT_LENGTH: int = 2000
 # Note: api-gateway caps stored voice references at 10MB (VOICE_REFERENCE_LIMITS);
 # this higher limit allows direct uploads to the voice engine for testing/registration.
 MAX_AUDIO_UPLOAD_BYTES: int = 50 * 1024 * 1024
+
+# STT long-audio chunking — Parakeet TDT runs on CPU and a single long pass scales
+# poorly (a 6-min message took ~213s in prod, exceeding the ai-worker's per-attempt
+# STT timeout), and one large array risks OOM on the 4GB ceiling. Audio longer than
+# the threshold is split into overlapping windows, each transcribed in its own NeMo
+# call, and the per-window texts are stitched with overlap de-duplication.
+STT_SAMPLE_RATE: int = 16000
+# Only chunk above this duration; at/below it the exact single-pass path is preserved.
+STT_CHUNK_THRESHOLD_SEC: float = 120.0
+# Window length per chunk. Conservative default — tune from real dev-usage timing.
+STT_CHUNK_WINDOW_SEC: float = 60.0
+# Overlap between adjacent windows so a word straddling a cut lands whole in at least
+# one window; the duplicated words are removed when stitching (see _merge_overlap).
+STT_CHUNK_OVERLAP_SEC: float = 2.0
+# Hard ceiling — reject (413) before any inference. ~12-min cap chosen with the user;
+# beyond this a synchronous wait is impractical (see async-transcription backlog item).
+MAX_AUDIO_DURATION_SEC: float = 12 * 60.0  # 720s
+# Max words compared on each side of a seam when de-duplicating window overlap.
+# 2s overlap at typical speech rates is well under this; the cap bounds the scan.
+STT_OVERLAP_DEDUP_MAX_WORDS: int = 12
 
 # Allowed audio extensions for voice registration
 _AUDIO_EXTENSIONS: dict[str, str] = {
@@ -351,6 +372,180 @@ def health() -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# STT long-audio chunking helpers
+# ---------------------------------------------------------------------------
+def _chunk_audio_array(
+    audio_array: np.ndarray[Any, np.dtype[np.floating[Any]]],
+    sample_rate: int,
+    window_sec: float,
+    overlap_sec: float,
+) -> list[np.ndarray[Any, np.dtype[np.floating[Any]]]]:
+    """Split a 1-D audio array into overlapping windows.
+
+    Windows are numpy VIEWS (no copy), so this is memory-cheap; the overlap means a
+    word straddling a cut still appears whole in at least one window. Always returns
+    >= 1 window. `step` is clamped to >= 1 so a misconfigured overlap >= window can't
+    spin forever.
+    """
+    window_samples = max(1, int(window_sec * sample_rate))
+    overlap_samples = max(0, int(overlap_sec * sample_rate))
+    step = max(1, window_samples - overlap_samples)
+    total = len(audio_array)
+    chunks: list[np.ndarray[Any, np.dtype[np.floating[Any]]]] = []
+    start = 0
+    while start < total:
+        end = min(start + window_samples, total)
+        chunks.append(audio_array[start:end])
+        if end >= total:
+            break
+        start += step
+    return chunks
+
+
+async def _transcribe_chunks(
+    asr_model: Any,
+    chunks: list[np.ndarray[Any, np.dtype[np.floating[Any]]]],
+    loop: asyncio.AbstractEventLoop,
+) -> tuple[list[str], list[float]]:
+    """Transcribe each window in its OWN NeMo call, serialized per-call by
+    `_asr_inference_lock`.
+
+    The lock is acquired PER WINDOW, not across the whole batch: NeMo's
+    freeze/unfreeze state is per-model (see the lock's definition), so each
+    `.transcribe()` call must be exclusive — but holding the lock for the entire
+    multi-minute batch would block every other request's transcription. Per-window
+    acquisition keeps each call exclusive while letting other requests interleave
+    between this one's windows.
+
+    Returns the per-window texts plus per-window PURE inference seconds — the timer
+    is taken INSIDE the lock so concurrent requests' lock-wait time doesn't pollute
+    the per-window number used to tune the window size. (Total request wall time,
+    which does include scheduling, is logged separately as `inference_sec`.)
+    """
+    texts: list[str] = []
+    per_chunk_sec: list[float] = []
+    for chunk in chunks:
+        async with _asr_inference_lock:
+            started = time.monotonic()
+            results: list[Any] = await loop.run_in_executor(None, asr_model.transcribe, [chunk])
+            per_chunk_sec.append(time.monotonic() - started)
+        texts.append(results[0].text if results else "")
+        # chunks are numpy VIEWS into the still-alive audio_array, so there's nothing
+        # per-window to free by deleting the loop var; gc.collect() forces collection
+        # of NeMo's per-window cyclic intermediates between windows to bound peak RSS.
+        gc.collect()
+    return texts, per_chunk_sec
+
+
+def _normalize_token(token: str) -> str:
+    """Lowercase + strip non-word chars, for overlap COMPARISON only. The original
+    casing and punctuation are preserved in the stitched output."""
+    return re.sub(r"[^\w]", "", token).lower()
+
+
+def _merge_overlap(left: str, right: str, max_words: int = STT_OVERLAP_DEDUP_MAX_WORDS) -> str:
+    """Append `right` to `left`, dropping the longest run of leading `right` words
+    that duplicates the trailing `left` words (windows overlap by design).
+
+    Comparison is case/punctuation-insensitive; surviving words keep their original
+    form. Scans at most `max_words` on each side. No match (e.g. overlap fell in
+    silence) → a plain space-join.
+    """
+    left_words = left.split()
+    right_words = right.split()
+    if not left_words:
+        return right
+    if not right_words:
+        return left
+    left_norm = [_normalize_token(w) for w in left_words]
+    right_norm = [_normalize_token(w) for w in right_words]
+    overlap = 0
+    max_k = min(max_words, len(left_words), len(right_words))
+    for k in range(max_k, 0, -1):
+        if left_norm[-k:] == right_norm[:k]:
+            overlap = k
+            break
+    surviving = right_words[overlap:]
+    if not surviving:
+        return left
+    return f"{left} {' '.join(surviving)}"
+
+
+def _join_chunk_texts(texts: list[str]) -> str:
+    """Stitch per-window transcripts into one string, de-duplicating overlap seams.
+    Empty/silent windows contribute nothing."""
+    result = ""
+    for text in texts:
+        stripped = text.strip()
+        if not stripped:
+            continue
+        result = stripped if not result else _merge_overlap(result, stripped)
+    return result
+
+
+def _realtime_factor(inference_sec: float, audio_sec: float) -> float:
+    """Inference seconds per second of audio (lower = faster than realtime). 0.0 for
+    empty audio. Logged so the window size + caller STT timeout are tunable from prod."""
+    return round(inference_sec / audio_sec, 3) if audio_sec > 0 else 0.0
+
+
+async def _run_asr(
+    asr_model: Any,
+    audio_array: np.ndarray[Any, np.dtype[np.floating[Any]]],
+    audio_sec: float,
+    loop: asyncio.AbstractEventLoop,
+) -> str:
+    """Transcribe a decoded/resampled array: a single pass for short audio, the
+    chunked path for long. Emits structured timing (audio_sec / inference_sec /
+    realtime factor, plus per-window timing when chunked) for prod-log tuning.
+
+    Caller holds `_inference_semaphore`; this acquires `_asr_inference_lock`
+    per NeMo call (directly for the single pass, inside `_transcribe_chunks` for
+    the chunked path).
+    """
+    started = time.monotonic()
+
+    if audio_sec <= STT_CHUNK_THRESHOLD_SEC:
+        # NeMo returns objects with a .text attribute; the lock serializes callers
+        # because NeMo's freeze/unfreeze state is per-model (see the lock's docstring).
+        async with _asr_inference_lock:
+            transcriptions: list[Any] = await loop.run_in_executor(None, asr_model.transcribe, [audio_array])
+        text = transcriptions[0].text if transcriptions else ""
+        inference_sec = time.monotonic() - started
+        logger.info(
+            "Transcribed audio",
+            extra={
+                "chars": len(text),
+                "audio_sec": round(audio_sec, 1),
+                "inference_sec": round(inference_sec, 1),
+                "rtf": _realtime_factor(inference_sec, audio_sec),
+                "chunked": False,
+            },
+        )
+        return text
+
+    chunks = _chunk_audio_array(audio_array, STT_SAMPLE_RATE, STT_CHUNK_WINDOW_SEC, STT_CHUNK_OVERLAP_SEC)
+    texts, per_chunk_sec = await _transcribe_chunks(asr_model, chunks, loop)
+    text = _join_chunk_texts(texts)
+    inference_sec = time.monotonic() - started
+    logger.info(
+        "Transcribed audio (chunked)",
+        extra={
+            "chars": len(text),
+            "chunks": len(chunks),
+            "audio_sec": round(audio_sec, 1),
+            "inference_sec": round(inference_sec, 1),
+            "rtf": _realtime_factor(inference_sec, audio_sec),
+            "window_sec": STT_CHUNK_WINDOW_SEC,
+            "overlap_sec": STT_CHUNK_OVERLAP_SEC,
+            "per_chunk_sec": [round(s, 1) for s in per_chunk_sec],
+            "chunked": True,
+        },
+    )
+    return text
+
+
+# ---------------------------------------------------------------------------
 # STT Endpoint
 # ---------------------------------------------------------------------------
 @app.post("/v1/transcribe")
@@ -383,25 +578,34 @@ async def transcribe(file: UploadFile = File(...)) -> dict[str, str]:
             )
 
             # Resample to 16kHz if needed (librosa already returns float32 mono)
-            if sample_rate != 16000:
+            if sample_rate != STT_SAMPLE_RATE:
                 audio_array = await loop.run_in_executor(
                     None,
-                    partial(librosa.resample, audio_array, orig_sr=sample_rate, target_sr=16000),
+                    partial(librosa.resample, audio_array, orig_sr=sample_rate, target_sr=STT_SAMPLE_RATE),
                 )
 
-            # Transcribe — NeMo returns objects with .text attribute. The lock
-            # serializes parallel callers because NeMo's freeze/unfreeze state
-            # is per-model not per-call (see _asr_inference_lock definition).
-            async with _asr_inference_lock:
-                transcriptions: list[Any] = await loop.run_in_executor(None, asr_model.transcribe, [audio_array])
-            # transcriptions is coroutine-local — safe to read after lock release.
-            text: str = transcriptions[0].text if transcriptions else ""
+            audio_sec = len(audio_array) / STT_SAMPLE_RATE
+            # Hard ceiling — reject before any inference. A too-long synchronous
+            # transcription would blow the caller's STT timeout anyway; failing fast
+            # with a specific message lets the caller surface "too long" to the user.
+            # Note the cap fires AFTER librosa decode, so the decoded array is already
+            # resident (~46 MB for the 12-min cap: 720s x 16kHz x float32) when we
+            # reject — bounded by MAX_AUDIO_UPLOAD_BYTES on the compressed upload and
+            # well within the 4 GB ceiling, so a pre-decode duration check isn't worth
+            # the format-specific header parsing it would require.
+            if audio_sec > MAX_AUDIO_DURATION_SEC:
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"Audio too long ({audio_sec:.0f}s). Maximum is {MAX_AUDIO_DURATION_SEC:.0f}s.",
+                )
+
+            # Single pass for short audio; chunked (memory-bounded, instrumented) for long.
+            text = await _run_asr(asr_model, audio_array, audio_sec, loop)
 
         # Cleanup
         del audio_bytes, audio_array
         gc.collect()
 
-        logger.info("Transcribed audio", extra={"chars": len(text)})
         return {"text": text}
 
     except HTTPException:

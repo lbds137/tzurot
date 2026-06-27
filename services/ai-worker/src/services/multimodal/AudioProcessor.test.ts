@@ -4,10 +4,12 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { transcribeAudio } from './AudioProcessor.js';
+import { VoiceEngineError } from '../voice/VoiceEngineClient.js';
 import {
   CONTENT_TYPES,
   TIMEOUTS,
   TimeoutError,
+  AudioTooLongError,
   type AttachmentMetadata,
 } from '@tzurot/common-types';
 
@@ -301,6 +303,66 @@ describe('AudioProcessor', () => {
           'No STT provider available'
         );
       });
+
+      it('re-throws a TimeoutError instead of laundering it into "No STT provider available"', async () => {
+        // The whole point of the un-laundering fix: a voice-engine timeout must
+        // propagate as a typed TimeoutError so the job can tag failureReason='timeout'
+        // and the bot can say "taking too long" — NOT the generic failure message.
+        vi.useFakeTimers();
+        try {
+          const attachment: AttachmentMetadata = {
+            url: 'https://cdn.discordapp.com/audio.ogg',
+            name: 'audio.ogg',
+            contentType: CONTENT_TYPES.AUDIO_OGG,
+            size: 1024,
+          };
+
+          // TimeoutError is transient → the inner withRetry retries once (3s backoff)
+          // then exhausts, wrapping it in a RetryError whose lastError is the TimeoutError.
+          mockVoiceEngineTranscribe.mockRejectedValue(
+            new TimeoutError(TIMEOUTS.VOICE_ENGINE_API, 'voice engine request')
+          );
+          mockVoiceEngineClient = {
+            transcribe: mockVoiceEngineTranscribe,
+            getHealth: mockGetHealth,
+          };
+          (global.fetch as any).mockResolvedValue({
+            ok: true,
+            arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
+          });
+
+          const promise = transcribeAudio(attachment, { provider: 'voice-engine' });
+          const assertion = expect(promise).rejects.toThrow(TimeoutError);
+          await vi.runAllTimersAsync();
+          await assertion;
+        } finally {
+          vi.useRealTimers();
+        }
+      });
+
+      it('throws AudioTooLongError when voice-engine rejects audio as too long (413)', async () => {
+        const attachment: AttachmentMetadata = {
+          url: 'https://cdn.discordapp.com/audio.ogg',
+          name: 'audio.ogg',
+          contentType: CONTENT_TYPES.AUDIO_OGG,
+          size: 1024,
+        };
+
+        // 413 is non-transient → fast-fails (no retry/backoff). Must propagate as a
+        // typed AudioTooLongError, not be swallowed to null.
+        mockVoiceEngineTranscribe.mockRejectedValue(
+          new VoiceEngineError(413, 'Audio too long (800s). Maximum is 720s.')
+        );
+        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe, getHealth: mockGetHealth };
+        (global.fetch as any).mockResolvedValue({
+          ok: true,
+          arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
+        });
+
+        await expect(transcribeAudio(attachment, { provider: 'voice-engine' })).rejects.toThrow(
+          AudioTooLongError
+        );
+      });
     });
 
     describe('voice-engine warm-up', () => {
@@ -532,8 +594,8 @@ describe('AudioProcessor', () => {
 
     describe('voice-engine retry global-timeout short-circuit', () => {
       // Verifies the asymmetric globalTimeoutMs semantics in AudioProcessor.ts:
-      // when attempt 1 consumes its full VOICE_ENGINE_API timeout (180s), the
-      // global-timeout check at the head of attempt 2 fires (elapsed 183s ≥ 180s)
+      // when attempt 1 consumes its full VOICE_ENGINE_API timeout (480s), the
+      // global-timeout check at the head of attempt 2 fires (elapsed 483s ≥ 480s)
       // and aborts before voiceEngineClient.transcribe is invoked a second time.
       // Fast-fail attempts (a few seconds) still get retried — covered above.
       //
@@ -565,21 +627,23 @@ describe('AudioProcessor', () => {
       it('should skip attempt 2 when attempt 1 consumes the full per-attempt timeout', async () => {
         // Simulate a full-timeout attempt: advance the fake clock by VOICE_ENGINE_API
         // before throwing. withRetry reads Date.now() (mocked by fake timers) for
-        // elapsed-time tracking, so it observes 180s consumed by this attempt.
+        // elapsed-time tracking, so it observes 480s consumed by this attempt.
         mockVoiceEngineTranscribe.mockImplementation(async () => {
           vi.advanceTimersByTime(TIMEOUTS.VOICE_ENGINE_API);
           throw new TimeoutError(TIMEOUTS.VOICE_ENGINE_API, 'Voice Engine STT');
         });
 
         const promise = transcribeAudio(retryAttachment, { provider: 'voice-engine' });
-        const assertion = expect(promise).rejects.toThrow('No STT provider available');
+        // The timeout now propagates as a typed TimeoutError (no longer laundered into
+        // "No STT provider available") so the job can tag failureReason='timeout'.
+        const assertion = expect(promise).rejects.toThrow(TimeoutError);
 
         await vi.runAllTimersAsync();
         await assertion;
 
-        // globalTimeoutMs fires at the head of attempt 2 (elapsed 183s ≥ 180s),
+        // globalTimeoutMs fires at the head of attempt 2 (elapsed 483s ≥ 480s),
         // so transcribe is invoked exactly once. With globalTimeoutMs unset or
-        // set above 183s, this would be called twice.
+        // set above 483s, this would be called twice.
         expect(mockVoiceEngineTranscribe).toHaveBeenCalledTimes(1);
       });
     });

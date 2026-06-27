@@ -78,8 +78,10 @@ function calculateTimeoutWithRetries(
  * calculateJobTimeout(5, 0) // 273s + 480s + 15s = 768s
  *
  * @example
- * // 1 audio: audio with retries + LLM + overhead
- * calculateJobTimeout(0, 1) // 633s + 480s + 15s = 1128s (capped at 1200s)
+ * // 1 audio: audio with retries + LLM + overhead exceeds the worker-lock cap.
+ * // Audio component = (30s fetch + 480s STT) × 3 attempts + 3s = 1533s; + 480s LLM
+ * // + 15s = 2028s, clamped to WORKER_LOCK_DURATION.
+ * calculateJobTimeout(0, 1) // capped at 1200s (20 min)
  */
 export function calculateJobTimeout(imageCount: number, audioCount = 0): number {
   let timeout = TIMEOUTS.SYSTEM_OVERHEAD; // 15s
@@ -89,7 +91,10 @@ export function calculateJobTimeout(imageCount: number, audioCount = 0): number 
   const imageProcessingTime =
     imageCount > 0 ? calculateTimeoutWithRetries(TIMEOUTS.VISION_MODEL) : 0;
 
-  // Audio: (30s fetch + 180s STT) per attempt × 3 attempts + backoff delays = 633s
+  // Audio: (30s fetch + 480s STT) per attempt × 3 attempts + backoff delays = 1533s.
+  // With the long-audio STT budget, this alone exceeds WORKER_LOCK_DURATION, so an
+  // audio request's job timeout clamps to that 20-min ceiling below (the actual STT
+  // call self-limits to one ~480s attempt, so the cap is a safety net, not the budget).
   const audioProcessingTime =
     audioCount > 0
       ? calculateTimeoutWithRetries(TIMEOUTS.AUDIO_FETCH + TIMEOUTS.VOICE_ENGINE_API)
