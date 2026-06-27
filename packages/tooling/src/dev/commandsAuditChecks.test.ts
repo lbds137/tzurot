@@ -244,6 +244,32 @@ describe('commandsAuditChecks: option-name-drift', () => {
     expect(findings.some(f => f.detail.includes('"count"'))).toBe(true);
   });
 
+  it('does NOT flag type drift for a name in ACCEPTED_OPTION_TYPE_DRIFT (e.g. "type")', () => {
+    const findings = runChecks(
+      manifest([
+        command({
+          name: 'a',
+          description: 'Command A does presence things',
+          data: {
+            name: 'a',
+            description: 'Command A does presence things',
+            options: [{ type: 4 /* integer */, name: 'type', description: 'Activity type enum' }],
+          },
+        }),
+        command({
+          name: 'b',
+          description: 'Command B does deny things',
+          data: {
+            name: 'b',
+            description: 'Command B does deny things',
+            options: [{ type: 3 /* string */, name: 'type', description: 'Entity type string' }],
+          },
+        }),
+      ])
+    ).filter(f => f.rule === 'option-name-drift');
+    expect(findings.some(f => f.detail.includes('"type"'))).toBe(false);
+  });
+
   it('flags near-synonym option names used across the surface', () => {
     const findings = runChecks(
       manifest([
