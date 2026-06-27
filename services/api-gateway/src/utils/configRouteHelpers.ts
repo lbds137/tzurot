@@ -82,7 +82,7 @@ export type GlobalGuardOperation =
  * a global config. On not-found → 404; on non-global → 400 with operation-scoped
  * wording. Returns the row on success, null on failure (error already sent).
  */
-export async function findGlobalConfigOrSendError<T extends { isGlobal: boolean }>(
+export async function findGlobalConfigOrSendError<T extends { isGlobal: boolean; kind?: string }>(
   res: Response,
   fetchRow: () => Promise<T | null>,
   options: {
@@ -92,6 +92,14 @@ export async function findGlobalConfigOrSendError<T extends { isGlobal: boolean 
     resourceLabel: string;
     /** Operation being attempted — determines guard wording. */
     operation: GlobalGuardOperation;
+    /**
+     * When set, reject (as not-found) any row whose `kind` is present AND differs.
+     * Gates the text-preset admin surface from editing/deleting/(un)defaulting
+     * kind='vision' rows, which are seed/DB-only in Phase 1. The `kind !== undefined`
+     * leniency is a production no-op (the column is NOT NULL with a default) — it only
+     * spares callers/tests that don't select `kind`. Requires `kind` in the select.
+     */
+    requireKind?: string;
   }
 ): Promise<T | null> {
   const row = await fetchRow();
@@ -106,6 +114,15 @@ export async function findGlobalConfigOrSendError<T extends { isGlobal: boolean 
         formatGlobalGuardMessage(options.operation, options.resourceLabel)
       )
     );
+    return null;
+  }
+  if (
+    options.requireKind !== undefined &&
+    row.kind !== undefined &&
+    row.kind !== options.requireKind
+  ) {
+    // A wrong-kind row is "not found" on this surface — don't reveal it exists elsewhere.
+    sendError(res, ErrorResponses.notFound(options.notFoundResource));
     return null;
   }
   return row;

@@ -969,6 +969,32 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
       expect(flowCall.data.personality.visionModel).toBe('vision-global-default');
     });
 
+    it('does NOT stamp the hardcoded-fallback vision model (bootstrap window)', async () => {
+      // source='hardcoded' = the resolver hit MODEL_DEFAULTS.VISION_FALLBACK because no
+      // vision globals are seeded yet. Stamping it would force selectVisionModel priority-1
+      // to the slow fallback; leaving visionModel unstamped lets priority-2 (main-model
+      // vision) win downstream — the whole point of the guard.
+      const visionConfigResolver = {
+        resolveConfig: vi.fn().mockResolvedValue({
+          config: { model: 'qwen/qwen3.5-397b-a17b', source: 'hardcoded' },
+          source: 'hardcoded',
+        }),
+      } as unknown as VisionConfigResolver;
+
+      await createJobChain({
+        requestId: 'req-vision-hardcoded',
+        personality: mockPersonality, // no seed visionModel
+        message: 'hi',
+        context: imageAttachmentContext(),
+        responseDestination: mockResponseDestination,
+        visionConfigResolver,
+      });
+
+      const flowCall = (flowProducer.add as any).mock.calls[0][0];
+      // The 397B hardcoded fallback is NOT stamped → visionModel stays unset.
+      expect(flowCall.data.personality.visionModel).toBeUndefined();
+    });
+
     it('does NOT overwrite provider (AuthStep auto-promote relies on the configured provider)', async () => {
       await createJobChain({
         requestId: 'req-provider',

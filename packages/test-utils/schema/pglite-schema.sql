@@ -893,3 +893,13 @@ ALTER TABLE "personalities" ADD CONSTRAINT "valid_birth_year" CHECK ("birth_year
 ALTER TABLE "personas" ADD CONSTRAINT "personas_name_non_empty" CHECK (LENGTH(TRIM("name")) > 0);
 ALTER TABLE "personas" ADD CONSTRAINT "personas_name_not_snowflake" CHECK ("name" !~ '^\d{17,19}$');
 ALTER TABLE "users" ADD CONSTRAINT "valid_default_stt_provider_id" CHECK ("default_stt_provider_id" IS NULL OR "default_stt_provider_id" IN ('mistral', 'elevenlabs', 'voice-engine'));
+
+-- Partial-UNIQUE indexes harvested from prisma/migrations/**/migration.sql
+-- (Prisma's schema-diff can't represent partial indexes, so they're merged
+-- back in here. These enforce per-kind/per-scope uniqueness that PGLite,
+-- being real Postgres-in-WASM, applies just like prod.)
+CREATE UNIQUE INDEX "tts_configs_free_default_unique" ON "tts_configs"("is_free_default") WHERE "is_free_default" = true;
+CREATE UNIQUE INDEX "tts_configs_global_name_unique" ON "tts_configs"("name") WHERE "is_global" = true;
+CREATE UNIQUE INDEX "llm_configs_free_default_unique" ON "llm_configs"("kind") WHERE "is_free_default" = true;
+CREATE UNIQUE INDEX "llm_configs_global_name_unique" ON "llm_configs"("kind", "name") WHERE "is_global" = true;
+CREATE UNIQUE INDEX "llm_configs_default_unique" ON "llm_configs"("kind") WHERE "is_default" = true;

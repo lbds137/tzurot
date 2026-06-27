@@ -361,7 +361,7 @@ describe('generateSchema', () => {
       await generateSchema();
 
       const output = consoleLogSpy.mock.calls.flat().join(' ');
-      expect(output).toContain('2 CHECK constraints preserved');
+      expect(output).toContain('2 CHECK constraints');
     });
 
     it('does not add the CHECK-constraint banner when no CHECKs exist', async () => {
@@ -384,6 +384,183 @@ describe('generateSchema', () => {
 
       const { generateSchema } = await import('./generate-schema.js');
       await expect(generateSchema()).resolves.not.toThrow();
+    });
+  });
+
+  describe('partial-UNIQUE-index preservation', () => {
+    /**
+     * Build a mock-fs layout for a set of migrations. Mirrors the helper in the
+     * CHECK-constraint suite — kept local so each suite is self-contained.
+     */
+    function mockMigrations(migrations: Record<string, string>): void {
+      fsMock.existsSync.mockImplementation((path: string) => {
+        if (path.endsWith('prisma/migrations')) return true;
+        for (const name of Object.keys(migrations)) {
+          if (path.endsWith(`${name}/migration.sql`)) return true;
+        }
+        return false;
+      });
+      fsMock.readdirSync.mockImplementation(() =>
+        Object.keys(migrations).map(name => ({
+          name,
+          isDirectory: () => true,
+        }))
+      );
+      fsMock.readFileSync.mockImplementation((path: string) => {
+        for (const [name, sql] of Object.entries(migrations)) {
+          if (path.endsWith(`${name}/migration.sql`)) return sql;
+        }
+        return '';
+      });
+    }
+
+    it('extracts a single-line partial CREATE UNIQUE INDEX ... WHERE statement', async () => {
+      mockMigrations({
+        '20251127110000_add_partial':
+          'CREATE UNIQUE INDEX "u" ON "t"("kind") WHERE "is_default" = true;',
+      });
+
+      const { generateSchema } = await import('./generate-schema.js');
+      await generateSchema();
+
+      const [, content] = fsMock.writeFileSync.mock.calls[0] as [string, string];
+      expect(content).toContain(
+        'CREATE UNIQUE INDEX "u" ON "t"("kind") WHERE "is_default" = true;'
+      );
+    });
+
+    it('does NOT extract a non-unique partial index (CREATE INDEX ... WHERE)', async () => {
+      // A non-unique partial index enforces nothing, so harvesting it is both
+      // pointless and risky (it could duplicate a name Prisma's diff emits).
+      mockMigrations({
+        '20251127110000_non_unique':
+          'CREATE INDEX "idx_locked" ON "memories"("id") WHERE "is_locked" = true;',
+      });
+
+      const { generateSchema } = await import('./generate-schema.js');
+      await generateSchema();
+
+      const [, content] = fsMock.writeFileSync.mock.calls[0] as [string, string];
+      expect(content).not.toContain('idx_locked');
+      expect(content).not.toContain('Partial-UNIQUE indexes harvested from');
+    });
+
+    it('does NOT extract a non-partial CREATE UNIQUE INDEX (no WHERE clause)', async () => {
+      // Prisma's own diff already emits non-partial unique indexes. Harvesting
+      // one here would create a duplicate-name CREATE → PGLite "index already
+      // exists" error.
+      mockMigrations({
+        '20251127110000_non_partial': 'CREATE UNIQUE INDEX "u_plain" ON "t"("name");',
+      });
+
+      const { generateSchema } = await import('./generate-schema.js');
+      await generateSchema();
+
+      const [, content] = fsMock.writeFileSync.mock.calls[0] as [string, string];
+      expect(content).not.toContain('u_plain');
+      expect(content).not.toContain('Partial-UNIQUE indexes harvested from');
+    });
+
+    it('extracts multi-line partial CREATE UNIQUE INDEX statements, normalizing whitespace', async () => {
+      // The real per-kind rework migration wraps the column list and predicate
+      // across several lines; the extractor must collapse them onto one line.
+      mockMigrations({
+        '20260627040007_vision_config_kind': `
+          CREATE UNIQUE INDEX "llm_configs_global_name_unique"
+            ON "llm_configs"("kind", "name")
+            WHERE "is_global" = true;
+        `,
+      });
+
+      const { generateSchema } = await import('./generate-schema.js');
+      await generateSchema();
+
+      const [, content] = fsMock.writeFileSync.mock.calls[0] as [string, string];
+      expect(content).toContain(
+        'CREATE UNIQUE INDEX "llm_configs_global_name_unique" ON "llm_configs"("kind", "name") WHERE "is_global" = true;'
+      );
+    });
+
+    it('keeps the last migration definition when a partial index is dropped and re-created', async () => {
+      // Realistic shape from the per-kind rework: an earlier migration creates
+      // the index on one column, a later one drops it and recreates it scoped
+      // per `kind`. The last definition (and only that one) must survive.
+      mockMigrations({
+        '20251127110000_first':
+          'CREATE UNIQUE INDEX "u" ON "t"("is_free_default") WHERE "is_free_default" = true;',
+        '20260627040007_second': `
+          DROP INDEX "u";
+          CREATE UNIQUE INDEX "u"
+            ON "t"("kind")
+            WHERE "is_free_default" = true;
+        `,
+      });
+
+      const { generateSchema } = await import('./generate-schema.js');
+      await generateSchema();
+
+      const [, content] = fsMock.writeFileSync.mock.calls[0] as [string, string];
+      // Only one definition of "u" in the output.
+      const matches = content.match(/CREATE UNIQUE INDEX "u"/g) ?? [];
+      expect(matches).toHaveLength(1);
+      // The winning definition is the later (per-kind) one.
+      expect(content).toContain(
+        'CREATE UNIQUE INDEX "u" ON "t"("kind") WHERE "is_free_default" = true;'
+      );
+      expect(content).not.toContain('"t"("is_free_default")');
+    });
+
+    it('removes a partial index that is dropped without re-creating (DROP-only migration)', async () => {
+      mockMigrations({
+        '20251127110000_add': 'CREATE UNIQUE INDEX "u" ON "t"("kind") WHERE "is_default" = true;',
+        '20260501000000_drop': 'DROP INDEX "u";',
+      });
+
+      const { generateSchema } = await import('./generate-schema.js');
+      await generateSchema();
+
+      const [, content] = fsMock.writeFileSync.mock.calls[0] as [string, string];
+      expect(content).not.toContain('"u"');
+    });
+
+    it('also matches the `DROP INDEX IF EXISTS` form', async () => {
+      mockMigrations({
+        '20251127110000_add': 'CREATE UNIQUE INDEX "u2" ON "t"("kind") WHERE "is_default" = true;',
+        '20260501000000_drop': 'DROP INDEX IF EXISTS "u2";',
+      });
+
+      const { generateSchema } = await import('./generate-schema.js');
+      await generateSchema();
+
+      const [, content] = fsMock.writeFileSync.mock.calls[0] as [string, string];
+      expect(content).not.toContain('"u2"');
+    });
+
+    it('reports the partial-UNIQUE-index count in the success message', async () => {
+      mockMigrations({
+        '20251127110000_two': `
+          CREATE UNIQUE INDEX "a" ON "t"("kind") WHERE "x" = true;
+          CREATE UNIQUE INDEX "b" ON "t"("kind") WHERE "y" = true;
+        `,
+      });
+
+      const { generateSchema } = await import('./generate-schema.js');
+      await generateSchema();
+
+      const output = consoleLogSpy.mock.calls.flat().join(' ');
+      expect(output).toContain('2 partial-UNIQUE indexes preserved');
+    });
+
+    it('does not add the partial-UNIQUE banner when no partial-unique indexes exist', async () => {
+      mockMigrations({
+        '20251127110000_none': 'CREATE INDEX "plain_idx" ON "t"("col");',
+      });
+
+      const { generateSchema } = await import('./generate-schema.js');
+      await generateSchema();
+
+      const [, content] = fsMock.writeFileSync.mock.calls[0] as [string, string];
+      expect(content).not.toContain('Partial-UNIQUE indexes harvested from');
     });
   });
 
