@@ -51,6 +51,9 @@ export const voicesResponseSchema = z.object({
 /**
  * FastAPI error body — `{ detail }`. `.parse()` is strict on object shape: a
  * non-object or non-JSON body throws a ZodError, which the caller's catch falls
- * back to the HTTP statusText. Only `detail` (the message) is read when present.
+ * back to the HTTP statusText. `detail` is `.nullish()` (string | null | undefined)
+ * so a `detail: null` body parses cleanly instead of throwing; the caller's
+ * `body.detail ?? response.statusText` covers both null and undefined. Only `detail`
+ * (the message) is read.
  */
-export const errorDetailSchema = z.object({ detail: z.string().optional() });
+export const errorDetailSchema = z.object({ detail: z.string().nullish() });
