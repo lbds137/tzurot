@@ -572,6 +572,17 @@ describe('LlmConfigService', () => {
       expect(prisma.$transaction).toHaveBeenCalled();
       expect(cacheService.invalidateAll).toHaveBeenCalled();
     });
+
+    it('throws when the config no longer exists (delete-between-fetch-and-set race)', async () => {
+      prisma.llmConfig.findUnique.mockResolvedValue(null);
+
+      await expect(service.setAsDefault('nonexistent-id')).rejects.toThrow(
+        'setAsDefault: config nonexistent-id not found'
+      );
+      // A vanished config must never drive the clear+set transaction — an
+      // unscoped clear there would wipe a still-valid kind's default.
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
   });
 
   describe('setAsFreeDefault', () => {
@@ -584,6 +595,15 @@ describe('LlmConfigService', () => {
 
       expect(prisma.$transaction).toHaveBeenCalled();
       expect(cacheService.invalidateAll).toHaveBeenCalled();
+    });
+
+    it('throws when the config no longer exists (delete-between-fetch-and-set race)', async () => {
+      prisma.llmConfig.findUnique.mockResolvedValue(null);
+
+      await expect(service.setAsFreeDefault('nonexistent-id')).rejects.toThrow(
+        'setAsFreeDefault: config nonexistent-id not found'
+      );
+      expect(prisma.$transaction).not.toHaveBeenCalled();
     });
   });
 
