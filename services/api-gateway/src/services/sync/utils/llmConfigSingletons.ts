@@ -9,6 +9,7 @@ import {
   type PrismaClient,
   CONFIG_KINDS,
   type ConfigKind,
+  toConfigKind,
   createLogger,
 } from '@tzurot/common-types';
 
@@ -25,7 +26,7 @@ let pendingResolutions: SingletonResolution[] = [];
 
 interface LlmConfigWithFlags {
   id: string;
-  kind: string;
+  kind: ConfigKind;
   isDefault: boolean;
   isFreeDefault: boolean;
   updatedAt: Date;
@@ -45,8 +46,9 @@ export async function prepareLlmConfigSingletonFlags(
   // Clear any pending resolutions from previous runs
   pendingResolutions = [];
 
-  // Fetch llm_configs with singleton flags from both databases using typed Prisma methods
-  const [devConfigs, prodConfigs] = await Promise.all([
+  // Fetch llm_configs with singleton flags from both databases using typed Prisma methods.
+  // Prisma returns `kind` as a raw string; narrow it to ConfigKind via toConfigKind.
+  const [devRows, prodRows] = await Promise.all([
     devClient.llmConfig.findMany({
       where: { OR: [{ isDefault: true }, { isFreeDefault: true }] },
       select: { id: true, kind: true, isDefault: true, isFreeDefault: true, updatedAt: true },
@@ -56,6 +58,15 @@ export async function prepareLlmConfigSingletonFlags(
       select: { id: true, kind: true, isDefault: true, isFreeDefault: true, updatedAt: true },
     }),
   ]);
+
+  const devConfigs: LlmConfigWithFlags[] = devRows.map(row => ({
+    ...row,
+    kind: toConfigKind(row.kind),
+  }));
+  const prodConfigs: LlmConfigWithFlags[] = prodRows.map(row => ({
+    ...row,
+    kind: toConfigKind(row.kind),
+  }));
 
   // The default / free-default singletons are PER KIND — the partial unique indexes
   // (`llm_configs_default_unique`, `llm_configs_free_default_unique`) are scoped to

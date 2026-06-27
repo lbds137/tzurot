@@ -308,6 +308,8 @@ async function stampResolvedConfig(
   visionConfigResolver?: VisionConfigResolver
 ): Promise<{ personality: LoadedPersonality; configSource: ConfigSourceId }> {
   let stamped = personality;
+  // configSource tracks only the TEXT config axis (which tier of the text cascade
+  // stamped the model). The vision resolution source is intentionally NOT captured here.
   let configSource: ConfigSourceId = 'personality';
 
   // TEXT model: stamp personality.model from the user cascade.
