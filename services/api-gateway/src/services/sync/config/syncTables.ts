@@ -194,10 +194,11 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
       'vision_config_id',
     ],
     timestampColumns: ['created_at', 'updated_at'],
-    // persona_id, llm_config_id, and tts_config_id are synced directly (not
-    // deferred) — personas, llm_configs, and tts_configs all come before
-    // user_personality_configs in SYNC_TABLE_ORDER, so their rows exist by the
-    // time this table is synced; no circular-FK deferral needed.
+    // persona_id, llm_config_id, tts_config_id, and vision_config_id are synced
+    // directly (not deferred) — personas, llm_configs, and tts_configs all come
+    // before user_personality_configs in SYNC_TABLE_ORDER (vision_config_id also
+    // points to llm_configs), so their rows exist by the time this table is
+    // synced; no circular-FK deferral needed.
     // Previously excluded as "user preferences" but that orphaned per-character
     // persona/llm overrides for mirrored users on dev. Same trade-off as on users:
     // the dev user's own overrides will bleed across envs via last-write-wins.
