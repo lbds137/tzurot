@@ -103,6 +103,12 @@ function namedImportsForFile(absPath: string): NamedImport[] {
  * `topology:generate` / `topology:check` invocation runs in a fresh `tsx` process,
  * so a file cannot change between two reads within one run. (Tests that rewrite a
  * fixture between assertions call `clearFileImportCache`.)
+ *
+ * **NOT concurrency-safe**: on a cache miss this parses via `parseNamedImports`,
+ * which reuses one shared in-memory source file (`overwrite: true`). Call it
+ * SERIALLY — a `Promise.all(symbols.map(s => fileImportsSymbol(..., s, ...)))`
+ * would clobber parses mid-flight and return wrong results. (The topology probe
+ * calls it serially.)
  */
 export function fileImportsSymbol(
   absPath: string,
