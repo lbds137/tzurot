@@ -17,20 +17,20 @@
  *    that column NOT NULL.
  * 2. The conflict resolution case — both sides have data, last-write-wins
  *    still picks the right winner without losing the circular FK values.
- * 3. The DEFERRABLE precondition check — confirms the four circular FKs
- *    on both test DBs are in fact deferrable, so the Ouroboros pattern
- *    has something to defer. If the migration is ever reverted without
- *    updating this suite, this test fails first and the author knows
- *    before the pattern silently degrades.
+ * 3. The DEFERRABLE precondition check — confirms the circular FKs plus
+ *    the TTS and vision default FKs on both test DBs are in fact
+ *    deferrable, so the Ouroboros pattern has something to defer. If a
+ *    migration is ever reverted without updating this suite, this test
+ *    fails first and the author knows before the pattern silently degrades.
  * 4. The rollback case — a mid-flush throw aborts the transaction
  *    cleanly; dev remains untouched. Load-bearing for the Ouroboros
  *    pattern since deferred FKs only validate at COMMIT.
  *
  * Setup notes:
  * - `loadPGliteSchema()` returns SQL generated from `schema.prisma`, which
- *   cannot express DEFERRABLE. The DEFERRABLE ALTER statements from
- *   migration 20260418010642 are applied manually in `beforeAll` so the
- *   test environment matches production's constraint shape.
+ *   cannot express DEFERRABLE. The DEFERRABLE ALTER statements (from the
+ *   circular-FK, TTS, and vision migrations) are applied manually in
+ *   `beforeAll` so the test environment matches production's constraint shape.
  * - We spin up TWO PGLite instances — one acts as "dev", one as "prod".
  */
 
@@ -96,6 +96,33 @@ function loadTtsDefaultFkDeferrableMigration(): string {
     'migration.sql'
   );
   return readFileSync(migrationPath, 'utf-8');
+}
+
+/**
+ * Extract the DEFERRABLE clause for users.default_vision_config_id_fkey from the
+ * vision_config_kind migration.
+ *
+ * Unlike the pure-alter circular/TTS DEFERRABLE migrations (which can be replayed
+ * wholesale), 20260627040007 is a FULL schema migration — replaying it on top of
+ * loadPGliteSchema() would collide with the columns/indexes that schema already
+ * created. So we extract ONLY its `ALTER CONSTRAINT … DEFERRABLE` statement.
+ * Reading it from the migration FILE (not inlining the SQL) keeps the same
+ * invariant the other helpers protect: if a future migration drops the DEFERRABLE
+ * clause, the extraction throws and this test goes red.
+ */
+function loadVisionDefaultFkDeferrableClause(): string {
+  const migrationPath = join(migrationsDir(), '20260627040007_vision_config_kind', 'migration.sql');
+  const sql = readFileSync(migrationPath, 'utf-8');
+  const match = sql.match(
+    /ALTER TABLE "users"\s+ALTER CONSTRAINT "users_default_vision_config_id_fkey" DEFERRABLE INITIALLY IMMEDIATE;/
+  );
+  if (match === null) {
+    throw new Error(
+      'DEFERRABLE clause for users_default_vision_config_id_fkey not found in ' +
+        '20260627040007_vision_config_kind — did the migration drop it?'
+    );
+  }
+  return match[0];
 }
 
 /**
@@ -193,6 +220,7 @@ describe('DatabaseSyncService Integration (Ouroboros pattern)', () => {
     const schema = loadPGliteSchema();
     const deferrableFkMigration = loadDeferrableFkMigration();
     const ttsDefaultFkDeferrableMigration = loadTtsDefaultFkDeferrableMigration();
+    const visionDefaultFkDeferrableClause = loadVisionDefaultFkDeferrableClause();
     const alignTtsGlobalsMigration = loadAlignTtsGlobalsMigration();
 
     devPglite = createTestPGlite();
@@ -210,6 +238,11 @@ describe('DatabaseSyncService Integration (Ouroboros pattern)', () => {
     await prodPglite.exec(deferrableFkMigration);
     await devPglite.exec(ttsDefaultFkDeferrableMigration);
     await prodPglite.exec(ttsDefaultFkDeferrableMigration);
+    // Same for the vision-default FK (DEFERRABLE since 20260627040007). Only the
+    // ALTER clause is applied — the full vision migration can't be replayed on
+    // top of the generated schema (see loadVisionDefaultFkDeferrableClause).
+    await devPglite.exec(visionDefaultFkDeferrableClause);
+    await prodPglite.exec(visionDefaultFkDeferrableClause);
     // Recovery migration aligning TTS system-global rows to deterministic
     // UUIDs. Idempotent — these pglite instances have no TTS rows yet, so
     // the WHERE clauses match nothing on the first run. Loaded here for
@@ -364,11 +397,12 @@ describe('DatabaseSyncService Integration (Ouroboros pattern)', () => {
           'users_default_persona_id_fkey',
           'users_default_llm_config_id_fkey',
           'users_default_tts_config_id_fkey',
+          'users_default_vision_config_id_fkey',
           'personas_owner_id_fkey',
           'llm_configs_owner_id_fkey'
         )
       `);
-      expect(rows.length).toBe(5);
+      expect(rows.length).toBe(6);
       for (const r of rows) {
         expect(r.is_deferrable, `${r.constraint_name} should be DEFERRABLE`).toBe('YES');
       }
