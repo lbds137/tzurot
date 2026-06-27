@@ -6,20 +6,23 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { processAudioTranscriptionJob } from './AudioTranscriptionJob.js';
 import type { Job } from 'bullmq';
 import type { AudioTranscriptionJobData } from '@tzurot/common-types';
-import { JobType, CONTENT_TYPES } from '@tzurot/common-types';
+import { JobType, CONTENT_TYPES, TimeoutError, AudioTooLongError } from '@tzurot/common-types';
 
 // Mock transcribeAudio and withRetry
 vi.mock('../services/multimodal/AudioProcessor.js', () => ({
   transcribeAudio: vi.fn(),
 }));
 
-vi.mock('../utils/retry.js', () => ({
-  withRetry: vi.fn(),
-}));
+// Override ONLY withRetry — keep the real RetryError class, which the job's catch
+// uses (`error instanceof RetryError`) to unwrap the root cause for failureReason.
+vi.mock('../utils/retry.js', async importOriginal => {
+  const actual = await importOriginal<typeof import('../utils/retry.js')>();
+  return { ...actual, withRetry: vi.fn() };
+});
 
 // Import the mocked modules
 import { transcribeAudio } from '../services/multimodal/AudioProcessor.js';
-import { withRetry } from '../utils/retry.js';
+import { withRetry, RetryError } from '../utils/retry.js';
 import { MAX_QUEUE_AGE_MS } from '../utils/jobAgeGate.js';
 
 // Get mocked functions
@@ -181,7 +184,103 @@ describe('AudioTranscriptionJob', () => {
       const shouldRetry = retryOpts!.shouldRetry!;
       expect(shouldRetry(new Error('No STT provider available: configure...'))).toBe(false);
       expect(shouldRetry(new Error('fetch failed'))).toBe(true);
+      // A plain Error whose message merely mentions a timeout is NOT a typed
+      // TimeoutError (name !== 'TimeoutError') → still retryable.
       expect(shouldRetry(new Error('Voice engine request timed out'))).toBe(true);
+      // Typed timeout + too-long ARE non-retryable: re-running them just grinds the
+      // (now larger) budget for a guaranteed-identical failure.
+      expect(shouldRetry(new TimeoutError(1000, 'voice engine request'))).toBe(false);
+      expect(shouldRetry(new AudioTooLongError('Audio too long'))).toBe(false);
+    });
+
+    it('tags failureReason="timeout" when the root cause is a TimeoutError', async () => {
+      const jobData: AudioTranscriptionJobData = {
+        requestId: 'test-req-timeout',
+        jobType: JobType.AudioTranscription,
+        attachment: {
+          url: 'https://example.com/long.ogg',
+          name: 'long.ogg',
+          contentType: CONTENT_TYPES.AUDIO_OGG,
+          size: 2048,
+          duration: 400,
+        },
+        context: { userId: 'user-123', channelId: 'channel-456' },
+        responseDestination: { type: 'discord', channelId: 'channel-456' },
+      };
+      const job = { id: 'audio-timeout', data: jobData } as Job<AudioTranscriptionJobData>;
+
+      // withRetry wraps the cause in a RetryError (lastError = the TimeoutError).
+      mockWithRetry.mockRejectedValue(
+        new RetryError(
+          'Audio transcription failed',
+          1,
+          new TimeoutError(480000, 'voice engine request')
+        )
+      );
+
+      const result = await processAudioTranscriptionJob(job, { provider: 'voice-engine' });
+
+      expect(result.success).toBe(false);
+      expect(result.failureReason).toBe('timeout');
+    });
+
+    it('tags failureReason="too_long" when the root cause is an AudioTooLongError', async () => {
+      const jobData: AudioTranscriptionJobData = {
+        requestId: 'test-req-toolong',
+        jobType: JobType.AudioTranscription,
+        attachment: {
+          url: 'https://example.com/huge.ogg',
+          name: 'huge.ogg',
+          contentType: CONTENT_TYPES.AUDIO_OGG,
+          size: 2048,
+          duration: 900,
+        },
+        context: { userId: 'user-123', channelId: 'channel-456' },
+        responseDestination: { type: 'discord', channelId: 'channel-456' },
+      };
+      const job = { id: 'audio-toolong', data: jobData } as Job<AudioTranscriptionJobData>;
+
+      mockWithRetry.mockRejectedValue(
+        new RetryError(
+          'Audio transcription failed',
+          1,
+          new AudioTooLongError('Audio too long (900s).')
+        )
+      );
+
+      const result = await processAudioTranscriptionJob(job, { provider: 'voice-engine' });
+
+      expect(result.success).toBe(false);
+      expect(result.failureReason).toBe('too_long');
+    });
+
+    it('tags failureReason="unavailable" for a no-provider failure', async () => {
+      const jobData: AudioTranscriptionJobData = {
+        requestId: 'test-req-unavail',
+        jobType: JobType.AudioTranscription,
+        attachment: {
+          url: 'https://example.com/audio.ogg',
+          name: 'audio.ogg',
+          contentType: CONTENT_TYPES.AUDIO_OGG,
+          size: 2048,
+        },
+        context: { userId: 'user-123', channelId: 'channel-456' },
+        responseDestination: { type: 'discord', channelId: 'channel-456' },
+      };
+      const job = { id: 'audio-unavail', data: jobData } as Job<AudioTranscriptionJobData>;
+
+      mockWithRetry.mockRejectedValue(
+        new RetryError(
+          'Audio transcription failed',
+          1,
+          new Error('No STT provider available: voice-engine failed')
+        )
+      );
+
+      const result = await processAudioTranscriptionJob(job, { provider: 'voice-engine' });
+
+      expect(result.success).toBe(false);
+      expect(result.failureReason).toBe('unavailable');
     });
 
     it('should use withRetry wrapper for transcription', async () => {

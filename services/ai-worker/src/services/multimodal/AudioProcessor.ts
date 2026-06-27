@@ -14,7 +14,9 @@ import {
   createLogger,
   TIMEOUTS,
   isTransientNetworkError,
+  isTimeoutError,
   TimeoutError,
+  AudioTooLongError,
   type AttachmentMetadata,
   type SttDispatch,
   type SttProvider,
@@ -88,6 +90,46 @@ async function fetchAudioBuffer(url: string): Promise<ArrayBuffer> {
 }
 
 /**
+ * Classify a voice-engine failure from `transcribeWithVoiceEngine`'s catch. THROWS a
+ * typed error for terminal causes the caller must surface (too-long → AudioTooLongError,
+ * timeout → TimeoutError); RETURNS for genuine unavailability (auth / any other failure),
+ * signaling the caller to fall through to null so the BYOK→voice-engine cascade and the
+ * "no provider" path still work. Unwraps RetryError to the root cause first.
+ *
+ * Extracted from the catch to keep `transcribeWithVoiceEngine` under the cognitive-
+ * complexity limit; the un-laundering of timeout/too-long is the whole point of the
+ * branch set (a swallowed timeout becomes a generic "no provider" error and the user
+ * sees the wrong message).
+ */
+function rethrowIfTerminalVoiceEngineError(error: unknown): void {
+  const originalError = error instanceof RetryError ? error.lastError : error;
+
+  // Too-long (413) — deterministic rejection before inference. Propagate typed.
+  if (originalError instanceof VoiceEngineError && originalError.status === 413) {
+    logger.warn({ err: originalError }, 'Voice engine rejected audio as too long');
+    throw new AudioTooLongError(originalError.message);
+  }
+
+  // Timeout — slow/stalled inference (long audio on CPU). Propagate the TimeoutError.
+  if (isTimeoutError(originalError)) {
+    logger.warn({ err: error }, 'Voice engine transcription timed out');
+    throw originalError;
+  }
+
+  // Auth error / any other failure → genuine unavailability. Log; caller returns null.
+  // Auth branch logs originalError (the VoiceEngineError with status code); else logs
+  // the RetryError wrapper (its message carries attempt count + timing).
+  if (originalError instanceof VoiceEngineError && originalError.isAuthError) {
+    logger.error(
+      { err: originalError },
+      'Voice engine auth error — check VOICE_ENGINE_API_KEY config'
+    );
+    return;
+  }
+  logger.warn({ err: error }, 'Voice engine transcription failed after retries');
+}
+
+/**
  * Transcribe audio using the self-hosted voice-engine service.
  * Returns the transcription text, or null if the service is unavailable.
  */
@@ -119,14 +161,14 @@ async function transcribeWithVoiceEngine(
     //
     // globalTimeoutMs interacts with the retry loop based on WHERE the check
     // fires: at the start of each attempt, against wall-clock elapsed since
-    // withRetry began. Setting it to VOICE_ENGINE_API (180s) — equal to the
+    // withRetry began. Setting it to VOICE_ENGINE_API (480s) — equal to the
     // per-attempt timeout — produces the intended asymmetric behavior:
     //   - Attempt 1 fast-fails (e.g., ECONNREFUSED at 5s): elapsed at attempt-2
-    //     entry ≈ 8s, < 180s, so retry proceeds. We keep retry value on transients.
-    //   - Attempt 1 times out fully (180s): elapsed at attempt-2 entry ≈ 183s,
-    //     ≥ 180s, so the global-timeout check fires and aborts. Worst case ≈ 183s.
-    // Any higher value (e.g., STT_GATEWAY - AUDIO_FETCH = 210s) is a no-op at
-    // MAX_ATTEMPTS=2 because elapsed-at-attempt-2 is bounded by 180 + 3 = 183s
+    //     entry ≈ 8s, < 480s, so retry proceeds. We keep retry value on transients.
+    //   - Attempt 1 times out fully (480s): elapsed at attempt-2 entry ≈ 483s,
+    //     ≥ 480s, so the global-timeout check fires and aborts. Worst case ≈ 483s.
+    // Any higher value (e.g., STT_GATEWAY - AUDIO_FETCH = 510s) is a no-op at
+    // MAX_ATTEMPTS=2 because elapsed-at-attempt-2 is bounded by 480 + 3 = 483s
     // and never reaches the threshold. The fully correct fix requires AbortSignal
     // propagation to cancel in-flight work mid-attempt — out of scope here.
     const { value: result } = await withRetry(
@@ -160,19 +202,11 @@ async function transcribeWithVoiceEngine(
     // Empty string is a valid result (silent/inaudible audio)
     return result.text;
   } catch (error) {
-    // Unwrap RetryError to classify the root cause (auth vs transient).
-    // Auth branch logs originalError (the VoiceEngineError with status code).
-    // Else branch logs the full `error` (RetryError wrapper) — its message includes
-    // attempt count and timing, which is more useful for diagnosing transient failures.
-    const originalError = error instanceof RetryError ? error.lastError : error;
-    if (originalError instanceof VoiceEngineError && originalError.isAuthError) {
-      logger.error(
-        { err: originalError },
-        'Voice engine auth error — check VOICE_ENGINE_API_KEY config'
-      );
-    } else {
-      logger.warn({ err: error }, 'Voice engine transcription failed after retries');
-    }
+    // Terminal causes (timeout, too-long) re-throw as typed errors so the failure
+    // reason survives to the job result and the user-facing message; genuine
+    // unavailability (auth / other) falls through to null so the BYOK→voice-engine
+    // cascade and the "no provider" path still work.
+    rethrowIfTerminalVoiceEngineError(error);
     return null;
   }
 }

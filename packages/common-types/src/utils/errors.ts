@@ -39,6 +39,27 @@ export function isTimeoutError(error: unknown): error is Error {
 }
 
 /**
+ * Audio exceeded the maximum supported duration (the self-hosted STT cap).
+ *
+ * Distinct from {@link TimeoutError}: too-long is a deterministic rejection BEFORE
+ * inference (the audio is simply over the cap), whereas a timeout is a slow or stalled
+ * inference. bot-client maps this to a "too long" user message; the STT job carries it
+ * across the job boundary as `failureReason: 'too_long'` (Error instances don't
+ * survive BullMQ/Redis serialization).
+ */
+export class AudioTooLongError extends Error {
+  constructor(detail?: string) {
+    super(detail ?? 'Audio exceeds the maximum supported duration');
+    this.name = 'AudioTooLongError';
+  }
+}
+
+/** Check whether an error is an {@link AudioTooLongError} (name-based, survives bundling). */
+export function isTooLongError(error: unknown): error is AudioTooLongError {
+  return error instanceof Error && error.name === 'AudioTooLongError';
+}
+
+/**
  * Normalize a caught error for Pino logging.
  *
  * LangChain/OpenAI SDK sometimes throws plain objects (e.g., literal `{}`)
