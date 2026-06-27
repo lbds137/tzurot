@@ -254,5 +254,24 @@ describe('VisionConfigResolver', () => {
 
       expect(mockPrisma.llmConfig.findFirst).toHaveBeenCalledTimes(1);
     });
+
+    it('clearCache() clears the negative sentinel so a newly-created global default is seen', async () => {
+      // First call: no global default yet → negative sentinel set.
+      mockPrisma.llmConfig.findFirst.mockResolvedValueOnce(null);
+      expect(await resolver.getGlobalDefaultConfig()).toBeNull();
+      expect(mockPrisma.llmConfig.findFirst).toHaveBeenCalledTimes(1);
+
+      // An admin creates the global default; the pub/sub invalidation clears caches.
+      resolver.clearCache();
+
+      // Next call must re-query (not short-circuit on the stale negative sentinel)
+      // and surface the new row.
+      mockPrisma.llmConfig.findFirst.mockResolvedValueOnce(
+        visionRow({ model: 'newly-created-default', name: 'new-global-vision' })
+      );
+      const after = await resolver.getGlobalDefaultConfig();
+      expect(after?.model).toBe('newly-created-default');
+      expect(mockPrisma.llmConfig.findFirst).toHaveBeenCalledTimes(2);
+    });
   });
 });
