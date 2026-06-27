@@ -753,12 +753,14 @@ describe('DatabaseSyncService', () => {
     it('should clear is_default flag in prod when dev config is newer', async () => {
       const devConfig = {
         id: 'dev-config-1',
+        kind: 'text',
         isDefault: true,
         isFreeDefault: false,
         updatedAt: new Date('2025-01-15'), // Newer
       };
       const prodConfig = {
         id: 'prod-config-1',
+        kind: 'text',
         isDefault: true,
         isFreeDefault: false,
         updatedAt: new Date('2025-01-10'), // Older
@@ -815,12 +817,14 @@ describe('DatabaseSyncService', () => {
     it('should clear is_default flag in dev when prod config is newer', async () => {
       const devConfig = {
         id: 'dev-config-1',
+        kind: 'text',
         isDefault: true,
         isFreeDefault: false,
         updatedAt: new Date('2025-01-10'), // Older
       };
       const prodConfig = {
         id: 'prod-config-1',
+        kind: 'text',
         isDefault: true,
         isFreeDefault: false,
         updatedAt: new Date('2025-01-15'), // Newer
@@ -877,12 +881,14 @@ describe('DatabaseSyncService', () => {
     it('should clear is_free_default flag in prod when dev config is newer', async () => {
       const devConfig = {
         id: 'dev-free-config',
+        kind: 'text',
         isDefault: false,
         isFreeDefault: true,
         updatedAt: new Date('2025-01-15'), // Newer
       };
       const prodConfig = {
         id: 'prod-free-config',
+        kind: 'text',
         isDefault: false,
         isFreeDefault: true,
         updatedAt: new Date('2025-01-10'), // Older
@@ -940,12 +946,14 @@ describe('DatabaseSyncService', () => {
       const sharedConfigId = 'shared-config-id';
       const devConfig = {
         id: sharedConfigId,
+        kind: 'text',
         isDefault: true,
         isFreeDefault: false,
         updatedAt: new Date('2025-01-15'),
       };
       const prodConfig = {
         id: sharedConfigId,
+        kind: 'text',
         isDefault: true,
         isFreeDefault: false,
         updatedAt: new Date('2025-01-10'),
@@ -1000,6 +1008,7 @@ describe('DatabaseSyncService', () => {
     it('should not clear flags when only one database has the flag set', async () => {
       const devConfig = {
         id: 'dev-config',
+        kind: 'text',
         isDefault: true,
         isFreeDefault: false,
         updatedAt: new Date('2025-01-15'),
@@ -1039,12 +1048,14 @@ describe('DatabaseSyncService', () => {
     it('should skip singleton flag handling in dry-run mode', async () => {
       const devConfig = {
         id: 'dev-config-1',
+        kind: 'text',
         isDefault: true,
         isFreeDefault: false,
         updatedAt: new Date('2025-01-15'),
       };
       const prodConfig = {
         id: 'prod-config-1',
+        kind: 'text',
         isDefault: true,
         isFreeDefault: false,
         updatedAt: new Date('2025-01-10'),

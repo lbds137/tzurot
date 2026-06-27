@@ -75,7 +75,6 @@ describe('Admin LLM config response contract', () => {
     description: 'System default',
     provider: 'openrouter',
     model: 'anthropic/claude-sonnet-4',
-    visionModel: null,
     isGlobal: true,
     isDefault: true,
     isFreeDefault: false,

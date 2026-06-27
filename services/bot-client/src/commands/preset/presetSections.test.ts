@@ -19,10 +19,10 @@ describe('identitySection', () => {
     expect(identitySection.label).toBe('📝 Identity');
   });
 
-  it('should have correct fields (merged basic + model = 5)', () => {
-    expect(identitySection.fields).toHaveLength(5);
+  it('should have correct fields (merged basic + model = 4)', () => {
+    expect(identitySection.fields).toHaveLength(4);
     const keys = identitySection.fields.map(f => f.id);
-    expect(keys).toEqual(['name', 'description', 'provider', 'model', 'visionModel']);
+    expect(keys).toEqual(['name', 'description', 'provider', 'model']);
   });
 
   it('should return EMPTY status when no name or model', () => {
@@ -72,13 +72,11 @@ describe('identitySection', () => {
       name: 'My Preset',
       model: 'anthropic/claude-sonnet-4',
       provider: 'openrouter',
-      visionModel: 'gpt-4-vision',
       description: '',
     } as FlattenedPresetData;
     const preview = identitySection.getPreview(data);
     expect(preview).toContain('**Name:** My Preset');
     expect(preview).toContain('**Model:** `anthropic/claude-sonnet-4`');
-    expect(preview).toContain('**Vision:** `gpt-4-vision`');
   });
 
   it('should show not configured when empty', () => {

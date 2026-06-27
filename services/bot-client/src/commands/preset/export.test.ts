@@ -70,7 +70,6 @@ describe('Preset Export', () => {
     description: 'A test preset',
     model: 'anthropic/claude-sonnet-4',
     provider: 'openrouter',
-    visionModel: null,
     isGlobal: false,
     isDefault: false,
     isOwned: true,

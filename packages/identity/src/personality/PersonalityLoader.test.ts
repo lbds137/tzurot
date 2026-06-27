@@ -854,7 +854,6 @@ describe('PersonalityLoader', () => {
       const mockConfig = {
         model: 'global-model',
         provider: 'openrouter',
-        visionModel: 'global-vision-model',
         temperature: 0.7,
         topP: null,
         topK: null,

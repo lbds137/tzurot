@@ -79,14 +79,16 @@ function getSamplingConfig(
 }
 
 /**
- * Get optional memory and vision config
+ * Get optional memory config. Note: visionModel is NO LONGER sourced from the
+ * LlmConfig — vision is its own config axis, resolved + stamped gateway-side (see
+ * VisionConfigResolver). The personality's `visionModel` carrier field is filled at
+ * stamp time, not at load time, so it's undefined here.
  */
-function getMemoryAndVisionConfig(
+function getMemoryConfig(
   pc: MappedLlmConfig | null,
   gc: MappedLlmConfig | null
-): Pick<LoadedPersonality, 'visionModel' | 'memoryScoreThreshold' | 'memoryLimit'> {
+): Pick<LoadedPersonality, 'memoryScoreThreshold' | 'memoryLimit'> {
   return {
-    visionModel: getConfigValue(pc?.visionModel, gc?.visionModel),
     memoryScoreThreshold: getConfigValue(pc?.memoryScoreThreshold, gc?.memoryScoreThreshold),
     memoryLimit: getConfigValue(pc?.memoryLimit, gc?.memoryLimit),
   };
@@ -265,7 +267,7 @@ export function mapToPersonality(
     // LLM configuration (cascaded from personality > global > defaults)
     ...getRequiredLlmConfig(personalityConfig, globalDefaultConfig),
     ...getSamplingConfig(personalityConfig, globalDefaultConfig),
-    ...getMemoryAndVisionConfig(personalityConfig, globalDefaultConfig),
+    ...getMemoryConfig(personalityConfig, globalDefaultConfig),
     ...getReasoningConfig(personalityConfig, globalDefaultConfig),
     ...getContextSettings(personalityConfig, globalDefaultConfig),
 

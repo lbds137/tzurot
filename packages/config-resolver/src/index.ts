@@ -18,5 +18,6 @@
 export * from './BaseConfigResolver.js';
 export * from './LlmConfigResolver.js';
 export * from './TtsConfigResolver.js';
+export * from './VisionConfigResolver.js';
 export * from './SttResolver.js';
 export * from './ConfigCascadeResolver.js';

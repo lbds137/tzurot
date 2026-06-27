@@ -156,7 +156,6 @@ describe('Admin LLM Config Routes', () => {
         description: 'System default',
         model: 'anthropic/claude-sonnet-4',
         provider: 'openrouter',
-        visionModel: null,
         isGlobal: true,
         isDefault: true,
         isFreeDefault: false,
@@ -184,7 +183,6 @@ describe('Admin LLM Config Routes', () => {
         description: null,
         model: 'anthropic/claude-sonnet-4',
         provider: 'openrouter',
-        visionModel: null,
         isGlobal: true,
         isDefault: false,
         isFreeDefault: false,
@@ -221,7 +219,6 @@ describe('Admin LLM Config Routes', () => {
         description: null,
         model: 'anthropic/claude-sonnet-4',
         provider: 'openrouter',
-        visionModel: null,
         isGlobal: false,
         isDefault: false,
         isFreeDefault: false,
@@ -245,7 +242,6 @@ describe('Admin LLM Config Routes', () => {
         description: null,
         model: 'anthropic/claude-sonnet-4',
         provider: 'openrouter',
-        visionModel: 'anthropic/claude-sonnet-4',
         isGlobal: true,
         isDefault: false,
         isFreeDefault: false,
@@ -276,7 +272,6 @@ describe('Admin LLM Config Routes', () => {
         description: null,
         model: 'anthropic/claude-sonnet-4',
         provider: 'openrouter',
-        visionModel: null,
         isGlobal: true,
         isDefault: false,
         isFreeDefault: false,
@@ -710,7 +705,7 @@ describe('Admin LLM Config Routes', () => {
       expect(response.body.configName).toBe('My Config');
       // Verify it clears existing default
       expect(prisma.llmConfig.updateMany).toHaveBeenCalledWith({
-        where: { isDefault: true },
+        where: { isDefault: true, kind: 'text' },
         data: { isDefault: false },
       });
     });
@@ -762,7 +757,7 @@ describe('Admin LLM Config Routes', () => {
       expect(response.body.configName).toBe('Free Config');
       // Verify it clears existing free default
       expect(prisma.llmConfig.updateMany).toHaveBeenCalledWith({
-        where: { isFreeDefault: true },
+        where: { isFreeDefault: true, kind: 'text' },
         data: { isFreeDefault: false },
       });
     });
@@ -1026,6 +1021,7 @@ describe('Admin LLM Config Routes', () => {
       expect(prisma.llmConfig.findFirst).toHaveBeenCalledWith({
         where: {
           isGlobal: true,
+          kind: 'text',
           name: 'Same Name',
           id: { not: 'config-id' },
         },
@@ -1154,7 +1150,6 @@ describe('Admin LLM Config Routes', () => {
         description: null,
         model: 'anthropic/claude-sonnet-4',
         provider: 'openrouter',
-        visionModel: null,
         isGlobal: true,
         isDefault: false,
         isFreeDefault: false,

@@ -38,7 +38,11 @@ import type {
   SttResolverCacheInvalidationService,
   TtsConfigCacheInvalidationService,
 } from '@tzurot/cache-invalidation';
-import type { ConfigCascadeResolver, LlmConfigResolver } from '@tzurot/config-resolver';
+import type {
+  ConfigCascadeResolver,
+  LlmConfigResolver,
+  VisionConfigResolver,
+} from '@tzurot/config-resolver';
 import type { ConversationRetentionService } from '../services/ConversationRetentionService.js';
 import type { OpenRouterModelCache } from '../services/OpenRouterModelCache.js';
 
@@ -81,11 +85,17 @@ export interface RouteDeps {
   readonly cascadeResolver?: ConfigCascadeResolver;
   /**
    * LLM model-config cascade resolver — used by the /ai/generate handler to
-   * resolve {model, visionModel} once at job-chain build and stamp both the
+   * resolve the text `model` once at job-chain build and stamp it onto both the
    * conversation job and the image-description child job. Keeps the seed
    * (personality default) from leaking into the image-description path.
    */
   readonly llmConfigResolver?: LlmConfigResolver;
+  /**
+   * Vision model-config cascade resolver (kind='vision'). Resolves the vision model
+   * independently of the text model and stamps `personality.visionModel` at job-chain
+   * build (the carrier `selectVisionModel` reads at priority 1).
+   */
+  readonly visionConfigResolver?: VisionConfigResolver;
   /** OpenRouter model catalog cache — used by LLM config endpoints. */
   readonly modelCache?: OpenRouterModelCache;
 

@@ -84,11 +84,8 @@ export class PersonalityService {
         id: personality.id,
         name: personality.name,
         model: personality.model,
-        visionModel: personality.visionModel,
-        hasVisionModel:
-          personality.visionModel !== undefined &&
-          personality.visionModel !== null &&
-          personality.visionModel.length > 0,
+        // visionModel is no longer sourced from LlmConfig at load time — it's stamped
+        // gateway-side by VisionConfigResolver, so it's always undefined here.
         usedGlobalDefault: !dbPersonality.defaultConfigLink && globalDefaultConfig !== null,
       },
       'Loaded personality with config'
