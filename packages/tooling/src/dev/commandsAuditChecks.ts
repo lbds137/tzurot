@@ -57,7 +57,10 @@ const KNOWN_SUBCOMMAND_NAMES = new Set<string>([
   'import',
   'export',
   'template',
+  // /character chat-mode verbs (chat / random / chime-in) — deliberate, established
   'chat',
+  'random',
+  'chime-in',
   'overrides',
   'activate',
   'deactivate',
@@ -98,6 +101,13 @@ const SYNONYM_CLUSTERS: string[][] = [
   ['preset', 'config'],
   ['persona', 'profile'],
 ];
+
+// Option names whose cross-command TYPE drift is deliberate and accepted, so the
+// type-conflict drift check below skips them instead of crying wolf on every run. `type` is
+// a genuinely different concept per command — `admin presence <type>` is an integer
+// status-enum; `deny add <type>` is a string target-kind — and unifying them would be
+// artificial. Add a name here only when the drift is intentional AND documented.
+const ACCEPTED_OPTION_TYPE_DRIFT = new Set<string>(['type']);
 
 function isStubDescription(desc: string): boolean {
   const trimmed = desc.trim();
@@ -245,7 +255,7 @@ function checkOptionNameDrift(manifest: CommandManifest): Finding[] {
 
   // (a) type conflicts
   for (const [name, typeMap] of byName) {
-    if (typeMap.size > 1) {
+    if (typeMap.size > 1 && !ACCEPTED_OPTION_TYPE_DRIFT.has(name)) {
       const detailParts = [...typeMap.entries()].map(
         ([type, paths]) => `${optionTypeName(type)} (${paths[0]})`
       );
