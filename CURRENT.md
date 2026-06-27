@@ -9,7 +9,9 @@
 
 **Released v3.0.0-beta.139 on 2026-06-26** (see version header; notes: [tag v3.0.0-beta.139](https://github.com/lbds137/tzurot/releases/tag/v3.0.0-beta.139)). The dead-image latency fix (#1359), relay-echo identity recovery (#1352), voice-engine response validation (#1358), and the whole Test-Pyramid Phase 4 contract tier (#1353/#1354/#1356/#1357/#1358) shipped — full detail in git history and the release notes. `release:finalize` SHA-aligned develop with main; prod auto-deploying.
 
-_Nothing unreleased since beta.139 yet._
+**Unreleased since beta.139:**
+
+- **#1361** `test: fix the conversation-history UUID-collision flake + beta.139 review follow-ups` — completed the deterministic-UUID flake fix #1358 missed (4 more same-key multi-insert sites re-flaked on the beta.139 release CI; now exhaustively seeded) + the 3 non-blocking #1360 review follow-ups (relay-echo multi-ID coverage + mutation doc, `errorDetailSchema.nullish()`, `fileImportsSymbol` concurrency JSDoc).
 
 ---
 
