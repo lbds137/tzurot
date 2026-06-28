@@ -8,6 +8,7 @@ import { createLogger } from '@tzurot/common-types';
 import { ErrorResponses } from './errorResponses.js';
 import { sendError } from './responseHelpers.js';
 import { ParameterError } from './requestParams.js';
+import { NotFoundError } from './appErrors.js';
 
 const logger = createLogger('asyncHandler');
 
@@ -75,6 +76,15 @@ export function asyncHandler<R extends Request = Request>(
         if (error instanceof ParameterError) {
           logger.warn({ err: error }, 'Missing required route parameter');
           sendError(res, ErrorResponses.validationError(error.message));
+          return;
+        }
+
+        // A resource vanished (e.g. deleted between a route's existence pre-check
+        // and a follow-up read). Client-caused, not a server fault → 404. Only the
+        // clean `resource` reaches the body; the richer message stays in the log.
+        if (error instanceof NotFoundError) {
+          logger.warn({ err: error }, 'Resource not found');
+          sendError(res, ErrorResponses.notFound(error.resource));
           return;
         }
 

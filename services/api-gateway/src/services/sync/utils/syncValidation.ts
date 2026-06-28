@@ -141,6 +141,27 @@ export async function validateSyncConfig(
     }
   }
 
+  // Phantom EXCLUDED_TABLES: an entry whose table no longer exists in the schema.
+  // It produces neither a warning (the exclusion suppresses the uncategorized-table
+  // check above) nor an info line (info only fires for excluded tables that DO exist),
+  // so a stale exclusion rots silently. Detect it against the FULL table list — not the
+  // UUID-only schemaMap, which would false-flag a real excluded table that happens to
+  // have no UUID column.
+  const allTables = await devClient.$queryRaw<{ table_name: string }[]>`
+    SELECT table_name
+    FROM information_schema.tables
+    WHERE table_schema = 'public'
+      AND table_type = 'BASE TABLE'
+  `;
+  const schemaTableNames = new Set(allTables.map(r => r.table_name));
+  for (const tableName of Object.keys(EXCLUDED_TABLES)) {
+    if (!schemaTableNames.has(tableName)) {
+      warnings.push(
+        `⚠️  Table '${tableName}' is in EXCLUDED_TABLES but doesn't exist in the schema`
+      );
+    }
+  }
+
   if (warnings.length > 0) {
     logger.warn({ warnings }, 'SYNC_CONFIG validation warnings detected');
   }

@@ -37,16 +37,18 @@ describe('syncValidation guard — SYNC_CONFIG covers the live schema', () => {
   it('produces no warnings — every table is categorized and every UUID FK is in uuidColumns', async () => {
     const { warnings, info } = await validateSyncConfig(prisma, SYNC_CONFIG);
     // A failure here means a migration added a table or UUID FK column that
-    // syncTables.ts doesn't account for. Fix: categorize the table in SYNC_CONFIG or
-    // EXCLUDED_TABLES, or add the UUID FK column to that table's `uuidColumns`.
+    // syncTables.ts doesn't account for — OR left a phantom EXCLUDED_TABLES entry
+    // (a table dropped from the schema but not from the exclusion list), which
+    // validateSyncConfig now reports as a warning. Fix: categorize the table in
+    // SYNC_CONFIG or EXCLUDED_TABLES, add the UUID FK column to `uuidColumns`, or
+    // remove the stale exclusion.
     expect(
       warnings,
       `syncTables.ts is out of sync with the schema:\n  ${warnings.join('\n  ')}`
     ).toEqual([]);
     // `info` carries one line per EXCLUDED_TABLES entry that still exists in the
-    // schema. A non-empty array confirms the exclusion list matches real tables —
-    // a phantom entry (table dropped from the schema but left in EXCLUDED_TABLES)
-    // produces neither a warning nor an info line, so this guards that drift too.
+    // schema. A non-empty array confirms the exclusion list isn't ENTIRELY phantom;
+    // individual phantom entries are caught by the zero-warnings assertion above.
     expect(info.length).toBeGreaterThan(0);
   });
 });
