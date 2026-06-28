@@ -80,10 +80,9 @@ export async function processCrossProviderVisionImages(
     });
     if (visionResult.kind === 'failFast') {
       // Even the free-model system fallback is unavailable (no system
-      // OpenRouter key). Fail-fast with synthetic-failure entries; the
-      // negative cache absorbs retries for 5min so the user sees a stable
-      // fallback string until they fix the key.
-      return await buildVisionAuthFailureResults(imageAttachments);
+      // OpenRouter key). Return synthetic "configure your key" placeholders so
+      // the user sees a stable fallback string instead of dropped images.
+      return buildVisionAuthFailureResults(imageAttachments);
     }
     const { config } = visionResult;
     const processed = await processAttachments(imageAttachments, personality, {

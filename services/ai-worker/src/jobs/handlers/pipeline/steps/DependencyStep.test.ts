@@ -9,7 +9,6 @@ import {
   JobStatus,
   AttachmentType,
   AIProvider,
-  ApiErrorCategory,
   MODEL_DEFAULTS,
   REDIS_KEY_PREFIXES,
   type LLMGenerationJobData,
@@ -1213,16 +1212,7 @@ describe('DependencyStep', () => {
       // Critically: processAttachments was NOT called — short-circuit fired.
       expect(mockProcessAttachments).not.toHaveBeenCalled();
       // Fail-fast result: 1 attachment → 1 synthetic-failure entry with the
-      // source-aware fallback string. Cache write happened via storeFailure.
-      // Asserting the full argument shape (not just call count) self-documents
-      // that `attachmentId: undefined` is intentional — fixtures don't include
-      // an `id` field, and `getFailureKey` falls through to URL-hash keying.
-      expect(mockStoreFailure).toHaveBeenCalledTimes(1);
-      expect(mockStoreFailure).toHaveBeenCalledWith({
-        attachmentId: undefined,
-        url: 'https://example.com/cp.jpg',
-        category: ApiErrorCategory.AUTHENTICATION,
-      });
+      // source-aware "configure your key" fallback string.
       const synthetic = result.preprocessing?.extendedContextAttachments;
       expect(synthetic).toHaveLength(1);
       expect(synthetic?.[0]?.description).toContain('check /settings apikey set');
