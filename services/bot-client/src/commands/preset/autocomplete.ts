@@ -13,6 +13,8 @@ import {
   formatAutocompleteOption,
   isFreeModel,
   CONFIG_KINDS,
+  DEFAULT_CONFIG_KIND,
+  toConfigKind,
   type LlmConfigSummary,
   type AutocompleteBadge,
   type ConfigKind,
@@ -172,7 +174,7 @@ async function handlePresetAutocomplete(
   // Scope the picker to the requested kind (the command's `kind` option,
   // default text) so a vision-setter shows only vision presets. The Discord
   // choice set restricts values to CONFIG_KINDS, so the assertion is sound.
-  const kind = (interaction.options.getString('kind', false) ?? 'text') as ConfigKind;
+  const kind = toConfigKind(interaction.options.getString('kind', false) ?? DEFAULT_CONFIG_KIND);
 
   const { userClient } = clientsFor(interaction);
   const result = await userClient.listUserLlmConfigs({ kind });
@@ -284,7 +286,7 @@ async function handleGlobalConfigAutocomplete(
 ): Promise<void> {
   try {
     // Scope to the requested kind (command's `kind` option, default text).
-    const kind = (interaction.options.getString('kind', false) ?? 'text') as ConfigKind;
+    const kind = toConfigKind(interaction.options.getString('kind', false) ?? DEFAULT_CONFIG_KIND);
     const configs = await fetchGlobalConfigs(interaction, kind);
 
     if (configs === null) {

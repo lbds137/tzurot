@@ -80,9 +80,17 @@ function createStub(): UserClientStub {
 function configurePresets(
   stub: UserClientStub,
   presets: Parameters<typeof mockListLlmConfigsResponse>[0],
-  hasWallet = true
+  hasWallet = true,
+  visionPresets: Parameters<typeof mockListLlmConfigsResponse>[0] = []
 ): void {
-  stub.listUserLlmConfigs.mockResolvedValue(makeOk(mockListLlmConfigsResponse(presets)));
+  // Browse fetches both kinds; mock by the `?kind=` arg so the `presets` arg is
+  // the text set and `visionPresets` the vision set (default empty → existing
+  // tests behave as a text-only listing).
+  stub.listUserLlmConfigs.mockImplementation((opts?: { kind?: string }) =>
+    Promise.resolve(
+      makeOk(mockListLlmConfigsResponse(opts?.kind === 'vision' ? visionPresets : presets))
+    )
+  );
   stub.listWalletKeys.mockResolvedValue(
     makeOk(mockListWalletKeysResponse(hasWallet ? [{ isActive: true }] : []))
   );
@@ -154,6 +162,46 @@ describe('handleBrowse', () => {
     const components = mockEditReply.mock.calls[0][0].components;
     expect(components).toHaveLength(1); // Just select menu, no pagination
     expect(components[0].components[0].data.custom_id).toBe('preset::browse-select::0::all::');
+  });
+
+  it('shows both kinds by default (vision badged) and filters by kind', async () => {
+    configurePresets(
+      stub,
+      [
+        {
+          id: '00000000-0000-4000-8000-000000000001',
+          name: 'TextPreset',
+          model: 'anthropic/claude-sonnet-4',
+          provider: 'openrouter',
+          isGlobal: true,
+          isOwned: false,
+        },
+      ],
+      true,
+      [
+        {
+          id: '00000000-0000-4000-8000-000000000002',
+          name: 'VisionPreset',
+          model: 'openai/gpt-4o',
+          provider: 'openrouter',
+          isGlobal: false,
+          isOwned: true,
+        },
+      ]
+    );
+
+    // Default filter (all): both kinds visible, vision badged with 👁️.
+    await handleBrowse(createMockContext());
+    const allDesc = mockEditReply.mock.calls[0][0].embeds[0].data.description;
+    expect(allDesc).toContain('TextPreset');
+    expect(allDesc).toContain('VisionPreset');
+    expect(allDesc).toContain('👁️');
+
+    // filter:vision → only the vision preset.
+    await handleBrowse(createMockContext(null, 'vision'));
+    const visionDesc = mockEditReply.mock.calls[1][0].embeds[0].data.description;
+    expect(visionDesc).toContain('VisionPreset');
+    expect(visionDesc).not.toContain('TextPreset');
   });
 
   it('should filter by global presets', async () => {

@@ -33,8 +33,31 @@ const presetOverrideConfig: OverrideBrowseConfig = {
   clearCommandHint: '/settings preset clear',
   selectPlaceholder: 'Select an override to clear…',
   logger,
-  list: userClient => userClient.listModelOverrides(),
-  delete: (userClient, personalityId) => userClient.deleteModelOverride(personalityId),
+  // Fetch BOTH kinds and tag each row; the list summary omits kind, so we tag by
+  // the call that returned it (a character can have both a text + a vision
+  // override — both surface, badged, and clear independently).
+  list: async userClient => {
+    const [textResult, visionResult] = await Promise.all([
+      userClient.listModelOverrides({ kind: 'text' }),
+      userClient.listModelOverrides({ kind: 'vision' }),
+    ]);
+    if (!textResult.ok || !visionResult.ok) {
+      logger.warn(
+        {
+          textStatus: textResult.ok ? undefined : textResult.status,
+          visionStatus: visionResult.ok ? undefined : visionResult.status,
+        },
+        'Failed to list preset overrides (one or both kinds)'
+      );
+      return null;
+    }
+    return [
+      ...textResult.data.overrides.map(o => ({ ...o, kind: 'text' as const })),
+      ...visionResult.data.overrides.map(o => ({ ...o, kind: 'vision' as const })),
+    ];
+  },
+  delete: (userClient, personalityId, kind) =>
+    userClient.deleteModelOverride(personalityId, { kind }),
 };
 
 const presetOverrideIds = createOverrideBrowseCustomIds(PRESET_OVERRIDE_PREFIX);

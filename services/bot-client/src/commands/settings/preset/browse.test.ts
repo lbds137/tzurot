@@ -3,7 +3,8 @@
  *
  * The interaction logic lives in `utils/overrideBrowse.ts` (tested there);
  * this verifies the preset config is wired to the right client calls and
- * customId prefix.
+ * customId prefix — including the kind-aware two-call fetch + kind-carrying
+ * clear (a character can have both a text and a vision override).
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -36,6 +37,18 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
+type OverrideRow = { personalityId: string; personalityName: string; configName: string | null };
+
+/**
+ * The preset config issues one `listModelOverrides` call per kind; mock by the
+ * `?kind=` arg so text and vision return distinct rows (order-independent).
+ */
+function mockOverridesByKind(text: OverrideRow[], vision: OverrideRow[] = []): void {
+  stub.listModelOverrides.mockImplementation((opts?: { kind?: string }) =>
+    Promise.resolve(makeOk(mockListModelOverridesResponse(opts?.kind === 'vision' ? vision : text)))
+  );
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   stub.listModelOverrides.mockReset();
@@ -51,13 +64,10 @@ describe('isPresetOverrideInteraction', () => {
 });
 
 describe('handlePresetBrowse', () => {
-  it('lists model overrides and renders them', async () => {
-    stub.listModelOverrides.mockResolvedValue(
-      makeOk(
-        mockListModelOverridesResponse([
-          { personalityId: 'p1', personalityName: 'Lilith', configName: 'Fast' },
-        ])
-      )
+  it('lists overrides of both kinds and renders them (vision badged)', async () => {
+    mockOverridesByKind(
+      [{ personalityId: 'p1', personalityName: 'Lilith', configName: 'Fast' }],
+      [{ personalityId: 'p2', personalityName: 'Aria', configName: 'GPT-4o' }]
     );
     const editReply = vi.fn();
     const context = {
@@ -68,24 +78,23 @@ describe('handlePresetBrowse', () => {
 
     await handlePresetBrowse(context);
 
-    expect(stub.listModelOverrides).toHaveBeenCalled();
+    // Both kinds fetched (one call each).
+    expect(stub.listModelOverrides).toHaveBeenCalledWith({ kind: 'text' });
+    expect(stub.listModelOverrides).toHaveBeenCalledWith({ kind: 'vision' });
     const arg = editReply.mock.calls[0][0] as { embeds: EmbedBuilder[] };
-    expect(arg.embeds[0].toJSON().description).toContain('Lilith');
+    const description = arg.embeds[0].toJSON().description ?? '';
+    expect(description).toContain('Lilith');
+    expect(description).toContain('Aria');
+    expect(description).toContain('👁️'); // the vision override is badged
   });
 });
 
 describe('handlePresetBrowseSelect', () => {
-  it('routes the selection to the shared select handler (shows confirm)', async () => {
-    stub.listModelOverrides.mockResolvedValue(
-      makeOk(
-        mockListModelOverridesResponse([
-          { personalityId: 'p1', personalityName: 'Lilith', configName: 'Fast' },
-        ])
-      )
-    );
+  it('routes a kind-encoded selection to the shared select handler (shows confirm)', async () => {
+    mockOverridesByKind([{ personalityId: 'p1', personalityName: 'Lilith', configName: 'Fast' }]);
     const editReply = vi.fn();
     const interaction = {
-      values: ['p1'],
+      values: ['p1::text'],
       user: { id: 'u1' },
       deferUpdate: vi.fn(),
       editReply,
@@ -100,11 +109,11 @@ describe('handlePresetBrowseSelect', () => {
 });
 
 describe('handlePresetBrowseButton', () => {
-  it('clears the model override on confirm', async () => {
+  it('clears the model override of the carried kind on confirm', async () => {
     stub.deleteModelOverride.mockResolvedValue(makeOk({ deleted: true }));
-    stub.listModelOverrides.mockResolvedValue(makeOk({ overrides: [] }));
+    mockOverridesByKind([]);
     const interaction = {
-      customId: 'settings-preset-override::clear::p1',
+      customId: 'settings-preset-override::clear::p1::vision',
       user: { id: 'u1' },
       deferUpdate: vi.fn(),
       editReply: vi.fn(),
@@ -112,6 +121,6 @@ describe('handlePresetBrowseButton', () => {
 
     await handlePresetBrowseButton(interaction);
 
-    expect(stub.deleteModelOverride).toHaveBeenCalledWith('p1');
+    expect(stub.deleteModelOverride).toHaveBeenCalledWith('p1', { kind: 'vision' });
   });
 });

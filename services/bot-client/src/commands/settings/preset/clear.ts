@@ -3,7 +3,12 @@
  * Handles /settings preset clear subcommand
  */
 
-import { createLogger, settingsPresetClearOptions } from '@tzurot/common-types';
+import {
+  createLogger,
+  settingsPresetClearOptions,
+  toConfigKind,
+  DEFAULT_CONFIG_KIND,
+} from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import {
   AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
@@ -24,7 +29,7 @@ export async function handleClear(context: DeferredCommandContext): Promise<void
   // Which override to clear: text (default) or vision. Unlike the setters,
   // clear sends kind because the operation itself is kind-specific — a vision
   // override is a separate FK from the text override.
-  const kind = options.kind() ?? 'text';
+  const kind = toConfigKind(options.kind() ?? DEFAULT_CONFIG_KIND);
 
   if (isAutocompleteErrorSentinel(personalityId)) {
     await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });

@@ -4,7 +4,11 @@
  * Sets a global config as the free tier default for guest users (owner only)
  */
 
-import { presetGlobalFreeDefaultOptions } from '@tzurot/common-types';
+import {
+  presetGlobalFreeDefaultOptions,
+  toConfigKind,
+  DEFAULT_CONFIG_KIND,
+} from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { handleGlobalPresetUpdate } from './globalPresetHelpers.js';
 
@@ -14,7 +18,7 @@ import { handleGlobalPresetUpdate } from './globalPresetHelpers.js';
 export async function handleGlobalSetFreeDefault(context: DeferredCommandContext): Promise<void> {
   const options = presetGlobalFreeDefaultOptions(context.interaction);
   const configId = options.preset();
-  const kind = options.kind() ?? 'text';
+  const kind = toConfigKind(options.kind() ?? DEFAULT_CONFIG_KIND);
 
   await handleGlobalPresetUpdate(context, configId, {
     promote: (ownerClient, id) => ownerClient.setGlobalLlmConfigFreeDefault(id, { kind }),

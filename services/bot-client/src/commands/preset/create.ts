@@ -16,7 +16,12 @@ import {
   MessageFlags,
   type ModalSubmitInteraction,
 } from 'discord.js';
-import { createLogger, presetCreateOptions } from '@tzurot/common-types';
+import {
+  createLogger,
+  presetCreateOptions,
+  toConfigKind,
+  DEFAULT_CONFIG_KIND,
+} from '@tzurot/common-types';
 import type { ModalCommandContext } from '../../utils/commandContext/types.js';
 import {
   buildDashboardEmbed,
@@ -50,7 +55,7 @@ export async function handleCreate(context: ModalCommandContext): Promise<void> 
   // carried through the modal in the custom-ID's 3rd segment (preset::seed::<kind>),
   // since modals can't hold a select. handleSeedModalSubmit reads it back.
   // Uses the generated typed accessor (matches the other preset setters).
-  const kind = presetCreateOptions(context.interaction).kind() ?? 'text';
+  const kind = toConfigKind(presetCreateOptions(context.interaction).kind() ?? DEFAULT_CONFIG_KIND);
   const isVision = kind === 'vision';
 
   const modal = new ModalBuilder()

@@ -4,7 +4,11 @@
  * Sets a global config as the system default (owner only)
  */
 
-import { presetGlobalDefaultOptions } from '@tzurot/common-types';
+import {
+  presetGlobalDefaultOptions,
+  toConfigKind,
+  DEFAULT_CONFIG_KIND,
+} from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { handleGlobalPresetUpdate } from './globalPresetHelpers.js';
 
@@ -16,7 +20,7 @@ export async function handleGlobalSetDefault(context: DeferredCommandContext): P
   const configId = options.preset();
   // Admin set-default gates by kind (requireKind); pass it so a vision preset
   // promotes to the vision default. Defaults text → existing usage unchanged.
-  const kind = options.kind() ?? 'text';
+  const kind = toConfigKind(options.kind() ?? DEFAULT_CONFIG_KIND);
 
   await handleGlobalPresetUpdate(context, configId, {
     promote: (ownerClient, id) => ownerClient.setGlobalLlmConfigDefault(id, { kind }),
