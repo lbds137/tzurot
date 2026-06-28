@@ -29,7 +29,6 @@ export const EXCLUDED_TABLES: Record<string, string> = {
 
   // Transient/ephemeral data
   pending_memories: 'Transient queue data for memory processing',
-  image_description_cache: 'Cache data that can be regenerated',
   llm_diagnostic_logs: 'Ephemeral debug logs (auto-deleted after 24h)',
   usage_logs: 'Environment-specific usage tracking',
   import_jobs: 'Transient import job tracking (environment-specific, retryable)',
