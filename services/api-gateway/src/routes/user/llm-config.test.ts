@@ -161,10 +161,15 @@ import { getRouteHandler, findRoute } from '../../test/expressRouterUtils.js';
 import { computeLlmConfigPermissions, type PrismaClient } from '@tzurot/common-types';
 
 // Helper to create mock request/response
-function createMockReqRes(body: Record<string, unknown> = {}, params: Record<string, string> = {}) {
+function createMockReqRes(
+  body: Record<string, unknown> = {},
+  params: Record<string, string> = {},
+  query: Record<string, unknown> = {}
+) {
   const req = {
     body,
     params,
+    query,
     userId: 'discord-user-123',
     provisionedUserId: 'user-uuid-123',
     provisionedDefaultPersonaId: 'persona-uuid-default',
@@ -299,6 +304,40 @@ describe('/user/llm-config routes', () => {
           configs: [expect.objectContaining({ id: 'user-config-1', isOwned: true })],
         })
       );
+    });
+
+    it('scopes the list query to ?kind=vision', async () => {
+      mockPrisma.llmConfig.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+      const handler = getHandler(router, 'get', '/');
+      const { req, res } = createMockReqRes({}, {}, { kind: 'vision' });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      // User scope fires TWO queries (global + own). Assert BOTH carry the kind
+      // — `toHaveBeenCalledWith` alone would pass if only one did.
+      expect(mockPrisma.llmConfig.findMany).toHaveBeenCalledTimes(2);
+      expect(mockPrisma.llmConfig.findMany).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ where: expect.objectContaining({ kind: 'vision' }) })
+      );
+      expect(mockPrisma.llmConfig.findMany).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ where: expect.objectContaining({ kind: 'vision' }) })
+      );
+    });
+
+    it('rejects an invalid ?kind= with 400', async () => {
+      const router = createLlmConfigRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+      const handler = getHandler(router, 'get', '/');
+      const { req, res } = createMockReqRes({}, {}, { kind: 'audio' });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(mockPrisma.llmConfig.findMany).not.toHaveBeenCalled();
     });
   });
 
@@ -984,6 +1023,49 @@ describe('/user/llm-config routes', () => {
             params: { temperature: 0.9 },
           }),
         })
+      );
+    });
+
+    it('scopes the rename collision check to the config kind (vision)', async () => {
+      // Renaming a vision config to a name that only exists as a TEXT config must
+      // NOT collide — the collision check derives kind from the immutable row.
+      mockPrisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'vision-cfg',
+        ownerId: 'user-uuid-123',
+        isGlobal: false,
+        name: 'Old Vision',
+        kind: 'vision',
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
+      });
+      // No collision in the VISION namespace.
+      mockPrisma.llmConfig.findFirst.mockResolvedValue(null);
+      mockPrisma.llmConfig.update.mockResolvedValue({
+        id: 'vision-cfg',
+        name: 'Shared Name',
+        model: 'qwen/qwen3-vl-30b-a3b-instruct',
+        provider: 'openrouter',
+        isGlobal: false,
+        isDefault: false,
+        isFreeDefault: false,
+        ownerId: 'user-uuid-123',
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
+      });
+
+      const router = createLlmConfigRoutes({
+        prisma: mockPrisma as unknown as PrismaClient,
+        llmConfigCacheInvalidation: mockCacheInvalidation,
+      });
+      const handler = getHandler(router, 'put', '/:id');
+      const { req, res } = createMockReqRes({ name: 'Shared Name' }, { id: 'vision-cfg' });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      // The collision query must be scoped to kind='vision', not text.
+      expect(mockPrisma.llmConfig.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ kind: 'vision' }) })
       );
     });
 
