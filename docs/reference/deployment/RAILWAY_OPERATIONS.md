@@ -317,7 +317,7 @@ Both Railway environments auto-deploy from their respective branches. **No manua
 
 When a feature PR merges into `develop`, dev redeploys automatically. When a release PR merges from `develop` into `main`, prod redeploys automatically. The Railway dashboard shows deploy progress for each service in the project.
 
-**Schema changes do not auto-apply.** Prisma migrations must be run manually with `pnpm ops db:migrate --env <dev|prod>` after the deploy lands — see `.claude/rules/03-database.md` and `.claude/rules/05-tooling.md` for the constraint and `pnpm ops` syntax. For the full release procedure (merge → migrate → tag → release sequence), see the `tzurot-git-workflow` skill.
+**Schema changes do not auto-apply, and timing matters** because every service auto-deploys in parallel. For a **prod release**, migrate _before_ merging the release PR (`pnpm ops release:premigrate`) so auto-deploy lands into a ready schema — migrating after leaves new code on the old schema for the deploy window (the beta.140 incident). For **dev**, apply promptly after the push (`pnpm ops db:migrate --env dev`); the brief window is low-stakes. See `.claude/rules/03-database.md` § Deployment for the additive-vs-destructive distinction and `pnpm ops` syntax. For the full release procedure (premigrate → merge → tag → release sequence), see the `tzurot-git-workflow` skill.
 
 ### Watch Paths (per-service redeploy triggers)
 

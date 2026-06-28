@@ -5,6 +5,7 @@
  */
 
 import type { CAC } from 'cac';
+import type { Environment } from '../utils/env-runner.js';
 
 export function registerReleaseCommands(cli: CAC): void {
   // Bump version across all package.json files
@@ -66,4 +67,32 @@ export function registerReleaseCommands(cli: CAC): void {
       const { finalizeRelease } = await import('../release/finalize.js');
       await finalizeRelease(options);
     });
+
+  // Apply prod migrations BEFORE merging the release PR — closes the
+  // breaking-migration deploy window. Full rationale in `premigrate.ts`.
+  cli
+    .command(
+      'release:premigrate',
+      'Apply prod migrations BEFORE merging the release PR (closes the breaking-migration deploy window)'
+    )
+    .option('--env <env>', 'Target environment', { default: 'prod' })
+    .option('--dry-run', 'Preview: show new migrations + status without applying')
+    .option('--force', 'Skip the production confirmation prompt (required on non-TTY stdin)')
+    .option(
+      '--allow-destructive',
+      'Proceed even if destructive migration shapes are detected (use only with a maintenance window)'
+    )
+    .example('pnpm ops release:premigrate --dry-run')
+    .example('pnpm ops release:premigrate')
+    .action(
+      async (options: {
+        env?: Environment;
+        dryRun?: boolean;
+        force?: boolean;
+        allowDestructive?: boolean;
+      }) => {
+        const { premigrate } = await import('../release/premigrate.js');
+        await premigrate(options);
+      }
+    );
 }

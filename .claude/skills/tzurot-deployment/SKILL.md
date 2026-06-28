@@ -1,7 +1,7 @@
 ---
 name: tzurot-deployment
 description: 'Railway deployment procedures. Invoke with /tzurot-deployment for deploying, checking logs, and troubleshooting.'
-lastUpdated: '2026-06-19'
+lastUpdated: '2026-06-27'
 ---
 
 # Deployment Procedures
@@ -33,12 +33,18 @@ For release PRs to `main`: see `tzurot-git-workflow` skill (no `--delete-branch`
 
 ### 2. Run Prisma migration if the PR includes one
 
-Migrations are NOT auto-applied. Run immediately after merge to minimize the window where new code runs against the old schema:
+Migrations are NOT auto-applied, and the timing differs by environment because every service auto-deploys in parallel:
 
 ```bash
-pnpm ops db:migrate --env dev    # for develop pushes
-pnpm ops db:migrate --env prod   # for main pushes
+# Dev (develop pushes): apply promptly after the push — the brief window is low-stakes
+pnpm ops db:migrate --env dev
+
+# Prod (release): migrate BEFORE merging the release PR, so auto-deploy lands into a
+# ready schema. This is part of the release flow (tzurot-git-workflow skill, step 4):
+pnpm ops release:premigrate
 ```
+
+Additive migrations are safe to premigrate; destructive ones (drop/rename/tighten) need a maintenance window — `release:premigrate` refuses them without `--allow-destructive`. See `.claude/rules/03-database.md` § Deployment.
 
 ### 3. Monitor deployment
 
