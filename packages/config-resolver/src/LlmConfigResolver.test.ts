@@ -621,9 +621,34 @@ describe('LlmConfigResolver', () => {
 
       expect(result).toBeNull();
       expect(mockPrisma.llmConfig.findFirst).toHaveBeenCalledWith({
-        where: { isFreeDefault: true },
+        where: { isFreeDefault: true, kind: 'text' },
         select: expect.any(Object),
       });
+    });
+
+    it('scopes the free-default lookup to kind:text (ignores a vision free-default)', async () => {
+      // Behavioral guard for the vision free-default leak: llm_configs is shared
+      // with kind='vision' rows that also set isFreeDefault=true. The mock returns
+      // null for the kind:'text' query but a vision row otherwise — so a regression
+      // dropping the kind filter would resolve the vision row (non-null) and fail.
+      mockPrisma.llmConfig.findFirst.mockImplementation(
+        ({ where }: { where: Record<string, unknown> }) =>
+          where.kind === 'text'
+            ? null
+            : {
+                name: 'Vision Free Default',
+                model: 'qwen/qwen3-vl-30b-a3b-instruct',
+                provider: 'openrouter',
+                advancedParameters: null,
+                memoryScoreThreshold: null,
+                memoryLimit: null,
+                contextWindowTokens: null,
+              }
+      );
+
+      const result = await resolver.getFreeDefaultConfig();
+
+      expect(result).toBeNull();
     });
 
     it('should return config when isFreeDefault config exists', async () => {
