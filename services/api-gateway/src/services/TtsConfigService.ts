@@ -48,6 +48,7 @@ import {
   TtsAutoSuffixCollisionError,
   TtsInvalidProviderError,
 } from './TtsConfigErrors.js';
+import { NotFoundError } from '../utils/appErrors.js';
 
 const logger = createLogger('TtsConfigService');
 
@@ -374,8 +375,27 @@ export class TtsConfigService {
   // Admin-only Operations
   // --------------------------------------------------------------------------
 
+  /**
+   * Assert the config exists before a clear+set transaction. Routes guard with a
+   * fetch-or-404 helper first, so a null here is a delete-between-reads race —
+   * throw NotFoundError (→ 404 via asyncHandler) rather than letting the
+   * transaction's `update` raise a Prisma P2025 that surfaces as a 500 leaking
+   * the raw error. (Mirrors LlmConfigService.resolveTargetKindOrThrow, minus the
+   * kind — TTS configs have no kind discriminator.)
+   */
+  private async assertConfigExistsOrThrow(configId: string, op: string): Promise<void> {
+    const target = await this.prisma.ttsConfig.findUnique({
+      where: { id: configId },
+      select: { id: true },
+    });
+    if (target === null) {
+      throw new NotFoundError('TTS config', `${op}: config ${configId} not found`);
+    }
+  }
+
   /** Set a config as the system default. Clears any existing default first. */
   async setAsDefault(configId: string): Promise<void> {
+    await this.assertConfigExistsOrThrow(configId, 'setAsDefault');
     await this.prisma.$transaction(async tx => {
       await tx.ttsConfig.updateMany({
         where: { isDefault: true },
@@ -392,6 +412,7 @@ export class TtsConfigService {
 
   /** Set a config as the free tier default. Clears any existing free default first. */
   async setAsFreeDefault(configId: string): Promise<void> {
+    await this.assertConfigExistsOrThrow(configId, 'setAsFreeDefault');
     await this.prisma.$transaction(async tx => {
       await tx.ttsConfig.updateMany({
         where: { isFreeDefault: true },

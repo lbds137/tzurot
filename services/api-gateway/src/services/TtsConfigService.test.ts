@@ -19,6 +19,7 @@ import {
 } from './TtsConfigService.js';
 import type { PrismaClient } from '@tzurot/common-types';
 import type { TtsConfigCacheInvalidationService } from '@tzurot/cache-invalidation';
+import { NotFoundError } from '../utils/appErrors.js';
 
 // Mock logger to keep test output clean
 vi.mock('@tzurot/common-types', async () => {
@@ -466,6 +467,8 @@ describe('TtsConfigService', () => {
 
   describe('setAsDefault', () => {
     it('clears existing default in a transaction and sets the new one', async () => {
+      vi.mocked(prisma.ttsConfig.findUnique).mockResolvedValue(sampleConfig);
+
       await service.setAsDefault('cfg-uuid-1');
 
       expect(prisma.$transaction).toHaveBeenCalled();
@@ -479,10 +482,22 @@ describe('TtsConfigService', () => {
         data: { isDefault: true },
       });
     });
+
+    it('throws NotFoundError when the config no longer exists (delete-between-reads race)', async () => {
+      vi.mocked(prisma.ttsConfig.findUnique).mockResolvedValue(null);
+
+      const error = await service.setAsDefault('gone').catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(NotFoundError);
+      expect((error as NotFoundError).resource).toBe('TTS config');
+      // A vanished config must never enter the clear+set transaction.
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
   });
 
   describe('setAsFreeDefault', () => {
     it('clears existing free-default and sets the new one', async () => {
+      vi.mocked(prisma.ttsConfig.findUnique).mockResolvedValue(sampleConfig);
+
       await service.setAsFreeDefault('cfg-uuid-1');
       expect(prisma.ttsConfig.updateMany).toHaveBeenCalledWith({
         where: { isFreeDefault: true },
@@ -492,6 +507,15 @@ describe('TtsConfigService', () => {
         where: { id: 'cfg-uuid-1' },
         data: { isFreeDefault: true },
       });
+    });
+
+    it('throws NotFoundError when the config no longer exists (delete-between-reads race)', async () => {
+      vi.mocked(prisma.ttsConfig.findUnique).mockResolvedValue(null);
+
+      const error = await service.setAsFreeDefault('gone').catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(NotFoundError);
+      expect((error as NotFoundError).resource).toBe('TTS config');
+      expect(prisma.$transaction).not.toHaveBeenCalled();
     });
   });
 
