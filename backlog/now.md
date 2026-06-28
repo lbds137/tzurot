@@ -16,7 +16,7 @@ _Recently resolved:_ the DB connection-pool-starvation timeouts (surfaced 2026-0
 
 ### 🎯 Current Focus (max 3)
 
-_(empty — the **Test-Pyramid Taxonomy + Coverage Audit** epic COMPLETED 2026-06-26: Phases 1–4, PR1–7 all shipped (taxonomy reconcile → code-derived coverage topology + drift gate → gap-fill → seam contract tier: BullMQ, envelope, execution-check ratchet, voice-engine cross-language, close-out grab-bag #1358). Close-out council parked the flow-level gate + filed the post-deploy smoke check — see [`cold/follow-ups.md`](cold/follow-ups.md) / [`cold/ideas.md`](cold/ideas.md). **The Active Epic slot is now OPEN** — pick the next theme from [`cold/queue.md`](cold/queue.md); each substantial pick gets a council pass before plan-mode.)_
+**🏗️ `[FEAT]` Model Configuration Overhaul — Phase 2: editing surface + capability filtering** → see [`active-epic.md`](active-epic.md). Phase 1 (vision as a first-class config) shipped in beta.140; Phase 2 makes it editable (kind-param on existing commands + capability-aware validation + admin dashboard, absorbing the deferred #4 getById kind-gate). Substantial → council pass (GLM-5.2 / Kimi-K2.7 / Qwen-3.7-max) before plan-mode. (Prior epic — Test-Pyramid Taxonomy + Coverage Audit — COMPLETED 2026-06-26.)
 
 ---
 
