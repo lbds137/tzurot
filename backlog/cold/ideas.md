@@ -46,7 +46,7 @@ _Ungated speculative work — feature ideas and larger fixes with no committed s
 
 - 🔬 `[TRIAGE-NEEDED]` **Message reference parallel-fetch optimization + related follow-ups** — Proposal: [`docs/proposals/backlog/message-reference-follow-ups.md`](../docs/proposals/backlog/message-reference-follow-ups.md). Tracks recommended improvements identified during PR #208 code review (parallel link fetching, ~3x faster for multi-link messages, plus others). **Needs triage**: doc is 6+ months old (created 2025-11), references PR #208 (we're at #1080+); the message reference system has evolved since. Cross-check each suggested improvement against current code before promoting — some may be moot, some may have shipped piecemeal.
 
-- 🔬 `[TRIAGE-NEEDED]` **Slash command architecture redesign (multi-session epic)** — Proposal: [`docs/proposals/backlog/SLASH_COMMAND_ARCHITECTURE.md`](../docs/proposals/backlog/SLASH_COMMAND_ARCHITECTURE.md). Original goals: standardize UX patterns across entity-management commands, unify dashboard framework, consolidate alias-based tagging, enable user self-service for history/memory, prepare for shapes.inc data import. **Needs triage**: doc is from 2025-12; some goals have shipped piecemeal (dashboard framework, shapes import). Cross-check each section against shipped surface to determine remaining scope. **Likely outcome**: extract any still-relevant pieces as smaller individual items; delete the umbrella plan. _Absorbs the former standalone "Slash Command UX Audit" entry (full audit of slash UI patterns / shared-utility usage / standardization) — same scope, do as one triage._
+- _(Moved 2026-06-28)_ **Slash command architecture redesign** → consolidated into the theme [`cold/themes/platform-portable-ux-layer.md`](themes/platform-portable-ux-layer.md) (the 2025-12 proposal is referenced there for ADR/tier-system mining + triage).
 
 ### Surfaced 2026-05-14
 
@@ -277,24 +277,7 @@ Status command fires up to 100 parallel API calls. Have API return names with se
 
 #### 🏗️ Platform Abstraction Layer — decouple UX from Discord
 
-**Origin (stream of consciousness, 2026-04-13)**: what if there were a translation layer between _the user interactions I want_ and _what Discord slash commands actually look like_? Framed two ways:
-
-1. **Portability hedge**: Discord may stop being a viable platform at some point, and we don't want to be caught flat-footed. A layer that encodes "what experience do I want users to have" separately from "how does Discord express that" would make retargeting to Stoat (née Revolt), a web UI, or any other arbitrary platform a matter of writing a new adapter rather than rewriting every command.
-2. **Near-term DX**: a standardized DSL for building slash commands quickly and easily — on top of (and in the same spirit as) the ongoing CPD reduction / duplication cleanup. Instead of each command hand-rolling a `SlashCommandBuilder` tree + bespoke option parsing + bespoke handler wiring, a small in-house builder describes "a command with these options and this intent," and generators produce the Discord registration, the dispatch, and (eventually) any alternate-platform adapter.
-
-**Why it's in Icebox and not deleted**: (a) the CPD reduction work (subcommand router consolidation, browse helpers, dashboard session/modal utilities) is already pushing toward this shape without anyone asking for it — if a DSL eventually crystallizes, it should crystallize the patterns the consolidation work has already validated, not invent new ones; (b) it's the right frame if/when Discord does become untenable, and having thought about it is cheaper than needing it without having thought about it.
-
-**Revisit when**: (1) CPD is at a low baseline and the remaining command boilerplate visibly wants to be a builder function (`defineSlashCommand({ name, options, intent, onInvoke })`) rather than raw `SlashCommandBuilder` chains, or (2) a concrete portability requirement appears (Discord API change, new platform target, web UI project).
-
-**Current state (2026-04-13 investigation)**: the codebase is already **~45–55% DSL-shaped**. `defineCommand()` at `services/bot-client/src/utils/defineCommand.ts:57-162` already serves as the DSL nucleus — it enforces command contracts, abstracts deferral modes (with context-type variance: `ModalCommandContext` vs `DeferredCommandContext` vs `SafeCommandContext`), and declares component routing via `componentPrefixes`. Shared utilities cover browse/dashboard/session/modal patterns comprehensively (see table in `.claude/rules/04-discord.md`). Empirical utility-call density: browse commands ~7% of LOC, dashboard commands ~13%.
-
-**What `defineCommand` does NOT yet absorb** (the residual boilerplate a full DSL would need to cover): `SlashCommandBuilder` chain construction (e.g., `commands/character/index.ts:215-388` is 174 LOC of Discord.js tree), option parsing via per-command codegen helpers, subcommand routing via external factories (`createMixedModeSubcommandRouter`, `createTypedSubcommandRouter`), error-handling try-catch wrapping, and `ModalBuilder` / `TextInputBuilder` chains.
-
-**What Phases 5–6 of the Active Epic would push further**: `requireDashboardSession` (~8 clones), dashboard modal/select handlers (~6 clones), subcommand router consolidation (~3 clones). After those land, ~35–50 LOC per command remains as essentially irreducible `SlashCommandBuilder` + `ModalBuilder` tree construction. That's Discord.js API surface and can't go into a utility without either (a) code generation, (b) a declarative schema compiler, or (c) a thinner-than-Discord.js DSL that accepts less API control.
-
-**Framing insight**: a realistic DSL could eliminate 50–60% of per-command boilerplate; the remaining 40–50% IS the Discord.js API surface — which is also exactly what a cross-platform abstraction layer would need to replace. So the irreducible-boilerplate problem and the portability problem are the same problem viewed from two angles. This suggests the "revisit" trigger isn't really about CPD reaching zero — it's about whether the cost of a schema compiler or code generator is worth paying, which correlates with how seriously we're pursuing portability.
-
-**User's own framing**: "Probably a bit pie in the sky, but I want to at least think about it."
+_(Moved 2026-06-28)_ Consolidated — with the full 2026-04-13 investigation (codebase ~45–55% DSL-shaped; `defineCommand` as the DSL nucleus; the "irreducible boilerplate = the portability adapter boundary" framing insight) — into the theme [`cold/themes/platform-portable-ux-layer.md`](themes/platform-portable-ux-layer.md), now anchored by the 2026-06-28 5-dimension UX audit.
 
 ### Code Quality
 
