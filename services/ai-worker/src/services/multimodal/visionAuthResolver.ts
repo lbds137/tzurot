@@ -22,9 +22,8 @@
  * can't auth the vision provider, not a specific provider's users.
  *
  * Use `buildVisionAuthFailureResults` to construct the synthetic-failure
- * `ProcessedAttachment[]` when the resolver returns `failFast`. That helper
- * writes to the negative cache so subsequent retries within the 5-min window
- * hit cache instead of re-resolving and re-failing.
+ * `ProcessedAttachment[]` (the "configure your key" placeholders) when the
+ * resolver returns `failFast`.
  */
 
 import {
