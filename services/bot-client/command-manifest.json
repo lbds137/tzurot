@@ -1821,6 +1821,22 @@
                     "name": "character",
                     "description": "The character to clear",
                     "required": true
+                  },
+                  {
+                    "type": 3,
+                    "choices": [
+                      {
+                        "name": "Text",
+                        "value": "text"
+                      },
+                      {
+                        "name": "Vision",
+                        "value": "vision"
+                      }
+                    ],
+                    "name": "kind",
+                    "description": "Preset kind (default: text)",
+                    "required": false
                   }
                 ]
               },
@@ -1858,7 +1874,24 @@
                 "type": 1,
                 "name": "clear-default",
                 "description": "Clear your global default preset",
-                "options": []
+                "options": [
+                  {
+                    "type": 3,
+                    "choices": [
+                      {
+                        "name": "Text",
+                        "value": "text"
+                      },
+                      {
+                        "name": "Vision",
+                        "value": "vision"
+                      }
+                    ],
+                    "name": "kind",
+                    "description": "Preset kind (default: text)",
+                    "required": false
+                  }
+                ]
               }
             ]
           },

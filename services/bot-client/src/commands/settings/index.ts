@@ -350,6 +350,13 @@ export default defineCommand({
                 .setRequired(true)
                 .setAutocomplete(true)
             )
+            .addStringOption(option =>
+              option
+                .setName('kind')
+                .setDescription(CONFIG_KIND_OPTION_DESCRIPTION)
+                .setRequired(false)
+                .addChoices({ name: 'Text', value: 'text' }, { name: 'Vision', value: 'vision' })
+            )
         )
         .addSubcommand(subcommand =>
           subcommand
@@ -371,7 +378,16 @@ export default defineCommand({
             )
         )
         .addSubcommand(subcommand =>
-          subcommand.setName('clear-default').setDescription('Clear your global default preset')
+          subcommand
+            .setName('clear-default')
+            .setDescription('Clear your global default preset')
+            .addStringOption(option =>
+              option
+                .setName('kind')
+                .setDescription(CONFIG_KIND_OPTION_DESCRIPTION)
+                .setRequired(false)
+                .addChoices({ name: 'Text', value: 'text' }, { name: 'Vision', value: 'vision' })
+            )
         )
     )
     // Defaults subcommand group (user-default config cascade settings)
