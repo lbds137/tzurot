@@ -5,7 +5,11 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import {
+  createLogger,
+  DISCORD_COLORS,
+  settingsPresetClearDefaultOptions,
+} from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { clientsFor } from '../../../utils/gatewayClients.js';
 
@@ -16,10 +20,13 @@ const logger = createLogger('settings-preset-clear-default');
  */
 export async function handleClearDefault(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
+  // Which default to clear: text (default) or vision — the operation is
+  // kind-specific (the vision default is a separate FK from the text default).
+  const kind = settingsPresetClearDefaultOptions(context.interaction).kind() ?? 'text';
 
   try {
     const { userClient } = clientsFor(context.interaction);
-    const result = await userClient.clearDefaultModelConfig();
+    const result = await userClient.clearDefaultModelConfig({ kind });
 
     if (!result.ok) {
       logger.warn({ userId, status: result.status }, 'Failed to clear default');
@@ -47,7 +54,7 @@ export async function handleClearDefault(context: DeferredCommandContext): Promi
     await context.editReply({ embeds: [embed] });
 
     logger.info(
-      { userId, newDefault: result.data.newEffectiveDefault?.name ?? null },
+      { userId, kind, newDefault: result.data.newEffectiveDefault?.name ?? null },
       'Cleared default config'
     );
   } catch (error) {

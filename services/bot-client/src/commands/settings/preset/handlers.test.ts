@@ -162,7 +162,7 @@ describe('Preset Command Handlers', () => {
 
       await handleClear(createMockContext());
 
-      expect(stub.deleteModelOverride).toHaveBeenCalledWith(PERSONALITY_ID_1);
+      expect(stub.deleteModelOverride).toHaveBeenCalledWith(PERSONALITY_ID_1, { kind: 'text' });
       expect(mockCreateSuccessEmbed).toHaveBeenCalledWith(
         '🔄 Preset Override Removed',
         'The character will now use its default preset.'

@@ -21,6 +21,10 @@ export async function handleClear(context: DeferredCommandContext): Promise<void
   const userId = context.user.id;
   const options = settingsPresetClearOptions(context.interaction);
   const personalityId = options.character();
+  // Which override to clear: text (default) or vision. Unlike the setters,
+  // clear sends kind because the operation itself is kind-specific — a vision
+  // override is a separate FK from the text override.
+  const kind = options.kind() ?? 'text';
 
   if (isAutocompleteErrorSentinel(personalityId)) {
     await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
@@ -29,7 +33,7 @@ export async function handleClear(context: DeferredCommandContext): Promise<void
 
   try {
     const { userClient } = clientsFor(context.interaction);
-    const result = await userClient.deleteModelOverride(personalityId);
+    const result = await userClient.deleteModelOverride(personalityId, { kind });
 
     if (!result.ok) {
       logger.warn({ userId, status: result.status, personalityId }, 'Failed to clear override');
@@ -52,7 +56,7 @@ export async function handleClear(context: DeferredCommandContext): Promise<void
 
     await context.editReply({ embeds: [embed] });
 
-    logger.info({ userId, personalityId, wasSet }, 'Cleared override');
+    logger.info({ userId, personalityId, kind, wasSet }, 'Cleared override');
   } catch (error) {
     logger.error({ err: error, userId, command: 'Preset Clear' }, 'Error');
     await context.editReply({ content: '❌ An error occurred. Please try again later.' });

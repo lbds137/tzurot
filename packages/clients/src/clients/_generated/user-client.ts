@@ -503,8 +503,8 @@ export class UserClient {
     });
   }
 
-  async deleteModelOverride(personalityId: string): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.deleteModelOverride.output>>> {
-    const fullPath = `/api/user/model-override/${encodeURIComponent(personalityId)}`;
+  async deleteModelOverride(personalityId: string, options: { kind?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.deleteModelOverride.output>>> {
+    const fullPath = `/api/user/model-override/${encodeURIComponent(personalityId)}` + buildQueryString([['kind', options.kind]]);
     return callGateway({
       baseUrl: this.baseUrl,
       serviceSecret: this.serviceSecret,
@@ -559,8 +559,8 @@ export class UserClient {
     });
   }
 
-  async clearDefaultModelConfig(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.clearDefaultModelConfig.output>>> {
-    const fullPath = '/api/user/model-override/default';
+  async clearDefaultModelConfig(options: { kind?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.clearDefaultModelConfig.output>>> {
+    const fullPath = '/api/user/model-override/default' + buildQueryString([['kind', options.kind]]);
     return callGateway({
       baseUrl: this.baseUrl,
       serviceSecret: this.serviceSecret,
