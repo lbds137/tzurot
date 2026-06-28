@@ -19,6 +19,7 @@ export {
   ZAI_MODEL_PREFIX,
   isZaiCodingPlanModel,
   getZaiCodingPlanContextLength,
+  zaiCodingPlanModelCapabilities,
   listZaiCodingPlanModels,
   buildModelInfoUrl,
 } from './ai.js';

@@ -95,7 +95,15 @@ function createCreateConfigHandler(
     // z.ai-catalog models (incl. z.ai-only ones like glm-5.2) are validatable as
     // global configs. Users with a z.ai key promote at runtime; users without
     // one fall through to OpenRouter.
-    if (!(await validateLlmConfigModelFields({ res, modelCache, body, hasZaiCodingKey: true }))) {
+    if (
+      !(await validateLlmConfigModelFields({
+        res,
+        modelCache,
+        body,
+        hasZaiCodingKey: true,
+        kind: body.kind,
+      }))
+    ) {
       return;
     }
 
@@ -108,6 +116,7 @@ function createCreateConfigHandler(
       !(await ensureNoNameCollision(res, service, {
         name: body.name,
         scope: { type: 'GLOBAL' },
+        kind: body.kind,
         formatCollisionMessage: n => `A global config named "${n}" already exists`,
       }))
     ) {
