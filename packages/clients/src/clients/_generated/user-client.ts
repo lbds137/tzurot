@@ -94,8 +94,8 @@ export class UserClient {
   /**
    * @safeRead Server-side has no observable mutation — safe to cache client-side.
    */
-  async listUserLlmConfigs(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listUserLlmConfigs.output>>> {
-    const fullPath = '/api/user/llm-config';
+  async listUserLlmConfigs(options: { kind?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listUserLlmConfigs.output>>> {
+    const fullPath = '/api/user/llm-config' + buildQueryString([['kind', options.kind]]);
     return callGateway({
       baseUrl: this.baseUrl,
       serviceSecret: this.serviceSecret,

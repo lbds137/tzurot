@@ -14,9 +14,12 @@ import { handleGlobalPresetUpdate } from './globalPresetHelpers.js';
 export async function handleGlobalSetDefault(context: DeferredCommandContext): Promise<void> {
   const options = presetGlobalDefaultOptions(context.interaction);
   const configId = options.preset();
+  // Admin set-default gates by kind (requireKind); pass it so a vision preset
+  // promotes to the vision default. Defaults text → existing usage unchanged.
+  const kind = options.kind() ?? 'text';
 
   await handleGlobalPresetUpdate(context, configId, {
-    promote: (ownerClient, id) => ownerClient.setGlobalLlmConfigDefault(id),
+    promote: (ownerClient, id) => ownerClient.setGlobalLlmConfigDefault(id, { kind }),
     embedTitle: 'System Default Preset Updated',
     embedDescription: (configName: string) =>
       `**${configName}** is now the system default preset.\n\n` +

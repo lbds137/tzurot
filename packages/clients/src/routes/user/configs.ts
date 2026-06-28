@@ -12,6 +12,7 @@
 
 import { z } from 'zod';
 import {
+  CONFIG_KINDS,
   ClearDefaultConfigResponseSchema,
   ClearSttDefaultProviderResponseSchema,
   ClearTtsDefaultConfigResponseSchema,
@@ -100,6 +101,9 @@ export const userConfigRoutes = {
     method: 'get',
     path: '/llm-config',
     id: 'listUserLlmConfigs',
+    // Scope the listing to a config kind (text|vision); defaults text so the
+    // autocomplete picker shows only the requested kind.
+    query: { kind: z.enum(CONFIG_KINDS).optional() },
     output: ListLlmConfigsResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },

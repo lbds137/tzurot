@@ -57,6 +57,13 @@ import {
 const logger = createLogger('preset-command');
 
 /**
+ * Description for the text/vision `kind` option shared across the preset
+ * subcommands. The option name + required flag stay inline at each call site
+ * because the command-types codegen reads them as string literals.
+ */
+const CONFIG_KIND_OPTION_DESCRIPTION = 'Preset kind (default: text)';
+
+/**
  * Create user preset router with mixed deferral modes
  * - create: modal mode (shows seed modal)
  * - browse/edit/export/import/template: deferred mode (ephemeral response)
@@ -186,7 +193,16 @@ export default defineCommand({
         )
     )
     .addSubcommand(subcommand =>
-      subcommand.setName('create').setDescription('Create a new model preset')
+      subcommand
+        .setName('create')
+        .setDescription('Create a new model preset')
+        .addStringOption(option =>
+          option
+            .setName('kind')
+            .setDescription(CONFIG_KIND_OPTION_DESCRIPTION)
+            .setRequired(false)
+            .addChoices({ name: 'Text', value: 'text' }, { name: 'Vision', value: 'vision' })
+        )
     )
     .addSubcommand(subcommand =>
       subcommand
@@ -238,6 +254,13 @@ export default defineCommand({
                 .setRequired(true)
                 .setAutocomplete(true)
             )
+            .addStringOption(option =>
+              option
+                .setName('kind')
+                .setDescription(CONFIG_KIND_OPTION_DESCRIPTION)
+                .setRequired(false)
+                .addChoices({ name: 'Text', value: 'text' }, { name: 'Vision', value: 'vision' })
+            )
         )
         .addSubcommand(subcommand =>
           subcommand
@@ -249,6 +272,13 @@ export default defineCommand({
                 .setDescription('Global preset to set as free tier default')
                 .setRequired(true)
                 .setAutocomplete(true)
+            )
+            .addStringOption(option =>
+              option
+                .setName('kind')
+                .setDescription(CONFIG_KIND_OPTION_DESCRIPTION)
+                .setRequired(false)
+                .addChoices({ name: 'Text', value: 'text' }, { name: 'Vision', value: 'vision' })
             )
         )
     ),

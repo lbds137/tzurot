@@ -40,7 +40,13 @@ vi.mock('../../utils/gatewayClients.js', () => ({
 vi.mock('../../utils/dashboard/index.js', () => ({
   buildDashboardEmbed: vi.fn().mockReturnValue({ data: {} }),
   buildDashboardComponents: vi.fn().mockReturnValue([]),
-  buildDashboardCustomId: vi.fn().mockReturnValue('preset::seed'),
+  buildDashboardCustomId: vi.fn((...parts: (string | undefined)[]) =>
+    parts.filter(Boolean).join('::')
+  ),
+  // Default to the text round-trip; vision tests override the return value.
+  parseDashboardCustomId: vi
+    .fn()
+    .mockReturnValue({ entityType: 'preset', action: 'seed', entityId: 'text' }),
   extractModalValues: vi.fn(),
   getSessionManager: vi.fn().mockReturnValue({
     set: vi.fn(),
@@ -49,12 +55,18 @@ vi.mock('../../utils/dashboard/index.js', () => ({
 
 describe('Preset Create', () => {
   describe('handleCreate', () => {
+    // create.ts reads kind via presetCreateOptions(context.interaction).kind(),
+    // which calls interaction.options.getString('kind', false). The option is
+    // optional; null → handler defaults to 'text'.
+    const mockGetString = vi.fn().mockReturnValue(null);
     const mockContext = {
       showModal: vi.fn(),
+      interaction: { options: { getString: mockGetString } },
     };
 
     beforeEach(() => {
       vi.clearAllMocks();
+      mockGetString.mockReturnValue(null);
     });
 
     it('should show modal for preset creation', async () => {
@@ -64,6 +76,26 @@ describe('Preset Create', () => {
         expect.objectContaining({
           data: expect.objectContaining({
             title: 'Create New Preset',
+          }),
+        })
+      );
+    });
+
+    it('should title the modal for vision when kind=vision and carry kind in the custom-ID', async () => {
+      mockGetString.mockReturnValue('vision');
+
+      await handleCreate(mockContext as unknown as Parameters<typeof handleCreate>[0]);
+
+      // Custom-ID carries the kind so the modal-submit handler can recover it.
+      expect(dashboardUtils.buildDashboardCustomId).toHaveBeenCalledWith(
+        'preset',
+        'seed',
+        'vision'
+      );
+      expect(mockContext.showModal).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            title: 'Create New Vision Preset',
           }),
         })
       );
@@ -214,6 +246,8 @@ describe('Preset Create', () => {
           name: 'My Preset',
           model: 'anthropic/claude-sonnet-4',
           provider: 'openrouter',
+          // Recovered from the modal custom-ID; defaults to text.
+          kind: 'text',
         },
         TEST_USER_CLIENT
       );
@@ -232,6 +266,51 @@ describe('Preset Create', () => {
         messageId: 'message-123',
         channelId: 'channel-123',
       });
+    });
+
+    it('should recover kind=vision from the modal custom-ID and create a vision preset', async () => {
+      vi.mocked(dashboardUtils.parseDashboardCustomId).mockReturnValue({
+        entityType: 'preset',
+        action: 'seed',
+        entityId: 'vision',
+      });
+
+      vi.mocked(dashboardUtils.extractModalValues).mockReturnValue({
+        name: 'Vision Preset',
+        model: 'openai/gpt-4o',
+        provider: 'openrouter',
+      });
+
+      vi.mocked(api.createPreset).mockResolvedValue({
+        id: 'preset-vision',
+        name: 'Vision Preset',
+        description: null,
+        model: 'openai/gpt-4o',
+        provider: 'openrouter',
+        isGlobal: false,
+        isOwned: true,
+        permissions: { canEdit: true, canDelete: true },
+        contextWindowTokens: 8192,
+        params: {},
+      });
+
+      const mockInteraction = createMockModalInteraction({
+        name: 'Vision Preset',
+        model: 'openai/gpt-4o',
+        provider: 'openrouter',
+      });
+
+      await handleSeedModalSubmit(mockInteraction);
+
+      expect(api.createPreset).toHaveBeenCalledWith(
+        {
+          name: 'Vision Preset',
+          model: 'openai/gpt-4o',
+          provider: 'openrouter',
+          kind: 'vision',
+        },
+        TEST_USER_CLIENT
+      );
     });
 
     it('should handle duplicate name error', async () => {
