@@ -4,6 +4,8 @@
  * AI model configuration, providers, defaults, and endpoints.
  */
 
+import type { ModelCapabilities } from '../types/ai.js';
+
 /**
  * AI model default configuration
  */
@@ -267,8 +269,23 @@ export const ZAI_VALIDATION_MODEL = 'glm-4.5-air';
 // the synthetic catalog entry's `created` so `/models` can sort them by recency.
 // Models that also live on OpenRouter take OpenRouter's `created` via the merge,
 // so `released` is optional and only worth setting for z.ai-only entries.
+// Modality flags are OPTIONAL and omitted = false (text-only). Every current
+// z.ai coding-plan model is text-only, so none set them; the fields exist so a
+// future z.ai vision/audio model is a one-line value change, not a schema
+// change. `zaiCodingPlanModelCapabilities` reads them with `?? false`.
 const ZAI_MODEL_CATALOG: Readonly<
-  Record<string, { docsUrl: string; contextLength: number; released?: string }>
+  Record<
+    string,
+    {
+      docsUrl: string;
+      contextLength: number;
+      released?: string;
+      supportsVision?: boolean;
+      supportsImageGeneration?: boolean;
+      supportsAudioInput?: boolean;
+      supportsAudioOutput?: boolean;
+    }
+  >
 > = {
   'glm-5': { docsUrl: 'https://docs.z.ai/guides/llm/glm-5', contextLength: 200_000 },
   'glm-5.1': { docsUrl: 'https://docs.z.ai/guides/llm/glm-5.1', contextLength: 200_000 },
@@ -340,6 +357,47 @@ export interface ZaiCodingPlanModelInfo {
   contextLength: number;
   /** ISO release date; only set for z.ai-exclusive models (see catalog comment). */
   released?: string;
+  // Modality capabilities. Each is OPTIONAL: omitted = false (text-only). Set a
+  // field per-model only when a z.ai model gains that capability. Read these via
+  // `zaiCodingPlanModelCapabilities()`, which normalizes undefined → false;
+  // direct field access sees `undefined`, not `false`.
+  /** Accepts image input (vision). Omitted = false. */
+  supportsVision?: boolean;
+  /** Produces image output. Omitted = false. */
+  supportsImageGeneration?: boolean;
+  /** Accepts audio input. Omitted = false. */
+  supportsAudioInput?: boolean;
+  /** Produces audio output. Omitted = false. */
+  supportsAudioOutput?: boolean;
+}
+
+/**
+ * Resolve a z.ai coding-plan model's modality capabilities into the unified,
+ * provider-agnostic {@link ModelCapabilities} shape. Strips an optional `z-ai/`
+ * prefix and case-normalizes (same lookup contract as
+ * {@link getZaiCodingPlanContextLength}). Returns `null` for any model not in
+ * the catalog — callers treat that as "not a z.ai coding-plan model."
+ *
+ * z.ai coding-plan models are text-only today, so the catalog's modality flags
+ * are optional and read as `false` when omitted. A `kind='vision'` config on a
+ * z.ai model therefore fails closed (no confirmed vision support) until a z.ai
+ * vision model is explicitly flagged in the catalog.
+ */
+export function zaiCodingPlanModelCapabilities(model: string): ModelCapabilities | null {
+  const lower = model.toLowerCase();
+  const bare = lower.startsWith(ZAI_MODEL_PREFIX) ? lower.slice(ZAI_MODEL_PREFIX.length) : lower;
+  const entry = ZAI_MODEL_CATALOG[bare];
+  if (entry === undefined) {
+    return null;
+  }
+  return {
+    supportsVision: entry.supportsVision ?? false,
+    supportsImageGeneration: entry.supportsImageGeneration ?? false,
+    supportsAudioInput: entry.supportsAudioInput ?? false,
+    supportsAudioOutput: entry.supportsAudioOutput ?? false,
+    contextLength: entry.contextLength,
+    source: 'zai',
+  };
 }
 
 /**

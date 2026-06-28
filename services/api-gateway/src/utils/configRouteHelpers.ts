@@ -15,7 +15,7 @@
 
 import type { Response } from 'express';
 import type { z } from 'zod';
-import type { PrismaClient, EntityPermissions } from '@tzurot/common-types';
+import type { PrismaClient, EntityPermissions, ConfigKind } from '@tzurot/common-types';
 import { sendError } from './responseHelpers.js';
 import { sendZodError } from './zodHelpers.js';
 import { ErrorResponses } from './errorResponses.js';
@@ -188,7 +188,8 @@ interface NameExistsChecker<TScope> {
     name: string,
     scope: TScope,
     excludeId?: string,
-    postIsGlobal?: boolean
+    postIsGlobal?: boolean,
+    kind?: ConfigKind
   ): Promise<{ exists: boolean }>;
 }
 
@@ -221,14 +222,19 @@ export async function ensureNoNameCollision<TScope>(
      *  state would be `isGlobal: true`, so the check widens to the
      *  cross-user global namespace. Admin and create paths omit this. */
     postIsGlobal?: boolean;
+    /** Config kind to scope the collision check to. Names are unique per
+     *  `(kind, …)` (the partial-unique indexes), so a vision config named "X"
+     *  must NOT collide with a text config named "X". Pass `body.kind` on
+     *  create; omit (defaults text in the service) for text-only callers. */
+    kind?: ConfigKind;
     /** Caller-provided message formatter. Receives `name` (so the caller
      *  doesn't have to capture it in closure) and returns the full
      *  user-facing message. */
     formatCollisionMessage: (name: string) => string;
   }
 ): Promise<boolean> {
-  const { name, scope, excludeId, postIsGlobal, formatCollisionMessage } = options;
-  const nameCheck = await service.checkNameExists(name, scope, excludeId, postIsGlobal);
+  const { name, scope, excludeId, postIsGlobal, kind, formatCollisionMessage } = options;
+  const nameCheck = await service.checkNameExists(name, scope, excludeId, postIsGlobal, kind);
   if (nameCheck.exists) {
     sendError(res, ErrorResponses.nameCollision(formatCollisionMessage(name)));
     return false;

@@ -9,6 +9,7 @@ import {
   buildModelInfoUrl,
   isZaiCodingPlanModel,
   getZaiCodingPlanContextLength,
+  zaiCodingPlanModelCapabilities,
   listZaiCodingPlanModels,
 } from './ai.js';
 
@@ -264,5 +265,35 @@ describe('listZaiCodingPlanModels', () => {
     for (const entry of listZaiCodingPlanModels()) {
       expect(getZaiCodingPlanContextLength(entry.model)).toBe(entry.contextLength);
     }
+  });
+});
+
+describe('zaiCodingPlanModelCapabilities', () => {
+  it('returns a text-only capability shape for every current catalog model', () => {
+    // All z.ai coding-plan models are text-only today, so every flag is false
+    // and the vision gate fails closed for them.
+    for (const entry of listZaiCodingPlanModels()) {
+      const caps = zaiCodingPlanModelCapabilities(entry.model);
+      expect(caps).not.toBeNull();
+      expect(caps).toMatchObject({
+        supportsVision: false,
+        supportsImageGeneration: false,
+        supportsAudioInput: false,
+        supportsAudioOutput: false,
+        contextLength: entry.contextLength,
+        source: 'zai',
+      });
+    }
+  });
+
+  it('strips the z-ai/ prefix and case-normalizes before lookup', () => {
+    expect(zaiCodingPlanModelCapabilities('z-ai/glm-5.2')?.contextLength).toBe(1_000_000);
+    expect(zaiCodingPlanModelCapabilities('Z-AI/GLM-5.2')?.source).toBe('zai');
+  });
+
+  it('returns null for models not in the catalog', () => {
+    expect(zaiCodingPlanModelCapabilities('glm-99-future')).toBeNull();
+    expect(zaiCodingPlanModelCapabilities('anthropic/claude-sonnet-4')).toBeNull();
+    expect(zaiCodingPlanModelCapabilities('')).toBeNull();
   });
 });

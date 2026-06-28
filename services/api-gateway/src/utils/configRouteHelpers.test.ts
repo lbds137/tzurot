@@ -234,6 +234,7 @@ describe('ensureNoNameCollision', () => {
       'NewName',
       globalScope,
       undefined,
+      undefined,
       undefined
     );
     expect(mockSendError).not.toHaveBeenCalled();
@@ -277,6 +278,7 @@ describe('ensureNoNameCollision', () => {
       'RenameTarget',
       globalScope,
       'existing-id-789',
+      undefined,
       undefined
     );
   });
@@ -296,6 +298,7 @@ describe('ensureNoNameCollision', () => {
     expect(service.checkNameExists).toHaveBeenCalledWith(
       'MyConfig',
       userScope,
+      undefined,
       undefined,
       undefined
     );
@@ -334,7 +337,13 @@ describe('ensureNoNameCollision', () => {
       formatCollisionMessage: _n => `irrelevant`,
     });
 
-    expect(service.checkNameExists).toHaveBeenCalledWith('Renamed', userScope, 'cfg-1', true);
+    expect(service.checkNameExists).toHaveBeenCalledWith(
+      'Renamed',
+      userScope,
+      'cfg-1',
+      true,
+      undefined
+    );
   });
 
   it('does not pass postIsGlobal when omitted (service receives undefined 4th arg)', async () => {
@@ -352,7 +361,29 @@ describe('ensureNoNameCollision', () => {
       'Created',
       userScope,
       undefined,
+      undefined,
       undefined
+    );
+  });
+
+  it('forwards kind to the service so collision checks are kind-scoped', async () => {
+    const service = {
+      checkNameExists: vi.fn().mockResolvedValue({ exists: false }),
+    };
+
+    await ensureNoNameCollision(mockRes, service, {
+      name: 'VisionPreset',
+      scope: globalScope,
+      kind: 'vision',
+      formatCollisionMessage: _n => `irrelevant`,
+    });
+
+    expect(service.checkNameExists).toHaveBeenCalledWith(
+      'VisionPreset',
+      globalScope,
+      undefined,
+      undefined,
+      'vision'
     );
   });
 });
