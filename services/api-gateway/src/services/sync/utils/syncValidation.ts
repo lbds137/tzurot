@@ -94,9 +94,7 @@ export async function validateSyncConfig(
     const actualColumns = schemaMap.get(tableName);
 
     if (!actualColumns) {
-      warnings.push(
-        `⚠️  SYNC_CONFIG has table '${tableName}' but it doesn't exist in database schema`
-      );
+      warnings.push(`SYNC_CONFIG has table '${tableName}' but it doesn't exist in database schema`);
       continue;
     }
 
@@ -105,7 +103,7 @@ export async function validateSyncConfig(
     for (const actualColumn of actualColumns) {
       if (!configColumns.includes(actualColumn)) {
         warnings.push(
-          `⚠️  Table '${tableName}' has UUID column '${actualColumn}' in schema but not in SYNC_CONFIG.uuidColumns`
+          `Table '${tableName}' has UUID column '${actualColumn}' in schema but not in SYNC_CONFIG.uuidColumns`
         );
       }
     }
@@ -114,7 +112,7 @@ export async function validateSyncConfig(
     for (const configColumn of config.uuidColumns) {
       if (!actualColumns.has(configColumn)) {
         warnings.push(
-          `⚠️  Table '${tableName}' has '${configColumn}' in SYNC_CONFIG.uuidColumns but it's not a UUID column in schema (or doesn't exist)`
+          `Table '${tableName}' has '${configColumn}' in SYNC_CONFIG.uuidColumns but it's not a UUID column in schema (or doesn't exist)`
         );
       }
     }
@@ -132,10 +130,10 @@ export async function validateSyncConfig(
       // Check if it's an explicitly excluded table
       const exclusionReason = EXCLUDED_TABLES[tableName];
       if (exclusionReason !== undefined) {
-        info.push(`ℹ️  Table '${tableName}' excluded: ${exclusionReason}`);
+        info.push(`Table '${tableName}' excluded: ${exclusionReason}`);
       } else {
         warnings.push(
-          `⚠️  Table '${tableName}' exists in database but is not in SYNC_CONFIG or EXCLUDED_TABLES`
+          `Table '${tableName}' exists in database but is not in SYNC_CONFIG or EXCLUDED_TABLES`
         );
       }
     }
@@ -155,10 +153,14 @@ export async function validateSyncConfig(
   `;
   const schemaTableNames = new Set(allTables.map(r => r.table_name));
   for (const tableName of Object.keys(EXCLUDED_TABLES)) {
+    // Skip Prisma internal tables, mirroring the uncategorized-table loop above —
+    // they're never synced, so an `_prisma_*` exclusion (were one ever added) is a
+    // no-op, not a phantom to flag.
+    if (tableName.startsWith('_prisma')) {
+      continue;
+    }
     if (!schemaTableNames.has(tableName)) {
-      warnings.push(
-        `⚠️  Table '${tableName}' is in EXCLUDED_TABLES but doesn't exist in the schema`
-      );
+      warnings.push(`Table '${tableName}' is in EXCLUDED_TABLES but doesn't exist in the schema`);
     }
   }
 
