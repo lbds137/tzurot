@@ -70,10 +70,6 @@ WORKDIR /app
 COPY --from=pruner /app/out/json/ .
 COPY --from=pruner /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
 COPY prisma ./prisma
-# prisma.config.ts feeds DATABASE_URL to `prisma migrate deploy` (the schema's
-# datasource has no url — the runtime uses the pg driver adapter). The runner
-# needs it for the Railway pre-deploy migration command (railway.json).
-COPY prisma.config.ts ./prisma.config.ts
 
 # Install production dependencies only
 RUN pnpm install --prod --frozen-lockfile

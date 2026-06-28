@@ -70,7 +70,7 @@ pnpm ops deploy:setup-vars --env dev --dry-run  # Preview env var setup
 pnpm ops run --env dev <command>     # Run any command with Railway creds
 ```
 
-**Post-deploy migration reminder:** If the deployment includes new Prisma migrations, run `pnpm ops db:migrate --env dev` and `--env prod` after deploying. Migrations are NOT auto-applied on Railway.
+**Migration-timing reminder:** Migrations are NOT auto-applied on Railway, and timing matters because every service auto-deploys in parallel. For a **prod release**, migrate BEFORE merging the release PR — `pnpm ops release:premigrate` (then merge; auto-deploy lands into the ready schema). For **dev**, apply promptly after the push — `pnpm ops db:migrate --env dev`. See `.claude/rules/03-database.md` § Deployment for the additive-vs-destructive distinction.
 
 ### Codebase Analysis (Xray)
 
