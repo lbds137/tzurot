@@ -177,8 +177,11 @@ export class LlmConfigResolver extends BaseConfigResolver<
     }
 
     try {
+      // Scope to kind:'text' — llm_configs is shared with kind='vision' rows that
+      // also set isFreeDefault=true, so without this the text free-default read
+      // could return the vision one. Mirrors VisionConfigResolver's kind:'vision'.
       const freeConfig = await this.prisma.llmConfig.findFirst({
-        where: { isFreeDefault: true },
+        where: { isFreeDefault: true, kind: 'text' },
         select: LLM_CONFIG_SELECT_WITH_NAME,
       });
 
