@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-06-23'
+lastUpdated: '2026-06-27'
 ---
 
 # Git Workflow Procedures
@@ -195,7 +195,18 @@ git log v<previous>..HEAD --no-merges --oneline
 gh pr create --base main --head develop --title "Release v3.0.0-beta.XX: Description"
 ```
 
-### 4. Merge Release PR
+### 4. Pre-Merge Migration (if release includes one)
+
+Run migrations **before** merging — Railway auto-deploys every service the moment the release PR merges to `main`, so migrating _after_ leaves new code on the old schema for the deploy window (the beta.140 `column ... does not exist` incident). Migrate first, while prod still runs the old code:
+
+```bash
+pnpm ops release:premigrate --dry-run   # preview the new migrations in the release range
+pnpm ops release:premigrate             # apply to prod, THEN proceed to merge
+```
+
+Skip if the release has no migration — `release:premigrate` detects this and exits cleanly (or check `git log v<previous>..HEAD --no-merges -- prisma/migrations/`). Safe for **additive** migrations (old code ignores the new column/table/constraint). **Destructive** migrations (drop/rename a column, tighten a constraint on existing data) invert the window and need a brief maintenance window — `release:premigrate` refuses them without `--allow-destructive`. See `.claude/rules/03-database.md` § Deployment.
+
+### 5. Merge Release PR
 
 ⚠️ **NEVER use `--delete-branch` for release PRs.** `develop` is a long-lived branch.
 
@@ -235,18 +246,6 @@ git push origin main                       # FF push — NOT a force-push
 ```
 
 This is a **permitted, documented merge path** for the large-PR case — not a workaround to reach for casually. For normal-sized release PRs, `gh pr merge --rebase` remains the default (it's contributor-agnostic and fires the gate directly). Reserve the FF for when rebase-merge mechanically fails.
-
-### 5. Run Prisma Migration (if release includes one)
-
-Prod auto-deploys on merge to `main` (see `tzurot-deployment` skill), but **schema changes do NOT auto-apply**. Run the migration immediately after merge to minimize the window where new code runs against the pre-migration schema:
-
-```bash
-pnpm ops db:migrate --env prod
-```
-
-For backward-compatible migrations (column type widening, additive indexes), the small window is low-risk because old code can still read the new schema. For breaking schema changes, sequence carefully — either run the migration first if old code can tolerate the new schema, or coordinate a brief maintenance window.
-
-Skip this step if the release contains no migration. Verify with `git log v<previous>..HEAD --no-merges -- prisma/migrations/` — empty output means no migration to run.
 
 ### 6. After Merge to Main
 

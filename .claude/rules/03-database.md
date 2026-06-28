@@ -74,14 +74,20 @@ All commands work in non-interactive environments (AI assistants, CI).
 
 ### Deployment (CRITICAL)
 
-**Migrations are NOT auto-applied on Railway.** After any deployment that includes new migrations, you MUST manually run:
+**Migrations are NOT auto-applied on Railway** — and the _timing_ matters, because every service auto-deploys in parallel.
+
+**Prod (release): migrate BEFORE merging the release PR.** Railway auto-deploys every service the moment the release PR merges to `main`; migrating _after_ that leaves new code running against the old schema for the deploy window (the beta.140 `column llm_configs.kind does not exist` incident). Migrate first, while prod still runs the old code:
 
 ```bash
-pnpm ops db:migrate --env dev   # Apply to development
-pnpm ops db:migrate --env prod  # Apply to production (requires confirmation)
+pnpm ops release:premigrate --dry-run   # preview the new migrations in the release range
+pnpm ops release:premigrate             # apply to prod, THEN merge the release PR
 ```
 
-Forgetting this causes Prisma `P2002` and other constraint errors at runtime because the code expects schema changes that haven't been applied yet.
+Safe for **additive** migrations (a new column/table/constraint the old code ignores). **Destructive** migrations (drop/rename a column, tighten a constraint on existing data) invert the window — applying them breaks the still-live old code — so they need a brief maintenance window; `release:premigrate` detects the likely-destructive shapes and refuses without `--allow-destructive`.
+
+**Dev:** dev auto-deploys on every push to `develop`, so there's no merge gate to run before — apply migrations promptly after the push (`pnpm ops db:migrate --env dev`); the brief window on dev is low-stakes.
+
+Forgetting the migration causes Prisma `P2002` and other constraint errors at runtime because the code expects schema changes that haven't been applied yet.
 
 ### Protected Indexes (CRITICAL)
 
