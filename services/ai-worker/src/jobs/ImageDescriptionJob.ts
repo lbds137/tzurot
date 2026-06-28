@@ -12,7 +12,6 @@ import {
   CONTENT_TYPES,
   TIMEOUTS,
   AIProvider,
-  ApiErrorCategory,
   type ImageDescriptionJobData,
   type ImageDescriptionResult,
   imageDescriptionJobDataSchema,
@@ -169,43 +168,19 @@ async function processSingleImage(options: ProcessSingleImageOptions): Promise<I
  * Build a fail-fast `ImageDescriptionResult` for the case where the user is
  * authenticated for some provider but lacks a key for the vision provider.
  *
- * Each image gets a "configure your key" description (visible to the LLM
- * when it consumes the dependency-job result) and a synthetic AUTHENTICATION
- * cache entry so subsequent retries within the 5-min window hit cache and
- * skip re-resolving + re-failing — same UX shape as a real auth-rejection
- * from the upstream provider's API.
- *
- * Mirrors `buildVisionAuthFailureResults` in `visionAuthResolver.ts` (the
- * channel-history path's equivalent helper). The two paths produce identical
- * fallback strings + cache shapes so the user sees consistent behavior
- * regardless of how the image arrived.
+ * Each image gets a "configure your key" description (visible to the LLM when it
+ * consumes the dependency-job result) — the same fallback string the
+ * channel-history path emits via `buildVisionAuthFailureResults`, so the user
+ * sees consistent behavior regardless of how the image arrived.
  */
-async function buildFailFastResult(opts: {
+function buildFailFastResult(opts: {
   requestId: string;
   attachments: ImageDescriptionJobData['attachments'];
   visionProvider: AIProvider;
   sourceReferenceNumber: number | undefined;
   startTime: number;
-}): Promise<ImageDescriptionResult> {
+}): ImageDescriptionResult {
   const { requestId, attachments, visionProvider, sourceReferenceNumber, startTime } = opts;
-
-  // Lazy import only for `visionDescriptionCache` — `redis.js` instantiates
-  // a Redis client singleton at module-load, which we want to defer past
-  // test-time imports. The other dependencies (`ApiErrorCategory` enum,
-  // `VISION_AUTH_FAIL_FAST_DESCRIPTION` string constant) have no init-time
-  // side effects and live in the static import block at the top.
-  const { visionDescriptionCache } = await import('../redis.js');
-
-  // Cache writes parallelize because each cache key is distinct (per attachment).
-  await Promise.all(
-    attachments.map(attachment =>
-      visionDescriptionCache.storeFailure({
-        attachmentId: attachment.id,
-        url: attachment.url,
-        category: ApiErrorCategory.AUTHENTICATION,
-      })
-    )
-  );
 
   const descriptions = attachments.map(attachment => ({
     url: attachment.url,
@@ -281,10 +256,8 @@ export async function processImageDescriptionJob(
   // Fail-fast: even the free-model system fallback is unavailable (no system
   // OpenRouter key configured) for an authenticated user lacking a vision key.
   // Mirrors DependencyStep's `buildVisionAuthFailureResults` behavior so direct
-  // upload and channel-history paths produce the same fallback shape for the
-  // same user setup. Each image gets the source-aware "configure your key"
-  // description and a synthetic AUTH cache entry so retries within the 5-min
-  // window hit cache instead of repeating the resolution + failing again.
+  // upload and channel-history paths produce the same "configure your key"
+  // fallback for the same user setup.
   if (authResult.kind === 'failFast') {
     return buildFailFastResult({
       requestId,

@@ -31,14 +31,13 @@ import {
   createLogger,
   AIProvider,
   AttachmentType,
-  ApiErrorCategory,
   MODEL_DEFAULTS,
   type AttachmentMetadata,
   type LoadedPersonality,
 } from '@tzurot/common-types';
 import { detectVisionProvider } from '../ProviderRouter.js';
 import { selectVisionModel } from './VisionProcessor.js';
-import { visionDescriptionCache, visionFallbackQuota } from '../../redis.js';
+import { visionFallbackQuota } from '../../redis.js';
 import type { ApiKeyResolver } from '../ApiKeyResolver.js';
 import type { ProcessedAttachment } from '../MultimodalProcessor.js';
 
@@ -330,50 +329,24 @@ export async function resolveVisionConfig(
  * Build synthetic AUTHENTICATION-failure ProcessedAttachment entries for a
  * batch of image attachments when `resolveVisionConfig` returns `failFast`
  * (no usable key for the vision provider AND no system free-fallback key).
- * Writes each entry to the negative cache so subsequent retries within the
- * 5-min window hit cache instead of re-resolving — same UX as a real auth
- * rejection by the upstream API.
  *
- * The cache write is **best-effort**: the placeholder results are built and
- * returned regardless of whether the cache write succeeds. A Redis blip at the
- * moment we emit the fail-fast must NOT drop the user-facing placeholders (the
- * caller's outer catch would otherwise turn the throw into an empty result —
- * silently dropping the images instead of showing "[Image unavailable…]").
+ * Each entry gets the source-aware "configure your key" fallback description.
+ * The placeholders are always returned so the caller's outer catch can't turn
+ * the fail-fast into an empty result (which would silently drop the images
+ * instead of showing the "[Image unavailable…]" fallback). The fail-fast path is
+ * reachable by an authenticated user lacking both the vision-provider key and
+ * the system free-fallback key, OR by a transient resolver throw — so it is not
+ * exclusively an authentication condition.
  */
-export async function buildVisionAuthFailureResults(
+export function buildVisionAuthFailureResults(
   attachments: AttachmentMetadata[]
-): Promise<ProcessedAttachment[]> {
-  // Build the user-facing placeholders first so they're returned no matter what
-  // happens to the cache. The fail-fast path is reachable by an authenticated
-  // user lacking both the vision-provider key and the system free-fallback key,
-  // OR by a transient resolver throw — so this is not exclusively authenticated.
+): ProcessedAttachment[] {
   const results: ProcessedAttachment[] = attachments.map(attachment => ({
     type: AttachmentType.Image,
     description: VISION_AUTH_FAIL_FAST_DESCRIPTION,
     originalUrl: attachment.url,
     metadata: attachment,
   }));
-
-  // Negative-cache writes are best-effort. Synthetic failures use the
-  // AUTHENTICATION category so the source-aware fallback string fires on cache
-  // hits. Writes parallelize (independent keys); a failure here is logged and
-  // swallowed so it can't drop the placeholders above.
-  try {
-    await Promise.all(
-      attachments.map(attachment =>
-        visionDescriptionCache.storeFailure({
-          attachmentId: attachment.id,
-          url: attachment.url,
-          category: ApiErrorCategory.AUTHENTICATION,
-        })
-      )
-    );
-  } catch (error) {
-    logger.warn(
-      { err: error, count: attachments.length },
-      'Failed to write vision fail-fast entries to negative cache — returning placeholders anyway'
-    );
-  }
 
   logger.info(
     { count: attachments.length },

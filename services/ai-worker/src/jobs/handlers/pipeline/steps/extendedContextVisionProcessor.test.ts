@@ -157,7 +157,6 @@ describe('processCrossProviderVisionImages', () => {
     expect(mockProcessAttachments).not.toHaveBeenCalled();
     expect(result).toHaveLength(1);
     expect(result[0]?.description).toContain('check /settings apikey set');
-    expect(mockStoreFailure).toHaveBeenCalledTimes(1);
   });
 
   it('returns fail-fast placeholder when the resolver throws transiently', async () => {
