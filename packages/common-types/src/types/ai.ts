@@ -148,3 +148,33 @@ export interface ModelAutocompleteOption {
    */
   isRouter?: boolean;
 }
+
+/**
+ * Where a {@link ModelCapabilities} record was resolved from. Diagnostic only —
+ * lets callers distinguish an authoritative OpenRouter answer from a z.ai-catalog
+ * default (text-only) or a model we couldn't resolve at all.
+ */
+export type ModelCapabilitySource = 'openrouter' | 'zai' | 'unknown';
+
+/**
+ * Unified, provider-agnostic model-capability shape. Both the OpenRouter cache
+ * and the z.ai catalog map INTO this, so a capability check queries one shape
+ * regardless of which provider serves the model. This is the first concrete
+ * step toward decoupling capability resolution from OpenRouter (see backlog:
+ * provider abstraction) — new providers map their native format into this type
+ * rather than every caller learning each provider's quirks.
+ */
+export interface ModelCapabilities {
+  /** Accepts image input — the gate for `kind='vision'` configs. */
+  supportsVision: boolean;
+  /** Produces image output. */
+  supportsImageGeneration: boolean;
+  /** Accepts audio input. */
+  supportsAudioInput: boolean;
+  /** Produces audio output. */
+  supportsAudioOutput: boolean;
+  /** Max context length in tokens; null when the source doesn't report one. */
+  contextLength: number | null;
+  /** Which source resolved this record. */
+  source: ModelCapabilitySource;
+}

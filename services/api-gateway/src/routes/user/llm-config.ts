@@ -166,7 +166,15 @@ function createCreateHandler(
     const userId = resolveProvisionedUserId(req);
     const hasZaiCodingKey = await userHasActiveApiKey(prisma, userId, AIProvider.ZaiCoding);
 
-    if (!(await validateLlmConfigModelFields({ res, modelCache, body, hasZaiCodingKey }))) {
+    if (
+      !(await validateLlmConfigModelFields({
+        res,
+        modelCache,
+        body,
+        hasZaiCodingKey,
+        kind: body.kind,
+      }))
+    ) {
       return;
     }
 
@@ -179,6 +187,7 @@ function createCreateHandler(
       !(await ensureNoNameCollision(res, service, {
         name: body.name,
         scope: { type: 'USER', userId, discordId: discordUserId },
+        kind: body.kind,
         formatCollisionMessage: n => `You already have a config named "${n}"`,
       }))
     ) {
