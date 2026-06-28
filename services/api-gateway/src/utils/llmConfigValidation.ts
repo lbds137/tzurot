@@ -111,6 +111,10 @@ async function resolveEffectiveModelAndKind(
       if (needKind && current !== null) {
         effectiveKind = toConfigKind(current.kind);
       }
+      // If `current` is null here (the config doesn't exist), effectiveKind stays
+      // the text default, so the vision gate is skipped — which is harmless: the
+      // update route's own fetch returns a clean 404 right after. We deliberately
+      // don't 404 here; existence is the route's concern, not the validator's.
     }
   }
   return { effectiveModel, effectiveKind };

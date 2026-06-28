@@ -146,6 +146,44 @@ describe('Admin LLM Config Routes', () => {
       expect(response.body.configs[1].ownerId).toBeUndefined();
       expect(response.body.configs[1].isOwned).toBe(true);
     });
+
+    it('scopes the list to ?kind=vision', async () => {
+      prisma.llmConfig.findMany.mockResolvedValue([]);
+
+      const response = await request(app).get('/admin/llm-config?kind=vision');
+
+      expect(response.status).toBe(200);
+      expect(prisma.llmConfig.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ kind: 'vision' }) })
+      );
+    });
+
+    it('rejects an invalid ?kind= with 400', async () => {
+      const response = await request(app).get('/admin/llm-config?kind=audio');
+
+      expect(response.status).toBe(400);
+      expect(prisma.llmConfig.findMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('invalid ?kind= on by-id write routes', () => {
+    it.each([
+      { method: 'put' as const, path: '/admin/llm-config/cfg-1' },
+      { method: 'put' as const, path: '/admin/llm-config/cfg-1/set-default' },
+      { method: 'put' as const, path: '/admin/llm-config/cfg-1/set-free-default' },
+      { method: 'delete' as const, path: '/admin/llm-config/cfg-1' },
+    ])(
+      'rejects $method $path with 400 (kind parsed before any DB work)',
+      async ({ method, path }) => {
+        const url = `${path}?kind=audio`;
+        const response =
+          method === 'put' ? await request(app).put(url) : await request(app).delete(url);
+
+        expect(response.status).toBe(400);
+        // The kind gate runs before the config fetch, so nothing is touched.
+        expect(prisma.llmConfig.findUnique).not.toHaveBeenCalled();
+      }
+    );
   });
 
   describe('GET /admin/llm-config/:id', () => {
@@ -174,6 +212,33 @@ describe('Admin LLM Config Routes', () => {
       expect(response.body.config.name).toBe('Default Config');
       expect(response.body.config.isGlobal).toBe(true);
       expect(response.body.config.params).toEqual({ temperature: 0.7 });
+    });
+
+    it('returns a kind=vision config WITHOUT ?kind= (GET by id is kind-agnostic)', async () => {
+      // Unlike the write routes, GET-by-id has no kind gate — the id uniquely
+      // identifies the config, so a vision row is returned on the bare route.
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'vision-cfg',
+        name: 'Vision Cfg',
+        description: 'vision',
+        model: 'qwen/qwen3-vl-30b-a3b-instruct',
+        provider: 'openrouter',
+        isGlobal: true,
+        isDefault: false,
+        isFreeDefault: false,
+        kind: 'vision',
+        advancedParameters: {},
+        maxMessages: 50,
+        maxAge: null,
+        maxImages: 10,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
+      });
+
+      const response = await request(app).get('/admin/llm-config/vision-cfg');
+
+      expect(response.status).toBe(200);
+      expect(response.body.config.id).toBe('vision-cfg');
     });
 
     it('should return context settings (maxMessages, maxAge, maxImages)', async () => {
@@ -553,6 +618,39 @@ describe('Admin LLM Config Routes', () => {
       });
     });
 
+    it('edits a kind=vision config when ?kind=vision is passed', async () => {
+      // requireKind:vision lets the vision row through the otherwise text-default gate.
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'vision-cfg',
+        name: 'Vision Cfg',
+        isGlobal: true,
+        kind: 'vision',
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
+      });
+      prisma.llmConfig.update.mockResolvedValue({
+        id: 'vision-cfg',
+        name: 'Vision Cfg',
+        model: 'qwen/qwen3-vl-30b-a3b-instruct',
+        provider: 'openrouter',
+        isGlobal: true,
+        isDefault: false,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
+      });
+
+      const response = await request(app)
+        .put('/admin/llm-config/vision-cfg?kind=vision')
+        .send({ model: 'qwen/qwen3-vl-30b-a3b-instruct' });
+
+      expect(response.status).toBe(200);
+      expect(prisma.llmConfig.update).toHaveBeenCalledWith({
+        where: { id: 'vision-cfg' },
+        data: { model: 'qwen/qwen3-vl-30b-a3b-instruct' },
+        select: expect.any(Object),
+      });
+    });
+
     it('should accept memory settings in update (Phase 1 parity fix)', async () => {
       // This test verifies the Phase 1 fix - memory settings were previously missing from admin
       prisma.llmConfig.findUnique.mockResolvedValue({
@@ -733,9 +831,10 @@ describe('Admin LLM Config Routes', () => {
       expect(response.body.message).toMatch(/only global/i);
     });
 
-    it('rejects a kind=vision config (vision is seed/DB-only on the text surface)', async () => {
-      // The requireKind:'text' gate makes a vision UUID look not-found here, so an admin
-      // can't flip the vision default through the text-preset admin surface in Phase 1.
+    it('rejects a kind=vision config without ?kind=vision (requireKind defaults to text)', async () => {
+      // requireKind defaults to text, so a vision UUID looks not-found on the
+      // default text surface — an admin can't accidentally flip the vision
+      // default by hitting this route without explicitly asking for vision.
       prisma.llmConfig.findUnique.mockResolvedValue({
         id: 'vision-default',
         name: 'vision-default',
@@ -746,8 +845,33 @@ describe('Admin LLM Config Routes', () => {
       const response = await request(app).put('/admin/llm-config/vision-default/set-default');
 
       expect(response.status).toBe(404);
-      // The vision default must NOT have been touched through the text surface.
+      // The vision default must NOT have been touched on the default text surface.
       expect(prisma.llmConfig.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('sets a kind=vision config as the vision default when ?kind=vision is passed', async () => {
+      // ?kind=vision must let the vision row through requireKind AND scope the
+      // setAsDefault updateMany clear to kind='vision' (not 'text'), so the
+      // text default is never touched.
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'vision-default',
+        name: 'vision-default',
+        isGlobal: true,
+        kind: 'vision',
+      });
+      prisma.llmConfig.updateMany.mockResolvedValue({ count: 1 });
+      prisma.llmConfig.update.mockResolvedValue({ id: 'vision-default', isDefault: true });
+
+      const response = await request(app).put(
+        '/admin/llm-config/vision-default/set-default?kind=vision'
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.configName).toBe('vision-default');
+      expect(prisma.llmConfig.updateMany).toHaveBeenCalledWith({
+        where: { isDefault: true, kind: 'vision' },
+        data: { isDefault: false },
+      });
     });
   });
 
@@ -777,6 +901,32 @@ describe('Admin LLM Config Routes', () => {
       // Verify it clears existing free default
       expect(prisma.llmConfig.updateMany).toHaveBeenCalledWith({
         where: { isFreeDefault: true, kind: 'text' },
+        data: { isFreeDefault: false },
+      });
+    });
+
+    it('sets a kind=vision free config as the vision free default when ?kind=vision is passed', async () => {
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'vision-free',
+        name: 'Vision Free',
+        isGlobal: true,
+        kind: 'vision',
+        model: 'qwen/qwen3-vl-30b-a3b-instruct:free',
+        provider: 'openrouter',
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
+      });
+      prisma.llmConfig.updateMany.mockResolvedValue({ count: 1 });
+      prisma.llmConfig.update.mockResolvedValue({ id: 'vision-free', isFreeDefault: true });
+
+      const response = await request(app).put(
+        '/admin/llm-config/vision-free/set-free-default?kind=vision'
+      );
+
+      expect(response.status).toBe(200);
+      // setAsFreeDefault is kind-scoped: clears only the existing VISION free default.
+      expect(prisma.llmConfig.updateMany).toHaveBeenCalledWith({
+        where: { isFreeDefault: true, kind: 'vision' },
         data: { isFreeDefault: false },
       });
     });
