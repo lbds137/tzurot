@@ -16,7 +16,7 @@
 import { z } from 'zod';
 import { EntityPermissionsSchema, optionalString, nullableString } from './shared.js';
 import { AdvancedParamsSchema } from '../llmAdvancedParams.js';
-import { MESSAGE_LIMITS, AI_DEFAULTS } from '../../constants/index.js';
+import { MESSAGE_LIMITS, AI_DEFAULTS, CONFIG_KINDS } from '../../constants/index.js';
 
 // ============================================================================
 // Context Settings Schema (shared validation for context history limits)
@@ -84,6 +84,14 @@ export const LlmConfigCreateSchema = z.object({
   name: z.string().min(1, 'name is required').max(100, 'name must be 100 characters or less'),
   model: z.string().min(1, 'model is required').max(200),
 
+  // Config kind discriminator (text | vision | …). Optional; when omitted the
+  // service defaults it to 'text' (back-compat — existing callers get a text
+  // preset). A 'vision' create gets per-kind capability validation in S1b before
+  // the S2 command surface exposes it. NOT present on the update schema — `kind`
+  // is immutable (changing it would orphan the per-kind default flags); convert
+  // by delete + recreate.
+  kind: z.enum(CONFIG_KINDS).optional(),
+
   // Optional string fields
   description: z.string().max(500).optional().nullable(),
   provider: z.string().max(50).optional(),
@@ -147,6 +155,10 @@ export const LlmConfigUpdateSchema = z.object({
 
   /** Toggle global visibility - users can share their presets */
   isGlobal: z.boolean().optional(),
+
+  // NOTE: `kind` is intentionally absent — it's immutable after creation
+  // (changing it would orphan the per-kind default flags + mis-route resolvers).
+  // Convert a config to another kind by delete + recreate.
 });
 
 export type LlmConfigUpdateInput = z.infer<typeof LlmConfigUpdateSchema>;
@@ -177,6 +189,10 @@ export const LLM_CONFIG_LIST_SELECT = {
  */
 export const LLM_CONFIG_DETAIL_SELECT = {
   ...LLM_CONFIG_LIST_SELECT,
+  // `kind` is projected (not in LIST_SELECT) so the service's getById kind-gate
+  // can verify a fetched row matches the expected kind. Response formatters
+  // omit it, so the public detail contract is unchanged.
+  kind: true,
   advancedParameters: true,
   // Memory settings
   memoryScoreThreshold: true,
