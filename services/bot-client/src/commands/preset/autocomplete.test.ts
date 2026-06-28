@@ -66,6 +66,8 @@ describe('handleAutocomplete', () => {
         getFocused: vi.fn(),
         getSubcommand: vi.fn().mockReturnValue('delete'),
         getSubcommandGroup: vi.fn().mockReturnValue(null),
+        // The `kind` option is optional; null → handler defaults to 'text'.
+        getString: vi.fn().mockReturnValue(null),
       },
       respond: vi.fn().mockResolvedValue(undefined),
     } as unknown as AutocompleteInteraction;
@@ -106,11 +108,25 @@ describe('handleAutocomplete', () => {
 
       await handleAutocomplete(mockInteraction);
 
-      expect(stub.listUserLlmConfigs).toHaveBeenCalledWith();
+      // No kind option → list scoped to text presets.
+      expect(stub.listUserLlmConfigs).toHaveBeenCalledWith({ kind: 'text' });
       // Should only return owned presets
       expect(mockInteraction.respond).toHaveBeenCalledWith([
         { name: 'My Preset · claude-sonnet-4', value: '00000000-0000-4000-8000-0000000000c1' },
       ]);
+    });
+
+    it('scopes the list to the requested kind when kind=vision', async () => {
+      vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
+        name: 'preset',
+        value: '',
+      } as unknown as string);
+      vi.mocked(mockInteraction.options.getString).mockReturnValue('vision');
+      stub.listUserLlmConfigs.mockResolvedValue(makeOk(mockListLlmConfigsResponse([])));
+
+      await handleAutocomplete(mockInteraction);
+
+      expect(stub.listUserLlmConfigs).toHaveBeenCalledWith({ kind: 'vision' });
     });
 
     it('should filter by preset name', async () => {
@@ -358,6 +374,37 @@ describe('handleAutocomplete', () => {
       const respondCall = vi.mocked(mockInteraction.respond).mock.calls[0][0];
       // Only the :free-suffixed model survives the freeOnly filter
       expect(respondCall).toEqual([expect.objectContaining({ value: 'g-free' })]);
+    });
+
+    it('scopes the global list to the requested kind when kind=vision', async () => {
+      vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
+        name: 'preset',
+        value: '',
+      } as unknown as string);
+      vi.mocked(mockInteraction.options.getSubcommand).mockReturnValue('set-default');
+      vi.mocked(mockInteraction.options.getString).mockReturnValue('vision');
+      ownerStub.listGlobalLlmConfigs.mockResolvedValue(cacheableFixture);
+
+      await handleAutocomplete(mockInteraction);
+
+      expect(ownerStub.listGlobalLlmConfigs).toHaveBeenCalledWith({ kind: 'vision' });
+    });
+
+    it('caches global configs per kind — a second same-kind keystroke hits the cache', async () => {
+      vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
+        name: 'preset',
+        value: '',
+      } as unknown as string);
+      vi.mocked(mockInteraction.options.getSubcommand).mockReturnValue('set-default');
+      vi.mocked(mockInteraction.options.getString).mockReturnValue('vision');
+      ownerStub.listGlobalLlmConfigs.mockResolvedValue(cacheableFixture);
+
+      await handleAutocomplete(mockInteraction);
+      await handleAutocomplete(mockInteraction);
+
+      // Second keystroke of the same kind serves from the per-kind cache,
+      // so the admin endpoint is hit exactly once.
+      expect(ownerStub.listGlobalLlmConfigs).toHaveBeenCalledTimes(1);
     });
   });
 

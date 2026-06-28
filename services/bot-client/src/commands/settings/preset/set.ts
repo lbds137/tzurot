@@ -22,6 +22,8 @@ export async function handleSet(context: DeferredCommandContext): Promise<void> 
   const userId = context.user.id;
   const options = settingsPresetSetOptions(context.interaction);
   const personalityId = options.character();
+  // The `kind` option only scopes the preset autocomplete; the route infers
+  // kind from the chosen config row, so it isn't read or sent here.
   const configId = options.preset();
 
   if (isAutocompleteErrorSentinel(personalityId)) {

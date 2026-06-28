@@ -22,6 +22,8 @@ const logger = createLogger('settings-preset-set-default');
 export async function handleSetDefault(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
   const options = settingsPresetSetDefaultOptions(context.interaction);
+  // The `kind` option only scopes the preset autocomplete; the route infers
+  // kind from the chosen config row, so it isn't read or sent here.
   const configId = options.preset();
 
   if (await handleUnlockModelsUpsell(context, configId, userId)) {

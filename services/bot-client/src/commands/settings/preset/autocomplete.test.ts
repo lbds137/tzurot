@@ -90,6 +90,8 @@ describe('handleAutocomplete', () => {
       options: {
         getFocused: vi.fn(),
         getSubcommand: vi.fn().mockReturnValue('set'),
+        // The `kind` option is optional; null → handler defaults to 'text'.
+        getString: vi.fn().mockReturnValue(null),
       },
       respond: vi.fn().mockResolvedValue(undefined),
     } as unknown as AutocompleteInteraction;
@@ -297,13 +299,27 @@ describe('handleAutocomplete', () => {
 
       await handleAutocomplete(mockInteraction);
 
-      expect(stub.listUserLlmConfigs).toHaveBeenCalled();
+      // No kind option → list scoped to text presets.
+      expect(stub.listUserLlmConfigs).toHaveBeenCalledWith({ kind: 'text' });
       expect(mockInteraction.respond).toHaveBeenCalledWith([
         {
           name: '🌐⭐ Claude Config · claude-sonnet-4',
           value: '00000000-0000-4000-8000-0000000000c1',
         },
       ]);
+    });
+
+    it('scopes the list to the requested kind when kind=vision', async () => {
+      vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
+        name: 'preset',
+        value: '',
+      } as unknown as string);
+      vi.mocked(mockInteraction.options.getString).mockReturnValue('vision');
+      mockConfigApis([], true);
+
+      await handleAutocomplete(mockInteraction);
+
+      expect(stub.listUserLlmConfigs).toHaveBeenCalledWith({ kind: 'vision' });
     });
 
     it('should filter by model name', async () => {

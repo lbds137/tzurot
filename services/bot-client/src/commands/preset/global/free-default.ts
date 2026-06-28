@@ -14,9 +14,10 @@ import { handleGlobalPresetUpdate } from './globalPresetHelpers.js';
 export async function handleGlobalSetFreeDefault(context: DeferredCommandContext): Promise<void> {
   const options = presetGlobalFreeDefaultOptions(context.interaction);
   const configId = options.preset();
+  const kind = options.kind() ?? 'text';
 
   await handleGlobalPresetUpdate(context, configId, {
-    promote: (ownerClient, id) => ownerClient.setGlobalLlmConfigFreeDefault(id),
+    promote: (ownerClient, id) => ownerClient.setGlobalLlmConfigFreeDefault(id, { kind }),
     embedTitle: 'Free Tier Default Preset Updated',
     embedDescription: (configName: string) =>
       `**${configName}** is now the free tier default preset.\n\n` +

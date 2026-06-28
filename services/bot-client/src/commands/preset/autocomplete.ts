@@ -12,8 +12,10 @@ import {
   AUTOCOMPLETE_BADGES,
   formatAutocompleteOption,
   isFreeModel,
+  CONFIG_KINDS,
   type LlmConfigSummary,
   type AutocompleteBadge,
+  type ConfigKind,
 } from '@tzurot/common-types';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import {
@@ -46,7 +48,7 @@ let globalConfigCache: TTLCache<GlobalConfigEntry[]> | null = null;
 function getGlobalConfigCache(): TTLCache<GlobalConfigEntry[]> {
   globalConfigCache ??= new TTLCache<GlobalConfigEntry[]>({
     ttl: TIMEOUTS.CACHE_TTL, // 60 seconds
-    maxSize: 1, // Only one entry needed
+    maxSize: CONFIG_KINDS.length, // One entry per kind (text, vision)
   });
   return globalConfigCache;
 }
@@ -167,9 +169,13 @@ async function handlePresetAutocomplete(
   userId: string
 ): Promise<void> {
   const subcommand = interaction.options.getSubcommand(false);
+  // Scope the picker to the requested kind (the command's `kind` option,
+  // default text) so a vision-setter shows only vision presets. The Discord
+  // choice set restricts values to CONFIG_KINDS, so the assertion is sound.
+  const kind = (interaction.options.getString('kind', false) ?? 'text') as ConfigKind;
 
   const { userClient } = clientsFor(interaction);
-  const result = await userClient.listUserLlmConfigs();
+  const result = await userClient.listUserLlmConfigs({ kind });
 
   if (!result.ok) {
     logger.warn({ userId, error: result.error }, 'Failed to fetch presets');
@@ -229,27 +235,31 @@ async function handleVisionModelAutocomplete(
   await interaction.respond(choices);
 }
 
-/** Cache key for global configs (only one set of configs) */
-const GLOBAL_CONFIG_CACHE_KEY = 'global-configs';
+/** Per-kind cache key for global configs (text and vision are cached separately). */
+function globalConfigCacheKey(kind: string): string {
+  return `global-configs:${kind}`;
+}
 
 /**
- * Fetch global configs from API or cache
+ * Fetch global configs of a given kind from API or cache
  */
 async function fetchGlobalConfigs(
-  interaction: AutocompleteInteraction
+  interaction: AutocompleteInteraction,
+  kind: ConfigKind
 ): Promise<GlobalConfigEntry[] | null> {
   const cache = getGlobalConfigCache();
+  const cacheKey = globalConfigCacheKey(kind);
 
   // Check cache first
-  const cached = cache.get(GLOBAL_CONFIG_CACHE_KEY);
+  const cached = cache.get(cacheKey);
   if (cached !== null) {
-    logger.debug('Using cached global configs');
+    logger.debug({ kind }, 'Using cached global configs');
     return cached;
   }
 
-  // Cache miss - fetch via typed admin client
+  // Cache miss - fetch via typed admin client, scoped to the kind
   const { ownerClient } = clientsFor(interaction);
-  const result = await ownerClient.listGlobalLlmConfigs();
+  const result = await ownerClient.listGlobalLlmConfigs({ kind });
 
   if (!result.ok) {
     return null;
@@ -257,8 +267,8 @@ async function fetchGlobalConfigs(
 
   const configs = result.data.configs as GlobalConfigEntry[];
 
-  cache.set(GLOBAL_CONFIG_CACHE_KEY, configs);
-  logger.debug({ count: configs.length }, 'Cached global configs');
+  cache.set(cacheKey, configs);
+  logger.debug({ count: configs.length, kind }, 'Cached global configs');
 
   return configs;
 }
@@ -273,7 +283,9 @@ async function handleGlobalConfigAutocomplete(
   freeOnly = false
 ): Promise<void> {
   try {
-    const configs = await fetchGlobalConfigs(interaction);
+    // Scope to the requested kind (command's `kind` option, default text).
+    const kind = (interaction.options.getString('kind', false) ?? 'text') as ConfigKind;
+    const configs = await fetchGlobalConfigs(interaction, kind);
 
     if (configs === null) {
       await interaction.respond([]);

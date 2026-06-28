@@ -425,17 +425,19 @@ export const personaDefaultOptions = defineTypedOptions({
 // =============================================================================
 
 /**
- * /preset global default <preset>
+ * /preset global default <preset, kind>
  */
 export const presetGlobalDefaultOptions = defineTypedOptions({
   preset: { type: 'string', required: true },
+  kind: { type: 'string', required: false },
 });
 
 /**
- * /preset global free-default <preset>
+ * /preset global free-default <preset, kind>
  */
 export const presetGlobalFreeDefaultOptions = defineTypedOptions({
   preset: { type: 'string', required: true },
+  kind: { type: 'string', required: false },
 });
 
 /**
@@ -444,6 +446,13 @@ export const presetGlobalFreeDefaultOptions = defineTypedOptions({
 export const presetBrowseOptions = defineTypedOptions({
   query: { type: 'string', required: false },
   filter: { type: 'string', required: false },
+});
+
+/**
+ * /preset create <kind>
+ */
+export const presetCreateOptions = defineTypedOptions({
+  kind: { type: 'string', required: false },
 });
 
 /**
@@ -500,11 +509,12 @@ export const settingsApikeyTestOptions = defineTypedOptions({
 });
 
 /**
- * /settings preset set <character, preset>
+ * /settings preset set <character, preset, kind>
  */
 export const settingsPresetSetOptions = defineTypedOptions({
   character: { type: 'string', required: true },
   preset: { type: 'string', required: true },
+  kind: { type: 'string', required: false },
 });
 
 /**
@@ -515,10 +525,11 @@ export const settingsPresetClearOptions = defineTypedOptions({
 });
 
 /**
- * /settings preset set-default <preset>
+ * /settings preset set-default <preset, kind>
  */
 export const settingsPresetSetDefaultOptions = defineTypedOptions({
   preset: { type: 'string', required: true },
+  kind: { type: 'string', required: false },
 });
 
 // =============================================================================

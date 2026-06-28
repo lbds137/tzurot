@@ -38,13 +38,17 @@ describe('Preset Global Set Free Default Handler', () => {
   const mockEditReply = vi.fn();
   let stub: OwnerClientStub;
 
-  const createMockContext = (configId: string) =>
+  const createMockContext = (configId: string, kind?: string) =>
     ({
       user: { id: 'owner-123' },
       interaction: {
         user: { id: 'owner-123' },
         options: {
-          getString: vi.fn((_name: string, _required?: boolean) => configId),
+          // The `kind` option is optional (getString('kind', false)); everything
+          // else (the `preset` option) resolves to the configId under test.
+          getString: vi.fn((name: string, _required?: boolean) =>
+            name === 'kind' ? (kind ?? null) : configId
+          ),
         },
       },
       editReply: mockEditReply,
@@ -69,7 +73,10 @@ describe('Preset Global Set Free Default Handler', () => {
 
       await handleGlobalSetFreeDefault(context);
 
-      expect(stub.setGlobalLlmConfigFreeDefault).toHaveBeenCalledWith('config-456');
+      // No kind option → defaults to text (the admin route gates by kind).
+      expect(stub.setGlobalLlmConfigFreeDefault).toHaveBeenCalledWith('config-456', {
+        kind: 'text',
+      });
 
       expect(mockEditReply).toHaveBeenCalledWith({
         embeds: expect.arrayContaining([expect.any(EmbedBuilder)]),
@@ -81,6 +88,19 @@ describe('Preset Global Set Free Default Handler', () => {
       expect(embedData.title).toBe('Free Tier Default Preset Updated');
       expect(embedData.description).toContain('Gemini Flash Free');
       expect(embedData.description).toContain('Guest users');
+    });
+
+    it('should pass kind=vision through to the promote call', async () => {
+      const context = createMockContext('vision-config', 'vision');
+      stub.setGlobalLlmConfigFreeDefault.mockResolvedValue(
+        makeOk({ success: true, configName: 'Gemini Vision Free' })
+      );
+
+      await handleGlobalSetFreeDefault(context);
+
+      expect(stub.setGlobalLlmConfigFreeDefault).toHaveBeenCalledWith('vision-config', {
+        kind: 'vision',
+      });
     });
 
     it('should handle API error response', async () => {
