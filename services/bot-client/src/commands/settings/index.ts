@@ -21,6 +21,7 @@ import {
 } from 'discord.js';
 import {
   createLogger,
+  CONFIG_KIND_OPTION_DESCRIPTION,
   DISCORD_LIMITS,
   DISCORD_PROVIDER_CHOICES,
   TIMEZONE_OPTIONS,
@@ -69,13 +70,6 @@ import {
 } from './defaults/edit.js';
 
 const logger = createLogger('settings-command');
-
-/**
- * Description for the text/vision `kind` option shared across the preset
- * override subcommands. The option name + required flag stay inline at each
- * call site because the command-types codegen reads them as string literals.
- */
-const CONFIG_KIND_OPTION_DESCRIPTION = 'Preset kind (default: text)';
 
 /**
  * Timezone subcommand group router (all deferred)

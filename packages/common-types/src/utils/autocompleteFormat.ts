@@ -34,6 +34,8 @@ export const AUTOCOMPLETE_BADGES = {
   FREE: '🆓',
   /** Admin-locked, cannot be modified */
   LOCKED: '🔐',
+  /** Vision-kind config (the model is a vision/multimodal model) */
+  VISION: '👁️',
 } as const;
 
 export type AutocompleteBadge = (typeof AUTOCOMPLETE_BADGES)[keyof typeof AUTOCOMPLETE_BADGES];

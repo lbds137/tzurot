@@ -466,8 +466,8 @@ export class UserClient {
   /**
    * @safeRead Server-side has no observable mutation — safe to cache client-side.
    */
-  async listModelOverrides(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listModelOverrides.output>>> {
-    const fullPath = '/api/user/model-override';
+  async listModelOverrides(options: { kind?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listModelOverrides.output>>> {
+    const fullPath = '/api/user/model-override' + buildQueryString([['kind', options.kind]]);
     return callGateway({
       baseUrl: this.baseUrl,
       serviceSecret: this.serviceSecret,

@@ -348,6 +348,9 @@ export const userConfigRoutes = {
     method: 'get',
     path: '/model-override',
     id: 'listModelOverrides',
+    // Scope the listing to a config kind (text|vision); defaults text (the
+    // gateway handler already filters by `?kind=`). Browse fetches both kinds.
+    query: { kind: z.enum(CONFIG_KINDS).optional() },
     output: ListModelOverridesResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },

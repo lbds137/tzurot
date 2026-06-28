@@ -3,12 +3,14 @@
  *
  * Covers the customId helpers, the view builder, and the three interaction
  * handlers (slash / select / button). The two consumers (preset + TTS) are
- * thin wrappers, so this is where the behaviour is exercised.
+ * thin wrappers, so this is where the behaviour is exercised — including the
+ * optional `kind` axis (preset overrides span text + vision; TTS has none).
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { EmbedBuilder } from 'discord.js';
 import type { UserClient } from '@tzurot/clients';
+import type { ConfigKind } from '@tzurot/common-types';
 import { makeOk, makeErr } from '../test/gatewayClientStubs.js';
 import {
   type OverrideBrowseConfig,
@@ -21,6 +23,8 @@ import {
 } from './overrideBrowse.js';
 
 const stub = {
+  // list now returns `OverrideSummary[] | null` (null = fetch failed); the
+  // domain config owns the fetch strategy (preset issues two kind-scoped calls).
   list: vi.fn(),
   delete: vi.fn(),
 };
@@ -42,12 +46,17 @@ function makeConfig(): OverrideBrowseConfig {
     selectPlaceholder: 'Pick one…',
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } as never,
     list: () => stub.list() as ReturnType<OverrideBrowseConfig['list']>,
-    delete: (_uc, id) => stub.delete(id) as ReturnType<OverrideBrowseConfig['delete']>,
+    delete: (_uc, id, kind) => stub.delete(id, kind) as ReturnType<OverrideBrowseConfig['delete']>,
   };
 }
 
-function override(id: string, name: string, configName: string | null = 'Cfg'): OverrideSummary {
-  return { personalityId: id, personalityName: name, configName };
+function override(
+  id: string,
+  name: string,
+  configName: string | null = 'Cfg',
+  kind?: ConfigKind
+): OverrideSummary {
+  return { personalityId: id, personalityName: name, configName, kind };
 }
 
 beforeEach(() => {
@@ -65,6 +74,11 @@ describe('createOverrideBrowseCustomIds', () => {
     expect(ids.clear('p1')).toBe('test-override::clear::p1');
   });
 
+  it('appends kind as a 4th segment when present', () => {
+    expect(ids.clear('p1', 'vision')).toBe('test-override::clear::p1::vision');
+    expect(ids.clear('p1', 'text')).toBe('test-override::clear::p1::text');
+  });
+
   it('isOwn matches only this prefix', () => {
     expect(ids.isOwn('test-override::select')).toBe(true);
     expect(ids.isOwn('other::select')).toBe(false);
@@ -75,6 +89,20 @@ describe('createOverrideBrowseCustomIds', () => {
     expect(ids.parse('test-override::select')).toEqual({ action: 'select' });
     expect(ids.parse('test-override::cancel')).toEqual({ action: 'cancel' });
     expect(ids.parse('test-override::clear::p1')).toEqual({ action: 'clear', personalityId: 'p1' });
+  });
+
+  it('parses the kind segment on a clear id', () => {
+    expect(ids.parse('test-override::clear::p1::vision')).toEqual({
+      action: 'clear',
+      personalityId: 'p1',
+      kind: 'vision',
+    });
+    // A non-kind 4th segment is ignored (kind left undefined).
+    expect(ids.parse('test-override::clear::p1::bogus')).toEqual({
+      action: 'clear',
+      personalityId: 'p1',
+      kind: undefined,
+    });
   });
 
   it('returns null for foreign or malformed ids', () => {
@@ -109,8 +137,29 @@ describe('buildOverrideBrowseView', () => {
     };
     const menu = row.components[0];
     expect(menu.custom_id).toBe('test-override::select');
+    // No kind → bare personalityId values (kind-less domains unchanged).
     expect(menu.options.map(o => o.value)).toEqual(['p1', 'p2']);
     expect(menu.options[0].label).toContain('Lilith');
+  });
+
+  it('badges vision overrides and encodes kind in the select value', () => {
+    const overrides = [
+      override('p1', 'Lilith', 'Text Cfg', 'text'),
+      override('p1', 'Lilith', 'Vision Cfg', 'vision'),
+    ];
+    const { embeds, components } = buildOverrideBrowseView(makeConfig(), overrides);
+
+    // The vision line carries the 👁️ badge; the text line does not.
+    const description = embeds[0].toJSON().description ?? '';
+    expect(description).toContain('👁️');
+
+    const row = components[0].toJSON() as {
+      components: { options: { label: string; value: string }[] }[];
+    };
+    const menu = row.components[0];
+    // Same personality, two kinds → kind-encoded values disambiguate them.
+    expect(menu.options.map(o => o.value)).toEqual(['p1::text', 'p1::vision']);
+    expect(menu.options[1].label).toContain('👁️');
   });
 
   it('renders Unknown for a null config name', () => {
@@ -140,15 +189,15 @@ describe('handleOverrideBrowse', () => {
   } as unknown as Parameters<typeof handleOverrideBrowse>[1];
 
   it('renders the browse view on success', async () => {
-    stub.list.mockResolvedValue(makeOk({ overrides: [override('p1', 'Lilith')] }));
+    stub.list.mockResolvedValue([override('p1', 'Lilith')]);
     await handleOverrideBrowse(makeConfig(), context);
 
     const arg = editReply.mock.calls[0][0] as { embeds: EmbedBuilder[] };
     expect(arg.embeds[0].toJSON().description).toContain('Lilith');
   });
 
-  it('shows an error when the list call fails', async () => {
-    stub.list.mockResolvedValue(makeErr(500, 'boom'));
+  it('shows an error when the list call fails (null)', async () => {
+    stub.list.mockResolvedValue(null);
     await handleOverrideBrowse(makeConfig(), context);
     expect(editReply).toHaveBeenCalledWith({
       content: '❌ Failed to load overrides. Please try again later.',
@@ -177,7 +226,7 @@ describe('handleOverrideBrowseSelect', () => {
   }
 
   it('shows a clear-confirmation for the chosen override', async () => {
-    stub.list.mockResolvedValue(makeOk({ overrides: [override('p1', 'Lilith')] }));
+    stub.list.mockResolvedValue([override('p1', 'Lilith')]);
     await handleOverrideBrowseSelect(makeConfig(), selectInteraction('p1'));
 
     expect(deferUpdate).toHaveBeenCalled();
@@ -191,8 +240,22 @@ describe('handleOverrideBrowseSelect', () => {
     expect(buttonIds).toEqual(['test-override::cancel', 'test-override::clear::p1']);
   });
 
+  it('disambiguates a kind-encoded select value and carries kind into the clear id', async () => {
+    stub.list.mockResolvedValue([
+      override('p1', 'Lilith', 'Text Cfg', 'text'),
+      override('p1', 'Lilith', 'Vision Cfg', 'vision'),
+    ]);
+    await handleOverrideBrowseSelect(makeConfig(), selectInteraction('p1::vision'));
+
+    const arg = editReply.mock.calls[0][0] as {
+      components: { toJSON: () => { components: { custom_id: string }[] } }[];
+    };
+    const buttonIds = arg.components[0].toJSON().components.map(c => c.custom_id);
+    expect(buttonIds).toEqual(['test-override::cancel', 'test-override::clear::p1::vision']);
+  });
+
   it('refreshes the list if the override was already cleared', async () => {
-    stub.list.mockResolvedValue(makeOk({ overrides: [] }));
+    stub.list.mockResolvedValue([]);
     await handleOverrideBrowseSelect(makeConfig(), selectInteraction('gone'));
 
     const arg = editReply.mock.calls[0][0] as { embeds: EmbedBuilder[] };
@@ -200,7 +263,7 @@ describe('handleOverrideBrowseSelect', () => {
   });
 
   it('shows an error (clearing stale view) when the list call fails', async () => {
-    stub.list.mockResolvedValue(makeErr(500));
+    stub.list.mockResolvedValue(null);
     await handleOverrideBrowseSelect(makeConfig(), selectInteraction('p1'));
     expect(editReply).toHaveBeenCalledWith({
       content: '❌ Failed to load overrides. Please try again later.',
@@ -235,18 +298,31 @@ describe('handleOverrideBrowseButton', () => {
 
   it('clears the override and refreshes on confirm', async () => {
     stub.delete.mockResolvedValue(makeOk({ deleted: true }));
-    stub.list.mockResolvedValue(makeOk({ overrides: [] }));
+    stub.list.mockResolvedValue([]);
 
     await handleOverrideBrowseButton(makeConfig(), buttonInteraction('test-override::clear::p1'));
 
     expect(deferUpdate).toHaveBeenCalled();
-    expect(stub.delete).toHaveBeenCalledWith('p1');
+    // No kind in the customId → kind passed through as undefined.
+    expect(stub.delete).toHaveBeenCalledWith('p1', undefined);
     const arg = editReply.mock.calls[0][0] as { embeds: EmbedBuilder[] };
     expect(arg.embeds[0].toJSON().description).toContain('No overrides set');
   });
 
+  it('passes the kind through to delete when the clear id carries it', async () => {
+    stub.delete.mockResolvedValue(makeOk({ deleted: true }));
+    stub.list.mockResolvedValue([]);
+
+    await handleOverrideBrowseButton(
+      makeConfig(),
+      buttonInteraction('test-override::clear::p1::vision')
+    );
+
+    expect(stub.delete).toHaveBeenCalledWith('p1', 'vision');
+  });
+
   it('refreshes without deleting on cancel', async () => {
-    stub.list.mockResolvedValue(makeOk({ overrides: [override('p1', 'Lilith')] }));
+    stub.list.mockResolvedValue([override('p1', 'Lilith')]);
 
     await handleOverrideBrowseButton(makeConfig(), buttonInteraction('test-override::cancel'));
 
@@ -270,11 +346,11 @@ describe('handleOverrideBrowseButton', () => {
 
   it('shows the load error (clearing stale view) when delete succeeds but the refresh fails', async () => {
     stub.delete.mockResolvedValue(makeOk({ deleted: true }));
-    stub.list.mockResolvedValue(makeErr(500));
+    stub.list.mockResolvedValue(null);
 
     await handleOverrideBrowseButton(makeConfig(), buttonInteraction('test-override::clear::p1'));
 
-    expect(stub.delete).toHaveBeenCalledWith('p1');
+    expect(stub.delete).toHaveBeenCalledWith('p1', undefined);
     expect(editReply).toHaveBeenCalledWith({
       content: '❌ Failed to load overrides. Please try again later.',
       embeds: [],
