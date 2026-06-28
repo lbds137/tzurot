@@ -2,6 +2,10 @@
 
 _Ungated speculative work — feature ideas and larger fixes with no committed schedule. Grep-on-demand; not loaded at session start. "Promote when…" notes are advisory, not a filing rule._
 
+### Surfaced 2026-06-28 (.claude/commands legacy review — user request)
+
+- 🧹 `[CHORE]` **Review + integrate (or retire) the legacy `.claude/commands/` custom slash commands** — Four custom-slash-command files — `quality.md`, `test-file.md`, `pr-feedback.md`, `session-end.md` — were added in commit `b8b4c494d` (2026-02-01), predating the current `.claude/skills/` system. They're orphaned (referenced nowhere in `settings.json` or docs) and several are stale: `quality.md` still describes quality as "lint + cpd + typecheck:spec" (it's now a 12-step pipeline), `test-file.md` uses **Jest**'s `--testPathPattern` syntax (this repo is vitest → `pnpm test -- <file>`), and `pr-feedback.md` points at `gh:pr-all` (still exists, but the PR-monitoring rule now uses the 3-endpoint `gh:pr-{comments,reviews,info}` split). **Task**: look up the LATEST Anthropic Claude Code docs on custom slash commands (frontmatter — `description` / `allowed-tools` / `argument-hint`; `$ARGUMENTS` / positional `$1…`; namespacing — the commit's `/project:` prefix is likely outdated) + current best practices, then decide per file: (a) modernize into a correct slash command, (b) fold into an existing skill (`session-end` already delegates to `tzurot-docs`; `pr-feedback` overlaps the PR-monitoring rule + `08-review-response`), or (c) delete as redundant. **Scope to decide**: the slash-command-vs-skill boundary for THIS project (skills = procedure-on-invoke with full descriptions; slash commands = quick parametrized prompts) — which of the four, if any, earns its keep. **Start**: `.claude/commands/*.md`; ref commit `b8b4c494d7bd7db3e10770523c9d24b39639d33c`. **Promote when**: a `.claude/` tooling-hygiene pass, or opportunistically when next touching the skills/commands config. Surfaced 2026-06-28 (user request).
+
 ### Surfaced 2026-06-27 (beta.140 prod deploy incident)
 
 ### Surfaced 2026-06-27 (private-notes backlog import)
