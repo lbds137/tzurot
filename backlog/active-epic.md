@@ -1,23 +1,29 @@
-## 🏗 Active Epic: NONE — slot open between epics
+## 🏗 Active Epic: Model Configuration Overhaul
 
-_The previous Active Epic, **Test-Pyramid Taxonomy + Coverage Audit**, COMPLETED 2026-06-26 (Phases 1–4, PR1–7). The slot is open — pick the next theme from [`cold/queue.md`](cold/queue.md). Theme writeup retained at [`cold/themes/test-pyramid-coverage-audit.md`](cold/themes/test-pyramid-coverage-audit.md); slice log in [`cold/epic-log.md`](cold/epic-log.md); git preserves the full pre-close roadmap._
+_Focus: make every model axis (text, vision, future image/video) a first-class, reusable config edited through one kind-aware surface. Full motivation + design detail: [`cold/themes/model-configuration-overhaul.md`](cold/themes/model-configuration-overhaul.md)._
 
-### Promote the next epic (per `.claude/rules/06-backlog.md`)
+_(Promoted 2026-06-28. Phase 1 shipped in beta.140 but the slot was never formally updated — this reconciles it. The prior epic, **Test-Pyramid Taxonomy + Coverage Audit**, COMPLETED 2026-06-26; its writeup is retained at [`cold/themes/test-pyramid-coverage-audit.md`](cold/themes/test-pyramid-coverage-audit.md), slice log in [`cold/epic-log.md`](cold/epic-log.md).)_
 
-1. Pick the next theme from [`cold/queue.md`](cold/queue.md) by dependency + value. Each substantial pick deserves a council pass (GLM-5.2 / Kimi-K2.7 / Qwen-3.7) before plan-mode.
-2. Move that theme's `cold/themes/<slug>.md` content into this file (slim roadmap here; dense per-PR detail → [`cold/epic-log.md`](cold/epic-log.md)). Remove its bullet from `cold/queue.md`.
-3. Update `now.md` › 🎯 Current Focus to point here.
+### Phase 1 — Vision as a first-class config (✅ SHIPPED — PR #1364, beta.140)
 
-### Just-closed epic — Test-Pyramid Taxonomy + Coverage Audit (✅ 2026-06-26)
+Vision model decoupled from `LlmConfig` via a `kind: 'text' | 'vision'` discriminator: vision presets are `kind='vision'` rows whose `model` IS the vision model; `visionModel` removed from `LlmConfig`; `personality.visionModel` kept as the in-memory carrier, filled gateway-side by `VisionConfigResolver` (mirrors `TtsConfigResolver`). Schema migration (kind + per-kind partial-unique default indexes + vision FK/join columns), `VisionConfigBootstrap` seed, per-kind default/list/name-check scoping in `LlmConfigService`, surface amputation. Vision is **seed/DB-only — no editing UI yet** (that's Phase 2).
 
-Adopted the canonical Clemson/Fowler 5-tier taxonomy and reclassified the suite to it; built a **code-derived coverage topology** (every cross-service surface enumerated from code, each carrying a per-surface mechanism marker + required tier; committed `coverage-topology.json` byte-compared in CI via `topology:check`); then deliberately populated the previously-hollow **contract tier** — exactly where recent prod bugs cluster.
+### Phase 2 — Editing surface + capability filtering (NEXT)
 
-- **PR1 (#1346)** — Redis keystone: real Redis everywhere, killed the CI/local mock-split (+2 latent bugs it hid).
-- **PR2 (#1347)** — tier honesty + CI cleanup: ran the contract tier in CI; reclassified the mis-tiered golden-fixture contract; renamed `integration-tests`→`component-tests`.
-- **PR3 (#1353)** — BullMQ queue contract: golden-fixture producer/consumer halves replace the 2 circular tests.
-- **PR4 (#1354)** — envelope scenarios: parameterized the bot-client→worker golden-fixture contract (voice / channel-env / mention).
-- **PR5 (#1356)** — execution-check ratchet: topology upgraded PRESENCE→EXECUTION (a contract test must IMPORT the real producer/consumer symbol; ts-morph import-assertion).
-- **PR6 (#1357)** — voice-engine cross-language contract: Python producer fixture-equality + TS Zod schemas replacing the unsafe `as` casts in `VoiceEngineClient`.
-- **PR7 (#1358)** — close-out grab-bag: deferred Phase-4 nits + voice error-path schema validation.
+Make vision (and future-modality) configs editable, reusing Phase 1's kind-aware service layer. Per user direction 2026-06-27:
 
-**Parked follow-ons (in `cold/`):** flow-level integration/e2e gate ([`cold/follow-ups.md`](cold/follow-ups.md); trigger = a prod bug that passes every seam contract but fails on multi-service state/sequencing); post-deploy smoke check + a `flows.md` inventory ([`cold/ideas.md`](cold/ideas.md)); HTTP bot-client→gateway contract by-shape ([`cold/follow-ups.md`](cold/follow-ups.md) "Contract tests for HTTP API"). **Dropped** (close-out council, gold-plating): the compile-time contract-test harness. The e2e tier stays 0 by conscious choice — the post-deploy smoke check is the better solo spend.
+- [ ] **Extend EXISTING commands with a `kind` param** (`text | vision`, default `text` for back-compat) — NOT new commands. Parametrize the Phase-1 hardcoded `kind:'text'` filters; config autocomplete reads `kind` and filters to it. Generalizes to future modalities (new `kind` value + a new `XConfigResolver` subclass).
+- [ ] **Capability-aware validation** — a modality-scoped model field must REJECT incompatible models (can't set a text-only model as the vision model). Reuse `OpenRouterModelCache.getVisionModels()` / `supportsVision`.
+- [ ] **Admin settings dashboard** for model defaults + user overrides (in addition to the commands — give both ergonomics).
+- [ ] Absorb deferred **#4 `getById` kind-gate** (gate `getById` + the by-id route reads now that an editing surface makes the read-path gap matter).
+- [ ] **`CONFIG_KINDS` / `ConfigKind` in common-types** — verify whether it landed in Phase 1; if not, land it here as the single source the schema/resolver/service/commands all reference.
+
+Substantial → **council pass (GLM-5.2 / Kimi-K2.7 / Qwen-3.7-max) before plan-mode**. Likely sliced into 2–3 PRs. Dense per-slice detail → [`cold/epic-log.md`](cold/epic-log.md) as it ships.
+
+### Phase 3 — Auto-fallback unification (DEFERRED)
+
+Fold guest-downgrade + main-model-vision + fallback into the resolver cascade as an ordered chain (primary → vision global default → free default) + an explicit `[VISION_UNAVAILABLE]` signal when exhausted. Includes the negative-cache-key-by-model fold-in so a model swap / fallback re-attempts immediately instead of waiting out the cooldown. This is the original user "near-term want" (auto-fallback on vision failure).
+
+### Phase-1 cleanup follow-ups
+
+Round-2 review nits from PR #1364 (kind type-tighten, `requireKind` leniency, `setAsDefault` null-path, warn/comment polish) — tracked in [`cold/follow-ups.md`](cold/follow-ups.md); fold into a Phase-2 slice where they overlap.
