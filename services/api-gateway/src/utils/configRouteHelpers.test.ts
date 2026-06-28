@@ -29,6 +29,7 @@ vi.mock('./errorResponses.js', () => ({
 
 import {
   parseBodyOrSendError,
+  parseConfigKindQuery,
   findConfigOrSendNotFound,
   findGlobalConfigOrSendError,
   findAdminUserOrSendError,
@@ -40,6 +41,34 @@ import {
 const mockRes = {} as Response;
 
 beforeEach(() => vi.resetAllMocks());
+
+describe('parseConfigKindQuery', () => {
+  it('returns the parsed kind for a valid ?kind=vision', () => {
+    expect(parseConfigKindQuery(mockRes, { kind: 'vision' })).toBe('vision');
+    expect(mockSendZodError).not.toHaveBeenCalled();
+  });
+
+  it('returns text for a valid ?kind=text', () => {
+    expect(parseConfigKindQuery(mockRes, { kind: 'text' })).toBe('text');
+  });
+
+  it('defaults to text when the param is absent', () => {
+    expect(parseConfigKindQuery(mockRes, {})).toBe('text');
+    expect(mockSendZodError).not.toHaveBeenCalled();
+  });
+
+  it('defaults to text when the query object itself is undefined', () => {
+    // Express always populates req.query, but the helper must not 400 purely
+    // because the object is missing (e.g. in unit tests / edge cases).
+    expect(parseConfigKindQuery(mockRes, undefined)).toBe('text');
+    expect(mockSendZodError).not.toHaveBeenCalled();
+  });
+
+  it('sends a Zod error and returns null for an invalid kind', () => {
+    expect(parseConfigKindQuery(mockRes, { kind: 'audio' })).toBeNull();
+    expect(mockSendZodError).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe('parseBodyOrSendError', () => {
   const schema = z.object({ name: z.string(), count: z.number() });

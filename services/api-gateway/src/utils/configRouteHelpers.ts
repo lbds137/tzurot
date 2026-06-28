@@ -14,8 +14,14 @@
  */
 
 import type { Response } from 'express';
-import type { z } from 'zod';
-import type { PrismaClient, EntityPermissions, ConfigKind } from '@tzurot/common-types';
+import { z } from 'zod';
+import {
+  CONFIG_KINDS,
+  DEFAULT_CONFIG_KIND,
+  type PrismaClient,
+  type EntityPermissions,
+  type ConfigKind,
+} from '@tzurot/common-types';
 import { sendError } from './responseHelpers.js';
 import { sendZodError } from './zodHelpers.js';
 import { ErrorResponses } from './errorResponses.js';
@@ -45,6 +51,31 @@ export function parseBodyOrSendError<T>(
     return null;
   }
   return result.data;
+}
+
+/** Zod schema for the optional `?kind=` config-kind query param. */
+const ConfigKindQuerySchema = z.object({
+  kind: z.enum(CONFIG_KINDS).default(DEFAULT_CONFIG_KIND),
+});
+
+/**
+ * Parse the optional `?kind=` query param (`text` | `vision`), defaulting to
+ * `text`. Lets the read / by-id config routes scope to a kind so the SAME
+ * handler serves both — vision callers pass `?kind=vision`, everyone else gets
+ * the text default (so existing callers are unchanged). On an invalid value
+ * sends a Zod-shaped 400 and returns `null` (caller returns early); an absent
+ * param resolves to the default, never null.
+ */
+export function parseConfigKindQuery(res: Response, query: unknown): ConfigKind | null {
+  // `query ?? {}`: an absent query object means "no params" → the text default,
+  // not a 400. Express always populates `req.query` (at least `{}`), but guard
+  // the undefined case so the helper never rejects purely for a missing object.
+  const result = ConfigKindQuerySchema.safeParse(query ?? {});
+  if (!result.success) {
+    sendZodError(res, result.error);
+    return null;
+  }
+  return result.data.kind;
 }
 
 /**
@@ -94,12 +125,14 @@ export async function findGlobalConfigOrSendError<T extends { isGlobal: boolean;
     operation: GlobalGuardOperation;
     /**
      * When set, reject (as not-found) any row whose `kind` is present AND differs.
-     * Gates the text-preset admin surface from editing/deleting/(un)defaulting
-     * kind='vision' rows, which are seed/DB-only in Phase 1. The `kind !== undefined`
-     * leniency is a production no-op (the column is NOT NULL with a default) — it only
-     * spares callers/tests that don't select `kind`. Requires `kind` in the select.
+     * Gates the bare admin surface (no `?kind=`, which defaults to text) to text
+     * rows: a vision config 404s unless the caller explicitly passes
+     * `?kind=vision`, so the text surface can't accidentally edit / delete /
+     * (un)default a vision row. The `kind !== undefined` leniency is a production
+     * no-op (the column is NOT NULL with a default) — it only spares callers/tests
+     * that don't select `kind`. Requires `kind` in the select.
      */
-    requireKind?: string;
+    requireKind?: ConfigKind;
   }
 ): Promise<T | null> {
   const row = await fetchRow();

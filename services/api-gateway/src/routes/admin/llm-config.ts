@@ -33,6 +33,7 @@ import { enrichWithModelContext } from '../../utils/modelValidation.js';
 import { validateLlmConfigModelFields } from '../../utils/llmConfigValidation.js';
 import {
   parseBodyOrSendError,
+  parseConfigKindQuery,
   findGlobalConfigOrSendError,
   findAdminUserOrSendError,
   ensureNoNameCollision,
@@ -51,12 +52,17 @@ const CONFIG_LABEL = 'configs';
 // --- Handler Factories ---
 
 function createListHandler(service: LlmConfigService) {
-  return async (_req: Request, res: Response) => {
-    const configs = (await service.list({ type: 'GLOBAL' })).map(raw =>
+  return async (req: Request, res: Response) => {
+    const kind = parseConfigKindQuery(res, req.query);
+    if (kind === null) {
+      return;
+    }
+
+    const configs = (await service.list({ type: 'GLOBAL' }, kind)).map(raw =>
       withAdminOwnership(service.formatConfigSummary(raw))
     );
 
-    logger.info({ count: configs.length }, 'Listed all configs');
+    logger.info({ count: configs.length, kind }, 'Listed all configs');
     sendCustomSuccess(res, { configs }, StatusCodes.OK);
   };
 }
@@ -65,6 +71,9 @@ function createGetHandler(service: LlmConfigService, modelCache?: OpenRouterMode
   return async (req: Request, res: Response) => {
     const configId = getRequiredParam(req.params.id, 'id');
 
+    // Kind-agnostic by id: a config's kind is intrinsic to its unique id, so a
+    // by-id fetch returns it regardless of kind (no `?kind=` gate). Only the
+    // list endpoint scopes by kind (no id, so the caller states which kind).
     const config = await service.getById(configId);
     if (config === null) {
       return sendError(res, ErrorResponses.notFound(CONFIG_RESOURCE));
@@ -140,6 +149,11 @@ function createEditConfigHandler(
   return async (req: Request, res: Response) => {
     const configId = getRequiredParam(req.params.id, 'id');
 
+    const kind = parseConfigKindQuery(res, req.query);
+    if (kind === null) {
+      return;
+    }
+
     const body = parseBodyOrSendError(res, LlmConfigUpdateSchema, req.body);
     if (body === null) {
       return;
@@ -168,7 +182,7 @@ function createEditConfigHandler(
         notFoundResource: CONFIG_RESOURCE,
         resourceLabel: CONFIG_LABEL,
         operation: 'edit',
-        requireKind: 'text',
+        requireKind: kind,
       }
     );
     if (existing === null) {
@@ -207,6 +221,11 @@ function createSetDefaultHandler(service: LlmConfigService, prisma: PrismaClient
   return async (req: Request, res: Response) => {
     const configId = getRequiredParam(req.params.id, 'id');
 
+    const kind = parseConfigKindQuery(res, req.query);
+    if (kind === null) {
+      return;
+    }
+
     const config = await findGlobalConfigOrSendError(
       res,
       () =>
@@ -218,7 +237,7 @@ function createSetDefaultHandler(service: LlmConfigService, prisma: PrismaClient
         notFoundResource: CONFIG_RESOURCE,
         resourceLabel: CONFIG_LABEL,
         operation: 'set as system default',
-        requireKind: 'text',
+        requireKind: kind,
       }
     );
     if (config === null) {
@@ -236,6 +255,11 @@ function createSetFreeDefaultHandler(service: LlmConfigService, prisma: PrismaCl
   return async (req: Request, res: Response) => {
     const configId = getRequiredParam(req.params.id, 'id');
 
+    const kind = parseConfigKindQuery(res, req.query);
+    if (kind === null) {
+      return;
+    }
+
     const config = await findGlobalConfigOrSendError(
       res,
       () =>
@@ -247,7 +271,7 @@ function createSetFreeDefaultHandler(service: LlmConfigService, prisma: PrismaCl
         notFoundResource: CONFIG_RESOURCE,
         resourceLabel: CONFIG_LABEL,
         operation: 'set as free tier default',
-        requireKind: 'text',
+        requireKind: kind,
       }
     );
     if (config === null) {
@@ -274,6 +298,11 @@ function createDeleteConfigHandler(service: LlmConfigService, prisma: PrismaClie
   return async (req: Request, res: Response) => {
     const configId = getRequiredParam(req.params.id, 'id');
 
+    const kind = parseConfigKindQuery(res, req.query);
+    if (kind === null) {
+      return;
+    }
+
     const config = await findGlobalConfigOrSendError(
       res,
       () =>
@@ -292,7 +321,7 @@ function createDeleteConfigHandler(service: LlmConfigService, prisma: PrismaClie
         notFoundResource: CONFIG_RESOURCE,
         resourceLabel: CONFIG_LABEL,
         operation: 'delete',
-        requireKind: 'text',
+        requireKind: kind,
       }
     );
     if (config === null) {
