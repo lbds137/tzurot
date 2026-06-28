@@ -16,6 +16,8 @@ import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
   generateUserPersonalityConfigUuid,
+  toConfigKind,
+  type ConfigKind,
   type PrismaClient,
   type ModelOverrideSummary,
   type UserDefaultConfig,
@@ -24,6 +26,7 @@ import {
 } from '@tzurot/common-types';
 import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
+import { parseConfigKindQuery } from '../../utils/configRouteHelpers.js';
 import { tryInvalidateCache } from '../../utils/configOverrideHelpers.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -37,20 +40,25 @@ const logger = createLogger('user-model-override');
 
 /**
  * Verify that the given LLM config exists and the user can access it (global or owned).
- * Returns the config if accessible, null otherwise.
+ * Returns the config (incl. its `kind`) if accessible, null otherwise. The set
+ * handlers branch on `kind` — a config's kind is intrinsic to its id, so the
+ * write targets the matching FK column (text vs vision).
  */
 async function verifyConfigAccess(
   prisma: PrismaClient,
   configId: string,
   userId: string
-): Promise<{ id: string; name: string } | null> {
-  return prisma.llmConfig.findFirst({
+): Promise<{ id: string; name: string; kind: ConfigKind } | null> {
+  const row = await prisma.llmConfig.findFirst({
     where: {
       id: configId,
       OR: [{ isGlobal: true }, { ownerId: userId }],
     },
-    select: { id: true, name: true },
+    select: { id: true, name: true, kind: true },
   });
+  // Narrow the raw DB string to ConfigKind at the boundary (toConfigKind floors
+  // an unexpected value to text + logs), so callers get an exhaustive-checkable kind.
+  return row === null ? null : { ...row, kind: toConfigKind(row.kind) };
 }
 
 /** GET /api/user/model-override — list all user model overrides */
@@ -60,16 +68,26 @@ export const handleListModelOverrides = (deps: RouteDeps): RequestHandler => {
     const discordUserId = req.userId;
     const userId = resolveProvisionedUserId(req);
 
+    const kind = parseConfigKindQuery(res, req.query);
+    if (kind === null) {
+      return;
+    }
+    const isVision = kind === 'vision';
+
+    // Filter by the requested kind's FK, but select BOTH FK pairs (fixed shape —
+    // a conditional select would yield a union return type), then pick below.
     const overrides = await prisma.userPersonalityConfig.findMany({
       where: {
         userId,
-        llmConfigId: { not: null },
+        ...(isVision ? { visionConfigId: { not: null } } : { llmConfigId: { not: null } }),
       },
       select: {
         personalityId: true,
         personality: { select: { name: true } },
         llmConfigId: true,
         llmConfig: { select: { name: true } },
+        visionConfigId: true,
+        visionConfig: { select: { name: true } },
       },
       take: 100,
     });
@@ -77,11 +95,11 @@ export const handleListModelOverrides = (deps: RouteDeps): RequestHandler => {
     const result: ModelOverrideSummary[] = overrides.map(o => ({
       personalityId: o.personalityId,
       personalityName: o.personality.name,
-      configId: o.llmConfigId,
-      configName: o.llmConfig?.name ?? null,
+      configId: isVision ? o.visionConfigId : o.llmConfigId,
+      configName: isVision ? (o.visionConfig?.name ?? null) : (o.llmConfig?.name ?? null),
     }));
 
-    logger.info({ discordUserId, count: result.length }, 'Listed overrides');
+    logger.info({ discordUserId, count: result.length, kind }, 'Listed overrides');
     sendCustomSuccess(res, { overrides: result }, StatusCodes.OK);
   });
 };
@@ -114,6 +132,12 @@ export const handleSetModelOverride = (deps: RouteDeps): RequestHandler => {
       return sendError(res, ErrorResponses.notFound('Config'));
     }
 
+    // The config's kind decides which FK column the override writes — a vision
+    // config sets `visionConfigId`, a text config `llmConfigId`. Both can coexist
+    // on the same (user, personality) row.
+    const isVision = llmConfig.kind === 'vision';
+    const fkData = isVision ? { visionConfigId: configId } : { llmConfigId: configId };
+
     const override = await prisma.userPersonalityConfig.upsert({
       where: {
         userId_personalityId: {
@@ -125,24 +149,26 @@ export const handleSetModelOverride = (deps: RouteDeps): RequestHandler => {
         id: generateUserPersonalityConfigUuid(userId, personalityId),
         userId,
         personalityId,
-        llmConfigId: configId,
+        ...fkData,
       },
-      update: {
-        llmConfigId: configId,
-      },
+      update: fkData,
       select: {
         personalityId: true,
         personality: { select: { name: true } },
         llmConfigId: true,
         llmConfig: { select: { name: true } },
+        visionConfigId: true,
+        visionConfig: { select: { name: true } },
       },
     });
 
     const result: ModelOverrideSummary = {
       personalityId: override.personalityId,
       personalityName: override.personality.name,
-      configId: override.llmConfigId,
-      configName: override.llmConfig?.name ?? null,
+      configId: isVision ? override.visionConfigId : override.llmConfigId,
+      configName: isVision
+        ? (override.visionConfig?.name ?? null)
+        : (override.llmConfig?.name ?? null),
     };
 
     logger.info(
@@ -152,6 +178,7 @@ export const handleSetModelOverride = (deps: RouteDeps): RequestHandler => {
         personalityName: personality.name,
         configId,
         configName: llmConfig.name,
+        kind: isVision ? 'vision' : 'text',
       },
       'Set override'
     );
@@ -167,20 +194,35 @@ export const handleGetDefaultModelConfig = (deps: RouteDeps): RequestHandler => 
     const discordUserId = req.userId;
     const userId = resolveProvisionedUserId(req);
 
+    const kind = parseConfigKindQuery(res, req.query);
+    if (kind === null) {
+      return;
+    }
+    const isVision = kind === 'vision';
+
+    // Select both FK pairs (fixed shape — a conditional select would yield a
+    // union return type), then pick the requested kind.
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
         defaultLlmConfigId: true,
         defaultLlmConfig: { select: { name: true } },
+        defaultVisionConfigId: true,
+        defaultVisionConfig: { select: { name: true } },
       },
     });
 
-    const result: UserDefaultConfig = {
-      configId: user?.defaultLlmConfigId ?? null,
-      configName: user?.defaultLlmConfig?.name ?? null,
-    };
+    const result: UserDefaultConfig = isVision
+      ? {
+          configId: user?.defaultVisionConfigId ?? null,
+          configName: user?.defaultVisionConfig?.name ?? null,
+        }
+      : {
+          configId: user?.defaultLlmConfigId ?? null,
+          configName: user?.defaultLlmConfig?.name ?? null,
+        };
 
-    logger.info({ discordUserId, configId: result.configId }, 'Got default config');
+    logger.info({ discordUserId, configId: result.configId, kind }, 'Got default config');
     sendCustomSuccess(res, { default: result }, StatusCodes.OK);
   });
 };
@@ -204,9 +246,12 @@ export const handleSetDefaultModelConfig = (deps: RouteDeps): RequestHandler => 
       return sendError(res, ErrorResponses.notFound('Config'));
     }
 
+    // A vision config sets the user's vision default (`defaultVisionConfigId`);
+    // a text config the text default. The two defaults coexist independently.
+    const isVision = llmConfig.kind === 'vision';
     await prisma.user.update({
       where: { id: userId },
-      data: { defaultLlmConfigId: configId },
+      data: isVision ? { defaultVisionConfigId: configId } : { defaultLlmConfigId: configId },
     });
 
     const result: UserDefaultConfig = {
@@ -214,7 +259,10 @@ export const handleSetDefaultModelConfig = (deps: RouteDeps): RequestHandler => 
       configName: llmConfig.name,
     };
 
-    logger.info({ discordUserId, configId, configName: llmConfig.name }, 'Set default config');
+    logger.info(
+      { discordUserId, configId, configName: llmConfig.name, kind: isVision ? 'vision' : 'text' },
+      'Set default config'
+    );
 
     await tryInvalidateCache(
       llmConfigCacheInvalidation?.invalidateUserLlmConfig.bind(
@@ -235,27 +283,33 @@ export const handleClearDefaultModelConfig = (deps: RouteDeps): RequestHandler =
     const discordUserId = req.userId;
     const userId = resolveProvisionedUserId(req);
 
+    const kind = parseConfigKindQuery(res, req.query);
+    if (kind === null) {
+      return;
+    }
+    const isVision = kind === 'vision';
+
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { defaultLlmConfigId: true },
+      select: { defaultLlmConfigId: true, defaultVisionConfigId: true },
     });
 
     if (user === null) {
       return sendError(res, ErrorResponses.notFound('User'));
     }
+    const currentDefault = isVision ? user.defaultVisionConfigId : user.defaultLlmConfigId;
 
-    // Look up the system free default the user will fall back to. Per-
-    // personality overrides (UserPersonalityConfig.llmConfigId) and
-    // personality-level defaults (PersonalityDefaultLlmConfig) are
+    // Look up the system free default of the SAME kind the user will fall back
+    // to. Per-personality overrides and personality-level defaults are
     // unaffected; the free default is just the user-global fallback.
     const newEffectiveDefault = await prisma.llmConfig.findFirst({
-      where: { isFreeDefault: true },
+      where: { isFreeDefault: true, kind },
       select: { id: true, name: true },
     });
 
-    if (user.defaultLlmConfigId === null) {
+    if (currentDefault === null) {
       logger.info(
-        { discordUserId, hadDefault: false },
+        { discordUserId, kind, hadDefault: false },
         'Clear called but no default was set (idempotent success)'
       );
       return sendCustomSuccess(
@@ -267,10 +321,10 @@ export const handleClearDefaultModelConfig = (deps: RouteDeps): RequestHandler =
 
     await prisma.user.update({
       where: { id: userId },
-      data: { defaultLlmConfigId: null },
+      data: isVision ? { defaultVisionConfigId: null } : { defaultLlmConfigId: null },
     });
 
-    logger.info({ discordUserId }, 'Cleared default config');
+    logger.info({ discordUserId, kind }, 'Cleared default config');
 
     await tryInvalidateCache(
       llmConfigCacheInvalidation?.invalidateUserLlmConfig.bind(
@@ -292,17 +346,31 @@ export const handleDeleteModelOverride = (deps: RouteDeps): RequestHandler => {
     const personalityId = getParam(req.params.personalityId);
     const userId = resolveProvisionedUserId(req);
 
+    const kind = parseConfigKindQuery(res, req.query);
+    if (kind === null) {
+      return;
+    }
+    const isVision = kind === 'vision';
+
     const override = await prisma.userPersonalityConfig.findFirst({
       where: {
         userId,
         personalityId,
       },
-      select: { id: true, llmConfigId: true, personality: { select: { name: true } } },
+      select: {
+        id: true,
+        llmConfigId: true,
+        visionConfigId: true,
+        personality: { select: { name: true } },
+      },
     });
+    // `findFirst` returns the row or null (never undefined), and the selected FK
+    // columns are `string | null` — so a null row OR a null FK means "not set".
+    const currentOverride = isVision ? override?.visionConfigId : override?.llmConfigId;
 
-    if (override?.llmConfigId === null || override?.llmConfigId === undefined) {
+    if (override === null || currentOverride === null) {
       logger.info(
-        { discordUserId, personalityId, hadOverride: false },
+        { discordUserId, personalityId, kind, hadOverride: false },
         'Reset called but no override was set (idempotent success)'
       );
       return sendCustomSuccess(res, { deleted: true, wasSet: false }, StatusCodes.OK);
@@ -310,11 +378,11 @@ export const handleDeleteModelOverride = (deps: RouteDeps): RequestHandler => {
 
     await prisma.userPersonalityConfig.update({
       where: { id: override.id },
-      data: { llmConfigId: null },
+      data: isVision ? { visionConfigId: null } : { llmConfigId: null },
     });
 
     logger.info(
-      { discordUserId, personalityId, personalityName: override.personality.name },
+      { discordUserId, personalityId, personalityName: override.personality.name, kind },
       'Removed override'
     );
 

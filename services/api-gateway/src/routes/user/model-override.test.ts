@@ -76,10 +76,15 @@ import { getRouteHandler, findRoute } from '../../test/expressRouterUtils.js';
 import type { PrismaClient } from '@tzurot/common-types';
 
 // Helper to create mock request/response
-function createMockReqRes(body: Record<string, unknown> = {}, params: Record<string, string> = {}) {
+function createMockReqRes(
+  body: Record<string, unknown> = {},
+  params: Record<string, string> = {},
+  query: Record<string, unknown> = {}
+) {
   const req = {
     body,
     params,
+    query,
     userId: 'discord-user-123',
     provisionedUserId: 'user-uuid-123',
     provisionedDefaultPersonaId: 'persona-uuid-default',
@@ -720,7 +725,7 @@ describe('/user/model-override routes', () => {
       await handler(req, res);
 
       expect(mockPrisma.llmConfig.findFirst).toHaveBeenCalledWith({
-        where: { isFreeDefault: true },
+        where: { isFreeDefault: true, kind: 'text' },
         select: { id: true, name: true },
       });
       expect(res.json).toHaveBeenCalledWith(
@@ -795,6 +800,167 @@ describe('/user/model-override routes', () => {
 
       await handler(req, res);
 
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+  });
+
+  describe('vision kind branching', () => {
+    const VISION_CFG = '33333333-3333-4333-a333-333333333333';
+    const PERSONALITY = '11111111-1111-4111-a111-111111111111';
+
+    it('PUT /default writes defaultVisionConfigId when the config is kind=vision', async () => {
+      mockPrisma.llmConfig.findFirst.mockResolvedValue({
+        id: VISION_CFG,
+        name: 'Vision Cfg',
+        kind: 'vision',
+      });
+
+      const router = createModelOverrideRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+      const handler = getHandler(router, 'put', '/default');
+      const { req, res } = createMockReqRes({ configId: VISION_CFG });
+
+      await handler(req, res);
+
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-uuid-123' },
+        data: { defaultVisionConfigId: VISION_CFG },
+      });
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('PUT / writes visionConfigId on a per-personality override for a kind=vision config', async () => {
+      mockPrisma.personality.findFirst.mockResolvedValue({ id: PERSONALITY, name: 'Lilith' });
+      mockPrisma.llmConfig.findFirst.mockResolvedValue({
+        id: VISION_CFG,
+        name: 'Vision Cfg',
+        kind: 'vision',
+      });
+      mockPrisma.userPersonalityConfig.upsert.mockResolvedValue({
+        personalityId: PERSONALITY,
+        personality: { name: 'Lilith' },
+        llmConfigId: null,
+        llmConfig: null,
+        visionConfigId: VISION_CFG,
+        visionConfig: { name: 'Vision Cfg' },
+      });
+
+      const router = createModelOverrideRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+      const handler = getHandler(router, 'put', '/');
+      const { req, res } = createMockReqRes({ personalityId: PERSONALITY, configId: VISION_CFG });
+
+      await handler(req, res);
+
+      expect(mockPrisma.userPersonalityConfig.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({ visionConfigId: VISION_CFG }),
+          update: { visionConfigId: VISION_CFG },
+        })
+      );
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          override: expect.objectContaining({ configId: VISION_CFG, configName: 'Vision Cfg' }),
+        })
+      );
+    });
+
+    it('GET /default?kind=vision returns the vision default (text default ignored)', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        defaultLlmConfigId: 'text-cfg',
+        defaultLlmConfig: { name: 'Text' },
+        defaultVisionConfigId: VISION_CFG,
+        defaultVisionConfig: { name: 'Vision Cfg' },
+      });
+
+      const router = createModelOverrideRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+      const handler = getHandler(router, 'get', '/default');
+      const { req, res } = createMockReqRes({}, {}, { kind: 'vision' });
+
+      await handler(req, res);
+
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          default: { configId: VISION_CFG, configName: 'Vision Cfg' },
+        })
+      );
+    });
+
+    it('DELETE /default?kind=vision clears only the vision default + scopes the free fallback', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        defaultLlmConfigId: 'text-cfg',
+        defaultVisionConfigId: VISION_CFG,
+      });
+      mockPrisma.llmConfig.findFirst.mockResolvedValue({ id: 'vision-free', name: 'Vision Free' });
+
+      const router = createModelOverrideRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+      const handler = getHandler(router, 'delete', '/default');
+      const { req, res } = createMockReqRes({}, {}, { kind: 'vision' });
+
+      await handler(req, res);
+
+      // Exactly one update, targeting ONLY the vision FK — the text default is
+      // never touched (the "clears only" guarantee).
+      expect(mockPrisma.user.update).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-uuid-123' },
+        data: { defaultVisionConfigId: null },
+      });
+      // The free-default fallback lookup is scoped to the cleared kind.
+      expect(mockPrisma.llmConfig.findFirst).toHaveBeenCalledWith({
+        where: { isFreeDefault: true, kind: 'vision' },
+        select: { id: true, name: true },
+      });
+    });
+
+    it('GET /?kind=vision lists vision overrides', async () => {
+      mockPrisma.userPersonalityConfig.findMany.mockResolvedValue([
+        {
+          personalityId: PERSONALITY,
+          personality: { name: 'Lilith' },
+          llmConfigId: null,
+          llmConfig: null,
+          visionConfigId: VISION_CFG,
+          visionConfig: { name: 'Vision Cfg' },
+        },
+      ]);
+
+      const router = createModelOverrideRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+      const handler = getHandler(router, 'get', '/');
+      const { req, res } = createMockReqRes({}, {}, { kind: 'vision' });
+
+      await handler(req, res);
+
+      expect(mockPrisma.userPersonalityConfig.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ visionConfigId: { not: null } }),
+        })
+      );
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          overrides: [expect.objectContaining({ configId: VISION_CFG, configName: 'Vision Cfg' })],
+        })
+      );
+    });
+
+    it('DELETE /:personalityId?kind=vision clears only the vision override', async () => {
+      mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue({
+        id: 'upc-1',
+        llmConfigId: 'text-cfg',
+        visionConfigId: VISION_CFG,
+        personality: { name: 'Lilith' },
+      });
+
+      const router = createModelOverrideRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+      const handler = getHandler(router, 'delete', '/:personalityId');
+      const { req, res } = createMockReqRes({}, { personalityId: PERSONALITY }, { kind: 'vision' });
+
+      await handler(req, res);
+
+      // Exactly one update, targeting ONLY the vision override FK.
+      expect(mockPrisma.userPersonalityConfig.update).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.userPersonalityConfig.update).toHaveBeenCalledWith({
+        where: { id: 'upc-1' },
+        data: { visionConfigId: null },
+      });
       expect(res.status).toHaveBeenCalledWith(200);
     });
   });
