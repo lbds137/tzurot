@@ -16,6 +16,7 @@ vi.mock('@tzurot/common-types', async () => {
 
 import { asyncHandler } from './asyncHandler.js';
 import { ParameterError } from './requestParams.js';
+import { NotFoundError } from './appErrors.js';
 
 function createMockRes(): Response & {
   status: ReturnType<typeof vi.fn>;
@@ -61,6 +62,23 @@ describe('asyncHandler', () => {
 
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'VALIDATION_ERROR' }));
+  });
+
+  it('should send 404 with a clean body for NotFoundError', async () => {
+    const handler = vi
+      .fn()
+      .mockRejectedValue(new NotFoundError('LLM config', 'setAsDefault: config abc not found'));
+    const res = createMockRes();
+
+    const wrapped = asyncHandler(handler);
+    wrapped(mockReq, res);
+    await vi.waitFor(() => expect(res.status).toHaveBeenCalled());
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    // Only the clean `resource` reaches the body — not the internal op string.
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ error: 'NOT_FOUND', message: 'LLM config not found' })
+    );
   });
 
   it('should send 500 for generic errors', async () => {

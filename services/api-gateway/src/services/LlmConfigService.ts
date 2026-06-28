@@ -31,6 +31,7 @@ import { type LlmConfigCacheInvalidationService } from '@tzurot/cache-invalidati
 
 import { isPrismaUniqueConstraintErrorOn } from '../utils/prismaErrors.js';
 import { CloneNameExhaustedError, AutoSuffixCollisionError } from './LlmConfigErrors.js';
+import { NotFoundError } from '../utils/appErrors.js';
 
 // Re-exported so route/test importers keep a stable `from './LlmConfigService.js'`
 // path (mirrors TtsConfigService's re-export of its error classes).
@@ -474,7 +475,10 @@ export class LlmConfigService {
       select: { kind: true },
     });
     if (target === null) {
-      throw new Error(`${op}: config ${configId} not found`);
+      // NotFoundError (not a plain Error): asyncHandler maps it to a 404 with a
+      // clean "LLM config not found" body instead of a 500 leaking the internal op
+      // string. The richer message keeps the op + id for server-side logs.
+      throw new NotFoundError('LLM config', `${op}: config ${configId} not found`);
     }
     return toConfigKind(target.kind);
   }

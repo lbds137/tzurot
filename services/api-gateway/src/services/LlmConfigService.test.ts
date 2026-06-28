@@ -5,6 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { NotFoundError } from '../utils/appErrors.js';
 import {
   LlmConfigService,
   AutoSuffixCollisionError,
@@ -573,12 +574,15 @@ describe('LlmConfigService', () => {
       expect(cacheService.invalidateAll).toHaveBeenCalled();
     });
 
-    it('throws when the config no longer exists (delete-between-fetch-and-set race)', async () => {
+    it('throws NotFoundError when the config no longer exists (delete-between-fetch-and-set race)', async () => {
       prisma.llmConfig.findUnique.mockResolvedValue(null);
 
-      await expect(service.setAsDefault('nonexistent-id')).rejects.toThrow(
-        'setAsDefault: config nonexistent-id not found'
-      );
+      const error = await service.setAsDefault('nonexistent-id').catch((e: unknown) => e);
+      // Typed NotFoundError (not a plain Error) so asyncHandler maps it to a 404
+      // with a clean body; the message keeps the op + id for logs.
+      expect(error).toBeInstanceOf(NotFoundError);
+      expect((error as NotFoundError).resource).toBe('LLM config');
+      expect((error as Error).message).toBe('setAsDefault: config nonexistent-id not found');
       // A vanished config must never drive the clear+set transaction — an
       // unscoped clear there would wipe a still-valid kind's default.
       expect(prisma.$transaction).not.toHaveBeenCalled();
@@ -597,12 +601,13 @@ describe('LlmConfigService', () => {
       expect(cacheService.invalidateAll).toHaveBeenCalled();
     });
 
-    it('throws when the config no longer exists (delete-between-fetch-and-set race)', async () => {
+    it('throws NotFoundError when the config no longer exists (delete-between-fetch-and-set race)', async () => {
       prisma.llmConfig.findUnique.mockResolvedValue(null);
 
-      await expect(service.setAsFreeDefault('nonexistent-id')).rejects.toThrow(
-        'setAsFreeDefault: config nonexistent-id not found'
-      );
+      const error = await service.setAsFreeDefault('nonexistent-id').catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(NotFoundError);
+      expect((error as NotFoundError).resource).toBe('LLM config');
+      expect((error as Error).message).toBe('setAsFreeDefault: config nonexistent-id not found');
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
   });
