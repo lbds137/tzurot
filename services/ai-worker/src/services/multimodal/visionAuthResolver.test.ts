@@ -19,7 +19,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   AIProvider,
   AttachmentType,
-  ApiErrorCategory,
   MODEL_DEFAULTS,
   type LoadedPersonality,
   type AttachmentMetadata,
@@ -404,9 +403,7 @@ describe('resolveVisionConfig', () => {
 });
 
 describe('buildVisionAuthFailureResults', () => {
-  it('writes a synthetic AUTH-failure cache entry per attachment and returns fallback descriptions', async () => {
-    mockStoreFailure.mockResolvedValue(undefined);
-
+  it('returns a "configure your key" fallback description per attachment', () => {
     const attachments: AttachmentMetadata[] = [
       {
         id: 'att-1',
@@ -424,50 +421,12 @@ describe('buildVisionAuthFailureResults', () => {
       } as AttachmentMetadata,
     ];
 
-    const results = await buildVisionAuthFailureResults(attachments);
+    const results = buildVisionAuthFailureResults(attachments);
 
     expect(results).toHaveLength(2);
     expect(results[0]?.type).toBe(AttachmentType.Image);
     expect(results[0]?.description).toContain('check /settings apikey set');
     expect(results[0]?.originalUrl).toBe('https://cdn.discordapp.com/img1.png');
     expect(results[1]?.originalUrl).toBe('https://cdn.discordapp.com/img2.png');
-
-    expect(mockStoreFailure).toHaveBeenCalledTimes(2);
-    // Assert each call's argument shape explicitly — `toHaveBeenCalledTimes`
-    // alone wouldn't catch a future partial-application bug where the second
-    // call ends up with a stale or default category.
-    expect(mockStoreFailure).toHaveBeenNthCalledWith(1, {
-      attachmentId: 'att-1',
-      url: 'https://cdn.discordapp.com/img1.png',
-      category: ApiErrorCategory.AUTHENTICATION,
-    });
-    expect(mockStoreFailure).toHaveBeenNthCalledWith(2, {
-      attachmentId: 'att-2',
-      url: 'https://cdn.discordapp.com/img2.png',
-      category: ApiErrorCategory.AUTHENTICATION,
-    });
-  });
-
-  it('returns placeholders even when the negative-cache write throws (best-effort)', async () => {
-    // Redis blip at fail-fast emission must NOT drop the user-facing placeholders.
-    // The cache write is best-effort; the caller's outer catch would otherwise
-    // turn a thrown cache error into an empty result (silently dropped images).
-    mockStoreFailure.mockRejectedValue(new Error('redis down'));
-
-    const attachments: AttachmentMetadata[] = [
-      {
-        id: 'att-1',
-        url: 'https://cdn.discordapp.com/img1.png',
-        contentType: 'image/png',
-        name: 'img1.png',
-        size: 100,
-      } as AttachmentMetadata,
-    ];
-
-    const results = await buildVisionAuthFailureResults(attachments);
-
-    expect(results).toHaveLength(1);
-    expect(results[0]?.description).toContain('check /settings apikey set');
-    expect(mockStoreFailure).toHaveBeenCalledTimes(1);
   });
 });

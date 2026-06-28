@@ -28,13 +28,11 @@ vi.mock('../utils/apiErrorParser.js', () => ({
   getErrorLogContext: vi.fn((_error: unknown) => ({})),
 }));
 
-// `buildFailFastResult` lazy-imports `visionDescriptionCache` from redis.js;
-// stub the cache method so the dynamic import resolves without hitting a real
-// Redis client at test time. Thunks defer reference resolution past hoisting.
-// `checkModelVisionSupport` is reached transitively now that resolveVisionConfig
-// calls the real `selectVisionModel` — default it to false so the
-// no-visionModel-override tests fall through to the fallback model without a
-// real Redis call.
+// Stub redis.js so nothing in the tested path hits a real Redis client at test
+// time. `checkModelVisionSupport` is reached transitively now that
+// resolveVisionConfig calls the real `selectVisionModel` — default it to false so
+// the no-visionModel-override tests fall through to the fallback model. Thunks
+// defer reference resolution past hoisting.
 const mockStoreFailure = vi.fn();
 const mockCheckModelVisionSupport = vi.fn().mockResolvedValue(false);
 vi.mock('../redis.js', () => ({
