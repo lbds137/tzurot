@@ -20,17 +20,17 @@ import {
   LLM_CONFIG_DETAIL_SELECT,
   LLM_CONFIG_DEFAULTS,
   newLlmConfigId,
-  generateClonedName,
-  stripCopySuffix,
   createLogger,
   safeValidateAdvancedParams,
   toConfigKind,
   type ConfigKind,
+  DEFAULT_CONFIG_KIND,
 } from '@tzurot/common-types';
 import { type LlmConfigCacheInvalidationService } from '@tzurot/cache-invalidation';
 
 import { isPrismaUniqueConstraintErrorOn } from '../utils/prismaErrors.js';
 import { CloneNameExhaustedError, AutoSuffixCollisionError } from './LlmConfigErrors.js';
+import { resolveNonCollidingName } from './llmConfigNameCollision.js';
 import { NotFoundError } from '../utils/appErrors.js';
 
 // Re-exported so route/test importers keep a stable `from './LlmConfigService.js'`
@@ -78,6 +78,8 @@ interface RawConfigList {
  * Raw config from Prisma query (detail select).
  */
 interface RawConfigDetail extends RawConfigList {
+  /** Discriminator ('text' | 'vision' | …) — projected by LLM_CONFIG_DETAIL_SELECT for the getById kind-gate; not surfaced in the response. */
+  kind: string;
   advancedParameters: unknown;
   memoryScoreThreshold: { toNumber: () => number };
   memoryLimit: number;
@@ -149,13 +151,24 @@ export class LlmConfigService {
 
   /**
    * Get a single config by ID.
-   * Returns null if not found.
+   * Returns null if not found, or if `expectedKind` is given and the row is a
+   * different kind (so a text-scoped route never returns a vision row, and vice
+   * versa). Post-fetch check rather than a `findFirst({ id, kind })` query — it
+   * keeps the single-row `findUnique` (and its test mocks) intact while still
+   * closing the cross-kind read gap. `expectedKind` omitted = no kind filter.
    */
-  async getById(configId: string): Promise<RawConfigDetail | null> {
-    return this.prisma.llmConfig.findUnique({
+  async getById(configId: string, expectedKind?: ConfigKind): Promise<RawConfigDetail | null> {
+    const config = await this.prisma.llmConfig.findUnique({
       where: { id: configId },
       select: LLM_CONFIG_DETAIL_SELECT,
     });
+    if (config === null) {
+      return null;
+    }
+    if (expectedKind !== undefined && toConfigKind(config.kind) !== expectedKind) {
+      return null;
+    }
+    return config;
   }
 
   /**
@@ -164,14 +177,17 @@ export class LlmConfigService {
    * - GLOBAL scope: All configs (for admin view)
    * - USER scope: Global configs + user's own configs
    */
-  async list(scope: LlmConfigScope): Promise<RawConfigList[]> {
-    // All queries here are scoped to kind='text': this is the TEXT-preset CRUD
-    // surface. Vision configs share the llm_configs table (kind='vision') but are
-    // seeded/DB-only in Phase 1 — they must not appear in the preset list/autocomplete.
+  async list(
+    scope: LlmConfigScope,
+    kind: ConfigKind = DEFAULT_CONFIG_KIND
+  ): Promise<RawConfigList[]> {
+    // Queries are scoped to the requested `kind` (default 'text'). text and vision
+    // share the llm_configs table via the kind discriminator, so the list/autocomplete
+    // surface must never mix kinds — a vision-config picker shows only vision rows.
     if (scope.type === 'GLOBAL') {
-      // Admin: List all text configs
+      // Admin: list all configs of this kind
       return this.prisma.llmConfig.findMany({
-        where: { kind: 'text' },
+        where: { kind },
         select: LLM_CONFIG_LIST_SELECT,
         orderBy: [
           { isDefault: 'desc' },
@@ -183,16 +199,16 @@ export class LlmConfigService {
       });
     }
 
-    // User scope: Global configs + user's own configs
+    // User scope: Global configs + user's own configs (of this kind)
     const [globalConfigs, userConfigs] = await Promise.all([
       this.prisma.llmConfig.findMany({
-        where: { isGlobal: true, kind: 'text' },
+        where: { isGlobal: true, kind },
         select: LLM_CONFIG_LIST_SELECT,
         orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
         take: 100,
       }),
       this.prisma.llmConfig.findMany({
-        where: { ownerId: scope.userId, isGlobal: false, kind: 'text' },
+        where: { ownerId: scope.userId, isGlobal: false, kind },
         select: LLM_CONFIG_LIST_SELECT,
         orderBy: { name: 'asc' },
         take: 100,
@@ -228,9 +244,10 @@ export class LlmConfigService {
     const isGlobal = scope.type === 'GLOBAL';
     const requestedName = data.name.trim();
 
+    const kind = data.kind ?? DEFAULT_CONFIG_KIND;
     const effectiveName =
       data.autoSuffixOnCollision === true
-        ? await this.resolveNonCollidingName(requestedName, ownerId)
+        ? await resolveNonCollidingName(this.prisma, requestedName, ownerId, kind)
         : requestedName;
 
     let config;
@@ -245,8 +262,9 @@ export class LlmConfigService {
           isDefault: false,
           provider: data.provider ?? LLM_CONFIG_DEFAULTS.provider,
           model: data.model.trim(),
-          // kind defaults to 'text' (DB default) — this CRUD surface manages text
-          // presets only; vision configs are seeded/DB-only in Phase 1.
+          // Stamp the requested kind (Zod defaults it to 'text'). Per-kind capability
+          // validation runs in the route handler before create is called.
+          kind,
           advancedParameters: data.advancedParameters ?? undefined,
           // Memory settings — memoryScoreThreshold and memoryLimit are
           // NOT NULL with `@default(0.5)` / `@default(20)` in the schema.
@@ -294,86 +312,6 @@ export class LlmConfigService {
     await this.invalidateCacheSafely('create', config.id);
 
     return config;
-  }
-
-  /** Upper bound on how far `resolveNonCollidingName` will iterate before
-   *  giving up. Chosen generously — a user with 20+ copies of the same base
-   *  name is pathological; we'd rather throw a clear error than loop forever. */
-  private static readonly MAX_CLONE_NAME_ATTEMPTS = 20;
-
-  /**
-   * Find a name that doesn't collide with any existing config owned by the
-   * same user, starting from `baseName` and bumping `(Copy N)` suffixes via
-   * `generateClonedName` until a free slot is found.
-   *
-   * Uses a single SELECT to enumerate all variants (base, `base (Copy)`,
-   * `base (Copy N)`) and resolves the bump in-memory, so the server handles
-   * the entire collision walk in one DB round-trip instead of the previous
-   * client-side loop that fired up to 10 HTTP requests.
-   *
-   * A race where another request inserts a colliding name between the SELECT
-   * and the INSERT is caught by the caller's P2002 translator — not this
-   * function's concern.
-   */
-  private async resolveNonCollidingName(baseName: string, ownerId: string): Promise<string> {
-    const stripped = stripCopySuffix(baseName);
-
-    // Tight filter: fetch the exact base name OR a `base (Copy...)` variant.
-    // Splitting the copy-variant match into two startsWith predicates —
-    // `"<base> (Copy)"` (the no-number form) and `"<base> (Copy "` (the
-    // numbered form, note trailing space) — avoids over-fetching false
-    // positives like `"<base> (Copycat Theme)"` that can never match a
-    // generated candidate but still consume the `take` budget. `orderBy: name
-    // asc` puts the base name first and the copy variants right behind it.
-    //
-    // Bounded read: the in-memory loop walks at most MAX_CLONE_NAME_ATTEMPTS
-    // candidates, so the SELECT only needs to see those N rows. Any collision
-    // that slips past this limit is still caught by the P2002 translator in
-    // `create()`.
-    //
-    // `name` is a CITEXT column, so exact equality (`{ name: stripped }`) is
-    // case-insensitive at the DB level. startsWith compiles to `LIKE` though,
-    // and Postgres citext inherits text behavior for LIKE — it does NOT
-    // override it to be case-insensitive. `mode: 'insensitive'` switches
-    // startsWith to `ILIKE` so lowercase legacy rows like `"preset (copy 5)"`
-    // still match a title-case-seeded SELECT. Without this, the walk would
-    // miss those rows, pick a "free" candidate, and trip P2002 on INSERT.
-    //
-    // takenNames is additionally lowercased so the in-memory `Set.has(...)`
-    // probe matches how the citext unique index evaluates equality — without
-    // the lowercasing, `Set.has("Preset (Copy 2)")` misses `"preset (copy 2)"`
-    // fetched via the ILIKE above, same P2002 failure mode via a different
-    // path.
-    const existing = await this.prisma.llmConfig.findMany({
-      where: {
-        ownerId,
-        kind: 'text',
-        OR: [
-          { name: stripped },
-          { name: { startsWith: `${stripped} (Copy)`, mode: 'insensitive' } },
-          { name: { startsWith: `${stripped} (Copy `, mode: 'insensitive' } },
-        ],
-      },
-      select: { name: true },
-      orderBy: { name: 'asc' },
-      take: LlmConfigService.MAX_CLONE_NAME_ATTEMPTS + 1,
-    });
-    const takenNames = new Set(existing.map(row => row.name.toLowerCase()));
-
-    let candidate = baseName;
-    for (let i = 0; i < LlmConfigService.MAX_CLONE_NAME_ATTEMPTS; i++) {
-      if (!takenNames.has(candidate.toLowerCase())) {
-        return candidate;
-      }
-      candidate = generateClonedName(candidate);
-    }
-
-    // Pathological: user has 20+ copy variants in a row. Typed so the route
-    // can translate to a user-friendly NAME_COLLISION instead of an opaque 500.
-    // Passing `stripped` rather than the raw `baseName` means the user-facing
-    // message reads "Too many copies of 'Preset'..." instead of "...of
-    // 'Preset (Copy 5)'..." — the former is how the user identifies the preset.
-    throw new CloneNameExhaustedError(stripped, LlmConfigService.MAX_CLONE_NAME_ATTEMPTS);
   }
 
   /**
@@ -559,15 +497,16 @@ export class LlmConfigService {
     name: string,
     scope: LlmConfigScope,
     excludeId?: string,
-    postIsGlobal = false
+    postIsGlobal = false,
+    kind: ConfigKind = DEFAULT_CONFIG_KIND
   ): Promise<NameCheckResult> {
     const trimmedName = name.trim();
     const excludeClause = excludeId !== undefined ? { id: { not: excludeId } } : {};
 
     if (scope.type === 'GLOBAL') {
-      // Admin: Check among global configs only
+      // Admin: Check among global configs of this kind only
       const existing = await this.prisma.llmConfig.findFirst({
-        where: { name: trimmedName, isGlobal: true, kind: 'text', ...excludeClause },
+        where: { name: trimmedName, isGlobal: true, kind, ...excludeClause },
         select: { id: true },
       });
       return existing === null ? { exists: false } : { exists: true, conflictId: existing.id };
@@ -578,9 +517,9 @@ export class LlmConfigService {
     const ownClause: Record<string, unknown> = {
       name: trimmedName,
       ownerId: scope.userId,
-      // Text-preset namespace only (kind='vision' configs are seeded globals, not
-      // user-owned) — keeps the app check aligned with the per-kind unique index.
-      kind: 'text',
+      // Scoped to the requested kind — keeps the app check aligned with the
+      // per-kind unique index (names are unique per (kind, owner)/(kind, global)).
+      kind,
       ...excludeClause,
     };
     const ownPromise = this.prisma.llmConfig.findFirst({
@@ -594,10 +533,10 @@ export class LlmConfigService {
     }
 
     const globalPromise = this.prisma.llmConfig.findFirst({
-      // kind='text' mirrors the partial-unique index this check pre-empts
+      // Scoped to kind to mirror the partial-unique index this check pre-empts
       // (`llm_configs_global_name_unique` is UNIQUE (kind, name) WHERE is_global);
-      // without it a text promotion would falsely collide with a same-named vision global.
-      where: { name: trimmedName, isGlobal: true, kind: 'text', ...excludeClause },
+      // without it a promotion would falsely collide with a same-named other-kind global.
+      where: { name: trimmedName, isGlobal: true, kind, ...excludeClause },
       select: { id: true },
     });
     const [own, global] = await Promise.all([ownPromise, globalPromise]);

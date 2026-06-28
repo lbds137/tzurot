@@ -84,6 +84,7 @@ const sampleConfigDetail = {
   description: 'A test config',
   model: 'anthropic/claude-sonnet-4',
   provider: 'openrouter',
+  kind: 'text',
   isGlobal: true,
   isDefault: false,
   isFreeDefault: false,
@@ -132,6 +133,24 @@ describe('LlmConfigService', () => {
 
       expect(result).toBeNull();
     });
+
+    it('returns the config when expectedKind matches the row kind', async () => {
+      prisma.llmConfig.findUnique.mockResolvedValue(sampleConfigDetail); // kind: 'text'
+
+      const result = await service.getById('config-123', 'text');
+
+      expect(result).toEqual(sampleConfigDetail);
+    });
+
+    it('returns null when expectedKind does NOT match the row kind (cross-kind gate)', async () => {
+      prisma.llmConfig.findUnique.mockResolvedValue(sampleConfigDetail); // kind: 'text'
+
+      // Asking for a vision config by an id that resolves to a text row → null,
+      // so a vision-scoped route never returns a text row (and vice versa).
+      const result = await service.getById('config-123', 'vision');
+
+      expect(result).toBeNull();
+    });
   });
 
   describe('list', () => {
@@ -174,6 +193,20 @@ describe('LlmConfigService', () => {
       expect(prisma.llmConfig.findMany).toHaveBeenNthCalledWith(
         2,
         expect.objectContaining({ where: { ownerId: 'user-123', isGlobal: false, kind: 'text' } })
+      );
+    });
+
+    it('scopes the query to the requested kind (defaults to text; vision when asked)', async () => {
+      prisma.llmConfig.findMany.mockResolvedValue([]);
+
+      await service.list({ type: 'GLOBAL' }); // default kind
+      expect(prisma.llmConfig.findMany).toHaveBeenLastCalledWith(
+        expect.objectContaining({ where: { kind: 'text' } })
+      );
+
+      await service.list({ type: 'GLOBAL' }, 'vision');
+      expect(prisma.llmConfig.findMany).toHaveBeenLastCalledWith(
+        expect.objectContaining({ where: { kind: 'vision' } })
       );
     });
   });
@@ -219,6 +252,20 @@ describe('LlmConfigService', () => {
             ownerId: 'user-123',
           }),
         })
+      );
+    });
+
+    it('stamps kind: defaults to text, honors an explicit vision kind', async () => {
+      prisma.llmConfig.create.mockResolvedValue(sampleConfigDetail);
+
+      await service.create({ type: 'GLOBAL' }, { name: 'T', model: 'm' }, 'owner');
+      expect(prisma.llmConfig.create).toHaveBeenLastCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ kind: 'text' }) })
+      );
+
+      await service.create({ type: 'GLOBAL' }, { name: 'V', model: 'm', kind: 'vision' }, 'owner');
+      expect(prisma.llmConfig.create).toHaveBeenLastCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ kind: 'vision' }) })
       );
     });
 

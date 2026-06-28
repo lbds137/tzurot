@@ -77,6 +77,9 @@ export class VisionConfigResolver extends BaseConfigResolver<
     super('VisionConfigResolver', options);
     this.prisma = prisma;
     this.noGlobalDefaultCache = new TTLCache<true>({
+      // Same fallback as BaseConfigResolver's positive cache (API_KEY_CACHE_TTL),
+      // so the negative sentinel and the positive entry expire on the same window
+      // — neither can outlive the other and mask a state transition.
       ttl: options?.cacheTtlMs ?? INTERVALS.API_KEY_CACHE_TTL,
       now: options?.now,
     });

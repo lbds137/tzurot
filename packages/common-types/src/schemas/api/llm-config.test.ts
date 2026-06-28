@@ -374,6 +374,21 @@ describe('LLM Config API Contract Tests', () => {
       expect(result.success).toBe(true);
     });
 
+    it('kind is optional (omitted → undefined) and accepts a valid kind', () => {
+      const omitted = LlmConfigCreateSchema.safeParse(validCreateInput);
+      expect(omitted.success).toBe(true);
+      expect(omitted.success && omitted.data.kind).toBeUndefined();
+
+      const vision = LlmConfigCreateSchema.safeParse({ ...validCreateInput, kind: 'vision' });
+      expect(vision.success).toBe(true);
+      expect(vision.success && vision.data.kind).toBe('vision');
+    });
+
+    it('rejects an unknown kind', () => {
+      const result = LlmConfigCreateSchema.safeParse({ ...validCreateInput, kind: 'audio' });
+      expect(result.success).toBe(false);
+    });
+
     it('should validate complete create input with all optional fields', () => {
       const completeInput = {
         ...validCreateInput,
@@ -495,6 +510,13 @@ describe('LLM Config API Contract Tests', () => {
     it('should validate empty update (no fields changed)', () => {
       const result = LlmConfigUpdateSchema.safeParse({});
       expect(result.success).toBe(true);
+    });
+
+    it('does not carry kind — it is immutable (any supplied kind is stripped)', () => {
+      const result = LlmConfigUpdateSchema.safeParse({ name: 'X', kind: 'vision' });
+      expect(result.success).toBe(true);
+      // Zod strips unknown keys, so `kind` never reaches the update payload.
+      expect(result.success && 'kind' in result.data).toBe(false);
     });
 
     it('should validate partial update with single field', () => {
