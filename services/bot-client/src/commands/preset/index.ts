@@ -23,7 +23,7 @@ import {
   type ButtonInteraction,
   type ModalSubmitInteraction,
 } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, CONFIG_KIND_OPTION_DESCRIPTION } from '@tzurot/common-types';
 import { defineCommand } from '../../utils/defineCommand.js';
 import { createTypedSubcommandRouter } from '../../utils/subcommandRouter.js';
 import { createMixedModeSubcommandRouter } from '../../utils/mixedModeSubcommandRouter.js';
@@ -55,13 +55,6 @@ import {
 } from './dashboard.js';
 
 const logger = createLogger('preset-command');
-
-/**
- * Description for the text/vision `kind` option shared across the preset
- * subcommands. The option name + required flag stay inline at each call site
- * because the command-types codegen reads them as string literals.
- */
-const CONFIG_KIND_OPTION_DESCRIPTION = 'Preset kind (default: text)';
 
 /**
  * Create user preset router with mixed deferral modes
@@ -188,7 +181,9 @@ export default defineCommand({
               { name: 'All Presets', value: 'all' },
               { name: 'Global Only', value: 'global' },
               { name: 'My Presets', value: 'mine' },
-              { name: 'Free Models', value: 'free' }
+              { name: 'Free Models', value: 'free' },
+              { name: 'Text', value: 'text' },
+              { name: 'Vision', value: 'vision' }
             )
         )
     )

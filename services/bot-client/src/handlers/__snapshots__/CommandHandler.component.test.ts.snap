@@ -1826,6 +1826,16 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
             "name_localizations": undefined,
             "value": "free",
           },
+          {
+            "name": "Text",
+            "name_localizations": undefined,
+            "value": "text",
+          },
+          {
+            "name": "Vision",
+            "name_localizations": undefined,
+            "value": "vision",
+          },
         ],
         "description": "Filter presets by type",
         "description_localizations": undefined,

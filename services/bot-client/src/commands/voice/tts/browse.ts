@@ -36,7 +36,16 @@ const ttsOverrideConfig: OverrideBrowseConfig = {
   clearCommandHint: '/voice tts clear',
   selectPlaceholder: 'Select an override to clear…',
   logger,
-  list: userClient => userClient.listTtsOverrides(),
+  // TTS overrides have no kind axis — return the rows untagged (the shared
+  // browser treats a missing `kind` exactly as before).
+  list: async userClient => {
+    const result = await userClient.listTtsOverrides();
+    if (!result.ok) {
+      logger.warn({ status: result.status }, 'Failed to list TTS overrides');
+      return null;
+    }
+    return result.data.overrides;
+  },
   delete: (userClient, personalityId) => userClient.deleteTtsOverride(personalityId),
 };
 

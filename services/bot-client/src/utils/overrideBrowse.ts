@@ -28,7 +28,7 @@ import {
   type ButtonInteraction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
-import { DISCORD_COLORS, type createLogger } from '@tzurot/common-types';
+import { DISCORD_COLORS, type createLogger, type ConfigKind } from '@tzurot/common-types';
 import type { GatewayResult, UserClient } from '@tzurot/clients';
 import type { DeferredCommandContext } from './commandContext/types.js';
 import { clientsFor } from './gatewayClients.js';
@@ -45,6 +45,14 @@ export interface OverrideSummary {
   personalityId: string;
   personalityName: string;
   configName: string | null;
+  /**
+   * Config kind of this override (text | vision). Optional: domains without a
+   * kind axis (e.g. TTS overrides) omit it and the browser behaves exactly as
+   * before. When present, vision rows are badged and the kind is carried through
+   * select → clear so the right FK is cleared (a character can have BOTH a text
+   * and a vision override — so `(personalityId, kind)` is the unique key).
+   */
+  kind?: ConfigKind;
 }
 
 /**
@@ -72,10 +80,21 @@ export interface OverrideBrowseConfig {
   selectPlaceholder: string;
   /** Domain logger (e.g. `settings-preset-browse`). */
   logger: Logger;
-  /** Fetch the user's overrides. */
-  list: (userClient: UserClient) => Promise<GatewayResult<{ overrides: OverrideSummary[] }>>;
-  /** Clear one override by personality id. */
-  delete: (userClient: UserClient, personalityId: string) => Promise<GatewayResult<unknown>>;
+  /**
+   * Fetch the user's overrides. Returns the rows (optionally kind-tagged), or
+   * `null` if the fetch failed — domains that span multiple kinds (preset) issue
+   * one call per kind and merge here, so a single `GatewayResult` no longer fits.
+   */
+  list: (userClient: UserClient) => Promise<OverrideSummary[] | null>;
+  /**
+   * Clear one override by personality id (+ kind, for kind-aware domains — the
+   * gateway clears the matching FK; omitted ⇒ the route's default kind).
+   */
+  delete: (
+    userClient: UserClient,
+    personalityId: string,
+    kind?: ConfigKind
+  ) => Promise<GatewayResult<unknown>>;
 }
 
 const CUSTOM_ID_DELIMITER = '::';
@@ -103,19 +122,23 @@ function errorReply(content: string): { content: string; embeds: []; components:
 export function createOverrideBrowseCustomIds(prefix: string): {
   select: string;
   cancel: string;
-  clear: (personalityId: string) => string;
+  clear: (personalityId: string, kind?: ConfigKind) => string;
   isOwn: (customId: string) => boolean;
   parse: (
     customId: string
-  ) => { action: 'select' | 'clear' | 'cancel'; personalityId?: string } | null;
+  ) => { action: 'select' | 'clear' | 'cancel'; personalityId?: string; kind?: ConfigKind } | null;
 } {
   const select = `${prefix}${CUSTOM_ID_DELIMITER}select`;
   const cancel = `${prefix}${CUSTOM_ID_DELIMITER}cancel`;
   return {
     select,
     cancel,
-    clear: (personalityId: string) =>
-      `${prefix}${CUSTOM_ID_DELIMITER}clear${CUSTOM_ID_DELIMITER}${personalityId}`,
+    // kind is appended as a 4th segment only for kind-aware domains; omitted for
+    // the rest (TTS) so their customIds are byte-identical to before.
+    clear: (personalityId: string, kind?: ConfigKind) =>
+      kind === undefined
+        ? `${prefix}${CUSTOM_ID_DELIMITER}clear${CUSTOM_ID_DELIMITER}${personalityId}`
+        : `${prefix}${CUSTOM_ID_DELIMITER}clear${CUSTOM_ID_DELIMITER}${personalityId}${CUSTOM_ID_DELIMITER}${kind}`,
     isOwn: (customId: string) => customId.startsWith(`${prefix}${CUSTOM_ID_DELIMITER}`),
     parse: customId => {
       if (!customId.startsWith(`${prefix}${CUSTOM_ID_DELIMITER}`)) {
@@ -127,7 +150,8 @@ export function createOverrideBrowseCustomIds(prefix: string): {
         return { action };
       }
       if (action === 'clear' && parts[2] !== undefined && parts[2] !== '') {
-        return { action: 'clear', personalityId: parts[2] };
+        const kind = parts[3] === 'text' || parts[3] === 'vision' ? parts[3] : undefined;
+        return { action: 'clear', personalityId: parts[2], kind };
       }
       return null;
     },
@@ -149,9 +173,10 @@ export function buildOverrideBrowseView(
     return { embeds: [embed], components: [] };
   }
 
-  const lines = overrides.map(
-    o => `**${escapeMarkdown(o.personalityName)}** → ${escapeMarkdown(o.configName ?? 'Unknown')}`
-  );
+  const lines = overrides.map(o => {
+    const visionBadge = o.kind === 'vision' ? '👁️ ' : '';
+    return `${visionBadge}**${escapeMarkdown(o.personalityName)}** → ${escapeMarkdown(o.configName ?? 'Unknown')}`;
+  });
   embed.setDescription(lines.join('\n'));
 
   // The select menu can only hold 25 options; show the first 25 and point at
@@ -171,8 +196,14 @@ export function buildOverrideBrowseView(
     placeholder: config.selectPlaceholder,
     startIndex: 0,
     formatItem: o => ({
-      label: o.personalityName,
-      value: o.personalityId,
+      // kind-aware domains badge vision + encode kind in the value so
+      // `(personalityId, kind)` stays the unique key (a character can have both
+      // a text and a vision override); kind-less domains keep the bare id.
+      label: o.kind === 'vision' ? `👁️ ${o.personalityName}` : o.personalityName,
+      value:
+        o.kind === undefined
+          ? o.personalityId
+          : `${o.personalityId}${CUSTOM_ID_DELIMITER}${o.kind}`,
       description: `→ ${o.configName ?? 'Unknown'}`,
     }),
   });
@@ -189,15 +220,15 @@ export async function handleOverrideBrowse(
   const userId = context.user.id;
   try {
     const { userClient } = clientsFor(context.interaction);
-    const result = await config.list(userClient);
-    if (!result.ok) {
-      config.logger.warn({ userId, status: result.status }, 'Failed to list overrides');
+    const overrides = await config.list(userClient);
+    if (overrides === null) {
+      config.logger.warn({ userId }, 'Failed to list overrides');
       await context.editReply({ content: FAILED_TO_LOAD_MSG });
       return;
     }
-    const view = buildOverrideBrowseView(config, result.data.overrides);
+    const view = buildOverrideBrowseView(config, overrides);
     await context.editReply(view);
-    config.logger.info({ userId, count: result.data.overrides.length }, 'Browsed overrides');
+    config.logger.info({ userId, count: overrides.length }, 'Browsed overrides');
   } catch (error) {
     config.logger.error({ err: error, userId }, 'Error browsing overrides');
     await context.editReply({ content: GENERIC_ERROR_MSG });
@@ -211,21 +242,27 @@ export async function handleOverrideBrowseSelect(
 ): Promise<void> {
   await interaction.deferUpdate();
 
-  const personalityId = interaction.values[0];
+  // The select value is `personalityId` or `personalityId::kind` (kind-aware
+  // domains) — split so `(personalityId, kind)` identifies the exact override.
+  // Safe because personalityId is always a UUID (never contains `::`), so the
+  // split is unambiguous — the first segment is the id, the second (if any) kind.
+  const [personalityId, kindStr] = interaction.values[0].split(CUSTOM_ID_DELIMITER);
+  const kind: ConfigKind | undefined =
+    kindStr === 'text' || kindStr === 'vision' ? kindStr : undefined;
   const userId = interaction.user.id;
   try {
     const { userClient } = clientsFor(interaction);
-    const result = await config.list(userClient);
-    if (!result.ok) {
-      config.logger.warn({ userId, status: result.status }, 'Failed to list overrides for select');
+    const overrides = await config.list(userClient);
+    if (overrides === null) {
+      config.logger.warn({ userId }, 'Failed to list overrides for select');
       await interaction.editReply(errorReply(FAILED_TO_LOAD_MSG));
       return;
     }
 
-    const override = result.data.overrides.find(o => o.personalityId === personalityId);
+    const override = overrides.find(o => o.personalityId === personalityId && o.kind === kind);
     if (override === undefined) {
       // Already cleared elsewhere — just refresh the list.
-      const view = buildOverrideBrowseView(config, result.data.overrides);
+      const view = buildOverrideBrowseView(config, overrides);
       await interaction.editReply({ content: '', ...view });
       return;
     }
@@ -245,7 +282,7 @@ export async function handleOverrideBrowseSelect(
         .setLabel('Cancel')
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
-        .setCustomId(ids.clear(personalityId))
+        .setCustomId(ids.clear(override.personalityId, override.kind))
         .setLabel('Clear')
         .setStyle(ButtonStyle.Danger)
         .setEmoji('🗑️')
@@ -278,7 +315,7 @@ export async function handleOverrideBrowseButton(
     const { userClient } = clientsFor(interaction);
 
     if (parsed.action === 'clear' && parsed.personalityId !== undefined) {
-      const deleteResult = await config.delete(userClient, parsed.personalityId);
+      const deleteResult = await config.delete(userClient, parsed.personalityId, parsed.kind);
       if (!deleteResult.ok) {
         config.logger.warn({ userId, status: deleteResult.status }, 'Failed to clear override');
         await interaction.editReply(
@@ -286,17 +323,20 @@ export async function handleOverrideBrowseButton(
         );
         return;
       }
-      config.logger.info({ userId, personalityId: parsed.personalityId }, 'Cleared override');
+      config.logger.info(
+        { userId, personalityId: parsed.personalityId, kind: parsed.kind },
+        'Cleared override'
+      );
     }
 
     // Both confirm and cancel land back on a freshly-fetched browse view.
-    const result = await config.list(userClient);
-    if (!result.ok) {
-      config.logger.warn({ userId, status: result.status }, 'Failed to refresh overrides');
+    const overrides = await config.list(userClient);
+    if (overrides === null) {
+      config.logger.warn({ userId }, 'Failed to refresh overrides');
       await interaction.editReply(errorReply(FAILED_TO_LOAD_MSG));
       return;
     }
-    const view = buildOverrideBrowseView(config, result.data.overrides);
+    const view = buildOverrideBrowseView(config, overrides);
     await interaction.editReply({ content: '', ...view });
   } catch (error) {
     config.logger.error({ err: error, userId }, 'Error in override button handler');

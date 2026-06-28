@@ -20,6 +20,7 @@ import {
   isFreeModel,
   presetBrowseOptions,
   type LlmConfigSummary,
+  type ConfigKind,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { UserClient } from '@tzurot/clients';
@@ -50,11 +51,19 @@ import { fetchPreset } from './api.js';
 
 const logger = createLogger('preset-browse');
 
-/** Browse filter options */
-export type PresetBrowseFilter = 'all' | 'global' | 'mine' | 'free';
+/**
+ * A preset summary tagged with its config kind. The list response summary omits
+ * `kind` (it's detail-only), so browse fetches each kind separately and tags
+ * each row by the call it came from — letting us badge + filter by kind without
+ * the gateway list contract carrying it.
+ */
+type TaggedPreset = LlmConfigSummary & { kind: ConfigKind };
+
+/** Browse filter options (scope/free axis + the text/vision kind axis) */
+export type PresetBrowseFilter = 'all' | 'global' | 'mine' | 'free' | 'text' | 'vision';
 
 /** Valid filters for preset browse */
-const VALID_FILTERS = ['all', 'global', 'mine', 'free'] as const;
+const VALID_FILTERS = ['all', 'global', 'mine', 'free', 'text', 'vision'] as const;
 
 /** Browse customId helpers using shared factory (no sort for presets) */
 const browseHelpers = createBrowseCustomIdHelpers<PresetBrowseFilter>({
@@ -83,7 +92,11 @@ export function isPresetBrowseSelectInteraction(customId: string): boolean {
  * The factory adds the numbering prefix; this helper handles the
  * scope/default/free badge logic.
  */
-function buildPresetBadges(preset: LlmConfigSummary): string {
+/**
+ * Badge sequence for a preset (scope → vision → default → free). Shared by the
+ * select-menu label and the embed line so the two can't drift.
+ */
+function presetBadgeArray(preset: TaggedPreset): string[] {
   const badges: string[] = [];
   if (preset.isGlobal) {
     badges.push('🌐');
@@ -92,13 +105,20 @@ function buildPresetBadges(preset: LlmConfigSummary): string {
   } else {
     badges.push('👤');
   }
+  if (preset.kind === 'vision') {
+    badges.push('👁️');
+  }
   if (preset.isDefault) {
     badges.push('⭐');
   }
   if (isFreeModel(preset.model)) {
     badges.push('🆓');
   }
-  return badges.join('') + ' ';
+  return badges;
+}
+
+function buildPresetBadges(preset: TaggedPreset): string {
+  return presetBadgeArray(preset).join('') + ' ';
 }
 
 /**
@@ -106,7 +126,7 @@ function buildPresetBadges(preset: LlmConfigSummary): string {
  * Shows the short model name plus an "(requires API key)" hint when
  * the user is in guest mode and the model isn't free.
  */
-function buildPresetDescription(preset: LlmConfigSummary, isGuestMode: boolean): string {
+function buildPresetDescription(preset: TaggedPreset, isGuestMode: boolean): string {
   const shortModel = preset.model.includes('/') ? preset.model.split('/').pop() : preset.model;
   let description = shortModel ?? preset.model;
   if (isGuestMode && !isFreeModel(preset.model)) {
@@ -119,10 +139,10 @@ function buildPresetDescription(preset: LlmConfigSummary, isGuestMode: boolean):
  * Filter presets based on filter type and optional query
  */
 function filterPresets(
-  presets: LlmConfigSummary[],
+  presets: TaggedPreset[],
   filter: PresetBrowseFilter,
   query: string | null
-): LlmConfigSummary[] {
+): TaggedPreset[] {
   let filtered = presets;
 
   // Apply filter
@@ -135,6 +155,12 @@ function filterPresets(
       break;
     case 'free':
       filtered = presets.filter(c => isFreeModel(c.model));
+      break;
+    case 'text':
+      filtered = presets.filter(c => c.kind === 'text');
+      break;
+    case 'vision':
+      filtered = presets.filter(c => c.kind === 'vision');
       break;
     case 'all':
     default:
@@ -159,23 +185,8 @@ function filterPresets(
 /**
  * Format a preset line with badges
  */
-function formatPresetLine(c: LlmConfigSummary, isGuestMode: boolean, index: number): string {
-  const badges: string[] = [];
-  if (c.isGlobal) {
-    badges.push('🌐');
-  } else if (c.isOwned) {
-    badges.push('🔒');
-  } else {
-    badges.push('👤');
-  }
-  if (c.isDefault) {
-    badges.push('⭐');
-  }
-  if (isFreeModel(c.model)) {
-    badges.push('🆓');
-  }
-
-  const badgeStr = badges.join('');
+function formatPresetLine(c: TaggedPreset, isGuestMode: boolean, index: number): string {
+  const badgeStr = presetBadgeArray(c).join('');
   const shortModel = c.model.includes('/') ? c.model.split('/').pop() : c.model;
   const safeName = escapeMarkdown(c.name);
 
@@ -210,7 +221,7 @@ function buildBrowseButtons(
  * Build the browse embed and components
  */
 function buildBrowsePage(
-  allPresets: LlmConfigSummary[],
+  allPresets: TaggedPreset[],
   filter: PresetBrowseFilter,
   query: string | null,
   page: number,
@@ -245,6 +256,8 @@ function buildBrowsePage(
     global: 'Global Only',
     mine: 'My Presets',
     free: 'Free Only',
+    text: 'Text Only',
+    vision: 'Vision Only',
   };
   if (query !== null) {
     lines.push(`🔍 Searching: "${query}" • Filter: ${filterLabels[filter]}\n`);
@@ -265,11 +278,12 @@ function buildBrowsePage(
 
   // Footer with legend
   const freeCount = filtered.filter(c => isFreeModel(c.model)).length;
+  const visionCount = filtered.filter(c => c.kind === 'vision').length;
   embed.setFooter({
     text: joinFooter(
       pluralize(filtered.length, { singular: 'preset', plural: 'presets' }),
       filter !== 'all' && formatFilterLabeled(filterLabels[filter]),
-      `\uD83C\uDF10 Global  \uD83D\uDD12 Private  \uD83D\uDC64 Other user  \u2B50 Default  \uD83C\uDD93 Free (${freeCount})`
+      `\uD83C\uDF10 Global  \uD83D\uDD12 Private  \uD83D\uDC64 Other user  \uD83D\uDC41\uFE0F Vision (${visionCount})  \u2B50 Default  \uD83C\uDD93 Free (${freeCount})`
     ),
   });
 
@@ -277,7 +291,7 @@ function buildBrowsePage(
   const components: BrowseActionRow[] = [];
 
   // Add select menu — factory returns null on empty pageItems
-  const selectRow = buildBrowseSelectMenu<LlmConfigSummary>({
+  const selectRow = buildBrowseSelectMenu<TaggedPreset>({
     items: pageItems,
     customId: browseHelpers.buildSelect(safePage, filter, 'name', query),
     placeholder: 'Select a preset to view...',
@@ -301,6 +315,36 @@ function buildBrowsePage(
 }
 
 /**
+ * Fetch the user's presets across BOTH kinds and tag each row with its kind.
+ * The list summary omits `kind`, so we issue one kind-scoped call per kind and
+ * tag by the call that returned it — global-vs-owned rows are mutually exclusive
+ * and each call is `take`-bounded, so there's no dedup or pagination concern.
+ * Returns null if either fetch fails.
+ */
+async function fetchTaggedPresets(userClient: UserClient): Promise<TaggedPreset[] | null> {
+  const [textResult, visionResult] = await Promise.all([
+    userClient.listUserLlmConfigs({ kind: 'text' }),
+    userClient.listUserLlmConfigs({ kind: 'vision' }),
+  ]);
+  if (!textResult.ok || !visionResult.ok) {
+    // Log which kind failed + its status so a partial outage is triagable
+    // (the two calls hit the same endpoint, so failures are normally correlated).
+    logger.warn(
+      {
+        textStatus: textResult.ok ? undefined : textResult.status,
+        visionStatus: visionResult.ok ? undefined : visionResult.status,
+      },
+      'Failed to fetch presets (one or both kinds)'
+    );
+    return null;
+  }
+  return [
+    ...textResult.data.configs.map(c => ({ ...c, kind: 'text' as const })),
+    ...visionResult.data.configs.map(c => ({ ...c, kind: 'vision' as const })),
+  ];
+}
+
+/**
  * Handle /preset browse [query?] [filter?]
  */
 export async function handleBrowse(context: DeferredCommandContext): Promise<void> {
@@ -311,15 +355,15 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
   const filter = filterStr as PresetBrowseFilter;
 
   try {
-    // Fetch presets and wallet status in parallel
+    // Fetch presets (both kinds) and wallet status in parallel
     const { userClient } = clientsFor(context.interaction);
-    const [presetResult, walletResult] = await Promise.all([
-      userClient.listUserLlmConfigs(),
+    const [taggedPresets, walletResult] = await Promise.all([
+      fetchTaggedPresets(userClient),
       userClient.listWalletKeys(),
     ]);
 
-    if (!presetResult.ok) {
-      logger.warn({ userId, status: presetResult.status }, 'Failed to browse presets');
+    if (taggedPresets === null) {
+      logger.warn({ userId }, 'Failed to browse presets');
       await context.editReply({ content: '❌ Failed to get presets. Please try again later.' });
       return;
     }
@@ -335,18 +379,12 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
     }
     const isGuestMode = walletResult.ok && !walletResult.data.keys.some(k => k.isActive === true);
 
-    const { embed, components } = buildBrowsePage(
-      presetResult.data.configs,
-      filter,
-      query,
-      0,
-      isGuestMode
-    );
+    const { embed, components } = buildBrowsePage(taggedPresets, filter, query, 0, isGuestMode);
 
     await context.editReply({ embeds: [embed], components });
 
     logger.info(
-      { userId, count: presetResult.data.configs.length, filter, query, isGuestMode },
+      { userId, count: taggedPresets.length, filter, query, isGuestMode },
       'Browse presets'
     );
   } catch (error) {
@@ -369,13 +407,13 @@ export async function buildBrowseResponse(
 ): Promise<{ embed: EmbedBuilder; components: BrowseActionRow[] } | null> {
   const { page, filter, query } = browseContext;
 
-  // Re-fetch data via typed client
-  const [presetResult, walletResult] = await Promise.all([
-    userClient.listUserLlmConfigs(),
+  // Re-fetch data (both kinds) via typed client
+  const [taggedPresets, walletResult] = await Promise.all([
+    fetchTaggedPresets(userClient),
     userClient.listWalletKeys(),
   ]);
 
-  if (!presetResult.ok) {
+  if (taggedPresets === null) {
     return null;
   }
 
@@ -383,7 +421,7 @@ export async function buildBrowseResponse(
   // If wallet API failed, assume user might have keys (don't restrict them)
   const isGuestMode = walletResult.ok && !walletResult.data.keys.some(k => k.isActive === true);
 
-  return buildBrowsePage(presetResult.data.configs, filter, query, page, isGuestMode);
+  return buildBrowsePage(taggedPresets, filter, query, page, isGuestMode);
 }
 
 // Register the preset browse rebuilder with the shared registry at module
