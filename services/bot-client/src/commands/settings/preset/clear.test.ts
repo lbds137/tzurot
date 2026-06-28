@@ -66,12 +66,15 @@ describe('Preset Clear Handler', () => {
     );
   });
 
-  function createMockContext(personalityId: string) {
+  function createMockContext(personalityId: string, kind?: string) {
     return {
       user: { id: 'user-123', username: 'testuser' },
       interaction: {
         options: {
-          getString: (_name: string, _required?: boolean) => personalityId,
+          // The `kind` option is optional (null → handler defaults to text);
+          // every other option (`character`) resolves to the personalityId.
+          getString: (name: string, _required?: boolean) =>
+            name === 'kind' ? (kind ?? null) : personalityId,
         },
       },
       editReply: mockEditReply,
@@ -84,13 +87,30 @@ describe('Preset Clear Handler', () => {
 
       await handleClear(createMockContext('personality-123'));
 
-      expect(stub.deleteModelOverride).toHaveBeenCalledWith('personality-123');
+      // No kind option → clears the text override.
+      expect(stub.deleteModelOverride).toHaveBeenCalledWith('personality-123', { kind: 'text' });
 
       expect(mockCreateSuccessEmbed).toHaveBeenCalledWith(
         '🔄 Preset Override Removed',
         'The character will now use its default preset.'
       );
 
+      expect(mockEditReply).toHaveBeenCalledWith({
+        embeds: [expect.objectContaining({ data: expect.objectContaining({}) })],
+      });
+    });
+
+    it('clears the vision override when kind=vision', async () => {
+      stub.deleteModelOverride.mockResolvedValue(makeOk({ deleted: true }));
+
+      await handleClear(createMockContext('personality-123', 'vision'));
+
+      expect(stub.deleteModelOverride).toHaveBeenCalledWith('personality-123', { kind: 'vision' });
+      // The vision path completes through to the success embed, same as text.
+      expect(mockCreateSuccessEmbed).toHaveBeenCalledWith(
+        '🔄 Preset Override Removed',
+        'The character will now use its default preset.'
+      );
       expect(mockEditReply).toHaveBeenCalledWith({
         embeds: [expect.objectContaining({ data: expect.objectContaining({}) })],
       });

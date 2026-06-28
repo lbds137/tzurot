@@ -42,20 +42,41 @@ describe('handleClearDefault', () => {
     mockEditReply.mockResolvedValue(undefined);
   });
 
-  function createMockContext() {
+  function createMockContext(kind?: string) {
     return {
       user: { id: '123456789', username: 'testuser' },
-      interaction: {} as never,
+      interaction: {
+        // The `kind` option is optional (null → handler defaults to text).
+        options: {
+          getString: (_name: string, _required?: boolean) => kind ?? null,
+        },
+      } as never,
       editReply: mockEditReply,
     } as unknown as Parameters<typeof handleClearDefault>[0];
   }
 
-  it('should call clearDefaultModelConfig on the typed client', async () => {
+  it('should call clearDefaultModelConfig with the text kind by default', async () => {
     stub.clearDefaultModelConfig.mockResolvedValue(makeOk(mockClearDefaultConfigResponse()));
 
     await handleClearDefault(createMockContext());
 
-    expect(stub.clearDefaultModelConfig).toHaveBeenCalled();
+    expect(stub.clearDefaultModelConfig).toHaveBeenCalledWith({ kind: 'text' });
+  });
+
+  it('should clear the vision default when kind=vision', async () => {
+    stub.clearDefaultModelConfig.mockResolvedValue(makeOk(mockClearDefaultConfigResponse()));
+
+    await handleClearDefault(createMockContext('vision'));
+
+    expect(stub.clearDefaultModelConfig).toHaveBeenCalledWith({ kind: 'vision' });
+    // The vision path completes through to the success embed, same as text.
+    expect(mockEditReply).toHaveBeenCalledWith({
+      embeds: [
+        expect.objectContaining({
+          data: expect.objectContaining({ title: '✅ Default Preset Cleared' }),
+        }),
+      ],
+    });
   });
 
   it('should show success embed when config cleared', async () => {

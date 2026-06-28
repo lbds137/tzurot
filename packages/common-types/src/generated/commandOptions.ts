@@ -518,10 +518,11 @@ export const settingsPresetSetOptions = defineTypedOptions({
 });
 
 /**
- * /settings preset clear <character>
+ * /settings preset clear <character, kind>
  */
 export const settingsPresetClearOptions = defineTypedOptions({
   character: { type: 'string', required: true },
+  kind: { type: 'string', required: false },
 });
 
 /**
@@ -529,6 +530,13 @@ export const settingsPresetClearOptions = defineTypedOptions({
  */
 export const settingsPresetSetDefaultOptions = defineTypedOptions({
   preset: { type: 'string', required: true },
+  kind: { type: 'string', required: false },
+});
+
+/**
+ * /settings preset clear-default <kind>
+ */
+export const settingsPresetClearDefaultOptions = defineTypedOptions({
   kind: { type: 'string', required: false },
 });
 
