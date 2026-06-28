@@ -16,12 +16,13 @@ import {
   MessageFlags,
   type ModalSubmitInteraction,
 } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, presetCreateOptions } from '@tzurot/common-types';
 import type { ModalCommandContext } from '../../utils/commandContext/types.js';
 import {
   buildDashboardEmbed,
   buildDashboardComponents,
   buildDashboardCustomId,
+  parseDashboardCustomId,
   extractModalValues,
   getSessionManager,
 } from '../../utils/dashboard/index.js';
@@ -45,14 +46,24 @@ const logger = createLogger('preset-create');
  * because this subcommand uses deferralMode: 'modal'.
  */
 export async function handleCreate(context: ModalCommandContext): Promise<void> {
+  // The kind (text|vision, default text) is chosen via the command option and
+  // carried through the modal in the custom-ID's 3rd segment (preset::seed::<kind>),
+  // since modals can't hold a select. handleSeedModalSubmit reads it back.
+  // Uses the generated typed accessor (matches the other preset setters).
+  const kind = presetCreateOptions(context.interaction).kind() ?? 'text';
+  const isVision = kind === 'vision';
+
   const modal = new ModalBuilder()
-    .setCustomId(buildDashboardCustomId('preset', 'seed'))
-    .setTitle('Create New Preset');
+    .setCustomId(buildDashboardCustomId('preset', 'seed', kind))
+    .setTitle(isVision ? 'Create New Vision Preset' : 'Create New Preset');
 
   for (const field of presetSeedFields) {
+    // Clarify the model field for vision presets (its value must be a
+    // vision-capable model; the save-time capability gate enforces it).
+    const label = isVision && field.id === 'model' ? 'Vision model' : field.label;
     const input = new TextInputBuilder()
       .setCustomId(field.id)
-      .setLabel(field.label)
+      .setLabel(label)
       .setPlaceholder(field.placeholder ?? '')
       .setStyle(TextInputStyle.Short)
       .setRequired(field.required ?? false)
@@ -76,6 +87,13 @@ export async function handleSeedModalSubmit(interaction: ModalSubmitInteraction)
     presetSeedFields.map(f => f.id)
   );
 
+  // Recover the kind chosen at /preset create from the modal custom-ID
+  // (preset::seed::<kind>). parseDashboardCustomId surfaces the 3rd segment as
+  // `entityId` — here it carries the kind, not an entity ID. Narrow to the
+  // ConfigKind union; legacy IDs without a 3rd segment fall through to text.
+  const kind =
+    parseDashboardCustomId(interaction.customId)?.entityId === 'vision' ? 'vision' : 'text';
+
   // Validate required fields
   if (!values.name || values.name.trim().length === 0) {
     await replyError(interaction, '❌ Preset name is required.');
@@ -95,6 +113,7 @@ export async function handleSeedModalSubmit(interaction: ModalSubmitInteraction)
         name: values.name.trim(),
         model: values.model.trim(),
         provider: 'openrouter', // Default provider
+        kind,
       },
       userClient
     );

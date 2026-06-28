@@ -25,6 +25,7 @@
 
 import { z } from 'zod';
 import {
+  CONFIG_KINDS,
   AddDenylistResponseSchema,
   AdminCleanupResponseSchema,
   AdminPersonalityResponseSchema,
@@ -226,6 +227,9 @@ export const adminRoutes = {
     method: 'get',
     path: '/llm-config',
     id: 'listGlobalLlmConfigs',
+    // Scope the listing to a config kind (text|vision); defaults to text
+    // server-side so the autocomplete picker shows only the requested kind.
+    query: { kind: z.enum(CONFIG_KINDS).optional() },
     output: ListLlmConfigsResponseSchema,
     meta: { safeRead: true },
     // Dual-context: bot-owner autocomplete (3s Discord deadline) and
@@ -278,6 +282,9 @@ export const adminRoutes = {
     path: '/llm-config/:id/set-default',
     id: 'setGlobalLlmConfigDefault',
     params: { id: z.string() },
+    // The admin set-default routes gate by kind (requireKind); pass it so a
+    // vision config can be promoted to the vision default.
+    query: { kind: z.enum(CONFIG_KINDS).optional() },
     output: SetDefaultLlmConfigResponseSchema,
     meta: { idempotent: true },
   },
@@ -289,6 +296,9 @@ export const adminRoutes = {
     path: '/llm-config/:id/set-free-default',
     id: 'setGlobalLlmConfigFreeDefault',
     params: { id: z.string() },
+    // The admin set-default routes gate by kind (requireKind); pass it so a
+    // vision config can be promoted to the vision default.
+    query: { kind: z.enum(CONFIG_KINDS).optional() },
     output: SetDefaultLlmConfigResponseSchema,
     meta: { idempotent: true },
   },

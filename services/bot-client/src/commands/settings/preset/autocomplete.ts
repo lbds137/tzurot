@@ -11,6 +11,7 @@ import {
   AUTOCOMPLETE_BADGES,
   formatAutocompleteOption,
   type AutocompleteBadge,
+  type ConfigKind,
 } from '@tzurot/common-types';
 import { clientsFor } from '../../../utils/gatewayClients.js';
 import { handlePersonalityAutocomplete } from '../../../utils/autocomplete/index.js';
@@ -70,10 +71,16 @@ async function handlePresetAutocomplete(
   query: string,
   userId: string
 ): Promise<void> {
+  // Scope the picker to the requested kind (command's `kind` option, default
+  // text). This scopes autocomplete only — the server infers kind from the
+  // chosen config row, so a kind mismatch on a manually-typed ID is harmless.
+  // The Discord choice set restricts values to CONFIG_KINDS, so the cast is sound.
+  const kind = (interaction.options.getString('kind', false) ?? 'text') as ConfigKind;
+
   // Fetch configs and wallet status in parallel
   const { userClient } = clientsFor(interaction);
   const [configResult, walletResult] = await Promise.all([
-    userClient.listUserLlmConfigs(),
+    userClient.listUserLlmConfigs({ kind }),
     userClient.listWalletKeys(),
   ]);
 

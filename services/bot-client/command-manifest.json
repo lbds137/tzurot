@@ -1473,7 +1473,24 @@
             "type": 1,
             "name": "create",
             "description": "Create a new model preset",
-            "options": []
+            "options": [
+              {
+                "type": 3,
+                "choices": [
+                  {
+                    "name": "Text",
+                    "value": "text"
+                  },
+                  {
+                    "name": "Vision",
+                    "value": "vision"
+                  }
+                ],
+                "name": "kind",
+                "description": "Preset kind (default: text)",
+                "required": false
+              }
+            ]
           },
           {
             "type": 1,
@@ -1538,6 +1555,22 @@
                     "name": "preset",
                     "description": "Global preset to set as default",
                     "required": true
+                  },
+                  {
+                    "type": 3,
+                    "choices": [
+                      {
+                        "name": "Text",
+                        "value": "text"
+                      },
+                      {
+                        "name": "Vision",
+                        "value": "vision"
+                      }
+                    ],
+                    "name": "kind",
+                    "description": "Preset kind (default: text)",
+                    "required": false
                   }
                 ]
               },
@@ -1552,6 +1585,22 @@
                     "name": "preset",
                     "description": "Global preset to set as free tier default",
                     "required": true
+                  },
+                  {
+                    "type": 3,
+                    "choices": [
+                      {
+                        "name": "Text",
+                        "value": "text"
+                      },
+                      {
+                        "name": "Vision",
+                        "value": "vision"
+                      }
+                    ],
+                    "name": "kind",
+                    "description": "Preset kind (default: text)",
+                    "required": false
                   }
                 ]
               }
@@ -1742,6 +1791,22 @@
                     "name": "preset",
                     "description": "The preset to use",
                     "required": true
+                  },
+                  {
+                    "type": 3,
+                    "choices": [
+                      {
+                        "name": "Text",
+                        "value": "text"
+                      },
+                      {
+                        "name": "Vision",
+                        "value": "vision"
+                      }
+                    ],
+                    "name": "kind",
+                    "description": "Preset kind (default: text)",
+                    "required": false
                   }
                 ]
               },
@@ -1770,6 +1835,22 @@
                     "name": "preset",
                     "description": "The preset to use as default",
                     "required": true
+                  },
+                  {
+                    "type": 3,
+                    "choices": [
+                      {
+                        "name": "Text",
+                        "value": "text"
+                      },
+                      {
+                        "name": "Vision",
+                        "value": "vision"
+                      }
+                    ],
+                    "name": "kind",
+                    "description": "Preset kind (default: text)",
+                    "required": false
                   }
                 ]
               },

@@ -38,13 +38,17 @@ describe('Preset Global Set Default Handler', () => {
   const mockEditReply = vi.fn();
   let stub: OwnerClientStub;
 
-  const createMockContext = (configId: string) =>
+  const createMockContext = (configId: string, kind?: string) =>
     ({
       user: { id: 'owner-123' },
       interaction: {
         user: { id: 'owner-123' },
         options: {
-          getString: vi.fn((_name: string, _required?: boolean) => configId),
+          // The `kind` option is optional (getString('kind', false)); everything
+          // else (the `preset` option) resolves to the configId under test.
+          getString: vi.fn((name: string, _required?: boolean) =>
+            name === 'kind' ? (kind ?? null) : configId
+          ),
         },
       },
       editReply: mockEditReply,
@@ -69,7 +73,8 @@ describe('Preset Global Set Default Handler', () => {
 
       await handleGlobalSetDefault(context);
 
-      expect(stub.setGlobalLlmConfigDefault).toHaveBeenCalledWith('config-123');
+      // No kind option → defaults to text (the admin route gates by kind).
+      expect(stub.setGlobalLlmConfigDefault).toHaveBeenCalledWith('config-123', { kind: 'text' });
 
       expect(mockEditReply).toHaveBeenCalledWith({
         embeds: expect.arrayContaining([expect.any(EmbedBuilder)]),
@@ -81,6 +86,19 @@ describe('Preset Global Set Default Handler', () => {
       expect(embedData.title).toBe('System Default Preset Updated');
       expect(embedData.description).toContain('Claude Opus');
       expect(embedData.description).toContain('system default');
+    });
+
+    it('should pass kind=vision through to the promote call', async () => {
+      const context = createMockContext('vision-config', 'vision');
+      stub.setGlobalLlmConfigDefault.mockResolvedValue(
+        makeOk({ success: true, configName: 'GPT-4 Vision' })
+      );
+
+      await handleGlobalSetDefault(context);
+
+      expect(stub.setGlobalLlmConfigDefault).toHaveBeenCalledWith('vision-config', {
+        kind: 'vision',
+      });
     });
 
     it('should handle API error response', async () => {

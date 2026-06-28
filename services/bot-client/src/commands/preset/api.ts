@@ -6,7 +6,11 @@
  * operations go through `ownerClient`.
  */
 
-import { type LlmConfigDetail, type LlmConfigUpdateInput } from '@tzurot/common-types';
+import {
+  type LlmConfigDetail,
+  type LlmConfigUpdateInput,
+  type ConfigKind,
+} from '@tzurot/common-types';
 import { GatewayApiError, type OwnerClient, type UserClient } from '@tzurot/clients';
 import { DashboardUpdateError } from '../../utils/dashboard/saveError.js';
 import type { PresetData } from './types.js';
@@ -119,6 +123,8 @@ export async function createPreset(
     model: string;
     provider?: string;
     description?: string;
+    /** Preset kind (text|vision); the server defaults to text when omitted. */
+    kind?: ConfigKind;
     /**
      * When true, server bumps the `(Copy N)` suffix on name collision
      * instead of returning NAME_COLLISION. Used by the clone flow so a
