@@ -7,9 +7,11 @@
 
 ## Unreleased on Develop (since beta.141)
 
-**Released v3.0.0-beta.141 on 2026-06-28** (notes: [tag v3.0.0-beta.141](https://github.com/lbds137/tzurot/releases/tag/v3.0.0-beta.141)). 9 PRs (#1366–#1374, no migrations); `release:premigrate --dry-run` confirmed no migrations; `release:finalize` SHA-aligned develop with main. **Nothing unreleased — develop == main.**
+**Released v3.0.0-beta.141 on 2026-06-28** (notes: [tag v3.0.0-beta.141](https://github.com/lbds137/tzurot/releases/tag/v3.0.0-beta.141)). 9 PRs (#1366–#1374, no migrations).
 
-**➡️ Next: Model Configuration Overhaul — Phase 2** (see [`active-epic.md`](backlog/active-epic.md)). Phase 1 (vision as a first-class config) shipped in beta.140; **S0** (the resolver kind-scope bug) shipped in beta.141. Phase 2 is council-reshaped: **S1** (backend — parametrize kind + `ModelCapabilityService` + kind-immutable + absorb #4 `getById`) → **S2** (commands — `kind` option + vision-aware write paths) → **S3** dashboard (deferred). Open follow-ups in [`backlog/cold/follow-ups.md`](backlog/cold/follow-ups.md): **#4 `getById` kind-gate** (→ Phase 2), the **`noGlobalDefaultCache` TTL alignment** (beta.141 release-review nit), and **`MAINTENANCE_MODE` for destructive migrations** (promote when a destructive migration is planned).
+**Unreleased since beta.141** (1 PR, no migrations): **#1376 — model-config Phase 2 / S1** — kind-aware LLM config backend (service + schema kind-parametrized, `getById` kind-gate, clone-name walk extracted to `llmConfigNameCollision.ts`). No user-facing change (routes still text-only); the vision editing surface lands in S1b/S2.
+
+**➡️ Next: Model Configuration Overhaul — Phase 2 / S1b** (see [`active-epic.md`](backlog/active-epic.md)). S0 (beta.141) + S1 (#1376) done. **S1b** = capability validation (a `ModelCapabilityService` over a unified, provider-agnostic capability shape — OpenRouter authoritative, z.ai-only models → text-only) + route-layer kind threading; then **S2** (commands), **S3** dashboard (deferred). Open follow-up (`cold/follow-ups.md`): **`MAINTENANCE_MODE` for destructive migrations** (promote when one's planned). _(The #4 `getById` gate's read-half shipped in S1; the route-read wiring folds into S1b. The TTL "nit" was a verify-before-accepting false positive — dropped.)_
 
 ---
 
