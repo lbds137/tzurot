@@ -34,11 +34,13 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-// resolveVisionConfig (real) calls selectVisionModel → checkModelVisionSupport
-// and buildVisionAuthFailureResults → visionDescriptionCache. Stub redis.js so
-// neither reaches a live client. The CROSS_PROVIDER personality sets a
-// visionModel override, so selectVisionModel returns it without consulting
-// checkModelVisionSupport — but stub it for safety.
+// resolveVisionConfig (real) calls selectVisionModel → checkModelVisionSupport;
+// selectVisionModel lives in VisionProcessor.js, which imports visionDescriptionCache
+// from redis.js. Stub redis.js so none of that reaches a live client. The
+// CROSS_PROVIDER personality sets a visionModel override, so selectVisionModel
+// returns it without consulting checkModelVisionSupport — but stub it for safety.
+// (buildVisionAuthFailureResults no longer touches the cache, but the stub is kept
+// for VisionProcessor's transitive import above.)
 const mockStoreFailure = vi.fn();
 vi.mock('../../../../redis.js', () => ({
   visionDescriptionCache: {
