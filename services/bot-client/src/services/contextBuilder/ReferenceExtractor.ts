@@ -16,7 +16,7 @@ import {
   type RawMentionedRole,
 } from '@tzurot/common-types';
 import { MessageReferenceExtractor } from '../../handlers/MessageReferenceExtractor.js';
-import { isVoiceAttachment } from '../../utils/voiceAttachment.js';
+import { hasVoiceAttachments } from '../../utils/forwardedMessageUtils.js';
 import type { MentionResolver } from '../MentionResolver.js';
 
 const logger = createLogger('MessageContextBuilder');
@@ -121,7 +121,9 @@ function logVoiceReplyDiagnostics(
   content: string,
   history: ConversationMessage[]
 ): void {
-  const hasVoiceAttachment = message.attachments.some(isVoiceAttachment);
+  // Forward-aware: a forwarded voice message keeps its audio in the snapshot,
+  // not message.attachments — hasVoiceAttachments walks both.
+  const hasVoiceAttachment = hasVoiceAttachments(message);
   if (!hasVoiceAttachment) {
     return;
   }
