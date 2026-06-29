@@ -3,15 +3,15 @@
  *
  * The interaction logic lives in `utils/overrideBrowse.ts` (tested there);
  * this verifies the preset config is wired to the right client calls and
- * customId prefix — including the kind-aware two-call fetch + kind-carrying
- * clear (a character can have both a text and a vision override).
+ * customId prefix — including the single all-kinds fetch + kind-carrying clear
+ * (a character can have both a text and a vision override).
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { EmbedBuilder } from 'discord.js';
 import type { UserClient } from '@tzurot/clients';
 import { mockListModelOverridesResponse } from '@tzurot/test-factories';
-import { makeOk } from '../../../test/gatewayClientStubs.js';
+import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
 import {
   handlePresetBrowse,
   handlePresetBrowseSelect,
@@ -37,16 +37,20 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-type OverrideRow = { personalityId: string; personalityName: string; configName: string | null };
+type OverrideRow = {
+  personalityId: string;
+  personalityName: string;
+  configName: string | null;
+  kind?: 'text' | 'vision';
+};
 
 /**
- * The preset config issues one `listModelOverrides` call per kind; mock by the
- * `?kind=` arg so text and vision return distinct rows (order-independent).
+ * The preset config issues ONE all-kinds `listModelOverrides` call; the gateway
+ * emits a row per non-null FK, each tagged with its `kind`. The mock returns the
+ * given rows (each carrying its own kind) regardless of the call args.
  */
-function mockOverridesByKind(text: OverrideRow[], vision: OverrideRow[] = []): void {
-  stub.listModelOverrides.mockImplementation((opts?: { kind?: string }) =>
-    Promise.resolve(makeOk(mockListModelOverridesResponse(opts?.kind === 'vision' ? vision : text)))
-  );
+function mockAllOverrides(rows: OverrideRow[]): void {
+  stub.listModelOverrides.mockResolvedValue(makeOk(mockListModelOverridesResponse(rows)));
 }
 
 beforeEach(() => {
@@ -65,10 +69,10 @@ describe('isPresetOverrideInteraction', () => {
 
 describe('handlePresetBrowse', () => {
   it('lists overrides of both kinds and renders them (vision badged)', async () => {
-    mockOverridesByKind(
-      [{ personalityId: 'p1', personalityName: 'Lilith', configName: 'Fast' }],
-      [{ personalityId: 'p2', personalityName: 'Aria', configName: 'GPT-4o' }]
-    );
+    mockAllOverrides([
+      { personalityId: 'p1', personalityName: 'Lilith', configName: 'Fast', kind: 'text' },
+      { personalityId: 'p2', personalityName: 'Aria', configName: 'GPT-4o', kind: 'vision' },
+    ]);
     const editReply = vi.fn();
     const context = {
       user: { id: 'u1' },
@@ -78,20 +82,40 @@ describe('handlePresetBrowse', () => {
 
     await handlePresetBrowse(context);
 
-    // Both kinds fetched (one call each).
-    expect(stub.listModelOverrides).toHaveBeenCalledWith({ kind: 'text' });
-    expect(stub.listModelOverrides).toHaveBeenCalledWith({ kind: 'vision' });
+    // Both kinds come back from ONE all-kinds call.
+    expect(stub.listModelOverrides).toHaveBeenCalledTimes(1);
+    expect(stub.listModelOverrides).toHaveBeenCalledWith({ kind: 'all' });
     const arg = editReply.mock.calls[0][0] as { embeds: EmbedBuilder[] };
     const description = arg.embeds[0].toJSON().description ?? '';
     expect(description).toContain('Lilith');
     expect(description).toContain('Aria');
     expect(description).toContain('👁️'); // the vision override is badged
   });
+
+  it('renders the load-failure message when the all-kinds list call fails', async () => {
+    // The list closure returns null on a failed gateway call → the shared
+    // browser surfaces the load-failure notice (covers the closure error path).
+    stub.listModelOverrides.mockResolvedValue(makeErr(500, 'Server error'));
+    const editReply = vi.fn();
+    const context = {
+      user: { id: 'u1' },
+      interaction: {} as never,
+      editReply,
+    } as unknown as Parameters<typeof handlePresetBrowse>[0];
+
+    await handlePresetBrowse(context);
+
+    expect(stub.listModelOverrides).toHaveBeenCalledWith({ kind: 'all' });
+    const arg = editReply.mock.calls[0][0] as { content?: string };
+    expect(arg.content).toContain('Failed to load overrides');
+  });
 });
 
 describe('handlePresetBrowseSelect', () => {
   it('routes a kind-encoded selection to the shared select handler (shows confirm)', async () => {
-    mockOverridesByKind([{ personalityId: 'p1', personalityName: 'Lilith', configName: 'Fast' }]);
+    mockAllOverrides([
+      { personalityId: 'p1', personalityName: 'Lilith', configName: 'Fast', kind: 'text' },
+    ]);
     const editReply = vi.fn();
     const interaction = {
       values: ['p1::text'],
@@ -111,7 +135,7 @@ describe('handlePresetBrowseSelect', () => {
 describe('handlePresetBrowseButton', () => {
   it('clears the model override of the carried kind on confirm', async () => {
     stub.deleteModelOverride.mockResolvedValue(makeOk({ deleted: true }));
-    mockOverridesByKind([]);
+    mockAllOverrides([]);
     const interaction = {
       customId: 'settings-preset-override::clear::p1::vision',
       user: { id: 'u1' },

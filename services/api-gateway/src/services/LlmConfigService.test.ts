@@ -209,6 +209,19 @@ describe('LlmConfigService', () => {
         expect.objectContaining({ where: { kind: 'vision' } })
       );
     });
+
+    it("omits the kind filter entirely for the 'all' sentinel (both kinds)", async () => {
+      prisma.llmConfig.findMany.mockResolvedValue([]);
+
+      await service.list({ type: 'GLOBAL' }, 'all');
+
+      // The 'all' sentinel drops the `kind` predicate from the where clause
+      // (vs. the text/vision cases above which pin it) → both kinds returned.
+      const lastCall = prisma.llmConfig.findMany.mock.calls.at(-1)?.[0] as {
+        where: Record<string, unknown>;
+      };
+      expect(lastCall.where).not.toHaveProperty('kind');
+    });
   });
 
   describe('create', () => {
@@ -827,6 +840,7 @@ describe('LlmConfigService', () => {
         description: 'A test config',
         model: 'anthropic/claude-sonnet-4',
         provider: 'openrouter',
+        kind: 'text',
         isGlobal: true,
         isDefault: false,
         isFreeDefault: false,

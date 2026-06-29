@@ -175,13 +175,22 @@ export default defineCommand({
         .addStringOption(option =>
           option
             .setName('filter')
-            .setDescription('Filter presets by type')
+            .setDescription('Filter presets by scope')
             .setRequired(false)
             .addChoices(
               { name: 'All Presets', value: 'all' },
               { name: 'Global Only', value: 'global' },
               { name: 'My Presets', value: 'mine' },
-              { name: 'Free Models', value: 'free' },
+              { name: 'Free Models', value: 'free' }
+            )
+        )
+        .addStringOption(option =>
+          option
+            .setName('kind')
+            .setDescription('Filter by config kind (defaults to all)')
+            .setRequired(false)
+            .addChoices(
+              { name: 'All', value: 'all' },
               { name: 'Text', value: 'text' },
               { name: 'Vision', value: 'vision' }
             )

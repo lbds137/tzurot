@@ -193,6 +193,7 @@ describe('/user/model-override routes', () => {
               personalityName: 'Lilith',
               configId: '22222222-2222-4222-a222-222222222222',
               configName: 'GPT-4 Config',
+              kind: 'text',
             },
           ],
         })
@@ -359,6 +360,7 @@ describe('/user/model-override routes', () => {
             personalityName: 'Lilith',
             configId: '22222222-2222-4222-a222-222222222222',
             configName: 'GPT-4',
+            kind: 'text',
           },
         })
       );
@@ -937,6 +939,55 @@ describe('/user/model-override routes', () => {
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           overrides: [expect.objectContaining({ configId: VISION_CFG, configName: 'Vision Cfg' })],
+        })
+      );
+    });
+
+    it('GET /?kind=all emits one kind-tagged row per non-null FK (both on one personality)', async () => {
+      mockPrisma.userPersonalityConfig.findMany.mockResolvedValue([
+        {
+          personalityId: PERSONALITY,
+          personality: { name: 'Lilith' },
+          llmConfigId: 'text-cfg',
+          llmConfig: { name: 'Text Cfg' },
+          visionConfigId: VISION_CFG,
+          visionConfig: { name: 'Vision Cfg' },
+        },
+      ]);
+
+      const router = createModelOverrideRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+      const handler = getHandler(router, 'get', '/');
+      const { req, res } = createMockReqRes({}, {}, { kind: 'all' });
+
+      await handler(req, res);
+
+      // All-kinds query matches a row with EITHER FK set (not a single-kind filter).
+      expect(mockPrisma.userPersonalityConfig.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            OR: [{ llmConfigId: { not: null } }, { visionConfigId: { not: null } }],
+          }),
+        })
+      );
+      // One personality with both FKs → two rows, each tagged with its kind.
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          overrides: [
+            {
+              personalityId: PERSONALITY,
+              personalityName: 'Lilith',
+              configId: 'text-cfg',
+              configName: 'Text Cfg',
+              kind: 'text',
+            },
+            {
+              personalityId: PERSONALITY,
+              personalityName: 'Lilith',
+              configId: VISION_CFG,
+              configName: 'Vision Cfg',
+              kind: 'vision',
+            },
+          ],
         })
       );
     });

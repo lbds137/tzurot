@@ -10,6 +10,7 @@
  */
 
 import { z } from 'zod';
+import { CONFIG_KINDS } from '../../constants/ai.js';
 
 // ============================================================================
 // Shared Sub-schemas
@@ -23,6 +24,12 @@ export const ModelOverrideSummarySchema = z.object({
   personalityName: z.string(),
   configId: z.string().nullable(),
   configName: z.string().nullable(),
+  /**
+   * Config kind of the override (text | vision). Nullable to match `configId`:
+   * null when there's no override; set when one exists. The all-kinds list emits
+   * one row per kind, so browse can badge + carry the kind through clear.
+   */
+  kind: z.enum(CONFIG_KINDS).nullable(),
 });
 export type ModelOverrideSummary = z.infer<typeof ModelOverrideSummarySchema>;
 

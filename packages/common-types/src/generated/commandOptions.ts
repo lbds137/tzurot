@@ -441,11 +441,12 @@ export const presetGlobalFreeDefaultOptions = defineTypedOptions({
 });
 
 /**
- * /preset browse <query, filter>
+ * /preset browse <query, filter, kind>
  */
 export const presetBrowseOptions = defineTypedOptions({
   query: { type: 'string', required: false },
   filter: { type: 'string', required: false },
+  kind: { type: 'string', required: false },
 });
 
 /**
