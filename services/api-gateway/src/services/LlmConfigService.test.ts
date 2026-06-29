@@ -5,7 +5,6 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { NotFoundError } from '../utils/appErrors.js';
 import {
   LlmConfigService,
   AutoSuffixCollisionError,
@@ -53,11 +52,16 @@ function createMockPrisma() {
     count: vi.fn().mockResolvedValue(0),
   };
 
+  const mockAdminSettings = {
+    upsert: vi.fn().mockResolvedValue({ id: 'admin-settings-singleton' }),
+  };
+
   return {
     llmConfig: mockLlmConfig,
     personalityDefaultConfig: mockPersonalityDefaultConfig,
     userPersonalityConfig: mockUserPersonalityConfig,
     user: mockUser,
+    adminSettings: mockAdminSettings,
     $executeRaw: vi.fn().mockResolvedValue(1),
     $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => {
       const txMock = {
@@ -623,52 +627,51 @@ describe('LlmConfigService', () => {
   });
 
   describe('setAsDefault', () => {
-    it('should clear existing default and set new one', async () => {
-      prisma.llmConfig.findUnique.mockResolvedValue({ kind: 'text' });
-      prisma.llmConfig.updateMany.mockResolvedValue({ count: 1 });
-      prisma.llmConfig.update.mockResolvedValue({ id: 'config-123', isDefault: true });
+    // The slot (chat vs vision) is the caller's choice — it writes the matching
+    // pointer on the AdminSettings singleton, NOT a per-kind flag. The route layer
+    // verifies the config exists + capability-gates the vision slot before this runs.
+    it('writes the global chat-slot pointer for slot=text', async () => {
+      await service.setAsDefault('config-123', 'text');
 
-      await service.setAsDefault('config-123');
-
-      expect(prisma.$transaction).toHaveBeenCalled();
+      expect(prisma.adminSettings.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          update: { globalDefaultLlmConfigId: 'config-123' },
+        })
+      );
       expect(cacheService.invalidateAll).toHaveBeenCalled();
     });
 
-    it('throws NotFoundError when the config no longer exists (delete-between-fetch-and-set race)', async () => {
-      prisma.llmConfig.findUnique.mockResolvedValue(null);
+    it('writes the global vision-slot pointer for slot=vision', async () => {
+      await service.setAsDefault('config-123', 'vision');
 
-      const error = await service.setAsDefault('nonexistent-id').catch((e: unknown) => e);
-      // Typed NotFoundError (not a plain Error) so asyncHandler maps it to a 404
-      // with a clean body; the message keeps the op + id for logs.
-      expect(error).toBeInstanceOf(NotFoundError);
-      expect((error as NotFoundError).resource).toBe('LLM config');
-      expect((error as Error).message).toBe('setAsDefault: config nonexistent-id not found');
-      // A vanished config must never drive the clear+set transaction — an
-      // unscoped clear there would wipe a still-valid kind's default.
-      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(prisma.adminSettings.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          update: { globalDefaultVisionConfigId: 'config-123' },
+        })
+      );
     });
   });
 
   describe('setAsFreeDefault', () => {
-    it('should clear existing free default and set new one', async () => {
-      prisma.llmConfig.findUnique.mockResolvedValue({ kind: 'text' });
-      prisma.llmConfig.updateMany.mockResolvedValue({ count: 1 });
-      prisma.llmConfig.update.mockResolvedValue({ id: 'config-123', isFreeDefault: true });
+    it('writes the free chat-slot pointer for slot=text', async () => {
+      await service.setAsFreeDefault('config-123', 'text');
 
-      await service.setAsFreeDefault('config-123');
-
-      expect(prisma.$transaction).toHaveBeenCalled();
+      expect(prisma.adminSettings.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          update: { freeDefaultLlmConfigId: 'config-123' },
+        })
+      );
       expect(cacheService.invalidateAll).toHaveBeenCalled();
     });
 
-    it('throws NotFoundError when the config no longer exists (delete-between-fetch-and-set race)', async () => {
-      prisma.llmConfig.findUnique.mockResolvedValue(null);
+    it('writes the free vision-slot pointer for slot=vision', async () => {
+      await service.setAsFreeDefault('config-123', 'vision');
 
-      const error = await service.setAsFreeDefault('nonexistent-id').catch((e: unknown) => e);
-      expect(error).toBeInstanceOf(NotFoundError);
-      expect((error as NotFoundError).resource).toBe('LLM config');
-      expect((error as Error).message).toBe('setAsFreeDefault: config nonexistent-id not found');
-      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(prisma.adminSettings.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          update: { freeDefaultVisionConfigId: 'config-123' },
+        })
+      );
     });
   });
 

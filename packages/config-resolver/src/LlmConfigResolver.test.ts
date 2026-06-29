@@ -37,6 +37,9 @@ describe('LlmConfigResolver', () => {
     llmConfig: {
       findFirst: ReturnType<typeof vi.fn>;
     };
+    adminSettings: {
+      findFirst: ReturnType<typeof vi.fn>;
+    };
   };
 
   const mockPersonality: LoadedPersonality = {
@@ -71,6 +74,9 @@ describe('LlmConfigResolver', () => {
         findFirst: vi.fn(),
       },
       llmConfig: {
+        findFirst: vi.fn(),
+      },
+      adminSettings: {
         findFirst: vi.fn(),
       },
     };
@@ -614,59 +620,40 @@ describe('LlmConfigResolver', () => {
   });
 
   describe('getFreeDefaultConfig', () => {
-    it('should return null when no free default config exists', async () => {
-      mockPrisma.llmConfig.findFirst.mockResolvedValue(null);
+    // The free chat default is now the AdminSettings.freeDefaultLlmConfig pointer
+    // (a relation join), not an isFreeDefault+kind='text' flag query. The kind
+    // filter (and its vision-leak guard) is obsolete: a pointer can only reference
+    // the one config an admin set, so there's nothing to leak.
+    it('should return null when no free default pointer is set', async () => {
+      mockPrisma.adminSettings.findFirst.mockResolvedValue({ freeDefaultLlmConfig: null });
 
       const result = await resolver.getFreeDefaultConfig();
 
       expect(result).toBeNull();
-      expect(mockPrisma.llmConfig.findFirst).toHaveBeenCalledWith({
-        where: { isFreeDefault: true, kind: 'text' },
-        select: expect.any(Object),
+      expect(mockPrisma.adminSettings.findFirst).toHaveBeenCalledWith({
+        where: { id: expect.any(String) },
+        select: { freeDefaultLlmConfig: { select: expect.any(Object) } },
       });
     });
 
-    it('scopes the free-default lookup to kind:text (ignores a vision free-default)', async () => {
-      // Behavioral guard for the vision free-default leak: llm_configs is shared
-      // with kind='vision' rows that also set isFreeDefault=true. The mock returns
-      // null for the kind:'text' query but a vision row otherwise — so a regression
-      // dropping the kind filter would resolve the vision row (non-null) and fail.
-      mockPrisma.llmConfig.findFirst.mockImplementation(
-        ({ where }: { where: Record<string, unknown> }) =>
-          where.kind === 'text'
-            ? null
-            : {
-                name: 'Vision Free Default',
-                model: 'qwen/qwen3-vl-30b-a3b-instruct',
-                provider: 'openrouter',
-                advancedParameters: null,
-                memoryScoreThreshold: null,
-                memoryLimit: null,
-                contextWindowTokens: null,
-              }
-      );
-
-      const result = await resolver.getFreeDefaultConfig();
-
-      expect(result).toBeNull();
-    });
-
-    it('should return config when isFreeDefault config exists', async () => {
-      mockPrisma.llmConfig.findFirst.mockResolvedValue({
-        name: 'Free Default Config',
-        model: 'google/gemini-2.0-flash:free',
-        provider: 'openrouter',
-        advancedParameters: {
-          temperature: 0.7,
-          top_p: 0.9,
-          top_k: 40,
-          frequency_penalty: 0.0,
-          presence_penalty: 0.0,
-          max_tokens: 4096,
+    it('should return config when the free default pointer is set', async () => {
+      mockPrisma.adminSettings.findFirst.mockResolvedValue({
+        freeDefaultLlmConfig: {
+          name: 'Free Default Config',
+          model: 'google/gemini-2.0-flash:free',
+          provider: 'openrouter',
+          advancedParameters: {
+            temperature: 0.7,
+            top_p: 0.9,
+            top_k: 40,
+            frequency_penalty: 0.0,
+            presence_penalty: 0.0,
+            max_tokens: 4096,
+          },
+          memoryScoreThreshold: 0.7,
+          memoryLimit: 10,
+          contextWindowTokens: 131072,
         },
-        memoryScoreThreshold: 0.7,
-        memoryLimit: 10,
-        contextWindowTokens: 131072,
       });
 
       const result = await resolver.getFreeDefaultConfig();
@@ -679,54 +666,58 @@ describe('LlmConfigResolver', () => {
     });
 
     it('should cache the free default config result', async () => {
-      mockPrisma.llmConfig.findFirst.mockResolvedValue({
-        name: 'Free Default Config',
-        model: 'google/gemini-2.0-flash:free',
-        provider: 'openrouter',
-        advancedParameters: {
-          temperature: 0.7,
+      mockPrisma.adminSettings.findFirst.mockResolvedValue({
+        freeDefaultLlmConfig: {
+          name: 'Free Default Config',
+          model: 'google/gemini-2.0-flash:free',
+          provider: 'openrouter',
+          advancedParameters: {
+            temperature: 0.7,
+          },
+          memoryScoreThreshold: null,
+          memoryLimit: null,
+          contextWindowTokens: 128000,
         },
-        memoryScoreThreshold: null,
-        memoryLimit: null,
-        contextWindowTokens: 128000,
       });
 
       // First call
       await resolver.getFreeDefaultConfig();
-      expect(mockPrisma.llmConfig.findFirst).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.adminSettings.findFirst).toHaveBeenCalledTimes(1);
 
       // Second call - should use cache
       await resolver.getFreeDefaultConfig();
-      expect(mockPrisma.llmConfig.findFirst).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.adminSettings.findFirst).toHaveBeenCalledTimes(1);
     });
 
     it('should respect cache TTL for free default config', async () => {
-      mockPrisma.llmConfig.findFirst.mockResolvedValue({
-        name: 'Free Default Config',
-        model: 'google/gemini-2.0-flash:free',
-        provider: 'openrouter',
-        advancedParameters: {
-          temperature: 0.7,
+      mockPrisma.adminSettings.findFirst.mockResolvedValue({
+        freeDefaultLlmConfig: {
+          name: 'Free Default Config',
+          model: 'google/gemini-2.0-flash:free',
+          provider: 'openrouter',
+          advancedParameters: {
+            temperature: 0.7,
+          },
+          memoryScoreThreshold: null,
+          memoryLimit: null,
+          contextWindowTokens: 128000,
         },
-        memoryScoreThreshold: null,
-        memoryLimit: null,
-        contextWindowTokens: 128000,
       });
 
       // First call
       await resolver.getFreeDefaultConfig();
-      expect(mockPrisma.llmConfig.findFirst).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.adminSettings.findFirst).toHaveBeenCalledTimes(1);
 
       // Advance time past TTL
       vi.advanceTimersByTime(61000);
 
       // Third call - cache expired, should query again
       await resolver.getFreeDefaultConfig();
-      expect(mockPrisma.llmConfig.findFirst).toHaveBeenCalledTimes(2);
+      expect(mockPrisma.adminSettings.findFirst).toHaveBeenCalledTimes(2);
     });
 
     it('should handle database errors gracefully', async () => {
-      mockPrisma.llmConfig.findFirst.mockRejectedValue(new Error('Database error'));
+      mockPrisma.adminSettings.findFirst.mockRejectedValue(new Error('Database error'));
 
       const result = await resolver.getFreeDefaultConfig();
 
@@ -738,21 +729,23 @@ describe('LlmConfigResolver', () => {
         toNumber: () => 0.85,
       };
 
-      mockPrisma.llmConfig.findFirst.mockResolvedValue({
-        name: 'Free Default Config',
-        model: 'google/gemini-2.0-flash:free',
-        provider: 'openrouter',
-        advancedParameters: {
-          temperature: 0.7,
-          top_p: 0.9,
-          top_k: 40,
-          frequency_penalty: 0.3,
-          presence_penalty: 0.2,
-          max_tokens: 4096,
+      mockPrisma.adminSettings.findFirst.mockResolvedValue({
+        freeDefaultLlmConfig: {
+          name: 'Free Default Config',
+          model: 'google/gemini-2.0-flash:free',
+          provider: 'openrouter',
+          advancedParameters: {
+            temperature: 0.7,
+            top_p: 0.9,
+            top_k: 40,
+            frequency_penalty: 0.3,
+            presence_penalty: 0.2,
+            max_tokens: 4096,
+          },
+          memoryScoreThreshold: mockDecimal, // Prisma Decimal - only this uses toNumber()
+          memoryLimit: 10,
+          contextWindowTokens: 131072,
         },
-        memoryScoreThreshold: mockDecimal, // Prisma Decimal - only this uses toNumber()
-        memoryLimit: 10,
-        contextWindowTokens: 131072,
       });
 
       const result = await resolver.getFreeDefaultConfig();
@@ -768,28 +761,30 @@ describe('LlmConfigResolver', () => {
     });
 
     it('should be invalidated when clearCache is called', async () => {
-      mockPrisma.llmConfig.findFirst.mockResolvedValue({
-        name: 'Free Default Config',
-        model: 'google/gemini-2.0-flash:free',
-        provider: 'openrouter',
-        advancedParameters: {
-          temperature: 0.7,
+      mockPrisma.adminSettings.findFirst.mockResolvedValue({
+        freeDefaultLlmConfig: {
+          name: 'Free Default Config',
+          model: 'google/gemini-2.0-flash:free',
+          provider: 'openrouter',
+          advancedParameters: {
+            temperature: 0.7,
+          },
+          memoryScoreThreshold: null,
+          memoryLimit: null,
+          contextWindowTokens: 128000,
         },
-        memoryScoreThreshold: null,
-        memoryLimit: null,
-        contextWindowTokens: 128000,
       });
 
       // First call - caches result
       await resolver.getFreeDefaultConfig();
-      expect(mockPrisma.llmConfig.findFirst).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.adminSettings.findFirst).toHaveBeenCalledTimes(1);
 
       // Clear cache
       resolver.clearCache();
 
       // Should query again
       await resolver.getFreeDefaultConfig();
-      expect(mockPrisma.llmConfig.findFirst).toHaveBeenCalledTimes(2);
+      expect(mockPrisma.adminSettings.findFirst).toHaveBeenCalledTimes(2);
     });
   });
 });

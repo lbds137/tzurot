@@ -17,6 +17,7 @@ import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
   type PrismaClient,
+  ADMIN_SETTINGS_SINGLETON_ID,
   // Shared schemas from common-types - single source of truth
   LlmConfigCreateSchema,
   LlmConfigUpdateSchema,
@@ -31,7 +32,10 @@ import { LlmConfigService } from '../../services/LlmConfigService.js';
 import type { OpenRouterModelCache } from '../../services/OpenRouterModelCache.js';
 import { ModelCapabilityService } from '../../services/ModelCapabilityService.js';
 import { enrichWithModelContext } from '../../utils/modelValidation.js';
-import { validateLlmConfigModelFields } from '../../utils/llmConfigValidation.js';
+import {
+  validateLlmConfigModelFields,
+  ensureVisionCapableModel,
+} from '../../utils/llmConfigValidation.js';
 import {
   parseBodyOrSendError,
   parseConfigKindQuery,
@@ -225,12 +229,19 @@ function createEditConfigHandler(
   };
 }
 
-function createSetDefaultHandler(service: LlmConfigService, prisma: PrismaClient) {
+function createSetDefaultHandler(
+  service: LlmConfigService,
+  prisma: PrismaClient,
+  modelCache?: OpenRouterModelCache
+) {
   return async (req: Request, res: Response) => {
     const configId = getRequiredParam(req.params.id, 'id');
 
-    const kind = parseConfigKindQuery(res, req.query);
-    if (kind === null) {
+    // The slot the config fills (chat vs vision) is the request's choice, not the
+    // config's kind — any global config can fill any slot, so there's no kind-match
+    // gate. The vision slot is capability-gated below instead.
+    const slot = parseConfigKindQuery(res, req.query);
+    if (slot === null) {
       return;
     }
 
@@ -239,32 +250,42 @@ function createSetDefaultHandler(service: LlmConfigService, prisma: PrismaClient
       () =>
         prisma.llmConfig.findUnique({
           where: { id: configId },
-          select: { id: true, name: true, isGlobal: true, kind: true },
+          select: { id: true, name: true, isGlobal: true, model: true },
         }),
       {
         notFoundResource: CONFIG_RESOURCE,
         resourceLabel: CONFIG_LABEL,
         operation: 'set as system default',
-        requireKind: kind,
       }
     );
     if (config === null) {
       return;
     }
 
-    await service.setAsDefault(configId);
+    // Vision slot: the model must be confirmed vision-capable (unknown → 400, fail closed).
+    if (slot === 'vision' && !(await ensureVisionCapableModel(res, modelCache, config.model))) {
+      return;
+    }
 
-    logger.info({ configId, name: config.name }, 'Set as system default');
+    await service.setAsDefault(configId, slot);
+
+    logger.info({ configId, name: config.name, slot }, 'Set as global default');
     sendCustomSuccess(res, { success: true, configName: config.name }, StatusCodes.OK);
   };
 }
 
-function createSetFreeDefaultHandler(service: LlmConfigService, prisma: PrismaClient) {
+function createSetFreeDefaultHandler(
+  service: LlmConfigService,
+  prisma: PrismaClient,
+  modelCache?: OpenRouterModelCache
+) {
   return async (req: Request, res: Response) => {
     const configId = getRequiredParam(req.params.id, 'id');
 
-    const kind = parseConfigKindQuery(res, req.query);
-    if (kind === null) {
+    // Slot = request's choice (chat vs vision); no kind-match gate. Vision is
+    // capability-gated below.
+    const slot = parseConfigKindQuery(res, req.query);
+    if (slot === null) {
       return;
     }
 
@@ -273,13 +294,12 @@ function createSetFreeDefaultHandler(service: LlmConfigService, prisma: PrismaCl
       () =>
         prisma.llmConfig.findUnique({
           where: { id: configId },
-          select: { id: true, name: true, isGlobal: true, model: true, kind: true },
+          select: { id: true, name: true, isGlobal: true, model: true },
         }),
       {
         notFoundResource: CONFIG_RESOURCE,
         resourceLabel: CONFIG_LABEL,
         operation: 'set as free tier default',
-        requireKind: kind,
       }
     );
     if (config === null) {
@@ -295,9 +315,14 @@ function createSetFreeDefaultHandler(service: LlmConfigService, prisma: PrismaCl
       );
     }
 
-    await service.setAsFreeDefault(configId);
+    // Vision slot: the model must be confirmed vision-capable (unknown → 400, fail closed).
+    if (slot === 'vision' && !(await ensureVisionCapableModel(res, modelCache, config.model))) {
+      return;
+    }
 
-    logger.info({ configId, name: config.name }, 'Set as free tier default');
+    await service.setAsFreeDefault(configId, slot);
+
+    logger.info({ configId, name: config.name, slot }, 'Set as free tier default');
     sendCustomSuccess(res, { success: true, configName: config.name }, StatusCodes.OK);
   };
 }
@@ -306,49 +331,52 @@ function createDeleteConfigHandler(service: LlmConfigService, prisma: PrismaClie
   return async (req: Request, res: Response) => {
     const configId = getRequiredParam(req.params.id, 'id');
 
-    const kind = parseConfigKindQuery(res, req.query);
-    if (kind === null) {
-      return;
-    }
-
     const config = await findGlobalConfigOrSendError(
       res,
       () =>
         prisma.llmConfig.findUnique({
           where: { id: configId },
-          select: {
-            id: true,
-            name: true,
-            isGlobal: true,
-            isDefault: true,
-            isFreeDefault: true,
-            kind: true,
-          },
+          select: { id: true, name: true, isGlobal: true },
         }),
       {
         notFoundResource: CONFIG_RESOURCE,
         resourceLabel: CONFIG_LABEL,
         operation: 'delete',
-        requireKind: kind,
       }
     );
     if (config === null) {
       return;
     }
 
-    if (config.isDefault) {
+    // Block deletion if this config occupies any global/free default slot on the
+    // AdminSettings singleton. The FK is `onDelete: SetNull`, so a delete wouldn't
+    // error — it would silently null the pointer and drop that default to the
+    // hardcoded floor (e.g. breaking the guest free-tier LLM). Force the admin to
+    // repoint the slot first. Replaces the old per-kind isDefault/isFreeDefault
+    // flag guards now that defaults live on the pointers.
+    const settings = await prisma.adminSettings.findFirst({
+      where: { id: ADMIN_SETTINGS_SINGLETON_ID },
+      select: {
+        globalDefaultLlmConfigId: true,
+        globalDefaultVisionConfigId: true,
+        freeDefaultLlmConfigId: true,
+        freeDefaultVisionConfigId: true,
+      },
+    });
+    const isPointedAt =
+      settings !== null &&
+      [
+        settings.globalDefaultLlmConfigId,
+        settings.globalDefaultVisionConfigId,
+        settings.freeDefaultLlmConfigId,
+        settings.freeDefaultVisionConfigId,
+      ].includes(configId);
+    if (isPointedAt) {
       return sendError(
         res,
-        ErrorResponses.validationError('Cannot delete the system default config')
-      );
-    }
-    // Same hard-block shape as isDefault: deleting the free-tier default
-    // would silently break LLM access for all guest users until an admin
-    // sets a new one. Force the admin to promote a replacement first.
-    if (config.isFreeDefault) {
-      return sendError(
-        res,
-        ErrorResponses.validationError('Cannot delete the free tier default config')
+        ErrorResponses.validationError(
+          'Cannot delete a config that is set as a global or free-tier default. Point the default at another config first.'
+        )
       );
     }
 
@@ -394,10 +422,10 @@ export const handleUpdateGlobalLlmConfig = (deps: RouteDeps): RequestHandler =>
   asyncHandler(createEditConfigHandler(buildService(deps), deps.prisma, deps.modelCache));
 
 export const handleSetGlobalLlmConfigDefault = (deps: RouteDeps): RequestHandler =>
-  asyncHandler(createSetDefaultHandler(buildService(deps), deps.prisma));
+  asyncHandler(createSetDefaultHandler(buildService(deps), deps.prisma, deps.modelCache));
 
 export const handleSetGlobalLlmConfigFreeDefault = (deps: RouteDeps): RequestHandler =>
-  asyncHandler(createSetFreeDefaultHandler(buildService(deps), deps.prisma));
+  asyncHandler(createSetFreeDefaultHandler(buildService(deps), deps.prisma, deps.modelCache));
 
 export const handleDeleteGlobalLlmConfig = (deps: RouteDeps): RequestHandler =>
   asyncHandler(createDeleteConfigHandler(buildService(deps), deps.prisma));

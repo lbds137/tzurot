@@ -25,13 +25,13 @@ import {
   toConfigKind,
   type ConfigKind,
   DEFAULT_CONFIG_KIND,
+  ADMIN_SETTINGS_SINGLETON_ID,
 } from '@tzurot/common-types';
 import { type LlmConfigCacheInvalidationService } from '@tzurot/cache-invalidation';
 
 import { isPrismaUniqueConstraintErrorOn } from '../utils/prismaErrors.js';
 import { CloneNameExhaustedError, AutoSuffixCollisionError } from './LlmConfigErrors.js';
 import { resolveNonCollidingName } from './llmConfigNameCollision.js';
-import { NotFoundError } from '../utils/appErrors.js';
 
 // Re-exported so route/test importers keep a stable `from './LlmConfigService.js'`
 // path (mirrors TtsConfigService's re-export of its error classes).
@@ -417,64 +417,65 @@ export class LlmConfigService {
    * `string`: callers pass it straight into the `updateMany` kind filter, so a DB
    * drift value gets surfaced (toConfigKind warns) instead of flowing through silently.
    */
-  private async resolveTargetKindOrThrow(configId: string, op: string): Promise<ConfigKind> {
-    const target = await this.prisma.llmConfig.findUnique({
-      where: { id: configId },
-      select: { kind: true },
-    });
-    if (target === null) {
-      // NotFoundError (not a plain Error): asyncHandler maps it to a 404 with a
-      // clean "LLM config not found" body instead of a 500 leaking the internal op
-      // string. The richer message keeps the op + id for server-side logs.
-      throw new NotFoundError('LLM config', `${op}: config ${configId} not found`);
-    }
-    return toConfigKind(target.kind);
-  }
-
   /**
-   * Set a config as the system default.
-   * Clears any existing default first.
+   * Set a config as the global (paid) default for a slot.
    *
-   * @param configId - ID of config to set as default
+   * Writes the per-slot pointer on the AdminSettings singleton — the slot (chat
+   * vs vision) is the caller's choice, NOT the config's `kind`. A config can be
+   * the chat default and the vision default simultaneously (separate pointers).
+   * The config's existence and (for the vision slot) capability are validated at
+   * the route layer before this is called — an invalid id reaching the upsert
+   * surfaces as a Prisma FK-constraint error, not a clean 404.
+   *
+   * Read-asymmetry note: of the four default pointers, the resolver cascade only
+   * consults `globalDefaultVisionConfigId` (VisionConfigResolver) and
+   * `freeDefaultLlmConfigId` (LlmConfigResolver). The chat-global and vision-free
+   * pointers are settable for slot symmetry but have no resolution tier reading
+   * them yet — wiring those is tracked in `backlog/cold/follow-ups.md`. (This
+   * matches the pre-cutover flags: the LLM cascade never had a paid-chat-global
+   * tier, and the vision-free read was already deferred.)
+   *
+   * @param configId - ID of config to point the slot at
+   * @param slot - which default slot to set ('text' = chat, or 'vision')
    */
-  async setAsDefault(configId: string): Promise<void> {
-    const kind = await this.resolveTargetKindOrThrow(configId, 'setAsDefault');
-    await this.prisma.$transaction(async tx => {
-      await tx.llmConfig.updateMany({
-        where: { isDefault: true, kind },
-        data: { isDefault: false },
-      });
-      await tx.llmConfig.update({
-        where: { id: configId },
-        data: { isDefault: true },
-      });
+  async setAsDefault(configId: string, slot: ConfigKind): Promise<void> {
+    const data =
+      slot === 'vision'
+        ? { globalDefaultVisionConfigId: configId }
+        : { globalDefaultLlmConfigId: configId };
+    await this.prisma.adminSettings.upsert({
+      where: { id: ADMIN_SETTINGS_SINGLETON_ID },
+      create: { id: ADMIN_SETTINGS_SINGLETON_ID, ...data },
+      update: data,
     });
 
-    logger.info({ configId }, 'Set LLM config as system default');
+    logger.info({ configId, slot }, 'Set LLM config as global default');
 
     await this.invalidateCacheSafely('set-default', configId);
   }
 
   /**
-   * Set a config as the free tier default.
-   * Clears any existing free default first.
+   * Set a config as the free-tier default for a slot (guest / no-BYOK fallback).
    *
-   * @param configId - ID of config to set as free default
+   * Writes the per-slot free-default pointer on the AdminSettings singleton. The
+   * `:free` model check and (for the vision slot) the capability gate are enforced
+   * at the route layer before this is called.
+   *
+   * @param configId - ID of config to point the slot at
+   * @param slot - which free-default slot to set ('text' = chat, or 'vision')
    */
-  async setAsFreeDefault(configId: string): Promise<void> {
-    const kind = await this.resolveTargetKindOrThrow(configId, 'setAsFreeDefault');
-    await this.prisma.$transaction(async tx => {
-      await tx.llmConfig.updateMany({
-        where: { isFreeDefault: true, kind },
-        data: { isFreeDefault: false },
-      });
-      await tx.llmConfig.update({
-        where: { id: configId },
-        data: { isFreeDefault: true },
-      });
+  async setAsFreeDefault(configId: string, slot: ConfigKind): Promise<void> {
+    const data =
+      slot === 'vision'
+        ? { freeDefaultVisionConfigId: configId }
+        : { freeDefaultLlmConfigId: configId };
+    await this.prisma.adminSettings.upsert({
+      where: { id: ADMIN_SETTINGS_SINGLETON_ID },
+      create: { id: ADMIN_SETTINGS_SINGLETON_ID, ...data },
+      update: data,
     });
 
-    logger.info({ configId }, 'Set LLM config as free tier default');
+    logger.info({ configId, slot }, 'Set LLM config as free tier default');
 
     await this.invalidateCacheSafely('set-free-default', configId);
   }
