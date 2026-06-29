@@ -9,6 +9,8 @@ import {
   createLogger,
   DISCORD_COLORS,
   settingsPresetSetDefaultOptions,
+  toConfigKind,
+  DEFAULT_CONFIG_KIND,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { clientsFor } from '../../../utils/gatewayClients.js';
@@ -22,9 +24,11 @@ const logger = createLogger('settings-preset-set-default');
 export async function handleSetDefault(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
   const options = settingsPresetSetDefaultOptions(context.interaction);
-  // The `kind` option only scopes the preset autocomplete; the route infers
-  // kind from the chosen config row, so it isn't read or sent here.
   const configId = options.preset();
+  // The slot (text = chat default, or vision) decides which default FK the value
+  // writes; the gateway capability-gates the vision slot. Without sending it a
+  // vision default silently lands in the text slot — mirror clear-default.
+  const kind = toConfigKind(options.kind() ?? DEFAULT_CONFIG_KIND);
 
   if (await handleUnlockModelsUpsell(context, configId, userId)) {
     return;
@@ -38,10 +42,10 @@ export async function handleSetDefault(context: DeferredCommandContext): Promise
     }
     const { reason } = outcome;
 
-    const result = await userClient.setDefaultModelConfig({ configId });
+    const result = await userClient.setDefaultModelConfig({ configId }, { kind });
 
     if (!result.ok) {
-      logger.warn({ userId, status: result.status, configId }, 'Failed to set default');
+      logger.warn({ userId, status: result.status, configId, kind }, 'Failed to set default');
       await context.editReply({ content: `❌ Failed to set default: ${result.error}` });
       return;
     }
@@ -61,7 +65,7 @@ export async function handleSetDefault(context: DeferredCommandContext): Promise
     await context.editReply({ embeds: [embed] });
 
     logger.info(
-      { userId, configId, configName: data.default.configName, reason },
+      { userId, configId, configName: data.default.configName, kind, reason },
       'Set default config'
     );
   } catch (error) {
