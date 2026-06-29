@@ -94,6 +94,28 @@ const COMPONENT_ROUTING_RULES = [
   },
 ];
 
+// Forward-safety: in the envelope-building path (contextBuilder/ +
+// MessageContextBuilder), the trigger `message`'s content-bearing fields are
+// EMPTY for a native Discord forward — the real content lives in
+// `message.messageSnapshots`, not the top-level fields. Reading
+// `message.content`/`.attachments`/`.embeds`/`.mentions` directly there is the
+// footgun behind the forwarded-text content-loss bug (the worker re-derived the
+// turn from an empty `rawMessageContent`). Route through the forward-aware
+// helpers in utils/forwardedMessageUtils.ts instead: getEffectiveContent (text),
+// extractForwardedAttachments / buildMessageContent (attachments+images),
+// hasVoiceAttachments (voice). The selector targets the Discord `message`
+// identifier specifically, so `msg.content` (a ConversationMessage) and
+// `snapshot.content` are unaffected. A legitimate non-forward read can suppress
+// with an eslint-disable + a concrete justification.
+const FORWARD_SAFE_MESSAGE_READ_RULES = [
+  {
+    selector:
+      "MemberExpression[object.name='message'][property.name=/^(content|attachments|embeds|mentions)$/]",
+    message:
+      "Don't read message.content/.attachments/.embeds/.mentions directly in the envelope-building path — they are EMPTY for forwarded triggers (content rides message.messageSnapshots). Use the forward-aware helpers in utils/forwardedMessageUtils.ts (getEffectiveContent, extractForwardedAttachments, hasVoiceAttachments) or buildMessageContent. Suppress with a justification only for a verified non-forward read.",
+  },
+];
+
 const IDENTITY_PROVISIONING_RULES = [
   {
     selector:
@@ -471,6 +493,30 @@ export default tseslint.config(
     ],
     rules: {
       'no-restricted-syntax': ['error', ...PINO_LOGGER_RULES],
+    },
+  },
+
+  // Forward-safety guard for the envelope-building path. Replicates the main
+  // block's bot-client `no-restricted-syntax` rules (flat config's last-match-
+  // wins would otherwise drop them for these files) and adds the
+  // FORWARD_SAFE_MESSAGE_READ_RULES ban on direct message.content/.attachments/
+  // .embeds/.mentions reads. Scoped to where the trigger context is assembled —
+  // the bug class is "a raw message-field read that's empty for a forward."
+  {
+    files: [
+      'services/bot-client/src/services/contextBuilder/**/*.ts',
+      'services/bot-client/src/services/MessageContextBuilder.ts',
+    ],
+    ignores: ['**/*.test.ts', '**/*.spec.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        ...PINO_LOGGER_RULES,
+        ...IDENTITY_PROVISIONING_RULES,
+        ...SEND_TYPING_RULES,
+        ...COMPONENT_ROUTING_RULES,
+        ...FORWARD_SAFE_MESSAGE_READ_RULES,
+      ],
     },
   },
 
