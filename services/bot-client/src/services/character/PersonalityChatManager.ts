@@ -35,7 +35,6 @@ import {
 } from '../../utils/nsfwVerification.js';
 import type { DenylistCache } from '../DenylistCache.js';
 import type { MessageJobContext } from '../JobTracker.js';
-import { isForwardedMessage, extractForwardedContent } from '../../utils/forwardedMessageUtils.js';
 
 const logger = createLogger('PersonalityChatManager');
 
@@ -207,31 +206,6 @@ export class PersonalityChatManager {
   async submitChatJob(input: SubmitChatJobInput): Promise<SubmitChatJobResult> {
     const { message, personality, content, isAutoResponse } = input;
     const { channel } = message;
-
-    // [forward-probe] TEMPORARY diagnostic for the forwarded-message content-loss
-    // bug (forward → empty user message → "Hello" placeholder). Captures, at the
-    // single convergence point for all trigger modes, whether the forward was
-    // detected, whether Discord delivered snapshots, what extractForwardedContent
-    // WOULD yield, and what `content` the upstream actually passed — which pins
-    // detection-fail vs snapshot-absent vs upstream-dropped-the-extracted-text.
-    // Wrapped so the diagnostic can NEVER break the chat flow. Remove once fixed.
-    try {
-      logger.info(
-        {
-          messageId: message.id,
-          isAutoResponse: isAutoResponse ?? false,
-          forwarded: isForwardedMessage(message),
-          referenceType: message.reference?.type ?? null,
-          snapshotCount: message.messageSnapshots?.size ?? 0,
-          incomingContentLength: content.length,
-          extractedForwardLength: extractForwardedContent(message).length,
-          topLevelContentLength: message.content.length,
-        },
-        '[forward-probe] submitChatJob content/forward state'
-      );
-    } catch (probeErr) {
-      logger.warn({ err: probeErr }, '[forward-probe] failed to gather forward state');
-    }
 
     const denied = await this.runGates(message, personality);
     if (denied !== null) {
