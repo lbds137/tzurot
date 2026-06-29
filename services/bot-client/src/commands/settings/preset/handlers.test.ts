@@ -112,10 +112,11 @@ describe('Preset Command Handlers', () => {
 
       await handleSet(createMockContext());
 
-      expect(stub.setModelOverride).toHaveBeenCalledWith({
-        personalityId: PERSONALITY_ID_1,
-        configId: CONFIG_ID_1,
-      });
+      // No slot option → defaults to the text (chat) slot.
+      expect(stub.setModelOverride).toHaveBeenCalledWith(
+        { personalityId: PERSONALITY_ID_1, configId: CONFIG_ID_1 },
+        { kind: 'text' }
+      );
       expect(mockEditReply).toHaveBeenCalledWith({
         embeds: [
           expect.objectContaining({

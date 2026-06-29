@@ -50,12 +50,16 @@ describe('handleSetDefault', () => {
     mockEditReply.mockResolvedValue(undefined);
   });
 
-  function createMockContext(configId: string) {
+  function createMockContext(configId: string, kind?: string) {
     return {
       user: { id: 'user-123', username: 'testuser' },
       interaction: {
         options: {
-          getString: (_name: string, _required?: boolean) => configId,
+          getString: (name: string, _required?: boolean) => {
+            if (name === 'preset') return configId;
+            if (name === 'kind') return kind ?? null;
+            return null;
+          },
         },
       },
       editReply: mockEditReply,
@@ -82,9 +86,24 @@ describe('handleSetDefault', () => {
 
     await handleSetDefault(createMockContext('00000000-0000-4000-8000-000000000456'));
 
-    expect(stub.setDefaultModelConfig).toHaveBeenCalledWith({
-      configId: '00000000-0000-4000-8000-000000000456',
-    });
+    // No slot option → defaults to the text (chat) default.
+    expect(stub.setDefaultModelConfig).toHaveBeenCalledWith(
+      { configId: '00000000-0000-4000-8000-000000000456' },
+      { kind: 'text' }
+    );
+  });
+
+  it('sends the vision slot when kind:vision is chosen (the vision-default fix)', async () => {
+    mockNonGuestUserApis('00000000-0000-4000-8000-0000000000a1', 'Gemini Vision');
+
+    await handleSetDefault(createMockContext('00000000-0000-4000-8000-0000000000a1', 'vision'));
+
+    // The slot must reach the gateway — without it, a vision default silently
+    // lands in the text slot (the bug this fix closes).
+    expect(stub.setDefaultModelConfig).toHaveBeenCalledWith(
+      { configId: '00000000-0000-4000-8000-0000000000a1' },
+      { kind: 'vision' }
+    );
   });
 
   it('should display success embed on successful update', async () => {
@@ -189,9 +208,10 @@ describe('handleSetDefault', () => {
 
     await handleSetDefault(createMockContext('00000000-0000-4000-8000-000000000f00'));
 
-    expect(stub.setDefaultModelConfig).toHaveBeenCalledWith({
-      configId: '00000000-0000-4000-8000-000000000f00',
-    });
+    expect(stub.setDefaultModelConfig).toHaveBeenCalledWith(
+      { configId: '00000000-0000-4000-8000-000000000f00' },
+      { kind: 'text' }
+    );
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
         expect.objectContaining({
