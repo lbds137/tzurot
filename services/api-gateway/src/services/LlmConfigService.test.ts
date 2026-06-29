@@ -54,6 +54,8 @@ function createMockPrisma() {
 
   const mockAdminSettings = {
     upsert: vi.fn().mockResolvedValue({ id: 'admin-settings-singleton' }),
+    // list() derives isDefault/isFreeDefault from these pointers; default = none set.
+    findFirst: vi.fn().mockResolvedValue(null),
   };
 
   return {
@@ -158,7 +160,7 @@ describe('LlmConfigService', () => {
   });
 
   describe('list', () => {
-    it('should list all configs for GLOBAL scope', async () => {
+    it('should list all configs for GLOBAL scope (DB base-orders by name; defaults-first applied in-app)', async () => {
       const configs = [
         { id: 'config-1', name: 'Global 1', isGlobal: true },
         { id: 'config-2', name: 'User 1', isGlobal: false },
@@ -167,12 +169,13 @@ describe('LlmConfigService', () => {
 
       const result = await service.list({ type: 'GLOBAL' });
 
-      expect(result).toEqual(configs);
+      // No pointers set → no defaults; the derived flags are present and false.
+      expect(result.map(c => c.id)).toEqual(['config-1', 'config-2']);
+      expect(result.every(c => c.isDefault === false && c.isFreeDefault === false)).toBe(true);
       expect(prisma.llmConfig.findMany).toHaveBeenCalledTimes(1);
+      // The DB orderBy no longer sorts by the (stale) isDefault/isFreeDefault columns.
       expect(prisma.llmConfig.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          orderBy: expect.arrayContaining([{ isDefault: 'desc' }]),
-        })
+        expect.objectContaining({ orderBy: { name: 'asc' } })
       );
     });
 
@@ -186,7 +189,8 @@ describe('LlmConfigService', () => {
       const scope: LlmConfigScope = { type: 'USER', userId: 'user-123', discordId: 'discord-123' };
       const result = await service.list(scope);
 
-      expect(result).toEqual([...globalConfigs, ...userConfigs]);
+      // Globals first, then the user's own; the result carries the derived flags.
+      expect(result.map(c => c.id)).toEqual(['global-1', 'user-1']);
       expect(prisma.llmConfig.findMany).toHaveBeenCalledTimes(2);
       // First call: global configs
       expect(prisma.llmConfig.findMany).toHaveBeenNthCalledWith(
@@ -198,6 +202,45 @@ describe('LlmConfigService', () => {
         2,
         expect.objectContaining({ where: { ownerId: 'user-123', isGlobal: false, kind: 'text' } })
       );
+    });
+
+    it('derives isDefault/isFreeDefault from the AdminSettings pointers and sorts defaults first', async () => {
+      // Base-ordered by name (AAA, ZZZ, plain), but the pointers must float the
+      // global default first, then the free default, regardless of name.
+      const configs = [
+        { id: 'the-free', name: 'AAA Free', isGlobal: true },
+        { id: 'the-default', name: 'ZZZ Default', isGlobal: true },
+        { id: 'plain', name: 'Plain', isGlobal: true },
+      ];
+      prisma.llmConfig.findMany.mockResolvedValue(configs);
+      prisma.adminSettings.findFirst.mockResolvedValue({
+        globalDefaultLlmConfigId: 'the-default',
+        globalDefaultVisionConfigId: null,
+        freeDefaultLlmConfigId: 'the-free',
+        freeDefaultVisionConfigId: null,
+      });
+
+      const result = await service.list({ type: 'GLOBAL' });
+
+      expect(result.map(c => c.id)).toEqual(['the-default', 'the-free', 'plain']);
+      expect(result.find(c => c.id === 'the-default')?.isDefault).toBe(true);
+      expect(result.find(c => c.id === 'the-free')?.isFreeDefault).toBe(true);
+      expect(result.find(c => c.id === 'plain')?.isDefault).toBe(false);
+    });
+
+    it('treats a config targeted by the VISION default pointer as isDefault ("any-default" semantics)', async () => {
+      const configs = [{ id: 'vision-default', name: 'Gemini', isGlobal: true }];
+      prisma.llmConfig.findMany.mockResolvedValue(configs);
+      prisma.adminSettings.findFirst.mockResolvedValue({
+        globalDefaultLlmConfigId: null,
+        globalDefaultVisionConfigId: 'vision-default',
+        freeDefaultLlmConfigId: null,
+        freeDefaultVisionConfigId: null,
+      });
+
+      const result = await service.list({ type: 'GLOBAL' });
+
+      expect(result[0].isDefault).toBe(true);
     });
 
     it('scopes the query to the requested kind (defaults to text; vision when asked)', async () => {
