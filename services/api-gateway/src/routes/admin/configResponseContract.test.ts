@@ -106,6 +106,8 @@ describe('Admin LLM config response contract', () => {
         create: vi.fn().mockResolvedValue(llmDetailRow),
         update: vi.fn().mockResolvedValue(llmDetailRow),
       },
+      // list() derives the default flags from the pointers via findFirst.
+      adminSettings: { findFirst: vi.fn().mockResolvedValue(null) },
     } as unknown as PrismaClient;
 
     app = express();

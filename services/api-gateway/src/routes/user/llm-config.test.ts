@@ -112,6 +112,8 @@ const mockPrisma = {
   },
   adminSettings: {
     findUnique: vi.fn().mockResolvedValue(null),
+    // list() derives default flags from the pointers via findFirst (no pointers set here).
+    findFirst: vi.fn().mockResolvedValue(null),
   },
   personality: {
     findUnique: vi.fn().mockResolvedValue(null),
@@ -393,12 +395,14 @@ describe('/user/llm-config routes', () => {
 
       await handler(req, res);
 
+      // Order-agnostic: this test asserts supportsVision ENRICHMENT, not list
+      // ordering (the defaults-first/name sort is covered in LlmConfigService.test.ts).
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          configs: [
+          configs: expect.arrayContaining([
             expect.objectContaining({ id: 'vc-1', supportsVision: true }),
             expect.objectContaining({ id: 'tc-1', supportsVision: false }),
-          ],
+          ]),
         })
       );
     });
@@ -1333,8 +1337,7 @@ describe('/user/llm-config routes', () => {
       expect(res.status).toHaveBeenCalledWith(200);
       expect(mockPrisma.llmConfig.update).toHaveBeenCalled();
       const callArgs = vi.mocked(res.json).mock.calls[0]?.[0] as
-        | { config?: { isOwned?: boolean; ownerId?: string } }
-        | undefined;
+        { config?: { isOwned?: boolean; ownerId?: string } } | undefined;
       // Response reflects that the requester does NOT own the edited config.
       expect(callArgs?.config?.isOwned).toBe(false);
     });
@@ -1578,8 +1581,7 @@ describe('/user/llm-config routes', () => {
 
       expect(res.status).toHaveBeenCalledWith(200);
       const callArgs = vi.mocked(res.json).mock.calls[0]?.[0] as
-        | Record<string, unknown>
-        | undefined;
+        Record<string, unknown> | undefined;
       expect(callArgs?.deleted).toBe(true);
       expect(callArgs?.warning).toBeUndefined();
     });

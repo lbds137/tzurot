@@ -32,6 +32,7 @@ import { type LlmConfigCacheInvalidationService } from '@tzurot/cache-invalidati
 import { isPrismaUniqueConstraintErrorOn } from '../utils/prismaErrors.js';
 import { CloneNameExhaustedError, AutoSuffixCollisionError } from './LlmConfigErrors.js';
 import { resolveNonCollidingName } from './llmConfigNameCollision.js';
+import { compareConfigsForList, derivePointerSets } from './llmConfigListHelpers.js';
 
 // Re-exported so route/test importers keep a stable `from './LlmConfigService.js'`
 // path (mirrors TtsConfigService's re-export of its error classes).
@@ -48,8 +49,7 @@ const logger = createLogger('LlmConfigService');
  * Determines access control and default values.
  */
 export type LlmConfigScope =
-  | { type: 'GLOBAL' }
-  | { type: 'USER'; userId: string; discordId: string };
+  { type: 'GLOBAL' } | { type: 'USER'; userId: string; discordId: string };
 
 /**
  * Result of checking if a config exists with a given name.
@@ -194,19 +194,28 @@ export class LlmConfigService {
     // and `'all'` widens each to both kinds. browse paginates, so a larger set
     // is fine; a future non-paginating caller should pass an explicit kind.
     const kindWhere = kind === 'all' ? {} : { kind };
+    // isDefault/isFreeDefault moved to the AdminSettings pointers in S3; the
+    // boolean columns are no longer maintained (set-default writes only the
+    // pointer), so they're stale. Derive both flags — and the defaults-first
+    // ordering — from the live pointers here. (isGlobal stays a real column.)
+    const { globalDefaultIds, freeDefaultIds } = await this.getDefaultPointerSets();
+    const applyDefaultFlags = (raw: RawConfigList): RawConfigList => ({
+      ...raw,
+      isDefault: globalDefaultIds.has(raw.id),
+      isFreeDefault: freeDefaultIds.has(raw.id),
+    });
+
     if (scope.type === 'GLOBAL') {
-      // Admin: list all configs of this kind
-      return this.prisma.llmConfig.findMany({
+      // Admin: list all configs of this kind. Base-order by name in the DB; the
+      // defaults-first sort is applied in-app from the derived flags (the DB
+      // orderBy can't express pointer membership).
+      const configs = await this.prisma.llmConfig.findMany({
         where: kindWhere,
         select: LLM_CONFIG_LIST_SELECT,
-        orderBy: [
-          { isDefault: 'desc' },
-          { isFreeDefault: 'desc' },
-          { isGlobal: 'desc' },
-          { name: 'asc' },
-        ],
+        orderBy: { name: 'asc' },
         take: 100,
       });
+      return configs.map(applyDefaultFlags).sort(compareConfigsForList);
     }
 
     // User scope: Global configs + user's own configs (of this kind)
@@ -214,7 +223,7 @@ export class LlmConfigService {
       this.prisma.llmConfig.findMany({
         where: { isGlobal: true, ...kindWhere },
         select: LLM_CONFIG_LIST_SELECT,
-        orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
+        orderBy: { name: 'asc' },
         take: 100,
       }),
       this.prisma.llmConfig.findMany({
@@ -225,7 +234,36 @@ export class LlmConfigService {
       }),
     ]);
 
-    return [...globalConfigs, ...userConfigs];
+    // Globals first (defaults-first within them), then the user's own configs
+    // by name — a user's own config is never a global/free-default pointer
+    // target, so it carries no default flag.
+    return [
+      ...globalConfigs.map(applyDefaultFlags).sort(compareConfigsForList),
+      ...userConfigs.map(applyDefaultFlags),
+    ];
+  }
+
+  /**
+   * Read the four global/free default pointers off the AdminSettings singleton
+   * as membership sets. Defaults moved to these pointers in S3; the boolean
+   * isDefault/isFreeDefault columns are no longer maintained, so list-summary
+   * flags + ordering derive from these.
+   */
+  private async getDefaultPointerSets(): Promise<{
+    globalDefaultIds: Set<string>;
+    freeDefaultIds: Set<string>;
+  }> {
+    // findFirst (not findUnique-by-id) mirrors the delete-guard's singleton read
+    // in routes/admin/llm-config.ts — one consistent way to read the pointers.
+    const settings = await this.prisma.adminSettings.findFirst({
+      select: {
+        globalDefaultLlmConfigId: true,
+        globalDefaultVisionConfigId: true,
+        freeDefaultLlmConfigId: true,
+        freeDefaultVisionConfigId: true,
+      },
+    });
+    return derivePointerSets(settings);
   }
 
   // --------------------------------------------------------------------------
