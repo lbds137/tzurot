@@ -44,7 +44,7 @@ describe('Me Preset Set Handler', () => {
     stub.setModelOverride.mockReset();
   });
 
-  function createMockContext(personalityId: string, presetId: string) {
+  function createMockContext(personalityId: string, presetId: string, kind?: string) {
     return {
       user: { id: 'user-123', username: 'testuser' },
       interaction: {
@@ -52,6 +52,7 @@ describe('Me Preset Set Handler', () => {
           getString: (name: string, _required?: boolean) => {
             if (name === 'character') return personalityId;
             if (name === 'preset') return presetId;
+            if (name === 'kind') return kind ?? null;
             return null;
           },
         },
@@ -98,10 +99,11 @@ describe('Me Preset Set Handler', () => {
 
       await handleSet(createMockContext('personality-1', 'config-1'));
 
-      expect(stub.setModelOverride).toHaveBeenCalledWith({
-        personalityId: 'personality-1',
-        configId: 'config-1',
-      });
+      // No slot option → defaults to the text (chat) slot.
+      expect(stub.setModelOverride).toHaveBeenCalledWith(
+        { personalityId: 'personality-1', configId: 'config-1' },
+        { kind: 'text' }
+      );
 
       const embedCall = mockEditReply.mock.calls[0][0] as { embeds: EmbedBuilder[] };
       const embed = embedCall.embeds[0];
@@ -113,6 +115,31 @@ describe('Me Preset Set Handler', () => {
 
       // Paid path: wallet check short-circuits, configs not fetched
       expect(stub.listUserLlmConfigs).not.toHaveBeenCalled();
+    });
+
+    it('sends the vision slot when kind:vision is chosen (the vision-set fix)', async () => {
+      stub.listWalletKeys.mockResolvedValue(
+        makeOk({ keys: [{ provider: 'openrouter', isActive: true }] })
+      );
+      stub.setModelOverride.mockResolvedValue(
+        makeOk({
+          override: {
+            personalityId: 'personality-1',
+            personalityName: 'Test Bot',
+            configId: 'vision-config',
+            configName: 'Gemini Vision',
+          },
+        })
+      );
+
+      await handleSet(createMockContext('personality-1', 'vision-config', 'vision'));
+
+      // The slot must reach the gateway — without it, a vision override silently
+      // lands in the text slot (the bug this fix closes).
+      expect(stub.setModelOverride).toHaveBeenCalledWith(
+        { personalityId: 'personality-1', configId: 'vision-config' },
+        { kind: 'vision' }
+      );
     });
 
     it('should block guest mode users from using premium models', async () => {
@@ -168,10 +195,10 @@ describe('Me Preset Set Handler', () => {
 
       await handleSet(createMockContext('personality-1', 'free-config'));
 
-      expect(stub.setModelOverride).toHaveBeenCalledWith({
-        personalityId: 'personality-1',
-        configId: 'free-config',
-      });
+      expect(stub.setModelOverride).toHaveBeenCalledWith(
+        { personalityId: 'personality-1', configId: 'free-config' },
+        { kind: 'text' }
+      );
     });
 
     it('should handle API error when setting override', async () => {

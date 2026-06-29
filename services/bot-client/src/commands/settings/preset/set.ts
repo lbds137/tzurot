@@ -4,7 +4,13 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import { createLogger, DISCORD_COLORS, settingsPresetSetOptions } from '@tzurot/common-types';
+import {
+  createLogger,
+  DISCORD_COLORS,
+  settingsPresetSetOptions,
+  toConfigKind,
+  DEFAULT_CONFIG_KIND,
+} from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import {
   AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
@@ -22,9 +28,11 @@ export async function handleSet(context: DeferredCommandContext): Promise<void> 
   const userId = context.user.id;
   const options = settingsPresetSetOptions(context.interaction);
   const personalityId = options.character();
-  // The `kind` option only scopes the preset autocomplete; the route infers
-  // kind from the chosen config row, so it isn't read or sent here.
   const configId = options.preset();
+  // The slot (text = chat default, or vision) decides which FK the override
+  // writes; the gateway capability-gates the vision slot. Without sending it a
+  // vision override silently lands in the text slot — mirror clear, which sends it.
+  const kind = toConfigKind(options.kind() ?? DEFAULT_CONFIG_KIND);
 
   if (isAutocompleteErrorSentinel(personalityId)) {
     await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
@@ -43,11 +51,11 @@ export async function handleSet(context: DeferredCommandContext): Promise<void> 
     }
     const { reason } = outcome;
 
-    const result = await userClient.setModelOverride({ personalityId, configId });
+    const result = await userClient.setModelOverride({ personalityId, configId }, { kind });
 
     if (!result.ok) {
       logger.warn(
-        { userId, status: result.status, personalityId, configId },
+        { userId, status: result.status, personalityId, configId, kind },
         'Failed to set override'
       );
       await context.editReply({ content: `❌ Failed to set preset: ${result.error}` });
@@ -74,6 +82,7 @@ export async function handleSet(context: DeferredCommandContext): Promise<void> 
         personalityName: data.override.personalityName,
         configId,
         configName: data.override.configName,
+        kind,
         reason,
       },
       'Set override'
