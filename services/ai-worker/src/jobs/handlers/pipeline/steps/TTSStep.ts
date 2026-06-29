@@ -14,7 +14,7 @@
  * which reads `ResolvedTtsConfig` (from `TtsConfigResolver`) plus
  * `audioProviderKeys` from `ResolvedAuth`. This step's job is the pipeline
  * glue: prerequisite checks, config resolution, dispatch with the outer
- * 240s budget, and Redis storage of the normalized output.
+ * 300s budget, and Redis storage of the normalized output.
  */
 
 import {
@@ -38,15 +38,24 @@ const logger = createLogger('TTSStep');
 
 /** Total TTS budget across prepare + synthesize + normalize.
  *
- * Sized to accommodate the worst case where the primary provider fails and
- * the dispatcher falls back to self-hosted, which has to cold-start:
- *   primary attempt (60s) + voice-engine cold start (~47s observed,
- *   75s budget) + registration (15s) + multi-chunk synthesis (~90s) + margin.
+ * Sized for the common worst case: the primary provider (BYOK) fails — e.g. a
+ * content-guardrail block — and the dispatcher falls back to self-hosted, which
+ * may have to cold-start from serverless sleep before it can synthesize:
+ *   primary attempt (~15s) + voice-engine cold start (up to the 120s warmup
+ *   budget, ~52s typical — see voiceEngineWarmup) + multi-chunk synthesis of a
+ *   long reply (~190s for ~3.5k chars) + margin.
+ *
+ * The cold start is charged against this same budget, so a long synthesis right
+ * after a cold start is the binding case (~260s) — hence 300s, not less. A
+ * pathological full-120s cold start + very-long synthesis can still exceed it
+ * (accepted edge case); the cleaner fix — start the synthesis timeout at
+ * warmup-completion so the cold start doesn't eat the synthesis budget — is
+ * tracked in `backlog/cold/follow-ups.md`.
  *
  * The race is around the entire dispatcher + normalize call so a stuck
  * normalizer (e.g., ffmpeg hang) can't deadlock the pipeline. Text is
  * always delivered regardless — this only affects whether audio attaches. */
-const TTS_MAX_TOTAL_MS = 240_000;
+const TTS_MAX_TOTAL_MS = 300_000;
 
 /** @internal Test-only — reset cached provider singletons between test files. */
 export function resetTTSStepState(): void {
@@ -175,7 +184,7 @@ export class TTSStep implements IPipelineStep {
   }
 
   /**
-   * Wrap the dispatch + normalize + store in the outer 240s budget. When the
+   * Wrap the dispatch + normalize + store in the outer 300s budget. When the
    * timeout wins the race, the underlying work continues in the background;
    * its result is discarded (ttsAudioKey never written) and the audio expires
    * via Redis TTL.
