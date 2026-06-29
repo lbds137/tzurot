@@ -363,6 +363,9 @@ export const userConfigRoutes = {
     path: '/model-override',
     id: 'setModelOverride',
     input: SetModelOverrideSchema,
+    // The slot the override occupies (text|vision); defaults text. The gateway
+    // capability-gates the vision slot (its model must support image input).
+    query: { kind: z.enum(CONFIG_KINDS).optional() },
     output: SetModelOverrideResponseSchema,
     requiresProvisionedUser: true,
     meta: { idempotent: true },
@@ -401,6 +404,9 @@ export const userConfigRoutes = {
     path: MODEL_OVERRIDE_DEFAULT_PATH,
     id: 'setDefaultModelConfig',
     input: SetDefaultConfigSchema,
+    // The slot the default occupies (text|vision); defaults text. The gateway
+    // capability-gates the vision slot (its model must support image input).
+    query: { kind: z.enum(CONFIG_KINDS).optional() },
     output: SetDefaultConfigResponseSchema,
     requiresProvisionedUser: true,
     meta: { idempotent: true },
