@@ -4,13 +4,15 @@
  *
  * Replaces the old /preset list with enhanced functionality:
  * - Optional query parameter for searching by name/model
- * - Optional filter parameter (all, global, mine, free)
+ * - Optional scope filter (all, global, mine, free)
+ * - Optional kind filter (all, text, vision) — orthogonal to scope
  * - Pagination support for larger lists
  */
 
 import {
   EmbedBuilder,
   escapeMarkdown,
+  MessageFlags,
   type ButtonInteraction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
@@ -20,7 +22,6 @@ import {
   isFreeModel,
   presetBrowseOptions,
   type LlmConfigSummary,
-  type ConfigKind,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { UserClient } from '@tzurot/clients';
@@ -48,27 +49,22 @@ import {
   type FlattenedPresetData,
 } from './config.js';
 import { fetchPreset } from './api.js';
+import {
+  composeBrowseFilter,
+  describeFilter,
+  splitBrowseFilter,
+  VALID_PRESET_FILTERS,
+  type PresetBrowseFilter,
+  type PresetKindFilter,
+  type PresetScopeFilter,
+} from './browseFilter.js';
 
 const logger = createLogger('preset-browse');
-
-/**
- * A preset summary tagged with its config kind. The list response summary omits
- * `kind` (it's detail-only), so browse fetches each kind separately and tags
- * each row by the call it came from — letting us badge + filter by kind without
- * the gateway list contract carrying it.
- */
-type TaggedPreset = LlmConfigSummary & { kind: ConfigKind };
-
-/** Browse filter options (scope/free axis + the text/vision kind axis) */
-export type PresetBrowseFilter = 'all' | 'global' | 'mine' | 'free' | 'text' | 'vision';
-
-/** Valid filters for preset browse */
-const VALID_FILTERS = ['all', 'global', 'mine', 'free', 'text', 'vision'] as const;
 
 /** Browse customId helpers using shared factory (no sort for presets) */
 const browseHelpers = createBrowseCustomIdHelpers<PresetBrowseFilter>({
   prefix: 'preset',
-  validFilters: VALID_FILTERS,
+  validFilters: VALID_PRESET_FILTERS,
   includeSort: false,
 });
 
@@ -87,16 +83,10 @@ export function isPresetBrowseSelectInteraction(customId: string): boolean {
 }
 
 /**
- * Build the badge string for a preset's select menu label.
- * Returns the unprefixed badges joined together (e.g., "🌐⭐ ", "🔒 ").
- * The factory adds the numbering prefix; this helper handles the
- * scope/default/free badge logic.
- */
-/**
  * Badge sequence for a preset (scope → vision → default → free). Shared by the
  * select-menu label and the embed line so the two can't drift.
  */
-function presetBadgeArray(preset: TaggedPreset): string[] {
+function presetBadgeArray(preset: LlmConfigSummary): string[] {
   const badges: string[] = [];
   if (preset.isGlobal) {
     badges.push('🌐');
@@ -117,7 +107,7 @@ function presetBadgeArray(preset: TaggedPreset): string[] {
   return badges;
 }
 
-function buildPresetBadges(preset: TaggedPreset): string {
+function buildPresetBadges(preset: LlmConfigSummary): string {
   return presetBadgeArray(preset).join('') + ' ';
 }
 
@@ -126,7 +116,7 @@ function buildPresetBadges(preset: TaggedPreset): string {
  * Shows the short model name plus an "(requires API key)" hint when
  * the user is in guest mode and the model isn't free.
  */
-function buildPresetDescription(preset: TaggedPreset, isGuestMode: boolean): string {
+function buildPresetDescription(preset: LlmConfigSummary, isGuestMode: boolean): string {
   const shortModel = preset.model.includes('/') ? preset.model.split('/').pop() : preset.model;
   let description = shortModel ?? preset.model;
   if (isGuestMode && !isFreeModel(preset.model)) {
@@ -136,17 +126,17 @@ function buildPresetDescription(preset: TaggedPreset, isGuestMode: boolean): str
 }
 
 /**
- * Filter presets based on filter type and optional query
+ * Apply the scope axis + search query client-side. The kind axis is applied at
+ * fetch time (`?kind=`), so the rows reaching here are already kind-scoped.
  */
 function filterPresets(
-  presets: TaggedPreset[],
-  filter: PresetBrowseFilter,
+  presets: LlmConfigSummary[],
+  scope: PresetScopeFilter,
   query: string | null
-): TaggedPreset[] {
+): LlmConfigSummary[] {
   let filtered = presets;
 
-  // Apply filter
-  switch (filter) {
+  switch (scope) {
     case 'global':
       filtered = presets.filter(c => c.isGlobal);
       break;
@@ -156,15 +146,9 @@ function filterPresets(
     case 'free':
       filtered = presets.filter(c => isFreeModel(c.model));
       break;
-    case 'text':
-      filtered = presets.filter(c => c.kind === 'text');
-      break;
-    case 'vision':
-      filtered = presets.filter(c => c.kind === 'vision');
-      break;
     case 'all':
     default:
-      // No filter
+      // No scope filter
       break;
   }
 
@@ -185,7 +169,7 @@ function filterPresets(
 /**
  * Format a preset line with badges
  */
-function formatPresetLine(c: TaggedPreset, isGuestMode: boolean, index: number): string {
+function formatPresetLine(c: LlmConfigSummary, isGuestMode: boolean, index: number): string {
   const badgeStr = presetBadgeArray(c).join('');
   const shortModel = c.model.includes('/') ? c.model.split('/').pop() : c.model;
   const safeName = escapeMarkdown(c.name);
@@ -221,13 +205,14 @@ function buildBrowseButtons(
  * Build the browse embed and components
  */
 function buildBrowsePage(
-  allPresets: TaggedPreset[],
+  allPresets: LlmConfigSummary[],
   filter: PresetBrowseFilter,
   query: string | null,
   page: number,
   isGuestMode: boolean
 ): { embed: EmbedBuilder; components: BrowseActionRow[] } {
-  const filtered = filterPresets(allPresets, filter, query);
+  const { scope, kind } = splitBrowseFilter(filter);
+  const filtered = filterPresets(allPresets, scope, query);
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const safePage = Math.min(Math.max(0, page), totalPages - 1);
 
@@ -251,18 +236,11 @@ function buildBrowsePage(
   }
 
   // Search/filter info
-  const filterLabels: Record<PresetBrowseFilter, string> = {
-    all: 'All',
-    global: 'Global Only',
-    mine: 'My Presets',
-    free: 'Free Only',
-    text: 'Text Only',
-    vision: 'Vision Only',
-  };
+  const activeFilterLabel = describeFilter(scope, kind);
   if (query !== null) {
-    lines.push(`🔍 Searching: "${query}" • Filter: ${filterLabels[filter]}\n`);
-  } else if (filter !== 'all') {
-    lines.push(`Filter: ${filterLabels[filter]}\n`);
+    lines.push(`🔍 Searching: "${query}" • Filter: ${activeFilterLabel ?? 'All'}\n`);
+  } else if (activeFilterLabel !== null) {
+    lines.push(`Filter: ${activeFilterLabel}\n`);
   }
 
   // Preset list
@@ -282,8 +260,8 @@ function buildBrowsePage(
   embed.setFooter({
     text: joinFooter(
       pluralize(filtered.length, { singular: 'preset', plural: 'presets' }),
-      filter !== 'all' && formatFilterLabeled(filterLabels[filter]),
-      `\uD83C\uDF10 Global  \uD83D\uDD12 Private  \uD83D\uDC64 Other user  \uD83D\uDC41\uFE0F Vision (${visionCount})  \u2B50 Default  \uD83C\uDD93 Free (${freeCount})`
+      activeFilterLabel !== null && formatFilterLabeled(activeFilterLabel),
+      `🌐 Global  🔒 Private  👤 Other user  👁️ Vision (${visionCount})  ⭐ Default  🆓 Free (${freeCount})`
     ),
   });
 
@@ -291,7 +269,7 @@ function buildBrowsePage(
   const components: BrowseActionRow[] = [];
 
   // Add select menu — factory returns null on empty pageItems
-  const selectRow = buildBrowseSelectMenu<TaggedPreset>({
+  const selectRow = buildBrowseSelectMenu<LlmConfigSummary>({
     items: pageItems,
     customId: browseHelpers.buildSelect(safePage, filter, 'name', query),
     placeholder: 'Select a preset to view...',
@@ -315,54 +293,43 @@ function buildBrowsePage(
 }
 
 /**
- * Fetch the user's presets across BOTH kinds and tag each row with its kind.
- * The list summary omits `kind`, so we issue one kind-scoped call per kind and
- * tag by the call that returned it — global-vs-owned rows are mutually exclusive
- * and each call is `take`-bounded, so there's no dedup or pagination concern.
- * Returns null if either fetch fails.
+ * Fetch the user's presets for the requested kind in a single call. The list
+ * summary now carries `kind` per row, so `'all'` returns both kinds tagged and a
+ * specific kind returns only that kind — no client-side merge. Returns null on
+ * fetch failure.
  */
-async function fetchTaggedPresets(userClient: UserClient): Promise<TaggedPreset[] | null> {
-  const [textResult, visionResult] = await Promise.all([
-    userClient.listUserLlmConfigs({ kind: 'text' }),
-    userClient.listUserLlmConfigs({ kind: 'vision' }),
-  ]);
-  if (!textResult.ok || !visionResult.ok) {
-    // Log which kind failed + its status so a partial outage is triagable
-    // (the two calls hit the same endpoint, so failures are normally correlated).
-    logger.warn(
-      {
-        textStatus: textResult.ok ? undefined : textResult.status,
-        visionStatus: visionResult.ok ? undefined : visionResult.status,
-      },
-      'Failed to fetch presets (one or both kinds)'
-    );
+async function fetchPresets(
+  userClient: UserClient,
+  kind: PresetKindFilter
+): Promise<LlmConfigSummary[] | null> {
+  const result = await userClient.listUserLlmConfigs({ kind });
+  if (!result.ok) {
+    logger.warn({ status: result.status }, 'Failed to fetch presets');
     return null;
   }
-  return [
-    ...textResult.data.configs.map(c => ({ ...c, kind: 'text' as const })),
-    ...visionResult.data.configs.map(c => ({ ...c, kind: 'vision' as const })),
-  ];
+  return result.data.configs;
 }
 
 /**
- * Handle /preset browse [query?] [filter?]
+ * Handle /preset browse [query?] [filter?] [kind?]
  */
 export async function handleBrowse(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
   const options = presetBrowseOptions(context.interaction);
   const query = options.query();
-  const filterStr = options.filter() ?? 'all';
-  const filter = filterStr as PresetBrowseFilter;
+  const scope = (options.filter() ?? 'all') as PresetScopeFilter;
+  const kind = (options.kind() ?? 'all') as PresetKindFilter;
+  const filter = composeBrowseFilter(scope, kind);
 
   try {
-    // Fetch presets (both kinds) and wallet status in parallel
+    // Fetch presets (kind-scoped) and wallet status in parallel
     const { userClient } = clientsFor(context.interaction);
-    const [taggedPresets, walletResult] = await Promise.all([
-      fetchTaggedPresets(userClient),
+    const [presets, walletResult] = await Promise.all([
+      fetchPresets(userClient, kind),
       userClient.listWalletKeys(),
     ]);
 
-    if (taggedPresets === null) {
+    if (presets === null) {
       logger.warn({ userId }, 'Failed to browse presets');
       await context.editReply({ content: '❌ Failed to get presets. Please try again later.' });
       return;
@@ -379,14 +346,11 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
     }
     const isGuestMode = walletResult.ok && !walletResult.data.keys.some(k => k.isActive === true);
 
-    const { embed, components } = buildBrowsePage(taggedPresets, filter, query, 0, isGuestMode);
+    const { embed, components } = buildBrowsePage(presets, filter, query, 0, isGuestMode);
 
     await context.editReply({ embeds: [embed], components });
 
-    logger.info(
-      { userId, count: taggedPresets.length, filter, query, isGuestMode },
-      'Browse presets'
-    );
+    logger.info({ userId, count: presets.length, filter, query, isGuestMode }, 'Browse presets');
   } catch (error) {
     logger.error({ err: error, userId }, 'Error browsing presets');
     await context.editReply({ content: '❌ An error occurred. Please try again later.' });
@@ -406,14 +370,15 @@ export async function buildBrowseResponse(
   }
 ): Promise<{ embed: EmbedBuilder; components: BrowseActionRow[] } | null> {
   const { page, filter, query } = browseContext;
+  const { kind } = splitBrowseFilter(filter);
 
-  // Re-fetch data (both kinds) via typed client
-  const [taggedPresets, walletResult] = await Promise.all([
-    fetchTaggedPresets(userClient),
+  // Re-fetch data (kind-scoped) via typed client
+  const [presets, walletResult] = await Promise.all([
+    fetchPresets(userClient, kind),
     userClient.listWalletKeys(),
   ]);
 
-  if (taggedPresets === null) {
+  if (presets === null) {
     return null;
   }
 
@@ -421,7 +386,7 @@ export async function buildBrowseResponse(
   // If wallet API failed, assume user might have keys (don't restrict them)
   const isGuestMode = walletResult.ok && !walletResult.data.keys.some(k => k.isActive === true);
 
-  return buildBrowsePage(taggedPresets, filter, query, page, isGuestMode);
+  return buildBrowsePage(presets, filter, query, page, isGuestMode);
 }
 
 // Register the preset browse rebuilder with the shared registry at module
@@ -444,16 +409,37 @@ registerBrowseRebuilder('preset', async (interaction, browseContext, successBann
   };
 });
 
+/** Ephemeral nudge when a page fails to load (the prior view stays put). */
+const PAGE_LOAD_FAILED_MSG = "⏳ Couldn't load that page — please try again.";
+
+/**
+ * Best-effort ephemeral nudge for a failed page-load. The followUp itself can
+ * throw (e.g. Discord 10062 Unknown Interaction if the token expired during the
+ * fetch); swallow + log so the handler stays unconditionally non-throwing — the
+ * nudge is a courtesy, not a guarantee.
+ */
+async function sendPageLoadNudge(interaction: ButtonInteraction): Promise<void> {
+  await interaction
+    .followUp({ content: PAGE_LOAD_FAILED_MSG, flags: MessageFlags.Ephemeral })
+    .catch(err =>
+      logger.warn({ err, userId: interaction.user.id }, 'Failed to send page-load nudge')
+    );
+}
+
 /**
  * Handle browse pagination button clicks
  */
 export async function handleBrowsePagination(interaction: ButtonInteraction): Promise<void> {
+  // Ack FIRST (04-discord.md: the first await in a component handler must be
+  // deferUpdate). A stale pre-deploy customId (bare-scope filter like `all`
+  // instead of `all.all`) fails `parse` against VALID_PRESET_FILTERS — acking
+  // before that guard avoids a "This interaction failed" on old browse buttons.
+  await interaction.deferUpdate();
+
   const parsed = browseHelpers.parse(interaction.customId);
   if (parsed === null) {
     return;
   }
-
-  await interaction.deferUpdate();
 
   try {
     const { userClient } = clientsFor(interaction);
@@ -461,6 +447,7 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
 
     if (result === null) {
       logger.warn({ userId: interaction.user.id }, 'Failed to fetch presets for pagination');
+      await sendPageLoadNudge(interaction);
       return;
     }
 
@@ -470,7 +457,8 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
       { err: error, userId: interaction.user.id, ...parsed },
       'Error during browse pagination'
     );
-    // Keep existing content on error
+    // Keep the existing view; surface a non-destructive ephemeral nudge.
+    await sendPageLoadNudge(interaction);
   }
 }
 

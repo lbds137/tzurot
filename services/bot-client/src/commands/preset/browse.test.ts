@@ -83,14 +83,18 @@ function configurePresets(
   hasWallet = true,
   visionPresets: Parameters<typeof mockListLlmConfigsResponse>[0] = []
 ): void {
-  // Browse fetches both kinds; mock by the `?kind=` arg so the `presets` arg is
-  // the text set and `visionPresets` the vision set (default empty → existing
-  // tests behave as a text-only listing).
-  stub.listUserLlmConfigs.mockImplementation((opts?: { kind?: string }) =>
-    Promise.resolve(
-      makeOk(mockListLlmConfigsResponse(opts?.kind === 'vision' ? visionPresets : presets))
-    )
-  );
+  // Browse issues ONE kind-aware call. The mock honors the `?kind=` arg: `text`
+  // and `vision` return only that kind, `all` (the default) returns both. Rows
+  // are tagged via the summary's `kind` field, so callers pass `presets` as the
+  // text set and `visionPresets` as the vision set (default empty → text-only).
+  const textRows = (presets ?? []).map(p => ({ ...p, kind: 'text' as const }));
+  const visionRows = visionPresets.map(p => ({ ...p, kind: 'vision' as const }));
+  stub.listUserLlmConfigs.mockImplementation((opts?: { kind?: string }) => {
+    const kind = opts?.kind ?? 'all';
+    const rows =
+      kind === 'vision' ? visionRows : kind === 'text' ? textRows : [...textRows, ...visionRows];
+    return Promise.resolve(makeOk(mockListLlmConfigsResponse(rows)));
+  });
   stub.listWalletKeys.mockResolvedValue(
     makeOk(mockListWalletKeysResponse(hasWallet ? [{ isActive: true }] : []))
   );
@@ -106,7 +110,11 @@ describe('handleBrowse', () => {
     clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
   });
 
-  function createMockContext(query: string | null = null, filter: string | null = null) {
+  function createMockContext(
+    query: string | null = null,
+    filter: string | null = null,
+    kind: string | null = null
+  ) {
     return {
       user: { id: '123456789', username: 'testuser' },
       interaction: {
@@ -114,6 +122,7 @@ describe('handleBrowse', () => {
           getString: vi.fn((name: string) => {
             if (name === 'query') return query;
             if (name === 'filter') return filter;
+            if (name === 'kind') return kind;
             return null;
           }),
         },
@@ -161,7 +170,7 @@ describe('handleBrowse', () => {
 
     const components = mockEditReply.mock.calls[0][0].components;
     expect(components).toHaveLength(1); // Just select menu, no pagination
-    expect(components[0].components[0].data.custom_id).toBe('preset::browse-select::0::all::');
+    expect(components[0].components[0].data.custom_id).toBe('preset::browse-select::0::all.all::');
   });
 
   it('shows both kinds by default (vision badged) and filters by kind', async () => {
@@ -190,15 +199,15 @@ describe('handleBrowse', () => {
       ]
     );
 
-    // Default filter (all): both kinds visible, vision badged with 👁️.
+    // Default kind (all): both kinds visible, vision badged with 👁️.
     await handleBrowse(createMockContext());
     const allDesc = mockEditReply.mock.calls[0][0].embeds[0].data.description;
     expect(allDesc).toContain('TextPreset');
     expect(allDesc).toContain('VisionPreset');
     expect(allDesc).toContain('👁️');
 
-    // filter:vision → only the vision preset.
-    await handleBrowse(createMockContext(null, 'vision'));
+    // kind:vision → only the vision preset (fetched kind-scoped).
+    await handleBrowse(createMockContext(null, null, 'vision'));
     const visionDesc = mockEditReply.mock.calls[1][0].embeds[0].data.description;
     expect(visionDesc).toContain('VisionPreset');
     expect(visionDesc).not.toContain('TextPreset');
@@ -387,12 +396,15 @@ describe('handleBrowse', () => {
 describe('handleBrowsePagination', () => {
   const mockDeferUpdate = vi.fn();
   const mockEditReply = vi.fn();
+  const mockFollowUp = vi.fn();
   let stub: UserClientStub;
 
   beforeEach(() => {
     vi.clearAllMocks();
     stub = createStub();
     clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
+    // followUp must return a promise — the handler chains `.catch` on it.
+    mockFollowUp.mockResolvedValue(undefined);
   });
 
   function createMockButtonInteraction(customId: string) {
@@ -401,14 +413,28 @@ describe('handleBrowsePagination', () => {
       user: { id: '123456789', username: 'testuser' },
       deferUpdate: mockDeferUpdate,
       editReply: mockEditReply,
+      followUp: mockFollowUp,
     } as unknown as ButtonInteraction;
   }
 
-  it('should return early for invalid custom ID', async () => {
+  it('acks first, then returns without fetching for an unparseable custom ID', async () => {
     const mockInteraction = createMockButtonInteraction('invalid::custom::id');
     await handleBrowsePagination(mockInteraction);
 
-    expect(mockDeferUpdate).not.toHaveBeenCalled();
+    // Ack-first: deferUpdate runs before the parse guard so the interaction is
+    // always acknowledged within Discord's 3s window — no fetch on a bad id.
+    expect(mockDeferUpdate).toHaveBeenCalled();
+    expect(stub.listUserLlmConfigs).not.toHaveBeenCalled();
+  });
+
+  it('acks a stale pre-deploy bare-scope customId instead of failing the interaction', async () => {
+    // Regression guard: before the format change, buttons encoded `::all::`; the
+    // new parse only accepts composites like `::all.all::`. The handler must
+    // still ack (deferUpdate) so the user never sees "This interaction failed".
+    const mockInteraction = createMockButtonInteraction('preset::browse::0::all::');
+    await handleBrowsePagination(mockInteraction);
+
+    expect(mockDeferUpdate).toHaveBeenCalled();
     expect(stub.listUserLlmConfigs).not.toHaveBeenCalled();
   });
 
@@ -423,7 +449,7 @@ describe('handleBrowsePagination', () => {
       },
     ]);
 
-    const mockInteraction = createMockButtonInteraction('preset::browse::1::all::');
+    const mockInteraction = createMockButtonInteraction('preset::browse::1::all.all::');
     await handleBrowsePagination(mockInteraction);
 
     expect(mockDeferUpdate).toHaveBeenCalled();
@@ -440,7 +466,7 @@ describe('handleBrowsePagination', () => {
       },
     ]);
 
-    const mockInteraction = createMockButtonInteraction('preset::browse::0::all::');
+    const mockInteraction = createMockButtonInteraction('preset::browse::0::all.all::');
     await handleBrowsePagination(mockInteraction);
 
     expect(stub.listUserLlmConfigs).toHaveBeenCalled();
@@ -470,7 +496,7 @@ describe('handleBrowsePagination', () => {
       },
     ]);
 
-    const mockInteraction = createMockButtonInteraction('preset::browse::0::mine::');
+    const mockInteraction = createMockButtonInteraction('preset::browse::0::mine.all::');
     await handleBrowsePagination(mockInteraction);
 
     const embedData = mockEditReply.mock.calls[0][0].embeds[0].data;
@@ -496,7 +522,7 @@ describe('handleBrowsePagination', () => {
       },
     ]);
 
-    const mockInteraction = createMockButtonInteraction('preset::browse::0::all::claude');
+    const mockInteraction = createMockButtonInteraction('preset::browse::0::all.all::claude');
     await handleBrowsePagination(mockInteraction);
 
     const embedData = mockEditReply.mock.calls[0][0].embeds[0].data;
@@ -504,25 +530,45 @@ describe('handleBrowsePagination', () => {
     expect(embedData.description).not.toContain('GPT Config');
   });
 
-  it('should handle API error silently (keep existing content)', async () => {
+  it('surfaces an ephemeral followUp when a page fails to load (view preserved)', async () => {
     stub.listUserLlmConfigs.mockResolvedValue(makeErr(500, 'Server error'));
     stub.listWalletKeys.mockResolvedValue(makeErr(500, 'Server error'));
 
-    const mockInteraction = createMockButtonInteraction('preset::browse::1::all::');
+    const mockInteraction = createMockButtonInteraction('preset::browse::1::all.all::');
     await handleBrowsePagination(mockInteraction);
 
     expect(mockDeferUpdate).toHaveBeenCalled();
+    // The prior view stays put (no editReply), but the user gets a nudge.
     expect(mockEditReply).not.toHaveBeenCalled();
+    expect(mockFollowUp).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining("Couldn't load that page") })
+    );
   });
 
-  it('should handle exceptions gracefully', async () => {
+  it('surfaces an ephemeral followUp on exception (no throw, view preserved)', async () => {
     stub.listUserLlmConfigs.mockRejectedValue(new Error('Network error'));
     stub.listWalletKeys.mockRejectedValue(new Error('Network error'));
 
-    const mockInteraction = createMockButtonInteraction('preset::browse::1::all::');
+    const mockInteraction = createMockButtonInteraction('preset::browse::1::all.all::');
 
     await expect(handleBrowsePagination(mockInteraction)).resolves.not.toThrow();
     expect(mockEditReply).not.toHaveBeenCalled();
+    expect(mockFollowUp).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining("Couldn't load that page") })
+    );
+  });
+
+  it('stays non-throwing when the followUp nudge itself throws (expired token)', async () => {
+    // Simulates Discord 10062 Unknown Interaction on the nudge: the handler must
+    // still resolve, not propagate — the followUp `.catch` swallows + logs it.
+    stub.listUserLlmConfigs.mockResolvedValue(makeErr(500, 'Server error'));
+    stub.listWalletKeys.mockResolvedValue(makeErr(500, 'Server error'));
+    mockFollowUp.mockRejectedValue(new Error('Unknown interaction'));
+
+    const mockInteraction = createMockButtonInteraction('preset::browse::1::all.all::');
+
+    await expect(handleBrowsePagination(mockInteraction)).resolves.not.toThrow();
+    expect(mockFollowUp).toHaveBeenCalled();
   });
 });
 
@@ -668,7 +714,7 @@ describe('registered browse rebuilder', () => {
 
     const result = await presetRebuilder(
       createMockInteraction(),
-      { source: 'browse', page: 0, filter: 'all', query: null },
+      { source: 'browse', page: 0, filter: 'all.all', query: null },
       '✅ Banner'
     );
 
@@ -686,7 +732,7 @@ describe('registered browse rebuilder', () => {
 
     const result = await presetRebuilder(
       createMockInteraction(),
-      { source: 'browse', page: 0, filter: 'all', query: null },
+      { source: 'browse', page: 0, filter: 'all.all', query: null },
       '✅ Banner'
     );
 

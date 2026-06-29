@@ -26,7 +26,10 @@ import {
 } from '@tzurot/common-types';
 import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
-import { parseConfigKindQuery } from '../../utils/configRouteHelpers.js';
+import {
+  parseConfigKindQuery,
+  parseConfigKindQueryAllowAll,
+} from '../../utils/configRouteHelpers.js';
 import { tryInvalidateCache } from '../../utils/configOverrideHelpers.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -68,18 +71,25 @@ export const handleListModelOverrides = (deps: RouteDeps): RequestHandler => {
     const discordUserId = req.userId;
     const userId = resolveProvisionedUserId(req);
 
-    const kind = parseConfigKindQuery(res, req.query);
+    // Browse passes `?kind=all` to list BOTH kinds in one call (one summary row
+    // per non-null FK); the dashboard passes an explicit text|vision.
+    const kind = parseConfigKindQueryAllowAll(res, req.query);
     if (kind === null) {
       return;
     }
+    const allKinds = kind === 'all';
     const isVision = kind === 'vision';
 
-    // Filter by the requested kind's FK, but select BOTH FK pairs (fixed shape —
-    // a conditional select would yield a union return type), then pick below.
+    // Select BOTH FK pairs (fixed shape — a conditional select would yield a
+    // union return type), then emit the matching kind(s) below.
     const overrides = await prisma.userPersonalityConfig.findMany({
       where: {
         userId,
-        ...(isVision ? { visionConfigId: { not: null } } : { llmConfigId: { not: null } }),
+        ...(allKinds
+          ? { OR: [{ llmConfigId: { not: null } }, { visionConfigId: { not: null } }] }
+          : isVision
+            ? { visionConfigId: { not: null } }
+            : { llmConfigId: { not: null } }),
       },
       select: {
         personalityId: true,
@@ -89,15 +99,37 @@ export const handleListModelOverrides = (deps: RouteDeps): RequestHandler => {
         visionConfigId: true,
         visionConfig: { select: { name: true } },
       },
+      // Bounds personality CONFIG rows, not output rows: for `kind=all` a
+      // personality with both FKs expands to two summaries below, so the
+      // response can be up to 2× this (≤200). Fine for the browse page size.
       take: 100,
     });
 
-    const result: ModelOverrideSummary[] = overrides.map(o => ({
-      personalityId: o.personalityId,
-      personalityName: o.personality.name,
-      configId: isVision ? o.visionConfigId : o.llmConfigId,
-      configName: isVision ? (o.visionConfig?.name ?? null) : (o.llmConfig?.name ?? null),
-    }));
+    // A character can have BOTH a text and a vision override; for `all`, emit a
+    // row per non-null FK (kind-tagged) so browse can badge + clear each.
+    const emitText = allKinds || !isVision; // kind === 'text' or kind === 'all'
+    const emitVision = allKinds || isVision; // kind === 'vision' or kind === 'all'
+    const result: ModelOverrideSummary[] = [];
+    for (const o of overrides) {
+      if (emitText && o.llmConfigId !== null) {
+        result.push({
+          personalityId: o.personalityId,
+          personalityName: o.personality.name,
+          configId: o.llmConfigId,
+          configName: o.llmConfig?.name ?? null,
+          kind: 'text',
+        });
+      }
+      if (emitVision && o.visionConfigId !== null) {
+        result.push({
+          personalityId: o.personalityId,
+          personalityName: o.personality.name,
+          configId: o.visionConfigId,
+          configName: o.visionConfig?.name ?? null,
+          kind: 'vision',
+        });
+      }
+    }
 
     logger.info({ discordUserId, count: result.length, kind }, 'Listed overrides');
     sendCustomSuccess(res, { overrides: result }, StatusCodes.OK);
@@ -169,6 +201,7 @@ export const handleSetModelOverride = (deps: RouteDeps): RequestHandler => {
       configName: isVision
         ? (override.visionConfig?.name ?? null)
         : (override.llmConfig?.name ?? null),
+      kind: isVision ? 'vision' : 'text',
     };
 
     logger.info(

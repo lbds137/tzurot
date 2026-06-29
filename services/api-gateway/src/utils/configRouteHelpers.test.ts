@@ -30,6 +30,7 @@ vi.mock('./errorResponses.js', () => ({
 import {
   parseBodyOrSendError,
   parseConfigKindQuery,
+  parseConfigKindQueryAllowAll,
   findConfigOrSendNotFound,
   findGlobalConfigOrSendError,
   findAdminUserOrSendError,
@@ -66,6 +67,32 @@ describe('parseConfigKindQuery', () => {
 
   it('sends a Zod error and returns null for an invalid kind', () => {
     expect(parseConfigKindQuery(mockRes, { kind: 'audio' })).toBeNull();
+    expect(mockSendZodError).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('parseConfigKindQueryAllowAll', () => {
+  it('returns the parsed kind for a valid ?kind=vision', () => {
+    expect(parseConfigKindQueryAllowAll(mockRes, { kind: 'vision' })).toBe('vision');
+    expect(mockSendZodError).not.toHaveBeenCalled();
+  });
+
+  it('returns text for a valid ?kind=text', () => {
+    expect(parseConfigKindQueryAllowAll(mockRes, { kind: 'text' })).toBe('text');
+  });
+
+  it('accepts the all-kinds sentinel ?kind=all (list-only widening)', () => {
+    expect(parseConfigKindQueryAllowAll(mockRes, { kind: 'all' })).toBe('all');
+    expect(mockSendZodError).not.toHaveBeenCalled();
+  });
+
+  it('defaults to text when the param is absent', () => {
+    expect(parseConfigKindQueryAllowAll(mockRes, {})).toBe('text');
+    expect(mockSendZodError).not.toHaveBeenCalled();
+  });
+
+  it('sends a Zod error and returns null for an invalid kind', () => {
+    expect(parseConfigKindQueryAllowAll(mockRes, { kind: 'audio' })).toBeNull();
     expect(mockSendZodError).toHaveBeenCalledTimes(1);
   });
 });
