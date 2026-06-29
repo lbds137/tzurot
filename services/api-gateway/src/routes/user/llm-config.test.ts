@@ -339,6 +339,69 @@ describe('/user/llm-config routes', () => {
       expect(res.status).toHaveBeenCalledWith(400);
       expect(mockPrisma.llmConfig.findMany).not.toHaveBeenCalled();
     });
+
+    it('enriches each list row with supportsVision from the model capabilities', async () => {
+      const visionConfig = {
+        id: 'vc-1',
+        name: 'Vision Cap',
+        description: null,
+        model: 'openai/gpt-4o',
+        provider: 'openrouter',
+        kind: 'text',
+        isGlobal: true,
+        isDefault: false,
+        isFreeDefault: false,
+        ownerId: 'admin-uuid',
+      };
+      const textConfig = {
+        id: 'tc-1',
+        name: 'Text Only',
+        description: null,
+        model: 'z-ai/glm-4.7', // not on OpenRouter → z.ai catalog (text-only)
+        provider: 'openrouter',
+        kind: 'text',
+        isGlobal: true,
+        isDefault: false,
+        isFreeDefault: false,
+        ownerId: 'admin-uuid',
+      };
+      mockPrisma.llmConfig.findMany
+        .mockResolvedValueOnce([visionConfig, textConfig])
+        .mockResolvedValueOnce([]);
+      // gpt-4o resolves vision-capable via OpenRouter; glm-4.7 misses OpenRouter
+      // and resolves text-only from the z.ai catalog → supportsVision false.
+      const modelCache = {
+        getModelById: vi.fn(async (id: string) =>
+          id === 'openai/gpt-4o'
+            ? {
+                supportsVision: true,
+                supportsImageGeneration: false,
+                supportsAudioInput: false,
+                supportsAudioOutput: false,
+                contextLength: 128_000,
+              }
+            : null
+        ),
+      } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;
+
+      const router = createLlmConfigRoutes({
+        prisma: mockPrisma as unknown as PrismaClient,
+        modelCache,
+      });
+      const handler = getHandler(router, 'get', '/');
+      const { req, res } = createMockReqRes();
+
+      await handler(req, res);
+
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          configs: [
+            expect.objectContaining({ id: 'vc-1', supportsVision: true }),
+            expect.objectContaining({ id: 'tc-1', supportsVision: false }),
+          ],
+        })
+      );
+    });
   });
 
   describe('GET /user/llm-config/:id', () => {

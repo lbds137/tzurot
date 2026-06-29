@@ -46,6 +46,7 @@ const defaultLlmConfigSummary: LlmConfigSummary = {
   description: null,
   provider: 'openrouter',
   model: 'openai/gpt-4o-mini',
+  supportsVision: false,
   kind: 'text',
   isGlobal: true,
   isDefault: true,

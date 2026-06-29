@@ -248,6 +248,14 @@ export const LlmConfigSummarySchema = z.object({
   description: z.string().nullable(),
   provider: z.string(),
   model: z.string(),
+  /**
+   * Whether the model accepts image input, sourced live from the model's
+   * capabilities (OpenRouter-authoritative → z.ai catalog), NOT from the config.
+   * This is the capability-driven signal the browse UI badges/filters on — it
+   * supersedes reading `kind` for vision eligibility. `false` when capability is
+   * unknown (fail-closed). Populated by the list route, not `formatConfigSummary`.
+   */
+  supportsVision: z.boolean(),
   /** Config kind discriminator (text | vision). Always present in list responses. */
   kind: z.enum(CONFIG_KINDS),
   isGlobal: z.boolean(),
@@ -266,7 +274,12 @@ export type LlmConfigSummary = z.infer<typeof LlmConfigSummarySchema>;
 // `contextWindowCap` are present only when the OpenRouter model lookup resolves,
 // so they're optional. Strict, like the summary — the gateway's extra
 // memory/context-history columns are intentionally not part of this contract.
-export const LlmConfigDetailSchema = LlmConfigSummarySchema.extend({
+export const LlmConfigDetailSchema = LlmConfigSummarySchema.omit({
+  // `supportsVision` is a list-browse display aid populated by the list route;
+  // the detail/dashboard path doesn't carry it yet (add when the dashboard
+  // wants a vision badge). Omitted so detail handlers needn't compute it.
+  supportsVision: true,
+}).extend({
   contextWindowTokens: z.number().int(),
   modelContextLength: z.number().int().optional(),
   contextWindowCap: z.number().int().optional(),

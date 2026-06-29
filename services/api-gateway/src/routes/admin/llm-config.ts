@@ -29,6 +29,7 @@ import { getRequiredParam } from '../../utils/requestParams.js';
 import type { AuthenticatedRequest } from '../../types.js';
 import { LlmConfigService } from '../../services/LlmConfigService.js';
 import type { OpenRouterModelCache } from '../../services/OpenRouterModelCache.js';
+import { ModelCapabilityService } from '../../services/ModelCapabilityService.js';
 import { enrichWithModelContext } from '../../utils/modelValidation.js';
 import { validateLlmConfigModelFields } from '../../utils/llmConfigValidation.js';
 import {
@@ -51,15 +52,22 @@ const CONFIG_LABEL = 'configs';
 
 // --- Handler Factories ---
 
-function createListHandler(service: LlmConfigService) {
+function createListHandler(service: LlmConfigService, modelCache?: OpenRouterModelCache) {
+  // Stateless wrapper over the cache ref — built once per handler, not per request.
+  const capabilities = new ModelCapabilityService(modelCache);
   return async (req: Request, res: Response) => {
     const kind = parseConfigKindQuery(res, req.query);
     if (kind === null) {
       return;
     }
 
-    const configs = (await service.list({ type: 'GLOBAL' }, kind)).map(raw =>
-      withAdminOwnership(service.formatConfigSummary(raw))
+    const configs = await Promise.all(
+      (await service.list({ type: 'GLOBAL' }, kind)).map(async raw => ({
+        ...withAdminOwnership(service.formatConfigSummary(raw)),
+        // Capability-driven vision eligibility, sourced live from the model
+        // (not the config's `kind`). Cheap: a cached array lookup per row.
+        supportsVision: await capabilities.supportsVision(raw.model),
+      }))
     );
 
     logger.info({ count: configs.length, kind }, 'Listed all configs');
@@ -374,7 +382,7 @@ function buildService(deps: RouteDeps): LlmConfigService {
 }
 
 export const handleListGlobalLlmConfigs = (deps: RouteDeps): RequestHandler =>
-  asyncHandler(createListHandler(buildService(deps)));
+  asyncHandler(createListHandler(buildService(deps), deps.modelCache));
 
 export const handleGetGlobalLlmConfig = (deps: RouteDeps): RequestHandler =>
   asyncHandler(createGetHandler(buildService(deps), deps.modelCache));

@@ -45,6 +45,7 @@ import {
   type LlmConfigScope,
 } from '../../services/LlmConfigService.js';
 import type { OpenRouterModelCache } from '../../services/OpenRouterModelCache.js';
+import { ModelCapabilityService } from '../../services/ModelCapabilityService.js';
 import { enrichWithModelContext, computeRequiresZaiKey } from '../../utils/modelValidation.js';
 import { validateLlmConfigModelFields } from '../../utils/llmConfigValidation.js';
 import { userHasActiveApiKey } from '../../utils/userHasActiveApiKey.js';
@@ -67,7 +68,9 @@ const CONFIG_RESOURCE = 'Config';
 
 // --- Handler Factories ---
 
-function createListHandler(service: LlmConfigService) {
+function createListHandler(service: LlmConfigService, modelCache?: OpenRouterModelCache) {
+  // Stateless wrapper over the cache ref — built once per handler, not per request.
+  const capabilities = new ModelCapabilityService(modelCache);
   return async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
     const userId = resolveProvisionedUserId(req);
@@ -91,15 +94,20 @@ function createListHandler(service: LlmConfigService) {
     // projects only public fields — `c.ownerId` is read here for the ownership
     // computation but must not leak into the response (it would expose other
     // users' internal IDs in the global-config rows).
-    const configs: LlmConfigSummary[] = rawConfigs.map(c => ({
-      ...service.formatConfigSummary(c),
-      isOwned: c.ownerId === userId,
-      permissions: computeLlmConfigPermissions(
-        { ownerId: c.ownerId, isGlobal: c.isGlobal },
-        userId,
-        discordUserId
-      ),
-    }));
+    const configs: LlmConfigSummary[] = await Promise.all(
+      rawConfigs.map(async c => ({
+        ...service.formatConfigSummary(c),
+        isOwned: c.ownerId === userId,
+        // Capability-driven vision eligibility, sourced live from the model
+        // (not the config's `kind`). Cheap: a cached array lookup per row.
+        supportsVision: await capabilities.supportsVision(c.model),
+        permissions: computeLlmConfigPermissions(
+          { ownerId: c.ownerId, isGlobal: c.isGlobal },
+          userId,
+          discordUserId
+        ),
+      }))
+    );
 
     logger.info({ discordUserId, count: configs.length }, 'Listed configs');
     sendCustomSuccess(res, { configs }, StatusCodes.OK);
@@ -517,7 +525,7 @@ function buildService(deps: RouteDeps): LlmConfigService {
 }
 
 export const handleListUserLlmConfigs = (deps: RouteDeps): RequestHandler =>
-  asyncHandler(createListHandler(buildService(deps)));
+  asyncHandler(createListHandler(buildService(deps), deps.modelCache));
 
 export const handleGetUserLlmConfig = (deps: RouteDeps): RequestHandler =>
   asyncHandler(createGetHandler(buildService(deps), deps.prisma, deps.modelCache));
