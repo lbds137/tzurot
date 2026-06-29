@@ -29,6 +29,12 @@ const MAX_PIXEL_COUNT = 100_000_000;
 const SUPPORTED_FORMATS = ['png', 'jpeg', 'gif', 'webp'] as const;
 type SupportedFormat = (typeof SUPPORTED_FORMATS)[number];
 
+// sharp 0.35.2 switched its module shape to `export = sharp`, so the old
+// `sharp.Sharp` namespace-qualified type no longer resolves under esModuleInterop
+// (the default import is a value binding, not a namespace). Derive the pipeline
+// instance type from the factory's return type instead — interop-shape-agnostic.
+type SharpPipeline = ReturnType<typeof sharp>;
+
 /**
  * Result of avatar processing
  */
@@ -55,10 +61,10 @@ type ProcessAvatarResult = AvatarProcessingResult | AvatarProcessingError;
  * Preserves PNG transparency, WebP quality, and GIF animations.
  */
 function applyFormatCompression(
-  pipeline: sharp.Sharp,
+  pipeline: SharpPipeline,
   format: SupportedFormat,
   quality: number
-): sharp.Sharp {
+): SharpPipeline {
   switch (format) {
     case 'png': {
       // Preserve PNG with transparency, use compression level based on quality
