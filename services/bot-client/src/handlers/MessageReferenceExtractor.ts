@@ -83,7 +83,7 @@ export class MessageReferenceExtractor {
     const transcriptRetriever = new TranscriptRetriever();
     const snapshotFormatter = new SnapshotFormatter();
     const messageFormatter = new MessageFormatter(transcriptRetriever);
-    const linkExtractor = new LinkExtractor(messageFormatter, snapshotFormatter);
+    const linkExtractor = new LinkExtractor();
 
     // Initialize extraction strategies
     const strategies = [new ReplyReferenceStrategy(), new LinkReferenceStrategy()];
