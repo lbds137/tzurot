@@ -18,7 +18,7 @@ _Recently resolved:_ the DB connection-pool-starvation timeouts (surfaced 2026-0
 
 ### 🎯 Current Focus (max 3)
 
-**🏗️ `[FEAT]` Model Configuration Overhaul — Phase 3: capability-driven config model** → see [`active-epic.md`](active-epic.md). Phases 1–2 (the `kind` discriminator: vision as a first-class config + editing surface) shipped through beta.141; Phase 3 pivots OFF `kind` — a config is `{name, model, params}` and the model's **capability** decides slot-eligibility (fixes the "Config not found" vision-default bug, the misleading 👁 badge, and duplicate configs). S1 (#1384) + S2 (#1385) shipped; **S3 NEXT** = global/free defaults → `AdminSettings` FK pointers + remove `VisionConfigBootstrap` (Option A, councilled). Holds beta.142. Plan: `.claude/plans/floofy-rolling-crane.md`.
+**🏗️ `[FEAT]` Model Configuration Overhaul — Phase 3: capability-driven config model** → see [`active-epic.md`](active-epic.md). Phases 1–2 (the `kind` discriminator: vision as a first-class config + editing surface) shipped through beta.141; Phase 3 pivots OFF `kind` — a config is `{name, model, params}` and the model's **capability** decides slot-eligibility (fixes the "Config not found" vision-default bug, the misleading 👁 badge, and duplicate configs). S1 (#1384) + S2 (#1385) + S3 (#1388, the "Config not found" bug fix) shipped; **S4 NEXT** = bot-client capability-driven UX (👁 = `supportsVision`, slot-context browse, drop the kind option, derive default badges from the pointers). Then S5 = test sweep + beta.142 release. Holds beta.142. Plan: `.claude/plans/floofy-rolling-crane.md`. _Post-S3-merge: dev migrate pending (`pnpm ops db:migrate --env dev`) + re-set the global vision default after deleting dup configs._
 
 ---
 
