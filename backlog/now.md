@@ -18,7 +18,7 @@ _Recently resolved:_ the DB connection-pool-starvation timeouts (surfaced 2026-0
 
 ### 🎯 Current Focus (max 3)
 
-**🏗️ `[FEAT]` Model Configuration Overhaul — Phase 2: editing surface + capability filtering** → see [`active-epic.md`](active-epic.md). Phase 1 (vision as a first-class config) shipped in beta.140; Phase 2 makes it editable (kind-param on existing commands + capability-aware validation + admin dashboard, absorbing the deferred #4 getById kind-gate). Substantial → council pass (GLM-5.2 / Kimi-K2.7 / Qwen-3.7-max) before plan-mode. (Prior epic — Test-Pyramid Taxonomy + Coverage Audit — COMPLETED 2026-06-26.)
+**🏗️ `[FEAT]` Model Configuration Overhaul — Phase 3: capability-driven config model** → see [`active-epic.md`](active-epic.md). Phases 1–2 (the `kind` discriminator: vision as a first-class config + editing surface) shipped through beta.141; Phase 3 pivots OFF `kind` — a config is `{name, model, params}` and the model's **capability** decides slot-eligibility (fixes the "Config not found" vision-default bug, the misleading 👁 badge, and duplicate configs). S1 (#1384) + S2 (#1385) shipped; **S3 NEXT** = global/free defaults → `AdminSettings` FK pointers + remove `VisionConfigBootstrap` (Option A, councilled). Holds beta.142. Plan: `.claude/plans/floofy-rolling-crane.md`.
 
 ---
 
