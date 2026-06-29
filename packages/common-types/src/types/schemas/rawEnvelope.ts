@@ -56,12 +56,16 @@ export const rawMentionedRoleSchema = z.object({
 
 export const rawAssemblyInputsSchema = z.object({
   /**
-   * Discord's message.content VERBATIM — the platform ground truth, before
-   * mention replacement and [Reference N] link rewriting. EMPTY for voice
-   * triggers (the transcript rides rawRoutingTranscript) and for forwarded
-   * triggers (snapshot content rides rawReferencedMessages). Carrying
-   * derived artifacts here overloaded the field's semantics and forced the
-   * shadow to skip voice comparisons.
+   * The trigger message's EFFECTIVE text, before mention replacement and
+   * [Reference N] link rewriting — message.content for a normal trigger, and
+   * the forward snapshot text for a forwarded trigger (bot-client resolves this
+   * via getEffectiveContent). The worker re-derives the current turn solely from
+   * this field, so the forward snapshot text MUST be here — it is NOT carried by
+   * rawReferencedMessages (the BFS crawler only captures fetchable message-id
+   * references, never a forward's inline snapshot). EMPTY for voice triggers,
+   * where the worker re-transcribes the shipped attachment itself (the bot-side
+   * STT transcript rides rawRoutingTranscript, telemetry-only) — keeping the
+   * voice transcript out of this field is what lets the shadow diff STT.
    */
   rawMessageContent: z.string(),
   /**
