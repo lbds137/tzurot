@@ -164,6 +164,74 @@ describe('Admin LLM Config Routes', () => {
       expect(response.status).toBe(400);
       expect(prisma.llmConfig.findMany).not.toHaveBeenCalled();
     });
+
+    it('enriches each list row with supportsVision from the model capabilities', async () => {
+      // gpt-4o resolves vision-capable via OpenRouter; glm-4.7 misses OpenRouter
+      // and resolves text-only from the z.ai catalog → supportsVision false.
+      const mockModelCache = {
+        getModelById: vi.fn(async (id: string) =>
+          id === 'openai/gpt-4o'
+            ? {
+                id,
+                name: 'GPT-4o',
+                contextLength: 128_000,
+                supportsVision: true,
+                supportsImageGeneration: false,
+                supportsAudioInput: false,
+                supportsAudioOutput: false,
+                promptPricePerMillion: 1,
+                completionPricePerMillion: 1,
+              }
+            : null
+        ),
+      };
+      const appWithModel = express();
+      appWithModel.use(express.json());
+      appWithModel.use(
+        '/admin/llm-config',
+        createAdminLlmConfigRoutes({
+          prisma: prisma as unknown as PrismaClient,
+          // List handler doesn't touch cache invalidation, so omit it; modelCache
+          // drives the enrichment.
+          modelCache:
+            mockModelCache as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache,
+        })
+      );
+      prisma.llmConfig.findMany.mockResolvedValue([
+        {
+          id: 'vc-1',
+          name: 'Vision',
+          model: 'openai/gpt-4o',
+          provider: 'openrouter',
+          kind: 'text',
+          isGlobal: true,
+          isDefault: false,
+          isFreeDefault: false,
+          ownerId: 'admin-user-id',
+        },
+        {
+          id: 'tc-1',
+          name: 'Text',
+          model: 'z-ai/glm-4.7',
+          provider: 'openrouter',
+          kind: 'text',
+          isGlobal: true,
+          isDefault: false,
+          isFreeDefault: false,
+          ownerId: 'admin-user-id',
+        },
+      ]);
+
+      const response = await request(appWithModel).get('/admin/llm-config');
+
+      expect(response.status).toBe(200);
+      expect(response.body.configs).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: 'vc-1', supportsVision: true }),
+          expect.objectContaining({ id: 'tc-1', supportsVision: false }),
+        ])
+      );
+    });
   });
 
   describe('invalid ?kind= on by-id write routes', () => {
