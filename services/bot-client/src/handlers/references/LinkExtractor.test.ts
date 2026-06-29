@@ -1,37 +1,36 @@
 /**
  * Tests for LinkExtractor
+ *
+ * Covers the two live methods: fetchMessageFromLink (channel resolution + the
+ * guarded message fetch) and its private verifyInvokerCanAccessSource access
+ * gate (exercised through fetchMessageFromLink, the public entry point). The
+ * former extractLinkReferences orchestration was removed as dead code; these
+ * tests target the live methods directly rather than through it.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { LinkExtractor } from './LinkExtractor.js';
-import { MessageFormatter } from './MessageFormatter.js';
-import { SnapshotFormatter } from './SnapshotFormatter.js';
-import { ChannelType, MessageReferenceType, Collection } from 'discord.js';
-import { INTERVALS, MessageLinkParser } from '@tzurot/common-types';
-import type { Message, Guild, Channel, TextChannel, Client, MessageSnapshot } from 'discord.js';
-import type { ReferencedMessage } from '@tzurot/common-types';
+import { ChannelType } from 'discord.js';
+import type { Message, Guild, Channel, TextChannel, Client } from 'discord.js';
+import type { ParsedMessageLink } from '@tzurot/common-types';
 
-// Partial package mock: stub only the (relocated) MessageLinkParser's static
-// parse — these tests drive LinkExtractor through synthetic parse results.
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
-  return {
-    ...actual,
-    MessageLinkParser: {
-      ...actual.MessageLinkParser,
-      parseMessageLinks: vi.fn(),
-    },
-  };
-});
+// The standard same-guild link every test resolves against createMockMessage's
+// guild-123 / channel-123 fixture. Passed straight to fetchMessageFromLink —
+// no MessageLinkParser involved (that lived in the removed orchestration).
+const TEST_LINK: ParsedMessageLink = {
+  fullUrl: 'https://discord.com/channels/guild-123/channel-123/ref-msg-123',
+  guildId: 'guild-123',
+  channelId: 'channel-123',
+  messageId: 'ref-msg-123',
+};
 
 // Type for mock input - allows any properties to be overridden
 type MockMessageInput = Record<string, unknown>;
 
 // Helper to create mock Discord message.
 // Security-check defaults: channel returns a permissive `permissionsFor` result
-// and the guild returns a valid member on `members.fetch`, so existing tests
-// (which don't exercise the access-check path) continue to pass. Security-
-// specific tests in the "access control" describe block override these.
+// and the guild returns a valid member on `members.fetch`, so non-access tests
+// pass the gate. Access-control tests override these per-case.
 function createMockMessage(overrides: MockMessageInput = {}): Message {
   const permissiveChannelMethods = {
     isDMBased: vi.fn(() => false),
@@ -93,888 +92,162 @@ function createMockMessage(overrides: MockMessageInput = {}): Message {
   } as unknown as Message;
 }
 
-// Helper to create referenced message matching ReferencedMessage schema
-function createReferencedMessage(): ReferencedMessage {
-  return {
-    referenceNumber: 1,
-    discordMessageId: 'ref-msg-123',
-    discordUserId: 'user-123',
-    authorUsername: 'TestAuthor',
-    authorDisplayName: 'Test Author',
-    content: 'Referenced content',
-    embeds: '',
-    timestamp: new Date().toISOString(),
-    locationContext: 'Test Guild / #general',
-  };
-}
-
 describe('LinkExtractor', () => {
   let linkExtractor: LinkExtractor;
-  let mockMessageFormatter: MessageFormatter;
-  let mockSnapshotFormatter: SnapshotFormatter;
 
   beforeEach(() => {
-    mockMessageFormatter = {
-      formatMessage: vi.fn().mockResolvedValue(createReferencedMessage()),
-    } as any;
-
-    mockSnapshotFormatter = {
-      formatSnapshot: vi.fn().mockReturnValue(createReferencedMessage()),
-    } as any;
-
-    linkExtractor = new LinkExtractor(mockMessageFormatter, mockSnapshotFormatter);
-
+    linkExtractor = new LinkExtractor();
     vi.clearAllMocks();
   });
 
-  describe('extractLinkReferences', () => {
-    it('should return empty arrays when no links found', async () => {
-      const mockMessage = createMockMessage({ content: 'No links here' });
-      vi.mocked(MessageLinkParser.parseMessageLinks).mockReturnValue([]);
-
-      const [references, linkMap] = await linkExtractor.extractLinkReferences(
-        mockMessage,
-        new Set(),
-        new Set(),
-        [],
-        1
-      );
-
-      expect(references).toEqual([]);
-      expect(linkMap.size).toBe(0);
-    });
-
-    it('should extract single message link reference', async () => {
-      const mockMessage = createMockMessage();
-      const mockReferencedMessage = createMockMessage({ id: 'ref-msg-123' });
-      const mockChannel = mockMessage.channel as TextChannel;
-
-      vi.mocked(MessageLinkParser.parseMessageLinks).mockReturnValue([
-        {
-          fullUrl: 'https://discord.com/channels/guild-123/channel-123/ref-msg-123',
-          guildId: 'guild-123',
-          channelId: 'channel-123',
-          messageId: 'ref-msg-123',
-        },
-      ]);
-
-      vi.mocked(mockChannel.messages.fetch).mockResolvedValue(mockReferencedMessage as any);
-
-      const [references, linkMap] = await linkExtractor.extractLinkReferences(
-        mockMessage,
-        new Set(),
-        new Set(),
-        [],
-        1
-      );
-
-      expect(references).toHaveLength(1);
-      expect(linkMap.size).toBe(1);
-      expect(linkMap.get('https://discord.com/channels/guild-123/channel-123/ref-msg-123')).toBe(1);
-      expect(mockMessageFormatter.formatMessage).toHaveBeenCalledWith(mockReferencedMessage, 1);
-    });
-
-    it('should skip duplicate link references already extracted from reply', async () => {
-      const mockMessage = createMockMessage();
-      const mockReferencedMessage = createMockMessage({ id: 'ref-msg-123' });
-      const mockChannel = mockMessage.channel as TextChannel;
-
-      vi.mocked(MessageLinkParser.parseMessageLinks).mockReturnValue([
-        {
-          fullUrl: 'https://discord.com/channels/guild-123/channel-123/ref-msg-123',
-          guildId: 'guild-123',
-          channelId: 'channel-123',
-          messageId: 'ref-msg-123',
-        },
-      ]);
-
-      vi.mocked(mockChannel.messages.fetch).mockResolvedValue(mockReferencedMessage as any);
-
-      // Mark as already extracted
-      const extractedMessageIds = new Set(['ref-msg-123']);
-
-      const [references, linkMap] = await linkExtractor.extractLinkReferences(
-        mockMessage,
-        extractedMessageIds,
-        new Set(),
-        [],
-        1
-      );
-
-      expect(references).toHaveLength(0);
-      expect(linkMap.size).toBe(0);
-      expect(mockMessageFormatter.formatMessage).not.toHaveBeenCalled();
-    });
-
-    it('should skip references already in conversation history', async () => {
-      const mockMessage = createMockMessage();
-      const mockReferencedMessage = createMockMessage({ id: 'ref-msg-123' });
-      const mockChannel = mockMessage.channel as TextChannel;
-
-      vi.mocked(MessageLinkParser.parseMessageLinks).mockReturnValue([
-        {
-          fullUrl: 'https://discord.com/channels/guild-123/channel-123/ref-msg-123',
-          guildId: 'guild-123',
-          channelId: 'channel-123',
-          messageId: 'ref-msg-123',
-        },
-      ]);
-
-      vi.mocked(mockChannel.messages.fetch).mockResolvedValue(mockReferencedMessage as any);
-
-      // Mark as in conversation history
-      const conversationHistoryMessageIds = new Set(['ref-msg-123']);
-
-      const [references, linkMap] = await linkExtractor.extractLinkReferences(
-        mockMessage,
-        new Set(),
-        conversationHistoryMessageIds,
-        [],
-        1
-      );
-
-      expect(references).toHaveLength(0);
-      expect(linkMap.size).toBe(0);
-      expect(mockMessageFormatter.formatMessage).not.toHaveBeenCalled();
-    });
-
-    it('should handle forwarded messages with snapshots', async () => {
-      const mockMessage = createMockMessage();
-      const mockSnapshot = {
-        message: {
-          content: 'Forwarded content',
-          embeds: [],
-          attachments: new Collection(),
-        },
-      } as unknown as MessageSnapshot;
-
-      const snapshotsCollection = new Collection<string, MessageSnapshot>();
-      snapshotsCollection.set('snapshot-1', mockSnapshot);
-
-      const mockReferencedMessage = createMockMessage({
-        id: 'ref-msg-123',
-        reference: {
-          type: MessageReferenceType.Forward,
-        },
-        messageSnapshots: snapshotsCollection,
-      });
-
-      const mockChannel = mockMessage.channel as TextChannel;
-
-      vi.mocked(MessageLinkParser.parseMessageLinks).mockReturnValue([
-        {
-          fullUrl: 'https://discord.com/channels/guild-123/channel-123/ref-msg-123',
-          guildId: 'guild-123',
-          channelId: 'channel-123',
-          messageId: 'ref-msg-123',
-        },
-      ]);
-
-      vi.mocked(mockChannel.messages.fetch).mockResolvedValue(mockReferencedMessage as any);
-
-      const [references, linkMap] = await linkExtractor.extractLinkReferences(
-        mockMessage,
-        new Set(),
-        new Set(),
-        [],
-        1
-      );
-
-      expect(references).toHaveLength(1);
-      expect(linkMap.size).toBe(1);
-      expect(mockSnapshotFormatter.formatSnapshot).toHaveBeenCalledWith(
-        mockSnapshot,
-        1,
-        mockReferencedMessage
-      );
-      expect(mockMessageFormatter.formatMessage).not.toHaveBeenCalled();
-    });
-
-    it('should handle multiple links with incrementing reference numbers', async () => {
-      const mockMessage = createMockMessage();
-      const mockRefMsg1 = createMockMessage({ id: 'ref-msg-1' });
-      const mockRefMsg2 = createMockMessage({ id: 'ref-msg-2' });
-      const mockChannel = mockMessage.channel as TextChannel;
-
-      vi.mocked(MessageLinkParser.parseMessageLinks).mockReturnValue([
-        {
-          fullUrl: 'https://discord.com/channels/guild-123/channel-123/ref-msg-1',
-          guildId: 'guild-123',
-          channelId: 'channel-123',
-          messageId: 'ref-msg-1',
-        },
-        {
-          fullUrl: 'https://discord.com/channels/guild-123/channel-123/ref-msg-2',
-          guildId: 'guild-123',
-          channelId: 'channel-123',
-          messageId: 'ref-msg-2',
-        },
-      ]);
-
-      vi.mocked(mockChannel.messages.fetch)
-        .mockResolvedValueOnce(mockRefMsg1 as any)
-        .mockResolvedValueOnce(mockRefMsg2 as any);
-
-      const [references, linkMap] = await linkExtractor.extractLinkReferences(
-        mockMessage,
-        new Set(),
-        new Set(),
-        [],
-        5
-      );
-
-      expect(references).toHaveLength(2);
-      expect(linkMap.size).toBe(2);
-      expect(mockMessageFormatter.formatMessage).toHaveBeenCalledWith(mockRefMsg1, 5);
-      expect(mockMessageFormatter.formatMessage).toHaveBeenCalledWith(mockRefMsg2, 6);
-    });
-
-    it('should skip null messages (failed fetches)', async () => {
+  describe('fetchMessageFromLink — channel resolution + guarded fetch', () => {
+    it('returns the fetched message on the same-guild happy path', async () => {
       const mockMessage = createMockMessage();
       const mockChannel = mockMessage.channel as TextChannel;
+      const fetched = createMockMessage({ id: 'ref-msg-123' });
+      vi.mocked(mockChannel.messages.fetch).mockResolvedValue(fetched as any);
 
-      vi.mocked(MessageLinkParser.parseMessageLinks).mockReturnValue([
-        {
-          fullUrl: 'https://discord.com/channels/guild-123/channel-123/deleted-msg',
-          guildId: 'guild-123',
-          channelId: 'channel-123',
-          messageId: 'deleted-msg',
-        },
-      ]);
+      const result = await linkExtractor.fetchMessageFromLink(TEST_LINK, mockMessage);
 
-      // Simulate message not found (404)
-      vi.mocked(mockChannel.messages.fetch).mockRejectedValue({
-        code: 10008,
-        message: 'Unknown Message',
-      });
-
-      const [references, linkMap] = await linkExtractor.extractLinkReferences(
-        mockMessage,
-        new Set(),
-        new Set(),
-        [],
-        1
-      );
-
-      expect(references).toHaveLength(0);
-      expect(linkMap.size).toBe(0);
+      expect(result).toBe(fetched);
+      expect(mockChannel.messages.fetch).toHaveBeenCalledWith('ref-msg-123');
     });
 
-    it('should handle guild not in cache (fetch required)', async () => {
+    it('returns null when the channel is not text-based', async () => {
       const mockMessage = createMockMessage();
-      const mockClient = mockMessage.client;
-      const mockGuild = {
-        id: 'other-guild-123',
-        name: 'Other Guild',
-        channels: {
-          cache: new Map(),
-        },
-        members: {
-          fetch: vi.fn().mockResolvedValue({ id: 'user-123' }),
-        },
-      } as unknown as Guild;
+      const mockChannel = mockMessage.channel as TextChannel;
+      (mockChannel as any).isTextBased = vi.fn(() => false);
 
-      const mockChannel = {
-        id: 'channel-456',
+      const result = await linkExtractor.fetchMessageFromLink(TEST_LINK, mockMessage);
+
+      expect(result).toBeNull();
+      expect(mockChannel.messages.fetch).not.toHaveBeenCalled();
+    });
+
+    it('fetches the channel via the client when not in the guild cache (thread path)', async () => {
+      const mockMessage = createMockMessage();
+      const sourceGuild = mockMessage.guild!;
+      // Empty the guild cache so resolveSourceChannel misses → client.channels.fetch.
+      (sourceGuild as any).channels = { cache: new Map(), fetch: vi.fn() };
+
+      const threadChannel = {
+        id: 'channel-123',
         isTextBased: vi.fn(() => true),
         isThread: vi.fn(() => false),
         isDMBased: vi.fn(() => false),
         permissionsFor: vi.fn(() => ({ has: vi.fn(() => true) })),
-        guild: mockGuild,
-        messages: {
-          fetch: vi.fn().mockResolvedValue(createMockMessage({ id: 'ref-msg-456' })),
-        },
+        guild: sourceGuild,
+        messages: { fetch: vi.fn().mockResolvedValue(createMockMessage({ id: 'ref-msg-123' })) },
       } as unknown as TextChannel;
+      vi.mocked(mockMessage.client.channels.fetch).mockResolvedValue(threadChannel as any);
 
-      // Guild not in cache
-      mockClient.guilds.cache.clear();
+      const result = await linkExtractor.fetchMessageFromLink(TEST_LINK, mockMessage);
 
-      // Mock guild fetch - returns Guild for single ID fetch
-      vi.mocked(mockClient.guilds.fetch).mockResolvedValue(mockGuild as any);
-      vi.mocked(mockClient.channels.fetch).mockResolvedValue(mockChannel as Channel);
+      expect(result).not.toBeNull();
+      expect(mockMessage.client.channels.fetch).toHaveBeenCalledWith('channel-123');
+    });
 
-      // Mock channel to have this channel
-      (mockGuild as any).channels = {
-        cache: new Map(),
+    it('fetches the guild when not in cache, then resolves the channel', async () => {
+      const mockMessage = createMockMessage();
+      // Remove the guild from cache so resolveSourceChannel calls guilds.fetch.
+      (mockMessage.client.guilds.cache as Map<string, Guild>).clear();
+      const fetchedGuild = mockMessage.guild!;
+      vi.mocked(mockMessage.client.guilds.fetch).mockResolvedValue(fetchedGuild as any);
+      const mockChannel = mockMessage.channel as TextChannel;
+      vi.mocked(mockChannel.messages.fetch).mockResolvedValue(
+        createMockMessage({ id: 'ref-msg-123' }) as any
+      );
+
+      const result = await linkExtractor.fetchMessageFromLink(TEST_LINK, mockMessage);
+
+      expect(result).not.toBeNull();
+      expect(mockMessage.client.guilds.fetch).toHaveBeenCalledWith('guild-123');
+    });
+
+    it('returns null when the guild fetch fails', async () => {
+      const mockMessage = createMockMessage();
+      (mockMessage.client.guilds.cache as Map<string, Guild>).clear();
+      vi.mocked(mockMessage.client.guilds.fetch).mockRejectedValue(new Error('No access') as never);
+      // The thread-fetch fallback must also miss, else it rescues the null guild.
+      vi.mocked(mockMessage.client.channels.fetch).mockResolvedValue(null as any);
+
+      const result = await linkExtractor.fetchMessageFromLink(TEST_LINK, mockMessage);
+
+      expect(result).toBeNull();
+    });
+
+    it('returns null when a DM-format link channel fetch fails', async () => {
+      const mockMessage = createMockMessage();
+      vi.mocked(mockMessage.client.channels.fetch).mockRejectedValue(
+        new Error('DM not accessible') as never
+      );
+
+      const dmLink: ParsedMessageLink = {
+        fullUrl: 'https://discord.com/channels/@me/dm-channel-1/ref-msg-dm',
+        guildId: null,
+        channelId: 'dm-channel-1',
+        messageId: 'ref-msg-dm',
       };
+      const result = await linkExtractor.fetchMessageFromLink(dmLink, mockMessage);
 
-      vi.mocked(MessageLinkParser.parseMessageLinks).mockReturnValue([
-        {
-          fullUrl: 'https://discord.com/channels/other-guild-123/channel-456/ref-msg-456',
-          guildId: 'other-guild-123',
-          channelId: 'channel-456',
-          messageId: 'ref-msg-456',
-        },
-      ]);
-
-      const [references, _linkMap] = await linkExtractor.extractLinkReferences(
-        mockMessage,
-        new Set(),
-        new Set(),
-        [],
-        1
-      );
-
-      expect(mockClient.guilds.fetch).toHaveBeenCalledWith('other-guild-123');
-      expect(references).toHaveLength(1);
+      expect(result).toBeNull();
     });
 
-    it('should resolve DM-format links via direct channel fetch (guildId === null)', async () => {
-      // Regression: DM-format URLs (`/channels/@me/...`) parse with `guildId: null`.
-      // `resolveSourceChannel` skips the guild fetch entirely and resolves the channel
-      // via `client.channels.fetch(channelId)` directly. The downstream access check
-      // (`verifyInvokerCanAccessSource` → `isDMBased()` branch) then verifies the
-      // invoker is THE recipient of that DM.
+    it('returns null when the client channel fetch fails (thread path)', async () => {
       const mockMessage = createMockMessage();
-      const mockClient = mockMessage.client;
-      const invokerId = mockMessage.author.id;
+      const sourceGuild = mockMessage.guild!;
+      (sourceGuild as any).channels = { cache: new Map(), fetch: vi.fn() };
+      vi.mocked(mockMessage.client.channels.fetch).mockRejectedValue(
+        new Error('Unknown Channel') as never
+      );
 
-      const mockDmChannel = {
-        id: 'dm-channel-789',
+      const result = await linkExtractor.fetchMessageFromLink(TEST_LINK, mockMessage);
+
+      expect(result).toBeNull();
+    });
+
+    it('resolves a DM-format link (guildId === null) via a direct channel fetch', async () => {
+      const mockMessage = createMockMessage();
+      const dmChannel = {
+        id: 'dm-channel-1',
         isTextBased: vi.fn(() => true),
         isThread: vi.fn(() => false),
         isDMBased: vi.fn(() => true),
-        recipientId: invokerId,
-        messages: {
-          fetch: vi.fn().mockResolvedValue(createMockMessage({ id: 'dm-msg-456' })),
-        },
-      } as unknown as Channel;
-
-      vi.mocked(mockClient.channels.fetch).mockResolvedValue(mockDmChannel);
-
-      vi.mocked(MessageLinkParser.parseMessageLinks).mockReturnValue([
-        {
-          fullUrl: 'https://discord.com/channels/@me/dm-channel-789/dm-msg-456',
-          guildId: null,
-          channelId: 'dm-channel-789',
-          messageId: 'dm-msg-456',
-        },
-      ]);
-
-      const [references, linkMap] = await linkExtractor.extractLinkReferences(
-        mockMessage,
-        new Set(),
-        new Set(),
-        [],
-        1
-      );
-
-      expect(mockClient.channels.fetch).toHaveBeenCalledWith('dm-channel-789');
-      expect(mockClient.guilds.fetch).not.toHaveBeenCalled();
-      expect(references).toHaveLength(1);
-      expect(linkMap.size).toBe(1);
-    });
-
-    it('should deny DM-format link expansion when invoker is not the DM recipient', async () => {
-      // Security: a user cannot paste another user's DM link and have it expanded.
-      // The DM channel fetch succeeds (the bot has access to its own DMs), but the
-      // `verifyInvokerCanAccessSource` participant check rejects when
-      // `recipientId !== invokerId`.
-      const mockMessage = createMockMessage();
-      const mockClient = mockMessage.client;
-
-      const mockDmChannel = {
-        id: 'dm-channel-789',
-        isTextBased: vi.fn(() => true),
-        isThread: vi.fn(() => false),
-        isDMBased: vi.fn(() => true),
-        recipientId: 'different-user-456',
-        messages: {
-          fetch: vi.fn().mockResolvedValue(createMockMessage({ id: 'dm-msg-456' })),
-        },
-      } as unknown as Channel;
-
-      vi.mocked(mockClient.channels.fetch).mockResolvedValue(mockDmChannel);
-
-      vi.mocked(MessageLinkParser.parseMessageLinks).mockReturnValue([
-        {
-          fullUrl: 'https://discord.com/channels/@me/dm-channel-789/dm-msg-456',
-          guildId: null,
-          channelId: 'dm-channel-789',
-          messageId: 'dm-msg-456',
-        },
-      ]);
-
-      const [references, linkMap] = await linkExtractor.extractLinkReferences(
-        mockMessage,
-        new Set(),
-        new Set(),
-        [],
-        1
-      );
-
-      expect(references).toHaveLength(0);
-      expect(linkMap.size).toBe(0);
-    });
-
-    it('should handle guild fetch failure', async () => {
-      const mockMessage = createMockMessage();
-      const mockClient = mockMessage.client;
-
-      // Guild not in cache
-      mockClient.guilds.cache.clear();
-
-      // Mock guild fetch failure
-      vi.mocked(mockClient.guilds.fetch).mockRejectedValue({
-        code: 50001,
-        message: 'Missing Access',
-      });
-
-      vi.mocked(MessageLinkParser.parseMessageLinks).mockReturnValue([
-        {
-          fullUrl: 'https://discord.com/channels/forbidden-guild/channel-123/msg-123',
-          guildId: 'forbidden-guild',
-          channelId: 'channel-123',
-          messageId: 'msg-123',
-        },
-      ]);
-
-      const [references, linkMap] = await linkExtractor.extractLinkReferences(
-        mockMessage,
-        new Set(),
-        new Set(),
-        [],
-        1
-      );
-
-      expect(references).toHaveLength(0);
-      expect(linkMap.size).toBe(0);
-    });
-
-    it('should handle channel not in cache (thread fetch required)', async () => {
-      const mockMessage = createMockMessage();
-      const mockClient = mockMessage.client;
-      const mockGuild = mockMessage.guild!;
-
-      const mockThreadChannel = {
-        id: 'thread-789',
-        type: 11, // PUBLIC_THREAD
-        isTextBased: vi.fn(() => true),
-        isThread: vi.fn(() => true),
-        isDMBased: vi.fn(() => false),
-        permissionsFor: vi.fn(() => ({ has: vi.fn(() => true) })),
-        guild: mockGuild,
-        messages: {
-          fetch: vi.fn().mockResolvedValue(createMockMessage({ id: 'thread-msg-789' })),
-        },
+        recipientId: 'user-123',
+        messages: { fetch: vi.fn().mockResolvedValue(createMockMessage({ id: 'ref-msg-dm' })) },
       } as unknown as TextChannel;
+      vi.mocked(mockMessage.client.channels.fetch).mockResolvedValue(dmChannel as any);
 
-      // Channel not in guild cache
-      (mockGuild.channels.cache as Map<string, Channel>).clear();
+      const dmLink: ParsedMessageLink = {
+        fullUrl: 'https://discord.com/channels/@me/dm-channel-1/ref-msg-dm',
+        guildId: null,
+        channelId: 'dm-channel-1',
+        messageId: 'ref-msg-dm',
+      };
+      const result = await linkExtractor.fetchMessageFromLink(dmLink, mockMessage);
 
-      // Mock channel fetch
-      vi.mocked(mockClient.channels.fetch).mockResolvedValue(mockThreadChannel as Channel);
-
-      vi.mocked(MessageLinkParser.parseMessageLinks).mockReturnValue([
-        {
-          fullUrl: 'https://discord.com/channels/guild-123/thread-789/thread-msg-789',
-          guildId: 'guild-123',
-          channelId: 'thread-789',
-          messageId: 'thread-msg-789',
-        },
-      ]);
-
-      const [references, _linkMap] = await linkExtractor.extractLinkReferences(
-        mockMessage,
-        new Set(),
-        new Set(),
-        [],
-        1
-      );
-
-      expect(mockClient.channels.fetch).toHaveBeenCalledWith('thread-789');
-      expect(references).toHaveLength(1);
+      expect(result).not.toBeNull();
+      expect(mockMessage.client.channels.fetch).toHaveBeenCalledWith('dm-channel-1');
     });
 
-    it('should handle channel fetch failure', async () => {
-      const mockMessage = createMockMessage();
-      const mockClient = mockMessage.client;
-      const mockGuild = mockMessage.guild!;
-
-      // Channel not in guild cache
-      (mockGuild.channels.cache as Map<string, Channel>).clear();
-
-      // Mock channel fetch failure
-      vi.mocked(mockClient.channels.fetch).mockRejectedValue({
-        code: 10003,
-        message: 'Unknown Channel',
-      });
-
-      vi.mocked(MessageLinkParser.parseMessageLinks).mockReturnValue([
-        {
-          fullUrl: 'https://discord.com/channels/guild-123/deleted-channel/msg-123',
-          guildId: 'guild-123',
-          channelId: 'deleted-channel',
-          messageId: 'msg-123',
-        },
-      ]);
-
-      const [references, linkMap] = await linkExtractor.extractLinkReferences(
-        mockMessage,
-        new Set(),
-        new Set(),
-        [],
-        1
-      );
-
-      expect(references).toHaveLength(0);
-      expect(linkMap.size).toBe(0);
-    });
-
-    it('should handle non-text-based channels', async () => {
-      const mockMessage = createMockMessage();
-      const mockGuild = mockMessage.guild!;
-
-      const mockVoiceChannel = {
-        id: 'voice-123',
-        type: 2, // GUILD_VOICE
-        isTextBased: vi.fn(() => false),
-      } as unknown as Channel;
-
-      (mockGuild.channels.cache as Map<string, Channel>).set(
-        'voice-123',
-        mockVoiceChannel as Channel
-      );
-
-      vi.mocked(MessageLinkParser.parseMessageLinks).mockReturnValue([
-        {
-          fullUrl: 'https://discord.com/channels/guild-123/voice-123/msg-123',
-          guildId: 'guild-123',
-          channelId: 'voice-123',
-          messageId: 'msg-123',
-        },
-      ]);
-
-      const [references, linkMap] = await linkExtractor.extractLinkReferences(
-        mockMessage,
-        new Set(),
-        new Set(),
-        [],
-        1
-      );
-
-      expect(references).toHaveLength(0);
-      expect(linkMap.size).toBe(0);
-    });
-
-    it('should handle message fetch with permission error (50013)', async () => {
+    it.each([
+      { label: 'Unknown Message (10008)', code: 10008 },
+      { label: 'Missing Access (50001)', code: 50001 },
+      { label: 'Missing Permissions (50013)', code: 50013 },
+      { label: 'unexpected error (no code)', code: undefined },
+    ])('returns null when messages.fetch throws $label', async ({ code }) => {
       const mockMessage = createMockMessage();
       const mockChannel = mockMessage.channel as TextChannel;
+      const err = Object.assign(new Error('fetch failed'), code === undefined ? {} : { code });
+      vi.mocked(mockChannel.messages.fetch).mockRejectedValue(err as never);
 
-      vi.mocked(MessageLinkParser.parseMessageLinks).mockReturnValue([
-        {
-          fullUrl: 'https://discord.com/channels/guild-123/channel-123/private-msg',
-          guildId: 'guild-123',
-          channelId: 'channel-123',
-          messageId: 'private-msg',
-        },
-      ]);
+      const result = await linkExtractor.fetchMessageFromLink(TEST_LINK, mockMessage);
 
-      vi.mocked(mockChannel.messages.fetch).mockRejectedValue({
-        code: 50013,
-        message: 'Missing Permissions',
-      });
-
-      const [references, linkMap] = await linkExtractor.extractLinkReferences(
-        mockMessage,
-        new Set(),
-        new Set(),
-        [],
-        1
-      );
-
-      expect(references).toHaveLength(0);
-      expect(linkMap.size).toBe(0);
-    });
-
-    it('should handle message fetch with missing access error (50001)', async () => {
-      const mockMessage = createMockMessage();
-      const mockChannel = mockMessage.channel as TextChannel;
-
-      vi.mocked(MessageLinkParser.parseMessageLinks).mockReturnValue([
-        {
-          fullUrl: 'https://discord.com/channels/guild-123/channel-123/no-access-msg',
-          guildId: 'guild-123',
-          channelId: 'channel-123',
-          messageId: 'no-access-msg',
-        },
-      ]);
-
-      vi.mocked(mockChannel.messages.fetch).mockRejectedValue({
-        code: 50001,
-        message: 'Missing Access',
-      });
-
-      const [references, linkMap] = await linkExtractor.extractLinkReferences(
-        mockMessage,
-        new Set(),
-        new Set(),
-        [],
-        1
-      );
-
-      expect(references).toHaveLength(0);
-      expect(linkMap.size).toBe(0);
-    });
-
-    it('should handle unexpected fetch errors', async () => {
-      const mockMessage = createMockMessage();
-      const mockChannel = mockMessage.channel as TextChannel;
-
-      vi.mocked(MessageLinkParser.parseMessageLinks).mockReturnValue([
-        {
-          fullUrl: 'https://discord.com/channels/guild-123/channel-123/error-msg',
-          guildId: 'guild-123',
-          channelId: 'channel-123',
-          messageId: 'error-msg',
-        },
-      ]);
-
-      vi.mocked(mockChannel.messages.fetch).mockRejectedValue({
-        code: 99999,
-        message: 'Unexpected error',
-      });
-
-      const [references, linkMap] = await linkExtractor.extractLinkReferences(
-        mockMessage,
-        new Set(),
-        new Set(),
-        [],
-        1
-      );
-
-      expect(references).toHaveLength(0);
-      expect(linkMap.size).toBe(0);
-    });
-
-    it('should deduplicate webhook messages by timestamp', async () => {
-      const mockMessage = createMockMessage();
-      const messageTime = new Date();
-      const mockReferencedMessage = createMockMessage({
-        id: 'webhook-msg-123',
-        webhookId: 'webhook-123',
-        createdAt: messageTime,
-        author: { bot: false } as any,
-      });
-
-      const mockChannel = mockMessage.channel as TextChannel;
-
-      vi.mocked(MessageLinkParser.parseMessageLinks).mockReturnValue([
-        {
-          fullUrl: 'https://discord.com/channels/guild-123/channel-123/webhook-msg-123',
-          guildId: 'guild-123',
-          channelId: 'channel-123',
-          messageId: 'webhook-msg-123',
-        },
-      ]);
-
-      vi.mocked(mockChannel.messages.fetch).mockResolvedValue(mockReferencedMessage as any);
-
-      // Timestamp within tolerance (5 seconds difference)
-      const historyTimestamp = new Date(messageTime.getTime() + 5000);
-
-      const [references, linkMap] = await linkExtractor.extractLinkReferences(
-        mockMessage,
-        new Set(),
-        new Set(),
-        [historyTimestamp],
-        1
-      );
-
-      // Should be deduplicated
-      expect(references).toHaveLength(0);
-      expect(linkMap.size).toBe(0);
-    });
-
-    it('should deduplicate bot messages by timestamp', async () => {
-      const mockMessage = createMockMessage();
-      const messageTime = new Date();
-      const mockReferencedMessage = createMockMessage({
-        id: 'bot-msg-123',
-        webhookId: null,
-        createdAt: messageTime,
-        author: { bot: true, id: 'bot-123', username: 'BotUser' } as any,
-      });
-
-      const mockChannel = mockMessage.channel as TextChannel;
-
-      vi.mocked(MessageLinkParser.parseMessageLinks).mockReturnValue([
-        {
-          fullUrl: 'https://discord.com/channels/guild-123/channel-123/bot-msg-123',
-          guildId: 'guild-123',
-          channelId: 'channel-123',
-          messageId: 'bot-msg-123',
-        },
-      ]);
-
-      vi.mocked(mockChannel.messages.fetch).mockResolvedValue(mockReferencedMessage as any);
-
-      // Timestamp within tolerance (3 seconds difference)
-      const historyTimestamp = new Date(messageTime.getTime() + 3000);
-
-      const [references, linkMap] = await linkExtractor.extractLinkReferences(
-        mockMessage,
-        new Set(),
-        new Set(),
-        [historyTimestamp],
-        1
-      );
-
-      // Should be deduplicated
-      expect(references).toHaveLength(0);
-      expect(linkMap.size).toBe(0);
-    });
-
-    it('should not deduplicate webhook messages outside time window', async () => {
-      const mockMessage = createMockMessage();
-      // Message from 2 minutes ago (outside 60s window)
-      const messageTime = new Date(Date.now() - INTERVALS.MESSAGE_AGE_DEDUP_WINDOW - 10000);
-      const mockReferencedMessage = createMockMessage({
-        id: 'old-webhook-msg',
-        webhookId: 'webhook-123',
-        createdAt: messageTime,
-        author: { bot: false } as any,
-      });
-
-      const mockChannel = mockMessage.channel as TextChannel;
-
-      vi.mocked(MessageLinkParser.parseMessageLinks).mockReturnValue([
-        {
-          fullUrl: 'https://discord.com/channels/guild-123/channel-123/old-webhook-msg',
-          guildId: 'guild-123',
-          channelId: 'channel-123',
-          messageId: 'old-webhook-msg',
-        },
-      ]);
-
-      vi.mocked(mockChannel.messages.fetch).mockResolvedValue(mockReferencedMessage as any);
-
-      const historyTimestamp = new Date(messageTime.getTime() + 5000);
-
-      const [references, linkMap] = await linkExtractor.extractLinkReferences(
-        mockMessage,
-        new Set(),
-        new Set(),
-        [historyTimestamp],
-        1
-      );
-
-      // Should NOT be deduplicated (too old)
-      expect(references).toHaveLength(1);
-      expect(linkMap.size).toBe(1);
-    });
-
-    it('should not deduplicate webhook messages with timestamp outside tolerance', async () => {
-      const mockMessage = createMockMessage();
-      const messageTime = new Date();
-      const mockReferencedMessage = createMockMessage({
-        id: 'webhook-msg-456',
-        webhookId: 'webhook-456',
-        createdAt: messageTime,
-        author: { bot: false } as any,
-      });
-
-      const mockChannel = mockMessage.channel as TextChannel;
-
-      vi.mocked(MessageLinkParser.parseMessageLinks).mockReturnValue([
-        {
-          fullUrl: 'https://discord.com/channels/guild-123/channel-123/webhook-msg-456',
-          guildId: 'guild-123',
-          channelId: 'channel-123',
-          messageId: 'webhook-msg-456',
-        },
-      ]);
-
-      vi.mocked(mockChannel.messages.fetch).mockResolvedValue(mockReferencedMessage as any);
-
-      // Timestamp difference > 15s (outside tolerance)
-      const historyTimestamp = new Date(
-        messageTime.getTime() + INTERVALS.MESSAGE_TIMESTAMP_TOLERANCE + 5000
-      );
-
-      const [references, linkMap] = await linkExtractor.extractLinkReferences(
-        mockMessage,
-        new Set(),
-        new Set(),
-        [historyTimestamp],
-        1
-      );
-
-      // Should NOT be deduplicated (timestamp too different)
-      expect(references).toHaveLength(1);
-      expect(linkMap.size).toBe(1);
-    });
-
-    it('should not apply time-based deduplication to user messages', async () => {
-      const mockMessage = createMockMessage();
-      const messageTime = new Date();
-      const mockReferencedMessage = createMockMessage({
-        id: 'user-msg-123',
-        webhookId: null,
-        createdAt: messageTime,
-        author: { bot: false, id: 'user-789', username: 'RealUser' } as any,
-      });
-
-      const mockChannel = mockMessage.channel as TextChannel;
-
-      vi.mocked(MessageLinkParser.parseMessageLinks).mockReturnValue([
-        {
-          fullUrl: 'https://discord.com/channels/guild-123/channel-123/user-msg-123',
-          guildId: 'guild-123',
-          channelId: 'channel-123',
-          messageId: 'user-msg-123',
-        },
-      ]);
-
-      vi.mocked(mockChannel.messages.fetch).mockResolvedValue(mockReferencedMessage as any);
-
-      // Matching timestamp, but message is from real user (not bot/webhook)
-      const historyTimestamp = new Date(messageTime.getTime() + 2000);
-
-      const [references, linkMap] = await linkExtractor.extractLinkReferences(
-        mockMessage,
-        new Set(),
-        new Set(),
-        [historyTimestamp],
-        1
-      );
-
-      // Should NOT be deduplicated (user message, not bot/webhook)
-      expect(references).toHaveLength(1);
-      expect(linkMap.size).toBe(1);
+      expect(result).toBeNull();
     });
   });
 
-  // ============================================================================
-  // SECURITY: invoking-user access check on message-link expansion.
-  //
-  // The bot has cross-channel credentials that the invoking user may not share.
-  // Without the invoker-access check, pasting a link to a private #staff channel
-  // in a public channel would let the bot expand the private content into the
-  // AI's context, potentially surfacing in the AI reply the victim user reads.
-  //
-  // These tests cover the access-check decision tree in
-  // `LinkExtractor.verifyInvokerCanAccessSource`:
-  //   - DM source: only DM participant can expand
-  //   - Guild source: invoker must be a guild member AND have ViewChannel +
-  //     ReadMessageHistory on the source channel
-  //   - Private thread: additionally requires thread membership
-  //   - Fail closed: any null/undefined check result denies access
-  // ============================================================================
   describe('access control (verifyInvokerCanAccessSource)', () => {
-    beforeEach(() => {
-      vi.clearAllMocks();
-      // Default: every link parses to the same test link
-      vi.mocked(MessageLinkParser.parseMessageLinks).mockReturnValue([
-        {
-          fullUrl: 'https://discord.com/channels/guild-123/channel-123/ref-msg-123',
-          guildId: 'guild-123',
-          channelId: 'channel-123',
-          messageId: 'ref-msg-123',
-        },
-      ]);
-    });
-
     it('allows expansion when invoker has ViewChannel + ReadMessageHistory in same-guild source', async () => {
       const mockMessage = createMockMessage();
       const mockChannel = mockMessage.channel as TextChannel;
@@ -982,109 +255,68 @@ describe('LinkExtractor', () => {
         createMockMessage({ id: 'ref-msg-123' }) as any
       );
 
-      const [references] = await linkExtractor.extractLinkReferences(
-        mockMessage,
-        new Set(),
-        new Set(),
-        [],
-        1
-      );
+      const result = await linkExtractor.fetchMessageFromLink(TEST_LINK, mockMessage);
 
-      expect(references).toHaveLength(1);
+      expect(result).not.toBeNull();
       expect(mockChannel.messages.fetch).toHaveBeenCalledWith('ref-msg-123');
       // Assert the permission check ACTUALLY RAN, not just that the happy
       // path produced the right result. Without this assertion, a future
-      // refactor that accidentally bypasses `permissionsFor()` (e.g., moved
-      // behind an unrelated flag) would still pass this test because the
-      // default permissive mocks would let the expansion succeed regardless.
-      // Closes the "test coverage theater" gap — we now verify both the
-      // outcome AND that the security check is in the code path.
+      // refactor that accidentally bypasses `permissionsFor()` would still
+      // pass because the default permissive mocks let expansion succeed.
       expect(mockChannel.permissionsFor).toHaveBeenCalled();
     });
 
     it('denies expansion when invoker lacks ViewChannel on source channel', async () => {
       const mockMessage = createMockMessage();
       const mockChannel = mockMessage.channel as TextChannel;
-
-      // Override permissionsFor to deny
       (mockChannel as any).permissionsFor = vi.fn(() => ({ has: vi.fn(() => false) }));
 
-      const [references] = await linkExtractor.extractLinkReferences(
-        mockMessage,
-        new Set(),
-        new Set(),
-        [],
-        1
-      );
+      const result = await linkExtractor.fetchMessageFromLink(TEST_LINK, mockMessage);
 
-      expect(references).toHaveLength(0);
+      expect(result).toBeNull();
       expect(mockChannel.messages.fetch).not.toHaveBeenCalled();
     });
 
     it('denies expansion when invoker has ViewChannel but not ReadMessageHistory', async () => {
-      // Documents the AND-semantics of the permission check. The production
-      // code asserts BOTH flags via `permissions.has([ViewChannel, ReadMessageHistory])`.
-      // An accidental refactor to `has(ViewChannel)` only would silently
-      // weaken the check — this test would catch that regression.
+      // Documents the AND-semantics: production asserts BOTH flags via
+      // `permissions.has([ViewChannel, ReadMessageHistory])`. The mock catches
+      // a scalar-vs-array shape change (a refactor to `has(ViewChannel)`); a
+      // flag-CONTENT change like `has([ViewChannel])` would still be an array
+      // and need a length/content check to catch.
       const mockMessage = createMockMessage();
       const mockChannel = mockMessage.channel as TextChannel;
-
-      // Mock `has()` to return true for ViewChannel alone but false when
-      // both flags are required as an array. This simulates the real
-      // PermissionsBitField.has() behavior: `has(single)` vs `has([a, b])`.
       (mockChannel as any).permissionsFor = vi.fn(() => ({
         has: vi.fn((flags: unknown) => {
-          // The production call passes an array of both flags → must return false
+          // The production call passes an array of both flags → must return false.
           if (Array.isArray(flags)) {
             return false;
           }
-          // A single-flag call (what a weakened refactor might use) → would be true
+          // A single-flag call (what a weakened refactor might use) → would be true.
           return true;
         }),
       }));
 
-      const [references] = await linkExtractor.extractLinkReferences(
-        mockMessage,
-        new Set(),
-        new Set(),
-        [],
-        1
-      );
+      const result = await linkExtractor.fetchMessageFromLink(TEST_LINK, mockMessage);
 
-      expect(references).toHaveLength(0);
+      expect(result).toBeNull();
       expect(mockChannel.messages.fetch).not.toHaveBeenCalled();
     });
 
     it('allows expansion when invoker IS a member of the source guild (cross-guild happy path)', async () => {
-      // Critical correctness test: ensures the access check targets the
-      // SOURCE guild (the guild that owns the linked channel) and NOT the
-      // invoker's current guild. A naive refactor using `sourceMessage.guild`
-      // instead of `channel.guild` would still pass the same-guild tests
-      // above but would silently break cross-guild access control — this
-      // test catches that regression by giving the two guilds DIFFERENT
-      // members.fetch mocks and asserting the SOURCE guild's was called.
+      // Critical correctness test: the access check must target the SOURCE
+      // guild (owner of the linked channel), NOT the invoker's current guild.
+      // A naive refactor using the invoker's guild would pass the same-guild
+      // tests but break cross-guild access control — caught here by giving the
+      // two guilds DIFFERENT members.fetch mocks.
       const mockMessage = createMockMessage();
       const invokerCurrentGuild = mockMessage.guild!;
 
-      // Distinct source guild with its own members.fetch. Invoker IS a
-      // member of this foreign guild → fetch resolves → expansion allowed.
       const sourceGuildFetch = vi.fn().mockResolvedValue({ id: 'user-123' });
       const sourceGuild = {
         id: 'other-guild-999',
         name: 'Other Guild',
         members: { fetch: sourceGuildFetch },
       } as unknown as Guild;
-
-      // Point the test link at the OTHER guild, and swap the mocked channel
-      // onto that guild's resolution path.
-      vi.mocked(MessageLinkParser.parseMessageLinks).mockReturnValue([
-        {
-          fullUrl: 'https://discord.com/channels/other-guild-999/channel-456/ref-msg-456',
-          guildId: 'other-guild-999',
-          channelId: 'channel-456',
-          messageId: 'ref-msg-456',
-        },
-      ]);
 
       const foreignChannel = {
         id: 'channel-456',
@@ -1098,133 +330,88 @@ describe('LinkExtractor', () => {
         },
       } as unknown as TextChannel;
 
-      // Client-level resolution: the link parser hits guilds.fetch → returns
-      // the source guild; guild.channels.cache lookup misses → falls to
-      // client.channels.fetch → returns the foreign channel.
+      // Client-level resolution: guilds.fetch → source guild; its channel cache
+      // misses → client.channels.fetch → the foreign channel.
       vi.mocked(mockMessage.client.guilds.fetch).mockResolvedValue(sourceGuild as any);
       vi.mocked(mockMessage.client.channels.fetch).mockResolvedValue(foreignChannel as any);
       (sourceGuild as any).channels = { cache: new Map() };
 
-      const [references] = await linkExtractor.extractLinkReferences(
-        mockMessage,
-        new Set(),
-        new Set(),
-        [],
-        1
-      );
+      const crossGuildLink: ParsedMessageLink = {
+        fullUrl: 'https://discord.com/channels/other-guild-999/channel-456/ref-msg-456',
+        guildId: 'other-guild-999',
+        channelId: 'channel-456',
+        messageId: 'ref-msg-456',
+      };
+      const result = await linkExtractor.fetchMessageFromLink(crossGuildLink, mockMessage);
 
-      expect(references).toHaveLength(1);
-      // CRITICAL assertions: the SOURCE guild's fetch was called, NOT the
-      // invoker's current guild's fetch. A bug here would pass the denial
-      // test (same-guild-lookup-fails) but fail this one (wrong guild queried).
+      expect(result).not.toBeNull();
+      // CRITICAL: the SOURCE guild's fetch was called, NOT the invoker's current guild's.
       expect(sourceGuildFetch).toHaveBeenCalledWith('user-123');
       expect(invokerCurrentGuild.members.fetch).not.toHaveBeenCalled();
     });
 
     it('denies expansion when invoker is not a member of the source guild (cross-guild leak)', async () => {
-      // Classic exploit: bot is in private guild Y, attacker in guild X pastes
-      // a guild-Y link into a guild-X channel. Invoker isn't in guild Y →
-      // members.fetch rejects → deny.
+      // Classic exploit: bot is in private guild Y, attacker in guild X pastes a
+      // guild-Y link. Invoker isn't in guild Y → members.fetch rejects → deny.
       const mockMessage = createMockMessage();
       const mockGuild = mockMessage.guild!;
       const mockChannel = mockMessage.channel as TextChannel;
-
-      // members.fetch rejects (user not in source guild)
       vi.mocked(mockGuild.members.fetch).mockRejectedValue(new Error('Unknown Member') as never);
 
-      const [references] = await linkExtractor.extractLinkReferences(
-        mockMessage,
-        new Set(),
-        new Set(),
-        [],
-        1
-      );
+      const result = await linkExtractor.fetchMessageFromLink(TEST_LINK, mockMessage);
 
-      expect(references).toHaveLength(0);
+      expect(result).toBeNull();
       expect(mockChannel.messages.fetch).not.toHaveBeenCalled();
     });
 
     it('allows expansion when invoker is a DM participant (self-reference to own DM)', async () => {
-      // The legitimate case: you're in a DM with the bot and you paste a link
-      // to your own DM message in another conversation. You have access.
-      //
-      // The DM branch is the PRIMARY access-verification path for DM-format
-      // links (`/channels/@me/...`): `MessageLinkParser` parses such URLs
-      // with `guildId: null`, `resolveSourceChannel` fetches the DM channel
-      // directly via `client.channels.fetch`, and execution reaches the
-      // `isDMBased()` participant check. This test confirms the participant
-      // check passes when the invoker IS the DM recipient.
+      // Legitimate case: you paste a link to your own DM with the bot.
       const mockMessage = createMockMessage();
       const mockChannel = mockMessage.channel as TextChannel;
-
-      // Override channel to be a DM where invoker (user-123) is the recipient
       (mockChannel as any).isDMBased = vi.fn(() => true);
       (mockChannel as any).recipientId = 'user-123';
       vi.mocked(mockChannel.messages.fetch).mockResolvedValue(
         createMockMessage({ id: 'ref-msg-123' }) as any
       );
 
-      const [references] = await linkExtractor.extractLinkReferences(
-        mockMessage,
-        new Set(),
-        new Set(),
-        [],
-        1
-      );
+      const result = await linkExtractor.fetchMessageFromLink(TEST_LINK, mockMessage);
 
-      expect(references).toHaveLength(1);
+      expect(result).not.toBeNull();
     });
 
     it('denies expansion when invoker is NOT a DM participant (third-party DM leak)', async () => {
-      // The exploit case: someone else pastes a link to a DM they're not part
-      // of, trying to get the bot to expand it. Deny.
+      // Exploit: someone pastes a link to a DM they're not part of.
       const mockMessage = createMockMessage();
       const mockChannel = mockMessage.channel as TextChannel;
-
-      // DM exists but invoker (user-123) is NOT the recipient
       (mockChannel as any).isDMBased = vi.fn(() => true);
       (mockChannel as any).recipientId = 'some-other-user-999';
 
-      const [references] = await linkExtractor.extractLinkReferences(
-        mockMessage,
-        new Set(),
-        new Set(),
-        [],
-        1
-      );
+      const result = await linkExtractor.fetchMessageFromLink(TEST_LINK, mockMessage);
 
-      expect(references).toHaveLength(0);
+      expect(result).toBeNull();
       expect(mockChannel.messages.fetch).not.toHaveBeenCalled();
     });
 
     it('denies expansion for private thread when invoker is not a thread member', async () => {
-      // Private threads (type 12) have an explicit member list. Parent-channel
-      // ViewChannel isn't enough — you must be in the thread's member list.
+      // Private threads (type 12) have an explicit member list — parent
+      // ViewChannel isn't enough.
       const mockMessage = createMockMessage();
       const mockChannel = mockMessage.channel as TextChannel;
-
       (mockChannel as any).isThread = vi.fn(() => true);
       (mockChannel as any).type = ChannelType.PrivateThread;
       (mockChannel as any).members = {
         fetch: vi.fn().mockRejectedValue(new Error('Unknown Member')),
       };
 
-      const [references] = await linkExtractor.extractLinkReferences(
-        mockMessage,
-        new Set(),
-        new Set(),
-        [],
-        1
-      );
+      const result = await linkExtractor.fetchMessageFromLink(TEST_LINK, mockMessage);
 
-      expect(references).toHaveLength(0);
+      expect(result).toBeNull();
       expect(mockChannel.messages.fetch).not.toHaveBeenCalled();
     });
 
     it('allows expansion for private thread when invoker IS a thread member', async () => {
       const mockMessage = createMockMessage();
       const mockChannel = mockMessage.channel as TextChannel;
-
       (mockChannel as any).isThread = vi.fn(() => true);
       (mockChannel as any).type = ChannelType.PrivateThread;
       (mockChannel as any).members = {
@@ -1234,82 +421,59 @@ describe('LinkExtractor', () => {
         createMockMessage({ id: 'ref-msg-123' }) as any
       );
 
-      const [references] = await linkExtractor.extractLinkReferences(
-        mockMessage,
-        new Set(),
-        new Set(),
-        [],
-        1
-      );
+      const result = await linkExtractor.fetchMessageFromLink(TEST_LINK, mockMessage);
 
-      expect(references).toHaveLength(1);
+      expect(result).not.toBeNull();
     });
 
     it('allows expansion for PUBLIC thread (inherits parent permissions, no extra check)', async () => {
-      // Public threads don't have a per-thread member list for access control.
-      // Parent ViewChannel + ReadMessageHistory is sufficient.
       const mockMessage = createMockMessage();
       const mockChannel = mockMessage.channel as TextChannel;
-
       (mockChannel as any).isThread = vi.fn(() => true);
       (mockChannel as any).type = ChannelType.PublicThread;
       vi.mocked(mockChannel.messages.fetch).mockResolvedValue(
         createMockMessage({ id: 'ref-msg-123' }) as any
       );
 
-      const [references] = await linkExtractor.extractLinkReferences(
-        mockMessage,
-        new Set(),
-        new Set(),
-        [],
-        1
-      );
+      const result = await linkExtractor.fetchMessageFromLink(TEST_LINK, mockMessage);
 
-      expect(references).toHaveLength(1);
+      expect(result).not.toBeNull();
     });
 
     it('fails closed when permissionsFor returns null (unexpected Discord.js state)', async () => {
-      // Defense in depth: if Discord.js returns null from permissionsFor for
-      // any reason (malformed member, edge-case channel type), deny rather
-      // than default-allow.
       const mockMessage = createMockMessage();
       const mockChannel = mockMessage.channel as TextChannel;
-
       (mockChannel as any).permissionsFor = vi.fn(() => null);
 
-      const [references] = await linkExtractor.extractLinkReferences(
-        mockMessage,
-        new Set(),
-        new Set(),
-        [],
-        1
-      );
+      const result = await linkExtractor.fetchMessageFromLink(TEST_LINK, mockMessage);
 
-      expect(references).toHaveLength(0);
+      expect(result).toBeNull();
+      expect(mockChannel.messages.fetch).not.toHaveBeenCalled();
+    });
+
+    it('fails closed when a permission check throws unexpectedly (catch-all)', async () => {
+      // Any unexpected error inside the access check (here permissionsFor
+      // throwing) must be swallowed into a denial, not propagate.
+      const mockMessage = createMockMessage();
+      const mockChannel = mockMessage.channel as TextChannel;
+      (mockChannel as any).permissionsFor = vi.fn(() => {
+        throw new Error('Discord.js internal failure');
+      });
+
+      const result = await linkExtractor.fetchMessageFromLink(TEST_LINK, mockMessage);
+
+      expect(result).toBeNull();
       expect(mockChannel.messages.fetch).not.toHaveBeenCalled();
     });
 
     it('fails closed when a non-DM channel has no guild reference (malformed state)', async () => {
-      // Defensive guard: a text-based, non-DM channel should always have a
-      // guild. If Discord.js produces a channel without one (malformed state,
-      // edge-case fetch race), we refuse to proceed rather than assuming it's
-      // safe to expand.
       const mockMessage = createMockMessage();
       const mockChannel = mockMessage.channel as TextChannel;
-
-      // Non-DM channel, but guild property is missing (`guild` is still in the
-      // object shape because TextChannel requires it, but we explicitly null it)
       (mockChannel as any).guild = null;
 
-      const [references] = await linkExtractor.extractLinkReferences(
-        mockMessage,
-        new Set(),
-        new Set(),
-        [],
-        1
-      );
+      const result = await linkExtractor.fetchMessageFromLink(TEST_LINK, mockMessage);
 
-      expect(references).toHaveLength(0);
+      expect(result).toBeNull();
       expect(mockChannel.messages.fetch).not.toHaveBeenCalled();
     });
   });
