@@ -94,10 +94,26 @@ model AdminSettings {
   updatedBy      String?  @map("updated_by") @db.Uuid
   /// JSONB config cascade defaults (admin tier). Validated against ConfigOverridesSchema at runtime.
   configDefaults Json?    @map("config_defaults")
+  /// Default-fallback: the global (paid) default config for the chat slot. NULL means
+  /// "no admin-set chat default" — the resolver cascade falls through to the hardcoded floor.
+  globalDefaultLlmConfigId    String? @map("global_default_llm_config_id") @db.Uuid
+  /// Default-fallback: the global (paid) default config for the vision slot. NULL means
+  /// "no admin-set vision default" — vision resolution falls through to the hardcoded floor.
+  globalDefaultVisionConfigId String? @map("global_default_vision_config_id") @db.Uuid
+  /// Default-fallback: the free-tier default config for the chat slot (the guest/no-BYOK LLM
+  /// fallback). NULL means "no free chat default" — resolution falls through to the floor.
+  freeDefaultLlmConfigId      String? @map("free_default_llm_config_id") @db.Uuid
+  /// Default-fallback: the free-tier default config for the vision slot. NULL means
+  /// "no free vision default" — resolution falls through to the floor.
+  freeDefaultVisionConfigId   String? @map("free_default_vision_config_id") @db.Uuid
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
-  updatedByUser User? @relation(fields: [updatedBy], references: [id])
+  updatedByUser             User?      @relation(fields: [updatedBy], references: [id])
+  globalDefaultLlmConfig    LlmConfig? @relation("AdminGlobalDefaultLlmConfig", fields: [globalDefaultLlmConfigId], references: [id], onDelete: SetNull)
+  globalDefaultVisionConfig LlmConfig? @relation("AdminGlobalDefaultVisionConfig", fields: [globalDefaultVisionConfigId], references: [id], onDelete: SetNull)
+  freeDefaultLlmConfig      LlmConfig? @relation("AdminFreeDefaultLlmConfig", fields: [freeDefaultLlmConfigId], references: [id], onDelete: SetNull)
+  freeDefaultVisionConfig   LlmConfig? @relation("AdminFreeDefaultVisionConfig", fields: [freeDefaultVisionConfigId], references: [id], onDelete: SetNull)
 
   @@map("admin_settings")
 }
@@ -199,6 +215,10 @@ model LlmConfig {
   userPersonalityVisionConfigs      UserPersonalityConfig[]          @relation("UserPersonalityVisionConfig")
   usersWithAsDefault                User[]                           @relation("UserDefaultLlmConfig")
   usersWithAsVisionDefault          User[]                           @relation("UserDefaultVisionConfig")
+  adminGlobalLlmDefault             AdminSettings[]                  @relation("AdminGlobalDefaultLlmConfig")
+  adminGlobalVisionDefault          AdminSettings[]                  @relation("AdminGlobalDefaultVisionConfig")
+  adminFreeLlmDefault               AdminSettings[]                  @relation("AdminFreeDefaultLlmConfig")
+  adminFreeVisionDefault            AdminSettings[]                  @relation("AdminFreeDefaultVisionConfig")
 
   @@unique([ownerId, name], map: "llm_configs_owner_id_name_key")
   @@index([ownerId])

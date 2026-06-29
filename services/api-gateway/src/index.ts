@@ -39,7 +39,6 @@ import {
   LlmConfigResolver,
   VisionConfigResolver,
 } from '@tzurot/config-resolver';
-import { bootstrapVisionSystemGlobalsIfNeeded } from './services/VisionConfigBootstrap.js';
 import { ConversationRetentionService } from './services/ConversationRetentionService.js';
 
 // Routes
@@ -216,17 +215,6 @@ async function initializeServices(prisma: PrismaClient): Promise<ServicesContext
     }
   });
   logger.info('LlmConfigResolver + VisionConfigResolver initialized with cache invalidation');
-
-  // Seed the global vision defaults (kind='vision') so the resolver stamps a real model
-  // instead of the hardcoded last-resort fallback. Idempotent + superuser-gated; fails
-  // open — a bootstrap error must not block gateway startup (vision degrades to the
-  // hardcoded fallback until the seed lands).
-  await bootstrapVisionSystemGlobalsIfNeeded(prisma).catch(err =>
-    logger.warn(
-      { err },
-      'Vision config bootstrap failed at startup — vision uses the hardcoded fallback until seeded'
-    )
-  );
 
   const modelCache = new OpenRouterModelCache(cacheRedis);
 

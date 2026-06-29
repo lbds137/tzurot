@@ -17,6 +17,7 @@
  */
 
 import {
+  ADMIN_SETTINGS_SINGLETON_ID,
   LLM_CONFIG_OVERRIDE_KEYS,
   LLM_CONFIG_SELECT_WITH_NAME,
   mapLlmConfigFromDbWithName,
@@ -177,16 +178,17 @@ export class LlmConfigResolver extends BaseConfigResolver<
     }
 
     try {
-      // Scope to kind:'text' — llm_configs is shared with kind='vision' rows that
-      // also set isFreeDefault=true, so without this the text free-default read
-      // could return the vision one. Mirrors VisionConfigResolver's kind:'vision'.
-      const freeConfig = await this.prisma.llmConfig.findFirst({
-        where: { isFreeDefault: true, kind: 'text' },
-        select: LLM_CONFIG_SELECT_WITH_NAME,
+      // Read the admin-set free-tier chat default via the AdminSettings pointer
+      // (singleton). Replaces the old isFreeDefault+kind='text' flag query; a null
+      // pointer means no free default — caller uses the hardcoded fallback.
+      const settings = await this.prisma.adminSettings.findFirst({
+        where: { id: ADMIN_SETTINGS_SINGLETON_ID },
+        select: { freeDefaultLlmConfig: { select: LLM_CONFIG_SELECT_WITH_NAME } },
       });
+      const freeConfig = settings?.freeDefaultLlmConfig ?? null;
 
       if (freeConfig === null) {
-        this.logger.debug('No free default config found in database');
+        this.logger.debug('No free default config pointer set in admin_settings');
         return null;
       }
 

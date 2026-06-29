@@ -47,6 +47,10 @@ CREATE TABLE "admin_settings" (
     "id" UUID NOT NULL,
     "updated_by" UUID,
     "config_defaults" JSONB,
+    "global_default_llm_config_id" UUID,
+    "global_default_vision_config_id" UUID,
+    "free_default_llm_config_id" UUID,
+    "free_default_vision_config_id" UUID,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -775,6 +779,18 @@ ALTER TABLE "usage_logs" ADD CONSTRAINT "usage_logs_user_id_fkey" FOREIGN KEY ("
 
 -- AddForeignKey
 ALTER TABLE "admin_settings" ADD CONSTRAINT "admin_settings_updated_by_fkey" FOREIGN KEY ("updated_by") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "admin_settings" ADD CONSTRAINT "admin_settings_global_default_llm_config_id_fkey" FOREIGN KEY ("global_default_llm_config_id") REFERENCES "llm_configs"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "admin_settings" ADD CONSTRAINT "admin_settings_global_default_vision_config_id_fkey" FOREIGN KEY ("global_default_vision_config_id") REFERENCES "llm_configs"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "admin_settings" ADD CONSTRAINT "admin_settings_free_default_llm_config_id_fkey" FOREIGN KEY ("free_default_llm_config_id") REFERENCES "llm_configs"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "admin_settings" ADD CONSTRAINT "admin_settings_free_default_vision_config_id_fkey" FOREIGN KEY ("free_default_vision_config_id") REFERENCES "llm_configs"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "user_api_keys" ADD CONSTRAINT "user_api_keys_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
