@@ -365,6 +365,145 @@ describe('/user/model-override routes', () => {
         })
       );
     });
+
+    it('writes the vision slot when ?kind=vision and the model is vision-capable', async () => {
+      mockPrisma.personality.findFirst.mockResolvedValue({
+        id: '11111111-1111-4111-a111-111111111111',
+        name: 'Lilith',
+      });
+      mockPrisma.llmConfig.findFirst.mockResolvedValue({
+        id: '22222222-2222-4222-a222-222222222222',
+        name: 'GPT-4o',
+        model: 'openai/gpt-4o',
+      });
+      mockPrisma.userPersonalityConfig.upsert.mockResolvedValue({
+        personalityId: '11111111-1111-4111-a111-111111111111',
+        personality: { name: 'Lilith' },
+        visionConfigId: '22222222-2222-4222-a222-222222222222',
+        visionConfig: { name: 'GPT-4o' },
+      });
+
+      const modelCache = {
+        getModelById: vi.fn(async (id: string) =>
+          id === 'openai/gpt-4o' ? { supportsVision: true } : null
+        ),
+      } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;
+
+      const router = createModelOverrideRoutes({
+        prisma: mockPrisma as unknown as PrismaClient,
+        modelCache,
+      });
+      const handler = getHandler(router, 'put', '/');
+      const { req, res } = createMockReqRes(
+        {
+          personalityId: '11111111-1111-4111-a111-111111111111',
+          configId: '22222222-2222-4222-a222-222222222222',
+        },
+        {},
+        { kind: 'vision' }
+      );
+
+      await handler(req, res);
+
+      // The vision slot FK is written, NOT the text slot.
+      expect(mockPrisma.userPersonalityConfig.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({
+            visionConfigId: '22222222-2222-4222-a222-222222222222',
+          }),
+          update: { visionConfigId: '22222222-2222-4222-a222-222222222222' },
+        })
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          override: expect.objectContaining({ kind: 'vision' }),
+        })
+      );
+    });
+
+    it('rejects the vision slot when the model is not vision-capable', async () => {
+      mockPrisma.personality.findFirst.mockResolvedValue({
+        id: '11111111-1111-4111-a111-111111111111',
+        name: 'Lilith',
+      });
+      mockPrisma.llmConfig.findFirst.mockResolvedValue({
+        id: '22222222-2222-4222-a222-222222222222',
+        name: 'GLM',
+        model: 'z-ai/glm-4.7',
+      });
+
+      const modelCache = {
+        getModelById: vi.fn(async (id: string) =>
+          id === 'z-ai/glm-4.7' ? { supportsVision: false } : null
+        ),
+      } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;
+
+      const router = createModelOverrideRoutes({
+        prisma: mockPrisma as unknown as PrismaClient,
+        modelCache,
+      });
+      const handler = getHandler(router, 'put', '/');
+      const { req, res } = createMockReqRes(
+        {
+          personalityId: '11111111-1111-4111-a111-111111111111',
+          configId: '22222222-2222-4222-a222-222222222222',
+        },
+        {},
+        { kind: 'vision' }
+      );
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining('vision'),
+        })
+      );
+      // No write happens when the capability gate rejects.
+      expect(mockPrisma.userPersonalityConfig.upsert).not.toHaveBeenCalled();
+    });
+
+    it('rejects the vision slot when the model is not in the catalog', async () => {
+      mockPrisma.personality.findFirst.mockResolvedValue({
+        id: '11111111-1111-4111-a111-111111111111',
+        name: 'Lilith',
+      });
+      mockPrisma.llmConfig.findFirst.mockResolvedValue({
+        id: '22222222-2222-4222-a222-222222222222',
+        name: 'Mystery',
+        model: 'mystery/model',
+      });
+
+      const modelCache = {
+        getModelById: vi.fn(async () => null), // unknown to OpenRouter + not a z.ai member
+      } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;
+
+      const router = createModelOverrideRoutes({
+        prisma: mockPrisma as unknown as PrismaClient,
+        modelCache,
+      });
+      const handler = getHandler(router, 'put', '/');
+      const { req, res } = createMockReqRes(
+        {
+          personalityId: '11111111-1111-4111-a111-111111111111',
+          configId: '22222222-2222-4222-a222-222222222222',
+        },
+        {},
+        { kind: 'vision' }
+      );
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining("Couldn't confirm"),
+        })
+      );
+      expect(mockPrisma.userPersonalityConfig.upsert).not.toHaveBeenCalled();
+    });
   });
 
   describe('DELETE /user/model-override/:personalityId', () => {
@@ -555,6 +694,107 @@ describe('/user/model-override routes', () => {
           },
         })
       );
+    });
+
+    it('writes the vision default when ?kind=vision and the model is vision-capable', async () => {
+      mockPrisma.llmConfig.findFirst.mockResolvedValue({
+        id: '22222222-2222-4222-a222-222222222222',
+        name: 'GPT-4o',
+        model: 'openai/gpt-4o',
+      });
+
+      const modelCache = {
+        getModelById: vi.fn(async (id: string) =>
+          id === 'openai/gpt-4o' ? { supportsVision: true } : null
+        ),
+      } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;
+
+      const router = createModelOverrideRoutes({
+        prisma: mockPrisma as unknown as PrismaClient,
+        modelCache,
+      });
+      const handler = getHandler(router, 'put', '/default');
+      const { req, res } = createMockReqRes(
+        { configId: '22222222-2222-4222-a222-222222222222' },
+        {},
+        { kind: 'vision' }
+      );
+
+      await handler(req, res);
+
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-uuid-123' },
+        data: { defaultVisionConfigId: '22222222-2222-4222-a222-222222222222' },
+      });
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('rejects the vision default when the model is not vision-capable', async () => {
+      mockPrisma.llmConfig.findFirst.mockResolvedValue({
+        id: '22222222-2222-4222-a222-222222222222',
+        name: 'GLM',
+        model: 'z-ai/glm-4.7',
+      });
+
+      const modelCache = {
+        getModelById: vi.fn(async (id: string) =>
+          id === 'z-ai/glm-4.7' ? { supportsVision: false } : null
+        ),
+      } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;
+
+      const router = createModelOverrideRoutes({
+        prisma: mockPrisma as unknown as PrismaClient,
+        modelCache,
+      });
+      const handler = getHandler(router, 'put', '/default');
+      const { req, res } = createMockReqRes(
+        { configId: '22222222-2222-4222-a222-222222222222' },
+        {},
+        { kind: 'vision' }
+      );
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining('vision'),
+        })
+      );
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects the vision default when the model is not in the catalog', async () => {
+      mockPrisma.llmConfig.findFirst.mockResolvedValue({
+        id: '22222222-2222-4222-a222-222222222222',
+        name: 'Mystery',
+        model: 'mystery/model',
+      });
+
+      const modelCache = {
+        getModelById: vi.fn(async () => null), // unknown to OpenRouter + not a z.ai member
+      } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;
+
+      const router = createModelOverrideRoutes({
+        prisma: mockPrisma as unknown as PrismaClient,
+        modelCache,
+      });
+      const handler = getHandler(router, 'put', '/default');
+      const { req, res } = createMockReqRes(
+        { configId: '22222222-2222-4222-a222-222222222222' },
+        {},
+        { kind: 'vision' }
+      );
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining("Couldn't confirm"),
+        })
+      );
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
     });
   });
 
@@ -810,60 +1050,11 @@ describe('/user/model-override routes', () => {
     const VISION_CFG = '33333333-3333-4333-a333-333333333333';
     const PERSONALITY = '11111111-1111-4111-a111-111111111111';
 
-    it('PUT /default writes defaultVisionConfigId when the config is kind=vision', async () => {
-      mockPrisma.llmConfig.findFirst.mockResolvedValue({
-        id: VISION_CFG,
-        name: 'Vision Cfg',
-        kind: 'vision',
-      });
-
-      const router = createModelOverrideRoutes({ prisma: mockPrisma as unknown as PrismaClient });
-      const handler = getHandler(router, 'put', '/default');
-      const { req, res } = createMockReqRes({ configId: VISION_CFG });
-
-      await handler(req, res);
-
-      expect(mockPrisma.user.update).toHaveBeenCalledWith({
-        where: { id: 'user-uuid-123' },
-        data: { defaultVisionConfigId: VISION_CFG },
-      });
-      expect(res.status).toHaveBeenCalledWith(200);
-    });
-
-    it('PUT / writes visionConfigId on a per-personality override for a kind=vision config', async () => {
-      mockPrisma.personality.findFirst.mockResolvedValue({ id: PERSONALITY, name: 'Lilith' });
-      mockPrisma.llmConfig.findFirst.mockResolvedValue({
-        id: VISION_CFG,
-        name: 'Vision Cfg',
-        kind: 'vision',
-      });
-      mockPrisma.userPersonalityConfig.upsert.mockResolvedValue({
-        personalityId: PERSONALITY,
-        personality: { name: 'Lilith' },
-        llmConfigId: null,
-        llmConfig: null,
-        visionConfigId: VISION_CFG,
-        visionConfig: { name: 'Vision Cfg' },
-      });
-
-      const router = createModelOverrideRoutes({ prisma: mockPrisma as unknown as PrismaClient });
-      const handler = getHandler(router, 'put', '/');
-      const { req, res } = createMockReqRes({ personalityId: PERSONALITY, configId: VISION_CFG });
-
-      await handler(req, res);
-
-      expect(mockPrisma.userPersonalityConfig.upsert).toHaveBeenCalledWith(
-        expect.objectContaining({
-          create: expect.objectContaining({ visionConfigId: VISION_CFG }),
-          update: { visionConfigId: VISION_CFG },
-        })
-      );
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          override: expect.objectContaining({ configId: VISION_CFG, configName: 'Vision Cfg' }),
-        })
-      );
-    });
+    // NOTE: the PUT-set paths (vision slot via `?kind=vision` + capability gate)
+    // are covered above in the `PUT /user/model-override` and `PUT /default`
+    // describe blocks. The slot is now chosen by the request, not derived from
+    // `config.kind`, so those write tests live with the rest of the set-handler
+    // coverage. The read/clear `?kind=` scoping below is what this block exercises.
 
     it('GET /default?kind=vision returns the vision default (text default ignored)', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({

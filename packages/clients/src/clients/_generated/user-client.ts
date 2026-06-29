@@ -486,8 +486,8 @@ export class UserClient {
   /**
    * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
    */
-  async setModelOverride(input: z.infer<typeof ROUTE_MANIFEST.setModelOverride.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setModelOverride.output>>> {
-    const fullPath = '/api/user/model-override';
+  async setModelOverride(input: z.infer<typeof ROUTE_MANIFEST.setModelOverride.input>, options: { kind?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setModelOverride.output>>> {
+    const fullPath = '/api/user/model-override' + buildQueryString([['kind', options.kind]]);
     return callGateway({
       baseUrl: this.baseUrl,
       serviceSecret: this.serviceSecret,
@@ -542,8 +542,8 @@ export class UserClient {
   /**
    * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
    */
-  async setDefaultModelConfig(input: z.infer<typeof ROUTE_MANIFEST.setDefaultModelConfig.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setDefaultModelConfig.output>>> {
-    const fullPath = '/api/user/model-override/default';
+  async setDefaultModelConfig(input: z.infer<typeof ROUTE_MANIFEST.setDefaultModelConfig.input>, options: { kind?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setDefaultModelConfig.output>>> {
+    const fullPath = '/api/user/model-override/default' + buildQueryString([['kind', options.kind]]);
     return callGateway({
       baseUrl: this.baseUrl,
       serviceSecret: this.serviceSecret,

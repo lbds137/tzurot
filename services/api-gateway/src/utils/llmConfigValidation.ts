@@ -126,8 +126,13 @@ async function resolveEffectiveModelAndKind(
  * pointing at a text-only model (→ no image description → the LLM improvises).
  * On failure sends a 400 and returns false; returns true when the model is
  * confirmed vision-capable.
+ *
+ * Exported so the slot-setting routes (user/personality vision-slot overrides)
+ * gate on the SAME capability check the create/update path uses — a config's
+ * model must be confirmed vision-capable before it can occupy a vision slot,
+ * regardless of which endpoint does the slotting.
  */
-async function ensureVisionCapableModel(
+export async function ensureVisionCapableModel(
   res: Response,
   modelCache: OpenRouterModelCache | undefined,
   model: string
