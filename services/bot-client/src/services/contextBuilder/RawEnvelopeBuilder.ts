@@ -24,6 +24,7 @@ import {
 import type { z } from 'zod';
 import type { ExtendedContextUser, FetchResult } from '../channelFetcher/types.js';
 import { VoiceMessageProcessor } from '../../processors/VoiceMessageProcessor.js';
+import { getEffectiveContent } from '../../utils/forwardedMessageUtils.js';
 import { buildKnownChannelEnvironments } from '../CrossChannelHistoryFetcher.js';
 
 /** The pre-resolution extended-context snapshot threaded out of the fetch. */
@@ -120,10 +121,13 @@ export function toApiConversationMessage(msg: ConversationMessage): ApiConversat
 }
 
 /**
- * Assemble the raw envelope. `rawMessageContent` is Discord's
- * message.content VERBATIM (ground truth — empty for voice and forwarded
- * triggers); any bot-side STT transcript rides the dedicated
- * rawRoutingTranscript field instead, telemetry-only.
+ * Assemble the raw envelope. `rawMessageContent` is the message's EFFECTIVE
+ * text (via getEffectiveContent): message.content for normal triggers, and the
+ * forward snapshot text for forwarded triggers — the worker re-derives the
+ * current turn solely from this field, so a forward's snapshot text MUST land
+ * here or the turn is empty (the "Hello"-placeholder content-loss bug). Empty
+ * for voice triggers, where the worker re-transcribes the shipped attachment
+ * itself (the bot-side STT transcript rides rawRoutingTranscript, telemetry-only).
  */
 export function buildRawAssemblyInputs(
   message: Message,
@@ -139,7 +143,10 @@ export function buildRawAssemblyInputs(
   }
 ): RawAssemblyInputs {
   return {
-    rawMessageContent: message.content,
+    // getEffectiveContent yields message.content for normal triggers and the
+    // forward snapshot text for forwarded ones; a bare message.content is empty
+    // for a forward, which drops the whole forwarded message from the prompt.
+    rawMessageContent: getEffectiveContent(message),
     rawRoutingTranscript: VoiceMessageProcessor.getVoiceTranscript(message),
     rawAuthorDisplayName: refs?.rawAuthorDisplayName,
     // No clone needed (unlike the participant guild map): this scalar is a

@@ -5,7 +5,7 @@ import {
   type ConversationMessage,
   type RawAssemblyInputs,
 } from '@tzurot/common-types';
-import type { Message } from 'discord.js';
+import { MessageReferenceType, type Message } from 'discord.js';
 
 const { mockGetVoiceTranscript } = vi.hoisted(() => ({
   mockGetVoiceTranscript: vi.fn((): string | undefined => undefined),
@@ -41,6 +41,24 @@ const makeMessage = (
     mentions: {
       users: new Map(mentions.map(m => [m.id, m])),
     },
+  }) as unknown as Message;
+
+// A native Discord forward: message.content is empty; the text lives in a
+// messageSnapshot. `withReferenceType` toggles whether reference.type is the
+// reliable Forward marker (Discord.js doesn't always populate it — the
+// snapshot-size fallback must work on its own).
+const makeForwardedMessage = (
+  snapshotContent: string,
+  opts: { withReferenceType?: boolean; topLevelContent?: string } = {}
+) =>
+  ({
+    client: {},
+    content: opts.topLevelContent ?? '',
+    mentions: { users: new Map() },
+    ...(opts.withReferenceType === true
+      ? { reference: { type: MessageReferenceType.Forward } }
+      : {}),
+    messageSnapshots: { size: 1, first: () => ({ content: snapshotContent }) },
   }) as unknown as Message;
 
 const makeConversationMessage = (overrides: Partial<ConversationMessage> = {}) =>
@@ -215,9 +233,29 @@ describe('buildRawAssemblyInputs', () => {
 
     const raw = buildRawAssemblyInputs(makeMessage([], ''), undefined);
 
-    // rawMessageContent is message.content VERBATIM — not the transcript.
+    // A voice trigger is not a forward, so getEffectiveContent yields the empty
+    // message.content — NOT the transcript (the worker re-transcribes instead).
     expect(raw?.rawMessageContent).toBe('');
     expect(raw?.rawRoutingTranscript).toBe('the spoken words');
+  });
+
+  it('forwarded trigger: rawMessageContent carries the snapshot text, not the empty top-level content', () => {
+    // Regression (forward content-loss): a native Discord forward has empty
+    // message.content; its text lives in messageSnapshots. The worker re-derives
+    // the current turn SOLELY from rawMessageContent, so a bare message.content
+    // would drop the whole forward and the AI would see an empty turn ("Hello").
+    const raw = buildRawAssemblyInputs(
+      makeForwardedMessage('the forwarded text', { withReferenceType: true }),
+      undefined
+    );
+    expect(raw?.rawMessageContent).toBe('the forwarded text');
+  });
+
+  it('forwarded trigger detected via snapshot fallback (reference.type unpopulated) still carries the text', () => {
+    // Discord.js sometimes leaves reference.type unset; isForwardedMessage falls
+    // back to messageSnapshots.size > 0. The fix must survive that path too.
+    const raw = buildRawAssemblyInputs(makeForwardedMessage('snapshot-only forward'), undefined);
+    expect(raw?.rawMessageContent).toBe('snapshot-only forward');
   });
 
   it('leaves rawRoutingTranscript absent for non-voice triggers', () => {
@@ -291,5 +329,18 @@ describe('buildRawAssemblyInputs — producer↔schema conformance', () => {
       rawAuthorDisplayName: 'Vladlena',
     });
     expect(conformanceError(raw)).toBeNull();
+  });
+
+  it('forwarded message envelope conforms', () => {
+    // The fix routes a forward's snapshot text into rawMessageContent; assert
+    // the resulting envelope still validates against the wire schema.
+    expect(
+      conformanceError(
+        buildRawAssemblyInputs(
+          makeForwardedMessage('the forwarded text', { withReferenceType: true }),
+          undefined
+        )
+      )
+    ).toBeNull();
   });
 });
