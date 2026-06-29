@@ -11,7 +11,7 @@
  *     plus `auth.audioProviderKeys` and the module-level provider registry)
  *   - Output normalization fast-path + failure-tolerance
  *   - Redis storage (only when synthesis succeeded)
- *   - Outer 240s timeout race (text-only delivery on timeout)
+ *   - Outer 300s timeout race (text-only delivery on timeout)
  *   - Error path on dispatcher failure → text still delivered
  *
  * Provider-internal behavior (cloning, retries, voice-engine warmup, etc.)
@@ -413,8 +413,8 @@ describe('TTSStep', () => {
       const ctx = createContext();
 
       const promise = step.process(ctx);
-      // Advance past the 240s budget
-      await vi.advanceTimersByTimeAsync(240_001);
+      // Advance past the 300s TTS budget (cold-start + long-synthesis worst case)
+      await vi.advanceTimersByTimeAsync(300_001);
       const result = await promise;
 
       expect(result.result?.metadata?.ttsAudioKey).toBeUndefined();
