@@ -95,7 +95,7 @@ function presetBadgeArray(preset: LlmConfigSummary): string[] {
   } else {
     badges.push('👤');
   }
-  if (preset.kind === 'vision') {
+  if (preset.supportsVision) {
     badges.push('👁️');
   }
   if (preset.isDefault) {
@@ -132,19 +132,29 @@ function buildPresetDescription(preset: LlmConfigSummary, isGuestMode: boolean):
 function filterPresets(
   presets: LlmConfigSummary[],
   scope: PresetScopeFilter,
+  capability: PresetKindFilter,
   query: string | null
 ): LlmConfigSummary[] {
   let filtered = presets;
 
+  // Capability axis (reinterpreted from the old kind axis): the model's vision
+  // capability, not a config `kind`. 'vision' = vision-capable, 'text' =
+  // text-only, 'all' = no filter.
+  if (capability === 'vision') {
+    filtered = filtered.filter(c => c.supportsVision);
+  } else if (capability === 'text') {
+    filtered = filtered.filter(c => !c.supportsVision);
+  }
+
   switch (scope) {
     case 'global':
-      filtered = presets.filter(c => c.isGlobal);
+      filtered = filtered.filter(c => c.isGlobal);
       break;
     case 'mine':
-      filtered = presets.filter(c => c.isOwned);
+      filtered = filtered.filter(c => c.isOwned);
       break;
     case 'free':
-      filtered = presets.filter(c => isFreeModel(c.model));
+      filtered = filtered.filter(c => isFreeModel(c.model));
       break;
     case 'all':
     default:
@@ -212,7 +222,7 @@ function buildBrowsePage(
   isGuestMode: boolean
 ): { embed: EmbedBuilder; components: BrowseActionRow[] } {
   const { scope, kind } = splitBrowseFilter(filter);
-  const filtered = filterPresets(allPresets, scope, query);
+  const filtered = filterPresets(allPresets, scope, kind, query);
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const safePage = Math.min(Math.max(0, page), totalPages - 1);
 
@@ -256,7 +266,7 @@ function buildBrowsePage(
 
   // Footer with legend
   const freeCount = filtered.filter(c => isFreeModel(c.model)).length;
-  const visionCount = filtered.filter(c => c.kind === 'vision').length;
+  const visionCount = filtered.filter(c => c.supportsVision).length;
   embed.setFooter({
     text: joinFooter(
       pluralize(filtered.length, { singular: 'preset', plural: 'presets' }),
@@ -293,16 +303,13 @@ function buildBrowsePage(
 }
 
 /**
- * Fetch the user's presets for the requested kind in a single call. The list
- * summary now carries `kind` per row, so `'all'` returns both kinds tagged and a
- * specific kind returns only that kind — no client-side merge. Returns null on
- * fetch failure.
+ * Fetches all of the user's presets (`kind: 'all'`) in a single call; the
+ * capability axis (text/vision) is applied client-side from each row's
+ * `supportsVision`, since configs no longer carry a `kind` to fetch-scope by.
+ * Returns null on fetch failure.
  */
-async function fetchPresets(
-  userClient: UserClient,
-  kind: PresetKindFilter
-): Promise<LlmConfigSummary[] | null> {
-  const result = await userClient.listUserLlmConfigs({ kind });
+async function fetchPresets(userClient: UserClient): Promise<LlmConfigSummary[] | null> {
+  const result = await userClient.listUserLlmConfigs({ kind: 'all' });
   if (!result.ok) {
     logger.warn({ status: result.status }, 'Failed to fetch presets');
     return null;
@@ -322,10 +329,10 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
   const filter = composeBrowseFilter(scope, kind);
 
   try {
-    // Fetch presets (kind-scoped) and wallet status in parallel
+    // Fetch all presets (capability axis applied client-side) + wallet status.
     const { userClient } = clientsFor(context.interaction);
     const [presets, walletResult] = await Promise.all([
-      fetchPresets(userClient, kind),
+      fetchPresets(userClient),
       userClient.listWalletKeys(),
     ]);
 
@@ -370,11 +377,10 @@ export async function buildBrowseResponse(
   }
 ): Promise<{ embed: EmbedBuilder; components: BrowseActionRow[] } | null> {
   const { page, filter, query } = browseContext;
-  const { kind } = splitBrowseFilter(filter);
 
-  // Re-fetch data (kind-scoped) via typed client
+  // Re-fetch all presets (capability axis applied client-side) via typed client
   const [presets, walletResult] = await Promise.all([
-    fetchPresets(userClient, kind),
+    fetchPresets(userClient),
     userClient.listWalletKeys(),
   ]);
 
