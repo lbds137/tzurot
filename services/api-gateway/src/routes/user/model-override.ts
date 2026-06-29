@@ -16,8 +16,6 @@ import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
   generateUserPersonalityConfigUuid,
-  toConfigKind,
-  type ConfigKind,
   type PrismaClient,
   type ModelOverrideSummary,
   type UserDefaultConfig,
@@ -30,6 +28,7 @@ import {
   parseConfigKindQuery,
   parseConfigKindQueryAllowAll,
 } from '../../utils/configRouteHelpers.js';
+import { ensureVisionCapableModel } from '../../utils/llmConfigValidation.js';
 import { tryInvalidateCache } from '../../utils/configOverrideHelpers.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -43,25 +42,23 @@ const logger = createLogger('user-model-override');
 
 /**
  * Verify that the given LLM config exists and the user can access it (global or owned).
- * Returns the config (incl. its `kind`) if accessible, null otherwise. The set
- * handlers branch on `kind` — a config's kind is intrinsic to its id, so the
- * write targets the matching FK column (text vs vision).
+ * Returns the config (incl. its `model`) if accessible, null otherwise. The slot a
+ * config occupies (chat vs vision) is the caller's request, NOT a property of the
+ * config — so the set handlers pick the FK column from `?kind=`. `model` is returned
+ * so the vision slot can be capability-gated (the model must support image input).
  */
 async function verifyConfigAccess(
   prisma: PrismaClient,
   configId: string,
   userId: string
-): Promise<{ id: string; name: string; kind: ConfigKind } | null> {
-  const row = await prisma.llmConfig.findFirst({
+): Promise<{ id: string; name: string; model: string } | null> {
+  return prisma.llmConfig.findFirst({
     where: {
       id: configId,
       OR: [{ isGlobal: true }, { ownerId: userId }],
     },
-    select: { id: true, name: true, kind: true },
+    select: { id: true, name: true, model: true },
   });
-  // Narrow the raw DB string to ConfigKind at the boundary (toConfigKind floors
-  // an unexpected value to text + logs), so callers get an exhaustive-checkable kind.
-  return row === null ? null : { ...row, kind: toConfigKind(row.kind) };
 }
 
 /** GET /api/user/model-override — list all user model overrides */
@@ -138,9 +135,16 @@ export const handleListModelOverrides = (deps: RouteDeps): RequestHandler => {
 
 /** PUT /api/user/model-override — set model override for a personality */
 export const handleSetModelOverride = (deps: RouteDeps): RequestHandler => {
-  const { prisma } = deps;
+  const { prisma, modelCache } = deps;
   return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
+
+    // The slot (chat vs vision) is the request's choice, not a config property;
+    // `?kind=` defaults to text. The vision slot is capability-gated below.
+    const kind = parseConfigKindQuery(res, req.query);
+    if (kind === null) {
+      return;
+    }
 
     const parseResult = SetModelOverrideSchema.safeParse(req.body);
     if (!parseResult.success) {
@@ -164,10 +168,16 @@ export const handleSetModelOverride = (deps: RouteDeps): RequestHandler => {
       return sendError(res, ErrorResponses.notFound('Config'));
     }
 
-    // The config's kind decides which FK column the override writes — a vision
-    // config sets `visionConfigId`, a text config `llmConfigId`. Both can coexist
-    // on the same (user, personality) row.
-    const isVision = llmConfig.kind === 'vision';
+    // The requested slot decides which FK column the override writes — vision sets
+    // `visionConfigId`, text `llmConfigId`. Both can coexist on the same (user,
+    // personality) row. The vision slot is capability-gated: its model must be
+    // confirmed vision-capable (unknown/unresolvable capability → 400, fail
+    // closed). With no model cache wired (local dev) an OpenRouter-only model
+    // can't be resolved and 400s here; prod always has the cache.
+    const isVision = kind === 'vision';
+    if (isVision && !(await ensureVisionCapableModel(res, modelCache, llmConfig.model))) {
+      return;
+    }
     const fkData = isVision ? { visionConfigId: configId } : { llmConfigId: configId };
 
     const override = await prisma.userPersonalityConfig.upsert({
@@ -262,9 +272,16 @@ export const handleGetDefaultModelConfig = (deps: RouteDeps): RequestHandler => 
 
 /** PUT /api/user/model-override/default — set user's global default LLM config */
 export const handleSetDefaultModelConfig = (deps: RouteDeps): RequestHandler => {
-  const { prisma, llmConfigCacheInvalidation } = deps;
+  const { prisma, modelCache, llmConfigCacheInvalidation } = deps;
   return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
+
+    // The slot (chat vs vision) is the request's choice, not a config property;
+    // `?kind=` defaults to text. The vision slot is capability-gated below.
+    const kind = parseConfigKindQuery(res, req.query);
+    if (kind === null) {
+      return;
+    }
 
     const parseResult = SetDefaultConfigSchema.safeParse(req.body);
     if (!parseResult.success) {
@@ -279,9 +296,16 @@ export const handleSetDefaultModelConfig = (deps: RouteDeps): RequestHandler => 
       return sendError(res, ErrorResponses.notFound('Config'));
     }
 
-    // A vision config sets the user's vision default (`defaultVisionConfigId`);
-    // a text config the text default. The two defaults coexist independently.
-    const isVision = llmConfig.kind === 'vision';
+    // The requested slot decides which default the write targets — vision sets
+    // `defaultVisionConfigId`, text `defaultLlmConfigId`; they coexist
+    // independently. The vision slot is capability-gated: its model must be
+    // confirmed vision-capable (unknown/unresolvable capability → 400, fail
+    // closed). With no model cache wired (local dev) an OpenRouter-only model
+    // can't be resolved and 400s here; prod always has the cache.
+    const isVision = kind === 'vision';
+    if (isVision && !(await ensureVisionCapableModel(res, modelCache, llmConfig.model))) {
+      return;
+    }
     await prisma.user.update({
       where: { id: userId },
       data: isVision ? { defaultVisionConfigId: configId } : { defaultLlmConfigId: configId },
