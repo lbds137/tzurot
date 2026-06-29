@@ -24,9 +24,16 @@ const { mockValidateLlmConfigModelFields } = vi.hoisted(() => ({
   mockValidateLlmConfigModelFields: vi.fn().mockResolvedValue(true),
 }));
 
-vi.mock('../../utils/llmConfigValidation.js', () => ({
-  validateLlmConfigModelFields: mockValidateLlmConfigModelFields,
-}));
+// Partial mock: stub validateLlmConfigModelFields, but keep the REAL
+// ensureVisionCapableModel so the vision-slot capability gate actually runs
+// against the test's modelCache (buildAppWithVisionCache).
+vi.mock('../../utils/llmConfigValidation.js', async importOriginal => {
+  const actual = await importOriginal<typeof import('../../utils/llmConfigValidation.js')>();
+  return {
+    ...actual,
+    validateLlmConfigModelFields: mockValidateLlmConfigModelFields,
+  };
+});
 
 const createMockCacheInvalidationService = () => ({
   invalidateAll: vi.fn().mockResolvedValue(undefined),
@@ -58,11 +65,23 @@ const createMockPrismaClient = () => {
     count: vi.fn().mockResolvedValue(0),
   };
 
+  const mockAdminSettings = {
+    upsert: vi.fn().mockResolvedValue({ id: 'admin-settings-singleton' }),
+    // Default: no config occupies any default slot (delete guard reads this).
+    findFirst: vi.fn().mockResolvedValue({
+      globalDefaultLlmConfigId: null,
+      globalDefaultVisionConfigId: null,
+      freeDefaultLlmConfigId: null,
+      freeDefaultVisionConfigId: null,
+    }),
+  };
+
   return {
     llmConfig: mockLlmConfig,
     personalityDefaultConfig: mockPersonalityDefaultConfig,
     userPersonalityConfig: mockUserPersonalityConfig,
     user: mockUser,
+    adminSettings: mockAdminSettings,
     // Transaction mock - executes callback with all mock objects and returns result
     $executeRaw: vi.fn().mockResolvedValue(1),
     $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => {
@@ -109,6 +128,31 @@ describe('Admin LLM Config Routes', () => {
       createAdminLlmConfigRoutes({ prisma: prisma as unknown as PrismaClient })
     );
   });
+
+  // App wired with a vision-aware model cache, for the vision-slot capability gate:
+  // gpt-4o / *-vl-* models → vision-capable, glm → text-only, anything else → unknown.
+  const buildAppWithVisionCache = (): Express => {
+    const mockModelCache = {
+      getModelById: vi.fn(async (id: string) =>
+        id.includes('gpt-4o') || id.includes('-vl')
+          ? { supportsVision: true }
+          : id.includes('glm')
+            ? { supportsVision: false }
+            : null
+      ),
+    };
+    const a = express();
+    a.use(express.json());
+    a.use(
+      '/admin/llm-config',
+      createAdminLlmConfigRoutes({
+        prisma: prisma as unknown as PrismaClient,
+        modelCache:
+          mockModelCache as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache,
+      })
+    );
+    return a;
+  };
 
   describe('GET /admin/llm-config', () => {
     it('should list all LLM configs', async () => {
@@ -235,23 +279,20 @@ describe('Admin LLM Config Routes', () => {
   });
 
   describe('invalid ?kind= on by-id write routes', () => {
+    // DELETE no longer parses ?kind= (the capability-driven delete guard reads the
+    // AdminSettings pointers, not a kind-scoped flag), so only the kind-parsing write
+    // routes are covered here.
     it.each([
-      { method: 'put' as const, path: '/admin/llm-config/cfg-1' },
-      { method: 'put' as const, path: '/admin/llm-config/cfg-1/set-default' },
-      { method: 'put' as const, path: '/admin/llm-config/cfg-1/set-free-default' },
-      { method: 'delete' as const, path: '/admin/llm-config/cfg-1' },
-    ])(
-      'rejects $method $path with 400 (kind parsed before any DB work)',
-      async ({ method, path }) => {
-        const url = `${path}?kind=audio`;
-        const response =
-          method === 'put' ? await request(app).put(url) : await request(app).delete(url);
+      { path: '/admin/llm-config/cfg-1' },
+      { path: '/admin/llm-config/cfg-1/set-default' },
+      { path: '/admin/llm-config/cfg-1/set-free-default' },
+    ])('rejects put $path with 400 (kind parsed before any DB work)', async ({ path }) => {
+      const response = await request(app).put(`${path}?kind=audio`);
 
-        expect(response.status).toBe(400);
-        // The kind gate runs before the config fetch, so nothing is touched.
-        expect(prisma.llmConfig.findUnique).not.toHaveBeenCalled();
-      }
-    );
+      expect(response.status).toBe(400);
+      // The kind gate runs before the config fetch, so nothing is touched.
+      expect(prisma.llmConfig.findUnique).not.toHaveBeenCalled();
+    });
   });
 
   describe('GET /admin/llm-config/:id', () => {
@@ -850,19 +891,12 @@ describe('Admin LLM Config Routes', () => {
   });
 
   describe('PUT /admin/llm-config/:id/set-default', () => {
-    it('should set a global config as system default', async () => {
+    it('writes the global chat-slot pointer (default text slot)', async () => {
       prisma.llmConfig.findUnique.mockResolvedValue({
         id: 'config-id',
         name: 'My Config',
         isGlobal: true,
-        kind: 'text',
-        memoryScoreThreshold: { toNumber: () => 0.5 },
-        memoryLimit: 20,
-      });
-      prisma.llmConfig.updateMany.mockResolvedValue({ count: 1 });
-      prisma.llmConfig.update.mockResolvedValue({
-        id: 'config-id',
-        isDefault: true,
+        model: 'openai/gpt-4o',
       });
 
       const response = await request(app).put('/admin/llm-config/config-id/set-default');
@@ -870,11 +904,9 @@ describe('Admin LLM Config Routes', () => {
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.configName).toBe('My Config');
-      // Verify it clears existing default
-      expect(prisma.llmConfig.updateMany).toHaveBeenCalledWith({
-        where: { isDefault: true, kind: 'text' },
-        data: { isDefault: false },
-      });
+      expect(prisma.adminSettings.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({ update: { globalDefaultLlmConfigId: 'config-id' } })
+      );
     });
 
     it('should return 404 when config not found', async () => {
@@ -889,8 +921,7 @@ describe('Admin LLM Config Routes', () => {
       prisma.llmConfig.findUnique.mockResolvedValue({
         id: 'config-id',
         isGlobal: false,
-        memoryScoreThreshold: { toNumber: () => 0.5 },
-        memoryLimit: 20,
+        model: 'openai/gpt-4o',
       });
 
       const response = await request(app).put('/admin/llm-config/config-id/set-default');
@@ -899,66 +930,70 @@ describe('Admin LLM Config Routes', () => {
       expect(response.body.message).toMatch(/only global/i);
     });
 
-    it('rejects a kind=vision config without ?kind=vision (requireKind defaults to text)', async () => {
-      // requireKind defaults to text, so a vision UUID looks not-found on the
-      // default text surface — an admin can't accidentally flip the vision
-      // default by hitting this route without explicitly asking for vision.
+    it('writes the global vision-slot pointer when ?kind=vision and the model is vision-capable', async () => {
+      // The config's own kind is irrelevant now — any vision-capable config can fill
+      // the vision slot. The pointer write targets globalDefaultVisionConfigId, leaving
+      // the chat slot untouched.
       prisma.llmConfig.findUnique.mockResolvedValue({
         id: 'vision-default',
         name: 'vision-default',
         isGlobal: true,
-        kind: 'vision',
+        model: 'openai/gpt-4o',
       });
 
-      const response = await request(app).put('/admin/llm-config/vision-default/set-default');
-
-      expect(response.status).toBe(404);
-      // The vision default must NOT have been touched on the default text surface.
-      expect(prisma.llmConfig.updateMany).not.toHaveBeenCalled();
-    });
-
-    it('sets a kind=vision config as the vision default when ?kind=vision is passed', async () => {
-      // ?kind=vision must let the vision row through requireKind AND scope the
-      // setAsDefault updateMany clear to kind='vision' (not 'text'), so the
-      // text default is never touched.
-      prisma.llmConfig.findUnique.mockResolvedValue({
-        id: 'vision-default',
-        name: 'vision-default',
-        isGlobal: true,
-        kind: 'vision',
-      });
-      prisma.llmConfig.updateMany.mockResolvedValue({ count: 1 });
-      prisma.llmConfig.update.mockResolvedValue({ id: 'vision-default', isDefault: true });
-
-      const response = await request(app).put(
+      const response = await request(buildAppWithVisionCache()).put(
         '/admin/llm-config/vision-default/set-default?kind=vision'
       );
 
       expect(response.status).toBe(200);
       expect(response.body.configName).toBe('vision-default');
-      expect(prisma.llmConfig.updateMany).toHaveBeenCalledWith({
-        where: { isDefault: true, kind: 'vision' },
-        data: { isDefault: false },
+      expect(prisma.adminSettings.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({ update: { globalDefaultVisionConfigId: 'vision-default' } })
+      );
+    });
+
+    it('rejects ?kind=vision when the model is not vision-capable', async () => {
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'text-only',
+        name: 'text-only',
+        isGlobal: true,
+        model: 'z-ai/glm-4.7',
       });
+
+      const response = await request(buildAppWithVisionCache()).put(
+        '/admin/llm-config/text-only/set-default?kind=vision'
+      );
+
+      expect(response.status).toBe(400);
+      expect(prisma.adminSettings.upsert).not.toHaveBeenCalled();
+    });
+
+    it('rejects ?kind=vision when the model is unknown to the catalog (fail closed)', async () => {
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'mystery',
+        name: 'Mystery',
+        isGlobal: true,
+        model: 'mystery/model',
+      });
+
+      const response = await request(buildAppWithVisionCache()).put(
+        '/admin/llm-config/mystery/set-default?kind=vision'
+      );
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toMatch(/couldn't confirm/i);
+      expect(prisma.adminSettings.upsert).not.toHaveBeenCalled();
     });
   });
 
   describe('PUT /admin/llm-config/:id/set-free-default', () => {
-    it('should set a global config with free model as free tier default', async () => {
+    it('writes the free chat-slot pointer (default text slot)', async () => {
       prisma.llmConfig.findUnique.mockResolvedValue({
         id: 'config-id',
         name: 'Free Config',
         isGlobal: true,
-        kind: 'text',
         model: 'meta-llama/llama-3.3-70b-instruct:free',
         provider: 'openrouter',
-        memoryScoreThreshold: { toNumber: () => 0.5 },
-        memoryLimit: 20,
-      });
-      prisma.llmConfig.updateMany.mockResolvedValue({ count: 1 });
-      prisma.llmConfig.update.mockResolvedValue({
-        id: 'config-id',
-        isFreeDefault: true,
       });
 
       const response = await request(app).put('/admin/llm-config/config-id/set-free-default');
@@ -966,37 +1001,45 @@ describe('Admin LLM Config Routes', () => {
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.configName).toBe('Free Config');
-      // Verify it clears existing free default
-      expect(prisma.llmConfig.updateMany).toHaveBeenCalledWith({
-        where: { isFreeDefault: true, kind: 'text' },
-        data: { isFreeDefault: false },
-      });
+      expect(prisma.adminSettings.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({ update: { freeDefaultLlmConfigId: 'config-id' } })
+      );
     });
 
-    it('sets a kind=vision free config as the vision free default when ?kind=vision is passed', async () => {
+    it('writes the free vision-slot pointer when ?kind=vision and the model is a free vision model', async () => {
       prisma.llmConfig.findUnique.mockResolvedValue({
         id: 'vision-free',
         name: 'Vision Free',
         isGlobal: true,
-        kind: 'vision',
         model: 'qwen/qwen3-vl-30b-a3b-instruct:free',
         provider: 'openrouter',
-        memoryScoreThreshold: { toNumber: () => 0.5 },
-        memoryLimit: 20,
       });
-      prisma.llmConfig.updateMany.mockResolvedValue({ count: 1 });
-      prisma.llmConfig.update.mockResolvedValue({ id: 'vision-free', isFreeDefault: true });
 
-      const response = await request(app).put(
+      const response = await request(buildAppWithVisionCache()).put(
         '/admin/llm-config/vision-free/set-free-default?kind=vision'
       );
 
       expect(response.status).toBe(200);
-      // setAsFreeDefault is kind-scoped: clears only the existing VISION free default.
-      expect(prisma.llmConfig.updateMany).toHaveBeenCalledWith({
-        where: { isFreeDefault: true, kind: 'vision' },
-        data: { isFreeDefault: false },
+      expect(prisma.adminSettings.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({ update: { freeDefaultVisionConfigId: 'vision-free' } })
+      );
+    });
+
+    it('rejects ?kind=vision when the free model is not vision-capable', async () => {
+      // Passes the :free check but fails the vision capability gate.
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'glm-free',
+        name: 'GLM Free',
+        isGlobal: true,
+        model: 'z-ai/glm-4.7:free',
       });
+
+      const response = await request(buildAppWithVisionCache()).put(
+        '/admin/llm-config/glm-free/set-free-default?kind=vision'
+      );
+
+      expect(response.status).toBe(400);
+      expect(prisma.adminSettings.upsert).not.toHaveBeenCalled();
     });
 
     it('should return 404 when config not found', async () => {
@@ -1088,55 +1131,48 @@ describe('Admin LLM Config Routes', () => {
       expect(response.body.message).toMatch(/only.*global/i);
     });
 
-    it('rejects deleting a kind=vision config (guards the seeded vision default)', async () => {
-      // Without the requireKind:'text' gate, an admin could DELETE the seeded
-      // vision-default via the text surface, dropping vision to the hardcoded fallback.
+    it('rejects deleting a config that occupies a global default slot', async () => {
+      // The delete guard now reads the AdminSettings pointers, not config flags:
+      // a config wired as any global/free default slot is blocked (FK SetNull would
+      // otherwise silently drop that default to the floor).
       prisma.llmConfig.findUnique.mockResolvedValue({
-        id: 'vision-default',
-        name: 'vision-default',
+        id: 'config-id',
+        name: 'Global Default',
         isGlobal: true,
-        isDefault: true,
-        isFreeDefault: false,
-        kind: 'vision',
+      });
+      prisma.adminSettings.findFirst.mockResolvedValue({
+        globalDefaultLlmConfigId: 'config-id',
+        globalDefaultVisionConfigId: null,
+        freeDefaultLlmConfigId: null,
+        freeDefaultVisionConfigId: null,
       });
 
-      const response = await request(app).delete('/admin/llm-config/vision-default');
+      const response = await request(app).delete('/admin/llm-config/config-id');
 
-      expect(response.status).toBe(404);
+      expect(response.status).toBe(400);
+      expect(response.body.message).toMatch(/global or free-tier default/i);
       expect(prisma.llmConfig.delete).not.toHaveBeenCalled();
     });
 
-    it('should reject deleting the system default config', async () => {
+    it('rejects deleting a config that occupies the free-tier vision slot', async () => {
+      // Guest/no-BYOK users would otherwise lose the vision default to the floor.
       prisma.llmConfig.findUnique.mockResolvedValue({
         id: 'config-id',
+        name: 'Free Vision Default',
         isGlobal: true,
-        isDefault: true,
-        memoryScoreThreshold: { toNumber: () => 0.5 },
-        memoryLimit: 20,
+      });
+      prisma.adminSettings.findFirst.mockResolvedValue({
+        globalDefaultLlmConfigId: null,
+        globalDefaultVisionConfigId: null,
+        freeDefaultLlmConfigId: null,
+        freeDefaultVisionConfigId: 'config-id',
       });
 
       const response = await request(app).delete('/admin/llm-config/config-id');
 
       expect(response.status).toBe(400);
-      expect(response.body.message).toMatch(/default config/i);
-    });
-
-    it('should reject deleting the free-tier default config', async () => {
-      // Same hard-block shape as isDefault — guest users would otherwise lose
-      // LLM access until an admin manually sets a new free-tier default.
-      prisma.llmConfig.findUnique.mockResolvedValue({
-        id: 'config-id',
-        isGlobal: true,
-        isDefault: false,
-        isFreeDefault: true,
-        memoryScoreThreshold: { toNumber: () => 0.5 },
-        memoryLimit: 20,
-      });
-
-      const response = await request(app).delete('/admin/llm-config/config-id');
-
-      expect(response.status).toBe(400);
-      expect(response.body.message).toMatch(/free tier default/i);
+      expect(response.body.message).toMatch(/global or free-tier default/i);
+      expect(prisma.llmConfig.delete).not.toHaveBeenCalled();
     });
 
     it('should reject deleting config in use by personalities', async () => {

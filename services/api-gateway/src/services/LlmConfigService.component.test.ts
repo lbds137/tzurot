@@ -559,32 +559,56 @@ describe('LlmConfigService Integration', () => {
   });
 
   describe('setAsDefault', () => {
-    it('should set config as system default and clear previous default', async () => {
-      // Create two global configs
-      const oldDefaultId = generateLlmConfigUuid('old-default');
+    it('writes the global chat-slot pointer on AdminSettings (vision slot untouched)', async () => {
       const newDefaultId = generateLlmConfigUuid('new-default');
+      await prisma.llmConfig.create({
+        data: {
+          id: newDefaultId,
+          name: 'New Default',
+          model: 'model',
+          provider: 'openrouter',
+          isGlobal: true,
+          ownerId: adminUserId,
+          contextWindowTokens: 100000,
+          maxMessages: 25,
+          maxImages: 5,
+        },
+      });
 
+      await service.setAsDefault(newDefaultId, 'text');
+
+      const settings = await prisma.adminSettings.findFirst({
+        select: { globalDefaultLlmConfigId: true, globalDefaultVisionConfigId: true },
+      });
+      expect(settings?.globalDefaultLlmConfigId).toBe(newDefaultId);
+      expect(settings?.globalDefaultVisionConfigId).toBeNull();
+    });
+
+    it('lets one config be the chat default and another the vision default simultaneously', async () => {
+      // The capability-driven model's payoff: the chat and vision slots are
+      // independent pointers, so a single model can serve both — or two different
+      // configs can occupy the two slots — without the old per-kind flag collision.
+      const chatId = generateLlmConfigUuid('chat-default');
+      const visionId = generateLlmConfigUuid('vision-default');
       await prisma.llmConfig.createMany({
         data: [
           {
-            id: oldDefaultId,
-            name: 'Old Default',
-            model: 'model',
+            id: chatId,
+            name: 'Chat Default',
+            model: 'chat-model',
             provider: 'openrouter',
             isGlobal: true,
-            isDefault: true, // Current default
             ownerId: adminUserId,
             contextWindowTokens: 100000,
             maxMessages: 25,
             maxImages: 5,
           },
           {
-            id: newDefaultId,
-            name: 'New Default',
-            model: 'model',
+            id: visionId,
+            name: 'Vision Default',
+            model: 'vision-model',
             provider: 'openrouter',
             isGlobal: true,
-            isDefault: false,
             ownerId: adminUserId,
             contextWindowTokens: 100000,
             maxMessages: 25,
@@ -593,13 +617,14 @@ describe('LlmConfigService Integration', () => {
         ],
       });
 
-      await service.setAsDefault(newDefaultId);
+      await service.setAsDefault(chatId, 'text');
+      await service.setAsDefault(visionId, 'vision');
 
-      const oldConfig = await service.getById(oldDefaultId);
-      const newConfig = await service.getById(newDefaultId);
-
-      expect(oldConfig?.isDefault).toBe(false);
-      expect(newConfig?.isDefault).toBe(true);
+      const settings = await prisma.adminSettings.findFirst({
+        select: { globalDefaultLlmConfigId: true, globalDefaultVisionConfigId: true },
+      });
+      expect(settings?.globalDefaultLlmConfigId).toBe(chatId);
+      expect(settings?.globalDefaultVisionConfigId).toBe(visionId);
     });
   });
 

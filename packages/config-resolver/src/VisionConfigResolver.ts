@@ -33,6 +33,7 @@ import {
   type UserWithDefault,
 } from './BaseConfigResolver.js';
 import {
+  ADMIN_SETTINGS_SINGLETON_ID,
   LLM_CONFIG_SELECT_WITH_NAME,
   mapLlmConfigFromDbWithName,
   MODEL_DEFAULTS,
@@ -214,15 +215,19 @@ export class VisionConfigResolver extends BaseConfigResolver<
     }
 
     try {
-      const globalConfig = await this.prisma.llmConfig.findFirst({
-        where: { kind: 'vision', isGlobal: true, isDefault: true },
-        select: LLM_CONFIG_SELECT_WITH_NAME,
+      // Read the admin-set global vision default via the AdminSettings pointer
+      // (singleton). The vision slot is capability-gated at write time, so any
+      // pointed config is vision-eligible; a null pointer means no admin default —
+      // fall through to the hardcoded floor. Replaces the old
+      // kind='vision'+isGlobal+isDefault flag query.
+      const settings = await this.prisma.adminSettings.findFirst({
+        where: { id: ADMIN_SETTINGS_SINGLETON_ID },
+        select: { globalDefaultVisionConfig: { select: LLM_CONFIG_SELECT_WITH_NAME } },
       });
+      const globalConfig = settings?.globalDefaultVisionConfig ?? null;
 
       if (globalConfig === null) {
-        this.logger.debug(
-          'No global vision default (kind=vision, isGlobal, isDefault) in database'
-        );
+        this.logger.debug('No global vision default pointer set in admin_settings');
         this.noGlobalDefaultCache.set(GLOBAL_DEFAULT_CACHE_KEY, true);
         return null;
       }
