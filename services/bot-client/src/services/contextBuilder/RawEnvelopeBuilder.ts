@@ -142,6 +142,14 @@ export function buildRawAssemblyInputs(
     rawActiveGuildMemberInfo?: GuildMemberInfo;
   }
 ): RawAssemblyInputs {
+  // Wrapper-only mentions: message.mentions reflects the trigger message's OWN
+  // parsed mentions, which are empty for a forward — the snapshot's <@id> tokens
+  // aren't here. Resolving forward-snapshot user-mentions is a tracked follow-up
+  // (cold/follow-ups.md): non-trivial because MessageSnapshot strips mention
+  // metadata, so it needs regex + a per-id fetch. The forward's text still reaches
+  // the AI via rawMessageContent; only embedded <@id> name-substitution degrades.
+  // eslint-disable-next-line no-restricted-syntax -- wrapper-only mentions; forward-snapshot <@id> resolution is a tracked follow-up (cold/follow-ups.md)
+  const wrapperMentionedUsers = message.mentions.users;
   return {
     // getEffectiveContent yields message.content for normal triggers and the
     // forward snapshot text for forwarded ones; a bare message.content is empty
@@ -157,8 +165,8 @@ export function buildRawAssemblyInputs(
     rawMentionedChannels: refs?.rawMentionedChannels,
     rawMentionedRoles: refs?.rawMentionedRoles,
     rawMentionedUsers:
-      message.mentions.users.size > 0
-        ? [...message.mentions.users.values()].map(u => ({
+      wrapperMentionedUsers.size > 0
+        ? [...wrapperMentionedUsers.values()].map(u => ({
             discordId: u.id,
             username: u.username,
             displayName: u.globalName ?? u.username,

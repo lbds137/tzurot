@@ -239,23 +239,44 @@ describe('buildRawAssemblyInputs', () => {
     expect(raw?.rawRoutingTranscript).toBe('the spoken words');
   });
 
-  it('forwarded trigger: rawMessageContent carries the snapshot text, not the empty top-level content', () => {
-    // Regression (forward content-loss): a native Discord forward has empty
-    // message.content; its text lives in messageSnapshots. The worker re-derives
-    // the current turn SOLELY from rawMessageContent, so a bare message.content
-    // would drop the whole forward and the AI would see an empty turn ("Hello").
-    const raw = buildRawAssemblyInputs(
-      makeForwardedMessage('the forwarded text', { withReferenceType: true }),
-      undefined
-    );
-    expect(raw?.rawMessageContent).toBe('the forwarded text');
-  });
-
-  it('forwarded trigger detected via snapshot fallback (reference.type unpopulated) still carries the text', () => {
-    // Discord.js sometimes leaves reference.type unset; isForwardedMessage falls
-    // back to messageSnapshots.size > 0. The fix must survive that path too.
-    const raw = buildRawAssemblyInputs(makeForwardedMessage('snapshot-only forward'), undefined);
-    expect(raw?.rawMessageContent).toBe('snapshot-only forward');
+  // The worker's ContextAssembler re-derives the current turn SOLELY from
+  // rawMessageContent. This matrix is the regression guard for the forward
+  // content-loss bug: every trigger type must land its EFFECTIVE text here, or
+  // the AI sees an empty turn (the "Hello" placeholder). Parameterized so a new
+  // trigger type can't be added without a row — the gap that let the forward
+  // case ship unnoticed.
+  it.each([
+    {
+      trigger: 'normal text',
+      message: () => makeMessage([], 'hello there'),
+      expected: 'hello there',
+    },
+    {
+      trigger: 'forward (reference.type=Forward)',
+      message: () => makeForwardedMessage('forwarded body', { withReferenceType: true }),
+      expected: 'forwarded body',
+    },
+    {
+      trigger: 'forward (snapshot-size fallback, reference.type unset)',
+      message: () => makeForwardedMessage('snapshot-only body'),
+      expected: 'snapshot-only body',
+    },
+    {
+      trigger: 'forward with non-empty top-level content (snapshot text wins)',
+      message: () =>
+        makeForwardedMessage('snapshot wins', {
+          withReferenceType: true,
+          topLevelContent: 'wrapper note that must NOT win',
+        }),
+      expected: 'snapshot wins',
+    },
+    {
+      trigger: 'voice (empty content — worker re-transcribes, turn stays empty)',
+      message: () => makeMessage([], ''),
+      expected: '',
+    },
+  ])('rawMessageContent for $trigger → "$expected"', ({ message, expected }) => {
+    expect(buildRawAssemblyInputs(message(), undefined)?.rawMessageContent).toBe(expected);
   });
 
   it('leaves rawRoutingTranscript absent for non-voice triggers', () => {
