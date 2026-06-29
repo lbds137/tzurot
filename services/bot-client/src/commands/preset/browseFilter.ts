@@ -62,13 +62,15 @@ const SCOPE_LABELS: Record<PresetScopeFilter, string> = {
   free: 'Free Only',
 };
 
+// This axis is a capability check, not a fetch-scope parameter: 'vision'/'text'
+// are applied client-side off each row's `supportsVision`. The encoded values
+// stay 'text'/'vision' intentionally so the customId format is unchanged.
 const KIND_LABELS: Record<PresetKindFilter, string> = {
-  // `all` is present for Record completeness; describeFilter skips the kind axis
-  // when kind === 'all', so this label isn't rendered today — it's the slot a
-  // future "both kinds selected" display would use.
-  all: 'All Kinds',
-  text: 'Text Only',
-  vision: 'Vision Only',
+  // `all` is present for Record completeness; describeFilter skips the axis when
+  // it's 'all', so this label isn't rendered today.
+  all: 'All Models',
+  text: 'Text-only Models',
+  vision: 'Vision-capable Models',
 };
 
 /**

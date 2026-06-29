@@ -62,10 +62,10 @@ describe('describeFilter', () => {
 
   it('labels a single narrowed axis', () => {
     expect(describeFilter('global', 'all')).toBe('Global Only');
-    expect(describeFilter('all', 'vision')).toBe('Vision Only');
+    expect(describeFilter('all', 'vision')).toBe('Vision-capable Models');
   });
 
   it('joins both axes with a middot when both are narrowed', () => {
-    expect(describeFilter('mine', 'text')).toBe('My Presets · Text Only');
+    expect(describeFilter('mine', 'text')).toBe('My Presets · Text-only Models');
   });
 });

@@ -83,18 +83,23 @@ function configurePresets(
   hasWallet = true,
   visionPresets: Parameters<typeof mockListLlmConfigsResponse>[0] = []
 ): void {
-  // Browse issues ONE kind-aware call. The mock honors the `?kind=` arg: `text`
-  // and `vision` return only that kind, `all` (the default) returns both. Rows
-  // are tagged via the summary's `kind` field, so callers pass `presets` as the
-  // text set and `visionPresets` as the vision set (default empty → text-only).
-  const textRows = (presets ?? []).map(p => ({ ...p, kind: 'text' as const }));
-  const visionRows = visionPresets.map(p => ({ ...p, kind: 'vision' as const }));
-  stub.listUserLlmConfigs.mockImplementation((opts?: { kind?: string }) => {
-    const kind = opts?.kind ?? 'all';
-    const rows =
-      kind === 'vision' ? visionRows : kind === 'text' ? textRows : [...textRows, ...visionRows];
-    return Promise.resolve(makeOk(mockListLlmConfigsResponse(rows)));
-  });
+  // Browse now issues ONE all-kinds call and filters by capability client-side,
+  // so the mock just returns the full set. The 👁 badge + capability filter key
+  // off `supportsVision` — text rows are text-only, vision rows vision-capable;
+  // the `kind` tag is retained only for callers that still group by it.
+  const textRows = (presets ?? []).map(p => ({
+    ...p,
+    kind: 'text' as const,
+    supportsVision: false,
+  }));
+  const visionRows = visionPresets.map(p => ({
+    ...p,
+    kind: 'vision' as const,
+    supportsVision: true,
+  }));
+  stub.listUserLlmConfigs.mockResolvedValue(
+    makeOk(mockListLlmConfigsResponse([...textRows, ...visionRows]))
+  );
   stub.listWalletKeys.mockResolvedValue(
     makeOk(mockListWalletKeysResponse(hasWallet ? [{ isActive: true }] : []))
   );
@@ -206,11 +211,17 @@ describe('handleBrowse', () => {
     expect(allDesc).toContain('VisionPreset');
     expect(allDesc).toContain('👁️');
 
-    // kind:vision → only the vision preset (fetched kind-scoped).
+    // capability:vision → only the vision preset (filtered client-side off supportsVision).
     await handleBrowse(createMockContext(null, null, 'vision'));
     const visionDesc = mockEditReply.mock.calls[1][0].embeds[0].data.description;
     expect(visionDesc).toContain('VisionPreset');
     expect(visionDesc).not.toContain('TextPreset');
+
+    // capability:text → only the text preset (text-only models, supportsVision=false).
+    await handleBrowse(createMockContext(null, null, 'text'));
+    const textDesc = mockEditReply.mock.calls[2][0].embeds[0].data.description;
+    expect(textDesc).toContain('TextPreset');
+    expect(textDesc).not.toContain('VisionPreset');
   });
 
   it('should filter by global presets', async () => {
