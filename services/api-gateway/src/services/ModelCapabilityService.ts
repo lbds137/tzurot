@@ -60,4 +60,13 @@ export class ModelCapabilityService {
     // Not on OpenRouter (or cache unavailable): try the z.ai catalog, else null.
     return zaiCodingPlanModelCapabilities(modelId);
   }
+
+  /**
+   * Convenience: just the vision flag. Defaults to `false` when capability is
+   * unknown (cache unavailable + not a z.ai-catalog member) — fail-closed, so an
+   * unresolvable model is never treated as vision-eligible.
+   */
+  async supportsVision(modelId: string): Promise<boolean> {
+    return (await this.resolve(modelId))?.supportsVision ?? false;
+  }
 }

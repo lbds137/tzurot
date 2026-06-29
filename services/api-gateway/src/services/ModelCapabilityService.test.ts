@@ -107,4 +107,36 @@ describe('ModelCapabilityService', () => {
     const caps = await new ModelCapabilityService(undefined).resolve('anthropic/claude-sonnet-4');
     expect(caps).toBeNull();
   });
+
+  describe('supportsVision', () => {
+    it('returns true when resolve reports vision support', async () => {
+      const cache = cacheReturning({
+        'anthropic/claude-3.5-sonnet': modelOption({
+          id: 'anthropic/claude-3.5-sonnet',
+          supportsVision: true,
+        }),
+      });
+      expect(
+        await new ModelCapabilityService(cache).supportsVision('anthropic/claude-3.5-sonnet')
+      ).toBe(true);
+    });
+
+    it('returns false for a text-only model', async () => {
+      const cache = cacheReturning({
+        'anthropic/claude-text': modelOption({
+          id: 'anthropic/claude-text',
+          supportsVision: false,
+        }),
+      });
+      expect(await new ModelCapabilityService(cache).supportsVision('anthropic/claude-text')).toBe(
+        false
+      );
+    });
+
+    it('fails closed (false) for a model unknown to both sources', async () => {
+      expect(await new ModelCapabilityService(undefined).supportsVision('made-up/model-x')).toBe(
+        false
+      );
+    });
+  });
 });
