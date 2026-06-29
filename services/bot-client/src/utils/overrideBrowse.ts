@@ -28,7 +28,12 @@ import {
   type ButtonInteraction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
-import { DISCORD_COLORS, type createLogger, type ConfigKind } from '@tzurot/common-types';
+import {
+  CONFIG_KINDS,
+  DISCORD_COLORS,
+  type createLogger,
+  type ConfigKind,
+} from '@tzurot/common-types';
 import type { GatewayResult, UserClient } from '@tzurot/clients';
 import type { DeferredCommandContext } from './commandContext/types.js';
 import { clientsFor } from './gatewayClients.js';
@@ -36,6 +41,18 @@ import { buildBrowseSelectMenu } from './browse/index.js';
 
 /** Logger shape produced by {@link createLogger}. */
 type Logger = ReturnType<typeof createLogger>;
+
+/**
+ * Narrow a raw customId/select-value segment to a {@link ConfigKind}, or
+ * `undefined` when the segment is absent or not a known kind. Checked against
+ * `CONFIG_KINDS` rather than literal comparisons so a future third kind is
+ * picked up automatically.
+ */
+function narrowConfigKind(value: string | undefined): ConfigKind | undefined {
+  return value !== undefined && (CONFIG_KINDS as readonly string[]).includes(value)
+    ? (value as ConfigKind)
+    : undefined;
+}
 
 /**
  * Common shape of a per-character override. Both `ModelOverrideSummary` and
@@ -150,8 +167,7 @@ export function createOverrideBrowseCustomIds(prefix: string): {
         return { action };
       }
       if (action === 'clear' && parts[2] !== undefined && parts[2] !== '') {
-        const kind = parts[3] === 'text' || parts[3] === 'vision' ? parts[3] : undefined;
-        return { action: 'clear', personalityId: parts[2], kind };
+        return { action: 'clear', personalityId: parts[2], kind: narrowConfigKind(parts[3]) };
       }
       return null;
     },
@@ -247,8 +263,7 @@ export async function handleOverrideBrowseSelect(
   // Safe because personalityId is always a UUID (never contains `::`), so the
   // split is unambiguous — the first segment is the id, the second (if any) kind.
   const [personalityId, kindStr] = interaction.values[0].split(CUSTOM_ID_DELIMITER);
-  const kind: ConfigKind | undefined =
-    kindStr === 'text' || kindStr === 'vision' ? kindStr : undefined;
+  const kind = narrowConfigKind(kindStr);
   const userId = interaction.user.id;
   try {
     const { userClient } = clientsFor(interaction);

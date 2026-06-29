@@ -177,6 +177,9 @@ export const LLM_CONFIG_LIST_SELECT = {
   description: true,
   provider: true,
   model: true,
+  // Surfaced in the list summary so browse can fetch all kinds in one call and
+  // badge/filter by kind without a per-kind round-trip.
+  kind: true,
   isGlobal: true,
   isDefault: true,
   isFreeDefault: true,
@@ -189,10 +192,8 @@ export const LLM_CONFIG_LIST_SELECT = {
  */
 export const LLM_CONFIG_DETAIL_SELECT = {
   ...LLM_CONFIG_LIST_SELECT,
-  // `kind` is projected (not in LIST_SELECT) so the service's getById kind-gate
-  // can verify a fetched row matches the expected kind. Response formatters
-  // omit it, so the public detail contract is unchanged.
-  kind: true,
+  // `kind` comes through the LIST_SELECT spread (it's now surfaced in the list
+  // summary too). Detail queries still rely on it for the getById kind-gate.
   advancedParameters: true,
   // Memory settings
   memoryScoreThreshold: true,
@@ -247,6 +248,8 @@ export const LlmConfigSummarySchema = z.object({
   description: z.string().nullable(),
   provider: z.string(),
   model: z.string(),
+  /** Config kind discriminator (text | vision). Always present in list responses. */
+  kind: z.enum(CONFIG_KINDS),
   isGlobal: z.boolean(),
   isDefault: z.boolean(),
   isFreeDefault: z.boolean(),

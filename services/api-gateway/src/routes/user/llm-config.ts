@@ -33,7 +33,7 @@ import { isPrismaUniqueConstraintError } from '../../utils/prismaErrors.js';
 import { getRequiredParam } from '../../utils/requestParams.js';
 import {
   parseBodyOrSendError,
-  parseConfigKindQuery,
+  parseConfigKindQueryAllowAll,
   findConfigOrSendNotFound,
   ensureNoNameCollision,
 } from '../../utils/configRouteHelpers.js';
@@ -73,8 +73,9 @@ function createListHandler(service: LlmConfigService) {
     const userId = resolveProvisionedUserId(req);
 
     // Admin sees all presets (same pattern as character browse)
-    // Regular users see global + their own
-    const kind = parseConfigKindQuery(res, req.query);
+    // Regular users see global + their own. Browse passes `?kind=all` to list
+    // both kinds in one call; autocomplete passes an explicit text|vision.
+    const kind = parseConfigKindQueryAllowAll(res, req.query);
     if (kind === null) {
       return;
     }

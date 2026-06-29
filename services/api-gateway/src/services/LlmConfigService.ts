@@ -68,6 +68,7 @@ interface RawConfigList {
   description: string | null;
   provider: string;
   model: string;
+  kind: string;
   isGlobal: boolean;
   isDefault: boolean;
   isFreeDefault: boolean;
@@ -99,6 +100,7 @@ interface FormattedConfigSummary {
   description: string | null;
   provider: string;
   model: string;
+  kind: ConfigKind;
   isGlobal: boolean;
   isDefault: boolean;
   isFreeDefault: boolean;
@@ -113,6 +115,7 @@ interface FormattedConfigDetail {
   description: string | null;
   provider: string;
   model: string;
+  kind: ConfigKind;
   isGlobal: boolean;
   isDefault: boolean;
   isFreeDefault: boolean;
@@ -179,15 +182,22 @@ export class LlmConfigService {
    */
   async list(
     scope: LlmConfigScope,
-    kind: ConfigKind = DEFAULT_CONFIG_KIND
+    kind: ConfigKind | 'all' = DEFAULT_CONFIG_KIND
   ): Promise<RawConfigList[]> {
-    // Queries are scoped to the requested `kind` (default 'text'). text and vision
-    // share the llm_configs table via the kind discriminator, so the list/autocomplete
-    // surface must never mix kinds — a vision-config picker shows only vision rows.
+    // Queries are scoped to the requested `kind` (default 'text'); the `'all'`
+    // sentinel drops the filter so browse can list text + vision in one call
+    // (each row carries `kind` in the summary). The autocomplete picker still
+    // passes an explicit kind so it never mixes kinds.
+    //
+    // Bound note: each findMany is `take: 100`. For USER scope that's two
+    // parallel queries (global + owned), so the merged result can reach 200 —
+    // and `'all'` widens each to both kinds. browse paginates, so a larger set
+    // is fine; a future non-paginating caller should pass an explicit kind.
+    const kindWhere = kind === 'all' ? {} : { kind };
     if (scope.type === 'GLOBAL') {
       // Admin: list all configs of this kind
       return this.prisma.llmConfig.findMany({
-        where: { kind },
+        where: kindWhere,
         select: LLM_CONFIG_LIST_SELECT,
         orderBy: [
           { isDefault: 'desc' },
@@ -202,13 +212,13 @@ export class LlmConfigService {
     // User scope: Global configs + user's own configs (of this kind)
     const [globalConfigs, userConfigs] = await Promise.all([
       this.prisma.llmConfig.findMany({
-        where: { isGlobal: true, kind },
+        where: { isGlobal: true, ...kindWhere },
         select: LLM_CONFIG_LIST_SELECT,
         orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
         take: 100,
       }),
       this.prisma.llmConfig.findMany({
-        where: { ownerId: scope.userId, isGlobal: false, kind },
+        where: { ownerId: scope.userId, isGlobal: false, ...kindWhere },
         select: LLM_CONFIG_LIST_SELECT,
         orderBy: { name: 'asc' },
         take: 100,
@@ -596,6 +606,7 @@ export class LlmConfigService {
       description: raw.description,
       provider: raw.provider,
       model: raw.model,
+      kind: toConfigKind(raw.kind),
       isGlobal: raw.isGlobal,
       isDefault: raw.isDefault,
       isFreeDefault: raw.isFreeDefault,
@@ -626,6 +637,7 @@ export class LlmConfigService {
       description: raw.description,
       provider: raw.provider,
       model: raw.model,
+      kind: toConfigKind(raw.kind),
       isGlobal: raw.isGlobal,
       isDefault: raw.isDefault,
       isFreeDefault: raw.isFreeDefault,

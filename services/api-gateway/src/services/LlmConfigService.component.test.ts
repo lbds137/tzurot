@@ -635,6 +635,7 @@ describe('LlmConfigService Integration', () => {
         description: 'Test description',
         model: 'test-model',
         provider: 'openrouter',
+        kind: 'text',
         isGlobal: true,
         isDefault: false,
         isFreeDefault: false,

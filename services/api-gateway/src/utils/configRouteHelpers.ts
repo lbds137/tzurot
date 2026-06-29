@@ -78,6 +78,30 @@ export function parseConfigKindQuery(res: Response, query: unknown): ConfigKind 
   return result.data.kind;
 }
 
+/** LIST-route `?kind=` schema that also accepts the `all` sentinel (both kinds). */
+const ConfigKindOrAllQuerySchema = z.object({
+  kind: z.enum([...CONFIG_KINDS, 'all'] as const).default(DEFAULT_CONFIG_KIND),
+});
+
+/**
+ * Parse the optional `?kind=` query for LIST routes, additionally accepting the
+ * `'all'` sentinel meaning "return BOTH kinds" (used by browse to fetch text +
+ * vision in one call). Defaults to text so existing callers are unchanged. Only
+ * list/browse handlers use this; the strict {@link parseConfigKindQuery} stays
+ * for by-id / set / clear so those can never receive `'all'`.
+ */
+export function parseConfigKindQueryAllowAll(
+  res: Response,
+  query: unknown
+): ConfigKind | 'all' | null {
+  const result = ConfigKindOrAllQuerySchema.safeParse(query ?? {});
+  if (!result.success) {
+    sendZodError(res, result.error);
+    return null;
+  }
+  return result.data.kind;
+}
+
 /**
  * Fetch a config row by id (caller supplies the typed thunk) and 404 if
  * absent. Unlike findGlobalConfigOrSendError, no isGlobal guard — user-side

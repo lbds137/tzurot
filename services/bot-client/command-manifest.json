@@ -1461,6 +1461,18 @@
                   {
                     "name": "Free Models",
                     "value": "free"
+                  }
+                ],
+                "name": "filter",
+                "description": "Filter presets by scope",
+                "required": false
+              },
+              {
+                "type": 3,
+                "choices": [
+                  {
+                    "name": "All",
+                    "value": "all"
                   },
                   {
                     "name": "Text",
@@ -1471,8 +1483,8 @@
                     "value": "vision"
                   }
                 ],
-                "name": "filter",
-                "description": "Filter presets by type",
+                "name": "kind",
+                "description": "Filter by config kind (defaults to all)",
                 "required": false
               }
             ]
