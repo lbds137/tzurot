@@ -218,6 +218,44 @@ describe('OpenRouterModelCache', () => {
       expect(mockRedis.setex).toHaveBeenCalled();
     });
 
+    it('coalesces concurrent cold callers into a single OpenRouter fetch', async () => {
+      (mockRedis.get as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ data: sampleModels }),
+      });
+
+      // Fire two cold getModels() in parallel before either resolves. The
+      // in-flight guard must collapse them onto ONE fetch — this is the
+      // cold-cache fan-out a parallel supportsVision() list-enrich triggers.
+      const [a, b] = await Promise.all([cache.getModels(), cache.getModels()]);
+
+      expect(a).toEqual(b);
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('clears the in-flight guard on rejection so a subsequent cold call retries', async () => {
+      (mockRedis.get as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      // First (shared) cold fetch rejects — both concurrent callers see it.
+      (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('network error'));
+
+      const [a, b] = await Promise.allSettled([cache.getModels(), cache.getModels()]);
+      expect(a.status).toBe('rejected');
+      expect(b.status).toBe('rejected');
+
+      // Guard cleared on settle (finally, not .then), so a later cold call fires
+      // a NEW fetch rather than replaying the rejected promise forever.
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: sampleModels }),
+      });
+      const recovered = await cache.getModels();
+
+      expect(recovered).toHaveLength(sampleModels.length);
+      // One fetch for the shared failed batch + one for the recovery.
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+    });
+
     it('should cache fetched models in Redis with TTL', async () => {
       (mockRedis.get as ReturnType<typeof vi.fn>).mockResolvedValue(null);
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
