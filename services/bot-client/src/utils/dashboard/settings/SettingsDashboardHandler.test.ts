@@ -1080,6 +1080,7 @@ describe('SettingsDashboardHandler', () => {
       reply: vi.fn(),
       deferUpdate: vi.fn(),
       editReply: vi.fn(),
+      followUp: vi.fn(),
     });
 
     it('should return early for invalid customId', async () => {
@@ -1118,7 +1119,9 @@ describe('SettingsDashboardHandler', () => {
 
       await handleSettingsModal(interaction as never, config, updateHandler);
 
-      expect(interaction.reply).toHaveBeenCalledWith(
+      // Ack-first: deferUpdate precedes getSession, so expiry surfaces via followUp.
+      expect(interaction.deferUpdate).toHaveBeenCalled();
+      expect(interaction.followUp).toHaveBeenCalledWith(
         expect.objectContaining({
           content: expect.stringContaining('expired'),
         })
@@ -1144,7 +1147,7 @@ describe('SettingsDashboardHandler', () => {
 
       await handleSettingsModal(interaction as never, config, updateHandler);
 
-      expect(interaction.reply).toHaveBeenCalledWith(
+      expect(interaction.followUp).toHaveBeenCalledWith(
         expect.objectContaining({
           content: expect.stringContaining('Unknown setting'),
         })
@@ -1262,7 +1265,7 @@ describe('SettingsDashboardHandler', () => {
 
         await handleSettingsModal(interaction as never, config, updateHandler);
 
-        expect(interaction.reply).toHaveBeenCalledWith(
+        expect(interaction.followUp).toHaveBeenCalledWith(
           expect.objectContaining({
             content: expect.stringContaining('Invalid number'),
           })
@@ -1290,7 +1293,7 @@ describe('SettingsDashboardHandler', () => {
 
         await handleSettingsModal(interaction as never, config, updateHandler);
 
-        expect(interaction.reply).toHaveBeenCalledWith(
+        expect(interaction.followUp).toHaveBeenCalledWith(
           expect.objectContaining({
             content: expect.stringContaining('between'),
           })
@@ -1318,7 +1321,7 @@ describe('SettingsDashboardHandler', () => {
 
         await handleSettingsModal(interaction as never, config, updateHandler);
 
-        expect(interaction.reply).toHaveBeenCalledWith(
+        expect(interaction.followUp).toHaveBeenCalledWith(
           expect.objectContaining({
             content: expect.stringContaining('between'),
           })
@@ -1483,7 +1486,7 @@ describe('SettingsDashboardHandler', () => {
 
         await handleSettingsModal(interaction as never, config, updateHandler);
 
-        expect(interaction.reply).toHaveBeenCalledWith(
+        expect(interaction.followUp).toHaveBeenCalledWith(
           expect.objectContaining({
             content: expect.stringContaining('Invalid duration'),
           })
@@ -1508,7 +1511,7 @@ describe('SettingsDashboardHandler', () => {
 
         await handleSettingsModal(interaction as never, config, updateHandler);
 
-        expect(interaction.reply).toHaveBeenCalledWith(
+        expect(interaction.followUp).toHaveBeenCalledWith(
           expect.objectContaining({
             content: expect.stringContaining('at least 1 minute'),
           })
