@@ -161,6 +161,14 @@ export const AI_ENDPOINTS = {
 const FREE_MULTIMODAL_MODEL = 'google/gemma-4-31b-it:free';
 
 /**
+ * OpenRouter's free-model router — a meta-model that routes to an available free
+ * model. It is free to use, but its ID does NOT carry the `:free` suffix, so
+ * `isFreeModel` must recognize it explicitly (otherwise it's wrongly excluded
+ * from free-tier defaults, guest-mode eligibility, and free-model badges).
+ */
+const FREE_ROUTER_MODEL = 'openrouter/free';
+
+/**
  * Centralized Model Configuration
  *
  * Single source of truth for all AI model defaults.
@@ -173,8 +181,12 @@ export const MODEL_DEFAULTS = {
   // Specialized models
   /** Vision fallback for BYOK users (paid) — natively multimodal */
   VISION_FALLBACK: 'qwen/qwen3.5-397b-a17b',
-  /** Vision fallback for free tier users (no BYOK) — 131k context, multimodal */
-  VISION_FALLBACK_FREE: FREE_MULTIMODAL_MODEL,
+  /**
+   * Vision fallback for free-tier users (no BYOK) — the dynamic free-model router
+   * (vision-capable per OpenRouter's catalog), so it survives individual free
+   * models being rate-limited or rotated out rather than pinning one model.
+   */
+  VISION_FALLBACK_FREE: FREE_ROUTER_MODEL,
   /**
    * Local embedding model (not configurable via env)
    * Uses @tzurot/embeddings package with 384-dimensional vectors.
@@ -509,10 +521,13 @@ export enum AIProvider {
  */
 export const GUEST_MODE = {
   /**
-   * Default free model for guest users
-   * Gemma 3 27B: 131k context window, multimodal, excellent for conversational AI
+   * Last-resort free model for guest users when no free-default config is set
+   * (AuthStep prefers a configured free default over this). The OpenRouter
+   * free-model router (dynamic) rather than a single pinned model, so it survives
+   * individual free models being rate-limited or rotated out — whatever free
+   * models are in rotation, the router resolves one.
    */
-  DEFAULT_MODEL: FREE_MULTIMODAL_MODEL,
+  DEFAULT_MODEL: FREE_ROUTER_MODEL,
 
   /**
    * Alternative free models (for failover or user choice)
@@ -537,12 +552,15 @@ export const GUEST_MODE = {
 } as const;
 
 /**
- * Check if a model ID is a free model
- * Free models on OpenRouter end with ':free'
+ * Check if a model ID is a free model.
+ *
+ * Two shapes count as free: OpenRouter models whose ID ends with ':free', and
+ * the OpenRouter free-model router ('openrouter/free'), which has no suffix but
+ * routes to a free model.
  *
  * @param modelId - The model ID to check (e.g., 'x-ai/grok-4.1-fast:free')
  * @returns true if the model is free
  */
 export function isFreeModel(modelId: string): boolean {
-  return modelId.endsWith(GUEST_MODE.FREE_MODEL_SUFFIX);
+  return modelId === FREE_ROUTER_MODEL || modelId.endsWith(GUEST_MODE.FREE_MODEL_SUFFIX);
 }

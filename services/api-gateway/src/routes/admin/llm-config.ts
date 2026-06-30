@@ -330,7 +330,7 @@ function createSetFreeDefaultHandler(
       return sendError(
         res,
         ErrorResponses.validationError(
-          'Only presets using free models (model ID ending in :free) can be set as free tier default'
+          'Only presets using free models (model ID ending in :free, or the openrouter/free router) can be set as free tier default'
         )
       );
     }

@@ -309,7 +309,7 @@ async function handleGlobalConfigAutocomplete(
         if (!c.isGlobal) {
           return false;
         }
-        // If freeOnly, model must be a free model (ending in :free)
+        // If freeOnly, model must be a free model (a :free-suffixed model or the openrouter/free router)
         if (freeOnly && !isFreeModel(c.model)) {
           return false;
         }
