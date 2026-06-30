@@ -519,6 +519,9 @@ describe('SettingsDashboardHandler', () => {
       values: [selectedValue],
       reply: vi.fn(),
       update: vi.fn(),
+      deferUpdate: vi.fn(),
+      editReply: vi.fn().mockResolvedValue({ id: 'message-123' }),
+      followUp: vi.fn(),
     });
 
     it('should return early for invalid customId', async () => {
@@ -541,7 +544,9 @@ describe('SettingsDashboardHandler', () => {
 
       await handleSettingsSelectMenu(interaction as never, config, updateHandler);
 
-      expect(interaction.reply).toHaveBeenCalledWith(
+      // Ack-first: deferUpdate precedes the Redis getSession; expiry surfaces via followUp.
+      expect(interaction.deferUpdate).toHaveBeenCalled();
+      expect(interaction.followUp).toHaveBeenCalledWith(
         expect.objectContaining({
           content: expect.stringContaining('expired'),
         })
@@ -568,7 +573,7 @@ describe('SettingsDashboardHandler', () => {
 
       await handleSettingsSelectMenu(interaction as never, config, updateHandler);
 
-      expect(interaction.reply).toHaveBeenCalledWith(
+      expect(interaction.followUp).toHaveBeenCalledWith(
         expect.objectContaining({
           content: expect.stringContaining('another user'),
         })
@@ -594,7 +599,7 @@ describe('SettingsDashboardHandler', () => {
 
       await handleSettingsSelectMenu(interaction as never, config, updateHandler);
 
-      expect(interaction.reply).toHaveBeenCalledWith(
+      expect(interaction.followUp).toHaveBeenCalledWith(
         expect.objectContaining({
           content: expect.stringContaining('Unknown setting'),
         })
@@ -617,7 +622,10 @@ describe('SettingsDashboardHandler', () => {
 
       await handleSettingsSelectMenu(interaction as never, config, updateHandler);
 
-      expect(interaction.update).toHaveBeenCalledWith(
+      // Ack-first invariant: defer precedes the re-render even on the happy path.
+      expect(interaction.deferUpdate).toHaveBeenCalled();
+      // Post-defer: the setting view lands via editReply, not update.
+      expect(interaction.editReply).toHaveBeenCalledWith(
         expect.objectContaining({
           embeds: expect.any(Array),
           components: expect.any(Array),
@@ -633,6 +641,9 @@ describe('SettingsDashboardHandler', () => {
       reply: vi.fn(),
       update: vi.fn(),
       showModal: vi.fn(),
+      deferUpdate: vi.fn(),
+      editReply: vi.fn().mockResolvedValue({ id: 'message-123' }),
+      followUp: vi.fn(),
     });
 
     it('should return early for invalid customId', async () => {
@@ -646,6 +657,33 @@ describe('SettingsDashboardHandler', () => {
       expect(interaction.update).not.toHaveBeenCalled();
     });
 
+    it('should followUp with out-of-date notice for an unrecognized action', async () => {
+      mockSessionManager.get.mockReturnValue({
+        data: {
+          userId: 'user-123',
+          entityId: 'entity-1',
+          data: createTestData(),
+          view: 'overview',
+        },
+      });
+
+      // A parseable customId with an action that isn't back/close/set/edit hits
+      // the switch default. The router already deferred, so it must followUp
+      // rather than silently return (stale-customId-after-deploy scenario).
+      const interaction = createButtonInteraction('test-settings::frobnicate::entity-1');
+      const config = createTestConfig();
+      const updateHandler = vi.fn();
+
+      await handleSettingsButton(interaction as never, config, updateHandler);
+
+      expect(interaction.deferUpdate).toHaveBeenCalled();
+      expect(interaction.followUp).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining('out of date'),
+        })
+      );
+    });
+
     it('should reply with expired message when session not found', async () => {
       mockSessionManager.get.mockReturnValue(null);
 
@@ -655,7 +693,9 @@ describe('SettingsDashboardHandler', () => {
 
       await handleSettingsButton(interaction as never, config, updateHandler);
 
-      expect(interaction.reply).toHaveBeenCalledWith(
+      // Ack-first: the router deferUpdate's non-modal actions; expiry → followUp.
+      expect(interaction.deferUpdate).toHaveBeenCalled();
+      expect(interaction.followUp).toHaveBeenCalledWith(
         expect.objectContaining({
           content: expect.stringContaining('expired'),
         })
@@ -678,11 +718,31 @@ describe('SettingsDashboardHandler', () => {
 
       await handleSettingsButton(interaction as never, config, updateHandler);
 
-      expect(interaction.reply).toHaveBeenCalledWith(
+      expect(interaction.followUp).toHaveBeenCalledWith(
         expect.objectContaining({
           content: expect.stringContaining('another user'),
         })
       );
+    });
+
+    it('should reply (not followUp) on expiry for the un-deferred edit action', async () => {
+      mockSessionManager.get.mockReturnValue(null);
+
+      // The edit action skips deferUpdate (showModal is its ack), so the router's
+      // notify() must resolve to reply, not followUp, on the session-expired guard.
+      const interaction = createButtonInteraction('test-settings::edit::entity-1::maxMessages');
+      const config = createTestConfig();
+      const updateHandler = vi.fn();
+
+      await handleSettingsButton(interaction as never, config, updateHandler);
+
+      expect(interaction.deferUpdate).not.toHaveBeenCalled();
+      expect(interaction.reply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining('expired'),
+        })
+      );
+      expect(interaction.followUp).not.toHaveBeenCalled();
     });
 
     describe('back button', () => {
@@ -703,7 +763,10 @@ describe('SettingsDashboardHandler', () => {
 
         await handleSettingsButton(interaction as never, config, updateHandler);
 
-        expect(interaction.update).toHaveBeenCalledWith(
+        // Ack-first invariant: the router defers before the back re-render.
+        expect(interaction.deferUpdate).toHaveBeenCalled();
+        // Post-defer: back navigation re-renders via editReply.
+        expect(interaction.editReply).toHaveBeenCalledWith(
           expect.objectContaining({
             embeds: expect.any(Array),
             components: expect.any(Array),
@@ -729,8 +792,10 @@ describe('SettingsDashboardHandler', () => {
 
         await handleSettingsButton(interaction as never, config, updateHandler);
 
+        // Ack-first invariant: defer precedes the session delete + close render.
+        expect(interaction.deferUpdate).toHaveBeenCalled();
         expect(mockSessionManager.delete).toHaveBeenCalled();
-        expect(interaction.update).toHaveBeenCalledWith(
+        expect(interaction.editReply).toHaveBeenCalledWith(
           expect.objectContaining({
             content: expect.stringContaining('closed'),
             embeds: [],
@@ -741,7 +806,7 @@ describe('SettingsDashboardHandler', () => {
     });
 
     describe('set button', () => {
-      it('should return early when extra data is missing', async () => {
+      it('should followUp with invalid-data notice when extra is missing', async () => {
         mockSessionManager.get.mockReturnValue({
           data: {
             userId: 'user-123',
@@ -757,6 +822,13 @@ describe('SettingsDashboardHandler', () => {
 
         await handleSettingsButton(interaction as never, config, updateHandler);
 
+        // Router deferred this set action; a bare return would leave it
+        // unresolved, so the missing-extra guard followUps instead.
+        expect(interaction.followUp).toHaveBeenCalledWith(
+          expect.objectContaining({
+            content: expect.stringContaining('Invalid button data'),
+          })
+        );
         expect(interaction.reply).not.toHaveBeenCalled();
         expect(interaction.update).not.toHaveBeenCalled();
       });
@@ -779,7 +851,7 @@ describe('SettingsDashboardHandler', () => {
 
         await handleSettingsButton(interaction as never, config, updateHandler);
 
-        expect(interaction.reply).toHaveBeenCalledWith(
+        expect(interaction.followUp).toHaveBeenCalledWith(
           expect.objectContaining({
             content: expect.stringContaining('Unknown setting'),
           })
@@ -834,7 +906,7 @@ describe('SettingsDashboardHandler', () => {
 
         await handleSettingsButton(interaction as never, config, updateHandler);
 
-        expect(interaction.reply).toHaveBeenCalledWith(
+        expect(interaction.followUp).toHaveBeenCalledWith(
           expect.objectContaining({
             content: expect.stringContaining('API error'),
           })
@@ -862,7 +934,10 @@ describe('SettingsDashboardHandler', () => {
 
         await handleSettingsButton(interaction as never, config, updateHandler);
 
-        expect(interaction.update).toHaveBeenCalled();
+        // Ack-first invariant: defer precedes the update + refreshed view.
+        expect(interaction.deferUpdate).toHaveBeenCalled();
+        // Post-defer: the refreshed setting view lands via editReply.
+        expect(interaction.editReply).toHaveBeenCalled();
       });
 
       it('should pass ENUM string value through to updateHandler', async () => {
@@ -942,6 +1017,13 @@ describe('SettingsDashboardHandler', () => {
         await handleSettingsButton(interaction as never, config, updateHandler);
 
         expect(interaction.showModal).not.toHaveBeenCalled();
+        // Edit never defers, so this guard must reply (not followUp) — otherwise
+        // the interaction is left unacked and Discord shows "interaction failed".
+        expect(interaction.reply).toHaveBeenCalledWith(
+          expect.objectContaining({
+            content: expect.stringContaining('Invalid button data'),
+          })
+        );
       });
 
       it('should reply with unknown setting for invalid setting ID', async () => {

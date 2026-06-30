@@ -349,6 +349,9 @@ describe('User Default Settings Dashboard', () => {
         reply: vi.fn(),
         update: vi.fn(),
         showModal: vi.fn(),
+        deferUpdate: vi.fn().mockResolvedValue(undefined),
+        editReply: vi.fn().mockResolvedValue(undefined),
+        followUp: vi.fn().mockResolvedValue(undefined),
       };
 
       mockSessionManager.get.mockReturnValue({
@@ -369,7 +372,7 @@ describe('User Default Settings Dashboard', () => {
 
       await handleUserDefaultsButton(interaction as unknown as ButtonInteraction);
 
-      expect(interaction.reply).toHaveBeenCalledWith(
+      expect(interaction.followUp).toHaveBeenCalledWith(
         expect.objectContaining({
           content: expect.stringContaining('Server error'),
         })
@@ -383,6 +386,9 @@ describe('User Default Settings Dashboard', () => {
         reply: vi.fn(),
         update: vi.fn(),
         showModal: vi.fn(),
+        deferUpdate: vi.fn().mockResolvedValue(undefined),
+        editReply: vi.fn().mockResolvedValue(undefined),
+        followUp: vi.fn().mockResolvedValue(undefined),
       };
 
       mockSessionManager.get.mockReturnValue({
@@ -399,7 +405,7 @@ describe('User Default Settings Dashboard', () => {
 
       await handleUserDefaultsButton(interaction as unknown as ButtonInteraction);
 
-      expect(interaction.reply).toHaveBeenCalledWith(
+      expect(interaction.followUp).toHaveBeenCalledWith(
         expect.objectContaining({
           content: expect.stringContaining('Unknown setting'),
         })
