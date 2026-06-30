@@ -883,7 +883,6 @@ describe('/user/model-override routes', () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce({
         defaultLlmConfigId: null,
       });
-      mockPrisma.llmConfig.findFirst.mockResolvedValueOnce(null);
 
       const router = createModelOverrideRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'delete', '/default');
@@ -896,7 +895,8 @@ describe('/user/model-override routes', () => {
         expect.objectContaining({
           deleted: true,
           wasSet: false,
-          newEffectiveDefault: null,
+          // No slot arg → kind defaults to text; no admin free default mocked → null.
+          newEffectiveDefaults: { text: null },
         })
       );
     });
@@ -905,7 +905,6 @@ describe('/user/model-override routes', () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce({
         defaultLlmConfigId: 'config-123',
       });
-      mockPrisma.llmConfig.findFirst.mockResolvedValueOnce(null);
 
       const router = createModelOverrideRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'delete', '/default');
@@ -922,12 +921,13 @@ describe('/user/model-override routes', () => {
         expect.objectContaining({
           deleted: true,
           wasSet: true,
-          newEffectiveDefault: null,
+          // text slot cleared, no admin free default mocked → null fallback.
+          newEffectiveDefaults: { text: null },
         })
       );
     });
 
-    it('should include newEffectiveDefault on the no-op path when free default exists', async () => {
+    it('should include newEffectiveDefaults on the no-op path when free default exists', async () => {
       // Coverage: the 4th cell in the (wasSet × freeDefault) matrix.
       // Confirms the pointer lookup still runs even when the early-return
       // wasSet:false branch is taken.
@@ -954,12 +954,12 @@ describe('/user/model-override routes', () => {
         expect.objectContaining({
           deleted: true,
           wasSet: false,
-          newEffectiveDefault: { id: 'free-id', name: 'gpt-4-free' },
+          newEffectiveDefaults: { text: { id: 'free-id', name: 'gpt-4-free' } },
         })
       );
     });
 
-    it('should include the system free default in newEffectiveDefault when one is configured', async () => {
+    it('should include the system free default in newEffectiveDefaults when one is configured', async () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce({
         defaultLlmConfigId: 'config-123',
       });
@@ -991,7 +991,7 @@ describe('/user/model-override routes', () => {
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           deleted: true,
-          newEffectiveDefault: { id: 'free-id', name: 'gpt-4-free' },
+          newEffectiveDefaults: { text: { id: 'free-id', name: 'gpt-4-free' } },
         })
       );
     });
@@ -1120,10 +1120,19 @@ describe('/user/model-override routes', () => {
         data: { defaultVisionConfigId: null },
       });
       // The fallback resolves the VISION free-default POINTER (cleared kind=vision).
+      // Exactly once — the text slot is NOT resolved (the "clears only vision" contract).
+      expect(mockPrisma.llmConfig.findUnique).toHaveBeenCalledTimes(1);
       expect(mockPrisma.llmConfig.findUnique).toHaveBeenCalledWith({
         where: { id: 'vision-free' },
         select: { id: true, name: true },
       });
+      // Only the vision slot is reported — text was not cleared, so there's no
+      // `text` key (the per-slot contract: a key is present iff that slot cleared).
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          newEffectiveDefaults: { vision: { id: 'vision-free', name: 'Vision Free' } },
+        })
+      );
     });
 
     it('GET /?kind=vision lists vision overrides', async () => {
@@ -1233,13 +1242,15 @@ describe('/user/model-override routes', () => {
         defaultLlmConfigId: 'text-cfg',
         defaultVisionConfigId: VISION_CFG,
       });
-      // clearText is true for `all`, so the fallback resolves the TEXT (chat-primary)
-      // free-default pointer.
+      // `all` clears BOTH slots, so the fallback resolves BOTH free-default
+      // pointers — one llmConfig.findUnique per slot, in clearText→clearVision order.
       mockPrisma.adminSettings.findUnique.mockResolvedValueOnce({
         freeDefaultLlmConfigId: 'text-free',
-        freeDefaultVisionConfigId: null,
+        freeDefaultVisionConfigId: 'vision-free',
       });
-      mockPrisma.llmConfig.findUnique.mockResolvedValueOnce({ id: 'text-free', name: 'Text Free' });
+      mockPrisma.llmConfig.findUnique
+        .mockResolvedValueOnce({ id: 'text-free', name: 'Text Free' })
+        .mockResolvedValueOnce({ id: 'vision-free', name: 'Vision Free' });
 
       const router = createModelOverrideRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'delete', '/default');
@@ -1253,9 +1264,14 @@ describe('/user/model-override routes', () => {
         where: { id: 'user-uuid-123' },
         data: { defaultLlmConfigId: null, defaultVisionConfigId: null },
       });
-      // The fallback exercises the new pointer mechanism (not the dead findFirst).
+      // The bug fix: an `all` clear reports BOTH fallbacks, not just the chat one.
       expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ newEffectiveDefault: { id: 'text-free', name: 'Text Free' } })
+        expect.objectContaining({
+          newEffectiveDefaults: {
+            text: { id: 'text-free', name: 'Text Free' },
+            vision: { id: 'vision-free', name: 'Vision Free' },
+          },
+        })
       );
       expect(res.status).toHaveBeenCalledWith(200);
     });
