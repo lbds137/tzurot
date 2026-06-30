@@ -122,6 +122,7 @@ export async function handleMemoryDetailAction(
       // stays inside the 3-second window. Guard against double-ack by
       // only deferring when the interaction is still untouched.
       if (!buttonInteraction.deferred && !buttonInteraction.replied) {
+        // eslint-disable-next-line @tzurot/component-handler-ack-first -- Branch-leak FP: this deferUpdate IS ack-first for the `back` case (double-ack-guarded; the caller may have pre-deferred). The rule's source-order sawRealAsync leaked from the `confirm-delete` branch's onRefresh above, which returns before this case ever runs.
         await buttonInteraction.deferUpdate();
       }
       await onRefresh();

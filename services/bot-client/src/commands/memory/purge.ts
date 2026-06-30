@@ -361,12 +361,14 @@ export async function handlePurgeModal(interaction: ModalSubmitInteraction): Pro
   // by the proceed button), but we narrow to satisfy the type checker.
   if (!interaction.isFromMessage()) {
     logger.warn({ customId: interaction.customId }, 'Purge modal submitted without parent message');
+    // eslint-disable-next-line @tzurot/component-handler-ack-first -- Branch-leak FP: on the phrase-matched path that reaches here, no real async precedes this ack (assertInvokerOwnership is exempt; the rest is sync). The rule's source-order sawRealAsync leaked from the phrase-MISMATCH branch's interaction.message.edit above, which returns before this point.
     await interaction.reply({
       content: '❌ Internal error: malformed modal context.',
       flags: MessageFlags.Ephemeral,
     });
     return;
   }
+  // eslint-disable-next-line @tzurot/component-handler-ack-first -- Branch-leak FP: this is the ack-first update() for the phrase-matched path (executePurgeHandshake runs after it). sawRealAsync leaked from the phrase-mismatch branch's message.edit above (which returns).
   await interaction.update({
     content: 'Purging memories…',
     embeds: [],

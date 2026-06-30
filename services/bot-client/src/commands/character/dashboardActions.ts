@@ -107,6 +107,7 @@ export async function handleAction(
   if (actionId === 'avatar') {
     // Redirect to slash command — Discord modals can only contain text inputs,
     // not file upload fields, so avatar upload requires a separate command.
+    // eslint-disable-next-line @tzurot/component-handler-ack-first -- Branch-leak FP: static redirect, no async in this branch. The rule's source-order sawRealAsync leaked from the earlier `visibility` branch's fetchCharacter/toggleVisibility (which is ack-first via its own deferUpdate); this reply IS ack-first for the avatar branch.
     await interaction.reply({
       content:
         '🖼️ **Avatar Upload**\n\n' +
@@ -118,6 +119,7 @@ export async function handleAction(
   }
 
   if (actionId === 'voice') {
+    // eslint-disable-next-line @tzurot/component-handler-ack-first -- Branch-leak FP: static redirect, no async in this branch; sawRealAsync leaked from the earlier `visibility` branch. This reply IS ack-first for the voice branch.
     await interaction.reply({
       content:
         '🎤 **Voice Reference**\n\n' +
@@ -133,6 +135,7 @@ export async function handleAction(
     // TOCTOU note: We fetch-then-toggle, so a concurrent toggle could invert
     // the wrong value. Acceptable for a single-user dashboard — the user can
     // just click again if the state looks wrong.
+    // eslint-disable-next-line @tzurot/component-handler-ack-first -- Branch-leak FP: this deferUpdate IS ack-first for the voice-toggle branch (fetchCharacter/updateCharacter follow it); sawRealAsync leaked from the sibling `visibility` branch's async above.
     await interaction.deferUpdate();
 
     const { userClient } = clientsFor(interaction);
