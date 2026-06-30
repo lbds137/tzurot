@@ -27,7 +27,7 @@ interface MockPrisma {
   userPersonalityConfig: { findFirst: ReturnType<typeof vi.fn> };
   personalityVisionDefaultConfig: { findUnique: ReturnType<typeof vi.fn> };
   llmConfig: { findFirst: ReturnType<typeof vi.fn> };
-  adminSettings: { findFirst: ReturnType<typeof vi.fn> };
+  adminSettings: { findUnique: ReturnType<typeof vi.fn> };
 }
 
 function createMockPrisma(): MockPrisma {
@@ -36,7 +36,7 @@ function createMockPrisma(): MockPrisma {
     userPersonalityConfig: { findFirst: vi.fn() },
     personalityVisionDefaultConfig: { findUnique: vi.fn() },
     llmConfig: { findFirst: vi.fn() },
-    adminSettings: { findFirst: vi.fn() },
+    adminSettings: { findUnique: vi.fn() },
   };
 }
 
@@ -144,7 +144,7 @@ describe('VisionConfigResolver', () => {
       });
       mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue(null);
       mockPrisma.personalityVisionDefaultConfig.findUnique.mockResolvedValue(null);
-      mockPrisma.adminSettings.findFirst.mockResolvedValue({
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({
         globalDefaultVisionConfig: visionRow({
           model: 'global-vision-default',
           name: 'global-vision',
@@ -167,7 +167,7 @@ describe('VisionConfigResolver', () => {
       });
       mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue(null);
       mockPrisma.personalityVisionDefaultConfig.findUnique.mockResolvedValue(null);
-      mockPrisma.adminSettings.findFirst.mockResolvedValue({ globalDefaultVisionConfig: null });
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({ globalDefaultVisionConfig: null });
 
       const result = await resolver.resolveConfig('user-x', 'p-uuid-123', FAKE_PERSONALITY);
 
@@ -178,7 +178,7 @@ describe('VisionConfigResolver', () => {
 
     it('returns the hardcoded fallback with no userId, no personality default, no global default', async () => {
       mockPrisma.personalityVisionDefaultConfig.findUnique.mockResolvedValue(null);
-      mockPrisma.adminSettings.findFirst.mockResolvedValue({ globalDefaultVisionConfig: null });
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({ globalDefaultVisionConfig: null });
 
       const result = await resolver.resolveConfig(undefined, 'p-uuid-123', FAKE_PERSONALITY);
 
@@ -198,7 +198,7 @@ describe('VisionConfigResolver', () => {
       mockPrisma.personalityVisionDefaultConfig.findUnique.mockRejectedValue(
         new Error('connection refused')
       );
-      mockPrisma.adminSettings.findFirst.mockResolvedValue({
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({
         globalDefaultVisionConfig: visionRow({
           model: 'global-vision-default',
           name: 'global-vision',
@@ -220,7 +220,7 @@ describe('VisionConfigResolver', () => {
 
   describe('getGlobalDefaultConfig', () => {
     it('reads the global vision default via the AdminSettings pointer', async () => {
-      mockPrisma.adminSettings.findFirst.mockResolvedValue({
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({
         globalDefaultVisionConfig: visionRow({
           model: 'global-vision-default',
           name: 'global-vision',
@@ -229,7 +229,7 @@ describe('VisionConfigResolver', () => {
 
       await resolver.getGlobalDefaultConfig();
 
-      expect(mockPrisma.adminSettings.findFirst).toHaveBeenCalledWith(
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledWith(
         expect.objectContaining({
           select: { globalDefaultVisionConfig: { select: expect.any(Object) } },
         })
@@ -237,13 +237,13 @@ describe('VisionConfigResolver', () => {
     });
 
     it('returns null when no global vision default row exists', async () => {
-      mockPrisma.adminSettings.findFirst.mockResolvedValue({ globalDefaultVisionConfig: null });
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({ globalDefaultVisionConfig: null });
       const result = await resolver.getGlobalDefaultConfig();
       expect(result).toBeNull();
     });
 
     it('negative-caches the null result (second call does not re-query)', async () => {
-      mockPrisma.adminSettings.findFirst.mockResolvedValue({ globalDefaultVisionConfig: null });
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({ globalDefaultVisionConfig: null });
 
       const first = await resolver.getGlobalDefaultConfig();
       const second = await resolver.getGlobalDefaultConfig();
@@ -252,11 +252,11 @@ describe('VisionConfigResolver', () => {
       expect(second).toBeNull();
       // The pre-seed window (no global default row) must not re-query the DB on
       // every call — the negative cache short-circuits the second lookup.
-      expect(mockPrisma.adminSettings.findFirst).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(1);
     });
 
     it('caches the global-default result (second call hits cache)', async () => {
-      mockPrisma.adminSettings.findFirst.mockResolvedValue({
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({
         globalDefaultVisionConfig: visionRow({
           model: 'global-vision-default',
           name: 'global-vision',
@@ -266,21 +266,23 @@ describe('VisionConfigResolver', () => {
       await resolver.getGlobalDefaultConfig();
       await resolver.getGlobalDefaultConfig();
 
-      expect(mockPrisma.adminSettings.findFirst).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(1);
     });
 
     it('clearCache() clears the negative sentinel so a newly-created global default is seen', async () => {
       // First call: no global default yet → negative sentinel set.
-      mockPrisma.adminSettings.findFirst.mockResolvedValueOnce({ globalDefaultVisionConfig: null });
+      mockPrisma.adminSettings.findUnique.mockResolvedValueOnce({
+        globalDefaultVisionConfig: null,
+      });
       expect(await resolver.getGlobalDefaultConfig()).toBeNull();
-      expect(mockPrisma.adminSettings.findFirst).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(1);
 
       // An admin creates the global default; the pub/sub invalidation clears caches.
       resolver.clearCache();
 
       // Next call must re-query (not short-circuit on the stale negative sentinel)
       // and surface the new row.
-      mockPrisma.adminSettings.findFirst.mockResolvedValueOnce({
+      mockPrisma.adminSettings.findUnique.mockResolvedValueOnce({
         globalDefaultVisionConfig: visionRow({
           model: 'newly-created-default',
           name: 'new-global-vision',
@@ -288,7 +290,7 @@ describe('VisionConfigResolver', () => {
       });
       const after = await resolver.getGlobalDefaultConfig();
       expect(after?.model).toBe('newly-created-default');
-      expect(mockPrisma.adminSettings.findFirst).toHaveBeenCalledTimes(2);
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(2);
     });
   });
 });

@@ -55,7 +55,7 @@ function createMockPrisma() {
   const mockAdminSettings = {
     upsert: vi.fn().mockResolvedValue({ id: ADMIN_SETTINGS_SINGLETON_ID }),
     // list() derives isDefault/isFreeDefault from these pointers; default = none set.
-    findFirst: vi.fn().mockResolvedValue(null),
+    findUnique: vi.fn().mockResolvedValue(null),
   };
 
   return {
@@ -213,7 +213,7 @@ describe('LlmConfigService', () => {
         { id: 'plain', name: 'Plain', isGlobal: true },
       ];
       prisma.llmConfig.findMany.mockResolvedValue(configs);
-      prisma.adminSettings.findFirst.mockResolvedValue({
+      prisma.adminSettings.findUnique.mockResolvedValue({
         globalDefaultLlmConfigId: 'the-default',
         globalDefaultVisionConfigId: null,
         freeDefaultLlmConfigId: 'the-free',
@@ -228,7 +228,7 @@ describe('LlmConfigService', () => {
       expect(result.find(c => c.id === 'plain')?.isDefault).toBe(false);
       // The singleton pointer read is id-filtered, not a bare findFirst — keeps
       // the flags correct even if a stray admin_settings row ever appeared.
-      expect(prisma.adminSettings.findFirst).toHaveBeenCalledWith(
+      expect(prisma.adminSettings.findUnique).toHaveBeenCalledWith(
         expect.objectContaining({ where: { id: ADMIN_SETTINGS_SINGLETON_ID } })
       );
     });
@@ -236,7 +236,7 @@ describe('LlmConfigService', () => {
     it('treats a config targeted by the VISION default pointer as isDefault ("any-default" semantics)', async () => {
       const configs = [{ id: 'vision-default', name: 'Gemini', isGlobal: true }];
       prisma.llmConfig.findMany.mockResolvedValue(configs);
-      prisma.adminSettings.findFirst.mockResolvedValue({
+      prisma.adminSettings.findUnique.mockResolvedValue({
         globalDefaultLlmConfigId: null,
         globalDefaultVisionConfigId: 'vision-default',
         freeDefaultLlmConfigId: null,

@@ -257,7 +257,7 @@ export class LlmConfigService {
     // delete-guard and VisionConfigResolver use. There's only ever one row, but
     // the explicit id keeps this correct (right default flags + ordering) if a
     // stray row ever appeared.
-    const settings = await this.prisma.adminSettings.findFirst({
+    const settings = await this.prisma.adminSettings.findUnique({
       where: { id: ADMIN_SETTINGS_SINGLETON_ID },
       select: {
         globalDefaultLlmConfigId: true,
