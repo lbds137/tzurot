@@ -674,6 +674,15 @@ describe('Admin LLM Config Routes', () => {
 
   describe('PUT /admin/llm-config/:id', () => {
     it('should return 400 when model validation fails on update', async () => {
+      // The config must exist (and pass the kind check) before model validation
+      // runs — validation is now after the row fetch, so mock findUnique.
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-id',
+        name: 'Existing',
+        isGlobal: true,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
+      });
       mockValidateLlmConfigModelFields.mockImplementationOnce(
         async (opts: { res: { status: (n: number) => { json: (body: unknown) => unknown } } }) => {
           opts.res
@@ -758,6 +767,28 @@ describe('Admin LLM Config Routes', () => {
         data: { model: 'qwen/qwen3-vl-30b-a3b-instruct' },
         select: expect.any(Object),
       });
+    });
+
+    it('rejects a kind-mismatched edit (404) before the model/vision gate runs', async () => {
+      // The row is a TEXT config but the caller claims ?kind=vision. The row
+      // fetch + requireKind must reject (404) BEFORE model validation — otherwise
+      // the vision-capability gate would fire a misleading 400 and leak that the
+      // id exists. Guards the validate-after-fetch ordering.
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'text-cfg',
+        name: 'Text Cfg',
+        isGlobal: true,
+        kind: 'text',
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
+      });
+
+      const response = await request(app)
+        .put('/admin/llm-config/text-cfg?kind=vision')
+        .send({ model: 'openai/gpt-4o-mini' });
+
+      expect(response.status).toBe(404);
+      expect(prisma.llmConfig.update).not.toHaveBeenCalled();
     });
 
     it('should accept memory settings in update (Phase 1 parity fix)', async () => {
@@ -1278,6 +1309,43 @@ describe('Admin LLM Config Routes', () => {
       expect(response.status).toBe(400);
       expect(response.body.message).toMatch(/already exists/i);
       expect(prisma.llmConfig.update).not.toHaveBeenCalled();
+    });
+
+    it('scopes the rename collision check to the config kind (vision rename ignores a same-named text config)', async () => {
+      // The vision config being renamed.
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'vision-id',
+        name: 'Old Vision',
+        isGlobal: true,
+        kind: 'vision',
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
+      });
+      // A config named "Foo" exists ONLY in the text namespace. The collision
+      // check must query kind=vision (finds nothing) — before the fix it queried
+      // the text namespace and falsely blocked the rename.
+      prisma.llmConfig.findFirst.mockImplementation((args: { where?: { kind?: string } }) =>
+        Promise.resolve(args?.where?.kind === 'text' ? { id: 'text-foo' } : null)
+      );
+      prisma.llmConfig.update.mockResolvedValue({
+        id: 'vision-id',
+        name: 'Foo',
+        isGlobal: true,
+        kind: 'vision',
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
+      });
+
+      const response = await request(app)
+        .put('/admin/llm-config/vision-id?kind=vision')
+        .send({ name: 'Foo' });
+
+      // Vision namespace has no "Foo" → rename allowed (not the false 400).
+      expect(response.status).toBe(200);
+      // The collision query was scoped to the vision namespace, not text.
+      expect(prisma.llmConfig.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ kind: 'vision' }) })
+      );
     });
 
     it('should allow keeping the same name (no duplicate check against self)', async () => {

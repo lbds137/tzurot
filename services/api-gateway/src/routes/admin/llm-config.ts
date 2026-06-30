@@ -171,18 +171,11 @@ function createEditConfigHandler(
       return;
     }
 
-    if (
-      !(await validateLlmConfigModelFields({
-        res,
-        modelCache,
-        body,
-        fallback: { service, configId: configId },
-        hasZaiCodingKey: true,
-      }))
-    ) {
-      return;
-    }
-
+    // Fetch + kind-verify the row FIRST, so the model/vision validation below
+    // runs against the row's real (requireKind-verified) kind rather than the
+    // caller-supplied query param. Otherwise `?kind=vision` on a text config
+    // would fire a misleading vision-capability 400 (and leak that the id exists)
+    // before requireKind rejects the kind mismatch.
     const existing = await findGlobalConfigOrSendError(
       res,
       () =>
@@ -202,11 +195,32 @@ function createEditConfigHandler(
     }
 
     if (
+      !(await validateLlmConfigModelFields({
+        res,
+        modelCache,
+        body,
+        fallback: { service, configId: configId },
+        hasZaiCodingKey: true,
+        // `kind` is verified against the row by requireKind above, so the
+        // vision-capability gate trusts it without a redundant getById fetch.
+        kind,
+      }))
+    ) {
+      return;
+    }
+
+    if (
       body.name !== undefined &&
       !(await ensureNoNameCollision(res, service, {
         name: body.name,
         scope: { type: 'GLOBAL' },
         excludeId: configId,
+        // Scope the collision check to the config's kind — global names are unique
+        // per (kind, name) (`llm_configs_global_name_unique`), so a vision rename
+        // must check the vision namespace, not text. Without this the helper
+        // defaults to text → false block across namespaces, or false pass → a
+        // Postgres unique-constraint 500.
+        kind,
         formatCollisionMessage: n => `A global config named "${n}" already exists`,
       }))
     ) {
