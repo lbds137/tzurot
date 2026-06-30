@@ -39,6 +39,8 @@ Make vision (and future-modality) configs editable, reusing Phase 1's kind-aware
 
 Fold guest-downgrade + main-model-vision + fallback into the resolver cascade as an ordered chain (primary → vision global default → free default) + an explicit `[VISION_UNAVAILABLE]` signal when exhausted. Includes the negative-cache-key-by-model fold-in so a model swap / fallback re-attempts immediately instead of waiting out the cooldown. This is the original user "near-term want" (auto-fallback on vision failure).
 
+**Absorbs the "wire the two write-only default pointers into the resolver cascade" follow-up** (`cold/follow-ups.md`): `globalDefaultLlmConfigId` (paid chat-global) and `freeDefaultVisionConfigId` (free vision) are admin-settable today but no resolver tier reads them. Their cascade placement — the global-vs-free precedence — IS this phase's ordering decision, so wiring them standalone was deliberately deferred here (2026-06-30) rather than guessing an order Phase 4 would revisit. When this phase is planned, add the two read tiers as part of the unified chain + surface the occupied slot in the delete-guard 400 body.
+
 ### Phase-1 cleanup follow-ups
 
 Round-2 review nits from PR #1364 (kind type-tighten, `requireKind` leniency, `setAsDefault` null-path, warn/comment polish) — tracked in [`cold/follow-ups.md`](cold/follow-ups.md); fold into a Phase-2 slice where they overlap.
