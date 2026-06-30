@@ -407,6 +407,14 @@ export default tseslint.config(
       // Makes code harder to test because instances are created at import time
       '@tzurot/no-singleton-export': 'warn',
 
+      // Enforce Discord's 3-second rule structurally: a BARE ack (deferUpdate/
+      // deferReply/reply/update/showModal) in a component/modal interaction
+      // handler must not FOLLOW awaited async work — either ack first, or route a
+      // necessarily-late ack through a *WithTimeoutCatch wrapper. See
+      // `.claude/rules/04-discord.md`. 'error' because a violation is a real bug —
+      // the user gets no response.
+      '@tzurot/component-handler-ack-first': 'error',
+
       // ============================================================================
       // SONARJS RULES - Additional code quality checks
       // ============================================================================
