@@ -19,6 +19,7 @@
  */
 
 import noSingletonExport from './no-singleton-export.js';
+import componentHandlerAckFirst from './component-handler-ack-first.js';
 
 const plugin = {
   meta: {
@@ -27,6 +28,7 @@ const plugin = {
   },
   rules: {
     'no-singleton-export': noSingletonExport,
+    'component-handler-ack-first': componentHandlerAckFirst,
   },
 };
 
