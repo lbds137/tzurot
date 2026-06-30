@@ -253,9 +253,12 @@ export class LlmConfigService {
     globalDefaultIds: Set<string>;
     freeDefaultIds: Set<string>;
   }> {
-    // findFirst (not findUnique-by-id) mirrors the delete-guard's singleton read
-    // in routes/admin/llm-config.ts — one consistent way to read the pointers.
+    // Read the AdminSettings singleton by its fixed id — same filter the
+    // delete-guard and VisionConfigResolver use. There's only ever one row, but
+    // the explicit id keeps this correct (right default flags + ordering) if a
+    // stray row ever appeared.
     const settings = await this.prisma.adminSettings.findFirst({
+      where: { id: ADMIN_SETTINGS_SINGLETON_ID },
       select: {
         globalDefaultLlmConfigId: true,
         globalDefaultVisionConfigId: true,
