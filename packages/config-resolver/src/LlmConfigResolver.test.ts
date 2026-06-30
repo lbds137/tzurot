@@ -38,7 +38,7 @@ describe('LlmConfigResolver', () => {
       findFirst: ReturnType<typeof vi.fn>;
     };
     adminSettings: {
-      findFirst: ReturnType<typeof vi.fn>;
+      findUnique: ReturnType<typeof vi.fn>;
     };
   };
 
@@ -77,7 +77,7 @@ describe('LlmConfigResolver', () => {
         findFirst: vi.fn(),
       },
       adminSettings: {
-        findFirst: vi.fn(),
+        findUnique: vi.fn(),
       },
     };
     // `now: () => Date.now()` makes TTLCache's TTL respect vi.useFakeTimers
@@ -625,19 +625,19 @@ describe('LlmConfigResolver', () => {
     // filter (and its vision-leak guard) is obsolete: a pointer can only reference
     // the one config an admin set, so there's nothing to leak.
     it('should return null when no free default pointer is set', async () => {
-      mockPrisma.adminSettings.findFirst.mockResolvedValue({ freeDefaultLlmConfig: null });
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({ freeDefaultLlmConfig: null });
 
       const result = await resolver.getFreeDefaultConfig();
 
       expect(result).toBeNull();
-      expect(mockPrisma.adminSettings.findFirst).toHaveBeenCalledWith({
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledWith({
         where: { id: expect.any(String) },
         select: { freeDefaultLlmConfig: { select: expect.any(Object) } },
       });
     });
 
     it('should return config when the free default pointer is set', async () => {
-      mockPrisma.adminSettings.findFirst.mockResolvedValue({
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({
         freeDefaultLlmConfig: {
           name: 'Free Default Config',
           model: 'google/gemini-2.0-flash:free',
@@ -666,7 +666,7 @@ describe('LlmConfigResolver', () => {
     });
 
     it('should cache the free default config result', async () => {
-      mockPrisma.adminSettings.findFirst.mockResolvedValue({
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({
         freeDefaultLlmConfig: {
           name: 'Free Default Config',
           model: 'google/gemini-2.0-flash:free',
@@ -682,15 +682,15 @@ describe('LlmConfigResolver', () => {
 
       // First call
       await resolver.getFreeDefaultConfig();
-      expect(mockPrisma.adminSettings.findFirst).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(1);
 
       // Second call - should use cache
       await resolver.getFreeDefaultConfig();
-      expect(mockPrisma.adminSettings.findFirst).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(1);
     });
 
     it('should respect cache TTL for free default config', async () => {
-      mockPrisma.adminSettings.findFirst.mockResolvedValue({
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({
         freeDefaultLlmConfig: {
           name: 'Free Default Config',
           model: 'google/gemini-2.0-flash:free',
@@ -706,18 +706,18 @@ describe('LlmConfigResolver', () => {
 
       // First call
       await resolver.getFreeDefaultConfig();
-      expect(mockPrisma.adminSettings.findFirst).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(1);
 
       // Advance time past TTL
       vi.advanceTimersByTime(61000);
 
       // Third call - cache expired, should query again
       await resolver.getFreeDefaultConfig();
-      expect(mockPrisma.adminSettings.findFirst).toHaveBeenCalledTimes(2);
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(2);
     });
 
     it('should handle database errors gracefully', async () => {
-      mockPrisma.adminSettings.findFirst.mockRejectedValue(new Error('Database error'));
+      mockPrisma.adminSettings.findUnique.mockRejectedValue(new Error('Database error'));
 
       const result = await resolver.getFreeDefaultConfig();
 
@@ -729,7 +729,7 @@ describe('LlmConfigResolver', () => {
         toNumber: () => 0.85,
       };
 
-      mockPrisma.adminSettings.findFirst.mockResolvedValue({
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({
         freeDefaultLlmConfig: {
           name: 'Free Default Config',
           model: 'google/gemini-2.0-flash:free',
@@ -761,7 +761,7 @@ describe('LlmConfigResolver', () => {
     });
 
     it('should be invalidated when clearCache is called', async () => {
-      mockPrisma.adminSettings.findFirst.mockResolvedValue({
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({
         freeDefaultLlmConfig: {
           name: 'Free Default Config',
           model: 'google/gemini-2.0-flash:free',
@@ -777,14 +777,14 @@ describe('LlmConfigResolver', () => {
 
       // First call - caches result
       await resolver.getFreeDefaultConfig();
-      expect(mockPrisma.adminSettings.findFirst).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(1);
 
       // Clear cache
       resolver.clearCache();
 
       // Should query again
       await resolver.getFreeDefaultConfig();
-      expect(mockPrisma.adminSettings.findFirst).toHaveBeenCalledTimes(2);
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(2);
     });
   });
 });

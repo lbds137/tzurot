@@ -220,7 +220,7 @@ export class VisionConfigResolver extends BaseConfigResolver<
       // pointed config is vision-eligible; a null pointer means no admin default —
       // fall through to the hardcoded floor. Replaces the old
       // kind='vision'+isGlobal+isDefault flag query.
-      const settings = await this.prisma.adminSettings.findFirst({
+      const settings = await this.prisma.adminSettings.findUnique({
         where: { id: ADMIN_SETTINGS_SINGLETON_ID },
         select: { globalDefaultVisionConfig: { select: LLM_CONFIG_SELECT_WITH_NAME } },
       });

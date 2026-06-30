@@ -391,9 +391,9 @@ function createUpdateHandler(
     const isOwnedByRequester = config.ownerId === userId;
 
     // Empty-body guard runs BEFORE the promotion helper so that a PUT with
-    // `{}` returns 400 (preserves the original API contract) rather than
-    // silently triggering a retroactive rename on already-global configs
-    // whose name predates this PR.
+    // `{}` returns 400 rather than silently triggering a retroactive rename on
+    // an already-global config (the promotion helper would otherwise normalize
+    // the existing name on an empty edit).
     if (Object.keys(body).length === 0) {
       return sendError(res, ErrorResponses.validationError('No fields to update'));
     }

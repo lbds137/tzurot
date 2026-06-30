@@ -101,9 +101,11 @@ export const userConfigRoutes = {
     method: 'get',
     path: '/llm-config',
     id: 'listUserLlmConfigs',
-    // Scope the listing to a config kind (text|vision); defaults text so the
-    // autocomplete picker shows only the requested kind.
-    query: { kind: z.enum(CONFIG_KINDS).optional() },
+    // Scope the listing to a config kind (text|vision), or `all` to return both
+    // (browse fetches both in one call); defaults text. The gateway LIST handler
+    // parses this with parseConfigKindQueryAllowAll, so `all` is a valid inbound
+    // value the manifest must permit.
+    query: { kind: z.enum([...CONFIG_KINDS, 'all']).optional() },
     output: ListLlmConfigsResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
@@ -348,9 +350,11 @@ export const userConfigRoutes = {
     method: 'get',
     path: '/model-override',
     id: 'listModelOverrides',
-    // Scope the listing to a config kind (text|vision); defaults text (the
-    // gateway handler already filters by `?kind=`). Browse fetches both kinds.
-    query: { kind: z.enum(CONFIG_KINDS).optional() },
+    // Scope the listing to a config kind (text|vision), or `all` to return both
+    // (browse fetches both in one call); defaults text. The gateway LIST handler
+    // parses this with parseConfigKindQueryAllowAll, so `all` is a valid inbound
+    // value the manifest must permit.
+    query: { kind: z.enum([...CONFIG_KINDS, 'all']).optional() },
     output: ListModelOverridesResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
