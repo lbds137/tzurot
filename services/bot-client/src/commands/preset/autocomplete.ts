@@ -38,6 +38,7 @@ interface GlobalConfigEntry {
   isGlobal: boolean;
   isDefault: boolean;
   isFreeDefault?: boolean;
+  supportsVision: boolean;
 }
 
 /**
@@ -171,13 +172,10 @@ async function handlePresetAutocomplete(
   userId: string
 ): Promise<void> {
   const subcommand = interaction.options.getSubcommand(false);
-  // Scope the picker to the requested kind (the command's `kind` option,
-  // default text) so a vision-setter shows only vision presets. The Discord
-  // choice set restricts values to CONFIG_KINDS, so the assertion is sound.
-  const kind = toConfigKind(interaction.options.getString('kind', false) ?? DEFAULT_CONFIG_KIND);
-
+  // Capability-agnostic: fetch ALL presets, 👁-badged by capability below. The
+  // slot is chosen on the command option, so the picker stays slot-independent.
   const { userClient } = clientsFor(interaction);
-  const result = await userClient.listUserLlmConfigs({ kind });
+  const result = await userClient.listUserLlmConfigs({ kind: 'all' });
 
   if (!result.ok) {
     logger.warn({ userId, error: result.error }, 'Failed to fetch presets');
@@ -201,6 +199,8 @@ async function handlePresetAutocomplete(
       value: c.id,
       // Show scope badge for edit command only (global vs owned)
       scopeBadge: subcommand === 'edit' ? getPresetScopeBadge(c.isGlobal) : undefined,
+      // 👁 for vision-capable models (capability, not config kind)
+      statusBadges: c.supportsVision ? [AUTOCOMPLETE_BADGES.VISION] : undefined,
       // Show model short name as metadata
       metadata: c.model.split('/').pop(),
     });
@@ -237,13 +237,16 @@ async function handleVisionModelAutocomplete(
   await interaction.respond(choices);
 }
 
-/** Per-kind cache key for global configs (text and vision are cached separately). */
+/** Per-kind cache key for global configs (text and vision cached separately). */
 function globalConfigCacheKey(kind: string): string {
   return `global-configs:${kind}`;
 }
 
 /**
- * Fetch global configs of a given kind from API or cache
+ * Fetch global configs of a given kind from API or cache. The global (owner-only)
+ * picker stays slot-scoped: the admin global-list route accepts only an explicit
+ * text|vision, not the `all` sentinel the user route accepts. Making it
+ * capability-agnostic like the user picker is a tracked follow-up.
  */
 async function fetchGlobalConfigs(
   interaction: AutocompleteInteraction,
@@ -252,14 +255,12 @@ async function fetchGlobalConfigs(
   const cache = getGlobalConfigCache();
   const cacheKey = globalConfigCacheKey(kind);
 
-  // Check cache first
   const cached = cache.get(cacheKey);
   if (cached !== null) {
     logger.debug({ kind }, 'Using cached global configs');
     return cached;
   }
 
-  // Cache miss - fetch via typed admin client, scoped to the kind
   const { ownerClient } = clientsFor(interaction);
   const result = await ownerClient.listGlobalLlmConfigs({ kind });
 
@@ -267,6 +268,10 @@ async function fetchGlobalConfigs(
     return null;
   }
 
+  // `supportsVision` is part of the list-response schema (`LlmConfigSummary`,
+  // z.boolean()), so this narrowing cast is safe as long as the admin global-list
+  // route stays consistent with it. If a row ever lacked the field, the 👁 badge
+  // would silently not render (falsy) — a safe degradation, not a crash.
   const configs = result.data.configs as GlobalConfigEntry[];
 
   cache.set(cacheKey, configs);
@@ -285,8 +290,8 @@ async function handleGlobalConfigAutocomplete(
   freeOnly = false
 ): Promise<void> {
   try {
-    // Scope to the requested kind (command's `kind` option, default text).
-    const kind = toConfigKind(interaction.options.getString('kind', false) ?? DEFAULT_CONFIG_KIND);
+    // Scope to the requested slot (the command's `slot` option, default text).
+    const kind = toConfigKind(interaction.options.getString('slot', false) ?? DEFAULT_CONFIG_KIND);
     const configs = await fetchGlobalConfigs(interaction, kind);
 
     if (configs === null) {
@@ -321,6 +326,9 @@ async function handleGlobalConfigAutocomplete(
       }
       if (c.isFreeDefault === true) {
         statusBadges.push(AUTOCOMPLETE_BADGES.FREE);
+      }
+      if (c.supportsVision) {
+        statusBadges.push(AUTOCOMPLETE_BADGES.VISION);
       }
 
       return formatAutocompleteOption({

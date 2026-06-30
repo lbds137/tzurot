@@ -55,7 +55,7 @@ import {
   splitBrowseFilter,
   VALID_PRESET_FILTERS,
   type PresetBrowseFilter,
-  type PresetKindFilter,
+  type PresetCapabilityFilter,
   type PresetScopeFilter,
 } from './browseFilter.js';
 
@@ -126,20 +126,20 @@ function buildPresetDescription(preset: LlmConfigSummary, isGuestMode: boolean):
 }
 
 /**
- * Apply the scope axis + search query client-side. The kind axis is applied at
- * fetch time (`?kind=`), so the rows reaching here are already kind-scoped.
+ * Apply the scope + capability axes + search query — all client-side. Browse
+ * fetches every config (`kind: 'all'`); capability ('vision'/'text') is a
+ * model-`supportsVision` check applied here, not a fetch-scope parameter.
  */
 function filterPresets(
   presets: LlmConfigSummary[],
   scope: PresetScopeFilter,
-  capability: PresetKindFilter,
+  capability: PresetCapabilityFilter,
   query: string | null
 ): LlmConfigSummary[] {
   let filtered = presets;
 
-  // Capability axis (reinterpreted from the old kind axis): the model's vision
-  // capability, not a config `kind`. 'vision' = vision-capable, 'text' =
-  // text-only, 'all' = no filter.
+  // Capability axis: the model's vision capability ('vision' = vision-capable,
+  // 'text' = text-only, 'all' = no filter).
   if (capability === 'vision') {
     filtered = filtered.filter(c => c.supportsVision);
   } else if (capability === 'text') {
@@ -221,8 +221,8 @@ function buildBrowsePage(
   page: number,
   isGuestMode: boolean
 ): { embed: EmbedBuilder; components: BrowseActionRow[] } {
-  const { scope, kind } = splitBrowseFilter(filter);
-  const filtered = filterPresets(allPresets, scope, kind, query);
+  const { scope, capability } = splitBrowseFilter(filter);
+  const filtered = filterPresets(allPresets, scope, capability, query);
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const safePage = Math.min(Math.max(0, page), totalPages - 1);
 
@@ -246,7 +246,7 @@ function buildBrowsePage(
   }
 
   // Search/filter info
-  const activeFilterLabel = describeFilter(scope, kind);
+  const activeFilterLabel = describeFilter(scope, capability);
   if (query !== null) {
     lines.push(`🔍 Searching: "${query}" • Filter: ${activeFilterLabel ?? 'All'}\n`);
   } else if (activeFilterLabel !== null) {
@@ -318,15 +318,15 @@ async function fetchPresets(userClient: UserClient): Promise<LlmConfigSummary[] 
 }
 
 /**
- * Handle /preset browse [query?] [filter?] [kind?]
+ * Handle /preset browse [query?] [filter?] [capability?]
  */
 export async function handleBrowse(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
   const options = presetBrowseOptions(context.interaction);
   const query = options.query();
   const scope = (options.filter() ?? 'all') as PresetScopeFilter;
-  const kind = (options.kind() ?? 'all') as PresetKindFilter;
-  const filter = composeBrowseFilter(scope, kind);
+  const capability = (options.capability() ?? 'all') as PresetCapabilityFilter;
+  const filter = composeBrowseFilter(scope, capability);
 
   try {
     // Fetch all presets (capability axis applied client-side) + wallet status.

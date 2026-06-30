@@ -34,7 +34,7 @@ export const AUTOCOMPLETE_BADGES = {
   FREE: '🆓',
   /** Admin-locked, cannot be modified */
   LOCKED: '🔐',
-  /** Vision-kind config (the model is a vision/multimodal model) */
+  /** Vision-capable config (the model supports image input — `supportsVision`) */
   VISION: '👁️',
 } as const;
 

@@ -10,8 +10,6 @@ import {
   isFreeModel,
   AUTOCOMPLETE_BADGES,
   formatAutocompleteOption,
-  DEFAULT_CONFIG_KIND,
-  toConfigKind,
   type AutocompleteBadge,
 } from '@tzurot/common-types';
 import { clientsFor } from '../../../utils/gatewayClients.js';
@@ -72,16 +70,12 @@ async function handlePresetAutocomplete(
   query: string,
   userId: string
 ): Promise<void> {
-  // Scope the picker to the requested kind (command's `kind` option, default
-  // text). This scopes autocomplete only — the server infers kind from the
-  // chosen config row, so a kind mismatch on a manually-typed ID is harmless.
-  // The Discord choice set restricts values to CONFIG_KINDS, so the cast is sound.
-  const kind = toConfigKind(interaction.options.getString('kind', false) ?? DEFAULT_CONFIG_KIND);
-
-  // Fetch configs and wallet status in parallel
+  // Capability-agnostic: fetch ALL presets and 👁-badge the vision-capable ones.
+  // The slot is chosen on the command option; autocomplete stays slot-independent
+  // so the suggestion list doesn't reorder when the user flips Chat ↔ Vision.
   const { userClient } = clientsFor(interaction);
   const [configResult, walletResult] = await Promise.all([
-    userClient.listUserLlmConfigs({ kind }),
+    userClient.listUserLlmConfigs({ kind: 'all' }),
     userClient.listWalletKeys(),
   ]);
 
@@ -142,13 +136,16 @@ async function handlePresetAutocomplete(
 
   // Format choices using standardized autocomplete utility
   const choices = filtered.map(c => {
-    // Build status badges for free models
+    // Build status badges (free / default / vision-capable)
     const statusBadges: AutocompleteBadge[] = [];
     if (isFreeModel(c.model)) {
       statusBadges.push(AUTOCOMPLETE_BADGES.FREE);
     }
     if (c.isDefault) {
       statusBadges.push(AUTOCOMPLETE_BADGES.DEFAULT);
+    }
+    if (c.supportsVision) {
+      statusBadges.push(AUTOCOMPLETE_BADGES.VISION);
     }
 
     return formatAutocompleteOption({

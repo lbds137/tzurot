@@ -28,7 +28,7 @@ export async function handleSetDefault(context: DeferredCommandContext): Promise
   // The slot (text = chat default, or vision) decides which default FK the value
   // writes; the gateway capability-gates the vision slot. Without sending it a
   // vision default silently lands in the text slot — mirror clear-default.
-  const kind = toConfigKind(options.kind() ?? DEFAULT_CONFIG_KIND);
+  const kind = toConfigKind(options.slot() ?? DEFAULT_CONFIG_KIND);
 
   if (await handleUnlockModelsUpsell(context, configId, userId)) {
     return;
@@ -56,7 +56,8 @@ export async function handleSetDefault(context: DeferredCommandContext): Promise
       .setTitle('✅ Default Preset Set')
       .setColor(DISCORD_COLORS.SUCCESS)
       .setDescription(
-        `Your default preset is now **${data.default.configName}**.\n\n` +
+        `Your default ${kind === 'vision' ? 'vision (image)' : 'chat'} preset is now ` +
+          `**${data.default.configName}**.\n\n` +
           'This will be used for all characters unless you have a specific override.'
       )
       .setFooter({ text: 'Use /settings preset clear-default to remove this setting' })

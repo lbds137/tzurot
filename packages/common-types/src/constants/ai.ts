@@ -200,13 +200,15 @@ export type ConfigKind = (typeof CONFIG_KINDS)[number];
 export const DEFAULT_CONFIG_KIND: ConfigKind = 'text';
 
 /**
- * Shared description for the text/vision `kind` slash-command option across the
- * preset/settings commands. Single source so the user-facing label can't silently
- * diverge between `/preset` and `/settings preset`. The option NAME + required flag
- * stay inline at each call site because the command-types codegen reads them as
- * string literals (it does not read the description).
+ * Shared description for the `slot` slash-command option (Chat | Vision) across the
+ * preset/settings setter commands. Single source so the user-facing label can't
+ * silently diverge between `/preset` and `/settings preset`. The option NAME +
+ * required flag stay inline at each call site because the command-types codegen
+ * reads them as string literals (it does not read the description). The encoded
+ * choice values stay `text`/`vision` (the gateway's `?kind=` wire contract); only
+ * the user-facing labels are Chat/Vision.
  */
-export const CONFIG_KIND_OPTION_DESCRIPTION = 'Preset kind (default: text)';
+export const CONFIG_SLOT_OPTION_DESCRIPTION = 'Which slot to target: Chat (default) or Vision';
 
 /**
  * Voice naming prefix for Tzurot-managed clones across all TTS providers.
