@@ -1471,20 +1471,20 @@
                 "type": 3,
                 "choices": [
                   {
-                    "name": "All",
+                    "name": "All Models",
                     "value": "all"
                   },
                   {
-                    "name": "Text",
+                    "name": "Text-only",
                     "value": "text"
                   },
                   {
-                    "name": "Vision",
+                    "name": "Vision-capable",
                     "value": "vision"
                   }
                 ],
-                "name": "kind",
-                "description": "Filter by config kind (defaults to all)",
+                "name": "capability",
+                "description": "Filter by capability (default: all)",
                 "required": false
               }
             ]
@@ -1493,24 +1493,7 @@
             "type": 1,
             "name": "create",
             "description": "Create a new model preset",
-            "options": [
-              {
-                "type": 3,
-                "choices": [
-                  {
-                    "name": "Text",
-                    "value": "text"
-                  },
-                  {
-                    "name": "Vision",
-                    "value": "vision"
-                  }
-                ],
-                "name": "kind",
-                "description": "Preset kind (default: text)",
-                "required": false
-              }
-            ]
+            "options": []
           },
           {
             "type": 1,
@@ -1580,7 +1563,7 @@
                     "type": 3,
                     "choices": [
                       {
-                        "name": "Text",
+                        "name": "Chat",
                         "value": "text"
                       },
                       {
@@ -1588,8 +1571,8 @@
                         "value": "vision"
                       }
                     ],
-                    "name": "kind",
-                    "description": "Preset kind (default: text)",
+                    "name": "slot",
+                    "description": "Which slot to target: Chat (default) or Vision",
                     "required": false
                   }
                 ]
@@ -1610,7 +1593,7 @@
                     "type": 3,
                     "choices": [
                       {
-                        "name": "Text",
+                        "name": "Chat",
                         "value": "text"
                       },
                       {
@@ -1618,8 +1601,8 @@
                         "value": "vision"
                       }
                     ],
-                    "name": "kind",
-                    "description": "Preset kind (default: text)",
+                    "name": "slot",
+                    "description": "Which slot to target: Chat (default) or Vision",
                     "required": false
                   }
                 ]
@@ -1816,7 +1799,7 @@
                     "type": 3,
                     "choices": [
                       {
-                        "name": "Text",
+                        "name": "Chat",
                         "value": "text"
                       },
                       {
@@ -1824,8 +1807,8 @@
                         "value": "vision"
                       }
                     ],
-                    "name": "kind",
-                    "description": "Preset kind (default: text)",
+                    "name": "slot",
+                    "description": "Which slot to target: Chat (default) or Vision",
                     "required": false
                   }
                 ]
@@ -1846,7 +1829,7 @@
                     "type": 3,
                     "choices": [
                       {
-                        "name": "Text",
+                        "name": "Chat",
                         "value": "text"
                       },
                       {
@@ -1854,8 +1837,8 @@
                         "value": "vision"
                       }
                     ],
-                    "name": "kind",
-                    "description": "Preset kind (default: text)",
+                    "name": "slot",
+                    "description": "Which slot to target: Chat (default) or Vision",
                     "required": false
                   }
                 ]
@@ -1876,7 +1859,7 @@
                     "type": 3,
                     "choices": [
                       {
-                        "name": "Text",
+                        "name": "Chat",
                         "value": "text"
                       },
                       {
@@ -1884,8 +1867,8 @@
                         "value": "vision"
                       }
                     ],
-                    "name": "kind",
-                    "description": "Preset kind (default: text)",
+                    "name": "slot",
+                    "description": "Which slot to target: Chat (default) or Vision",
                     "required": false
                   }
                 ]
@@ -1899,7 +1882,7 @@
                     "type": 3,
                     "choices": [
                       {
-                        "name": "Text",
+                        "name": "Chat",
                         "value": "text"
                       },
                       {
@@ -1907,8 +1890,8 @@
                         "value": "vision"
                       }
                     ],
-                    "name": "kind",
-                    "description": "Preset kind (default: text)",
+                    "name": "slot",
+                    "description": "Which slot to target: Chat (default) or Vision",
                     "required": false
                   }
                 ]

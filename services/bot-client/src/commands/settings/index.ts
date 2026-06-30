@@ -21,7 +21,7 @@ import {
 } from 'discord.js';
 import {
   createLogger,
-  CONFIG_KIND_OPTION_DESCRIPTION,
+  CONFIG_SLOT_OPTION_DESCRIPTION,
   DISCORD_LIMITS,
   DISCORD_PROVIDER_CHOICES,
   TIMEZONE_OPTIONS,
@@ -327,10 +327,10 @@ export default defineCommand({
             )
             .addStringOption(option =>
               option
-                .setName('kind')
-                .setDescription(CONFIG_KIND_OPTION_DESCRIPTION)
+                .setName('slot')
+                .setDescription(CONFIG_SLOT_OPTION_DESCRIPTION)
                 .setRequired(false)
-                .addChoices({ name: 'Text', value: 'text' }, { name: 'Vision', value: 'vision' })
+                .addChoices({ name: 'Chat', value: 'text' }, { name: 'Vision', value: 'vision' })
             )
         )
         .addSubcommand(subcommand =>
@@ -346,10 +346,10 @@ export default defineCommand({
             )
             .addStringOption(option =>
               option
-                .setName('kind')
-                .setDescription(CONFIG_KIND_OPTION_DESCRIPTION)
+                .setName('slot')
+                .setDescription(CONFIG_SLOT_OPTION_DESCRIPTION)
                 .setRequired(false)
-                .addChoices({ name: 'Text', value: 'text' }, { name: 'Vision', value: 'vision' })
+                .addChoices({ name: 'Chat', value: 'text' }, { name: 'Vision', value: 'vision' })
             )
         )
         .addSubcommand(subcommand =>
@@ -365,10 +365,10 @@ export default defineCommand({
             )
             .addStringOption(option =>
               option
-                .setName('kind')
-                .setDescription(CONFIG_KIND_OPTION_DESCRIPTION)
+                .setName('slot')
+                .setDescription(CONFIG_SLOT_OPTION_DESCRIPTION)
                 .setRequired(false)
-                .addChoices({ name: 'Text', value: 'text' }, { name: 'Vision', value: 'vision' })
+                .addChoices({ name: 'Chat', value: 'text' }, { name: 'Vision', value: 'vision' })
             )
         )
         .addSubcommand(subcommand =>
@@ -377,10 +377,10 @@ export default defineCommand({
             .setDescription('Clear your global default preset')
             .addStringOption(option =>
               option
-                .setName('kind')
-                .setDescription(CONFIG_KIND_OPTION_DESCRIPTION)
+                .setName('slot')
+                .setDescription(CONFIG_SLOT_OPTION_DESCRIPTION)
                 .setRequired(false)
-                .addChoices({ name: 'Text', value: 'text' }, { name: 'Vision', value: 'vision' })
+                .addChoices({ name: 'Chat', value: 'text' }, { name: 'Vision', value: 'vision' })
             )
         )
     )

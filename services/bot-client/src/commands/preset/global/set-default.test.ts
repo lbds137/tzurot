@@ -44,10 +44,10 @@ describe('Preset Global Set Default Handler', () => {
       interaction: {
         user: { id: 'owner-123' },
         options: {
-          // The `kind` option is optional (getString('kind', false)); everything
+          // The `slot` option is optional (getString('slot', false)); everything
           // else (the `preset` option) resolves to the configId under test.
           getString: vi.fn((name: string, _required?: boolean) =>
-            name === 'kind' ? (kind ?? null) : configId
+            name === 'slot' ? (kind ?? null) : configId
           ),
         },
       },

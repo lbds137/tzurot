@@ -108,25 +108,45 @@ describe('handleAutocomplete', () => {
 
       await handleAutocomplete(mockInteraction);
 
-      // No kind option → list scoped to text presets.
-      expect(stub.listUserLlmConfigs).toHaveBeenCalledWith({ kind: 'text' });
+      // Capability-agnostic: fetch ALL kinds (slot-independent picker).
+      expect(stub.listUserLlmConfigs).toHaveBeenCalledWith({ kind: 'all' });
       // Should only return owned presets
       expect(mockInteraction.respond).toHaveBeenCalledWith([
         { name: 'My Preset · claude-sonnet-4', value: '00000000-0000-4000-8000-0000000000c1' },
       ]);
     });
 
-    it('scopes the list to the requested kind when kind=vision', async () => {
+    it('fetches all presets capability-agnostically and 👁-badges vision-capable ones', async () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
         name: 'preset',
         value: '',
       } as unknown as string);
+      // A slot may be chosen on the command, but the picker is slot-independent.
       vi.mocked(mockInteraction.options.getString).mockReturnValue('vision');
-      stub.listUserLlmConfigs.mockResolvedValue(makeOk(mockListLlmConfigsResponse([])));
+      stub.listUserLlmConfigs.mockResolvedValue(
+        makeOk(
+          mockListLlmConfigsResponse([
+            mockLlmConfigSummary({
+              id: '00000000-0000-4000-8000-0000000000d1',
+              name: 'Vision Preset',
+              model: 'google/gemini-2.5-pro',
+              isGlobal: false,
+              isOwned: true,
+              supportsVision: true,
+            }),
+          ])
+        )
+      );
 
       await handleAutocomplete(mockInteraction);
 
-      expect(stub.listUserLlmConfigs).toHaveBeenCalledWith({ kind: 'vision' });
+      // Always fetches all kinds (no slot-scoping); the vision row is 👁-badged.
+      expect(stub.listUserLlmConfigs).toHaveBeenCalledWith({ kind: 'all' });
+      const respondCall = vi.mocked(mockInteraction.respond).mock.calls[0][0] as {
+        name: string;
+        value: string;
+      }[];
+      expect(respondCall[0].name).toContain('👁');
     });
 
     it('should filter by preset name', async () => {
@@ -359,6 +379,36 @@ describe('handleAutocomplete', () => {
           name: expect.stringContaining('Global Claude'),
         }),
       ]);
+    });
+
+    it('👁-badges vision-capable global configs', async () => {
+      vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
+        name: 'preset',
+        value: '',
+      } as unknown as string);
+      vi.mocked(mockInteraction.options.getSubcommand).mockReturnValue('set-default');
+      ownerStub.listGlobalLlmConfigs.mockResolvedValue(
+        makeOk({
+          configs: [
+            {
+              id: 'g-vision',
+              name: 'Global Vision',
+              model: 'google/gemini-2.5-pro',
+              isGlobal: true,
+              isDefault: false,
+              supportsVision: true,
+            },
+          ],
+        })
+      );
+
+      await handleAutocomplete(mockInteraction);
+
+      const respondCall = vi.mocked(mockInteraction.respond).mock.calls[0][0] as {
+        name: string;
+        value: string;
+      }[];
+      expect(respondCall[0].name).toContain('👁');
     });
 
     it('restricts to free models when subcommand is free-default', async () => {

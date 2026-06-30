@@ -18,7 +18,7 @@ import { handleGlobalPresetUpdate } from './globalPresetHelpers.js';
 export async function handleGlobalSetFreeDefault(context: DeferredCommandContext): Promise<void> {
   const options = presetGlobalFreeDefaultOptions(context.interaction);
   const configId = options.preset();
-  const kind = toConfigKind(options.kind() ?? DEFAULT_CONFIG_KIND);
+  const kind = toConfigKind(options.slot() ?? DEFAULT_CONFIG_KIND);
 
   await handleGlobalPresetUpdate(context, configId, {
     promote: (ownerClient, id) => ownerClient.setGlobalLlmConfigFreeDefault(id, { kind }),

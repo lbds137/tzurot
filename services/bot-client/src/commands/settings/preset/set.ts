@@ -32,7 +32,7 @@ export async function handleSet(context: DeferredCommandContext): Promise<void> 
   // The slot (text = chat default, or vision) decides which FK the override
   // writes; the gateway capability-gates the vision slot. Without sending it a
   // vision override silently lands in the text slot — mirror clear, which sends it.
-  const kind = toConfigKind(options.kind() ?? DEFAULT_CONFIG_KIND);
+  const kind = toConfigKind(options.slot() ?? DEFAULT_CONFIG_KIND);
 
   if (isAutocompleteErrorSentinel(personalityId)) {
     await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
@@ -68,7 +68,9 @@ export async function handleSet(context: DeferredCommandContext): Promise<void> 
       .setTitle('✅ Preset Override Set')
       .setColor(DISCORD_COLORS.SUCCESS)
       .setDescription(
-        `**${data.override.personalityName}** will now use the **${data.override.configName}** preset.`
+        `**${data.override.personalityName}** will now use the **${data.override.configName}** preset for ${
+          kind === 'vision' ? 'vision (image)' : 'chat'
+        } messages.`
       )
       .setFooter({ text: 'Use /settings preset clear to remove this override' })
       .setTimestamp();

@@ -26,10 +26,9 @@ export async function handleClear(context: DeferredCommandContext): Promise<void
   const userId = context.user.id;
   const options = settingsPresetClearOptions(context.interaction);
   const personalityId = options.character();
-  // Which override to clear: text (default) or vision. Unlike the setters,
-  // clear sends kind because the operation itself is kind-specific — a vision
-  // override is a separate FK from the text override.
-  const kind = toConfigKind(options.kind() ?? DEFAULT_CONFIG_KIND);
+  // Which override to clear: Chat (text default) or Vision — the operation is
+  // slot-specific (a vision override is a separate FK from the text override).
+  const kind = toConfigKind(options.slot() ?? DEFAULT_CONFIG_KIND);
 
   if (isAutocompleteErrorSentinel(personalityId)) {
     await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });

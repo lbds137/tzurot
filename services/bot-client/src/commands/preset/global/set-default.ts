@@ -18,9 +18,9 @@ import { handleGlobalPresetUpdate } from './globalPresetHelpers.js';
 export async function handleGlobalSetDefault(context: DeferredCommandContext): Promise<void> {
   const options = presetGlobalDefaultOptions(context.interaction);
   const configId = options.preset();
-  // Admin set-default gates by kind (requireKind); pass it so a vision preset
-  // promotes to the vision default. Defaults text → existing usage unchanged.
-  const kind = toConfigKind(options.kind() ?? DEFAULT_CONFIG_KIND);
+  // Admin set-default gates by slot (requireKind); pass it so a vision preset
+  // promotes to the vision default. Defaults Chat → existing usage unchanged.
+  const kind = toConfigKind(options.slot() ?? DEFAULT_CONFIG_KIND);
 
   await handleGlobalPresetUpdate(context, configId, {
     promote: (ownerClient, id) => ownerClient.setGlobalLlmConfigDefault(id, { kind }),

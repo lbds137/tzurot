@@ -50,14 +50,14 @@ describe('handleSetDefault', () => {
     mockEditReply.mockResolvedValue(undefined);
   });
 
-  function createMockContext(configId: string, kind?: string) {
+  function createMockContext(configId: string, slot?: string) {
     return {
       user: { id: 'user-123', username: 'testuser' },
       interaction: {
         options: {
           getString: (name: string, _required?: boolean) => {
             if (name === 'preset') return configId;
-            if (name === 'kind') return kind ?? null;
+            if (name === 'slot') return slot ?? null;
             return null;
           },
         },
@@ -104,6 +104,16 @@ describe('handleSetDefault', () => {
       { configId: '00000000-0000-4000-8000-0000000000a1' },
       { kind: 'vision' }
     );
+    // The confirmation names the vision slot.
+    expect(mockEditReply).toHaveBeenCalledWith({
+      embeds: [
+        expect.objectContaining({
+          data: expect.objectContaining({
+            description: expect.stringContaining('Your default vision (image) preset is now'),
+          }),
+        }),
+      ],
+    });
   });
 
   it('should display success embed on successful update', async () => {
@@ -116,6 +126,8 @@ describe('handleSetDefault', () => {
         expect.objectContaining({
           data: expect.objectContaining({
             title: expect.stringContaining('Default Preset Set'),
+            // Default (text) slot is named in the confirmation.
+            description: expect.stringContaining('Your default chat preset is now'),
           }),
         }),
       ],
@@ -217,6 +229,8 @@ describe('handleSetDefault', () => {
         expect.objectContaining({
           data: expect.objectContaining({
             title: expect.stringContaining('Default Preset Set'),
+            // Default (text) slot is named in the confirmation.
+            description: expect.stringContaining('Your default chat preset is now'),
           }),
         }),
       ],

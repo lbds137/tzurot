@@ -21,19 +21,19 @@ describe('splitBrowseFilter', () => {
   it('round-trips a composed token', () => {
     expect(splitBrowseFilter(composeBrowseFilter('mine', 'text'))).toEqual({
       scope: 'mine',
-      kind: 'text',
+      capability: 'text',
     });
   });
 
   it('decodes each axis independently', () => {
-    expect(splitBrowseFilter('free.vision')).toEqual({ scope: 'free', kind: 'vision' });
+    expect(splitBrowseFilter('free.vision')).toEqual({ scope: 'free', capability: 'vision' });
   });
 
-  it('defends the exported boundary: a token with no kind segment defaults to all-kinds', () => {
+  it('defends the exported boundary: a token with no capability segment defaults to all', () => {
     // The customId factory pre-validates, so production never passes a bare
     // token here — but if a malformed/future-format one ever did, the missing
-    // kind must default to "all kinds", NOT the gateway's text default.
-    expect(splitBrowseFilter('global' as never)).toEqual({ scope: 'global', kind: 'all' });
+    // capability must default to "all", NOT the gateway's text default.
+    expect(splitBrowseFilter('global' as never)).toEqual({ scope: 'global', capability: 'all' });
   });
 });
 
@@ -49,8 +49,8 @@ describe('VALID_PRESET_FILTERS', () => {
 
   it('every entry round-trips through split → compose', () => {
     for (const filter of VALID_PRESET_FILTERS) {
-      const { scope, kind } = splitBrowseFilter(filter);
-      expect(composeBrowseFilter(scope, kind)).toBe(filter);
+      const { scope, capability } = splitBrowseFilter(filter);
+      expect(composeBrowseFilter(scope, capability)).toBe(filter);
     }
   });
 });
