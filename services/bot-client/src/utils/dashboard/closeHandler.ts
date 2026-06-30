@@ -29,10 +29,15 @@ export async function handleDashboardClose(
   entityId: string,
   customMessage?: string
 ): Promise<void> {
+  // Ack first (3-second rule): deferUpdate before the Redis session delete, then
+  // editReply the closed-state message. deferUpdate→editReply reaches the same end
+  // state as a bare update() while keeping the Redis round-trip off the 3s budget.
+  await interaction.deferUpdate();
+
   const sessionManager = getSessionManager();
   await sessionManager.delete(interaction.user.id, entityType, entityId);
 
-  await interaction.update({
+  await interaction.editReply({
     content: customMessage ?? DASHBOARD_MESSAGES.DASHBOARD_CLOSED,
     embeds: [],
     components: [],

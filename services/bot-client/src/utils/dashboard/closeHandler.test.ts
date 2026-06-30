@@ -16,25 +16,29 @@ vi.mock('./SessionManager.js', () => ({
 }));
 
 describe('handleDashboardClose', () => {
-  const mockUpdate = vi.fn();
+  const mockDeferUpdate = vi.fn();
+  const mockEditReply = vi.fn();
 
   const createMockInteraction = (): ButtonInteraction =>
     ({
       user: { id: 'user-123' },
-      update: mockUpdate,
+      deferUpdate: mockDeferUpdate,
+      editReply: mockEditReply,
     }) as unknown as ButtonInteraction;
 
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('should delete session and show closed message', async () => {
+  it('should ack first, delete session, then show the closed message', async () => {
     const interaction = createMockInteraction();
 
     await handleDashboardClose(interaction, 'persona', 'persona-123');
 
+    // Ack-first (3-second rule): deferUpdate precedes the Redis delete.
+    expect(mockDeferUpdate).toHaveBeenCalled();
     expect(mockDelete).toHaveBeenCalledWith('user-123', 'persona', 'persona-123');
-    expect(mockUpdate).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: DASHBOARD_MESSAGES.DASHBOARD_CLOSED,
       embeds: [],
       components: [],
@@ -48,7 +52,7 @@ describe('handleDashboardClose', () => {
     await handleDashboardClose(interaction, 'preset', 'preset-456', customMessage);
 
     expect(mockDelete).toHaveBeenCalledWith('user-123', 'preset', 'preset-456');
-    expect(mockUpdate).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: customMessage,
       embeds: [],
       components: [],
@@ -65,12 +69,14 @@ describe('handleDashboardClose', () => {
 });
 
 describe('createCloseHandler', () => {
-  const mockUpdate = vi.fn();
+  const mockDeferUpdate = vi.fn();
+  const mockEditReply = vi.fn();
 
   const createMockInteraction = (): ButtonInteraction =>
     ({
       user: { id: 'user-456' },
-      update: mockUpdate,
+      deferUpdate: mockDeferUpdate,
+      editReply: mockEditReply,
     }) as unknown as ButtonInteraction;
 
   beforeEach(() => {
@@ -83,8 +89,9 @@ describe('createCloseHandler', () => {
 
     await handleClose(interaction, 'preset-789');
 
+    expect(mockDeferUpdate).toHaveBeenCalled();
     expect(mockDelete).toHaveBeenCalledWith('user-456', 'preset', 'preset-789');
-    expect(mockUpdate).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: DASHBOARD_MESSAGES.DASHBOARD_CLOSED,
       embeds: [],
       components: [],

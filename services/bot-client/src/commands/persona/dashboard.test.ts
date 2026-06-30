@@ -69,12 +69,14 @@ const mockRenderPostActionScreen = vi.fn();
 const mockHandleSharedBackButton = vi.fn();
 
 // Mock getSessionDataOrReply to delegate to mockSessionGet
+// Models getSessionDataOrFollowUp (the deferred variant handleDeleteButton now
+// uses): followUp on expiry, since the caller has already deferred.
 const mockGetSessionDataOrReply = vi
   .fn()
   .mockImplementation(async (interaction, entityType, entityId) => {
     const session = await mockSessionGet(interaction.user.id, entityType, entityId);
     if (session === null) {
-      await interaction.reply({
+      await interaction.followUp({
         content: DASHBOARD_MESSAGES.SESSION_EXPIRED,
         flags: MessageFlags.Ephemeral,
       });
@@ -174,6 +176,7 @@ vi.mock('../../utils/dashboard/index.js', async () => {
     requireDeferredSession: (...args: unknown[]) => mockRequireDeferredSession(...args),
     getSessionOrExpired: (...args: unknown[]) => mockGetSessionOrExpired(...args),
     getSessionDataOrReply: (...args: unknown[]) => mockGetSessionDataOrReply(...args),
+    getSessionDataOrFollowUp: (...args: unknown[]) => mockGetSessionDataOrReply(...args),
     parseDashboardCustomId: vi.fn((customId: string) => {
       // Simple parser for tests
       const parts = customId.split('::');
@@ -588,6 +591,7 @@ describe('handleButton', () => {
   const mockDeferUpdate = vi.fn();
   const mockEditReply = vi.fn();
   const mockReply = vi.fn();
+  const mockFollowUp = vi.fn();
   let stub: PersonaClientStub;
 
   beforeEach(() => {
@@ -610,10 +614,12 @@ describe('handleButton', () => {
       }
       return session;
     });
+    // Models getSessionDataOrFollowUp (handleDeleteButton defers first, so the
+    // helper followUps on expiry — reply would throw on the acked interaction).
     mockGetSessionDataOrReply.mockImplementation(async (interaction, entityType, entityId) => {
       const session = await mockSessionGet(interaction.user.id, entityType, entityId);
       if (session === null) {
-        await interaction.reply({
+        await interaction.followUp({
           content: DASHBOARD_MESSAGES.SESSION_EXPIRED,
           flags: MessageFlags.Ephemeral,
         });
@@ -633,6 +639,7 @@ describe('handleButton', () => {
       deferUpdate: mockDeferUpdate,
       editReply: mockEditReply,
       reply: mockReply,
+      followUp: mockFollowUp,
     } as unknown as Parameters<typeof handleButton>[0];
   }
 
@@ -668,7 +675,9 @@ describe('handleButton', () => {
         entityName: 'Test Persona',
       })
     );
-    expect(mockUpdate).toHaveBeenCalled();
+    // Ack-first: the confirm dialog now renders via editReply (post-deferUpdate).
+    expect(mockDeferUpdate).toHaveBeenCalled();
+    expect(mockEditReply).toHaveBeenCalled();
   });
 
   it('should block delete of default persona', async () => {
@@ -686,11 +695,14 @@ describe('handleButton', () => {
 
     await handleButton(createMockButtonInteraction(`persona::delete::${TEST_PERSONA_ID}`));
 
-    expect(mockReply).toHaveBeenCalledWith({
+    // Ack-first: deferUpdate runs before the gateway isDefaultPersona() check; the
+    // block notice is a followUp (reply would throw post-defer), and no confirm
+    // dialog is rendered.
+    expect(mockFollowUp).toHaveBeenCalledWith({
       content: expect.stringContaining('Cannot delete your default'),
       flags: MessageFlags.Ephemeral,
     });
-    expect(mockUpdate).not.toHaveBeenCalled();
+    expect(mockEditReply).not.toHaveBeenCalled();
   });
 
   it('should show error on delete when session expired', async () => {
@@ -698,7 +710,9 @@ describe('handleButton', () => {
 
     await handleButton(createMockButtonInteraction(`persona::delete::${TEST_PERSONA_ID}`));
 
-    expect(mockReply).toHaveBeenCalledWith({
+    // Ack-first: deferUpdate, then the deferred session helper followUps on expiry.
+    expect(mockDeferUpdate).toHaveBeenCalled();
+    expect(mockFollowUp).toHaveBeenCalledWith({
       content: expect.stringContaining('Session expired'),
       flags: MessageFlags.Ephemeral,
     });
