@@ -184,10 +184,23 @@ describe('ModelCapabilityChecker', () => {
         expect(await modelSupportsVision('google/gemini-2-flash-lite', mockRedis)).toBe(true);
       });
 
-      it('should detect Gemma 3 models', async () => {
+      it('should detect Gemma 3 and Gemma 4 models', async () => {
         expect(await modelSupportsVision('google/gemma-3-27b-it', mockRedis)).toBe(true);
         expect(await modelSupportsVision('google/gemma-3-27b-it:free', mockRedis)).toBe(true);
         expect(await modelSupportsVision('gemma3-12b', mockRedis)).toBe(true);
+        // Gemma 4 (both hyphenated and concatenated) — its own pattern entries.
+        expect(await modelSupportsVision('google/gemma-4-31b-it', mockRedis)).toBe(true);
+        expect(await modelSupportsVision('gemma4-9b', mockRedis)).toBe(true);
+      });
+
+      it('should detect Llama vision models but not text-only Llama', async () => {
+        // The 'llama' pattern requires the 'vision' qualifier — base Llama is text-only.
+        expect(
+          await modelSupportsVision('meta-llama/llama-3.2-90b-vision-instruct', mockRedis)
+        ).toBe(true);
+        expect(await modelSupportsVision('meta-llama/llama-3.3-70b-instruct', mockRedis)).toBe(
+          false
+        );
       });
 
       it('should detect Qwen VL models', async () => {

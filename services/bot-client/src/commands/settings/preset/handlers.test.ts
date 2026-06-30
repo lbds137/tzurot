@@ -70,7 +70,11 @@ describe('Preset Command Handlers', () => {
   // moved to the shared override browser.
 
   describe('handleSet', () => {
-    function createMockContext(personalityId = PERSONALITY_ID_1, configId = CONFIG_ID_1) {
+    function createMockContext(
+      personalityId = PERSONALITY_ID_1,
+      configId = CONFIG_ID_1,
+      slot?: string
+    ) {
       return {
         user: { id: '123456789', username: 'testuser' },
         interaction: {
@@ -78,6 +82,7 @@ describe('Preset Command Handlers', () => {
             getString: (name: string) => {
               if (name === 'character') return personalityId;
               if (name === 'preset') return configId;
+              if (name === 'slot') return slot ?? null;
               return null;
             },
           },
@@ -126,6 +131,41 @@ describe('Preset Command Handlers', () => {
           }),
         ],
       });
+    });
+
+    it('routes the chosen slot to the gateway when kind:vision is selected', async () => {
+      // Mirrors set.test.ts's vision-slot case at the shared-handler level: the
+      // slot option must reach setModelOverride, or a vision override silently
+      // lands in the text slot.
+      stub.listWalletKeys.mockResolvedValue(
+        makeOk(mockListWalletKeysResponse([{ isActive: true }]))
+      );
+      stub.listUserLlmConfigs.mockResolvedValue(
+        makeOk(
+          mockListLlmConfigsResponse([
+            { id: CONFIG_ID_1, name: 'Sharp Eyes', model: 'google/gemini-2.0-flash' },
+          ])
+        )
+      );
+      stub.setModelOverride.mockResolvedValue(
+        makeOk(
+          mockSetModelOverrideResponse({
+            override: {
+              personalityId: PERSONALITY_ID_1,
+              personalityName: 'Lilith',
+              configId: CONFIG_ID_1,
+              configName: 'Sharp Eyes',
+            },
+          })
+        )
+      );
+
+      await handleSet(createMockContext(PERSONALITY_ID_1, CONFIG_ID_1, 'vision'));
+
+      expect(stub.setModelOverride).toHaveBeenCalledWith(
+        { personalityId: PERSONALITY_ID_1, configId: CONFIG_ID_1 },
+        { kind: 'vision' }
+      );
     });
 
     it('should handle not found error', async () => {

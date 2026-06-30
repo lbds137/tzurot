@@ -10,7 +10,7 @@
 
 **Deferred phases of the epic** (in `active-epic.md`, not scheduled): **Phase 4 — auto-fallback unification** (the original near-term want: ordered resolver cascade primary → vision-global → free-default + an explicit `[VISION_UNAVAILABLE]` signal + negative-cache-by-model). **Phase B — drop the dormant `kind` column** (waits for Phase 3 to soak clean in prod; the column is still WRITTEN on create + READ as the name-collision namespace, so the cleanup must first collapse the name-collision to a single namespace, then a destructive migration → `cold/follow-ups.md`).
 
-**Open beta.142-review follow-ups** (all non-blocking, `cold/follow-ups.md`): `handlers.test.ts` vision-slot coverage · owner `/preset global` autocomplete capability-agnostic + zero-staleness invalidation · `/preset browse` fetch-all-then-filter perf · TTS cold-start/synthesis-timeout decouple. **Also still pending: structural enforcement of the deferUpdate-ack-first class** (S2f's squash-review caught a real 3s-rule regression 3 rounds missed; council split — ESLint rule vs Declarative-Ack dispatcher — user decision pending).
+**Open beta.142-review follow-ups** (all non-blocking, `cold/follow-ups.md`): owner `/preset global` autocomplete capability-agnostic + zero-staleness invalidation · `/preset browse` fetch-all-then-filter perf · TTS cold-start/synthesis-timeout decouple. **Also still pending: structural enforcement of the deferUpdate-ack-first class** (S2f's squash-review caught a real 3s-rule regression 3 rounds missed; council split — ESLint rule vs Declarative-Ack dispatcher — user decision pending).
 
 ---
 
