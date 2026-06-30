@@ -7,7 +7,6 @@ import type { AutocompleteInteraction } from 'discord.js';
 import {
   createLogger,
   DISCORD_LIMITS,
-  TIMEOUTS,
   TTLCache,
   AUTOCOMPLETE_BADGES,
   formatAutocompleteOption,
@@ -42,15 +41,24 @@ interface GlobalConfigEntry {
 }
 
 /**
- * Cache for global configs to avoid API calls on every keystroke
- * Uses TTLCache with single key - global configs change infrequently
- * Lazy-initialized to avoid issues with mocking in tests
+ * TTL for the owner global-config picker cache. Long enough to absorb the
+ * per-keystroke autocomplete burst (each cold fetch enriches `supportsVision`
+ * per row), short enough that a newly-created global preset appears promptly.
+ * Deliberately NOT the shared `TIMEOUTS.CACHE_TTL` (5 min) — that's far too long
+ * for an autocomplete freshness window. A zero-staleness pub/sub-invalidation
+ * fix is a tracked follow-up; this short TTL is the interim bound.
+ */
+const GLOBAL_CONFIG_CACHE_TTL_MS = 30 * 1000;
+
+/**
+ * Cache for global configs to avoid API calls on every keystroke.
+ * Lazy-initialized to avoid issues with mocking in tests.
  */
 let globalConfigCache: TTLCache<GlobalConfigEntry[]> | null = null;
 
 function getGlobalConfigCache(): TTLCache<GlobalConfigEntry[]> {
   globalConfigCache ??= new TTLCache<GlobalConfigEntry[]>({
-    ttl: TIMEOUTS.CACHE_TTL, // 60 seconds
+    ttl: GLOBAL_CONFIG_CACHE_TTL_MS,
     maxSize: CONFIG_KINDS.length, // One entry per kind (text, vision)
   });
   return globalConfigCache;

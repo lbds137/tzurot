@@ -10,7 +10,6 @@ import {
   DISCORD_COLORS,
   settingsPresetClearDefaultOptions,
   toConfigKind,
-  DEFAULT_CONFIG_KIND,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { clientsFor } from '../../../utils/gatewayClients.js';
@@ -22,11 +21,11 @@ const logger = createLogger('settings-preset-clear-default');
  */
 export async function handleClearDefault(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  // Which default to clear: Chat (text default) or Vision — the operation is
-  // slot-specific (the vision default is a separate FK from the text default).
-  const kind = toConfigKind(
-    settingsPresetClearDefaultOptions(context.interaction).slot() ?? DEFAULT_CONFIG_KIND
-  );
+  // No slot → clear BOTH defaults (`all`); an explicit slot clears just that one.
+  // The vision default is a separate FK from the text default, so a no-slot clear
+  // has to target both or it silently leaves the other in place.
+  const slot = settingsPresetClearDefaultOptions(context.interaction).slot();
+  const kind = slot !== null ? toConfigKind(slot) : 'all';
 
   try {
     const { userClient } = clientsFor(context.interaction);

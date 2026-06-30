@@ -82,13 +82,14 @@ describe('Preset Clear Handler', () => {
   }
 
   describe('handleClear', () => {
-    it('should successfully clear model override when one exists', async () => {
+    it('clears BOTH slots when no slot is given', async () => {
       stub.deleteModelOverride.mockResolvedValue(makeOk({ deleted: true }));
 
       await handleClear(createMockContext('personality-123'));
 
-      // No kind option → clears the text override.
-      expect(stub.deleteModelOverride).toHaveBeenCalledWith('personality-123', { kind: 'text' });
+      // No slot → clear both slots (the gateway's `all` sentinel), so a vision
+      // override isn't silently left behind.
+      expect(stub.deleteModelOverride).toHaveBeenCalledWith('personality-123', { kind: 'all' });
 
       expect(mockCreateSuccessEmbed).toHaveBeenCalledWith(
         '🔄 Preset Override Removed',
