@@ -31,6 +31,13 @@ describe('isFreeModel', () => {
     expect(isFreeModel(':free/some-model')).toBe(false);
   });
 
+  it('should recognize the OpenRouter free-model router (no :free suffix)', () => {
+    expect(isFreeModel('openrouter/free')).toBe(true);
+    // A model that merely ends in /free is NOT the router and not free.
+    expect(isFreeModel('some-provider/free')).toBe(false);
+    expect(isFreeModel('openrouter/auto')).toBe(false);
+  });
+
   it('should handle edge cases', () => {
     expect(isFreeModel('')).toBe(false);
     expect(isFreeModel(':free')).toBe(true);
@@ -40,7 +47,7 @@ describe('isFreeModel', () => {
 
 describe('GUEST_MODE', () => {
   it('should have a default free model configured', () => {
-    expect(GUEST_MODE.DEFAULT_MODEL).toBe('google/gemma-4-31b-it:free');
+    expect(GUEST_MODE.DEFAULT_MODEL).toBe('openrouter/free');
     expect(isFreeModel(GUEST_MODE.DEFAULT_MODEL)).toBe(true);
   });
 
