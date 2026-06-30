@@ -364,6 +364,24 @@ describe('PersonalityChatManager', () => {
       expect(call).toMatchObject({ attachments });
       expect(call.referencedMessages).toBeUndefined();
     });
+
+    it('continues to generate when the trigger-message persist fails (non-fatal)', async () => {
+      // A transient gateway/DB timeout persisting the trigger message must NOT
+      // block generation — the user still gets a response; only the history row
+      // is lost. Regression guard for the "something's slow, try again" dead-end.
+      mockPersistence.saveUserMessage.mockRejectedValueOnce(
+        new Error('User-message persist failed via gateway: 500 Query read timeout')
+      );
+
+      const result = await manager.submitChatJob({
+        message: createMockMessage(),
+        personality: createMockPersonality(),
+        content: 'Hi',
+      });
+
+      expect(result.kind).toBe('submitted');
+      expect(vi.mocked(generate)).toHaveBeenCalled();
+    });
   });
 
   describe('submitChatJob - NSFW edge cases', () => {

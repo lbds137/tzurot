@@ -249,13 +249,28 @@ export class PersonalityChatManager {
     // from `rawReferencedMessages` in the envelope. (The previous
     // `referencedMessages: context.referencedMessages` arg was a no-op — that
     // field is never populated on the thin envelope.)
-    await this.persistence.saveUserMessage({
-      message,
-      personality,
-      personaId,
-      messageContent,
-      attachments: context.attachments,
-    });
+    //
+    // Best-effort: a transient gateway/DB failure persisting the trigger message
+    // (conversation-history durability) must NOT block generation. The worker's
+    // context is already built above and shipped in the envelope, and
+    // triggerMessageId is only a Redis dedup key downstream — never a DB read of
+    // this row — so generation does not depend on the persist. Losing one history
+    // row on a rare transient timeout beats failing the whole response (the
+    // "something's slow, try again" dead-end the user otherwise hits).
+    try {
+      await this.persistence.saveUserMessage({
+        message,
+        personality,
+        personaId,
+        messageContent,
+        attachments: context.attachments,
+      });
+    } catch (err) {
+      logger.error(
+        { err, personalityId: personality.id, messageId: message.id },
+        'Trigger-message persist failed; continuing to generate (history row may be missing)'
+      );
+    }
 
     const userMessageTime = new Date();
 
