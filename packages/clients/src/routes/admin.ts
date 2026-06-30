@@ -227,9 +227,10 @@ export const adminRoutes = {
     method: 'get',
     path: '/llm-config',
     id: 'listGlobalLlmConfigs',
-    // Scope the listing to a config kind (text|vision); defaults to text
-    // server-side so the autocomplete picker shows only the requested kind.
-    query: { kind: z.enum(CONFIG_KINDS).optional() },
+    // Scope the listing to a config kind (text|vision), or `all` to return both
+    // (the owner picker fetches both in one capability-agnostic call); defaults
+    // text. The gateway LIST handler parses this with parseConfigKindQueryAllowAll.
+    query: { kind: z.enum([...CONFIG_KINDS, 'all']).optional() },
     output: ListLlmConfigsResponseSchema,
     meta: { safeRead: true },
     // Dual-context: bot-owner autocomplete (3s Discord deadline) and

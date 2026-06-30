@@ -40,6 +40,7 @@ import {
 import {
   parseBodyOrSendError,
   parseConfigKindQuery,
+  parseConfigKindQueryAllowAll,
   findGlobalConfigOrSendError,
   findAdminUserOrSendError,
   ensureNoNameCollision,
@@ -61,7 +62,11 @@ function createListHandler(service: LlmConfigService, modelCache?: OpenRouterMod
   // Stateless wrapper over the cache ref — built once per handler, not per request.
   const capabilities = new ModelCapabilityService(modelCache);
   return async (req: Request, res: Response) => {
-    const kind = parseConfigKindQuery(res, req.query);
+    // AllowAll so the owner picker can fetch both slots in one call (capability-
+    // agnostic, mirroring the user list route); `service.list` handles the `all`
+    // sentinel. Sets (set-default / set-free-default) stay strict — you target a
+    // single slot, never `all`.
+    const kind = parseConfigKindQueryAllowAll(res, req.query);
     if (kind === null) {
       return;
     }
