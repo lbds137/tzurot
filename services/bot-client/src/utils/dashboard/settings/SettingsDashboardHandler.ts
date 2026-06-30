@@ -465,6 +465,7 @@ export async function handleSettingsModal(
 
   const settingId = parsed.extra;
   if (settingId === undefined) {
+    // Sync guard, no preceding async — reply is the ack-first response here.
     await interaction.reply({
       content: 'Invalid modal submission.',
       flags: MessageFlags.Ephemeral,
@@ -472,11 +473,16 @@ export async function handleSettingsModal(
     return;
   }
 
+  // Ack first (3-second rule): deferUpdate before the Redis getSession and the
+  // validation below. Every error path after this point uses followUp (the
+  // interaction is already acked); the success path editReplies the dashboard.
+  await interaction.deferUpdate();
+
   // Get session
   const session = await getSession(interaction.user.id, config.entityType, parsed.entityId);
 
   if (session === null) {
-    await interaction.reply({
+    await interaction.followUp({
       content: 'This dashboard has expired. Please run the command again.',
       flags: MessageFlags.Ephemeral,
     });
@@ -488,7 +494,7 @@ export async function handleSettingsModal(
   const setting = getSettingById(settingId);
 
   if (setting === undefined) {
-    await interaction.reply({
+    await interaction.followUp({
       content: 'Unknown setting.',
       flags: MessageFlags.Ephemeral,
     });
@@ -516,17 +522,14 @@ export async function handleSettingsModal(
   }
 
   if (error !== undefined) {
-    await interaction.reply({
+    await interaction.followUp({
       content: error,
       flags: MessageFlags.Ephemeral,
     });
     return;
   }
 
-  // Defer the update to acknowledge we're processing
-  await interaction.deferUpdate();
-
-  // Call the update handler
+  // Call the update handler (interaction was already deferUpdate'd above)
   const result = await updateHandler(interaction, session, settingId, parsedValue);
 
   if (!result.success) {
