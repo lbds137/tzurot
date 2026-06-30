@@ -16,6 +16,7 @@ import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
   generateUserPersonalityConfigUuid,
+  ADMIN_SETTINGS_SINGLETON_ID,
   type PrismaClient,
   type ModelOverrideSummary,
   type UserDefaultConfig,
@@ -363,11 +364,24 @@ export const handleClearDefaultModelConfig = (deps: RouteDeps): RequestHandler =
 
     // Look up the system free default the user will fall back to: the chat (text)
     // free default when the chat slot is cleared, otherwise the vision one.
+    // Read the AdminSettings free-default POINTER, not the `isFreeDefault` boolean
+    // — setAsFreeDefault writes only the pointer, so the boolean is stale (would
+    // show a wrong/missing fallback name after the global free default is changed).
     // Per-personality overrides and personality-level defaults are unaffected.
-    const newEffectiveDefault = await prisma.llmConfig.findFirst({
-      where: { isFreeDefault: true, kind: clearText ? 'text' : 'vision' },
-      select: { id: true, name: true },
+    const settings = await prisma.adminSettings.findUnique({
+      where: { id: ADMIN_SETTINGS_SINGLETON_ID },
+      select: { freeDefaultLlmConfigId: true, freeDefaultVisionConfigId: true },
     });
+    const freeDefaultId = clearText
+      ? (settings?.freeDefaultLlmConfigId ?? null)
+      : (settings?.freeDefaultVisionConfigId ?? null);
+    const newEffectiveDefault =
+      freeDefaultId !== null
+        ? await prisma.llmConfig.findUnique({
+            where: { id: freeDefaultId },
+            select: { id: true, name: true },
+          })
+        : null;
 
     if (!wasSet) {
       logger.info(

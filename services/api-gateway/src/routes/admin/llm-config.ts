@@ -16,6 +16,7 @@ import { Router, type Response, type Request, type RequestHandler } from 'expres
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
+  isFreeModel,
   type PrismaClient,
   ADMIN_SETTINGS_SINGLETON_ID,
   // Shared schemas from common-types - single source of truth
@@ -320,7 +321,7 @@ function createSetFreeDefaultHandler(
       return;
     }
 
-    if (!config.model.endsWith(':free')) {
+    if (!isFreeModel(config.model)) {
       return sendError(
         res,
         ErrorResponses.validationError(

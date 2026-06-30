@@ -47,6 +47,10 @@ const mockPrisma = {
   },
   llmConfig: {
     findFirst: vi.fn(),
+    findUnique: vi.fn(),
+  },
+  adminSettings: {
+    findUnique: vi.fn(),
   },
   userPersonalityConfig: {
     findMany: vi.fn(),
@@ -73,7 +77,7 @@ const mockPrisma = {
 
 import { createModelOverrideRoutes } from './model-override.js';
 import { getRouteHandler, findRoute } from '../../test/expressRouterUtils.js';
-import type { PrismaClient } from '@tzurot/common-types';
+import { type PrismaClient, ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types';
 
 // Helper to create mock request/response
 function createMockReqRes(
@@ -925,12 +929,16 @@ describe('/user/model-override routes', () => {
 
     it('should include newEffectiveDefault on the no-op path when free default exists', async () => {
       // Coverage: the 4th cell in the (wasSet × freeDefault) matrix.
-      // Confirms findFirst still runs even when the early-return wasSet:false
-      // branch is taken.
+      // Confirms the pointer lookup still runs even when the early-return
+      // wasSet:false branch is taken.
       mockPrisma.user.findUnique.mockResolvedValueOnce({
         defaultLlmConfigId: null,
       });
-      mockPrisma.llmConfig.findFirst.mockResolvedValueOnce({
+      mockPrisma.adminSettings.findUnique.mockResolvedValueOnce({
+        freeDefaultLlmConfigId: 'free-id',
+        freeDefaultVisionConfigId: null,
+      });
+      mockPrisma.llmConfig.findUnique.mockResolvedValueOnce({
         id: 'free-id',
         name: 'gpt-4-free',
       });
@@ -955,7 +963,13 @@ describe('/user/model-override routes', () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce({
         defaultLlmConfigId: 'config-123',
       });
-      mockPrisma.llmConfig.findFirst.mockResolvedValueOnce({
+      // The fallback name comes from the AdminSettings free-default POINTER, not
+      // the stale `isFreeDefault` boolean (setAsFreeDefault writes only the pointer).
+      mockPrisma.adminSettings.findUnique.mockResolvedValueOnce({
+        freeDefaultLlmConfigId: 'free-id',
+        freeDefaultVisionConfigId: null,
+      });
+      mockPrisma.llmConfig.findUnique.mockResolvedValueOnce({
         id: 'free-id',
         name: 'gpt-4-free',
       });
@@ -966,8 +980,12 @@ describe('/user/model-override routes', () => {
 
       await handler(req, res);
 
-      expect(mockPrisma.llmConfig.findFirst).toHaveBeenCalledWith({
-        where: { isFreeDefault: true, kind: 'text' },
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledWith({
+        where: { id: ADMIN_SETTINGS_SINGLETON_ID },
+        select: { freeDefaultLlmConfigId: true, freeDefaultVisionConfigId: true },
+      });
+      expect(mockPrisma.llmConfig.findUnique).toHaveBeenCalledWith({
+        where: { id: 'free-id' },
         select: { id: true, name: true },
       });
       expect(res.json).toHaveBeenCalledWith(
@@ -1082,7 +1100,11 @@ describe('/user/model-override routes', () => {
         defaultLlmConfigId: 'text-cfg',
         defaultVisionConfigId: VISION_CFG,
       });
-      mockPrisma.llmConfig.findFirst.mockResolvedValue({ id: 'vision-free', name: 'Vision Free' });
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({
+        freeDefaultLlmConfigId: null,
+        freeDefaultVisionConfigId: 'vision-free',
+      });
+      mockPrisma.llmConfig.findUnique.mockResolvedValue({ id: 'vision-free', name: 'Vision Free' });
 
       const router = createModelOverrideRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'delete', '/default');
@@ -1097,9 +1119,9 @@ describe('/user/model-override routes', () => {
         where: { id: 'user-uuid-123' },
         data: { defaultVisionConfigId: null },
       });
-      // The free-default fallback lookup is scoped to the cleared kind.
-      expect(mockPrisma.llmConfig.findFirst).toHaveBeenCalledWith({
-        where: { isFreeDefault: true, kind: 'vision' },
+      // The fallback resolves the VISION free-default POINTER (cleared kind=vision).
+      expect(mockPrisma.llmConfig.findUnique).toHaveBeenCalledWith({
+        where: { id: 'vision-free' },
         select: { id: true, name: true },
       });
     });
@@ -1211,7 +1233,13 @@ describe('/user/model-override routes', () => {
         defaultLlmConfigId: 'text-cfg',
         defaultVisionConfigId: VISION_CFG,
       });
-      mockPrisma.llmConfig.findFirst.mockResolvedValue({ id: 'text-free', name: 'Text Free' });
+      // clearText is true for `all`, so the fallback resolves the TEXT (chat-primary)
+      // free-default pointer.
+      mockPrisma.adminSettings.findUnique.mockResolvedValueOnce({
+        freeDefaultLlmConfigId: 'text-free',
+        freeDefaultVisionConfigId: null,
+      });
+      mockPrisma.llmConfig.findUnique.mockResolvedValueOnce({ id: 'text-free', name: 'Text Free' });
 
       const router = createModelOverrideRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'delete', '/default');
@@ -1225,6 +1253,10 @@ describe('/user/model-override routes', () => {
         where: { id: 'user-uuid-123' },
         data: { defaultLlmConfigId: null, defaultVisionConfigId: null },
       });
+      // The fallback exercises the new pointer mechanism (not the dead findFirst).
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ newEffectiveDefault: { id: 'text-free', name: 'Text Free' } })
+      );
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
