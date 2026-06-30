@@ -11,12 +11,8 @@ import {
   AUTOCOMPLETE_BADGES,
   formatAutocompleteOption,
   isFreeModel,
-  CONFIG_KINDS,
-  DEFAULT_CONFIG_KIND,
-  toConfigKind,
   type LlmConfigSummary,
   type AutocompleteBadge,
-  type ConfigKind,
 } from '@tzurot/common-types';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import {
@@ -59,7 +55,7 @@ let globalConfigCache: TTLCache<GlobalConfigEntry[]> | null = null;
 function getGlobalConfigCache(): TTLCache<GlobalConfigEntry[]> {
   globalConfigCache ??= new TTLCache<GlobalConfigEntry[]>({
     ttl: GLOBAL_CONFIG_CACHE_TTL_MS,
-    maxSize: CONFIG_KINDS.length, // One entry per kind (text, vision)
+    maxSize: 1, // Capability-agnostic: the full global set cached under one key.
   });
   return globalConfigCache;
 }
@@ -245,32 +241,30 @@ async function handleVisionModelAutocomplete(
   await interaction.respond(choices);
 }
 
-/** Per-kind cache key for global configs (text and vision cached separately). */
-function globalConfigCacheKey(kind: string): string {
-  return `global-configs:${kind}`;
-}
+/** Single cache key — the picker is capability-agnostic, so the full global
+ *  config set (both slots) is cached under one key, not one entry per kind. */
+const GLOBAL_CONFIG_CACHE_KEY = 'global-configs:all';
 
 /**
- * Fetch global configs of a given kind from API or cache. The global (owner-only)
- * picker stays slot-scoped: the admin global-list route accepts only an explicit
- * text|vision, not the `all` sentinel the user route accepts. Making it
- * capability-agnostic like the user picker is a tracked follow-up.
+ * Fetch ALL global configs from the API (or cache), 👁-badged by capability at
+ * the call site. Capability-agnostic, mirroring the user picker: the slot is
+ * chosen on the command's `slot` option, so the suggestion list stays
+ * slot-independent and doesn't reorder when the owner switches slots. The
+ * gateway LIST route accepts the `all` sentinel via parseConfigKindQueryAllowAll.
  */
 async function fetchGlobalConfigs(
-  interaction: AutocompleteInteraction,
-  kind: ConfigKind
+  interaction: AutocompleteInteraction
 ): Promise<GlobalConfigEntry[] | null> {
   const cache = getGlobalConfigCache();
-  const cacheKey = globalConfigCacheKey(kind);
 
-  const cached = cache.get(cacheKey);
+  const cached = cache.get(GLOBAL_CONFIG_CACHE_KEY);
   if (cached !== null) {
-    logger.debug({ kind }, 'Using cached global configs');
+    logger.debug('Using cached global configs');
     return cached;
   }
 
   const { ownerClient } = clientsFor(interaction);
-  const result = await ownerClient.listGlobalLlmConfigs({ kind });
+  const result = await ownerClient.listGlobalLlmConfigs({ kind: 'all' });
 
   if (!result.ok) {
     return null;
@@ -282,8 +276,8 @@ async function fetchGlobalConfigs(
   // would silently not render (falsy) — a safe degradation, not a crash.
   const configs = result.data.configs as GlobalConfigEntry[];
 
-  cache.set(cacheKey, configs);
-  logger.debug({ count: configs.length, kind }, 'Cached global configs');
+  cache.set(GLOBAL_CONFIG_CACHE_KEY, configs);
+  logger.debug({ count: configs.length }, 'Cached global configs');
 
   return configs;
 }
@@ -298,9 +292,10 @@ async function handleGlobalConfigAutocomplete(
   freeOnly = false
 ): Promise<void> {
   try {
-    // Scope to the requested slot (the command's `slot` option, default text).
-    const kind = toConfigKind(interaction.options.getString('slot', false) ?? DEFAULT_CONFIG_KIND);
-    const configs = await fetchGlobalConfigs(interaction, kind);
+    // Capability-agnostic: fetch ALL global presets, 👁-badged by capability
+    // below. The slot is chosen on the command's `slot` option, so the picker
+    // stays slot-independent (no reorder when the owner switches slots).
+    const configs = await fetchGlobalConfigs(interaction);
 
     if (configs === null) {
       await interaction.respond([]);

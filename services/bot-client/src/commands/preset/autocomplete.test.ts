@@ -426,34 +426,35 @@ describe('handleAutocomplete', () => {
       expect(respondCall).toEqual([expect.objectContaining({ value: 'g-free' })]);
     });
 
-    it('scopes the global list to the requested kind when kind=vision', async () => {
+    it('fetches the global list capability-agnostically (kind=all), ignoring the slot option', async () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
         name: 'preset',
         value: '',
       } as unknown as string);
       vi.mocked(mockInteraction.options.getSubcommand).mockReturnValue('set-default');
+      // Even with a vision slot chosen, the picker fetches BOTH kinds and badges
+      // by capability — so the suggestion list doesn't reorder when the slot changes.
       vi.mocked(mockInteraction.options.getString).mockReturnValue('vision');
       ownerStub.listGlobalLlmConfigs.mockResolvedValue(cacheableFixture);
 
       await handleAutocomplete(mockInteraction);
 
-      expect(ownerStub.listGlobalLlmConfigs).toHaveBeenCalledWith({ kind: 'vision' });
+      expect(ownerStub.listGlobalLlmConfigs).toHaveBeenCalledWith({ kind: 'all' });
     });
 
-    it('caches global configs per kind — a second same-kind keystroke hits the cache', async () => {
+    it('caches the global config set — a second keystroke hits the cache', async () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
         name: 'preset',
         value: '',
       } as unknown as string);
       vi.mocked(mockInteraction.options.getSubcommand).mockReturnValue('set-default');
-      vi.mocked(mockInteraction.options.getString).mockReturnValue('vision');
       ownerStub.listGlobalLlmConfigs.mockResolvedValue(cacheableFixture);
 
       await handleAutocomplete(mockInteraction);
       await handleAutocomplete(mockInteraction);
 
-      // Second keystroke of the same kind serves from the per-kind cache,
-      // so the admin endpoint is hit exactly once.
+      // The capability-agnostic set is cached under one key, so the admin
+      // endpoint is hit exactly once across keystrokes.
       expect(ownerStub.listGlobalLlmConfigs).toHaveBeenCalledTimes(1);
     });
   });
