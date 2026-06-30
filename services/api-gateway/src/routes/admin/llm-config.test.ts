@@ -202,6 +202,20 @@ describe('Admin LLM Config Routes', () => {
       );
     });
 
+    it('accepts ?kind=all and lists both slots (capability-agnostic owner picker)', async () => {
+      prisma.llmConfig.findMany.mockResolvedValue([]);
+
+      const response = await request(app).get('/admin/llm-config?kind=all');
+
+      // `all` is now a valid LIST sentinel (parseConfigKindQueryAllowAll) — the
+      // owner picker fetches both slots in one call. No 400; the admin GLOBAL
+      // scope drops the kind filter entirely (where: {}).
+      expect(response.status).toBe(200);
+      expect(prisma.llmConfig.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: {} })
+      );
+    });
+
     it('rejects an invalid ?kind= with 400', async () => {
       const response = await request(app).get('/admin/llm-config?kind=audio');
 
