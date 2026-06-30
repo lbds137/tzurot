@@ -6,11 +6,13 @@
 
 ## Unreleased on Develop (since beta.142)
 
-**Released v3.0.0-beta.142 on 2026-06-30** (notes: [tag v3.0.0-beta.142](https://github.com/lbds137/tzurot/releases/tag/v3.0.0-beta.142)). The **Model Configuration Overhaul epic's shipping phases are COMPLETE** — Phase 1 (vision as a first-class config, beta.140), Phase 2 (editing surface, beta.142), Phase 3 (capability-driven model, beta.142). **develop is SHA-aligned with main; nothing unreleased.**
+**Released v3.0.0-beta.142 on 2026-06-30** (notes: [tag v3.0.0-beta.142](https://github.com/lbds137/tzurot/releases/tag/v3.0.0-beta.142)). The **Model Configuration Overhaul epic's shipping phases are COMPLETE** — Phase 1 (vision as a first-class config, beta.140), Phase 2 (editing surface, beta.142), Phase 3 (capability-driven model, beta.142).
+
+**Unreleased since beta.142** (5 PRs, no migration): the **beta.142-review loose-end sweep** — **#1402** gateway cleanup (`findFirst`→`findUnique` ×4 AdminSettings reads, manifest `'all'` sentinel on user LIST routes, temporal-marker scrub, ModelCapabilityService per-call kept-as-design-decision); **#1403** clear-default per-slot fallback (`newEffectiveDefaults: {text?,vision?}` — an `all`-clear now names BOTH slot fallbacks); **#1404** test-gap closure (handleSet vision-slot, delete-guard null-singleton, gemma-4/llama-vision patterns); **#1405** capability-agnostic owner `/preset global` picker (admin LIST → `parseConfigKindQueryAllowAll`); **#1406** OpenRouterModelCache in-flight dedup (collapses the cold-cache fan-out P3-S1's parallel `supportsVision` enrich created). A release is due when the user calls it.
 
 **Deferred phases of the epic** (in `active-epic.md`, not scheduled): **Phase 4 — auto-fallback unification** (the original near-term want: ordered resolver cascade primary → vision-global → free-default + an explicit `[VISION_UNAVAILABLE]` signal + negative-cache-by-model). **Phase B — drop the dormant `kind` column** (waits for Phase 3 to soak clean in prod; the column is still WRITTEN on create + READ as the name-collision namespace, so the cleanup must first collapse the name-collision to a single namespace, then a destructive migration → `cold/follow-ups.md`).
 
-**Open beta.142-review follow-ups** (all non-blocking, `cold/follow-ups.md`): owner global-config autocomplete zero-staleness pub/sub invalidation (capability-agnostic half shipped) · `/preset browse` fetch-all-then-filter perf · TTS cold-start/synthesis-timeout decouple. **Also still pending: structural enforcement of the deferUpdate-ack-first class** (S2f's squash-review caught a real 3s-rule regression 3 rounds missed; council split — ESLint rule vs Declarative-Ack dispatcher — user decision pending).
+**Remaining beta.142 follow-ups after the sweep** (all non-blocking + trigger-gated, `cold/follow-ups.md`): owner global-config autocomplete zero-staleness pub/sub invalidation (open "what makes a config global" question) · `/preset browse` fetch-all-then-filter perf (config-count-gated) · `take:100` list truncation → `hasMore` (count-gated) · TTS cold-start/synthesis-timeout decouple · **`refreshCache()` can join the in-flight guard** (new, PR #1406 review — admin-only narrow race; fix order is `inFlight=null` AFTER `redis.del`). **Also still pending: structural enforcement of the deferUpdate-ack-first class** (council split — ESLint rule vs Declarative-Ack dispatcher — user decision pending).
 
 ---
 
@@ -26,6 +28,21 @@
 - **Type-enforce the personal/anonymous context coupling** (`cold/ideas.md`) — discriminated-union refactor so the `isWeighIn`/`incognito`-vs-persona drift class becomes unrepresentable.
 
 **Open production issue** (see `now.md` › 🚨): the gateway user-message-persist ~20s hang — beta.138 shipped the fast-pool + timeout-ladder mitigation (bounds the hang to ~6s + self-labels the cause); root-cause promote-when is a `lock-timeout`/`statement-timeout`/`dead-conn` label appearing in prod logs.
+
+## Last Session — beta.142 review-followup sweep (2026-06-30)
+
+After releasing beta.142, cleared the review-follow-up backlog so the next epic starts clean (user: "too many loose ends to feel comfortable starting a new epic"). Six planned PRs; **5 shipped, 1 deferred**, all to develop, no migration:
+
+| PR        | Outcome                                                                                                                                                                                                                                                      |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| #1402     | gateway cleanup — `findFirst`→`findUnique` on all **4** AdminSettings-singleton reads (grep found 4; reviewer named 2), manifest `'all'` sentinel, temporal scrub, ModelCapabilityService per-call **kept** (stateless wrapper; threading it = net-negative) |
+| #1403     | clear-default **per-slot fallback** — `newEffectiveDefaults: {text?,vision?}`; an `all`-clear now names BOTH slot fallbacks                                                                                                                                  |
+| #1404     | test-gap closure — handleSet vision-slot, delete-guard null-singleton, gemma-4/llama-vision (VISION_MODEL_PATTERNS was already well-tested — stale follow-up; verify-before-acting)                                                                          |
+| #1405     | capability-agnostic owner `/preset global` picker (admin LIST → `parseConfigKindQueryAllowAll`; matches the user pickers)                                                                                                                                    |
+| #1406     | OpenRouterModelCache in-flight dedup — **3 review rounds**: round-2 refreshCache hardening introduced a stale-key bug → **reverted in round-3**, kept the clean core + race-safe identity-check, backlogged the refreshCache interaction                     |
+| PR3 (def) | wire the write-only default pointers into the resolver cascade → **folded into Phase 4** (cascade-ordering IS Phase 4's job; the follow-up's own promote-when said "Slice 4")                                                                                |
+
+~11 follow-ups removed/trimmed from `cold/follow-ups.md`. PR6 items 2 & 3 (browse session-cache, `take:100`→`hasMore`) left **trigger-gated** — premature optimization for unobserved problems. Every PR: green CI + read-every-review + autosquash-before-merge. A beta.143 release is due when the user calls it.
 
 ## Last Session — backlog restructure: HOT/COLD + granularity ladder (2026-06-17)
 
