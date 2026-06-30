@@ -1,7 +1,7 @@
 # Current
 
 > **Version**: v3.0.0-beta.141 (released 2026-06-28) — **no migration**. Headliners: the **weigh-in prod-bug fix** (`/character random` & `/character chime-in` with no message no longer feed the latest channel message — incl. another character's reply or a TTS→STT round-trip of it — back as the user turn; #1368, the bug the user reported), the **free-default kind-scope fix** (free-tier text resolution can no longer return the vision free-default model; #1374), and **`release:premigrate`** — migrate-before-merge tooling that closes the breaking-migration deploy window for all services at once (#1373, supersedes the reverted #1372 pre-deploy attempt). Also: voice STT chunk-stitching punctuation fix (#1369), api-gateway 404-not-500 + db-sync vision coverage (#1366/#1367/#1370), ai-worker dead-cache cleanup (#1371). **Mechanics**: rebase-merge + `release:finalize` SHA-aligned develop; clean holistic release review (1 non-blocking `noGlobalDefaultCache` TTL nit → backlogged). _Prior: v3.0.0-beta.140 (2026-06-27) — vision as a first-class config (#1364, `vision_config_kind` migration), long-audio STT chunking (#1363); its ~3-min breaking-migration deploy window is now structurally closed by beta.141's premigrate._
-> **🚧 Release freeze status**: LIFTED. No release in progress.
+> **🚧 Release freeze status**: **beta.142 release IN PROGRESS** — PR #1398 (develop→main) open, version bumped (072a0af89), notes written. **Paused for dev smoke-test** of the slot/capability UX before merge. Remaining once smoke passes + user OK: `release:premigrate` (the additive `AdminSettings` default-pointers migration) → merge #1398 → `release:finalize` → tag → GitHub release → reset this section.
 
 ---
 
