@@ -112,7 +112,8 @@ export function mockSetDefaultConfigResponse(
 
 /**
  * Create a validated mock for DELETE /user/model-override/default.
- * Default is `newEffectiveDefault: null` — pass overrides to populate it.
+ * Default is `newEffectiveDefaults: {}` (no slot cleared) — pass overrides to
+ * populate per-slot fallbacks, e.g. `{ newEffectiveDefaults: { text: null } }`.
  * @throws ZodError if the resulting mock doesn't match the schema
  */
 export function mockClearDefaultConfigResponse(
@@ -120,7 +121,7 @@ export function mockClearDefaultConfigResponse(
 ): ClearDefaultConfigResponse {
   return ClearDefaultConfigResponseSchema.parse({
     deleted: true,
-    newEffectiveDefault: null,
+    newEffectiveDefaults: {},
     ...overrides,
   });
 }

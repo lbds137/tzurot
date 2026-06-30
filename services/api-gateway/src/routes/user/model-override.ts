@@ -362,26 +362,36 @@ export const handleClearDefaultModelConfig = (deps: RouteDeps): RequestHandler =
     const hadVision = clearVision && user.defaultVisionConfigId !== null;
     const wasSet = hadText || hadVision;
 
-    // Look up the system free default the user will fall back to: the chat (text)
-    // free default when the chat slot is cleared, otherwise the vision one.
-    // Read the AdminSettings free-default POINTER, not the `isFreeDefault` boolean
-    // — setAsFreeDefault writes only the pointer, so the boolean is stale (would
+    // Look up the system free default(s) the user will fall back to — ONE PER
+    // CLEARED SLOT, so an `all` clear names both the chat AND vision fallback
+    // (clearing both slots but reporting only chat under-informs the user).
+    // Read the AdminSettings free-default POINTERS, not the `isFreeDefault` boolean
+    // — setAsFreeDefault writes only the pointers, so the boolean is stale (would
     // show a wrong/missing fallback name after the global free default is changed).
     // Per-personality overrides and personality-level defaults are unaffected.
     const settings = await prisma.adminSettings.findUnique({
       where: { id: ADMIN_SETTINGS_SINGLETON_ID },
       select: { freeDefaultLlmConfigId: true, freeDefaultVisionConfigId: true },
     });
-    const freeDefaultId = clearText
-      ? (settings?.freeDefaultLlmConfigId ?? null)
-      : (settings?.freeDefaultVisionConfigId ?? null);
-    const newEffectiveDefault =
-      freeDefaultId !== null
-        ? await prisma.llmConfig.findUnique({
-            where: { id: freeDefaultId },
-            select: { id: true, name: true },
-          })
-        : null;
+    const resolveFreeDefault = async (
+      pointerId: string | null
+    ): Promise<{ id: string; name: string } | null> => {
+      if (pointerId === null) {
+        return null;
+      }
+      return prisma.llmConfig.findUnique({
+        where: { id: pointerId },
+        select: { id: true, name: true },
+      });
+    };
+    const newEffectiveDefaults = {
+      ...(clearText
+        ? { text: await resolveFreeDefault(settings?.freeDefaultLlmConfigId ?? null) }
+        : {}),
+      ...(clearVision
+        ? { vision: await resolveFreeDefault(settings?.freeDefaultVisionConfigId ?? null) }
+        : {}),
+    };
 
     if (!wasSet) {
       logger.info(
@@ -390,7 +400,7 @@ export const handleClearDefaultModelConfig = (deps: RouteDeps): RequestHandler =
       );
       return sendCustomSuccess(
         res,
-        { deleted: true, wasSet: false, newEffectiveDefault },
+        { deleted: true, wasSet: false, newEffectiveDefaults },
         StatusCodes.OK
       );
     }
@@ -413,7 +423,7 @@ export const handleClearDefaultModelConfig = (deps: RouteDeps): RequestHandler =
       { discordUserId }
     );
 
-    sendCustomSuccess(res, { deleted: true, wasSet: true, newEffectiveDefault }, StatusCodes.OK);
+    sendCustomSuccess(res, { deleted: true, wasSet: true, newEffectiveDefaults }, StatusCodes.OK);
   });
 };
 
