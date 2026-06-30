@@ -323,6 +323,9 @@ describe('Character Settings Dashboard', () => {
         reply: vi.fn(),
         update: vi.fn(),
         showModal: vi.fn(),
+        deferUpdate: vi.fn().mockResolvedValue(undefined),
+        editReply: vi.fn().mockResolvedValue(undefined),
+        followUp: vi.fn().mockResolvedValue(undefined),
       };
 
       mockSessionManager.get.mockReturnValue({
@@ -369,6 +372,9 @@ describe('Character Settings Dashboard', () => {
         reply: vi.fn(),
         update: vi.fn(),
         showModal: vi.fn(),
+        deferUpdate: vi.fn().mockResolvedValue(undefined),
+        editReply: vi.fn().mockResolvedValue(undefined),
+        followUp: vi.fn().mockResolvedValue(undefined),
       };
 
       mockSessionManager.get.mockReturnValue({
@@ -416,6 +422,9 @@ describe('Character Settings Dashboard', () => {
         reply: vi.fn(),
         update: vi.fn(),
         showModal: vi.fn(),
+        deferUpdate: vi.fn().mockResolvedValue(undefined),
+        editReply: vi.fn().mockResolvedValue(undefined),
+        followUp: vi.fn().mockResolvedValue(undefined),
       };
 
       mockSessionManager.get.mockReturnValue({
@@ -440,8 +449,8 @@ describe('Character Settings Dashboard', () => {
 
       await handleCharacterSettingsButton(interaction as unknown as ButtonInteraction);
 
-      // The settings framework shows "Failed to update: {error}"
-      expect(interaction.reply).toHaveBeenCalledWith(
+      // The settings framework shows "Failed to update: {error}" via followUp (post-defer).
+      expect(interaction.followUp).toHaveBeenCalledWith(
         expect.objectContaining({
           content: expect.stringContaining('Failed to update'),
         })
@@ -455,6 +464,9 @@ describe('Character Settings Dashboard', () => {
         reply: vi.fn(),
         update: vi.fn(),
         showModal: vi.fn(),
+        deferUpdate: vi.fn().mockResolvedValue(undefined),
+        editReply: vi.fn().mockResolvedValue(undefined),
+        followUp: vi.fn().mockResolvedValue(undefined),
       };
 
       mockSessionManager.get.mockReturnValue({
@@ -479,8 +491,8 @@ describe('Character Settings Dashboard', () => {
 
       await handleCharacterSettingsButton(interaction as unknown as ButtonInteraction);
 
-      // The settings framework shows "Failed to update: {error}"
-      expect(interaction.reply).toHaveBeenCalledWith(
+      // The settings framework shows "Failed to update: {error}" via followUp (post-defer).
+      expect(interaction.followUp).toHaveBeenCalledWith(
         expect.objectContaining({
           content: expect.stringContaining('Failed to update'),
         })

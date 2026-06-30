@@ -323,6 +323,9 @@ describe('Admin Settings Dashboard', () => {
         reply: vi.fn(),
         update: vi.fn(),
         showModal: vi.fn(),
+        deferUpdate: vi.fn().mockResolvedValue(undefined),
+        editReply: vi.fn().mockResolvedValue(undefined),
+        followUp: vi.fn().mockResolvedValue(undefined),
       };
 
       mockSessionManager.get.mockReturnValue({
@@ -343,7 +346,7 @@ describe('Admin Settings Dashboard', () => {
 
       await handleAdminSettingsButton(interaction as unknown as ButtonInteraction);
 
-      expect(interaction.reply).toHaveBeenCalledWith(
+      expect(interaction.followUp).toHaveBeenCalledWith(
         expect.objectContaining({
           content: expect.stringContaining('Permission denied'),
         })
@@ -360,6 +363,9 @@ describe('Admin Settings Dashboard', () => {
         reply: vi.fn(),
         update: vi.fn(),
         showModal: vi.fn(),
+        deferUpdate: vi.fn().mockResolvedValue(undefined),
+        editReply: vi.fn().mockResolvedValue(undefined),
+        followUp: vi.fn().mockResolvedValue(undefined),
       };
 
       mockSessionManager.get.mockReturnValue({
@@ -378,7 +384,7 @@ describe('Admin Settings Dashboard', () => {
 
       await handleAdminSettingsButton(interaction as unknown as ButtonInteraction);
 
-      expect(interaction.reply).toHaveBeenCalledWith(
+      expect(interaction.followUp).toHaveBeenCalledWith(
         expect.objectContaining({
           content: expect.stringContaining('Unknown setting'),
         })

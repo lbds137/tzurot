@@ -19,6 +19,7 @@ import {
 } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { showModalWithTimeoutCatch } from '../showModalWithTimeoutCatch.js';
+import { ackWithTimeoutCatch } from '../ackWithTimeoutCatch.js';
 import {
   type SettingsDashboardConfig,
   type SettingsDashboardSession,
@@ -34,8 +35,9 @@ import {
   buildSettingMessage,
   getSettingById,
 } from './SettingsDashboardBuilder.js';
-import { buildSettingEditModal, parseDurationInput } from './SettingsModalFactory.js';
+import { buildSettingEditModal } from './SettingsModalFactory.js';
 import { storeSession, getSession, deleteSession } from './SettingsSessionStorage.js';
+import { parseNumericInputValue, parseDurationInputValue } from './settingsInputParser.js';
 export { getUpdateHandler } from './SettingsSessionStorage.js';
 
 const logger = createLogger('SettingsDashboardHandler');
@@ -109,11 +111,16 @@ export async function handleSettingsSelectMenu(
     return;
   }
 
+  // Ack first (3-second rule): deferUpdate before the Redis session read + store.
+  // A select menu never opens a modal, so it can always defer; the responses
+  // below become followUp (errors) / editReply (the drill-down).
+  await interaction.deferUpdate();
+
   // Get session
   const session = await getSession(interaction.user.id, config.entityType, parsed.entityId);
 
   if (session === null) {
-    await interaction.reply({
+    await interaction.followUp({
       content: 'This dashboard has expired. Please run the command again.',
       flags: MessageFlags.Ephemeral,
     });
@@ -122,7 +129,7 @@ export async function handleSettingsSelectMenu(
 
   // Verify ownership
   if (session.userId !== interaction.user.id) {
-    await interaction.reply({
+    await interaction.followUp({
       content: 'This dashboard belongs to another user.',
       flags: MessageFlags.Ephemeral,
     });
@@ -134,7 +141,7 @@ export async function handleSettingsSelectMenu(
   const setting = getSettingById(settingId);
 
   if (setting === undefined) {
-    await interaction.reply({
+    await interaction.followUp({
       content: 'Unknown setting selected.',
       flags: MessageFlags.Ephemeral,
     });
@@ -150,7 +157,7 @@ export async function handleSettingsSelectMenu(
   // Build and update message
   const message = buildSettingMessage(config, session, setting);
 
-  await interaction.update({
+  await interaction.editReply({
     embeds: message.embeds,
     components: message.components,
   });
@@ -175,23 +182,32 @@ export async function handleSettingsButton(
     return;
   }
 
+  // Ack first (3-second rule): deferUpdate before the Redis session read — EXCEPT
+  // the edit action, which opens a modal. `showModal` IS the ack and can't be
+  // preceded by a defer, so the edit path keeps the read-then-showModal flow
+  // (mitigated by showModalWithTimeoutCatch inside handleEditButton). For every
+  // other action we defer first; error notices then use followUp (post-defer) vs
+  // reply (the not-yet-acked edit path).
+  const isModalAction = parsed.action === 'edit';
+  if (!isModalAction) {
+    await interaction.deferUpdate();
+  }
+  const notify = (content: string): Promise<unknown> =>
+    isModalAction
+      ? interaction.reply({ content, flags: MessageFlags.Ephemeral })
+      : interaction.followUp({ content, flags: MessageFlags.Ephemeral });
+
   // Get session
   const session = await getSession(interaction.user.id, config.entityType, parsed.entityId);
 
   if (session === null) {
-    await interaction.reply({
-      content: 'This dashboard has expired. Please run the command again.',
-      flags: MessageFlags.Ephemeral,
-    });
+    await notify('This dashboard has expired. Please run the command again.');
     return;
   }
 
   // Verify ownership
   if (session.userId !== interaction.user.id) {
-    await interaction.reply({
-      content: 'This dashboard belongs to another user.',
-      flags: MessageFlags.Ephemeral,
-    });
+    await notify('This dashboard belongs to another user.');
     return;
   }
 
@@ -210,7 +226,12 @@ export async function handleSettingsButton(
       await handleEditButton(interaction, config, session, parsed.extra);
       break;
     default:
+      // The router already deferUpdate'd (non-edit actions defer above), so a
+      // bare return leaves the interaction silently unresolved. An unrecognized
+      // action is realistically a stale customId on an old dashboard message that
+      // outlived a deploy renaming/removing the action — give the user feedback.
       logger.warn({ action: parsed.action }, 'Unknown button action');
+      await notify('This dashboard is out of date. Please run the command again.');
   }
 }
 
@@ -230,7 +251,8 @@ async function handleBackButton(
 
   const message = buildOverviewMessage(config, session);
 
-  await interaction.update({
+  // editReply: the router already deferUpdate'd before dispatching here.
+  await interaction.editReply({
     embeds: message.embeds,
     components: message.components,
   });
@@ -247,8 +269,8 @@ async function handleCloseButton(
   // Delete session
   await deleteSession(session.userId, config.entityType, session.entityId);
 
-  // Delete the message
-  await interaction.update({
+  // editReply: the router already deferUpdate'd before dispatching here.
+  await interaction.editReply({
     content: 'Settings dashboard closed.',
     embeds: [],
     components: [],
@@ -266,7 +288,14 @@ async function handleSetButton(
   updateHandler: SettingUpdateHandler
 ): Promise<void> {
   if (extra === undefined) {
+    // Reached via the already-deferred `set` action; a bare return would leave the
+    // interaction unresolved. No current builder produces a `set` customId without
+    // the setting:value extra, but a stale message or future builder change could.
     logger.warn('Set button missing extra data');
+    await interaction.followUp({
+      content: 'Invalid button data. Please run the command again.',
+      flags: MessageFlags.Ephemeral,
+    });
     return;
   }
 
@@ -277,7 +306,8 @@ async function handleSetButton(
   const setting = getSettingById(settingId);
 
   if (setting === undefined) {
-    await interaction.reply({
+    // followUp/editReply throughout — the router deferUpdate'd before dispatch.
+    await interaction.followUp({
       content: 'Unknown setting.',
       flags: MessageFlags.Ephemeral,
     });
@@ -304,7 +334,7 @@ async function handleSetButton(
   const result = await updateHandler(interaction, session, settingId, newValue);
 
   if (!result.success) {
-    await interaction.reply({
+    await interaction.followUp({
       content: `Failed to update: ${result.error}`,
       flags: MessageFlags.Ephemeral,
     });
@@ -323,7 +353,7 @@ async function handleSetButton(
     const activeSetting = getSettingById(session.activeSetting);
     if (activeSetting !== undefined) {
       const message = buildSettingMessage(config, session, activeSetting);
-      await interaction.update({
+      await interaction.editReply({
         embeds: message.embeds,
         components: message.components,
       });
@@ -333,10 +363,36 @@ async function handleSetButton(
 
   // Default: return to overview
   const message = buildOverviewMessage(config, session);
-  await interaction.update({
+  await interaction.editReply({
     embeds: message.embeds,
     components: message.components,
   });
+}
+
+/**
+ * Reply on the un-deferred edit path, wrapped so a budget-blown 10062 degrades
+ * to a followUp instead of a silent "Interaction Failed". The edit action skips
+ * deferUpdate (showModal is its ack), so getSession has already eaten into the
+ * 3-second budget by the time these guard replies fire — same risk the sibling
+ * showModalWithTimeoutCatch defends against on the success path.
+ */
+function replyEditGuard(
+  interaction: ButtonInteraction,
+  session: SettingsDashboardSession,
+  content: string,
+  sectionId: string
+): Promise<void> {
+  return ackWithTimeoutCatch(
+    interaction,
+    () => interaction.reply({ content, flags: MessageFlags.Ephemeral }),
+    {
+      source: 'handleSettingsButton/edit',
+      userId: interaction.user.id,
+      entityId: session.entityId,
+      sectionId,
+    },
+    content
+  );
 }
 
 /**
@@ -349,16 +405,22 @@ async function handleEditButton(
   settingId: string | undefined
 ): Promise<void> {
   if (settingId === undefined) {
+    // Un-deferred edit path: a bare return leaves the interaction unacknowledged
+    // → "This interaction failed". Same dead-end class as handleSetButton's
+    // missing-extra guard, but reply (not followUp) since this path never acked.
     logger.warn('Edit button missing setting ID');
+    await replyEditGuard(
+      interaction,
+      session,
+      'Invalid button data. Please run the command again.',
+      'edit'
+    );
     return;
   }
 
   const setting = getSettingById(settingId);
   if (setting === undefined) {
-    await interaction.reply({
-      content: 'Unknown setting.',
-      flags: MessageFlags.Ephemeral,
-    });
+    await replyEditGuard(interaction, session, 'Unknown setting.', settingId);
     return;
   }
 
@@ -488,55 +550,4 @@ export async function handleSettingsModal(
     embeds: message.embeds,
     components: message.components,
   });
-}
-
-/**
- * Parse numeric input value
- */
-function parseNumericInputValue(
-  input: string,
-  min: number,
-  max: number
-): { value?: number | null; error?: string } {
-  const trimmed = input.trim().toLowerCase();
-
-  // Empty or "auto" means inherit
-  if (trimmed === '' || trimmed === 'auto') {
-    return { value: null };
-  }
-
-  // Number() supports decimals (e.g. memoryScoreThreshold 0-1) and rejects mixed input like '50abc'
-  const num = Number(trimmed);
-  if (Number.isNaN(num)) {
-    return { error: `Invalid number: "${input}"` };
-  }
-
-  // Validate range
-  if (num < min || num > max) {
-    return { error: `Value must be between ${min} and ${max}` };
-  }
-
-  return { value: num };
-}
-
-/**
- * Parse duration input and convert to simple value format
- *
- * Adapts the canonical parseDurationInput from SettingsModalFactory
- * to the format used by this handler (null=auto, -1=off, number=seconds).
- */
-function parseDurationInputValue(input: string): { value?: number | null; error?: string } {
-  const result = parseDurationInput(input);
-
-  switch (result.type) {
-    case 'auto':
-      return { value: null };
-    case 'off':
-      // -1 is a sentinel for "off" - the handler interprets this
-      return { value: -1 };
-    case 'value':
-      return { value: result.seconds };
-    case 'error':
-      return { error: result.message };
-  }
 }

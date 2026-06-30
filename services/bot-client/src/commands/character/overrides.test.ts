@@ -298,6 +298,9 @@ describe('Character Overrides Dashboard', () => {
         reply: vi.fn(),
         update: vi.fn(),
         showModal: vi.fn(),
+        deferUpdate: vi.fn().mockResolvedValue(undefined),
+        editReply: vi.fn().mockResolvedValue(undefined),
+        followUp: vi.fn().mockResolvedValue(undefined),
       };
 
       mockSessionManager.get.mockReturnValue({
