@@ -484,7 +484,11 @@ model ConversationHistory {
   @@index([channelId, personalityId, createdAt(sort: Desc)])
   @@index([personaId, personalityId, createdAt(sort: Desc)])
   @@index([discordMessageId])
-  @@index([messageMetadata], map: "conversation_history_message_metadata_idx", type: Gin)
+  // No GIN index on messageMetadata: nothing queries it by JSONB containment
+  // (it's only ever SELECTed whole and property-accessed in app code), so the
+  // index was pure write-overhead — its pending-list flushes stalled inserts
+  // multi-second under load (the gateway query_timeout incident). Re-add only
+  // if a real containment query (@>, Prisma `path`/`has`) is introduced.
   @@index([deletedAt]) // For cleanup queries and filtering soft-deleted messages
   @@map("conversation_history")
 }
