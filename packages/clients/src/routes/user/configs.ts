@@ -377,9 +377,9 @@ export const userConfigRoutes = {
     path: '/model-override/:personalityId',
     id: 'deleteModelOverride',
     params: { personalityId: z.string() },
-    // Scope the clear to a config kind (text|vision); defaults text so the
-    // route clears the text override unless a vision override is targeted.
-    query: { kind: z.enum(CONFIG_KINDS).optional() },
+    // Scope the clear to a slot: `all` (the no-slot default) clears BOTH slots,
+    // an explicit text|vision clears just that one.
+    query: { kind: z.enum([...CONFIG_KINDS, 'all']).optional() },
     output: DeleteModelOverrideResponseSchema,
     requiresProvisionedUser: true,
   },
@@ -417,9 +417,9 @@ export const userConfigRoutes = {
     method: 'delete',
     path: MODEL_OVERRIDE_DEFAULT_PATH,
     id: 'clearDefaultModelConfig',
-    // Scope the clear to a config kind (text|vision); defaults text so the
-    // route clears the text default unless the vision default is targeted.
-    query: { kind: z.enum(CONFIG_KINDS).optional() },
+    // Scope the clear to a slot: `all` (the no-slot default) clears BOTH slots,
+    // an explicit text|vision clears just that one.
+    query: { kind: z.enum([...CONFIG_KINDS, 'all']).optional() },
     output: ClearDefaultConfigResponseSchema,
     requiresProvisionedUser: true,
   },

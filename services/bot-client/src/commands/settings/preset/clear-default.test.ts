@@ -55,12 +55,12 @@ describe('handleClearDefault', () => {
     } as unknown as Parameters<typeof handleClearDefault>[0];
   }
 
-  it('should call clearDefaultModelConfig with the text kind by default', async () => {
+  it('clears BOTH default slots when no slot is given', async () => {
     stub.clearDefaultModelConfig.mockResolvedValue(makeOk(mockClearDefaultConfigResponse()));
 
     await handleClearDefault(createMockContext());
 
-    expect(stub.clearDefaultModelConfig).toHaveBeenCalledWith({ kind: 'text' });
+    expect(stub.clearDefaultModelConfig).toHaveBeenCalledWith({ kind: 'all' });
   });
 
   it('should clear the vision default when kind=vision', async () => {

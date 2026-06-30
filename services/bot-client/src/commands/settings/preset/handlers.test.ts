@@ -163,7 +163,8 @@ describe('Preset Command Handlers', () => {
 
       await handleClear(createMockContext());
 
-      expect(stub.deleteModelOverride).toHaveBeenCalledWith(PERSONALITY_ID_1, { kind: 'text' });
+      // No slot → clears both slots (the gateway's `all` sentinel).
+      expect(stub.deleteModelOverride).toHaveBeenCalledWith(PERSONALITY_ID_1, { kind: 'all' });
       expect(mockCreateSuccessEmbed).toHaveBeenCalledWith(
         '🔄 Preset Override Removed',
         'The character will now use its default preset.'

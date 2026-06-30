@@ -340,11 +340,14 @@ export const handleClearDefaultModelConfig = (deps: RouteDeps): RequestHandler =
     const discordUserId = req.userId;
     const userId = resolveProvisionedUserId(req);
 
-    const kind = parseConfigKindQuery(res, req.query);
+    // `all` (the bot-client default when no slot is chosen) clears BOTH slots;
+    // an explicit text|vision clears just that one.
+    const kind = parseConfigKindQueryAllowAll(res, req.query);
     if (kind === null) {
       return;
     }
-    const isVision = kind === 'vision';
+    const clearText = kind === 'text' || kind === 'all';
+    const clearVision = kind === 'vision' || kind === 'all';
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -354,17 +357,19 @@ export const handleClearDefaultModelConfig = (deps: RouteDeps): RequestHandler =
     if (user === null) {
       return sendError(res, ErrorResponses.notFound('User'));
     }
-    const currentDefault = isVision ? user.defaultVisionConfigId : user.defaultLlmConfigId;
+    const hadText = clearText && user.defaultLlmConfigId !== null;
+    const hadVision = clearVision && user.defaultVisionConfigId !== null;
+    const wasSet = hadText || hadVision;
 
-    // Look up the system free default of the SAME kind the user will fall back
-    // to. Per-personality overrides and personality-level defaults are
-    // unaffected; the free default is just the user-global fallback.
+    // Look up the system free default the user will fall back to: the chat (text)
+    // free default when the chat slot is cleared, otherwise the vision one.
+    // Per-personality overrides and personality-level defaults are unaffected.
     const newEffectiveDefault = await prisma.llmConfig.findFirst({
-      where: { isFreeDefault: true, kind },
+      where: { isFreeDefault: true, kind: clearText ? 'text' : 'vision' },
       select: { id: true, name: true },
     });
 
-    if (currentDefault === null) {
+    if (!wasSet) {
       logger.info(
         { discordUserId, kind, hadDefault: false },
         'Clear called but no default was set (idempotent success)'
@@ -378,7 +383,10 @@ export const handleClearDefaultModelConfig = (deps: RouteDeps): RequestHandler =
 
     await prisma.user.update({
       where: { id: userId },
-      data: isVision ? { defaultVisionConfigId: null } : { defaultLlmConfigId: null },
+      data: {
+        ...(clearText ? { defaultLlmConfigId: null } : {}),
+        ...(clearVision ? { defaultVisionConfigId: null } : {}),
+      },
     });
 
     logger.info({ discordUserId, kind }, 'Cleared default config');
@@ -403,11 +411,14 @@ export const handleDeleteModelOverride = (deps: RouteDeps): RequestHandler => {
     const personalityId = getParam(req.params.personalityId);
     const userId = resolveProvisionedUserId(req);
 
-    const kind = parseConfigKindQuery(res, req.query);
+    // `all` (the bot-client default when no slot is chosen) clears BOTH slots;
+    // an explicit text|vision clears just that one.
+    const kind = parseConfigKindQueryAllowAll(res, req.query);
     if (kind === null) {
       return;
     }
-    const isVision = kind === 'vision';
+    const clearText = kind === 'text' || kind === 'all';
+    const clearVision = kind === 'vision' || kind === 'all';
 
     const override = await prisma.userPersonalityConfig.findFirst({
       where: {
@@ -423,9 +434,11 @@ export const handleDeleteModelOverride = (deps: RouteDeps): RequestHandler => {
     });
     // `findFirst` returns the row or null (never undefined), and the selected FK
     // columns are `string | null` — so a null row OR a null FK means "not set".
-    const currentOverride = isVision ? override?.visionConfigId : override?.llmConfigId;
+    const hadText = clearText && (override?.llmConfigId ?? null) !== null;
+    const hadVision = clearVision && (override?.visionConfigId ?? null) !== null;
+    const wasSet = hadText || hadVision;
 
-    if (override === null || currentOverride === null) {
+    if (override === null || !wasSet) {
       logger.info(
         { discordUserId, personalityId, kind, hadOverride: false },
         'Reset called but no override was set (idempotent success)'
@@ -435,7 +448,10 @@ export const handleDeleteModelOverride = (deps: RouteDeps): RequestHandler => {
 
     await prisma.userPersonalityConfig.update({
       where: { id: override.id },
-      data: isVision ? { visionConfigId: null } : { llmConfigId: null },
+      data: {
+        ...(clearText ? { llmConfigId: null } : {}),
+        ...(clearVision ? { visionConfigId: null } : {}),
+      },
     });
 
     logger.info(
