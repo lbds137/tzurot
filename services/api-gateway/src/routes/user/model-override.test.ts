@@ -1205,5 +1205,50 @@ describe('/user/model-override routes', () => {
       });
       expect(res.status).toHaveBeenCalledWith(200);
     });
+
+    it('DELETE /default?kind=all clears BOTH defaults in one update', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        defaultLlmConfigId: 'text-cfg',
+        defaultVisionConfigId: VISION_CFG,
+      });
+      mockPrisma.llmConfig.findFirst.mockResolvedValue({ id: 'text-free', name: 'Text Free' });
+
+      const router = createModelOverrideRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+      const handler = getHandler(router, 'delete', '/default');
+      const { req, res } = createMockReqRes({}, {}, { kind: 'all' });
+
+      await handler(req, res);
+
+      // One update nulling BOTH default FKs — no-slot clear targets both slots.
+      expect(mockPrisma.user.update).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-uuid-123' },
+        data: { defaultLlmConfigId: null, defaultVisionConfigId: null },
+      });
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('DELETE /:personalityId?kind=all clears BOTH override slots in one update', async () => {
+      mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue({
+        id: 'upc-1',
+        llmConfigId: 'text-cfg',
+        visionConfigId: VISION_CFG,
+        personality: { name: 'Lilith' },
+      });
+
+      const router = createModelOverrideRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+      const handler = getHandler(router, 'delete', '/:personalityId');
+      const { req, res } = createMockReqRes({}, { personalityId: PERSONALITY }, { kind: 'all' });
+
+      await handler(req, res);
+
+      // One update nulling BOTH override FKs.
+      expect(mockPrisma.userPersonalityConfig.update).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.userPersonalityConfig.update).toHaveBeenCalledWith({
+        where: { id: 'upc-1' },
+        data: { llmConfigId: null, visionConfigId: null },
+      });
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
   });
 });

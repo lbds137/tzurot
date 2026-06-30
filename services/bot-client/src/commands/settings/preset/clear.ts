@@ -3,12 +3,7 @@
  * Handles /settings preset clear subcommand
  */
 
-import {
-  createLogger,
-  settingsPresetClearOptions,
-  toConfigKind,
-  DEFAULT_CONFIG_KIND,
-} from '@tzurot/common-types';
+import { createLogger, settingsPresetClearOptions, toConfigKind } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import {
   AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
@@ -26,9 +21,11 @@ export async function handleClear(context: DeferredCommandContext): Promise<void
   const userId = context.user.id;
   const options = settingsPresetClearOptions(context.interaction);
   const personalityId = options.character();
-  // Which override to clear: Chat (text default) or Vision — the operation is
-  // slot-specific (a vision override is a separate FK from the text override).
-  const kind = toConfigKind(options.slot() ?? DEFAULT_CONFIG_KIND);
+  // No slot → clear BOTH slots (`all`); an explicit slot clears just that one.
+  // A vision override is a separate FK from the text override, so a no-slot
+  // clear has to target both or it silently leaves the other in place.
+  const slot = options.slot();
+  const kind = slot !== null ? toConfigKind(slot) : 'all';
 
   if (isAutocompleteErrorSentinel(personalityId)) {
     await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
