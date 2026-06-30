@@ -45,6 +45,8 @@ export class OpenRouterModelCache {
   private memoryCacheTimestamp = 0;
   /** Memory cache TTL - 5 minutes (much shorter than Redis to catch updates) */
   private readonly memoryCacheTTL = 5 * 60 * 1000;
+  /** Shared promise for an in-flight cold fetch — coalesces concurrent callers. */
+  private inFlight: Promise<OpenRouterModel[]> | null = null;
 
   constructor(private redis: Redis) {}
 
@@ -58,6 +60,31 @@ export class OpenRouterModelCache {
       return this.memoryCache;
     }
 
+    // Coalesce concurrent cold callers onto a single Redis-read + fetch. A cold
+    // cache request fans out ~N parallel supportsVision() lookups (one per row in
+    // a config-list enrich), which would otherwise each fire their own OpenRouter
+    // fetch; the shared in-flight promise collapses them to one.
+    const inFlight = (this.inFlight ??= this.loadModels());
+    try {
+      return await inFlight;
+    } finally {
+      // Clear on settle (incl. failure → next cold call retries), but ONLY if the
+      // field still points at OUR promise. The finally runs once per waiter, so a
+      // sibling waiter must not null a newer in-flight that a later caller started
+      // after this one was queued — that would break dedup and fire a redundant
+      // fetch.
+      if (this.inFlight === inFlight) {
+        this.inFlight = null;
+      }
+    }
+  }
+
+  /**
+   * Cold-path resolution: Redis cache, else fetch from OpenRouter, then populate
+   * both cache tiers. Wrapped by getModels()'s in-flight guard so concurrent
+   * cold callers share one execution.
+   */
+  private async loadModels(): Promise<OpenRouterModel[]> {
     // Check Redis cache
     try {
       const cached = await this.redis.get(REDIS_KEY_PREFIXES.OPENROUTER_MODELS);
