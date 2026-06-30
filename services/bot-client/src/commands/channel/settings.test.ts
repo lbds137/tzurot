@@ -417,15 +417,16 @@ describe('Channel Settings Dashboard', () => {
         reply: vi.fn(),
         update: vi.fn(),
         showModal: vi.fn(),
+        deferUpdate: vi.fn().mockResolvedValue(undefined),
+        editReply: vi.fn().mockResolvedValue(undefined),
+        followUp: vi.fn().mockResolvedValue(undefined),
       };
 
       mockSessionManager.get.mockReturnValue({
         data: {
-          user: {
-            discordId: '123456789',
-            username: 'testuser',
-            displayName: 'testuser',
-          },
+          // Ownership keys on session.userId (SettingsSession), which must match
+          // interaction.user.id for the handler to proceed past the owner guard.
+          userId: '123456789',
           entityId: 'channel-123',
           data: {
             maxMessages: { localValue: null, effectiveValue: 50, source: 'admin' },
@@ -441,7 +442,12 @@ describe('Channel Settings Dashboard', () => {
 
       await handleChannelSettingsButton(interaction as unknown as ButtonInteraction);
 
-      // On failure, handler returns early and doesn't call editReply
+      // Post-defer: a failed update surfaces via followUp (the router already acked).
+      expect(interaction.followUp).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining('Server error'),
+        })
+      );
       expect(interaction.update).not.toHaveBeenCalled();
     });
   });
