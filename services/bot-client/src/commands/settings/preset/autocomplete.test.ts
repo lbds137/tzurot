@@ -299,8 +299,8 @@ describe('handleAutocomplete', () => {
 
       await handleAutocomplete(mockInteraction);
 
-      // No kind option → list scoped to text presets.
-      expect(stub.listUserLlmConfigs).toHaveBeenCalledWith({ kind: 'text' });
+      // Capability-agnostic: fetch ALL kinds (slot-independent picker).
+      expect(stub.listUserLlmConfigs).toHaveBeenCalledWith({ kind: 'all' });
       expect(mockInteraction.respond).toHaveBeenCalledWith([
         {
           name: '🌐⭐ Claude Config · claude-sonnet-4',
@@ -309,17 +309,37 @@ describe('handleAutocomplete', () => {
       ]);
     });
 
-    it('scopes the list to the requested kind when kind=vision', async () => {
+    it('fetches all configs capability-agnostically and 👁-badges vision-capable ones', async () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
         name: 'preset',
         value: '',
       } as unknown as string);
+      // A slot may be chosen on the command, but the picker is slot-independent.
       vi.mocked(mockInteraction.options.getString).mockReturnValue('vision');
-      mockConfigApis([], true);
+      mockConfigApis(
+        [
+          mockLlmConfigSummary({
+            id: '00000000-0000-4000-8000-0000000000d1',
+            name: 'Vision Config',
+            model: 'google/gemini-2.5-pro',
+            provider: 'openrouter',
+            isGlobal: true,
+            isOwned: false,
+            supportsVision: true,
+          }),
+        ],
+        true
+      );
 
       await handleAutocomplete(mockInteraction);
 
-      expect(stub.listUserLlmConfigs).toHaveBeenCalledWith({ kind: 'vision' });
+      // Always fetches all kinds (no slot-scoping); the vision row is 👁-badged.
+      expect(stub.listUserLlmConfigs).toHaveBeenCalledWith({ kind: 'all' });
+      const choices = vi.mocked(mockInteraction.respond).mock.calls[0][0] as {
+        name: string;
+        value: string;
+      }[];
+      expect(choices[0].name).toContain('👁');
     });
 
     it('should filter by model name', async () => {

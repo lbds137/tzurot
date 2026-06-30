@@ -118,7 +118,7 @@ describe('handleBrowse', () => {
   function createMockContext(
     query: string | null = null,
     filter: string | null = null,
-    kind: string | null = null
+    capability: string | null = null
   ) {
     return {
       user: { id: '123456789', username: 'testuser' },
@@ -127,7 +127,7 @@ describe('handleBrowse', () => {
           getString: vi.fn((name: string) => {
             if (name === 'query') return query;
             if (name === 'filter') return filter;
-            if (name === 'kind') return kind;
+            if (name === 'capability') return capability;
             return null;
           }),
         },
@@ -178,7 +178,7 @@ describe('handleBrowse', () => {
     expect(components[0].components[0].data.custom_id).toBe('preset::browse-select::0::all.all::');
   });
 
-  it('shows both kinds by default (vision badged) and filters by kind', async () => {
+  it('shows both kinds by default (vision badged) and filters by capability', async () => {
     configurePresets(
       stub,
       [

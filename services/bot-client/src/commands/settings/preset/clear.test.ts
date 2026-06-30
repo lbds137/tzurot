@@ -71,10 +71,10 @@ describe('Preset Clear Handler', () => {
       user: { id: 'user-123', username: 'testuser' },
       interaction: {
         options: {
-          // The `kind` option is optional (null → handler defaults to text);
+          // The `slot` option is optional (null → handler defaults to text);
           // every other option (`character`) resolves to the personalityId.
           getString: (name: string, _required?: boolean) =>
-            name === 'kind' ? (kind ?? null) : personalityId,
+            name === 'slot' ? (kind ?? null) : personalityId,
         },
       },
       editReply: mockEditReply,

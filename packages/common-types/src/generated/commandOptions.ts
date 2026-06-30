@@ -425,35 +425,28 @@ export const personaDefaultOptions = defineTypedOptions({
 // =============================================================================
 
 /**
- * /preset global default <preset, kind>
+ * /preset global default <preset, slot>
  */
 export const presetGlobalDefaultOptions = defineTypedOptions({
   preset: { type: 'string', required: true },
-  kind: { type: 'string', required: false },
+  slot: { type: 'string', required: false },
 });
 
 /**
- * /preset global free-default <preset, kind>
+ * /preset global free-default <preset, slot>
  */
 export const presetGlobalFreeDefaultOptions = defineTypedOptions({
   preset: { type: 'string', required: true },
-  kind: { type: 'string', required: false },
+  slot: { type: 'string', required: false },
 });
 
 /**
- * /preset browse <query, filter, kind>
+ * /preset browse <query, filter, capability>
  */
 export const presetBrowseOptions = defineTypedOptions({
   query: { type: 'string', required: false },
   filter: { type: 'string', required: false },
-  kind: { type: 'string', required: false },
-});
-
-/**
- * /preset create <kind>
- */
-export const presetCreateOptions = defineTypedOptions({
-  kind: { type: 'string', required: false },
+  capability: { type: 'string', required: false },
 });
 
 /**
@@ -510,35 +503,35 @@ export const settingsApikeyTestOptions = defineTypedOptions({
 });
 
 /**
- * /settings preset set <character, preset, kind>
+ * /settings preset set <character, preset, slot>
  */
 export const settingsPresetSetOptions = defineTypedOptions({
   character: { type: 'string', required: true },
   preset: { type: 'string', required: true },
-  kind: { type: 'string', required: false },
+  slot: { type: 'string', required: false },
 });
 
 /**
- * /settings preset clear <character, kind>
+ * /settings preset clear <character, slot>
  */
 export const settingsPresetClearOptions = defineTypedOptions({
   character: { type: 'string', required: true },
-  kind: { type: 'string', required: false },
+  slot: { type: 'string', required: false },
 });
 
 /**
- * /settings preset set-default <preset, kind>
+ * /settings preset set-default <preset, slot>
  */
 export const settingsPresetSetDefaultOptions = defineTypedOptions({
   preset: { type: 'string', required: true },
-  kind: { type: 'string', required: false },
+  slot: { type: 'string', required: false },
 });
 
 /**
- * /settings preset clear-default <kind>
+ * /settings preset clear-default <slot>
  */
 export const settingsPresetClearDefaultOptions = defineTypedOptions({
-  kind: { type: 'string', required: false },
+  slot: { type: 'string', required: false },
 });
 
 // =============================================================================

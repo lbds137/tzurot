@@ -44,7 +44,7 @@ describe('Me Preset Set Handler', () => {
     stub.setModelOverride.mockReset();
   });
 
-  function createMockContext(personalityId: string, presetId: string, kind?: string) {
+  function createMockContext(personalityId: string, presetId: string, slot?: string) {
     return {
       user: { id: 'user-123', username: 'testuser' },
       interaction: {
@@ -52,7 +52,7 @@ describe('Me Preset Set Handler', () => {
           getString: (name: string, _required?: boolean) => {
             if (name === 'character') return personalityId;
             if (name === 'preset') return presetId;
-            if (name === 'kind') return kind ?? null;
+            if (name === 'slot') return slot ?? null;
             return null;
           },
         },
@@ -112,6 +112,8 @@ describe('Me Preset Set Handler', () => {
       expect(embedData.title).toContain('Preset Override Set');
       expect(embedData.description).toContain('Test Bot');
       expect(embedData.description).toContain('Fast Claude');
+      // Default (text) slot is named in the confirmation.
+      expect(embedData.description).toContain('for chat messages');
 
       // Paid path: wallet check short-circuits, configs not fetched
       expect(stub.listUserLlmConfigs).not.toHaveBeenCalled();
@@ -140,6 +142,12 @@ describe('Me Preset Set Handler', () => {
         { personalityId: 'personality-1', configId: 'vision-config' },
         { kind: 'vision' }
       );
+
+      // The confirmation names the vision slot.
+      const embedData = (
+        mockEditReply.mock.calls[0][0] as { embeds: EmbedBuilder[] }
+      ).embeds[0].toJSON();
+      expect(embedData.description).toContain('for vision (image) messages');
     });
 
     it('should block guest mode users from using premium models', async () => {

@@ -22,10 +22,10 @@ const logger = createLogger('settings-preset-clear-default');
  */
 export async function handleClearDefault(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  // Which default to clear: text (default) or vision — the operation is
-  // kind-specific (the vision default is a separate FK from the text default).
+  // Which default to clear: Chat (text default) or Vision — the operation is
+  // slot-specific (the vision default is a separate FK from the text default).
   const kind = toConfigKind(
-    settingsPresetClearDefaultOptions(context.interaction).kind() ?? DEFAULT_CONFIG_KIND
+    settingsPresetClearDefaultOptions(context.interaction).slot() ?? DEFAULT_CONFIG_KIND
   );
 
   try {

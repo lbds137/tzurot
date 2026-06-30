@@ -23,7 +23,7 @@ import {
   type ButtonInteraction,
   type ModalSubmitInteraction,
 } from 'discord.js';
-import { createLogger, CONFIG_KIND_OPTION_DESCRIPTION } from '@tzurot/common-types';
+import { createLogger, CONFIG_SLOT_OPTION_DESCRIPTION } from '@tzurot/common-types';
 import { defineCommand } from '../../utils/defineCommand.js';
 import { createTypedSubcommandRouter } from '../../utils/subcommandRouter.js';
 import { createMixedModeSubcommandRouter } from '../../utils/mixedModeSubcommandRouter.js';
@@ -186,27 +186,21 @@ export default defineCommand({
         )
         .addStringOption(option =>
           option
-            .setName('kind')
-            .setDescription('Filter by config kind (defaults to all)')
+            .setName('capability')
+            .setDescription('Filter by capability (default: all)')
             .setRequired(false)
             .addChoices(
-              { name: 'All', value: 'all' },
-              { name: 'Text', value: 'text' },
-              { name: 'Vision', value: 'vision' }
+              { name: 'All Models', value: 'all' },
+              { name: 'Text-only', value: 'text' },
+              { name: 'Vision-capable', value: 'vision' }
             )
         )
     )
     .addSubcommand(subcommand =>
-      subcommand
-        .setName('create')
-        .setDescription('Create a new model preset')
-        .addStringOption(option =>
-          option
-            .setName('kind')
-            .setDescription(CONFIG_KIND_OPTION_DESCRIPTION)
-            .setRequired(false)
-            .addChoices({ name: 'Text', value: 'text' }, { name: 'Vision', value: 'vision' })
-        )
+      // No kind/slot option: a preset's vision-capability is derived from its
+      // model (`supportsVision`), not chosen at creation. The vision SLOT is
+      // picked later when the preset is assigned (set/set-default/global).
+      subcommand.setName('create').setDescription('Create a new model preset')
     )
     .addSubcommand(subcommand =>
       subcommand
@@ -260,10 +254,10 @@ export default defineCommand({
             )
             .addStringOption(option =>
               option
-                .setName('kind')
-                .setDescription(CONFIG_KIND_OPTION_DESCRIPTION)
+                .setName('slot')
+                .setDescription(CONFIG_SLOT_OPTION_DESCRIPTION)
                 .setRequired(false)
-                .addChoices({ name: 'Text', value: 'text' }, { name: 'Vision', value: 'vision' })
+                .addChoices({ name: 'Chat', value: 'text' }, { name: 'Vision', value: 'vision' })
             )
         )
         .addSubcommand(subcommand =>
@@ -279,10 +273,10 @@ export default defineCommand({
             )
             .addStringOption(option =>
               option
-                .setName('kind')
-                .setDescription(CONFIG_KIND_OPTION_DESCRIPTION)
+                .setName('slot')
+                .setDescription(CONFIG_SLOT_OPTION_DESCRIPTION)
                 .setRequired(false)
-                .addChoices({ name: 'Text', value: 'text' }, { name: 'Vision', value: 'vision' })
+                .addChoices({ name: 'Chat', value: 'text' }, { name: 'Vision', value: 'vision' })
             )
         )
     ),
