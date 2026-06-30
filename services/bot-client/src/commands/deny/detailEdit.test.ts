@@ -288,27 +288,7 @@ describe('handleEditModal', () => {
     expect(stub.addDenylistEntry).not.toHaveBeenCalled();
   });
 
-  it('falls back to followUp when the session-expired reply hits 10062 (modal submit path)', async () => {
-    mockSessionManager.get.mockResolvedValue(null);
-    const interaction = createMockModalInteraction('deny::modal::entry-uuid-1234::edit', {});
-    const timeoutError = new DiscordAPIError(
-      { code: 10062, message: 'Unknown interaction' },
-      10062,
-      404,
-      'POST',
-      '/interactions/x/y/callback',
-      {}
-    );
-    vi.mocked(interaction.reply).mockRejectedValue(timeoutError);
-
-    await expect(handleEditModal(interaction, 'entry-uuid-1234')).resolves.toBeUndefined();
-
-    expect(interaction.followUp).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('Session expired') })
-    );
-  });
-
-  it('should handle session expiry', async () => {
+  it('defers then followUps on session expiry (ack-first)', async () => {
     mockSessionManager.get.mockResolvedValue(null);
     const interaction = createMockModalInteraction('deny::modal::entry-uuid-1234::edit', {
       scope: 'BOT',
@@ -318,9 +298,16 @@ describe('handleEditModal', () => {
 
     await handleEditModal(interaction, 'entry-uuid-1234');
 
-    expect(interaction.reply).toHaveBeenCalledWith(
+    // Ack-first: deferUpdate precedes the Redis session read; expiry uses followUp
+    // (reply would throw on the already-acked interaction). The old read-then-reply
+    // path — with its 10062 reply→followUp fallback — is gone for the modal-submit
+    // handler; that fallback now only guards the modal-OPEN handler, which can't
+    // defer before showModal.
+    expect(interaction.deferUpdate).toHaveBeenCalled();
+    expect(interaction.followUp).toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining('Session expired') })
     );
+    expect(interaction.reply).not.toHaveBeenCalled();
   });
 
   it('should handle API error on edit', async () => {

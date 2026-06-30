@@ -22,7 +22,7 @@ import {
   formatSuccessBanner,
   getSessionManager,
   requireDeferredSession,
-  getSessionDataOrReply,
+  getSessionDataOrFollowUp,
   parseDashboardCustomId,
   isDashboardInteraction,
   renderPostActionScreen,
@@ -250,8 +250,17 @@ const handleRefreshButton = createRefreshHandler({
  * Handle delete button - show confirmation dialog.
  */
 async function handleDeleteButton(interaction: ButtonInteraction, entityId: string): Promise<void> {
-  // Get session data or show expired message
-  const data = await getSessionDataOrReply<FlattenedPersonaData>(interaction, 'persona', entityId);
+  // Ack first (3-second rule): deferUpdate before the Redis session read AND the
+  // gateway isDefaultPersona() call. Use the deferred session helper (followUp on
+  // expiry) + followUp/editReply for the responses, since reply/update would
+  // throw on the already-acked interaction.
+  await interaction.deferUpdate();
+
+  const data = await getSessionDataOrFollowUp<FlattenedPersonaData>(
+    interaction,
+    'persona',
+    entityId
+  );
   if (data === null) {
     return;
   }
@@ -259,7 +268,7 @@ async function handleDeleteButton(interaction: ButtonInteraction, entityId: stri
   const { userClient } = clientsFor(interaction);
   const isDefault = await isDefaultPersona(entityId, userClient);
   if (isDefault) {
-    await interaction.reply({
+    await interaction.followUp({
       content:
         '❌ Cannot delete your default persona.\n\n' +
         'Use `/persona default <other-persona>` to set a different default first.',
@@ -268,7 +277,7 @@ async function handleDeleteButton(interaction: ButtonInteraction, entityId: stri
     return;
   }
 
-  // Show confirmation dialog using shared utility
+  // Show confirmation dialog using shared utility (editReply — already deferred).
   const { embed, components } = buildDeleteConfirmation({
     entityType: 'Persona',
     entityName: data.name,
@@ -277,7 +286,7 @@ async function handleDeleteButton(interaction: ButtonInteraction, entityId: stri
     additionalWarning: 'Any character-specific overrides using this persona will be cleared.',
   });
 
-  await interaction.update({ embeds: [embed], components });
+  await interaction.editReply({ embeds: [embed], components });
 }
 
 /**
