@@ -1139,6 +1139,30 @@ describe('Admin LLM Config Routes', () => {
       expect(response.body.warning).toBeUndefined();
     });
 
+    it('allows deletion when AdminSettings has no singleton row yet (fresh install)', async () => {
+      // settings === null → the isPointedAt guard short-circuits false → deletion is
+      // allowed. A brand-new DB has no AdminSettings row, so nothing is pinned. (The
+      // default mock returns an all-null-pointers object; this exercises the distinct
+      // null-row branch.)
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-id',
+        name: 'Test Config',
+        isGlobal: true,
+        memoryScoreThreshold: { toNumber: () => 0.5 },
+        memoryLimit: 20,
+      });
+      prisma.adminSettings.findUnique.mockResolvedValue(null);
+      prisma.personalityDefaultConfig.count.mockResolvedValue(0);
+      prisma.userPersonalityConfig.count.mockResolvedValue(0);
+      prisma.llmConfig.delete.mockResolvedValue({});
+
+      const response = await request(app).delete('/admin/llm-config/config-id');
+
+      expect(response.status).toBe(200);
+      expect(response.body.deleted).toBe(true);
+      expect(prisma.llmConfig.delete).toHaveBeenCalled();
+    });
+
     it('should return 404 when config not found', async () => {
       prisma.llmConfig.findUnique.mockResolvedValue(null);
 
