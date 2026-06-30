@@ -11,7 +11,7 @@ import {
   CloneNameExhaustedError,
   type LlmConfigScope,
 } from './LlmConfigService.js';
-import type { PrismaClient } from '@tzurot/common-types';
+import { type PrismaClient, ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types';
 import type { LlmConfigCacheInvalidationService } from '@tzurot/cache-invalidation';
 
 // Mock logger
@@ -53,7 +53,7 @@ function createMockPrisma() {
   };
 
   const mockAdminSettings = {
-    upsert: vi.fn().mockResolvedValue({ id: 'admin-settings-singleton' }),
+    upsert: vi.fn().mockResolvedValue({ id: ADMIN_SETTINGS_SINGLETON_ID }),
     // list() derives isDefault/isFreeDefault from these pointers; default = none set.
     findFirst: vi.fn().mockResolvedValue(null),
   };
@@ -226,6 +226,11 @@ describe('LlmConfigService', () => {
       expect(result.find(c => c.id === 'the-default')?.isDefault).toBe(true);
       expect(result.find(c => c.id === 'the-free')?.isFreeDefault).toBe(true);
       expect(result.find(c => c.id === 'plain')?.isDefault).toBe(false);
+      // The singleton pointer read is id-filtered, not a bare findFirst — keeps
+      // the flags correct even if a stray admin_settings row ever appeared.
+      expect(prisma.adminSettings.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: ADMIN_SETTINGS_SINGLETON_ID } })
+      );
     });
 
     it('treats a config targeted by the VISION default pointer as isDefault ("any-default" semantics)', async () => {

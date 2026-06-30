@@ -74,25 +74,29 @@ export interface ValidateLlmConfigModelFieldsOptions {
     configId: string;
   };
   /**
-   * Config kind, gating the vision capability check. Pass it explicitly on the
-   * **create** path (from `body.kind`). On the **update** path leave it
-   * undefined — kind is immutable (never in the update body), so the helper
-   * derives it from the existing row via `fallback`. When neither is available
-   * it defaults to {@link DEFAULT_CONFIG_KIND} (text), which never rejects.
+   * Config kind, gating the vision capability check. Pass it explicitly whenever
+   * the caller already knows a verified kind — the **create** path (`body.kind`)
+   * and the **admin edit** path (the `requireKind`-checked value, after the row
+   * fetch) both do; this lets the helper skip a redundant `getById`. Leave it
+   * undefined when the kind isn't known to the caller (e.g. the user edit path) —
+   * the helper then derives it from the existing row via `fallback` (kind is
+   * immutable, never in the update body). When neither is available it defaults
+   * to {@link DEFAULT_CONFIG_KIND} (text), which never rejects.
    */
   kind?: ConfigKind;
 }
 
 /**
- * Resolve the effective model + kind for validation. On the update path the
- * stored row is the source of truth for both: the model fallback (when the body
- * omits it, so contextWindowTokens can still be validated against a known model)
- * AND the immutable kind (never in the update body, so only knowable from the
- * row). A single getById serves both, fetched only when something needs it:
+ * Resolve the effective model + kind for validation. The stored row is the
+ * fallback source for both: the model (when the body omits it, so
+ * contextWindowTokens can still be validated against a known model) AND the
+ * immutable kind (never in the update body). A single getById serves both,
+ * fetched only when something needs it:
  *  - model fallback: the body omits `model`.
- *  - kind for the capability gate: a model IS being set and kind is unknown
- *    (the update path never passes kind). A context-only edit doesn't need the
- *    kind, so it isn't derived.
+ *  - kind for the capability gate: a model IS being set and the caller didn't
+ *    pass `kind`. Callers with an already-verified kind (create from `body.kind`,
+ *    admin edit from the `requireKind`-checked value) pass it, so this fetch is
+ *    skipped; a context-only edit doesn't need the kind either.
  */
 async function resolveEffectiveModelAndKind(
   opts: ValidateLlmConfigModelFieldsOptions
