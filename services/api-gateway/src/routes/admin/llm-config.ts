@@ -369,7 +369,7 @@ function createDeleteConfigHandler(service: LlmConfigService, prisma: PrismaClie
     // hardcoded floor (e.g. breaking the guest free-tier LLM). Force the admin to
     // repoint the slot first. Replaces the old per-kind isDefault/isFreeDefault
     // flag guards now that defaults live on the pointers.
-    const settings = await prisma.adminSettings.findFirst({
+    const settings = await prisma.adminSettings.findUnique({
       where: { id: ADMIN_SETTINGS_SINGLETON_ID },
       select: {
         globalDefaultLlmConfigId: true,

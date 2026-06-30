@@ -68,7 +68,7 @@ const createMockPrismaClient = () => {
   const mockAdminSettings = {
     upsert: vi.fn().mockResolvedValue({ id: 'admin-settings-singleton' }),
     // Default: no config occupies any default slot (delete guard reads this).
-    findFirst: vi.fn().mockResolvedValue({
+    findUnique: vi.fn().mockResolvedValue({
       globalDefaultLlmConfigId: null,
       globalDefaultVisionConfigId: null,
       freeDefaultLlmConfigId: null,
@@ -1171,7 +1171,7 @@ describe('Admin LLM Config Routes', () => {
         name: 'Global Default',
         isGlobal: true,
       });
-      prisma.adminSettings.findFirst.mockResolvedValue({
+      prisma.adminSettings.findUnique.mockResolvedValue({
         globalDefaultLlmConfigId: 'config-id',
         globalDefaultVisionConfigId: null,
         freeDefaultLlmConfigId: null,
@@ -1192,7 +1192,7 @@ describe('Admin LLM Config Routes', () => {
         name: 'Free Vision Default',
         isGlobal: true,
       });
-      prisma.adminSettings.findFirst.mockResolvedValue({
+      prisma.adminSettings.findUnique.mockResolvedValue({
         globalDefaultLlmConfigId: null,
         globalDefaultVisionConfigId: null,
         freeDefaultLlmConfigId: null,

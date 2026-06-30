@@ -141,6 +141,12 @@ export async function ensureVisionCapableModel(
   modelCache: OpenRouterModelCache | undefined,
   model: string
 ): Promise<boolean> {
+  // Built per call on purpose: ModelCapabilityService is a stateless wrapper over
+  // the (shared-by-reference) modelCache, so construction is free. Each gate site
+  // (create/update validation + the user/personality/admin slot setters) checks a
+  // single model once per request — no loop — so there's nothing to amortise by
+  // threading a shared instance through every caller. The LIST handler keeps one
+  // instance only because it resolves N rows in a loop.
   const capabilities = await new ModelCapabilityService(modelCache).resolve(model);
   if (capabilities === null) {
     sendError(

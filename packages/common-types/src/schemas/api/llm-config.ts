@@ -85,11 +85,10 @@ export const LlmConfigCreateSchema = z.object({
   model: z.string().min(1, 'model is required').max(200),
 
   // Config kind discriminator (text | vision | …). Optional; when omitted the
-  // service defaults it to 'text' (back-compat — existing callers get a text
-  // preset). A 'vision' create gets per-kind capability validation in S1b before
-  // the S2 command surface exposes it. NOT present on the update schema — `kind`
-  // is immutable (changing it would orphan the per-kind default flags); convert
-  // by delete + recreate.
+  // service defaults it to 'text', so a caller that doesn't set it gets a text
+  // preset. A 'vision' create is validated for vision capability before it's
+  // accepted. NOT present on the update schema — `kind` is immutable (changing
+  // it would orphan the per-kind default flags); convert by delete + recreate.
   kind: z.enum(CONFIG_KINDS).optional(),
 
   // Optional string fields
