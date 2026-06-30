@@ -156,24 +156,27 @@ describe('Model Override API Contract Tests', () => {
   });
 
   describe('ClearDefaultConfigResponseSchema', () => {
-    it('should accept valid clear response with null newEffectiveDefault', () => {
-      const data = { deleted: true as const, newEffectiveDefault: null };
+    it('should accept an empty newEffectiveDefaults (no slot cleared)', () => {
+      const data = { deleted: true as const, newEffectiveDefaults: {} };
       const result = ClearDefaultConfigResponseSchema.safeParse(data);
       expect(result.success).toBe(true);
     });
 
-    it('should accept valid clear response with populated newEffectiveDefault', () => {
+    it('should accept per-slot newEffectiveDefaults (one populated, one null)', () => {
       const data = {
         deleted: true as const,
         wasSet: true,
-        newEffectiveDefault: { id: 'free-id', name: 'gpt-4-free' },
+        newEffectiveDefaults: {
+          text: { id: 'free-id', name: 'gpt-4-free' },
+          vision: null,
+        },
       };
       const result = ClearDefaultConfigResponseSchema.safeParse(data);
       expect(result.success).toBe(true);
     });
 
     it('should reject deleted=false', () => {
-      const data = { deleted: false, newEffectiveDefault: null };
+      const data = { deleted: false, newEffectiveDefaults: {} };
       const result = ClearDefaultConfigResponseSchema.safeParse(data);
       expect(result.success).toBe(false);
     });
@@ -183,9 +186,9 @@ describe('Model Override API Contract Tests', () => {
       expect(result.success).toBe(false);
     });
 
-    it('should reject missing newEffectiveDefault field', () => {
-      // newEffectiveDefault is required (nullable, but not optional) — gateway
-      // always populates it, even if null when no admin free default exists
+    it('should reject missing newEffectiveDefaults field', () => {
+      // newEffectiveDefaults is a required object (its per-slot keys are optional);
+      // the gateway always sends it — `{}` when nothing was cleared.
       const result = ClearDefaultConfigResponseSchema.safeParse({ deleted: true });
       expect(result.success).toBe(false);
     });

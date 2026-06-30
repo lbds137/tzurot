@@ -99,7 +99,7 @@ describe('handleClearDefault', () => {
     stub.clearDefaultModelConfig.mockResolvedValue(
       makeOk(
         mockClearDefaultConfigResponse({
-          newEffectiveDefault: { id: 'free-id', name: 'gpt-4-free' },
+          newEffectiveDefaults: { text: { id: 'free-id', name: 'gpt-4-free' } },
         })
       )
     );
@@ -119,7 +119,7 @@ describe('handleClearDefault', () => {
 
   it('should render hardcoded-fallback notice when no system default is configured', async () => {
     stub.clearDefaultModelConfig.mockResolvedValue(
-      makeOk(mockClearDefaultConfigResponse({ newEffectiveDefault: null }))
+      makeOk(mockClearDefaultConfigResponse({ newEffectiveDefaults: { text: null } }))
     );
 
     await handleClearDefault(createMockContext());
@@ -133,6 +133,43 @@ describe('handleClearDefault', () => {
         }),
       ],
     });
+  });
+
+  it('renders BOTH slot fallbacks on an all-clear (the per-slot fix)', async () => {
+    stub.clearDefaultModelConfig.mockResolvedValue(
+      makeOk(
+        mockClearDefaultConfigResponse({
+          newEffectiveDefaults: {
+            text: { id: 'text-free', name: 'chat-fallback-model' },
+            vision: { id: 'vision-free', name: 'vision-fallback-model' },
+          },
+        })
+      )
+    );
+
+    await handleClearDefault(createMockContext());
+
+    // Both slot labels and both fallback model names appear — clearing both slots
+    // no longer silently omits the vision fallback.
+    const call = mockEditReply.mock.calls[0][0];
+    const description = call.embeds[0].data.description;
+    expect(description).toContain('Chat');
+    expect(description).toContain('chat-fallback-model');
+    expect(description).toContain('Vision');
+    expect(description).toContain('vision-fallback-model');
+  });
+
+  it('renders cleanly with no fallback lines (empty map → no double blank line)', async () => {
+    // mockClearDefaultConfigResponse() defaults to newEffectiveDefaults: {}. The
+    // gateway never sends an empty map today, but the embed must stay robust to it
+    // (no double blank line between the two sentences).
+    stub.clearDefaultModelConfig.mockResolvedValue(makeOk(mockClearDefaultConfigResponse()));
+
+    await handleClearDefault(createMockContext());
+
+    const description = mockEditReply.mock.calls[0][0].embeds[0].data.description;
+    expect(description).not.toContain('\n\n\n');
+    expect(description).toContain('Your default preset has been removed.');
   });
 
   it('should show error when API fails', async () => {

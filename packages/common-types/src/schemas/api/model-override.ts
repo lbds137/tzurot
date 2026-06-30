@@ -75,19 +75,26 @@ export type SetDefaultConfigResponse = z.infer<typeof SetDefaultConfigResponseSc
 // Clears user's global default LLM config
 // ============================================================================
 
+/** A resolved free-default config the user falls back to for one slot. */
+const FreeDefaultRefSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+});
+
 export const ClearDefaultConfigResponseSchema = z.object({
   deleted: z.literal(true),
   /** Whether a default was actually set before this call (idempotent vs. real clear). */
   wasSet: z.boolean().optional(),
-  /** System free default the user falls back to. `null` only if no admin
-   *  has configured a free default (rare in practice — bot-client renders
-   *  a hardcoded-fallback notice when null). */
-  newEffectiveDefault: z
-    .object({
-      id: z.string(),
-      name: z.string(),
-    })
-    .nullable(),
+  /** System free defaults the user falls back to, keyed by the slot(s) THIS call
+   *  cleared. A key is present iff that slot was cleared; its value is the free
+   *  default config for that slot, or `null` when no admin free default exists for
+   *  it (bot-client renders a built-in-fallback notice). An `all` clear populates
+   *  BOTH keys (so the confirmation names both fallbacks, not just chat); a
+   *  single-slot clear populates just the one. */
+  newEffectiveDefaults: z.object({
+    text: FreeDefaultRefSchema.nullable().optional(),
+    vision: FreeDefaultRefSchema.nullable().optional(),
+  }),
 });
 export type ClearDefaultConfigResponse = z.infer<typeof ClearDefaultConfigResponseSchema>;
 

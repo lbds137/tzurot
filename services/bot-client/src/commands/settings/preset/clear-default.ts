@@ -37,19 +37,37 @@ export async function handleClearDefault(context: DeferredCommandContext): Promi
       return;
     }
 
-    // Tell the user explicitly what they'll get next, instead of generic
-    // "use their own defaults" guidance. Per-character overrides are
-    // unaffected and surface in the second sentence.
-    const fallbackLine =
-      result.data.newEffectiveDefault !== null
-        ? `Falling back to system default: \`${result.data.newEffectiveDefault.name}\`.`
-        : 'No system default is configured; the bot will use its built-in fallback.';
+    // Tell the user explicitly what they'll fall back to next, one line per
+    // cleared slot (an `all` clear reverts BOTH chat and vision — naming only
+    // one would leave the user unaware the other moved too). A slot is in
+    // newEffectiveDefaults iff it was cleared; its value is null when no system
+    // free default exists for it. Per-character overrides are unaffected and
+    // surface in the closing sentence.
+    const SLOT_LABELS = { text: 'Chat', vision: 'Vision' } as const;
+    const fallbackLines = (['text', 'vision'] as const).flatMap(slot => {
+      const fallback = result.data.newEffectiveDefaults[slot];
+      // Slot absent from the map → it wasn't cleared, so emit no line for it.
+      if (fallback === undefined) {
+        return [];
+      }
+      return [
+        fallback !== null
+          ? `**${SLOT_LABELS[slot]}** → falling back to system default: \`${fallback.name}\`.`
+          : `**${SLOT_LABELS[slot]}** → no system default is configured; the bot will use its built-in fallback.`,
+      ];
+    });
+
+    // Only insert the fallback block (with its trailing blank line) when there's
+    // at least one slot line — an empty map would otherwise leave a double blank
+    // line between the two sentences. The gateway always populates ≥1 slot today,
+    // but this keeps the render robust if the response shape ever widens.
+    const fallbackSection = fallbackLines.length > 0 ? `${fallbackLines.join('\n')}\n\n` : '';
 
     const embed = new EmbedBuilder()
       .setTitle('✅ Default Preset Cleared')
       .setColor(DISCORD_COLORS.SUCCESS)
       .setDescription(
-        `Your default preset has been removed.\n\n${fallbackLine}\n\n` +
+        `Your default preset has been removed.\n\n${fallbackSection}` +
           'Characters with their own per-character overrides will continue to use those.'
       )
       .setTimestamp();
@@ -57,7 +75,14 @@ export async function handleClearDefault(context: DeferredCommandContext): Promi
     await context.editReply({ embeds: [embed] });
 
     logger.info(
-      { userId, kind, newDefault: result.data.newEffectiveDefault?.name ?? null },
+      {
+        userId,
+        kind,
+        newDefaults: {
+          text: result.data.newEffectiveDefaults.text?.name ?? null,
+          vision: result.data.newEffectiveDefaults.vision?.name ?? null,
+        },
+      },
       'Cleared default config'
     );
   } catch (error) {

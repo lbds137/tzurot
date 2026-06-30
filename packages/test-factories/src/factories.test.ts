@@ -313,25 +313,25 @@ describe('llm-config factories', () => {
 });
 
 describe('mockClearDefaultConfigResponse', () => {
-  it('produces a valid default-shape response with newEffectiveDefault: null', () => {
+  it('produces a valid default-shape response with empty newEffectiveDefaults', () => {
     const response = mockClearDefaultConfigResponse();
-    expect(response).toEqual({ deleted: true, newEffectiveDefault: null });
+    expect(response).toEqual({ deleted: true, newEffectiveDefaults: {} });
   });
 
-  it('accepts a populated newEffectiveDefault override', () => {
+  it('accepts a populated per-slot newEffectiveDefaults override', () => {
     const response = mockClearDefaultConfigResponse({
-      newEffectiveDefault: { id: 'free-id', name: 'gpt-4-free' },
+      newEffectiveDefaults: { text: { id: 'free-id', name: 'gpt-4-free' } },
       wasSet: true,
     });
-    expect(response.newEffectiveDefault).toEqual({ id: 'free-id', name: 'gpt-4-free' });
+    expect(response.newEffectiveDefaults.text).toEqual({ id: 'free-id', name: 'gpt-4-free' });
     expect(response.wasSet).toBe(true);
   });
 
   it('throws ZodError on invalid override shape', () => {
     expect(() =>
-      // newEffectiveDefault must have both id and name; missing name → invalid
+      // a per-slot ref must have both id and name; missing name → invalid
       mockClearDefaultConfigResponse({
-        newEffectiveDefault: { id: 'free-id' } as never,
+        newEffectiveDefaults: { text: { id: 'free-id' } } as never,
       })
     ).toThrow();
   });
