@@ -172,6 +172,12 @@ export async function handleEditModal(
   interaction: ModalSubmitInteraction,
   entryId: string
 ): Promise<void> {
+  // Ack first (3-second rule): deferUpdate before the Redis session read. On
+  // expiry, followUp — reply would throw on the already-acked interaction. (The
+  // modal-OPEN handler keeps showModalWithTimeoutCatch: showModal cannot be
+  // preceded by a defer, so that path's getSession-before-ack is unavoidable.)
+  await interaction.deferUpdate();
+
   const sessionManager = getSessionManager();
   const session = await sessionManager.get<DenyDetailSession>(
     interaction.user.id,
@@ -180,11 +186,12 @@ export async function handleEditModal(
   );
 
   if (session === null) {
-    await replySessionExpired(interaction, 'handleEditModal', entryId);
+    await interaction.followUp({
+      content: DASHBOARD_MESSAGES.SESSION_EXPIRED,
+      flags: MessageFlags.Ephemeral,
+    });
     return;
   }
-
-  await interaction.deferUpdate();
 
   const data = session.data;
   const newScopeRaw = interaction.fields.getTextInputValue('scope').trim().toUpperCase();
