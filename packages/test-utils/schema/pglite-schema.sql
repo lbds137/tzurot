@@ -619,9 +619,6 @@ CREATE INDEX "conversation_history_persona_id_personality_id_created_at_idx" ON 
 CREATE INDEX "conversation_history_discord_message_id_idx" ON "conversation_history"("discord_message_id");
 
 -- CreateIndex
-CREATE INDEX "conversation_history_message_metadata_idx" ON "conversation_history" USING GIN ("message_metadata");
-
--- CreateIndex
 CREATE INDEX "conversation_history_deleted_at_idx" ON "conversation_history"("deleted_at");
 
 -- CreateIndex
