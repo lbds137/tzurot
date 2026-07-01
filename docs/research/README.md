@@ -41,8 +41,7 @@ Each research note follows this structure:
 
 ## Current Notes
 
-| File                       | Topic                                       | Added      |
-| -------------------------- | ------------------------------------------- | ---------- |
-| `free-tier-models-2026.md` | OpenRouter free model configs + rate limits | 2026-01-24 |
-| `voice-cloning-2026.md`    | Open-source TTS/STT (Kyutai, SenseVoice)    | 2026-01-24 |
-| `sillytavern-features.md`  | Feature ideas from SillyTavern analysis     | 2026-01-24 |
+| File                      | Topic                                                                                  | Added      |
+| ------------------------- | -------------------------------------------------------------------------------------- | ---------- |
+| `voice-cloning-2026.md`   | Voice/TTS engine: Mistral-vs-ElevenLabs rationale, Voxtral API, loudness normalization | 2026-01-24 |
+| `sillytavern-features.md` | Feature ideas from SillyTavern analysis                                                | 2026-01-24 |
