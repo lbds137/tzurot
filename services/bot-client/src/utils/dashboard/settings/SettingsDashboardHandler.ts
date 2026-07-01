@@ -98,6 +98,32 @@ export async function createSettingsDashboard(
 }
 
 /**
+ * Fetch the dashboard session and run the shared expired + ownership guards.
+ * Returns the session, or null after notifying the user. `notify` abstracts the
+ * send shape that differs between callers (a select menu always `followUp`s
+ * post-defer; the button handler routes the un-acked edit path through a
+ * 10062-safe wrapped reply). Callers ack (deferUpdate) before calling — except
+ * the edit path, whose `notify` owns its own ack.
+ */
+async function resolveValidatedSession(
+  interaction: ButtonInteraction | StringSelectMenuInteraction,
+  entityType: string,
+  entityId: string,
+  notify: (content: string) => Promise<unknown>
+): Promise<SettingsDashboardSession | null> {
+  const session = await getSession(interaction.user.id, entityType, entityId);
+  if (session === null) {
+    await notify('This dashboard has expired. Please run the command again.');
+    return null;
+  }
+  if (session.userId !== interaction.user.id) {
+    await notify('This dashboard belongs to another user.');
+    return null;
+  }
+  return session;
+}
+
+/**
  * Handle a select menu interaction for settings navigation
  */
 export async function handleSettingsSelectMenu(
@@ -116,23 +142,13 @@ export async function handleSettingsSelectMenu(
   // below become followUp (errors) / editReply (the drill-down).
   await interaction.deferUpdate();
 
-  // Get session
-  const session = await getSession(interaction.user.id, config.entityType, parsed.entityId);
-
+  const session = await resolveValidatedSession(
+    interaction,
+    config.entityType,
+    parsed.entityId,
+    content => interaction.followUp({ content, flags: MessageFlags.Ephemeral })
+  );
   if (session === null) {
-    await interaction.followUp({
-      content: 'This dashboard has expired. Please run the command again.',
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  // Verify ownership
-  if (session.userId !== interaction.user.id) {
-    await interaction.followUp({
-      content: 'This dashboard belongs to another user.',
-      flags: MessageFlags.Ephemeral,
-    });
     return;
   }
 
@@ -192,22 +208,22 @@ export async function handleSettingsButton(
   if (!isModalAction) {
     await interaction.deferUpdate();
   }
+  // The edit action can't defer (showModal is its ack), so its guard replies are
+  // un-acked — route them through replyEditGuard so a budget-blown 10062 degrades
+  // to a followUp instead of a silent failure. Every other action deferred above,
+  // so followUp (post-defer) is correct and safe.
   const notify = (content: string): Promise<unknown> =>
     isModalAction
-      ? interaction.reply({ content, flags: MessageFlags.Ephemeral })
+      ? replyEditGuard(interaction, parsed.entityId, content, parsed.extra ?? parsed.action)
       : interaction.followUp({ content, flags: MessageFlags.Ephemeral });
 
-  // Get session
-  const session = await getSession(interaction.user.id, config.entityType, parsed.entityId);
-
+  const session = await resolveValidatedSession(
+    interaction,
+    config.entityType,
+    parsed.entityId,
+    notify
+  );
   if (session === null) {
-    await notify('This dashboard has expired. Please run the command again.');
-    return;
-  }
-
-  // Verify ownership
-  if (session.userId !== interaction.user.id) {
-    await notify('This dashboard belongs to another user.');
     return;
   }
 
@@ -378,7 +394,7 @@ async function handleSetButton(
  */
 function replyEditGuard(
   interaction: ButtonInteraction,
-  session: SettingsDashboardSession,
+  entityId: string,
   content: string,
   sectionId: string
 ): Promise<void> {
@@ -388,7 +404,7 @@ function replyEditGuard(
     {
       source: 'handleSettingsButton/edit',
       userId: interaction.user.id,
-      entityId: session.entityId,
+      entityId,
       sectionId,
     },
     content
@@ -411,7 +427,7 @@ async function handleEditButton(
     logger.warn('Edit button missing setting ID');
     await replyEditGuard(
       interaction,
-      session,
+      session.entityId,
       'Invalid button data. Please run the command again.',
       'edit'
     );
@@ -420,7 +436,7 @@ async function handleEditButton(
 
   const setting = getSettingById(settingId);
   if (setting === undefined) {
-    await replyEditGuard(interaction, session, 'Unknown setting.', settingId);
+    await replyEditGuard(interaction, session.entityId, 'Unknown setting.', settingId);
     return;
   }
 
