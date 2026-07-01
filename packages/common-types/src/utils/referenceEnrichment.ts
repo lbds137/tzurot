@@ -127,6 +127,19 @@ export function stripBotVoiceAttachments(reference: ReferencedMessage): Referenc
 }
 
 /**
+ * The SINGLE truncation point for dedup-stub previews. Caps a TEXT preview to
+ * `DEDUP_STUB_CONTENT` (+ `…`). Applied to text ONLY — never to text-with-markers — so
+ * attachment markers (folded in separately, after this) can't eat the budget and squeeze
+ * the text to a misleading fragment. `formatDedupedQuote` renders the result as-is: every
+ * caller must cap here first (both `buildDedupedReferenceStub` and the stored-history path
+ * in `xmlMetadataFormatters.formatQuotedSection`).
+ */
+export function capDedupText(text: string): string {
+  const limit = TEXT_LIMITS.DEDUP_STUB_CONTENT;
+  return text.length > limit ? text.substring(0, limit) + '...' : text;
+}
+
+/**
  * Collapse a full reference into the minimal deduplicated stub: truncated
  * content (with attachment markers), no embeds/location. The stub keeps the
  * reference number — numbering is assigned before the dedup decision, so stubs
@@ -138,10 +151,12 @@ export function stripBotVoiceAttachments(reference: ReferencedMessage): Referenc
  * its rendered image description) is in the history the stub points at. The
  * marker's filename lets the model correlate the stub with that history entry.
  *
- * Contract: with attachments present the returned `content` can exceed
- * `DEDUP_STUB_CONTENT` (markers are prepended AFTER the text is truncated), so a
- * caller that treats it as final output must re-apply the limit. The prompt path
- * already does, via `formatDedupedQuote`.
+ * With attachments present the returned `content` can exceed `DEDUP_STUB_CONTENT`
+ * (markers are prepended AFTER the text is truncated) — that's intentional and FINAL:
+ * `formatDedupedQuote` renders it as-is. It must NOT re-apply the limit to the combined
+ * markers+text, or long image-filename markers eat the whole budget and squeeze the text
+ * hint to a misleading fragment (`I...` for `I got myself off…`). The text is capped here
+ * (this is the single truncation point); the markers are short metadata kept whole.
  */
 export function buildDedupedReferenceStub(reference: ReferencedMessage): ReferencedMessage {
   // Bot-authored stubs carry NO preview. A snippet of the model's own prior text
@@ -150,16 +165,12 @@ export function buildDedupedReferenceStub(reference: ReferencedMessage): Referen
   // reply-targets keep a short preview — genuine content the model may need.
   let content = '';
   if (!isBotAuthoredReference(reference)) {
-    const limit = TEXT_LIMITS.DEDUP_STUB_CONTENT;
-    const truncatedContent =
-      reference.content.length > limit
-        ? reference.content.substring(0, limit) + '...'
-        : reference.content;
-    // Markers go FIRST so they survive downstream re-truncation: formatDedupedQuote
-    // applies DEDUP_STUB_CONTENT to the COMBINED (markers + text) string and trims
-    // from the end, so the effective text budget there is DEDUP_STUB_CONTENT minus
-    // the marker length. Squeezing the text hint is acceptable — the full message
-    // (the thing the stub points at) is in history regardless; the marker is not.
+    const truncatedContent = capDedupText(reference.content);
+    // Markers go FIRST (before the truncated text). The text already has its FULL
+    // DEDUP_STUB_CONTENT budget above; markers are appended without eating it, because
+    // formatDedupedQuote renders this as-is (no second truncation). The full message the
+    // stub points at is in history regardless; the marker filenames are the correlation
+    // hint that must survive.
     const attachmentMarkers = (reference.attachments ?? [])
       .map(att => `[${att.contentType}: ${att.name ?? 'attachment'}]`)
       .join('\n');

@@ -22,6 +22,9 @@ vi.mock('@tzurot/common-types', () => ({
   escapeXmlContent: (s: string) =>
     s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'),
   formatPromptTimestamp: (ts: string) => `formatted:${ts}`,
+  // Real capDedupText behavior (cap to DEDUP_STUB_CONTENT=100 + ellipsis). This is now the
+  // single truncation point for the stored deduped path; formatDedupedQuote renders as-is.
+  capDedupText: (text: string) => (text.length > 100 ? text.substring(0, 100) + '...' : text),
 }));
 
 // Mock QuoteFormatter - pass through to real implementation for structural tests
@@ -55,17 +58,18 @@ const { mockFormatQuoteElement, mockFormatDedupedQuote } = vi.hoisted(() => {
     return parts.join('\n');
   });
 
+  // Mirror the REAL formatDedupedQuote: render content AS-IS (no truncation). The cap now
+  // happens upstream in formatQuotedSection via the real capDedupText, so the
+  // "truncates long content" test below verifies THAT cap, not a mock-side truncation.
   const fdq = vi
     .fn()
     .mockImplementation(
       (opts: { from: string; role?: string; timeFormatted?: string; content: string }) => {
-        const truncated =
-          opts.content.length > 100 ? opts.content.substring(0, 100) + '...' : opts.content;
         return fqe({
           from: opts.from,
           role: opts.role,
           timeFormatted: opts.timeFormatted,
-          content: `[Referenced message — full text in <chat_log>]\n\n${truncated}`,
+          content: `[Referenced message — full text in <chat_log>]\n\n${opts.content}`,
         });
       }
     );

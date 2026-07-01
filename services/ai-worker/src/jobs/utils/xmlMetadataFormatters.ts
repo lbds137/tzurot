@@ -10,6 +10,7 @@ import {
   escapeXml,
   escapeXmlContent,
   formatPromptTimestamp,
+  capDedupText,
   type StoredReferencedMessage,
 } from '@tzurot/common-types';
 import { formatQuoteElement, formatDedupedQuote } from '../../services/prompt/QuoteFormatter.js';
@@ -128,7 +129,10 @@ export function formatQuotedSection(
         ref.timestamp !== undefined && ref.timestamp.length > 0
           ? formatPromptTimestamp(ref.timestamp)
           : undefined,
-      content: ref.content,
+      // Cap the stored text preview HERE (the single truncation point) — formatDedupedQuote
+      // renders as-is. Stored refs carry attachments separately (attachmentLines), so content
+      // is text-only and safe to cap directly.
+      content: capDedupText(ref.content),
     });
   });
 
