@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { classifyDbTimeout } from './dbTimeout.js';
+import { describe, it, expect, vi } from 'vitest';
+import { type PrismaClient } from '@tzurot/common-types';
+import { classifyDbTimeout, withDeadConnRetry, applyFastPoolDeadConnRetry } from './dbTimeout.js';
 
 describe('classifyDbTimeout', () => {
   it('labels a lock_timeout by SQLSTATE 55P03', () => {
@@ -84,5 +85,114 @@ describe('classifyDbTimeout', () => {
     expect(classifyDbTimeout(null).label).toBe('other');
     expect(classifyDbTimeout(undefined).label).toBe('other');
     expect(classifyDbTimeout('boom').label).toBe('other');
+  });
+});
+
+describe('withDeadConnRetry', () => {
+  it('returns the result without retrying on success', async () => {
+    const op = vi.fn().mockResolvedValue('ok');
+    const onRetry = vi.fn();
+    await expect(withDeadConnRetry(op, onRetry)).resolves.toBe('ok');
+    expect(op).toHaveBeenCalledTimes(1);
+    expect(onRetry).not.toHaveBeenCalled();
+  });
+
+  it('retries ONCE on a dead-conn error and succeeds on the fresh connection', async () => {
+    const op = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('Query read timeout'))
+      .mockResolvedValueOnce('ok');
+    const onRetry = vi.fn();
+    await expect(withDeadConnRetry(op, onRetry)).resolves.toBe('ok');
+    expect(op).toHaveBeenCalledTimes(2);
+    expect(onRetry).toHaveBeenCalledOnce();
+  });
+
+  it('does NOT retry a real statement-timeout (the query ran server-side)', async () => {
+    const err = { code: '57014' };
+    const op = vi.fn().mockRejectedValue(err);
+    const onRetry = vi.fn();
+    await expect(withDeadConnRetry(op, onRetry)).rejects.toBe(err);
+    expect(op).toHaveBeenCalledTimes(1);
+    expect(onRetry).not.toHaveBeenCalled();
+  });
+
+  it('does NOT retry a lock-timeout or a constraint (P2002) error', async () => {
+    const lockErr = { code: '55P03' };
+    const opLock = vi.fn().mockRejectedValue(lockErr);
+    await expect(withDeadConnRetry(opLock)).rejects.toBe(lockErr);
+    expect(opLock).toHaveBeenCalledTimes(1);
+
+    const p2002 = { code: 'P2002', message: 'Unique constraint failed' };
+    const opP2002 = vi.fn().mockRejectedValue(p2002);
+    await expect(withDeadConnRetry(opP2002)).rejects.toBe(p2002);
+    expect(opP2002).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-throws if the retry ALSO hits a dead conn (surfaces the second failure)', async () => {
+    const first = new Error('Query read timeout');
+    const second = new Error('Connection terminated unexpectedly');
+    const op = vi.fn().mockRejectedValueOnce(first).mockRejectedValueOnce(second);
+    const onRetry = vi.fn();
+    await expect(withDeadConnRetry(op, onRetry)).rejects.toBe(second);
+    expect(op).toHaveBeenCalledTimes(2);
+    expect(onRetry).toHaveBeenCalledOnce();
+  });
+
+  it('works without an onRetry callback', async () => {
+    const op = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('Query read timeout'))
+      .mockResolvedValueOnce('ok');
+    await expect(withDeadConnRetry(op)).resolves.toBe('ok');
+    expect(op).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('applyFastPoolDeadConnRetry', () => {
+  // Capture the `$allOperations` handler the extension installs, then drive it
+  // directly — this is the structural retry boundary every fast-pool op flows
+  // through, so testing the handler proves ALL fast-pool queries get the retry.
+  type AllOps = (ctx: {
+    query: (args: unknown) => Promise<unknown>;
+    args: unknown;
+    operation: string;
+    model?: string;
+  }) => Promise<unknown>;
+
+  function capture(): { allOps: AllOps | undefined } {
+    const box: { allOps: AllOps | undefined } = { allOps: undefined };
+    const fakeClient = {
+      $extends: (ext: { query: { $allOperations: AllOps } }) => {
+        box.allOps = ext.query.$allOperations;
+        return fakeClient;
+      },
+    };
+    applyFastPoolDeadConnRetry(fakeClient as unknown as PrismaClient);
+    return box;
+  }
+
+  it('installs an $allOperations handler that retries the dead-conn class once', async () => {
+    const { allOps } = capture();
+    expect(allOps).toBeDefined();
+
+    const query = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('Query read timeout'))
+      .mockResolvedValueOnce('ok');
+    const result = await allOps!({ query, args: { where: {} }, operation: 'findUnique' });
+
+    expect(result).toBe('ok');
+    expect(query).toHaveBeenCalledTimes(2);
+  });
+
+  it('does NOT retry a real statement-timeout through the extension', async () => {
+    const { allOps } = capture();
+    const query = vi.fn().mockRejectedValue({ code: '57014' });
+
+    await expect(allOps!({ query, args: {}, operation: 'create' })).rejects.toEqual({
+      code: '57014',
+    });
+    expect(query).toHaveBeenCalledTimes(1);
   });
 });

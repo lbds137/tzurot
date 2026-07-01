@@ -102,7 +102,9 @@ describe('fastPoolConnectionOptions', () => {
     expect(cfg.poolOverrides).toMatchObject({
       connectionTimeoutMillis: FAST_POOL_DEFAULTS.CONNECTION_TIMEOUT_MS,
       query_timeout: FAST_POOL_DEFAULTS.QUERY_TIMEOUT_MS,
+      idleTimeoutMillis: FAST_POOL_DEFAULTS.IDLE_TIMEOUT_MS,
       keepAlive: true,
+      keepAliveInitialDelayMillis: FAST_POOL_DEFAULTS.KEEPALIVE_INITIAL_DELAY_MS,
     });
     expect(cfg.poolOverrides.options).toBe(
       `-c statement_timeout=${FAST_POOL_DEFAULTS.STATEMENT_TIMEOUT_MS} ` +
@@ -133,7 +135,7 @@ describe('fastPoolConnectionOptions', () => {
         DB_FAST_STATEMENT_TIMEOUT_MS: '3000',
       })
     ).toThrow(/ladder violated/);
-    // statement >= query_timeout (default query is 6000)
+    // statement >= query_timeout (default query is 3000)
     expect(() => fastPoolConnectionOptions({ DB_FAST_STATEMENT_TIMEOUT_MS: '9000' })).toThrow(
       /ladder violated/
     );
