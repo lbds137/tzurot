@@ -70,9 +70,18 @@ interface RawConfigList {
   model: string;
   kind: string;
   isGlobal: boolean;
+  ownerId: string;
+}
+
+/**
+ * A list config with its default flags DERIVED from the AdminSettings pointers
+ * (S3) by {@link LlmConfigService.list}'s `applyDefaultFlags` — NOT read from the
+ * (dead, pending-DROP) `isDefault`/`isFreeDefault` columns. This is the shape
+ * `list()` returns and `formatConfigSummary` consumes.
+ */
+interface RawConfigListWithFlags extends RawConfigList {
   isDefault: boolean;
   isFreeDefault: boolean;
-  ownerId: string;
 }
 
 /**
@@ -181,7 +190,7 @@ export class LlmConfigService {
   async list(
     scope: LlmConfigScope,
     kind: ConfigKind | 'all' = DEFAULT_CONFIG_KIND
-  ): Promise<RawConfigList[]> {
+  ): Promise<RawConfigListWithFlags[]> {
     // Queries are scoped to the requested `kind` (default 'text'); the `'all'`
     // sentinel drops the filter so browse can list text + vision in one call
     // (each row carries `kind` in the summary). The autocomplete picker still
@@ -197,7 +206,7 @@ export class LlmConfigService {
     // pointer), so they're stale. Derive both flags — and the defaults-first
     // ordering — from the live pointers here. (isGlobal stays a real column.)
     const { globalDefaultIds, freeDefaultIds } = await this.getDefaultPointerSets();
-    const applyDefaultFlags = (raw: RawConfigList): RawConfigList => ({
+    const applyDefaultFlags = (raw: RawConfigList): RawConfigListWithFlags => ({
       ...raw,
       isDefault: globalDefaultIds.has(raw.id),
       isFreeDefault: freeDefaultIds.has(raw.id),
@@ -308,7 +317,9 @@ export class LlmConfigService {
           description: data.description ?? null,
           ownerId,
           isGlobal,
-          isDefault: false,
+          // isDefault/isFreeDefault omitted — the schema @default(false) fills
+          // them. Default-ness lives on the AdminSettings pointers (S3), never
+          // written here; these columns are dead pending their DROP.
           provider: data.provider ?? LLM_CONFIG_DEFAULTS.provider,
           model: data.model.trim(),
           // Stamp the requested kind (Zod defaults it to 'text'). Per-kind capability
@@ -671,7 +682,7 @@ export class LlmConfigService {
    * UUID, and the user-facing list would otherwise expose other users' owner
    * IDs). Mirrors `formatConfigDetail`'s explicit-projection discipline.
    */
-  formatConfigSummary(raw: RawConfigList): FormattedConfigSummary {
+  formatConfigSummary(raw: RawConfigListWithFlags): FormattedConfigSummary {
     return {
       id: raw.id,
       name: raw.name,
