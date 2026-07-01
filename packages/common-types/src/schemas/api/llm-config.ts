@@ -278,6 +278,14 @@ export const LlmConfigDetailSchema = LlmConfigSummarySchema.omit({
   // the detail/dashboard path doesn't carry it yet (add when the dashboard
   // wants a vision badge). Omitted so detail handlers needn't compute it.
   supportsVision: true,
+  // `isDefault`/`isFreeDefault` are pointer-relationship flags (which config the
+  // AdminSettings global/free pointers target), NOT properties of the config
+  // entity. The list summary carries them (derived from the pointers) for the
+  // ⭐/🆓 browse badges; the canonical detail representation intentionally does
+  // not — nothing reads them off the detail, and deriving them would cost a
+  // pointer fetch per detail GET. See S4a.
+  isDefault: true,
+  isFreeDefault: true,
 }).extend({
   contextWindowTokens: z.number().int(),
   modelContextLength: z.number().int().optional(),

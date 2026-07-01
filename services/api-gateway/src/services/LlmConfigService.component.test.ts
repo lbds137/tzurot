@@ -662,8 +662,7 @@ describe('LlmConfigService Integration', () => {
         provider: 'openrouter',
         kind: 'text',
         isGlobal: true,
-        isDefault: false,
-        isFreeDefault: false,
+        // isDefault/isFreeDefault intentionally absent from the detail — see S4a.
         memoryScoreThreshold: 0.8,
         memoryLimit: 100,
         contextWindowTokens: 128000,

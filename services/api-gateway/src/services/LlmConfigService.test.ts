@@ -893,8 +893,9 @@ describe('LlmConfigService', () => {
         provider: 'openrouter',
         kind: 'text',
         isGlobal: true,
-        isDefault: false,
-        isFreeDefault: false,
+        // isDefault/isFreeDefault are intentionally NOT on the detail response —
+        // default-ness is an AdminSettings pointer relationship, carried on the
+        // list summary (for badges), not the canonical config detail. See S4a.
         memoryScoreThreshold: 0.75,
         memoryLimit: 20,
         contextWindowTokens: 131072,
