@@ -4,21 +4,26 @@
  * Per-user daily cap on the **broad free-vision fallback** — the path where an
  * authenticated user who can't auth their vision provider is downgraded to the
  * free vision model on the bot's SYSTEM OpenRouter key (see
- * `resolveVisionConfig`).
+ * `resolveBroadFreeFallback`, called per fallback tier).
  *
  * **Why this exists**: the broad fallback lets any authenticated user (including
  * a throwaway account that set a dummy key for any provider) route vision through
  * the owner's system OpenRouter key. The forced free model means no *direct*
  * dollar cost, but it consumes the shared OpenRouter free-tier rate limit — so a
  * few heavy users could starve genuine guests. This cap bounds each user's daily
- * consumption of that shared resource. Once a user exceeds the cap,
- * `resolveVisionConfig` fail-fasts (the "[Image unavailable]" placeholder)
- * instead of serving another free-fallback vision call.
+ * consumption of that shared resource. Once a user exceeds the cap, the tier's
+ * auth resolution fail-fasts and the fallback loop advances / renders the
+ * "[Image unavailable]" placeholder instead of serving another free-fallback call.
  *
- * **Counted per resolution, not per image**: `resolveVisionConfig` is invoked
- * once per vision-processing event (a message/batch may carry several images but
- * counts once), and only when the resolved source is the SYSTEM key — a user
- * downgrading onto their *own* OpenRouter key never touches this quota.
+ * **Counted per image (per system-key vision call)**: the fallback loop
+ * (`describeImageWithFallback`) creates a fresh quota tracker per ATTACHMENT, so each
+ * image that downgrades onto the SYSTEM key consumes one unit — a multi-image message
+ * spends one unit per image. This is deliberate: each image is a separate system-key
+ * vision call, so per-image accounting matches actual shared-resource cost (the earlier
+ * per-request accounting undercounted a 10-image message as 1). Only SYSTEM-key
+ * downgrades count; a user downgrading onto their *own* OpenRouter key never touches
+ * this quota, and genuine guests (who resolve the free model directly, not via the
+ * broad-free-fallback) don't either.
  *
  * **Fixed UTC-day window**: the Redis key embeds the UTC date, so the count
  * auto-resets at UTC midnight (a fresh key). `EXPIRE` is set every call purely

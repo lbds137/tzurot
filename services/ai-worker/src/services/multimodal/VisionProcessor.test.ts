@@ -7,11 +7,13 @@ import {
   hasVisionSupport,
   describeImage,
   ATTACHMENT_BOUND_FAILURE_CATEGORIES,
+  VISION_TERMINATE_CATEGORIES,
   FAILURE_LABELS,
 } from './VisionProcessor.js';
 import type { AttachmentMetadata, LoadedPersonality } from '@tzurot/common-types';
 import {
   AI_DEFAULTS,
+  ApiErrorCategory,
   ERROR_MESSAGES,
   INTERVALS,
   MODEL_DEFAULTS,
@@ -1385,6 +1387,48 @@ describe('VisionProcessor', () => {
         expect(FAILURE_LABELS[category]).toBeDefined();
         expect(FAILURE_LABELS[category]?.length ?? 0).toBeGreaterThan(0);
       }
+    });
+  });
+
+  describe('terminate-set / attachment-bound-set invariant', () => {
+    // `VISION_TERMINATE_CATEGORIES` (the categories where the fallback LOOP stops trying
+    // other tiers) and `ATTACHMENT_BOUND_FAILURE_CATEGORIES` (the categories the negative
+    // cache treats as image-bound for TTL purposes) encode two RELATED-but-distinct
+    // decisions. The relationship is a deliberate strict subset: every "give up, the image
+    // is the problem" category is also "bound to this attachment," but MODEL_NOT_FOUND is
+    // attachment-bound for cache-TTL purposes yet is exactly what the loop routes around
+    // (a different tier is a different model). These tests pin that relationship so a future
+    // edit to either set surfaces the divergence at PR time.
+
+    it('VISION_TERMINATE_CATEGORIES is a strict subset of ATTACHMENT_BOUND_FAILURE_CATEGORIES', () => {
+      for (const category of VISION_TERMINATE_CATEGORIES) {
+        expect(ATTACHMENT_BOUND_FAILURE_CATEGORIES.has(category)).toBe(true);
+      }
+      // Strict (proper) subset: the attachment-bound set must have at least one member the
+      // terminate set lacks (that member is asserted to be MODEL_NOT_FOUND below).
+      expect(ATTACHMENT_BOUND_FAILURE_CATEGORIES.size).toBeGreaterThan(
+        VISION_TERMINATE_CATEGORIES.size
+      );
+    });
+
+    it('the set difference (attachment-bound \\ terminate) is exactly { MODEL_NOT_FOUND }', () => {
+      // MODEL_NOT_FOUND is the sole attachment-bound category the fallback loop treats as
+      // RETRYABLE: a missing model won't reappear for THIS attachment on the SAME model, but
+      // a different tier is a different model, so the loop advances rather than terminating.
+      const difference = [...ATTACHMENT_BOUND_FAILURE_CATEGORIES].filter(
+        category => !VISION_TERMINATE_CATEGORIES.has(category)
+      );
+      expect(difference).toEqual([ApiErrorCategory.MODEL_NOT_FOUND]);
+    });
+
+    it('VISION_TERMINATE_CATEGORIES contains exactly CONTENT_POLICY, CENSORED, MEDIA_NOT_FOUND', () => {
+      expect(new Set(VISION_TERMINATE_CATEGORIES)).toEqual(
+        new Set([
+          ApiErrorCategory.CONTENT_POLICY,
+          ApiErrorCategory.CENSORED,
+          ApiErrorCategory.MEDIA_NOT_FOUND,
+        ])
+      );
     });
   });
 });

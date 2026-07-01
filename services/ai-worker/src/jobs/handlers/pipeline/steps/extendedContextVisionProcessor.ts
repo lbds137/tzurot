@@ -17,10 +17,6 @@ import {
 import type { ApiKeyResolver } from '../../../../services/ApiKeyResolver.js';
 import type { GenerationContext } from '../types.js';
 import type { ProcessedAttachment } from '../../../../services/MultimodalProcessor.js';
-import {
-  resolveVisionConfig,
-  buildVisionAuthFailureResults,
-} from '../../../../services/multimodal/visionAuthResolver.js';
 
 const logger = createLogger('ExtendedContextVisionProcessor');
 
@@ -43,16 +39,14 @@ export interface CrossProviderVisionOptions {
 }
 
 /**
- * Cross-provider vision path: resolve auth + model atomically via
- * `resolveVisionConfig`, then process.
+ * Cross-provider vision path: forward the auth INPUTS bundle to `processAttachments`,
+ * which routes images through the fallback loop (`describeImageWithFallback`). All
+ * per-tier auth resolution, the free-tier downgrade, and the "configure your key"
+ * placeholder now live INSIDE that loop — this function no longer resolves anything.
  *
- * The single try/catch covers the whole block (resolution + processing) so a
- * transient resolver throw degrades the same as a `processAttachments` throw —
- * return the fail-fast placeholder (or empty on a hard processing error), log,
- * and let the chat continue. `resolveVisionConfig` may force a free-tier
- * downgrade for an authenticated user who can't auth the vision provider — that
- * forced model is threaded through `processAttachments.model` so `describeImage`
- * honors it rather than re-selecting the paid fallback.
+ * The try/catch is a safety net for a genuinely unexpected `processAttachments` throw
+ * (the loop itself never throws — it degrades each image to a placeholder in-band): on
+ * such a throw we log and return `[]` so the chat continues without the images.
  */
 export async function processCrossProviderVisionImages(
   opts: CrossProviderVisionOptions
@@ -70,41 +64,26 @@ export async function processCrossProviderVisionImages(
     processAttachments,
   } = opts;
   try {
-    const visionResult = await resolveVisionConfig({
-      personality,
-      mainProvider,
-      mainApiKey: userApiKey,
-      isGuestMode,
-      userId,
-      apiKeyResolver,
-    });
-    if (visionResult.kind === 'failFast') {
-      // Even the free-model system fallback is unavailable (no system
-      // OpenRouter key). Return synthetic "configure your key" placeholders so
-      // the user sees a stable fallback string instead of dropped images.
-      return buildVisionAuthFailureResults(imageAttachments);
-    }
-    const { config } = visionResult;
+    // Phase-4: hand the auth INPUTS to the fallback loop (via processAttachments) rather
+    // than pre-resolving one config here. The loop resolves per-tier auth, retries down
+    // the chain on a retryable failure, and renders a stable placeholder on exhaustion —
+    // including the "configure your key" guidance the old fail-fast branch produced.
     const processed = await processAttachments(imageAttachments, personality, {
-      isGuestMode: config.isGuestMode,
-      userApiKey: config.apiKey,
+      isGuestMode,
       sttDispatch,
-      visionProvider: config.provider,
-      model: config.model,
-      loggingContext: {
+      visionAuth: {
+        personality,
+        mainProvider,
+        mainApiKey: userApiKey,
+        isGuestMode,
         userId,
-        apiKeySource: config.source,
-        provider: config.provider,
+        apiKeyResolver,
       },
+      loggingContext: { userId },
     });
 
     logger.info(
-      {
-        jobId,
-        processedCount: processed.length,
-        visionProvider: config.provider,
-        visionModel: config.model,
-      },
+      { jobId, processedCount: processed.length },
       'Extended context images processed successfully'
     );
 
