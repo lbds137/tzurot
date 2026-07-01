@@ -54,6 +54,8 @@ function makeStub(): PersonaClientStub {
 
 describe('handleOverrideSet', () => {
   const mockReply = vi.fn();
+  const mockDeferReply = vi.fn();
+  const mockEditReply = vi.fn();
   const mockShowModal = vi.fn();
   let stub: PersonaClientStub;
 
@@ -69,6 +71,20 @@ describe('handleOverrideSet', () => {
       user: { id: '123456789', username: 'testuser' },
       interaction: {
         user: { id: '123456789', username: 'testuser' },
+        // showModal is wrapped via showModalWithTimeoutCatch(context.interaction),
+        // so the mock lives on the raw interaction, not the context passthrough.
+        showModal: mockShowModal,
+        followUp: vi.fn(),
+        // editReply lives on the raw interaction — ModalCommandContext exposes
+        // deferReply but not editReply, so setExistingOverride edits via
+        // context.interaction.editReply.
+        editReply: mockEditReply,
+        // The catch branches on ack state; deferred reflects whether the
+        // setExisting path called deferReply.
+        get deferred() {
+          return mockDeferReply.mock.calls.length > 0;
+        },
+        replied: false,
         options: {
           getString: (name: string) => {
             if (name === 'character') return personalitySlug;
@@ -78,7 +94,7 @@ describe('handleOverrideSet', () => {
         },
       },
       reply: mockReply,
-      showModal: mockShowModal,
+      deferReply: mockDeferReply,
     } as unknown as Parameters<typeof handleOverrideSet>[0];
   }
 
@@ -95,9 +111,11 @@ describe('handleOverrideSet', () => {
     await handleOverrideSet(createMockContext('lilith', 'persona-123'));
 
     expect(stub.setPersonaOverride).toHaveBeenCalledWith('lilith', { personaId: 'persona-123' });
-    expect(mockReply).toHaveBeenCalledWith({
+    // Ack-first: deferReply before the gateway write; result lands via editReply.
+    expect(mockDeferReply).toHaveBeenCalledWith({ ephemeral: true });
+    expect(mockReply).not.toHaveBeenCalled();
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Persona override set'),
-      flags: MessageFlags.Ephemeral,
     });
   });
 
@@ -117,14 +135,56 @@ describe('handleOverrideSet', () => {
     expect(mockReply).not.toHaveBeenCalled();
   });
 
+  it('replies (not showModal) when the create-modal prep lookup fails', async () => {
+    // showCreateOverrideModal's !infoResult.ok branch: getPersonaOverride errors
+    // before the modal is built, so it replies with the mapped error and never
+    // shows a modal.
+    stub.getPersonaOverride.mockResolvedValue(makeErr(404, 'Personality not found'));
+
+    await handleOverrideSet(createMockContext('lilith', CREATE_NEW_PERSONA_VALUE));
+
+    expect(mockShowModal).not.toHaveBeenCalled();
+    expect(mockReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('Character "lilith" not found'),
+      flags: MessageFlags.Ephemeral,
+    });
+  });
+
+  it('falls back to reply in the catch when the modal branch throws un-acked', async () => {
+    // getPersonaOverride rejecting makes showCreateOverrideModal throw before any
+    // ack, so handleOverrideSet's catch runs on a NOT-deferred interaction → reply
+    // (not editReply). Exercises the catch's else branch.
+    stub.getPersonaOverride.mockRejectedValue(new Error('Network error'));
+
+    await handleOverrideSet(createMockContext('lilith', CREATE_NEW_PERSONA_VALUE));
+
+    expect(mockDeferReply).not.toHaveBeenCalled();
+    expect(mockEditReply).not.toHaveBeenCalled();
+    expect(mockReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('Failed to set persona override'),
+      flags: MessageFlags.Ephemeral,
+    });
+  });
+
+  it('surfaces the generic failure message when the gateway error is unmapped', async () => {
+    // setExistingOverride's !result.ok + mapOverrideError-returns-null branch: an
+    // unrecognized gateway error falls through to the generic editReply.
+    stub.setPersonaOverride.mockResolvedValue(makeErr(500, 'Internal server error'));
+
+    await handleOverrideSet(createMockContext('lilith', 'persona-123'));
+
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('Failed to set persona override'),
+    });
+  });
+
   it('should error if personality not found', async () => {
     stub.setPersonaOverride.mockResolvedValue(makeErr(404, 'Personality not found'));
 
     await handleOverrideSet(createMockContext('nonexistent', 'persona-123'));
 
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Character "nonexistent" not found'),
-      flags: MessageFlags.Ephemeral,
     });
   });
 
@@ -133,9 +193,8 @@ describe('handleOverrideSet', () => {
 
     await handleOverrideSet(createMockContext('lilith', 'persona-123'));
 
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining("don't have an account yet"),
-      flags: MessageFlags.Ephemeral,
     });
   });
 
@@ -144,9 +203,8 @@ describe('handleOverrideSet', () => {
 
     await handleOverrideSet(createMockContext('lilith', 'other-persona'));
 
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Persona not found'),
-      flags: MessageFlags.Ephemeral,
     });
   });
 
@@ -155,9 +213,9 @@ describe('handleOverrideSet', () => {
 
     await handleOverrideSet(createMockContext('lilith', 'persona-123'));
 
-    expect(mockReply).toHaveBeenCalledWith({
+    // setPersonaOverride threw after the deferReply, so the catch is post-defer → editReply.
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Failed to set persona override'),
-      flags: MessageFlags.Ephemeral,
     });
   });
 

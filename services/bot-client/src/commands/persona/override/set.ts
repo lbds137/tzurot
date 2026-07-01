@@ -29,6 +29,8 @@ import {
   isAutocompleteErrorSentinel,
 } from '../../../utils/apiCheck.js';
 import { clientsFor } from '../../../utils/gatewayClients.js';
+import { showModalWithTimeoutCatch } from '../../../utils/dashboard/showModalWithTimeoutCatch.js';
+import { ackWithTimeoutCatch } from '../../../utils/dashboard/ackWithTimeoutCatch.js';
 
 const logger = createLogger('persona-override-set');
 
@@ -61,10 +63,20 @@ async function showCreateOverrideModal(
 
   if (!infoResult.ok) {
     const errorMsg = mapOverrideError(infoResult.error, personalitySlug);
-    await context.reply({
-      content: errorMsg ?? '❌ Failed to prepare persona creation. Please try again later.',
-      flags: MessageFlags.Ephemeral,
-    });
+    const content = errorMsg ?? '❌ Failed to prepare persona creation. Please try again later.';
+    // getPersonaOverride already ate into the budget before this ack — same
+    // 10062 risk as the showModal success path below, so wrap it too.
+    await ackWithTimeoutCatch(
+      context.interaction,
+      () => context.reply({ content, flags: MessageFlags.Ephemeral }),
+      {
+        source: 'handleOverrideSet/showCreateOverrideModal',
+        userId: discordId,
+        entityId: personalitySlug,
+        sectionId: 'override-create-error',
+      },
+      content
+    );
     return;
   }
 
@@ -86,7 +98,21 @@ async function showCreateOverrideModal(
   });
   modal.addComponents(...inputFields);
 
-  await context.showModal(modal);
+  // The getPersonaOverride fetch above already ate into the 3-second budget, and
+  // this modal can't ack-first — its customId needs the fetched personality UUID.
+  // Wrap showModal so a budget-blown 10062 degrades to a followUp instead of a
+  // silent "Interaction Failed".
+  await showModalWithTimeoutCatch(
+    context.interaction,
+    modal,
+    {
+      source: 'handleOverrideSet/showCreateOverrideModal',
+      userId: discordId,
+      entityId: personality.id,
+      sectionId: 'override-create',
+    },
+    '⏳ That took too long — please run `/persona override set` again.'
+  );
   logger.info(
     { userId: discordId, personalityId: personality.id },
     'Showed create-for-override modal'
@@ -100,22 +126,26 @@ async function setExistingOverride(
   personalitySlug: string,
   personaId: string
 ): Promise<void> {
+  // Ack first (3-second rule): deferReply before the setPersonaOverride gateway
+  // write, so a slow write can't blow the budget before the ack. Ephemeral — a
+  // private confirmation. Every response below is editReply.
+  await context.deferReply({ ephemeral: true });
+
   const { userClient } = clientsFor(context.interaction);
   const result = await userClient.setPersonaOverride(personalitySlug, { personaId });
 
   if (!result.ok) {
     const errorMsg = mapOverrideError(result.error, personalitySlug);
     if (errorMsg !== null) {
-      await context.reply({ content: errorMsg, flags: MessageFlags.Ephemeral });
+      await context.interaction.editReply({ content: errorMsg });
       return;
     }
     logger.warn(
       { userId: discordId, personalitySlug, personaId, error: result.error },
       'Failed to set override'
     );
-    await context.reply({
+    await context.interaction.editReply({
       content: '❌ Failed to set persona override. Please try again later.',
-      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -129,9 +159,8 @@ async function setExistingOverride(
     'Set override persona'
   );
 
-  await context.reply({
+  await context.interaction.editReply({
     content: `✅ **Persona override set for ${personalityName}!**\n\n📋 Using: **${displayName}**\n\nThis persona will be used when talking to ${personalityName} instead of your default persona.`,
-    flags: MessageFlags.Ephemeral,
   });
 }
 
@@ -160,10 +189,15 @@ export async function handleOverrideSet(context: ModalCommandContext): Promise<v
     }
   } catch (error) {
     logger.error({ err: error, userId: discordId }, 'Failed to set override');
-    await context.reply({
-      content: '❌ Failed to set persona override. Please try again later.',
-      flags: MessageFlags.Ephemeral,
-    });
+    const content = '❌ Failed to set persona override. Please try again later.';
+    // setExistingOverride defers before its gateway write, so an error from that
+    // branch arrives here already-acked → editReply. The showCreateOverrideModal
+    // branch only throws before its showModal ack → reply.
+    if (context.interaction.deferred || context.interaction.replied) {
+      await context.interaction.editReply({ content });
+    } else {
+      await context.reply({ content, flags: MessageFlags.Ephemeral });
+    }
   }
 }
 
