@@ -180,8 +180,10 @@ export const LLM_CONFIG_LIST_SELECT = {
   // badge/filter by kind without a per-kind round-trip.
   kind: true,
   isGlobal: true,
-  isDefault: true,
-  isFreeDefault: true,
+  // isDefault/isFreeDefault are NOT selected: default-ness is an AdminSettings
+  // pointer relationship (S3), and LlmConfigService.list derives the summary
+  // flags from those pointers (applyDefaultFlags), not these columns. The
+  // columns are dead pending their DROP; nothing reads them off a config row.
   ownerId: true,
 } as const;
 
