@@ -39,6 +39,7 @@ function createBaseModelOverrideSummary(
     configId: DEFAULT_CONFIG_ID,
     configName: 'TestConfig',
     kind: 'text',
+    supportsVision: false,
   };
   return deepMerge(base, overrides);
 }
