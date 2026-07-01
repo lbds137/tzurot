@@ -23,7 +23,11 @@ import {
   type LoadedPersonality,
   type AttachmentMetadata,
 } from '@tzurot/common-types';
-import { resolveVisionConfig, buildVisionAuthFailureResults } from './visionAuthResolver.js';
+import {
+  resolveVisionConfig,
+  resolveVisionAuth,
+  buildVisionAuthFailureResults,
+} from './visionAuthResolver.js';
 import { selectVisionModel } from './VisionProcessor.js';
 import type { ApiKeyResolver } from '../ApiKeyResolver.js';
 
@@ -399,6 +403,56 @@ describe('resolveVisionConfig', () => {
 
       expect(result).toEqual({ kind: 'failFast', provider: AIProvider.OpenRouter });
     });
+  });
+});
+
+describe('resolveVisionAuth (direct, model-parameterized)', () => {
+  // resolveVisionConfig delegates to resolveVisionAuth after computing the natural
+  // model; these lock the parameterization the Phase-4 fallback loop relies on —
+  // the caller supplies the tier model, and resolveVisionAuth honors it verbatim
+  // WITHOUT consulting selectVisionModel.
+  it('honors the caller-supplied targetModel (does not call selectVisionModel)', async () => {
+    mockTryResolveUserKey.mockResolvedValue('user-or-key');
+
+    const result = await resolveVisionAuth('fallback/tier-model', AIProvider.OpenRouter, {
+      personality,
+      mainProvider: AIProvider.OpenRouter,
+      mainApiKey: '', // empty → skip fast path → per-provider resolution
+      isGuestMode: false,
+      userId: 'user-1',
+      apiKeyResolver: mockResolver,
+    });
+
+    expect(result.kind).toBe('resolved');
+    if (result.kind === 'resolved') {
+      expect(result.config.model).toBe('fallback/tier-model');
+      expect(result.config.provider).toBe(AIProvider.OpenRouter);
+    }
+    // The tier model is provided by the caller — resolveVisionAuth must not re-derive it.
+    expect(mockSelectVisionModel).not.toHaveBeenCalled();
+  });
+
+  it('reuses the main key on the same-provider fast path with the target model', async () => {
+    const result = await resolveVisionAuth('fallback/tier-model', AIProvider.OpenRouter, {
+      personality,
+      mainProvider: AIProvider.OpenRouter,
+      mainApiKey: 'main-or-key',
+      isGuestMode: false,
+      userId: 'user-1',
+      apiKeyResolver: mockResolver,
+    });
+
+    expect(result).toEqual({
+      kind: 'resolved',
+      config: {
+        apiKey: 'main-or-key',
+        provider: AIProvider.OpenRouter,
+        model: 'fallback/tier-model',
+        source: 'user',
+        isGuestMode: false,
+      },
+    });
+    expect(mockSelectVisionModel).not.toHaveBeenCalled();
   });
 });
 
