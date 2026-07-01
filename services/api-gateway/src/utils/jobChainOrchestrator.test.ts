@@ -916,9 +916,26 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
 
     // The vision cascade (VisionConfigResolver, kind='vision') stamps
     // personality.visionModel INDEPENDENTLY — its config.model IS the vision model.
-    const visionResolverReturning = (model: string): VisionConfigResolver =>
+    // `fallbacks` seeds the two DB-default readers the stamp also consults for the
+    // Phase-4 visionFallbackModels chain (default: neither set → readers return null).
+    const visionResolverReturning = (
+      model: string,
+      fallbacks: { global?: string; free?: string } = {}
+    ): VisionConfigResolver =>
       ({
         resolveConfig: vi.fn().mockResolvedValue({ config: { model }, source: 'personality' }),
+        getGlobalDefaultConfig: vi
+          .fn()
+          .mockResolvedValue(
+            fallbacks.global !== undefined
+              ? { model: fallbacks.global, source: 'personality' }
+              : null
+          ),
+        getFreeDefaultVisionConfig: vi
+          .fn()
+          .mockResolvedValue(
+            fallbacks.free !== undefined ? { model: fallbacks.free, source: 'personality' } : null
+          ),
       }) as unknown as VisionConfigResolver;
 
     it('stamps the resolved text model + vision model onto BOTH the LLM job and the image-description child', async () => {
@@ -979,6 +996,8 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
           config: { model: 'qwen/qwen3.5-397b-a17b', source: 'hardcoded' },
           source: 'hardcoded',
         }),
+        getGlobalDefaultConfig: vi.fn().mockResolvedValue(null),
+        getFreeDefaultVisionConfig: vi.fn().mockResolvedValue(null),
       } as unknown as VisionConfigResolver;
 
       await createJobChain({
@@ -993,6 +1012,61 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
       const flowCall = (flowProducer.add as any).mock.calls[0][0];
       // The 397B hardcoded fallback is NOT stamped → visionModel stays unset.
       expect(flowCall.data.personality.visionModel).toBeUndefined();
+    });
+
+    it('stamps the visionFallbackModels chain from the global + free vision defaults (Phase 4)', async () => {
+      await createJobChain({
+        requestId: 'req-vision-fallbacks',
+        personality: mockPersonality,
+        message: 'What is this?',
+        context: imageAttachmentContext(),
+        responseDestination: mockResponseDestination,
+        visionConfigResolver: visionResolverReturning('primary-vision', {
+          global: 'global-vision-default',
+          free: 'free-vision-default',
+        }),
+      });
+
+      const flowCall = (flowProducer.add as any).mock.calls[0][0];
+      expect(flowCall.data.personality.visionModel).toBe('primary-vision');
+      // The DB-resolved fallback tiers ride along for the worker's runtime retry loop,
+      // in global→free order — the worker composes its local native-main + hardcoded tiers.
+      expect(flowCall.data.personality.visionFallbackModels).toEqual([
+        'global-vision-default',
+        'free-vision-default',
+      ]);
+    });
+
+    it('dedupes the fallback chain when the global + free defaults are the same model', async () => {
+      await createJobChain({
+        requestId: 'req-vision-fallbacks-dedup',
+        personality: mockPersonality,
+        message: 'hi',
+        context: imageAttachmentContext(),
+        responseDestination: mockResponseDestination,
+        visionConfigResolver: visionResolverReturning('primary-vision', {
+          global: 'same-model',
+          free: 'same-model',
+        }),
+      });
+
+      const flowCall = (flowProducer.add as any).mock.calls[0][0];
+      expect(flowCall.data.personality.visionFallbackModels).toEqual(['same-model']);
+    });
+
+    it('omits visionFallbackModels entirely when no DB vision defaults are set', async () => {
+      await createJobChain({
+        requestId: 'req-vision-no-defaults',
+        personality: mockPersonality,
+        message: 'hi',
+        context: imageAttachmentContext(),
+        responseDestination: mockResponseDestination,
+        visionConfigResolver: visionResolverReturning('primary-vision'), // no global/free
+      });
+
+      const flowCall = (flowProducer.add as any).mock.calls[0][0];
+      // Absent, not an empty array — the worker still has its local T2/T5 tiers.
+      expect(flowCall.data.personality.visionFallbackModels).toBeUndefined();
     });
 
     it('does NOT overwrite provider (AuthStep auto-promote relies on the configured provider)', async () => {
@@ -1086,8 +1160,12 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
         ...mockPersonality,
         visionModel: 'seed-vision',
       };
+      // resolveConfig is the sole thrower — the readers succeed so the test exercises
+      // the resolveConfig-throws path specifically (not an incidental missing-method throw).
       const visionConfigResolver = {
         resolveConfig: vi.fn().mockRejectedValue(new Error('db down')),
+        getGlobalDefaultConfig: vi.fn().mockResolvedValue(null),
+        getFreeDefaultVisionConfig: vi.fn().mockResolvedValue(null),
       } as unknown as VisionConfigResolver;
 
       const jobId = await createJobChain({

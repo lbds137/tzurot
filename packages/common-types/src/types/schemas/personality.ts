@@ -46,6 +46,17 @@ export const loadedPersonalitySchema = z.object({
   model: z.string(),
   visionModel: z.string().optional(),
   /**
+   * Ordered vision-model fallback chain the worker retries down when the primary
+   * vision model FAILS at runtime (Phase 4 auto-fallback). Gateway-stamped from the
+   * DB-resolved defaults (`AdminSettings.globalDefaultVisionConfigId` →
+   * `freeDefaultVisionConfigId`) since the worker has no Prisma — all DB resolution
+   * stays gateway-side, the worker just walks the list. Absent/empty = no admin
+   * fallback tiers configured; the worker still has its local T2 (native main-model
+   * vision) and T5 (hardcoded floor) tiers. The worker composes + dedupes the full
+   * chain; this carries only the tiers it can't compute locally.
+   */
+  visionFallbackModels: z.array(z.string()).optional(),
+  /**
    * Provider routing key (e.g. 'openrouter', 'zai-coding'). Drives
    * provider-tier baseURL selection in ModelFactory and any auto-fallthrough
    * decisions in ProviderRouter. String-typed (not the AIProvider enum)
