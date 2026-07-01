@@ -147,6 +147,9 @@ Don't file Zod schema tests under "contract."
 4. Mock all external dependencies - Discord, Redis, Prisma, AI
 5. Use fake timers - No real delays in tests
 6. **Tests must be self-contained** - Each `it()` block sets up its own data; never depend on side effects from prior tests. Use `beforeAll`/`beforeEach` in a sub-describe for shared fixtures.
+7. **Assert what crosses a mocked seam** - When you `vi.mock` a downstream module/collaborator, at least one test MUST assert the arguments that cross that seam (`expect(mockX).toHaveBeenCalledWith(...)`), not only the orchestrator's return value. A test that mocks the seam it's meant to verify **cannot catch a wiring bug at that seam** — the mocked collaborator returns the same thing whether the caller forwarded the right data or silently dropped it. For a multi-module flow (A → B → C where each is unit-tested with the next mocked), also keep ONE **wiring/seam test** that runs the real chain end-to-end and mocks ONLY the external boundary (network/DB/Redis/model client). Reference: `services/ai-worker/src/services/multimodal/visionFallbackChain.test.ts`.
+
+   **Why this rule exists**: a feature shipped with green coverage but two real bugs (a dropped forwarded field between two functions, and a wrong output for an untested failure _sequence_) that every unit test missed — because they each mocked the seam. Line coverage marks the buggy lines "covered" (they executed); it has no concept of "this covered line forwarded the wrong thing." The only gate that catches a seam bug is a test that _asserts across the seam_ or runs the seam for real. Established 2026-07-01 after PR #1429's review caught the seam bugs by hand.
 
 **All packages are enforced by `structure.test.ts`** — services, common-types, embeddings, AND tooling. Adding a new `.ts` file without a colocated `.test.ts` will fail the test suite unless the file matches an exclusion pattern (types, constants, thin CLI wrappers, etc.).
 
