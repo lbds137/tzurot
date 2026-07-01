@@ -5,6 +5,7 @@ import type { ReferencedMessage } from '../types/schemas/message.js';
 import {
   appendVoiceTranscripts,
   buildDedupedReferenceStub,
+  capDedupText,
   isBotAuthoredReference,
   isDuplicateReference,
   stripBotVoiceAttachments,
@@ -117,6 +118,22 @@ function fullReference(content: string, botAuthored = false): ReferencedMessage 
     isForwarded: true,
   };
 }
+
+describe('capDedupText', () => {
+  it('returns text at or under the limit unchanged (no ellipsis)', () => {
+    const short = 'X'.repeat(TEXT_LIMITS.DEDUP_STUB_CONTENT);
+    expect(capDedupText(short)).toBe(short);
+    expect(capDedupText('hi')).toBe('hi');
+    expect(capDedupText('')).toBe('');
+  });
+
+  it('caps over-limit text to DEDUP_STUB_CONTENT chars + ellipsis', () => {
+    const long = 'X'.repeat(TEXT_LIMITS.DEDUP_STUB_CONTENT + 100);
+    const capped = capDedupText(long);
+    expect(capped).toBe('X'.repeat(TEXT_LIMITS.DEDUP_STUB_CONTENT) + '...');
+    expect(capped).not.toContain('X'.repeat(TEXT_LIMITS.DEDUP_STUB_CONTENT + 1));
+  });
+});
 
 describe('buildDedupedReferenceStub', () => {
   it('strips embeds/location/flags and folds the attachment marker into content', () => {
