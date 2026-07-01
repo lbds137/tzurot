@@ -90,8 +90,7 @@ export interface VisionConfig {
  *   reflect what they were missing rather than the free-fallback provider.
  */
 export type VisionConfigResult =
-  | { kind: 'resolved'; config: VisionConfig }
-  | { kind: 'failFast'; provider: AIProvider };
+  { kind: 'resolved'; config: VisionConfig } | { kind: 'failFast'; provider: AIProvider };
 
 /**
  * Inputs for `resolveVisionConfig` — bundled into an options object to keep the
@@ -187,32 +186,30 @@ async function resolveBroadFreeFallback(
 }
 
 /**
- * Resolve the API key + provider + model for a vision call atomically.
+ * Resolve the API key + provider for a SPECIFIC vision model. Parameterized by the
+ * target model so a caller can resolve auth for ANY tier (Phase 4's runtime fallback
+ * loop), not just the primary — a cross-provider fallback and a free-tier downgrade
+ * each need their own key. `resolveVisionConfig` is the primary-model entry point that
+ * computes the natural model then delegates here.
  *
  * Branch order:
- * 1. Compute the natural vision model + provider via `selectVisionModel`.
- * 2. Same-provider fast path — reuse the upstream main-model key.
- * 3. Genuine guest (or unknown user) — system key for the vision provider.
- * 4. Authenticated user with a vision-provider key — use it.
- * 5. BROAD FREE FALLBACK — authenticated user lacking a vision-provider key
+ * 1. Same-provider fast path — reuse the upstream main-model key.
+ * 2. Genuine guest (or unknown user) — system key for the vision provider.
+ * 3. Authenticated user with a vision-provider key — use it.
+ * 4. BROAD FREE FALLBACK — authenticated user lacking a vision-provider key
  *    downgrades to the free vision model on the system OpenRouter key (instead
  *    of fail-fasting). Forces BOTH the free model AND its provider's system key
  *    so the system key never gets billed for a paid model.
- * 6. Fallback-of-fallback — if even the free-model system key is unavailable
+ * 5. Fallback-of-fallback — if even the free-model system key is unavailable
  *    (no system OpenRouter key configured), `failFast` so the caller emits the
  *    "configure your key" placeholder against the ORIGINAL vision provider.
  */
-export async function resolveVisionConfig(
+export async function resolveVisionAuth(
+  targetModel: string,
+  visionProvider: AIProvider,
   options: ResolveVisionConfigOptions
 ): Promise<VisionConfigResult> {
-  const { personality, mainProvider, mainApiKey, isGuestMode, userId, apiKeyResolver } = options;
-
-  // Compute the natural model with the same selection logic `describeImage`
-  // uses internally, so provider detection sees the actual model rather than
-  // the main model (e.g. main=glm-5.1 with no native vision falls through to
-  // the OpenRouter fallback model — its provider is OpenRouter, not z.ai).
-  const naturalModel = await selectVisionModel(personality, isGuestMode);
-  const visionProvider = detectVisionProvider(naturalModel);
+  const { mainProvider, mainApiKey, isGuestMode, userId, apiKeyResolver } = options;
 
   // Same-provider fast path — reuse the upstream-resolved key without a second
   // resolver call. Avoids redundant DB reads for the common case where main and
@@ -235,7 +232,7 @@ export async function resolveVisionConfig(
       config: {
         apiKey: mainApiKey,
         provider: visionProvider,
-        model: naturalModel,
+        model: targetModel,
         source: isGuestMode ? 'system' : 'user',
         isGuestMode,
       },
@@ -261,14 +258,14 @@ export async function resolveVisionConfig(
   // resolver) degrades to a fail-fast placeholder rather than propagating out of
   // the caller's vision pipeline. Mirrors the try/catch the upload-time path
   // historically had in `resolveVisionApiKey`. (Model selection runs before this
-  // block intentionally — `selectVisionModel`'s Redis reads already degrade to a
-  // pattern-matching fallback, so a genuine throw there is a real error worth
-  // surfacing, not masking as a placeholder.)
+  // block intentionally in `resolveVisionConfig` — `selectVisionModel`'s Redis
+  // reads already degrade to a pattern-matching fallback, so a genuine throw
+  // there is a real error worth surfacing, not masking as a placeholder.)
   try {
     if (treatAsGuest) {
       // Genuine guest — system key is the only path that works for them.
-      // `selectVisionModel` already returned the free model for guests, so
-      // `naturalModel` is correct here.
+      // For the primary path `selectVisionModel` already returned the free model,
+      // so `targetModel` is correct here.
       const result = await apiKeyResolver.resolveApiKey(userId, visionProvider);
       logger.info(
         { userId, visionProvider, mainProvider, source: result.source },
@@ -279,7 +276,7 @@ export async function resolveVisionConfig(
         config: {
           apiKey: result.apiKey,
           provider: visionProvider,
-          model: naturalModel,
+          model: targetModel,
           source: result.source,
           isGuestMode: result.isGuestMode,
         },
@@ -298,7 +295,7 @@ export async function resolveVisionConfig(
         config: {
           apiKey: userKey,
           provider: visionProvider,
-          model: naturalModel,
+          model: targetModel,
           source: 'user',
           isGuestMode: false,
         },
@@ -322,6 +319,24 @@ export async function resolveVisionConfig(
     );
     return { kind: 'failFast', provider: visionProvider };
   }
+}
+
+/**
+ * Resolve the API key + provider + model for the PRIMARY vision call atomically.
+ * Computes the natural vision model via `selectVisionModel`, then delegates auth
+ * resolution to `resolveVisionAuth`. (Phase 4's fallback loop calls `resolveVisionAuth`
+ * directly, once per tier, with that tier's model.)
+ */
+export async function resolveVisionConfig(
+  options: ResolveVisionConfigOptions
+): Promise<VisionConfigResult> {
+  // Compute the natural model with the same selection logic `describeImage`
+  // uses internally, so provider detection sees the actual model rather than
+  // the main model (e.g. main=glm-5.1 with no native vision falls through to
+  // the OpenRouter fallback model — its provider is OpenRouter, not z.ai).
+  const naturalModel = await selectVisionModel(options.personality, options.isGuestMode);
+  const visionProvider = detectVisionProvider(naturalModel);
+  return resolveVisionAuth(naturalModel, visionProvider, options);
 }
 
 /**
