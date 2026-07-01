@@ -24,6 +24,7 @@ import {
   DiscordAPIError,
   MessageFlags,
   type ButtonInteraction,
+  type ChatInputCommandInteraction,
   type ModalSubmitInteraction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
@@ -42,7 +43,11 @@ export interface InteractionAckDiagContext {
   sectionId: string;
 }
 
-type AckableInteraction = ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction;
+type AckableInteraction =
+  | ButtonInteraction
+  | StringSelectMenuInteraction
+  | ModalSubmitInteraction
+  | ChatInputCommandInteraction;
 
 export async function ackWithTimeoutCatch(
   interaction: AckableInteraction,
