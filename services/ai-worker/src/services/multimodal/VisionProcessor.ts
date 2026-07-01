@@ -33,6 +33,42 @@ const logger = createLogger('VisionProcessor');
 const config = getConfig();
 
 /**
+ * Typed vision-invocation failure. Carries the `ApiErrorCategory` so the fallback loop
+ * (`describeImageWithFallback`) can decide terminate-vs-advance without re-parsing the
+ * error. `describeImage` throws this on ANY single-model failure — a fresh API error OR
+ * a negative-cache hit — and the loop is the only thing that turns it into a user-facing
+ * `[Image unavailable: …]` placeholder (on a terminate category, or once all tiers exhaust).
+ */
+export class VisionModelError extends Error {
+  constructor(
+    readonly category: ApiErrorCategory,
+    message: string,
+    options?: { cause?: unknown }
+  ) {
+    super(message, options);
+    this.name = 'VisionModelError';
+  }
+}
+
+/**
+ * Vision failure categories where the IMAGE ITSELF is the problem (a provider examined
+ * it and refused, or it's unreadable) — retrying with a different model won't help, so
+ * the fallback loop terminates immediately rather than burning tiers/latency/quota.
+ *
+ * Deliberately a STRICT SUBSET of `ATTACHMENT_BOUND_FAILURE_CATEGORIES`: it excludes
+ * `MODEL_NOT_FOUND`, which is attachment-bound for negative-cache-TTL purposes (a missing
+ * model won't reappear for THIS attachment on a retry of the SAME model) but is exactly
+ * what the fallback loop routes around — a different tier is a different model. The subset
+ * invariant (and that `MODEL_NOT_FOUND` is the sole difference) is pinned by a test.
+ */
+// eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: immutable lookup set used as a constant (mirrors ATTACHMENT_BOUND_FAILURE_CATEGORIES). Exported for the fallback loop + the terminate-set/attachment-bound-set invariant test in VisionProcessor.test.ts.
+export const VISION_TERMINATE_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Set([
+  ApiErrorCategory.CONTENT_POLICY,
+  ApiErrorCategory.CENSORED,
+  ApiErrorCategory.MEDIA_NOT_FOUND,
+]);
+
+/**
  * User-friendly labels for the ATTACHMENT-BOUND error categories that actually reach
  * `FAILURE_LABELS` via `buildFailureFallback`. Other categories (auth, quota, rate-limit,
  * server-error, timeout, network, etc.) return the generic "temporarily unavailable"
@@ -165,6 +201,15 @@ export interface DescribeImageOptions {
    * legacy self-selection behavior.
    */
   model?: string;
+  /**
+   * When true, a failure (fresh API error OR negative-cache hit) THROWS a typed
+   * `VisionModelError` instead of returning a `[Image unavailable: …]` placeholder string.
+   * The Phase-4 fallback loop sets this so it can catch the category and decide
+   * terminate-vs-advance; every legacy caller omits it and keeps the string-returning
+   * behavior. (A fresh invocation error already propagates as `VisionModelError` in both
+   * modes — this flag only governs the negative-cache-hit path's throw-vs-return.)
+   */
+  throwOnFailure?: boolean;
 }
 
 /**
@@ -375,6 +420,37 @@ async function invokeVisionModel(
       category: errorInfo.category,
     });
 
+    // Re-throw as a typed error so the fallback loop can decide terminate-vs-advance
+    // on the category without re-parsing. `cause` preserves the original for logging.
+    throw new VisionModelError(errorInfo.category, errorInfo.technicalMessage ?? String(error), {
+      cause: error,
+    });
+  }
+}
+
+/**
+ * Invoke the vision model, adapting its typed throw to the caller's error contract.
+ * The fallback loop (`throwOnFailure`) wants the typed `VisionModelError` so it can decide
+ * terminate-vs-advance on the category. Legacy callers instead re-parse the thrown error via
+ * `shouldRetryError` / `parseApiError`, so they get the RAW error back (`cause`, which is
+ * `unknown`-typed but an Error in every practical case) — keeping their retry + category
+ * behavior identical to the raw throw. The one non-identical edge: if the upstream client
+ * ever threw a NON-Error value, the legacy caller sees the (always-Error) `VisionModelError`
+ * wrapper rather than the raw thrown value — practically unreachable (provider/LangChain
+ * clients throw Errors), and strictly safer for the re-parse path.
+ */
+async function invokeVisionModelForDescribe(
+  attachment: AttachmentMetadata,
+  modelName: string,
+  options: InvokeVisionModelOptions,
+  throwOnFailure: boolean
+): Promise<string> {
+  try {
+    return await invokeVisionModel(attachment, modelName, options);
+  } catch (error) {
+    if (error instanceof VisionModelError && !throwOnFailure) {
+      throw error.cause instanceof Error ? error.cause : error;
+    }
     throw error;
   }
 }
@@ -417,7 +493,7 @@ export const ATTACHMENT_BOUND_FAILURE_CATEGORIES: ReadonlySet<ApiErrorCategory> 
  * Other categories use either `FAILURE_LABELS` (attachment-bound) or the generic
  * "temporarily unavailable" message.
  */
-function buildFailureFallback(
+export function buildFailureFallback(
   category: ApiErrorCategory,
   apiKeySource: 'user' | 'system' | undefined
 ): string {
@@ -458,7 +534,7 @@ async function checkNegativeCache(
   attachmentId: string | undefined,
   apiKeySource: 'user' | 'system' | undefined,
   options: { attachmentBoundOnly?: boolean } = {}
-): Promise<string | null> {
+): Promise<ApiErrorCategory | null> {
   const failureEntry = await visionDescriptionCache.getFailure(cacheKeyOptions);
   if (failureEntry === null) {
     return null;
@@ -478,7 +554,10 @@ async function checkNegativeCache(
     },
     'Skipping vision API call - failure cooldown active'
   );
-  return buildFailureFallback(failureEntry.category, apiKeySource);
+  // Return the CATEGORY (not the rendered string) so `describeImage` can throw a typed
+  // VisionModelError and the fallback loop can decide terminate-vs-advance. The user-facing
+  // `[Image unavailable: …]` render happens once, in the loop, via `buildFailureFallback`.
+  return failureEntry.category;
 }
 
 /**
@@ -656,14 +735,20 @@ export async function describeImage(
   // URL / removed model won't recover for this attachment, so re-attempting every turn it
   // sits in context just re-storms across providers) but skip transient ones so the retry
   // can still catch recovery.
-  const failureFallback = await checkNegativeCache(
+  const cachedCategory = await checkNegativeCache(
     cacheKeyOptions,
     attachment.id,
     loggingContext.apiKeySource,
     { attachmentBoundOnly: options?.skipNegativeCache === true }
   );
-  if (failureFallback !== null) {
-    return failureFallback;
+  if (cachedCategory !== null) {
+    // A cached failure for this (model, attachment). The Phase-4 fallback loop
+    // (throwOnFailure) wants the typed error so it can advance tiers / render the terminal
+    // placeholder; legacy single-model callers get the rendered placeholder string as before.
+    if (options?.throwOnFailure === true) {
+      throw new VisionModelError(cachedCategory, 'vision negative-cache hit');
+    }
+    return buildFailureFallback(cachedCategory, loggingContext.apiKeySource);
   }
 
   const systemPrompt =
@@ -683,14 +768,19 @@ export async function describeImage(
   // OpenRouter; signed Discord-CDN URLs expire). We pass the ORIGINAL attachment
   // (for cache keys) plus the resolved imageUrl separately.
   const imageUrl = await resolveVisionImageUrl(attachment, loggingContext);
-  const description = await invokeVisionModel(attachment, usedModel, {
-    systemPrompt,
-    userApiKey,
-    provider,
-    imageUrl,
-    loggingContext,
-    personalityName: personality.name,
-  });
+  const description = await invokeVisionModelForDescribe(
+    attachment,
+    usedModel,
+    {
+      systemPrompt,
+      userApiKey,
+      provider,
+      imageUrl,
+      loggingContext,
+      personalityName: personality.name,
+    },
+    options.throwOnFailure === true
+  );
 
   // Cache the description for future use (Redis L1 only).
   // Uses shared validation to prevent error-like descriptions from polluting the cache.

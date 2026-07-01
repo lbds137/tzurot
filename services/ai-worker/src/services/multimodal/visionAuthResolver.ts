@@ -21,34 +21,30 @@
  * the BROAD free-fallback behavior — it applies to ALL authenticated users who
  * can't auth the vision provider, not a specific provider's users.
  *
- * Use `buildVisionAuthFailureResults` to construct the synthetic-failure
- * `ProcessedAttachment[]` (the "configure your key" placeholders) when the
- * resolver returns `failFast`.
+ * On `failFast`, the fallback loop (`describeImageWithFallback`) renders the
+ * `VISION_AUTH_FAIL_FAST_DESCRIPTION` "configure your key" placeholder per attachment
+ * once every fallback tier is exhausted.
  */
 
 import {
   createLogger,
   AIProvider,
-  AttachmentType,
   MODEL_DEFAULTS,
-  type AttachmentMetadata,
   type LoadedPersonality,
 } from '@tzurot/common-types';
 import { detectVisionProvider } from '../ProviderRouter.js';
 import { selectVisionModel } from './VisionProcessor.js';
 import { visionFallbackQuota } from '../../redis.js';
 import type { ApiKeyResolver } from '../ApiKeyResolver.js';
-import type { ProcessedAttachment } from '../MultimodalProcessor.js';
 
 const logger = createLogger('VisionAuthResolver');
 
 /**
- * Source-aware fallback description shown to the LLM when an authenticated
- * user lacks a key for the vision provider. Exported as a constant rather
- * than inlined at call sites so the two paths that produce this UX —
- * `buildVisionAuthFailureResults` (channel-history images via DependencyStep)
- * and `ImageDescriptionJob.buildFailFastResult` (upload-time images) — stay
- * synchronized. A string update in one place would otherwise diverge silently.
+ * Source-aware fallback description shown to the LLM when no usable vision key
+ * exists across every fallback tier. Exported as a constant rather than inlined
+ * so the fallback loop (`describeImageWithFallback`, which renders it on
+ * auth-exhaustion) and any future consumer share one source of truth. A string
+ * update in one place would otherwise diverge silently.
  *
  * The wording is read by the LLM in the chat context, so it's phrased as a
  * description (not a UI error). The user sees the personality acknowledge
@@ -84,10 +80,10 @@ export interface VisionConfig {
  * Result of `resolveVisionConfig`.
  * - `resolved` — caller proceeds with the vision call using `config`
  * - `failFast` — even the free-model system fallback is unavailable (no system
- *   OpenRouter key configured); caller short-circuits with the
- *   `buildVisionAuthFailureResults` synthetic-failure batch. `provider` is the
- *   ORIGINAL vision provider the user actually lacked, so telemetry/placeholders
- *   reflect what they were missing rather than the free-fallback provider.
+ *   OpenRouter key configured); the fallback loop treats this tier as unusable and
+ *   advances (rendering `VISION_AUTH_FAIL_FAST_DESCRIPTION` once all tiers exhaust).
+ *   `provider` is the ORIGINAL vision provider the user actually lacked, so
+ *   telemetry reflects what they were missing rather than the free-fallback provider.
  */
 export type VisionConfigResult =
   { kind: 'resolved'; config: VisionConfig } | { kind: 'failFast'; provider: AIProvider };
@@ -125,6 +121,47 @@ export interface ResolveVisionConfigOptions {
 }
 
 /**
+ * Single-use gate for the system-key free-vision fallback's daily quota. The fallback LOOP
+ * (`describeImageWithFallback`) resolves auth across multiple TIERS for ONE image, so the
+ * per-user daily cap (`VisionFallbackQuota`) is checked at most once per tracker — a
+ * per-tier consume would multiply the charge WITHIN a single image's tier walk and defeat
+ * the cap. Once consumed, subsequent `tryConsume()` calls return false without touching the
+ * store. Fail-open on the underlying quota error (a Redis blip shouldn't block description).
+ *
+ * The loop creates a FRESH tracker per attachment, so the quota meters **per image** (each
+ * image that downgrades onto the system key spends one unit) — see `VisionFallbackQuota`'s
+ * docstring for why per-image accounting is deliberate. The primary path (`resolveVisionConfig`)
+ * likewise creates a fresh single-use tracker.
+ */
+export interface VisionQuotaTracker {
+  tryConsume(): Promise<boolean>;
+}
+
+export function createVisionQuotaTracker(userId: string | undefined): VisionQuotaTracker {
+  let consumedThisRequest = false;
+  return {
+    async tryConsume(): Promise<boolean> {
+      if (consumedThisRequest) {
+        return false;
+      }
+      if (userId === undefined) {
+        return true; // no user to meter — fail-open (the caller's own guards apply)
+      }
+      let ok: boolean;
+      try {
+        ok = await visionFallbackQuota.tryConsume(userId);
+      } catch {
+        ok = true; // fail-open — a quota-store blip must not block image description
+      }
+      if (ok) {
+        consumedThisRequest = true;
+      }
+      return ok;
+    },
+  };
+}
+
+/**
  * BROAD FREE FALLBACK — authenticated user with no key for the vision provider.
  * Downgrade to the free vision model on the system key instead of fail-fasting.
  * MUST force BOTH the free model AND its provider's key: `selectVisionModel`
@@ -137,11 +174,15 @@ export interface ResolveVisionConfigOptions {
  * doesn't). Over the cap → fail-fast. `resolveApiKey` throws propagate to the
  * caller's catch (→ fail-fast). `originalVisionProvider` is carried so a
  * fail-fast names what the user actually lacked, not the free-fallback provider.
+ * The `quotaTracker` gates the daily-cap consume to once per tracker (the loop calls this
+ * per tier for ONE image; a fresh tracker per image = per-image accounting, see the
+ * `createVisionQuotaTracker` docstring).
  */
 async function resolveBroadFreeFallback(
   userId: string | undefined,
   originalVisionProvider: AIProvider,
-  apiKeyResolver: ApiKeyResolver
+  apiKeyResolver: ApiKeyResolver,
+  quotaTracker: VisionQuotaTracker
 ): Promise<VisionConfigResult> {
   const freeModel = MODEL_DEFAULTS.VISION_FALLBACK_FREE;
   const freeProvider = detectVisionProvider(freeModel);
@@ -156,13 +197,9 @@ async function resolveBroadFreeFallback(
     );
     return { kind: 'failFast', provider: originalVisionProvider };
   }
-  // `userId !== undefined` is always true here (the guest branch captured the
-  // undefined case) — the guard narrows the type and fails open.
-  if (
-    sys.source === 'system' &&
-    userId !== undefined &&
-    !(await visionFallbackQuota.tryConsume(userId))
-  ) {
+  // Only a SYSTEM-key downgrade spends the shared quota; consume it at most once per
+  // request via the tracker (the fallback loop may reach the free tier more than once).
+  if (sys.source === 'system' && !(await quotaTracker.tryConsume())) {
     return { kind: 'failFast', provider: originalVisionProvider };
   }
   logger.info(
@@ -206,10 +243,14 @@ async function resolveBroadFreeFallback(
  */
 export async function resolveVisionAuth(
   targetModel: string,
-  visionProvider: AIProvider,
-  options: ResolveVisionConfigOptions
+  options: ResolveVisionConfigOptions,
+  quotaTracker: VisionQuotaTracker
 ): Promise<VisionConfigResult> {
   const { mainProvider, mainApiKey, isGuestMode, userId, apiKeyResolver } = options;
+  // Self-derive the provider from the target model rather than accepting it as a separate
+  // trusted param — the per-tier fallback loop supplies only the model, and a mismatched
+  // (model, provider) pair would silently resolve auth for the wrong provider.
+  const visionProvider = detectVisionProvider(targetModel);
 
   // Same-provider fast path — reuse the upstream-resolved key without a second
   // resolver call. Avoids redundant DB reads for the common case where main and
@@ -306,7 +347,7 @@ export async function resolveVisionAuth(
     // fallback (downgrade to the free vision model on the system key). Extracted
     // to keep this function under the line limit; runs inside this try so its
     // `resolveApiKey` throw still degrades to fail-fast via the catch below.
-    return await resolveBroadFreeFallback(userId, visionProvider, apiKeyResolver);
+    return await resolveBroadFreeFallback(userId, visionProvider, apiKeyResolver, quotaTracker);
   } catch (error) {
     // Fallback-of-fallback unavailable path: `resolveApiKey` throws when no key
     // (user or system) is available for the requested provider. For the
@@ -335,36 +376,6 @@ export async function resolveVisionConfig(
   // the main model (e.g. main=glm-5.1 with no native vision falls through to
   // the OpenRouter fallback model — its provider is OpenRouter, not z.ai).
   const naturalModel = await selectVisionModel(options.personality, options.isGuestMode);
-  const visionProvider = detectVisionProvider(naturalModel);
-  return resolveVisionAuth(naturalModel, visionProvider, options);
-}
-
-/**
- * Build synthetic AUTHENTICATION-failure ProcessedAttachment entries for a
- * batch of image attachments when `resolveVisionConfig` returns `failFast`
- * (no usable key for the vision provider AND no system free-fallback key).
- *
- * Each entry gets the source-aware "configure your key" fallback description.
- * The placeholders are always returned so the caller's outer catch can't turn
- * the fail-fast into an empty result (which would silently drop the images
- * instead of showing the "[Image unavailable…]" fallback). The fail-fast path is
- * reachable by an authenticated user lacking both the vision-provider key and
- * the system free-fallback key, OR by a transient resolver throw — so it is not
- * exclusively an authentication condition.
- */
-export function buildVisionAuthFailureResults(
-  attachments: AttachmentMetadata[]
-): ProcessedAttachment[] {
-  const results: ProcessedAttachment[] = attachments.map(attachment => ({
-    type: AttachmentType.Image,
-    description: VISION_AUTH_FAIL_FAST_DESCRIPTION,
-    originalUrl: attachment.url,
-    metadata: attachment,
-  }));
-
-  logger.info(
-    { count: attachments.length },
-    'Built synthetic vision-auth-failure results (no usable key for vision or free-fallback provider)'
-  );
-  return results;
+  // A fresh single-use tracker → identical to the old direct per-call quota consume.
+  return resolveVisionAuth(naturalModel, options, createVisionQuotaTracker(options.userId));
 }

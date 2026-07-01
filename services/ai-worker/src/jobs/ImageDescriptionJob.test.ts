@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { processImageDescriptionJob } from './ImageDescriptionJob.js';
 import type { Job } from 'bullmq';
 import type { ImageDescriptionJobData, LoadedPersonality } from '@tzurot/common-types';
-import { JobType, CONTENT_TYPES, AIProvider, TIMEOUTS, MODEL_DEFAULTS } from '@tzurot/common-types';
+import { JobType, CONTENT_TYPES, TIMEOUTS } from '@tzurot/common-types';
 
 // Mirrors the module-level constant in ImageDescriptionJob.ts. Intentionally
 // kept as a copy so the test asserts the expected *contract* (vision uses 2
@@ -19,6 +19,16 @@ vi.mock('../services/MultimodalProcessor.js', () => ({
   describeImage: vi.fn(),
 }));
 
+// Phase-4: with an apiKeyResolver present, the job routes to describeImageWithFallback
+// (the vision fallback loop) instead of the single-model describeImage under withRetry.
+// The loop's per-tier auth resolution (guest/BYOK/downgrade/fail-fast) is covered by
+// describeImageWithFallback.test.ts + visionAuthResolver.test.ts, so mock it here and
+// assert only that the job forwards the correct visionAuth INPUTS bundle and that the
+// wrapper's returned description flows into the job result.
+vi.mock('../services/multimodal/describeImageWithFallback.js', () => ({
+  describeImageWithFallback: vi.fn(),
+}));
+
 vi.mock('../utils/retry.js', () => ({
   withRetry: vi.fn(),
 }));
@@ -28,11 +38,12 @@ vi.mock('../utils/apiErrorParser.js', () => ({
   getErrorLogContext: vi.fn((_error: unknown) => ({})),
 }));
 
-// Stub redis.js so nothing in the tested path hits a real Redis client at test
-// time. `checkModelVisionSupport` is reached transitively now that
-// resolveVisionConfig calls the real `selectVisionModel` — default it to false so
-// the no-visionModel-override tests fall through to the fallback model. Thunks
-// defer reference resolution past hoisting.
+// Stub redis.js so nothing on the legacy no-resolver path (which reaches the real
+// `describeImage` → `selectVisionModel`) hits a real Redis client at test time.
+// `checkModelVisionSupport` is reached transitively via selectVisionModel — default
+// it to false so the no-visionModel-override legacy test falls through to the
+// fallback model. Thunks defer reference resolution past hoisting. (The
+// resolver-present tests mock describeImageWithFallback, so they never reach here.)
 const mockStoreFailure = vi.fn();
 const mockCheckModelVisionSupport = vi.fn().mockResolvedValue(false);
 vi.mock('../redis.js', () => ({
@@ -48,10 +59,12 @@ vi.mock('../redis.js', () => ({
 // Import the mocked modules
 import { describeImage } from '../services/MultimodalProcessor.js';
 import { withRetry } from '../utils/retry.js';
+import { describeImageWithFallback } from '../services/multimodal/describeImageWithFallback.js';
 
 // Get mocked functions
 const mockDescribeImage = vi.mocked(describeImage);
 const mockWithRetry = vi.mocked(withRetry);
+const mockDescribeImageWithFallback = vi.mocked(describeImageWithFallback);
 
 describe('ImageDescriptionJob', () => {
   const mockPersonality: LoadedPersonality = {
@@ -77,6 +90,9 @@ describe('ImageDescriptionJob', () => {
 
     // Default: describeImage returns mock description
     mockDescribeImage.mockResolvedValue('Mocked image description');
+
+    // Default: the fallback loop (resolver-present path) returns a description.
+    mockDescribeImageWithFallback.mockResolvedValue('Fallback loop description');
 
     // Default: withRetry calls the function and returns successful result
     mockWithRetry.mockImplementation(async fn => {
@@ -460,7 +476,11 @@ describe('ImageDescriptionJob', () => {
       expect(result.metadata!.failedCount).toBe(1); // Track failures
     });
 
-    it('resolves a genuine guest to the free model on the system key', async () => {
+    it('routes to describeImageWithFallback with the guest userId in the visionAuth bundle', async () => {
+      // Phase-4: with a resolver present, the job hands the auth INPUTS to the
+      // fallback loop. The genuine-guest → free-model-on-system-key resolution now
+      // lives inside the loop (covered by describeImageWithFallback.test.ts +
+      // visionAuthResolver.test.ts); here we assert only that the bundle is forwarded.
       const jobData: ImageDescriptionJobData = {
         requestId: 'test-req-guest-mode',
         jobType: JobType.ImageDescription,
@@ -488,52 +508,44 @@ describe('ImageDescriptionJob', () => {
         data: jobData,
       } as Job<ImageDescriptionJobData>;
 
-      // Genuine guest — no user keys for any provider. ImageDescriptionJob has
-      // no upstream isGuestMode signal, so resolveVisionConfig is called with
-      // isGuestMode=false; a user with no vision-provider key flows through the
-      // broad free-fallback branch and gets the free model on the system key.
-      // tryResolveUserKey returns null; resolveApiKey returns the system key.
       const mockApiKeyResolver = {
-        tryResolveUserKey: vi.fn().mockResolvedValue(null),
-        resolveApiKey: vi.fn().mockResolvedValue({
-          apiKey: 'system-or-key',
-          source: 'system',
-          provider: AIProvider.OpenRouter,
-          isGuestMode: true,
-        }),
+        tryResolveUserKey: vi.fn(),
+        resolveApiKey: vi.fn(),
       } as unknown as ApiKeyResolver;
 
-      await processImageDescriptionJob(job, mockApiKeyResolver);
+      const result = await processImageDescriptionJob(job, mockApiKeyResolver);
 
-      // resolveApiKey is called for the free-fallback provider (OpenRouter,
-      // where the free gemma model lives).
-      expect(mockApiKeyResolver.resolveApiKey).toHaveBeenCalledWith(
-        'guest-user-123',
-        AIProvider.OpenRouter
-      );
-
-      expect(mockWithRetry).toHaveBeenCalledTimes(1);
-      // describeImage receives the forced free model on the system key. Note
-      // isGuestMode is `false` here — the broad-fallback branch preserves the
-      // "no keys anywhere" meaning of isGuestMode for the genuine-guest signal,
-      // but since the model is passed explicitly, isGuestMode no longer drives
-      // model selection in this path.
-      const retryFn = mockWithRetry.mock.calls[0][0];
-      await retryFn();
-      expect(mockDescribeImage).toHaveBeenCalledWith(
+      // The single-model path (describeImage under withRetry) is NOT used when a
+      // resolver is present — the fallback loop owns the call.
+      expect(mockWithRetry).not.toHaveBeenCalled();
+      expect(mockDescribeImage).not.toHaveBeenCalled();
+      expect(mockDescribeImageWithFallback).toHaveBeenCalledTimes(1);
+      expect(mockDescribeImageWithFallback).toHaveBeenCalledWith(
         expect.objectContaining({ url: 'https://example.com/image1.png' }),
         mockPersonality,
-        false, // isGuestMode — broad-fallback branch sets false; model is forced explicitly
-        'system-or-key', // system key
         expect.objectContaining({
-          skipNegativeCache: true,
-          model: MODEL_DEFAULTS.VISION_FALLBACK_FREE,
-          loggingContext: expect.objectContaining({ userId: expect.any(String) }),
+          personality: mockPersonality,
+          mainProvider: undefined,
+          mainApiKey: undefined,
+          isGuestMode: false,
+          userId: 'guest-user-123',
+          apiKeyResolver: mockApiKeyResolver,
+        }),
+        expect.objectContaining({
+          loggingContext: expect.objectContaining({ userId: 'guest-user-123' }),
         })
       );
+
+      // The wrapper's returned description flows into the job result.
+      expect(result.success).toBe(true);
+      expect(result.descriptions).toEqual([
+        { url: 'https://example.com/image1.png', description: 'Fallback loop description' },
+      ]);
     });
 
-    it('should pass isGuestMode=false to describeImage for BYOK users', async () => {
+    it('routes BYOK users to describeImageWithFallback with the auth INPUTS bundle', async () => {
+      // Phase-4: the BYOK "use the user key on the vision provider" decision moved
+      // into the loop's per-tier resolveVisionAuth. The job just forwards the inputs.
       const jobData: ImageDescriptionJobData = {
         requestId: 'test-req-byok-mode',
         jobType: JobType.ImageDescription,
@@ -561,51 +573,40 @@ describe('ImageDescriptionJob', () => {
         data: jobData,
       } as Job<ImageDescriptionJobData>;
 
-      // Mock ApiKeyResolver: BYOK user has the vision provider's key.
-      // tryResolveUserKey returns the user key on the first call; resolveApiKey
-      // is NOT called for authenticated users with the right key.
       const mockApiKeyResolver = {
-        tryResolveUserKey: vi.fn().mockResolvedValue('sk-user-provided-key'),
-        resolveApiKey: vi
-          .fn()
-          .mockRejectedValue(
-            new Error('resolveApiKey should not be called — fail-fast bypass expected')
-          ),
+        tryResolveUserKey: vi.fn(),
+        resolveApiKey: vi.fn(),
       } as unknown as ApiKeyResolver;
+      mockDescribeImageWithFallback.mockResolvedValue('BYOK description');
 
-      await processImageDescriptionJob(job, mockApiKeyResolver);
+      const result = await processImageDescriptionJob(job, mockApiKeyResolver);
 
-      // Verify tryResolveUserKey was called for the vision provider (OpenRouter).
-      // The authenticated path doesn't fall through to resolveApiKey.
-      expect(mockApiKeyResolver.tryResolveUserKey).toHaveBeenCalledWith(
-        'byok-user-456',
-        AIProvider.OpenRouter
-      );
-      expect(mockApiKeyResolver.resolveApiKey).not.toHaveBeenCalled();
-
-      // Execute the retry function to verify describeImage receives correct params
-      const retryFn = mockWithRetry.mock.calls[0][0];
-      await retryFn();
-      expect(mockDescribeImage).toHaveBeenCalledWith(
+      expect(mockDescribeImageWithFallback).toHaveBeenCalledTimes(1);
+      expect(mockDescribeImageWithFallback).toHaveBeenCalledWith(
         expect.objectContaining({ url: 'https://example.com/image1.png' }),
         mockPersonality,
-        false, // isGuestMode
-        'sk-user-provided-key', // userApiKey (BYOK users get their key passed)
         expect.objectContaining({
-          skipNegativeCache: true,
-          loggingContext: expect.objectContaining({
-            userId: 'byok-user-456',
-            apiKeySource: 'user',
-          }),
+          userId: 'byok-user-456',
+          isGuestMode: false,
+          apiKeyResolver: mockApiKeyResolver,
+        }),
+        expect.objectContaining({
+          loggingContext: expect.objectContaining({ userId: 'byok-user-456' }),
         })
       );
+      // Legacy single-model path is not taken.
+      expect(mockDescribeImage).not.toHaveBeenCalled();
+      expect(result.descriptions).toEqual([
+        { url: 'https://example.com/image1.png', description: 'BYOK description' },
+      ]);
     });
 
-    it('routes to ZaiCoding when personality.visionModel is a glm-* z.ai model', async () => {
-      // Regression test: pre-fix, resolveVisionApiKey hardcoded
-      // AIProvider.OpenRouter — a personality with z.ai vision would
-      // mistakenly look up the user's OpenRouter key instead of their
-      // z.ai key. Now provider is detected from the visionModel name.
+    it('passes a z.ai-vision personality through to describeImageWithFallback untouched', async () => {
+      // Phase-4: provider detection from the visionModel name moved into the loop's
+      // per-tier resolveVisionAuth (covered by describeImageWithFallback.test.ts +
+      // visionAuthResolver.test.ts). The job's contract is that it forwards the
+      // personality — which carries the z.ai `visionModel` that drives detection —
+      // to the loop unmodified, rather than pre-detecting the provider itself.
       const zaiVisionPersonality = { ...mockPersonality, visionModel: 'glm-5v' };
       const jobData: ImageDescriptionJobData = {
         requestId: 'test-req-zai-vision',
@@ -623,32 +624,32 @@ describe('ImageDescriptionJob', () => {
         responseDestination: { type: 'discord', channelId: 'channel-1' },
       };
       const job = { id: 'image-zai', data: jobData } as Job<ImageDescriptionJobData>;
-      // Authenticated user has the z.ai key for the vision provider.
       const mockApiKeyResolver = {
-        tryResolveUserKey: vi.fn().mockResolvedValue('zai-key'),
-        resolveApiKey: vi
-          .fn()
-          .mockRejectedValue(
-            new Error('resolveApiKey should not be called — fail-fast bypass expected')
-          ),
+        tryResolveUserKey: vi.fn(),
+        resolveApiKey: vi.fn(),
       } as unknown as ApiKeyResolver;
 
       await processImageDescriptionJob(job, mockApiKeyResolver);
 
-      // tryResolveUserKey is called for the detected vision provider (ZaiCoding).
-      // The hardcoded-OpenRouter regression would have failed this assertion.
-      expect(mockApiKeyResolver.tryResolveUserKey).toHaveBeenCalledWith(
-        'user-zai',
-        AIProvider.ZaiCoding
+      // The personality (with visionModel='glm-5v') is forwarded both as the
+      // top-level argument and inside the visionAuth bundle, so the loop can detect
+      // the ZaiCoding provider itself.
+      expect(mockDescribeImageWithFallback).toHaveBeenCalledWith(
+        expect.objectContaining({ url: 'https://example.com/image1.png' }),
+        zaiVisionPersonality,
+        expect.objectContaining({
+          personality: zaiVisionPersonality,
+          userId: 'user-zai',
+          apiKeyResolver: mockApiKeyResolver,
+        }),
+        expect.anything()
       );
     });
 
-    it('detects vision provider from the fallback model when visionModel and main both lack vision', async () => {
-      // With no visionModel override and a main model (glm-5.1) that has no
-      // native vision support, `selectVisionModel` falls through to the paid
-      // OpenRouter fallback model. The unified `resolveVisionConfig` detects the
-      // provider from THAT model (OpenRouter), fixing the old ImageDescriptionJob
-      // bug where the provider was detected from the main model name (ZaiCoding).
+    it('passes a no-override personality through to describeImageWithFallback for loop-side fallback detection', async () => {
+      // With no visionModel override, the loop composes its own tiers and detects the
+      // provider from the resolved fallback model — that logic lives in the loop, not
+      // the job. Here we assert only that the job forwards the personality + inputs.
       const noOverridePersonality = {
         ...mockPersonality,
         visionModel: '',
@@ -670,28 +671,32 @@ describe('ImageDescriptionJob', () => {
         responseDestination: { type: 'discord', channelId: 'channel-1' },
       };
       const job = { id: 'image-fb', data: jobData } as Job<ImageDescriptionJobData>;
-      // main has no native vision → selectVisionModel falls to the paid
-      // OpenRouter fallback model.
-      mockCheckModelVisionSupport.mockResolvedValue(false);
       const mockApiKeyResolver = {
-        tryResolveUserKey: vi.fn().mockResolvedValue('or-user-key'),
+        tryResolveUserKey: vi.fn(),
         resolveApiKey: vi.fn(),
       } as unknown as ApiKeyResolver;
 
       await processImageDescriptionJob(job, mockApiKeyResolver);
 
-      // Provider detected from the fallback model (OpenRouter), NOT the main
-      // model's ZaiCoding — this is the bug the unified resolver fixes.
-      expect(mockApiKeyResolver.tryResolveUserKey).toHaveBeenCalledWith(
-        'user-fallback',
-        AIProvider.OpenRouter
+      expect(mockDescribeImageWithFallback).toHaveBeenCalledWith(
+        expect.objectContaining({ url: 'https://example.com/image1.png' }),
+        noOverridePersonality,
+        expect.objectContaining({
+          personality: noOverridePersonality,
+          userId: 'user-fallback',
+          apiKeyResolver: mockApiKeyResolver,
+        }),
+        expect.anything()
       );
     });
 
-    it('downgrades authenticated user without vision-provider key to free model on system key', async () => {
-      // BROAD FREE FALLBACK: an authenticated user (has SOME user key) but no
-      // key for the personality's vision provider no longer fails fast — they
-      // downgrade to the free vision model on the system OpenRouter key.
+    it('forwards a downgrade-eligible user to describeImageWithFallback (loop owns the downgrade)', async () => {
+      // Phase-4: the broad-free-fallback downgrade (authenticated user lacking the
+      // vision-provider key → free model on the system key) is a per-tier decision
+      // inside the loop's resolveVisionAuth, covered by describeImageWithFallback.test.ts
+      // + visionAuthResolver.test.ts. The job just forwards the inputs bundle and
+      // surfaces whatever the loop returns.
+      const downgradePersonality = { ...mockPersonality, visionModel: 'glm-5v' };
       const jobData: ImageDescriptionJobData = {
         requestId: 'test-req-free-fallback',
         jobType: JobType.ImageDescription,
@@ -704,8 +709,8 @@ describe('ImageDescriptionJob', () => {
           },
         ],
         // visionModel is a z.ai model → vision provider is ZaiCoding, which the
-        // user lacks a key for.
-        personality: { ...mockPersonality, visionModel: 'glm-5v' },
+        // user lacks a key for; the loop downgrades internally.
+        personality: downgradePersonality,
         context: { userId: 'auth-user-no-zai-key', channelId: 'channel-1' },
         responseDestination: { type: 'discord', channelId: 'channel-1' },
       };
@@ -714,52 +719,51 @@ describe('ImageDescriptionJob', () => {
         data: jobData,
       } as Job<ImageDescriptionJobData>;
 
-      // No user key for the ZaiCoding vision provider; resolveApiKey for the
-      // FREE provider (OpenRouter) returns the system key.
       const mockApiKeyResolver = {
-        tryResolveUserKey: vi.fn().mockResolvedValue(null),
-        resolveApiKey: vi.fn().mockResolvedValue({
-          apiKey: 'system-or-key',
-          source: 'system',
-          provider: AIProvider.OpenRouter,
-          isGuestMode: true,
-          userId: 'auth-user-no-zai-key',
-        }),
+        tryResolveUserKey: vi.fn(),
+        resolveApiKey: vi.fn(),
       } as unknown as ApiKeyResolver;
+      mockDescribeImageWithFallback.mockResolvedValue('Downgraded free-model description');
 
       const result = await processImageDescriptionJob(job, mockApiKeyResolver);
 
-      // resolveApiKey IS called now (for the free provider) — no fail-fast.
-      expect(mockApiKeyResolver.resolveApiKey).toHaveBeenCalledWith(
-        'auth-user-no-zai-key',
-        AIProvider.OpenRouter
-      );
-      // The vision call runs (not short-circuited) and succeeds.
-      expect(result.success).toBe(true);
-      expect(result.descriptions).toHaveLength(1);
-      expect(mockWithRetry).toHaveBeenCalled();
-
-      // describeImage receives the forced free model + system key, isGuestMode=false.
-      const retryFn = mockWithRetry.mock.calls[0][0];
-      await retryFn();
-      expect(mockDescribeImage).toHaveBeenCalledWith(
+      // The loop is invoked with the raw inputs bundle carrying the resolver + userId;
+      // the personality (with its z.ai visionModel) is passed through untouched so the
+      // loop can compose + downgrade its own tiers.
+      expect(mockDescribeImageWithFallback).toHaveBeenCalledTimes(1);
+      expect(mockDescribeImageWithFallback).toHaveBeenCalledWith(
         expect.objectContaining({ url: 'https://example.com/image1.png' }),
-        expect.anything(),
-        false, // isGuestMode — they ARE authenticated, only the vision model is downgraded
-        'system-or-key', // system key
+        downgradePersonality,
         expect.objectContaining({
-          model: MODEL_DEFAULTS.VISION_FALLBACK_FREE, // forced free model
-          provider: AIProvider.OpenRouter,
-          loggingContext: expect.objectContaining({ apiKeySource: 'system' }),
+          personality: downgradePersonality,
+          userId: 'auth-user-no-zai-key',
+          isGuestMode: false,
+          apiKeyResolver: mockApiKeyResolver,
+        }),
+        expect.objectContaining({
+          loggingContext: expect.objectContaining({ userId: 'auth-user-no-zai-key' }),
         })
       );
+      // The legacy single-model path is not taken.
+      expect(mockWithRetry).not.toHaveBeenCalled();
+      expect(mockDescribeImage).not.toHaveBeenCalled();
+
+      // The loop's returned description flows into the job result.
+      expect(result.success).toBe(true);
+      expect(result.descriptions).toEqual([
+        { url: 'https://example.com/image1.png', description: 'Downgraded free-model description' },
+      ]);
     });
 
-    it('fails fast when the free-model system fallback is also unavailable', async () => {
-      // Fallback-of-fallback: authenticated user lacks the vision-provider key
-      // AND no system OpenRouter key is configured (resolveApiKey throws). The
-      // job emits the "configure your key" placeholder against the original
-      // vision provider.
+    it('flows the wrapper’s auth-exhaustion placeholder into the job result as a description', async () => {
+      // Phase-4: the removed job-level buildFailFastResult short-circuit moved into
+      // the loop — describeImageWithFallback renders the "configure your key"
+      // placeholder on auth-exhaustion (covered by describeImageWithFallback.test.ts).
+      // At the job boundary, that placeholder string is a valid description and must
+      // flow into the result. Mock the wrapper returning the placeholder and assert
+      // it lands as a successful description.
+      const placeholder =
+        '[Image unavailable: your API key was rejected — check /settings apikey set for the vision provider key]';
       const jobData: ImageDescriptionJobData = {
         requestId: 'test-req-fail-fast',
         jobType: JobType.ImageDescription,
@@ -771,7 +775,7 @@ describe('ImageDescriptionJob', () => {
             size: 1024,
           },
         ],
-        personality: mockPersonality, // visionModel='gpt-4-vision-preview' → OpenRouter
+        personality: mockPersonality,
         context: { userId: 'auth-user-no-keys-at-all', channelId: 'channel-1' },
         responseDestination: { type: 'discord', channelId: 'channel-1' },
       };
@@ -781,26 +785,29 @@ describe('ImageDescriptionJob', () => {
       } as Job<ImageDescriptionJobData>;
 
       const mockApiKeyResolver = {
-        tryResolveUserKey: vi.fn().mockResolvedValue(null),
-        // No system OpenRouter key configured → resolveApiKey throws.
-        resolveApiKey: vi
-          .fn()
-          .mockRejectedValue(new Error('No API key available for provider openrouter')),
+        tryResolveUserKey: vi.fn(),
+        resolveApiKey: vi.fn(),
       } as unknown as ApiKeyResolver;
+      mockDescribeImageWithFallback.mockResolvedValue(placeholder);
 
       const result = await processImageDescriptionJob(job, mockApiKeyResolver);
 
-      // Each image gets the source-aware fallback description.
+      // The loop was invoked and its placeholder became the image's description.
+      expect(mockDescribeImageWithFallback).toHaveBeenCalledTimes(1);
       expect(result.success).toBe(true);
       expect(result.descriptions).toHaveLength(1);
       expect(result.descriptions?.[0]?.description).toContain('check /settings apikey set');
-      // describeImage / withRetry NOT invoked — the short-circuit fired before
-      // any vision call.
+      // The legacy single-model path is not taken when a resolver is present.
       expect(mockWithRetry).not.toHaveBeenCalled();
       expect(mockDescribeImage).not.toHaveBeenCalled();
     });
 
-    it('fails fast (graceful degrade) when ApiKeyResolver throws transiently', async () => {
+    it('does not throw when the wrapper degrades transiently (placeholder flows through)', async () => {
+      // A transient resolver failure used to be caught by the job's fail-fast branch;
+      // it's now caught inside the loop (never throws, returns a placeholder). The job
+      // just surfaces whatever the loop returns.
+      const placeholder =
+        '[Image unavailable: your API key was rejected — check /settings apikey set for the vision provider key]';
       const jobData: ImageDescriptionJobData = {
         requestId: 'test-req-resolver-fail',
         jobType: JobType.ImageDescription,
@@ -828,12 +835,11 @@ describe('ImageDescriptionJob', () => {
         data: jobData,
       } as Job<ImageDescriptionJobData>;
 
-      // tryResolveUserKey throws → resolveVisionConfig's try/catch returns
-      // failFast (graceful degrade to the "configure your key" placeholder).
       const mockApiKeyResolver = {
-        tryResolveUserKey: vi.fn().mockRejectedValue(new Error('Database connection failed')),
+        tryResolveUserKey: vi.fn(),
         resolveApiKey: vi.fn(),
       } as unknown as ApiKeyResolver;
+      mockDescribeImageWithFallback.mockResolvedValue(placeholder);
 
       const result = await processImageDescriptionJob(job, mockApiKeyResolver);
 

@@ -1,19 +1,20 @@
 /**
  * Tests for processCrossProviderVisionImages
  *
- * Covers the cross-provider vision path extracted from DependencyStep:
- * - authenticated user with vision-provider key → processAttachments runs
- * - broad free fallback (no vision key, system key available) → free model
- * - fail-fast (free-model system key unavailable) → synthetic-failure entries
- * - transient resolver throw → fail-fast placeholder
- * - processAttachments throw → empty array (graceful degrade)
+ * Phase-4: this unit no longer resolves auth itself. It forwards the auth INPUTS
+ * bundle (`visionAuth`) to the injected `processAttachments`, which drives the
+ * real `describeImageWithFallback` loop deep inside. So these tests cover:
+ * - the `visionAuth` bundle is forwarded with the correct fields
+ * - the bundle is forwarded regardless of resolver behavior (fail-fast/auth
+ *   resolution is the wrapper's job, covered by describeImageWithFallback.test.ts
+ *   and visionAuthResolver.test.ts)
+ * - processAttachments throw → empty array (graceful degrade, outer try/catch)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   AIProvider,
   AttachmentType,
-  MODEL_DEFAULTS,
   type LoadedPersonality,
   type AttachmentMetadata,
 } from '@tzurot/common-types';
@@ -34,13 +35,9 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-// resolveVisionConfig (real) calls selectVisionModel → checkModelVisionSupport;
-// selectVisionModel lives in VisionProcessor.js, which imports visionDescriptionCache
-// from redis.js. Stub redis.js so none of that reaches a live client. The
-// CROSS_PROVIDER personality sets a visionModel override, so selectVisionModel
-// returns it without consulting checkModelVisionSupport — but stub it for safety.
-// (buildVisionAuthFailureResults no longer touches the cache, but the stub is kept
-// for VisionProcessor's transitive import above.)
+// `processAttachments` is mocked here, so this unit never reaches the real vision
+// pipeline (VisionProcessor / describeImageWithFallback). Stub redis.js anyway so
+// nothing transitively imported can reach a live client during module load.
 const mockStoreFailure = vi.fn();
 vi.mock('../../../../redis.js', () => ({
   visionDescriptionCache: {
@@ -93,9 +90,9 @@ beforeEach(() => {
 });
 
 describe('processCrossProviderVisionImages', () => {
-  it('processes with the user key when authenticated user has the vision-provider key', async () => {
+  it('forwards the visionAuth INPUTS bundle to processAttachments', async () => {
     const resolver = {
-      tryResolveUserKey: vi.fn().mockResolvedValue('user-or-key'),
+      tryResolveUserKey: vi.fn(),
       resolveApiKey: vi.fn(),
     } as unknown as ApiKeyResolver;
     mockProcessAttachments.mockResolvedValueOnce([
@@ -109,28 +106,37 @@ describe('processCrossProviderVisionImages', () => {
 
     const result = await processCrossProviderVisionImages(buildOpts(resolver));
 
+    // Auth is no longer pre-resolved here — the raw INPUTS bundle is forwarded and
+    // the real describeImageWithFallback loop (mocked away via processAttachments)
+    // resolves per-tier auth. Assert the bundle carries the correct fields.
     expect(mockProcessAttachments).toHaveBeenCalledWith(
       [expect.objectContaining({ url: IMAGE.url })],
       CROSS_PROVIDER_PERSONALITY,
       expect.objectContaining({
-        userApiKey: 'user-or-key',
-        visionProvider: AIProvider.OpenRouter,
-        model: 'qwen/qwen3.5-397b-a17b',
+        isGuestMode: false,
+        sttDispatch: undefined,
+        loggingContext: { userId: 'user-1' },
+        visionAuth: expect.objectContaining({
+          personality: CROSS_PROVIDER_PERSONALITY,
+          mainProvider: AIProvider.ZaiCoding,
+          mainApiKey: 'user-zai-key',
+          isGuestMode: false,
+          userId: 'user-1',
+          apiKeyResolver: resolver,
+        }),
       })
     );
     expect(result).toHaveLength(1);
   });
 
-  it('downgrades to the free model on the system key when user lacks the vision-provider key', async () => {
+  it('forwards the visionAuth bundle even when the user has no vision-provider key', async () => {
+    // Previously this test drove a resolver-based downgrade branch here. Auth
+    // resolution moved into the fallback loop (describeImageWithFallback), so this
+    // unit forwards the same bundle regardless — the downgrade decision is the
+    // wrapper's, covered by describeImageWithFallback.test.ts + visionAuthResolver.test.ts.
     const resolver = {
-      tryResolveUserKey: vi.fn().mockResolvedValue(null),
-      resolveApiKey: vi.fn().mockResolvedValue({
-        apiKey: 'system-or-key',
-        source: 'system',
-        provider: AIProvider.OpenRouter,
-        isGuestMode: true,
-        userId: 'user-1',
-      }),
+      tryResolveUserKey: vi.fn(),
+      resolveApiKey: vi.fn(),
     } as unknown as ApiKeyResolver;
     mockProcessAttachments.mockResolvedValueOnce([]);
 
@@ -140,38 +146,60 @@ describe('processCrossProviderVisionImages', () => {
       expect.any(Array),
       CROSS_PROVIDER_PERSONALITY,
       expect.objectContaining({
-        isGuestMode: false,
-        userApiKey: 'system-or-key',
-        model: MODEL_DEFAULTS.VISION_FALLBACK_FREE,
-        visionProvider: AIProvider.OpenRouter,
+        visionAuth: expect.objectContaining({
+          mainProvider: AIProvider.ZaiCoding,
+          mainApiKey: 'user-zai-key',
+          userId: 'user-1',
+          apiKeyResolver: resolver,
+        }),
       })
     );
   });
 
-  it('returns fail-fast placeholder when the free-model system fallback is unavailable', async () => {
+  it('still calls processAttachments with the visionAuth bundle (fail-fast is the wrapper’s job)', async () => {
+    // The old premise — resolveVisionConfig returning failFast so processAttachments
+    // is skipped — no longer holds: resolveVisionConfig is not called in this unit.
+    // The auth-exhaustion "configure your key" placeholder is now rendered inside
+    // describeImageWithFallback (covered there). Here we only verify the bundle is
+    // forwarded unconditionally.
     const resolver = {
-      tryResolveUserKey: vi.fn().mockResolvedValue(null),
-      resolveApiKey: vi.fn().mockRejectedValue(new Error('No API key available')),
-    } as unknown as ApiKeyResolver;
-
-    const result = await processCrossProviderVisionImages(buildOpts(resolver));
-
-    expect(mockProcessAttachments).not.toHaveBeenCalled();
-    expect(result).toHaveLength(1);
-    expect(result[0]?.description).toContain('check /settings apikey set');
-  });
-
-  it('returns fail-fast placeholder when the resolver throws transiently', async () => {
-    const resolver = {
-      tryResolveUserKey: vi.fn().mockRejectedValue(new Error('Redis blip')),
+      tryResolveUserKey: vi.fn(),
       resolveApiKey: vi.fn(),
     } as unknown as ApiKeyResolver;
+    mockProcessAttachments.mockResolvedValueOnce([]);
 
-    const result = await processCrossProviderVisionImages(buildOpts(resolver));
+    await processCrossProviderVisionImages(buildOpts(resolver));
 
-    expect(mockProcessAttachments).not.toHaveBeenCalled();
-    expect(result).toHaveLength(1);
-    expect(result[0]?.description).toContain('check /settings apikey set');
+    expect(mockProcessAttachments).toHaveBeenCalledTimes(1);
+    expect(mockProcessAttachments).toHaveBeenCalledWith(
+      expect.any(Array),
+      CROSS_PROVIDER_PERSONALITY,
+      expect.objectContaining({
+        visionAuth: expect.objectContaining({ apiKeyResolver: resolver, userId: 'user-1' }),
+      })
+    );
+  });
+
+  it('forwards the visionAuth bundle regardless of any resolver-transient concern', async () => {
+    // A transient resolver failure used to short-circuit here into a fail-fast
+    // placeholder. That resilience now lives in the loop (describeImageWithFallback
+    // + resolveVisionAuth), so this unit forwards the inputs bundle either way.
+    const resolver = {
+      tryResolveUserKey: vi.fn(),
+      resolveApiKey: vi.fn(),
+    } as unknown as ApiKeyResolver;
+    mockProcessAttachments.mockResolvedValueOnce([]);
+
+    await processCrossProviderVisionImages(buildOpts(resolver));
+
+    expect(mockProcessAttachments).toHaveBeenCalledTimes(1);
+    expect(mockProcessAttachments).toHaveBeenCalledWith(
+      expect.any(Array),
+      CROSS_PROVIDER_PERSONALITY,
+      expect.objectContaining({
+        visionAuth: expect.objectContaining({ apiKeyResolver: resolver, userId: 'user-1' }),
+      })
+    );
   });
 
   it('returns empty array when processAttachments itself throws (hard degrade)', async () => {
