@@ -9,7 +9,6 @@ import {
   fetchOrCreateSession,
   requireDeferredSession,
   getSessionOrExpired,
-  getSessionDataOrReply,
   getSessionDataOrFollowUp,
 } from './sessionHelpers.js';
 import * as SessionManagerModule from './SessionManager.js';
@@ -216,44 +215,9 @@ describe('sessionHelpers', () => {
     });
   });
 
-  describe('getSessionDataOrReply', () => {
-    it('should return session data when it exists', async () => {
-      const sessionData = { name: 'Test' };
-      mockSessionManager.get.mockResolvedValue({ data: sessionData });
-      const interaction = {
-        user: { id: 'user-123' },
-        reply: vi.fn(),
-      } as unknown as ButtonInteraction;
-
-      const result = await getSessionDataOrReply(interaction, 'preset', 'preset-123');
-
-      expect(result).toEqual(sessionData);
-      expect(interaction.reply).not.toHaveBeenCalled();
-    });
-
-    it('should reply with error and return null when session is missing', async () => {
-      mockSessionManager.get.mockResolvedValue(null);
-      const interaction = {
-        user: { id: 'user-123' },
-        reply: vi.fn(),
-      } as unknown as ButtonInteraction;
-
-      const result = await getSessionDataOrReply(interaction, 'preset', 'preset-123');
-
-      expect(result).toBeNull();
-      expect(interaction.reply).toHaveBeenCalledWith({
-        content: '⏰ Session expired. Please run the command again.',
-        flags: MessageFlags.Ephemeral,
-      });
-    });
-  });
-
   describe('getSessionDataOrFollowUp', () => {
-    // Sibling of getSessionDataOrReply for already-deferred interactions.
-    // Mirrors the test pair above: the two helpers must behave identically
-    // on the happy path and only differ on the expired branch (reply vs
-    // followUp). Any drift between them would produce silent runtime errors
-    // (InteractionAlreadyReplied on the wrong call shape).
+    // For already-deferred interactions: the expired branch uses followUp
+    // (reply would throw on an acked interaction).
     it('should return session data when it exists', async () => {
       const sessionData = { name: 'Test' };
       mockSessionManager.get.mockResolvedValue({ data: sessionData });

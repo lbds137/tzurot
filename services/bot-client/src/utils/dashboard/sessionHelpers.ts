@@ -183,50 +183,14 @@ export async function getSessionOrExpired<T>(
 }
 
 /**
- * Get session data or reply with error.
- * Simpler version that just needs the data, not full session.
- * Uses interaction.reply() for non-deferred interactions.
+ * Get session data, or follow up with an expired-session error.
  *
- * For handlers that have already called `deferUpdate` / `deferReply` (and
- * therefore can't `reply` again without Discord throwing), use
- * {@link getSessionDataOrFollowUp} instead.
- *
- * @returns Session data or null if expired
- */
-export async function getSessionDataOrReply<T>(
-  interaction: ButtonInteraction | StringSelectMenuInteraction,
-  entityType: string,
-  entityId: string
-): Promise<T | null> {
-  const sessionManager = getSessionManager();
-  const session = await sessionManager.get<T>(interaction.user.id, entityType, entityId);
-
-  if (session === null) {
-    await interaction.reply({
-      content: DASHBOARD_MESSAGES.SESSION_EXPIRED,
-      flags: MessageFlags.Ephemeral,
-    });
-    return null;
-  }
-
-  return session.data;
-}
-
-/**
- * Get session data or follow up with error, for already-deferred interactions.
- *
- * Mirror of {@link getSessionDataOrReply} for handlers that called
- * `interaction.deferUpdate()` (or `deferReply()`) before the session lookup.
- * Uses `interaction.followUp` for the expired branch because `reply` would
- * throw on an already-acked interaction.
- *
- * **When to use this over `getSessionDataOrReply`**: when Discord's 3-second
- * interaction budget matters and you've deferred eagerly to protect it. The
- * Redis session lookup is sub-ms on the hot path but can spike under load,
- * and the old "reply or fail" pattern gave us no defer-first option because
- * the fallback branch would race the ack. See
- * `.claude/rules/04-discord.md` § "defer first, then process" for the
- * broader rule.
+ * For handlers that acked first (`interaction.deferUpdate()` / `deferReply()`)
+ * before the session lookup — the defer-first pattern the 3-second rule wants.
+ * Uses `interaction.followUp` for the expired branch because `reply` would throw
+ * on an already-acked interaction. The Redis session lookup is sub-ms on the hot
+ * path but can spike under load, so acking before it protects the budget. See
+ * `.claude/rules/04-discord.md` § "defer first, then process".
  *
  * @returns Session data or null if expired
  */

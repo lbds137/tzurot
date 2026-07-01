@@ -64,6 +64,17 @@ import type { Node } from 'estree';
 const ACK_METHODS = new Set(['deferUpdate', 'deferReply', 'reply', 'update', 'showModal']);
 
 /**
+ * POST-ack response methods on the interaction. These run only AFTER an ack, so
+ * an `await interaction.followUp()` / `editReply()` is a response, NOT a data
+ * fetch — it must NOT count as "real async work" that would flag a following bare
+ * ack. Excluding them kills the branch-leak false positive from the standard
+ * ack-state-aware helper shape (`if (acked) followUp else reply`), where the
+ * acked-branch response would otherwise leak `sawRealAsync` onto the sibling
+ * else-branch `reply`.
+ */
+const RESPONSE_METHODS = new Set(['followUp', 'editReply', 'deleteReply']);
+
+/**
  * defineCommand keys whose value is a raw-interaction router entry. Includes
  * `handleModal` (ModalSubmitInteraction) — the canonical wrapper-ack case this
  * rule's docstring cites — so a `handleModal: async interaction => {…}` arrow
@@ -105,12 +116,36 @@ function firstParamName(fn: FunctionNode): string | null {
   return first?.type === 'Identifier' ? (first as Node & { name: string }).name : null;
 }
 
-/** True if the first param carries a type annotation matching an ack-requiring interaction. */
+/** The `typeName.name` of a TSTypeReference node, or null for any other shape. */
+function typeRefName(typeNode: unknown): string | null {
+  const name = (typeNode as { typeName?: { name?: string } } | undefined)?.typeName?.name;
+  return typeof name === 'string' ? name : null;
+}
+
+/**
+ * True if the first param carries a type annotation matching an ack-requiring
+ * interaction — directly (`interaction: ButtonInteraction`) or as a member of a
+ * union (`interaction: ButtonInteraction | StringSelectMenuInteraction`). A
+ * handler shared across ack-requiring interaction kinds still owns the ordering
+ * guarantee, so the union form must be recognized — its node is a `TSUnionType`
+ * (with `.types[]`, no `.typeName`), not a `TSTypeReference`.
+ */
 function firstParamIsAckInteraction(fn: FunctionNode): boolean {
   const first = fn.params[0] as
-    (Node & { typeAnnotation?: { typeAnnotation?: { typeName?: { name?: string } } } }) | undefined;
-  const typeName = first?.typeAnnotation?.typeAnnotation?.typeName?.name;
-  return typeof typeName === 'string' && ACK_REQUIRING_TYPE.test(typeName);
+    (Node & { typeAnnotation?: { typeAnnotation?: unknown } }) | undefined;
+  const typeNode = first?.typeAnnotation?.typeAnnotation as
+    { type?: string; types?: unknown[] } | undefined;
+  if (typeNode === undefined) {
+    return false;
+  }
+  if (typeNode.type === 'TSUnionType' && Array.isArray(typeNode.types)) {
+    return typeNode.types.some(member => {
+      const name = typeRefName(member);
+      return name !== null && ACK_REQUIRING_TYPE.test(name);
+    });
+  }
+  const name = typeRefName(typeNode);
+  return name !== null && ACK_REQUIRING_TYPE.test(name);
 }
 
 /** True if the function is the value of a `handleButton`/`handleSelectMenu` property. */
@@ -176,8 +211,18 @@ function argReferencesInteraction(arg: Node, interactionName: string): boolean {
   return false;
 }
 
-/** True if the awaited expression is a BARE ack call on the interaction (`interaction.deferUpdate()`). */
-function isBareAckCall(argument: Node | null | undefined, interactionName: string | null): boolean {
+/**
+ * True if the argument is a call of `interaction.<method>()` for a method in the
+ * given set. Fail CLOSED: only matches when interactionName is positively
+ * identified — a null name (destructured / unresolved param) never matches, so
+ * an arbitrary object's `.reply()` is not mistaken for THE interaction's ack.
+ * `passesInteractionToCallee` is fail-closed for the same reason.
+ */
+function isInteractionMethodCall(
+  argument: Node | null | undefined,
+  interactionName: string | null,
+  methods: ReadonlySet<string>
+): boolean {
   if (argument?.type !== 'CallExpression') {
     return false;
   }
@@ -188,17 +233,29 @@ function isBareAckCall(argument: Node | null | undefined, interactionName: strin
   const member = callee as Node & { object: Node; property: Node & { name?: string } };
   const objectName =
     member.object.type === 'Identifier' ? (member.object as Node & { name: string }).name : null;
-  // Fail CLOSED: only count this as an ack when we positively identified the
-  // interaction param. If interactionName is null (a destructured / zero-param
-  // handler we can't resolve), don't treat an arbitrary object's `.reply()` as
-  // THE ack — that would mask a real violation. `passesInteractionToCallee` is
-  // fail-closed for the same reason.
   return (
     interactionName !== null &&
     objectName === interactionName &&
     member.property.type === 'Identifier' &&
-    ACK_METHODS.has(member.property.name ?? '')
+    methods.has(member.property.name ?? '')
   );
+}
+
+/** True if the awaited expression is a BARE ack call on the interaction (`interaction.deferUpdate()`). */
+function isBareAckCall(argument: Node | null | undefined, interactionName: string | null): boolean {
+  return isInteractionMethodCall(argument, interactionName, ACK_METHODS);
+}
+
+/**
+ * True if the awaited expression is a POST-ack response on the interaction
+ * (`interaction.followUp()` / `editReply()` / `deleteReply()`) — a response, not
+ * a fetch. The visitor treats it as neutral (see RESPONSE_METHODS).
+ */
+function isPostAckResponseCall(
+  argument: Node | null | undefined,
+  interactionName: string | null
+): boolean {
+  return isInteractionMethodCall(argument, interactionName, RESPONSE_METHODS);
 }
 
 const rule: Rule.RuleModule = {
@@ -248,13 +305,27 @@ const rule: Rule.RuleModule = {
         if (!frame?.isHandler) {
           return;
         }
-        const argument = (node as Node & { argument?: Node }).argument;
+        // Unwrap optional-chaining: `interaction?.deferUpdate()` parses as
+        // AwaitExpression → ChainExpression → CallExpression, so peel the
+        // ChainExpression to inspect the underlying call (else it falls through
+        // to real-async and both mis-classifies the ack and over-flags).
+        const raw = (node as Node & { argument?: Node }).argument;
+        const argument =
+          raw?.type === 'ChainExpression' ? (raw as Node & { expression: Node }).expression : raw;
 
         // A bare ack AFTER real async work is the bug.
         if (isBareAckCall(argument, frame.interactionName)) {
           if (frame.sawRealAsync) {
             context.report({ node, messageId: 'ackAfterAsync' });
           }
+          return;
+        }
+
+        // A post-ack response (followUp/editReply/deleteReply) is a response, not
+        // a fetch — neither a bare ack nor real async work, so skip it. This is
+        // what keeps the `if (acked) followUp else reply` helper shape from
+        // leaking sawRealAsync onto the sibling else-branch's bare reply.
+        if (isPostAckResponseCall(argument, frame.interactionName)) {
           return;
         }
 

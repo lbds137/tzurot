@@ -91,7 +91,6 @@ export {
   fetchOrCreateSession,
   requireDeferredSession,
   getSessionOrExpired,
-  getSessionDataOrReply,
   getSessionDataOrFollowUp,
 } from './sessionHelpers.js';
 
