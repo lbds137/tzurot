@@ -76,6 +76,8 @@ describe('handleCreatePersona', () => {
 
 describe('handleCreateModalSubmit', () => {
   const mockReply = vi.fn();
+  const mockDeferReply = vi.fn();
+  const mockEditReply = vi.fn();
   let stub: PersonaClientStub;
 
   beforeEach(() => {
@@ -91,6 +93,8 @@ describe('handleCreateModalSubmit', () => {
         getTextInputValue: (name: string) => fields[name] ?? '',
       },
       reply: mockReply,
+      deferReply: mockDeferReply,
+      editReply: mockEditReply,
     } as any;
   }
 
@@ -126,9 +130,12 @@ describe('handleCreateModalSubmit', () => {
       pronouns: 'she/her',
       content: 'I am professional',
     });
-    expect(mockReply).toHaveBeenCalledWith({
+    // Ack-first: deferReply runs before the createPersona gateway call; the
+    // result lands via editReply, never a bare reply.
+    expect(mockDeferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
+    expect(mockReply).not.toHaveBeenCalled();
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Persona "Work Persona" created'),
-      flags: MessageFlags.Ephemeral,
     });
   });
 
@@ -144,9 +151,8 @@ describe('handleCreateModalSubmit', () => {
       })
     );
 
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('already have a persona named "Dup"'),
-      flags: MessageFlags.Ephemeral,
     });
   });
 
@@ -161,9 +167,8 @@ describe('handleCreateModalSubmit', () => {
       })
     );
 
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Persona name is required'),
-      flags: MessageFlags.Ephemeral,
     });
     expect(stub.createPersona).not.toHaveBeenCalled();
   });
@@ -249,9 +254,8 @@ describe('handleCreateModalSubmit', () => {
       })
     );
 
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Failed to create persona'),
-      flags: MessageFlags.Ephemeral,
     });
   });
 
@@ -268,9 +272,8 @@ describe('handleCreateModalSubmit', () => {
       })
     );
 
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Failed to create persona'),
-      flags: MessageFlags.Ephemeral,
     });
   });
 });

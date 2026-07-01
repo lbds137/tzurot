@@ -177,6 +177,13 @@ export async function handleOverrideCreateModalSubmit(
 ): Promise<void> {
   const discordId = interaction.user.id;
 
+  // Ack first (3-second rule): deferReply BEFORE the try — per the codebase
+  // convention — so a failure of the ack itself propagates to CommandHandler
+  // (which branches on replied/deferred) rather than into the catch below, which
+  // assumes the interaction is already acked. Ephemeral: the result is a private
+  // confirmation. Everything inside the try is post-defer → editReply.
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
   try {
     // Get values from modal
     const personaName = interaction.fields.getTextInputValue('personaName').trim();
@@ -190,10 +197,7 @@ export async function handleOverrideCreateModalSubmit(
 
     // Persona name is required
     if (personaName.length === 0) {
-      await interaction.reply({
-        content: '❌ Persona name is required.',
-        flags: MessageFlags.Ephemeral,
-      });
+      await interaction.editReply({ content: '❌ Persona name is required.' });
       return;
     }
 
@@ -208,18 +212,14 @@ export async function handleOverrideCreateModalSubmit(
 
     if (!result.ok) {
       if (result.code === API_ERROR_SUBCODE.NAME_COLLISION) {
-        await interaction.reply({
+        await interaction.editReply({
           content: `❌ You already have a persona named "${personaName}". Pick a different name, or edit the existing one with \`/persona edit\`.`,
-          flags: MessageFlags.Ephemeral,
         });
         return;
       }
 
       if (result.error.includes('User not found')) {
-        await interaction.reply({
-          content: '❌ User not found.',
-          flags: MessageFlags.Ephemeral,
-        });
+        await interaction.editReply({ content: '❌ User not found.' });
         return;
       }
 
@@ -227,9 +227,8 @@ export async function handleOverrideCreateModalSubmit(
         { userId: discordId, personalityId, error: result.error },
         'Failed to create override persona via gateway'
       );
-      await interaction.reply({
+      await interaction.editReply({
         content: '❌ Failed to create persona. Please try again later.',
-        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -242,21 +241,21 @@ export async function handleOverrideCreateModalSubmit(
       'Created new persona and set as override'
     );
 
-    await interaction.reply({
+    await interaction.editReply({
       content:
         `✅ **Persona "${personaName}" created and set as override for ${personalityName}!**\n\n` +
         `This persona will be used when talking to ${personalityName}.\n\n` +
         `Use \`/persona browse\` to see all your personas.`,
-      flags: MessageFlags.Ephemeral,
     });
   } catch (error) {
     logger.error(
       { err: error, userId: discordId, personalityId },
       'Failed to create override persona'
     );
-    await interaction.reply({
+    // Post-defer: deferReply ran (and succeeded) before the try, so the
+    // interaction is acked by the time any error reaches here.
+    await interaction.editReply({
       content: '❌ Failed to create persona. Please try again later.',
-      flags: MessageFlags.Ephemeral,
     });
   }
 }
