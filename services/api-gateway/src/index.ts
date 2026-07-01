@@ -40,6 +40,7 @@ import {
   VisionConfigResolver,
 } from '@tzurot/config-resolver';
 import { ConversationRetentionService } from './services/ConversationRetentionService.js';
+import { applyFastPoolDeadConnRetry } from './utils/dbTimeout.js';
 
 // Routes
 import { createAIRouter } from './routes/ai/index.js';
@@ -476,18 +477,23 @@ async function main(): Promise<void> {
   // long ops (pgvector search, Shapes import/export, retention) are exempt by
   // architecture. See poolConfig's fastPoolConnectionOptions.
   const fastCfg = fastPoolConnectionOptions();
-  const { prisma: fastPrisma, dispose: disposeFastPrisma } = createPrismaClient({
+  const { prisma: rawFastPrisma, dispose: disposeFastPrisma } = createPrismaClient({
     max: fastCfg.max,
     poolOverrides: fastCfg.poolOverrides,
   });
-  await fastPrisma.$connect();
+  await rawFastPrisma.$connect();
   // Boot probe: fail fast if the GUC `options` startup string didn't apply
   // (e.g. a connection pooler stripped it) — otherwise the tight timeouts are
-  // silently absent and we revert to the original silent-hang bug.
-  await verifyPoolTimeouts(fastPrisma, {
+  // silently absent and we revert to the original silent-hang bug. Probe the raw
+  // client (a boot check); the routes get the retry-wrapped client below.
+  await verifyPoolTimeouts(rawFastPrisma, {
     statementTimeoutMs: fastCfg.statementTimeoutMs,
     lockTimeoutMs: fastCfg.lockTimeoutMs,
   });
+  // Every fast-pool op retries once on a dead/stale socket (Railway silently
+  // reaps idle conns). Applied at the client boundary — one place, all fast-pool
+  // routes covered — instead of hand-wrapping each call site.
+  const fastPrisma = applyFastPoolDeadConnRetry(rawFastPrisma);
   logger.info('Fast-pool Prisma client established (conversation-event persists)');
 
   // Trust one reverse-proxy hop (Railway sits behind a single edge proxy).

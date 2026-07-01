@@ -17,11 +17,12 @@
  * `.cause`).
  */
 
+import { type PrismaClient, createLogger } from '@tzurot/common-types';
+
+const retryLogger = createLogger('fast-pool-retry');
+
 export type DbTimeoutLabel =
-  | 'lock-timeout'
-  | 'statement-timeout'
-  | 'query-timeout-or-dead-conn'
-  | 'other';
+  'lock-timeout' | 'statement-timeout' | 'query-timeout-or-dead-conn' | 'other';
 
 export interface DbTimeoutClassification {
   label: DbTimeoutLabel;
@@ -96,4 +97,70 @@ export function classifyDbTimeout(error: unknown): DbTimeoutClassification {
     return { label: 'query-timeout-or-dead-conn' };
   }
   return sqlstate !== undefined ? { label: 'other', sqlstate } : { label: 'other' };
+}
+
+/**
+ * Run a fast-pool persist, retrying ONCE if the first attempt fails with the
+ * dead/stale-socket class (`query-timeout-or-dead-conn`).
+ *
+ * Safe + deterministic because `pg-pool` DESTROYS a connection on any query
+ * error (its `_release` calls `_remove` when passed a truthy err), and
+ * `@prisma/adapter-pg`'s non-transactional path runs through `pool.query()` —
+ * so the dead socket is already evicted by the time we retry, and the second
+ * attempt acquires a FRESH connection. The write is idempotent two ways, so the
+ * retry is safe even if the classification is imperfect: (1) a dead-socket query
+ * never reached the server, so nothing was persisted on the failed attempt; and
+ * (2) in the ambiguous case where the socket died AFTER the INSERT committed, the
+ * retry's `create` (deterministic UUID) hits `P2002`, which the caller's outer
+ * catch already handles via its existence-compare fallback → a `matched` response.
+ *
+ * ONLY the dead-conn class is retried. A real `lock-timeout` / `statement-timeout`
+ * (the query actually ran server-side) or any other error (`other`, e.g. a
+ * constraint violation) re-throws immediately — retrying wouldn't help and could
+ * duplicate work.
+ */
+export async function withDeadConnRetry<T>(
+  op: () => Promise<T>,
+  onRetry?: (error: unknown) => void
+): Promise<T> {
+  try {
+    return await op();
+  } catch (error) {
+    if (classifyDbTimeout(error).label !== 'query-timeout-or-dead-conn') {
+      throw error;
+    }
+    onRetry?.(error);
+    return op();
+  }
+}
+
+/**
+ * Structural version of {@link withDeadConnRetry}: wrap a fast-pool `PrismaClient`
+ * so EVERY operation on it retries once on the dead/stale-socket class — applied
+ * at the client boundary instead of hand-wrapped per call site. This covers all
+ * fast-pool consumers (the conversation-persist existence-check reads AND the
+ * writes, plus any future fast-pool route) automatically, so the retry can't be
+ * forgotten when a new call site is added.
+ *
+ * Safe to apply blanket ONLY because the fast pool is dedicated to idempotent
+ * conversation-event persists by design (deterministic-UUID upsert-shaped writes
+ * + pure reads). Do NOT reuse this on the main pool, where non-idempotent writes
+ * would double-execute on retry.
+ */
+export function applyFastPoolDeadConnRetry(client: PrismaClient): PrismaClient {
+  return client.$extends({
+    query: {
+      $allOperations: ({ model, operation, args, query }) =>
+        withDeadConnRetry(
+          () => query(args),
+          error =>
+            retryLogger.warn(
+              { err: error, model, operation },
+              'Fast-pool query hit a dead/stale connection — retrying once on a fresh socket'
+            )
+        ),
+    },
+    // $extends returns a structurally-compatible but differently-typed client;
+    // the fast pool only ever runs the ops PrismaClient already exposes.
+  }) as unknown as PrismaClient;
 }

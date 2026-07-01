@@ -49,20 +49,34 @@ export const FAST_POOL_DEFAULTS = {
   MAX: 5,
   /** Fail-fast on a saturated fast pool (vs the main pool's 10s). */
   CONNECTION_TIMEOUT_MS: 5_000,
-  /** Server GUC. Single-row INSERT acquires locks in low-ms; 2s absorbs normal
+  /** Server GUC. Single-row INSERT acquires locks in low-ms; 1s absorbs normal
    *  contention and fires FIRST → labels a lock wait (SQLSTATE 55P03). */
-  LOCK_TIMEOUT_MS: 2_000,
-  /** Server GUC. Healthy INSERT <100ms; even a GIN flush should be <1s. 5s
+  LOCK_TIMEOUT_MS: 1_000,
+  /** Server GUC. Healthy INSERT <100ms; even a GIN flush should be <1s. 2s
    *  catches pathological slow work → labels it (SQLSTATE 57014). */
-  STATEMENT_TIMEOUT_MS: 5_000,
+  STATEMENT_TIMEOUT_MS: 2_000,
   /** Server GUC. A leaked transaction can't pin a fast-pool connection. */
   IDLE_IN_TX_TIMEOUT_MS: 5_000,
   /** Client-side (node-postgres) abort — the backstop for a dead/stale socket
    *  the server never sees (so the GUCs can't fire). 1s above statement_timeout
-   *  so the server cancels first when it IS reachable. */
-  QUERY_TIMEOUT_MS: 6_000,
-  /** TCP keepalive first-probe delay; proactive dead-socket detection. */
-  KEEPALIVE_INITIAL_DELAY_MS: 10_000,
+   *  so the server cancels first when it IS reachable. When it fires, the dead
+   *  connection is destroyed (pg-pool `_release` removes on error) and the
+   *  persist route retries once on a fresh socket. Kept small (3s) so that
+   *  retry — the actual recovery — happens fast. */
+  QUERY_TIMEOUT_MS: 3_000,
+  /** Evict idle fast-pool connections before a middlebox silently reaps the
+   *  socket, so a stale connection is never handed out. Deliberately SHORTER
+   *  than pg-pool's built-in 10s default so eviction is more aggressive, not
+   *  less (a longer value would just give the reaper more time). The reconnect
+   *  cost is trivial on this small, low-volume pool. Defense-in-depth: can't be
+   *  tuned against an unknown reaper threshold, so the retry is the actual fix
+   *  and this just reduces how often the retry path is hit. */
+  IDLE_TIMEOUT_MS: 5_000,
+  /** TCP keepalive first-probe delay; proactive dead-socket detection. Low so
+   *  probing starts early — though the OS keepalive INTERVAL (~75s, not settable
+   *  via pg.Pool) means keepalive alone can't beat an aggressive reaper; the
+   *  retry is what actually recovers. */
+  KEEPALIVE_INITIAL_DELAY_MS: 1_000,
 } as const;
 
 /** Parse a non-negative integer env var, falling back when unset/invalid. */
@@ -132,6 +146,7 @@ export interface FastPoolConfig {
   poolOverrides: {
     connectionTimeoutMillis: number;
     query_timeout: number;
+    idleTimeoutMillis: number;
     keepAlive: true;
     keepAliveInitialDelayMillis: number;
     /** Postgres startup `options` string — the ONLY reliable way to set the
@@ -178,6 +193,7 @@ export function fastPoolConnectionOptions(env: NodeJS.ProcessEnv = process.env):
     poolOverrides: {
       connectionTimeoutMillis: FAST_POOL_DEFAULTS.CONNECTION_TIMEOUT_MS,
       query_timeout: queryTimeoutMs,
+      idleTimeoutMillis: FAST_POOL_DEFAULTS.IDLE_TIMEOUT_MS,
       keepAlive: true,
       keepAliveInitialDelayMillis: FAST_POOL_DEFAULTS.KEEPALIVE_INITIAL_DELAY_MS,
       options:
