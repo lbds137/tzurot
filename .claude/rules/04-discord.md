@@ -8,6 +8,13 @@ never before. The 3-second budget is indivisible: a sub-millisecond Redis
 lookup today is a multi-second lookup under load, and the window doesn't
 distinguish between types of async work.
 
+**Enforced at lint time** by the `@tzurot/component-handler-ack-first` ESLint
+rule (`'error'`): a bare interaction ack (`deferUpdate`/`deferReply`/`reply`/
+`update`/`showModal`) must not follow awaited async work in a component/modal
+handler. Either ack first, or — when the data must be fetched before the ack
+(e.g. a modal prefilled from a row) — route the ack through a
+`*WithTimeoutCatch` wrapper so a blown budget degrades to a `followUp`.
+
 ### Slash commands: defer first, then process
 
 ```typescript
