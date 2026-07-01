@@ -64,12 +64,19 @@ export interface OverrideSummary {
   configName: string | null;
   /**
    * Config kind of this override (text | vision). Optional: domains without a
-   * kind axis (e.g. TTS overrides) omit it and the browser behaves exactly as
-   * before. When present, vision rows are badged and the kind is carried through
-   * select → clear so the right FK is cleared (a character can have BOTH a text
-   * and a vision override — so `(personalityId, kind)` is the unique key).
+   * kind axis (e.g. TTS overrides) omit it. It is the ROUTING identity carried
+   * through select → clear so the right FK is cleared (a character can have BOTH
+   * a text and a vision override — so `(personalityId, kind)` is the unique key).
+   * The 👁 badge is NOT derived from this — it reads `supportsVision`, so the
+   * badge reflects the model's actual capability, not the slot label.
    */
   kind?: ConfigKind;
+  /**
+   * Whether the override's config MODEL supports vision — capability-driven, from
+   * the gateway's `ModelOverrideSummary.supportsVision`. Drives the 👁 badge.
+   * Optional: domains without a capability axis (TTS) omit it → no badge.
+   */
+  supportsVision?: boolean;
 }
 
 /**
@@ -190,7 +197,7 @@ export function buildOverrideBrowseView(
   }
 
   const lines = overrides.map(o => {
-    const visionBadge = o.kind === 'vision' ? '👁️ ' : '';
+    const visionBadge = o.supportsVision === true ? '👁️ ' : '';
     return `${visionBadge}**${escapeMarkdown(o.personalityName)}** → ${escapeMarkdown(o.configName ?? 'Unknown')}`;
   });
   embed.setDescription(lines.join('\n'));
@@ -212,10 +219,11 @@ export function buildOverrideBrowseView(
     placeholder: config.selectPlaceholder,
     startIndex: 0,
     formatItem: o => ({
-      // kind-aware domains badge vision + encode kind in the value so
-      // `(personalityId, kind)` stays the unique key (a character can have both
-      // a text and a vision override); kind-less domains keep the bare id.
-      label: o.kind === 'vision' ? `👁️ ${o.personalityName}` : o.personalityName,
+      // The 👁 badge reads model capability (`supportsVision`); the value encodes
+      // `kind` so `(personalityId, kind)` stays the unique clear-key (a character
+      // can have both a text and a vision override). kind-less domains (TTS) get
+      // no badge and keep the bare id.
+      label: o.supportsVision === true ? `👁️ ${o.personalityName}` : o.personalityName,
       value:
         o.kind === undefined
           ? o.personalityId
