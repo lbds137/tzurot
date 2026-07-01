@@ -309,3 +309,76 @@ describe('detection coverage — handleModal router key', () => {
     ).toHaveLength(1);
   });
 });
+
+describe('detection coverage — union params, optional chaining, post-ack responses', () => {
+  it('recognizes a union-typed handler param (ack-first path is valid)', () => {
+    // Shared button+select handler (e.g. shapes handleBrowsePage). The union
+    // param must be seen as a handler; the ack-first ordering here is valid.
+    expect(
+      lint(`async function handleBrowsePage(
+        interaction: ButtonInteraction | StringSelectMenuInteraction
+      ) {
+        await interaction.deferUpdate();
+        const list = await fetchShapesList();
+        await interaction.editReply(list);
+      }`)
+    ).toHaveLength(0);
+  });
+
+  it('flags a union-typed handler that acks after async', () => {
+    // The gap the union extension closes: a union param used to be silently
+    // skipped, so hoisting the fetch above the ack would go uncaught.
+    expect(
+      lint(`async function handleBrowsePage(
+        interaction: ButtonInteraction | StringSelectMenuInteraction
+      ) {
+        const list = await fetchShapesList();
+        await interaction.deferUpdate();
+      }`)
+    ).toHaveLength(1);
+  });
+
+  it('unwraps optional-chaining on the ack (interaction?.deferUpdate())', () => {
+    // A budget-safe ack-first handler using optional chaining must NOT be flagged
+    // (the ack parses as ChainExpression, which the visitor peels).
+    expect(
+      lint(`async function handleClick(interaction: ButtonInteraction) {
+        await interaction?.deferUpdate();
+        const session = await findSession(interaction.message.id);
+        await interaction.editReply(session);
+      }`)
+    ).toHaveLength(0);
+  });
+
+  it('does not flag the if(acked) followUp else reply ack-state helper shape', () => {
+    // followUp/editReply are post-ack responses, not fetches — the acked-branch
+    // response must NOT leak sawRealAsync onto the sibling else-branch reply.
+    expect(
+      lint(`async function replyError(
+        interaction: ButtonInteraction | StringSelectMenuInteraction
+      ) {
+        if (interaction.deferred || interaction.replied) {
+          await interaction.followUp({ content });
+        } else {
+          await interaction.reply({ content });
+        }
+      }`)
+    ).toHaveLength(0);
+  });
+
+  it('still flags a real fetch before the else-branch reply in that shape', () => {
+    // The followUp exemption must not blind the rule to a genuine fetch-before-ack.
+    expect(
+      lint(`async function replyError(
+        interaction: ButtonInteraction | StringSelectMenuInteraction
+      ) {
+        const data = await loadData(interaction.message.id);
+        if (interaction.replied) {
+          await interaction.followUp({ content: data });
+        } else {
+          await interaction.reply({ content: data });
+        }
+      }`)
+    ).toHaveLength(1);
+  });
+});
