@@ -198,8 +198,43 @@ describe('/user/model-override routes', () => {
               configId: '22222222-2222-4222-a222-222222222222',
               configName: 'GPT-4 Config',
               kind: 'text',
+              supportsVision: false,
             },
           ],
+        })
+      );
+    });
+
+    it('enriches supportsVision: true when the list override model is vision-capable', async () => {
+      mockPrisma.userPersonalityConfig.findMany.mockResolvedValue([
+        {
+          personalityId: '11111111-1111-4111-a111-111111111111',
+          personality: { name: 'Lilith' },
+          llmConfigId: '22222222-2222-4222-a222-222222222222',
+          llmConfig: { name: 'GPT-4o', model: 'openai/gpt-4o' },
+        },
+      ]);
+
+      const modelCache = {
+        getModelById: vi.fn(async (id: string) =>
+          id === 'openai/gpt-4o' ? { supportsVision: true } : null
+        ),
+      } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;
+
+      const router = createModelOverrideRoutes({
+        prisma: mockPrisma as unknown as PrismaClient,
+        modelCache,
+      });
+      const handler = getHandler(router, 'get', '/');
+      const { req, res } = createMockReqRes();
+
+      await handler(req, res);
+
+      // Proves the per-row model (from the list select) flows into the capability
+      // lookup — a supportsVision hardcoded to false, or a dropped select, fails here.
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          overrides: [expect.objectContaining({ configName: 'GPT-4o', supportsVision: true })],
         })
       );
     });
@@ -365,6 +400,7 @@ describe('/user/model-override routes', () => {
             configId: '22222222-2222-4222-a222-222222222222',
             configName: 'GPT-4',
             kind: 'text',
+            supportsVision: false,
           },
         })
       );
@@ -384,7 +420,7 @@ describe('/user/model-override routes', () => {
         personalityId: '11111111-1111-4111-a111-111111111111',
         personality: { name: 'Lilith' },
         visionConfigId: '22222222-2222-4222-a222-222222222222',
-        visionConfig: { name: 'GPT-4o' },
+        visionConfig: { name: 'GPT-4o', model: 'openai/gpt-4o' },
       });
 
       const modelCache = {
@@ -419,9 +455,12 @@ describe('/user/model-override routes', () => {
         })
       );
       expect(res.status).toHaveBeenCalledWith(200);
+      // supportsVision: true proves the enrichment reads the vision slot's model
+      // (openai/gpt-4o) capability via modelCache — not the kind label — and that
+      // the isVision→visionConfig.model branch is wired correctly.
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          override: expect.objectContaining({ kind: 'vision' }),
+          override: expect.objectContaining({ kind: 'vision', supportsVision: true }),
         })
       );
     });
@@ -1201,6 +1240,7 @@ describe('/user/model-override routes', () => {
               configId: 'text-cfg',
               configName: 'Text Cfg',
               kind: 'text',
+              supportsVision: false,
             },
             {
               personalityId: PERSONALITY,
@@ -1208,6 +1248,7 @@ describe('/user/model-override routes', () => {
               configId: VISION_CFG,
               configName: 'Vision Cfg',
               kind: 'vision',
+              supportsVision: false,
             },
           ],
         })

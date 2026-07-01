@@ -30,6 +30,7 @@ import {
   parseConfigKindQueryAllowAll,
 } from '../../utils/configRouteHelpers.js';
 import { ensureVisionCapableModel } from '../../utils/llmConfigValidation.js';
+import { ModelCapabilityService } from '../../services/ModelCapabilityService.js';
 import { tryInvalidateCache } from '../../utils/configOverrideHelpers.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -64,7 +65,8 @@ async function verifyConfigAccess(
 
 /** GET /api/user/model-override — list all user model overrides */
 export const handleListModelOverrides = (deps: RouteDeps): RequestHandler => {
-  const { prisma } = deps;
+  const { prisma, modelCache } = deps;
+  const capabilities = new ModelCapabilityService(modelCache);
   return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
     const userId = resolveProvisionedUserId(req);
@@ -93,9 +95,10 @@ export const handleListModelOverrides = (deps: RouteDeps): RequestHandler => {
         personalityId: true,
         personality: { select: { name: true } },
         llmConfigId: true,
-        llmConfig: { select: { name: true } },
+        // `model` feeds the capability-driven supportsVision badge (below).
+        llmConfig: { select: { name: true, model: true } },
         visionConfigId: true,
-        visionConfig: { select: { name: true } },
+        visionConfig: { select: { name: true, model: true } },
       },
       // Bounds personality CONFIG rows, not output rows: for `kind=all` a
       // personality with both FKs expands to two summaries below, so the
@@ -116,6 +119,7 @@ export const handleListModelOverrides = (deps: RouteDeps): RequestHandler => {
           configId: o.llmConfigId,
           configName: o.llmConfig?.name ?? null,
           kind: 'text',
+          supportsVision: await capabilities.supportsVision(o.llmConfig?.model ?? ''),
         });
       }
       if (emitVision && o.visionConfigId !== null) {
@@ -125,6 +129,7 @@ export const handleListModelOverrides = (deps: RouteDeps): RequestHandler => {
           configId: o.visionConfigId,
           configName: o.visionConfig?.name ?? null,
           kind: 'vision',
+          supportsVision: await capabilities.supportsVision(o.visionConfig?.model ?? ''),
         });
       }
     }
@@ -137,6 +142,7 @@ export const handleListModelOverrides = (deps: RouteDeps): RequestHandler => {
 /** PUT /api/user/model-override — set model override for a personality */
 export const handleSetModelOverride = (deps: RouteDeps): RequestHandler => {
   const { prisma, modelCache } = deps;
+  const capabilities = new ModelCapabilityService(modelCache);
   return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
 
@@ -199,9 +205,10 @@ export const handleSetModelOverride = (deps: RouteDeps): RequestHandler => {
         personalityId: true,
         personality: { select: { name: true } },
         llmConfigId: true,
-        llmConfig: { select: { name: true } },
+        // `model` feeds the capability-driven supportsVision badge (below).
+        llmConfig: { select: { name: true, model: true } },
         visionConfigId: true,
-        visionConfig: { select: { name: true } },
+        visionConfig: { select: { name: true, model: true } },
       },
     });
 
@@ -213,6 +220,12 @@ export const handleSetModelOverride = (deps: RouteDeps): RequestHandler => {
         ? (override.visionConfig?.name ?? null)
         : (override.llmConfig?.name ?? null),
       kind: isVision ? 'vision' : 'text',
+      // Re-resolves the vision slot's capability that ensureVisionCapableModel
+      // already checked on the write-gate — harmless while resolution is a warm
+      // in-memory cache hit; revisit if it ever grows a network round-trip.
+      supportsVision: await capabilities.supportsVision(
+        (isVision ? override.visionConfig?.model : override.llmConfig?.model) ?? ''
+      ),
     };
 
     logger.info(
