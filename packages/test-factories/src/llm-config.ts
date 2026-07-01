@@ -158,7 +158,6 @@ export function mockCreateLlmConfigResponse(
   const response: CreateLlmConfigResponse = {
     config: mockLlmConfigDetail({
       isGlobal: false,
-      isDefault: false,
       isOwned: true,
       permissions: { canEdit: true, canDelete: true }, // User owns their created config
       ...overrides,

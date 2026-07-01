@@ -117,8 +117,6 @@ interface FormattedConfigDetail {
   model: string;
   kind: ConfigKind;
   isGlobal: boolean;
-  isDefault: boolean;
-  isFreeDefault: boolean;
   memoryScoreThreshold: number;
   memoryLimit: number;
   contextWindowTokens: number;
@@ -650,8 +648,9 @@ export class LlmConfigService {
       model: raw.model,
       kind: toConfigKind(raw.kind),
       isGlobal: raw.isGlobal,
-      isDefault: raw.isDefault,
-      isFreeDefault: raw.isFreeDefault,
+      // isDefault/isFreeDefault are NOT on the detail response: defaults live on
+      // the AdminSettings pointers (S3), and no client reads them off the detail
+      // — the ⭐/🆓 badges derive from the pointer-based flags on the LIST summary.
       memoryScoreThreshold: raw.memoryScoreThreshold.toNumber(),
       memoryLimit: raw.memoryLimit,
       contextWindowTokens: raw.contextWindowTokens,

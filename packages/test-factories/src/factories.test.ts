@@ -285,7 +285,6 @@ describe('llm-config factories', () => {
 
       expect(response.config).toMatchObject({
         isGlobal: false,
-        isDefault: false,
         isOwned: true,
         permissions: { canEdit: true, canDelete: true },
       });

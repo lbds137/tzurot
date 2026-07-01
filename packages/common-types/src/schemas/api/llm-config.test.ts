@@ -130,8 +130,6 @@ describe('LLM Config API Contract Tests', () => {
       model: 'openai/gpt-4o-mini',
       kind: 'text',
       isGlobal: true,
-      isDefault: false,
-      isFreeDefault: false,
       isOwned: false,
       permissions: { canEdit: false, canDelete: false },
       contextWindowTokens: 8000,
@@ -140,6 +138,19 @@ describe('LLM Config API Contract Tests', () => {
 
     it('validates a full detail config', () => {
       expect(LlmConfigDetailSchema.safeParse(validDetail).success).toBe(true);
+    });
+
+    it('omits isDefault/isFreeDefault from the detail shape (pointer-relationship, not entity attr)', () => {
+      // Default-ness lives on the AdminSettings pointers (carried on the LIST
+      // summary for badges), never on the canonical detail. Pins the omit so a
+      // future accidental re-add is caught. See S4a.
+      const parsed = LlmConfigDetailSchema.parse({
+        ...validDetail,
+        isDefault: true,
+        isFreeDefault: true,
+      });
+      expect('isDefault' in parsed).toBe(false);
+      expect('isFreeDefault' in parsed).toBe(false);
     });
 
     it('allows optional modelContextLength / contextWindowCap', () => {
