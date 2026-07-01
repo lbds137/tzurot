@@ -54,9 +54,10 @@ function override(
   id: string,
   name: string,
   configName: string | null = 'Cfg',
-  kind?: ConfigKind
+  kind?: ConfigKind,
+  supportsVision?: boolean
 ): OverrideSummary {
-  return { personalityId: id, personalityName: name, configName, kind };
+  return { personalityId: id, personalityName: name, configName, kind, supportsVision };
 }
 
 beforeEach(() => {
@@ -142,14 +143,14 @@ describe('buildOverrideBrowseView', () => {
     expect(menu.options[0].label).toContain('Lilith');
   });
 
-  it('badges vision overrides and encodes kind in the select value', () => {
+  it('badges by model capability (supportsVision) and encodes kind in the select value', () => {
     const overrides = [
-      override('p1', 'Lilith', 'Text Cfg', 'text'),
-      override('p1', 'Lilith', 'Vision Cfg', 'vision'),
+      override('p1', 'Lilith', 'Text Cfg', 'text', false),
+      override('p1', 'Lilith', 'Vision Cfg', 'vision', true),
     ];
     const { embeds, components } = buildOverrideBrowseView(makeConfig(), overrides);
 
-    // The vision line carries the 👁️ badge; the text line does not.
+    // The vision-capable row carries the 👁️ badge; the non-vision row does not.
     const description = embeds[0].toJSON().description ?? '';
     expect(description).toContain('👁️');
 
@@ -160,6 +161,19 @@ describe('buildOverrideBrowseView', () => {
     // Same personality, two kinds → kind-encoded values disambiguate them.
     expect(menu.options.map(o => o.value)).toEqual(['p1::text', 'p1::vision']);
     expect(menu.options[1].label).toContain('👁️');
+    expect(menu.options[0].label).not.toContain('👁️');
+  });
+
+  it('badges from capability, not slot: a chat-slot override on a vision-capable model gets 👁️', () => {
+    // The badge reflects the MODEL's capability, not which slot the override
+    // occupies — a chat-slot (kind:text) override whose model supports vision is
+    // still badged. This is the whole point of the capability-driven switch.
+    const overrides = [override('p1', 'Lilith', 'Vision-capable chat model', 'text', true)];
+    const { embeds, components } = buildOverrideBrowseView(makeConfig(), overrides);
+
+    expect(embeds[0].toJSON().description ?? '').toContain('👁️');
+    const row = components[0].toJSON() as { components: { options: { label: string }[] }[] };
+    expect(row.components[0].options[0].label).toContain('👁️');
   });
 
   it('renders Unknown for a null config name', () => {

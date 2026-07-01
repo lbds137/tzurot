@@ -42,6 +42,7 @@ type OverrideRow = {
   personalityName: string;
   configName: string | null;
   kind?: 'text' | 'vision';
+  supportsVision?: boolean;
 };
 
 /**
@@ -71,7 +72,13 @@ describe('handlePresetBrowse', () => {
   it('lists overrides of both kinds and renders them (vision badged)', async () => {
     mockAllOverrides([
       { personalityId: 'p1', personalityName: 'Lilith', configName: 'Fast', kind: 'text' },
-      { personalityId: 'p2', personalityName: 'Aria', configName: 'GPT-4o', kind: 'vision' },
+      {
+        personalityId: 'p2',
+        personalityName: 'Aria',
+        configName: 'GPT-4o',
+        kind: 'vision',
+        supportsVision: true,
+      },
     ]);
     const editReply = vi.fn();
     const context = {
