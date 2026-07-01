@@ -17,13 +17,14 @@ import {
   imageDescriptionJobDataSchema,
 } from '@tzurot/common-types';
 import { describeImage } from '../services/MultimodalProcessor.js';
+import { describeImageWithFallback } from '../services/multimodal/describeImageWithFallback.js';
 import { withRetry } from '../utils/retry.js';
 import { shouldRetryError, getErrorLogContext } from '../utils/apiErrorParser.js';
 import type { ApiKeyResolver } from '../services/ApiKeyResolver.js';
 import {
   resolveVisionConfig,
-  VISION_AUTH_FAIL_FAST_DESCRIPTION,
   type VisionConfigResult,
+  type ResolveVisionConfigOptions,
 } from '../services/multimodal/visionAuthResolver.js';
 
 const logger = createLogger('ImageDescriptionJob');
@@ -94,6 +95,68 @@ async function resolveVisionApiKey(
   });
 }
 
+/** Per-image auth for `processImageDescriptionJob` — either the fallback-loop INPUTS or legacy pre-resolved fields. */
+interface ImageJobAuth {
+  /** Present on the resolver-wired path → routes to `describeImageWithFallback`. */
+  visionAuth?: ResolveVisionConfigOptions;
+  isGuestMode: boolean;
+  userApiKey: string | undefined;
+  visionProvider: AIProvider | undefined;
+  visionModel: string | undefined;
+  apiKeySource: 'user' | 'system';
+}
+
+/**
+ * Resolve per-image auth for the job:
+ * - Resolver wired (production): hand the auth INPUTS to the fallback loop, which resolves
+ *   per tier + retries down the model chain + renders the "configure your key" placeholder on
+ *   auth-exhaustion. We do NOT pre-resolve — a pre-resolve's broad-free-fallback would consume
+ *   the daily free-vision quota a SECOND time against the loop's own once-per-request consume.
+ * - No resolver (legacy test path): resolve once (always synthesizes a `resolved` config, never
+ *   fail-fast) and expose the pre-resolved fields for the single-model describeImage.
+ */
+async function resolveImageJobAuth(
+  apiKeyResolver: ApiKeyResolver | undefined,
+  userId: string,
+  personality: ImageDescriptionJobData['personality']
+): Promise<ImageJobAuth> {
+  const base: ImageJobAuth = {
+    isGuestMode: false,
+    userApiKey: undefined,
+    visionProvider: undefined,
+    visionModel: undefined,
+    apiKeySource: 'system',
+  };
+  if (apiKeyResolver !== undefined) {
+    return {
+      ...base,
+      visionAuth: {
+        personality,
+        mainProvider: undefined,
+        mainApiKey: undefined,
+        isGuestMode: false,
+        userId,
+        apiKeyResolver,
+      },
+    };
+  }
+  const authResult = await resolveVisionApiKey(undefined, userId, personality);
+  if (authResult.kind !== 'resolved') {
+    return base;
+  }
+  const { config } = authResult;
+  // Normalize the synthesized empty sentinels back to `undefined` so `describeImage`
+  // self-selects the model and `createChatModel` gets no empty Authorization header.
+  const userApiKey = config.apiKey.length > 0 ? config.apiKey : undefined;
+  return {
+    isGuestMode: config.isGuestMode,
+    userApiKey,
+    visionModel: config.model.length > 0 ? config.model : undefined,
+    apiKeySource: config.source,
+    visionProvider: userApiKey !== undefined ? config.provider : undefined,
+  };
+}
+
 /**
  * Per-image processing context — options-bag bundles auth + diagnostic fields
  * to keep `processSingleImage` within the max-params lint limit.
@@ -110,6 +173,13 @@ interface ProcessSingleImageOptions {
    * re-selected. `undefined` falls back to `describeImage`'s self-selection.
    */
   model: string | undefined;
+  /**
+   * Phase-4 vision fallback: the auth INPUTS. When present, the image routes through
+   * `describeImageWithFallback` (per-tier auth + retry-down-the-chain, never throws — the
+   * loop IS the retry, so no `withRetry` wrapper). When absent (legacy no-resolver path),
+   * the single-model `describeImage` runs under `withRetry` with the pre-resolved fields.
+   */
+  visionAuth?: ResolveVisionConfigOptions;
   loggingContext: {
     userId?: string;
     apiKeySource?: 'user' | 'system';
@@ -118,7 +188,8 @@ interface ProcessSingleImageOptions {
 }
 
 /**
- * Process a single image attachment with retry logic
+ * Process a single image attachment. With `visionAuth`, the fallback loop owns the retry
+ * (down the model chain); otherwise the legacy single-model path retries in place.
  */
 async function processSingleImage(options: ProcessSingleImageOptions): Promise<ImageProcessResult> {
   const {
@@ -128,8 +199,17 @@ async function processSingleImage(options: ProcessSingleImageOptions): Promise<I
     userApiKey,
     visionProvider,
     model,
+    visionAuth,
     loggingContext,
   } = options;
+  if (visionAuth !== undefined) {
+    // The loop never throws — it returns a description or a placeholder — so there's no
+    // withRetry (the tier walk IS the retry) and no catch: a placeholder is a valid result.
+    const description = await describeImageWithFallback(attachment, personality, visionAuth, {
+      loggingContext,
+    });
+    return { url: attachment.url, description, success: true };
+  }
   try {
     const result = await withRetry(
       () =>
@@ -162,44 +242,6 @@ async function processSingleImage(options: ProcessSingleImageOptions): Promise<I
       success: false,
     };
   }
-}
-
-/**
- * Build a fail-fast `ImageDescriptionResult` for the case where the user is
- * authenticated for some provider but lacks a key for the vision provider.
- *
- * Each image gets a "configure your key" description (visible to the LLM when it
- * consumes the dependency-job result) — the same fallback string the
- * channel-history path emits via `buildVisionAuthFailureResults`, so the user
- * sees consistent behavior regardless of how the image arrived.
- */
-function buildFailFastResult(opts: {
-  requestId: string;
-  attachments: ImageDescriptionJobData['attachments'];
-  visionProvider: AIProvider;
-  sourceReferenceNumber: number | undefined;
-  startTime: number;
-}): ImageDescriptionResult {
-  const { requestId, attachments, visionProvider, sourceReferenceNumber, startTime } = opts;
-
-  const descriptions = attachments.map(attachment => ({
-    url: attachment.url,
-    description: VISION_AUTH_FAIL_FAST_DESCRIPTION,
-  }));
-
-  const processingTimeMs = Date.now() - startTime;
-  logger.info(
-    { requestId, visionProvider, imageCount: attachments.length, processingTimeMs },
-    'Vision auth fail-fast — authenticated user has no key for vision provider'
-  );
-
-  return {
-    requestId,
-    success: true, // "successful" in that we have a description for each image
-    descriptions,
-    sourceReferenceNumber,
-    metadata: { processingTimeMs, imageCount: descriptions.length, failedCount: 0 },
-  };
 }
 
 /**
@@ -246,40 +288,15 @@ export async function processImageDescriptionJob(
   }
 
   const { requestId, attachments, personality, context, sourceReferenceNumber } = job.data;
-  const authResult = await resolveVisionApiKey(apiKeyResolver, context.userId, personality);
 
   logger.info(
     { jobId: job.id, requestId, imageCount: attachments.length, personalityName: personality.name },
     'Processing image description job'
   );
 
-  // Fail-fast: even the free-model system fallback is unavailable (no system
-  // OpenRouter key configured) for an authenticated user lacking a vision key.
-  // Mirrors DependencyStep's `buildVisionAuthFailureResults` behavior so direct
-  // upload and channel-history paths produce the same "configure your key"
-  // fallback for the same user setup.
-  if (authResult.kind === 'failFast') {
-    return buildFailFastResult({
-      requestId,
-      attachments,
-      visionProvider: authResult.provider,
-      sourceReferenceNumber,
-      startTime,
-    });
-  }
+  const { visionAuth, isGuestMode, userApiKey, visionProvider, visionModel, apiKeySource } =
+    await resolveImageJobAuth(apiKeyResolver, context.userId, personality);
 
-  const { config } = authResult;
-  // The no-resolver legacy path synthesizes empty apiKey/model sentinels —
-  // normalize them back to `undefined` so `describeImage` self-selects the model
-  // and `createChatModel` doesn't receive an empty Authorization header.
-  const isGuestMode = config.isGuestMode;
-  const userApiKey = config.apiKey.length > 0 ? config.apiKey : undefined;
-  const visionModel = config.model.length > 0 ? config.model : undefined;
-  const apiKeySource = config.source;
-  // The legacy no-resolver path resolves to provider=OpenRouter with an empty
-  // apiKey; in that case leave `visionProvider` undefined so `createChatModel`
-  // falls back to the env default exactly as the pre-unification path did.
-  const visionProvider = userApiKey !== undefined ? config.provider : undefined;
   const loggingContext = {
     userId: context.userId,
     apiKeySource,
@@ -304,6 +321,7 @@ export async function processImageDescriptionJob(
           userApiKey,
           visionProvider,
           model: visionModel,
+          visionAuth,
           loggingContext,
         })
       )

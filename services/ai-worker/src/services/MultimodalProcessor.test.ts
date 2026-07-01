@@ -6,6 +6,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { describeImage, transcribeAudio, processAttachments } from './MultimodalProcessor.js';
 import type { AttachmentMetadata, LoadedPersonality } from '@tzurot/common-types';
 import { AttachmentType, CONTENT_TYPES } from '@tzurot/common-types';
+import type { ResolveVisionConfigOptions } from './multimodal/visionAuthResolver.js';
+import type { ApiKeyResolver } from './ApiKeyResolver.js';
 
 // Use vi.hoisted() to create mocks that persist across test resets
 const {
@@ -17,6 +19,7 @@ const {
   mockVisionCacheStore,
   mockVisionCacheGetFailure,
   mockVisionCacheStoreFailure,
+  mockDescribeImageWithFallback,
 } = vi.hoisted(() => ({
   mockModelInvoke: vi.fn(),
   mockCreateChatModel: vi.fn(),
@@ -26,6 +29,14 @@ const {
   mockVisionCacheStore: vi.fn(),
   mockVisionCacheGetFailure: vi.fn(),
   mockVisionCacheStoreFailure: vi.fn(),
+  mockDescribeImageWithFallback: vi.fn(),
+}));
+
+// Mock the Phase-4 fallback wrapper so we can assert processAttachments ROUTES the
+// visionAuth bundle to it (rather than the single-model describeImage). This is the seam
+// where dropping visionAuth silently breaks the extended-context path.
+vi.mock('./multimodal/describeImageWithFallback.js', () => ({
+  describeImageWithFallback: (...args: unknown[]) => mockDescribeImageWithFallback(...args),
 }));
 
 // Mock ModelFactory (used by VisionProcessor)
@@ -107,6 +118,7 @@ describe('MultimodalProcessor', () => {
     mockVisionCacheStore.mockResolvedValue(undefined);
     mockVisionCacheGetFailure.mockResolvedValue(null); // Default: no failure cached
     mockVisionCacheStoreFailure.mockResolvedValue(undefined);
+    mockDescribeImageWithFallback.mockResolvedValue('Fallback-loop description');
   });
 
   afterEach(() => {
@@ -212,6 +224,48 @@ describe('MultimodalProcessor', () => {
         type: AttachmentType.Image,
         description: 'Mocked image description',
         originalUrl: 'https://cdn.discordapp.com/image1.png',
+      });
+    });
+
+    it('routes an image through describeImageWithFallback when visionAuth is provided', async () => {
+      // Wrapper is mocked → no retry timers needed.
+      vi.useRealTimers();
+      const attachments: AttachmentMetadata[] = [
+        {
+          url: 'https://cdn.discordapp.com/image1.png',
+          name: 'image1.png',
+          contentType: CONTENT_TYPES.IMAGE_PNG,
+          size: 1024,
+        },
+      ];
+      const visionAuth: ResolveVisionConfigOptions = {
+        personality: mockPersonality,
+        mainProvider: undefined,
+        mainApiKey: undefined,
+        isGuestMode: false,
+        userId: 'user-1',
+        apiKeyResolver: {
+          resolveApiKey: vi.fn(),
+          tryResolveUserKey: vi.fn(),
+        } as unknown as ApiKeyResolver,
+      };
+
+      const results = await processAttachments(attachments, mockPersonality, {
+        isGuestMode: false,
+        visionAuth,
+      });
+
+      // The visionAuth bundle MUST reach describeImageWithFallback — dropping it silently
+      // falls back to single-model describeImage (inert loop + BYOK-key regression).
+      expect(mockDescribeImageWithFallback).toHaveBeenCalledWith(
+        attachments[0],
+        mockPersonality,
+        visionAuth,
+        expect.objectContaining({ loggingContext: expect.any(Object) })
+      );
+      expect(results[0]).toMatchObject({
+        type: AttachmentType.Image,
+        description: 'Fallback-loop description',
       });
     });
 

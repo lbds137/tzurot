@@ -10,23 +10,14 @@
  * - Authenticated user, no vision key AND no system key → failFast
  *   (fallback-of-fallback)
  * - Transient resolver throw → graceful failFast degrade
- *
- * Plus the buildVisionAuthFailureResults helper that produces the
- * synthetic-failure batch when the resolver returns failFast.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import {
-  AIProvider,
-  AttachmentType,
-  MODEL_DEFAULTS,
-  type LoadedPersonality,
-  type AttachmentMetadata,
-} from '@tzurot/common-types';
+import { AIProvider, MODEL_DEFAULTS, type LoadedPersonality } from '@tzurot/common-types';
 import {
   resolveVisionConfig,
   resolveVisionAuth,
-  buildVisionAuthFailureResults,
+  createVisionQuotaTracker,
 } from './visionAuthResolver.js';
 import { selectVisionModel } from './VisionProcessor.js';
 import type { ApiKeyResolver } from '../ApiKeyResolver.js';
@@ -52,8 +43,8 @@ vi.mock('./VisionProcessor.js', () => ({
   selectVisionModel: vi.fn(),
 }));
 
-// VisionDescriptionCache singleton mock — buildVisionAuthFailureResults writes
-// to it; we just verify the call shape.
+// VisionDescriptionCache singleton mock — stubbed for module-load safety; we just
+// verify the call shape where relevant.
 const mockStoreFailure = vi.fn();
 // Default: quota allows (under cap). Over-cap tests override per-case.
 const mockTryConsume = vi.fn().mockResolvedValue(true);
@@ -414,18 +405,23 @@ describe('resolveVisionAuth (direct, model-parameterized)', () => {
   it('honors the caller-supplied targetModel (does not call selectVisionModel)', async () => {
     mockTryResolveUserKey.mockResolvedValue('user-or-key');
 
-    const result = await resolveVisionAuth('fallback/tier-model', AIProvider.OpenRouter, {
-      personality,
-      mainProvider: AIProvider.OpenRouter,
-      mainApiKey: '', // empty → skip fast path → per-provider resolution
-      isGuestMode: false,
-      userId: 'user-1',
-      apiKeyResolver: mockResolver,
-    });
+    const result = await resolveVisionAuth(
+      'fallback/tier-model',
+      {
+        personality,
+        mainProvider: AIProvider.OpenRouter,
+        mainApiKey: '', // empty → skip fast path → per-provider resolution
+        isGuestMode: false,
+        userId: 'user-1',
+        apiKeyResolver: mockResolver,
+      },
+      createVisionQuotaTracker('user-1')
+    );
 
     expect(result.kind).toBe('resolved');
     if (result.kind === 'resolved') {
       expect(result.config.model).toBe('fallback/tier-model');
+      // Provider is self-derived from the target model (detectVisionProvider) → OpenRouter.
       expect(result.config.provider).toBe(AIProvider.OpenRouter);
     }
     // The tier model is provided by the caller — resolveVisionAuth must not re-derive it.
@@ -433,14 +429,18 @@ describe('resolveVisionAuth (direct, model-parameterized)', () => {
   });
 
   it('reuses the main key on the same-provider fast path with the target model', async () => {
-    const result = await resolveVisionAuth('fallback/tier-model', AIProvider.OpenRouter, {
-      personality,
-      mainProvider: AIProvider.OpenRouter,
-      mainApiKey: 'main-or-key',
-      isGuestMode: false,
-      userId: 'user-1',
-      apiKeyResolver: mockResolver,
-    });
+    const result = await resolveVisionAuth(
+      'fallback/tier-model',
+      {
+        personality,
+        mainProvider: AIProvider.OpenRouter,
+        mainApiKey: 'main-or-key',
+        isGuestMode: false,
+        userId: 'user-1',
+        apiKeyResolver: mockResolver,
+      },
+      createVisionQuotaTracker('user-1')
+    );
 
     expect(result).toEqual({
       kind: 'resolved',
@@ -453,34 +453,5 @@ describe('resolveVisionAuth (direct, model-parameterized)', () => {
       },
     });
     expect(mockSelectVisionModel).not.toHaveBeenCalled();
-  });
-});
-
-describe('buildVisionAuthFailureResults', () => {
-  it('returns a "configure your key" fallback description per attachment', () => {
-    const attachments: AttachmentMetadata[] = [
-      {
-        id: 'att-1',
-        url: 'https://cdn.discordapp.com/img1.png',
-        contentType: 'image/png',
-        name: 'img1.png',
-        size: 100,
-      } as AttachmentMetadata,
-      {
-        id: 'att-2',
-        url: 'https://cdn.discordapp.com/img2.png',
-        contentType: 'image/png',
-        name: 'img2.png',
-        size: 100,
-      } as AttachmentMetadata,
-    ];
-
-    const results = buildVisionAuthFailureResults(attachments);
-
-    expect(results).toHaveLength(2);
-    expect(results[0]?.type).toBe(AttachmentType.Image);
-    expect(results[0]?.description).toContain('check /settings apikey set');
-    expect(results[0]?.originalUrl).toBe('https://cdn.discordapp.com/img1.png');
-    expect(results[1]?.originalUrl).toBe('https://cdn.discordapp.com/img2.png');
   });
 });
