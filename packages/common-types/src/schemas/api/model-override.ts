@@ -30,6 +30,14 @@ export const ModelOverrideSummarySchema = z.object({
    * one row per kind, so browse can badge + carry the kind through clear.
    */
   kind: z.enum(CONFIG_KINDS).nullable(),
+  /**
+   * Whether the override's config MODEL supports vision — sourced live from the
+   * model's capabilities (OpenRouter-authoritative → z.ai catalog), NOT from
+   * `kind`. This is the capability-driven signal the override-browse 👁 badge
+   * uses (mirrors `LlmConfigSummary.supportsVision`). `false` when capability is
+   * unknown (fail-closed). Populated by the override-list route, not the schema.
+   */
+  supportsVision: z.boolean(),
 });
 export type ModelOverrideSummary = z.infer<typeof ModelOverrideSummarySchema>;
 
