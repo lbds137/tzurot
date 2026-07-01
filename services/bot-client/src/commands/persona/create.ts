@@ -52,6 +52,13 @@ export async function handleCreatePersona(context: ModalCommandContext): Promise
 export async function handleCreateModalSubmit(interaction: ModalSubmitInteraction): Promise<void> {
   const discordId = interaction.user.id;
 
+  // Ack first (3-second rule): deferReply BEFORE the try — per the codebase
+  // convention — so a failure of the ack itself propagates to CommandHandler
+  // (which branches on replied/deferred) rather than into the catch below, which
+  // assumes the interaction is already acked. Ephemeral: the create result is a
+  // private confirmation. Everything inside the try is post-defer → editReply.
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
   try {
     // Get values from modal
     const personaName = interaction.fields.getTextInputValue('personaName').trim();
@@ -65,10 +72,7 @@ export async function handleCreateModalSubmit(interaction: ModalSubmitInteractio
 
     // Persona name is required
     if (personaName.length === 0) {
-      await interaction.reply({
-        content: '❌ Persona name is required.',
-        flags: MessageFlags.Ephemeral,
-      });
+      await interaction.editReply({ content: '❌ Persona name is required.' });
       return;
     }
 
@@ -83,9 +87,8 @@ export async function handleCreateModalSubmit(interaction: ModalSubmitInteractio
 
     if (!result.ok) {
       if (result.code === API_ERROR_SUBCODE.NAME_COLLISION) {
-        await interaction.reply({
+        await interaction.editReply({
           content: `❌ You already have a persona named "${personaName}". Pick a different name, or edit the existing one with \`/persona edit\`.`,
-          flags: MessageFlags.Ephemeral,
         });
         return;
       }
@@ -93,9 +96,8 @@ export async function handleCreateModalSubmit(interaction: ModalSubmitInteractio
         { userId: discordId, error: result.error },
         'Failed to create persona via gateway'
       );
-      await interaction.reply({
+      await interaction.editReply({
         content: '❌ Failed to create persona. Please try again later.',
-        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -127,15 +129,13 @@ export async function handleCreateModalSubmit(interaction: ModalSubmitInteractio
     }
     response += '\n\nUse `/persona browse` to see all your personas.';
 
-    await interaction.reply({
-      content: response,
-      flags: MessageFlags.Ephemeral,
-    });
+    await interaction.editReply({ content: response });
   } catch (error) {
     logger.error({ err: error, userId: discordId }, 'Failed to create persona');
-    await interaction.reply({
+    // Post-defer: deferReply ran (and succeeded) before the try, so the
+    // interaction is acked by the time any error reaches here.
+    await interaction.editReply({
       content: '❌ Failed to create persona. Please try again later.',
-      flags: MessageFlags.Ephemeral,
     });
   }
 }

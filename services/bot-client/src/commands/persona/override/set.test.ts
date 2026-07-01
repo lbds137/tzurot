@@ -186,6 +186,8 @@ describe('handleOverrideSet', () => {
 
 describe('handleOverrideCreateModalSubmit', () => {
   const mockReply = vi.fn();
+  const mockDeferReply = vi.fn();
+  const mockEditReply = vi.fn();
   let stub: PersonaClientStub;
 
   beforeEach(() => {
@@ -201,6 +203,8 @@ describe('handleOverrideCreateModalSubmit', () => {
         getTextInputValue: (name: string) => fields[name] ?? '',
       },
       reply: mockReply,
+      deferReply: mockDeferReply,
+      editReply: mockEditReply,
     } as unknown as Parameters<typeof handleOverrideCreateModalSubmit>[0];
   }
 
@@ -241,9 +245,12 @@ describe('handleOverrideCreateModalSubmit', () => {
       pronouns: 'she/her',
       content: 'Special content for Lilith',
     });
-    expect(mockReply).toHaveBeenCalledWith({
+    // Ack-first: deferReply runs before the createPersonaOverride gateway call;
+    // the result lands via editReply, never a bare reply.
+    expect(mockDeferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
+    expect(mockReply).not.toHaveBeenCalled();
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Persona "Lilith Persona" created'),
-      flags: MessageFlags.Ephemeral,
     });
   });
 
@@ -259,9 +266,8 @@ describe('handleOverrideCreateModalSubmit', () => {
       'personality-uuid'
     );
 
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Persona name is required'),
-      flags: MessageFlags.Ephemeral,
     });
     expect(stub.createPersonaOverride).not.toHaveBeenCalled();
   });
@@ -280,9 +286,8 @@ describe('handleOverrideCreateModalSubmit', () => {
       'personality-uuid'
     );
 
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('User not found'),
-      flags: MessageFlags.Ephemeral,
     });
   });
 
@@ -302,9 +307,8 @@ describe('handleOverrideCreateModalSubmit', () => {
       'personality-uuid'
     );
 
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('already have a persona named "Dup"'),
-      flags: MessageFlags.Ephemeral,
     });
   });
 
@@ -322,9 +326,8 @@ describe('handleOverrideCreateModalSubmit', () => {
       'personality-uuid'
     );
 
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Failed to create persona'),
-      flags: MessageFlags.Ephemeral,
     });
   });
 });
