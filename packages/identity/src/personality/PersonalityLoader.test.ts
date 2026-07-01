@@ -77,6 +77,10 @@ describe('PersonalityLoader', () => {
       },
       llmConfig: {
         findFirst: vi.fn(),
+        findUnique: vi.fn(),
+      },
+      adminSettings: {
+        findUnique: vi.fn(),
       },
       user: {
         findUnique: vi.fn(),
@@ -850,38 +854,56 @@ describe('PersonalityLoader', () => {
   });
 
   describe('loadGlobalDefaultConfig', () => {
-    it('should load global default config', async () => {
-      const mockConfig = {
-        model: 'global-model',
-        provider: 'openrouter',
-        temperature: 0.7,
-        topP: null,
-        topK: null,
-        frequencyPenalty: null,
-        presencePenalty: null,
-        maxTokens: 4096,
-        memoryScoreThreshold: 0.7,
-        memoryLimit: 10,
-        contextWindowTokens: 200000,
-      };
+    const mockConfig = {
+      model: 'global-model',
+      provider: 'openrouter',
+      temperature: 0.7,
+      topP: null,
+      topK: null,
+      frequencyPenalty: null,
+      presencePenalty: null,
+      maxTokens: 4096,
+      memoryScoreThreshold: 0.7,
+      memoryLimit: 10,
+      contextWindowTokens: 200000,
+    };
 
-      vi.mocked(mockPrisma.llmConfig.findFirst).mockResolvedValue(mockConfig as any);
+    it('should load the global default via the AdminSettings pointer relation (not the isDefault column)', async () => {
+      vi.mocked(mockPrisma.adminSettings.findUnique).mockResolvedValue({
+        globalDefaultLlmConfig: mockConfig,
+      } as any);
 
       const result = await loader.loadGlobalDefaultConfig();
 
       expect(result).not.toBeNull();
       expect(result?.model).toBe('global-model');
-      expect(vi.mocked(mockPrisma.llmConfig.findFirst)).toHaveBeenCalledWith({
-        where: {
-          isGlobal: true,
-          isDefault: true,
-        },
-        select: expect.any(Object),
-      });
+      // One nested-select query on the pointer relation — never the stale isDefault
+      // column (no findFirst) and no separate config round-trip (no findUnique).
+      expect(vi.mocked(mockPrisma.adminSettings.findUnique)).toHaveBeenCalledWith(
+        expect.objectContaining({
+          select: { globalDefaultLlmConfig: { select: expect.any(Object) } },
+        })
+      );
+      expect(vi.mocked(mockPrisma.llmConfig.findFirst)).not.toHaveBeenCalled();
+      expect(vi.mocked(mockPrisma.llmConfig.findUnique)).not.toHaveBeenCalled();
     });
 
-    it('should return null when no global default exists', async () => {
-      vi.mocked(mockPrisma.llmConfig.findFirst).mockResolvedValue(null);
+    it('should return null when no global default is set (null pointer relation)', async () => {
+      // onDelete:SetNull means a deleted target also surfaces as a null relation,
+      // so "unset" and "target gone" collapse to the same null case.
+      vi.mocked(mockPrisma.adminSettings.findUnique).mockResolvedValue({
+        globalDefaultLlmConfig: null,
+      } as any);
+
+      const result = await loader.loadGlobalDefaultConfig();
+
+      expect(result).toBeNull();
+    });
+
+    it('should return null when the AdminSettings row itself is absent (fresh DB)', async () => {
+      // Bootstrap scenario — no AdminSettings singleton yet. The `settings?.…`
+      // optional chain short-circuits to null, same as an unset pointer.
+      vi.mocked(mockPrisma.adminSettings.findUnique).mockResolvedValue(null);
 
       const result = await loader.loadGlobalDefaultConfig();
 
@@ -889,7 +911,7 @@ describe('PersonalityLoader', () => {
     });
 
     it('should handle database errors gracefully', async () => {
-      vi.mocked(mockPrisma.llmConfig.findFirst).mockRejectedValue(
+      vi.mocked(mockPrisma.adminSettings.findUnique).mockRejectedValue(
         new Error('Database connection failed')
       );
 

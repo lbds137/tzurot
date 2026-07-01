@@ -76,8 +76,7 @@ async function upsertPersonality(
   ownerId: string
 ): Promise<void> {
   const customFieldsJson = (mapped.personality.customFields ?? undefined) as
-    | Prisma.InputJsonValue
-    | undefined;
+    Prisma.InputJsonValue | undefined;
   await prisma.personality.upsert({
     where: { slug: mapped.personality.slug },
     create: {
@@ -127,7 +126,8 @@ async function upsertLlmConfig(
       maxMessages: llm.maxMessages,
       ownerId,
       isGlobal: false,
-      isDefault: false,
+      // isDefault omitted — schema @default(false) fills it. Default-ness lives
+      // on the AdminSettings pointers (S3); this column is dead pending its DROP.
     },
     update: {
       model: llm.model,

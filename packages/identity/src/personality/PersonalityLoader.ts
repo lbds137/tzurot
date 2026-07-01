@@ -13,6 +13,7 @@ import {
   LLM_CONFIG_SELECT,
   mapLlmConfigFromDb,
   type MappedLlmConfig,
+  ADMIN_SETTINGS_SINGLETON_ID,
 } from '@tzurot/common-types';
 import type { DatabasePersonality } from './PersonalityValidator.js';
 
@@ -345,23 +346,29 @@ export class PersonalityLoader {
   }
 
   /**
-   * Load global default LLM config
-   * Returns the config marked as isGlobal: true and isDefault: true
+   * Load the global default LLM config — the fallback for a personality with no
+   * defaultConfigLink. Resolves the AdminSettings global-default POINTER relation
+   * (`globalDefaultLlmConfig`), NOT the stale `isDefault` column.
    *
-   * @returns MappedLlmConfig with ALL params from advancedParameters JSONB, or null if not found
+   * @returns MappedLlmConfig with ALL params from advancedParameters JSONB, or null if the pointer is unset
    */
   async loadGlobalDefaultConfig(): Promise<MappedLlmConfig | null> {
     try {
-      const globalDefault = await this.prisma.llmConfig.findFirst({
-        where: {
-          isGlobal: true,
-          isDefault: true,
-        },
-        select: LLM_CONFIG_SELECT, // Uses advancedParameters JSONB
+      // The global default is the AdminSettings.globalDefaultLlmConfig POINTER
+      // relation (S3), not the `isDefault` column — `setAsDefault` writes only the
+      // pointer, so the boolean column is stale. Resolve the pointer's target in a
+      // single nested-select query, matching config-resolver's LlmConfigResolver /
+      // VisionConfigResolver idiom. (The old `isDefault:true` query was also
+      // ambiguous across the per-kind defaults; the pointer names the chat/text
+      // default unambiguously.) onDelete:SetNull → a null relation means "unset".
+      const settings = await this.prisma.adminSettings.findUnique({
+        where: { id: ADMIN_SETTINGS_SINGLETON_ID },
+        select: { globalDefaultLlmConfig: { select: LLM_CONFIG_SELECT } }, // Uses advancedParameters JSONB
       });
+      const globalDefault = settings?.globalDefaultLlmConfig ?? null;
 
       if (globalDefault === null) {
-        logger.warn('[PersonalityLoader] No global default LLM config found');
+        logger.warn('[PersonalityLoader] No global default LLM config set');
         return null;
       }
 
