@@ -253,6 +253,17 @@ describe('Character Chat Handler (push delivery)', () => {
       });
     });
 
+    it('escapes markdown in the not-found slug (defense-in-depth)', async () => {
+      const ctx = createMockContext('cool_char*', 'Hello!');
+      mockPersonalityService.loadPersonality.mockResolvedValue(null);
+
+      await handleChat(ctx, mockConfig);
+
+      expect(ctx.editReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('cool\\_char\\*'),
+      });
+    });
+
     it('shows "try again" (not "not found") when loadPersonalityStrict throws an InfraError', async () => {
       const ctx = createMockContext('test-char', 'Hello!');
       // STRICT path: an infra failure must surface as "try again", never a false

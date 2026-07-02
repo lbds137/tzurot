@@ -200,6 +200,24 @@ describe('handleApikeyModalSubmit', () => {
           }),
         ],
       });
+      // Non-z.ai providers keep the blanket routing copy.
+      const embedData = vi.mocked(mockEditReply).mock.calls[0][0].embeds[0].data;
+      const nextSteps = embedData.fields.find((f: { name: string }) => f.name === '💡 Next Steps');
+      expect(nextSteps.value).toContain('will now be used for AI responses');
+    });
+
+    it('uses z.ai-specific success copy (key applies only when a z.ai model serves)', async () => {
+      // Regression for the real user-confusion report: a saved z.ai key does
+      // NOT switch all routing — only z.ai-model responses use it.
+      stub.setWalletKey.mockResolvedValue(makeOk({ success: true }));
+
+      const interaction = createMockInteraction('settings::apikey::set::zai-coding', 'zai-key-1');
+      await handleApikeyModalSubmit(interaction);
+
+      const embedData = vi.mocked(mockEditReply).mock.calls[0][0].embeds[0].data;
+      const nextSteps = embedData.fields.find((f: { name: string }) => f.name === '💡 Next Steps');
+      expect(nextSteps.value).toContain('whenever a z.ai model serves the response');
+      expect(nextSteps.value).not.toContain('will now be used for AI responses');
     });
 
     it('should handle 401 invalid key error', async () => {

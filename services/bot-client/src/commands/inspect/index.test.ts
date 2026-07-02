@@ -7,6 +7,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { makeErr } from '../../test/gatewayClientStubs.js';
 import { MessageFlags } from 'discord.js';
 import type { DiagnosticLogResponse, DiagnosticPayload } from '@tzurot/common-types';
 import type { GatewayResult, UserClient } from '@tzurot/clients';
@@ -55,10 +56,6 @@ function asUserClient(stub: StubClient): UserClient {
 
 function ok<T>(data: T): GatewayResult<T> {
   return { ok: true, data };
-}
-
-function err(status: number, message = 'fail'): GatewayResult<never> {
-  return { ok: false, kind: status > 0 ? 'http' : 'network', error: message, status };
 }
 
 function createMockDiagnosticPayload(): DiagnosticPayload {
@@ -249,7 +246,7 @@ describe('execute (slash command)', () => {
   });
 
   it('should handle 404 errors', async () => {
-    stub.getDiagnosticByRequestId.mockResolvedValue(err(404));
+    stub.getDiagnosticByRequestId.mockResolvedValue(makeErr(404));
 
     const context = createMockContext('expired-req');
     await inspectCommand.execute(context);
@@ -331,7 +328,7 @@ describe('handleButton', () => {
   });
 
   it('should handle expired logs gracefully', async () => {
-    stub.getDiagnosticByRequestId.mockResolvedValue(err(404));
+    stub.getDiagnosticByRequestId.mockResolvedValue(makeErr(404));
 
     const interaction = createMockButtonInteraction(DebugViewType.Reasoning);
     await inspectCommand.handleButton!(interaction);
@@ -454,7 +451,7 @@ describe('handleSelectMenu', () => {
   it('surfaces a lookup failure through replyError on the deferred slot', async () => {
     // After deferReply, replyError must take the editReply (deferred) path —
     // a fresh reply() here would throw at runtime (interaction already acked).
-    stub.getDiagnosticByRequestId.mockResolvedValue(err(404));
+    stub.getDiagnosticByRequestId.mockResolvedValue(makeErr(404));
 
     const interaction = createMockSelectInteraction(DebugViewType.TokenBudget);
     await inspectCommand.handleSelectMenu!(interaction);
