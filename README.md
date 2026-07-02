@@ -121,8 +121,14 @@ A modern, scalable Discord bot with customizable AI characters, powered by a mic
   - `ai-worker/` — Background AI processing (TypeScript)
   - `voice-engine/` — Self-hosted STT/TTS service (Python FastAPI)
 - **`packages/`** — Shared code
-  - `common-types/` — TypeScript types, schemas, shared utilities, cascade resolvers
+  - `common-types/` — TypeScript types, schemas, shared utilities
+  - `cache-invalidation/` — Redis pub/sub cache invalidation services
+  - `clients/` — Typed gateway API clients (generated from the route manifest)
+  - `config-resolver/` — LLM/TTS/vision config cascade resolvers
+  - `conversation-history/` — Conversation persistence + retention
+  - `identity/` — User/personality loading and provisioning
   - `embeddings/` — Local embedding model (BGE-small-en-v1.5)
+  - `test-factories/` — Shared mock-data factories
   - `test-utils/` — Shared test helpers and PGLite integration
   - `tooling/` — Ops CLI (`pnpm ops`) and codebase analysis
 - **`prisma/`** — Database schema and migrations

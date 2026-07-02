@@ -30,12 +30,13 @@ TTS + STT provider selection and cloned-voice library lifecycle. Per-character T
 
 ## Presets & Channels
 
-| Command    | Subcommands                                 | Purpose                                 |
-| ---------- | ------------------------------------------- | --------------------------------------- |
-| `/preset`  | `create` `edit` `browse`                    | Custom LLM presets (model + parameters) |
-|            | `export` `import` `template`                | Preset portability (JSON)               |
-|            | `global` (`default` `free-default`)         | System-wide defaults (owner only)       |
-| `/channel` | `activate` `deactivate` `browse` `settings` | Channel auto-response management        |
+| Command    | Subcommands                                 | Purpose                                                |
+| ---------- | ------------------------------------------- | ------------------------------------------------------ |
+| `/preset`  | `create` `edit` `browse`                    | Custom LLM presets (model + parameters)                |
+|            | `export` `import` `template`                | Preset portability (JSON)                              |
+|            | `global` (`default` `free-default`)         | System-wide defaults (owner only)                      |
+| `/models`  | `browse` `view`                             | Browse and inspect available AI models (by capability) |
+| `/channel` | `activate` `deactivate` `browse` `settings` | Channel auto-response management                       |
 
 ## Memory & History
 
