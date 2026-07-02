@@ -28,6 +28,10 @@ import { parseApiError } from '../../utils/apiErrorParser.js';
 import { checkModelVisionSupport, visionDescriptionCache } from '../../redis.js';
 import { isDataUrl } from '../../utils/attachmentFetch.js';
 import { downloadImageToDataUrl } from '../../utils/imageToDataUrl.js';
+import {
+  isValidVisionDescription,
+  VISION_MIN_DESCRIPTION_LENGTH,
+} from './visionDescriptionValidity.js';
 
 const logger = createLogger('VisionProcessor');
 const config = getConfig();
@@ -55,13 +59,13 @@ export class VisionModelError extends Error {
  * it and refused, or it's unreadable) — retrying with a different model won't help, so
  * the fallback loop terminates immediately rather than burning tiers/latency/quota.
  *
- * Deliberately a STRICT SUBSET of `ATTACHMENT_BOUND_FAILURE_CATEGORIES`: it excludes
+ * Deliberately a STRICT SUBSET of `LONG_TTL_FAILURE_CATEGORIES`: it excludes
  * `MODEL_NOT_FOUND`, which is attachment-bound for negative-cache-TTL purposes (a missing
  * model won't reappear for THIS attachment on a retry of the SAME model) but is exactly
  * what the fallback loop routes around — a different tier is a different model. The subset
  * invariant (and that `MODEL_NOT_FOUND` is the sole difference) is pinned by a test.
  */
-// eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: immutable lookup set used as a constant (mirrors ATTACHMENT_BOUND_FAILURE_CATEGORIES). Exported for the fallback loop + the terminate-set/attachment-bound-set invariant test in VisionProcessor.test.ts.
+// eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: immutable lookup set used as a constant (mirrors LONG_TTL_FAILURE_CATEGORIES). Exported for the fallback loop + the terminate-set/attachment-bound-set invariant test in VisionProcessor.test.ts.
 export const VISION_TERMINATE_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Set([
   ApiErrorCategory.CONTENT_POLICY,
   ApiErrorCategory.CENSORED,
@@ -74,7 +78,7 @@ export const VISION_TERMINATE_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Se
  * server-error, timeout, network, etc.) return the generic "temporarily unavailable"
  * fallback before ever consulting this map, so listing them here would be dead code.
  *
- * **Invariant**: every member of `ATTACHMENT_BOUND_FAILURE_CATEGORIES` MUST have an entry
+ * **Invariant**: every member of `LONG_TTL_FAILURE_CATEGORIES` MUST have an entry
  * here. The two structures encode the same "this category gets a specific label" decision
  * and must stay in sync — adding a new attachment-bound category to the set without an
  * entry here would surface raw enum strings to users (e.g. `[Image unavailable: new_thing]`).
@@ -88,55 +92,6 @@ export const FAILURE_LABELS: Partial<Record<ApiErrorCategory, string>> = {
   [ApiErrorCategory.MEDIA_NOT_FOUND]: 'image unavailable',
   [ApiErrorCategory.CENSORED]: 'content filtered',
 };
-
-/** Minimum length for a vision description to be considered valid for caching */
-const VISION_MIN_DESCRIPTION_LENGTH = 10;
-
-/**
- * Patterns that indicate a vision model returned an error message as text content
- * rather than an actual image description. These bypass HTTP error handling and
- * would otherwise be cached as "valid" descriptions, blocking retries permanently.
- */
-const ERROR_DESCRIPTION_PATTERNS = [
-  'cannot access',
-  'unable to access',
-  'unable to view',
-  'unable to process',
-  'not accessible',
-  'cannot be accessed',
-  'cannot view',
-  'cannot process',
-  'cannot see the image',
-  'cannot see this image',
-  'failed to load',
-  'error loading',
-  'url has expired',
-  'url is expired',
-  'url is invalid',
-  'image is not available',
-  'image is unavailable',
-  'image url',
-  'provided url',
-];
-
-/** Check if a description looks like an error message from the vision model */
-function isLikelyErrorDescription(description: string): boolean {
-  const lower = description.toLowerCase();
-  return ERROR_DESCRIPTION_PATTERNS.some(pattern => lower.includes(pattern));
-}
-
-/**
- * Validate that a vision description is a genuine image description, not an error message.
- * Used both when storing new descriptions and when reading cached ones.
- */
-function isValidVisionDescription(description: string): boolean {
-  const trimmed = description.trim();
-  return (
-    trimmed.length >= VISION_MIN_DESCRIPTION_LENGTH &&
-    !trimmed.startsWith('[Image') &&
-    !isLikelyErrorDescription(trimmed)
-  );
-}
 
 /**
  * Diagnostic context for failure logging — answers "whose request was this, on what key,
@@ -474,7 +429,11 @@ async function invokeVisionModelForDescribe(
  * decide which cached failures the retry-loop / reference path honors.)
  */
 // eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: immutable lookup set used as a constant. Exported only to enable the cache-policy/fallback-set invariant test in VisionProcessor.test.ts.
-export const ATTACHMENT_BOUND_FAILURE_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Set([
+export const LONG_TTL_FAILURE_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Set([
+  // The axis here is CACHE LIFETIME (mirror of VISION_FAILURE_CACHE_POLICY's
+  // LONG cooldowns), NOT "the image itself is doomed" — MODEL_NOT_FOUND is
+  // long-cacheable per (model, attachment) yet retryable across models, which
+  // is exactly why VISION_TERMINATE_CATEGORIES excludes it (invariant-tested).
   ApiErrorCategory.CONTENT_POLICY,
   ApiErrorCategory.MEDIA_NOT_FOUND,
   ApiErrorCategory.MODEL_NOT_FOUND,
@@ -508,9 +467,9 @@ export function buildFailureFallback(
     // any actionable wallet-level remediation only applies when source is definitely 'user'.
     return '[Image unavailable: vision service temporarily unavailable, please retry shortly]';
   }
-  if (ATTACHMENT_BOUND_FAILURE_CATEGORIES.has(category)) {
+  if (LONG_TTL_FAILURE_CATEGORIES.has(category)) {
     // `?? category` is a defensive safety net: every member of
-    // ATTACHMENT_BOUND_FAILURE_CATEGORIES has an entry in FAILURE_LABELS, so the
+    // LONG_TTL_FAILURE_CATEGORIES has an entry in FAILURE_LABELS, so the
     // fallback shouldn't be reachable. Kept in case the two collections drift apart.
     const label = FAILURE_LABELS[category] ?? category;
     return `[Image unavailable: ${label}]`;
@@ -522,7 +481,7 @@ export function buildFailureFallback(
  * Check negative cache for a previous failure.
  * Returns a fallback string if a failure is cached, or null to proceed with the API call.
  *
- * `attachmentBoundOnly` (the retry-loop / reference path) honors ONLY failures bound to
+ * `longTtlOnly` (the retry-loop / reference path) honors ONLY failures bound to
  * the attachment itself (dead URL, removed model, content-policy, censored) — those can't
  * recover for this attachment, so re-attempting every turn the image sits in context just
  * re-storms across providers (observed adding ~100s of latency per turn). Transient
@@ -533,16 +492,13 @@ async function checkNegativeCache(
   cacheKeyOptions: { attachmentId?: string; url: string; model?: string },
   attachmentId: string | undefined,
   apiKeySource: 'user' | 'system' | undefined,
-  options: { attachmentBoundOnly?: boolean } = {}
+  options: { longTtlOnly?: boolean } = {}
 ): Promise<ApiErrorCategory | null> {
   const failureEntry = await visionDescriptionCache.getFailure(cacheKeyOptions);
   if (failureEntry === null) {
     return null;
   }
-  if (
-    options.attachmentBoundOnly === true &&
-    !ATTACHMENT_BOUND_FAILURE_CATEGORIES.has(failureEntry.category)
-  ) {
+  if (options.longTtlOnly === true && !LONG_TTL_FAILURE_CATEGORIES.has(failureEntry.category)) {
     return null;
   }
   logger.info(
@@ -646,14 +602,14 @@ async function resolveVisionImageUrl(
     // provider may accept larger images than our own fetch cap, so we let it try
     // rather than rethrow. Do NOT add an `instanceof AttachmentTooLargeError`
     // rethrow here thinking it closes a gap; the fallback rate is observable via
-    // the image_fetch_fallback log field below.
+    // the imageFetchFallback log field below.
     logger.warn(
       {
         jobId: loggingContext.jobId,
         attachmentId: attachment.id,
         name: attachment.name,
         err: error,
-        image_fetch_fallback: true,
+        imageFetchFallback: true,
       },
       'Vision image download failed; falling back to provider URL fetch'
     );
@@ -739,7 +695,7 @@ export async function describeImage(
     cacheKeyOptions,
     attachment.id,
     loggingContext.apiKeySource,
-    { attachmentBoundOnly: options?.skipNegativeCache === true }
+    { longTtlOnly: options?.skipNegativeCache === true }
   );
   if (cachedCategory !== null) {
     // A cached failure for this (model, attachment). The Phase-4 fallback loop
