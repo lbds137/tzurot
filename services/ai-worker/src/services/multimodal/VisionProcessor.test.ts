@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   hasVisionSupport,
   describeImage,
-  ATTACHMENT_BOUND_FAILURE_CATEGORIES,
+  LONG_TTL_FAILURE_CATEGORIES,
   VISION_TERMINATE_CATEGORIES,
   FAILURE_LABELS,
 } from './VisionProcessor.js';
@@ -1362,8 +1362,8 @@ describe('VisionProcessor', () => {
   });
 
   describe('cache-policy / fallback-set invariant', () => {
-    it('every ATTACHMENT_BOUND_FAILURE_CATEGORIES member must use VISION_FAILURE_TTL_LONG', () => {
-      // The `ATTACHMENT_BOUND_FAILURE_CATEGORIES` set (in `VisionProcessor.ts`) drives
+    it('every LONG_TTL_FAILURE_CATEGORIES member must use VISION_FAILURE_TTL_LONG', () => {
+      // The `LONG_TTL_FAILURE_CATEGORIES` set (in `VisionProcessor.ts`) drives
       // the user-facing fallback message; the LONG-TTL entries in
       // `VISION_FAILURE_CACHE_POLICY` (in `error.ts`) drive the negative-cache cooldown.
       // Both encode the same "this failure is bound to the attachment, not transient
@@ -1371,19 +1371,19 @@ describe('VisionProcessor', () => {
       // category to one structure but not the other would silently produce a TTL
       // mismatch (short cooldown when long is expected) or fallback-message mismatch
       // (generic "temporarily unavailable" when a specific label is expected).
-      for (const category of ATTACHMENT_BOUND_FAILURE_CATEGORIES) {
+      for (const category of LONG_TTL_FAILURE_CATEGORIES) {
         expect(VISION_FAILURE_CACHE_POLICY[category].l1TtlSeconds).toBe(
           INTERVALS.VISION_FAILURE_TTL_LONG
         );
       }
     });
 
-    it('every ATTACHMENT_BOUND_FAILURE_CATEGORIES member must have a FAILURE_LABELS entry', () => {
+    it('every LONG_TTL_FAILURE_CATEGORIES member must have a FAILURE_LABELS entry', () => {
       // Without an entry here, `buildFailureFallback` falls through to the `?? category`
       // safety net and surfaces raw enum strings (e.g. `[Image unavailable: new_thing]`)
       // to users. The runtime fallback is defensive but the invariant catches the gap
       // at PR time instead of waiting for a user to hit it.
-      for (const category of ATTACHMENT_BOUND_FAILURE_CATEGORIES) {
+      for (const category of LONG_TTL_FAILURE_CATEGORIES) {
         expect(FAILURE_LABELS[category]).toBeDefined();
         expect(FAILURE_LABELS[category]?.length ?? 0).toBeGreaterThan(0);
       }
@@ -1392,7 +1392,7 @@ describe('VisionProcessor', () => {
 
   describe('terminate-set / attachment-bound-set invariant', () => {
     // `VISION_TERMINATE_CATEGORIES` (the categories where the fallback LOOP stops trying
-    // other tiers) and `ATTACHMENT_BOUND_FAILURE_CATEGORIES` (the categories the negative
+    // other tiers) and `LONG_TTL_FAILURE_CATEGORIES` (the categories the negative
     // cache treats as image-bound for TTL purposes) encode two RELATED-but-distinct
     // decisions. The relationship is a deliberate strict subset: every "give up, the image
     // is the problem" category is also "bound to this attachment," but MODEL_NOT_FOUND is
@@ -1400,22 +1400,20 @@ describe('VisionProcessor', () => {
     // (a different tier is a different model). These tests pin that relationship so a future
     // edit to either set surfaces the divergence at PR time.
 
-    it('VISION_TERMINATE_CATEGORIES is a strict subset of ATTACHMENT_BOUND_FAILURE_CATEGORIES', () => {
+    it('VISION_TERMINATE_CATEGORIES is a strict subset of LONG_TTL_FAILURE_CATEGORIES', () => {
       for (const category of VISION_TERMINATE_CATEGORIES) {
-        expect(ATTACHMENT_BOUND_FAILURE_CATEGORIES.has(category)).toBe(true);
+        expect(LONG_TTL_FAILURE_CATEGORIES.has(category)).toBe(true);
       }
       // Strict (proper) subset: the attachment-bound set must have at least one member the
       // terminate set lacks (that member is asserted to be MODEL_NOT_FOUND below).
-      expect(ATTACHMENT_BOUND_FAILURE_CATEGORIES.size).toBeGreaterThan(
-        VISION_TERMINATE_CATEGORIES.size
-      );
+      expect(LONG_TTL_FAILURE_CATEGORIES.size).toBeGreaterThan(VISION_TERMINATE_CATEGORIES.size);
     });
 
     it('the set difference (attachment-bound \\ terminate) is exactly { MODEL_NOT_FOUND }', () => {
       // MODEL_NOT_FOUND is the sole attachment-bound category the fallback loop treats as
       // RETRYABLE: a missing model won't reappear for THIS attachment on the SAME model, but
       // a different tier is a different model, so the loop advances rather than terminating.
-      const difference = [...ATTACHMENT_BOUND_FAILURE_CATEGORIES].filter(
+      const difference = [...LONG_TTL_FAILURE_CATEGORIES].filter(
         category => !VISION_TERMINATE_CATEGORIES.has(category)
       );
       expect(difference).toEqual([ApiErrorCategory.MODEL_NOT_FOUND]);
