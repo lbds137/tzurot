@@ -19,13 +19,11 @@
 
 ## Next Session Goal
 
-**beta.146 planning.** The board in `backlog/now.md` is pre-queued:
+**beta.146 = warmup, then the Spinoff-Theme Knockout.** Board reshaped 2026-07-02 (session decision):
 
-1. **z.ai coding-plan routing bug** (Production Issue, Current Focus #1) — ship the `debug`-type probe at `ProviderRouter.resolveRoute`, reproduce reply-vs-activation, diff the inputs, targeted fix. The reply/activation contradiction means a runtime factor — no fix on code-reading alone.
-2. **Epic pick** (Current Focus #2) — council pass on `cold/queue.md`; leading candidate the **UX consistency audit** (`cold/ideas.md`). Other queued themes for the pick: deterministic test-quality tooling, first-use onboarding DM, LLM legacy-column retirement (needs beta.145's TTS pointers + earlier LLM pointers to soak in prod first), PGLite-fidelity integration tier, z.ai 402 error-shape verification (blocked on captured samples — note the routing-bug probe may capture some as a side effect).
+1. **z.ai routing bug RESOLVED-as-diagnosed; probe cancelled.** The 06-28/29 report was the auto-promotion fallback working correctly during late-June z.ai instability: promotion fired, z.ai-direct failed transiently, the OpenRouter rescue succeeded, and the footer honestly reported `via OpenRouter` (mechanism log-verified 06-30; not reproducible since). Same seam as the error-footer mis-attribution row — now **Current Focus #1**: thread the effective route through the both-fail throw path. Open design call: footer follows root-cause vs last-attempt (beta.144's #84eee440b already fixed the MESSAGE half).
+2. **No new epic — the spinoff themes become the release focus** (roadmap in `active-epic.md`): PGLite fidelity (Phase 1 first — small) → LLM legacy-column retirement (destructive DROPs; want pointer soak) → adjacent CPD campaigns (council per sub-campaign) → deterministic test-quality tooling (Stryker pilot) → z.ai 402 verification (sample-gated; check the 06-30 incident logs for the 402 body shape first). Queue pick deferred until the sweep lands.
 3. **Quick Wins queued**: guard:workflow-sync narrowing (file-scoped validation, spec on the follow-ups row), supervised bot-client redeploy (lifecycle exercise), prod TTS pointer verification.
-
-Housekeeping notes for the session start: the persist-hang production entry was removed (soak-clean since beta.143; watch-items remain in `cold/follow-ups.md`); `active-epic.md` says "(none — pick pending)" and is accurate.
 
 ## Last Session — the beta.144 mega-session (2026-07-01 → 07-02)
 
