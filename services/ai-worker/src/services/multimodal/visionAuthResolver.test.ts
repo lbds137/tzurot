@@ -18,6 +18,7 @@ import {
   resolveVisionConfig,
   resolveVisionAuth,
   createVisionQuotaTracker,
+  VISION_AUTH_FAIL_FAST_DESCRIPTION,
 } from './visionAuthResolver.js';
 import { selectVisionModel } from './VisionProcessor.js';
 import type { ApiKeyResolver } from '../ApiKeyResolver.js';
@@ -41,6 +42,11 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 // without reaching into Redis (hasVisionSupport).
 vi.mock('./VisionProcessor.js', () => ({
   selectVisionModel: vi.fn(),
+  // Evaluated at MODULE LOAD (VISION_AUTH_FAIL_FAST_DESCRIPTION derives from it),
+  // so the mock must return a real string — a bare vi.fn() would bake `undefined`
+  // into the exported constant.
+  buildFailureFallback: (category: string, source?: string) =>
+    `[Image unavailable: mock ${String(category)}/${source ?? 'none'}]`,
 }));
 
 // VisionDescriptionCache singleton mock — stubbed for module-load safety; we just
@@ -415,7 +421,8 @@ describe('resolveVisionAuth (direct, model-parameterized)', () => {
         userId: 'user-1',
         apiKeyResolver: mockResolver,
       },
-      createVisionQuotaTracker('user-1')
+      createVisionQuotaTracker('user-1'),
+      false
     );
 
     expect(result.kind).toBe('resolved');
@@ -428,7 +435,7 @@ describe('resolveVisionAuth (direct, model-parameterized)', () => {
     expect(mockSelectVisionModel).not.toHaveBeenCalled();
   });
 
-  it('reuses the main key on the same-provider fast path with the target model', async () => {
+  it('reuses the main key on the same-provider fast path for the PRIMARY tier', async () => {
     const result = await resolveVisionAuth(
       'fallback/tier-model',
       {
@@ -439,7 +446,8 @@ describe('resolveVisionAuth (direct, model-parameterized)', () => {
         userId: 'user-1',
         apiKeyResolver: mockResolver,
       },
-      createVisionQuotaTracker('user-1')
+      createVisionQuotaTracker('user-1'),
+      true
     );
 
     expect(result).toEqual({
@@ -453,5 +461,86 @@ describe('resolveVisionAuth (direct, model-parameterized)', () => {
       },
     });
     expect(mockSelectVisionModel).not.toHaveBeenCalled();
+  });
+
+  it('skips the fast path on a FALLBACK tier even when providers match', async () => {
+    // The dead-key resilience seam: after a tier-1 failure, a same-provider tier-2
+    // must NOT re-hand back the identical upstream key — per-provider resolution
+    // picks up the user's wallet key instead.
+    mockTryResolveUserKey.mockResolvedValue('wallet-key');
+
+    const result = await resolveVisionAuth(
+      'fallback/tier-model',
+      {
+        personality,
+        mainProvider: AIProvider.OpenRouter,
+        mainApiKey: 'main-or-key',
+        isGuestMode: false,
+        userId: 'user-1',
+        apiKeyResolver: mockResolver,
+      },
+      createVisionQuotaTracker('user-1'),
+      false
+    );
+
+    expect(result.kind).toBe('resolved');
+    if (result.kind === 'resolved') {
+      // The wallet key, NOT the reused main key.
+      expect(result.config.apiKey).toBe('wallet-key');
+    }
+    expect(mockTryResolveUserKey).toHaveBeenCalledWith('user-1', AIProvider.OpenRouter);
+  });
+
+  it('forces the free model for a GUEST on a fallback tier (no system key on paid tiers)', async () => {
+    // A stamped fallback can be the admin's PAID global default; a guest walking
+    // onto it must not put the system key on a paid model.
+    mockResolveApiKey.mockResolvedValue({
+      apiKey: 'system-key',
+      source: 'system',
+      isGuestMode: true,
+    });
+
+    const result = await resolveVisionAuth(
+      'paid/global-default-vision',
+      {
+        personality,
+        mainProvider: undefined,
+        mainApiKey: undefined,
+        isGuestMode: true,
+        userId: 'user-1',
+        apiKeyResolver: mockResolver,
+      },
+      createVisionQuotaTracker('user-1'),
+      false
+    );
+
+    expect(result.kind).toBe('resolved');
+    if (result.kind === 'resolved') {
+      expect(result.config.model).toBe(MODEL_DEFAULTS.VISION_FALLBACK_FREE);
+      expect(result.config.apiKey).toBe('system-key');
+    }
+  });
+});
+
+describe('createVisionQuotaTracker', () => {
+  it('latches after ANY real check — an over-cap first answer stops later store hits', async () => {
+    // The seam: the underlying Redis-backed store must be hit at most ONCE per
+    // tracker, even when the first answer is over-cap (false) — the answer can't
+    // change within one tracker's lifetime, and re-hitting the store costs real
+    // INCR+EXPIRE round-trips for an already-denied user.
+    mockTryConsume.mockResolvedValueOnce(false);
+    const tracker = createVisionQuotaTracker('user-1');
+
+    expect(await tracker.tryConsume()).toBe(false);
+    expect(await tracker.tryConsume()).toBe(false);
+    expect(mockTryConsume).toHaveBeenCalledTimes(1);
+  });
+
+  it('derives VISION_AUTH_FAIL_FAST_DESCRIPTION as a real string at module load', () => {
+    // Guards the module-load derivation: if a mock (or future refactor) let the
+    // constant freeze to undefined, downstream toBe() assertions would silently
+    // become undefined===undefined tautologies.
+    expect(typeof VISION_AUTH_FAIL_FAST_DESCRIPTION).toBe('string');
+    expect(VISION_AUTH_FAIL_FAST_DESCRIPTION.length).toBeGreaterThan(0);
   });
 });

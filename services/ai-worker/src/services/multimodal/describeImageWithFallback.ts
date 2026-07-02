@@ -191,8 +191,11 @@ async function walkFallbackChain(
   // never contributes here; that keeps a downstream failFast from clobbering a real failure.
   let lastAttempt: { category: ApiErrorCategory; source: 'user' | 'system' } | undefined;
 
-  for (const tierModel of tiers) {
-    const auth = await resolveVisionAuth(tierModel, authOptions, quota);
+  for (const [tierIndex, tierModel] of tiers.entries()) {
+    // Only the FIRST tier may take the same-provider fast path (reuse the upstream
+    // main key) — a fallback tier re-handing back the identical key would retry the
+    // exact credential that just failed and defeat the loop's resilience purpose.
+    const auth = await resolveVisionAuth(tierModel, authOptions, quota, tierIndex === 0);
     if (auth.kind === 'failFast') {
       continue; // no usable key for this tier's provider (and no free fallback) — advance
     }
