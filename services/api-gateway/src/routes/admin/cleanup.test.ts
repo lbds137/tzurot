@@ -137,6 +137,23 @@ describe('Admin Cleanup Routes', () => {
       expect(mockService.cleanupSoftDeletedMessages).toHaveBeenCalledWith();
     });
 
+    it("folds soft-deleted hard-deletes into historyDeleted on target 'all' too", async () => {
+      // 'all' shares the `target === 'history' || target === 'all'` branch with
+      // the test above, but nothing structural guarantees that — a refactor
+      // splitting the branch could silently drop the fold from 'all' while the
+      // 'history' seam test stays green. Pin both entry points.
+      mockService.cleanupOldHistory.mockResolvedValue(7);
+      mockService.cleanupSoftDeletedMessages.mockResolvedValue(2);
+      mockService.cleanupOldTombstones.mockResolvedValue(3);
+
+      const response = await request(app).post('/admin/cleanup').send({ target: 'all' });
+
+      expect(response.status).toBe(200);
+      expect(response.body.historyDeleted).toBe(9);
+      expect(response.body.tombstonesDeleted).toBe(3);
+      expect(mockService.cleanupSoftDeletedMessages).toHaveBeenCalledWith();
+    });
+
     it('should return validation error for daysToKeep less than 1', async () => {
       const response = await request(app).post('/admin/cleanup').send({ daysToKeep: 0 });
 
