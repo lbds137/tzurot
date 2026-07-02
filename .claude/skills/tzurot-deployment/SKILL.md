@@ -1,7 +1,7 @@
 ---
 name: tzurot-deployment
 description: 'Railway deployment procedures. Invoke with /tzurot-deployment for deploying, checking logs, and troubleshooting.'
-lastUpdated: '2026-06-27'
+lastUpdated: '2026-07-02'
 ---
 
 # Deployment Procedures
@@ -18,6 +18,19 @@ Both Railway environments auto-deploy from their respective branches. **No manua
 | `main`    | prod        | Auto-deploys on every push |
 
 For prod, the trigger is the release-PR merge from `develop` into `main` (procedure in `tzurot-git-workflow` skill). Schema changes do NOT auto-apply — see the migration step below.
+
+### What a dev deploy proves (and does NOT prove)
+
+**Dev has NO organic traffic.** Its only user is the project owner, and only during explicit testing sessions. A change that has "been on dev for a day" has, in the common case, executed exactly zero times beyond service boot.
+
+| A green dev deploy proves                                                            | It does NOT prove                                        |
+| ------------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| The build compiles and ships                                                         | Any request-path behavior                                |
+| Services boot without crash-looping                                                  | Failure paths, fallbacks, retries                        |
+| Boot-time wiring runs (pool config applies, scheduled jobs register, env vars parse) | Scheduled jobs actually _execute_ correctly              |
+|                                                                                      | Anything involving real user input, load, or concurrency |
+
+**Never cite "soaked in dev" as release-safety evidence.** For this project, **prod is the soak environment** — the honest release-safety basis is: per-PR CI (all tiers) + adversarial review, the holistic release review, blast-radius analysis of the runtime-unverified paths, and logging good enough to diagnose the first real occurrence post-hoc. When a change's failure path genuinely needs pre-prod runtime verification, that means an _explicit_ dev testing session with the user driving Discord (see `/tzurot-testing`), not passive deploy time.
 
 ## Deployment Procedure
 
