@@ -21,8 +21,10 @@ import {
   HardDeleteHistorySchema,
   HistoryStatsQuerySchema,
 } from '@tzurot/common-types';
-import { ConversationHistoryService } from '@tzurot/conversation-history';
-import { ConversationRetentionService } from '../../services/ConversationRetentionService.js';
+import {
+  ConversationHistoryService,
+  ConversationRetentionService,
+} from '@tzurot/conversation-history';
 import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';

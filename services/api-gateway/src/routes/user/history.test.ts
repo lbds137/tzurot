@@ -36,6 +36,10 @@ vi.mock('@tzurot/conversation-history', () => ({
   ConversationHistoryService: class {
     getHistoryStats = mockGetHistoryStats;
   },
+  // Retention service lives in this package too (moved from the gateway).
+  ConversationRetentionService: class {
+    clearHistory = mockClearHistory;
+  },
 }));
 
 vi.mock('@tzurot/identity', () => {
@@ -44,13 +48,6 @@ vi.mock('@tzurot/identity', () => {
   }
   return { PersonaResolver: MockPersonaResolver };
 });
-
-// Local service — mock by module path, not via the @tzurot/common-types block above.
-vi.mock('../../services/ConversationRetentionService.js', () => ({
-  ConversationRetentionService: class {
-    clearHistory = mockClearHistory;
-  },
-}));
 
 vi.mock('../../services/AuthMiddleware.js', () => ({
   requireUserAuth: vi.fn(() => vi.fn((_req: unknown, _res: unknown, next: () => void) => next())),

@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createCleanupRoute } from './cleanup.js';
 import type { PrismaClient } from '@tzurot/common-types';
-import type { ConversationRetentionService } from '../../services/ConversationRetentionService.js';
+import type { ConversationRetentionService } from '@tzurot/conversation-history';
 import type { RouteDeps } from '../routeDeps.js';
 import express from 'express';
 import request from 'supertest';
@@ -36,6 +36,7 @@ describe('Admin Cleanup Routes', () => {
   let mockService: {
     cleanupOldHistory: ReturnType<typeof vi.fn>;
     cleanupOldTombstones: ReturnType<typeof vi.fn>;
+    cleanupSoftDeletedMessages: ReturnType<typeof vi.fn>;
   };
   let app: express.Express;
 
@@ -45,6 +46,7 @@ describe('Admin Cleanup Routes', () => {
     mockService = {
       cleanupOldHistory: vi.fn().mockResolvedValue(0),
       cleanupOldTombstones: vi.fn().mockResolvedValue(0),
+      cleanupSoftDeletedMessages: vi.fn().mockResolvedValue(0),
     };
 
     const deps: RouteDeps = {
@@ -116,6 +118,23 @@ describe('Admin Cleanup Routes', () => {
       expect(response.body.tombstonesDeleted).toBe(8);
       expect(mockService.cleanupOldHistory).not.toHaveBeenCalled();
       expect(mockService.cleanupOldTombstones).toHaveBeenCalledWith(30);
+      // The soft-deleted hard-delete rides the HISTORY target only.
+      expect(mockService.cleanupSoftDeletedMessages).not.toHaveBeenCalled();
+    });
+
+    it('folds soft-deleted hard-deletes into historyDeleted (scheduled-job parity seam)', async () => {
+      // The seam: the history target must CALL cleanupSoftDeletedMessages (no
+      // daysToKeep arg — the soft-delete grace is its own retention window) and
+      // SUM its count into historyDeleted. A dropped call or wrong operator
+      // passes every other test in this suite trivially.
+      mockService.cleanupOldHistory.mockResolvedValue(10);
+      mockService.cleanupSoftDeletedMessages.mockResolvedValue(4);
+
+      const response = await request(app).post('/admin/cleanup').send({ target: 'history' });
+
+      expect(response.status).toBe(200);
+      expect(response.body.historyDeleted).toBe(14);
+      expect(mockService.cleanupSoftDeletedMessages).toHaveBeenCalledWith();
     });
 
     it('should return validation error for daysToKeep less than 1', async () => {

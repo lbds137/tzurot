@@ -39,7 +39,7 @@ import {
   LlmConfigResolver,
   VisionConfigResolver,
 } from '@tzurot/config-resolver';
-import { ConversationRetentionService } from './services/ConversationRetentionService.js';
+import { ConversationRetentionService } from '@tzurot/conversation-history';
 import { applyFastPoolDeadConnRetry } from './utils/dbTimeout.js';
 
 // Routes

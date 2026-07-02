@@ -13,9 +13,14 @@
  * as does the pure `conversationSyncDiff` util (bot-client consumes it). Consumers
  * construct these services with an injected `PrismaClient` (the apps own their
  * client — see `createPrismaClient` in `@tzurot/common-types`).
+ *
+ * `ConversationRetentionService` lives here (not in a service) so BOTH the
+ * gateway's manual /admin cleanup route and ai-worker's scheduled daily sweep
+ * share one implementation without a cross-service import.
  */
 
 export * from './ConversationHistoryService.js';
+export * from './ConversationRetentionService.js';
 export * from './ConversationSyncService.js';
 export * from './ConversationMessageMapper.js';
 export * from './referenceImageDescriptions.js';
