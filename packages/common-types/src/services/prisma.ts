@@ -88,6 +88,19 @@ export function createPrismaClient(opts?: CreatePrismaClientOptions): PrismaClie
   pool.on('error', err => {
     logger.error({ err }, 'pg.Pool idle-client error');
   });
+  // Connect-event observability: a fresh physical connection is the suspect in the
+  // slow-then-succeeds stall family (a new handshake can ride a network blip into
+  // SYN-retransmit backoff, which keepAlive cannot prevent). One INFO line per
+  // connect means the next slow request self-identifies its mechanism from logs
+  // alone: a connect line landing seconds after the request started = fresh-connect
+  // stall CONFIRMED; no connect line = the stall is elsewhere. Low volume — the
+  // pool only dials after idle eviction or growth, not per query.
+  pool.on('connect', () => {
+    logger.info(
+      { total: pool.totalCount, idle: pool.idleCount, waiting: pool.waitingCount },
+      'pg.Pool established a new connection'
+    );
+  });
   const stopGauge = startPoolStatsGauge(pool, logger, resolvePoolStatsIntervalMs(), max);
 
   // The pool + stats gauge are now live; if client construction throws past

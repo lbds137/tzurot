@@ -86,6 +86,18 @@ describe('createPrismaClient', () => {
     );
   });
 
+  it('registers a connect handler that logs pool stats (the stall-diagnosis signal)', () => {
+    createPrismaClient();
+    // Invoke the captured 'connect' callback — the log line IS the deliverable
+    // (a connect event landing seconds into a slow request confirms the
+    // fresh-connect stall mechanism), so assert the handler executes and reads
+    // the pool counters without throwing, not just that it was registered.
+    const connectCall = mockPool.on.mock.calls.find(([event]) => event === 'connect');
+    expect(connectCall).toBeDefined();
+    const handler = connectCall?.[1] as () => void;
+    expect(() => handler()).not.toThrow();
+  });
+
   it('spreads poolOverrides into the Pool config (fast-pool timeouts + GUC options)', () => {
     createPrismaClient({
       max: 5,
