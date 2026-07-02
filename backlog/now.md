@@ -18,7 +18,9 @@ _Recently resolved (released):_ the forwarded-message content-loss fix (#1391) a
 
 ### 🎯 Current Focus (max 3)
 
-**🏗️ `[FEAT]` Model Config Overhaul — Phase 4: Auto-fallback unification** (PICKED UP 2026-07-01) — the epic's shipping phases (1–3) are COMPLETE (Phase 3 S4 shipped in beta.143). Phase 4 folds guest-downgrade + main-model-vision + fallback into one ordered resolver cascade (primary → vision-global → free-default), adds an explicit `[VISION_UNAVAILABLE]` signal + negative-cache-by-model, and wires the two currently-write-only pointers (`globalDefaultLlmConfigId`, `freeDefaultVisionConfigId`) whose cascade placement IS the core decision. Full scope in [`active-epic.md`](active-epic.md) § Phase 4. **Status: council pass in progress** (GLM-5.2 / Kimi-K2.7-code / Qwen-3.7-max on the cascade-ordering design) → plan-mode next. _(Also deferred, not scheduled: **Phase B kind-column drop** post-prod-soak.)_
+**🐛 `[FIX]` DB perf investigation — the 20s personality-load stall + the recurring perf-fire pattern** (PICKED UP 2026-07-01) — a prod `@Ha-Shem` summon was silently dropped when the gateway's `/internal/personality/load` took ~20s (bot-client aborts at ~3s; the lenient routing loader treats `status=0` as no-match). Runtime-confirmed from prod logs (gateway `request aborted` 23:34:18Z → `Loaded personality` 23:34:38Z). **Code findings so far**: `personalities.name` has NO index (insensitive-match seq scan on every routing load; `slug`/`ownerId` are indexed, and `Persona.name` is already citext — the pattern exists); the gateway `PersonalityService` TTL cache only serves UUID+no-userId lookups so the mention-routing path (name+userId) always hits the DB (3–5 sequential queries incl. the global-default config); the MAIN pool has no statement/lock/query timeout (only the fast pool self-labels), so stalls are silent. The table is small → the seq scan alone can't be 20s; prime suspect is instance-level (I/O, memory, autovacuum, Railway throttling). **Next (needs DB access)**: table sizes/row counts, `pg_stat_user_tables` (seq_scan counts, dead tuples), Railway PG instance metrics. **Fix candidates regardless**: index/citext `personalities.name`; main-pool generous self-labeling `statement_timeout`; make the routing load cacheable gateway-side. Related: the automated-cleanup Quick Win below (retention determinism → bounded `conversation_history` size).
+
+_Model Config Overhaul epic: **ALL phases COMPLETE** (Phase 4 C2b shipped 2026-07-01, #1429; follow-ups C2b-1..5 + RAG-family wiring in `cold/follow-ups.md`). Next epic pick from `cold/queue.md` pending. Deferred, not scheduled: Phase B kind-column drop post-prod-soak._
 
 ---
 
@@ -26,7 +28,7 @@ _Recently resolved (released):_ the forwarded-message content-loss fix (#1391) a
 
 _Small tasks that can be done between major features. Good for momentum._
 
-_(empty)_
+**🧹 `[CHORE]` Automate the 30-day conversation-history cleanup** — Surfaced 2026-07-01 (user request, during the DB-perf investigation). Retention today is `/admin cleanup`, run manually "when I remember" — so `conversation_history` growth between sweeps is unbounded and memory-dependent, which (a) feeds DB size/pressure (a live suspect in the 20s personality-load stall investigation) and (b) delays the poisoned-row self-eviction the 30-day window exists to provide. **Action**: schedule the existing cleanup logic as a BullMQ repeatable job (daily; per `04-discord.md` timer rules — repeatable job, NOT `setInterval`), keep `/admin cleanup` as the manual trigger, log a completion line with deleted-row counts per table so runs are verifiable in Railway logs. **Acceptance**: cleanup runs daily with zero human action; a missed manual run no longer changes retention. **Start**: the `/admin cleanup` command handler → its gateway/worker cleanup implementation; BullMQ repeatable-job registration alongside the existing queue setup.
 
 ---
 
