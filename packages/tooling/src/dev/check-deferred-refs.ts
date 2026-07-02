@@ -33,6 +33,8 @@ const TITLE_PREVIEW_LENGTH = 90;
 
 /** @internal Exported for testing */
 export interface DeferredRef {
+  /** True when pathToken is a bare filename matched against basenames. */
+  isBasename?: boolean;
   /** Normalized path token from the entry text, e.g. 'services/x/src/y.ts' or 'services/x/' */
   pathToken: string;
   /** True when the token is a directory/glob prefix rather than an exact file */
@@ -56,6 +58,32 @@ export interface DeferredMatch {
  * liberally, then normalized.
  */
 const PATH_TOKEN_PATTERN = /(?:services|packages|prisma)\/[\w.\-/*]+/g;
+
+/**
+ * Bare backticked filenames (`GenerationStep.ts`) — how most rows reference
+ * code. Extension required so bare identifiers/prose can't false-match;
+ * backticks required so only deliberate code references count.
+ */
+const BASENAME_TOKEN_PATTERN = /`([A-Za-z][\w.-]*\.(?:ts|tsx|js|py|prisma|sql|ya?ml))`/g;
+
+/**
+ * Basenames too generic to identify a file — dozens of modules share these
+ * names, so a basename match would false-positive on nearly every push and
+ * train readers to ignore the output. Rows referencing such files must use
+ * the full path form to be matchable.
+ */
+const GENERIC_BASENAMES = new Set([
+  'index.ts',
+  'index.test.ts',
+  'types.ts',
+  'config.ts',
+  'constants.ts',
+  'utils.ts',
+  'helpers.ts',
+  'errors.ts',
+  'schema.ts',
+  'api.ts',
+]);
 
 /**
  * Normalize a raw path token from prose into a matchable form.
@@ -141,9 +169,35 @@ export function extractDeferredRefs(markdown: string): DeferredRef[] {
       seen.add(normalized.pathToken);
       refs.push({ ...normalized, title, line: i + 1 });
     }
+    collectBasenameRefs(line, seen, title, i + 1, refs);
   }
 
   return refs;
+}
+
+/**
+ * Collect bare-basename refs from a row, skipping generic names and any
+ * basename already covered by a full-path ref on the same row (the path form
+ * is stricter and should win).
+ */
+function collectBasenameRefs(
+  line: string,
+  seen: Set<string>,
+  title: string,
+  lineNumber: number,
+  refs: DeferredRef[]
+): void {
+  for (const match of line.matchAll(BASENAME_TOKEN_PATTERN)) {
+    const basename = match[1];
+    if (GENERIC_BASENAMES.has(basename) || seen.has(basename)) {
+      continue;
+    }
+    if ([...seen].some(t => t.endsWith(`/${basename}`))) {
+      continue;
+    }
+    seen.add(basename);
+    refs.push({ pathToken: basename, isPrefix: false, isBasename: true, title, line: lineNumber });
+  }
 }
 
 /**
@@ -154,9 +208,12 @@ export function matchFiles(files: string[], refs: DeferredRef[]): DeferredMatch[
   const matches: DeferredMatch[] = [];
 
   for (const file of files) {
-    const hits = refs.filter(ref =>
-      ref.isPrefix ? file.startsWith(ref.pathToken) : file === ref.pathToken
-    );
+    const hits = refs.filter(ref => {
+      if (ref.isBasename === true) {
+        return file.endsWith(`/${ref.pathToken}`) || file === ref.pathToken;
+      }
+      return ref.isPrefix ? file.startsWith(ref.pathToken) : file === ref.pathToken;
+    });
     if (hits.length > 0) {
       matches.push({ file, refs: hits });
     }

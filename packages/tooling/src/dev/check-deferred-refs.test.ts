@@ -32,6 +32,8 @@ const SAMPLE_MARKDOWN = [
   '| Temporal-marker hook for `.py` files | **Start**: extend the filter; test against `services/voice-engine/*.py` for false positives. |',
   '| Smart per-user cache invalidation | Upgrade `LlmConfigService` and the mirror together. No file path here. |',
   '| Memory retrieval mystery | Trace `MemoryService.retrieveRelevant()` flow in `services/ai-worker/src/services/` and add structured logs. |',
+  '| Compose-base asymmetry | `GenerationStep.ts` composes the log-only field from the outer error. **Promote when**: next touching it. |',
+  '| Both-forms row | Fix `chat.ts` at `services/bot-client/src/commands/character/chat.ts:468`. |',
 ].join('\n');
 
 describe('normalizePathToken', () => {
@@ -110,6 +112,61 @@ describe('extractDeferredRefs', () => {
   it('skips the header and separator rows', () => {
     const refs = extractDeferredRefs(SAMPLE_MARKDOWN);
     expect(refs.some(r => r.title === 'Item' || r.title.startsWith('-'))).toBe(false);
+  });
+});
+
+describe('extractDeferredRefs — bare basenames', () => {
+  const refs = extractDeferredRefs(SAMPLE_MARKDOWN);
+
+  it('extracts a backticked bare filename as a basename ref', () => {
+    const ref = refs.find(r => r.pathToken === 'GenerationStep.ts');
+    expect(ref).toBeDefined();
+    expect(ref?.isBasename).toBe(true);
+  });
+
+  it('does NOT duplicate a basename when the same row carries the full path', () => {
+    // The path form is stricter and wins; a second basename ref for chat.ts
+    // from the same row would double-report.
+    const bothFormsRefs = refs.filter(r => r.title.includes('Both-forms'));
+    expect(bothFormsRefs).toHaveLength(1);
+    expect(bothFormsRefs[0].pathToken).toBe('services/bot-client/src/commands/character/chat.ts');
+  });
+
+  it('excludes generic basenames from matching (signal-quality stoplist)', () => {
+    const refs = extractDeferredRefs(
+      [
+        '| Item | Why |',
+        '| ---- | --- |',
+        '| Generic row | Touch `index.ts` and `types.ts` someday. |',
+      ].join('\n')
+    );
+    expect(refs.find(r => r.pathToken === 'index.ts')).toBeUndefined();
+    expect(refs.find(r => r.pathToken === 'types.ts')).toBeUndefined();
+  });
+
+  it('ignores bare identifiers without an extension (false-positive guard)', () => {
+    // `MemoryService.retrieveRelevant()` and `PgvectorMemoryDocument` must not
+    // become refs — only extension-bearing backticked tokens count.
+    expect(refs.find(r => r.pathToken.startsWith('MemoryService'))).toBeUndefined();
+    expect(refs.find(r => r.pathToken === 'PgvectorMemoryDocument')).toBeUndefined();
+  });
+});
+
+describe('matchFiles — basename refs', () => {
+  const refs = extractDeferredRefs(SAMPLE_MARKDOWN);
+
+  it('matches a changed file by basename anywhere in the tree', () => {
+    const matches = matchFiles(
+      ['services/ai-worker/src/jobs/handlers/pipeline/steps/GenerationStep.ts'],
+      refs
+    );
+    expect(matches).toHaveLength(1);
+    expect(matches[0].refs.some(r => r.pathToken === 'GenerationStep.ts')).toBe(true);
+  });
+
+  it('does not match a different basename', () => {
+    const matches = matchFiles(['services/ai-worker/src/GenerationStepHelpers.ts'], refs);
+    expect(matches.every(m => !m.refs.some(r => r.pathToken === 'GenerationStep.ts'))).toBe(true);
   });
 });
 
