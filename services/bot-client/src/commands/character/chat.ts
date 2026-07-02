@@ -209,8 +209,6 @@ interface SendUserMessageParams {
   personality: LoadedPersonality;
   personaId: string;
   guildId: string | null;
-  /** Timestamp for ensuring user < assistant ordering */
-  timestamp: Date;
 }
 
 /**
@@ -218,14 +216,19 @@ interface SendUserMessageParams {
  * Returns the Message object for context building and trigger tracking.
  */
 async function sendAndPersistUserMessage(params: SendUserMessageParams): Promise<Message> {
-  const { channel, displayName, message, personality, personaId, guildId, timestamp } = params;
+  const { channel, displayName, message, personality, personaId, guildId } = params;
 
   const userMsg = await channel.send(`**${displayName}:** ${message}`);
 
   // Fire-and-forget persistence: Trade-off between responsiveness and guaranteed persistence.
   // If save fails (DB issues), the Discord message is still sent but won't be in history.
   // This matches the @mention pattern and prioritizes UX over perfect data consistency.
-  // Pass explicit timestamp to ensure user message < assistant message ordering.
+  //
+  // Persist at the ECHO's own Discord createdAt so the stored row's timestamp equals its
+  // snowflake time. The caller anchors the assistant row to echo.createdAt + 1ms, so the pair
+  // stays ordered (user < assistant) AND consistent with the real Discord timeline — a
+  // pre-send timestamp would land the pair ahead of the echo's snowflake and let the
+  // extended-context merge (which sees the echo at its real snowflake time) invert them.
   void getConversationPersistence()
     .saveUserMessageFromFields({
       channelId: channel.id,
@@ -234,7 +237,7 @@ async function sendAndPersistUserMessage(params: SendUserMessageParams): Promise
       personality,
       personaId,
       messageContent: message,
-      timestamp,
+      timestamp: userMsg.createdAt,
     })
     .catch(err => {
       logger.warn({ err, messageId: userMsg.id }, 'Failed to save user message');
@@ -490,10 +493,9 @@ async function runCharacterTurn(
     // 5. Replace the deferred "thinking..." indicator before sending messages.
     await finalizeDeferredReply(context, personality, isRandomPick);
 
-    // Capture timestamp for conversation ordering (user message < assistant message)
-    const userMessageTime = new Date();
-
-    // 6. Get a Discord Message object to use for context building with extended context
+    // 6. Get a Discord Message object to use for context building with extended context.
+    //    For a non-weigh-in turn this posts the echo, whose real Discord timestamp anchors
+    //    conversation ordering (see userMessageTime below).
     const anchorResult = await getAnchorMessage(
       channel,
       isWeighInMode,
@@ -506,7 +508,6 @@ async function runCharacterTurn(
             personality,
             personaId: userContext.personaId,
             guildId: context.guild?.id ?? null,
-            timestamp: userMessageTime,
           }
     );
 
@@ -515,6 +516,15 @@ async function runCharacterTurn(
       return;
     }
     const anchorMessage = anchorResult.message;
+
+    // Anchor conversation ordering to the echo's REAL Discord post time — NOT a pre-send
+    // new Date(). The user row is persisted at the echo's createdAt (inside getAnchorMessage);
+    // the assistant row derives echo.createdAt + 1ms. Sampling the time BEFORE the echo posted
+    // stamped both rows ~80ms ahead of the echo's real snowflake, which the extended-context
+    // merge — it sorts DB rows against bot-observed snapshot rows by their real snowflake time —
+    // could then invert (assistant before user). Weigh-in posts no echo (synthetic anchor), so
+    // it falls back to now(); there's no user row to order against there.
+    const userMessageTime = isWeighInMode ? new Date() : anchorMessage.createdAt;
 
     // 7. Build full context with command invoker's identity (not anchor message author)
     const messageContent = isWeighInMode ? WEIGH_IN_MESSAGE : message;
