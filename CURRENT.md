@@ -1,34 +1,37 @@
 # Current
 
-> **Version**: v3.0.0-beta.143 (released 2026-07-01) — **additive migration** (`DROP INDEX` on the unused `message_metadata` GIN index; premigrated to prod _before_ the release merge). Headliner: **the "something's slow on our end" persist-timeout fix** — the intermittent user-facing "⏳ Couldn't get a response just now" was runtime-diagnosed (via the beta.138 SQLSTATE self-label: `query-timeout-or-dead-conn` @ 6005ms, _not_ `57014`) as a **dead/stale pooled connection** (Railway silently reaps idle sockets), NOT the GIN index. Fixed **structurally at the fast-pool client boundary**: `applyFastPoolDeadConnRetry` — a Prisma `$extends({ query: { $allOperations } })` on `fastPrisma` that retries **every** fast-pool op once on the dead-conn class (covers the persist writes AND the `compareExisting` existence reads automatically) — plus a tightened ladder (`lock 1s < statement 2s < query 3s`, `idleTimeoutMillis` 5s < pg-pool's 10s default). Also this release: **Phase 3 S4 complete** (capability-driven vision UX — badges/pickers read `supportsVision`, not `kind`; S4a/S4b, #1418–#1420); the **ack-first epic** (the `component-handler-ack-first` ESLint rule #1409 + the C4–C7 dashboard/modal 3-second-budget fixes); `PersonalityLoader` global-default reads the AdminSettings pointer not the stale `isDefault` column (#1422); column-drop-**prep** for the dead `isDefault`/`isFreeDefault` columns (#1421). **Mechanics**: premigrate-before-merge (additive DROP INDEX) → rebase-merge (48 commits) → `release:finalize` SHA-aligned develop; holistic review clean (2 untracked findings → backlog, both non-blocking). _Prior: v3.0.0-beta.142 (2026-06-30) — capability-driven model config + full vision-preset management from Discord._
+> **Version**: v3.0.0-beta.144 (released 2026-07-02) — **no migrations**. Headliners: **the Phase 4 vision auto-fallback loop** (`describeImageWithFallback` — failed vision calls retry down the stamped model chain with per-tier auth, terminate-vs-advance categories, per-image quota; the **Model Config Overhaul epic is now FULLY complete**), **automated 30-day retention** (daily 09:10 UTC scheduled job; `ConversationRetentionService` moved to `@tzurot/conversation-history` so gateway + worker share one impl), **the gateway shutdown-loop fix** (#1440 — an unhandled rejection inside an unguarded shutdown handler zombied prod for ~3.5h on 2026-07-02 04:44–08:13 ET; now guarded + terminal-by-construction + `err`-key logging), **compound fallback errors** (#1438 — when z.ai fails AND the OpenRouter rescue fails, the persona-voiced error carries both halves; classification stays on the pristine message via a Symbol side-channel), **main-pool hardening** (#1433/#1434 — keepAlive, idle eviction, self-labeling `lock_timeout=3s`, connect observability, per-batch retention transactions), + 4 user-reported fixes (dedup-stub `"I..."` truncation #1431, `/character` echo ordering #1432, preset back-button + isGlobal round-trip #1435, vision-tier auth resilience #1436). **Mechanics**: 12 PRs → rebase-merge → `release:finalize`; two holistic release reviews clean. _Prior: v3.0.0-beta.143 (2026-07-01) — persist-timeout dead-conn fix + capability-driven vision UX._
 
 ---
 
-## Unreleased on Develop (since beta.143)
+## Unreleased on Develop (since beta.144)
 
-**Released v3.0.0-beta.143 on 2026-07-01** (notes: [tag v3.0.0-beta.143](https://github.com/lbds137/tzurot/releases/tag/v3.0.0-beta.143)). `release:finalize` SHA-aligned develop with main — **nothing unreleased on develop.**
+**Released v3.0.0-beta.144 on 2026-07-02** (notes: [tag v3.0.0-beta.144](https://github.com/lbds137/tzurot/releases/tag/v3.0.0-beta.144)). `release:finalize` SHA-aligned develop with main — **nothing unreleased on develop.**
 
-The **Model Configuration Overhaul epic's shipping phases are COMPLETE** through Phase 3 S4 (capability-driven vision UX). **The `active-epic.md` slot is OPEN** — promote the next theme from `cold/queue.md` (each substantial pick earns a council pass before plan-mode).
+**beta.144 post-deploy watch-items**:
 
-**Deferred phases** (in `active-epic.md`/`cold/`, not scheduled): **Phase 4 — auto-fallback unification** (ordered resolver cascade primary → tier-aware paid→`globalDefaultLlmConfigId` / free→`freeDefaultLlmConfigId` + an explicit `[VISION_UNAVAILABLE]` signal + the footer-attribution fix). **The `isDefault`/`isFreeDefault` column DROP** (contract half of the expand-contract — beta.143's #1421 shipped the _prep_ by stopping all reads/writes; the destructive `DROP` + sync-util removal ride a future release → `cold/follow-ups.md`). **The dormant `kind` column drop** (still WRITTEN on create + READ as the name-collision namespace; needs the collision collapsed to one namespace first).
-
-**beta.143 post-deploy watch-items** (`cold/follow-ups.md`, trigger-gated): the tightened fast-pool ladder's label rates (relax `DB_FAST_STATEMENT/LOCK_TIMEOUT_MS` if `statement-timeout`/`lock-timeout` labels appear under load) · the read-path self-label asymmetry (a `findUnique`-triggered fast-pool 500 logs generically, not self-labeled) · the `applyFastPoolDeadConnRetry` `$extends` cast type-safety · a shared `respondRegardlessOfAckState` helper (the ack-state branch is now hand-rolled in 4 places) · the earlier beta.142 follow-ups (global-config autocomplete zero-staleness · `/preset browse` fetch-all perf · `take:100`→`hasMore` · `refreshCache()` in-flight-guard race).
+- **First retention run**: user runs a supervised `/admin cleanup` right after deploy (attended first pass); the scheduled job then fires daily 09:10 UTC — per-table counts in the worker's completed-job log are the receipt.
+- **Vision fallback in the wild**: failure path is runtime-unverified by design (smoke skipped); every tier decision logs, and a Railway grep on `attachmentId` reconstructs any tier walk post-hoc.
+- **Compound fallback error**: the next natural z.ai-429 + OpenRouter-402 event is the runtime test.
+- **Connect-event log**: on the next slow request, a `pg.Pool established a new connection` line seconds in confirms the fresh-connect stall hypothesis.
 
 ---
 
 ## Next Session Goal
 
-**The Model Configuration Overhaul epic (Phase 3) is COMPLETE + shipped in beta.143.** Its S4 slices (capability-driven vision UX) closed the epic's shipping phases; Phase 4 (auto-fallback unification) + the two column-drops are deferred (see the Unreleased section above). **The `active-epic.md` slot is OPEN.** (The prior Test-Pyramid Taxonomy epic also completed — Phases 1–4, PR1–7, merged 2026-06-26.)
+**beta.145 openers, in order:**
 
-**➡️ Immediate next: promote the next theme from [`cold/queue.md`](backlog/cold/queue.md)** — each substantial pick earns a council pass (GLM-5.2 / Kimi-K2.7 / Qwen-3.7) before plan-mode. Develop is SHA-aligned with main (nothing unreleased).
+1. **Test-gap PR** (small, specced): `/admin/cleanup` `'all'`-target seam assertion + PGLite partial-sweep component test (batch-2 failure → batch-1 deletes persist with tombstones).
+2. **Cluster 3 — ack-first handler family** (`cold/follow-ups.md`, ~9 rows): one shared safe-defer helper across bot-client handlers.
+3. **`isDefault` "stop writing" prep** (`TtsConfigBootstrap` still writes the dead flags; unblocks the ~6-row column-retirement cluster).
+4. **Process-lifecycle unification**: shared `registerProcessLifecycle()` in common-types — per-service rejection policy (`crash | log-and-live | shutdown`), guard + hard-exit + `err`-key logging always (absorbs #1440's review nits + sibling gaps).
+5. **Vision-fallback integration-tier test**: real Redis via `pnpm test:integration` — negative cache + quota under the loop, model client stubbed.
 
-**Candidate threads** (none greenlit; user-surfaced priorities):
+**The `active-epic.md` slot is OPEN** — after the openers, promote the next theme from `cold/queue.md` (council pass first). Leading candidate per user priority: **UX consistency audit** (`cold/ideas.md`, wants-soonish since 2026-06-18; now carries the post-action button-row + Close-button-removal criteria).
 
-- **UX consistency audit (incl. parameter ordering)** (`cold/ideas.md`) — **user wants soonish** (asked 2026-06-18).
-- **Type-enforce the personal/anonymous context coupling** (`cold/ideas.md`) — discriminated-union refactor so the `isWeighIn`/`incognito`-vs-persona drift class becomes unrepresentable.
-- **Phase 4 — auto-fallback unification** (the Model Config epic's remaining phase; `active-epic.md`) — the original near-term want.
+## Last Session — the beta.144 mega-session (2026-07-01 → 07-02)
 
-**The persist-timeout production issue is FIXED in beta.143** (the dead-conn structural retry — it was a stale/dead pooled connection, not the GIN index). Remaining is post-deploy verification only: watch the tightened-ladder label rates (`cold/follow-ups.md`). Remove the 🚨 entry from `now.md` once beta.143 has soaked a day in prod with no recurrence.
+Epic close → bug blitz → perf forensics → backlog sweep → release. **13 PRs merged** (#1429–#1440 + release #1439). Highlights: Phase 4 C2b shipped after 5 review rounds (each caught a real bug → drove the wiring/seam-test pattern + the assert-at-seam rule #1430); the 20s personality-load stall was forensically traced (prod DB reads + log pulls) to the connection layer — **data volume ruled out** (DB = 422MB total) — yielding the main-pool hardening; a backlog sweep (agent-driven triage of ~298 cold items) found only 1 obsolete entry (the backlog is real, not rot) and clustered ~19 closeable rows; the gateway's 3.5h zombie outage was diagnosed (unguarded shutdown re-entry loop, 57M dropped log lines) and fixed in-release. Review-cycle discipline note: reviewers caught two wiring gaps in my own compound-error PR (category flip via message-regex classification; log-only field never reaching Discord) — the seam-testing rule works both ways.
 
 ## Last Session — beta.142 review-followup sweep (2026-06-30)
 

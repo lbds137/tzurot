@@ -6,6 +6,7 @@
 
 | Date       | Incident                          | Rule Established                                  |
 | ---------- | --------------------------------- | ------------------------------------------------- |
+| 2026-07-02 | Gateway zombie outage (~3.5h)     | Shutdown handlers must be guarded + terminal      |
 | 2026-06-07 | Handler/contract drift broke prod | Declared schemas must be executed, not documented |
 | 2026-03-09 | Near-delete of develop branch     | Never --delete-branch on long-lived branches      |
 | 2026-02-03 | Context settings not cascading    | Trace full runtime flow before declaring "done"   |
@@ -25,6 +26,25 @@
 | 2025-12-14 | Random UUIDs broke db-sync        | Use deterministic v5 UUIDs for all entities       |
 
 ---
+
+## 2026-07-02 - Gateway Zombie Outage: Unhandled-Rejection Shutdown Loop (~3.5h)
+
+**What Happened**: At 08:44 UTC (04:44 ET), an unhandled promise rejection in the prod api-gateway triggered its `unhandledRejection` handler, which called `void shutdown()`. A rejection thrown _inside_ the shutdown sequence (closing already-closed resources) was itself unhandled — the promise was `void`-discarded — so the handler re-fired, calling `shutdown()` again, forever. The process became a zombie: HTTP server closed (bot fully down), but the event loop kept alive by the looping handler, so Railway never restarted it. The loop logged the graceful-shutdown sequence at ~4,500 lines/sec for ~3.5 hours (57,006,075 messages dropped by Railway's 500/sec cap) until the container finally died at 12:13 UTC and booted clean.
+
+**Root cause of the outage**: `createShutdownHandler` had no re-entry guard and no failure containment — any `await`ed dispose step that rejected escaped the `void`-discarded promise as a fresh unhandled rejection. `process.exit(0)` at the end was unreachable once any step threw.
+
+**Compounding failure**: the original rejection's identity is permanently lost. `logger.fatal({ reason }, 'Unhandled rejection:')` serialized the Error to `{}` — pino only serializes Errors under the `err` key. The log line that should have named the root cause said `reason={}`.
+
+**Fix (PR #1440, shipped in v3.0.0-beta.144)**: (1) `shuttingDown` re-entry guard (checked-and-set synchronously before any await); (2) try/catch around the whole dispose sequence → `exit(1)` on failure, plus a 10s unref'd hard-exit timer → every shutdown attempt is now terminal by construction — a dead process gets restarted by Railway; a zombie does not; (3) `logger.fatal({ err: reason })` so the next incident names its cause.
+
+**Sibling audit**: bot-client was already safe (err-key logging; rejection handler logs-and-lives, doesn't call shutdown → no loop possible); ai-worker has no rejection handler → Node's default crash is terminal → accidentally safe. The shapes are inconsistent but individually non-loopable. Structural unification (shared `registerProcessLifecycle()` with per-service policy) is tracked in `backlog/cold/follow-ups.md`.
+
+**Lessons**:
+
+1. **Shutdown paths must be terminal by construction** — every branch ends in `process.exit`, with a hard-exit timer for hangs. "Graceful" that can fail into a non-exit state is worse than crashing: orchestrators heal dead processes, not zombies.
+2. **Handlers that respond to failure must be re-entrant-safe** — anything wired to `unhandledRejection`/`uncaughtException` can be re-triggered by its own execution.
+3. **Pino serializes Errors only under `err`** — `{ reason }`, `{ error }`, or any other key silently stringifies to `{}`. This was already a documented rule (`02-code-standards.md` Pino format) that the handler predated; the incident is what it costs when violated: a root cause you can never recover.
+4. **A process that logs at thousands of lines/sec is invisible in Railway's UI** — the rate cap drops the stream wholesale, so the outage window looks _quiet_ in retained logs. The `Messages dropped: N` line is the tell.
 
 ## 2026-06-07 - Handler/Contract Drift Broke Character Edit in Production
 
