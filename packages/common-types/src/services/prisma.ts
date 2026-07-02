@@ -18,6 +18,7 @@ import {
   resolvePoolMax,
   resolveConnectionTimeoutMs,
   resolvePoolStatsIntervalMs,
+  mainPoolConnectionOptions,
   startPoolStatsGauge,
 } from './poolConfig.js';
 
@@ -72,12 +73,16 @@ export function createPrismaClient(opts?: CreatePrismaClientOptions): PrismaClie
   // and starves under load. See poolConfig.ts for the full rationale.
   const max = opts?.max ?? resolvePoolMax();
   const connectionTimeoutMillis = resolveConnectionTimeoutMs();
-  // poolOverrides spread LAST so the fast pool can override connectionTimeoutMillis
-  // and add query_timeout/keepAlive/options without disturbing the main-pool path.
+  // Base config carries the main-pool hardening (keepAlive + explicit idle
+  // eviction + a safe pool-wide lock_timeout — see mainPoolConnectionOptions).
+  // poolOverrides spread LAST so the fast pool can override any of it: its
+  // tighter ladder, keepAlive knobs, and its own `options` GUC string fully
+  // replace the base values without disturbing every other pool.
   const pool = new Pool({
     connectionString: dbUrl,
     max,
     connectionTimeoutMillis,
+    ...mainPoolConnectionOptions(),
     ...opts?.poolOverrides,
   });
   pool.on('error', err => {
