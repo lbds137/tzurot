@@ -404,35 +404,64 @@ function createShutdownHandler(
     dbNotificationListener,
   } = services;
 
+  // Re-entry guard: the unhandledRejection handler calls shutdown(), and a
+  // rejection thrown INSIDE shutdown (closing already-closed resources) is
+  // itself unhandled — without the guard that recurses forever: the process
+  // zombies with the HTTP server closed, looping the shutdown log sequence at
+  // thousands of lines/sec and never reaching process.exit. Observed as a
+  // multi-hour prod outage; the guard + the hard-exit timer below make any
+  // shutdown attempt terminal.
+  let shuttingDown = false;
+
   return async (): Promise<void> => {
+    if (shuttingDown) {
+      return;
+    }
+    shuttingDown = true;
     logger.info('Shutting down gracefully...');
 
-    server.close(() => {
-      logger.info('HTTP server closed');
-    });
+    // Hard-exit backstop: if any dispose step hangs or throws in a way that
+    // never reaches the exit calls below, still terminate (Railway restarts a
+    // dead process; it cannot restart a zombie that keeps its event loop alive).
+    const hardExit = setTimeout(() => {
+      logger.error('Shutdown did not complete within 10s — forcing exit');
+      process.exit(1);
+    }, 10_000);
+    hardExit.unref();
 
-    disposeDeduplicationCache();
-    logger.info('Request deduplication cache disposed');
+    try {
+      server.close(() => {
+        logger.info('HTTP server closed');
+      });
 
-    await dbNotificationListener.stop();
-    logger.info('Database notification listener stopped');
+      disposeDeduplicationCache();
+      logger.info('Request deduplication cache disposed');
 
-    await cacheInvalidationService.unsubscribe();
-    await cascadeInvalidation.unsubscribe();
-    cascadeResolver.stopCleanup();
-    cacheRedis.disconnect();
-    logger.info('Cache invalidation services closed');
+      await dbNotificationListener.stop();
+      logger.info('Database notification listener stopped');
 
-    await shutdownEmbeddingService();
-    logger.info('Embedding service shut down');
+      await cacheInvalidationService.unsubscribe();
+      await cascadeInvalidation.unsubscribe();
+      cascadeResolver.stopCleanup();
+      cacheRedis.disconnect();
+      logger.info('Cache invalidation services closed');
 
-    await closeQueue();
+      await shutdownEmbeddingService();
+      logger.info('Embedding service shut down');
 
-    // dispose() logs 'Prisma client disconnected' itself — no second line here.
-    await disposePrisma();
+      await closeQueue();
 
-    logger.info('Shutdown complete');
-    process.exit(0);
+      // dispose() logs 'Prisma client disconnected' itself — no second line here.
+      await disposePrisma();
+
+      logger.info('Shutdown complete');
+      process.exit(0);
+    } catch (error) {
+      // A failed dispose step must still end the process — exiting dirty is
+      // strictly better than living on as a half-shut-down zombie.
+      logger.error({ err: error }, 'Shutdown step failed — exiting');
+      process.exit(1);
+    }
   };
 }
 
@@ -553,7 +582,10 @@ async function main(): Promise<void> {
     void shutdown();
   });
   process.on('unhandledRejection', reason => {
-    logger.fatal({ reason }, 'Unhandled rejection:');
+    // MUST log under `err` — pino only serializes Errors via the `err`-key
+    // serializer; `{ reason }` stringified a real Error to `{}` and left a
+    // production incident with no root cause in the logs.
+    logger.fatal({ err: reason }, 'Unhandled rejection:');
     void shutdown();
   });
 
