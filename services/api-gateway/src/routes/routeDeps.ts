@@ -43,7 +43,7 @@ import type {
   LlmConfigResolver,
   VisionConfigResolver,
 } from '@tzurot/config-resolver';
-import type { ConversationRetentionService } from '../services/ConversationRetentionService.js';
+import type { ConversationRetentionService } from '@tzurot/conversation-history';
 import type { OpenRouterModelCache } from '../services/OpenRouterModelCache.js';
 
 export interface RouteDeps {

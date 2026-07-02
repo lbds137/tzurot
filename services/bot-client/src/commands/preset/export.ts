@@ -14,10 +14,18 @@ const logger = createLogger('preset-export');
 
 /**
  * Fields to include in exported JSON
- * Excludes: id (generated on import), isGlobal (toggle in dashboard),
- * isOwned/permissions (computed server-side)
+ * Excludes: id (generated on import), isOwned/permissions (computed server-side).
+ * isGlobal IS exported so an export→import round-trip preserves visibility —
+ * import applies it post-create and reports the outcome in the result embed.
  */
-const EXPORT_FIELDS = ['name', 'description', 'provider', 'model', 'contextWindowTokens'] as const;
+const EXPORT_FIELDS = [
+  'name',
+  'description',
+  'provider',
+  'model',
+  'contextWindowTokens',
+  'isGlobal',
+] as const;
 
 /** Sampling parameter keys to extract from preset params */
 const SAMPLING_PARAMS = [

@@ -135,7 +135,7 @@ Before Phase 1 implementation:
 
 ## 2026-05-02 Mistral smoke test results
 
-Empirical pre-PR-1 gates closed. All findings folded into [`docs/proposals/backlog/tts-engine-upgrade-phase-1-plan.md`](../proposals/backlog/tts-engine-upgrade-phase-1-plan.md); summarized here as the durable record (the plan doc is build-process and gets deleted post-merge).
+Empirical pre-PR-1 gates closed. This doc is the durable record — the findings were originally folded into a build-process plan doc (`tts-engine-upgrade-phase-1-plan.md`) that was deleted once Phase 1 shipped.
 
 ### Endpoint corrections from the 2026-05-01 plan
 

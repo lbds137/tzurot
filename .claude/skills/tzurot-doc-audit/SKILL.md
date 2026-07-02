@@ -1,7 +1,7 @@
 ---
 name: tzurot-doc-audit
 description: 'Documentation and auto-memory freshness audit. Invoke with /tzurot-doc-audit to review docs and Claude auto-memory for staleness, items in the wrong layer, and missing-tool drift.'
-lastUpdated: '2026-06-17'
+lastUpdated: '2026-07-01'
 ---
 
 # Documentation Audit Procedure
@@ -105,16 +105,18 @@ Auto-memory audit runs as part of the recurring `/tzurot-doc-audit` cycle — th
 
 ### 2. Rules Files (`.claude/rules/`)
 
-| File                   | Check                                                                                                                                                                              |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `00-critical.md`       | Security rules still reflect current patterns? Post-mortem table current?                                                                                                          |
-| `01-architecture.md`   | Service boundaries match dependency-cruiser rules? Anti-patterns table current?                                                                                                    |
-| `02-code-standards.md` | ESLint limits match `eslint.config.js`? Testing patterns current?                                                                                                                  |
-| `03-database.md`       | Cache implementations table accurate? Protected indexes list current?                                                                                                              |
-| `04-discord.md`        | Shared utilities table lists all browse/dashboard helpers?                                                                                                                         |
-| `05-tooling.md`        | All `pnpm ops` commands listed? `pnpm quality` description accurate?                                                                                                               |
-| `06-backlog.md`        | HOT/COLD topology table matches actual `backlog/` layout (`now.md` + `active-epic.md` hot; `cold/` themes/ideas/follow-ups/epic-log)? Granularity-ladder + staleness rules intact? |
-| `07-documentation.md`  | Placement table covers all `docs/reference/` subdirs? Lifecycle rules current?                                                                                                     |
+| File                      | Check                                                                                                                                                                              |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `00-critical.md`          | Security rules still reflect current patterns? Post-mortem table current?                                                                                                          |
+| `01-architecture.md`      | Service boundaries match dependency-cruiser rules? Anti-patterns table current?                                                                                                    |
+| `02-code-standards.md`    | ESLint limits match `eslint.config.js`? Testing patterns current?                                                                                                                  |
+| `03-database.md`          | Cache implementations table accurate? Protected indexes list current?                                                                                                              |
+| `04-discord.md`           | Shared utilities table lists all browse/dashboard helpers?                                                                                                                         |
+| `05-tooling.md`           | All `pnpm ops` commands listed? `pnpm quality` description accurate?                                                                                                               |
+| `06-backlog.md`           | HOT/COLD topology table matches actual `backlog/` layout (`now.md` + `active-epic.md` hot; `cold/` themes/ideas/follow-ups/epic-log)? Granularity-ladder + staleness rules intact? |
+| `07-documentation.md`     | Placement table covers all `docs/reference/` subdirs? Lifecycle rules current?                                                                                                     |
+| `08-review-response.md`   | Edit-shape whitelist current? Round-cap + fixup-commit procedure matches the CI `fixup-check` job?                                                                                 |
+| `09-interaction-style.md` | Interaction guidance still reflects current feedback (no premature-stopping, etc.)?                                                                                                |
 
 **How to verify 05-tooling.md:**
 
@@ -162,9 +164,21 @@ ls .claude/skills/*/SKILL.md
 
 ### 6. Research Notes
 
+**Format check** (a well-formatted doc can still be obsolete — do the relevance check below too):
+
 - [ ] Files in `docs/research/` are TL;DR format (2-5KB, not raw transcripts)
 - [ ] No raw AI chat dumps (distill or delete)
 - [ ] Research links to actionable items in `backlog/**/*.md` or proposals
+- [ ] `docs/research/README.md` index lists exactly the files present (no phantom rows, no missing files, descriptions not stale)
+
+**Relevance / lifecycle check (guards against doc sprawl — format-clean ≠ still-needed).** For EACH research doc, decide **KEEP / TRIM / DELETE**. A research doc is meant to persist as the "why we chose X" rationale record, so the bar for deletion is: its unique rationale is captured nowhere it's needed. Delete/trim when:
+
+- [ ] **Stale point-in-time snapshot** — the doc froze a moment ("free models as of Jan 2026", "current API pricing") that no longer holds and now _misleads_. → DELETE.
+- [ ] **Superseded / absorbed** — its "Actionable Items" pointer is dead (the backlog item shipped, was absorbed, or renamed), AND its rationale is now captured in shipped code + a `docs/reference/` doc. → DELETE.
+- [ ] **Bloated with redundant passes** — multiple dated passes where later ones restate earlier prose (as opposed to adding distinct decision layers / empirical data). → TRIM to the load-bearing findings.
+- [ ] **Still a live write-target or seeds unshipped backlog** — a backlog follow-up says "document findings here", or it holds impl detail/rationale for open themes the terse backlog rows lack. → KEEP.
+
+**How to run it**: for each file, grep the repo for its filename (find inbound references), grep `backlog/` + `docs/proposals/` for whether its subject shipped/was-absorbed/is-still-open, and check `docs/reference/` for a doc that already captures the same rationale. Verify before deleting — never orphan a rationale that isn't recorded elsewhere. Deletions are `git rm` (git history is the backstop); confirm with the maintainer if unsure.
 
 ### 8. Incidents
 

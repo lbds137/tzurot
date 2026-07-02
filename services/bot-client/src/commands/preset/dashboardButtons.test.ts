@@ -9,6 +9,7 @@ import {
   buildPresetDashboardOptions,
   handleCloseButton,
   handleRefreshButton,
+  handleToggleGlobalButton,
   handleDeleteButton,
   handleConfirmDeleteButton,
   handleCancelDeleteButton,
@@ -493,6 +494,34 @@ describe('Preset Dashboard Buttons', () => {
             browseContext: undefined,
           }),
         })
+      );
+    });
+  });
+
+  describe('handleToggleGlobalButton', () => {
+    it('preserves browseContext across the toggle re-render (Back-to-Browse survives)', async () => {
+      // Regression: the toggle rebuilt session data from the API response alone,
+      // dropping browseContext — showBack derives from it, so the re-rendered
+      // dashboard lost its Back-to-Browse button after Make Global/Private.
+      const mockInteraction = createMockButtonInteraction('preset::toggle-global::preset-123');
+      const browseContext = { source: 'browse' as const, page: 2, filter: 'mine' };
+
+      // *Once so the shared default implementations survive for later tests —
+      // a plain mockResolvedValue permanently replaces them and leaks.
+      mockRequireDeferredSession.mockResolvedValueOnce({
+        data: createMockFlattenedPreset({ isGlobal: false, browseContext }),
+      });
+      mockFetchPreset.mockResolvedValueOnce(createMockPresetResponse({ isGlobal: false }));
+      mockUpdatePreset.mockResolvedValueOnce(createMockPresetResponse({ isGlobal: true }));
+
+      await handleToggleGlobalButton(mockInteraction, 'preset-123');
+
+      // The seam assertion: the session update must carry browseContext through.
+      expect(mockSessionManager.update).toHaveBeenCalledWith(
+        expect.any(String),
+        'preset',
+        'preset-123',
+        expect.objectContaining({ browseContext })
       );
     });
   });

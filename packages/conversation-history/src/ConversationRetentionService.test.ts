@@ -6,15 +6,19 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ConversationRetentionService } from './ConversationRetentionService.js';
 
-// Suppress logger output in tests
-vi.mock('../utils/logger.js', () => ({
-  createLogger: () => ({
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
-}));
+// Suppress logger output in tests (the service's createLogger comes from common-types)
+vi.mock('@tzurot/common-types', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+  return {
+    ...actual,
+    createLogger: () => ({
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }),
+  };
+});
 
 // Helper to create a mock Prisma client with transaction support
 function createMockPrismaClient() {
@@ -82,8 +86,6 @@ describe('ConversationRetentionService', () => {
         where: { channelId: 'channel-123', personalityId: 'personality-456' },
         select: { id: true, channelId: true, personalityId: true, personaId: true },
         take: 1000, // SYNC_LIMITS.RETENTION_BATCH_SIZE
-        skip: 0,
-        cursor: undefined,
         orderBy: { id: 'asc' },
       });
       expect(mockPrismaClient.conversationHistoryTombstone.createMany).toHaveBeenCalledWith({
@@ -109,6 +111,44 @@ describe('ConversationRetentionService', () => {
       expect(count).toBe(0);
       expect(mockPrismaClient.conversationHistoryTombstone.createMany).not.toHaveBeenCalled();
       expect(mockPrismaClient.conversationHistory.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('processes multiple batches, each in its OWN transaction (lock-release seam)', async () => {
+      // The crux of the per-batch rework: a full-size batch means "keep going", and
+      // each iteration commits its own transaction so row locks release between
+      // batches (a sweep-wide transaction + the pool's lock_timeout would 55P03
+      // concurrent writers for the whole sweep).
+      const fullBatch = Array.from({ length: 1000 }, (_, i) => ({
+        id: `msg-${i}`,
+        channelId: 'channel-123',
+        personalityId: 'personality-456',
+        personaId: 'persona-1',
+      }));
+      const shortBatch = [
+        {
+          id: 'msg-last',
+          channelId: 'channel-123',
+          personalityId: 'personality-456',
+          personaId: 'persona-1',
+        },
+      ];
+      mockPrismaClient.conversationHistory.findMany
+        .mockResolvedValueOnce(fullBatch)
+        .mockResolvedValueOnce(shortBatch);
+      mockPrismaClient.conversationHistory.deleteMany
+        .mockResolvedValueOnce({ count: 1000 })
+        .mockResolvedValueOnce({ count: 1 });
+      mockPrismaClient.conversationHistoryTombstone.createMany.mockResolvedValue({ count: 0 });
+
+      const count = await service.clearHistory('channel-123', 'personality-456');
+
+      expect(count).toBe(1001);
+      // One transaction PER batch — the lock-release boundary this rework exists for.
+      expect(mockPrismaClient.$transaction).toHaveBeenCalledTimes(2);
+      expect(mockPrismaClient.conversationHistoryTombstone.createMany).toHaveBeenCalledTimes(2);
+      expect(mockPrismaClient.conversationHistory.deleteMany).toHaveBeenNthCalledWith(2, {
+        where: { id: { in: ['msg-last'] } },
+      });
     });
 
     it('should throw error on database failure', async () => {
@@ -144,8 +184,6 @@ describe('ConversationRetentionService', () => {
         },
         select: { id: true, channelId: true, personalityId: true, personaId: true },
         take: 1000,
-        skip: 0,
-        cursor: undefined,
         orderBy: { id: 'asc' },
       });
     });
@@ -225,8 +263,6 @@ describe('ConversationRetentionService', () => {
         where: { createdAt: { lt: expectedCutoff } },
         select: { id: true, channelId: true, personalityId: true, personaId: true },
         take: 1000,
-        skip: 0,
-        cursor: undefined,
         orderBy: { id: 'asc' },
       });
     });

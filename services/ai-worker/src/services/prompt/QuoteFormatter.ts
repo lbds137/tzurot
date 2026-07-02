@@ -11,12 +11,7 @@
  * to provide context about the quote source.
  */
 
-import {
-  escapeXml,
-  escapeXmlContent,
-  TEXT_LIMITS,
-  type ReferenceAuthorRole,
-} from '@tzurot/common-types';
+import { escapeXml, escapeXmlContent, type ReferenceAuthorRole } from '@tzurot/common-types';
 
 /**
  * Options for formatting a single <quote> element.
@@ -195,23 +190,27 @@ export interface DedupedQuoteOptions {
   timestamp?: { absolute: string; relative: string };
   /** Pre-formatted timestamp as attribute */
   timeFormatted?: string;
-  /** Original message content (will be truncated). Empty → marker-only stub. */
+  /** Original message content, already text-capped upstream (`buildDedupedReferenceStub`).
+   *  Rendered as-is — NOT re-truncated here. Empty → marker-only stub. */
   content: string;
 }
 
 /**
- * Format a deduplicated reference as a lightweight <quote> stub.
- * Truncates content and prepends the reply-target note.
+ * Format a deduplicated reference as a lightweight <quote> stub. Renders the (already
+ * text-capped, via `capDedupText` at the caller) content as-is and prepends the reply-target
+ * note — does NOT truncate, so markers can't cannibalize the text preview.
  */
 export function formatDedupedQuote(opts: DedupedQuoteOptions): string {
-  const limit = TEXT_LIMITS.DEDUP_STUB_CONTENT;
-  const truncated =
-    opts.content.length > limit ? opts.content.substring(0, limit) + '...' : opts.content;
-
+  // Do NOT truncate here. `opts.content` is already TEXT-capped upstream by
+  // `buildDedupedReferenceStub` (it truncates the text to DEDUP_STUB_CONTENT, THEN prepends
+  // the attachment markers). Re-applying the limit to the COMBINED markers+text let long
+  // image-filename markers eat the whole budget, leaving a misleading 1-char text fragment
+  // (e.g. `I...` for `I got myself off…`) that the model reads as an unfinished sentence.
+  // The text is already bounded; the markers are short metadata that must survive intact.
   // Empty content (e.g. a bot's own reply-target) → marker only, no trailing blank.
   const content =
-    truncated.length > 0
-      ? `${DEDUP_REPLY_TARGET_PREFIX}\n\n${truncated}`
+    opts.content.length > 0
+      ? `${DEDUP_REPLY_TARGET_PREFIX}\n\n${opts.content}`
       : DEDUP_REPLY_TARGET_PREFIX;
 
   return formatQuoteElement({

@@ -1,7 +1,7 @@
 ---
 name: tzurot-council-mcp
 description: 'Multi-perspective AI consultation. Invoke with /tzurot-council-mcp for major refactors (>500 lines), structured debugging after failed attempts, or when a technical decision has multiple viable approaches.'
-lastUpdated: '2026-04-11'
+lastUpdated: '2026-07-01'
 ---
 
 # Council MCP Procedures
@@ -87,14 +87,14 @@ End the failed session, call `list_models` to find a replacement with similar ca
 
 ### Recommended models by task
 
-| Task Type        | Recommended Models                              | Notes                                                               |
-| ---------------- | ----------------------------------------------- | ------------------------------------------------------------------- |
-| Reasoning/Design | **Gemini 3.1 Pro Preview** → Claude Sonnet/Opus | **Avoid DeepSeek R1** — it's dated; reasoning/design needs SOTA     |
-| Coding/Review    | Claude Sonnet 4, Claude Opus 4                  | Tool-use variants of Gemini also work for structured refactor tasks |
-| Vision/Images    | Gemini 2.5 Flash, Gemini 2.5 Pro                | (verify availability with `list_models`)                            |
-| Long Documents   | Gemini (1M token context)                       | (verify availability with `list_models`)                            |
+| Task Type        | Recommended Models                                                                                    | Notes                                                                                       |
+| ---------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Reasoning/Design | **GLM 5.2 · Kimi K2.7-code · Qwen 3.7 Max** (run all three in parallel) → Claude Sonnet/Opus fallback | **Avoid DeepSeek R1** — dated; design needs SOTA. Verify IDs via `list_models` (they drift) |
+| Coding/Review    | Claude Sonnet 4, Claude Opus 4                                                                        | Tool-use variants of Gemini also work for structured refactor tasks                         |
+| Vision/Images    | Gemini 2.5 Flash, Gemini 2.5 Pro                                                                      | (verify availability with `list_models`)                                                    |
+| Long Documents   | Gemini (1M token context)                                                                             | (verify availability with `list_models`)                                                    |
 
-**Why avoid DeepSeek R1 for reasoning/design**: explicit user feedback (2026-04-09) — _"In the future, I would recommend not using R1 because again, it is dated. There are better models out there."_ R1 is acceptable for narrow factual queries but not for architectural decisions that ship to users. Default to Gemini 3.1 Pro Preview (or current SOTA equivalent — verify with `list_models`). If Gemini is unavailable, fall back to Claude Sonnet 4 / Opus 4, **not** R1.
+**Why avoid DeepSeek R1 for reasoning/design**: explicit user feedback (2026-04-09) — _"In the future, I would recommend not using R1 because again, it is dated. There are better models out there."_ R1 is acceptable for narrow factual queries but not for architectural decisions that ship to users. For open design decisions, run the current preferred trio in parallel — **GLM 5.2 · Kimi K2.7-code · Qwen 3.7 Max** — and verify each ID via `list_models` first (they drift; the council registry can lag a new release, e.g. GLM 5.2 wasn't listed 2026-06-17 → fall back to 5.1). If those are unavailable, fall back to Claude Sonnet / Opus, **not** R1.
 
 ### Per-call model specification
 

@@ -113,11 +113,15 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 describe('Character Chat Handler (push delivery)', () => {
   const mockConfig = { GATEWAY_URL: 'http://localhost:3000' } as EnvConfig;
 
+  // A distinctive createdAt so tests can assert the echo's REAL Discord time (not a
+  // pre-send new Date()) anchors both the user row and the assistant's userMessageTime.
+  const ECHO_CREATED_AT = new Date('2026-07-01T23:10:54.101Z');
   const createMockMessage = (id: string = 'user-msg-123') => ({
     id,
     client: { user: { id: 'bot-user-123' } },
     channel: { id: 'channel-123' },
     author: { id: 'user-123' },
+    createdAt: ECHO_CREATED_AT,
   });
 
   const createMockCollection = (entries: Array<[string, ReturnType<typeof createMockMessage>]>) => {
@@ -302,6 +306,30 @@ describe('Character Chat Handler (push delivery)', () => {
           characterSlug: 'test-char',
           isWeighInMode: false,
         })
+      );
+    });
+
+    it('anchors BOTH the user row and the assistant time to the echo’s real createdAt', async () => {
+      // Regression: userMessageTime was sampled with new Date() BEFORE the echo posted, so
+      // the user row + assistant landed ~80ms ahead of the echo's real snowflake and the
+      // extended-context merge could invert the pair. The user row's persisted timestamp AND
+      // the tracked userMessageTime must both equal the echo message's createdAt.
+      const channel = createMockChannel(ChannelType.GuildText);
+      const ctx = createMockContext('test-char', 'Hello!', channel);
+      mockPersonalityService.loadPersonality.mockResolvedValue(createMockPersonality());
+      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-1', requestId: 'req-1' });
+
+      await handleChat(ctx, mockConfig);
+
+      // User row persisted at the echo's createdAt (not a pre-send new Date()).
+      expect(mockConversationPersistence.saveUserMessageFromFields).toHaveBeenCalledWith(
+        expect.objectContaining({ timestamp: ECHO_CREATED_AT })
+      );
+      // Assistant ordering (userMessageTime) anchored to the same echo createdAt → +1ms lands
+      // just after the user row, consistent with the real Discord timeline.
+      expect(mockJobTracker.trackJob).toHaveBeenCalledWith(
+        'job-1',
+        expect.objectContaining({ userMessageTime: ECHO_CREATED_AT })
       );
     });
 

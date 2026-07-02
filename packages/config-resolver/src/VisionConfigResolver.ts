@@ -58,6 +58,9 @@ const HARDCODED_FALLBACK: ResolvedVisionConfig = Object.freeze({
 /** Sentinel cache key for the global-default lookup (no userId/personalityId axis). */
 const GLOBAL_DEFAULT_CACHE_KEY = '__vision_global_default__';
 
+/** Sentinel cache key for the free-default lookup (no userId/personalityId axis). */
+const FREE_DEFAULT_CACHE_KEY = '__vision_free_default__';
+
 export class VisionConfigResolver extends BaseConfigResolver<
   LoadedVisionPersonality,
   MappedLlmConfigWithName,
@@ -66,18 +69,19 @@ export class VisionConfigResolver extends BaseConfigResolver<
   private prisma: PrismaClient;
 
   /**
-   * Negative-result cache for the global vision default. The positive cache
-   * (`this.cache`) can't store a null result (TTLCache rejects null values), so
-   * without this every pre-seed call (no global default row yet) would re-query
-   * the DB. A truthy marker under GLOBAL_DEFAULT_CACHE_KEY short-circuits those
-   * repeated misses for the same TTL window the positive cache uses.
+   * Negative-result cache for the no-axis system defaults (global AND free vision
+   * default). The positive cache (`this.cache`) can't store a null result (TTLCache
+   * rejects null values), so without this every pre-seed call (no default row yet)
+   * would re-query the DB. A truthy marker under GLOBAL_DEFAULT_CACHE_KEY /
+   * FREE_DEFAULT_CACHE_KEY short-circuits those repeated misses for the same TTL
+   * window the positive cache uses.
    */
-  private readonly noGlobalDefaultCache: TTLCache<true>;
+  private readonly noDefaultCache: TTLCache<true>;
 
   constructor(prisma: PrismaClient, options?: BaseConfigResolverOptions) {
     super('VisionConfigResolver', options);
     this.prisma = prisma;
-    this.noGlobalDefaultCache = new TTLCache<true>({
+    this.noDefaultCache = new TTLCache<true>({
       // Same fallback as BaseConfigResolver's positive cache (API_KEY_CACHE_TTL),
       // so the negative sentinel and the positive entry expire on the same window
       // — neither can outlive the other and mask a state transition.
@@ -188,14 +192,14 @@ export class VisionConfigResolver extends BaseConfigResolver<
 
   /**
    * Clear both caches on invalidation. The base only clears the positive cache
-   * (`this.cache`); the negative-default sentinel must be cleared too. Otherwise a
-   * pub/sub invalidation fired right after an admin creates the first global vision
-   * default would leave the stale "no global default" marker in place, and the new
-   * default would stay invisible until the sentinel's TTL naturally expired.
+   * (`this.cache`); the negative-default sentinels (global AND free) must be cleared
+   * too. Otherwise a pub/sub invalidation fired right after an admin creates the first
+   * global/free vision default would leave the stale "no default" marker in place, and
+   * the new default would stay invisible until the sentinel's TTL naturally expired.
    */
   override clearCache(): void {
     super.clearCache();
-    this.noGlobalDefaultCache.clear();
+    this.noDefaultCache.clear();
   }
 
   /**
@@ -210,7 +214,7 @@ export class VisionConfigResolver extends BaseConfigResolver<
     }
 
     // Negative-cache hit: a recent query found no global default — skip the DB.
-    if (this.noGlobalDefaultCache.has(GLOBAL_DEFAULT_CACHE_KEY)) {
+    if (this.noDefaultCache.has(GLOBAL_DEFAULT_CACHE_KEY)) {
       return null;
     }
 
@@ -228,7 +232,7 @@ export class VisionConfigResolver extends BaseConfigResolver<
 
       if (globalConfig === null) {
         this.logger.debug('No global vision default pointer set in admin_settings');
-        this.noGlobalDefaultCache.set(GLOBAL_DEFAULT_CACHE_KEY, true);
+        this.noDefaultCache.set(GLOBAL_DEFAULT_CACHE_KEY, true);
         return null;
       }
 
@@ -252,6 +256,61 @@ export class VisionConfigResolver extends BaseConfigResolver<
       return config;
     } catch (error) {
       this.logger.error({ err: error }, 'Failed to get global vision default config');
+      return null;
+    }
+  }
+
+  /**
+   * Get the free-tier vision default via the AdminSettings pointer
+   * (`freeDefaultVisionConfigId`) — the vision analogue of
+   * `LlmConfigResolver.getFreeDefaultConfig`. This is the admin-set free-tier
+   * fallback the worker's vision path consults before the hardcoded
+   * `VISION_FALLBACK_FREE` floor (Phase 4). Returns null if no pointer is set
+   * (callers fall through to the hardcoded floor). `source` is 'personality' (the
+   * "system default" tier), matching `getGlobalDefaultConfig`.
+   */
+  async getFreeDefaultVisionConfig(): Promise<ResolvedVisionConfig | null> {
+    const cached = this.cache.get(FREE_DEFAULT_CACHE_KEY);
+    if (cached !== null) {
+      return cached.config;
+    }
+
+    // Negative-cache hit: a recent query found no free default — skip the DB.
+    if (this.noDefaultCache.has(FREE_DEFAULT_CACHE_KEY)) {
+      return null;
+    }
+
+    try {
+      const settings = await this.prisma.adminSettings.findUnique({
+        where: { id: ADMIN_SETTINGS_SINGLETON_ID },
+        select: { freeDefaultVisionConfig: { select: LLM_CONFIG_SELECT_WITH_NAME } },
+      });
+      const freeConfig = settings?.freeDefaultVisionConfig ?? null;
+
+      if (freeConfig === null) {
+        this.logger.debug('No free vision default pointer set in admin_settings');
+        this.noDefaultCache.set(FREE_DEFAULT_CACHE_KEY, true);
+        return null;
+      }
+
+      const mapped = mapLlmConfigFromDbWithName(freeConfig);
+      const config: ResolvedVisionConfig = {
+        model: mapped.model,
+        source: 'personality',
+        configName: mapped.name,
+      };
+      this.cache.set(FREE_DEFAULT_CACHE_KEY, {
+        config,
+        source: 'personality',
+        configName: mapped.name,
+      });
+      this.logger.info(
+        { configName: mapped.name, model: config.model },
+        'Free vision default loaded from database'
+      );
+      return config;
+    } catch (error) {
+      this.logger.error({ err: error }, 'Failed to get free vision default config');
       return null;
     }
   }

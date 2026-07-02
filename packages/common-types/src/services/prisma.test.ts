@@ -42,6 +42,13 @@ vi.mock('./poolConfig.js', () => ({
   resolvePoolMax: mockResolvePoolMax,
   resolveConnectionTimeoutMs: vi.fn(() => 10_000),
   resolvePoolStatsIntervalMs: vi.fn(() => 0),
+  // Mirror the real shape: keepAlive + explicit idle eviction + the lock_timeout GUC.
+  mainPoolConnectionOptions: vi.fn(() => ({
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 1000,
+    idleTimeoutMillis: 10_000,
+    options: '-c lock_timeout=3000',
+  })),
   startPoolStatsGauge: mockStartGauge,
 }));
 
@@ -67,6 +74,30 @@ describe('createPrismaClient', () => {
     expect(Pool).toHaveBeenCalledWith(expect.objectContaining({ max: 5 }));
   });
 
+  it('applies the main-pool hardening as the base config by default', () => {
+    createPrismaClient();
+    expect(Pool).toHaveBeenCalledWith(
+      expect.objectContaining({
+        keepAlive: true,
+        keepAliveInitialDelayMillis: 1000,
+        idleTimeoutMillis: 10_000,
+        options: '-c lock_timeout=3000',
+      })
+    );
+  });
+
+  it('registers a connect handler that logs pool stats (the stall-diagnosis signal)', () => {
+    createPrismaClient();
+    // Invoke the captured 'connect' callback — the log line IS the deliverable
+    // (a connect event landing seconds into a slow request confirms the
+    // fresh-connect stall mechanism), so assert the handler executes and reads
+    // the pool counters without throwing, not just that it was registered.
+    const connectCall = mockPool.on.mock.calls.find(([event]) => event === 'connect');
+    expect(connectCall).toBeDefined();
+    const handler = connectCall?.[1] as () => void;
+    expect(() => handler()).not.toThrow();
+  });
+
   it('spreads poolOverrides into the Pool config (fast-pool timeouts + GUC options)', () => {
     createPrismaClient({
       max: 5,
@@ -76,6 +107,8 @@ describe('createPrismaClient', () => {
         options: '-c statement_timeout=5000 -c lock_timeout=2000',
       },
     });
+    // The fast pool's own `options` string must fully REPLACE the main-pool base
+    // one — spread order is the seam that keeps its tighter ladder authoritative.
     expect(Pool).toHaveBeenCalledWith(
       expect.objectContaining({
         max: 5,

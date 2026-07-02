@@ -19,6 +19,7 @@ import { cleanupDiagnosticLogs } from './jobs/CleanupDiagnosticLogs.js';
 import { cleanupStuckImportJobs } from './jobs/cleanupStuckImportJobs.js';
 import { cleanupStuckExportJobs } from './jobs/cleanupStuckExportJobs.js';
 import { cleanupExpiredExports } from './jobs/cleanupExpiredExports.js';
+import { ConversationRetentionService } from '@tzurot/conversation-history';
 import {
   createLogger,
   getConfig,
@@ -46,6 +47,7 @@ const SCHEDULED_JOBS = {
   CLEANUP_STUCK_IMPORTS: 'cleanup-stuck-imports',
   CLEANUP_STUCK_EXPORTS: 'cleanup-stuck-exports',
   CLEANUP_EXPIRED_EXPORTS: 'cleanup-expired-exports',
+  CLEANUP_CONVERSATION_RETENTION: 'cleanup-conversation-retention',
 } as const;
 
 // ============================================================================
@@ -230,6 +232,19 @@ async function setupScheduledJobs(
         logger.info('Running expired export cleanup');
         return cleanupExpiredExports(prisma);
       }
+      if (job.name === SCHEDULED_JOBS.CLEANUP_CONVERSATION_RETENTION) {
+        // Retention was manual-only (/admin cleanup, run "when I remember") — this
+        // makes the 30-day window deterministic. The manual route stays as the
+        // on-demand trigger; both paths share ConversationRetentionService.
+        logger.info('Running conversation retention cleanup');
+        const retention = new ConversationRetentionService(prisma);
+        const oldHistory = await retention.cleanupOldHistory();
+        const softDeleted = await retention.cleanupSoftDeletedMessages();
+        const tombstones = await retention.cleanupOldTombstones();
+        // Returned object lands in the worker's `completed` log line — the
+        // per-table counts are what make a daily run verifiable in Railway logs.
+        return { oldHistory, softDeleted, tombstones };
+      }
       return null;
     },
     {
@@ -282,8 +297,19 @@ async function setupScheduledJobs(
     { repeat: { pattern: '30 * * * *' }, jobId: SCHEDULED_JOBS.CLEANUP_EXPIRED_EXPORTS }
   );
 
+  // Add repeatable job for conversation retention (daily at 09:10 UTC — off-peak
+  // for the primarily-US user base, offset off the hourly jobs' minute marks)
+  await scheduledQueue.add(
+    SCHEDULED_JOBS.CLEANUP_CONVERSATION_RETENTION,
+    {},
+    {
+      repeat: { pattern: '10 9 * * *' },
+      jobId: SCHEDULED_JOBS.CLEANUP_CONVERSATION_RETENTION,
+    }
+  );
+
   logger.info(
-    'Scheduled jobs configured (pending memory: every 10 min, diagnostic cleanup: hourly, stuck imports/exports: every 15 min, expired exports: hourly)'
+    'Scheduled jobs configured (pending memory: every 10 min, diagnostic cleanup: hourly, stuck imports/exports: every 15 min, expired exports: hourly, conversation retention: daily 09:10 UTC)'
   );
 
   return { scheduledQueue, scheduledWorker };

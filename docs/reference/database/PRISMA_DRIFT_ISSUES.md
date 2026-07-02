@@ -98,17 +98,22 @@ CREATE INDEX "memories_chunk_group_id_idx" ON "memories"("chunk_group_id")
 WHERE "chunk_group_id" IS NOT NULL;
 ```
 
-### 3. GIN Index on JSONB (RESOLVED)
+### 3. GIN Index on JSONB (DROPPED — unused)
 
-**Status:** Fixed in schema as of 2025-12-13
+**Status:** Index dropped; `message_metadata` has no GIN index.
 
-The GIN index on `conversation_history.message_metadata` is now properly defined in the schema:
+The `conversation_history.message_metadata` GIN index was dropped (migration
+`20260630223919_drop_unused_message_metadata_gin_index`) because nothing queries
+the JSONB by containment — it was pure write-overhead on the hot persist path.
+`prisma/schema.prisma` documents the deliberate absence:
 
 ```prisma
-@@index([messageMetadata], map: "conversation_history_message_metadata_idx", type: Gin)
+// No GIN index on messageMetadata: nothing queries it by JSONB containment.
 ```
 
-This was previously a drift issue but Prisma 6+ supports GIN indexes natively.
+If a containment query is added later, reintroduce the index with
+`@@index([messageMetadata], type: Gin)` (Prisma 6+ supports GIN natively) — but
+only alongside the read that justifies it.
 
 ## Recommended Workflow
 

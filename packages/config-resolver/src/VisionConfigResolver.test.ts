@@ -293,4 +293,62 @@ describe('VisionConfigResolver', () => {
       expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(2);
     });
   });
+
+  describe('getFreeDefaultVisionConfig', () => {
+    it('reads the free vision default via the AdminSettings pointer', async () => {
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({
+        freeDefaultVisionConfig: visionRow({ model: 'free-vision-default', name: 'free-vision' }),
+      });
+
+      const result = await resolver.getFreeDefaultVisionConfig();
+
+      expect(result?.model).toBe('free-vision-default');
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({
+          select: { freeDefaultVisionConfig: { select: expect.any(Object) } },
+        })
+      );
+    });
+
+    it('returns null when no free vision default row exists', async () => {
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({ freeDefaultVisionConfig: null });
+      expect(await resolver.getFreeDefaultVisionConfig()).toBeNull();
+    });
+
+    it('negative-caches the null result (second call does not re-query)', async () => {
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({ freeDefaultVisionConfig: null });
+
+      await resolver.getFreeDefaultVisionConfig();
+      await resolver.getFreeDefaultVisionConfig();
+
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(1);
+    });
+
+    it('caches the free-default result (second call hits cache)', async () => {
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({
+        freeDefaultVisionConfig: visionRow({ model: 'free-vision-default', name: 'free-vision' }),
+      });
+
+      await resolver.getFreeDefaultVisionConfig();
+      await resolver.getFreeDefaultVisionConfig();
+
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps the free + global negative sentinels independent (shared cache, distinct keys)', async () => {
+      // A missing GLOBAL default must not suppress a subsequent FREE lookup — the two
+      // sentinels live in the same noDefaultCache under different keys.
+      mockPrisma.adminSettings.findUnique.mockResolvedValueOnce({
+        globalDefaultVisionConfig: null,
+      });
+      expect(await resolver.getGlobalDefaultConfig()).toBeNull();
+
+      mockPrisma.adminSettings.findUnique.mockResolvedValueOnce({
+        freeDefaultVisionConfig: visionRow({ model: 'free-vision-default', name: 'free-vision' }),
+      });
+      const free = await resolver.getFreeDefaultVisionConfig();
+      expect(free?.model).toBe('free-vision-default');
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(2);
+    });
+  });
 });

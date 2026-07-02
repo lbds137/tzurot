@@ -25,6 +25,8 @@ import {
 import { withParallelRetry } from '../utils/parallelRetry.js';
 import { shouldRetryError, parseApiError } from '../utils/apiErrorParser.js';
 import { describeImage, type VisionLoggingContext } from './multimodal/VisionProcessor.js';
+import { describeImageWithFallback } from './multimodal/describeImageWithFallback.js';
+import type { ResolveVisionConfigOptions } from './multimodal/visionAuthResolver.js';
 import { transcribeAudio } from './multimodal/AudioProcessor.js';
 
 const logger = createLogger('MultimodalProcessor');
@@ -78,6 +80,14 @@ export interface ProcessAttachmentOptions {
    * omitted, `describeImage` self-selects (legacy behavior).
    */
   model?: string;
+  /**
+   * Phase-4 vision fallback: the auth INPUTS (not a pre-resolved config). When present,
+   * image attachments route through `describeImageWithFallback`, which resolves auth
+   * per fallback tier and retries down the chain on a retryable failure. When absent
+   * (legacy / no-`apiKeyResolver` paths), images use the single-model `describeImage`
+   * with the pre-resolved `model`/`visionProvider`/`userApiKey` fields above.
+   */
+  visionAuth?: ResolveVisionConfigOptions;
 }
 
 /**
@@ -95,14 +105,23 @@ async function processSingleAttachment(
     loggingContext = {},
     visionProvider,
     model,
+    visionAuth,
   } = options;
   if (attachment.contentType.startsWith(CONTENT_TYPES.IMAGE_PREFIX)) {
-    const description = await describeImage(attachment, personality, isGuestMode, userApiKey, {
-      skipNegativeCache: true,
-      loggingContext,
-      provider: visionProvider,
-      model,
-    });
+    // Phase-4 path: when the caller supplied auth inputs, retry down the fallback chain
+    // (the wrapper resolves per-tier auth + never throws). Otherwise fall back to the
+    // single-model describeImage with the pre-resolved config (legacy / no-resolver path).
+    const description =
+      visionAuth !== undefined
+        ? await describeImageWithFallback(attachment, personality, visionAuth, {
+            loggingContext,
+          })
+        : await describeImage(attachment, personality, isGuestMode, userApiKey, {
+            skipNegativeCache: true,
+            loggingContext,
+            provider: visionProvider,
+            model,
+          });
     logger.info({ name: attachment.name }, 'Processed image attachment');
     return {
       type: AttachmentType.Image,
@@ -155,6 +174,7 @@ export async function processAttachments(
     loggingContext = {},
     visionProvider,
     model,
+    visionAuth,
   } = options;
   logger.info(
     {
@@ -182,6 +202,7 @@ export async function processAttachments(
         loggingContext,
         visionProvider,
         model,
+        visionAuth,
       }),
     {
       maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,

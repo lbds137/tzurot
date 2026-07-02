@@ -20,7 +20,6 @@ import {
   type JobDependency,
   type JobContext,
   type ResponseDestination,
-  type ConfigSourceId,
   JobStatus,
   audioTranscriptionJobDataSchema,
   imageDescriptionJobDataSchema,
@@ -28,6 +27,7 @@ import {
 } from '@tzurot/common-types';
 import type { LlmConfigResolver, VisionConfigResolver } from '@tzurot/config-resolver';
 import { flowProducer } from '../queue.js';
+import { stampResolvedConfig } from './stampResolvedConfig.js';
 import type { FlowJob } from 'bullmq';
 
 const logger = createLogger('JobChainOrchestrator');
@@ -277,89 +277,6 @@ function processAttachmentsForJobs(
   dependencies.push(...imageResult.dependencies);
 
   return { children, dependencies };
-}
-
-/**
- * Resolve the user's effective TEXT model AND vision model ONCE and stamp both onto
- * the personality, so every job in the chain (the conversation job AND the
- * image-description child job) shares the same user-cascaded values. Without this,
- * the image-description job would consume the personality SEED values (the load-time
- * defaults) because it never runs ai-worker's `ConfigStep` cascade.
- *
- * The TEXT model (`personality.model`) and the VISION model (`personality.visionModel`,
- * the carrier `selectVisionModel` reads at priority 1) resolve through INDEPENDENT
- * cascades — `LlmConfigResolver` (kind='text') and `VisionConfigResolver` (kind='vision').
- * Vision stamps regardless of the text source, since it's its own config axis.
- *
- * `provider` is intentionally NOT stamped: `ResolvedLlmConfig` carries no provider
- * (all configs are OpenRouter; ai-worker's ProviderRouter auto-promotes by model-name
- * prefix), so the configured seed provider must survive for AuthStep's routing to fire.
- *
- * Fails open per axis: a resolver throw (or no resolver wired) leaves that axis on the
- * seed value — never block job creation on config resolution. An unstamped vision model
- * (undefined) makes `selectVisionModel` fall to priority-2/3; the guest downgrade of a
- * stamped paid vision model stays in AuthStep.
- */
-async function stampResolvedConfig(
-  personality: LoadedPersonality,
-  userId: string,
-  requestId: string,
-  llmConfigResolver?: LlmConfigResolver,
-  visionConfigResolver?: VisionConfigResolver
-): Promise<{ personality: LoadedPersonality; configSource: ConfigSourceId }> {
-  let stamped = personality;
-  // configSource tracks only the TEXT config axis (which tier of the text cascade
-  // stamped the model). The vision resolution source is intentionally NOT captured here.
-  let configSource: ConfigSourceId = 'personality';
-
-  // TEXT model: stamp personality.model from the user cascade.
-  if (llmConfigResolver !== undefined) {
-    try {
-      const resolved = await llmConfigResolver.resolveConfig(userId, personality.id, personality);
-      // Only the two user-override tiers stamp a model.
-      // - 'personality': the resolved model equals the seed already → leave unchanged.
-      // - 'free-default'/'hardcoded': LlmConfigResolver should never produce these
-      //   (TtsConfigResolver tiers). Warn so the contract violation stays observable.
-      if (resolved.source === 'free-default' || resolved.source === 'hardcoded') {
-        logger.warn(
-          { requestId, personalityId: personality.id, unexpectedSource: resolved.source },
-          'LlmConfigResolver returned a TTS-only config source — using personality seed'
-        );
-      } else if (resolved.source !== 'personality') {
-        // user-personality | user-default → stamp the resolved (already-merged) model.
-        stamped = { ...stamped, model: resolved.config.model };
-        configSource = resolved.source;
-      }
-    } catch (error) {
-      logger.warn(
-        { err: error, requestId, personalityId: personality.id },
-        'LLM config resolution failed at job-chain build — using personality seed'
-      );
-    }
-  }
-
-  // VISION model: stamp personality.visionModel from the INDEPENDENT vision cascade.
-  if (visionConfigResolver !== undefined) {
-    try {
-      const vision = await visionConfigResolver.resolveConfig(userId, personality.id, personality);
-      // Skip the hardcoded-fallback tier (source='hardcoded' → MODEL_DEFAULTS.VISION_FALLBACK,
-      // the slow model the resolver only returns before the vision globals are seeded).
-      // Stamping it would make selectVisionModel priority-1 fire and force the fallback even
-      // when the main model has native vision — the exact timeout this epic targets. Leaving
-      // it unstamped lets priority-2 (main-model-vision) win during the bootstrap window.
-      // Symmetric with the text leg, which skips the 'personality' (= seed) source.
-      if (vision.source !== 'hardcoded') {
-        stamped = { ...stamped, visionModel: vision.config.model };
-      }
-    } catch (error) {
-      logger.warn(
-        { err: error, requestId, personalityId: personality.id },
-        'Vision config resolution failed at job-chain build — leaving vision model unstamped'
-      );
-    }
-  }
-
-  return { personality: stamped, configSource };
 }
 
 /** Base params shared by every preprocessing job in a chain (per-job suffix/ref added at call site). */

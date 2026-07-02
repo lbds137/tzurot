@@ -6,9 +6,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   DB_POOL_DEFAULTS,
   FAST_POOL_DEFAULTS,
+  MAIN_POOL_DEFAULTS,
   resolvePoolMax,
   resolveConnectionTimeoutMs,
   resolvePoolStatsIntervalMs,
+  resolveMainLockTimeoutMs,
+  mainPoolConnectionOptions,
   resolveFastPoolMax,
   resolveFastLockTimeoutMs,
   resolveFastStatementTimeoutMs,
@@ -68,6 +71,36 @@ describe('transientPoolOptions', () => {
       max: DB_POOL_DEFAULTS.TRANSIENT_MAX,
       connectionTimeoutMillis: 2000,
     });
+  });
+});
+
+describe('mainPoolConnectionOptions', () => {
+  it('builds keepAlive + explicit idle eviction + the lock_timeout GUC with defaults', () => {
+    expect(mainPoolConnectionOptions({})).toEqual({
+      keepAlive: true,
+      keepAliveInitialDelayMillis: MAIN_POOL_DEFAULTS.KEEPALIVE_INITIAL_DELAY_MS,
+      idleTimeoutMillis: MAIN_POOL_DEFAULTS.IDLE_TIMEOUT_MS,
+      options: `-c lock_timeout=${MAIN_POOL_DEFAULTS.LOCK_TIMEOUT_MS}`,
+    });
+  });
+
+  it('deliberately sets NO statement_timeout (legit long ops stay exempt)', () => {
+    // The main pool serves pgvector search / Shapes import / retention batches;
+    // a pool-wide statement ceiling would clip them — that exemption is the
+    // reason the fast pool exists as a separate pool.
+    expect(mainPoolConnectionOptions({}).options).not.toContain('statement_timeout');
+  });
+
+  it('honors a DB_MAIN_LOCK_TIMEOUT_MS override and falls back on garbage', () => {
+    expect(mainPoolConnectionOptions({ DB_MAIN_LOCK_TIMEOUT_MS: '5000' }).options).toBe(
+      '-c lock_timeout=5000'
+    );
+    expect(resolveMainLockTimeoutMs({ DB_MAIN_LOCK_TIMEOUT_MS: 'nope' })).toBe(
+      MAIN_POOL_DEFAULTS.LOCK_TIMEOUT_MS
+    );
+    expect(resolveMainLockTimeoutMs({ DB_MAIN_LOCK_TIMEOUT_MS: '0' })).toBe(
+      MAIN_POOL_DEFAULTS.LOCK_TIMEOUT_MS
+    );
   });
 });
 

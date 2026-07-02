@@ -414,5 +414,20 @@ describe('QuoteFormatter', () => {
       expect(result).toContain('<content>[Referenced message — full text in <chat_log>]</content>');
       expect(result).toContain('role="assistant"');
     });
+
+    it('does NOT let long attachment markers truncate away the text preview', () => {
+      // Regression: a reply-target with two long image-filename markers + short text. The
+      // content is already text-capped upstream (buildDedupedReferenceStub); formatDedupedQuote
+      // must render it WHOLE — re-truncating the combined markers+text left a misleading "I..."
+      // that the model read as an unfinished sentence.
+      const content =
+        '[image/jpeg: SPOILER_PXL_20260701_221008932.jpg]\n' +
+        '[image/jpeg: SPOILER_PXL_20260701_222104453.jpg]\n\n' +
+        'I got myself off with this fucker';
+      const result = formatDedupedQuote({ from: 'Lila', role: 'user', content });
+      // The real text survives intact — no misleading 1-char "I..." fragment.
+      expect(result).toContain('I got myself off with this fucker');
+      expect(result).not.toContain('I...</content>');
+    });
   });
 });
