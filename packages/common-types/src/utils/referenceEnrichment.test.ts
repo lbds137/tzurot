@@ -248,6 +248,11 @@ describe('isBotAuthoredReference', () => {
   it('is false for an empty webhookId', () => {
     expect(isBotAuthoredReference({ ...base, webhookId: '' })).toBe(false);
   });
+  it('is false (not a crash) for a null webhookId — the raw Discord.js Message shape', () => {
+    // The structural param widening exists exactly for this: discord.js types
+    // Message.webhookId as string | null, unlike ReferencedMessage's optional.
+    expect(isBotAuthoredReference({ authorIsBot: false, webhookId: null })).toBe(false);
+  });
 });
 
 describe('stripBotVoiceAttachments', () => {

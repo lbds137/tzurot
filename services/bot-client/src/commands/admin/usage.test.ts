@@ -6,6 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { makeErr } from '../../test/gatewayClientStubs.js';
 import type { GatewayResult, OwnerClient } from '@tzurot/clients';
 import { handleUsage } from './usage.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
@@ -42,10 +43,6 @@ function asOwnerClient(stub: StubClient): OwnerClient {
 
 function ok<T>(data: T): GatewayResult<T> {
   return { ok: true, data };
-}
-
-function err(status: number, message = 'fail'): GatewayResult<never> {
-  return { ok: false, kind: status > 0 ? 'http' : 'network', error: message, status };
 }
 
 /**
@@ -164,7 +161,7 @@ describe('handleUsage', () => {
   });
 
   it('should handle HTTP errors', async () => {
-    stub.getAdminUsageStats.mockResolvedValue(err(500, 'Internal Server Error'));
+    stub.getAdminUsageStats.mockResolvedValue(makeErr(500, 'Internal Server Error'));
 
     const context = createMockContext(null);
     await handleUsage(context);
@@ -259,7 +256,7 @@ describe('handleUsage', () => {
   });
 
   it('should handle 403 unauthorized response', async () => {
-    stub.getAdminUsageStats.mockResolvedValue(err(403, 'Unauthorized'));
+    stub.getAdminUsageStats.mockResolvedValue(makeErr(403, 'Unauthorized'));
 
     const context = createMockContext(null);
     await handleUsage(context);

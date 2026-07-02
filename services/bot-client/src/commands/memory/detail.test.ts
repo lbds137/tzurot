@@ -446,7 +446,7 @@ describe('Memory Detail', () => {
       expect(result).toBe(false);
       expect(mockFollowUp).toHaveBeenCalledWith(
         expect.objectContaining({
-          content: expect.stringContaining('Failed to delete'),
+          content: expect.stringContaining('❌ Failed to delete'),
         })
       );
     });

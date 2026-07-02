@@ -6,6 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { makeErr } from '../../test/gatewayClientStubs.js';
 import type { GatewayResult, OwnerClient } from '@tzurot/clients';
 import { handleDbSync, formatListForEmbedField } from './db-sync.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
@@ -42,10 +43,6 @@ function asOwnerClient(stub: StubClient): OwnerClient {
 
 function ok<T>(data: T): GatewayResult<T> {
   return { ok: true, data };
-}
-
-function err(status: number, message = 'fail'): GatewayResult<never> {
-  return { ok: false, kind: status > 0 ? 'http' : 'network', error: message, status };
 }
 
 describe('handleDbSync', () => {
@@ -183,7 +180,7 @@ describe('handleDbSync', () => {
   });
 
   it('should handle HTTP errors', async () => {
-    stub.dbSync.mockResolvedValue(err(500, 'Database not configured'));
+    stub.dbSync.mockResolvedValue(makeErr(500, 'Database not configured'));
 
     const context = createMockContext(false);
     await handleDbSync(context);
@@ -231,7 +228,7 @@ describe('handleDbSync', () => {
   });
 
   it('should handle 403 unauthorized response', async () => {
-    stub.dbSync.mockResolvedValue(err(403, 'Forbidden'));
+    stub.dbSync.mockResolvedValue(makeErr(403, 'Forbidden'));
 
     const context = createMockContext(false);
     await handleDbSync(context);

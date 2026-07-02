@@ -12,6 +12,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { makeErr } from '../../test/gatewayClientStubs.js';
 import type {
   DiagnosticLogResponse,
   DiagnosticPayload,
@@ -147,10 +148,6 @@ function ok<T>(data: T): GatewayResult<T> {
   return { ok: true, data };
 }
 
-function err(status: number, message = 'fail'): GatewayResult<never> {
-  return { ok: false, kind: status > 0 ? 'http' : 'network', error: message, status };
-}
-
 interface StubClient {
   getRecentDiagnostics: ReturnType<typeof vi.fn>;
   getDiagnosticByRequestId: ReturnType<typeof vi.fn>;
@@ -192,7 +189,7 @@ describe('fetchRecentLogs', () => {
 
   it('should throw on non-OK responses', async () => {
     const stub = createStubClient();
-    stub.getRecentDiagnostics.mockResolvedValue(err(500));
+    stub.getRecentDiagnostics.mockResolvedValue(makeErr(500));
 
     await expect(fetchRecentLogs(asUserClient(stub))).rejects.toThrow(
       'Failed to fetch recent logs'
@@ -386,7 +383,7 @@ describe('handleBrowseLogSelection', () => {
 
   it('should show error when log not found', async () => {
     const stub = createStubClient();
-    stub.getDiagnosticByRequestId.mockResolvedValue(err(404));
+    stub.getDiagnosticByRequestId.mockResolvedValue(makeErr(404));
     clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
 
     const interaction = {
