@@ -14,7 +14,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
-import { PrismaClient } from '@tzurot/common-types';
+import { PrismaClient, SYNC_LIMITS } from '@tzurot/common-types';
 import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { ConversationRetentionService } from './ConversationRetentionService.js';
@@ -344,6 +344,94 @@ describe('ConversationRetentionService', () => {
       // Verify all tombstones created
       const tombstones = await prisma.conversationHistoryTombstone.count();
       expect(tombstones).toBe(messageCount);
+    });
+  });
+
+  describe('mid-sweep failure (per-batch atomicity contract)', () => {
+    /**
+     * Wraps a real PrismaClient so the Nth `$transaction` call rejects.
+     * All other members (including model delegates) pass through untouched,
+     * so committed batches hit the real PGlite database.
+     */
+    function failNthTransaction(client: PrismaClient, failOn: number): PrismaClient {
+      let calls = 0;
+      return new Proxy(client, {
+        get(target, prop, receiver): unknown {
+          if (prop === '$transaction') {
+            return (...args: unknown[]): Promise<unknown> => {
+              calls += 1;
+              if (calls === failOn) {
+                return Promise.reject(new Error('simulated mid-sweep failure'));
+              }
+              return (target.$transaction as (...a: unknown[]) => Promise<unknown>).apply(
+                target,
+                args
+              );
+            };
+          }
+          return Reflect.get(target, prop, receiver);
+        },
+      }) as PrismaClient;
+    }
+
+    it('a batch-2 failure preserves batch 1 (deletes committed WITH tombstones) and leaves the rest untouched', async () => {
+      // The contract under test: atomicity is PER BATCH. A sweep that dies on
+      // batch 2 must leave batch 1 fully committed — its rows deleted AND
+      // tombstoned (the tombstone-before-delete invariant is what stops
+      // db-sync from resurrecting them) — while the unswept remainder is
+      // untouched and a later retry can drain it. Unit tests can't verify
+      // this: it's transaction-commit behavior, which needs a real database.
+      const BATCH = SYNC_LIMITS.RETENTION_BATCH_SIZE;
+      const REMAINDER = 100;
+      const oldDate = new Date();
+      oldDate.setDate(oldDate.getDate() - 40);
+
+      // Bulk-seed BATCH + REMAINDER rows older than the 30-day cutoff.
+      // (createMany, not the per-row helper — 1100 sequential creates is slow.)
+      await prisma.conversationHistory.createMany({
+        data: Array.from({ length: BATCH + REMAINDER }, (_, i) => ({
+          id: `00000000-0000-0000-0002-${String(i).padStart(12, '0')}`,
+          channelId: testChannelId,
+          personalityId: testPersonalityId,
+          personaId: testPersonaId,
+          role: 'user',
+          content: `Old message ${i}`,
+          createdAt: oldDate,
+        })),
+      });
+
+      const failingService = new ConversationRetentionService(failNthTransaction(prisma, 2));
+
+      // The sweep dies on batch 2; the service rethrows.
+      await expect(failingService.cleanupOldHistory(30)).rejects.toThrow(
+        'simulated mid-sweep failure'
+      );
+
+      // Batch 1 (BATCH rows, ascending id order) committed: rows gone,
+      // tombstones present. The REMAINDER rows survive untouched.
+      const remaining = await prisma.conversationHistory.count();
+      const tombstones = await prisma.conversationHistoryTombstone.count();
+      expect(remaining).toBe(REMAINDER);
+      expect(tombstones).toBe(BATCH);
+
+      // The tombstone-before-delete invariant: every deleted row has a
+      // tombstone. Since batch order is `id: 'asc'`, the tombstoned ids are
+      // exactly the first BATCH seeded ids — spot-check both boundaries.
+      const firstDeleted = `00000000-0000-0000-0002-${String(0).padStart(12, '0')}`;
+      const lastDeleted = `00000000-0000-0000-0002-${String(BATCH - 1).padStart(12, '0')}`;
+      const firstSurvivor = `00000000-0000-0000-0002-${String(BATCH).padStart(12, '0')}`;
+      expect(
+        await prisma.conversationHistoryTombstone.count({
+          where: { id: { in: [firstDeleted, lastDeleted] } },
+        })
+      ).toBe(2);
+      expect(await prisma.conversationHistory.count({ where: { id: firstSurvivor } })).toBe(1);
+
+      // A retry with a healthy client drains the remainder — the partial
+      // sweep is recoverable by construction.
+      const retried = await service.cleanupOldHistory(30);
+      expect(retried).toBe(REMAINDER);
+      expect(await prisma.conversationHistory.count()).toBe(0);
     });
   });
 });
