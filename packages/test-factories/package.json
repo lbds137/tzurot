@@ -14,7 +14,7 @@
   },
   "scripts": {
     "clean": "rm -rf dist",
-    "build": "tsc",
+    "build": "rm -rf dist tsconfig.tsbuildinfo && tsc",
     "test": "vitest",
     "lint": "eslint src --max-warnings=0",
     "lint:fix": "eslint src --fix",
