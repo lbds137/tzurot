@@ -26,6 +26,7 @@ import {
   parseRedisUrl,
   createBullMQRedisConfig,
   createPrismaClient,
+  registerProcessLifecycle,
   CONTENT_TYPES,
   HealthStatus,
   QUEUE_CONFIG,
@@ -404,9 +405,11 @@ async function main(): Promise<void> {
     await startHealthServer(memoryManager, worker);
   }
 
-  // Graceful shutdown handler
-  const shutdown = async (): Promise<void> => {
-    logger.info('Shutting down gracefully...');
+  // Pure dispose sequence — guard, hard-exit backstop, and exit semantics
+  // live in registerProcessLifecycle. 'crash' policy: a worker's unhandled
+  // rejection exits 1 (BullMQ re-queues in-flight jobs via lock expiry) —
+  // Railway restarting a dead process is the recovery path.
+  const dispose = async (): Promise<void> => {
     await worker.close();
     await scheduledWorker.close();
     await scheduledQueue.close();
@@ -420,11 +423,9 @@ async function main(): Promise<void> {
     // else holds the pool. dispose() stops the pool-stats gauge + $disconnects.
     await disposePrisma();
     logger.info('All connections closed');
-    process.exit(0);
   };
 
-  process.on('SIGTERM', () => void shutdown());
-  process.on('SIGINT', () => void shutdown());
+  registerProcessLifecycle({ logger, dispose, rejectionPolicy: 'crash' });
 
   // Non-blocking voice engine health check (one-shot, no polling)
   void checkVoiceEngineHealth();
