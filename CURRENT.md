@@ -19,15 +19,13 @@
 
 ## Next Session Goal
 
-**beta.145 openers, in order:**
+**beta.145 openers: 4 of 5 SHIPPED 2026-07-02** — #1442 (retention test gaps), #1443 (ack-first close-out: re-triage found 4 rows shipped, 1 declined by the 2-callback rule, 1 real fix), #1444 (process-lifecycle unification, 3 rounds — round 2 caught uncaughtException needing policy-awareness), #1445 (vision-fallback integration test, the repo's FIRST `*.integration.test.ts` — writing it corrected the wrong "skip all negative-cached tiers" assumption: transient categories are deliberately re-attempted across requests).
 
-1. **Test-gap PR** (small, specced): `/admin/cleanup` `'all'`-target seam assertion + PGLite partial-sweep component test (batch-2 failure → batch-1 deletes persist with tombstones).
-2. **Cluster 3 — ack-first handler family** (`cold/follow-ups.md`, ~9 rows): one shared safe-defer helper across bot-client handlers.
-3. **`isDefault` "stop writing" prep** (`TtsConfigBootstrap` still writes the dead flags; unblocks the ~6-row column-retirement cluster).
-4. **Process-lifecycle unification**: shared `registerProcessLifecycle()` in common-types — per-service rejection policy (`crash | log-and-live | shutdown`), guard + hard-exit + `err`-key logging always (absorbs #1440's review nits + sibling gaps).
-5. **Vision-fallback integration-tier test**: real Redis via `pnpm test:integration` — negative cache + quota under the loop, model client stubbed.
+**Remaining beta.145 work:**
 
-**The `active-epic.md` slot is OPEN** — after the openers, promote the next theme from `cold/queue.md` (council pass first). Leading candidate per user priority: **UX consistency audit** (`cold/ideas.md`, wants-soonish since 2026-06-18; now carries the post-action button-row + Close-button-removal criteria).
+1. **TTS default-pointer migration** (`backlog/now.md` Current Focus, RE-SCOPED) — the flags are load-bearing; full expand-contract with an AdminSettings migration. **Plan-mode first**; the LLM S3 pattern (#1388) is the template.
+
+**The `active-epic.md` slot is OPEN** — after the TTS migration, promote the next theme from `cold/queue.md` (council pass first). Leading candidate per user priority: **UX consistency audit** (`cold/ideas.md`, wants-soonish since 2026-06-18; carries the post-action button-row + Close-button-removal criteria). Newly filed (user dictation 2026-07-02): the **first-use onboarding DM** theme (`cold/themes/first-use-onboarding-dm.md`) — note its live operational watch-item: the OpenRouter system-key training-data setting is now DISABLED, so the free-model pool is slimmer; climbing free-tier failure rates in prod logs are its footprint.
 
 ## Last Session — the beta.144 mega-session (2026-07-01 → 07-02)
 
