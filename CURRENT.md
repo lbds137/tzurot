@@ -1,27 +1,19 @@
 # Current
 
-> **Version**: v3.0.0-beta.144 (released 2026-07-02) — **no migrations**. Headliners: **the Phase 4 vision auto-fallback loop** (`describeImageWithFallback` — failed vision calls retry down the stamped model chain with per-tier auth, terminate-vs-advance categories, per-image quota; the **Model Config Overhaul epic is now FULLY complete**), **automated 30-day retention** (daily 09:10 UTC scheduled job; `ConversationRetentionService` moved to `@tzurot/conversation-history` so gateway + worker share one impl), **the gateway shutdown-loop fix** (#1440 — an unhandled rejection inside an unguarded shutdown handler zombied prod for ~3.5h on 2026-07-02 04:44–08:13 ET; now guarded + terminal-by-construction + `err`-key logging), **compound fallback errors** (#1438 — when z.ai fails AND the OpenRouter rescue fails, the persona-voiced error carries both halves; classification stays on the pristine message via a Symbol side-channel), **main-pool hardening** (#1433/#1434 — keepAlive, idle eviction, self-labeling `lock_timeout=3s`, connect observability, per-batch retention transactions), + 4 user-reported fixes (dedup-stub `"I..."` truncation #1431, `/character` echo ordering #1432, preset back-button + isGlobal round-trip #1435, vision-tier auth resilience #1436). **Mechanics**: 12 PRs → rebase-merge → `release:finalize`; two holistic release reviews clean. _Prior: v3.0.0-beta.143 (2026-07-01) — persist-timeout dead-conn fix + capability-driven vision UX._
+> **Version**: v3.0.0-beta.145 (released 2026-07-02) — **one additive migration** (`add_admin_settings_tts_default_pointers`, premigrated to prod before merge; backfill data-tested in #1453). Headliners: **TTS defaults on AdminSettings pointers** (#1446 — both read paths cut over, sync singleton util retired), **unified process-lifecycle handling** (#1444 — policy-aware shutdown across all three services; NOTE: the new handlers first execute at the NEXT deploy/restart after this one), **the aggressive backlog-shrink pass** (#1447–#1450 — ~25 rows retired, 3 themes created, anti-rot tooling live), **clean-first builds** (#1451 — turbo cache-poisoning class killed), **`guard:workflow-sync`** (#1452 + ci.yml step via main-cut #1454). 14 PRs total; holistic release review clean ("no changes requested"). _Prior: v3.0.0-beta.144 (2026-07-02) — vision auto-fallback loop + retention + shutdown-loop fix._
 
 ---
 
-## Unreleased on Develop (since beta.144)
+## Unreleased on Develop (since beta.145)
 
-**Released v3.0.0-beta.144 on 2026-07-02** (notes: [tag v3.0.0-beta.144](https://github.com/lbds137/tzurot/releases/tag/v3.0.0-beta.144)). `release:finalize` SHA-aligned develop with main.
+**Released v3.0.0-beta.145 on 2026-07-02** (notes: [tag v3.0.0-beta.145](https://github.com/lbds137/tzurot/releases/tag/v3.0.0-beta.145)). `release:finalize` SHA-aligned develop with main — **nothing unreleased on develop.**
 
-**Since then (all merged 2026-07-02):**
+**beta.145 post-deploy watch-items**:
 
-- **#1442–#1446 — the five beta.145 openers**: retention test gaps, ack-first remainder cluster, process-lifecycle unification (`registerProcessLifecycle` in common-types; gateway='shutdown', bot-client='log-and-live', ai-worker='crash'), first integration-tier test (`describeImageWithFallback` over real Redis), and the **TTS default-pointer migration** (AdminSettings pointer columns + backfill, both read paths cut over, `ttsConfigSingletons` deleted; **one additive migration — applied to dev; prod rides `release:premigrate` at the next release**).
-- **#1447–#1450 + docs sweeps — the aggressive backlog-shrink pass**: ~25 follow-up rows retired (6 verified fixes in bot-client incl. the z.ai apikey copy confusion; vision failure-taxonomy cleanup with `LONG_TTL_FAILURE_CATEGORIES` rename + error-pattern false-positive fix; routing-context snowflake validation; `/models` + package-list doc fixes; 2 stale rows deleted). **Anti-rot tooling** (#1448): `dev:deferred-refs` now matches bare backticked filenames (124 refs previously invisible) and runs at push time on branch-level changed files. **Theme re-org**: 11 rows promoted into 3 theme files (z.ai error-shape verification, LLM legacy-column retirement, PGLite-fidelity integration tier).
-
-- **#1451 — clean-first builds**: killed the turbo cache-poisoning class deterministically (stale-dist restore + valid tsbuildinfo = permanent tsc no-op, re-cached under the current hash; bit 3× in one day). All 13 build scripts are now `rm -rf dist tsconfig.tsbuildinfo && tsc`.
-- **#1452 — `guard:workflow-sync` (R166, tooling half)**: fails when `.github/workflows/` differs from origin/main; skips itself on main-cut branches via TOPOLOGY (no develop-exclusive history — round-1 review caught that env-var detection was unreachable in push-only CI); wired into `pnpm quality` + `.husky/pre-push`. **The CI lint-job step is a workflow change → rides the pre-release main-cut PR** (one PR: guard step + the stale integration-tier comment fix; tracked on the ci.yml follow-up row; no version bump until the release).
-
-**beta.144 post-deploy watch-items**:
-
-- **First retention run**: user runs a supervised `/admin cleanup` right after deploy (attended first pass); the scheduled job then fires daily 09:10 UTC — per-table counts in the worker's completed-job log are the receipt.
-- **Vision fallback in the wild**: failure path is runtime-unverified by design (smoke skipped); every tier decision logs, and a Railway grep on `attachmentId` reconstructs any tier walk post-hoc.
-- **Compound fallback error**: the next natural z.ai-429 + OpenRouter-402 event is the runtime test.
-- **Connect-event log**: on the next slow request, a `pg.Pool established a new connection` line seconds in confirms the fresh-connect stall hypothesis.
+- **Lifecycle handlers are deploy-latent**: the unified shutdown paths (#1444) first execute at the NEXT deploy/restart. A supervised `railway redeploy --service bot-client` (policy `log-and-live`) is the cheap way to exercise one under observation.
+- **TTS pointer resolution in prod**: the tier-4 free-default read now goes through the AdminSettings pointer; the next TTS generation by a no-override user exercises it (resolver logs the source).
+- **Vision error-pattern recall**: an error phrased outside the new anchors would positive-cache for 1h — tracked with promote-when in `cold/follow-ups.md`.
+- **`guard:workflow-sync` narrowing**: validation empirically confirmed file-scoped (PR #1454 got a real review despite ci.yml drift) — narrow the guard + skill wording per the follow-ups row before the next routine ci.yml edit.
 
 ---
 
