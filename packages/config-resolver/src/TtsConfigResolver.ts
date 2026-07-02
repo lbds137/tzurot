@@ -7,7 +7,7 @@
  *   1. User per-personality override (UserPersonalityConfig.ttsConfigId)
  *   2. User global default (User.defaultTtsConfigId)
  *   3. Personality default (PersonalityDefaultTtsConfig — separate join table)
- *   4. System free default (TtsConfig WHERE isFreeDefault = true)
+ *   4. System free default (the AdminSettings freeDefaultTtsConfig pointer)
  *   5. Hardcoded fallback (self-hosted/Kyutai)
  *
  * The cascade waterfall (tiers 1-2) and cache lifecycle live in
@@ -24,6 +24,7 @@ import {
   type UserWithDefault,
 } from './BaseConfigResolver.js';
 import {
+  ADMIN_SETTINGS_SINGLETON_ID,
   TTS_CONFIG_SELECT_WITH_NAME,
   mapTtsConfigFromDbWithName,
   type MappedTtsConfigWithName,
@@ -229,10 +230,10 @@ export class TtsConfigResolver extends BaseConfigResolver<
   }
 
   /**
-   * Get the system free default TtsConfig (the row with isFreeDefault=true).
+   * Get the system free default TtsConfig via the AdminSettings pointer.
    *
    * Cached separately from per-user resolution under FREE_DEFAULT_CACHE_KEY.
-   * Returns null if no DB row has the flag set; callers fall through to the
+   * Returns null when the pointer is unset; callers fall through to the
    * hardcoded fallback in that case.
    */
   async getFreeDefaultConfig(): Promise<ResolvedTtsConfig | null> {
@@ -243,13 +244,17 @@ export class TtsConfigResolver extends BaseConfigResolver<
     }
 
     try {
-      const freeConfig = await this.prisma.ttsConfig.findFirst({
-        where: { isFreeDefault: true },
-        select: TTS_CONFIG_SELECT_WITH_NAME,
+      // Read the admin-set free-tier TTS default via the AdminSettings pointer
+      // (singleton). Replaces the old isFreeDefault flag query; a null pointer
+      // means no free default — caller uses the hardcoded fallback.
+      const settings = await this.prisma.adminSettings.findUnique({
+        where: { id: ADMIN_SETTINGS_SINGLETON_ID },
+        select: { freeDefaultTtsConfig: { select: TTS_CONFIG_SELECT_WITH_NAME } },
       });
+      const freeConfig = settings?.freeDefaultTtsConfig ?? null;
 
       if (freeConfig === null) {
-        this.logger.debug('No free default TTS config found in database');
+        this.logger.debug('No free default TTS config pointer set in admin_settings');
         return null;
       }
 

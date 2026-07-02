@@ -101,6 +101,11 @@ const mockPrisma = {
     findUnique: vi.fn(),
     update: vi.fn(),
   },
+  // The clear-default handler reads the system free default off the
+  // AdminSettings pointer; null = no free default configured.
+  adminSettings: {
+    findUnique: vi.fn().mockResolvedValue(null),
+  },
 };
 
 const mockCache = {
@@ -354,13 +359,12 @@ describe('user/tts-override routes', () => {
 
     it('includes newEffectiveDefault on the no-op path when free default exists', async () => {
       // Coverage: the 4th cell in the (wasSet × freeDefault) matrix.
-      // Confirms findFirst still runs even when the early-return wasSet:false
+      // Confirms the pointer lookup still runs even when the early-return wasSet:false
       // branch is taken.
       vi.mocked(mockPrisma.user.findUnique).mockResolvedValue({ defaultTtsConfigId: null });
-      vi.mocked(mockPrisma.ttsConfig.findFirst).mockResolvedValue({
-        id: 'free-id',
-        name: 'kyutai-self-hosted',
-      });
+      vi.mocked(mockPrisma.adminSettings.findUnique).mockResolvedValue({
+        freeDefaultTtsConfig: { id: 'free-id', name: 'kyutai-self-hosted' },
+      } as never);
       const handler = extractHandler(buildRouter(), 'DELETE', '/default');
       const { res, json } = makeMockRes();
 
@@ -375,18 +379,19 @@ describe('user/tts-override routes', () => {
 
     it('includes the system free default in newEffectiveDefault when one is configured', async () => {
       vi.mocked(mockPrisma.user.findUnique).mockResolvedValue({ defaultTtsConfigId: 'c1' });
-      vi.mocked(mockPrisma.ttsConfig.findFirst).mockResolvedValue({
-        id: 'free-id',
-        name: 'kyutai-self-hosted',
-      });
+      vi.mocked(mockPrisma.adminSettings.findUnique).mockResolvedValue({
+        freeDefaultTtsConfig: { id: 'free-id', name: 'kyutai-self-hosted' },
+      } as never);
       const handler = extractHandler(buildRouter(), 'DELETE', '/default');
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq(), res);
-      expect(mockPrisma.ttsConfig.findFirst).toHaveBeenCalledWith({
-        where: { isFreeDefault: true },
-        select: { id: true, name: true },
-      });
+      // The lookup goes through the AdminSettings pointer, not the stale flag.
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({
+          select: { freeDefaultTtsConfig: { select: { id: true, name: true } } },
+        })
+      );
       expect(json).toHaveBeenCalledWith({
         deleted: true,
         wasSet: true,

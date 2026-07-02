@@ -17,7 +17,7 @@ import {
   TtsInvalidProviderError,
   type TtsConfigScope,
 } from './TtsConfigService.js';
-import type { PrismaClient } from '@tzurot/common-types';
+import { ADMIN_SETTINGS_SINGLETON_ID, type PrismaClient } from '@tzurot/common-types';
 import type { TtsConfigCacheInvalidationService } from '@tzurot/cache-invalidation';
 import { NotFoundError } from '../utils/appErrors.js';
 
@@ -60,11 +60,19 @@ function createMockPrisma() {
     count: vi.fn().mockResolvedValue(0),
   };
 
+  // Default-pointer reads resolve to "no defaults set"; tests that exercise
+  // default-ness override findUnique with a pointer row.
+  const adminSettings = {
+    findUnique: vi.fn().mockResolvedValue(null),
+    upsert: vi.fn().mockResolvedValue({}),
+  };
+
   return {
     ttsConfig,
     personalityDefaultTtsConfig,
     userPersonalityConfig,
     user,
+    adminSettings,
     $executeRaw: vi.fn().mockResolvedValue(1),
     $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => {
       return callback({ ttsConfig });
@@ -172,13 +180,13 @@ describe('TtsConfigService', () => {
     it('seeds 3 globals when GLOBAL list is empty AND a superuser exists', async () => {
       // First findMany: empty (triggers bootstrap)
       // Second findMany: 3 seeded configs
+      const kyutaiId = '50411d3c-cc98-5f39-839e-abd4fb84b0c8';
       const seeded = [
         {
           ...sampleConfig,
-          id: 's1',
+          id: kyutaiId,
           name: 'kyutai-self-hosted',
           isGlobal: true,
-          isFreeDefault: true,
           provider: 'self-hosted',
           modelId: null,
         },
@@ -197,6 +205,14 @@ describe('TtsConfigService', () => {
         .mockResolvedValueOnce(seeded); // re-query after bootstrap
       vi.mocked(prisma.user.findFirst).mockResolvedValue({ id: 'super-uuid-1' } as never);
       vi.mocked(prisma.ttsConfig.createMany).mockResolvedValue({ count: 3 });
+      // Pointer round trip: null on the bootstrap's unset-check (so it seeds
+      // the pointers), then the seeded pointer row for list decoration.
+      vi.mocked(prisma.adminSettings.findUnique)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValue({
+          globalDefaultTtsConfigId: kyutaiId,
+          freeDefaultTtsConfigId: kyutaiId,
+        } as never);
 
       const result = await service.list(globalScope);
 
@@ -211,7 +227,7 @@ describe('TtsConfigService', () => {
       expect(createCall).toBeDefined();
       const seedRows = (
         createCall as {
-          data: Array<{ id: string; name: string; isDefault: boolean; isFreeDefault: boolean }>;
+          data: Array<{ id: string; name: string }>;
         }
       ).data;
       expect(seedRows.map(d => d.name)).toEqual([
@@ -219,15 +235,22 @@ describe('TtsConfigService', () => {
         'elevenlabs-multilingual-v2',
         'mistral-voxtral-mini',
       ]);
-      // kyutai-self-hosted seeds with BOTH isDefault: true (system default)
-      // and isFreeDefault: true so a fresh dev DB has working TTS without
-      // a manual admin step.
+      // Seeds no longer write the stale flag columns; default-ness lands on
+      // the AdminSettings pointers instead — both pointed at kyutai so a
+      // fresh dev DB has working TTS without a manual admin step.
+      for (const row of seedRows) {
+        expect(row).not.toHaveProperty('isDefault');
+        expect(row).not.toHaveProperty('isFreeDefault');
+      }
       const kyutaiSeed = seedRows.find(d => d.name === 'kyutai-self-hosted');
-      expect(kyutaiSeed?.isDefault).toBe(true);
-      expect(kyutaiSeed?.isFreeDefault).toBe(true);
-      // The other two are not defaults
-      expect(seedRows.find(d => d.name === 'elevenlabs-multilingual-v2')?.isDefault).toBe(false);
-      expect(seedRows.find(d => d.name === 'mistral-voxtral-mini')?.isDefault).toBe(false);
+      expect(prisma.adminSettings.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          update: {
+            globalDefaultTtsConfigId: kyutaiSeed?.id,
+            freeDefaultTtsConfigId: kyutaiSeed?.id,
+          },
+        })
+      );
 
       // Bootstrap rows use deterministic UUIDs (uuidv5 from name) so dev and
       // prod always assign the same id for the same logical row. Pinned to
@@ -240,7 +263,15 @@ describe('TtsConfigService', () => {
         '8aa02cad-2c39-5b5b-9d37-482aacb7788d'
       );
 
-      expect(result).toEqual(seeded);
+      // Decoration derives flags from the seeded pointers: kyutai is both
+      // defaults and sorts first; the rest follow name-asc with false flags.
+      expect(result.map(c => c.name)).toEqual([
+        'kyutai-self-hosted',
+        'elevenlabs-multilingual-v2',
+        'mistral-voxtral-mini',
+      ]);
+      expect(result[0]).toMatchObject({ isDefault: true, isFreeDefault: true });
+      expect(result[1]).toMatchObject({ isDefault: false, isFreeDefault: false });
     });
 
     it('skips bootstrap and returns empty when no superuser exists', async () => {
@@ -309,11 +340,15 @@ describe('TtsConfigService', () => {
             modelId: 'eleven_multilingual_v2',
             ownerId: 'user-uuid-1',
             isGlobal: false,
-            isDefault: false,
           }),
         })
       );
-      expect(result).toEqual(sampleConfig);
+      // The stale flag columns are not written (schema defaults fill them);
+      // the returned shape carries pointer-DERIVED flags (no pointers set here).
+      const createData = vi.mocked(prisma.ttsConfig.create).mock.calls[0]?.[0]?.data;
+      expect(createData).not.toHaveProperty('isDefault');
+      expect(createData).not.toHaveProperty('isFreeDefault');
+      expect(result).toEqual({ ...sampleConfig, isDefault: false, isFreeDefault: false });
       expect(cache.invalidateAll).toHaveBeenCalled();
     });
 
@@ -466,21 +501,19 @@ describe('TtsConfigService', () => {
   // ==========================================================================
 
   describe('setAsDefault', () => {
-    it('clears existing default in a transaction and sets the new one', async () => {
+    it('repoints the AdminSettings global-default pointer (no flag flips)', async () => {
       vi.mocked(prisma.ttsConfig.findUnique).mockResolvedValue(sampleConfig);
 
       await service.setAsDefault('cfg-uuid-1');
 
-      expect(prisma.$transaction).toHaveBeenCalled();
-      // Inside the transaction, two operations should fire
-      expect(prisma.ttsConfig.updateMany).toHaveBeenCalledWith({
-        where: { isDefault: true },
-        data: { isDefault: false },
+      expect(prisma.adminSettings.upsert).toHaveBeenCalledWith({
+        where: { id: ADMIN_SETTINGS_SINGLETON_ID },
+        create: { id: ADMIN_SETTINGS_SINGLETON_ID, globalDefaultTtsConfigId: 'cfg-uuid-1' },
+        update: { globalDefaultTtsConfigId: 'cfg-uuid-1' },
       });
-      expect(prisma.ttsConfig.update).toHaveBeenCalledWith({
-        where: { id: 'cfg-uuid-1' },
-        data: { isDefault: true },
-      });
+      // The stale flag columns are never touched.
+      expect(prisma.ttsConfig.updateMany).not.toHaveBeenCalled();
+      expect(prisma.ttsConfig.update).not.toHaveBeenCalled();
     });
 
     it('throws NotFoundError when the config no longer exists (delete-between-reads race)', async () => {
@@ -489,24 +522,24 @@ describe('TtsConfigService', () => {
       const error = await service.setAsDefault('gone').catch((e: unknown) => e);
       expect(error).toBeInstanceOf(NotFoundError);
       expect((error as NotFoundError).resource).toBe('TTS config');
-      // A vanished config must never enter the clear+set transaction.
-      expect(prisma.$transaction).not.toHaveBeenCalled();
+      // A vanished config must never reach the pointer write.
+      expect(prisma.adminSettings.upsert).not.toHaveBeenCalled();
     });
   });
 
   describe('setAsFreeDefault', () => {
-    it('clears existing free-default and sets the new one', async () => {
+    it('repoints the AdminSettings free-default pointer (no flag flips)', async () => {
       vi.mocked(prisma.ttsConfig.findUnique).mockResolvedValue(sampleConfig);
 
       await service.setAsFreeDefault('cfg-uuid-1');
-      expect(prisma.ttsConfig.updateMany).toHaveBeenCalledWith({
-        where: { isFreeDefault: true },
-        data: { isFreeDefault: false },
+
+      expect(prisma.adminSettings.upsert).toHaveBeenCalledWith({
+        where: { id: ADMIN_SETTINGS_SINGLETON_ID },
+        create: { id: ADMIN_SETTINGS_SINGLETON_ID, freeDefaultTtsConfigId: 'cfg-uuid-1' },
+        update: { freeDefaultTtsConfigId: 'cfg-uuid-1' },
       });
-      expect(prisma.ttsConfig.update).toHaveBeenCalledWith({
-        where: { id: 'cfg-uuid-1' },
-        data: { isFreeDefault: true },
-      });
+      expect(prisma.ttsConfig.updateMany).not.toHaveBeenCalled();
+      expect(prisma.ttsConfig.update).not.toHaveBeenCalled();
     });
 
     it('throws NotFoundError when the config no longer exists (delete-between-reads race)', async () => {
@@ -515,7 +548,7 @@ describe('TtsConfigService', () => {
       const error = await service.setAsFreeDefault('gone').catch((e: unknown) => e);
       expect(error).toBeInstanceOf(NotFoundError);
       expect((error as NotFoundError).resource).toBe('TTS config');
-      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(prisma.adminSettings.upsert).not.toHaveBeenCalled();
     });
   });
 

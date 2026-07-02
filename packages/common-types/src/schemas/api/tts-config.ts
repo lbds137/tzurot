@@ -115,6 +115,10 @@ export type TtsConfigUpdateInput = z.infer<typeof TtsConfigUpdateSchema>;
 /**
  * Select fields for list queries (summary data).
  * Used when returning arrays of configs.
+ *
+ * isDefault/isFreeDefault are NOT selected: default-ness derives from the
+ * AdminSettings TTS pointers (the columns are stale, pending-DROP) — the
+ * service decorates rows with pointer-derived flags before they leave.
  */
 export const TTS_CONFIG_LIST_SELECT = {
   id: true,
@@ -123,8 +127,6 @@ export const TTS_CONFIG_LIST_SELECT = {
   provider: true,
   modelId: true,
   isGlobal: true,
-  isDefault: true,
-  isFreeDefault: true,
   ownerId: true,
 } as const;
 
