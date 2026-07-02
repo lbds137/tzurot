@@ -5,6 +5,9 @@ import { TEST_TIMEOUTS } from './packages/common-types/src/constants/timing.js';
 // Set up test environment variables before anything else
 // This prevents config validation errors when importing services
 process.env.PROD_DATABASE_URL ??= process.env.DATABASE_URL ?? '';
+// Real-Redis integration tests (vision fallback loop) import service modules whose
+// module-level singletons connect at load time — point them at the local container.
+process.env.REDIS_URL ??= 'redis://127.0.0.1:6379';
 
 /**
  * Vitest configuration for the real-dependency tiers run from tests/:
