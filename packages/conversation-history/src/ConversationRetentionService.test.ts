@@ -6,15 +6,19 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ConversationRetentionService } from './ConversationRetentionService.js';
 
-// Suppress logger output in tests
-vi.mock('../utils/logger.js', () => ({
-  createLogger: () => ({
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
-}));
+// Suppress logger output in tests (the service's createLogger comes from common-types)
+vi.mock('@tzurot/common-types', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+  return {
+    ...actual,
+    createLogger: () => ({
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }),
+  };
+});
 
 // Helper to create a mock Prisma client with transaction support
 function createMockPrismaClient() {

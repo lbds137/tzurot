@@ -20,15 +20,20 @@ import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { ConversationRetentionService } from './ConversationRetentionService.js';
 import { createTestPGlite, loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
 
-// Mock logger to avoid console noise
-vi.mock('../utils/logger.js', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-}));
+// Suppress logger noise — the service's createLogger comes from common-types
+// (the old '../utils/logger.js' mock was a no-op: nothing imports that path).
+vi.mock('@tzurot/common-types', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+  return {
+    ...actual,
+    createLogger: () => ({
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+    }),
+  };
+});
 
 describe('ConversationRetentionService', () => {
   let prisma: PrismaClient;
