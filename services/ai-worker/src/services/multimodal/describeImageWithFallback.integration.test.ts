@@ -158,7 +158,7 @@ describe('describeImageWithFallback (integration: real Redis)', () => {
 
   it('a later request honors the attachment-bound negative entry + serves the positive cache: zero LLM calls', async () => {
     // The negative cache is honored SELECTIVELY on later requests
-    // (attachmentBoundOnly): transient failures (rate-limit/server) are
+    // (longTtlOnly): transient failures (rate-limit/server) are
     // deliberately re-attempted — they may have cleared. An attachment-bound
     // failure like MODEL_NOT_FOUND is honored (re-attempting can't recover),
     // while still being retryable WITHIN the first pass (the loop advances).
