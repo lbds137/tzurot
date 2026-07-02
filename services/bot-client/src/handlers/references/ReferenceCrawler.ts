@@ -6,7 +6,7 @@
  */
 
 import type { Message } from 'discord.js';
-import { createLogger, isDuplicateReference } from '@tzurot/common-types';
+import { createLogger, isDuplicateReference, isBotAuthoredReference } from '@tzurot/common-types';
 import type { IReferenceStrategy } from './strategies/IReferenceStrategy.js';
 import { type ReferenceMetadata, type ReferenceResult, ReferenceType } from './types.js';
 import { LinkExtractor } from './LinkExtractor.js';
@@ -240,11 +240,10 @@ export class ReferenceCrawler {
       {
         discordMessageId: message.id,
         timestampMs: message.createdAt.getTime(),
-        isWebhookOrBotAuthored:
-          (message.webhookId !== undefined &&
-            message.webhookId !== null &&
-            message.webhookId.length > 0) ||
-          message.author.bot === true,
+        isWebhookOrBotAuthored: isBotAuthoredReference({
+          authorIsBot: message.author.bot,
+          webhookId: message.webhookId,
+        }),
       },
       {
         messageIds: this.conversationHistoryMessageIds,

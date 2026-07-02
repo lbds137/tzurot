@@ -22,7 +22,7 @@
  * via DMChannel.send (the same surface @mention chat in DMs uses).
  */
 
-import { Collection, type Message } from 'discord.js';
+import { Collection, escapeMarkdown, type Message } from 'discord.js';
 import {
   createLogger,
   isTypingChannel,
@@ -465,7 +465,9 @@ async function runCharacterTurn(
     // isn't accessible. A transient failure must not surface as a false "not found".
     const personality = await getPersonalityLoader().loadPersonalityStrict(characterSlug, userId);
     if (!personality) {
-      await context.editReply({ content: `❌ Character "${characterSlug}" not found.` });
+      await context.editReply({
+        content: `❌ Character "${escapeMarkdown(characterSlug)}" not found.`,
+      });
       return;
     }
 

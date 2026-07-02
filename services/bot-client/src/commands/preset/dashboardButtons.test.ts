@@ -75,21 +75,7 @@ const mockGetSessionOrExpired = vi
     }
     return session;
   });
-const mockGetSessionDataOrReply = vi
-  .fn()
-  .mockImplementation(async (interaction, entityType, entityId) => {
-    const session = await mockSessionManager.get(interaction.user.id, entityType, entityId);
-    if (session === null) {
-      // Mimic real behavior: call reply with expired message
-      await interaction.reply({
-        content: DASHBOARD_MESSAGES.SESSION_EXPIRED,
-        flags: MessageFlags.Ephemeral,
-      });
-      return null;
-    }
-    return session.data;
-  });
-// Sibling of getSessionDataOrReply for already-deferred interactions.
+// Deferred-variant session fetch (the only session helper these handlers use).
 // Uses followUp because reply would throw on an acked interaction.
 const mockGetSessionDataOrFollowUp = vi
   .fn()
@@ -131,7 +117,6 @@ vi.mock('../../utils/dashboard/index.js', async () => {
     getSessionManager: () => mockSessionManager,
     requireDeferredSession: (...args: unknown[]) => mockRequireDeferredSession(...args),
     getSessionOrExpired: (...args: unknown[]) => mockGetSessionOrExpired(...args),
-    getSessionDataOrReply: (...args: unknown[]) => mockGetSessionDataOrReply(...args),
     getSessionDataOrFollowUp: (...args: unknown[]) => mockGetSessionDataOrFollowUp(...args),
     checkOwnership: (...args: unknown[]) => mockCheckOwnership(...args),
     renderTerminalScreen: (...args: unknown[]) => mockRenderTerminalScreen(...args),

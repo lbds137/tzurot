@@ -11,7 +11,7 @@ import {
   isPresetDashboardInteraction,
 } from './dashboard.js';
 import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
-import { DASHBOARD_MESSAGES, formatSessionExpiredMessage } from '../../utils/dashboard/messages.js';
+import { formatSessionExpiredMessage } from '../../utils/dashboard/messages.js';
 import type { PresetData } from './config.js';
 import { DashboardUpdateError } from '../../utils/dashboard/saveError.js';
 import { GatewayApiError } from '@tzurot/clients';
@@ -111,20 +111,6 @@ const mockRequireDeferredSession = vi
     await interaction.deferUpdate();
     return mockGetSessionOrExpired(interaction, entityType, entityId, command);
   });
-const mockGetSessionDataOrReply = vi
-  .fn()
-  .mockImplementation(async (interaction, entityType, entityId) => {
-    const session = await mockSessionManagerGet(interaction.user.id, entityType, entityId);
-    if (session === null) {
-      // Mimic real behavior: call reply with expired message
-      await interaction.reply({
-        content: DASHBOARD_MESSAGES.SESSION_EXPIRED,
-        flags: MessageFlags.Ephemeral,
-      });
-      return null;
-    }
-    return session.data;
-  });
 const mockCheckOwnership = vi.fn().mockResolvedValue(true); // Default: owner
 const mockRenderTerminalScreen = vi.fn().mockResolvedValue(undefined);
 
@@ -187,7 +173,6 @@ vi.mock('../../utils/dashboard/index.js', async () => {
       ),
     requireDeferredSession: (...args: unknown[]) => mockRequireDeferredSession(...args),
     getSessionOrExpired: (...args: unknown[]) => mockGetSessionOrExpired(...args),
-    getSessionDataOrReply: (...args: unknown[]) => mockGetSessionDataOrReply(...args),
     checkOwnership: (...args: unknown[]) => mockCheckOwnership(...args),
   };
 });

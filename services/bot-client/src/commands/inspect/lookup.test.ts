@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { makeErr } from '../../test/gatewayClientStubs.js';
 import {
   parseIdentifier,
   lookupByMessageId,
@@ -123,10 +124,6 @@ function ok<T>(data: T): GatewayResult<T> {
   return { ok: true, data };
 }
 
-function err(status: number, message = 'fail'): GatewayResult<never> {
-  return { ok: false, kind: status > 0 ? 'http' : 'network', error: message, status };
-}
-
 interface StubClient {
   getDiagnosticByMessage: ReturnType<typeof vi.fn>;
   getDiagnosticByResponse: ReturnType<typeof vi.fn>;
@@ -201,7 +198,7 @@ describe('lookupByMessageId', () => {
   });
 
   it('should fall back to /by-response on 404', async () => {
-    stub.getDiagnosticByMessage.mockResolvedValue(err(404));
+    stub.getDiagnosticByMessage.mockResolvedValue(makeErr(404));
     stub.getDiagnosticByResponse.mockResolvedValue(
       ok<DiagnosticLogResponse>({ log: makeLog() as never })
     );
@@ -214,8 +211,8 @@ describe('lookupByMessageId', () => {
   });
 
   it('should return error when both endpoints return 404', async () => {
-    stub.getDiagnosticByMessage.mockResolvedValue(err(404));
-    stub.getDiagnosticByResponse.mockResolvedValue(err(404));
+    stub.getDiagnosticByMessage.mockResolvedValue(makeErr(404));
+    stub.getDiagnosticByResponse.mockResolvedValue(makeErr(404));
 
     const result = await lookupByMessageId('1234567890123456789', asUserClient(stub));
 
@@ -231,8 +228,8 @@ describe('lookupByMessageId', () => {
     // /by-message 404s and the /by-response fallback then errors, the
     // surfaced HTTP code is the fallback's (503 here), not the original 404.
     // Reusing a single response variable across both calls would shadow this.
-    stub.getDiagnosticByMessage.mockResolvedValue(err(404));
-    stub.getDiagnosticByResponse.mockResolvedValue(err(503));
+    stub.getDiagnosticByMessage.mockResolvedValue(makeErr(404));
+    stub.getDiagnosticByResponse.mockResolvedValue(makeErr(503));
 
     const result = await lookupByMessageId('1234567890123456789', asUserClient(stub));
 
@@ -267,7 +264,7 @@ describe('lookupByMessageId', () => {
   });
 
   it('should return error for HTTP 500', async () => {
-    stub.getDiagnosticByMessage.mockResolvedValue(err(500));
+    stub.getDiagnosticByMessage.mockResolvedValue(makeErr(500));
 
     const result = await lookupByMessageId('1234567890123456789', asUserClient(stub));
     expect(result.success).toBe(false);
@@ -299,7 +296,7 @@ describe('lookupByRequestId', () => {
   });
 
   it('should return 404 error message', async () => {
-    stub.getDiagnosticByRequestId.mockResolvedValue(err(404));
+    stub.getDiagnosticByRequestId.mockResolvedValue(makeErr(404));
 
     const result = await lookupByRequestId('expired-req', asUserClient(stub));
     expect(result.success).toBe(false);
@@ -312,14 +309,14 @@ describe('lookupByRequestId', () => {
   it('should pass request ID to the client untouched', async () => {
     // The generated client handles URL encoding internally; the lookup
     // function just forwards the request ID string.
-    stub.getDiagnosticByRequestId.mockResolvedValue(err(404));
+    stub.getDiagnosticByRequestId.mockResolvedValue(makeErr(404));
 
     await lookupByRequestId('req/with/slashes', asUserClient(stub));
     expect(stub.getDiagnosticByRequestId).toHaveBeenCalledWith('req/with/slashes');
   });
 
   it('should include HTTP status in error message', async () => {
-    stub.getDiagnosticByRequestId.mockResolvedValue(err(503));
+    stub.getDiagnosticByRequestId.mockResolvedValue(makeErr(503));
 
     const result = await lookupByRequestId('test-req', asUserClient(stub));
     expect(result.success).toBe(false);
@@ -339,7 +336,7 @@ describe('resolveDiagnosticLog', () => {
   afterEach(() => vi.restoreAllMocks());
 
   it('should route UUIDs to lookupByRequestId', async () => {
-    stub.getDiagnosticByRequestId.mockResolvedValue(err(404));
+    stub.getDiagnosticByRequestId.mockResolvedValue(makeErr(404));
 
     await resolveDiagnosticLog('a1b2c3d4-e5f6-7890-abcd-ef1234567890', asUserClient(stub));
 

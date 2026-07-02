@@ -94,10 +94,20 @@ export function isDuplicateReference(
  * safe where any bot/webhook is the right scope (stripping the bot's own TTS
  * audio, building marker-only dedup stubs).
  */
-export function isBotAuthoredReference(reference: ReferencedMessage): boolean {
+export function isBotAuthoredReference(reference: {
+  authorIsBot?: boolean;
+  webhookId?: string | null;
+}): boolean {
+  // Structural param (not ReferencedMessage) so raw Discord.js Message shapes
+  // adapt inline ({ authorIsBot: msg.author.bot, webhookId: msg.webhookId })
+  // without a full-type cast; discord.js types webhookId as string | null,
+  // unlike ReferencedMessage's optional string — hence the explicit null arm
+  // (both falsy shapes mean the same thing: not webhook-delivered).
   return (
     reference.authorIsBot === true ||
-    (reference.webhookId !== undefined && reference.webhookId.length > 0)
+    (reference.webhookId !== undefined &&
+      reference.webhookId !== null &&
+      reference.webhookId.length > 0)
   );
 }
 
