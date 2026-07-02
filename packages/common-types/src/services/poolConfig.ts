@@ -79,6 +79,35 @@ export const FAST_POOL_DEFAULTS = {
   KEEPALIVE_INITIAL_DELAY_MS: 1_000,
 } as const;
 
+/**
+ * Main-pool hardening defaults. The fast pool (persist writes) got the full
+ * timeout ladder + keepAlive + retry in its own incident cycle; the MAIN pool —
+ * every other query in every service — had none of it, so its failures were
+ * silent: a query on a network-reaped socket hangs to the caller's HTTP abort,
+ * and a lock wait has no ceiling. Observed shape: a personality routing-load
+ * took ~20s (a fresh-connection TCP stall after an idle-quiet period), which
+ * bot-client's ~3s abort turned into a silently dropped @mention.
+ *
+ * Deliberately NO `statement_timeout` here: the main pool serves legitimately
+ * long operations (pgvector search, Shapes import/export, retention batches)
+ * that a pool-wide ceiling would clip — that exemption-by-architecture is the
+ * reason the fast pool exists as a separate pool at all. `lock_timeout` IS safe
+ * pool-wide: a healthy op waits micro-to-milliseconds for locks; 3s of lock
+ * waiting means contention that should fail loudly + self-label (SQLSTATE
+ * 55P03) rather than stack up invisibly.
+ */
+export const MAIN_POOL_DEFAULTS = {
+  /** Server GUC. Safe pool-wide: legit ops don't wait seconds on locks; a 55P03
+   *  names the cause instead of an unbounded invisible queue. */
+  LOCK_TIMEOUT_MS: 3_000,
+  /** Evict idle connections on our schedule (pg-pool's own default, made
+   *  explicit) — paired with keepAlive so a retained idle socket is genuinely
+   *  alive, not a middlebox-reaped husk waiting to hang the next query. */
+  IDLE_TIMEOUT_MS: 10_000,
+  /** TCP keepalive first-probe delay — the fast pool's proven value. */
+  KEEPALIVE_INITIAL_DELAY_MS: 1_000,
+} as const;
+
 /** Parse a non-negative integer env var, falling back when unset/invalid. */
 function parseIntEnv(value: string | undefined, fallback: number, minimum: number): number {
   const parsed = Number.parseInt(value ?? '', 10);
@@ -114,6 +143,36 @@ export function transientPoolOptions(env: NodeJS.ProcessEnv = process.env): {
   return {
     max: DB_POOL_DEFAULTS.TRANSIENT_MAX,
     connectionTimeoutMillis: resolveConnectionTimeoutMs(env),
+  };
+}
+
+/** Resolve the main-pool server-side `lock_timeout` in ms (≥ 1). */
+export function resolveMainLockTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
+  return parseIntEnv(env.DB_MAIN_LOCK_TIMEOUT_MS, MAIN_POOL_DEFAULTS.LOCK_TIMEOUT_MS, 1);
+}
+
+/**
+ * Main-pool hardening options, applied as the BASE pool config for every
+ * `createPrismaClient` pool (fast-pool `poolOverrides` spread after this, so
+ * its tighter ladder — including its own `options` string — fully wins there).
+ *
+ * Same pooler caveat as the fast pool: the `lock_timeout` GUC rides the
+ * Postgres `options` startup string, which a fronting pooler (PgBouncer
+ * txn-mode etc.) may strip. Unlike the fast pool there is NO boot-fail probe
+ * here — losing the label reverts to the status quo (no ceiling), not to a
+ * regression, so a stripped GUC is acceptable degradation.
+ */
+export function mainPoolConnectionOptions(env: NodeJS.ProcessEnv = process.env): {
+  keepAlive: true;
+  keepAliveInitialDelayMillis: number;
+  idleTimeoutMillis: number;
+  options: string;
+} {
+  return {
+    keepAlive: true,
+    keepAliveInitialDelayMillis: MAIN_POOL_DEFAULTS.KEEPALIVE_INITIAL_DELAY_MS,
+    idleTimeoutMillis: MAIN_POOL_DEFAULTS.IDLE_TIMEOUT_MS,
+    options: `-c lock_timeout=${resolveMainLockTimeoutMs(env)}`,
   };
 }
 
