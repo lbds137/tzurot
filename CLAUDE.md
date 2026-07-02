@@ -28,7 +28,9 @@ packages/
 ├── common-types/       # Shared types
 ├── embeddings/         # Local embedding model
 ├── test-utils/         # Shared test helpers + PGLite
-└── tooling/            # Ops CLI (pnpm ops)
+├── tooling/            # Ops CLI (pnpm ops)
+└── ...                 # +6 more: cache-invalidation, clients, config-resolver,
+                        #   conversation-history, identity, test-factories
 prisma/                 # Database schema
 ```
 
