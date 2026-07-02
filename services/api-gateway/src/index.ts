@@ -22,6 +22,7 @@ import {
   createPrismaClient,
   fastPoolConnectionOptions,
   verifyPoolTimeouts,
+  registerProcessLifecycle,
   type PrismaClient,
 } from '@tzurot/common-types';
 import {
@@ -404,64 +405,38 @@ function createShutdownHandler(
     dbNotificationListener,
   } = services;
 
-  // Re-entry guard: the unhandledRejection handler calls shutdown(), and a
-  // rejection thrown INSIDE shutdown (closing already-closed resources) is
-  // itself unhandled — without the guard that recurses forever: the process
-  // zombies with the HTTP server closed, looping the shutdown log sequence at
-  // thousands of lines/sec and never reaching process.exit. Observed as a
-  // multi-hour prod outage; the guard + the hard-exit timer below make any
-  // shutdown attempt terminal.
-  let shuttingDown = false;
-
+  // Pure dispose sequence — the re-entry guard, hard-exit backstop, and
+  // terminal exit(0)/exit(1) semantics that prevent the zombie-shutdown-loop
+  // failure mode live in registerProcessLifecycle (common-types), which wraps
+  // this. See the gateway zombie-outage entry in docs/incidents/PROJECT_POSTMORTEMS.md.
   return async (): Promise<void> => {
-    if (shuttingDown) {
-      return;
-    }
-    shuttingDown = true;
-    logger.info('Shutting down gracefully...');
-
-    // Hard-exit backstop: if any dispose step hangs or throws in a way that
-    // never reaches the exit calls below, still terminate (Railway restarts a
-    // dead process; it cannot restart a zombie that keeps its event loop alive).
-    const hardExit = setTimeout(() => {
-      logger.error('Shutdown did not complete within 10s — forcing exit');
-      process.exit(1);
-    }, 10_000);
-    hardExit.unref();
-
-    try {
-      server.close(() => {
+    server.close(err => {
+      if (err !== undefined) {
+        logger.warn({ err }, 'HTTP server close reported an error');
+      } else {
         logger.info('HTTP server closed');
-      });
+      }
+    });
 
-      disposeDeduplicationCache();
-      logger.info('Request deduplication cache disposed');
+    disposeDeduplicationCache();
+    logger.info('Request deduplication cache disposed');
 
-      await dbNotificationListener.stop();
-      logger.info('Database notification listener stopped');
+    await dbNotificationListener.stop();
+    logger.info('Database notification listener stopped');
 
-      await cacheInvalidationService.unsubscribe();
-      await cascadeInvalidation.unsubscribe();
-      cascadeResolver.stopCleanup();
-      cacheRedis.disconnect();
-      logger.info('Cache invalidation services closed');
+    await cacheInvalidationService.unsubscribe();
+    await cascadeInvalidation.unsubscribe();
+    cascadeResolver.stopCleanup();
+    cacheRedis.disconnect();
+    logger.info('Cache invalidation services closed');
 
-      await shutdownEmbeddingService();
-      logger.info('Embedding service shut down');
+    await shutdownEmbeddingService();
+    logger.info('Embedding service shut down');
 
-      await closeQueue();
+    await closeQueue();
 
-      // dispose() logs 'Prisma client disconnected' itself — no second line here.
-      await disposePrisma();
-
-      logger.info('Shutdown complete');
-      process.exit(0);
-    } catch (error) {
-      // A failed dispose step must still end the process — exiting dirty is
-      // strictly better than living on as a half-shut-down zombie.
-      logger.error({ err: error }, 'Shutdown step failed — exiting');
-      process.exit(1);
-    }
+    // dispose() logs 'Prisma client disconnected' itself — no second line here.
+    await disposePrisma();
   };
 }
 
@@ -556,7 +531,7 @@ async function main(): Promise<void> {
 
   // Start server
   const server = app.listen(config.port, (err?: Error) => {
-    if (err) {
+    if (err !== undefined) {
       logger.error({ err }, 'Failed to start server');
       process.exit(1);
     }
@@ -574,19 +549,13 @@ async function main(): Promise<void> {
     await disposeFastPrisma();
     await disposePrisma();
   };
-  const shutdown = createShutdownHandler(server, services, disposeAllPrisma);
-  process.on('SIGTERM', () => void shutdown());
-  process.on('SIGINT', () => void shutdown());
-  process.on('uncaughtException', error => {
-    logger.fatal({ err: error }, 'Uncaught exception:');
-    void shutdown();
-  });
-  process.on('unhandledRejection', reason => {
-    // MUST log under `err` — pino only serializes Errors via the `err`-key
-    // serializer; `{ reason }` stringified a real Error to `{}` and left a
-    // production incident with no root cause in the logs.
-    logger.fatal({ err: reason }, 'Unhandled rejection:');
-    void shutdown();
+  // 'shutdown' policy: an HTTP service drains connections before exiting.
+  // The helper owns the guard, hard-exit backstop, err-key logging, and
+  // terminal exit semantics.
+  registerProcessLifecycle({
+    logger,
+    dispose: createShutdownHandler(server, services, disposeAllPrisma),
+    rejectionPolicy: 'shutdown',
   });
 
   logger.info('API Gateway is fully operational!');
