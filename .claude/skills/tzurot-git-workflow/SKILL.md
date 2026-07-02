@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-06-27'
+lastUpdated: '2026-07-02'
 ---
 
 # Git Workflow Procedures
@@ -211,6 +211,8 @@ Skip if the release has no migration — `release:premigrate` detects this and e
 ⚠️ **NEVER use `--delete-branch` for release PRs.** `develop` is a long-lived branch.
 
 ⚠️ **Wait for every CI check to be green** per `.claude/rules/00-critical.md` "Never Merge PRs With Red CI". Release PRs are not exempt — claude-review is the second-look on the full release delta and infra failures (binary not found, missing secret) need `gh run rerun <run-id> --failed` before merge, not "merge through it."
+
+⚠️ **When assessing release safety, do NOT cite "soaked in dev".** Dev has no organic traffic — a dev deploy proves boot, not behavior (see `/tzurot-deployment` § "What a dev deploy proves"). The honest safety basis is per-PR CI + reviews, the holistic release review, and blast-radius analysis of runtime-unverified paths.
 
 ```bash
 # ✅ CORRECT - Merge without deleting develop (only after all checks green)
