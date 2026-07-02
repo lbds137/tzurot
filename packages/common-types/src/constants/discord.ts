@@ -297,6 +297,14 @@ export interface ModelFooterOptions {
    * known label; omitted otherwise.
    */
   provider?: string;
+  /**
+   * Provider of the auto-promotion fallback route that was attempted and ALSO
+   * failed — set only on a both-routes-failed error. When both providers map
+   * to known labels, the attribution renders as a route chain
+   * ("• via <primary> → <fallback> (both routes failed)") so the footer names
+   * every route that was tried, not just the primary.
+   */
+  fallbackProviderAttempted?: string;
   /** Include the auto-response badge on the same line. */
   withAutoBadge?: boolean;
 }
@@ -314,13 +322,19 @@ export function buildModelFooterText(
   modelUrl: string,
   options: ModelFooterOptions = {}
 ): string {
-  const { provider, withAutoBadge = false } = options;
+  const { provider, fallbackProviderAttempted, withAutoBadge = false } = options;
   // Defensive: sanitize model name to prevent markdown injection
   // (brackets and angle brackets could break link syntax)
   const sanitizedModel = modelUsed.replace(/[[\]()<>]/g, '');
   let text = `Model: [${sanitizedModel}](<${modelUrl}>)`;
   const providerLabel = provider !== undefined ? PROVIDER_FOOTER_LABEL[provider] : undefined;
-  if (providerLabel !== undefined) {
+  const fallbackLabel =
+    fallbackProviderAttempted !== undefined
+      ? PROVIDER_FOOTER_LABEL[fallbackProviderAttempted]
+      : undefined;
+  if (providerLabel !== undefined && fallbackLabel !== undefined) {
+    text += ` • via ${providerLabel} → ${fallbackLabel} (both routes failed)`;
+  } else if (providerLabel !== undefined) {
     text += ` • via ${providerLabel}`;
   }
   if (withAutoBadge) {

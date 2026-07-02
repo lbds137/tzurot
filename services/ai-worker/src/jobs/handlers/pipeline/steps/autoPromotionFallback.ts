@@ -80,7 +80,7 @@ type GenerateAttempt = (opts: GenerateAttemptOpts) => Promise<GenerateAttemptRes
  * (class, category, AND message — `parseApiError` classifies via regex over the
  * message text, so appending the fallback's text there could flip the category
  * to whatever the fallback's wording happens to match first). The fallback's
- * failure rides a SEPARATE property (`attachFallbackFailureSummary`) that the
+ * failure rides a SEPARATE property (`attachFallbackFailure`) that the
  * error-result composer reads AFTER classification — the user must see the
  * whole picture, not just half of it. Observed shape: z.ai rate-limits, the
  * OpenRouter rescue then dies on a 402 credit check, and the surfaced "rate
@@ -148,24 +148,52 @@ export async function runWithAutoPromotionFallback(
       // could flip the root-cause category to whatever the fallback's wording
       // matches first (e.g. MODEL_NOT_FOUND → RATE_LIMIT). The composer in
       // GenerationStep appends it to the user-facing string AFTER classification.
-      attachFallbackFailureSummary(originalError, summarizeError(fallbackError));
+      // The attempted route rides along so the error footer can render the full
+      // chain ("via Z.AI Coding Plan → OpenRouter") instead of just the primary.
+      attachFallbackFailure(originalError, {
+        summary: summarizeError(fallbackError),
+        provider: fallback.provider,
+      });
       throw originalError;
     }
   }
 }
 
 /**
- * Property key for the fallback-failure summary carried on the propagated
+ * Property key for the fallback-failure info carried on the propagated
  * original error. A registered symbol (not a string key) so it can't collide
  * with real error fields and won't leak into JSON/log serialization.
  */
-const FALLBACK_FAILURE_SUMMARY = Symbol.for('tzurot.fallbackFailureSummary');
+const FALLBACK_FAILURE_INFO = Symbol.for('tzurot.fallbackFailureInfo');
 
-/** Attach the fallback's failure summary to the error about to be rethrown. */
-function attachFallbackFailureSummary(error: unknown, summary: string): void {
+/** What the both-fail path records about the failed fallback attempt. */
+interface FallbackFailureInfo {
+  /** Capped, user-renderable summary of the fallback's failure. */
+  summary: string;
+  /** Provider of the attempted fallback route (OpenRouter by construction). */
+  provider: string;
+}
+
+/** Attach the fallback attempt's failure info to the error about to be rethrown. */
+function attachFallbackFailure(error: unknown, info: FallbackFailureInfo): void {
   if (error !== null && typeof error === 'object') {
-    (error as Record<PropertyKey, unknown>)[FALLBACK_FAILURE_SUMMARY] = summary;
+    (error as Record<PropertyKey, unknown>)[FALLBACK_FAILURE_INFO] = info;
   }
+}
+
+/** Read the fallback-failure info off a caught error, shape-checked. */
+function getFallbackFailureInfo(error: unknown): FallbackFailureInfo | undefined {
+  if (error === null || typeof error !== 'object') {
+    return undefined;
+  }
+  const value = (error as Record<PropertyKey, unknown>)[FALLBACK_FAILURE_INFO];
+  if (value === null || typeof value !== 'object') {
+    return undefined;
+  }
+  const info = value as Partial<FallbackFailureInfo>;
+  return typeof info.summary === 'string' && typeof info.provider === 'string'
+    ? { summary: info.summary, provider: info.provider }
+    : undefined;
 }
 
 /**
@@ -175,11 +203,17 @@ function attachFallbackFailureSummary(error: unknown, summary: string): void {
  * pristine message.
  */
 export function getFallbackFailureSummary(error: unknown): string | undefined {
-  if (error !== null && typeof error === 'object') {
-    const value = (error as Record<PropertyKey, unknown>)[FALLBACK_FAILURE_SUMMARY];
-    return typeof value === 'string' ? value : undefined;
-  }
-  return undefined;
+  return getFallbackFailureInfo(error)?.summary;
+}
+
+/**
+ * Provider of the fallback route that was attempted and also failed, if any.
+ * Feeds the error result's `fallbackProviderAttempted` metadata so the footer
+ * can render the full route chain rather than mis-attributing the primary as
+ * the only attempt.
+ */
+export function getAttemptedFallbackProvider(error: unknown): string | undefined {
+  return getFallbackFailureInfo(error)?.provider;
 }
 
 /**

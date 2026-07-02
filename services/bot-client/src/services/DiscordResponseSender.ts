@@ -71,6 +71,12 @@ interface SendResponseOptions {
    * the footer link falls back to OpenRouter's model card page.
    */
   providerUsed?: string;
+  /**
+   * Provider of the auto-promotion fallback attempt that ALSO failed — set
+   * only on a both-routes-failed error result. Renders the footer attribution
+   * as a route chain ("via Z.AI Coding Plan → OpenRouter (both routes failed)").
+   */
+  fallbackProviderAttempted?: string;
   /** Whether response was generated in guest mode (free model, no API key) */
   isGuestMode?: boolean;
   /** Whether this is an auto-response from channel activation (not @mention) */
@@ -267,6 +273,7 @@ export class DiscordResponseSender {
     const {
       modelUsed,
       providerUsed,
+      fallbackProviderAttempted,
       isGuestMode,
       isAutoResponse,
       focusModeEnabled,
@@ -278,6 +285,7 @@ export class DiscordResponseSender {
       const modelUrl = buildModelInfoUrl(modelUsed, providerUsed);
       footer += `\n-# ${buildModelFooterText(modelUsed, modelUrl, {
         provider: providerUsed,
+        fallbackProviderAttempted,
         withAutoBadge: isAutoResponse === true,
       })}`;
     } else if (isAutoResponse === true) {
