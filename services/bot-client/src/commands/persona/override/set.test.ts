@@ -330,7 +330,9 @@ describe('handleOverrideCreateModalSubmit', () => {
     expect(stub.createPersonaOverride).not.toHaveBeenCalled();
   });
 
-  it('should error if user not found', async () => {
+  it('should surface the friendly no-account message when the user is not found', async () => {
+    // Routed through mapOverrideError like the sibling handlers — the mapper's
+    // "no account yet" phrasing replaces the old hardcoded "User not found".
     stub.createPersonaOverride.mockResolvedValue(makeErr(404, 'User not found'));
 
     await handleOverrideCreateModalSubmit(
@@ -345,7 +347,29 @@ describe('handleOverrideCreateModalSubmit', () => {
     );
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('User not found'),
+      content: expect.stringContaining("don't have an account yet"),
+    });
+  });
+
+  it('should surface the specific character-not-found message for a stale personality', async () => {
+    // The regression this closes: a stale/deleted personalityId used to degrade
+    // to the generic "Failed to create persona" because the create-modal branch
+    // skipped mapOverrideError while its siblings used it.
+    stub.createPersonaOverride.mockResolvedValue(makeErr(404, 'Personality not found'));
+
+    await handleOverrideCreateModalSubmit(
+      createMockModalInteraction({
+        personaName: 'Test',
+        description: '',
+        preferredName: '',
+        pronouns: '',
+        content: '',
+      }),
+      'personality-uuid'
+    );
+
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('Character "personality-uuid" not found'),
     });
   });
 
