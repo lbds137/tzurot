@@ -147,6 +147,16 @@ fi
 # Catches export-name collisions across two packages or two files within a
 # package. CI runs this in the lint job; running it here too closes the
 # local-vs-CI gap. Fast (~300ms) — negligible cost vs a CI round-trip.
+# Workflow-sync guard: a workflow change reaching develop first silently
+# disables claude-review on every PR until the next release. Skips itself
+# on main-cut branches (the sanctioned path). Fast (a couple of git calls).
+echo "Running workflow-sync guard..."
+if ! pnpm ops guard:workflow-sync; then
+    echo "${RED}Workflow-sync guard failed!${NC}"
+    echo "Route .github/workflows/ changes through a main-cut PR (see tzurot-git-workflow skill)"
+    exit 1
+fi
+
 echo "Running duplicate-export name check..."
 if ! pnpm ops guard:duplicate-exports; then
     echo "${RED}Duplicate export name check failed!${NC}"

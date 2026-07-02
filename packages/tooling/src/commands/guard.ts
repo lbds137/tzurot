@@ -52,6 +52,19 @@ export function registerGuardCommands(cli: CAC): void {
 
   cli
     .command(
+      'guard:workflow-sync',
+      'Fail when .github/workflows/ differs from origin/main (develop-first workflow changes silently disable claude-review)'
+    )
+    .option('--base <branch>', 'Override the merge-target used for the main-cut skip decision')
+    .example('ops guard:workflow-sync')
+    .example('ops guard:workflow-sync --base main')
+    .action(async (options: { base?: string }) => {
+      const { checkWorkflowSync } = await import('../dev/check-workflow-sync.js');
+      checkWorkflowSync(options);
+    });
+
+  cli
+    .command(
       'guard:proposal-links',
       'Check that every docs/proposals/backlog/*.md has at least one inbound link'
     )
