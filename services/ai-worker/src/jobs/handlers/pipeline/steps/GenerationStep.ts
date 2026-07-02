@@ -31,7 +31,11 @@ import {
   type EmbeddingServiceInterface,
 } from '../../../../utils/duplicateDetection.js';
 import { isRecentDuplicateAsync } from '../../../../utils/crossTurnDetection.js';
-import { runWithAutoPromotionFallback } from './autoPromotionFallback.js';
+import {
+  runWithAutoPromotionFallback,
+  composeFallbackAwareErrorMessage,
+  withFallbackFailure,
+} from './autoPromotionFallback.js';
 import { validatePrerequisites } from './generationStepValidation.js';
 import { getRecentAssistantMessages } from '../../../../utils/conversationHistoryUtils.js';
 import { DiagnosticCollector } from '../../../../services/DiagnosticCollector.js';
@@ -457,8 +461,14 @@ export class GenerationStep implements IPipelineStep {
     } catch (error) {
       const processingTimeMs = Date.now() - startTime;
       const underlyingError = error instanceof RetryError ? error.lastError : error;
-      const errorInfo = parseApiError(underlyingError);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      // Classify from the PRISTINE message; the compose step below appends the
+      // fallback-failure summary (if any) AFTER classification, so incidental
+      // wording in the fallback's error can't flip the root-cause category.
+      // The compound message must ALSO land on errorInfo.technicalMessage —
+      // that field (not result.error, which is log-only) is what bot-client's
+      // buildErrorContent renders into the persona-voiced Discord error.
+      const errorInfo = withFallbackFailure(parseApiError(underlyingError), error);
+      const errorMessage = composeFallbackAwareErrorMessage(error);
 
       logger.error(
         { err: error, jobId: job.id, ...getErrorLogContext(underlyingError) },

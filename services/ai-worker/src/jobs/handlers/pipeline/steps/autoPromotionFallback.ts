@@ -76,9 +76,15 @@ type GenerateAttempt = (opts: GenerateAttemptOpts) => Promise<GenerateAttemptRes
  * OpenRouter as if no promotion had occurred.
  *
  * Common case (`fallback === undefined`): straight passthrough, no overhead.
- * If the fallback retry also fails, the ORIGINAL error is propagated — the
- * user sees the actual root-cause failure (z.ai's response), not the
- * fallback's failure (which may be different — e.g., OpenRouter rate-limited).
+ * If the fallback retry also fails, the ORIGINAL error is propagated untouched
+ * (class, category, AND message — `parseApiError` classifies via regex over the
+ * message text, so appending the fallback's text there could flip the category
+ * to whatever the fallback's wording happens to match first). The fallback's
+ * failure rides a SEPARATE property (`attachFallbackFailureSummary`) that the
+ * error-result composer reads AFTER classification — the user must see the
+ * whole picture, not just half of it. Observed shape: z.ai rate-limits, the
+ * OpenRouter rescue then dies on a 402 credit check, and the surfaced "rate
+ * limit" alone left the user unaware a fallback was even attempted.
  *
  * Worst-case LLM call count = 1 (z.ai initial) + ≤3 (OpenRouter inner-loop
  * retries on duplicate/empty responses). Inner `generateWithDuplicateRetry`
@@ -135,9 +141,91 @@ export async function runWithAutoPromotionFallback(
     } catch (fallbackError) {
       logger.error(
         { jobId: opts.jobId, err: originalError, fallbackErr: fallbackError },
-        'Auto-promotion fallback retry also failed; propagating original error'
+        'Auto-promotion fallback retry also failed; propagating original error (summary attached)'
       );
+      // Carry the fallback's failure on a separate property — NOT the message.
+      // parseApiError classifies via regex over message text, so appending here
+      // could flip the root-cause category to whatever the fallback's wording
+      // matches first (e.g. MODEL_NOT_FOUND → RATE_LIMIT). The composer in
+      // GenerationStep appends it to the user-facing string AFTER classification.
+      attachFallbackFailureSummary(originalError, summarizeError(fallbackError));
       throw originalError;
     }
   }
+}
+
+/**
+ * Property key for the fallback-failure summary carried on the propagated
+ * original error. A registered symbol (not a string key) so it can't collide
+ * with real error fields and won't leak into JSON/log serialization.
+ */
+const FALLBACK_FAILURE_SUMMARY = Symbol.for('tzurot.fallbackFailureSummary');
+
+/** Attach the fallback's failure summary to the error about to be rethrown. */
+function attachFallbackFailureSummary(error: unknown, summary: string): void {
+  if (error !== null && typeof error === 'object') {
+    (error as Record<PropertyKey, unknown>)[FALLBACK_FAILURE_SUMMARY] = summary;
+  }
+}
+
+/**
+ * Read the fallback-failure summary off a caught error, if a failed
+ * auto-promotion fallback attached one. Used by the error-result composer to
+ * append the second half of the story AFTER classification has run on the
+ * pristine message.
+ */
+export function getFallbackFailureSummary(error: unknown): string | undefined {
+  if (error !== null && typeof error === 'object') {
+    const value = (error as Record<PropertyKey, unknown>)[FALLBACK_FAILURE_SUMMARY];
+    return typeof value === 'string' ? value : undefined;
+  }
+  return undefined;
+}
+
+/**
+ * Compose the user-facing error string: the pristine original message plus the
+ * fallback-failure summary when one was attached. MUST be called only after
+ * classification (`parseApiError`) has run — that's the whole point of keeping
+ * the summary off the message.
+ */
+export function composeFallbackAwareErrorMessage(error: unknown): string {
+  const base = error instanceof Error ? error.message : 'Unknown error';
+  const summary = getFallbackFailureSummary(error);
+  return summary !== undefined ? `${base} — fallback via OpenRouter also failed: ${summary}` : base;
+}
+
+/**
+ * Fold the fallback-failure summary into an already-classified error info's
+ * `technicalMessage` — the field bot-client's `buildErrorContent` actually
+ * renders into the persona-voiced Discord error (`result.error` is log-only).
+ * Classification fields (category/type/shouldRetry) are untouched: they were
+ * derived from the pristine message and must stay that way. No summary → the
+ * info passes through unchanged.
+ */
+export function withFallbackFailure<T extends { technicalMessage?: string }>(
+  errorInfo: T,
+  error: unknown
+): T {
+  const summary = getFallbackFailureSummary(error);
+  if (summary === undefined) {
+    return errorInfo;
+  }
+  const base = errorInfo.technicalMessage ?? (error instanceof Error ? error.message : 'Unknown');
+  return {
+    ...errorInfo,
+    technicalMessage: `${base} — fallback via OpenRouter also failed: ${summary}`,
+  };
+}
+
+/**
+ * Short, user-renderable summary of the fallback's failure. Provider messages
+ * can run long (the OpenRouter 402 includes token math); cap it so the
+ * persona-voiced error stays readable. Sliced via code points (Array.from) so
+ * a multi-byte character at the boundary can't be split into a mangled surrogate.
+ */
+function summarizeError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  const MAX = 160;
+  const points = Array.from(message);
+  return points.length > MAX ? `${points.slice(0, MAX).join('')}…` : message;
 }

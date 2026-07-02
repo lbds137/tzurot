@@ -9,7 +9,10 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { AIProvider } from '@tzurot/common-types';
-import { runWithAutoPromotionFallback } from './autoPromotionFallback.js';
+import {
+  runWithAutoPromotionFallback,
+  getFallbackFailureSummary,
+} from './autoPromotionFallback.js';
 import type { GenerateAttemptOpts, GenerateAttemptResult } from './autoPromotionFallback.js';
 
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -133,14 +136,18 @@ describe('runWithAutoPromotionFallback', () => {
     expect(result).toEqual({ ...fallbackResult, effectiveProviderUsed: AIProvider.OpenRouter });
   });
 
-  it('should propagate ORIGINAL error when fallback retry also fails', async () => {
-    // User-facing error should be the actual root-cause from z.ai, not the
-    // fallback's failure (which may be unrelated — rate limit, network, etc.)
-    const originalError = new Error('z.ai 404: model not found');
+  it('propagates the ORIGINAL error untouched with the fallback summary attached separately', async () => {
+    // The message must stay PRISTINE — parseApiError classifies via regex over
+    // message text, so appending the fallback's wording there could flip the
+    // root-cause category. The fallback story rides a separate property that
+    // the error-result composer reads after classification.
+    const originalError = new Error('Rate limit cached');
     const attempt = vi
       .fn()
       .mockRejectedValueOnce(originalError)
-      .mockRejectedValueOnce(new Error('OpenRouter rate limited'));
+      .mockRejectedValueOnce(
+        new Error('402 This request requires more credits, or fewer max_tokens')
+      );
 
     await expect(
       runWithAutoPromotionFallback(attempt, baseOpts, {
@@ -152,6 +159,40 @@ describe('runWithAutoPromotionFallback', () => {
     ).rejects.toBe(originalError);
 
     expect(attempt).toHaveBeenCalledTimes(2);
+    // Message untouched (classification safety) …
+    expect(originalError.message).toBe('Rate limit cached');
+    // … and the second half of the story attached for the composer.
+    expect(getFallbackFailureSummary(originalError)).toBe(
+      '402 This request requires more credits, or fewer max_tokens'
+    );
+  });
+
+  it('caps an over-long fallback failure summary', async () => {
+    const originalError = new Error('primary failed');
+    const attempt = vi
+      .fn()
+      .mockRejectedValueOnce(originalError)
+      .mockRejectedValueOnce(new Error('x'.repeat(500)));
+
+    await expect(
+      runWithAutoPromotionFallback(attempt, baseOpts, {
+        apiKey: 'sk-or',
+        provider: 'openrouter',
+        model: 'z-ai/glm-5.1',
+        isGuestMode: false,
+      })
+    ).rejects.toBe(originalError);
+
+    const summary = getFallbackFailureSummary(originalError);
+    // 160 code points + ellipsis — persona-voiced errors stay readable.
+    expect(summary).toContain('…');
+    expect(summary?.length).toBeLessThanOrEqual(161);
+  });
+
+  it('returns undefined from getFallbackFailureSummary for errors without one', () => {
+    expect(getFallbackFailureSummary(new Error('plain'))).toBeUndefined();
+    expect(getFallbackFailureSummary(null)).toBeUndefined();
+    expect(getFallbackFailureSummary('string error')).toBeUndefined();
   });
 
   it('should propagate the error directly when fallback is undefined and attempt fails', async () => {
