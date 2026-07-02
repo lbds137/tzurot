@@ -70,7 +70,14 @@ vi.mock('./VisionProcessor.js', async importOriginal => {
     ...actual,
     describeImage: vi.fn(),
     selectVisionModel: vi.fn(),
-    buildFailureFallback: vi.fn(),
+    // Declaration-time real-string impl, NOT a bare vi.fn(): visionAuthResolver
+    // derives VISION_AUTH_FAIL_FAST_DESCRIPTION from this at MODULE LOAD (before
+    // any beforeEach), so a bare mock would bake `undefined` into the constant and
+    // turn the exhaustion assertions into undefined===undefined tautologies.
+    buildFailureFallback: vi.fn(
+      (category: unknown, source?: unknown) =>
+        `[Image unavailable: mock ${String(category)}/${String(source ?? 'none')}]`
+    ),
   };
 });
 
@@ -521,11 +528,49 @@ describe('describeImageWithFallback', () => {
 
     expect(result).toBe('ok');
     expect(mockSelectVisionModel).toHaveBeenCalledWith(personality, false);
-    // The resolved model echoes the selected primary.
+    // The resolved model echoes the selected primary — and the first tier is
+    // flagged primary (the only tier allowed the same-provider fast path).
     expect(mockResolveVisionAuth).toHaveBeenCalledWith(
       'selected/model',
       expect.anything(),
-      expect.anything()
+      expect.anything(),
+      true
+    );
+  });
+
+  it('flags ONLY the first tier as primary (fallback tiers skip the fast path)', async () => {
+    const personality = makePersonality({ visionFallbackModels: ['fallback/model'] });
+    // Tier 1 advances (retryable failure), tier 2 resolves.
+    mockResolveVisionAuth
+      .mockResolvedValueOnce(resolvedFor('primary/model'))
+      .mockResolvedValueOnce(resolvedFor('fallback/model'));
+    mockDescribeImage
+      .mockRejectedValueOnce(new VisionModelError(ApiErrorCategory.RATE_LIMIT, 'rl'))
+      .mockResolvedValueOnce('ok');
+
+    const result = await describeImageWithFallback(
+      attachment,
+      personality,
+      makeAuthOptions({ personality }),
+      { model: 'primary/model' }
+    );
+
+    expect(result).toBe('ok');
+    // Seam assertion: isPrimaryTier must be true for tier 1 and false afterwards —
+    // a fallback tier taking the fast path would retry the identical dead key.
+    expect(mockResolveVisionAuth).toHaveBeenNthCalledWith(
+      1,
+      'primary/model',
+      expect.anything(),
+      expect.anything(),
+      true
+    );
+    expect(mockResolveVisionAuth).toHaveBeenNthCalledWith(
+      2,
+      'fallback/model',
+      expect.anything(),
+      expect.anything(),
+      false
     );
   });
 });
