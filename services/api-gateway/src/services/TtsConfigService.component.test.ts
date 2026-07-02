@@ -9,7 +9,7 @@
  * - Scope-based access control (GLOBAL vs USER)
  * - Name uniqueness via citext
  * - Delete constraints (personality + user override references)
- * - setAsDefault / setAsFreeDefault transactional clearing
+ * - setAsDefault / setAsFreeDefault pointer repointing via AdminSettings
  *
  * Mirrors LlmConfigService.component.test.ts shape.
  */
@@ -499,11 +499,11 @@ describe('TtsConfigService Integration', () => {
   });
 
   // ============================================================================
-  // Admin defaults — transactional clearing
+  // Admin defaults — AdminSettings pointer repointing
   // ============================================================================
 
   describe('setAsDefault', () => {
-    it('clears the previous default when promoting a new one', async () => {
+    it('repointing supersedes the previous default (single-pointer semantics)', async () => {
       const a = await service.create(
         { type: 'GLOBAL' },
         { name: 'A', provider: 'self-hosted' },
@@ -518,15 +518,21 @@ describe('TtsConfigService Integration', () => {
       await service.setAsDefault(a.id);
       await service.setAsDefault(b.id);
 
-      const aRow = await prisma.ttsConfig.findUnique({ where: { id: a.id } });
+      // The AdminSettings pointer is the single source of truth — repointing
+      // to B implicitly "clears" A (no per-row flags to reconcile).
+      const aDetail = await service.getById(a.id);
+      const bDetail = await service.getById(b.id);
+      expect(aDetail?.isDefault).toBe(false);
+      expect(bDetail?.isDefault).toBe(true);
+
+      // The stale column is never touched.
       const bRow = await prisma.ttsConfig.findUnique({ where: { id: b.id } });
-      expect(aRow?.isDefault).toBe(false);
-      expect(bRow?.isDefault).toBe(true);
+      expect(bRow?.isDefault).toBe(false);
     });
   });
 
   describe('setAsFreeDefault', () => {
-    it('clears the previous free-default when promoting a new one', async () => {
+    it('repointing supersedes the previous free-default (single-pointer semantics)', async () => {
       const a = await service.create(
         { type: 'GLOBAL' },
         { name: 'A', provider: 'self-hosted' },
@@ -541,10 +547,13 @@ describe('TtsConfigService Integration', () => {
       await service.setAsFreeDefault(a.id);
       await service.setAsFreeDefault(b.id);
 
-      const aRow = await prisma.ttsConfig.findUnique({ where: { id: a.id } });
+      const aDetail = await service.getById(a.id);
+      const bDetail = await service.getById(b.id);
+      expect(aDetail?.isFreeDefault).toBe(false);
+      expect(bDetail?.isFreeDefault).toBe(true);
+
       const bRow = await prisma.ttsConfig.findUnique({ where: { id: b.id } });
-      expect(aRow?.isFreeDefault).toBe(false);
-      expect(bRow?.isFreeDefault).toBe(true);
+      expect(bRow?.isFreeDefault).toBe(false);
     });
   });
 

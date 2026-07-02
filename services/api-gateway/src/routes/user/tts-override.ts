@@ -20,6 +20,7 @@ import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
   generateUserPersonalityConfigUuid,
+  ADMIN_SETTINGS_SINGLETON_ID,
   type PrismaClient,
   type TtsOverrideSummary,
   type UserDefaultTtsConfig,
@@ -250,14 +251,16 @@ export const handleClearTtsDefaultConfig = (deps: RouteDeps): RequestHandler => 
       return sendError(res, ErrorResponses.notFound('User'));
     }
 
-    // Look up the system free default the user will fall back to. Per-
-    // personality overrides (UserPersonalityConfig.ttsConfigId) and
-    // personality-level defaults (PersonalityDefaultTtsConfig) are
-    // unaffected; the free default is just the user-global fallback.
-    const newEffectiveDefault = await prisma.ttsConfig.findFirst({
-      where: { isFreeDefault: true },
-      select: { id: true, name: true },
+    // Look up the system free default the user will fall back to (via the
+    // AdminSettings pointer — the flag columns are stale). Per-personality
+    // overrides (UserPersonalityConfig.ttsConfigId) and personality-level
+    // defaults (PersonalityDefaultTtsConfig) are unaffected; the free
+    // default is just the user-global fallback.
+    const settings = await prisma.adminSettings.findUnique({
+      where: { id: ADMIN_SETTINGS_SINGLETON_ID },
+      select: { freeDefaultTtsConfig: { select: { id: true, name: true } } },
     });
+    const newEffectiveDefault = settings?.freeDefaultTtsConfig ?? null;
 
     if (user.defaultTtsConfigId === null) {
       logger.info(

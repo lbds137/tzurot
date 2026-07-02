@@ -22,8 +22,6 @@ export const TTS_CONFIG_SELECT = {
   modelId: true,
   advancedParameters: true,
   isGlobal: true,
-  isDefault: true,
-  isFreeDefault: true,
 } as const;
 
 /**
@@ -43,8 +41,6 @@ export interface RawTtsConfigFromDb {
   modelId: string | null;
   advancedParameters: unknown;
   isGlobal: boolean;
-  isDefault: boolean;
-  isFreeDefault: boolean;
 }
 
 /** Application-shape mapped TtsConfig (post-DB → app translation). */

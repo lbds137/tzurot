@@ -26,7 +26,8 @@ interface MockPrisma {
   user: { findFirst: ReturnType<typeof vi.fn> };
   userPersonalityConfig: { findFirst: ReturnType<typeof vi.fn> };
   personalityDefaultTtsConfig: { findUnique: ReturnType<typeof vi.fn> };
-  ttsConfig: { findFirst: ReturnType<typeof vi.fn> };
+  /** Free-default resolution reads the AdminSettings pointer (singleton). */
+  adminSettings: { findUnique: ReturnType<typeof vi.fn> };
 }
 
 function createMockPrisma(): MockPrisma {
@@ -34,7 +35,7 @@ function createMockPrisma(): MockPrisma {
     user: { findFirst: vi.fn() },
     userPersonalityConfig: { findFirst: vi.fn() },
     personalityDefaultTtsConfig: { findUnique: vi.fn() },
-    ttsConfig: { findFirst: vi.fn() },
+    adminSettings: { findUnique: vi.fn() },
   };
 }
 
@@ -62,7 +63,7 @@ describe('TtsConfigResolver', () => {
   describe('resolveConfig cascade', () => {
     it('returns hardcoded fallback when no userId and no personality default and no free default', async () => {
       mockPrisma.personalityDefaultTtsConfig.findUnique.mockResolvedValue(null);
-      mockPrisma.ttsConfig.findFirst.mockResolvedValue(null);
+      mockPrisma.adminSettings.findUnique.mockResolvedValue(null);
 
       const result = await resolver.resolveConfig(undefined, 'p-uuid-123', FAKE_PERSONALITY);
 
@@ -218,14 +219,14 @@ describe('TtsConfigResolver', () => {
       mockPrisma.personalityDefaultTtsConfig.findUnique.mockRejectedValue(
         new Error('connection refused')
       );
-      mockPrisma.ttsConfig.findFirst.mockResolvedValue({
-        name: 'kyutai-self-hosted',
-        provider: 'self-hosted',
-        modelId: null,
-        advancedParameters: null,
-        isGlobal: true,
-        isDefault: false,
-        isFreeDefault: true,
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({
+        freeDefaultTtsConfig: {
+          name: 'kyutai-self-hosted',
+          provider: 'self-hosted',
+          modelId: null,
+          advancedParameters: null,
+          isGlobal: true,
+        },
       });
 
       const result = await resolver.resolveConfig('user-x', 'p-uuid-123', FAKE_PERSONALITY);
@@ -254,14 +255,14 @@ describe('TtsConfigResolver', () => {
       });
       mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue(null);
       mockPrisma.personalityDefaultTtsConfig.findUnique.mockResolvedValue(null);
-      mockPrisma.ttsConfig.findFirst.mockResolvedValue({
-        name: 'kyutai-self-hosted',
-        provider: 'self-hosted',
-        modelId: null,
-        advancedParameters: null,
-        isGlobal: true,
-        isDefault: false,
-        isFreeDefault: true,
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({
+        freeDefaultTtsConfig: {
+          name: 'kyutai-self-hosted',
+          provider: 'self-hosted',
+          modelId: null,
+          advancedParameters: null,
+          isGlobal: true,
+        },
       });
 
       const result = await resolver.resolveConfig('user-x', 'p-uuid-123', FAKE_PERSONALITY);
@@ -281,7 +282,7 @@ describe('TtsConfigResolver', () => {
       });
       mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue(null);
       mockPrisma.personalityDefaultTtsConfig.findUnique.mockResolvedValue(null);
-      mockPrisma.ttsConfig.findFirst.mockResolvedValue(null);
+      mockPrisma.adminSettings.findUnique.mockResolvedValue(null);
 
       const result = await resolver.resolveConfig('user-x', 'p-uuid-123', FAKE_PERSONALITY);
 
@@ -295,20 +296,20 @@ describe('TtsConfigResolver', () => {
 
   describe('getFreeDefaultConfig', () => {
     it('returns null when no isFreeDefault row exists', async () => {
-      mockPrisma.ttsConfig.findFirst.mockResolvedValue(null);
+      mockPrisma.adminSettings.findUnique.mockResolvedValue(null);
       const result = await resolver.getFreeDefaultConfig();
       expect(result).toBeNull();
     });
 
     it('returns mapped config when an isFreeDefault row exists', async () => {
-      mockPrisma.ttsConfig.findFirst.mockResolvedValue({
-        name: 'kyutai-self-hosted',
-        provider: 'self-hosted',
-        modelId: null,
-        advancedParameters: null,
-        isGlobal: true,
-        isDefault: false,
-        isFreeDefault: true,
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({
+        freeDefaultTtsConfig: {
+          name: 'kyutai-self-hosted',
+          provider: 'self-hosted',
+          modelId: null,
+          advancedParameters: null,
+          isGlobal: true,
+        },
       });
 
       const result = await resolver.getFreeDefaultConfig();
@@ -320,14 +321,14 @@ describe('TtsConfigResolver', () => {
     });
 
     it('caches the free-default result', async () => {
-      const firstCall = mockPrisma.ttsConfig.findFirst.mockResolvedValue({
-        name: 'kyutai-self-hosted',
-        provider: 'self-hosted',
-        modelId: null,
-        advancedParameters: null,
-        isGlobal: true,
-        isDefault: false,
-        isFreeDefault: true,
+      const firstCall = mockPrisma.adminSettings.findUnique.mockResolvedValue({
+        freeDefaultTtsConfig: {
+          name: 'kyutai-self-hosted',
+          provider: 'self-hosted',
+          modelId: null,
+          advancedParameters: null,
+          isGlobal: true,
+        },
       });
 
       await resolver.getFreeDefaultConfig();
