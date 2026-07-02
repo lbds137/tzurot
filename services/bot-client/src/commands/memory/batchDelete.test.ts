@@ -378,7 +378,7 @@ describe('handleBatchDelete', () => {
       await handleBatchDelete(context);
 
       expect(buttonInteraction.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Failed to delete'),
+        content: expect.stringContaining('❌ Failed to delete'),
         embeds: [],
         components: [],
       });

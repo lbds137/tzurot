@@ -6,6 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { makeErr } from '../../test/gatewayClientStubs.js';
 import type { GatewayResult, OwnerClient } from '@tzurot/clients';
 import { handleCleanup } from './cleanup.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
@@ -42,10 +43,6 @@ function asOwnerClient(stub: StubClient): OwnerClient {
 
 function ok<T>(data: T): GatewayResult<T> {
   return { ok: true, data };
-}
-
-function err(status: number, message = 'fail'): GatewayResult<never> {
-  return { ok: false, kind: status > 0 ? 'http' : 'network', error: message, status };
 }
 
 function createMockCleanupResponse(
@@ -178,7 +175,7 @@ describe('handleCleanup', () => {
   });
 
   it('should handle HTTP errors', async () => {
-    stub.cleanup.mockResolvedValue(err(500, 'Internal Server Error'));
+    stub.cleanup.mockResolvedValue(makeErr(500, 'Internal Server Error'));
 
     const context = createMockContext(null, null);
     await handleCleanup(context);
@@ -213,7 +210,7 @@ describe('handleCleanup', () => {
   });
 
   it('should handle 403 unauthorized response', async () => {
-    stub.cleanup.mockResolvedValue(err(403, 'Unauthorized'));
+    stub.cleanup.mockResolvedValue(makeErr(403, 'Unauthorized'));
 
     const context = createMockContext(null, null);
     await handleCleanup(context);

@@ -68,10 +68,10 @@ const mockRenderTerminalScreen = vi.fn();
 const mockRenderPostActionScreen = vi.fn();
 const mockHandleSharedBackButton = vi.fn();
 
-// Mock getSessionDataOrReply to delegate to mockSessionGet
+// Mock getSessionDataOrFollowUp to delegate to mockSessionGet
 // Models getSessionDataOrFollowUp (the deferred variant handleDeleteButton now
 // uses): followUp on expiry, since the caller has already deferred.
-const mockGetSessionDataOrReply = vi
+const mockGetSessionDataOrFollowUp = vi
   .fn()
   .mockImplementation(async (interaction, entityType, entityId) => {
     const session = await mockSessionGet(interaction.user.id, entityType, entityId);
@@ -175,8 +175,7 @@ vi.mock('../../utils/dashboard/index.js', async () => {
       ),
     requireDeferredSession: (...args: unknown[]) => mockRequireDeferredSession(...args),
     getSessionOrExpired: (...args: unknown[]) => mockGetSessionOrExpired(...args),
-    getSessionDataOrReply: (...args: unknown[]) => mockGetSessionDataOrReply(...args),
-    getSessionDataOrFollowUp: (...args: unknown[]) => mockGetSessionDataOrReply(...args),
+    getSessionDataOrFollowUp: (...args: unknown[]) => mockGetSessionDataOrFollowUp(...args),
     parseDashboardCustomId: vi.fn((customId: string) => {
       // Simple parser for tests
       const parts = customId.split('::');
@@ -616,7 +615,7 @@ describe('handleButton', () => {
     });
     // Models getSessionDataOrFollowUp (handleDeleteButton defers first, so the
     // helper followUps on expiry — reply would throw on the acked interaction).
-    mockGetSessionDataOrReply.mockImplementation(async (interaction, entityType, entityId) => {
+    mockGetSessionDataOrFollowUp.mockImplementation(async (interaction, entityType, entityId) => {
       const session = await mockSessionGet(interaction.user.id, entityType, entityId);
       if (session === null) {
         await interaction.followUp({

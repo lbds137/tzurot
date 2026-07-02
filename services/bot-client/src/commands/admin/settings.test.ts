@@ -7,6 +7,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { makeErr } from '../../test/gatewayClientStubs.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import type { GatewayResult, OwnerClient } from '@tzurot/clients';
 import {
@@ -69,10 +70,6 @@ function asOwnerClient(stub: StubClient): OwnerClient {
 
 function ok<T>(data: T): GatewayResult<T> {
   return { ok: true, data };
-}
-
-function err(status: number, message = 'fail'): GatewayResult<never> {
-  return { ok: false, kind: status > 0 ? 'http' : 'network', error: message, status };
 }
 
 describe('Admin Settings Dashboard', () => {
@@ -250,7 +247,7 @@ describe('Admin Settings Dashboard', () => {
 
     it('should handle fetch failure gracefully', async () => {
       const context = createMockContext();
-      stub.getAdminSettings.mockResolvedValue(err(500));
+      stub.getAdminSettings.mockResolvedValue(makeErr(500));
 
       await handleSettings(context);
 
@@ -342,7 +339,7 @@ describe('Admin Settings Dashboard', () => {
         },
       });
 
-      stub.updateAdminSettings.mockResolvedValue(err(403, 'Permission denied'));
+      stub.updateAdminSettings.mockResolvedValue(makeErr(403, 'Permission denied'));
 
       await handleAdminSettingsButton(interaction as unknown as ButtonInteraction);
 

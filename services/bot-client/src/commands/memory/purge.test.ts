@@ -488,7 +488,7 @@ describe('handlePurgeModal (modal submission)', () => {
     await handlePurgeModal(interaction);
 
     expect(interaction.editReply).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('Failed to purge') })
+      expect.objectContaining({ content: expect.stringContaining('❌ Failed to purge') })
     );
   });
 
