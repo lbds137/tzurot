@@ -344,6 +344,7 @@ describe('findContentRefs (against real repo)', () => {
       'guard:duplicate-exports',
       'guard:proposal-links',
       'guard:test-taxonomy',
+      'guard:workflow-sync',
       'inspect:dlq',
       'inspect:queue',
       'inspect:tts-configs',
