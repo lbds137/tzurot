@@ -44,6 +44,15 @@ else
     fi
 fi
 
+# 2b. Surface deferred backlog rows referencing files in this push (branch-level
+# window — the pre-commit --staged pass only sees one commit's files, so a
+# trigger touched earlier on the branch would otherwise slip by unseen).
+# Informational only; never blocks the push.
+if [ -n "$CHANGED_FILES" ]; then
+    # shellcheck disable=SC2086 -- word-splitting the file list is intended
+    pnpm ops dev:deferred-refs $CHANGED_FILES || true
+fi
+
 # 3. Check if only docs/config changed
 # Include package.json and pnpm-lock.yaml as they can affect builds (dependencies, scripts)
 CODE_FILES=$(echo "$CHANGED_FILES" | grep -E '\.(ts|tsx|js|jsx|mjs|cjs|d\.ts)$|package\.json$|pnpm-lock\.yaml$' || true)
