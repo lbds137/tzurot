@@ -464,6 +464,17 @@ describe('RoutingContextRequestSchema', () => {
     expect(RoutingContextRequestSchema.safeParse({ ...valid, isBot: true }).success).toBe(true);
   });
 
+  it('rejects a non-snowflake discordId (shape-validated, not just length)', () => {
+    // discordId gates provisioning — a malformed id would create a junk user
+    // shell keyed on it. Snowflakes are 17-20 digits.
+    expect(
+      RoutingContextRequestSchema.safeParse({ ...valid, discordId: 'not-a-snowflake' }).success
+    ).toBe(false);
+    expect(RoutingContextRequestSchema.safeParse({ ...valid, discordId: '123' }).success).toBe(
+      false
+    );
+  });
+
   it('accepts a blank displayName (user without a global display name)', () => {
     expect(RoutingContextRequestSchema.safeParse({ ...valid, displayName: '' }).success).toBe(true);
   });
