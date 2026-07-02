@@ -29,29 +29,29 @@
 import {
   createLogger,
   AIProvider,
+  ApiErrorCategory,
   MODEL_DEFAULTS,
   type LoadedPersonality,
 } from '@tzurot/common-types';
 import { detectVisionProvider } from '../ProviderRouter.js';
-import { selectVisionModel } from './VisionProcessor.js';
+import { selectVisionModel, buildFailureFallback } from './VisionProcessor.js';
 import { visionFallbackQuota } from '../../redis.js';
 import type { ApiKeyResolver } from '../ApiKeyResolver.js';
 
 const logger = createLogger('VisionAuthResolver');
 
 /**
- * Source-aware fallback description shown to the LLM when no usable vision key
- * exists across every fallback tier. Exported as a constant rather than inlined
- * so the fallback loop (`describeImageWithFallback`, which renders it on
- * auth-exhaustion) and any future consumer share one source of truth. A string
- * update in one place would otherwise diverge silently.
- *
- * The wording is read by the LLM in the chat context, so it's phrased as a
- * description (not a UI error). The user sees the personality acknowledge
- * the missing image with the embedded "/settings apikey set" hint.
+ * Fallback description shown to the LLM when no usable vision key exists across
+ * every fallback tier. DERIVED from `buildFailureFallback`'s AUTH+user branch —
+ * this constant is the "no tier ever resolved a key" rendering, which is the
+ * same user-actionable situation, so the wording must stay identical. Deriving
+ * (rather than duplicating the literal) makes a future wording change land in
+ * both places by construction.
  */
-export const VISION_AUTH_FAIL_FAST_DESCRIPTION =
-  '[Image unavailable: your API key was rejected — check /settings apikey set for the vision provider key]';
+export const VISION_AUTH_FAIL_FAST_DESCRIPTION = buildFailureFallback(
+  ApiErrorCategory.AUTHENTICATION,
+  'user'
+);
 
 /**
  * Resolved auth + model context for a vision call. Unifies the auth decision
@@ -153,9 +153,10 @@ export function createVisionQuotaTracker(userId: string | undefined): VisionQuot
       } catch {
         ok = true; // fail-open — a quota-store blip must not block image description
       }
-      if (ok) {
-        consumedThisRequest = true;
-      }
+      // Latch on ANY real check, not just success: an over-cap answer can't change
+      // within one tracker's lifetime, so a later tier re-hitting Redis for an
+      // already-denied user is pure waste (extra INCR+EXPIRE round-trips).
+      consumedThisRequest = true;
       return ok;
     },
   };
@@ -230,8 +231,9 @@ async function resolveBroadFreeFallback(
  * computes the natural model then delegates here.
  *
  * Branch order:
- * 1. Same-provider fast path — reuse the upstream main-model key.
- * 2. Genuine guest (or unknown user) — system key for the vision provider.
+ * 1. Same-provider fast path (PRIMARY tier only) — reuse the upstream main-model key.
+ * 2. Genuine guest (or unknown user) — system key for the vision provider
+ *    (fallback tiers force the free model — see the guest branch).
  * 3. Authenticated user with a vision-provider key — use it.
  * 4. BROAD FREE FALLBACK — authenticated user lacking a vision-provider key
  *    downgrades to the free vision model on the system OpenRouter key (instead
@@ -240,11 +242,20 @@ async function resolveBroadFreeFallback(
  * 5. Fallback-of-fallback — if even the free-model system key is unavailable
  *    (no system OpenRouter key configured), `failFast` so the caller emits the
  *    "configure your key" placeholder against the ORIGINAL vision provider.
+ *
+ * `isPrimaryTier` — true only for the FIRST tier of a walk (and the primary-path
+ * entry point). Fallback tiers must not take the same-provider fast path: the
+ * fast path just re-hands back the identical upstream key, so after a tier-1
+ * failure a same-provider tier-2 would retry the exact same credential and the
+ * loop would provide zero resilience for the broken-key case it exists for.
+ * Forcing per-provider resolution on fallback tiers routes an authenticated
+ * user through their wallet key (or the broad free fallback) instead.
  */
 export async function resolveVisionAuth(
   targetModel: string,
   options: ResolveVisionConfigOptions,
-  quotaTracker: VisionQuotaTracker
+  quotaTracker: VisionQuotaTracker,
+  isPrimaryTier: boolean
 ): Promise<VisionConfigResult> {
   const { mainProvider, mainApiKey, isGuestMode, userId, apiKeyResolver } = options;
   // Self-derive the provider from the target model rather than accepting it as a separate
@@ -254,7 +265,7 @@ export async function resolveVisionAuth(
 
   // Same-provider fast path — reuse the upstream-resolved key without a second
   // resolver call. Avoids redundant DB reads for the common case where main and
-  // vision share a provider.
+  // vision share a provider. PRIMARY TIER ONLY — see the docstring.
   //
   // Gated on a non-empty `mainApiKey` because AuthStep's resolution-failure
   // catch branch returns `resolvedApiKey: undefined` regardless of whether the
@@ -263,7 +274,12 @@ export async function resolveVisionAuth(
   // reach `createChatModel` with no Authorization header and reproduce the exact
   // bug this resolver exists to prevent. Falling through to per-provider
   // resolution lets the user's actual keys (if any) be picked up instead.
-  if (visionProvider === mainProvider && mainApiKey !== undefined && mainApiKey.length > 0) {
+  if (
+    isPrimaryTier &&
+    visionProvider === mainProvider &&
+    mainApiKey !== undefined &&
+    mainApiKey.length > 0
+  ) {
     logger.debug(
       { userId, visionProvider, isGuestMode },
       'Vision config same-provider fast path — reusing main-model key'
@@ -305,19 +321,27 @@ export async function resolveVisionAuth(
   try {
     if (treatAsGuest) {
       // Genuine guest — system key is the only path that works for them.
-      // For the primary path `selectVisionModel` already returned the free model,
-      // so `targetModel` is correct here.
-      const result = await apiKeyResolver.resolveApiKey(userId, visionProvider);
+      // For the primary tier `selectVisionModel` already returned the free model,
+      // so `targetModel` is correct as-is. FALLBACK tiers carry the stamped DB
+      // models, which can be PAID (the admin's global vision default) — a guest
+      // walking onto one would put the system key on a paid model, bypassing the
+      // free-forcing that governs every other guest path. Force the free model
+      // there; the guest's floor tier is the free model anyway, so this only
+      // changes WHICH tier renders it (and the loop's resolved-model dedup then
+      // collapses the duplicates into one attempt).
+      const guestModel = isPrimaryTier ? targetModel : MODEL_DEFAULTS.VISION_FALLBACK_FREE;
+      const guestProvider = isPrimaryTier ? visionProvider : detectVisionProvider(guestModel);
+      const result = await apiKeyResolver.resolveApiKey(userId, guestProvider);
       logger.info(
-        { userId, visionProvider, mainProvider, source: result.source },
+        { userId, visionProvider: guestProvider, mainProvider, source: result.source },
         'Cross-provider vision config resolved (guest path)'
       );
       return {
         kind: 'resolved',
         config: {
           apiKey: result.apiKey,
-          provider: visionProvider,
-          model: targetModel,
+          provider: guestProvider,
+          model: guestModel,
           source: result.source,
           isGuestMode: result.isGuestMode,
         },
@@ -377,5 +401,6 @@ export async function resolveVisionConfig(
   // the OpenRouter fallback model — its provider is OpenRouter, not z.ai).
   const naturalModel = await selectVisionModel(options.personality, options.isGuestMode);
   // A fresh single-use tracker → identical to the old direct per-call quota consume.
-  return resolveVisionAuth(naturalModel, options, createVisionQuotaTracker(options.userId));
+  // The primary path IS the primary tier — the fast path is legitimate here.
+  return resolveVisionAuth(naturalModel, options, createVisionQuotaTracker(options.userId), true);
 }

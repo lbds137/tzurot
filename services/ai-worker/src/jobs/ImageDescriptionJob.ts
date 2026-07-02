@@ -22,7 +22,6 @@ import { withRetry } from '../utils/retry.js';
 import { shouldRetryError, getErrorLogContext } from '../utils/apiErrorParser.js';
 import type { ApiKeyResolver } from '../services/ApiKeyResolver.js';
 import {
-  resolveVisionConfig,
   type VisionConfigResult,
   type ResolveVisionConfigOptions,
 } from '../services/multimodal/visionAuthResolver.js';
@@ -46,53 +45,27 @@ interface ImageProcessResult {
 }
 
 /**
- * Resolve auth + model for vision processing via the unified `resolveVisionConfig`.
- *
- * `ImageDescriptionJob` runs as a standalone preprocessing job at upload time,
- * so it has no upstream main-model auth context — `mainProvider`/`mainApiKey`
- * are undefined (the same-provider fast path is skipped; per-provider resolution
- * always runs). `isGuestMode` is passed as `false`: the resolver discriminates
- * genuine-guest-vs-authenticated by probing the vision provider's user key, and
- * a genuine guest with no keys anywhere still resolves correctly to the system
- * key + free model via the broad free-fallback branch.
- *
- * Returns the unified `VisionConfigResult` directly. When `apiKeyResolver` is
- * undefined (legacy test-fixture path; production always wires it via the
- * worker bootstrap), we synthesize a `resolved` result that proceeds with no
- * user key — matching the pre-unification legacy behavior.
+ * Synthesize the legacy no-resolver auth result. Only the legacy test-fixture
+ * path reaches this — production always wires an `apiKeyResolver`, and that
+ * path hands the auth INPUTS to the fallback loop instead of pre-resolving
+ * (see `resolveImageJobAuth`).
  */
-async function resolveVisionApiKey(
-  apiKeyResolver: ApiKeyResolver | undefined,
-  userId: string,
-  personality: ImageDescriptionJobData['personality']
-): Promise<VisionConfigResult> {
-  if (!apiKeyResolver) {
-    // Legacy/no-resolver path: proceed with no user key. `describeImage`
-    // self-selects the model (model omitted) and `createChatModel` falls back
-    // to the env-default provider — same as the pre-unification behavior for
-    // this branch.
-    return {
-      kind: 'resolved',
-      config: {
-        apiKey: '',
-        provider: AIProvider.OpenRouter,
-        model: '',
-        source: 'system',
-        isGuestMode: false,
-      },
-    };
-  }
-
-  return resolveVisionConfig({
-    personality,
-    // No upstream main-model context at upload time — skip the same-provider
-    // fast path so per-provider resolution always runs.
-    mainProvider: undefined,
-    mainApiKey: undefined,
-    isGuestMode: false,
-    userId,
-    apiKeyResolver,
-  });
+function resolveVisionApiKey(): VisionConfigResult {
+  // Legacy/no-resolver path: proceed with no user key. `describeImage`
+  // self-selects the model (model omitted) and `createChatModel` falls back
+  // to the env-default provider — same as the pre-unification behavior for
+  // this branch. The resolver-wired path never reaches here (it hands the
+  // auth INPUTS to the fallback loop instead — see resolveImageJobAuth).
+  return {
+    kind: 'resolved',
+    config: {
+      apiKey: '',
+      provider: AIProvider.OpenRouter,
+      model: '',
+      source: 'system',
+      isGuestMode: false,
+    },
+  };
 }
 
 /** Per-image auth for `processImageDescriptionJob` — either the fallback-loop INPUTS or legacy pre-resolved fields. */
@@ -115,11 +88,11 @@ interface ImageJobAuth {
  * - No resolver (legacy test path): resolve once (always synthesizes a `resolved` config, never
  *   fail-fast) and expose the pre-resolved fields for the single-model describeImage.
  */
-async function resolveImageJobAuth(
+function resolveImageJobAuth(
   apiKeyResolver: ApiKeyResolver | undefined,
   userId: string,
   personality: ImageDescriptionJobData['personality']
-): Promise<ImageJobAuth> {
+): ImageJobAuth {
   const base: ImageJobAuth = {
     isGuestMode: false,
     userApiKey: undefined,
@@ -140,7 +113,7 @@ async function resolveImageJobAuth(
       },
     };
   }
-  const authResult = await resolveVisionApiKey(undefined, userId, personality);
+  const authResult = resolveVisionApiKey();
   if (authResult.kind !== 'resolved') {
     return base;
   }
@@ -295,7 +268,7 @@ export async function processImageDescriptionJob(
   );
 
   const { visionAuth, isGuestMode, userApiKey, visionProvider, visionModel, apiKeySource } =
-    await resolveImageJobAuth(apiKeyResolver, context.userId, personality);
+    resolveImageJobAuth(apiKeyResolver, context.userId, personality);
 
   const loggingContext = {
     userId: context.userId,
