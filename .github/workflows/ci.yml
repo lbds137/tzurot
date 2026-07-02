@@ -112,6 +112,12 @@ jobs:
       - name: Check audit tools have WHY.md
         run: pnpm ops guard:audit-tool-docs
 
+      # Workflow-file sync: a workflow change reaching develop before main
+      # silently disables claude-review on every PR (green ~15s no-op) until
+      # the next release. The guard skips itself on main-cut branches.
+      - name: Enforce workflow-file sync with main
+        run: pnpm ops guard:workflow-sync
+
       - name: Check claude/ command references resolve
         run: pnpm ops guard:claude-content-refs
 
@@ -343,7 +349,8 @@ jobs:
 
       # Real-dependency tiers: contract (*.contract.test.ts — the golden-fixture
       # envelope consumer + the BullMQ pair) + integration (*.integration.test.ts,
-      # currently none). The coverage topology's mechanism-presence check assumes
+      # e.g. the vision-fallback loop over real Redis). The coverage topology's
+      # mechanism-presence check assumes
       # these tiers execute + gate in CI; this step is that gate. `if: !cancelled()`
       # so a component-test failure doesn't hide the contract tier's own result.
       - name: Run integration + contract tiers
