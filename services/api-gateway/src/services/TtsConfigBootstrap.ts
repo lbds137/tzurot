@@ -2,6 +2,7 @@
 
 import {
   type PrismaClient,
+  ADMIN_SETTINGS_SINGLETON_ID,
   generateSystemGlobalTtsConfigUuid,
   createLogger,
 } from '@tzurot/common-types';
@@ -13,9 +14,6 @@ interface SystemGlobalSeed {
   description: string;
   provider: 'self-hosted' | 'elevenlabs' | 'mistral';
   modelId: string | null;
-  isFreeDefault: boolean;
-  /** When true, marks this seed as the system-wide default — set on kyutai-self-hosted. */
-  isDefault: boolean;
 }
 
 const SYSTEM_GLOBALS: readonly SystemGlobalSeed[] = [
@@ -24,26 +22,23 @@ const SYSTEM_GLOBALS: readonly SystemGlobalSeed[] = [
     description: 'Self-hosted Kyutai/Pocket TTS — free tier + system default',
     provider: 'self-hosted',
     modelId: null,
-    isFreeDefault: true,
-    isDefault: true,
   },
   {
     name: 'elevenlabs-multilingual-v2',
     description: 'ElevenLabs Multilingual v2 — historic default for BYOK users',
     provider: 'elevenlabs',
     modelId: 'eleven_multilingual_v2',
-    isFreeDefault: false,
-    isDefault: false,
   },
   {
     name: 'mistral-voxtral-mini',
     description: 'Mistral Voxtral Mini TTS — Phase 1 BYOK (~85% cost reduction vs ElevenLabs)',
     provider: 'mistral',
     modelId: 'voxtral-mini-tts-2603',
-    isFreeDefault: false,
-    isDefault: false,
   },
 ];
+
+/** The seed that the fresh-install default pointers should reference. */
+const DEFAULT_SEED_NAME = 'kyutai-self-hosted';
 
 /** Seed the 3 system globals when a superuser exists; no-op otherwise (caller re-queries). */
 export async function bootstrapTtsSystemGlobalsIfNeeded(prisma: PrismaClient): Promise<void> {
@@ -70,8 +65,6 @@ export async function bootstrapTtsSystemGlobalsIfNeeded(prisma: PrismaClient): P
       description: seed.description,
       ownerId: superuser.id,
       isGlobal: true,
-      isDefault: seed.isDefault,
-      isFreeDefault: seed.isFreeDefault,
       provider: seed.provider,
       modelId: seed.modelId,
     })),
@@ -84,4 +77,38 @@ export async function bootstrapTtsSystemGlobalsIfNeeded(prisma: PrismaClient): P
       'Bootstrapped TtsConfig system globals on first list() call'
     );
   }
+
+  await seedDefaultPointersIfUnset(prisma);
+}
+
+/**
+ * Point the AdminSettings TTS defaults at the Kyutai seed — but ONLY when the
+ * pointer is currently NULL, so an admin's explicit choice is never clobbered
+ * by a later bootstrap pass. Runs even when the configs already existed
+ * (result.count === 0) so a half-bootstrapped state converges.
+ */
+async function seedDefaultPointersIfUnset(prisma: PrismaClient): Promise<void> {
+  const defaultId = generateSystemGlobalTtsConfigUuid(DEFAULT_SEED_NAME);
+  const settings = await prisma.adminSettings.findUnique({
+    where: { id: ADMIN_SETTINGS_SINGLETON_ID },
+    select: { globalDefaultTtsConfigId: true, freeDefaultTtsConfigId: true },
+  });
+
+  const data: { globalDefaultTtsConfigId?: string; freeDefaultTtsConfigId?: string } = {};
+  if ((settings?.globalDefaultTtsConfigId ?? null) === null) {
+    data.globalDefaultTtsConfigId = defaultId;
+  }
+  if ((settings?.freeDefaultTtsConfigId ?? null) === null) {
+    data.freeDefaultTtsConfigId = defaultId;
+  }
+  if (Object.keys(data).length === 0) {
+    return;
+  }
+
+  await prisma.adminSettings.upsert({
+    where: { id: ADMIN_SETTINGS_SINGLETON_ID },
+    create: { id: ADMIN_SETTINGS_SINGLETON_ID, ...data },
+    update: data,
+  });
+  logger.info({ pointers: Object.keys(data) }, 'Seeded AdminSettings TTS default pointers');
 }

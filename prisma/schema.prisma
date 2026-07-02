@@ -106,6 +106,12 @@ model AdminSettings {
   /// Default-fallback: the free-tier default config for the vision slot. NULL means
   /// "no free vision default" — resolution falls through to the floor.
   freeDefaultVisionConfigId   String? @map("free_default_vision_config_id") @db.Uuid
+  /// Default-fallback: the global (paid) default TTS config. NULL means "no admin-set TTS
+  /// default" — presentational (badge/ordering) + delete-guard; sits in no resolution tier.
+  globalDefaultTtsConfigId    String? @map("global_default_tts_config_id") @db.Uuid
+  /// Default-fallback: the free-tier default TTS config (tier 4 of TTS resolution). NULL
+  /// means "no free TTS default" — resolution falls through to the hardcoded Kyutai floor.
+  freeDefaultTtsConfigId      String? @map("free_default_tts_config_id") @db.Uuid
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
@@ -114,6 +120,8 @@ model AdminSettings {
   globalDefaultVisionConfig LlmConfig? @relation("AdminGlobalDefaultVisionConfig", fields: [globalDefaultVisionConfigId], references: [id], onDelete: SetNull)
   freeDefaultLlmConfig      LlmConfig? @relation("AdminFreeDefaultLlmConfig", fields: [freeDefaultLlmConfigId], references: [id], onDelete: SetNull)
   freeDefaultVisionConfig   LlmConfig? @relation("AdminFreeDefaultVisionConfig", fields: [freeDefaultVisionConfigId], references: [id], onDelete: SetNull)
+  globalDefaultTtsConfig    TtsConfig? @relation("AdminGlobalDefaultTtsConfig", fields: [globalDefaultTtsConfigId], references: [id], onDelete: SetNull)
+  freeDefaultTtsConfig      TtsConfig? @relation("AdminFreeDefaultTtsConfig", fields: [freeDefaultTtsConfigId], references: [id], onDelete: SetNull)
 
   @@map("admin_settings")
 }
@@ -275,6 +283,8 @@ model TtsConfig {
   personalitiesUsingAsDefault PersonalityDefaultTtsConfig[]
   userPersonalityConfigs      UserPersonalityConfig[]       @relation("UserPersonalityTtsConfig")
   usersWithAsDefault          User[]                        @relation("UserDefaultTtsConfig")
+  adminGlobalDefaultOf        AdminSettings[]               @relation("AdminGlobalDefaultTtsConfig")
+  adminFreeDefaultOf          AdminSettings[]               @relation("AdminFreeDefaultTtsConfig")
 
   @@unique([ownerId, name], map: "tts_configs_owner_id_name_key")
   @@index([ownerId])
