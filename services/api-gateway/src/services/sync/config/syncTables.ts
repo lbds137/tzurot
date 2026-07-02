@@ -147,11 +147,12 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     updatedAt: 'updated_at',
     uuidColumns: ['id', 'owner_id'],
     timestampColumns: ['created_at', 'updated_at'],
-    // Mirror llm_configs: singleton flags are environment-specific. The
-    // partial unique indexes (tts_configs_free_default_unique,
-    // tts_configs_global_name_unique) require pre-sync conflict
-    // resolution; see ttsConfigSingletons.ts for the parallel of the
-    // llmConfigSingletons handler.
+    // The stale is_default/is_free_default columns (pending-DROP) stay
+    // excluded so the partial unique index tts_configs_free_default_unique
+    // can never collide during sync. TTS default-ness lives on the
+    // AdminSettings pointers, and admin_settings is excluded from sync
+    // (env-specific) — so no singleton pre-resolution is needed (unlike
+    // llm_configs' llmConfigSingletons).
     excludeColumns: ['is_default', 'is_free_default'],
   },
   personalities: {

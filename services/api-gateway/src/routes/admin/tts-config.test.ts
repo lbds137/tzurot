@@ -123,6 +123,11 @@ const mockPrisma = {
     findUnique: vi.fn(),
     count: vi.fn().mockResolvedValue(0),
   },
+  // The delete guard checks pointer membership on the AdminSettings
+  // singleton; null = nothing is pointed at, so deletes proceed.
+  adminSettings: {
+    findUnique: vi.fn().mockResolvedValue(null),
+  },
 };
 
 function buildRouter() {
@@ -445,11 +450,14 @@ describe('admin/tts-config routes', () => {
       expect(mockService.delete).not.toHaveBeenCalled();
     });
 
-    it('returns 400 when target is the system default', async () => {
-      vi.mocked(mockPrisma.ttsConfig.findUnique).mockResolvedValue({
-        ...sampleRawConfig,
-        isDefault: true,
-      });
+    it('returns 400 when the AdminSettings global-default pointer targets it', async () => {
+      // The FK is ON DELETE SET NULL, so without the guard the delete would
+      // silently null the pointer — the route must block instead.
+      vi.mocked(mockPrisma.ttsConfig.findUnique).mockResolvedValue(sampleRawConfig);
+      vi.mocked(mockPrisma.adminSettings.findUnique).mockResolvedValueOnce({
+        globalDefaultTtsConfigId: 'cfg-uuid-1',
+        freeDefaultTtsConfigId: null,
+      } as never);
       const handler = extractHandler(buildRouter(), 'DELETE', '/:id');
       const { res, json } = makeMockRes();
 
@@ -463,13 +471,14 @@ describe('admin/tts-config routes', () => {
       expect(mockService.delete).not.toHaveBeenCalled();
     });
 
-    it('returns 400 when target is the free-tier default', async () => {
-      // Same hard-block shape as isDefault — guest users would otherwise
-      // lose TTS until an admin manually sets a new free-tier default.
-      vi.mocked(mockPrisma.ttsConfig.findUnique).mockResolvedValue({
-        ...sampleRawConfig,
-        isFreeDefault: true,
-      });
+    it('returns 400 when the AdminSettings free-default pointer targets it', async () => {
+      // Same hard-block shape as the global default — guest users would
+      // otherwise lose TTS until an admin manually sets a new free default.
+      vi.mocked(mockPrisma.ttsConfig.findUnique).mockResolvedValue(sampleRawConfig);
+      vi.mocked(mockPrisma.adminSettings.findUnique).mockResolvedValueOnce({
+        globalDefaultTtsConfigId: null,
+        freeDefaultTtsConfigId: 'cfg-uuid-1',
+      } as never);
       const handler = extractHandler(buildRouter(), 'DELETE', '/:id');
       const { res, json } = makeMockRes();
 

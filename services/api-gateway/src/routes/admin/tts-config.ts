@@ -26,6 +26,7 @@ import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
   isSelfHostedTtsProvider,
+  ADMIN_SETTINGS_SINGLETON_ID,
   type PrismaClient,
   TtsConfigCreateSchema,
   TtsConfigUpdateSchema,
@@ -259,7 +260,7 @@ function createDeleteHandler(service: TtsConfigService, prisma: PrismaClient) {
       () =>
         prisma.ttsConfig.findUnique({
           where: { id: configId },
-          select: { id: true, name: true, isGlobal: true, isDefault: true, isFreeDefault: true },
+          select: { id: true, name: true, isGlobal: true },
         }),
       { notFoundResource: CONFIG_RESOURCE, resourceLabel: CONFIG_LABEL, operation: 'delete' }
     );
@@ -267,19 +268,28 @@ function createDeleteHandler(service: TtsConfigService, prisma: PrismaClient) {
       return;
     }
 
-    if (config.isDefault) {
+    // Pointer-membership guard (mirrors the LLM delete guard): the FKs are
+    // ON DELETE SET NULL, so without this check a delete would silently null
+    // the AdminSettings default pointer and drop TTS to the hardcoded floor.
+    // Force the admin to point the default at another config first.
+    const settings = await prisma.adminSettings.findUnique({
+      where: { id: ADMIN_SETTINGS_SINGLETON_ID },
+      select: { globalDefaultTtsConfigId: true, freeDefaultTtsConfigId: true },
+    });
+    if (settings?.globalDefaultTtsConfigId === configId) {
       return sendError(
         res,
-        ErrorResponses.validationError('Cannot delete the system default TTS config')
+        ErrorResponses.validationError(
+          'Cannot delete the system default TTS config. Point the default at another config first.'
+        )
       );
     }
-    // Same hard-block shape as isDefault: deleting the free-tier default
-    // would silently break TTS for all guest users until an admin sets
-    // a new one. Force the admin to promote a replacement first.
-    if (config.isFreeDefault) {
+    if (settings?.freeDefaultTtsConfigId === configId) {
       return sendError(
         res,
-        ErrorResponses.validationError('Cannot delete the free tier default TTS config')
+        ErrorResponses.validationError(
+          'Cannot delete the free tier default TTS config. Point the free default at another config first.'
+        )
       );
     }
 

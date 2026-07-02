@@ -220,6 +220,8 @@ describe('Response schemas', () => {
 
 describe('SELECT constants and DEFAULTS', () => {
   it('TTS_CONFIG_LIST_SELECT names the expected fields', () => {
+    // isDefault/isFreeDefault deliberately absent: the stale columns are not
+    // selected — default-ness derives from the AdminSettings TTS pointers.
     expect(TTS_CONFIG_LIST_SELECT).toEqual({
       id: true,
       name: true,
@@ -227,8 +229,6 @@ describe('SELECT constants and DEFAULTS', () => {
       provider: true,
       modelId: true,
       isGlobal: true,
-      isDefault: true,
-      isFreeDefault: true,
       ownerId: true,
     });
   });

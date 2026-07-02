@@ -149,6 +149,8 @@ describe('Admin LLM config response contract', () => {
 });
 
 describe('Admin TTS config response contract', () => {
+  // Rows come back from Prisma WITHOUT the stale flag columns (no longer
+  // selected); the service decorates with pointer-derived flags.
   const ttsListRow = {
     id: UUID,
     name: 'My Voice',
@@ -156,8 +158,6 @@ describe('Admin TTS config response contract', () => {
     provider: 'elevenlabs' as const,
     modelId: 'eleven_multilingual_v2',
     isGlobal: true,
-    isDefault: false,
-    isFreeDefault: false,
     ownerId: 'admin-user-id',
   };
 
@@ -176,6 +176,8 @@ describe('Admin TTS config response contract', () => {
         create: vi.fn().mockResolvedValue(ttsDetailRow),
         update: vi.fn().mockResolvedValue(ttsDetailRow),
       },
+      // Flag derivation + the delete guard read the AdminSettings pointers.
+      adminSettings: { findUnique: vi.fn().mockResolvedValue(null) },
     } as unknown as PrismaClient;
 
     app = express();

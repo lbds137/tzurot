@@ -8,8 +8,6 @@ describe('mapTtsConfigFromDbWithName', () => {
     modelId: 'voxtral-mini-tts-2603',
     advancedParameters: null,
     isGlobal: false,
-    isDefault: false,
-    isFreeDefault: false,
   };
 
   it('maps a clean row to the app shape', () => {

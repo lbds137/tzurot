@@ -33,6 +33,7 @@ import {
   TTS_CONFIG_LIST_SELECT,
   TTS_CONFIG_DETAIL_SELECT,
   TTS_CONFIG_DEFAULTS,
+  ADMIN_SETTINGS_SINGLETON_ID,
   newTtsConfigId,
   generateClonedName,
   stripCopySuffix,
@@ -43,6 +44,12 @@ import { type TtsConfigCacheInvalidationService } from '@tzurot/cache-invalidati
 
 import { isPrismaUniqueConstraintErrorOn } from '../utils/prismaErrors.js';
 import { bootstrapTtsSystemGlobalsIfNeeded } from './TtsConfigBootstrap.js';
+import {
+  deriveTtsDefaultPointers,
+  decorateTtsConfigWithDefaultFlags,
+  compareTtsConfigsForList,
+  type TtsDefaultPointers,
+} from './ttsConfigListHelpers.js';
 import {
   TtsCloneNameExhaustedError,
   TtsAutoSuffixCollisionError,
@@ -61,8 +68,7 @@ const logger = createLogger('TtsConfigService');
  * configs are visible.
  */
 export type TtsConfigScope =
-  | { type: 'GLOBAL' }
-  | { type: 'USER'; userId: string; discordId: string };
+  { type: 'GLOBAL' } | { type: 'USER'; userId: string; discordId: string };
 
 /**
  * Result of checking if a config exists with a given name.
@@ -73,8 +79,13 @@ interface NameCheckResult {
 }
 
 /**
- * Raw config from Prisma query (list select). Mirrors LlmConfig's list shape
- * minus the LLM-only fields (no `model`, `visionModel`, memory/context).
+ * Config summary as it leaves the service (list select + pointer-derived
+ * default flags). Mirrors LlmConfig's list shape minus the LLM-only fields
+ * (no `model`, `visionModel`, memory/context).
+ *
+ * isDefault/isFreeDefault are DERIVED from the AdminSettings TTS pointers
+ * (`decorateTtsConfigWithDefaultFlags`) — the DB columns are stale
+ * (pending-DROP) and no longer selected.
  */
 interface RawTtsConfigList {
   id: string;
@@ -88,8 +99,11 @@ interface RawTtsConfigList {
   ownerId: string;
 }
 
+/** The list select's actual DB shape — before flag decoration. */
+type RawTtsConfigListFromDb = Omit<RawTtsConfigList, 'isDefault' | 'isFreeDefault'>;
+
 /**
- * Raw config from Prisma query (detail select).
+ * Config detail as it leaves the service (decorated, like the list shape).
  */
 interface RawTtsConfigDetail extends RawTtsConfigList {
   advancedParameters: unknown;
@@ -131,12 +145,32 @@ export class TtsConfigService {
   // Read Operations
   // --------------------------------------------------------------------------
 
-  /** Get a single config by ID. Returns null if not found. */
+  /** Get a single config by ID (default flags pointer-derived). Returns null if not found. */
   async getById(configId: string): Promise<RawTtsConfigDetail | null> {
-    return this.prisma.ttsConfig.findUnique({
-      where: { id: configId },
-      select: TTS_CONFIG_DETAIL_SELECT,
+    const [config, pointers] = await Promise.all([
+      this.prisma.ttsConfig.findUnique({
+        where: { id: configId },
+        select: TTS_CONFIG_DETAIL_SELECT,
+      }),
+      this.getDefaultPointers(),
+    ]);
+    return config === null ? null : decorateTtsConfigWithDefaultFlags(config, pointers);
+  }
+
+  /**
+   * Fetch the TTS default pointers off the AdminSettings singleton. The stale
+   * isDefault/isFreeDefault columns are no longer maintained, so summary flags
+   * + list ordering derive from these.
+   */
+  private async getDefaultPointers(): Promise<TtsDefaultPointers> {
+    const settings = await this.prisma.adminSettings.findUnique({
+      where: { id: ADMIN_SETTINGS_SINGLETON_ID },
+      select: {
+        globalDefaultTtsConfigId: true,
+        freeDefaultTtsConfigId: true,
+      },
     });
+    return deriveTtsDefaultPointers(settings);
   }
 
   /**
@@ -154,11 +188,11 @@ export class TtsConfigService {
     if (scope.type === 'GLOBAL') {
       const configs = await this.queryGlobalConfigs();
       if (configs.length > 0) {
-        return configs;
+        return this.decorateAndOrder(configs);
       }
       // Empty result → attempt bootstrap, then re-query
       await bootstrapTtsSystemGlobalsIfNeeded(this.prisma);
-      return this.queryGlobalConfigs();
+      return this.decorateAndOrder(await this.queryGlobalConfigs());
     }
 
     // User scope: bootstrap globals first so a brand-new dev DB sees them too
@@ -175,22 +209,36 @@ export class TtsConfigService {
     if (globalConfigs.length === 0) {
       await bootstrapTtsSystemGlobalsIfNeeded(this.prisma);
       const seeded = await this.queryGlobalConfigs();
-      return [...seeded, ...userConfigs];
+      return this.decorateAndOrder(seeded, userConfigs);
     }
 
-    return [...globalConfigs, ...userConfigs];
+    return this.decorateAndOrder(globalConfigs, userConfigs);
   }
 
-  private async queryGlobalConfigs(): Promise<RawTtsConfigList[]> {
+  /**
+   * Decorate DB rows with pointer-derived default flags and order the GLOBAL
+   * segment defaults-first. The user segment keeps its name-asc order and is
+   * appended after the globals (unchanged list contract).
+   */
+  private async decorateAndOrder(
+    globalConfigs: RawTtsConfigListFromDb[],
+    userConfigs: RawTtsConfigListFromDb[] = []
+  ): Promise<RawTtsConfigList[]> {
+    const pointers = await this.getDefaultPointers();
+    const decoratedGlobals = globalConfigs
+      .map(c => decorateTtsConfigWithDefaultFlags(c, pointers))
+      .sort(compareTtsConfigsForList);
+    const decoratedUsers = userConfigs.map(c => decorateTtsConfigWithDefaultFlags(c, pointers));
+    return [...decoratedGlobals, ...decoratedUsers];
+  }
+
+  private async queryGlobalConfigs(): Promise<RawTtsConfigListFromDb[]> {
+    // No orderBy on default flags — ordering derives from the AdminSettings
+    // pointers post-decoration (see decorateAndOrder).
     return this.prisma.ttsConfig.findMany({
       where: { isGlobal: true },
       select: TTS_CONFIG_LIST_SELECT,
-      orderBy: [
-        { isDefault: 'desc' },
-        { isFreeDefault: 'desc' },
-        { isGlobal: 'desc' },
-        { name: 'asc' },
-      ],
+      orderBy: { name: 'asc' },
       take: 100,
     });
   }
@@ -228,7 +276,8 @@ export class TtsConfigService {
           description: data.description ?? null,
           ownerId,
           isGlobal,
-          isDefault: false,
+          // isDefault/isFreeDefault omitted — the stale columns keep their
+          // schema @default(false); default-ness lives on the AdminSettings pointers.
           provider: data.provider ?? TTS_CONFIG_DEFAULTS.provider,
           modelId: data.modelId ?? null,
           // Schema is permissive (Record<string, unknown>) — each provider
@@ -266,7 +315,9 @@ export class TtsConfigService {
     );
 
     await this.invalidateCacheSafely('create', config.id);
-    return config;
+    // A fresh config is never a default, but decorate uniformly so the
+    // outward shape always carries the pointer-derived flags.
+    return decorateTtsConfigWithDefaultFlags(config, await this.getDefaultPointers());
   }
 
   /** Upper bound on how far `resolveNonCollidingName` will iterate before
@@ -361,7 +412,7 @@ export class TtsConfigService {
     logger.info({ configId, updates: Object.keys(updateData) }, 'Updated TTS config');
 
     await this.invalidateCacheSafely('update', configId);
-    return config;
+    return decorateTtsConfigWithDefaultFlags(config, await this.getDefaultPointers());
   }
 
   /** Delete a TTS config. */
@@ -376,10 +427,10 @@ export class TtsConfigService {
   // --------------------------------------------------------------------------
 
   /**
-   * Assert the config exists before a clear+set transaction. Routes guard with a
+   * Assert the config exists before repointing an AdminSettings default. Routes guard with a
    * fetch-or-404 helper first, so a null here is a delete-between-reads race —
    * throw NotFoundError (→ 404 via asyncHandler) rather than letting the
-   * transaction's `update` raise a Prisma P2025 that surfaces as a 500 leaking
+   * upsert reference a vanished id and surface as an FK-violation 500 leaking
    * the raw error. (Mirrors LlmConfigService.resolveTargetKindOrThrow, minus the
    * kind — TTS configs have no kind discriminator.)
    */
@@ -393,35 +444,29 @@ export class TtsConfigService {
     }
   }
 
-  /** Set a config as the system default. Clears any existing default first. */
+  /**
+   * Set a config as the system default by repointing the AdminSettings pointer.
+   * Replaces the old clear-all-then-set flag flip; the singleton upsert is
+   * atomic on its own, so no transaction is needed.
+   */
   async setAsDefault(configId: string): Promise<void> {
     await this.assertConfigExistsOrThrow(configId, 'setAsDefault');
-    await this.prisma.$transaction(async tx => {
-      await tx.ttsConfig.updateMany({
-        where: { isDefault: true },
-        data: { isDefault: false },
-      });
-      await tx.ttsConfig.update({
-        where: { id: configId },
-        data: { isDefault: true },
-      });
+    await this.prisma.adminSettings.upsert({
+      where: { id: ADMIN_SETTINGS_SINGLETON_ID },
+      create: { id: ADMIN_SETTINGS_SINGLETON_ID, globalDefaultTtsConfigId: configId },
+      update: { globalDefaultTtsConfigId: configId },
     });
     logger.info({ configId }, 'Set TTS config as system default');
     await this.invalidateCacheSafely('set-default', configId);
   }
 
-  /** Set a config as the free tier default. Clears any existing free default first. */
+  /** Set a config as the free tier default by repointing the AdminSettings pointer. */
   async setAsFreeDefault(configId: string): Promise<void> {
     await this.assertConfigExistsOrThrow(configId, 'setAsFreeDefault');
-    await this.prisma.$transaction(async tx => {
-      await tx.ttsConfig.updateMany({
-        where: { isFreeDefault: true },
-        data: { isFreeDefault: false },
-      });
-      await tx.ttsConfig.update({
-        where: { id: configId },
-        data: { isFreeDefault: true },
-      });
+    await this.prisma.adminSettings.upsert({
+      where: { id: ADMIN_SETTINGS_SINGLETON_ID },
+      create: { id: ADMIN_SETTINGS_SINGLETON_ID, freeDefaultTtsConfigId: configId },
+      update: { freeDefaultTtsConfigId: configId },
     });
     logger.info({ configId }, 'Set TTS config as free tier default');
     await this.invalidateCacheSafely('set-free-default', configId);
