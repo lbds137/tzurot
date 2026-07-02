@@ -87,6 +87,11 @@ export const handleCleanup = (deps: RouteDeps): RequestHandler => {
 
     if (target === 'history' || target === 'all') {
       historyDeleted = await retentionService.cleanupOldHistory(daysToKeep);
+      // Parity with the scheduled daily job: "history cleanup" also hard-deletes
+      // soft-deleted rows past their grace period (its OWN default window, not
+      // daysToKeep — the soft-delete grace is a separate retention policy). Both
+      // delete conversation_history rows, so the counts fold together.
+      historyDeleted += await retentionService.cleanupSoftDeletedMessages();
       logger.info({ historyDeleted, daysToKeep }, 'Cleaned up old conversation history');
     }
 
