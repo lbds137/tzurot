@@ -64,6 +64,31 @@ describe('llmGenerationResultSchema.metadata', () => {
     });
   });
 
+  describe('fallbackProviderAttempted', () => {
+    it('accepts a provider string and stays optional', () => {
+      const withField = llmGenerationResultSchema.safeParse({
+        ...baseValid,
+        success: false,
+        metadata: { providerUsed: 'zai-coding', fallbackProviderAttempted: 'openrouter' },
+      });
+      expect(withField.success).toBe(true);
+
+      const withoutField = llmGenerationResultSchema.safeParse({
+        ...baseValid,
+        metadata: { providerUsed: 'zai-coding' },
+      });
+      expect(withoutField.success).toBe(true);
+    });
+
+    it('rejects a non-string value', () => {
+      const parsed = llmGenerationResultSchema.safeParse({
+        ...baseValid,
+        metadata: { fallbackProviderAttempted: 42 },
+      });
+      expect(parsed.success).toBe(false);
+    });
+  });
+
   describe('ttsProviderUsed enum', () => {
     it('accepts each TTS_PROVIDER_IDS value', () => {
       // Iterate the shared constant rather than hardcoding the list, so a

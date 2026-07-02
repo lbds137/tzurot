@@ -24,18 +24,13 @@ import type {
   ConversationContext,
 } from '../../../../services/ConversationalRAGTypes.js';
 import type { IPipelineStep, GenerationContext } from '../types.js';
-import { parseApiError, getErrorLogContext } from '../../../../utils/apiErrorParser.js';
-import { RetryError } from '../../../../utils/retry.js';
 import {
   buildRetryConfig,
   type EmbeddingServiceInterface,
 } from '../../../../utils/duplicateDetection.js';
 import { isRecentDuplicateAsync } from '../../../../utils/crossTurnDetection.js';
-import {
-  runWithAutoPromotionFallback,
-  composeFallbackAwareErrorMessage,
-  withFallbackFailure,
-} from './autoPromotionFallback.js';
+import { runWithAutoPromotionFallback } from './autoPromotionFallback.js';
+import { composeGenerationFailureResult } from './generationFailureResult.js';
 import { validatePrerequisites } from './generationStepValidation.js';
 import { getRecentAssistantMessages } from '../../../../utils/conversationHistoryUtils.js';
 import { DiagnosticCollector } from '../../../../services/DiagnosticCollector.js';
@@ -250,7 +245,7 @@ export class GenerationStep implements IPipelineStep {
     throw new Error('[GenerationStep] Unexpected: no response generated');
   }
 
-  // eslint-disable-next-line max-lines-per-function, complexity -- Pipeline step with diagnostic logging and error handling
+  // eslint-disable-next-line max-lines-per-function -- Pipeline step with diagnostic logging and error handling
   async process(context: GenerationContext): Promise<GenerationContext> {
     const { job, startTime, preprocessing } = context;
     const { requestId, personality, message, context: jobContext } = job.data;
@@ -459,65 +454,18 @@ export class GenerationStep implements IPipelineStep {
         },
       };
     } catch (error) {
-      const processingTimeMs = Date.now() - startTime;
-      const underlyingError = error instanceof RetryError ? error.lastError : error;
-      // Classify from the PRISTINE message; the compose step below appends the
-      // fallback-failure summary (if any) AFTER classification, so incidental
-      // wording in the fallback's error can't flip the root-cause category.
-      // The compound message must ALSO land on errorInfo.technicalMessage —
-      // that field (not result.error, which is log-only) is what bot-client's
-      // buildErrorContent renders into the persona-voiced Discord error.
-      const errorInfo = withFallbackFailure(parseApiError(underlyingError), error);
-      const errorMessage = composeFallbackAwareErrorMessage(error);
-
-      logger.error(
-        { err: error, jobId: job.id, ...getErrorLogContext(underlyingError) },
-        `Generation failed: ${errorInfo.category}`
-      );
-
-      // Record partial LLM response for /admin debug visibility
-      // The LLMInvoker may have thrown before recordLlmResponse() was called
-      diagnosticCollector.recordPartialLlmResponse({
-        rawContent: '[error — see error data]',
-        modelUsed: effectivePersonality.model ?? 'unknown',
-      });
-
-      // Record error in diagnostic collector for debugging failed requests
-      diagnosticCollector.recordError({
-        message: errorMessage,
-        category: errorInfo.category,
-        referenceId: errorInfo.referenceId,
-        rawError: getErrorLogContext(underlyingError),
-        failedAtStage: 'GenerationStep',
-      });
-
-      // Store diagnostic data even for failures (fire-and-forget)
-      // This enables /admin debug to show what went wrong
-      storeDiagnosticLog(
-        this.prisma,
+      // Classification, fallback-story folding, diagnostic recording, and the
+      // failure-result shape all live in the composer (see its module doc).
+      return composeGenerationFailureResult({
+        error,
+        context,
+        prisma: this.prisma,
         diagnosticCollector,
-        effectivePersonality.model ?? 'unknown',
-        provider ?? 'unknown'
-      );
-
-      return {
-        ...context,
-        result: {
-          requestId,
-          success: false,
-          error: errorMessage,
-          personalityErrorMessage: personality.errorMessage,
-          errorInfo,
-          metadata: {
-            processingTimeMs,
-            modelUsed: effectivePersonality.model ?? undefined,
-            providerUsed: provider,
-            configSource,
-            isGuestMode,
-            showModelFooter: context.configOverrides?.showModelFooter,
-          },
-        },
-      };
+        effectivePersonality,
+        configSource,
+        provider,
+        isGuestMode,
+      });
     }
   }
 }

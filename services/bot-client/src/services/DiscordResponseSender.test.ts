@@ -155,6 +155,26 @@ describe('DiscordResponseSender', () => {
       expect(calledContent).toContain('• via OpenRouter');
     });
 
+    it('should render the route chain on a both-routes-failed error result', async () => {
+      // Promoted z.ai call failed AND the OpenRouter fallback failed — the
+      // footer names both attempts so neither route is mis-attributed as the
+      // only one tried.
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      await sender.sendResponse({
+        content: 'Persona-voiced error content',
+        personality: mockPersonality,
+        ...senderTargetFrom(mockMessage),
+        modelUsed: 'glm-4.7',
+        providerUsed: 'zai-coding',
+        fallbackProviderAttempted: 'openrouter',
+      });
+
+      const calledContent = mockWebhookManager.sendAsPersonality.mock.calls[0][2];
+      expect(calledContent).toContain('• via Z.AI Coding Plan → OpenRouter (both routes failed)');
+    });
+
     it('should add guest mode footer when isGuestMode is true', async () => {
       const mockChannel = createMockTextChannel('channel-123');
       const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
@@ -1232,8 +1252,7 @@ describe('DiscordResponseSender', () => {
 
       // User gets a visible signal — a tiny text attachment — instead of a silent drop
       const filesArg = mockWebhookManager.sendAsPersonality.mock.calls[0][3] as
-        | { attachment: Buffer; name: string }[]
-        | undefined;
+        { attachment: Buffer; name: string }[] | undefined;
       expect(filesArg).toBeDefined();
       expect(filesArg).toHaveLength(1);
       expect(filesArg![0].name).toBe('voice_omitted_too_long.txt');
@@ -1260,8 +1279,7 @@ describe('DiscordResponseSender', () => {
       });
 
       const filesArg = mockWebhookManager.sendAsPersonality.mock.calls[0][3] as
-        | { attachment: Buffer; name: string }[]
-        | undefined;
+        { attachment: Buffer; name: string }[] | undefined;
       expect(filesArg).toBeDefined();
       expect(filesArg![0].name).toMatch(/^mock-bot-client-id-testbot-[a-z0-9]+\.ogg$/);
     });

@@ -1701,6 +1701,12 @@ describe('GenerationStep', () => {
         expect(result.result?.errorInfo?.technicalMessage).toContain(
           'fallback via OpenRouter also failed: OpenRouter rate limited'
         );
+        // Footer seam: metadata names BOTH routes — the primary as providerUsed
+        // and the failed fallback attempt separately — so the error footer can
+        // render the full chain instead of mis-attributing the primary as the
+        // only attempt.
+        expect(result.result?.metadata?.providerUsed).toBe(AIProvider.ZaiCoding);
+        expect(result.result?.metadata?.fallbackProviderAttempted).toBe('openrouter');
         expect(mockRAGService.generateResponse).toHaveBeenCalledTimes(2);
       });
 
@@ -1731,6 +1737,8 @@ describe('GenerationStep', () => {
 
         expect(result.result?.success).toBe(false);
         expect(result.result?.error).toBe('OpenRouter timeout');
+        // No fallback was attempted, so the footer chain field must stay absent.
+        expect(result.result?.metadata?.fallbackProviderAttempted).toBeUndefined();
         // Only ONE call — no retry was attempted because wasAutoPromoted is falsy
         expect(mockRAGService.generateResponse).toHaveBeenCalledTimes(1);
       });
