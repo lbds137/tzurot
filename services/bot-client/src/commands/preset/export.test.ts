@@ -122,6 +122,25 @@ describe('Preset Export', () => {
       expect(editReplyArgs.files).toHaveLength(1);
     });
 
+    it('includes isGlobal in the exported JSON (visibility round-trip)', async () => {
+      stub.getUserLlmConfig.mockResolvedValue(
+        makeOk({ config: { ...mockPresetData, isGlobal: true } })
+      );
+
+      const mockContext = createMockContext();
+      await handleExport(mockContext);
+
+      const editReplyArgs = vi.mocked(mockContext.editReply).mock.calls[0][0] as {
+        files: AttachmentBuilder[];
+      };
+      // Parse the actual attachment payload — the flag must survive into the file
+      // so /preset import can round-trip visibility.
+      const json = JSON.parse(String(editReplyArgs.files[0].attachment)) as {
+        isGlobal?: boolean;
+      };
+      expect(json.isGlobal).toBe(true);
+    });
+
     it('should include advanced parameters in export', async () => {
       const presetWithAdvancedParams = {
         ...mockPresetData,
