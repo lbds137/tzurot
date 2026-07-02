@@ -214,7 +214,7 @@ export type LoadPersonalityInternalResponse = z.infer<typeof LoadPersonalityInte
 
 export const RoutingContextRequestSchema = z.object({
   /** Message author's Discord snowflake — the provisioning + cascade key. */
-  discordId: z.string().min(1).max(32),
+  discordId: DiscordSnowflakeSchema,
   /**
    * Discord username, for provisioning the user shell on first contact.
    * `.min(1)` enforces the caller contract — Discord usernames are always
