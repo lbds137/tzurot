@@ -9,6 +9,7 @@ import type { DeferredCommandContext } from '../../utils/commandContext/types.js
 import type { UserClient } from '@tzurot/clients';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { validateAndParseJsonFile } from '../../utils/jsonFileUtils.js';
+import { updatePreset } from './api.js';
 import {
   getImportedFieldsList,
   getMissingRequiredFields,
@@ -28,6 +29,8 @@ interface ImportedPresetData {
   provider?: string;
   model?: string;
   contextWindowTokens?: number;
+  /** Visibility round-trip: exports carry it; import applies it post-create. */
+  isGlobal?: boolean;
   advancedParameters?: {
     temperature?: number;
     top_p?: number;
@@ -62,6 +65,7 @@ export const PRESET_JSON_TEMPLATE = `{
   "provider": "anthropic",
   "model": "anthropic/claude-sonnet-4",
   "contextWindowTokens": 131072,
+  "isGlobal": false,
   "advancedParameters": {
     "temperature": 0.7,
     "top_p": 0.9,
@@ -86,6 +90,7 @@ const IMPORT_FIELD_DEFS: ImportFieldDef[] = [
   { key: 'provider', label: 'Provider' },
   { key: 'model', label: 'Model' },
   { key: 'contextWindowTokens', label: 'Context Window Tokens' },
+  { key: 'isGlobal', label: 'Visibility' },
   { key: 'advancedParameters', label: 'Advanced Parameters' },
 ];
 
@@ -156,6 +161,9 @@ function buildImportPayload(data: ImportedPresetData): Record<string, unknown> {
   if (data.advancedParameters !== undefined && Object.keys(data.advancedParameters).length > 0) {
     payload.advancedParameters = data.advancedParameters;
   }
+  if (typeof data.isGlobal === 'boolean') {
+    payload.isGlobal = data.isGlobal;
+  }
 
   return payload;
 }
@@ -170,7 +178,7 @@ function buildImportPayload(data: ImportedPresetData): Record<string, unknown> {
 async function createPresetFromImport(
   userClient: UserClient,
   payload: Record<string, unknown>
-): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+): Promise<{ ok: true; id: string; globalApplied?: boolean } | { ok: false; error: string }> {
   // Create preset with all fields - API supports all fields in create endpoint
   const createResult = await userClient.createUserLlmConfig({
     name: payload.name,
@@ -185,14 +193,34 @@ async function createPresetFromImport(
     logger.error({ error: createResult.error }, 'Failed to create preset');
     return { ok: false, error: createResult.error };
   }
+  const id = createResult.data.config.id;
 
-  return { ok: true, id: createResult.data.config.id };
+  // Visibility round-trip: create lands private; apply isGlobal afterwards via the
+  // same update the dashboard toggle uses. A failure here must NOT fail the import —
+  // the preset exists; the caller surfaces "stayed private" in the result embed.
+  if (payload.isGlobal !== true) {
+    return { ok: true, id };
+  }
+  try {
+    await updatePreset(id, { isGlobal: true }, userClient);
+    return { ok: true, id, globalApplied: true };
+  } catch (error) {
+    logger.warn(
+      { err: error, presetId: id },
+      'Imported preset created but applying isGlobal failed — left private'
+    );
+    return { ok: true, id, globalApplied: false };
+  }
 }
 
 /**
  * Build success embed for import
  */
-function buildSuccessEmbed(payload: Record<string, unknown>, presetName: string): EmbedBuilder {
+function buildSuccessEmbed(
+  payload: Record<string, unknown>,
+  presetName: string,
+  globalApplied?: boolean
+): EmbedBuilder {
   const embed = new EmbedBuilder()
     .setColor(DISCORD_COLORS.SUCCESS)
     .setTitle('Preset Imported Successfully')
@@ -201,6 +229,19 @@ function buildSuccessEmbed(payload: Record<string, unknown>, presetName: string)
 
   const importedFields = getImportedFieldsList(payload, IMPORT_FIELD_DEFS);
   embed.addFields({ name: 'Imported Fields', value: importedFields.join(', '), inline: false });
+
+  // Visibility outcome — only shown when the file requested isGlobal:true. The apply
+  // is a separate post-create step, so its failure leaves a working PRIVATE preset;
+  // the user must see which of the two outcomes they got.
+  if (globalApplied !== undefined) {
+    embed.addFields({
+      name: 'Visibility',
+      value: globalApplied
+        ? '🌐 Global (visible to everyone)'
+        : '⚠️ Could not apply global visibility — imported as private. Toggle it in the dashboard.',
+      inline: false,
+    });
+  }
 
   return embed;
 }
@@ -249,7 +290,7 @@ export async function handleImport(context: DeferredCommandContext): Promise<voi
 
     // Step 5: Send success response
     const presetName = payload.name as string;
-    const embed = buildSuccessEmbed(payload, presetName);
+    const embed = buildSuccessEmbed(payload, presetName, createResult.globalApplied);
     await context.editReply({ embeds: [embed] });
 
     logger.info({ presetId: createResult.id, userId, presetName }, 'Preset imported successfully');

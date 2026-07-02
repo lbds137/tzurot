@@ -173,7 +173,13 @@ export async function handleToggleGlobalButton(
     const newIsGlobal = !freshPreset.isGlobal;
     const updatedPreset = await updatePreset(entityId, { isGlobal: newIsGlobal }, userClient);
 
-    const flattenedData = flattenPresetData(updatedPreset);
+    // Preserve browseContext from the existing session (same pattern as the refresh
+    // handler above) — rebuilding from the API response alone drops it, and the
+    // re-render then loses the Back-to-Browse button (showBack derives from it).
+    const flattenedData: FlattenedPresetData = {
+      ...flattenPresetData(updatedPreset),
+      browseContext: session.data.browseContext,
+    };
     const sessionManager = getSessionManager();
 
     await sessionManager.update<FlattenedPresetData>(

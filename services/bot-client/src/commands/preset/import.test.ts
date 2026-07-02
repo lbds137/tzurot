@@ -53,10 +53,11 @@ const { handleImport, REQUIRED_IMPORT_FIELDS, PRESET_JSON_TEMPLATE } = await imp
 
 interface UserClientStub {
   createUserLlmConfig: ReturnType<typeof vi.fn>;
+  updateUserLlmConfig: ReturnType<typeof vi.fn>;
 }
 
 function createStub(): UserClientStub {
-  return { createUserLlmConfig: vi.fn() };
+  return { createUserLlmConfig: vi.fn(), updateUserLlmConfig: vi.fn() };
 }
 
 describe('Preset Import', () => {
@@ -135,6 +136,58 @@ describe('Preset Import', () => {
           ]),
         })
       );
+    });
+
+    it('applies isGlobal:true post-create via the update seam and reports Global', async () => {
+      vi.mocked(jsonFileUtils.validateAndParseJsonFile).mockResolvedValue({
+        data: createValidPresetData({ isGlobal: true }),
+      });
+      stub.createUserLlmConfig.mockResolvedValue(makeOk({ config: { id: 'new-preset-id' } }));
+      stub.updateUserLlmConfig.mockResolvedValue(
+        makeOk({ config: { id: 'new-preset-id', name: 'Test Preset', isGlobal: true, params: {} } })
+      );
+
+      const mockContext = createMockContext();
+      await handleImport(mockContext);
+
+      // The seam assertion: the flag must actually cross into the update call —
+      // create alone always lands private, so this call IS the round-trip.
+      expect(stub.updateUserLlmConfig).toHaveBeenCalledWith('new-preset-id', { isGlobal: true });
+      const embeds = vi.mocked(mockContext.editReply).mock.calls[0][0] as {
+        embeds: { data: { fields?: { name: string; value: string }[] } }[];
+      };
+      const visibility = embeds.embeds[0].data.fields?.find(f => f.name === 'Visibility');
+      expect(visibility?.value).toContain('Global');
+    });
+
+    it('keeps the import successful (private + warning) when applying isGlobal fails', async () => {
+      vi.mocked(jsonFileUtils.validateAndParseJsonFile).mockResolvedValue({
+        data: createValidPresetData({ isGlobal: true }),
+      });
+      stub.createUserLlmConfig.mockResolvedValue(makeOk({ config: { id: 'new-preset-id' } }));
+      stub.updateUserLlmConfig.mockResolvedValue(makeErr(403, 'Forbidden'));
+
+      const mockContext = createMockContext();
+      await handleImport(mockContext);
+
+      // Import must still succeed — the preset exists, just private.
+      const embeds = vi.mocked(mockContext.editReply).mock.calls[0][0] as {
+        embeds: { data: { title?: string; fields?: { name: string; value: string }[] } }[];
+      };
+      expect(embeds.embeds[0].data.title).toBe('Preset Imported Successfully');
+      const visibility = embeds.embeds[0].data.fields?.find(f => f.name === 'Visibility');
+      expect(visibility?.value).toContain('private');
+    });
+
+    it('does NOT touch the update seam when the file has no isGlobal', async () => {
+      vi.mocked(jsonFileUtils.validateAndParseJsonFile).mockResolvedValue({
+        data: createValidPresetData(),
+      });
+      stub.createUserLlmConfig.mockResolvedValue(makeOk({ config: { id: 'new-preset-id' } }));
+
+      await handleImport(createMockContext());
+
+      expect(stub.updateUserLlmConfig).not.toHaveBeenCalled();
     });
 
     it('should reject invalid JSON file', async () => {
