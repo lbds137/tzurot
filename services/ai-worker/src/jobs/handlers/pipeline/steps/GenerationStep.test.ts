@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Job } from 'bullmq';
 import {
   AIProvider,
+  ApiErrorCategory,
   JobType,
   MessageRole,
   AttachmentType,
@@ -1667,9 +1668,10 @@ describe('GenerationStep', () => {
         expect(secondCallOpts?.userApiKey).toBe('sk-or-user-key');
       });
 
-      it('should propagate ORIGINAL error when fallback retry also fails', async () => {
-        // Both z.ai and OpenRouter fail — surface the original z.ai error
-        // (the actual root cause), not the fallback failure.
+      it('propagates the ORIGINAL error enriched with the fallback failure when both fail', async () => {
+        // Both z.ai and OpenRouter fail — the root cause leads, but the message
+        // carries BOTH halves so the user knows a fallback was attempted and why
+        // it failed too.
         vi.mocked(mockRAGService.generateResponse)
           .mockRejectedValueOnce(new Error('z.ai 404: model not found'))
           .mockRejectedValueOnce(new Error('OpenRouter rate limited'));
@@ -1684,9 +1686,21 @@ describe('GenerationStep', () => {
 
         const result = await step.process(context);
 
-        // Failure result with the ORIGINAL z.ai error message
+        // Failure result leads with the ORIGINAL z.ai error, composed with the
+        // fallback's failure so the surfaced message tells the whole story.
         expect(result.result?.success).toBe(false);
-        expect(result.result?.error).toBe('z.ai 404: model not found');
+        expect(result.result?.error).toBe(
+          'z.ai 404: model not found — fallback via OpenRouter also failed: OpenRouter rate limited'
+        );
+        // Classification stability: the category derives from the PRISTINE
+        // original message (MODEL_NOT_FOUND), NOT the composed string — the
+        // "rate limited" wording in the fallback half must not flip it.
+        expect(result.result?.errorInfo?.category).toBe(ApiErrorCategory.MODEL_NOT_FOUND);
+        // The USER-VISIBLE seam: buildErrorContent renders errorInfo.technicalMessage
+        // (result.error is log-only) — the compound story must land there too.
+        expect(result.result?.errorInfo?.technicalMessage).toContain(
+          'fallback via OpenRouter also failed: OpenRouter rate limited'
+        );
         expect(mockRAGService.generateResponse).toHaveBeenCalledTimes(2);
       });
 
