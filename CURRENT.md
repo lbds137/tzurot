@@ -6,7 +6,14 @@
 
 ## Unreleased on Develop (since beta.144)
 
-**Released v3.0.0-beta.144 on 2026-07-02** (notes: [tag v3.0.0-beta.144](https://github.com/lbds137/tzurot/releases/tag/v3.0.0-beta.144)). `release:finalize` SHA-aligned develop with main — **nothing unreleased on develop.**
+**Released v3.0.0-beta.144 on 2026-07-02** (notes: [tag v3.0.0-beta.144](https://github.com/lbds137/tzurot/releases/tag/v3.0.0-beta.144)). `release:finalize` SHA-aligned develop with main.
+
+**Since then (all merged 2026-07-02):**
+
+- **#1442–#1446 — the five beta.145 openers**: retention test gaps, ack-first remainder cluster, process-lifecycle unification (`registerProcessLifecycle` in common-types; gateway='shutdown', bot-client='log-and-live', ai-worker='crash'), first integration-tier test (`describeImageWithFallback` over real Redis), and the **TTS default-pointer migration** (AdminSettings pointer columns + backfill, both read paths cut over, `ttsConfigSingletons` deleted; **one additive migration — applied to dev; prod rides `release:premigrate` at the next release**).
+- **#1447–#1450 + docs sweeps — the aggressive backlog-shrink pass**: ~25 follow-up rows retired (6 verified fixes in bot-client incl. the z.ai apikey copy confusion; vision failure-taxonomy cleanup with `LONG_TTL_FAILURE_CATEGORIES` rename + error-pattern false-positive fix; routing-context snowflake validation; `/models` + package-list doc fixes; 2 stale rows deleted). **Anti-rot tooling** (#1448): `dev:deferred-refs` now matches bare backticked filenames (124 refs previously invisible) and runs at push time on branch-level changed files. **Theme re-org**: 11 rows promoted into 3 theme files (z.ai error-shape verification, LLM legacy-column retirement, PGLite-fidelity integration tier).
+
+**Remaining from the shrink shortlist**: R166 `guard:workflow-on-develop` CI check (M) — strengthened case: today produced BOTH a ci.yml near-miss (a develop PR would have silently disabled claude-review until release) AND a transient review-skip flake caught only by reading the 15s runtime. Also the ci.yml stale-comment row (main-cut constraint documented on the row).
 
 **beta.144 post-deploy watch-items**:
 
