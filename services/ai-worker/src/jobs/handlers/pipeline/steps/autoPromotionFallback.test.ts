@@ -12,6 +12,7 @@ import { AIProvider } from '@tzurot/common-types';
 import {
   runWithAutoPromotionFallback,
   getFallbackFailureSummary,
+  getAttemptedFallbackProvider,
 } from './autoPromotionFallback.js';
 import type { GenerateAttemptOpts, GenerateAttemptResult } from './autoPromotionFallback.js';
 
@@ -165,6 +166,9 @@ describe('runWithAutoPromotionFallback', () => {
     expect(getFallbackFailureSummary(originalError)).toBe(
       '402 This request requires more credits, or fewer max_tokens'
     );
+    // The attempted route rides along too, so the error footer can render the
+    // full chain ("via Z.AI Coding Plan → OpenRouter") instead of the primary.
+    expect(getAttemptedFallbackProvider(originalError)).toBe('openrouter');
   });
 
   it('caps an over-long fallback failure summary', async () => {
@@ -193,6 +197,25 @@ describe('runWithAutoPromotionFallback', () => {
     expect(getFallbackFailureSummary(new Error('plain'))).toBeUndefined();
     expect(getFallbackFailureSummary(null)).toBeUndefined();
     expect(getFallbackFailureSummary('string error')).toBeUndefined();
+  });
+
+  it('returns undefined from getAttemptedFallbackProvider for errors without fallback info', () => {
+    expect(getAttemptedFallbackProvider(new Error('plain'))).toBeUndefined();
+    expect(getAttemptedFallbackProvider(null)).toBeUndefined();
+    expect(getAttemptedFallbackProvider('string error')).toBeUndefined();
+  });
+
+  it('rejects a malformed fallback-info payload (shape check)', () => {
+    // Only runWithAutoPromotionFallback attaches this payload, but the readers
+    // shape-check anyway — a non-string field must not leak through as info.
+    const error = new Error('primary failed');
+    (error as unknown as Record<PropertyKey, unknown>)[Symbol.for('tzurot.fallbackFailureInfo')] = {
+      summary: 42,
+      provider: 'openrouter',
+    };
+
+    expect(getFallbackFailureSummary(error)).toBeUndefined();
+    expect(getAttemptedFallbackProvider(error)).toBeUndefined();
   });
 
   it('should propagate the error directly when fallback is undefined and attempt fails', async () => {

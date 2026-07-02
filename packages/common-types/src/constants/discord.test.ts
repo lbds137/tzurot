@@ -169,6 +169,47 @@ describe('Bot Footer Text Constants', () => {
       );
     });
 
+    it('renders the full route chain when a fallback attempt also failed', () => {
+      // Both-routes-failed error: the footer names every route that was tried,
+      // primary first, so neither attempt is mis-attributed as the only one.
+      const result = buildModelFooterText('glm-4.7', 'https://example.com/m', {
+        provider: 'zai-coding',
+        fallbackProviderAttempted: 'openrouter',
+      });
+      expect(result).toBe(
+        'Model: [glm-4.7](<https://example.com/m>) • via Z.AI Coding Plan → OpenRouter (both routes failed)'
+      );
+    });
+
+    it('orders the route chain before the auto badge', () => {
+      const result = buildModelFooterText('glm-4.7', 'https://example.com/m', {
+        provider: 'zai-coding',
+        fallbackProviderAttempted: 'openrouter',
+        withAutoBadge: true,
+      });
+      expect(result).toBe(
+        'Model: [glm-4.7](<https://example.com/m>) • via Z.AI Coding Plan → OpenRouter (both routes failed) • 📍 auto'
+      );
+    });
+
+    it('falls back to single-provider attribution when the fallback label is unknown', () => {
+      // Unknown fallback provider → no chain; the known primary still renders.
+      expect(
+        buildModelFooterText('glm-4.7', 'https://example.com/m', {
+          provider: 'zai-coding',
+          fallbackProviderAttempted: 'not-a-provider',
+        })
+      ).toBe('Model: [glm-4.7](<https://example.com/m>) • via Z.AI Coding Plan');
+      // Unknown PRIMARY suppresses attribution entirely — a chain with an
+      // unattributable first hop would be more confusing than nothing.
+      expect(
+        buildModelFooterText('glm-4.7', 'https://example.com/m', {
+          provider: 'not-a-provider',
+          fallbackProviderAttempted: 'openrouter',
+        })
+      ).toBe('Model: [glm-4.7](<https://example.com/m>)');
+    });
+
     it('omits provider attribution for an unknown or absent provider', () => {
       expect(buildModelFooterText('gpt-4', 'https://example.com/m')).toBe(
         'Model: [gpt-4](<https://example.com/m>)'
@@ -198,6 +239,11 @@ describe('Bot Footer Text Constants', () => {
         buildModelFooterText('test/model', 'https://example.com/model', { provider: 'openrouter' }),
         buildModelFooterText('test/model', 'https://example.com/model', {
           provider: 'zai-coding',
+          withAutoBadge: true,
+        }),
+        buildModelFooterText('test/model', 'https://example.com/model', {
+          provider: 'zai-coding',
+          fallbackProviderAttempted: 'openrouter',
           withAutoBadge: true,
         }),
       ];

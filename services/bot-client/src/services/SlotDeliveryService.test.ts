@@ -183,13 +183,24 @@ describe('SlotDeliveryService', () => {
         requestId: 'req-1',
         success: false,
         error: 'thing broke',
+        metadata: {
+          modelUsed: 'glm-4.7',
+          providerUsed: 'zai-coding',
+          // Both-routes-failed error: the attempted fallback must reach the
+          // sender so the footer renders the route chain, not just the primary.
+          fallbackProviderAttempted: 'openrouter',
+        },
       } as LLMGenerationResult;
       const slot = buildSlotContext();
 
       await service.deliverError('Error occurred', failResult, slot);
 
       expect(responseSender.sendResponse).toHaveBeenCalledWith(
-        expect.objectContaining({ content: 'Error occurred' })
+        expect.objectContaining({
+          content: 'Error occurred',
+          providerUsed: 'zai-coding',
+          fallbackProviderAttempted: 'openrouter',
+        })
       );
       expect(persistence.saveAssistantMessage).toHaveBeenCalled();
     });

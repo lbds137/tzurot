@@ -82,6 +82,14 @@ const generationPayloadSchema = z.object({
       modelUsed: z.string().optional(),
       /** AI provider used (from API key resolution) */
       providerUsed: z.string().optional(),
+      /**
+       * Provider of the auto-promotion fallback route that was attempted and
+       * ALSO failed — only set on a both-routes-failed error. Lets the error
+       * footer render the full route chain ("via Z.AI Coding Plan → OpenRouter
+       * (both routes failed)") instead of mis-attributing the primary as the
+       * only attempt.
+       */
+      fallbackProviderAttempted: z.string().optional(),
       /** Source of LLM config (derived from CONFIG_SOURCE_IDS — single source of truth). */
       configSource: z.enum(CONFIG_SOURCE_IDS).optional(),
       /** Whether response was generated using guest mode (free model, no API key) */
