@@ -10,6 +10,7 @@ import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 import {
   createLogger,
+  registerProcessLifecycle,
   isBotOwner,
   getConfig,
   parseRedisUrl,
@@ -533,9 +534,8 @@ client.on(Events.Error, error => {
   logger.error({ err: error }, 'Discord client error');
 });
 
-process.on('unhandledRejection', error => {
-  logger.error({ err: error }, 'Unhandled rejection');
-});
+// unhandledRejection handling is registered by registerProcessLifecycle below
+// (rejectionPolicy: 'log-and-live').
 
 // Graceful shutdown — register for BOTH SIGTERM (Railway/orchestrator) and
 // SIGINT (Ctrl+C in dev). Without SIGTERM handling, Railway's deploy lifecycle
@@ -545,35 +545,29 @@ process.on('unhandledRejection', error => {
 // this fix was actually caused by missing Partials (see client instantiation
 // comment), but clean gateway shutdown on deploy is correct independent
 // behaviour and resolved its own latent issue.
-let shutdownInitiated = false;
-function handleShutdownSignal(signal: NodeJS.Signals): void {
-  if (shutdownInitiated) {
-    logger.warn({ signal }, 'Shutdown signal received again — already shutting down');
-    return;
-  }
-  shutdownInitiated = true;
-  logger.info({ signal }, 'Shutting down...');
-
+// Pure dispose sequence — the re-entry guard, hard-exit backstop, and terminal
+// exit semantics live in registerProcessLifecycle (common-types), which wraps
+// this and also owns the handler registration below.
+async function disposeBotClient(): Promise<void> {
   // Sequence the two shutdown steps:
   //   1. Stop accepting new results — close the door before draining.
   //   2. Mark pending multi-tag slot jobIds stale + tear down in-memory state.
-  // Doing both as concurrent fire-and-forgets leaves a small race window
-  // where a result could still arrive between stop() returning and the
-  // coordinator clearing entries; sequencing closes it.
-  void (async () => {
-    try {
-      await services.resultsListener.stop();
-      await services.jobFailureListener.stop();
-      await services.multiTagCoordinator.beginShutdown();
-    } catch (err) {
-      logger.error({ err }, 'Error during early shutdown sequence');
-    }
-  })();
+  // Doing both concurrently leaves a small race window where a result could
+  // still arrive between stop() returning and the coordinator clearing
+  // entries; sequencing closes it. Best-effort: a failure here shouldn't
+  // block the buffered-result delivery below, so it's caught and logged.
+  try {
+    await services.resultsListener.stop();
+    await services.jobFailureListener.stop();
+    await services.multiTagCoordinator.beginShutdown();
+  } catch (err) {
+    logger.error({ err }, 'Error during early shutdown sequence');
+  }
 
   // Then deliver any buffered results — each result uses its own captured
   // deliverFn (multi-tag groups use their deliverGroup closure; single-
   // personality results use the per-jobId routing closure from handleResult).
-  void services.responseOrderingService.shutdown().finally(async () => {
+  await services.responseOrderingService.shutdown().finally(async () => {
     services.jobTracker.cleanup();
     services.responseOrderingService.stopCleanup();
     services.webhookManager.destroy();
@@ -584,10 +578,15 @@ function handleShutdownSignal(signal: NodeJS.Signals): void {
     services.cacheRedis.disconnect();
 
     // Await async cleanup with a bounded timeout so a hung resource can't
-    // block shutdown. Railway will SIGKILL after its grace window anyway;
-    // better to exit cleanly when we can. Without the await, voided promises
-    // returned ~immediately and process.exit ran before Discord WebSocket
-    // close handshake / Redis disconnect completed.
+    // block shutdown. Without the await, voided promises returned ~immediately
+    // and process.exit ran before Discord WebSocket close handshake / Redis
+    // disconnect completed.
+    //
+    // This inner 5s deadline is deliberately SOFTER than (and nested inside)
+    // the lifecycle wrapper's 10s hard-exit backstop: a hang here logs a
+    // warning and lets dispose() return, so the process still reaches the
+    // clean exit(0) path. The 10s backstop is the force-exit(1) of last
+    // resort for hangs this race doesn't cover.
     const SHUTDOWN_TIMEOUT_MS = 5000;
     try {
       await Promise.race([
@@ -610,12 +609,19 @@ function handleShutdownSignal(signal: NodeJS.Signals): void {
     } catch (error) {
       logger.warn({ err: error }, 'Shutdown cleanup did not complete cleanly');
     }
-
-    process.exit(0);
   });
 }
-process.on('SIGTERM', handleShutdownSignal);
-process.on('SIGINT', handleShutdownSignal);
+
+// 'log-and-live' on rejections: a stray rejection in one Discord event handler
+// should not sever every active session — the deliberate trade-off is that the
+// process may run degraded rather than restart. Signals/exceptions still get
+// the guarded, terminal shutdown (the helper replaces the old local
+// `shutdownInitiated` guard and adds the hard-exit backstop).
+registerProcessLifecycle({
+  logger,
+  dispose: disposeBotClient,
+  rejectionPolicy: 'log-and-live',
+});
 
 /**
  * Start listening for job results and handle delivery to Discord
