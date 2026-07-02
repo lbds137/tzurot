@@ -34,7 +34,6 @@ _Model Config Overhaul epic: **ALL phases COMPLETE**. Next epic pick from `cold/
 
 _Small tasks that can be done between major features. Good for momentum._
 
-- 🧹 `[CHORE]` **Vision-fallback integration-tier test** — real Redis via `pnpm test:integration`; negative cache + quota tracker under the loop, model client stubbed (tier-1 429 → tier-2 success; terminate-category run asserts no tier burn). Spec in `cold/follow-ups.md`. Surfaced 2026-07-02 (release testing-gap review).
 
 
 ---
