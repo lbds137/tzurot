@@ -252,8 +252,14 @@ export async function handleOverrideCreateModalSubmit(
         return;
       }
 
-      if (result.error.includes('User not found')) {
-        await interaction.editReply({ content: '❌ User not found.' });
+      // Route through the shared mapper like the siblings (showCreateOverrideModal,
+      // setExistingOverride) — a stale/deleted personality or a missing account
+      // gets its specific message instead of degrading to the generic fallback.
+      // Only the personality UUID is available here (the modal customId carries
+      // the id, not the slug); it only surfaces in the rare deleted-mid-flow case.
+      const mappedError = mapOverrideError(result.error, personalityId);
+      if (mappedError !== null) {
+        await interaction.editReply({ content: mappedError });
         return;
       }
 
