@@ -12,15 +12,8 @@ import {
   BatchDeleteResponseSchema,
   BatchDeleteSchema,
   DeleteMemoryResponseSchema,
-  DisableIncognitoRequestSchema,
-  DisableIncognitoResponseSchema,
-  EnableIncognitoRequestSchema,
-  EnableIncognitoResponseSchema,
   FocusModeSchema,
   FocusModeStatusResponseSchema,
-  GetIncognitoStatusResponseSchema,
-  IncognitoForgetRequestSchema,
-  IncognitoForgetResponseSchema,
   IssuePurgeTokenResponseSchema,
   IssuePurgeTokenSchema,
   MemoryListResponseSchema,
@@ -33,8 +26,18 @@ import {
   SetFocusResponseSchema,
   SetMemoryLockSchema,
   SingleMemoryResponseSchema,
-} from '@tzurot/common-types';
-
+} from '@tzurot/common-types/schemas/api/memory';
+import {
+  DisableIncognitoResponseSchema,
+  EnableIncognitoResponseSchema,
+  GetIncognitoStatusResponseSchema,
+  IncognitoForgetResponseSchema,
+} from '@tzurot/common-types/schemas/api/memoryIncognito';
+import {
+  DisableIncognitoRequestSchema,
+  EnableIncognitoRequestSchema,
+  IncognitoForgetRequestSchema,
+} from '@tzurot/common-types/types/incognito';
 import type { RouteDef } from '../types.js';
 
 const MEMORY_INCOGNITO_PATH = '/memory/incognito';

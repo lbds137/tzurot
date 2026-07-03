@@ -10,45 +10,54 @@
  */
 
 import { z } from 'zod';
+import { GATEWAY_TIMEOUTS } from '@tzurot/common-types/constants/discord';
+import { VALIDATION_TIMEOUTS } from '@tzurot/common-types/constants/timing';
 import {
   ActivateChannelRequestSchema,
   ActivateChannelResponseSchema,
-  ClearChannelConfigOverridesResponseSchema,
-  ClearHistoryResponseSchema,
-  ClearHistorySchema,
-  ClearVoicesResponseSchema,
   DeactivateChannelRequestSchema,
   DeactivateChannelResponseSchema,
-  DeleteVoiceResponseSchema,
-  GATEWAY_TIMEOUTS,
-  GetChannelConfigOverridesResponseSchema,
   GetChannelSettingsResponseSchema,
-  GetNsfwStatusResponseSchema,
-  GetVoiceResolutionResponseSchema,
+  ListChannelSettingsResponseSchema,
+  UpdateChannelGuildRequestSchema,
+  UpdateChannelGuildResponseSchema,
+} from '@tzurot/common-types/schemas/api/channel';
+import {
+  ClearChannelConfigOverridesResponseSchema,
+  GetChannelConfigOverridesResponseSchema,
+  UpdateChannelConfigOverridesRequestSchema,
+  UpdateChannelConfigOverridesResponseSchema,
+} from '@tzurot/common-types/schemas/api/configOverrides';
+import {
+  ClearHistoryResponseSchema,
+  ClearHistorySchema,
   HardDeleteHistoryResponseSchema,
   HardDeleteHistorySchema,
   HistoryStatsQuerySchema,
   HistoryStatsResponseSchema,
-  ListChannelSettingsResponseSchema,
+  UndoHistoryResponseSchema,
+  UndoHistorySchema,
+} from '@tzurot/common-types/schemas/api/history';
+import {
+  GetNsfwStatusResponseSchema,
+  VerifyNsfwResponseSchema,
+} from '@tzurot/common-types/schemas/api/nsfw';
+import { UsageStatsSchema } from '@tzurot/common-types/schemas/api/usage';
+import { GetVoiceResolutionResponseSchema } from '@tzurot/common-types/schemas/api/voice-resolution';
+import {
+  ClearVoicesResponseSchema,
+  DeleteVoiceResponseSchema,
   ListVoiceModelsResponseSchema,
   ListVoicesResponseSchema,
+} from '@tzurot/common-types/schemas/api/voices';
+import {
   ListWalletKeysResponseSchema,
   RemoveWalletKeyResponseSchema,
   SetWalletKeyResponseSchema,
   SetWalletKeySchema,
   TestWalletKeyResponseSchema,
   TestWalletKeySchema,
-  UndoHistoryResponseSchema,
-  UndoHistorySchema,
-  UpdateChannelConfigOverridesRequestSchema,
-  UpdateChannelConfigOverridesResponseSchema,
-  UpdateChannelGuildRequestSchema,
-  UpdateChannelGuildResponseSchema,
-  UsageStatsSchema,
-  VALIDATION_TIMEOUTS,
-  VerifyNsfwResponseSchema,
-} from '@tzurot/common-types';
-
+} from '@tzurot/common-types/schemas/api/wallet';
 import type { RouteDef } from '../types.js';
 
 const CHANNEL_CONFIG_OVERRIDES_PATH = '/channel/:channelId/config-overrides';

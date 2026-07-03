@@ -10,9 +10,10 @@
  */
 
 import { z } from 'zod';
+import { GATEWAY_TIMEOUTS } from '@tzurot/common-types/constants/discord';
+import { VALIDATION_TIMEOUTS } from '@tzurot/common-types/constants/timing';
 import {
   DeleteShapesAuthResponseSchema,
-  GATEWAY_TIMEOUTS,
   ListShapesExportJobsResponseSchema,
   ListShapesImportJobsResponseSchema,
   ListShapesResponseSchema,
@@ -23,9 +24,7 @@ import {
   StartShapesImportResponseSchema,
   StoreShapesAuthInputSchema,
   StoreShapesAuthResponseSchema,
-  VALIDATION_TIMEOUTS,
-} from '@tzurot/common-types';
-
+} from '@tzurot/common-types/schemas/api/shapes';
 import type { RouteDef } from '../types.js';
 
 const BASE = '/shapes';

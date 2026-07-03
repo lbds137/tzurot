@@ -7,7 +7,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { GATEWAY_TIMEOUTS } from '@tzurot/common-types';
+import { GATEWAY_TIMEOUTS } from '@tzurot/common-types/constants/discord';
 import { callGateway, callGatewayOrThrow } from './transport.js';
 import { GatewayApiError } from './errors.js';
 

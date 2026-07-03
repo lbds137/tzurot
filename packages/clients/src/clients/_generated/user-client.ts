@@ -17,7 +17,7 @@ import { z } from 'zod';
 import { callGateway, type GatewayResult } from '../transport.js';
 import { ROUTE_MANIFEST } from '../../routes/manifest.js';
 import { type ActorDiscordId, type SubjectDiscordId } from '../../routes/types.js';
-import type { GatewayUser } from '@tzurot/common-types';
+import type { GatewayUser } from '@tzurot/common-types/types/gateway-context';
 
 function buildQueryString(entries: Array<[string, string | undefined]>): string {
   const defined = entries.filter((e): e is [string, string] => e[1] !== undefined);

@@ -34,13 +34,10 @@
  */
 
 import type { z } from 'zod';
-
-import {
-  type ApiErrorSubcode,
-  CONTENT_TYPES,
-  GATEWAY_TIMEOUTS,
-  isTimeoutError,
-} from '@tzurot/common-types';
+import { GATEWAY_TIMEOUTS } from '@tzurot/common-types/constants/discord';
+import { type ApiErrorSubcode } from '@tzurot/common-types/constants/error';
+import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
+import { isTimeoutError } from '@tzurot/common-types/utils/errors';
 import { GatewayApiError, type GatewayFailureKind, parseErrorResponse } from './errors.js';
 
 /**

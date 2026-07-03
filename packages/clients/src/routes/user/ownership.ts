@@ -9,31 +9,32 @@
  */
 
 import { z } from 'zod';
+import { GATEWAY_TIMEOUTS } from '@tzurot/common-types/constants/discord';
 import {
   ClearOverrideResponseSchema,
   CreateOverrideResponseSchema,
-  CreatePersonalityResponseSchema,
   CreatePersonaResponseSchema,
-  DeletePersonalityResponseSchema,
   DeletePersonaResponseSchema,
-  GATEWAY_TIMEOUTS,
-  GetPersonalityResponseSchema,
   GetPersonaResponseSchema,
-  ListPersonalitiesResponseSchema,
   ListPersonaOverridesResponseSchema,
   ListPersonasResponseSchema,
   OverrideInfoResponseSchema,
   PersonaCreateSchema,
-  PersonalityCreateSchema,
-  PersonalityUpdateSchema,
   PersonaUpdateSchema,
   SetDefaultPersonaResponseSchema,
   SetOverrideResponseSchema,
   SetPersonaOverrideSchema,
-  SetVisibilitySchema,
   UpdatePersonaResponseSchema,
-} from '@tzurot/common-types';
-
+} from '@tzurot/common-types/schemas/api/persona';
+import {
+  CreatePersonalityResponseSchema,
+  DeletePersonalityResponseSchema,
+  GetPersonalityResponseSchema,
+  ListPersonalitiesResponseSchema,
+  PersonalityCreateSchema,
+  PersonalityUpdateSchema,
+  SetVisibilitySchema,
+} from '@tzurot/common-types/schemas/api/personality';
 import type { RouteDef } from '../types.js';
 
 const PERSONALITY_DETAIL_PATH = '/personality/:slug';

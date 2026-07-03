@@ -11,12 +11,12 @@
  */
 
 import { z } from 'zod';
+import { GATEWAY_TIMEOUTS } from '@tzurot/common-types/constants/discord';
 import {
   DiagnosticLogResponseSchema,
   DiagnosticLogsResponseSchema,
-  GATEWAY_TIMEOUTS,
   RecentDiagnosticLogsResponseSchema,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/schemas/api/diagnostic';
 import type { RouteDef } from '../types.js';
 
 export const userDiagnosticRoutes = {

@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { GATEWAY_TIMEOUTS } from '@tzurot/common-types';
+import { GATEWAY_TIMEOUTS } from '@tzurot/common-types/constants/discord';
 import { ROUTE_MANIFEST, adminRoutes, internalRoutes, userRoutes } from './manifest.js';
 import type { AnyRouteDef } from './types.js';
 
