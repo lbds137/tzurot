@@ -8,8 +8,8 @@ _Not a classic single epic — a sweep over the sibling themes that exist becaus
 
 1. ✅ **Effective-route threading on the auto-promotion both-fail path** (error-footer mis-attribution) — SHIPPED as #1456 (2026-07-02): the error footer now renders the full route chain (`via Z.AI Coding Plan → OpenRouter (both routes failed)`). Closes the z.ai "routing bug" confusion family (diagnosed 2026-07-02: fallback visibility, not mis-routing).
 2. ✅ **`guard:workflow-sync` narrowing** to the claude workflow files — SHIPPED as #1457 (2026-07-02); the file-scoped validation got its third empirical confirmation in-PR (claude-review ran on a develop-based branch carrying ci.yml drift). The stale-ci.yml-comment follow-up row was discharged alongside.
-3. 🧹 **Supervised lifecycle redeploy** — `railway redeploy --service bot-client`, user present (Quick Win)
-4. 🧹 **Prod TTS pointer verification** — `/voice view` + one generation by a no-override user (Quick Win)
+3. ✅ **Supervised lifecycle redeploy** — DONE 2026-07-02: prod bot-client redeploy showed the full graceful sequence (SIGTERM → dispose fan-out → `Shutdown complete`, zero re-entry/hard-exit lines); an in-flight multi-tag job was marked stale and RESUMED by the replacement instance — the shutdown→recovery handoff proven on a real user job.
+4. ✅ **Prod TTS pointer verification** — DONE 2026-07-02: tier-4 pointer read runtime-verified on BOTH read paths (gateway `/voice view` + ai-worker generation each logged `Free default TTS config loaded from database` → `kyutai-self-hosted`; synthesis dispatched self-hosted primary).
 
 ### The spinoff themes (ordered)
 
