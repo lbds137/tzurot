@@ -1,6 +1,6 @@
 ### Theme: Character Portability
 
-_Import and export characters and user data. Users own their data._
+_Focus: import and export of characters and user data — users own their data._
 
 #### ✨ User Data Export
 

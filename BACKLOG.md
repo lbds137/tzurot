@@ -1,7 +1,7 @@
 # Backlog
 
-> **Last Updated**: 2026-06-17
-> **Version**: v3.0.0-beta.133 (released 2026-06-17); develop clean (no unreleased code)
+> **Last Updated**: 2026-07-03
+> **Version**: v3.0.0-beta.146 (released 2026-07-03); develop state: see `CURRENT.md`
 
 This is the **load manifest** for the backlog. The backlog is split **HOT** (loaded every session) / **COLD** (grep-on-demand). Read the HOT files at session start; reach into COLD only when a task points you there. Keeping cold/ out of the session-start load is the whole point — it keeps the agent's context focused on _now_, not the full archive of future work.
 

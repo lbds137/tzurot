@@ -1,13 +1,16 @@
 ### Theme: User-Requested Features
 
-_Features requested by actual users. High value._
+_Focus: features requested by actual users — high value._
 
 #### ✨ Multi-Personality Per Channel
 
-Allow multiple personalities active in a single channel.
+Allow multiple personalities active in a single channel. Prior design work: [`docs/proposals/backlog/multi-personality-support.md`](../../../docs/proposals/backlog/multi-personality-support.md) — check before re-deriving.
 
-- [ ] Track multiple active personalities per channel
-- [ ] Natural order speaker selection (who responds next)
+**v1 simplification (user decision 2026-07-03): respond in ACTIVATION ORDER, max 5 slots** — the channel holds an ordered list of up to **5** activation slots. Activating appends to the first free slot at the end; deactivating removes that character and compacts the list (relative order preserved, freed slot opens at the END — no re-sorting, no insertion into the middle). Speaker order = slot order. This defers the hard "natural order / who speaks next" orchestration design to a v2 informed by real usage, and makes v1 build-sized rather than a design boulder. Open v1 questions are small: when does everyone respond vs only the @mentioned one, and does a direct @mention jump the queue.
+
+- [ ] Track up to 5 ordered activation slots per channel (append on activate; compact on deactivate, freed slot at the end)
+- [ ] v1 speaker order = activation order; @mention targets respond directly
+- [ ] v2 (later, usage-informed): natural-order / salience-based speaker selection
 - [ ] Handle @mentions when multiple personalities present
 - [ ] `/channel add-personality` and `/channel remove-personality` commands
 
@@ -29,15 +32,7 @@ Prevents bot from spamming unwanted channels, reduces server kicks.
 - [ ] Middleware check in message handler
 - [ ] Consider "Ghost Mode" - bot listens but only replies when pinged
 
-#### ✨ Multi-Character Invocation Per Message
-
-Support tagging multiple characters in one message, each responding in order.
-
-**Example**: `@character1 @character2 hello both` → both respond sequentially
-
-- [ ] Modify mention extraction to return array of all valid mentions
-- [ ] Combine reply target + mentions into ordered list (reply first, then mentions L→R)
-- [ ] Add max limit (3-4 characters per message) to prevent abuse
+#### ✅ Multi-Character Invocation Per Message — SHIPPED (MultiTagCoordinator: fan-out, slot-ordered delivery, crash recovery)
 
 #### ✨ Message-Action Affordances: edit / regenerate / delete / ping (emoji reactions + edit flow)
 

@@ -1,8 +1,8 @@
 ### Theme: Production Observability — perf metrics + distributed tracing
 
-_Focus: continuous, deterministic performance insight + a foundation for scaling — the perf analog of the deterministic test-tooling theme above. Sibling to the "Railway Log Search DX" theme (that one is log-correlation; this is metrics + tracing)._
+_Focus: time-series metrics + distributed tracing for load-correlated production issues ONLY — continuous, deterministic performance insight + a foundation for scaling (the perf analog of `deterministic-test-quality-tooling.md`). Logs stay pino + Railway: structured-log/query improvements belong to the complementary [`observability-and-telemetry.md`](observability-and-telemetry.md) theme; this theme owns the metrics/tracing infrastructure (it may stand up OTel) that logs structurally can't provide._
 
-**Surfaced 2026-06-11 (user)** from the preset-PUT-timeout prod bug (production-issues.md): intermittent, **load-correlated** issues can't be reproduced in dev and aren't visible in event logs — we log _what happened_ but have ~no aggregated _performance_ signal.
+**Surfaced 2026-06-11 (user)** from the preset-PUT-timeout prod bug (tracked at the time in `now.md` § Production Issues; since resolved): intermittent, **load-correlated** issues can't be reproduced in dev and aren't visible in event logs — we log _what happened_ but have ~no aggregated _performance_ signal.
 
 **What we have**: pino structured logs → Railway; per-request `responseTime` _is_ logged by the gateway HTTP logger (that's how the preset bug was caught) but never aggregated/alerted. Railway exposes infra metrics but no app-level tracing.
 

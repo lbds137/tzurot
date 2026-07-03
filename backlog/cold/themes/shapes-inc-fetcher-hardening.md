@@ -18,7 +18,7 @@ Web Claude's companion recommendations to the cookie-migration guide. Each item 
 
 **Recorded constraint (do NOT do)**: no Playwright/Puppeteer/IP rotation/CAPTCHA solving/anti-fingerprinting — shifts project posture from "exercising user rights" to "evading countermeasures," weaker ethically + more fragile.
 
-**Full proposal**: [`docs/proposals/backlog/shapes-inc-fetcher-hardening.md`](docs/proposals/backlog/shapes-inc-fetcher-hardening.md).
+**Full proposal**: [`docs/proposals/backlog/shapes-inc-fetcher-hardening.md`](../../../docs/proposals/backlog/shapes-inc-fetcher-hardening.md).
 
 **Sequencing**: queue after the cookie migration bake-in period — these items depend on the new cookie path being stable first (beta.103 shipped 2026-04-22; bake for at least one additional release cycle before starting).
 
