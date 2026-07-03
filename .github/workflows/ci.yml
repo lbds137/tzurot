@@ -207,7 +207,40 @@ jobs:
         run: pnpm ops test:audit --category=services
 
   test:
+    name: test (${{ matrix.cell }})
     runs-on: ubuntu-latest
+    strategy:
+      # One red cell must not cancel the others — each cell's result is
+      # independent signal, and the calibration data needs all five times.
+      fail-fast: false
+      matrix:
+        include:
+          - cell: bot-client
+            filter: --filter=@tzurot/bot-client
+            coverage: ./services/bot-client/coverage/lcov.info
+            flags: bot-client
+            junit: ./services/bot-client/junit.xml
+          - cell: ai-worker
+            filter: --filter=@tzurot/ai-worker
+            coverage: ./services/ai-worker/coverage/lcov.info
+            flags: ai-worker
+            junit: ./services/ai-worker/junit.xml
+          - cell: api-gateway
+            filter: --filter=@tzurot/api-gateway
+            coverage: ./services/api-gateway/coverage/lcov.info
+            flags: api-gateway
+            junit: ./services/api-gateway/junit.xml
+          - cell: tooling
+            filter: --filter=@tzurot/tooling
+            coverage: ''
+            flags: ''
+            junit: ./packages/tooling/junit.xml
+          - cell: packages
+            # Every workspace package except tooling (its own cell above).
+            filter: --filter=./packages/* --filter=!@tzurot/tooling
+            coverage: ./packages/common-types/coverage/lcov.info
+            flags: common-types
+            junit: ./packages/*/junit.xml
     steps:
       - uses: actions/checkout@v7
         with:
@@ -231,17 +264,13 @@ jobs:
       - name: Clean build artifacts
         run: find . -name "*.tsbuildinfo" -delete && find ./packages/*/dist -type d -exec rm -rf {} + 2>/dev/null || true
 
-      - name: Build packages
-        run: pnpm --filter './packages/*' build
+      - name: Run unit tests with coverage (cell scope)
+        # turbo's test:coverage dependsOn ^build, so each cell builds exactly
+        # the dependency graph its scope needs — no explicit build step.
+        run: pnpm turbo run test:coverage ${{ matrix.filter }}
 
-      - name: Run unit tests with coverage
-        run: pnpm test:coverage
-
-      - name: Debug - List coverage files
-        run: find . -name "lcov.info" -o -name "coverage-final.json" | head -20
-
-      - name: Upload ai-worker coverage to Codecov
-        if: ${{ !cancelled() }}
+      - name: Upload cell coverage to Codecov
+        if: ${{ !cancelled() && matrix.coverage != '' }}
         uses: codecov/codecov-action@v7
         with:
           # PyPI install path: the default binary download verifies its GPG
@@ -250,76 +279,24 @@ jobs:
           # codecov/codecov-action#1955). pip keeps its own integrity checks.
           use_pypi: true
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./services/ai-worker/coverage/lcov.info
-          flags: ai-worker
+          files: ${{ matrix.coverage }}
+          flags: ${{ matrix.flags }}
           fail_ci_if_error: true
           verbose: true
 
-      - name: Upload api-gateway coverage to Codecov
+      - name: Upload cell test results to Codecov
         if: ${{ !cancelled() }}
         uses: codecov/codecov-action@v7
         with:
-          # PyPI install path: the default binary download verifies its GPG
-          # signature against a key fetched from keybase.io, which has gone
-          # unavailable before (keybase 404 body piped into gpg — see
-          # codecov/codecov-action#1955). pip keeps its own integrity checks.
           use_pypi: true
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./services/api-gateway/coverage/lcov.info
-          flags: api-gateway
-          fail_ci_if_error: true
-          verbose: true
-
-      - name: Upload bot-client coverage to Codecov
-        if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@v7
-        with:
-          # PyPI install path: the default binary download verifies its GPG
-          # signature against a key fetched from keybase.io, which has gone
-          # unavailable before (keybase 404 body piped into gpg — see
-          # codecov/codecov-action#1955). pip keeps its own integrity checks.
-          use_pypi: true
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./services/bot-client/coverage/lcov.info
-          flags: bot-client
-          fail_ci_if_error: true
-          verbose: true
-
-      - name: Upload common-types coverage to Codecov
-        if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@v7
-        with:
-          # PyPI install path: the default binary download verifies its GPG
-          # signature against a key fetched from keybase.io, which has gone
-          # unavailable before (keybase 404 body piped into gpg — see
-          # codecov/codecov-action#1955). pip keeps its own integrity checks.
-          use_pypi: true
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./packages/common-types/coverage/lcov.info
-          flags: common-types
-          fail_ci_if_error: true
-          verbose: true
-
-      - name: Upload test results to Codecov
-        if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@v7
-        with:
-          # PyPI install path: the default binary download verifies its GPG
-          # signature against a key fetched from keybase.io, which has gone
-          # unavailable before (keybase 404 body piped into gpg — see
-          # codecov/codecov-action#1955). pip keeps its own integrity checks.
-          use_pypi: true
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./services/*/junit.xml,./packages/*/junit.xml
+          files: ${{ matrix.junit }}
           report_type: test_results
 
-      - name: Run type checking
+      - name: Run type checking (all packages)
+        if: ${{ matrix.cell == 'packages' }}
         run: pnpm run typecheck
 
-  # Mutation-score ratchet (audit-class — see mutation-check.WHY.md). Stryker
-  # runs report-only on the tracked packages; the ops checker compares the
-  # scores against .github/baselines/mutation-baseline.json and fails on a
-  # drop below a package's floor (baseline − graceMargin).
   mutation-tests:
     runs-on: ubuntu-latest
     steps:
