@@ -10,7 +10,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import chalk from 'chalk';
-import { createPrismaClient, DB_POOL_DEFAULTS } from '@tzurot/common-types';
+import { DB_POOL_DEFAULTS } from '@tzurot/common-types/services/poolConfig';
+import { createPrismaClient } from '@tzurot/common-types/services/prisma';
 import {
   type Environment,
   validateEnvironment,

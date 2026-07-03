@@ -14,7 +14,8 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
-import { PrismaClient, SYNC_LIMITS } from '@tzurot/common-types';
+import { SYNC_LIMITS } from '@tzurot/common-types/constants/timing';
+import { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { ConversationRetentionService } from './ConversationRetentionService.js';
@@ -22,8 +23,8 @@ import { createTestPGlite, loadPGliteSchema, seedUserWithPersona } from '@tzurot
 
 // Suppress logger noise — the service's createLogger comes from common-types
 // (the old '../utils/logger.js' mock was a no-op: nothing imports that path).
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/logger', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types/utils/logger')>();
   return {
     ...actual,
     createLogger: () => ({
@@ -34,7 +35,6 @@ vi.mock('@tzurot/common-types', async importOriginal => {
     }),
   };
 });
-
 describe('ConversationRetentionService', () => {
   let prisma: PrismaClient;
   let pglite: PGlite;

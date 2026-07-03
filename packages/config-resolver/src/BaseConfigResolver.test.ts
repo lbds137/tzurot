@@ -14,9 +14,8 @@ import {
   type ConfigOverrideEntry,
   type UserWithDefault,
 } from './BaseConfigResolver.js';
-
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/logger', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types/utils/logger')>();
   return {
     ...actual,
     createLogger: () => ({
@@ -27,7 +26,6 @@ vi.mock('@tzurot/common-types', async importOriginal => {
     }),
   };
 });
-
 // ===== Minimal test fixtures =================================================
 
 /** Tiny "personality" shape: just a name field carrying the default config. */

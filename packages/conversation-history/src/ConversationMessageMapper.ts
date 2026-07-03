@@ -6,14 +6,14 @@
  * of select objects and mapping logic used in 3+ query methods.
  */
 
+import { MessageRole } from '@tzurot/common-types/constants/message';
+import { Prisma } from '@tzurot/common-types/services/prisma';
+import { type ConversationMessage } from '@tzurot/common-types/types/conversationMessage';
 import {
-  Prisma,
-  createLogger,
-  MessageRole,
   messageMetadataSchema,
   type MessageMetadata,
-  type ConversationMessage,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/schemas/message';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('ConversationMessageMapper');
 

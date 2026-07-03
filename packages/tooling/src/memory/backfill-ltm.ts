@@ -22,7 +22,8 @@ import {
 } from '../utils/env-runner.js';
 import { getPrismaForEnv } from './prisma-env.js';
 import { parseDateRange, printDryRunPreview } from './backfill-cli-helpers.js';
-import { deterministicMemoryUuid, Prisma, type PrismaClient } from '@tzurot/common-types';
+import { deterministicMemoryUuid } from '@tzurot/common-types/constants/memory';
+import { Prisma, type PrismaClient } from '@tzurot/common-types/services/prisma';
 
 export interface BackfillOptions {
   env: Environment;

@@ -16,16 +16,16 @@
  * and the LLM-specific `getFreeDefaultConfig` lookup.
  */
 
+import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
+import { LLM_CONFIG_OVERRIDE_KEYS } from '@tzurot/common-types/schemas/llmAdvancedParams';
 import {
-  ADMIN_SETTINGS_SINGLETON_ID,
-  LLM_CONFIG_OVERRIDE_KEYS,
   LLM_CONFIG_SELECT_WITH_NAME,
   mapLlmConfigFromDbWithName,
-  type LoadedPersonality,
   type MappedLlmConfigWithName,
-  type PrismaClient,
-  type ResolvedLlmConfig,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/services/LlmConfigMapper';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { type ResolvedLlmConfig } from '@tzurot/common-types/types/configResolution';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import {
   BaseConfigResolver,
   type BaseConfigResolverOptions,

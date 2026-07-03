@@ -27,7 +27,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { createTestPGlite, loadPGliteSchema } from '@tzurot/test-utils';
-import { PrismaClient } from '@tzurot/common-types';
+import { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { UserService } from './UserService.js';
 import { PersonaResolver } from './resolvers/PersonaResolver.js';
 

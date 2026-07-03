@@ -15,29 +15,25 @@
  * 3. Transient first-owned-persona fallback (warns, does NOT persist)
  * 4. System default (errors, user has no personas at all)
  *
- * Prior to the Identity Epic Phase 3 (2026-04-16), the Priority 3 branch
- * lazily persisted the first owned persona as the user's default. That lazy
- * mutation was dropped because: (a) it made a "read" path mutate state,
+ * The Priority 3 branch does NOT persist the fallback persona. An earlier
+ * design lazily wrote the first owned persona as the user's default here; that
+ * lazy mutation was dropped because: (a) it made a "read" path mutate state,
  * (b) errors were swallowed as "best-effort optimization" and became
  * invisible, (c) UserService already provisions `defaultPersonaId` atomically
- * at creation time (Phase 2), so the lazy-init code path is a transitional
- * compatibility shim rather than load-bearing logic.
+ * at creation time, so the lazy-init code path was a transitional compatibility
+ * shim rather than load-bearing logic.
  *
- * Post-Phase 5b, the Priority 3 branch should be unreachable in practice —
- * every user row has a non-null `defaultPersonaId` pointing to a real persona
- * (DB-enforced NOT NULL + Restrict FK). It remains as defense-in-depth for
- * any user row that somehow escapes the provisioning path (e.g., direct SQL
- * imports during sync). Transient resolution warns loudly so such orphans
- * are visible in logs.
+ * Priority 3 should be unreachable in practice — every user row has a non-null
+ * `defaultPersonaId` pointing to a real persona (DB-enforced NOT NULL + Restrict
+ * FK). It remains as defense-in-depth for any user row that somehow escapes the
+ * provisioning path (e.g., direct SQL imports during sync). Transient resolution
+ * warns loudly so such orphans are visible in logs.
  */
 
-import {
-  createLogger,
-  isValidUUID,
-  UUID_REGEX,
-  type PrismaClient,
-  type CorePersonaConfig,
-} from '@tzurot/common-types';
+import { isValidUUID, UUID_REGEX } from '@tzurot/common-types/constants/service';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { type CorePersonaConfig } from '@tzurot/common-types/types/personaResolution';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import {
   BaseConfigResolver,
   type BaseConfigResolverOptions,
@@ -242,9 +238,9 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
     }
 
     // Execution reaches here only when Priority 2 didn't return — meaning
-    // `user.defaultPersona` is null. Post-Phase 5 this should be unreachable
-    // at the DB level: the FK is `onDelete: Restrict` (so a referenced persona
-    // can't be deleted) and Phase 5b made `defaultPersonaId` itself NOT NULL.
+    // `user.defaultPersona` is null. This should be unreachable at the DB
+    // level: the FK is `onDelete: Restrict` (so a referenced persona can't be
+    // deleted) and `defaultPersonaId` is itself NOT NULL.
     // We log loudly here as a tripwire — hitting this branch means either the
     // DB drifted from its schema guarantees or db-sync imported a row in an
     // inconsistent state. Either way we fall through to owned-persona
@@ -283,7 +279,8 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
       };
     }
 
-    // No persona at all — genuine data-integrity violation post-Phase-2.
+    // No persona at all — genuine data-integrity violation (defaultPersonaId
+    // is NOT NULL, so a null here means the DB drifted from its schema).
     logger.error(
       { discordUserId, userId: user.id },
       'User has no personas — provisioning is incomplete. Check UserService.createUserWithDefaultPersona flow.'
@@ -442,8 +439,8 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
   /**
    * Validate a personaId is a UUID, returning it unchanged or null.
    *
-   * **Post-Phase-4 contract**: callers must pass UUID personaIds. The
-   * legacy `discord:XXXX` placeholder format is stripped at the bot-client
+   * **Contract**: callers must pass UUID personaIds. The legacy
+   * `discord:XXXX` placeholder format is stripped at the bot-client
    * boundary by `ExtendedContextPersonaResolver.resolveExtendedContextPersonaIds`
    * before any data leaves the service, so ai-worker never sees it.
    *

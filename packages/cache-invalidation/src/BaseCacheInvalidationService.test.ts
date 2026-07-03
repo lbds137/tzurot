@@ -14,8 +14,8 @@ import {
 } from './BaseCacheInvalidationService.js';
 
 // Mock logger
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/logger', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types/utils/logger')>();
   return {
     ...actual,
     createLogger: () => ({
@@ -26,7 +26,6 @@ vi.mock('@tzurot/common-types', async importOriginal => {
     }),
   };
 });
-
 describe('createStandardEventValidator', () => {
   const validator = createStandardEventValidator<StandardInvalidationEvent>();
 
@@ -493,9 +492,7 @@ describe('BaseCacheInvalidationService', () => {
   describe('custom event types', () => {
     // Test with a custom event type beyond standard user/all
     type CustomEvent =
-      | { type: 'user'; discordId: string }
-      | { type: 'guild'; guildId: string }
-      | { type: 'all' };
+      { type: 'user'; discordId: string } | { type: 'guild'; guildId: string } | { type: 'all' };
 
     const customValidator: EventValidator<CustomEvent> = (obj): obj is CustomEvent => {
       if (typeof obj !== 'object' || obj === null) return false;

@@ -4,7 +4,8 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ConfigCascadeResolver } from './ConfigCascadeResolver.js';
-import { HARDCODED_CONFIG_DEFAULTS, ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types';
+import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
+import { HARDCODED_CONFIG_DEFAULTS } from '@tzurot/common-types/schemas/api/configOverrides';
 
 // Shared logger instance so tests can assert on (absence of) warnings — the
 // resolver's module-level logger is created once at import time, so the mock
@@ -15,9 +16,8 @@ const mockLogger = vi.hoisted(() => ({
   warn: vi.fn(),
   error: vi.fn(),
 }));
-
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/logger', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types/utils/logger')>();
   return {
     ...actual,
     createLogger: () => mockLogger,

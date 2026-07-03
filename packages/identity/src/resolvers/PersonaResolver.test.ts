@@ -35,12 +35,13 @@ const { mockLogger } = vi.hoisted(() => ({
     error: vi.fn(),
   },
 }));
-
-vi.mock('@tzurot/common-types', async importOriginal => ({
-  ...(await importOriginal<typeof import('@tzurot/common-types')>()),
-  createLogger: () => mockLogger,
-}));
-
+vi.mock('@tzurot/common-types/utils/logger', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types/utils/logger')>();
+  return {
+    ...actual,
+    createLogger: () => mockLogger,
+  };
+});
 describe('PersonaResolver', () => {
   let resolver: PersonaResolver;
 

@@ -29,8 +29,7 @@ import { writeFileSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 
 import { ROUTE_MANIFEST } from '@tzurot/clients';
-import { JobType } from '@tzurot/common-types';
-
+import { JobType } from '@tzurot/common-types/constants/queue';
 import { findFiles, fileExists, readFile } from '../test/audit-utils.js';
 import type { TestTier } from '../test/test-tiers.js';
 import { fileImportsSymbol } from './importAssertions.js';

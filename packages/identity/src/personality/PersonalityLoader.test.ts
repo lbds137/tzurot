@@ -14,15 +14,24 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { PersonalityLoader } from './PersonalityLoader.js';
-import type { PrismaClient } from '@tzurot/common-types';
-import * as commonTypes from '@tzurot/common-types';
-
-vi.mock('@tzurot/common-types', async importOriginal => ({
-  ...(await importOriginal<typeof import('@tzurot/common-types')>()),
-  isBotOwner: vi.fn().mockReturnValue(false),
-  getConfig: vi.fn().mockReturnValue({ BOT_OWNER_ID: undefined }),
-}));
-
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
+import { getConfig } from '@tzurot/common-types/config/config';
+import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
+vi.mock('@tzurot/common-types/config/config', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types/config/config')>();
+  return {
+    ...actual,
+    getConfig: vi.fn().mockReturnValue({ BOT_OWNER_ID: undefined }),
+  };
+});
+vi.mock('@tzurot/common-types/utils/ownerMiddleware', async importOriginal => {
+  const actual =
+    await importOriginal<typeof import('@tzurot/common-types/utils/ownerMiddleware')>();
+  return {
+    ...actual,
+    isBotOwner: vi.fn().mockReturnValue(false),
+  };
+});
 describe('PersonalityLoader', () => {
   let mockPrisma: PrismaClient;
   let loader: PersonalityLoader;
@@ -329,7 +338,7 @@ describe('PersonalityLoader', () => {
         ] as any);
 
         // No BOT_OWNER_ID configured
-        vi.mocked(commonTypes.getConfig).mockReturnValue({ BOT_OWNER_ID: undefined } as any);
+        vi.mocked(getConfig).mockReturnValue({ BOT_OWNER_ID: undefined } as any);
 
         const result = await loader.loadFromDatabase('Lilith');
 
@@ -359,7 +368,7 @@ describe('PersonalityLoader', () => {
         ] as any);
 
         // Configure bot admin
-        vi.mocked(commonTypes.getConfig).mockReturnValue({
+        vi.mocked(getConfig).mockReturnValue({
           BOT_OWNER_ID: 'discord-admin-id',
         } as any);
         vi.mocked(mockPrisma.user.findUnique).mockResolvedValueOnce({
@@ -393,7 +402,7 @@ describe('PersonalityLoader', () => {
           publicOther,
         ] as any);
 
-        vi.mocked(commonTypes.getConfig).mockReturnValue({
+        vi.mocked(getConfig).mockReturnValue({
           BOT_OWNER_ID: 'discord-admin-id',
         } as any);
         vi.mocked(mockPrisma.user.findUnique).mockResolvedValueOnce({
@@ -426,7 +435,7 @@ describe('PersonalityLoader', () => {
         // DB returns oldest first
         vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([older, newer] as any);
 
-        vi.mocked(commonTypes.getConfig).mockReturnValue({ BOT_OWNER_ID: undefined } as any);
+        vi.mocked(getConfig).mockReturnValue({ BOT_OWNER_ID: undefined } as any);
 
         const result = await loader.loadFromDatabase('Lilith');
 
@@ -454,7 +463,7 @@ describe('PersonalityLoader', () => {
       });
 
       it('should cache bot admin UUID across multiple calls', async () => {
-        vi.mocked(commonTypes.getConfig).mockReturnValue({
+        vi.mocked(getConfig).mockReturnValue({
           BOT_OWNER_ID: 'discord-admin-id',
         } as any);
         // First call succeeds; second would throw if cache misses
@@ -532,7 +541,7 @@ describe('PersonalityLoader', () => {
           publicOther,
         ] as any);
 
-        vi.mocked(commonTypes.getConfig).mockReturnValue({
+        vi.mocked(getConfig).mockReturnValue({
           BOT_OWNER_ID: 'discord-admin-id',
         } as any);
         // DB error on admin lookup — should not propagate
@@ -548,7 +557,7 @@ describe('PersonalityLoader', () => {
       });
 
       it('should not cache null when admin has not registered yet', async () => {
-        vi.mocked(commonTypes.getConfig).mockReturnValue({
+        vi.mocked(getConfig).mockReturnValue({
           BOT_OWNER_ID: 'discord-admin-id',
         } as any);
 
@@ -588,7 +597,7 @@ describe('PersonalityLoader', () => {
       });
 
       it('should retry admin UUID lookup after transient failure', async () => {
-        vi.mocked(commonTypes.getConfig).mockReturnValue({
+        vi.mocked(getConfig).mockReturnValue({
           BOT_OWNER_ID: 'discord-admin-id',
         } as any);
 
@@ -780,7 +789,7 @@ describe('PersonalityLoader', () => {
 
       it('should bypass access filter when user is bot owner', async () => {
         // Mock isBotOwner to return true for this test
-        vi.mocked(commonTypes.isBotOwner).mockReturnValueOnce(true);
+        vi.mocked(isBotOwner).mockReturnValueOnce(true);
 
         const mockPersonality = createMockPersonality({
           id: 'private-id',

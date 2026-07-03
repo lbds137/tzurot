@@ -5,7 +5,7 @@
  */
 
 import { Queue } from 'bullmq';
-import { parseRedisUrl, createBullMQRedisConfig } from '@tzurot/common-types';
+import { parseRedisUrl, createBullMQRedisConfig } from '@tzurot/common-types/utils/redis';
 import chalk from 'chalk';
 
 import type { Environment } from '../utils/env-runner.js';

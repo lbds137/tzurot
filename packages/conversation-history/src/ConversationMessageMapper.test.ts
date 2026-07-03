@@ -6,11 +6,11 @@ import {
   conversationHistorySelect,
   type ConversationHistoryQueryResult,
 } from './ConversationMessageMapper.js';
-import { MessageRole } from '@tzurot/common-types';
+import { MessageRole } from '@tzurot/common-types/constants/message';
 
 // Suppress logger warnings in tests (createLogger now comes from the barrel)
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/logger', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types/utils/logger')>();
   return {
     ...actual,
     createLogger: () => ({
@@ -21,7 +21,6 @@ vi.mock('@tzurot/common-types', async importOriginal => {
     }),
   };
 });
-
 describe('ConversationMessageMapper', () => {
   describe('conversationHistorySelect', () => {
     it('includes all required fields', () => {

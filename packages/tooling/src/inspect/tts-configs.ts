@@ -77,7 +77,8 @@ export async function inspectTtsConfigs(options: InspectTtsConfigsOptions): Prom
  */
 export function buildInspectorScript(takeLimit: number): string {
   return `
-import { createPrismaClient, DB_POOL_DEFAULTS } from '@tzurot/common-types';
+import { createPrismaClient } from '@tzurot/common-types/services/prisma';
+import { DB_POOL_DEFAULTS } from '@tzurot/common-types/services/poolConfig';
 
 async function main() {
   const { prisma, dispose } = createPrismaClient({ max: DB_POOL_DEFAULTS.TRANSIENT_MAX });

@@ -13,7 +13,8 @@
  * - personality:invalidate:all - Invalidate all personality caches (global default changed)
  */
 
-import { createLogger, REDIS_CHANNELS } from '@tzurot/common-types';
+import { REDIS_CHANNELS } from '@tzurot/common-types/constants/queue';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { Redis } from 'ioredis';
 
 const logger = createLogger('CacheInvalidationService');

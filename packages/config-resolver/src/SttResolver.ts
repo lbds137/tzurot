@@ -18,16 +18,16 @@
  * choice)" in dashboards.
  */
 
+import { INTERVALS } from '@tzurot/common-types/constants/timing';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import {
-  createLogger,
-  TTLCache,
-  INTERVALS,
   isSttProvider,
   isByokAudioProvider,
   type SttProvider,
   type SttResolutionSource,
-  type PrismaClient,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/sttProvider';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
 import type { Logger } from 'pino';
 
 export interface SttResolutionResult {

@@ -8,17 +8,17 @@
  * - ConversationMessageMapper: Data transformation
  */
 
+import { MessageRole } from '@tzurot/common-types/constants/message';
+import { computeHistoryCutoff } from '@tzurot/common-types/services/historyCutoff';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import {
-  createLogger,
-  MessageRole,
-  countTextTokens,
-  generateConversationHistoryUuid,
-  computeHistoryCutoff,
-  type PrismaClient,
-  type MessageMetadata,
   type ConversationMessage,
   type CrossChannelHistoryGroup,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/conversationMessage';
+import { type MessageMetadata } from '@tzurot/common-types/types/schemas/message';
+import { generateConversationHistoryUuid } from '@tzurot/common-types/utils/deterministicUuid';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
 import {
   conversationHistorySelect,
   conversationRecencyOrderBy,

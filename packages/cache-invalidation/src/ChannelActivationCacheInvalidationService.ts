@@ -20,7 +20,7 @@
  * - { type: 'all' } - Invalidate all channel activation caches (for edge cases)
  */
 
-import { REDIS_CHANNELS } from '@tzurot/common-types';
+import { REDIS_CHANNELS } from '@tzurot/common-types/constants/queue';
 import {
   BaseCacheInvalidationService,
   createEventValidator,
@@ -31,8 +31,7 @@ import type { Redis } from 'ioredis';
  * Event types for channel activation cache invalidation
  */
 export type ChannelActivationInvalidationEvent =
-  | { type: 'channel'; channelId: string }
-  | { type: 'all' };
+  { type: 'channel'; channelId: string } | { type: 'all' };
 
 /**
  * Type guard to validate ChannelActivationInvalidationEvent structure

@@ -51,7 +51,10 @@
  * @see PersonaResolver - Switch strategy implementation
  */
 
-import { createLogger, INTERVALS, TTLCache, type PrismaClient } from '@tzurot/common-types';
+import { INTERVALS } from '@tzurot/common-types/constants/timing';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
 
 const logger = createLogger('BaseConfigResolver');
 

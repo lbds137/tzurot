@@ -7,11 +7,11 @@ import {
   ConfigCascadeCacheInvalidationService,
   isValidConfigCascadeInvalidationEvent,
 } from './ConfigCascadeCacheInvalidationService.js';
-import { REDIS_CHANNELS } from '@tzurot/common-types';
+import { REDIS_CHANNELS } from '@tzurot/common-types/constants/queue';
 
 // Mock logger
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/logger', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types/utils/logger')>();
   return {
     ...actual,
     createLogger: () => ({
@@ -22,7 +22,6 @@ vi.mock('@tzurot/common-types', async importOriginal => {
     }),
   };
 });
-
 describe('ConfigCascadeCacheInvalidationService', () => {
   let mockRedis: {
     duplicate: ReturnType<typeof vi.fn>;

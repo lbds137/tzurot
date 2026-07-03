@@ -23,15 +23,15 @@ import {
   type ConfigOverrideEntry,
   type UserWithDefault,
 } from './BaseConfigResolver.js';
+import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { type ResolvedTtsConfig } from '@tzurot/common-types/services/tts/TtsProvider';
 import {
-  ADMIN_SETTINGS_SINGLETON_ID,
   TTS_CONFIG_SELECT_WITH_NAME,
   mapTtsConfigFromDbWithName,
   type MappedTtsConfigWithName,
-  type PrismaClient,
-  type ResolvedTtsConfig,
-  type LoadedTtsPersonality,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/services/TtsConfigMapper';
+import { type LoadedTtsPersonality } from '@tzurot/common-types/types/configResolution';
 
 /** Sentinel cache key for the free-default lookup (no userId/personalityId axis). */
 const FREE_DEFAULT_CACHE_KEY = '__free_default__';

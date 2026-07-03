@@ -35,12 +35,10 @@ vi.mock('bullmq', () => ({
     close: vi.fn().mockResolvedValue(undefined),
   })),
 }));
-
-vi.mock('@tzurot/common-types', () => ({
+vi.mock('@tzurot/common-types/utils/redis', () => ({
   parseRedisUrl: vi.fn(() => ({ host: 'localhost', port: 6379 })),
   createBullMQRedisConfig: vi.fn(config => ({ ...config, maxRetriesPerRequest: null })),
 }));
-
 vi.mock('node:child_process', () => ({
   execFileSync: vi.fn().mockReturnValue(JSON.stringify({ REDIS_URL: 'redis://localhost:6379' })),
 }));

@@ -59,7 +59,7 @@ const __dirname = dirname(__filename);
  * ```typescript
  * import { createTestPGlite, loadPGliteSchema } from '@tzurot/test-utils';
  * import { PrismaPGlite } from 'pglite-prisma-adapter';
- * import { PrismaClient } from '@tzurot/common-types';
+ * import { PrismaClient } from '@tzurot/common-types/services/prisma';
  *
  * const pglite = createTestPGlite();
  * await pglite.exec(loadPGliteSchema());
@@ -96,7 +96,7 @@ export function loadPGliteSchema(): string {
  * For tests that need Prisma/PGLite, set it up in the test file:
  * @example
  * ```typescript
- * import { PrismaClient } from '@tzurot/common-types';
+ * import { PrismaClient } from '@tzurot/common-types/services/prisma';
  * import { PrismaPGlite } from 'pglite-prisma-adapter';
  * import {
  *   setupTestEnvironment,

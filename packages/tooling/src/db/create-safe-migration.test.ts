@@ -5,16 +5,17 @@ import {
   computeFileChecksum,
   reconcileMigrationChecksum,
 } from './create-safe-migration.js';
-import { createPrismaClient } from '@tzurot/common-types';
+import { createPrismaClient } from '@tzurot/common-types/services/prisma';
 
 const mockDispose = vi.fn();
 
 // Mock common-types for reconcileMigrationChecksum tests
-vi.mock('@tzurot/common-types', () => ({
-  createPrismaClient: vi.fn(),
+vi.mock('@tzurot/common-types/services/poolConfig', () => ({
   DB_POOL_DEFAULTS: { TRANSIENT_MAX: 5 },
 }));
-
+vi.mock('@tzurot/common-types/services/prisma', () => ({
+  createPrismaClient: vi.fn(),
+}));
 /**
  * Tests for create-safe-migration
  *

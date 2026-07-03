@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { UserService, buildShellPlaceholderPersonaName } from './UserService.js';
-import { resetConfig } from '@tzurot/common-types';
+import { resetConfig } from '@tzurot/common-types/config/config';
 
 // Use vi.hoisted() to create mocks that persist across test resets
 const { mockGenerateUserUuid, mockGeneratePersonaUuid } = vi.hoisted(() => ({
@@ -10,16 +10,25 @@ const { mockGenerateUserUuid, mockGeneratePersonaUuid } = vi.hoisted(() => ({
 
 // Mock dependencies — UserService now imports Prisma + the deterministic-UUID
 // helpers from the @tzurot/common-types barrel, so override them there.
-vi.mock('@tzurot/common-types', async importOriginal => ({
-  ...(await importOriginal<typeof import('@tzurot/common-types')>()),
-  Prisma: {
-    TransactionClient: class {},
-  },
-  DNS_NAMESPACE: '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
-  generateUserUuid: mockGenerateUserUuid,
-  generatePersonaUuid: mockGeneratePersonaUuid,
-}));
-
+vi.mock('@tzurot/common-types/services/prisma', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types/services/prisma')>();
+  return {
+    ...actual,
+    Prisma: {
+      TransactionClient: class {},
+    },
+  };
+});
+vi.mock('@tzurot/common-types/utils/deterministicUuid', async importOriginal => {
+  const actual =
+    await importOriginal<typeof import('@tzurot/common-types/utils/deterministicUuid')>();
+  return {
+    ...actual,
+    DNS_NAMESPACE: '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
+    generateUserUuid: mockGenerateUserUuid,
+    generatePersonaUuid: mockGeneratePersonaUuid,
+  };
+});
 describe('UserService', () => {
   let userService: UserService;
   let mockPrisma: {

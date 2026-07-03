@@ -15,7 +15,8 @@ import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { createTestPGlite, loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
 import { ConversationHistoryService } from './ConversationHistoryService.js';
-import { PrismaClient, MessageRole } from '@tzurot/common-types';
+import { MessageRole } from '@tzurot/common-types/constants/message';
+import { PrismaClient } from '@tzurot/common-types/services/prisma';
 
 describe('ConversationHistoryService Component Test', () => {
   let prisma: PrismaClient;

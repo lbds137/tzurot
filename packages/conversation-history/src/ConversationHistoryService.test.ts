@@ -4,17 +4,20 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ConversationHistoryService } from './ConversationHistoryService.js';
-import { MessageRole, type PrismaClient } from '@tzurot/common-types';
+import { MessageRole } from '@tzurot/common-types/constants/message';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 
 // countTextTokens now lives in @tzurot/common-types (consumed by the production
 // service via the barrel), so intercept it through a partial mock rather than a
 // namespace spy — the latter doesn't reliably catch a re-exported binding.
 const { mockCountTextTokens } = vi.hoisted(() => ({ mockCountTextTokens: vi.fn() }));
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
-  return { ...actual, countTextTokens: mockCountTextTokens };
+vi.mock('@tzurot/common-types/utils/tokenCounter', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types/utils/tokenCounter')>();
+  return {
+    ...actual,
+    countTextTokens: mockCountTextTokens,
+  };
 });
-
 // Create mock Prisma client
 const createMockPrismaClient = () => {
   const client = {

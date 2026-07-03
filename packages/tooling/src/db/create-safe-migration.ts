@@ -24,7 +24,8 @@ import { readFileSync, writeFileSync, readdirSync, statSync, mkdirSync } from 'n
 import { join, basename } from 'node:path';
 import { createInterface } from 'node:readline';
 import chalk from 'chalk';
-import { createPrismaClient, DB_POOL_DEFAULTS } from '@tzurot/common-types';
+import { DB_POOL_DEFAULTS } from '@tzurot/common-types/services/poolConfig';
+import { createPrismaClient } from '@tzurot/common-types/services/prisma';
 import {
   type Environment,
   validateEnvironment,

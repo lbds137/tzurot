@@ -14,7 +14,7 @@
  * - { type: 'all' } - Invalidate all persona caches (e.g., for migrations)
  */
 
-import { REDIS_CHANNELS } from '@tzurot/common-types';
+import { REDIS_CHANNELS } from '@tzurot/common-types/constants/queue';
 import {
   BaseCacheInvalidationService,
   createStandardEventValidator,

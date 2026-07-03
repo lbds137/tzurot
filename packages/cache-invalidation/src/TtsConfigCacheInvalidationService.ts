@@ -7,7 +7,7 @@
  *
  * Architecture:
  *   - Publisher: api-gateway (when global TtsConfigs are edited or user
- *     overrides change via the /settings tts UX, PR 3 of TTS Phase 1)
+ *     overrides change via the /settings tts UX)
  *   - Subscribers: ai-worker instances (to invalidate TtsConfigResolver cache)
  *
  * Events:
@@ -16,7 +16,7 @@
  *   - { type: 'all' } — invalidate everything (global config changes)
  */
 
-import { REDIS_CHANNELS } from '@tzurot/common-types';
+import { REDIS_CHANNELS } from '@tzurot/common-types/constants/queue';
 import {
   BaseCacheInvalidationService,
   createEventValidator,
@@ -25,9 +25,7 @@ import type { Redis } from 'ioredis';
 
 /** Event variants for TTS config cache invalidation. */
 type TtsConfigInvalidationEvent =
-  | { type: 'user'; discordId: string }
-  | { type: 'config'; configId: string }
-  | { type: 'all' };
+  { type: 'user'; discordId: string } | { type: 'config'; configId: string } | { type: 'all' };
 
 /** Type guard for incoming pub/sub events. */
 export const isValidTtsConfigInvalidationEvent = createEventValidator<TtsConfigInvalidationEvent>([

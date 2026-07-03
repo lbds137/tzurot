@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { describe, it, expect } from 'vitest';
 import { ROUTE_MANIFEST } from '@tzurot/clients';
-import { JobType } from '@tzurot/common-types';
+import { JobType } from '@tzurot/common-types/constants/queue';
 import {
   generateCoverageTopology,
   surfaceGap,

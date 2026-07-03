@@ -22,7 +22,7 @@ import {
   showEnvironmentBanner,
   confirmProductionOperation,
 } from '../utils/env-runner.js';
-import { type PrismaClient } from '@tzurot/common-types';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { getPrismaForEnv } from './prisma-env.js';
 
 interface CleanupOptions {

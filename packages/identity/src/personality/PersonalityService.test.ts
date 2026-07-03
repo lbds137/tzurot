@@ -5,7 +5,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { PersonalityService } from './PersonalityService.js';
-import type { PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 
 describe('PersonalityService - Cache Invalidation', () => {
   let mockPrisma: PrismaClient;

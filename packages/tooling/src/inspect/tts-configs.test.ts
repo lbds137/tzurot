@@ -51,7 +51,10 @@ describe('buildInspectorScript', () => {
   it('imports the prisma factory from common-types', () => {
     const script = buildInspectorScript(200);
     expect(script).toContain(
-      "import { createPrismaClient, DB_POOL_DEFAULTS } from '@tzurot/common-types';"
+      "import { createPrismaClient } from '@tzurot/common-types/services/prisma';"
+    );
+    expect(script).toContain(
+      "import { DB_POOL_DEFAULTS } from '@tzurot/common-types/services/poolConfig';"
     );
   });
 

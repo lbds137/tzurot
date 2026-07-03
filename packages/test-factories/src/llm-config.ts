@@ -21,7 +21,7 @@ import {
   type ListLlmConfigsResponse,
   type CreateLlmConfigResponse,
   type DeleteLlmConfigResponse,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/schemas/api/llm-config';
 import { z } from 'zod';
 
 type LlmConfigSummary = z.infer<typeof LlmConfigSummarySchema>;
@@ -33,11 +33,10 @@ import { type DeepPartial } from './factoryUtils.js';
 // Shared Defaults
 // ============================================================================
 
-// Fixed RFC-4122-valid UUID used as the factory default. The response-schema
-// tightening added in the same PR as this factory rejects non-UUID ids at
-// `LlmConfigSummarySchema.parse()`, so `'config-123'` no longer works. A
-// hardcoded shape (version=4, variant=8) keeps the factory deterministic
-// without pulling in a generator dependency for test fixtures.
+// Fixed RFC-4122-valid UUID used as the factory default. The response schema
+// rejects non-UUID ids at `LlmConfigSummarySchema.parse()`, so `'config-123'`
+// no longer works. A hardcoded shape (version=4, variant=8) keeps the factory
+// deterministic without pulling in a generator dependency for test fixtures.
 const MOCK_DEFAULT_ID = '00000000-0000-4000-8000-000000000000';
 
 const defaultLlmConfigSummary: LlmConfigSummary = {
