@@ -91,6 +91,11 @@ export const AUDIT_TOOL_REGISTRY: readonly AuditToolEntry[] = [
     description: 'Mutation-score ratchet over Stryker reports (per-package floors)',
   },
   {
+    command: 'lines:check',
+    whyPath: 'packages/tooling/src/audits/lines-check.WHY.md',
+    description: 'Line-count ratchet over always-loaded context surfaces (rules + CURRENT.md)',
+  },
+  {
     command: 'voice-refs:audit',
     whyPath: 'packages/tooling/src/voice/audit-references.WHY.md',
     description: 'Voice reference durations vs Mistral 30s cap',

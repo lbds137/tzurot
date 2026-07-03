@@ -62,6 +62,20 @@ if [ -z "$CHANGED_FILES" ]; then
     echo "${YELLOW}No files detected in push - skipping checks${NC}"
     exit 0
 elif [ -z "$CODE_FILES" ] && [ -z "$PYTHON_FILES" ]; then
+    # Docs-only pushes skip builds and tests, but they are exactly how the
+    # always-loaded context surfaces (.claude/rules/*.md, CURRENT.md) and the
+    # backlog layout bloat — so the two cheap doc budgets (<2s) still run.
+    echo "Docs-only push detected - running line-budget and backlog checks..."
+    if ! pnpm ops lines:check; then
+        echo "${RED}Always-loaded context line budget exceeded!${NC}"
+        echo "Trim the surface, or make growth explicit: pnpm ops lines:update-baseline"
+        exit 1
+    fi
+    if ! pnpm backlog:lint; then
+        echo "${RED}Backlog layout check failed!${NC}"
+        echo "Fix the HOT/COLD caps or dangling links before pushing"
+        exit 1
+    fi
     echo "${GREEN}Only documentation/config files changed - skipping build and tests${NC}"
     exit 0
 fi

@@ -129,7 +129,10 @@ describe('runHealth', () => {
 
     const report = runHealth({ noFail: true });
 
-    expect(vi.mocked(execFileSync)).toHaveBeenCalledTimes(HEALTH_TOOLS.length);
+    // The extras section adds `gh` subprocess calls; the roster contract is
+    // about the `pnpm ops <tool> --summary` invocations specifically.
+    const pnpmCalls = vi.mocked(execFileSync).mock.calls.filter(call => call[0] === 'pnpm');
+    expect(pnpmCalls).toHaveLength(HEALTH_TOOLS.length);
     for (const tool of HEALTH_TOOLS) {
       expect(vi.mocked(execFileSync)).toHaveBeenCalledWith(
         'pnpm',
@@ -235,5 +238,49 @@ describe('runHealth', () => {
     runHealth();
 
     expect(process.exitCode).toBe(1);
+  });
+
+  it('prints the report-only extras sections after the tool bullets', () => {
+    vi.mocked(execFileSync).mockImplementation((cmd, args) => {
+      if (cmd === 'gh') {
+        return (args as string[])[0] === 'pr' ? '2\n' : '1\n';
+      }
+      return summaryLine((args as string[])[1], 'ok');
+    });
+
+    const report = runHealth({ noFail: true });
+
+    const output = vi
+      .mocked(console.log)
+      .mock.calls.flat()
+      .map(arg => String(arg))
+      .join('\n');
+    expect(output).toContain('### Security surface (report-only)');
+    expect(output).toContain('- Dependabot PRs open: 2');
+    expect(output).toContain('### Ratchet margins (report-only)');
+    expect(output).toContain('### Docs orphans (report-only)');
+    // The extras must appear AFTER the per-tool verdict block.
+    expect(output.indexOf('## Audit health')).toBeLessThan(output.indexOf('### Security surface'));
+    expect(report.overall).toBe('ok');
+  });
+
+  it('extras degradation never affects the verdict or exit code', () => {
+    vi.mocked(execFileSync).mockImplementation((cmd, args) => {
+      if (cmd === 'gh') {
+        throw new Error('gh: command not found');
+      }
+      return summaryLine((args as string[])[1], 'ok');
+    });
+
+    const report = runHealth();
+
+    const output = vi
+      .mocked(console.log)
+      .mock.calls.flat()
+      .map(arg => String(arg))
+      .join('\n');
+    expect(output).toContain('- security: unavailable');
+    expect(report.overall).toBe('ok');
+    expect(process.exitCode).toBeUndefined();
   });
 });

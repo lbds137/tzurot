@@ -1,0 +1,19 @@
+{
+  "surfaces": {
+    "rules": {
+      "lines": 2000,
+      "graceMargin": 150
+    },
+    "current": {
+      "lines": 33,
+      "graceMargin": 60
+    }
+  },
+  "meta": {
+    "toolVersion": "lines-check/1",
+    "configHash": "84da1e207dac",
+    "nodeVersion": "v24.11.1",
+    "generatedFromSha": "a2034e712f3bae289a56793ea74634cb1e4c74c4",
+    "generatedAt": "2026-07-03T19:27:14.760Z"
+  }
+}
