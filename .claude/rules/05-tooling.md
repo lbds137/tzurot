@@ -7,7 +7,7 @@
 pnpm dev              # Start all services
 pnpm test             # Run unit tests
 pnpm test:component   # Run component tests (snapshots, cross-service)
-pnpm quality          # lint + codegen-drift + topology:check + knip + cpd + cpd:check + test:audit + depcruise + typecheck + typecheck:spec + backlog:lint + guard:test-taxonomy
+pnpm quality          # the full static gate — composition lives in package.json scripts.quality (guard:gate-parity keeps it in sync with the CI lint job; don't enumerate it here, that's a third list to drift)
 pnpm lint             # Lint all packages
 pnpm lint:errors      # Show only errors
 

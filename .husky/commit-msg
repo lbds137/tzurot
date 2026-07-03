@@ -1,1 +1,9 @@
+# Session URLs are secrets (00-critical.md) — block them before they enter
+# immutable history (510 historical trailers predate this hook).
+if grep -qE 'claude\.ai/code/session_' "$1"; then
+    echo "✖ Commit message contains a Claude session URL — these are secrets on a public repo."
+    echo "  Remove the claude.ai/code/session_... line (end at Co-Authored-By)."
+    exit 1
+fi
+
 npx --no -- commitlint --edit ${1}

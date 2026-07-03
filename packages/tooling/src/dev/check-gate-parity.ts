@@ -91,7 +91,11 @@ export interface GateParityViolations {
   ciOnly: string[];
   /** In quality but neither in CI's lint job nor LOCAL_ONLY-allowlisted. */
   localOnly: string[];
-  /** Allowlist entries whose token no longer exists on their side (rot). */
+  /**
+   * Allowlist entries that no longer describe an asymmetry: the token either
+   * vanished from its own side (rot) or now exists on BOTH sides (parity was
+   * achieved and the entry is redundant).
+   */
   staleAllowlist: string[];
 }
 
@@ -102,8 +106,8 @@ export function findGateParityViolations(
   const ciOnly = [...ciTokens].filter(t => !qualityTokens.has(t) && !(t in CI_ONLY)).sort();
   const localOnly = [...qualityTokens].filter(t => !ciTokens.has(t) && !(t in LOCAL_ONLY)).sort();
   const staleAllowlist = [
-    ...Object.keys(CI_ONLY).filter(t => !ciTokens.has(t)),
-    ...Object.keys(LOCAL_ONLY).filter(t => !qualityTokens.has(t)),
+    ...Object.keys(CI_ONLY).filter(t => !ciTokens.has(t) || qualityTokens.has(t)),
+    ...Object.keys(LOCAL_ONLY).filter(t => !qualityTokens.has(t) || ciTokens.has(t)),
   ].sort();
   return { ciOnly, localOnly, staleAllowlist };
 }
