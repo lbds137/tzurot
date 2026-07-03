@@ -90,6 +90,26 @@ Same probe pattern as self-hosted, but with API requests instead of local infere
 
 ---
 
+#### Phase: RVC v2 per-voice training using ElevenLabs as one-shot data source (premium voice tier)
+
+_The concrete consumer of the "GPU-compute for voice-engine" lever named in the status list above — moved here from `cold/ideas.md` 2026-07-03. Surfaced 2026-05-14 during BYOK quality discussion + Council brainstorm on TTS post-processing._
+
+**Architecture**: pay one-shot for ElevenLabs subscription (~$22/month for Creator tier, cancel after data generation) to generate ~30 min of high-quality TTS output per selected personality voice; train per-voice RVC v2 models on that data offline (GPU rental ~$10-30 total via Modal/RunPod); deploy the trained `.pth` files (~75 MB each) to voice-engine; at inference time pipeline becomes Pocket TTS → RVC (per-voice) → output. RVC inference is RTF <0.1 on CPU per Council, vastly faster than the OpenVoice V2 zero-shot path (RTF 0.2-0.4). **Why this works** (vs the recursive Pocket-TTS-for-training-data approach Council noted as "Pocket TTS's clone, but cleaner"): the training data quality determines the output ceiling. ElevenLabs-generated data → RVC learns to convert any input into ElevenLabs-quality timbre. **Costs**: best case ~$10-30 (GPU training only — owner has existing ElevenLabs-generated audio in Discord history from prior subscription, sufficient training data for the personalities he actively cares about). Worst case ~$50 if a temporary EL resubscription is needed for additional voices. Then ~$0/inference forever.
+
+**Data-extraction prerequisite (TOS-compliant via bot)**: Discord CDN URLs are signed and ~24h-windowed, but messages themselves are eternal. The Discord client doesn't cache URLs — it re-fetches messages via API and gets fresh signed URLs each time. The bot already has `READ_MESSAGE_HISTORY` in channels where personalities reply, so the extraction is normal API usage with the bot token, no scraping or user-session automation needed.
+
+**Extraction script shape** (likely `pnpm ops voice-data:extract --personality <name>` or one-off):
+
+- Walk guilds the bot is in → text channels it can read
+- Paginate `channel.messages.fetch({ limit: 100, before: lastId })` (~50 msg/sec rate limit; full guild scan = hours, backgroundable)
+- Filter `msg.webhookId !== null && targetPersonalityNames.includes(msg.author.username)` (webhook author username is the durable join key)
+- For attachments matching `/^(voice\.mp3|.*::tts::.*\.ogg)$/` (handles both pre-2026-05 and post-rename filename conventions), download immediately via `attachment.url` (URL is fresh from the just-fired fetch, valid for ~24h)
+- Output: `/data/voices/<personality_name>/<msg_id>.{mp3,ogg}` grouped per voice, ready for RVC training data assembly
+
+**Side benefit of the extraction**: tells you which personalities have how much historical EL audio — natural input to deciding which voices justify RVC training (need ~10-30 min per voice). **Storage**: 75 MB × N premium voices = manageable (~5 GB for all 61, less if owner-curated). **Operational complexity**: per-voice training pipeline, model storage in DB or object store, voice-engine model loading, owner-driven enrollment. **UX shape**: probably labeled "premium voice" tier — most personas use OpenVoice V2 zero-shot (or whatever ships from the next-session probe), select few use RVC. Owner-only feature initially since training requires up-front data prep. **Promote when**: OpenVoice V2 (or whatever wins the BYOK bake-off) has shipped AND quality is still below user's bar AND owner is willing to invest the one-shot training cost. Likely a 2026-Q3 candidate, not immediate.
+
+---
+
 #### Sub-track: Pocket TTS post-processing chain — DROPPED 2026-05-14
 
 Probed two complementary post-processing approaches; both ruled out. Documenting rationale so future quality work doesn't re-tread the same ground.

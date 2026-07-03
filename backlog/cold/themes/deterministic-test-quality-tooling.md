@@ -1,6 +1,6 @@
 ### Theme: Deterministic Test-Quality Tooling (mutation testing + job-payload contract)
 
-_Focus: fill the remaining deterministic-gate rungs so seam/wiring bugs fail the build, not slip through green line-coverage. Sibling to the Production Observability theme below — both make the unsafe/invisible thing deterministic._
+_Focus: fill the remaining deterministic-gate rungs so seam/wiring bugs fail the build, not slip through green line-coverage. Sibling to [`production-observability-perf-metrics-tracing.md`](production-observability-perf-metrics-tracing.md) — both make the unsafe/invisible thing deterministic._
 
 **Surfaced 2026-06-11 (user)** after the iii-b-2 thin-payload referenced-attachment regression (#1184): `jobChainOrchestrator` **had** a referenced-attachment test, and line coverage was green — but it covered only the _fat_ payload shape, so a new wire-shape shipped broken. Three green units, one broken cross-service seam. User's framing: unit tests are repeatedly insufficient for seam/wiring bugs; we want **deterministic checks that fail the build**. We already have strong gates (cpd ratchet, test-audit, depcruise, conformance harness, codecov) — this fills the remaining rungs.
 

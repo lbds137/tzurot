@@ -1,6 +1,6 @@
 ### Theme: Adjacent CPD Follow-Up Campaigns (deferred from 2026-05-16 campaign close-out)
 
-_Focus: four distinct DRY-extraction campaigns that the api-gateway CRUD-config campaign explicitly LEFT for separate council passes. Each is independently scoped; none are bugs — all are opportunities surfaced and classified during the 2026-05-16 audit (see [`docs/reference/CPD_CAMPAIGN_AUDIT.md`](../docs/reference/CPD_CAMPAIGN_AUDIT.md))._
+_Focus: four distinct DRY-extraction campaigns that the api-gateway CRUD-config campaign explicitly LEFT for separate council passes. Each is independently scoped; none are bugs — all are opportunities surfaced and classified during the 2026-05-16 audit (see [`docs/reference/CPD_CAMPAIGN_AUDIT.md`](../../../docs/reference/CPD_CAMPAIGN_AUDIT.md))._
 
 The campaign-close audit at `docs/reference/CPD_CAMPAIGN_AUDIT.md` classifies the remaining post-filter clones into four buckets. Three of those buckets are out-of-scope-by-design (deferred to future campaigns); one is in-file local-helper work. Picking these up individually:
 

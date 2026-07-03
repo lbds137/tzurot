@@ -1,6 +1,6 @@
 ### Theme: Typing Indicator Reliability
 
-_Focus: diagnose and fix intermittent typing-indicator dropouts during long AI responses. Quick Win "error differentiation" step is the prerequisite and ships first; this theme covers everything after._
+_Focus: diagnose and fix intermittent typing-indicator dropouts during long AI responses. The error-differentiation classifier (`typingErrorClassifier.ts`) has SHIPPED — what remains is the log-driven investigation below plus the two sub-items (route the `VoiceTranscriptionService` initial send through the classifier; respect `retryAfterSeconds` in the backoff)._
 
 **Observed**: user has seen the "bot is typing…" indicator disappearing before the AI response actually lands, multiple times, not yet reproduced deterministically. Unclear whether this is a bot-side bug (failed `sendTyping` refresh not recovering) or a Discord client-side display glitch.
 

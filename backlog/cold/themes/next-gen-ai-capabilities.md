@@ -1,6 +1,6 @@
 ### Theme: Next-Gen AI Capabilities
 
-_Future features: agentic behavior, multi-modality, advanced prompts._
+_Focus: future AI features — agentic scaffolding and its tool consumers (web search/fetch, deep research, media generation), plus advanced prompt techniques._
 
 #### Advanced Prompt Features
 
