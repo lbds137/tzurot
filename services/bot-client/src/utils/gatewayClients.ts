@@ -45,6 +45,7 @@ export function toGatewayUser(user: DiscordUser): GatewayUser {
     discordId: user.id,
     username: user.username,
     displayName: user.globalName ?? user.username,
+    isBot: user.bot,
   };
 }
 

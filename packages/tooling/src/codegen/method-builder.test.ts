@@ -194,11 +194,12 @@ describe('buildMethod — owner flavor', () => {
 });
 
 describe('buildMethod — user flavor', () => {
-  it('injects user-context headers (id, username, displayName)', () => {
+  it('injects user-context headers (id, username, displayName, is-bot)', () => {
     const out = buildMethod(baseRoute, { flavor: 'user', pathPrefix: '/api/user' });
     expect(out).toContain(`'X-User-Id': this.actor`);
     expect(out).toContain(`'X-User-Username': encodeURIComponent(this.user.username)`);
     expect(out).toContain(`'X-User-DisplayName': encodeURIComponent(this.user.displayName)`);
+    expect(out).toContain(`'X-User-Is-Bot': String(this.user.isBot)`);
   });
 
   it('exposes query parameters in an options bag when route has queries', () => {

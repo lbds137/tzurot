@@ -23,6 +23,12 @@
  * - `username`: Discord username. MUST be URI-encoded on the wire; Node
  *   `fetch` rejects non-Latin-1 header values synchronously.
  * - `displayName`: `globalName ?? username`. Same encoding requirement.
+ * - `isBot`: whether the Discord account is a bot. Wire format: the
+ *   `X-User-Is-Bot` header carries `'true'`/`'false'`; the gateway's
+ *   `requireUserAuth` rejects declared bots before any route handler runs
+ *   (bots must never provision user rows or personas). An ABSENT header is
+ *   treated as not-bot — internal callers that don't carry Discord user
+ *   context aren't affected by the invariant.
  *
  * On the gateway side, decode `username` and `displayName` with
  * `decodeURIComponent` before using them.
@@ -31,4 +37,5 @@ export interface GatewayUser {
   discordId: string;
   username: string;
   displayName: string;
+  isBot: boolean;
 }
