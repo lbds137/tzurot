@@ -130,6 +130,12 @@ jobs:
       - name: Check backlog layout caps and links
         run: pnpm backlog:lint
 
+      - name: Enforce always-loaded context line budgets
+        # Ratchet over .claude/rules/*.md + CURRENT.md — the always-loaded
+        # surfaces bloat via doc commits that skip heavy checks, so this
+        # also runs on the pre-push docs-only fast path and in pnpm quality.
+        run: pnpm ops lines:check
+
       - name: Check local/CI gate parity
         run: pnpm ops guard:gate-parity
 

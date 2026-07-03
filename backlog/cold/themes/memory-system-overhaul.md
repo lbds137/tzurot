@@ -46,9 +46,11 @@ No limits on memories per persona. Add `maxMemoriesPerPersona` (default: 10,000)
 
 Improve memory retrieval quality with contrastive methods.
 
-#### 🏗️ Knowledge vs Memory Distinction
+#### 🏗️ Knowledge vs Memory Distinction + Lore Books (user-loadable knowledge RAG)
 
 Distinguish user-specific memories from personality-wide knowledge (lore, backstory, reference material). Add `type`/`scope` fields, support personality-wide knowledge items not filtered by userId. See [`docs/proposals/backlog/MEMORY_INGESTION_IMPROVEMENTS.md`](../docs/proposals/backlog/MEMORY_INGESTION_IMPROVEMENTS.md) for the full proposal (concepts valid, implementation TBD; originally drafted under the pgvector architecture).
+
+**Lore books (user request 2026-07-03)**: user-facing document upload → chunk → embed → retrieve as knowledge-scope RAG. The user loads documents (world lore, character backstory, reference texts) into a character's or their own knowledge store; retrieval joins the normal memory RAG at generation time under the knowledge scope. SillyTavern's lorebooks/world-info (keyword triggers + logic gates — see `docs/research/sillytavern-features.md`) are prior art for the retrieval-trigger side; the ingestion side is new. **This is a named workstream of the overhaul design pass** — the storage decision (OpenMemory sectors vs pgvector scope column) must account for it.
 
 #### ✨ Cross-channel history — smarter retrieval with limits
 

@@ -103,7 +103,46 @@ export function registerGuardCommands(cli: CAC): void {
     });
 
   registerMetaGuards(cli);
+  registerLinesCommands(cli);
   registerHealthCommand(cli);
+}
+
+/**
+ * Always-loaded context line ratchet (audit-class; see lines-check.WHY.md).
+ * Lives with the guards because it gates the same always-loaded `.claude/`
+ * surface family as guard:claude-content-refs.
+ */
+function registerLinesCommands(cli: CAC): void {
+  cli
+    .command(
+      'lines:check',
+      'Fail if an always-loaded context surface exceeded its line budget (CI gate)'
+    )
+    .option('--baseline <path>', 'Path to baseline JSON', {
+      default: '.github/baselines/lines-baseline.json',
+    })
+    .option('--summary', SUMMARY_OPTION_DESC)
+    .example('ops lines:check')
+    .example('ops lines:check --summary')
+    .action(async (options: { baseline: string; summary?: boolean }) => {
+      const { runLinesCheck } = await import('../audits/lines-check.js');
+      runLinesCheck(options);
+    });
+
+  cli
+    .command(
+      'lines:update-baseline',
+      'Write current surface line counts to the baseline (run after intentional growth or a trim)'
+    )
+    .option('--baseline <path>', 'Path to baseline JSON', {
+      default: '.github/baselines/lines-baseline.json',
+    })
+    .option('--dry-run', 'Show the diff without writing the file')
+    .example('ops lines:update-baseline --dry-run')
+    .action(async (options: { baseline: string; dryRun?: boolean }) => {
+      const { runLinesUpdateBaseline } = await import('../audits/lines-check.js');
+      runLinesUpdateBaseline(options);
+    });
 }
 
 /**
