@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { hashContent, deterministicMemoryUuid } from '@tzurot/common-types';
+import { hashContent, deterministicMemoryUuid } from '@tzurot/common-types/constants/memory';
 import {
   pairMessages,
   deduplicatePairs,

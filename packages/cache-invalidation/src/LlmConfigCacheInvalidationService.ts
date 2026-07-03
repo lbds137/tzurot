@@ -15,7 +15,7 @@
  * - { type: 'all' } - Invalidate all LLM config caches (e.g., for global config changes)
  */
 
-import { REDIS_CHANNELS } from '@tzurot/common-types';
+import { REDIS_CHANNELS } from '@tzurot/common-types/constants/queue';
 import {
   BaseCacheInvalidationService,
   createEventValidator,
@@ -27,9 +27,7 @@ import type { Redis } from 'ioredis';
  * Extends standard events with config-specific invalidation
  */
 type LlmConfigInvalidationEvent =
-  | { type: 'user'; discordId: string }
-  | { type: 'config'; configId: string }
-  | { type: 'all' };
+  { type: 'user'; discordId: string } | { type: 'config'; configId: string } | { type: 'all' };
 
 /**
  * Type guard to validate LlmConfigInvalidationEvent structure

@@ -21,8 +21,7 @@ import { Worker } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { createHash } from 'node:crypto';
-import { createLogger } from '@tzurot/common-types';
-
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type {
   IEmbeddingService,
   WorkerMessage,

@@ -5,13 +5,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock external dependencies — both are used as constructors (`new X(...)`)
-vi.mock('@tzurot/common-types', () => ({
+vi.mock('@tzurot/common-types/services/poolConfig', () => ({
+  transientPoolOptions: () => ({ max: 5, connectionTimeoutMillis: 10_000 }),
+}));
+vi.mock('@tzurot/common-types/services/prisma', () => ({
   PrismaClient: class MockPrismaClient {
     $disconnect = vi.fn().mockResolvedValue(undefined);
   },
-  transientPoolOptions: () => ({ max: 5, connectionTimeoutMillis: 10_000 }),
 }));
-
 vi.mock('@prisma/adapter-pg', () => ({
   PrismaPg: class MockPrismaPg {},
 }));

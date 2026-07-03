@@ -12,8 +12,7 @@
 
 import { Redis } from 'ioredis';
 import chalk from 'chalk';
-import { CACHE_KEY_PREFIXES } from '@tzurot/common-types';
-
+import { CACHE_KEY_PREFIXES } from '@tzurot/common-types/constants/redis-keys';
 import { getRailwayRedisUrl } from '../inspect/bullmqConnection.js';
 import type { Environment } from '../utils/env-runner.js';
 
@@ -30,8 +29,7 @@ export interface ClearOptions {
  * human-readable reason; `kind: 'ok'` carries the Redis key to delete.
  */
 export type KeyResolution =
-  | { kind: 'ok'; key: string }
-  | { kind: 'error'; reason: 'mutually-exclusive' | 'missing-flag' };
+  { kind: 'ok'; key: string } | { kind: 'error'; reason: 'mutually-exclusive' | 'missing-flag' };
 
 /**
  * Pure key-resolution helper. Exposed for unit testing without a Redis client.

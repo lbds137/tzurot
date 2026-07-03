@@ -11,11 +11,10 @@ import {
   SttResolverCacheInvalidationService,
   isValidSttResolverInvalidationEvent,
 } from './SttResolverCacheInvalidationService.js';
-import { REDIS_CHANNELS } from '@tzurot/common-types';
+import { REDIS_CHANNELS } from '@tzurot/common-types/constants/queue';
 import type { Redis } from 'ioredis';
-
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/logger', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types/utils/logger')>();
   return {
     ...actual,
     createLogger: () => ({
@@ -26,7 +25,6 @@ vi.mock('@tzurot/common-types', async importOriginal => {
     }),
   };
 });
-
 describe('isValidSttResolverInvalidationEvent', () => {
   it('accepts user event', () => {
     expect(isValidSttResolverInvalidationEvent({ type: 'user', discordId: '123' })).toBe(true);

@@ -23,7 +23,8 @@ import { writeFile, unlink, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import chalk from 'chalk';
-import { createPrismaClient, DB_POOL_DEFAULTS } from '@tzurot/common-types';
+import { DB_POOL_DEFAULTS } from '@tzurot/common-types/services/poolConfig';
+import { createPrismaClient } from '@tzurot/common-types/services/prisma';
 import {
   type Environment,
   validateEnvironment,

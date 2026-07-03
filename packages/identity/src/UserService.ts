@@ -4,7 +4,7 @@
  *
  * Key behaviors:
  * - Creates users with default personas atomically via a single-statement
- *   CTE (circular-FK bootstrap; see Phase 5b notes inline)
+ *   CTE (circular-FK bootstrap; see notes inline)
  * - Handles race conditions when multiple requests arrive for same user
  *   (P2002 recovery filtered to users.discord_id)
  * - Upgrades placeholder usernames (shell-created = discordId) to real
@@ -12,17 +12,16 @@
  *   placeholder persona in the same maintenance pass
  */
 
+import { UNKNOWN_USER_DISCORD_ID } from '@tzurot/common-types/constants/message';
+import { DEFAULT_PERSONA_DESCRIPTION } from '@tzurot/common-types/constants/persona';
+import { type PrismaClient, Prisma } from '@tzurot/common-types/services/prisma';
 import {
-  type PrismaClient,
-  Prisma,
-  createLogger,
-  TTLCache,
   generateUserUuid,
   generatePersonaUuid,
-  isBotOwner,
-  UNKNOWN_USER_DISCORD_ID,
-  DEFAULT_PERSONA_DESCRIPTION,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/utils/deterministicUuid';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
+import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
 
 /**
  * User record with fields needed for post-read maintenance checks (superuser
@@ -48,9 +47,8 @@ interface UserWithMaintenanceFields {
  * row AND its default Persona exist. Callers that only need `userId` should
  * destructure `{ userId }` rather than special-casing any field.
  *
- * This shape is the Phase 2 contract in the Identity & Provisioning Hardening
- * epic: by bundling `defaultPersonaId` non-null into the return type, we move
- * the "does this user have a persona?" invariant out of read-time repair
+ * By bundling `defaultPersonaId` non-null into the return type, this shape
+ * moves the "does this user have a persona?" invariant out of read-time repair
  * (runMaintenanceTasks) and into the type system.
  */
 export interface ProvisionedUser {
@@ -61,11 +59,11 @@ export interface ProvisionedUser {
 const logger = createLogger('UserService');
 
 /**
- * Build the placeholder persona name used during shell-user creation (Identity
- * Epic Phase 5b). Prefix `"User "` is intentional — the bare Discord snowflake
- * ID would violate the `personas_name_not_snowflake` CHECK constraint added
- * in Phase 5. This placeholder is replaced with the user's real Discord
- * username by `runMaintenanceTasks` on their first bot-client interaction.
+ * Build the placeholder persona name used during shell-user creation. Prefix
+ * `"User "` is intentional — the bare Discord snowflake ID would violate the
+ * `personas_name_not_snowflake` CHECK constraint. This placeholder is replaced
+ * with the user's real Discord username by `runMaintenanceTasks` on their first
+ * bot-client interaction.
  *
  * Exported so tests and any direct callers share the same formula without
  * duplicating the "User " prefix literal.
@@ -179,8 +177,8 @@ export class UserService {
     try {
       return await this.createUserWithDefaultPersona(discordId, username, displayName, bio);
     } catch (error) {
-      // Phase 5b: the full path's CTE now writes User + Persona in a single
-      // statement. Filter on `discord_id` explicitly so a P2002 from the
+      // The full path's CTE writes User + Persona in a single statement.
+      // Filter on `discord_id` explicitly so a P2002 from the
       // persona `(owner_id, name)` unique constraint cannot be mis-classified
       // as a "user already exists" race. In practice the persona UUID+name
       // pair is deterministic per ownerId so this shouldn't fire, but the
@@ -209,10 +207,11 @@ export class UserService {
    * (e.g., shell creation now writes User + Persona, each with its own
    * uniqueness) pass a target to match only the expected constraint.
    *
-   * Identity Epic Phase 5b added the target parameter as defense-in-depth for
-   * the new shell-creation transaction. Element-equality (not substring)
-   * matching means a future caller passing a short target like `'id'` can't
-   * silently false-positive against a longer column name like `'discord_id'`.
+   * The target parameter is defense-in-depth for the shell-creation transaction
+   * (User + Persona written in one tx, each with its own uniqueness).
+   * Element-equality (not substring) matching means a future caller passing a
+   * short target like `'id'` can't silently false-positive against a longer
+   * column name like `'discord_id'`.
    */
   private isPrismaUniqueConstraintError(error: unknown, target?: string): boolean {
     if (
@@ -275,7 +274,7 @@ export class UserService {
    * interaction. These are "read-repair" operations that fix pre-hardening
    * data on access.
    *
-   * Returns the effective `defaultPersonaId` — always non-null post-Phase-5b.
+   * Returns the effective `defaultPersonaId` — always non-null (DB-enforced).
    */
   private async runMaintenanceTasks(
     user: UserWithMaintenanceFields,
@@ -286,8 +285,8 @@ export class UserService {
     // Check if existing user should be promoted to superuser
     await this.promoteToSuperuserIfNeeded(user, discordId);
 
-    // Phase 5b: defaultPersonaId is structurally NOT NULL, so there is no
-    // backfill branch anymore. The legacy repair-on-read path that created
+    // defaultPersonaId is structurally NOT NULL, so there is no backfill
+    // branch anymore. The legacy repair-on-read path that created
     // personas for users missing a default persona has been removed along
     // with the null column.
     const defaultPersonaId = user.defaultPersonaId;
@@ -297,8 +296,8 @@ export class UserService {
     // This intentionally does NOT sync changed Discord usernames — we preserve
     // the username from first interaction to maintain historical consistency.
     //
-    // Identity Epic Phase 5b: also rename the placeholder persona from
-    // `"User {discordId}"` to the real username. The rename uses `updateMany`
+    // Also rename the placeholder persona from `"User {discordId}"` to the real
+    // username. The rename uses `updateMany`
     // with an idempotent WHERE predicate so concurrent maintenance calls for
     // the same user don't race — the second call matches zero rows and
     // no-ops. The unique `(ownerId, name)` constraint cannot fire here
@@ -384,8 +383,8 @@ export class UserService {
     const personaDisplayName = displayName ?? username;
     const personaContent = bio ?? '';
 
-    // Phase 5b: circular-FK bootstrap via single-statement CTE. See the
-    // matching comment in createShellUserWithRaceProtection for the reasoning.
+    // Circular-FK bootstrap via single-statement CTE. See the matching
+    // comment in createShellUserWithRaceProtection for the reasoning.
     await this.prisma.$executeRaw`
       WITH new_persona AS (
         INSERT INTO personas (id, name, preferred_name, description, content, owner_id, updated_at)

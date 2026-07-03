@@ -8,7 +8,7 @@ import {
   CacheInvalidationService,
   type PersonalityCacheTarget,
 } from './CacheInvalidationService.js';
-import { REDIS_CHANNELS } from '@tzurot/common-types';
+import { REDIS_CHANNELS } from '@tzurot/common-types/constants/queue';
 import type { Redis } from 'ioredis';
 
 describe('CacheInvalidationService', () => {

@@ -29,9 +29,12 @@ import {
   QuoteKind,
   SyntaxKind,
   type SourceFile,
+  type OptionalKind,
   type ImportSpecifierStructure,
+  type ExportSpecifierStructure,
 } from 'ts-morph';
 import { buildSymbolMap, type SymbolMap } from './build-symbol-map.js';
+import { rewriteViMocks } from './mock-codemod.js';
 
 const PACKAGE = '@tzurot/common-types';
 
@@ -40,9 +43,19 @@ export interface CodemodReport {
   importsRewritten: number;
   exportsRewritten: number;
   inlineTypesRewritten: number;
+  mocksRewritten: number;
+  mockGroupsEmitted: number;
   namespaceImports: string[];
   wildcardReExports: string[];
+  flagged: string[];
   unresolved: string[];
+  /**
+   * Bare `'@tzurot/common-types'` refs surviving after the AST transforms —
+   * dynamic `import()` calls, string-embedded imports, and barrel-centric test
+   * code the codemod can't rewrite. These keep working under dual-publish but
+   * MUST reach zero (minus an intentional allowlist) before PR 3 drops `"."`.
+   */
+  remainingBareRefs: string[];
 }
 
 function isBarrelSpecifier(spec: string): boolean {
@@ -67,7 +80,7 @@ function rewriteImportDeclarations(sf: SourceFile, map: SymbolMap, report: Codem
     if (named.length === 0) continue; // bare side-effect import — nothing to route
     const importIsTypeOnly = imp.isTypeOnly();
 
-    const groups = new Map<string, ImportSpecifierStructure[]>();
+    const groups = new Map<string, OptionalKind<ImportSpecifierStructure>[]>();
     let unresolved = false;
     for (const spec of named) {
       const name = spec.getName();
@@ -87,17 +100,23 @@ function rewriteImportDeclarations(sf: SourceFile, map: SymbolMap, report: Codem
     }
     if (unresolved) continue; // leave the original import in place, flagged
 
-    const structures = [...groups.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([subpath, specs]) => ({
+    const sorted = [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
+    const first = sorted[0];
+    if (first === undefined) continue;
+    // Mutate the FIRST group INTO the existing import node in place, rather than
+    // remove()+insert. This keeps the node's leading trivia (file-header JSDoc,
+    // and any file-level pragma like `/* eslint-disable */`) attached exactly
+    // once — remove() strips leading comments, and re-attaching them by hand
+    // double-adds a surviving file-level pragma. Remaining groups insert after.
+    imp.set({ moduleSpecifier: `${PACKAGE}/${first[0]}`, namedImports: first[1] });
+    let insertAt = imp.getChildIndex() + 1;
+    for (const [subpath, specs] of sorted.slice(1)) {
+      sf.insertImportDeclaration(insertAt++, {
         isTypeOnly: importIsTypeOnly,
         namedImports: specs,
         moduleSpecifier: `${PACKAGE}/${subpath}`,
-      }));
-
-    const idx = imp.getChildIndex();
-    imp.remove();
-    sf.insertImportDeclarations(idx, structures);
+      });
+    }
     report.importsRewritten += 1;
   }
 }
@@ -119,7 +138,7 @@ function rewriteExportDeclarations(sf: SourceFile, map: SymbolMap, report: Codem
       continue;
     }
     const exportIsTypeOnly = exp.isTypeOnly();
-    const groups = new Map<string, ImportSpecifierStructure[]>();
+    const groups = new Map<string, OptionalKind<ExportSpecifierStructure>[]>();
     let unresolved = false;
     for (const spec of exp.getNamedExports()) {
       const name = spec.getName();
@@ -135,17 +154,20 @@ function rewriteExportDeclarations(sf: SourceFile, map: SymbolMap, report: Codem
     }
     if (unresolved) continue;
 
-    const structures = [...groups.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([subpath, specs]) => ({
+    const sorted = [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
+    const first = sorted[0];
+    if (first === undefined) continue;
+    // Mutate the first group in place (preserves leading trivia — see the import
+    // rewrite above), insert the rest after.
+    exp.set({ moduleSpecifier: `${PACKAGE}/${first[0]}`, namedExports: first[1] });
+    let insertAt = exp.getChildIndex() + 1;
+    for (const [subpath, specs] of sorted.slice(1)) {
+      sf.insertExportDeclaration(insertAt++, {
         isTypeOnly: exportIsTypeOnly,
         namedExports: specs,
         moduleSpecifier: `${PACKAGE}/${subpath}`,
-      }));
-
-    const idx = exp.getChildIndex();
-    exp.remove();
-    sf.insertExportDeclarations(idx, structures);
+      });
+    }
     report.exportsRewritten += 1;
   }
 }
@@ -160,7 +182,7 @@ function rewriteInlineTypeImports(sf: SourceFile, map: SymbolMap, report: Codemo
     if (argText === undefined || !isBarrelSpecifier(argText)) continue;
     // First segment of the qualifier is the top-level symbol name.
     const firstName =
-      qualifier.getFirstDescendantOfKind(SyntaxKind.Identifier)?.getText() ?? qualifier.getText();
+      qualifier.getFirstDescendantByKind(SyntaxKind.Identifier)?.getText() ?? qualifier.getText();
     const entry = map.get(firstName);
     if (entry === undefined) {
       report.unresolved.push(`${sf.getFilePath()} :: import('…').${firstName}`);
@@ -168,6 +190,24 @@ function rewriteInlineTypeImports(sf: SourceFile, map: SymbolMap, report: Codemo
     }
     argLiteral?.asKind(SyntaxKind.StringLiteral)?.setLiteralValue(`${PACKAGE}/${entry.subpath}`);
     report.inlineTypesRewritten += 1;
+  }
+}
+
+/**
+ * Flag lines carrying a BARE `@tzurot/common-types` in MODULE-RESOLUTION syntax
+ * — a dynamic `import('…')` call or a `from '…'` specifier. After the AST pass
+ * rewrites real static imports to deep paths, a surviving bare `from '…'` means
+ * it's string-embedded (e.g. a generated subprocess script). Deliberately does
+ * NOT match prose mentions, package-name strings, or a tool's barrel-detection
+ * literals — only refs that actually resolve the module and would break when
+ * `"."` is dropped. The remaining hits still need human triage (some are
+ * intentional barrel-centric test fixtures → allowlist at PR 3).
+ */
+function scanRemainingBareRefs(filePath: string, text: string, report: CodemodReport): void {
+  const re = /import\s*\(\s*['"`]@tzurot\/common-types['"`]|from\s+['"`]@tzurot\/common-types['"`]/;
+  const lines = text.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    if (re.test(lines[i])) report.remainingBareRefs.push(`${filePath}:${i + 1}`);
   }
 }
 
@@ -192,20 +232,33 @@ export function runCodemod(pkgDir: string, dryRun: boolean): CodemodReport {
     importsRewritten: 0,
     exportsRewritten: 0,
     inlineTypesRewritten: 0,
+    mocksRewritten: 0,
+    mockGroupsEmitted: 0,
     namespaceImports: [],
     wildcardReExports: [],
+    flagged: [],
     unresolved: [],
+    remainingBareRefs: [],
   };
 
   for (const sf of project.getSourceFiles()) {
     const before = sf.getFullText();
+    // Mocks first: rewriteViMocks reads the ORIGINAL barrel-specifier vi.mock
+    // calls; the import rewrite doesn't touch them, but ordering keeps intent
+    // clear (test-mock half, then production imports on the same file).
+    rewriteViMocks(sf, map, report);
     rewriteImportDeclarations(sf, map, report);
     rewriteExportDeclarations(sf, map, report);
     rewriteInlineTypeImports(sf, map, report);
-    if (sf.getFullText() !== before) {
+    const after = sf.getFullText();
+    if (after !== before) {
       report.filesChanged += 1;
       if (!dryRun) sf.saveSync();
     }
+    // Text scan for bare barrel refs the AST can't reach. Runs on the FINAL
+    // text of every file (changed or not) so dynamic import() / string-embedded
+    // imports surface — the "grep sweep" the codemod would otherwise hide.
+    scanRemainingBareRefs(sf.getFilePath(), after, report);
   }
   return report;
 }
@@ -228,6 +281,13 @@ function main(): void {
   console.log(`   imports rewritten:    ${r.importsRewritten}`);
   console.log(`   export-froms:         ${r.exportsRewritten}`);
   console.log(`   inline type imports:  ${r.inlineTypesRewritten}`);
+  console.log(
+    `   vi.mocks rewritten:   ${r.mocksRewritten} (→ ${r.mockGroupsEmitted} subpath groups)`
+  );
+  if (r.flagged.length > 0) {
+    console.log(`\n⚠️  Flagged for MANUAL review (${r.flagged.length}):`);
+    for (const n of r.flagged) console.log(`   ${n}`);
+  }
   if (r.namespaceImports.length > 0) {
     console.log(`\n⚠️  Namespace imports (MANUAL — cannot auto-split):`);
     for (const n of r.namespaceImports) console.log(`   ${n}`);
@@ -239,6 +299,13 @@ function main(): void {
   if (r.unresolved.length > 0) {
     console.log(`\n❌ Unresolved names (NOT in barrel map — investigate):`);
     for (const n of r.unresolved) console.log(`   ${n}`);
+  }
+  if (r.remainingBareRefs.length > 0) {
+    console.log(
+      `\n🔎 Remaining BARE barrel refs (dynamic import()/string/barrel-centric — ` +
+        `AST can't rewrite; must clear or allowlist before PR 3 drops "."): ${r.remainingBareRefs.length}`
+    );
+    for (const n of r.remainingBareRefs) console.log(`   ${n.replace(`${process.cwd()}/`, '')}`);
   }
   if (dryRun) console.log(`\n(dry run — no files written)`);
 }

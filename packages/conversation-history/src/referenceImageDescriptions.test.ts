@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { collectRefImageDescriptions } from './referenceImageDescriptions.js';
-import type { StoredReferencedMessage } from '@tzurot/common-types';
+import type { StoredReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 
 function makeRef(attachments?: StoredReferencedMessage['attachments']): StoredReferencedMessage {
   return {

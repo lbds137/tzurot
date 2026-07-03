@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SttResolver } from './SttResolver.js';
-import type { PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 
 // Shared logger instance so tests can assert on (absence of) warnings — the
 // resolver's logger is created once in the constructor.
@@ -10,15 +10,13 @@ const mockLogger = vi.hoisted(() => ({
   warn: vi.fn(),
   error: vi.fn(),
 }));
-
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/logger', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types/utils/logger')>();
   return {
     ...actual,
     createLogger: () => mockLogger,
   };
 });
-
 // Minimal Prisma double — the resolver only consumes `prisma.user.findFirst`,
 // so a typed double is sufficient and avoids dragging the live Prisma client
 // into every test.

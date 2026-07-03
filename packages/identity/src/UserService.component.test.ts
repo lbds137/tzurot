@@ -13,18 +13,23 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
-import { PrismaClient, generatePersonaUuid, isBotOwner } from '@tzurot/common-types';
+import { PrismaClient } from '@tzurot/common-types/services/prisma';
+import { generatePersonaUuid } from '@tzurot/common-types/utils/deterministicUuid';
+import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { UserService } from './UserService.js';
 import { createTestPGlite, loadPGliteSchema } from '@tzurot/test-utils';
 
 // Mock isBotOwner - will be configured per test
-vi.mock('@tzurot/common-types', async importOriginal => ({
-  ...(await importOriginal<typeof import('@tzurot/common-types')>()),
-  isBotOwner: vi.fn().mockReturnValue(false),
-}));
-
+vi.mock('@tzurot/common-types/utils/ownerMiddleware', async importOriginal => {
+  const actual =
+    await importOriginal<typeof import('@tzurot/common-types/utils/ownerMiddleware')>();
+  return {
+    ...actual,
+    isBotOwner: vi.fn().mockReturnValue(false),
+  };
+});
 describe('UserService', () => {
   let prisma: PrismaClient;
   let pglite: PGlite;

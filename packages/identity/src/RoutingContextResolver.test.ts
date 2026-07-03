@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { resolveRoutingContext, type RoutingContextDeps } from './RoutingContextResolver.js';
-import type { PrismaClient, RoutingContextRequest } from '@tzurot/common-types';
+import type { RoutingContextRequest } from '@tzurot/common-types/schemas/api/internal';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { UserService } from './UserService.js';
 import type { PersonaResolver } from './resolvers/PersonaResolver.js';
 

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { VisionConfigResolver } from './VisionConfigResolver.js';
-import { MODEL_DEFAULTS, type PrismaClient } from '@tzurot/common-types';
+import { MODEL_DEFAULTS } from '@tzurot/common-types/constants/ai';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 
 // Hoisted logger spies so tests can assert the WARN→ERROR upgrade for a failed
 // personality-default lookup (a behavioral contract, mirroring TtsConfigResolver).
@@ -8,9 +9,8 @@ const { mockLoggerError, mockLoggerWarn } = vi.hoisted(() => ({
   mockLoggerError: vi.fn(),
   mockLoggerWarn: vi.fn(),
 }));
-
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/logger', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types/utils/logger')>();
   return {
     ...actual,
     createLogger: () => ({
