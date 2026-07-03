@@ -1,32 +1,26 @@
 # Current
 
-> **Version**: v3.0.0-beta.145 (released 2026-07-02) — **one additive migration** (`add_admin_settings_tts_default_pointers`, premigrated to prod before merge; backfill data-tested in #1453). Headliners: **TTS defaults on AdminSettings pointers** (#1446 — both read paths cut over, sync singleton util retired), **unified process-lifecycle handling** (#1444 — policy-aware shutdown across all three services; NOTE: the new handlers first execute at the NEXT deploy/restart after this one), **the aggressive backlog-shrink pass** (#1447–#1450 — ~25 rows retired, 3 themes created, anti-rot tooling live), **clean-first builds** (#1451 — turbo cache-poisoning class killed), **`guard:workflow-sync`** (#1452 + ci.yml step via main-cut #1454). 14 PRs total; holistic release review clean ("no changes requested"). _Prior: v3.0.0-beta.144 (2026-07-02) — vision auto-fallback loop + retention + shutdown-loop fix._
+> **Version**: v3.0.0-beta.146 (released 2026-07-03) — **no migrations**. Headliners: **finish_reason-"error" retryable fix** (#1462 — provider death inside an HTTP 200 no longer delivers garbage or poisons LTM), **both-fail route-chain footer** (#1456 + #1460 — closes the z.ai confusion family), **the complete Stryker arc** (#1459/#1461/#1463 — mutation-score ratchet at baseline 87.81, parallel `mutation-tests` CI job), **human-users-only auth invariant** (#1464), **ops logs incident-dig flags** (#1465), **ops:health aggregator + weekly audit cron** (#1466 — cron LIVE from main, Saturdays 09:00 UTC; maiden dispatch ✅ OK with Discord thread delivery proven; webhook secret set). **3 themes CLOSED** (human-users-only, railway-log-DX, periodic-audit). 11 PRs; release review: "nothing survived verification as an actionable bug." _Prior: v3.0.0-beta.145 (2026-07-02) — TTS pointers, lifecycle handling, backlog shrink, guard:workflow-sync (14 PRs)._
 
 ---
 
-## Unreleased on Develop (since beta.145)
+## Unreleased on Develop (since beta.146)
 
-**11 feature/fix PRs ready for beta.146** (no migrations): #1456 both-fail route-chain footer, #1457 guard:workflow-sync narrowing, #1458 PGLite DEFERRABLE-FK harvester (Phase 1), #1459 Stryker pilot, #1460 fallback-summary unwrap fix, #1461 mutation gap-closing (23 tests), #1462 finish_reason-"error" retryable fix (prod bug, fixed same-day), #1463 mutation-score ratchet (CI `mutation-tests` job, baseline 87.81), #1464 human-users-only auth invariant, #1465 ops logs incident-dig flags (`--request-id`/`--job-id`/`--since`), #1466 ops:health aggregator + weekly audit cron (cron activates when the release reaches main).
+**Released v3.0.0-beta.146 on 2026-07-03** (notes: [tag v3.0.0-beta.146](https://github.com/lbds137/tzurot/releases/tag/v3.0.0-beta.146)). `release:finalize` SHA-aligned develop with main — **nothing unreleased on develop.**
 
-**Post-release action for beta.146**: create the Discord webhook + `gh secret set DISCORD_AUDIT_WEBHOOK_URL` (weekly audit delivery; log-only until then — row in `cold/follow-ups.md`).
-
-**beta.145 post-deploy watch-items** (3 of 4 CLOSED 2026-07-02, beta.146 warmup session):
-
-- ✅ **Lifecycle handlers**: exercised under supervision (prod bot-client redeploy) — full graceful sequence (`Shutting down gracefully...` trigger=SIGTERM → dispose fan-out → `Shutdown complete`), zero re-entry/hard-exit lines; an in-flight multi-tag job was marked stale and RESUMED by the replacement instance (`entriesResumed=1 slotsTrustedToStream=1`) — the shutdown→recovery handoff proven on a real job.
-- ✅ **TTS pointer resolution in prod**: runtime-verified on BOTH read paths — gateway (`/voice view`) and ai-worker (a real generation) each logged `Free default TTS config loaded from database` → `kyutai-self-hosted`, and synthesis dispatched via the self-hosted primary.
-- **Vision error-pattern recall**: an error phrased outside the new anchors would positive-cache for 1h — tracked with promote-when in `cold/follow-ups.md`.
-- ✅ **`guard:workflow-sync` narrowing**: shipped as #1457 (guard scoped to the claude workflow files; skill + rules wording corrected; validated in-PR by a ci.yml-drifted develop branch getting a full review).
+**beta.146 post-release state**: weekly audit cron verified end-to-end via manual `workflow_dispatch` (run green, report ✅ OK across the 5-tool roster, Discord thread delivery via `?thread_id=` webhook confirmed — the purple cube posts). First scheduled run: Saturday 2026-07-04 09:00 UTC. One carried watch-item from beta.145: **vision error-pattern recall** (an error phrased outside the new anchors would positive-cache for 1h — promote-when row in `cold/follow-ups.md`).
 
 ---
 
 ## Next Session Goal
 
-**Finishing-first continues** (user directive 2026-07-03: theme-CLOSERS outrank theme-starters — ordering in `active-epic.md`). The cheap closures are DONE (3 themes closed 2026-07-03). Next pulls:
+**Finishing-first continues** (user directive 2026-07-03: theme-CLOSERS outrank theme-starters — ordering in `active-epic.md`). The cheap closures are DONE (3 themes closed + released 2026-07-03). Next pulls:
 
 1. **Job-payload contract suite** (deterministic test-quality theme, candidate 2) — the #1184-class catcher and the theme's founding motivation; build-sized. Quick Pact rule-in/out + invariants audit round out the theme.
 2. **CPD campaign 1** (`LlmConfigService` ↔ `TtsConfigService` parallel cleanup) — council pass first per the theme.
 3. **LLM legacy-column Phase A DROP** — destructive migration; pointer reads soaking in prod since beta.143/145; needs `release:premigrate --allow-destructive` at the release that carries it.
-4. **Cutting beta.146** is a solid option any time — 11 PRs queued, and the release activates the weekly audit cron.
+
+Passive check next session: did the Saturday 09:00 UTC scheduled audit run fire on its own (the dispatch test proved the pipeline; the schedule trigger itself gets its first exercise 2026-07-04).
 
 ## Last Session — beta.146 knockout + finishing push (2026-07-02 → 07-03)
 
