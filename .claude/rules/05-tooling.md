@@ -187,7 +187,7 @@ The `.claude/hooks/pr-monitor-reminder.sh` PostToolUse hook fires after every `g
 The monitor command (PR number is `N`):
 
 ```
-gh pr checks N --watch --interval=30 > /dev/null 2>&1; echo "CI_COMPLETE"; gh pr checks N
+sleep 60; gh pr checks N --watch --interval=30 > /dev/null 2>&1; sleep 5; echo "CI_COMPLETE"; gh pr checks N
 ```
 
 Note the `;` between each command (not `&&`). `echo "CI_COMPLETE"` and the final `gh pr checks N` run unconditionally — the sentinel fires even if `--watch` exits non-zero (network blip, bad flag). That's intentional: the trailing `gh pr checks N` surfaces the true state regardless, and "watch exited" is always a useful signal. `CI_COMPLETE` means "watch exited," not "all checks passed."
