@@ -58,11 +58,30 @@ export function normalizeCommand(line: string): string | null {
  * inside run blocks) are not executed commands.
  */
 export function extractCiLintTokens(ciYamlContent: string): Set<string> {
-  const jobBlock = /^ {2}lint:\n([\s\S]*?)(?=^ {2}[a-z][a-z-]*:\s*$)/m.exec(ciYamlContent);
-  const block = jobBlock ? jobBlock[1] : ciYamlContent;
+  // Line-based job-segment isolation: find the `  lint:` key, then take every
+  // line until the next 2-space-indented key (ANY job-name charset) or EOF.
+  // Never falls back to scanning the whole file — a guard that silently
+  // widens its scan window would report violations for the wrong reason.
+  const lines = ciYamlContent.split('\n');
+  const start = lines.findIndex(l => /^ {2}lint:\s*$/.test(l));
+  if (start === -1) {
+    throw new Error(
+      'guard:gate-parity: no `lint:` job found in ci.yml — if the job was renamed, update check-gate-parity.ts'
+    );
+  }
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i++) {
+    if (/^ {2}\S/.test(lines[i])) {
+      end = i;
+      break;
+    }
+  }
+  const block = lines.slice(start + 1, end).join('\n');
   const tokens = new Set<string>();
   for (const rawLine of block.split('\n')) {
-    let line = rawLine.trim().replace(/^run:\s*/, '');
+    // Accept both step styles: `run: cmd` under a `- name:` key, and the
+    // compact `- run: cmd` list form.
+    let line = rawLine.trim().replace(/^(?:-\s+)?run:\s*/, '');
     // See through `VAR=$( ... )` command substitutions and leading env-var
     // assignments (`NO_COLOR=1 pnpm ...`) — those still execute the command.
     line = line.replace(/^[A-Z_]+=\$\(\s*/, '').replace(/^(?:[A-Z_]+=\S+\s+)+/, '');
