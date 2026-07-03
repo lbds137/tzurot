@@ -55,7 +55,7 @@ All rules load automatically from `.claude/rules/`:
 
 ```bash
 gh pr create --base develop --title "feat: description"
-gh pr merge <number> --rebase --delete-branch  # Feature PRs only, with user approval
+gh pr merge <number> --rebase --delete-branch  # Feature PRs only, when truly ready (00-critical § Merge Approval)
 gh pr merge <number> --rebase                  # Release PRs (develop → main) — NEVER delete develop
 ```
 
@@ -80,4 +80,10 @@ When compacting context, preserve:
 - List of all modified files in this session
 - Current task state and any blockers
 - Test commands that were run and their results
+- **Session settings the user changed** (reasoning effort level, permission mode) — post-compaction sessions have twice re-suggested settings that were already active
+- **Open promises and asks**: anything announced as "I'll do X later," any unanswered question posed to the user, any user question not yet answered
+- **The work-stack pointer**: the interrupted task and its resume point when a side-quest (prod bug, review round) preempted the main line
+- **Manual-test / smoke-checklist state**: which items the user has executed and their results (also written to CURRENT.md per `/tzurot-testing` — the file is the source of truth)
 - Re-read `.claude/rules/` files after compaction
+
+**Recovery mechanism**: exact pre-compaction context (verbatim quotes, tool output, decisions) is recoverable by grepping the session JSONL under `~/.claude/projects/<project-slug>/` (the slug derives from the checkout path — `ls ~/.claude/projects/` to find it) — use it before re-deriving or guessing at lost state.

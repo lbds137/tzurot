@@ -1,7 +1,7 @@
 ---
 name: tzurot-council-mcp
 description: 'Multi-perspective AI consultation. Invoke with /tzurot-council-mcp for major refactors (>500 lines), structured debugging after failed attempts, or when a technical decision has multiple viable approaches.'
-lastUpdated: '2026-07-01'
+lastUpdated: '2026-07-03'
 ---
 
 # Council MCP Procedures
@@ -79,7 +79,7 @@ mcp__council__list_models({ provider: 'anthropic', search: 'claude' });
 mcp__council__recommend_model({ task: 'reasoning' });
 ```
 
-**Known drift incident (2026-04-09)**: `google/gemini-3-pro-preview` returned 404 mid-session — it had been superseded by `google/gemini-3.1-pro-preview`. Cached IDs from prior sessions are landmines.
+(Cached IDs from prior sessions are landmines — a preview model has 404'd mid-session after being superseded.)
 
 ### When a model 404s mid-session
 
@@ -94,7 +94,7 @@ End the failed session, call `list_models` to find a replacement with similar ca
 | Vision/Images    | Gemini 2.5 Flash, Gemini 2.5 Pro                                                                      | (verify availability with `list_models`)                                                    |
 | Long Documents   | Gemini (1M token context)                                                                             | (verify availability with `list_models`)                                                    |
 
-**Why avoid DeepSeek R1 for reasoning/design**: explicit user feedback (2026-04-09) — _"In the future, I would recommend not using R1 because again, it is dated. There are better models out there."_ R1 is acceptable for narrow factual queries but not for architectural decisions that ship to users. For open design decisions, run the current preferred trio in parallel — **GLM 5.2 · Kimi K2.7-code · Qwen 3.7 Max** — and verify each ID via `list_models` first (they drift; the council registry can lag a new release, e.g. GLM 5.2 wasn't listed 2026-06-17 → fall back to 5.1). If those are unavailable, fall back to Claude Sonnet / Opus, **not** R1.
+**Why avoid DeepSeek R1 for reasoning/design**: explicit user feedback — R1 is dated; design questions need SOTA. For open design decisions, run the current preferred trio in parallel — **GLM 5.2 · Kimi K2.7-code · Qwen 3.7 Max** — and verify each ID via `list_models` first (the registry can lag a new release; fall back to the prior version of the same family). If those are unavailable, fall back to Claude Sonnet / Opus, **not** R1.
 
 ### Per-call model specification
 
@@ -132,14 +132,31 @@ await mcp__council__end_conversation({
 });
 ```
 
+## Verify Premises Before Submitting
+
+**Garbage in, garbage out — a council run on a false premise wastes the whole
+pass.** Before submitting a design question, verify every factual claim in the
+prompt against the repo (read the actual routes/docstrings/config, don't
+paraphrase from memory). A council pass once ran on an oversimplified
+description built from a stale docstring and had to be fully re-run. If the
+user asks to "re-council with the full picture," that's this failure.
+
+## When the Council Splits
+
+Don't silently pick a side. Run a tiebreaker pass with a model from a different
+family than the split participants (e.g., Gemini Pro when the trio splits), give
+it both positions verbatim, and report the split + tiebreaker reasoning to the
+user. Cost is not a blocker for council usage — the user's standing position is
+that a better decision is worth the tokens.
+
 ## When Council and Claude Disagree
 
-**Resolution hierarchy:**
-
-1. Project guidelines (CLAUDE.md, rules)
-2. Existing codebase patterns
-3. Technical correctness
-4. User preference
+**Evaluate the tension on its merits — do NOT auto-resolve with "our rules always
+win."** The user's standing position: if the council proposes something genuinely
+better than an existing rule/pattern, they want to consider it. Present the
+conflict explicitly (what the rule says, what council proposes, your own
+assessment) and let the user decide. Rules win by default only when the council's
+case is weak or the rule encodes a hard safety constraint.
 
 ## Available Tools
 
