@@ -62,6 +62,40 @@ describe('extractCiLintTokens', () => {
   it('does not leak commands from other jobs', () => {
     expect(extractCiLintTokens(yaml).has('test:coverage')).toBe(false);
   });
+
+  it('handles lint being the LAST job (no following boundary) without widening the scan', () => {
+    const lastJobYaml = [
+      'jobs:',
+      '  test:',
+      '    steps:',
+      '      - run: pnpm test:coverage',
+      '  lint:',
+      '    steps:',
+      '      - run: pnpm run lint',
+    ].join('\n');
+    expect(extractCiLintTokens(lastJobYaml)).toEqual(new Set(['lint']));
+  });
+
+  it('recognizes job names with digits/underscores as boundaries', () => {
+    const oddNamesYaml = [
+      'jobs:',
+      '  lint:',
+      '    steps:',
+      '      - run: pnpm run lint',
+      '  e2e_v2:',
+      '    steps:',
+      '      - run: pnpm test:e2e',
+    ].join('\n');
+    const tokens = extractCiLintTokens(oddNamesYaml);
+    expect(tokens).toEqual(new Set(['lint']));
+    expect(tokens.has('test:e2e')).toBe(false);
+  });
+
+  it('fails LOUD when the lint job is missing rather than scanning the whole file', () => {
+    expect(() => extractCiLintTokens('jobs:\n  test:\n    steps:\n      - run: pnpm test')).toThrow(
+      /no `lint:` job found/
+    );
+  });
 });
 
 describe('extractQualityTokens', () => {
