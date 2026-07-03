@@ -11,17 +11,21 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { LlmConfigResolver } from './LlmConfigResolver.js';
 import type { LoadedPersonality, PrismaClient } from '@tzurot/common-types';
 
-// Mock logger
+// Shared logger instance so tests can assert on (absence of) error logs — the
+// resolver's logger is created once in the constructor, so the mock must hand
+// back a capturable singleton rather than a fresh object per call.
+const mockLogger = vi.hoisted(() => ({
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+}));
+
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
   return {
     ...actual,
-    createLogger: () => ({
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    }),
+    createLogger: () => mockLogger,
   };
 });
 
@@ -785,6 +789,104 @@ describe('LlmConfigResolver', () => {
       // Should query again
       await resolver.getFreeDefaultConfig();
       expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('query shapes (the Prisma seam)', () => {
+    it('selects the user row with the default-config join flags', async () => {
+      // With Prisma mocked, a wrong select shape is invisible to value-flow
+      // tests — the mock returns its programmed row regardless. Assert the
+      // arguments actually crossing the seam.
+      mockPrisma.user.findFirst.mockResolvedValue(null);
+
+      await resolver.resolveConfig('user-123', 'personality-id', mockPersonality);
+
+      expect(mockPrisma.user.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { discordId: 'user-123' },
+          select: expect.objectContaining({
+            id: true,
+            defaultLlmConfigId: true,
+          }),
+        })
+      );
+    });
+  });
+
+  describe('user-not-found caching', () => {
+    it('caches the user-not-found resolution (single lookup for repeat calls)', async () => {
+      // User-not-found is a definitive answer and must cache; only thrown
+      // errors skip the cache. The lookup count pins the two paths apart.
+      mockPrisma.user.findFirst.mockResolvedValue(null);
+
+      const first = await resolver.resolveConfig('user-123', 'personality-id', mockPersonality);
+      const second = await resolver.resolveConfig('user-123', 'personality-id', mockPersonality);
+
+      expect(first.source).toBe('personality');
+      expect(second).toEqual(first);
+      expect(mockPrisma.user.findFirst).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('resolved-config key shape', () => {
+    it('omits keys the personality leaves undefined (extract path)', async () => {
+      // Materializing `key: undefined` differs from omitting the key —
+      // spreads, serialization, and Object.keys all observe the difference.
+      const sparse: LoadedPersonality = {
+        ...mockPersonality,
+        topK: undefined,
+        frequencyPenalty: undefined,
+      };
+
+      const result = await resolver.resolveConfig(undefined, 'personality-id', sparse);
+
+      expect(Object.keys(result.config)).not.toContain('topK');
+      expect(Object.keys(result.config)).not.toContain('frequencyPenalty');
+    });
+
+    it('omits keys undefined in BOTH override and personality (merge path)', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'internal-user-id',
+        defaultLlmConfigId: 'global-config-id',
+        defaultLlmConfig: {
+          name: 'User Global Config',
+          model: 'openai/gpt-4o',
+          provider: 'openrouter',
+          advancedParameters: { temperature: 0.3 },
+          memoryScoreThreshold: null,
+          memoryLimit: null,
+          contextWindowTokens: null,
+        },
+      });
+      mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue(null);
+      const sparse: LoadedPersonality = { ...mockPersonality, topK: undefined };
+
+      const result = await resolver.resolveConfig('user-123', 'personality-id', sparse);
+
+      expect(result.source).toBe('user-default');
+      expect(Object.keys(result.config)).not.toContain('topK');
+    });
+  });
+
+  describe('getFreeDefaultConfig — absent pointer stays silent', () => {
+    // A missing admin row / unset pointer is the NORMAL pre-seed state, not a
+    // failure: it must return null via the debug path, never the error path
+    // (operators alert on error logs).
+
+    it('returns null without an error log when the admin row is absent', async () => {
+      mockLogger.error.mockClear();
+      mockPrisma.adminSettings.findUnique.mockResolvedValue(null);
+
+      expect(await resolver.getFreeDefaultConfig()).toBeNull();
+      expect(mockLogger.error).not.toHaveBeenCalled();
+    });
+
+    it('returns null without an error log when the pointer is unset', async () => {
+      mockLogger.error.mockClear();
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({ freeDefaultLlmConfig: null });
+
+      expect(await resolver.getFreeDefaultConfig()).toBeNull();
+      expect(mockLogger.error).not.toHaveBeenCalled();
     });
   });
 });
