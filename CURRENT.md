@@ -6,7 +6,9 @@
 
 ## Unreleased on Develop (since beta.145)
 
-**Released v3.0.0-beta.145 on 2026-07-02** (notes: [tag v3.0.0-beta.145](https://github.com/lbds137/tzurot/releases/tag/v3.0.0-beta.145)). `release:finalize` SHA-aligned develop with main — **nothing unreleased on develop.**
+**11 feature/fix PRs ready for beta.146** (no migrations): #1456 both-fail route-chain footer, #1457 guard:workflow-sync narrowing, #1458 PGLite DEFERRABLE-FK harvester (Phase 1), #1459 Stryker pilot, #1460 fallback-summary unwrap fix, #1461 mutation gap-closing (23 tests), #1462 finish_reason-"error" retryable fix (prod bug, fixed same-day), #1463 mutation-score ratchet (CI `mutation-tests` job, baseline 87.81), #1464 human-users-only auth invariant, #1465 ops logs incident-dig flags (`--request-id`/`--job-id`/`--since`), #1466 ops:health aggregator + weekly audit cron (cron activates when the release reaches main).
+
+**Post-release action for beta.146**: create the Discord webhook + `gh secret set DISCORD_AUDIT_WEBHOOK_URL` (weekly audit delivery; log-only until then — row in `cold/follow-ups.md`).
 
 **beta.145 post-deploy watch-items** (3 of 4 CLOSED 2026-07-02, beta.146 warmup session):
 
@@ -19,11 +21,16 @@
 
 ## Next Session Goal
 
-**beta.146 = warmup, then the Spinoff-Theme Knockout.** Board reshaped 2026-07-02 (session decision):
+**Finishing-first continues** (user directive 2026-07-03: theme-CLOSERS outrank theme-starters — ordering in `active-epic.md`). The cheap closures are DONE (3 themes closed 2026-07-03). Next pulls:
 
-1. **z.ai routing bug RESOLVED-as-diagnosed; probe cancelled.** The 06-28/29 report was the auto-promotion fallback working correctly during late-June z.ai instability: promotion fired, z.ai-direct failed transiently, the OpenRouter rescue succeeded, and the footer honestly reported `via OpenRouter` (mechanism log-verified 06-30; not reproducible since). Same seam as the error-footer mis-attribution row — now **Current Focus #1**: thread the effective route through the both-fail throw path. Open design call: footer follows root-cause vs last-attempt (beta.144's #84eee440b already fixed the MESSAGE half).
-2. **No new epic — the spinoff themes become the release focus** (roadmap in `active-epic.md`): PGLite fidelity (Phase 1 first — small) → LLM legacy-column retirement (destructive DROPs; want pointer soak) → adjacent CPD campaigns (council per sub-campaign) → deterministic test-quality tooling (Stryker pilot) → z.ai 402 verification (sample-gated; check the 06-30 incident logs for the 402 body shape first). Queue pick deferred until the sweep lands.
-3. **Quick Wins queued**: guard:workflow-sync narrowing (file-scoped validation, spec on the follow-ups row), supervised bot-client redeploy (lifecycle exercise), prod TTS pointer verification.
+1. **Job-payload contract suite** (deterministic test-quality theme, candidate 2) — the #1184-class catcher and the theme's founding motivation; build-sized. Quick Pact rule-in/out + invariants audit round out the theme.
+2. **CPD campaign 1** (`LlmConfigService` ↔ `TtsConfigService` parallel cleanup) — council pass first per the theme.
+3. **LLM legacy-column Phase A DROP** — destructive migration; pointer reads soaking in prod since beta.143/145; needs `release:premigrate --allow-destructive` at the release that carries it.
+4. **Cutting beta.146** is a solid option any time — 11 PRs queued, and the release activates the weekly audit cron.
+
+## Last Session — beta.146 knockout + finishing push (2026-07-02 → 07-03)
+
+**11 PRs merged (#1456–#1466), 3 themes CLOSED, 2 prod bugs fixed same-day.** The z.ai "routing bug" was diagnosed as fallback-visibility (one seam, two symptoms) → both-fail footer chain #1456 + summary-unwrap #1460. The complete Stryker arc shipped: pilot #1459 (60.71% score against green line coverage — premise validated), 23 gap-closing tests #1461 (→77.74%, logic classes 97.2%), logger-ignorer ratchet #1463 (baseline-and-hold 87.81, full audit-class ceremony, parallel `mutation-tests` CI job ~3min). The finish_reason-"error" prod bug (OpenRouter provider failure inside HTTP 200 → 1-char reply delivered + LTM poisoned) went screenshot→investigation→fix→merged in ~90min (#1462; stable thrown message for classification safety, provider detail preserved via `response_metadata.openrouter.providerError`). Then the **finishing push** (user: "I definitely like finishing stuff" → memory `finish-partial-themes-first`): human-users-only invariant #1464 (the prior bot-block was structurally UNREACHABLE — flag never passed; now compile-enforced from `GatewayUser.isBot` through `X-User-Is-Bot` to `requireUserAuth`), ops logs incident-dig flags #1465 (pull-and-grep-locally, NOT the unreliable server DSL; review caught a real CAC numeric auto-coercion silent-drop on all-digit IDs — empirically confirmed before fixing), ops:health aggregator + weekly cron #1466 (Layers 5–6; maiden run surfaced 2 perma-red roster candidates → excluded with tuning rows, per "false positives are a death spiral"). Review-cycle note: #1465/#1466 each ran 4–5 converging rounds with genuinely real catches (CAC coercion, verdict-header truncation, roster-rot guard, diagnostic fall-through); the round-cap ASK fired twice — user chose fix-then-merge both times. Also: 402 max_tokens auto-reduction evaluated + DECLINED (input tokens dominate this bot's spend); first-ever claude-review run that completed without posting (re-run posted normally — watch for recurrence).
 
 ## Last Session — the beta.144 mega-session (2026-07-01 → 07-02)
 
