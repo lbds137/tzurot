@@ -62,6 +62,10 @@ export function extractCiLintTokens(ciYamlContent: string): Set<string> {
   // line until the next 2-space-indented key (ANY job-name charset) or EOF.
   // Never falls back to scanning the whole file — a guard that silently
   // widens its scan window would report violations for the wrong reason.
+  // Assumes ci.yml's job keys sit at exactly 2-space indent (true for the
+  // repo's formatting); a 2-space-indented COMMENT inside the lint block
+  // would terminate the scan early — safe direction (false "missing from
+  // CI" report, loud), but reformat-aware maintainers should know.
   const lines = ciYamlContent.split('\n');
   const start = lines.findIndex(l => /^ {2}lint:\s*$/.test(l));
   if (start === -1) {
