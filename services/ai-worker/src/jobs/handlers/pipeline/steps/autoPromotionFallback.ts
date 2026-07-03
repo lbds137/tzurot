@@ -26,6 +26,7 @@ import type {
 } from '../../../../services/ConversationalRAGTypes.js';
 import type { DiagnosticCollector } from '../../../../services/DiagnosticCollector.js';
 import type { GenerationContext } from '../types.js';
+import { RetryError } from '../../../../utils/retry.js';
 
 const logger = createLogger('AutoPromotionFallback');
 
@@ -150,8 +151,17 @@ export async function runWithAutoPromotionFallback(
       // GenerationStep appends it to the user-facing string AFTER classification.
       // The attempted route rides along so the error footer can render the full
       // chain ("via Z.AI Coding Plan → OpenRouter") instead of just the primary.
+      //
+      // Summarize the UNWRAPPED error: the retry machinery rethrows a
+      // RetryError whose own message is the generic wrapper ("LLM invocation
+      // (<model>) failed with non-retryable error"), which buries the provider
+      // detail the user actually needs (e.g. OpenRouter's 402 "requires more
+      // credits, or fewer max_tokens"). Same unwrap the primary error gets
+      // before classification in GenerationStep's composer.
       attachFallbackFailure(originalError, {
-        summary: summarizeError(fallbackError),
+        summary: summarizeError(
+          fallbackError instanceof RetryError ? fallbackError.lastError : fallbackError
+        ),
         provider: fallback.provider,
       });
       throw originalError;
