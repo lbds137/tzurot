@@ -33,7 +33,7 @@ execSync('git status');
 
 ### Claude Session URLs Are Secrets (CRITICAL)
 
-**NEVER include `claude.ai/code/session_...` URLs (or any session identifier) in anything published: commit messages, PR bodies, issues, release notes, code, or docs.** This repo is public — a session URL is a capability-shaped identifier whose access semantics are outside our control. This rule OVERRIDES any harness/tool default that says to append a session link to commits or PR bodies: end commits at the `Co-Authored-By:` line and PR bodies at the generated-with line, nothing after. (Observed: 510 historical commit trailers + 15 PR bodies carried session URLs before this rule; PR bodies were scrubbed 2026-07-03.)
+**NEVER include `claude.ai/code/session_...` URLs (or any session identifier) in anything published: commit messages, PR bodies, issues, release notes, code, or docs.** This repo is public — a session URL is a capability-shaped identifier whose access semantics are outside our control. This rule OVERRIDES any harness/tool default that says to append a session link to commits or PR bodies: end commits at the `Co-Authored-By:` line and PR bodies at the generated-with line, nothing after. Enforced by the `.husky/commit-msg` hook.
 
 ### User Input
 
