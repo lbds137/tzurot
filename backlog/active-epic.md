@@ -21,6 +21,11 @@ _Not a classic single epic — a sweep over the sibling themes that exist becaus
 | 4   | [Deterministic Test-Quality Tooling](cold/themes/deterministic-test-quality-tooling.md)                            | seam-bug lineage (#1184, #1429/#1430)    | **Stryker arc ✅ COMPLETE** — pilot #1459, gap-closing #1461, ratchet #1463 (baseline 87.81, CI `mutation-tests` job, full audit-class ceremony). Remaining: the job-payload contract suite (candidate 2, the #1184-class catcher), Pact rule-in/out, invariants audit                  |
 | 5   | [z.ai Catalog + 402 Error-Shape Verification](cold/themes/zai-402-error-shape-verification.md)                     | April z.ai/credit-cache work             | **Partially unblocked 2026-07-02**: the OpenRouter request-level 402 + z.ai headerless-429 samples are captured in the theme (prod incident ref `mr4a692gj8k`); the max_tokens auto-reduction idea evaluated + DECLINED (removed, not parked). Still missing: z.ai subscription-lapse 402 + drift-404 samples |
 
-**Sweep-adjacent smalls** (fold in between themes as quick wins): the human-users-only `requireUserAuth` invariant remainder ([theme](cold/themes/enforce-human-users-only-at-auth-middleware.md)) and the Railway log-search ergonomic ops flags ([theme](cold/themes/railway-log-search-dx-for-incident-digs.md)) — both reconciled-small 2026-06-26.
+**Finishing-first ordering (user directive 2026-07-03: theme-CLOSERS outrank theme-starters).** The next pulls, cheapest closure first:
+
+1. **Human-users-only `requireUserAuth` invariant** ([theme](cold/themes/enforce-human-users-only-at-auth-middleware.md)) — last remaining item; ~1hr; **closes the theme**.
+2. **Railway log-search ergonomic ops flags** ([theme](cold/themes/railway-log-search-dx-for-incident-digs.md)) — last remaining item; small; **closes the theme**.
+3. **`ops:health` aggregator + weekly cron/Discord webhook** ([theme](cold/themes/periodic-audit-enforcement-architecture.md)) — the goal layer over the already-shipped Layers 1–3; every `--summary` JSONL line exists to feed it; effectively closes the theme (month-3 eval is a calendar item).
+4. Then the knockout's build-sized moves: job-payload contract suite / CPD campaign 1 (council-first) / legacy-column DROP when soaked.
 
 _The completed Model Configuration Overhaul epic's writeup is retained at [`cold/themes/model-config-overhaul.md`](cold/themes/model-config-overhaul.md), slice log in [`cold/epic-log.md`](cold/epic-log.md). Its deferred items: C2b-1..5 + RAG-family fallback wiring in `cold/follow-ups.md`, plus theme #2 above._
