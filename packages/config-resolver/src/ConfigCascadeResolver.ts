@@ -18,18 +18,18 @@
  * cleanup interval, same constructor options).
  */
 
+import { INTERVALS } from '@tzurot/common-types/constants/timing';
+import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
 import {
-  createLogger,
-  TTLCache,
-  INTERVALS,
   ConfigOverridesSchema,
   HARDCODED_CONFIG_DEFAULTS,
-  ADMIN_SETTINGS_SINGLETON_ID,
   type ConfigOverrides,
   type ConfigOverrideSource,
   type ResolvedConfigOverrides,
-  type PrismaClient,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/schemas/api/configOverrides';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
 
 const logger = createLogger('ConfigCascadeResolver');
 

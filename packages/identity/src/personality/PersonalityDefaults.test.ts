@@ -6,7 +6,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { replacePlaceholders, deriveAvatarUrl, mapToPersonality } from './PersonalityDefaults.js';
 import type { DatabasePersonality } from './PersonalityValidator.js';
-import type { MappedLlmConfig } from '@tzurot/common-types';
+import type { MappedLlmConfig } from '@tzurot/common-types/services/LlmConfigMapper';
 
 /**
  * Factory function to create a complete DatabasePersonality mock with sensible defaults.

@@ -27,13 +27,13 @@
  * see `ConfigCascadeResolver` — different shape, different responsibility.
  */
 
+import { INTERVALS } from '@tzurot/common-types/constants/timing';
 import {
-  createLogger,
-  TTLCache,
-  INTERVALS,
   type ConfigResolutionSource,
   type BaseConfigResolutionResult,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/configResolution';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
 import type { Logger } from 'pino';
 
 /** Override row metadata returned by tier-specific Prisma queries. */

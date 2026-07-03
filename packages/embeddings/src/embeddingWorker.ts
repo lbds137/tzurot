@@ -12,8 +12,7 @@
 
 import { parentPort } from 'node:worker_threads';
 import { pipeline, env, type FeatureExtractionPipeline } from '@huggingface/transformers';
-
-import { MODEL_DEFAULTS } from '@tzurot/common-types';
+import { MODEL_DEFAULTS } from '@tzurot/common-types/constants/ai';
 import { LOCAL_EMBEDDING_DIMENSIONS } from './constants.js';
 import type { WorkerMessage, WorkerResponse } from './types.js';
 

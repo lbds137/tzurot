@@ -14,7 +14,7 @@
  * - { type: 'all' } - Invalidate all API key caches (e.g., for key rotation)
  */
 
-import { REDIS_CHANNELS } from '@tzurot/common-types';
+import { REDIS_CHANNELS } from '@tzurot/common-types/constants/queue';
 import {
   BaseCacheInvalidationService,
   createStandardEventValidator,

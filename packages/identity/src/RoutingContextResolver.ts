@@ -16,11 +16,11 @@
  */
 
 import {
-  type PrismaClient,
-  createLogger,
   type RoutingContextRequest,
   type RoutingContextResponse,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/schemas/api/internal';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { UserService } from './UserService.js';
 import type { PersonaResolver } from './resolvers/PersonaResolver.js';
 

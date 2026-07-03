@@ -7,7 +7,8 @@
  */
 
 import { type Environment, getRailwayDatabaseUrl } from '../utils/env-runner.js';
-import { type PrismaClient, transientPoolOptions } from '@tzurot/common-types';
+import { transientPoolOptions } from '@tzurot/common-types/services/poolConfig';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 
 export interface PrismaEnvConnection {
   prisma: PrismaClient;
@@ -20,7 +21,7 @@ export interface PrismaEnvConnection {
  * Dynamically imports Prisma to avoid loading it until needed.
  */
 export async function getPrismaForEnv(env: Environment): Promise<PrismaEnvConnection> {
-  const { PrismaClient: PrismaClientClass } = await import('@tzurot/common-types');
+  const { PrismaClient: PrismaClientClass } = await import('@tzurot/common-types/services/prisma');
   const { PrismaPg } = await import('@prisma/adapter-pg');
 
   let databaseUrl: string;

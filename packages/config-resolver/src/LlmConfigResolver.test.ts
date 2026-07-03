@@ -9,7 +9,8 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { LlmConfigResolver } from './LlmConfigResolver.js';
-import type { LoadedPersonality, PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
+import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 
 // Shared logger instance so tests can assert on (absence of) error logs — the
 // resolver's logger is created once in the constructor, so the mock must hand
@@ -20,15 +21,13 @@ const mockLogger = vi.hoisted(() => ({
   warn: vi.fn(),
   error: vi.fn(),
 }));
-
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/logger', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types/utils/logger')>();
   return {
     ...actual,
     createLogger: () => mockLogger,
   };
 });
-
 describe('LlmConfigResolver', () => {
   let resolver: LlmConfigResolver;
   let mockPrisma: {

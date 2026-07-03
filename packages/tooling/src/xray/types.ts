@@ -17,10 +17,7 @@ export interface PackageInfo {
 }
 
 export type SuppressionKind =
-  | 'eslint-disable'
-  | 'eslint-disable-next-line'
-  | 'ts-expect-error'
-  | 'ts-nocheck';
+  'eslint-disable' | 'eslint-disable-next-line' | 'ts-expect-error' | 'ts-nocheck';
 
 export interface SuppressionInfo {
   kind: SuppressionKind;

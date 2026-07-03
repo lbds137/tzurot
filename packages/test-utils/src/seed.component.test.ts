@@ -16,7 +16,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
-import { PrismaClient } from '@tzurot/common-types';
+import { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createTestPGlite, loadPGliteSchema } from './setup-pglite.js';
 import { seedUserWithPersona } from './seed.js';
 

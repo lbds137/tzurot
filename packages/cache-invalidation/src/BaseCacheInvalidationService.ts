@@ -21,7 +21,7 @@
  * ```
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { Logger } from 'pino';
 import type { Redis } from 'ioredis';
 

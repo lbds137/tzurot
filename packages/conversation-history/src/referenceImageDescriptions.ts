@@ -16,14 +16,14 @@
  * max-lines ceiling; the service exposes a thin delegating method.
  */
 
+import { MessageRole } from '@tzurot/common-types/constants/message';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import {
-  createLogger,
-  MessageRole,
-  type PrismaClient,
   type MessageMetadata,
   type ResolvedImageDescription,
   type StoredReferencedMessage,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/schemas/message';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('ReferenceImageDescriptions');
 

@@ -16,7 +16,8 @@
     // vitest.component.config.ts so tsc can resolve the type for the spec typecheck
     // only — it does not add a package-graph edge.
     "paths": {
-      "@tzurot/common-types": ["../common-types/src/index.ts"]
+      "@tzurot/common-types": ["../common-types/src/index.ts"],
+      "@tzurot/common-types/*": ["../common-types/src/*.ts"]
     }
   },
   "include": ["src/**/*.ts"],

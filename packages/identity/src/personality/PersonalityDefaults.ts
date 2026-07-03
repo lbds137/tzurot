@@ -3,15 +3,13 @@
  * Default value merging and placeholder replacement logic for personalities
  */
 
+import { MODEL_DEFAULTS, AI_DEFAULTS } from '@tzurot/common-types/constants/ai';
+import { MESSAGE_LIMITS, PLACEHOLDERS } from '@tzurot/common-types/constants/message';
 import {
-  type LoadedPersonality,
-  MODEL_DEFAULTS,
-  AI_DEFAULTS,
-  MESSAGE_LIMITS,
-  PLACEHOLDERS,
   mapLlmConfigFromDb,
   type MappedLlmConfig,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/services/LlmConfigMapper';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import type { DatabasePersonality } from './PersonalityValidator.js';
 
 /**

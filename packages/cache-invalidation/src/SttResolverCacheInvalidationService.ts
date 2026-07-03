@@ -17,7 +17,7 @@
  * a config row — there's no per-config invalidation surface to model.
  */
 
-import { REDIS_CHANNELS } from '@tzurot/common-types';
+import { REDIS_CHANNELS } from '@tzurot/common-types/constants/queue';
 import {
   BaseCacheInvalidationService,
   createEventValidator,

@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { PrismaClient } from '@tzurot/common-types';
+import { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { PersonalityService } from './PersonalityService.js';

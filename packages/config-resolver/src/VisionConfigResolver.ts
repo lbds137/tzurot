@@ -32,18 +32,20 @@ import {
   type ConfigOverrideEntry,
   type UserWithDefault,
 } from './BaseConfigResolver.js';
+import { MODEL_DEFAULTS } from '@tzurot/common-types/constants/ai';
+import { INTERVALS } from '@tzurot/common-types/constants/timing';
+import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
 import {
-  ADMIN_SETTINGS_SINGLETON_ID,
   LLM_CONFIG_SELECT_WITH_NAME,
   mapLlmConfigFromDbWithName,
-  MODEL_DEFAULTS,
-  TTLCache,
-  INTERVALS,
   type MappedLlmConfigWithName,
-  type PrismaClient,
+} from '@tzurot/common-types/services/LlmConfigMapper';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import {
   type ResolvedVisionConfig,
   type LoadedVisionPersonality,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/configResolution';
+import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
 
 /**
  * Hardcoded fallback when no DB vision config is available at any tier. The bootstrap
