@@ -287,4 +287,38 @@ describe('BaseConfigResolver', () => {
       expect(result.source).toBe('personality');
     });
   });
+
+  describe('constructor options', () => {
+    it('constructs without an options argument and still resolves', async () => {
+      // Every options access in the constructor must tolerate `undefined` —
+      // production call sites construct resolvers bare (no injected clock).
+      const bare = new FakeResolver();
+      bare.mockUserWithDefault = async () => null;
+
+      const result = await bare.resolveConfig('user-x', 'p-1', FAKE_PERSONALITY);
+
+      expect(result).toEqual({
+        config: { resolvedName: 'persona-default' },
+        source: 'personality',
+      });
+    });
+  });
+
+  describe('user-not-found caching', () => {
+    it('caches the user-not-found resolution (single DB lookup for repeat calls)', async () => {
+      // The user-null branch and the thrown-error fallback produce the SAME
+      // result shape — what distinguishes them is caching: user-not-found is
+      // a definitive answer and must cache, while errors must not (so retries
+      // can recover). Asserting the lookup count pins the branch apart.
+      const lookup = vi.fn().mockResolvedValue(null);
+      resolver.mockUserWithDefault = lookup;
+
+      const first = await resolver.resolveConfig('user-x', 'p-1', FAKE_PERSONALITY);
+      const second = await resolver.resolveConfig('user-x', 'p-1', FAKE_PERSONALITY);
+
+      expect(first.source).toBe('personality');
+      expect(second).toEqual(first);
+      expect(lookup).toHaveBeenCalledTimes(1);
+    });
+  });
 });
