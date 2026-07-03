@@ -1,0 +1,22 @@
+{
+  "//": "CANARY FIXTURE — DO NOT FIX / DO NOT REMOVE. Deliberately below-floor Stryker report (score 50%) that mutation:check MUST flag. See canary.test.ts.",
+  "schemaVersion": "2",
+  "files": {
+    "src/deliberately-weak.ts": {
+      "mutants": [
+        { "id": "1", "status": "Killed", "mutatorName": "ConditionalExpression" },
+        { "id": "2", "status": "Killed", "mutatorName": "ConditionalExpression" },
+        { "id": "3", "status": "Killed", "mutatorName": "EqualityOperator" },
+        { "id": "4", "status": "Killed", "mutatorName": "BooleanLiteral" },
+        { "id": "5", "status": "Killed", "mutatorName": "BlockStatement" },
+        { "id": "6", "status": "Survived", "mutatorName": "ConditionalExpression" },
+        { "id": "7", "status": "Survived", "mutatorName": "LogicalOperator" },
+        { "id": "8", "status": "Survived", "mutatorName": "OptionalChaining" },
+        { "id": "9", "status": "Survived", "mutatorName": "StringLiteral" },
+        { "id": "10", "status": "Survived", "mutatorName": "ObjectLiteral" },
+        { "id": "11", "status": "Ignored", "mutatorName": "StringLiteral" },
+        { "id": "12", "status": "CompileError", "mutatorName": "BlockStatement" }
+      ]
+    }
+  }
+}

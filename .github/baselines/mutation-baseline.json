@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "lastUpdated": "2026-07-03T06:34:39.367Z",
+  "packages": {
+    "config-resolver": {
+      "score": 87.81,
+      "graceMargin": 1
+    }
+  },
+  "meta": {
+    "toolVersion": "mutation-check/1",
+    "configHash": "1f641d887967",
+    "nodeVersion": "v24.11.1",
+    "generatedFromSha": "75afdf433d188028535a3c8917355ce6d061cbed",
+    "generatedAt": "2026-07-03T06:34:39.366Z"
+  }
+}

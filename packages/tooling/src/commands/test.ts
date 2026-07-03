@@ -10,6 +10,36 @@ import type { CAC } from 'cac';
 const UPDATE_OPTION_DESC = 'Update baseline with current gaps';
 const STRICT_OPTION_DESC = 'Fail if ANY gap exists (not just new ones)';
 
+/** Mutation-score ratchet commands (audit-class; see mutation-check.WHY.md). */
+function registerMutationCommands(cli: CAC): void {
+  cli
+    .command('mutation:check', 'Fail if a mutation score fell below its baseline floor (CI gate)')
+    .option('--baseline <path>', 'Path to baseline JSON', {
+      default: '.github/baselines/mutation-baseline.json',
+    })
+    .option('--summary', 'Emit one JSONL summary line (aggregator contract)')
+    .example('pnpm ops mutation:check')
+    .action(async (options: { baseline: string; summary?: boolean }) => {
+      const { runMutationCheck } = await import('../test/mutation-check.js');
+      runMutationCheck(options);
+    });
+
+  cli
+    .command(
+      'mutation:update-baseline',
+      'Write current mutation scores to the baseline (run after intentional score changes)'
+    )
+    .option('--baseline <path>', 'Path to baseline JSON', {
+      default: '.github/baselines/mutation-baseline.json',
+    })
+    .option('--dry-run', 'Show the diff without writing the file')
+    .example('pnpm ops mutation:update-baseline --dry-run')
+    .action(async (options: { baseline: string; dryRun?: boolean }) => {
+      const { runMutationUpdateBaseline } = await import('../test/mutation-check.js');
+      runMutationUpdateBaseline(options);
+    });
+}
+
 export function registerTestCommands(cli: CAC): void {
   // Generate PGLite schema
   cli
@@ -20,6 +50,8 @@ export function registerTestCommands(cli: CAC): void {
       const { generateSchema } = await import('../test/generate-schema.js');
       await generateSchema(options);
     });
+
+  registerMutationCommands(cli);
 
   // Unified audit command (primary)
   cli

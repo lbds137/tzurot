@@ -7,10 +7,12 @@
  * when it merely RAN; a surviving mutant proves no test noticed the behavior
  * change — the deterministic answer to "are these tests a real net."
  *
- * Pilot scope: report-only (no `break` threshold). A CI ratchet gate is a
- * follow-up once score + runtime characteristics are known — a threshold gate
- * makes this an audit-class tool per docs/reference/audit-enforcement.md
- * (WHY.md, canary, JSONL summary, baseline drift contract).
+ * The score is gated in CI by `pnpm ops mutation:check` (an audit-class tool
+ * per docs/reference/audit-enforcement.md): CI runs this config to produce
+ * the JSON report, then the checker compares the score against the baseline
+ * in .github/baselines/mutation-baseline.json. Stryker itself stays
+ * report-only (no `break` threshold) — the ratchet semantics, grace margin,
+ * and config-drift detection live in the checker.
  *
  * Run from this package: `pnpm test:mutation`. The vitest runner resolves the
  * repo-root vitest.config.ts by cwd, same as `pnpm test` does — including its
@@ -23,8 +25,10 @@ export default {
   // pnpm's strict node_modules layout breaks Stryker's default
   // `@stryker-mutator/*` plugin glob (core can't see sibling plugins from its
   // own .pnpm nesting) — name the runner explicitly so it resolves as a bare
-  // specifier from this package.
-  plugins: ['@stryker-mutator/vitest-runner'],
+  // specifier from this package. The local ignorer plugin skips logger-call
+  // statements (see its header for the rationale + measured noise numbers).
+  plugins: ['@stryker-mutator/vitest-runner', './stryker-logger-ignorer.mjs'],
+  ignorers: ['logger-calls'],
   mutate: [
     'src/**/*.ts',
     '!src/**/*.test.ts',

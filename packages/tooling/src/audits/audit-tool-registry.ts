@@ -86,6 +86,11 @@ export const AUDIT_TOOL_REGISTRY: readonly AuditToolEntry[] = [
     description: 'Service + contract test coverage ratchet',
   },
   {
+    command: 'mutation:check',
+    whyPath: 'packages/tooling/src/test/mutation-check.WHY.md',
+    description: 'Mutation-score ratchet over Stryker reports (per-package floors)',
+  },
+  {
     command: 'voice-refs:audit',
     whyPath: 'packages/tooling/src/voice/audit-references.WHY.md',
     description: 'Voice reference durations vs Mistral 30s cap',
