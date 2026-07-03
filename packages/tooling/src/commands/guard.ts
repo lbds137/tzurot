@@ -53,7 +53,7 @@ export function registerGuardCommands(cli: CAC): void {
   cli
     .command(
       'guard:workflow-sync',
-      'Fail when .github/workflows/ differs from origin/main (develop-first workflow changes silently disable claude-review)'
+      'Fail when the claude workflow files differ from origin/main (develop-first changes to them silently disable claude-review)'
     )
     .option('--base <branch>', 'Override the merge-target used for the main-cut skip decision')
     .example('ops guard:workflow-sync')
