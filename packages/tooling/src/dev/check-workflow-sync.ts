@@ -2,15 +2,19 @@
  * Workflow-Sync Guard
  *
  * GitHub Actions that validate against the default branch (claude-review,
- * the @claude responder) refuse to run unless their workflow file is
- * byte-identical to the version on `main`. A workflow change that lands on
- * `develop` first therefore silently disables those reviews on EVERY PR —
- * each shows a green ~15s no-op ("Skipping action due to workflow
- * validation") — until the change reaches `main` at the next release.
+ * the @claude responder) refuse to run unless their OWN workflow file is
+ * byte-identical to the version on `main`. A change to one of those files
+ * that lands on `develop` first therefore silently disables the reviews on
+ * EVERY PR — each shows a green ~15s no-op ("Skipping action due to
+ * workflow validation") — until the change reaches `main` at the next
+ * release.
  *
- * This guard fails when `.github/workflows/` on HEAD differs from
- * `origin/main`, directing the author to the sanctioned main-cut PR path
- * (tzurot-git-workflow skill § "Workflow-file changes target main").
+ * The validation is scoped to the action's own file: a drift in any OTHER
+ * workflow (e.g. ci.yml) still gets a real review, and those workflows
+ * execute from the PR branch anyway — so they may land via develop like
+ * any code change. This guard therefore checks ONLY the self-validating
+ * workflow files below, directing the author to the sanctioned main-cut PR
+ * path (tzurot-git-workflow skill § "Claude workflow changes target main").
  *
  * It intentionally SKIPS (passes) on main-cut branches — the sanctioned
  * path must not be blocked by its own guard. Detection: --base flag >
@@ -26,7 +30,15 @@
 import { execFileSync } from 'node:child_process';
 import chalk from 'chalk';
 
-const WORKFLOWS_PATH = '.github/workflows/';
+/**
+ * The workflows that self-validate against main. Add an entry when a new
+ * workflow gains a main-validating action (anything wired to the Claude
+ * review/responder apps) — the guard has no way to detect that on its own.
+ */
+const GUARDED_WORKFLOWS = [
+  '.github/workflows/claude-code-review.yml',
+  '.github/workflows/claude.yml',
+] as const;
 
 /** @internal Exported for testing */
 export interface WorkflowSyncOptions {
@@ -94,12 +106,13 @@ export function isMainCutBranch(runGit: (args: string[]) => string): boolean {
 }
 
 /**
- * List workflow files whose HEAD content differs from origin/main.
+ * List guarded (self-validating) workflow files whose HEAD content differs
+ * from origin/main.
  * @internal Exported for testing
  */
 export function diffWorkflowsAgainstMain(runGit: (args: string[]) => string): string[] {
   ensureRef(runGit, 'main');
-  const out = runGit(['diff', '--name-only', 'origin/main', 'HEAD', '--', WORKFLOWS_PATH]);
+  const out = runGit(['diff', '--name-only', 'origin/main', 'HEAD', '--', ...GUARDED_WORKFLOWS]);
   return out
     .split('\n')
     .map(l => l.trim())
@@ -138,22 +151,24 @@ export function checkWorkflowSync(options: WorkflowSyncOptions = {}): void {
   }
 
   if (drifted.length === 0) {
-    console.log(chalk.green('✓ Workflow files are in sync with origin/main'));
+    console.log(chalk.green('✓ Claude workflow files are in sync with origin/main'));
     return;
   }
 
-  console.log(chalk.red.bold('✗ Workflow files differ from origin/main:'));
+  console.log(chalk.red.bold('✗ Claude workflow files differ from origin/main:'));
   for (const file of drifted) {
     console.log(chalk.red(`   ${file}`));
   }
   console.log('');
-  console.log('Workflow changes landing on develop SILENTLY DISABLE claude-review on');
-  console.log('every PR (green ~15s no-op) until they reach main at the next release.');
+  console.log('Claude-workflow changes landing on develop SILENTLY DISABLE claude-review');
+  console.log('on every PR (green ~15s no-op) until they reach main at the next release.');
+  console.log('(Other workflow files, e.g. ci.yml, run from the PR branch and may land');
+  console.log('via develop normally — this guard only covers the self-validating ones.)');
   console.log('');
   console.log('Route this change through a MAIN-cut PR instead:');
   console.log('  1. Branch from main, apply ONLY the workflow change, PR against main');
   console.log('  2. After it merges: pnpm ops release:finalize  (resyncs develop)');
-  console.log('See the tzurot-git-workflow skill § "Workflow-file changes target main".');
+  console.log('See the tzurot-git-workflow skill § "Claude workflow changes target main".');
   console.log('');
   console.log('(Already on a main-cut branch the topology test missed? Re-run with');
   console.log(' `pnpm ops guard:workflow-sync --base main` to skip explicitly.)');

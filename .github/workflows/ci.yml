@@ -112,10 +112,13 @@ jobs:
       - name: Check audit tools have WHY.md
         run: pnpm ops guard:audit-tool-docs
 
-      # Workflow-file sync: a workflow change reaching develop before main
-      # silently disables claude-review on every PR (green ~15s no-op) until
-      # the next release. The guard skips itself on main-cut branches.
-      - name: Enforce workflow-file sync with main
+      # Claude-workflow sync: a change to the self-validating claude workflow
+      # files (claude-code-review.yml / claude.yml) reaching develop before
+      # main silently disables claude-review on every PR (green ~15s no-op)
+      # until the next release. Other workflow files (this one included) run
+      # from the PR branch and may land via develop normally. The guard skips
+      # itself on main-cut branches.
+      - name: Enforce claude-workflow sync with main
         run: pnpm ops guard:workflow-sync
 
       - name: Check claude/ command references resolve
