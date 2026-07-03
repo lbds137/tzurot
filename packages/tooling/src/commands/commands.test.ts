@@ -30,6 +30,10 @@ vi.mock('../deployment/update-gateway-url.js', () => ({
   updateGatewayUrl: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('../deployment/logs.js', () => ({
+  fetchLogs: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock('../test/audit-unified.js', () => ({
   auditUnified: vi.fn().mockReturnValue(true),
 }));
@@ -148,6 +152,24 @@ describe('command handlers', () => {
 
       await vi.waitFor(() => {
         expect(updateGatewayUrl).toHaveBeenCalled();
+      });
+    });
+
+    it('delivers an all-digit --job-id to fetchLogs as a STRING (CAC auto-casts to number)', async () => {
+      // CAC/mri parses `--job-id 42317` to the number 42317; without the
+      // String() coercion in deploy.ts, logs.ts's `typeof === 'string'` term
+      // filter silently drops it — the dig runs unfiltered while looking
+      // successful. This test crosses the real cli.parse() boundary the
+      // logs.test.ts unit tests bypass.
+      const { registerDeployCommands } = await import('./deploy.js');
+      const { fetchLogs } = await import('../deployment/logs.js');
+      const cli = cac('test');
+      registerDeployCommands(cli);
+
+      cli.parse(['node', 'test', 'logs', '--env', 'prod', '--job-id', '42317'], { run: true });
+
+      await vi.waitFor(() => {
+        expect(fetchLogs).toHaveBeenCalledWith(expect.objectContaining({ jobId: '42317' }));
       });
     });
   });

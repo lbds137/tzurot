@@ -1,7 +1,7 @@
 ---
 name: tzurot-deployment
 description: 'Railway deployment procedures. Invoke with /tzurot-deployment for deploying, checking logs, and troubleshooting.'
-lastUpdated: '2026-07-02'
+lastUpdated: '2026-07-03'
 ---
 
 # Deployment Procedures
@@ -81,6 +81,27 @@ git push origin develop
 ```
 
 ## Log Analysis
+
+**Incident digs: reach for `pnpm ops logs` correlation flags first.** They
+encode the reliable pull-and-grep-locally pattern (the server-side `--filter`
+DSL routinely misses hyphenated UUIDs) and sweep all three app services in
+one command:
+
+```bash
+# Cross-service trace of one request (5000-line window per service, local match)
+pnpm ops logs --env prod --request-id <uuid>
+
+# BullMQ job trace, floored to the last 2 hours (local pino-time filter)
+pnpm ops logs --env prod --job-id <id> --since 2h
+
+# Both flags AND together; --since accepts ISO-8601 or 45m/6h/2d
+pnpm ops logs --env prod --request-id <uuid> --job-id <id> --since 6h
+```
+
+Correlation mode reads the CURRENT deployment; for older windows use the
+deployment-ID lookup below.
+
+Raw CLI equivalents (single service, manual grep):
 
 ```bash
 # Tail specific service (CURRENT deployment only)
