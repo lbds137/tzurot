@@ -75,12 +75,33 @@ describe('diffWorkflowsAgainstMain', () => {
   it('parses changed workflow paths from git diff output', () => {
     const runGit = gitStub({
       'rev-parse': () => 'abc123\n',
-      diff: () => '.github/workflows/ci.yml\n.github/workflows/claude.yml\n',
+      diff: () => '.github/workflows/claude-code-review.yml\n.github/workflows/claude.yml\n',
     });
     expect(diffWorkflowsAgainstMain(runGit)).toEqual([
-      '.github/workflows/ci.yml',
+      '.github/workflows/claude-code-review.yml',
       '.github/workflows/claude.yml',
     ]);
+  });
+
+  it('diffs ONLY the self-validating claude workflows, not the whole directory', () => {
+    // The review-skip validation is scoped to the action's own workflow file —
+    // a ci.yml-only drift still gets a real review, so the guard must not
+    // force main-cut ceremony on routine ci.yml edits.
+    let diffArgs: string[] = [];
+    const runGit = gitStub({
+      'rev-parse': () => 'abc123\n',
+      diff: args => {
+        diffArgs = args;
+        return '';
+      },
+    });
+    diffWorkflowsAgainstMain(runGit);
+    const pathspecs = diffArgs.slice(diffArgs.indexOf('--') + 1);
+    expect(pathspecs).toEqual([
+      '.github/workflows/claude-code-review.yml',
+      '.github/workflows/claude.yml',
+    ]);
+    expect(pathspecs).not.toContain('.github/workflows/');
   });
 
   it('fetches origin/main when the ref is missing (shallow checkout)', () => {
@@ -124,8 +145,11 @@ describe('checkWorkflowSync', () => {
     expect(process.exitCode).toBeUndefined();
   });
 
-  it('fails when a workflow file differs from origin/main', () => {
-    checkWorkflowSync({ env: {}, runGit: developBranchGit('.github/workflows/ci.yml\n') });
+  it('fails when a claude workflow file differs from origin/main', () => {
+    checkWorkflowSync({
+      env: {},
+      runGit: developBranchGit('.github/workflows/claude-code-review.yml\n'),
+    });
     expect(process.exitCode).toBe(1);
   });
 
@@ -165,7 +189,7 @@ describe('checkWorkflowSync', () => {
     // develop==main window where every branch looks main-cut).
     const runGit = gitStub({
       'rev-parse': () => 'ok\n',
-      diff: () => '.github/workflows/ci.yml\n',
+      diff: () => '.github/workflows/claude.yml\n',
     });
     checkWorkflowSync({ env: { GITHUB_BASE_REF: 'develop' }, runGit });
     expect(process.exitCode).toBe(1);
