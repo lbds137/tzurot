@@ -14,24 +14,25 @@
  */
 
 import { z } from 'zod';
+import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
+import { DiagnosticUpdateSchema } from '@tzurot/common-types/schemas/api/admin';
+import { AdminSettingsSchema } from '@tzurot/common-types/schemas/api/adminSettings';
 import {
-  AdminSettingsSchema,
   AiConfirmDeliveryResponseSchema,
   AiGenerateResponseSchema,
   AiJobStatusResponseSchema,
   AiTranscribeResponseSchema,
+} from '@tzurot/common-types/schemas/api/ai';
+import { GetChannelSettingsResponseSchema } from '@tzurot/common-types/schemas/api/channel';
+import { DenylistCacheResponseSchema } from '@tzurot/common-types/schemas/api/denylist';
+import { DiagnosticUpdateResponseSchema } from '@tzurot/common-types/schemas/api/diagnostic';
+import {
   ConversationSyncRequestSchema,
   ConversationSyncResponseSchema,
-  DenylistCacheResponseSchema,
-  DiagnosticUpdateResponseSchema,
-  DiagnosticUpdateSchema,
   DmSessionSetRequestSchema,
   DmSessionSetResponseSchema,
-  generateRequestSchema,
-  GetChannelSettingsResponseSchema,
   LoadPersonalityInternalResponseSchema,
   MessagePersonalityResponseSchema,
-  ModelsListResponseSchema,
   PersistAssistantMessageRequestSchema,
   PersistAssistantMessageResponseSchema,
   PersistUserMessageRequestSchema,
@@ -39,9 +40,11 @@ import {
   RecentUsersResponseSchema,
   RoutingContextRequestSchema,
   RoutingContextResponseSchema,
-  TIMEOUTS,
-  TranscribeRequestSchema,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/schemas/api/internal';
+import { ModelsListResponseSchema } from '@tzurot/common-types/schemas/api/models';
+import { TranscribeRequestSchema } from '@tzurot/common-types/schemas/api/transcribe';
+import { generateRequestSchema } from '@tzurot/common-types/types/schemas/generation';
+
 // generateRequestSchema lives under the `types/schemas/` module rather than
 // the `schemas/api/` barrel (it predates the API-schema reorganization). The
 // route-manifest treats them uniformly via the import below.

@@ -9,8 +9,7 @@
  */
 
 import { z } from 'zod';
-
-import type { ApiErrorSubcode } from '@tzurot/common-types';
+import type { ApiErrorSubcode } from '@tzurot/common-types/constants/error';
 
 /**
  * Transport failure category. Defined here (the dependency target) rather than

@@ -165,7 +165,7 @@ describe('buildClientClass — UserClient', () => {
     });
     expect(src).toContain(`type ActorDiscordId`);
     expect(src).toContain(`GatewayUser`);
-    expect(src).toContain(`from '@tzurot/common-types'`);
+    expect(src).toContain(`from '@tzurot/common-types/types/gateway-context'`);
     expect(src).not.toContain(`SubjectDiscordId`);
   });
 

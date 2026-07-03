@@ -6,6 +6,52 @@
   "description": "Shared types and validation schemas for Tzurot",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./config/*": {
+      "types": "./dist/config/*.d.ts",
+      "default": "./dist/config/*.js"
+    },
+    "./constants/*": {
+      "types": "./dist/constants/*.d.ts",
+      "default": "./dist/constants/*.js"
+    },
+    "./schemas/*": {
+      "types": "./dist/schemas/*.d.ts",
+      "default": "./dist/schemas/*.js"
+    },
+    "./schemas/api/*": {
+      "types": "./dist/schemas/api/*.d.ts",
+      "default": "./dist/schemas/api/*.js"
+    },
+    "./services/*": {
+      "types": "./dist/services/*.d.ts",
+      "default": "./dist/services/*.js"
+    },
+    "./services/tts/*": {
+      "types": "./dist/services/tts/*.d.ts",
+      "default": "./dist/services/tts/*.js"
+    },
+    "./types/*": {
+      "types": "./dist/types/*.d.ts",
+      "default": "./dist/types/*.js"
+    },
+    "./types/schemas/*": {
+      "types": "./dist/types/schemas/*.d.ts",
+      "default": "./dist/types/schemas/*.js"
+    },
+    "./utils/*": {
+      "types": "./dist/utils/*.d.ts",
+      "default": "./dist/utils/*.js"
+    },
+    "./generated/commandOptions": {
+      "types": "./dist/generated/commandOptions.d.ts",
+      "default": "./dist/generated/commandOptions.js"
+    }
+  },
   "scripts": {
     "clean": "find src -name '*.js' -type f -delete && find src -name '*.js.map' -type f -delete",
     "build": "rm -rf dist tsconfig.tsbuildinfo && tsc",

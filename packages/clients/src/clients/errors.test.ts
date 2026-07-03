@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { GatewayApiError, parseErrorResponse } from './errors.js';
-import { API_ERROR_SUBCODE } from '@tzurot/common-types';
+import { API_ERROR_SUBCODE } from '@tzurot/common-types/constants/error';
 
 describe('GatewayApiError', () => {
   it('preserves status + kind + code on construction', () => {

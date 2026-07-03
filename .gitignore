@@ -103,3 +103,4 @@ railway_dev_logs.md
 
 # Stryker mutation-testing scratch
 .stryker-tmp/
+scripts/migrations/barrel-kill/symbol-map.json
