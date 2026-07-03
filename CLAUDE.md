@@ -12,7 +12,7 @@ Discord bot with AI personas. TypeScript monorepo on Railway.
 pnpm dev              # Start all services
 pnpm test             # Run unit tests
 pnpm test:component   # Run component tests (after command structure changes)
-pnpm quality          # lint + codegen-drift + topology:check + knip + cpd + cpd:check + test:audit + depcruise + typecheck + typecheck:spec + backlog:lint + guard:test-taxonomy
+pnpm quality          # the full static gate — composition in package.json scripts.quality (synced to CI by guard:gate-parity)
 pnpm ops db:migrate --env dev  # Run migrations
 ```
 

@@ -100,6 +100,17 @@ describe('findGateParityViolations', () => {
       [...Object.keys(CI_ONLY), ...Object.keys(LOCAL_ONLY)].sort()
     );
   });
+
+  it('flags an allowlist entry as stale when its token reaches BOTH sides (parity achieved)', () => {
+    const [ciOnlyToken] = Object.keys(CI_ONLY);
+    // Token present on both sides → the asymmetry the entry describes is gone.
+    const violations = findGateParityViolations(
+      new Set(['lint', ciOnlyToken, ...Object.keys(CI_ONLY)]),
+      new Set(['lint', ciOnlyToken, ...Object.keys(LOCAL_ONLY)])
+    );
+    expect(violations.staleAllowlist).toContain(ciOnlyToken);
+    expect(violations.ciOnly).toEqual([]);
+  });
 });
 
 describe('gate parity (against real repo)', () => {
