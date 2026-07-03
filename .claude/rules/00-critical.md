@@ -193,7 +193,7 @@ No branch, no PR, no CI re-run. Pre-push hooks still fire because they run on an
 
 ### Merge Approval
 
-**Standing authorization (user-granted 2026-06-26): feature/fix PRs may be merged without a per-PR ask once they are truly ready** — every CI check green + complete + read (next section), the claude-review body read with no unresolved substantive findings, and any human feedback addressed. "Truly ready" is strict; when in doubt, ask.
+**Standing authorization (explicit user grant, reconfirmed at codification): feature/fix PRs may be merged without a per-PR ask once they are truly ready** — every CI check green + complete + read (next section), the claude-review body read with no unresolved substantive findings, and any human feedback addressed. "Truly ready" is strict; when in doubt, ask.
 
 **The release PR (develop → main) ALWAYS requires explicit per-release user approval.** CI passing ≠ release approval — no exceptions.
 
