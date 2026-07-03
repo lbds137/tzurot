@@ -33,6 +33,7 @@ const USER: GatewayUser = {
   discordId: 'actor-discord-id',
   username: 'alice',
   displayName: 'Alice',
+  isBot: false,
 };
 
 /** Slash-containing input — `/` MUST be encoded as `%2F` in the path. */

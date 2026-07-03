@@ -443,6 +443,44 @@ describe('authMiddleware', () => {
       expect(mockRes.status).toHaveBeenCalledWith(403);
     });
 
+    it('should reject a declared bot user before any handler runs', () => {
+      mockReq.headers = { 'x-user-id': 'bot-456', 'x-user-is-bot': 'true' };
+
+      const middleware = requireUserAuth();
+      middleware(mockReq as Request, mockRes as Response, mockNext);
+
+      expect(mockNext).not.toHaveBeenCalled();
+      expect((mockReq as Request & { userId?: string }).userId).toBeUndefined();
+      expect(mockRes.status).toHaveBeenCalledWith(403);
+      expect(mockRes.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'UNAUTHORIZED',
+          message: 'Bot users cannot access user routes',
+        })
+      );
+    });
+
+    it('should pass through when the bot header declares false', () => {
+      mockReq.headers = { 'x-user-id': 'user-123', 'x-user-is-bot': 'false' };
+
+      const middleware = requireUserAuth();
+      middleware(mockReq as Request, mockRes as Response, mockNext);
+
+      expect(mockNext).toHaveBeenCalledOnce();
+      expect((mockReq as Request & { userId: string }).userId).toBe('user-123');
+    });
+
+    it('should pass through when the bot header is absent (internal callers)', () => {
+      // Internal service calls carry no Discord user context — the invariant
+      // only governs callers that explicitly declare their subject is a bot.
+      mockReq.headers = { 'x-user-id': 'user-123' };
+
+      const middleware = requireUserAuth();
+      middleware(mockReq as Request, mockRes as Response, mockNext);
+
+      expect(mockNext).toHaveBeenCalledOnce();
+    });
+
     it('should use custom message when provided', () => {
       const middleware = requireUserAuth('Custom auth required message');
       middleware(mockReq as Request, mockRes as Response, mockNext);

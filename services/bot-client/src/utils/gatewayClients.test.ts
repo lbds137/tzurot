@@ -44,6 +44,7 @@ function makeUser(overrides: Record<string, unknown> = {}): DiscordUser {
     id: '123456789012345678',
     username: 'alice',
     globalName: 'Alice',
+    bot: false,
     ...overrides,
   } as unknown as DiscordUser;
 }
@@ -84,6 +85,7 @@ describe('clientsFor', () => {
       discordId: 'u1',
       username: 'alice',
       displayName: 'Alice Display',
+      isBot: false,
     });
   });
 
@@ -158,6 +160,7 @@ describe('toGatewayUser', () => {
       discordId: 'u1',
       username: 'alice',
       displayName: 'Alice',
+      isBot: false,
     });
   });
 
@@ -166,7 +169,14 @@ describe('toGatewayUser', () => {
       discordId: 'u2',
       username: 'bob',
       displayName: 'bob',
+      isBot: false,
     });
+  });
+
+  it('carries the bot flag through — the gateway rejects declared bots at auth', () => {
+    expect(toGatewayUser(makeUser({ id: 'u3', username: 'botty', bot: true }))).toEqual(
+      expect.objectContaining({ isBot: true })
+    );
   });
 });
 
