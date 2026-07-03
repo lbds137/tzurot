@@ -27,10 +27,13 @@
  *    pattern since deferred FKs only validate at COMMIT.
  *
  * Setup notes:
- * - `loadPGliteSchema()` returns SQL generated from `schema.prisma`, which
- *   cannot express DEFERRABLE. The DEFERRABLE ALTER statements (from the
- *   circular-FK, TTS, and vision migrations) are applied manually in
- *   `beforeAll` so the test environment matches production's constraint shape.
+ * - `loadPGliteSchema()` carries the DEFERRABLE ALTER statements directly:
+ *   the schema generator harvests `ALTER CONSTRAINT ... DEFERRABLE` from the
+ *   hand-written migrations (Prisma can't express DEFERRABLE in
+ *   schema.prisma), so the test environment matches production's constraint
+ *   shape with no manual migration replay here. If a future migration drops
+ *   deferrability, the harvest mirrors that and this suite's atomic
+ *   circular-insert tests go red.
  * - We spin up TWO PGLite instances — one acts as "dev", one as "prod".
  */
 
@@ -53,17 +56,6 @@ import { DatabaseSyncService } from './DatabaseSyncService.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-/**
- * Load the real DEFERRABLE migration SQL at test startup instead of
- * hand-maintaining a copy in this file (PR #826 R1 #2). If the migration
- * is ever edited, PGLite environment stays in sync with production's
- * constraint shape automatically — which is the exact invariant this
- * test suite is designed to protect.
- *
- * The PGLite schema generator (`prisma migrate diff --from-empty
- * --to-schema`) emits from `schema.prisma` and can't express DEFERRABLE,
- * so we apply this migration manually on top of `loadPGliteSchema()`.
- */
 /** Repo-root-relative path to `prisma/migrations/`. */
 function migrationsDir(): string {
   // Resolve relative to this test file. Service lives at
@@ -71,58 +63,6 @@ function migrationsDir(): string {
   // repo root is four `..` up (services/api-gateway/src/services/ → repo).
   const repoRoot = join(__dirname, '..', '..', '..', '..');
   return join(repoRoot, 'prisma', 'migrations');
-}
-
-function loadDeferrableFkMigration(): string {
-  const migrationPath = join(
-    migrationsDir(),
-    '20260418010642_make_circular_fks_deferrable',
-    'migration.sql'
-  );
-  return readFileSync(migrationPath, 'utf-8');
-}
-
-/**
- * Load the migration that made users.default_tts_config_id_fkey DEFERRABLE.
- * Same rationale as loadDeferrableFkMigration: PGLite schema generator can't
- * express DEFERRABLE, so this migration is applied manually in `beforeAll`.
- * Was added in a follow-up PR after the TTS feature shipped (the original
- * DEFERRABLE migration predates tts_configs).
- */
-function loadTtsDefaultFkDeferrableMigration(): string {
-  const migrationPath = join(
-    migrationsDir(),
-    '20260504065151_make_tts_default_fk_deferrable',
-    'migration.sql'
-  );
-  return readFileSync(migrationPath, 'utf-8');
-}
-
-/**
- * Extract the DEFERRABLE clause for users.default_vision_config_id_fkey from the
- * vision_config_kind migration.
- *
- * Unlike the pure-alter circular/TTS DEFERRABLE migrations (which can be replayed
- * wholesale), 20260627040007 is a FULL schema migration — replaying it on top of
- * loadPGliteSchema() would collide with the columns/indexes that schema already
- * created. So we extract ONLY its `ALTER CONSTRAINT … DEFERRABLE` statement.
- * Reading it from the migration FILE (not inlining the SQL) keeps the same
- * invariant the other helpers protect: if a future migration drops the DEFERRABLE
- * clause, the extraction throws and this test goes red.
- */
-function loadVisionDefaultFkDeferrableClause(): string {
-  const migrationPath = join(migrationsDir(), '20260627040007_vision_config_kind', 'migration.sql');
-  const sql = readFileSync(migrationPath, 'utf-8');
-  const match = sql.match(
-    /ALTER TABLE "users"\s+ALTER CONSTRAINT "users_default_vision_config_id_fkey" DEFERRABLE INITIALLY IMMEDIATE;/
-  );
-  if (match === null) {
-    throw new Error(
-      'DEFERRABLE clause for users_default_vision_config_id_fkey not found in ' +
-        '20260627040007_vision_config_kind — did the migration drop it?'
-    );
-  }
-  return match[0];
 }
 
 /**
@@ -217,32 +157,16 @@ describe('DatabaseSyncService Integration (Ouroboros pattern)', () => {
   let service: DatabaseSyncService;
 
   beforeAll(async () => {
+    // The schema already carries the DEFERRABLE-constraint ALTERs — the
+    // generator harvests them from the hand-written migrations, so no manual
+    // migration replay is needed to match production's constraint shape.
     const schema = loadPGliteSchema();
-    const deferrableFkMigration = loadDeferrableFkMigration();
-    const ttsDefaultFkDeferrableMigration = loadTtsDefaultFkDeferrableMigration();
-    const visionDefaultFkDeferrableClause = loadVisionDefaultFkDeferrableClause();
     const alignTtsGlobalsMigration = loadAlignTtsGlobalsMigration();
 
     devPglite = createTestPGlite();
     prodPglite = createTestPGlite();
     await devPglite.exec(schema);
     await prodPglite.exec(schema);
-    // Apply the DEFERRABLE migrations manually since the PGLite schema
-    // generator can't express DEFERRABLE. Matches what production's
-    // migrated schema actually has in place post-20260418010642 and
-    // post-20260504065151 (added when the TTS feature shipped — the
-    // users_default_tts_config_id_fkey FK has the same DEFERRABLE
-    // requirement as the original four for the same Ouroboros sync
-    // reason).
-    await devPglite.exec(deferrableFkMigration);
-    await prodPglite.exec(deferrableFkMigration);
-    await devPglite.exec(ttsDefaultFkDeferrableMigration);
-    await prodPglite.exec(ttsDefaultFkDeferrableMigration);
-    // Same for the vision-default FK (DEFERRABLE since 20260627040007). Only the
-    // ALTER clause is applied — the full vision migration can't be replayed on
-    // top of the generated schema (see loadVisionDefaultFkDeferrableClause).
-    await devPglite.exec(visionDefaultFkDeferrableClause);
-    await prodPglite.exec(visionDefaultFkDeferrableClause);
     // Recovery migration aligning TTS system-global rows to deterministic
     // UUIDs. Idempotent — these pglite instances have no TTS rows yet, so
     // the WHERE clauses match nothing on the first run. Loaded here for
