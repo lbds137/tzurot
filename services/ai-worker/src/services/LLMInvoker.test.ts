@@ -4,9 +4,10 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { LLMInvoker } from './LLMInvoker.js';
+import { RetryError } from '../utils/retry.js';
 import { BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
-import { TIMEOUTS, ApiErrorType, ApiErrorCategory } from '@tzurot/common-types';
+import { TIMEOUTS, ApiErrorType, ApiErrorCategory, ERROR_MESSAGES } from '@tzurot/common-types';
 
 // Mock ModelFactory
 vi.mock('./ModelFactory.js', () => ({
@@ -1126,6 +1127,109 @@ describe('LLMInvoker', () => {
         });
 
         expect(result.content).toBe('Complete response');
+      });
+
+      it('throws retryable on finish_reason "error" — a provider failure inside a 200', async () => {
+        // The prod shape: OpenRouter returns 200 with finish_reason 'error'
+        // and partial (single-character) content when the upstream provider
+        // dies mid-generation. The content passes the emptiness guard, so
+        // without the error-finish guard it would be delivered and stored.
+        vi.useFakeTimers();
+
+        const mockModel = {
+          invoke: vi.fn().mockResolvedValue({
+            content: '.',
+            response_metadata: {
+              finish_reason: 'error',
+              usage: { prompt_tokens: 54810, completion_tokens: 1 },
+              // Post-extraction state: the OpenRouter extractor captured the
+              // provider's failure detail before deleting __raw_response —
+              // exercised here so the guard's warn-log detail path runs.
+              openrouter: {
+                providerError: { message: 'Upstream provider dropped the stream', code: 502 },
+              },
+            },
+          }),
+        } as any as BaseChatModel;
+
+        const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+        const promise = invoker.invokeWithRetry({
+          model: mockModel,
+          messages,
+          modelName: 'z-ai/glm-5.2',
+        });
+
+        // Attach rejection handler BEFORE advancing timers. Retry exhaustion
+        // wraps the underlying failure in RetryError — assert on lastError,
+        // where the stable provider-failure message lives.
+        const rejection = promise.catch((err: unknown) => err);
+        await vi.runAllTimersAsync();
+        const thrown = await rejection;
+
+        expect(thrown).toBeInstanceOf(RetryError);
+        expect(((thrown as RetryError).lastError as Error).message).toBe(
+          ERROR_MESSAGES.PROVIDER_ERROR_FINISH
+        );
+        // Full retry budget consumed — the throw classifies retryable, so a
+        // different upstream host gets a chance on each attempt.
+        expect(mockModel.invoke).toHaveBeenCalledTimes(3);
+
+        vi.useRealTimers();
+      });
+
+      it('recovers when a retry after an error finish succeeds', async () => {
+        vi.useFakeTimers();
+
+        const mockModel = {
+          invoke: vi
+            .fn()
+            .mockResolvedValueOnce({
+              content: '.',
+              response_metadata: { finish_reason: 'error' },
+            })
+            .mockResolvedValueOnce({
+              content: 'Full response from a healthier provider',
+              response_metadata: { finish_reason: 'stop' },
+            }),
+        } as any as BaseChatModel;
+
+        const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+        const promise = invoker.invokeWithRetry({
+          model: mockModel,
+          messages,
+          modelName: 'z-ai/glm-5.2',
+        });
+        await vi.runAllTimersAsync();
+        const result = await promise;
+
+        expect(result.content).toBe('Full response from a healthier provider');
+        expect(mockModel.invoke).toHaveBeenCalledTimes(2);
+
+        vi.useRealTimers();
+      });
+
+      it('does NOT throw on finish_reason "content_filter" (guard scoped to error only)', async () => {
+        // content_filter is a policy outcome, not a provider failure — a
+        // retry would not help, and its handling is a separate decision.
+        const mockModel = {
+          invoke: vi.fn().mockResolvedValue({
+            content: 'Partial but deliverable response',
+            response_metadata: { finish_reason: 'content_filter' },
+          }),
+        } as any as BaseChatModel;
+
+        const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+        const result = await invoker.invokeWithRetry({
+          model: mockModel,
+          messages,
+          modelName: 'test-model',
+        });
+
+        expect(result.content).toBe('Partial but deliverable response');
+        expect(mockModel.invoke).toHaveBeenCalledTimes(1);
       });
 
       it('should log info for unknown finish_reason values', async () => {

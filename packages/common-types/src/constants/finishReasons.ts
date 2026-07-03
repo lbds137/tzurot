@@ -24,6 +24,12 @@ export const FINISH_REASONS = {
   STOP_SEQUENCE: 'stop_sequence',
   /** Content filter blocked the response */
   CONTENT_FILTER: 'content_filter',
+  /**
+   * Upstream provider failed mid-generation. OpenRouter surfaces provider
+   * errors inside an HTTP 200 with this finish reason — any content on the
+   * response is partial garbage, not a deliverable completion.
+   */
+  ERROR: 'error',
   /** Default sentinel when finish reason is unavailable */
   UNKNOWN: 'unknown',
 } as const;

@@ -421,4 +421,108 @@ describe('extractAndPopulateOpenRouterReasoning', () => {
       expect(() => extractAndPopulateOpenRouterReasoning(message)).not.toThrow();
     });
   });
+
+  describe('provider-error capture (finish_reason "error" support)', () => {
+    // OpenRouter surfaces upstream provider failures inside an HTTP 200 with
+    // finish_reason 'error' and an error object on the choice. The extractor
+    // must preserve that detail into response_metadata.openrouter BEFORE the
+    // memory-hygiene delete of __raw_response — it's the only place the
+    // invoker's error-finish guard and diagnostics can read it from.
+
+    function openrouterMeta(message: BaseMessage): {
+      providerError?: { message?: string; code?: number | string };
+    } {
+      return (message.response_metadata as Record<string, unknown>).openrouter as {
+        providerError?: { message?: string; code?: number | string };
+      };
+    }
+
+    it('captures a choice-level error object into openrouter.providerError', () => {
+      const message = buildMessage({
+        content: '.',
+        finishReason: 'error',
+        rawResponse: {
+          provider: 'Decart',
+          choices: [
+            {
+              error: { message: 'Upstream provider dropped the stream', code: 502 },
+              message: { role: 'assistant', content: '.' },
+            },
+          ],
+        },
+      });
+
+      extractAndPopulateOpenRouterReasoning(message);
+
+      expect(openrouterMeta(message).providerError).toEqual({
+        message: 'Upstream provider dropped the stream',
+        code: 502,
+      });
+      // Memory hygiene still applies — the raw response must not survive.
+      expect(message.additional_kwargs.__raw_response).toBeUndefined();
+    });
+
+    it('falls back to a top-level error object', () => {
+      const message = buildMessage({
+        content: '.',
+        finishReason: 'error',
+        rawResponse: {
+          error: { message: 'Provider returned error', code: 'PROVIDER_ERROR' },
+          choices: [{ message: { role: 'assistant', content: '.' } }],
+        },
+      });
+
+      extractAndPopulateOpenRouterReasoning(message);
+
+      expect(openrouterMeta(message).providerError).toEqual({
+        message: 'Provider returned error',
+        code: 'PROVIDER_ERROR',
+      });
+    });
+
+    it('omits providerError entirely on healthy responses', () => {
+      const message = buildMessage({
+        content: 'All good.',
+        finishReason: 'stop',
+        rawResponse: {
+          provider: 'Parasail',
+          choices: [{ message: { role: 'assistant', content: 'All good.' } }],
+        },
+      });
+
+      extractAndPopulateOpenRouterReasoning(message);
+
+      expect(openrouterMeta(message).providerError).toBeUndefined();
+    });
+
+    it('omits providerError when the error object carries no usable fields', () => {
+      const message = buildMessage({
+        content: '.',
+        finishReason: 'error',
+        rawResponse: {
+          error: { unexpected: 'shape' },
+          choices: [{ message: { role: 'assistant', content: '.' } }],
+        },
+      });
+
+      extractAndPopulateOpenRouterReasoning(message);
+
+      expect(openrouterMeta(message).providerError).toBeUndefined();
+    });
+
+    it('ignores malformed error shapes (string instead of object)', () => {
+      const message = buildMessage({
+        content: '.',
+        finishReason: 'error',
+        rawResponse: {
+          error: 'not-an-object',
+          choices: [{ message: { role: 'assistant', content: '.' } }],
+        },
+      });
+
+      extractAndPopulateOpenRouterReasoning(message);
+
+      expect(openrouterMeta(message).providerError).toBeUndefined();
+    });
+  });
 });

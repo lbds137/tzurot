@@ -101,6 +101,15 @@ export const ERROR_MESSAGES = {
   CENSORED_RESPONSE: 'LLM censored response (returned "ext") - this may succeed on retry',
   /** Response text that indicates censorship */
   CENSORED_RESPONSE_TEXT: 'ext',
+  /**
+   * Error message when the upstream provider failed mid-generation
+   * (finish_reason 'error' inside an HTTP 200). Deliberately STABLE — no
+   * provider detail is appended, because parseApiError classifies via regex
+   * over message text and upstream wording (e.g. "rate limit") could flip
+   * the classification to non-retryable. The detail rides the structured
+   * warn log + response_metadata.openrouter.providerError instead.
+   */
+  PROVIDER_ERROR_FINISH: 'LLM provider failed mid-generation (finish_reason: error)',
 } as const;
 
 /**
