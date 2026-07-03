@@ -176,3 +176,58 @@ describe('audit-canary: commands:audit', () => {
     expect(findings.some(f => f.rule === 'component-handler-completeness')).toBe(true);
   });
 });
+
+describe('audit-canary: mutation:check', () => {
+  it('detects the deliberately below-floor mutation report', async () => {
+    const { mkdtemp, writeFile, rm } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const { runMutationCheck, getMutationConfigFingerprint } =
+      await import('../test/mutation-check.js');
+    const { buildBaselineMeta, hashConfigSlice } = await import('./baseline-meta.js');
+
+    // The fixture report is the static DO-NOT-FIX artifact (score 50%). The
+    // baseline is built at test time so its configHash tracks the CURRENT
+    // fingerprint — a hardcoded hash would turn every legitimate fingerprint
+    // change into a canary failure about drift instead of score detection.
+    const tmp = await mkdtemp(join(tmpdir(), 'mutation-canary-'));
+    const baselinePath = join(tmp, 'baseline.json');
+    await writeFile(
+      baselinePath,
+      JSON.stringify({
+        version: 1,
+        lastUpdated: '2026-01-01T00:00:00.000Z',
+        packages: { 'config-resolver': { score: 95, graceMargin: 1 } },
+        meta: buildBaselineMeta(
+          'mutation-check/canary',
+          hashConfigSlice(getMutationConfigFingerprint())
+        ),
+      })
+    );
+
+    const captured: string[] = [];
+    const logSpy = vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+      captured.push(args.map(a => String(a)).join(' '));
+    });
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    try {
+      const status = runMutationCheck({
+        rootDir: `${FIXTURES_ROOT}/mutation-check`,
+        baseline: baselinePath,
+        summary: true,
+        noFail: true,
+      });
+
+      expect(status).toBe('fail');
+      const summary = parseSummary(captured[captured.length - 1]);
+      expect(summary.tool).toBe('mutation:check');
+      expect(summary.status).toBe('fail');
+      expect(summary.findings).toBeGreaterThan(0);
+    } finally {
+      logSpy.mockRestore();
+      errorSpy.mockRestore();
+      await rm(tmp, { recursive: true, force: true });
+    }
+  });
+});

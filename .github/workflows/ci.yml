@@ -304,6 +304,44 @@ jobs:
       - name: Run type checking
         run: pnpm run typecheck
 
+  # Mutation-score ratchet (audit-class — see mutation-check.WHY.md). Stryker
+  # runs report-only on the tracked packages; the ops checker compares the
+  # scores against .github/baselines/mutation-baseline.json and fails on a
+  # drop below a package's floor (baseline − graceMargin).
+  mutation-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Clean build artifacts
+        run: find . -name "*.tsbuildinfo" -delete && find ./packages/*/dist -type d -exec rm -rf {} + 2>/dev/null || true
+
+      - name: Build packages
+        run: pnpm --filter './packages/*' build
+
+      - name: Run mutation testing (config-resolver)
+        run: pnpm --filter @tzurot/config-resolver test:mutation
+
+      - name: Enforce mutation-score baseline
+        run: pnpm ops mutation:check --summary
+
   # Component tier (PGLite, in-process) + the real-dependency tiers (integration
   # + contract). Only Redis is a real external dependency here — every DB-backed
   # test uses in-process PGLite, so no Postgres service is provisioned.
