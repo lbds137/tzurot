@@ -100,3 +100,6 @@ railway_dev_logs.md
 
 # Session-local Claude runtime state
 .claude/scheduled_tasks.lock
+
+# Stryker mutation-testing scratch
+.stryker-tmp/
