@@ -10,7 +10,7 @@ _Active bugs observed in production. Fix before new features. Cleared issues are
 
 _(none active)_
 
-_Recently resolved:_ **`finish_reason: "error"` processed as success** (surfaced + fixed 2026-07-02, #1462, **RELEASED in beta.146**): a provider failure inside an HTTP 200 delivered a 1-char reply and poisoned an LTM row; the invoker now throws retryable (stable message for classification safety; provider detail preserved via `response_metadata.openrouter.providerError`). Earlier: the **z.ai coding-plan "routing bug"** (surfaced 2026-06-28/29) was diagnosed 2026-07-02 as **not a routing defect** — auto-promotion fired correctly; z.ai-direct failed transiently (late-June z.ai instability, mechanism log-verified 2026-06-30 in the same window), the OpenRouter rescue succeeded, and the footer honestly reported the effective route (`via OpenRouter`), which read as "key not honored." Diagnostic probe cancelled; the remaining code defect (error-path footer mis-attribution, same seam) **shipped in #1456** — the error footer now renders the full route chain (`via Z.AI Coding Plan → OpenRouter (both routes failed)`). Earlier: the forwarded-message content-loss fix (#1391) and the TTS voice-output-dropped 300s stop-gap (#1389) shipped in **beta.142**; the DB connection-pool-starvation timeouts were fixed via #1250/#1251 and confirmed resolved 2026-06-25; the gateway persist-hang (soak-clean since beta.143; watch-items in `cold/follow-ups.md`) was a DIFFERENT failure mode (a single INSERT blocking with the pool healthy), not a pool-starvation regression.
+_Recently resolved items move to the GitHub release notes at ship time — this section stays empty between incidents (history: git + releases)._
 
 ---
 

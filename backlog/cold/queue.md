@@ -25,8 +25,6 @@ _Ordered index of future themes. Grep-on-demand — not loaded at session start.
 - [`/voice` + `/inspect` UX Polish (mini-epic)](themes/voice-inspect-ux-polish.md) — fix UX rough edges on `/voice` and `/inspect` surfaces
 - [Self-Hosted TTS + BYOK Re-Evaluation](themes/self-hosted-tts-byok-re-evaluation.md) — re-evaluate TTS engines after NeuTTS Air abandoned; BYOK quality-shopping
 - [Adjacent CPD Follow-Up Campaigns](themes/adjacent-cpd-follow-up-campaigns.md) — four deferred DRY-extraction campaigns from the 2026-05-16 close-out
-- **Slim common-types (PR-2n)** → ✅ COMPLETE (extraction arc + close-out sweep done 2026-06-23; historical log in [epic-log.md](epic-log.md))
-- **Test-Pyramid Taxonomy + Coverage Audit** → ✅ COMPLETE (Phases 1–4, PR1–7 shipped 2026-06-26; close-out council parked the flow-level gate + filed the post-deploy smoke check — see `follow-ups.md` / `ideas.md`). Detailed theme writeup retained at [themes/test-pyramid-coverage-audit.md](themes/test-pyramid-coverage-audit.md); slice log in [epic-log.md](epic-log.md)
 - [Multimodal Input — file (PDF/doc) + video forwarding](themes/multimodal-input-file-video-forwarding.md) — capture/forward video + file modalities to capable models, surface in `/models`
 - [Type-Assertion Audit + Deterministic Ratchet](themes/type-assertion-audit-deterministic-ratchet.md) — triage untyped casts + deterministic gate against new unsafe assertions
 - [Deterministic Test-Quality Tooling](themes/deterministic-test-quality-tooling.md) — mutation testing + job-payload contract so seam bugs fail the build
