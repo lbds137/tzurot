@@ -695,5 +695,3 @@ Download all memories as JSON/CSV:
 
 - [ADR-003: Context Epochs](./SLASH_COMMAND_ARCHITECTURE.md#adr-003-context-epochs-for-history-reset)
 - [ADR-005: Memory Management](./SLASH_COMMAND_ARCHITECTURE.md#adr-005-memory-management-via-semantic-search)
-- [Memory Architecture](../architecture/memory-and-context-redesign.md)
-- [V2 Feature Tracking](./V2_FEATURE_TRACKING.md)

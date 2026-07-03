@@ -1,6 +1,6 @@
 # Audit-Enforcement Reference
 
-How tzurot's audit tools stay alive, get validated, and detect their own decay. This is the operator/contributor reference for the system. For the architectural rationale and council-debated design choices, see [`docs/proposals/backlog/periodic-audit-enforcement.md`](../proposals/backlog/periodic-audit-enforcement.md).
+How tzurot's audit tools stay alive, get validated, and detect their own decay. This is the operator/contributor reference for the system, including the design rationale (see "Design rationale" below — the original proposal doc was folded in and deleted once the system shipped).
 
 ## What "audit-class" means
 
@@ -126,7 +126,7 @@ Both write a fresh `meta` block on refresh, so the new `configHash` reflects the
 ## Where to find what
 
 - **Adding a new audit tool**: this doc, "Adding a new audit tool" section above
-- **Architectural rationale**: [`docs/proposals/backlog/periodic-audit-enforcement.md`](../proposals/backlog/periodic-audit-enforcement.md)
+- **Architectural rationale**: "Design rationale" section below
 - **WHY.md template**: copy any existing one (they all use the same 4-section structure); see [`packages/tooling/src/lint/complexity-report.WHY.md`](../../packages/tooling/src/lint/complexity-report.WHY.md) for a fully-fleshed example
 - **JSONL summary shape**: [`packages/tooling/src/audits/summary.ts`](../../packages/tooling/src/audits/summary.ts) — the `AuditSummary` interface is the contract
 - **Canary test pattern**: [`packages/tooling/src/audits/canary.test.ts`](../../packages/tooling/src/audits/canary.test.ts) — read existing tests before writing a new one
@@ -152,9 +152,26 @@ to Discord via the out-of-band `DISCORD_AUDIT_WEBHOOK_URL` secret — never
 through the bot, which is itself the system under audit. Missing secret
 degrades to log-only; the audit never skips.
 
+## Design rationale — rejected alternatives (don't re-litigate)
+
+From the council pass that produced this system. The core insight: on a solo project, audit systems die of mutedness, not absence — every choice below optimizes for "still being read at month 6."
+
+| Rejected design                                        | Why                                                                                                                                                                            |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Centralized audit ledger (`.tzurot/audit-ledger.json`) | Branches + concurrent runs = JSON merge conflicts on timestamps. Git history IS the ledger (Actions API for run times, git log for baseline ages).                             |
+| Auto-ratchet on improvements                           | A silently-broken tool reporting 0 findings would auto-lower the baseline to 0, destroying the signal. Baselines move only via explicit human commit with a one-line why.      |
+| UserPromptSubmit hook for overdue-audit reminders      | Token spend + latency on every prompt; a 2 AM prod bug doesn't need schema-drift reasoning competing for context.                                                              |
+| Monthly maintenance PR (auto-opened)                   | Solo-dev PR queues become graveyards; by day 20 you force-push without reading. The CI age-gate is the same forcing function with less ceremony.                               |
+| Discord bot as notification channel                    | The bot IS the system under audit — when it's down (exactly when alerts matter), the channel is dead. Out-of-band webhook from the Action instead.                             |
+| Escalation ladder (post → DM → CI block)               | DEFERRED, not rejected: solo dev has no audience to perform urgency for, and loud failure trains muting. Re-evaluate at month 3 only if attention is genuinely the bottleneck. |
+| Activity-based invalidation (file-hash only)           | Collapses the "assure me nothing bitrotted in 3 idle months" case. Adopted as an overlay: time cadence default, file-hash early-trigger.                                       |
+| Smart orchestrator (run only "due" audits)             | With ~5s total runtime, conditional execution is premature optimization. The dumb run-everything aggregator is debuggable half-asleep.                                         |
+
+**Month-3 evaluation questions** (filed in `backlog/cold/follow-ups.md`, due ~2026-10): (1) are the weekly Discord summaries being read — if not, delete the system rather than add pressure; (2) which tools surfaced real findings vs. always-green noise (prune the roster); (3) actual configHash-mismatch frequency (threshold sanity); (4) did any canary catch a real breakage; (5) did the deferred auto-fix-branch idea become relevant.
+
 ## What's NOT yet shipped
 
 - **Layer 4 — Markdown baselines**: the proposal originally drafted converting baselines from JSON to markdown for diff-readability. Deferred — JSON + meta block delivers the drift-detection invariant; the markdown migration is independent and probably skippable.
 - **The 45-day CI age-gate + month-3 evaluation**: enforcement that the weekly audit actually keeps running (age from the GitHub Actions run history, not a file), and the pruning pass over always-green roster tools. Both deliberately wait on a few months of weekly runs to evaluate against.
 
-If you're working on either, this doc + the proposal doc are the starting context.
+If you're working on either, this doc (including the design-rationale section) is the starting context.

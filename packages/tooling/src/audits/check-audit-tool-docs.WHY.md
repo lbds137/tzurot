@@ -10,7 +10,7 @@ Self-registered: this tool's own entry is in the registry, pointing at this WHY.
 
 ## Why it was built
 
-Layer 1 of the periodic-audit-enforcement proposal established that audit tools rot quickly without periodic re-evaluation. Layer 2 added the WHY.md decay-prevention prompt — but a WHY.md per tool is only useful if it actually exists and contains real content. Without structural enforcement, a contributor could:
+Layer 1 of the audit-enforcement architecture (`docs/reference/audit-enforcement.md`) established that audit tools rot quickly without periodic re-evaluation. Layer 2 added the WHY.md decay-prevention prompt — but a WHY.md per tool is only useful if it actually exists and contains real content. Without structural enforcement, a contributor could:
 
 - Add a new audit tool and forget the WHY.md (silently lose the decay-prevention property for that tool)
 - Replace a WHY.md with a stub during a refactor (silently degrade an existing tool's documentation)

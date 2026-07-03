@@ -224,5 +224,4 @@ CREATE TABLE activated_channels (
 ## Related Documentation
 
 - `docs/improvements/multi-personality-support.md` - Future multi-personality plans
-- `docs/planning/V2_FEATURE_TRACKING.md` - V2 parity tracking
 - `docs/standards/SLASH_COMMAND_IMPLEMENTATION.md` - Command implementation patterns

@@ -1,6 +1,6 @@
 # Documentation Philosophy
 
-> **Last Updated**: 2026-02-07
+> **Last Updated**: 2026-07-03
 
 > **Quick reference**: `.claude/rules/07-documentation.md` has the placement table and lifecycle rules. This doc covers the full rationale.
 
@@ -46,7 +46,7 @@ Features that are good ideas but not currently scheduled.
 - **Deleted when implemented** (after extracting learnings to feature docs)
 - May be deleted outright if abandoned
 
-> **Note**: The project does **not** use a `docs/proposals/active/` directory. Active work is tracked in `BACKLOG.md` (🎯 Current Focus, 🏗 Active Epic). Proposals stay in `backlog/` until they're either implemented (and deleted) or promoted to a Current Focus item in `BACKLOG.md`.
+> **Note**: The project does **not** use a `docs/proposals/active/` directory. Active work is tracked in the HOT backlog surface (`backlog/now.md` 🎯 Current Focus, `backlog/active-epic.md`; `BACKLOG.md` is the load manifest). Proposals stay in `docs/proposals/backlog/` until they're either implemented (and deleted) or promoted into the hot backlog.
 
 ### Research Notes
 
@@ -60,11 +60,13 @@ Distilled insights from AI consultations (TL;DR format).
 
 ### Build Process Docs
 
-Test plans, implementation checklists, "how to build X" docs.
+One-shot test plans, implementation checklists, "how to build X" docs.
 
 **Why delete?** Once shipped, the only relevant info is what the feature does—not how we got there.
 
-**Example**: `MEMORY_COMMANDS_TEST_PLAN.md` deleted after Phase 3 shipped.
+**Example**: `MEMORY_COMMANDS_TEST_PLAN.md` deleted after Phase 3 shipped; `PRODUCTION_DEPLOY_CHECKLIST.md` (a single release's plan) deleted after that release.
+
+> **Distinction**: a _reusable_ manual-test procedure (e.g. `docs/reference/testing/BYOK_MANUAL_TESTING.md` — run every time BYOK changes) is reference material and lives in `docs/reference/testing/` per the placement table in `07-documentation.md`. The delete rule targets one-shot plans tied to a single ship event.
 
 ### Raw AI Transcripts
 
@@ -104,10 +106,10 @@ Planning documents whose implementation took a meaningfully different shape than
 
 Run documentation triage when:
 
-1. **Raw AI files accumulate** in `docs/gemini_chats/` or similar
+1. **Raw AI transcripts/consultation dumps accumulate** anywhere under `docs/`
 2. **CLAUDE.md feels incomplete** - patterns exist but aren't documented
 3. **Seeing outdated references** in docs while working
-4. **Quarterly maintenance** - scheduled cleanup
+4. **Quarterly maintenance** - scheduled cleanup (the weekly `ops health` audit + docs-orphan scan surface candidates)
 
 ## Decision Flowchart
 

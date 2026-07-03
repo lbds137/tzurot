@@ -187,6 +187,4 @@ The current implementation uses a single encryption key. Future versions could s
 
 ## Related Documentation
 
-- [BYOK Architecture](../architecture/BYOK_ARCHITECTURE.md)
-- [Security Best Practices](../guides/SECURITY.md)
 - [Railway Operations](../deployment/RAILWAY_OPERATIONS.md)

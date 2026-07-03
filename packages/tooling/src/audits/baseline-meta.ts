@@ -1,7 +1,7 @@
 /**
  * Baseline Metadata
  *
- * Layer 3 of the periodic-audit-enforcement proposal: every audit baseline
+ * Layer 3 of the audit-enforcement architecture (`docs/reference/audit-enforcement.md`): every audit baseline
  * file carries a `meta` block with the context that produced it. The two
  * fields that matter for drift detection are `configHash` (catches "tool
  * config changed since this baseline was captured") and `generatedFromSha`
