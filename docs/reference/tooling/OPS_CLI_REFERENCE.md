@@ -249,14 +249,17 @@ Filtered copy-paste detection ratchet — same structural shape as test:audit:
 
 Structural enforcement checks that hard-fail CI on findings:
 
-| Command                                    | Description                                                                                                        |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| `pnpm ops guard:boundaries`                | Service-boundary imports (bot-client never imports Prisma directly, etc.) (audit-class, `--summary` not yet wired) |
-| `pnpm ops guard:duplicate-exports`         | Same name exported from multiple files within a package (CI gate, intentionally not audit-class — no `--summary`)  |
-| `pnpm ops guard:proposal-links`            | Every `docs/proposals/backlog/*.md` has an inbound link                                                            |
-| `pnpm ops guard:proposal-links --summary`  | Emit JSONL summary line (for aggregator)                                                                           |
-| `pnpm ops guard:audit-tool-docs`           | Every registered audit tool has a non-stub WHY.md (bidirectional check)                                            |
-| `pnpm ops guard:audit-tool-docs --summary` | Emit JSONL summary line                                                                                            |
+| Command                                    | Description                                                                                                                  |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm ops guard:boundaries`                | Service-boundary imports (bot-client never imports Prisma directly, etc.) (audit-class, `--summary` not yet wired)           |
+| `pnpm ops guard:duplicate-exports`         | Same name exported from multiple files within a package (CI gate, intentionally not audit-class — no `--summary`)            |
+| `pnpm ops guard:proposal-links`            | Every `docs/proposals/backlog/*.md` has an inbound link                                                                      |
+| `pnpm ops guard:proposal-links --summary`  | Emit JSONL summary line (for aggregator)                                                                                     |
+| `pnpm ops guard:audit-tool-docs`           | Every registered audit tool has a non-stub WHY.md (bidirectional check)                                                      |
+| `pnpm ops guard:audit-tool-docs --summary` | Emit JSONL summary line                                                                                                      |
+| `pnpm ops guard:gate-parity`               | `pnpm quality` chain and CI lint job must not drift (justified `CI_ONLY`/`LOCAL_ONLY` allowlists; stale entries flagged)     |
+| `pnpm ops lines:check`                     | Always-loaded surfaces (`.claude/rules/*.md` total, `CURRENT.md`) within their line budgets (audit-class, `--summary` wired) |
+| `pnpm ops lines:update-baseline`           | Make line-budget growth explicit (`--dry-run` supported; same meta contract as `cpd:update-baseline`)                        |
 
 `guard:proposal-links` also hard-fails on single-segment proposal basenames (`memory.md`, `api.md`) because they defeat the word-boundary regex's precision. Multi-segment kebab-case or SCREAMING_SNAKE_CASE only.
 
