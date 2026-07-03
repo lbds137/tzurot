@@ -548,7 +548,7 @@ describe('generateSchema', () => {
       await generateSchema();
 
       const output = consoleLogSpy.mock.calls.flat().join(' ');
-      expect(output).toContain('2 partial-UNIQUE indexes preserved');
+      expect(output).toContain('2 partial-UNIQUE indexes');
     });
 
     it('does not add the partial-UNIQUE banner when no partial-unique indexes exist', async () => {
@@ -561,6 +561,154 @@ describe('generateSchema', () => {
 
       const [, content] = fsMock.writeFileSync.mock.calls[0] as [string, string];
       expect(content).not.toContain('Partial-UNIQUE indexes harvested from');
+    });
+  });
+
+  describe('DEFERRABLE-constraint preservation', () => {
+    /**
+     * Build a mock-fs layout for a set of migrations. Mirrors the helpers in
+     * the CHECK/partial-unique suites — kept local so each suite is
+     * self-contained.
+     */
+    function mockMigrations(migrations: Record<string, string>): void {
+      fsMock.existsSync.mockImplementation((path: string) => {
+        if (path.endsWith('prisma/migrations')) return true;
+        for (const name of Object.keys(migrations)) {
+          if (path.endsWith(`${name}/migration.sql`)) return true;
+        }
+        return false;
+      });
+      fsMock.readdirSync.mockImplementation(() =>
+        Object.keys(migrations).map(name => ({
+          name,
+          isDirectory: () => true,
+        }))
+      );
+      fsMock.readFileSync.mockImplementation((path: string) => {
+        for (const [name, sql] of Object.entries(migrations)) {
+          if (path.endsWith(`${name}/migration.sql`)) return sql;
+        }
+        return '';
+      });
+    }
+
+    it('extracts a multi-line ALTER CONSTRAINT DEFERRABLE statement, normalizing whitespace', async () => {
+      // The real migration shape: wrapped after ALTER TABLE, with a comment.
+      mockMigrations({
+        '20260418010642_make_circular_fks_deferrable': `
+          -- Prisma cannot express DEFERRABLE in schema.prisma.
+          ALTER TABLE "users"
+            ALTER CONSTRAINT "users_default_persona_id_fkey" DEFERRABLE INITIALLY IMMEDIATE;
+        `,
+      });
+
+      const { generateSchema } = await import('./generate-schema.js');
+      await generateSchema();
+
+      const [, content] = fsMock.writeFileSync.mock.calls[0] as [string, string];
+      expect(content).toContain(
+        'ALTER TABLE "users" ALTER CONSTRAINT "users_default_persona_id_fkey" DEFERRABLE INITIALLY IMMEDIATE;'
+      );
+      expect(content).toContain('DEFERRABLE-constraint ALTERs harvested from');
+    });
+
+    it('harvests ONLY the ALTER CONSTRAINT statements out of a full mixed-DDL migration', async () => {
+      // Mirror of 20260627040007_vision_config_kind: the DEFERRABLE clause
+      // lives among unrelated columns/indexes that the base diff already
+      // emits — re-harvesting those would produce duplicate DDL.
+      mockMigrations({
+        '20260627040007_vision_config_kind': `
+          ALTER TABLE "users" ADD COLUMN "default_vision_config_id" UUID;
+          CREATE INDEX "users_default_vision_config_id_idx" ON "users"("default_vision_config_id");
+          ALTER TABLE "users" ADD CONSTRAINT "users_default_vision_config_id_fkey"
+            FOREIGN KEY ("default_vision_config_id") REFERENCES "llm_configs"("id");
+          ALTER TABLE "users"
+            ALTER CONSTRAINT "users_default_vision_config_id_fkey" DEFERRABLE INITIALLY IMMEDIATE;
+        `,
+      });
+
+      const { generateSchema } = await import('./generate-schema.js');
+      await generateSchema();
+
+      const [, content] = fsMock.writeFileSync.mock.calls[0] as [string, string];
+      const harvestedSection = content.slice(content.indexOf('DEFERRABLE-constraint ALTERs'));
+      expect(harvestedSection).toContain(
+        'ALTER CONSTRAINT "users_default_vision_config_id_fkey" DEFERRABLE INITIALLY IMMEDIATE;'
+      );
+      expect(harvestedSection).not.toContain('ADD COLUMN');
+      expect(harvestedSection).not.toContain('CREATE INDEX');
+      expect(harvestedSection).not.toContain('FOREIGN KEY');
+    });
+
+    it('does NOT extract a NOT DEFERRABLE revert, and removes the prior definition', async () => {
+      mockMigrations({
+        '20260101000000_make_deferrable':
+          'ALTER TABLE "t" ALTER CONSTRAINT "c1" DEFERRABLE INITIALLY IMMEDIATE;',
+        '20260102000000_revert': 'ALTER TABLE "t" ALTER CONSTRAINT "c1" NOT DEFERRABLE;',
+      });
+
+      const { generateSchema } = await import('./generate-schema.js');
+      await generateSchema();
+
+      const [, content] = fsMock.writeFileSync.mock.calls[0] as [string, string];
+      expect(content).not.toContain('"c1"');
+      expect(content).not.toContain('DEFERRABLE-constraint ALTERs harvested from');
+    });
+
+    it('removes a DEFERRABLE clause when a later migration drops the constraint', async () => {
+      // Prisma emits DROP + re-ADD when an FK definition changes, and the
+      // re-ADD never carries DEFERRABLE — the harvest must mirror prod losing
+      // deferrability in that case.
+      mockMigrations({
+        '20260101000000_make_deferrable':
+          'ALTER TABLE "t" ALTER CONSTRAINT "c1" DEFERRABLE INITIALLY IMMEDIATE;',
+        '20260102000000_redefine_fk': `
+          ALTER TABLE "t" DROP CONSTRAINT "c1";
+          ALTER TABLE "t" ADD CONSTRAINT "c1" FOREIGN KEY ("x") REFERENCES "u"("id");
+        `,
+      });
+
+      const { generateSchema } = await import('./generate-schema.js');
+      await generateSchema();
+
+      const [, content] = fsMock.writeFileSync.mock.calls[0] as [string, string];
+      expect(content).not.toContain('DEFERRABLE INITIALLY IMMEDIATE');
+    });
+
+    it('keeps the last definition when deferrability is re-added after a drop', async () => {
+      mockMigrations({
+        '20260101000000_make_deferrable':
+          'ALTER TABLE "t" ALTER CONSTRAINT "c1" DEFERRABLE INITIALLY IMMEDIATE;',
+        '20260102000000_redefine_and_realter': `
+          ALTER TABLE "t" DROP CONSTRAINT "c1";
+          ALTER TABLE "t" ADD CONSTRAINT "c1" FOREIGN KEY ("x") REFERENCES "u"("id");
+          ALTER TABLE "t" ALTER CONSTRAINT "c1" DEFERRABLE INITIALLY DEFERRED;
+        `,
+      });
+
+      const { generateSchema } = await import('./generate-schema.js');
+      await generateSchema();
+
+      const [, content] = fsMock.writeFileSync.mock.calls[0] as [string, string];
+      expect(content).toContain(
+        'ALTER TABLE "t" ALTER CONSTRAINT "c1" DEFERRABLE INITIALLY DEFERRED;'
+      );
+      expect(content).not.toContain('INITIALLY IMMEDIATE');
+    });
+
+    it('reports the DEFERRABLE count in the success message', async () => {
+      mockMigrations({
+        '20260101000000_two': `
+          ALTER TABLE "t" ALTER CONSTRAINT "c1" DEFERRABLE INITIALLY IMMEDIATE;
+          ALTER TABLE "t" ALTER CONSTRAINT "c2" DEFERRABLE INITIALLY IMMEDIATE;
+        `,
+      });
+
+      const { generateSchema } = await import('./generate-schema.js');
+      await generateSchema();
+
+      const output = consoleLogSpy.mock.calls.flat().join(' ');
+      expect(output).toContain('2 DEFERRABLE constraints preserved');
     });
   });
 

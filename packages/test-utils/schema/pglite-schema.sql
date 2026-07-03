@@ -924,3 +924,14 @@ CREATE UNIQUE INDEX "tts_configs_global_name_unique" ON "tts_configs"("name") WH
 CREATE UNIQUE INDEX "llm_configs_free_default_unique" ON "llm_configs"("kind") WHERE "is_free_default" = true;
 CREATE UNIQUE INDEX "llm_configs_global_name_unique" ON "llm_configs"("kind", "name") WHERE "is_global" = true;
 CREATE UNIQUE INDEX "llm_configs_default_unique" ON "llm_configs"("kind") WHERE "is_default" = true;
+
+-- DEFERRABLE-constraint ALTERs harvested from prisma/migrations/**/migration.sql
+-- (Prisma can't express DEFERRABLE in schema.prisma, so the hand-written
+-- ALTER CONSTRAINT statements are merged back in here. db-sync relies on
+-- SET CONSTRAINTS ALL DEFERRED for atomic circular-FK inserts.)
+ALTER TABLE "users" ALTER CONSTRAINT "users_default_persona_id_fkey" DEFERRABLE INITIALLY IMMEDIATE;
+ALTER TABLE "users" ALTER CONSTRAINT "users_default_llm_config_id_fkey" DEFERRABLE INITIALLY IMMEDIATE;
+ALTER TABLE "personas" ALTER CONSTRAINT "personas_owner_id_fkey" DEFERRABLE INITIALLY IMMEDIATE;
+ALTER TABLE "llm_configs" ALTER CONSTRAINT "llm_configs_owner_id_fkey" DEFERRABLE INITIALLY IMMEDIATE;
+ALTER TABLE "users" ALTER CONSTRAINT "users_default_tts_config_id_fkey" DEFERRABLE INITIALLY IMMEDIATE;
+ALTER TABLE "users" ALTER CONSTRAINT "users_default_vision_config_id_fkey" DEFERRABLE INITIALLY IMMEDIATE;
