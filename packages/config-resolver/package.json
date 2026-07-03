@@ -11,6 +11,7 @@
     "build": "rm -rf dist tsconfig.tsbuildinfo && tsc",
     "pretest": "npm run clean",
     "test": "vitest",
+    "test:mutation": "stryker run",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint src --max-warnings=0",
@@ -23,6 +24,8 @@
     "@tzurot/common-types": "workspace:*"
   },
   "devDependencies": {
+    "@stryker-mutator/core": "^9.6.1",
+    "@stryker-mutator/vitest-runner": "^9.6.1",
     "@types/node": "^26.0.1",
     "pino": "^10.3.1"
   }
