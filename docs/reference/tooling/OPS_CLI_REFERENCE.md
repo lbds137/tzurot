@@ -106,15 +106,24 @@ Runtime state inspection for debugging:
 
 Fetch and analyze Railway service logs:
 
-| Command                               | Description                      |
-| ------------------------------------- | -------------------------------- |
-| `pnpm ops logs --env dev`             | Fetch logs from all dev services |
-| `pnpm ops logs --env prod`            | Fetch logs from production       |
-| `pnpm ops logs --service api-gateway` | Logs from specific service       |
-| `pnpm ops logs --filter error`        | Filter by log level              |
-| `pnpm ops logs --filter "keyword"`    | Filter by text content           |
-| `pnpm ops logs --lines 200`           | Fetch more lines (default: 100)  |
-| `pnpm ops logs --follow`              | Stream logs in real-time         |
+| Command                                 | Description                                                       |
+| --------------------------------------- | ----------------------------------------------------------------- |
+| `pnpm ops logs --env dev`               | Fetch logs from all dev services                                  |
+| `pnpm ops logs --env prod`              | Fetch logs from production                                        |
+| `pnpm ops logs --service api-gateway`   | Logs from specific service                                        |
+| `pnpm ops logs --filter "@level:error"` | Server-side Railway query DSL                                     |
+| `pnpm ops logs --lines 200`             | Fetch more lines (default: 100; clamped at the CLI's ~5000 cap)   |
+| `pnpm ops logs --request-id <uuid>`     | Incident dig: local-match a request ID, sweeping all app services |
+| `pnpm ops logs --job-id <id>`           | Incident dig: local-match a BullMQ job ID (ANDs with request-id)  |
+| `pnpm ops logs --since 2h`              | Time floor (ISO-8601 or `45m`/`6h`/`2d`); local pino-time filter  |
+| `pnpm ops logs --follow`                | Stream logs in real-time (not combinable with dig flags)          |
+
+**Correlation dig flags** (`--request-id`/`--job-id`/`--since`) deliberately match
+**locally** over a fetched window instead of using the server `--filter` DSL —
+that engine routinely misses hyphenated tokens (UUIDs). With no `--service`,
+the dig sweeps bot-client + api-gateway + ai-worker in labeled sections. It
+reads the CURRENT deployment; for older windows use
+`railway deployment list` + `railway logs <deployment-id>`.
 
 **Output includes:**
 
@@ -122,7 +131,7 @@ Fetch and analyze Railway service logs:
 - Service and environment context
 - Tips for common queries
 
-**Use case:** Debug production issues, check for errors across services, monitor logs in real-time.
+**Use case:** Debug production issues, trace one request/job across services, monitor logs in real-time.
 
 ## Release Commands
 

@@ -43,19 +43,31 @@ export function registerDeployCommands(cli: CAC): void {
     .command('logs', 'Fetch logs from Railway services')
     .option('--env <env>', 'Environment (dev or prod)', { default: 'dev' })
     .option('--service <service>', 'Service name (bot-client, api-gateway, ai-worker)')
-    .option('--lines <n>', 'Number of lines to fetch', { default: 100 })
-    .option('--filter <text>', 'Filter logs by text or level (error, warn, info, debug)')
+    .option('--lines <n>', 'Number of lines to fetch (capped at ~5000 by the Railway CLI)')
+    .option('--filter <text>', 'Server-side Railway query DSL (@level:error, "a AND b")')
+    .option('--request-id <id>', 'Incident dig: local-match a request ID across app services')
+    .option(
+      '--job-id <id>',
+      'Incident dig: local-match a BullMQ job ID across app services (short numeric IDs may substring-match unrelated numbers; prefer --request-id when both are known)'
+    )
+    .option(
+      '--since <when>',
+      'Time floor: ISO-8601 or relative (45m, 6h, 2d); enters dig mode (5000-line window, sweeps app services unless --service)'
+    )
     .option('--follow', 'Follow logs in real-time')
     .example('ops logs --env dev')
     .example('ops logs --env dev --service api-gateway')
-    .example('ops logs --env dev --filter error')
-    .example('ops logs --env dev --follow')
+    .example('ops logs --env prod --request-id f333a5db-1234-5678-9abc-def012345678')
+    .example('ops logs --env prod --job-id 42317 --since 2h')
     .action(
       async (options: {
         env: string;
         service?: string;
-        lines: number;
+        lines?: number;
         filter?: string;
+        requestId?: string;
+        jobId?: string;
+        since?: string;
         follow?: boolean;
       }) => {
         if (options.env !== 'dev' && options.env !== 'prod') {
@@ -67,8 +79,13 @@ export function registerDeployCommands(cli: CAC): void {
         await fetchLogs({
           env: options.env,
           service: options.service,
-          lines: options.lines,
+          lines: options.lines === undefined ? undefined : Number(options.lines),
           filter: options.filter,
+          // CAC auto-casts all-digit values to Number; an unstringed ID would
+          // silently fail logs.ts's `typeof === 'string'` term filter.
+          requestId: options.requestId === undefined ? undefined : String(options.requestId),
+          jobId: options.jobId === undefined ? undefined : String(options.jobId),
+          since: options.since === undefined ? undefined : String(options.since),
           follow: options.follow,
         });
       }
