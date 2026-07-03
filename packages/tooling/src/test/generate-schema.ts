@@ -41,6 +41,17 @@ const PARTIAL_UNIQUE_INDEX_BANNER = [
   '-- being real Postgres-in-WASM, applies just like prod.)',
 ].join('\n');
 
+/**
+ * Header preceding appended DEFERRABLE-constraint ALTERs. Same shape as the
+ * banners above.
+ */
+const DEFERRABLE_CONSTRAINT_BANNER = [
+  '-- DEFERRABLE-constraint ALTERs harvested from prisma/migrations/**/migration.sql',
+  "-- (Prisma can't express DEFERRABLE in schema.prisma, so the hand-written",
+  '-- ALTER CONSTRAINT statements are merged back in here. db-sync relies on',
+  '-- SET CONSTRAINTS ALL DEFERRED for atomic circular-FK inserts.)',
+].join('\n');
+
 interface GenerateSchemaOptions {
   output?: string;
 }
@@ -60,8 +71,7 @@ interface GenerateSchemaOptions {
  * tokens (some migrations wrap after `ALTER TABLE`, others are single-line).
  * Case-insensitive to match either SQL convention. `"[^"]+"` requires at
  * least one character inside the quotes, so a successful match guarantees
- * group 1 is a non-empty string (see narrowing in
- * `extractCheckStatementsFromFile`).
+ * the name group is a non-empty string.
  */
 const CHECK_CONSTRAINT_REGEX = /^ALTER\s+TABLE\s+"[^"]+"\s+ADD\s+CONSTRAINT\s+"([^"]+)"\s+CHECK\b/i;
 // Matches both forms: `DROP CONSTRAINT "c"` and `DROP CONSTRAINT IF EXISTS "c"`.
@@ -70,114 +80,6 @@ const CHECK_CONSTRAINT_REGEX = /^ALTER\s+TABLE\s+"[^"]+"\s+ADD\s+CONSTRAINT\s+"(
 // equivalent for our extraction purposes.
 const DROP_CONSTRAINT_REGEX =
   /^ALTER\s+TABLE\s+"[^"]+"\s+DROP\s+CONSTRAINT\s+(?:IF\s+EXISTS\s+)?"([^"]+)"/i;
-
-type ExtractedCheck =
-  | { kind: 'add'; name: string; statement: string }
-  | { kind: 'drop'; name: string };
-
-/**
- * Parse one migration.sql file and emit its CHECK-constraint operations
- * (both ADD and DROP). Strips both line-comments and block-comments before
- * splitting on `;` — block comments matter because a block-comment body can
- * contain a raw `;` that would split the surrounding statement in half and
- * silently drop the CHECK that followed.
- *
- * DROP CONSTRAINT is emitted alongside ADD so the outer dedup loop can remove
- * a previously-added constraint when a later migration retires it without
- * re-adding (else PGLite would enforce a CHECK that prod Postgres no longer
- * has, producing confusing integration-test false positives).
- */
-function extractCheckStatementsFromFile(sqlPath: string): ExtractedCheck[] {
-  const raw = readFileSync(sqlPath, 'utf-8');
-  const uncommented = raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/--[^\n]*/g, '');
-  const results: ExtractedCheck[] = [];
-
-  // Prisma migrations use ; as the unambiguous statement terminator even
-  // across line breaks. CHECK expressions can contain nested parens but never
-  // a raw ;. Splitting here is safer than a multi-line regex that has to
-  // balance parens.
-  for (const stmt of uncommented.split(';')) {
-    const trimmed = stmt.trim();
-    if (trimmed.length === 0) continue;
-
-    const addMatch = CHECK_CONSTRAINT_REGEX.exec(trimmed);
-    if (addMatch !== null) {
-      const name = addMatch[1];
-      // Unreachable per regex (`"[^"]+"` requires the capture), but TS sees
-      // match[1] as string | undefined.
-      if (name === undefined) continue;
-      results.push({
-        kind: 'add',
-        name,
-        statement: normalizeStatement(trimmed) + ';',
-      });
-      continue;
-    }
-
-    const dropMatch = DROP_CONSTRAINT_REGEX.exec(trimmed);
-    if (dropMatch !== null) {
-      const name = dropMatch[1];
-      // Unreachable per regex (`"[^"]+"` requires the capture); guard
-      // satisfies TS's `string | undefined` view of the match group.
-      if (name === undefined) continue;
-      results.push({ kind: 'drop', name });
-    }
-  }
-  return results;
-}
-
-/**
- * Extract all `ADD CONSTRAINT ... CHECK (...)` statements from every
- * `migration.sql` under `migrationsDir`. When the same constraint name
- * appears in multiple migrations (drop + re-add across two files), the
- * **last** migration's definition wins — this matches Postgres's own
- * semantics: after migration B drops and re-adds `c1`, prod enforces
- * migration B's CHECK expression, not migration A's. First-wins would
- * silently ship migration A's (stale) definition into PGLite while prod
- * runs migration B's, re-introducing the fidelity gap this extractor
- * was built to eliminate.
- */
-export function extractCheckConstraints(migrationsDir: string): string[] {
-  if (!existsSync(migrationsDir)) {
-    return [];
-  }
-
-  const migrationFolders = readdirSync(migrationsDir, { withFileTypes: true })
-    .filter(d => d.isDirectory())
-    .map(d => d.name)
-    // Prisma prefixes folders with `YYYYMMDDHHMMSS_`, so lexicographic sort
-    // matches chronological sort — essential for the last-wins dedup below.
-    .sort();
-
-  // Map.set overwrites existing entries while preserving insertion order.
-  // Iterating chronologically means later migrations replace earlier ones
-  // by name while the overall emission order stays deterministic.
-  const byName = new Map<string, string>();
-
-  for (const folder of migrationFolders) {
-    const sqlPath = join(migrationsDir, folder, 'migration.sql');
-    if (!existsSync(sqlPath)) continue;
-
-    for (const op of extractCheckStatementsFromFile(sqlPath)) {
-      if (op.kind === 'add') {
-        byName.set(op.name, op.statement);
-      } else {
-        // DROP without subsequent re-ADD must remove the prior definition.
-        // A drop-then-re-add pair across two migrations is handled correctly
-        // by the natural sequence: this delete fires, then the next iteration's
-        // ADD repopulates with the new statement.
-        byName.delete(op.name);
-      }
-    }
-  }
-
-  return Array.from(byName.values());
-}
-
-/** Collapse internal whitespace so each statement ends up on one line. */
-function normalizeStatement(stmt: string): string {
-  return stmt.replace(/\s+/g, ' ').trim();
-}
 
 /**
  * Matches a `CREATE UNIQUE INDEX "<name>" ON ... WHERE ...` statement and
@@ -201,8 +103,7 @@ function normalizeStatement(stmt: string): string {
  * The `[\s\S]*?` between the table reference and `WHERE` is lazy so it can
  * span the multi-line column list these statements usually wrap across,
  * without swallowing past the first `WHERE`. Case-insensitive to match either
- * SQL convention. `"[^"]+"` requires at least one character inside the quotes,
- * so a successful match guarantees group 1 is a non-empty string.
+ * SQL convention.
  */
 const PARTIAL_UNIQUE_INDEX_REGEX = /^CREATE\s+UNIQUE\s+INDEX\s+"([^"]+)"\s+ON\s[\s\S]*?\bWHERE\b/i;
 // Matches both `DROP INDEX "i"` and `DROP INDEX IF EXISTS "i"`. A hand-written
@@ -211,34 +112,79 @@ const PARTIAL_UNIQUE_INDEX_REGEX = /^CREATE\s+UNIQUE\s+INDEX\s+"([^"]+)"\s+ON\s[
 // loop needs to see the DROP to apply last-wins correctly.
 const DROP_INDEX_REGEX = /^DROP\s+INDEX\s+(?:IF\s+EXISTS\s+)?"([^"]+)"/i;
 
-type ExtractedIndex =
-  | { kind: 'add'; name: string; statement: string }
-  | { kind: 'drop'; name: string };
+/**
+ * Matches an `ALTER TABLE ... ALTER CONSTRAINT "<name>" DEFERRABLE ...`
+ * statement and captures the constraint name.
+ *
+ * Why this extractor exists: same gap again. Prisma cannot express
+ * DEFERRABLE in schema.prisma, so the circular-FK migrations hand-write
+ * `ALTER CONSTRAINT ... DEFERRABLE INITIALLY IMMEDIATE` — and `migrate diff`
+ * silently omits them. Without this harvest, PGLite FKs are NOT DEFERRABLE:
+ * `SET CONSTRAINTS ALL DEFERRED` becomes a silent no-op and db-sync's atomic
+ * circular inserts (users ↔ personas ↔ configs) fail in component tests while
+ * working in prod.
+ *
+ * The name group cannot match a `NOT DEFERRABLE` revert — `NOT` intervenes
+ * between the quoted name and `DEFERRABLE`, so the revert form falls through
+ * to DEFERRABLE_UNDO_REGEX below.
+ */
+const DEFERRABLE_CONSTRAINT_REGEX =
+  /^ALTER\s+TABLE\s+"[^"]+"\s+ALTER\s+CONSTRAINT\s+"([^"]+)"\s+DEFERRABLE\b/i;
+/**
+ * Undoes a harvested DEFERRABLE clause. Two forms retire deferrability:
+ * an explicit `ALTER CONSTRAINT "c" NOT DEFERRABLE` revert, or dropping the
+ * constraint outright (Prisma emits DROP + re-ADD when an FK definition
+ * changes, and the re-ADD never carries DEFERRABLE — so post-drop, prod is
+ * not deferrable unless a later migration re-alters it, and the harvest
+ * must mirror that).
+ */
+const DEFERRABLE_UNDO_REGEX =
+  /^ALTER\s+TABLE\s+"[^"]+"\s+(?:ALTER\s+CONSTRAINT\s+"([^"]+)"\s+NOT\s+DEFERRABLE\b|DROP\s+CONSTRAINT\s+(?:IF\s+EXISTS\s+)?"([^"]+)")/i;
+
+type ExtractedOp =
+  { kind: 'add'; name: string; statement: string } | { kind: 'drop'; name: string };
+
+/** Collapse internal whitespace so each statement ends up on one line. */
+function normalizeStatement(stmt: string): string {
+  return stmt.replace(/\s+/g, ' ').trim();
+}
+
+/** First defined capture group — undo regexes carry the name in one of two groups. */
+function capturedName(match: RegExpExecArray): string | undefined {
+  return match.slice(1).find(group => group !== undefined);
+}
 
 /**
- * Parse one migration.sql file and emit its partial-UNIQUE-index operations
- * (both ADD and DROP). Reuses the same comment-stripping + split-on-`;`
- * strategy as the CHECK extractor — block comments must be stripped because a
- * `;` inside one would split the surrounding statement.
+ * Parse one migration.sql file and emit the add/drop operations matched by
+ * the given regex pair. Strips both line-comments and block-comments before
+ * splitting on `;` — block comments matter because a block-comment body can
+ * contain a raw `;` that would split the surrounding statement in half and
+ * silently drop the statement that followed.
  *
- * DROP INDEX is emitted alongside CREATE so the outer dedup loop can drop a
- * previously-added partial index when a later migration (or a same-file
- * DROP-then-CREATE pair, as the per-kind rework uses) retires or redefines it.
+ * Prisma migrations use `;` as the unambiguous statement terminator even
+ * across line breaks. Harvested expressions can contain nested parens but
+ * never a raw `;`, so splitting here is safer than a multi-line regex that
+ * has to balance parens.
+ *
+ * Drops are emitted alongside adds so the last-wins dedup in
+ * `harvestLastWins` can remove a previously-added statement when a later
+ * migration retires it without re-adding (else PGLite would enforce DDL that
+ * prod Postgres no longer has, producing confusing test false positives).
  */
-function extractPartialUniqueStatementsFromFile(sqlPath: string): ExtractedIndex[] {
+function extractOpsFromFile(sqlPath: string, addRegex: RegExp, dropRegex: RegExp): ExtractedOp[] {
   const raw = readFileSync(sqlPath, 'utf-8');
   const uncommented = raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/--[^\n]*/g, '');
-  const results: ExtractedIndex[] = [];
+  const results: ExtractedOp[] = [];
 
   for (const stmt of uncommented.split(';')) {
     const trimmed = stmt.trim();
     if (trimmed.length === 0) continue;
 
-    const addMatch = PARTIAL_UNIQUE_INDEX_REGEX.exec(trimmed);
+    const addMatch = addRegex.exec(trimmed);
     if (addMatch !== null) {
-      const name = addMatch[1];
-      // Unreachable per regex (`"[^"]+"` requires the capture), but TS sees
-      // match[1] as string | undefined.
+      const name = capturedName(addMatch);
+      // Unreachable per the regexes (`"[^"]+"` requires the capture), but TS
+      // sees the group as string | undefined.
       if (name === undefined) continue;
       results.push({
         kind: 'add',
@@ -248,11 +194,10 @@ function extractPartialUniqueStatementsFromFile(sqlPath: string): ExtractedIndex
       continue;
     }
 
-    const dropMatch = DROP_INDEX_REGEX.exec(trimmed);
+    const dropMatch = dropRegex.exec(trimmed);
     if (dropMatch !== null) {
-      const name = dropMatch[1];
-      // Unreachable per regex (`"[^"]+"` requires the capture); guard
-      // satisfies TS's `string | undefined` view of the match group.
+      const name = capturedName(dropMatch);
+      // Unreachable per the regexes; guard satisfies TS's view of the group.
       if (name === undefined) continue;
       results.push({ kind: 'drop', name });
     }
@@ -261,15 +206,17 @@ function extractPartialUniqueStatementsFromFile(sqlPath: string): ExtractedIndex
 }
 
 /**
- * Extract all partial `CREATE UNIQUE INDEX ... WHERE ...` statements from every
- * `migration.sql` under `migrationsDir`. When the same index name appears in
- * multiple migrations (drop + recreate across files, or a same-file
- * drop-then-create), the **last** definition wins — matching Postgres's own
- * post-apply state. First-wins would ship a stale predicate into PGLite while
- * prod runs the latest one, re-introducing the fidelity gap this extractor
- * eliminates.
+ * Extract all statements matching `addRegex` from every `migration.sql`
+ * under `migrationsDir`, applying last-wins dedup by captured name. When the
+ * same name appears in multiple migrations (drop + re-add across two files,
+ * or a same-file drop-then-add pair), the **last** definition wins — this
+ * matches Postgres's own semantics: after migration B drops and re-adds a
+ * constraint, prod enforces migration B's definition, not migration A's.
+ * First-wins would silently ship the stale definition into PGLite while prod
+ * runs the latest one, re-introducing the fidelity gap the harvest exists to
+ * eliminate. A drop without re-add removes the entry entirely.
  */
-export function extractPartialUniqueIndexes(migrationsDir: string): string[] {
+function harvestLastWins(migrationsDir: string, addRegex: RegExp, dropRegex: RegExp): string[] {
   if (!existsSync(migrationsDir)) {
     return [];
   }
@@ -281,29 +228,44 @@ export function extractPartialUniqueIndexes(migrationsDir: string): string[] {
     // matches chronological sort — essential for the last-wins dedup below.
     .sort();
 
-  // Map.set overwrites existing entries while preserving insertion order, so
-  // iterating chronologically lets later migrations replace earlier ones by
-  // name while the overall emission order stays deterministic.
+  // Map.set overwrites existing entries while preserving insertion order.
+  // Iterating chronologically means later migrations replace earlier ones
+  // by name while the overall emission order stays deterministic.
   const byName = new Map<string, string>();
 
   for (const folder of migrationFolders) {
     const sqlPath = join(migrationsDir, folder, 'migration.sql');
     if (!existsSync(sqlPath)) continue;
 
-    for (const op of extractPartialUniqueStatementsFromFile(sqlPath)) {
+    for (const op of extractOpsFromFile(sqlPath, addRegex, dropRegex)) {
       if (op.kind === 'add') {
         byName.set(op.name, op.statement);
       } else {
-        // DROP removes the prior definition. A same-file DROP-then-CREATE pair
-        // (the per-kind rework's shape) is handled correctly by source order:
-        // this delete fires first, then the following CREATE repopulates with
-        // the new predicate.
+        // Drop without subsequent re-add must remove the prior definition.
+        // A drop-then-re-add pair (across files or within one) is handled
+        // correctly by the natural sequence: this delete fires, then the
+        // following add repopulates with the new statement.
         byName.delete(op.name);
       }
     }
   }
 
   return Array.from(byName.values());
+}
+
+/** All `ADD CONSTRAINT ... CHECK (...)` statements, last-wins deduped. */
+export function extractCheckConstraints(migrationsDir: string): string[] {
+  return harvestLastWins(migrationsDir, CHECK_CONSTRAINT_REGEX, DROP_CONSTRAINT_REGEX);
+}
+
+/** All partial `CREATE UNIQUE INDEX ... WHERE ...` statements, last-wins deduped. */
+export function extractPartialUniqueIndexes(migrationsDir: string): string[] {
+  return harvestLastWins(migrationsDir, PARTIAL_UNIQUE_INDEX_REGEX, DROP_INDEX_REGEX);
+}
+
+/** All `ALTER CONSTRAINT ... DEFERRABLE ...` statements, last-wins deduped. */
+export function extractDeferrableConstraints(migrationsDir: string): string[] {
+  return harvestLastWins(migrationsDir, DEFERRABLE_CONSTRAINT_REGEX, DEFERRABLE_UNDO_REGEX);
 }
 
 /**
@@ -337,14 +299,15 @@ export async function generateSchema(options: GenerateSchemaOptions = {}): Promi
       }
     );
 
-    // Append CHECK constraints harvested from migration SQL. Prisma's schema-
-    // level diff doesn't represent CHECK constraints, so they must be merged
-    // in post-hoc or PGLite-backed tests silently accept values Postgres would
-    // reject.
+    // Append the DDL Prisma's schema-level diff can't represent, harvested
+    // from the hand-written migration SQL: CHECK constraints, partial-unique
+    // indexes, and DEFERRABLE-constraint ALTERs. Without the merge, PGLite-
+    // backed tests silently diverge from prod Postgres on each front.
     const checkStatements = extractCheckConstraints(migrationsDir);
-    // Same gap, partial-unique indexes: Prisma's diff omits `WHERE`-clause
-    // indexes entirely, so harvest them from the hand-written migrations too.
     const partialUniqueStatements = extractPartialUniqueIndexes(migrationsDir);
+    // Appended AFTER the base diff, which contains every ADD CONSTRAINT the
+    // ALTERs reference — so the harvested statements always find their target.
+    const deferrableStatements = extractDeferrableConstraints(migrationsDir);
 
     const harvestedSections: string[] = [];
     if (checkStatements.length > 0) {
@@ -354,6 +317,9 @@ export async function generateSchema(options: GenerateSchemaOptions = {}): Promi
       harvestedSections.push(
         `${PARTIAL_UNIQUE_INDEX_BANNER}\n${partialUniqueStatements.join('\n')}`
       );
+    }
+    if (deferrableStatements.length > 0) {
+      harvestedSections.push(`${DEFERRABLE_CONSTRAINT_BANNER}\n${deferrableStatements.join('\n')}`);
     }
 
     // Only reshape the base SQL when there's something to append — otherwise
@@ -374,7 +340,8 @@ export async function generateSchema(options: GenerateSchemaOptions = {}): Promi
     console.log(
       chalk.green(
         `Generated ${outputPath} (${lines} lines, ${checkStatements.length} CHECK constraints, ` +
-          `${partialUniqueStatements.length} partial-UNIQUE indexes preserved)`
+          `${partialUniqueStatements.length} partial-UNIQUE indexes, ` +
+          `${deferrableStatements.length} DEFERRABLE constraints preserved)`
       )
     );
     console.log(chalk.dim('Remember to commit the updated schema file.'));

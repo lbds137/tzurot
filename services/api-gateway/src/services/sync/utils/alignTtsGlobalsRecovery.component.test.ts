@@ -34,20 +34,6 @@ function migrationsDir(): string {
   return join(__dirname, '..', '..', '..', '..', '..', '..', 'prisma', 'migrations');
 }
 
-function loadDeferrableFkMigration(): string {
-  return readFileSync(
-    join(migrationsDir(), '20260418010642_make_circular_fks_deferrable', 'migration.sql'),
-    'utf-8'
-  );
-}
-
-function loadTtsDefaultFkDeferrableMigration(): string {
-  return readFileSync(
-    join(migrationsDir(), '20260504065151_make_tts_default_fk_deferrable', 'migration.sql'),
-    'utf-8'
-  );
-}
-
 function loadAlignTtsGlobalsMigration(): string {
   return readFileSync(
     join(migrationsDir(), '20260504140720_align_tts_globals_to_deterministic_ids', 'migration.sql'),
@@ -64,9 +50,9 @@ const ALIGNED_MISTRAL_ID = '8aa02cad-2c39-5b5b-9d37-482aacb7788d';
 
 async function setupPglite(): Promise<PGlite> {
   const pglite = createTestPGlite();
+  // The schema already carries the DEFERRABLE-constraint ALTERs — the
+  // generator harvests them from the hand-written migrations.
   await pglite.exec(loadPGliteSchema());
-  await pglite.exec(loadDeferrableFkMigration());
-  await pglite.exec(loadTtsDefaultFkDeferrableMigration());
   return pglite;
 }
 
