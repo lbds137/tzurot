@@ -127,6 +127,12 @@ jobs:
       - name: Check test-tier taxonomy is single-sourced
         run: pnpm ops guard:test-taxonomy
 
+      - name: Check backlog layout caps and links
+        run: pnpm backlog:lint
+
+      - name: Check local/CI gate parity
+        run: pnpm ops guard:gate-parity
+
       - name: Audit slash-command surface consistency
         run: pnpm ops commands:audit --summary
 

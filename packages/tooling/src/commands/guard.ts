@@ -102,6 +102,15 @@ export function registerGuardCommands(cli: CAC): void {
       await checkClaudeContentRefs(options);
     });
 
+  registerMetaGuards(cli);
+  registerHealthCommand(cli);
+}
+
+/**
+ * Guards about the gate system itself: taxonomy single-sourcing and
+ * local-vs-CI check parity.
+ */
+function registerMetaGuards(cli: CAC): void {
   cli
     .command(
       'guard:test-taxonomy',
@@ -113,7 +122,16 @@ export function registerGuardCommands(cli: CAC): void {
       await checkTestTaxonomyCommand();
     });
 
-  registerHealthCommand(cli);
+  cli
+    .command(
+      'guard:gate-parity',
+      'Fail when the local pnpm-quality chain and the CI lint job drift (allowlisted asymmetries excepted)'
+    )
+    .example('ops guard:gate-parity')
+    .action(async () => {
+      const { checkGateParity } = await import('../dev/check-gate-parity.js');
+      checkGateParity();
+    });
 }
 
 /**

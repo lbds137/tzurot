@@ -134,7 +134,7 @@ pnpm ops backlog                     # Check HOT/COLD caps + dangling cold/theme
 pnpm backlog:lint                    # Same check (root-level shortcut)
 ```
 
-Verifies the caps (Current Focus ≤ 3, Quick Wins ≤ 5, Untriaged ≤ 10), flags dangling `cold/themes/` links, and surfaces the oldest follow-ups as an aging-escalation nudge (it never auto-deletes — see `06-backlog.md`). **Wired into `pnpm quality`** (and therefore CI) so a cap violation hard-fails rather than silently drifting. Like the binary guards above, it's a layout sync-check, not an audit-class tool — no WHY.md / canary / `--summary`.
+Verifies the caps (Current Focus ≤ 3, Quick Wins ≤ 5, Untriaged ≤ 10), flags dangling `cold/themes/` links, and surfaces the oldest follow-ups as an aging-escalation nudge (it never auto-deletes — see `06-backlog.md`). **Wired into `pnpm quality` AND the CI lint job** (they are separate lists — CI does not run `quality`; `guard:gate-parity` keeps the two in sync). Like the binary guards above, it's a layout sync-check, not an audit-class tool — no WHY.md / canary / `--summary`.
 
 ### Audit-tool infrastructure (Layers 1-3)
 

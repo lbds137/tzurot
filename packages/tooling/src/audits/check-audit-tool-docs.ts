@@ -1,8 +1,8 @@
 /**
  * Audit Tool Documentation Guard
  *
- * Structural enforcement for Layer 2 of the audit-enforcement
- * proposal: every audit tool listed in `AUDIT_TOOL_REGISTRY` must have a
+ * Structural enforcement for Layer 2 of the audit-enforcement architecture
+ * (`docs/reference/audit-enforcement.md`): every audit tool listed in `AUDIT_TOOL_REGISTRY` must have a
  * non-stub WHY.md file at the registered path.
  *
  * Fails CI when:
