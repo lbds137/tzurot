@@ -48,6 +48,41 @@ export interface OpenRouterMessageMetadata {
   apiMessageKeys: string[];
   /** Length of `message.reasoning` from raw API response. Zero = model did not emit structured reasoning */
   apiReasoningLength: number;
+  /**
+   * Provider failure detail when the upstream errored mid-generation
+   * (finish_reason 'error'). OpenRouter attaches an error object on the
+   * choice (or top-level) alongside the 200 — captured here before
+   * `__raw_response` is deleted, so the invoker's error-finish guard and
+   * diagnostics can surface what the provider actually said.
+   */
+  providerError?: { message?: string; code?: number | string };
+}
+
+/**
+ * Pull the provider-failure error object off the raw response, if present.
+ * Choice-level takes precedence (that's where OpenRouter puts mid-generation
+ * provider failures); top-level is the fallback shape.
+ */
+function extractProviderErrorObject(
+  raw: Record<string, unknown>
+): OpenRouterMessageMetadata['providerError'] {
+  const choices = raw.choices;
+  const firstChoice = Array.isArray(choices)
+    ? (choices[0] as Record<string, unknown> | undefined)
+    : undefined;
+  const candidate = firstChoice?.error ?? raw.error;
+  if (typeof candidate !== 'object' || candidate === null) {
+    return undefined;
+  }
+  const err = candidate as Record<string, unknown>;
+  const result: NonNullable<OpenRouterMessageMetadata['providerError']> = {};
+  if (typeof err.message === 'string') {
+    result.message = err.message;
+  }
+  if (typeof err.code === 'string' || typeof err.code === 'number') {
+    result.code = err.code;
+  }
+  return result.message !== undefined || result.code !== undefined ? result : undefined;
 }
 
 /**
@@ -116,6 +151,10 @@ function buildOpenrouterMetadata(
   };
   if (typeof raw.provider === 'string') {
     result.provider = raw.provider;
+  }
+  const providerError = extractProviderErrorObject(raw);
+  if (providerError !== undefined) {
+    result.providerError = providerError;
   }
   return result;
 }

@@ -14,11 +14,12 @@ describe('FINISH_REASONS', () => {
     expect(FINISH_REASONS.LENGTH).toBe('length');
     expect(FINISH_REASONS.STOP_SEQUENCE).toBe('stop_sequence');
     expect(FINISH_REASONS.CONTENT_FILTER).toBe('content_filter');
+    expect(FINISH_REASONS.ERROR).toBe('error');
     expect(FINISH_REASONS.UNKNOWN).toBe('unknown');
   });
 
-  it('should have 7 known finish reasons', () => {
-    expect(Object.keys(FINISH_REASONS)).toHaveLength(7);
+  it('should have 8 known finish reasons', () => {
+    expect(Object.keys(FINISH_REASONS)).toHaveLength(8);
   });
 
   it('should be assignable to FinishReason type', () => {
@@ -50,6 +51,10 @@ describe('isNaturalStop', () => {
 
   it('should return false for content_filter', () => {
     expect(isNaturalStop('content_filter')).toBe(false);
+  });
+
+  it('should return false for error (provider failure inside a 200)', () => {
+    expect(isNaturalStop('error')).toBe(false);
   });
 
   it('should return false for unknown', () => {
