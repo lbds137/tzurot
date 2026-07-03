@@ -24,11 +24,27 @@
       "parameters": {
         "required_status_checks": [
           {
-            "context": "test",
+            "context": "lint",
             "integration_id": null
           },
           {
-            "context": "lint",
+            "context": "unit-tests (bot-client)",
+            "integration_id": null
+          },
+          {
+            "context": "unit-tests (ai-worker)",
+            "integration_id": null
+          },
+          {
+            "context": "unit-tests (api-gateway)",
+            "integration_id": null
+          },
+          {
+            "context": "unit-tests (tooling)",
+            "integration_id": null
+          },
+          {
+            "context": "unit-tests (packages)",
             "integration_id": null
           }
         ],
