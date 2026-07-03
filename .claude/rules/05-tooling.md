@@ -88,6 +88,8 @@ pnpm ops xray --imports              # Include import analysis (auto for md/json
 
 **Use `--summary` for architectural overview.** Full mode lists every declaration.
 
+**Decision-point trigger**: xray is not just a periodic-audit tool — it is the required sweep before any negative existence claim ("we don't have X") per `00-critical.md` § Don't Present Speculation as Fact. `pnpm ops xray --format md | grep -iE 'termA|termB|termC'` searches every export in seconds and cannot be stale.
+
 ### Test Audits
 
 ```bash
@@ -160,6 +162,8 @@ EOF
 **Types:** `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `perf`, `debug`
 **Scopes:** `ai-worker`, `api-gateway`, `bot-client`, `common-types`, `ci`, `deps`
 
+**Commitlint gotchas** (the hook catches these, but every trip costs a retry): the subject must start **lowercase** (`subject-case`), and the scope must be in the configured enum **or omitted entirely** — an unknown scope is rejected, no scope is fine.
+
 The list above is the project's primary set. `commitlint.config.cjs` also accepts the rest of the standard Conventional Commits types — `build`, `ci`, `revert`, `style` — and the `.husky/pre-push` branch-name allowlist permits all of them as branch prefixes too, so a valid commit type is always a valid branch prefix. Reach for the standard ones when they genuinely fit (`build:` for bundler/Docker changes, `revert:` for a clean revert); otherwise the primary set covers most work.
 
 #### The `debug` type
@@ -170,11 +174,13 @@ The payoff is a built-in safety net: a `debug` commit is a high-signal "did I re
 
 Do **not** use `debug` for **permanent** observability (structured logs, metrics, traces that stay) — that is a real operational improvement and should be `feat`. The distinction is lifecycle: `debug` is scaffolding you intend to delete; `feat` observability is infrastructure you intend to keep.
 
-Adopted 2026-06-08 (unanimous council recommendation) after the forwarded-message debugging campaign repeatedly mislabelled diagnostic-logging PRs as `chore`. Enforced by `commitlint.config.cjs` (`type-enum`) and the `.husky/pre-push` branch-name allowlist (`debug/` branches permitted).
+Enforced by `commitlint.config.cjs` (`type-enum`) and the `.husky/pre-push` branch-name allowlist (`debug/` branches permitted).
 
 ### PR Monitoring (automatic — do not wait to be asked)
 
 **Whenever you create a PR or push commits to an open PR, arm a `Monitor` that waits for CI to finish and then reports on new reviewer comments.** Don't wait for the user to ask whether CI passed or whether a review landed.
+
+**First verify the push actually landed.** Backgrounded pushes reporting "exit 0" AND foreground pushes with `| tail`/`| grep`-filtered output can both hide a failed transfer. Confirm the `-> branch` ref-update line or `git status -sb` in-sync before arming the Monitor — a monitor watching a push that never landed reports a stale CI run as fresh.
 
 The `.claude/hooks/pr-monitor-reminder.sh` PostToolUse hook fires after every `git push` / `gh pr create` and injects a reminder with the pre-built Monitor invocation. If you see that banner, arm the Monitor before doing anything else — the hook is the enforcement mechanism behind this rule. If it ever stops firing (settings.json drift, hook script removed, etc.), fall back to manually arming the monitor yourself.
 
@@ -208,6 +214,10 @@ When the monitor fires, **all four** of the following must happen before the cyc
 
    Inline line comments are where human reviewers typically leave blocking feedback; if you only check `/issues/N/comments` you'll silently miss them. Track the most recently reported comment's timestamp in working memory so a subsequent push doesn't re-report already-surfaced feedback. **Include human reviewer comments** alongside `claude[bot]` / `github-advanced-security[bot]`.
 
+   **Never pipe review fetches through `| tail` / `| head`** — truncating the fetch is how body findings get silently dropped; pull the full output and read it.
+
+   **claude-review health**: the check turning green means the action _completed_ — it does NOT guarantee a review body was posted. If no new `claude[bot]` comment exists after a green run, re-run the workflow (`gh run rerun <run-id>`) before proceeding (observed twice: a placeholder post and a completed-but-posted-nothing run).
+
 3. In a single concise user-facing message, report: CI pass/fail summary **and** any new review findings (grouped as blocking vs. non-blocking). If there are no new reviews since the last push, say so explicitly — silence isn't a substitute for "no new comments."
 
    **Read every `###` section of each review body — do not rely on the trailing "Summary" / "Actionable items" section.** Reviewer output is tiered (verdict → strengths → major → minor → observations → summary), and the summary is a shortcut that commonly under-reports items the body flags. When a review is 100+ lines, treat length itself as a skimming red flag. Cross-check correlated signals: if codecov flags missing lines, grep the review body for a corresponding test-gap call-out. If multiple `claude[bot]` entries exist (e.g., one per push cycle), read every one — don't assume only the latest matters.
@@ -217,7 +227,7 @@ When the monitor fires, **all four** of the following must happen before the cyc
 Two failure modes to guard against — both matter:
 
 - **Step 1 without step 2**: all-green CI feels complete, so the comment-fetch step gets skipped. Steps 1 and 2 are both part of the Monitor-fire response contract; all-CI-green does not discharge the comment-fetch obligation.
-- **Step 2 without full-body read**: fetching comments but only extracting items from the trailing summary section. A review that ends "Summary: two actionable items" almost always has a body listing more. Observed 2026-04-21 on PRs #842/#843/#844 — multiple body-only items got missed, including a Medium test-coverage gap that codecov independently confirmed.
+- **Step 2 without full-body read**: fetching comments but only extracting items from the trailing summary section. A review that ends "Summary: two actionable items" almost always has a body listing more (observed: body-only items, including a codecov-confirmed coverage gap, missed on three consecutive PRs).
 
 If CI fails or CodeQL flags a new alert, surface it via `PushNotification` — that class of feedback changes what the user does next.
 

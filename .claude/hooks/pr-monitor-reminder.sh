@@ -95,7 +95,7 @@ Per .claude/rules/05-tooling.md (PR Monitoring), arm a Monitor now:
 
   Monitor({
     description: "CI + reviews for PR #$PR_NUM",
-    command: 'gh pr checks $PR_NUM --watch --interval=30 > /dev/null 2>&1; echo "CI_COMPLETE"; gh pr checks $PR_NUM',
+    command: 'sleep 60; gh pr checks $PR_NUM --watch --interval=30 > /dev/null 2>&1; sleep 5; echo "CI_COMPLETE"; gh pr checks $PR_NUM',
     timeout_ms: 900000
   })
 
@@ -111,6 +111,7 @@ When it fires:
    silently misses inline line comments — the most common place human
    reviewers leave blocking feedback.)
 - Report CI state + reviewer findings in one message (blocking vs. non-blocking).
-- Do NOT fix without user approval.
+- Apply feedback per .claude/rules/08-review-response.md (trivial-shape
+  auto-apply via test-gated fixups; semantic-shape ASK; batch-present).
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 EOF

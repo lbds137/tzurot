@@ -107,14 +107,23 @@ Raw CLI equivalents (single service, manual grep):
 # Tail specific service (CURRENT deployment only)
 railway logs --service bot-client -n 50
 
-# Search for errors
-railway logs --service api-gateway | grep "ERROR"
-
 # Trace request across services
 railway logs | grep "requestId:abc123"
+```
 
-# Find errors
-railway logs | grep '"level":"error"'
+**⚠️ NEVER grep prod logs by level.** Railway renders every pino line as
+`[INFO]` regardless of its actual level, and `"level":50`-style greps return
+false-clean while real `logger.error` failures exist (this wrongly read a
+broken deploy as "clean" once). Grep by **message text or `err=` content**
+instead:
+
+```bash
+# ✅ Find errors by content, not level
+railway logs --service api-gateway | grep -iE 'failed|error:|err='
+
+# ❌ Both of these give false-clean on Railway
+# railway logs | grep "ERROR"
+# railway logs | grep '"level":"error"'
 ```
 
 ### Pulling logs from PAST deployments
@@ -134,7 +143,7 @@ railway logs <DEPLOYMENT_ID> --service ai-worker --environment production --line
 
 The `--filter` flag uses Railway's query DSL (`@level:error`, quoted phrases like `"vision AND 404"`, etc.). For multi-token literal substring searches, single tokens often work better than quoted phrases — Railway's filter syntax doesn't always behave like grep.
 
-**When this matters**: investigations into bugs that surfaced just before a release deploy, or cross-deployment timeline traces. Surfaced 2026-04-25 during the LangChain reasoning-extraction investigation when the leaked request happened on the prior deployment.
+**When this matters**: investigations into bugs that surfaced just before a release deploy, or cross-deployment timeline traces.
 
 ### Empty log results = debug the query, not the retention
 
@@ -145,7 +154,7 @@ Railway retains logs; an empty or suspiciously short result almost always means 
 - **The `--filter` DSL is finicky.** Hyphenated tokens (`ref1-image`), quoted phrases (`"failed after"`), and special characters often match nothing. Prefer a single bare token, or pull `--lines 5000` into a file and `grep -iE` locally — local grep is predictable; the DSL is not.
 - **Ended/removed deploys are still queryable** by deployment ID (above). A `REMOVED` status does not mean the logs are gone.
 
-Surfaced 2026-06-19 chasing a prod vision `bad_request`: a `--lines 8000` query errored out to zero rows, and a `requestId` filter missed the error (logged under `attachmentId`) — both briefly mis-attributed to "logs rolled off." `--lines 5000` + local grep surfaced the full trace (a 403 on an `&amp;`-mangled embed URL) immediately.
+(Every one of these has produced a false "logs rolled off" conclusion at least once; `--lines 5000` + local grep resolved each immediately.)
 
 ## Environment Variables
 
@@ -199,6 +208,15 @@ pnpm ops run --env dev npx prisma studio
 # Note: 'railway restart' doesn't exist, use redeploy
 railway redeploy --service bot-client --yes
 ```
+
+## Cost Impact in Infra Recommendations
+
+Any recommendation that changes hosting posture — keep-warm toggles, serverless
+on/off, replica counts, timeout bumps that hold instances alive — MUST state its
+hosting-cost impact alongside the technical rationale. A keep-warm toggle was
+once recommended purely on latency grounds and overruled on cost ("will cost me
+a lot more money on hosting"); prefer the cost-neutral alternative (e.g., a
+timeout bump) unless the user opts into spend.
 
 ## Troubleshooting Checklist
 

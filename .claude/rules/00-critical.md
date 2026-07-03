@@ -132,6 +132,8 @@ gh pr merge 714 --rebase                  # develop survives
 
 **Uncommitted changes = HOURS OF WORK.** When user says "get changes" → COMMIT, not DISCARD.
 
+**`git stash pop` caveat**: stashes are a global LIFO stack, NOT per-branch. Popping blind applies another branch's stash and produces conflict markers in files you never touched. Always `git stash list` and inspect before any pop.
+
 ### Standing permission: feature-branch commits and pushes
 
 Routine `git add <files>` + `git commit` + `git push` + `gh pr create` to feature branches is **pre-authorized**. After implementation work passes its verification (tests + quality), proceed straight to: branch → stage specific files → commit → push → `gh pr create`. Don't ask "want me to commit?" or "should I open the PR now?" — the user reviews on the PR diff, not on a per-commit prompt.
@@ -170,27 +172,30 @@ git push origin develop
 
 No branch, no PR, no CI re-run. Pre-push hooks still fire because they run on any push.
 
-**Why this exception exists**: routine doc housekeeping (post-merge BACKLOG sweeps, CURRENT.md handoffs, runbook fixes) gets no useful signal from automated review, so the PR ceremony adds friction without catching mistakes. Code changes still go through PRs because the diff _is_ where the automated review fires. Established 2026-04-25 after PR #899 merge surfaced friction around stashing a 6-line BACKLOG tracker update for a future PR.
+**Why**: doc housekeeping gets no useful signal from automated review; code diffs are where the review fires.
 
 **This permission does NOT extend to:**
 
 - Anything in the "Destructive Commands - ASK FIRST" table above (force-push, reset --hard, restore, clean, kill processes, rm -rf)
-- `gh pr merge` (always needs explicit user approval — see "Never Merge PRs Without User Approval" below)
+- `gh pr merge` on the release PR (develop → main) — always needs explicit per-release approval; feature/fix merges follow "Merge Approval" below (standing authorization once truly ready)
 - Branch deletion (`git branch -D`, `--delete-branch` flag on `gh pr merge`) on long-lived branches (main/develop)
 - Skipping hooks (`--no-verify`, `--no-gpg-sign`)
 - Touching `.env` or files that may contain secrets
 
-**Why this rule exists**: applying "ask before any commit" too literally produced decision-fatigue noise — the user was rubber-stamping commits one-by-one when the meaningful review surface is the PR diff. A standing pre-authorization for the routine commit-push-PR cycle, paired with the unchanged "ask first" gates above, restores the right asymmetry: low cost for routine actions, high cost for irreversible ones. Established 2026-04-25.
+**Why**: per-commit asks produced rubber-stamping noise; the PR diff is the review surface. Low cost for routine actions, high cost for irreversible ones.
 
 ### Before Code Changes
 
 1. Read the ENTIRE file first
 2. Never modify files you haven't read
 3. Make ONLY the requested change
+4. **For approved designs that touch schema or user-visible behavior: restate the user-visible semantics in plain terms and get confirmation before building.** Plan-mode plans must include a "what the user will see/do differently" section. An epic phase was once built on a `kind` param the owner understood as capability-filtering when it actually stored config-kind — the most expensive miscommunication on record; restating semantics up front is how that class dies.
 
-### Never Merge PRs Without User Approval
+### Merge Approval
 
-CI passing != merge approval. User must explicitly request merge.
+**Standing authorization (user-granted 2026-06-26): feature/fix PRs may be merged without a per-PR ask once they are truly ready** — every CI check green + complete + read (next section), the claude-review body read with no unresolved substantive findings, and any human feedback addressed. "Truly ready" is strict; when in doubt, ask.
+
+**The release PR (develop → main) ALWAYS requires explicit per-release user approval.** CI passing ≠ release approval — no exceptions.
 
 ### Never Merge PRs Without Completed CI
 
@@ -218,7 +223,7 @@ If post-merge feedback surfaces from claude-review on a tiny fixup, it can alway
 
 **Bypassing CI is forbidden** even when the user has approved the merge in principle — approval is contingent on the merge happening through a green pipeline. If the user explicitly says "merge it anyway despite the red check," confirm once that they understand which check is red and what signal is being skipped before proceeding.
 
-**Observed**: 2026-04-24, release PR #892. `claude-review` failed with `Claude Code native binary not found at /home/runner/.local/bin/claude` (empty `ANTHROPIC_API_KEY` in env block). Treated as infra-only and merged through. User feedback: rerun the failed CI task rather than merge through it.
+**Observed**: release PR #892 — an infra-red claude-review was merged through; the correction is rerun-then-merge, never merge-through.
 
 ## Testing
 
@@ -251,7 +256,7 @@ This applies to:
 - **Coverage gaps** flagged in PR reviews — fix them, don't explain them away
 - **Documentation** that's stale or misleading in files you're touching
 
-The only exception: if fixing the issue would significantly expand the scope of the PR and risk introducing unrelated bugs. In that case, create a backlog item — but still fix it in a follow-up, not "someday."
+The only exception: fixing it would significantly expand the PR's scope and risk unrelated bugs. Deferring requires a stated strong reason (different mechanism, no production evidence, risky breadth) — "pre-existing," "harmless," and "could be a follow-up" are non-reasons. If deferred, write the backlog entry immediately and fix it in a follow-up, not "someday." Declined ideas get NO tombstone in docs or backlog — the decline rationale lives in the PR/commit that declined them.
 
 ### Verify Before Accepting External Feedback
 
@@ -276,6 +281,10 @@ When making claims about causation, origin, intent, or history, distinguish betw
 
 **An empty or sparse tool result is not evidence that the data is gone.** When a query returns nothing — or less than you expected — the cause is almost always the _query_, not missing data: a wrong filter field, an out-of-range flag value, the wrong scope, or finicky query syntax. Do NOT explain it away with infrastructure-decay claims ("the logs rolled off", "it aged out of retention", "it expired", "it got GC'd") unless you have direct evidence that's literally true. That's the satisfying answer, and it's almost always wrong — stating it as fact sends the user looking for data that's sitting right there. Default to "my query is wrong": enumerate why it could be returning nothing, and fix the query before blaming the store. (Railway-log specifics — the `--lines` cap, filtering by the field the log actually carries, the ended-deploy lookup — live in the `/tzurot-deployment` skill.)
 
+**Negative existence claims require an exhaustive search.** "We don't have X," "there's no way to do Y," and "that's not possible in this codebase" are claims about the ENTIRE codebase; a one-vocabulary grep cannot support them. Before stating one: search ≥3 vocabulary variants (your term, the domain's term, the library's term), sweep the generated declaration index (`pnpm ops xray --format md | grep -iE 'termA|termB|termC'` — regenerated from source, cannot be stale), and check for dormant scaffolding (`pnpm knip:dead`). If the sweep still finds nothing, state the claim WITH its evidence — "I searched A/B/C and found nothing" — which honestly invites correction. **The user's "I thought we had X" is a search order, not a debate prompt**: their vague memory has repeatedly beaten confident absence claims (webhook `applicationId`, the dormant `isProxyMessage` stub, the OpenRouter key that was "missing").
+
+**Completion claims require re-reading the scope definition.** Before declaring a theme, epic, or multi-part task "done"/"complete," re-open its scope artifact (theme file, plan, epic roadmap) and enumerate remaining items by name. "The last PR merged" is not "done" — the definition's own checklist being empty is. An overclaimed completion silently removes work from the finishing-first queue, which is strictly worse than leaving it visibly unfinished (the Stryker theme was declared done with one of many packages piloted).
+
 **Why this matters:** Users rely on assertions to decide what to do next. Speculation-as-fact produces wasted work when the real cause turns out to be different, and erodes trust when the pattern repeats. Prefer "the evidence shows X; the remaining candidates for why Y are A / B / C — here's how to narrow it" over "it was Z."
 
 ### Mandatory Global Discovery ("Grep Rule")
@@ -294,4 +303,8 @@ Claude's per-instance auto-memory at `~/.claude/projects/*/memory/` is a complem
 
 **When something is important enough to flag as feedback, it is usually important enough to make recurrence structurally harder.** If a failure mode belongs in memory, first ask whether it also belongs in a rule or skill. Don't let memory become a graveyard of "try harder" notes.
 
-Scope the structural fix to the **class** of failure, not just the exact symptom. And don't over-expand — a one-line rule addition or a paragraph in a skill is usually enough.
+**Promotion is atomic with deletion.** When a memory's content is promoted into a rule/skill/hook, delete the memory file, its MEMORY.md index line, and any inbound `[[links]]` in the same action — never leave the draft behind. Redundant memories reload every session and drift out of sync with the promoted rule.
+
+**A tool without a named decision-point trigger goes unused.** When building or adopting a tool, write down the moment it must be reached for ("before asserting X", "after every push") in the relevant rule/skill — a tool that exists only in a command-reference table gathers dust (xray: 95 mentions while being built, near-zero use in the month after).
+
+Scope the structural fix to the **class** of failure, not just the exact symptom. And don't over-expand — a one-line rule addition or a paragraph in a skill is usually enough. Rules state constraints plus at most a one-sentence why; multi-paragraph incident narratives don't belong here — the operationalized outcome IS the record (git preserves the story).

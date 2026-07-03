@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-07-02'
+lastUpdated: '2026-07-03'
 ---
 
 # Git Workflow Procedures
@@ -45,6 +45,12 @@ EOF
 pnpm test && git push -u origin <branch>
 ```
 
+**Verify every push actually landed** before proceeding (and before arming the
+CI Monitor): confirm the `-> branch` ref-update line in the push output, or
+`git status -sb` showing in-sync. Backgrounded pushes reporting exit 0 AND
+foreground pushes with `| tail`/`| grep`-filtered output have both hidden
+failed transfers.
+
 ## PR Procedure
 
 ### Create PR
@@ -69,7 +75,7 @@ The `.claude/hooks/pr-monitor-reminder.sh` PostToolUse hook auto-fires on `git p
 ```
 Monitor({
   description: "CI + reviews for PR <N>",
-  command: 'gh pr checks <N> --watch --interval=30 > /dev/null 2>&1; echo "CI_COMPLETE"; gh pr checks <N>',
+  command: 'sleep 60; gh pr checks <N> --watch --interval=30 > /dev/null 2>&1; sleep 5; echo "CI_COMPLETE"; gh pr checks <N>',
   timeout_ms: 900000
 })
 ```
@@ -90,7 +96,7 @@ When the monitor fires, **all four** of the following must happen — do not sto
 
    **Each `claude[bot]` entry is a separate review cycle.** If multiple exist (pre-rebase + post-rebase, push + re-push), read every one — don't assume only the latest matters. Track `created_at` of the last-reported comment so future fetches dedup correctly across session boundaries.
 
-4. Don't fix anything without user approval — report only. User decides in-PR vs. backlog.
+4. Apply review feedback per `.claude/rules/08-review-response.md` — trivial-shape edits auto-apply (test-gated fixup commits), semantic-shape edits ASK; batch-present all items in one end-of-round message.
 
 The #1-without-#2 failure mode is worth guarding against: all-green CI feels complete, but new review comments can still carry blocking findings or non-blocking observations the user wants to triage.
 
@@ -98,7 +104,7 @@ The #2-without-full-body failure mode is the second trap: fetching comments but 
 
 If the monitor completes without a `CI_COMPLETE` line in its output, the 15-min timeout fired first — re-arm rather than assume CI passed. If CI fails or CodeQL flags something, use `PushNotification` — the user should hear about it before their next turn.
 
-**Merge gate is green-only.** Per `.claude/rules/00-critical.md` "Never Merge PRs With Red CI": every check must be green before `gh pr merge` runs, including release PRs. If a check fails for what looks like infrastructure reasons (binary not found, missing secret, action-setup error), `gh run rerun <run-id> --failed` and re-arm the Monitor — don't merge through the red. The release procedure below assumes a green pipeline.
+**Merge gate is green-only.** Per `.claude/rules/00-critical.md` "Never Merge PRs Without Completed CI": every check must be green before `gh pr merge` runs, including release PRs. If a check fails for what looks like infrastructure reasons (binary not found, missing secret, action-setup error), `gh run rerun <run-id> --failed` and re-arm the Monitor — don't merge through the red. The release procedure below assumes a green pipeline.
 
 ### After PR Merged
 
@@ -193,6 +199,16 @@ git log v<previous>..HEAD --no-merges --oneline
 
 ### 3. Create Release PR
 
+**Security preflight first**: check open Dependabot PRs and the GitHub security
+tab before cutting the release — the user has repeatedly been the one to notice
+new advisories mid-release, and a fixable vuln is cheaper to ride along than to
+hotfix after.
+
+```bash
+gh pr list --author "app/dependabot" --state open
+gh api repos/{owner}/{repo}/dependabot/alerts --jq '[.[] | select(.state=="open")] | length'
+```
+
 ```bash
 gh pr create --base main --head develop --title "Release v3.0.0-beta.XX: Description"
 ```
@@ -212,7 +228,7 @@ Skip if the release has no migration — `release:premigrate` detects this and e
 
 ⚠️ **NEVER use `--delete-branch` for release PRs.** `develop` is a long-lived branch.
 
-⚠️ **Wait for every CI check to be green** per `.claude/rules/00-critical.md` "Never Merge PRs With Red CI". Release PRs are not exempt — claude-review is the second-look on the full release delta and infra failures (binary not found, missing secret) need `gh run rerun <run-id> --failed` before merge, not "merge through it."
+⚠️ **Wait for every CI check to be green** per `.claude/rules/00-critical.md` "Never Merge PRs Without Completed CI". Release PRs are not exempt — claude-review is the second-look on the full release delta and infra failures (binary not found, missing secret) need `gh run rerun <run-id> --failed` before merge, not "merge through it."
 
 ⚠️ **When assessing release safety, do NOT cite "soaked in dev".** Dev has no organic traffic — a dev deploy proves boot, not behavior (see `/tzurot-deployment` § "What a dev deploy proves"). The honest safety basis is per-PR CI + reviews, the holistic release review, and blast-radius analysis of runtime-unverified paths.
 

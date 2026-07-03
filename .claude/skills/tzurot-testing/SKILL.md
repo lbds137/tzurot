@@ -1,7 +1,7 @@
 ---
 name: tzurot-testing
 description: 'Testing procedures. Invoke with /tzurot-testing for test execution, coverage audits, and debugging test failures.'
-lastUpdated: '2026-06-26'
+lastUpdated: '2026-07-03'
 ---
 
 # Testing Procedures
@@ -180,6 +180,37 @@ Component tests (`*.component.test.ts`) run separately from unit tests and are *
 | Change component prefix routing  | Component tests verify button/select menu routing                           |
 
 **Update snapshots with:** `pnpm vitest run --config vitest.component.config.ts <file> --update`
+
+## Human-Verification Requests (manual testing by the user)
+
+The user is the ONLY manual-QA executor — usually on a phone, across session
+crashes and compactions. Every request for manual verification MUST be a
+complete, self-contained instruction with all five parts:
+
+1. **Exact repro path** — including the axis that keeps getting asked back:
+   regular message/reply vs **extended context**, which channel type, DM vs
+   guild, which command variant. If the axis matters, say which; if it doesn't,
+   say "either."
+2. **The invariant under test** — what property is being verified, so an
+   equivalent action counts ("any persona without an override," not "use
+   persona X"). The user shouldn't have to ask "does that not count?"
+3. **Masking state** — what cached/DB state could make the test falsely pass
+   (e.g., an already-described image pulls from the DB and never exercises the
+   new path). Name the reset step if one is needed.
+4. **Expected observable** — exactly what the user should see if it works, and
+   what failure looks like. Verify the expectation against the CODE
+   (`buildModelFooterText`, not a persona's in-character explanation) before
+   stating it.
+5. **How to report** — screenshot, paste, or a simple pass/fail.
+
+**Checklists are durable artifacts, not chat.** A release smoke-test checklist
+is written into `CURRENT.md` (with per-item status), so it survives compaction
+and the user can re-consult it from a phone. Track progress there as results
+come in ("from my quick tests how much of the checklist did that get us?" must
+be answerable from the file). Justify every case — a bloated matrix wastes the
+user's time; each case states what it uniquely proves. After the user reports,
+close the loop with runtime evidence (logs) when the user-visible outcome can't
+prove the new code path ran.
 
 ## Definition of Done
 

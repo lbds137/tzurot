@@ -50,8 +50,9 @@ There is no "prune items older than N days" rule. Staleness is a signal to act, 
 
 1. Read `CURRENT.md` for context
 2. Read `backlog/now.md` — 🚨 Production Issues fix first; then continue 🎯 Current Focus
-3. If Current Focus is empty, pull from ⚡ Quick Wins (in `now.md`) or `backlog/active-epic.md`
-4. Do NOT load `backlog/cold/` — grep it only when a task points you there
+3. **Freshness-check before presenting**: a board entry is a snapshot, not a fact. Before presenting a Production Issue as live, verify it against reality (git log for fixes that already landed, the user's own runtime experience, recent release notes). When two entries share a symptom, check whether they're one underlying seam — the z.ai "routing bug" and the footer mis-attribution were tracked separately but were one bug.
+4. If Current Focus is empty, pull from ⚡ Quick Wins (in `now.md`) or `backlog/active-epic.md`
+5. Do NOT load `backlog/cold/` — grep it only when a task points you there
 
 ### Ending a Session
 
@@ -64,7 +65,9 @@ There is no "prune items older than N days" rule. Staleness is a signal to act, 
 
 Marking something "out of scope" is NOT permission to ignore it. Any known defect, inconsistency, or technical deficiency you decide not to fix in the current work **must** land in the appropriate `backlog/**/*.md` file with a concrete destination. Applies to plans, PRs, code reviews, and ad-hoc work.
 
-**Commit messages, PR bodies, plan notes, and code comments are NOT substitutes for backlog entries.** Mentioning "adminFetch sites are a distinct follow-up" in a commit message, or writing `// TODO: migrate this later` in a comment, does not count as tracking — nobody greps commit history or scattered comments looking for deferred work. If the follow-up matters enough to mention anywhere, it matters enough to be a concrete entry in the appropriate `backlog/**/*.md` file before the current work closes. Observed failure mode 2026-04-21 on PR #859 where "adminFetch follow-up" was flagged in a commit message but never written to backlog; reviewer caught the gap.
+**Commit messages, PR bodies, plan notes, and code comments are NOT substitutes for backlog entries.** Mentioning "adminFetch sites are a distinct follow-up" in a commit message, or writing `// TODO: migrate this later` in a comment, does not count as tracking — nobody greps commit history or scattered comments looking for deferred work. If the follow-up matters enough to mention anywhere, it matters enough to be a concrete entry in the appropriate `backlog/**/*.md` file before the current work closes.
+
+**The promise ledger — file at the moment of utterance.** Any in-flight "I'll do X later / after this PR / when the release is done" — in chat, a plan, or a PR description — must land in the task list or the appropriate backlog file THE MOMENT it is said, not at session end. A promise that exists only in chat prose does not exist: it dies at the next compaction, and the user ends up asking "you said you were going to do X" / "what's the plan for getting those done?" (both recurred repeatedly). The session-end gates below are the backstop, not the mechanism.
 
 ### Two types of "out of scope" — only one needs tracking
 
@@ -100,6 +103,8 @@ A session is ALSO not done until every item that shipped during the session is r
 - For each PR, grep `backlog/` (recursive — includes `cold/`) for the item title/topic — if a matching entry exists, **remove it**
 - For any backlog entry annotated "PROMOTED to Current Focus" or similar, re-verify the underlying fix actually shipped; if yes, remove
 - Also remove any entry whose "Start" hints point to code that no longer needs fixing (grep the file to confirm). This is the "genuinely obsolete" removal path — it's distinct from time-based pruning, which we do NOT do.
+
+**Strike through sub-items at absorption, not at PR close.** Umbrella entries (multi-item audits, grouped follow-ups) don't track sub-item resolution automatically: when a PR resolves ONE sub-item of an umbrella entry, strike it through in the same working session as the resolving PR — waiting for "later" is how umbrella entries silently rot into half-done.
 
 Both gates pair with the session-end workflow in the `/tzurot-docs` skill.
 

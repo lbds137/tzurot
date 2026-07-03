@@ -50,6 +50,8 @@ Each layer points down. No upward references. No duplicated content.
 - **Abandoned plans** -- delete (git preserves history)
 - **Build process docs** -- delete after shipping (document the feature, not the process)
 - **Diverged planning docs** -- delete when implementation took a meaningfully different shape than what the doc describes; the code is the source of truth. Test: would a reader following this doc end up confused about what currently exists?
+- **Post-mortems** -- an entry is _incident (≤3 lines) → operationalization shipped (rule/hook/guard link)_. The point of a post-mortem is not the narrative but what got operationalized in its wake; narrative beyond that is deleted (git preserves it). An entry with no operationalization outcome is a red flag to fix, not a keepsake.
+- **Rules/skills carry constraints, not archaeology** -- a rule states the constraint plus at most a one-sentence why; multi-paragraph incident stories, adoption dates, and council-derivation notes don't belong in always-loaded surfaces. The operationalized outcome IS the record.
 
 ## Reference Root Files
 
@@ -63,6 +65,8 @@ These live directly in `docs/reference/` (not in a subdirectory):
 | `RAILWAY_CLI_REFERENCE.md`    | Railway CLI patterns                  |
 | `REASONING_MODEL_FORMATS.md`  | LLM reasoning output formats          |
 | `v2-patterns-reference.md`    | Legacy v2 patterns                    |
+| `audit-enforcement.md`        | Audit-tool registry criteria + layers |
+| `CPD_CAMPAIGN_AUDIT.md`       | CPD campaign close-out audit          |
 
 ## Related
 
