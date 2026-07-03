@@ -21,7 +21,7 @@ process.env.REDIS_URL ??= 'redis://127.0.0.1:6379';
  * - Coverage disabled — these tiers verify cross-service behavior / contracts,
  *   not in-service line coverage (the component + unit tiers carry coverage)
  *
- * CI note: the `component-tests` job runs this config but provisions ONLY Redis
+ * CI note: the `component-integration-tests` job runs this config but provisions ONLY Redis
  * (no Postgres) — every current test here uses in-process PGLite or static
  * fixtures. A real-Postgres `*.integration.test.ts` would hit ECONNREFUSED and
  * needs a Postgres service added to that job (or its own job) first.

@@ -294,6 +294,10 @@ jobs:
           report_type: test_results
 
       - name: Run type checking (all packages)
+        # Whole-repo typecheck rides this cell (unfiltered turbo run typecheck)
+        # because the cell already builds most of the dependency graph — but it
+        # IS extra weight beyond this cell's 9 packages; if 'packages' becomes
+        # the outlier cell, this step is the first suspect.
         if: ${{ matrix.cell == 'packages' }}
         run: pnpm run typecheck
 
