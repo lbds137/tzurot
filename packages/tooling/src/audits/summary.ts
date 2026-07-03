@@ -6,7 +6,7 @@
  * line; the full human-readable report stays on the default code path.
  *
  * Shape locked by `docs/reference/audit-enforcement.md`
- * Layer 1. Changing it requires updating the proposal AND any consumers.
+ * Layer 1. Changing it requires updating `docs/reference/audit-enforcement.md` AND any consumers.
  */
 
 export interface AuditSummary {
