@@ -5,7 +5,7 @@
  * with `--summary`. The aggregator (`pnpm ops:health`, planned) parses this
  * line; the full human-readable report stays on the default code path.
  *
- * Shape locked by `docs/proposals/backlog/periodic-audit-enforcement.md`
+ * Shape locked by `docs/reference/audit-enforcement.md`
  * Layer 1. Changing it requires updating the proposal AND any consumers.
  */
 

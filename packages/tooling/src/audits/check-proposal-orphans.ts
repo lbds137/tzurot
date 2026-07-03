@@ -7,7 +7,7 @@
  * by `SEARCH_ROOTS` and `EXCLUDED_PREFIXES` below.
  *
  * Layer 1 sibling of the canary/golden-fixture pattern (see
- * `docs/proposals/backlog/periodic-audit-enforcement.md`). Same shape: a
+ * `docs/reference/audit-enforcement.md`). Same shape: a
  * regular-CI check (NOT cron) that validates the system is being used, not
  * just maintained.
  *
@@ -149,7 +149,7 @@ function collectSearchableFiles(repoRoot: string): string[] {
  * for testing.
  *
  * **Naming assumption**: proposals should use multi-segment kebab-case
- * basenames (`periodic-audit-enforcement.md`, `shapes-inc-fetcher-hardening.md`).
+ * basenames (`api-contract-enforcement.md`, `shapes-inc-fetcher-hardening.md`).
  * The word-boundary regex match treats hyphens as part of the slug, so
  * `memory-leak-fix` won't be rescued by prose mentioning just "memory" —
  * but a hypothetical proposal named `memory.md` WOULD be rescued by any

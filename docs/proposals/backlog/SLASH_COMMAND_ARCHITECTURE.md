@@ -498,4 +498,3 @@ These are features that exist in schema/code but aren't fully wired up:
 - [Dashboard Framework](../../services/bot-client/src/utils/dashboard/)
 - [Character Command](../../services/bot-client/src/commands/character/) - Gold standard
 - [Advanced Params Schema](../../packages/common-types/src/schemas/llmAdvancedParams.ts)
-- [V2 Feature Tracking](./V2_FEATURE_TRACKING.md)

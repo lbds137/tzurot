@@ -39,13 +39,18 @@ Support tagging multiple characters in one message, each responding in order.
 - [ ] Combine reply target + mentions into ordered list (reply first, then mentions L→R)
 - [ ] Add max limit (3-4 characters per message) to prevent abuse
 
-#### ✨ Emoji Reaction Actions
+#### ✨ Message-Action Affordances: edit / regenerate / delete / ping (emoji reactions + edit flow)
 
-Allow emoji reactions to trigger personality actions.
+User request 2026-07-03, expanding the earlier emoji-actions idea. Inspiration is part shapes.inc (emoji-reaction support for a couple of these) and part PluralKit (proxied-message editing; 🔔 bell to ping the proxied user). **Research-first**: PluralKit is open source — study how it does webhook-message editing/reactions for one working reference (not to copy, but as information on one way of doing it). Scope should also include a brainstorming/research pass on adjacent usability improvements that would make Tzurot better.
 
-- [ ] Define action mapping (❤️ = positive feedback, 👎 = regenerate, etc.)
-- [ ] Hook into reaction events (reactionAdd handler)
-- [ ] Action dispatch based on emoji → action mapping
+- [ ] Research pass: PluralKit's edit/reaction mechanics + shapes.inc reaction UX + broader usability-improvement brainstorm (council candidate)
+- [ ] **Edit assistant responses** (PluralKit-style, for the invoking user / character owner) — webhook message edit + authorization model
+- [ ] **♻️ regenerate** a response that bugged out (re-run generation, replace the webhook message)
+- [ ] **❌ delete** a response
+- [ ] **🔔 ping** the user a proxied/character message relates to (PluralKit parity)
+- [ ] Other action mappings (❤️ positive feedback, 👎 regenerate-variant, etc.)
+- [ ] Hook into reaction events (reactionAdd handler) + action dispatch by emoji → action mapping
+- [ ] **Consistency invariant (applies to edit/delete/regenerate alike): conversation history AND memories must be updated to match the surviving message content** — an edited/regenerated reply must not leave the old text in history/LTM, and a deleted one must not persist as if it happened
 
 #### ✨ Denylist Duration Support
 

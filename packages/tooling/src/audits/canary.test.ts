@@ -1,7 +1,7 @@
 /**
  * Audit Canary Tests
  *
- * Per Layer 1 of `docs/proposals/backlog/periodic-audit-enforcement.md`:
+ * Per Layer 1 of `docs/reference/audit-enforcement.md`:
  * every audit tool has a deliberate-violation fixture that the tool MUST
  * detect. These tests run on every PR (regular CI, NOT cron) and validate
  * the tools work before any enforcement layer is built on top of them.

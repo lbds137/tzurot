@@ -1,6 +1,6 @@
 /**
  * `pnpm ops health` — the dumb audit aggregator (Layer 5 of the
- * periodic-audit-enforcement architecture).
+ * audit-enforcement architecture — `docs/reference/audit-enforcement.md`).
  *
  * Runs every summary-capable, statically-runnable audit tool as a real
  * `pnpm ops <tool> --summary` subprocess, parses the one JSONL summary line

@@ -31,7 +31,7 @@
  * **Future Evolution: Anti-Corruption Layer**
  * Long-term, we should create minimal interfaces (IAppMessage, etc.) to decouple
  * from Discord.js. This would allow better type safety without the complexity.
- * See TESTING_LESSONS_LEARNED.md for the roadmap.
+ * See docs/research/testing-lessons-v2-migration.md for the pattern rationale.
  */
 
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access -- Mock factory uses any types intentionally for flexible Discord.js test doubles */

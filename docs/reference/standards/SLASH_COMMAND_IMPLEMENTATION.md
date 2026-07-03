@@ -378,9 +378,7 @@ interface MyResponse {
 const result = await callGatewayApi<MyResponse>('/user/myendpoint', {
   userId: interaction.user.id,
   method: 'GET', // or 'POST', 'PUT', 'DELETE'
-  body: {
-    /* payload for POST/PUT */
-  },
+  body: {/* payload for POST/PUT */},
 });
 
 if (!result.ok) {
@@ -601,5 +599,5 @@ describe('handleSelectMenu', () => {
 ## Related Documentation
 
 - [SLASH_COMMAND_UX.md](./SLASH_COMMAND_UX.md) - UX patterns and naming conventions
-- [CLAUDE.md](../../CLAUDE.md) - Gateway client usage rules
+- [CLAUDE.md](../../../CLAUDE.md) - Gateway client usage rules
 - `bot-client/src/utils/dashboard/` - Dashboard pattern implementation

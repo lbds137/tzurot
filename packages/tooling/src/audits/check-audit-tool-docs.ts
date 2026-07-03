@@ -1,7 +1,7 @@
 /**
  * Audit Tool Documentation Guard
  *
- * Structural enforcement for Layer 2 of the periodic-audit-enforcement
+ * Structural enforcement for Layer 2 of the audit-enforcement
  * proposal: every audit tool listed in `AUDIT_TOOL_REGISTRY` must have a
  * non-stub WHY.md file at the registered path.
  *
@@ -290,7 +290,7 @@ intentionally aren't audit-class).
 
 Fix one of:
   - Write the WHY.md following the template in
-    \`docs/proposals/backlog/periodic-audit-enforcement.md\` Layer 2
+    \`docs/reference/audit-enforcement.md\` Layer 2
   - Remove the tool from \`AUDIT_TOOL_REGISTRY\` if it's been deleted
   - Delete the orphan WHY.md if its audit tool no longer exists
   - Add the WHY.md to \`UNREGISTERED_WHY_PATHS\` if it's intentionally

@@ -149,7 +149,7 @@ If your new command is an **audit tool** — i.e., it reports a measurement with
 
 Skipping any of these will fail CI in non-obvious ways. The `guard:audit-tool-docs` check catches missing WHY.md files and orphan WHY.md files (files with no registry entry).
 
-The proposal at [`docs/proposals/backlog/periodic-audit-enforcement.md`](../../docs/proposals/backlog/periodic-audit-enforcement.md) covers the architectural rationale.
+The design rationale (rejected alternatives, month-3 evaluation questions) lives in [`docs/reference/audit-enforcement.md`](../../docs/reference/audit-enforcement.md).
 
 ## Turborepo Caching
 

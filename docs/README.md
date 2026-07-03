@@ -1,6 +1,6 @@
 # Tzurot v3 Documentation
 
-**Last Updated:** 2026-03-16
+**Last Updated:** 2026-07-03
 
 This directory contains all project documentation, organized by lifecycle stage for easy navigation.
 
@@ -34,6 +34,31 @@ Root-level reference files: `DOCUMENTATION_PHILOSOPHY.md`, `STATIC_ANALYSIS.md`,
 - `reference/deployment/RAILWAY_OPERATIONS.md` - Primary deployment and operations guide
 - `reference/standards/FOLDER_STRUCTURE.md` - File organization standards
 
+**Operations runbooks:**
+
+- [`DATABASE_BACKUP_STRATEGY.md`](reference/operations/DATABASE_BACKUP_STRATEGY.md) - Postgres backup and restore strategy
+- [`ENCRYPTION_KEY_ROTATION.md`](reference/operations/ENCRYPTION_KEY_ROTATION.md) - Rotating the BYOK API-key encryption key
+- [`PRISMA_PGVECTOR_REFERENCE.md`](reference/operations/PRISMA_PGVECTOR_REFERENCE.md) - Prisma + pgvector operations reference
+- [`REDIS_MAINTENANCE.md`](reference/operations/REDIS_MAINTENANCE.md) - Redis health maintenance procedures
+- [`REDIS_TIMEOUT_ANALYSIS.md`](reference/operations/REDIS_TIMEOUT_ANALYSIS.md) - Redis timeout root-cause analysis
+
+**Caching:**
+
+- [`PUBSUB_INVALIDATION_GUIDE.md`](reference/caching/PUBSUB_INVALIDATION_GUIDE.md) - Creating a new cache with pub/sub invalidation
+- [`cache-duration-rationale.md`](reference/caching/cache-duration-rationale.md) - Why each cache has its TTL and memory bound
+
+**Standards:**
+
+- [`DATABASE_COLUMN_GUIDELINES.md`](reference/standards/DATABASE_COLUMN_GUIDELINES.md) - JSONB vs typed columns decision guide
+- [`CONTEXT_AWARE_FIELDS.md`](reference/standards/CONTEXT_AWARE_FIELDS.md) - Context-aware field pattern
+- [`INTERACTION_PATTERNS.md`](reference/standards/INTERACTION_PATTERNS.md) - Discord interaction state patterns
+
+**Features, templates, and testing:**
+
+- [`CHANNEL_ACTIVATION.md`](reference/features/CHANNEL_ACTIVATION.md) - Channel activation feature
+- [`MIGRATION_TEMPLATE.md`](reference/templates/MIGRATION_TEMPLATE.md) - Template for multi-phase migration plans
+- [`BYOK_MANUAL_TESTING.md`](reference/testing/BYOK_MANUAL_TESTING.md) - BYOK manual testing guide
+
 > Local dev setup lives in the root [`README.md`](../README.md) ([Quick Start](../README.md#quick-start) and [Development](../README.md#development) sections), not in this directory.
 
 ### [proposals/](proposals/)
@@ -49,7 +74,7 @@ Root-level reference files: `DOCUMENTATION_PHILOSOPHY.md`, `STATIC_ANALYSIS.md`,
 - `proposals/backlog/GIT_HOOK_IMPROVEMENTS.md` - Git hook enhancements (Phase 2 complete)
 - `proposals/backlog/MEMORY_MANAGEMENT_COMMANDS.md` - Memory management (Phase 1-2 complete)
 - `proposals/backlog/multi-personality-support.md` - Multi-personality channels
-- `proposals/backlog/OPENMEMORY_MIGRATION_PLAN.md` - Future architecture
+- [`../backlog/cold/themes/memory-system-overhaul.md`](../backlog/cold/themes/memory-system-overhaul.md) - Future memory architecture (OpenMemory distillation lives there)
 - `proposals/backlog/chatterbox-tts-evaluation.md` - TTS model evaluation
 
 ### [incidents/](incidents/)
@@ -83,13 +108,13 @@ Root-level reference files: `DOCUMENTATION_PHILOSOPHY.md`, `STATIC_ANALYSIS.md`,
 
 **Understanding the System:**
 
-1. [Memory System](reference/architecture/memory-and-context-redesign.md)
+1. [Memory System Overhaul theme](../backlog/cold/themes/memory-system-overhaul.md)
 2. [Database Schema](reference/architecture/POSTGRES_SCHEMA.md)
 3. [Group Conversations](reference/architecture/group-conversation-design.md)
 
 **Planning Work:**
 
-1. [OpenMemory Migration](proposals/backlog/OPENMEMORY_MIGRATION_PLAN.md)
+1. [OpenMemory Migration (distilled into the memory theme)](../backlog/cold/themes/memory-system-overhaul.md)
 2. [Multi-Personality Support](proposals/backlog/multi-personality-support.md)
 
 ---
