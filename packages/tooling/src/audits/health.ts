@@ -26,6 +26,7 @@
 import { execFileSync } from 'node:child_process';
 import chalk from 'chalk';
 import { parseSummary, type AuditSummary } from './summary.js';
+import { collectHealthExtras, formatHealthExtras } from './health-extras.js';
 
 /**
  * The static tool roster. Add a tool when it gains `--summary` support AND
@@ -181,7 +182,7 @@ export function formatHealthReport(report: HealthReport): string {
 }
 
 /** CLI shell for `pnpm ops health`. */
-export function runHealth(options: { noFail?: boolean } = {}): HealthReport {
+export function runHealth(options: { noFail?: boolean; rootDir?: string } = {}): HealthReport {
   console.log(chalk.dim(`Running ${HEALTH_TOOLS.length} audit tools…`));
   const results: ToolHealth[] = [];
   for (const tool of HEALTH_TOOLS) {
@@ -192,6 +193,12 @@ export function runHealth(options: { noFail?: boolean } = {}): HealthReport {
   const report = aggregateHealth(results);
   console.log('');
   console.log(formatHealthReport(report));
+
+  // Report-only context sections (security surface, ratchet margins, docs
+  // orphans) — printed after the tool bullets, NEVER part of the verdict or
+  // the exit code. Every collector degrades in place rather than throwing.
+  console.log('');
+  console.log(formatHealthExtras(collectHealthExtras(options.rootDir ?? process.cwd())));
 
   if (report.overall === 'fail' && options.noFail !== true) {
     process.exitCode = 1;

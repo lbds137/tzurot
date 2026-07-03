@@ -1,0 +1,253 @@
+/**
+ * Report-only context sections for `pnpm ops health` — appended AFTER the
+ * verdict header + per-tool bullets. None of these affect the aggregate
+ * verdict or the exit code: they are situational awareness for the weekly
+ * report, not gates (the gates live in `pnpm quality` / CI).
+ *
+ * Three sections:
+ * - **Security surface** — open Dependabot PRs + alerts via the `gh` CLI;
+ *   degrades to "unavailable (<reason>)" when gh is missing/unauthenticated.
+ * - **Ratchet margins** — headroom against the ratchet baselines that can be
+ *   measured honestly without a heavy run: lines (cheap live measure), cpd
+ *   (stale-ok, only if a prior `pnpm cpd` report exists on disk), mutation
+ *   (baseline score + floor only — a live score needs a Stryker run).
+ * - **Docs orphans** — `docs/reference` files with zero inbound markdown
+ *   links (see `docs-orphan-scan.ts`).
+ *
+ * Split out of `health.ts` to keep that file's aggregator loop readable and
+ * inside the max-lines budget; `runHealth` is the only production caller.
+ */
+
+import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { loadJscpdReport, filterReport } from '../cpd/postFilter.js';
+import {
+  measureSurfaces,
+  parseLinesBaseline,
+  DEFAULT_LINES_BASELINE_PATH,
+  type SurfaceMeasurement,
+} from './lines-check.js';
+import { parseMutationBaseline } from '../test/mutation-check.js';
+import { scanDocsOrphans, type DocsOrphanResult } from './docs-orphan-scan.js';
+
+export type SecuritySurface =
+  | { available: true; dependabotPrs: number; dependabotAlerts: number }
+  | { available: false; reason: string };
+
+/** Budget for each gh subprocess — a hung gh must degrade, not stall health. */
+const GH_TIMEOUT_MS = 30 * 1000;
+
+/** Run one gh command that emits a single integer (via --jq) on stdout. */
+function runGhCount(args: string[]): number {
+  const stdout = execFileSync('gh', args, {
+    encoding: 'utf-8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    timeout: GH_TIMEOUT_MS,
+  });
+  const count = Number.parseInt(stdout.trim(), 10);
+  if (Number.isNaN(count)) {
+    throw new Error(`unexpected gh output: ${stdout.trim().slice(0, 80)}`);
+  }
+  return count;
+}
+
+/** Compose a one-line degradation reason, preferring gh's own stderr. */
+function describeGhFailure(error: unknown): string {
+  const execError = error as { stderr?: string | Buffer };
+  const stderrLine =
+    typeof execError.stderr === 'string'
+      ? execError.stderr
+          .trim()
+          .split('\n')
+          .filter(l => l.length > 0)
+          .at(-1)
+      : undefined;
+  if (stderrLine !== undefined && stderrLine.length > 0) {
+    return stderrLine;
+  }
+  return error instanceof Error ? error.message.split('\n')[0] : String(error);
+}
+
+/**
+ * Count open Dependabot PRs + alerts. Never throws — some environments
+ * (local checkouts without gh auth) legitimately can't answer, and the
+ * security section must degrade rather than break the whole report.
+ */
+export function collectSecuritySurface(): SecuritySurface {
+  try {
+    const dependabotPrs = runGhCount([
+      'pr',
+      'list',
+      '--author',
+      'app/dependabot',
+      '--state',
+      'open',
+      '--json',
+      'number',
+      '--jq',
+      'length',
+    ]);
+    const dependabotAlerts = runGhCount([
+      'api',
+      'repos/{owner}/{repo}/dependabot/alerts',
+      '--jq',
+      '[.[] | select(.state=="open")] | length',
+    ]);
+    return { available: true, dependabotPrs, dependabotAlerts };
+  } catch (error) {
+    return { available: false, reason: describeGhFailure(error) };
+  }
+}
+
+/**
+ * Lines ratchet headroom — the one margin cheap enough to measure LIVE
+ * (a handful of file reads). One bullet per tracked surface.
+ */
+export function collectLinesMarginBullets(rootDir: string): string[] {
+  const baselinePath = resolve(rootDir, DEFAULT_LINES_BASELINE_PATH);
+  if (!existsSync(baselinePath)) {
+    return ['lines: unavailable (no lines-baseline.json — run `pnpm ops lines:update-baseline`)'];
+  }
+  const baseline = parseLinesBaseline(readFileSync(baselinePath, 'utf-8'), baselinePath);
+  const measured = measureSurfaces(rootDir) as Record<string, SurfaceMeasurement | undefined>;
+
+  const bullets: string[] = [];
+  for (const [name, surface] of Object.entries(baseline.surfaces)) {
+    const ceiling = surface.lines + surface.graceMargin;
+    const measurement = measured[name];
+    if (measurement === undefined || measurement.fileCount === 0) {
+      bullets.push(`lines ${name}: unmeasurable (surface matched zero files)`);
+      continue;
+    }
+    bullets.push(
+      `lines ${name}: ${measurement.lines}/${ceiling} ` +
+        `(${ceiling - measurement.lines} headroom, live measure)`
+    );
+  }
+  return bullets;
+}
+
+/**
+ * CPD ratchet headroom — honest only when a prior `pnpm cpd` run left its
+ * JSON report on disk; the filtered count is recomputed from that artifact
+ * (cheap JSON post-filter, no jscpd re-run) and labeled as stale-ok.
+ */
+export function collectCpdMarginBullets(rootDir: string): string[] {
+  const baselinePath = resolve(rootDir, '.github/baselines/cpd-baseline.json');
+  const reportPath = resolve(rootDir, 'reports/jscpd/jscpd-report.json');
+  if (!existsSync(baselinePath)) {
+    return ['cpd: unavailable (no cpd-baseline.json)'];
+  }
+  if (!existsSync(reportPath)) {
+    return ['cpd: unavailable (no jscpd report on disk — run `pnpm cpd` first)'];
+  }
+  const baseline = JSON.parse(readFileSync(baselinePath, 'utf-8')) as {
+    filteredLines?: number;
+    graceMargin?: number;
+    threshold?: number;
+  };
+  if (typeof baseline.filteredLines !== 'number' || typeof baseline.graceMargin !== 'number') {
+    return ['cpd: unavailable (cpd-baseline.json missing filteredLines/graceMargin)'];
+  }
+  const filtered = filterReport(loadJscpdReport(reportPath), baseline.threshold ?? 0.8);
+  const ceiling = baseline.filteredLines + baseline.graceMargin;
+  return [
+    `cpd filteredLines: ${filtered.filteredLines}/${ceiling} ` +
+      `(${ceiling - filtered.filteredLines} headroom, as of last \`pnpm cpd\` run — stale-ok)`,
+  ];
+}
+
+/**
+ * Mutation ratchet — baseline score + floor ONLY. A live score needs a
+ * Stryker run (minutes, not milliseconds), so no current measurement is
+ * reported; the bullet is labeled accordingly.
+ */
+export function collectMutationMarginBullets(rootDir: string): string[] {
+  const baselinePath = resolve(rootDir, '.github/baselines/mutation-baseline.json');
+  if (!existsSync(baselinePath)) {
+    return ['mutation: unavailable (no mutation-baseline.json)'];
+  }
+  const baseline = parseMutationBaseline(readFileSync(baselinePath, 'utf-8'), baselinePath);
+  return Object.entries(baseline.packages).map(([name, pkg]) => {
+    const floor = Math.round((pkg.score - pkg.graceMargin) * 100) / 100;
+    return `mutation ${name}: baseline score ${pkg.score}, floor ${floor} (baseline only — no live run)`;
+  });
+}
+
+export interface HealthExtras {
+  security: SecuritySurface;
+  marginBullets: string[];
+  docsOrphans: DocsOrphanResult | { unavailable: string };
+}
+
+/** One margin collector, degraded to an "unavailable" bullet on any throw. */
+function safeBullets(label: string, collect: () => string[]): string[] {
+  try {
+    return collect();
+  } catch (error) {
+    const reason = error instanceof Error ? error.message.split('\n')[0] : String(error);
+    return [`${label}: unavailable (${reason})`];
+  }
+}
+
+/**
+ * Collect all three report-only sections. Every collector degrades in place;
+ * this function never throws, so `runHealth` can call it unconditionally.
+ */
+export function collectHealthExtras(rootDir: string): HealthExtras {
+  const marginBullets = [
+    ...safeBullets('lines', () => collectLinesMarginBullets(rootDir)),
+    ...safeBullets('cpd', () => collectCpdMarginBullets(rootDir)),
+    ...safeBullets('mutation', () => collectMutationMarginBullets(rootDir)),
+  ];
+  let docsOrphans: HealthExtras['docsOrphans'];
+  try {
+    docsOrphans = scanDocsOrphans(rootDir);
+  } catch (error) {
+    docsOrphans = { unavailable: error instanceof Error ? error.message : String(error) };
+  }
+  return { security: collectSecuritySurface(), marginBullets, docsOrphans };
+}
+
+/**
+ * Render the extras as markdown-flavored plain text, matching the section
+ * shape of `formatHealthReport` (H3 sections after the tool bullets).
+ */
+export function formatHealthExtras(extras: HealthExtras): string {
+  const lines: string[] = [];
+
+  lines.push('### Security surface (report-only)');
+  if (extras.security.available) {
+    lines.push(`- Dependabot PRs open: ${extras.security.dependabotPrs}`);
+    lines.push(`- Dependabot alerts open: ${extras.security.dependabotAlerts}`);
+  } else {
+    lines.push(`- security: unavailable (${extras.security.reason})`);
+  }
+
+  lines.push('');
+  lines.push('### Ratchet margins (report-only)');
+  for (const bullet of extras.marginBullets) {
+    lines.push(`- ${bullet}`);
+  }
+
+  lines.push('');
+  lines.push('### Docs orphans (report-only)');
+  if ('unavailable' in extras.docsOrphans) {
+    lines.push(`- docs-orphan scan: unavailable (${extras.docsOrphans.unavailable})`);
+  } else if (extras.docsOrphans.orphans.length === 0) {
+    lines.push(
+      `- 0 of ${extras.docsOrphans.totalDocs} docs/reference files lack inbound markdown links`
+    );
+  } else {
+    lines.push(
+      `- ${extras.docsOrphans.orphans.length} of ${extras.docsOrphans.totalDocs} ` +
+        `docs/reference files have no inbound markdown links:`
+    );
+    for (const orphan of extras.docsOrphans.orphans) {
+      lines.push(`  - ${orphan}`);
+    }
+  }
+
+  return lines.join('\n');
+}

@@ -100,3 +100,31 @@ is ready to commit a bounded slice of the coding-plan quota to guests.
 - Deferred z.ai error-shape items (`backlog/cold/follow-ups.md`): "z.ai 402 HTTP status
   verification", "z.ai integration validation-model fallback" — both feed the
   dynamic-ceiling open question.
+
+## Quota fairness + owner protection (added 2026-07-03 — expands scope to BOTH shared system keys)
+
+Owner directive: sharing must be built "very carefully so that it doesn't affect
+my ability to use the plan I paid for." That makes owner protection the hard
+requirement, fair-share among free users the second, and it applies to the
+EXISTING shared `OPENROUTER_API_KEY` free tier as much as the future z.ai key —
+today one heavy free user can starve all others (and on z.ai, could starve the
+owner). "Not an active concern yet, but an area of vulnerability to address
+sooner rather than later."
+
+Design constraints for the allocation layer (provider-agnostic — one mechanism,
+two keys):
+
+1. **Owner-first headroom**: free-tier consumption of the z.ai key hard-caps at
+   a configurable fraction of the plan's quota window (e.g. free users
+   collectively never exceed N%/day), so the owner's own usage is never queued
+   behind guests. Owner requests bypass the free-tier allocator entirely.
+2. **Per-user fair share, dynamic**: per-user budgets derived from the remaining
+   window quota and active-user count rather than fixed constants — a lone user
+   may use more; under contention budgets shrink. (Redis is the natural home:
+   sliding-window counters per user + a global window counter.)
+3. **Degrade, don't error**: a free user over budget falls back to the free
+   OpenRouter tier (for z.ai) or gets a friendly in-character rate message with
+   reset time (for OpenRouter) — never a raw provider 402/429.
+4. **Observability**: per-window usage split (owner vs free-tier, per-user
+   top-N) visible via an admin command or the weekly audit, so quota-eating
+   is diagnosable before it's an incident.

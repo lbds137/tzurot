@@ -177,6 +177,59 @@ describe('audit-canary: commands:audit', () => {
   });
 });
 
+describe('audit-canary: lines:check', () => {
+  it('detects the deliberately over-budget always-loaded surfaces', async () => {
+    const { mkdtemp, writeFile, rm } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const { runLinesCheck, getLinesConfigFingerprint } = await import('./lines-check.js');
+    const { buildBaselineMeta, hashConfigSlice } = await import('./baseline-meta.js');
+
+    // The fixture is a static fake repo root with over-budget surfaces
+    // (rules 40 lines, CURRENT.md 20 lines) — the DO-NOT-FIX artifact. The
+    // baseline is built at test time so its configHash tracks the CURRENT
+    // fingerprint — a hardcoded hash would turn every legitimate fingerprint
+    // change into a canary failure about drift instead of budget detection.
+    const tmp = await mkdtemp(join(tmpdir(), 'lines-canary-'));
+    const baselinePath = join(tmp, 'baseline.json');
+    await writeFile(
+      baselinePath,
+      JSON.stringify({
+        surfaces: {
+          rules: { lines: 10, graceMargin: 5 },
+          current: { lines: 5, graceMargin: 2 },
+        },
+        meta: buildBaselineMeta('lines-check/canary', hashConfigSlice(getLinesConfigFingerprint())),
+      })
+    );
+
+    const captured: string[] = [];
+    const logSpy = vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+      captured.push(args.map(a => String(a)).join(' '));
+    });
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    try {
+      const status = runLinesCheck({
+        rootDir: `${FIXTURES_ROOT}/lines-check`,
+        baseline: baselinePath,
+        summary: true,
+        noFail: true,
+      });
+
+      expect(status).toBe('fail');
+      const summary = parseSummary(captured[captured.length - 1]);
+      expect(summary.tool).toBe('lines:check');
+      expect(summary.status).toBe('fail');
+      expect(summary.findings).toBeGreaterThan(0);
+    } finally {
+      logSpy.mockRestore();
+      errorSpy.mockRestore();
+      await rm(tmp, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('audit-canary: mutation:check', () => {
   it('detects the deliberately below-floor mutation report', async () => {
     const { mkdtemp, writeFile, rm } = await import('node:fs/promises');
