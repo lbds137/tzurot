@@ -23,7 +23,7 @@ _Not a classic single epic — a sweep over the sibling themes that exist becaus
 
 **Finishing-first ordering (user directive 2026-07-03: theme-CLOSERS outrank theme-starters).** The next pulls, cheapest closure first:
 
-1. **Human-users-only `requireUserAuth` invariant** ([theme](cold/themes/enforce-human-users-only-at-auth-middleware.md)) — last remaining item; ~1hr; **closes the theme**.
+1. ✅ **Human-users-only `requireUserAuth` invariant** — SHIPPED #1464 (2026-07-03); **THEME CLOSED** (file deleted, queue row removed). Investigation found the prior bot-block structurally unreachable (flag never passed); the invariant now runs wire-to-middleware on the user-context header rails.
 2. **Railway log-search ergonomic ops flags** ([theme](cold/themes/railway-log-search-dx-for-incident-digs.md)) — last remaining item; small; **closes the theme**.
 3. **`ops:health` aggregator + weekly cron/Discord webhook** ([theme](cold/themes/periodic-audit-enforcement-architecture.md)) — the goal layer over the already-shipped Layers 1–3; every `--summary` JSONL line exists to feed it; effectively closes the theme (month-3 eval is a calendar item).
 4. Then the knockout's build-sized moves: job-payload contract suite / CPD campaign 1 (council-first) / legacy-column DROP when soaked.

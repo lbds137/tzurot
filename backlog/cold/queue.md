@@ -12,7 +12,6 @@ _Ordered index of future themes. Grep-on-demand — not loaded at session start.
 - [Shapes.inc Fetcher Hardening (multi-item mini-epic)](themes/shapes-inc-fetcher-hardening.md) — harden shapes.inc fetch against API drift, bot-protection, graceful failure
 - [Security Audit Pass (discovery mini-epic)](themes/security-audit-pass.md) — systematic review of hostile-user attack surface; output is per-finding backlog items
 - [Preset Cascade Standardization (multi-PR epic)](themes/preset-cascade-standardization.md) — character-tier preset editing + cross-tier cascade UX parity
-- [Enforce "Human Users Only" at Auth Middleware](themes/enforce-human-users-only-at-auth-middleware.md) — middleware-level invariant rejecting bot-user HTTP requests _(partial — reconciled 2026-06-26: bot rejection lives in requireProvisionedUser; the requireUserAuth-level invariant remains — small)_
 - [Railway Log Search DX for Incident Digs](themes/railway-log-search-dx-for-incident-digs.md) — cross-service log correlation via request-id threading + Railway query DSL _(partial — reconciled 2026-06-26: requestId threading + filter docs shipped; only ergonomic ops flags remain — small)_
 - [Memory System Overhaul](themes/memory-system-overhaul.md) — LTM summarization → table migration → OpenMemory waypoint graph
 - [Character Portability](themes/character-portability.md) — import/export characters and user data; users own their data _(partial — reconciled 2026-06-26: /character export + shapes-import shipped; PNG card import + sidecar prompts remain)_
