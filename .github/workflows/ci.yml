@@ -237,7 +237,7 @@ jobs:
             junit: ./packages/tooling/junit.xml
           - cell: packages
             # Every workspace package except tooling (its own cell above).
-            filter: --filter=./packages/* --filter=!@tzurot/tooling
+            filter: --filter='./packages/*' --filter='!@tzurot/tooling'
             coverage: ./packages/common-types/coverage/lcov.info
             flags: common-types
             junit: ./packages/*/junit.xml
