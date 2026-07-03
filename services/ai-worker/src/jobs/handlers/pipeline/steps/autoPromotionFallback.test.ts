@@ -9,6 +9,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { AIProvider } from '@tzurot/common-types';
+import { RetryError } from '../../../../utils/retry.js';
 import {
   runWithAutoPromotionFallback,
   getFallbackFailureSummary,
@@ -169,6 +170,37 @@ describe('runWithAutoPromotionFallback', () => {
     // The attempted route rides along too, so the error footer can render the
     // full chain ("via Z.AI Coding Plan → OpenRouter") instead of the primary.
     expect(getAttemptedFallbackProvider(originalError)).toBe('openrouter');
+  });
+
+  it('summarizes the UNWRAPPED provider error when the fallback failure is RetryError-wrapped', async () => {
+    // The retry machinery rethrows a RetryError whose own message is the
+    // generic wrapper — summarizing THAT buries the provider detail the user
+    // needs (observed in prod: a fallback 402 credit error surfaced as just
+    // "LLM invocation (z-ai/glm-5.2) failed with non-retryable error").
+    const originalError = new Error('Rate limit cached');
+    const providerError = new Error(
+      '402 This request requires more credits, or fewer max_tokens. You requested up to 65536 tokens'
+    );
+    const wrapped = new RetryError(
+      'LLM invocation (z-ai/glm-5.1) failed with non-retryable error',
+      1,
+      providerError
+    );
+    const attempt = vi.fn().mockRejectedValueOnce(originalError).mockRejectedValueOnce(wrapped);
+
+    await expect(
+      runWithAutoPromotionFallback(attempt, baseOpts, {
+        apiKey: 'sk-or',
+        provider: 'openrouter',
+        model: 'z-ai/glm-5.1',
+        isGuestMode: false,
+      })
+    ).rejects.toBe(originalError);
+
+    expect(getFallbackFailureSummary(originalError)).toBe(
+      '402 This request requires more credits, or fewer max_tokens. You requested up to 65536 tokens'
+    );
+    expect(getFallbackFailureSummary(originalError)).not.toContain('non-retryable');
   });
 
   it('caps an over-long fallback failure summary', async () => {
