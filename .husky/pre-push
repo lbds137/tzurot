@@ -76,6 +76,15 @@ elif [ -z "$CODE_FILES" ] && [ -z "$PYTHON_FILES" ]; then
         echo "Fix the HOT/COLD caps or dangling links before pushing"
         exit 1
     fi
+    # Workflow-only pushes (.github/workflows/*.yml matches neither CODE_FILES
+    # nor PYTHON_FILES) land in this branch too — and a claude workflow change
+    # sneaking toward develop is exactly what guard:workflow-sync catches.
+    # Cheap (a couple of git calls); self-skips on main-cut branches.
+    if ! pnpm ops guard:workflow-sync; then
+        echo "${RED}Workflow-sync guard failed!${NC}"
+        echo "Route .github/workflows/ changes through a main-cut PR (see tzurot-git-workflow skill)"
+        exit 1
+    fi
     echo "${GREEN}Only documentation/config files changed - skipping build and tests${NC}"
     exit 0
 fi
