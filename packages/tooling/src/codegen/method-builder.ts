@@ -141,7 +141,10 @@ export function buildMethod(route: RouteDef, options: MethodBuildOptions): strin
   if (flavor === 'user') {
     headerLines.push(
       `        'X-User-Username': encodeURIComponent(this.user.username),`,
-      `        'X-User-DisplayName': encodeURIComponent(this.user.displayName),`
+      `        'X-User-DisplayName': encodeURIComponent(this.user.displayName),`,
+      // Boolean → 'true'/'false' on the wire; the gateway's requireUserAuth
+      // rejects declared bots before any route handler runs.
+      `        'X-User-Is-Bot': String(this.user.isBot),`
     );
   }
 

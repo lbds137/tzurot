@@ -143,6 +143,29 @@ export function requireUserAuth(customMessage?: string) {
       return;
     }
 
+    // Middleware-level "human users only" invariant: a caller that declares
+    // its subject is a bot (X-User-Is-Bot from bot-client's GatewayUser
+    // context) is rejected before any route handler runs — bots must never
+    // provision user rows or personas. Only the explicit 'true' declaration
+    // rejects: an ABSENT header means the caller carries no Discord user
+    // context (internal service calls), which the invariant doesn't govern.
+    // This hoists the guarantee that previously lived only in
+    // getOrCreateUser's null-return (reachable solely when callers passed
+    // isBot) up to the auth boundary, uniformly for every user route.
+    if (req.headers['x-user-is-bot'] === 'true') {
+      logger.warn(
+        {
+          userId,
+          path: req.path,
+          method: req.method,
+        },
+        'Bot user rejected at auth boundary'
+      );
+      const errorResponse = ErrorResponses.unauthorized('Bot users cannot access user routes');
+      res.status(getStatusCode(errorResponse.error)).json(errorResponse);
+      return;
+    }
+
     // Attach userId to request for downstream handlers
     (req as AuthenticatedRequest).userId = userId;
 
