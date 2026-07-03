@@ -92,6 +92,10 @@ is the unit tier ONLY. CI's `component-tests` job runs `test:component` +
 `test:integration`, so it catches what a unit-only local run silently skipped —
 don't let CI be the first thing that actually executes your contract test.
 
+Gotcha for mention/ID fixtures: tests need a **valid 17–19 digit Discord
+snowflake** — `isValidDiscordId` silently drops toy ids like `555` before
+resolution, making the assertion pass/fail for the wrong reason.
+
 ## Debugging Test Failures
 
 ### 1. Run Specific Test
