@@ -88,7 +88,7 @@ This table is the suffix→tier quick reference; don't re-define the tiers here
 When you touch a `.contract` / `.integration` test, run `pnpm test:integration`
 (Redis + Postgres up: `podman start tzurot-redis tzurot-postgres`); a
 `.component` test, `pnpm test:component`. `pnpm test` / `pnpm --filter <pkg> test`
-is the unit tier ONLY. CI's `component-tests` job runs `test:component` +
+is the unit tier ONLY. CI's `component-integration-tests` job runs `test:component` +
 `test:integration`, so it catches what a unit-only local run silently skipped —
 don't let CI be the first thing that actually executes your contract test.
 

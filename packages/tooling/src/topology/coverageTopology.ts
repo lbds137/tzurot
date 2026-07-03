@@ -37,10 +37,7 @@ import { fileImportsSymbol } from './importAssertions.js';
 
 /** How a surface's contract coverage is provided. */
 export type CoverageSurfaceMechanism =
-  | 'route-conformance'
-  | 'bullmq-contract'
-  | 'golden-fixture'
-  | 'voice-engine-contract';
+  'route-conformance' | 'bullmq-contract' | 'golden-fixture' | 'voice-engine-contract';
 
 export type CoverageSurfaceKind = 'http-route' | 'bullmq-job' | 'context-envelope' | 'voice-engine';
 
@@ -194,7 +191,7 @@ const REAL_IMPORTS = {
   },
   /**
    * The voice-engine JSON contract is cross-LANGUAGE: the PRODUCER is the Python
-   * service, enforced by the `voice-engine-test` CI job (a pytest asserts each real
+   * service, enforced by the `voice-engine-tests` CI job (a pytest asserts each real
    * endpoint's output equals the committed fixture) — NOT topology-visible (this
    * tool is TS-only). The topology tracks the TS CONSUMER half: the contract test
    * imports the real response Zod schemas it validates the shared fixtures against.
@@ -344,7 +341,7 @@ export function generateCoverageTopology(projectRoot: string = defaultRootDir())
 
   // The voice-engine JSON-response contract (cross-language: Python producer →
   // ai-worker consumer). One aggregate surface for the JSON shapes; the Python
-  // producer is CI-enforced (voice-engine-test), the TS consumer is topology-tracked.
+  // producer is CI-enforced (voice-engine-tests), the TS consumer is topology-tracked.
   surfaces.push(
     buildSurface(
       {

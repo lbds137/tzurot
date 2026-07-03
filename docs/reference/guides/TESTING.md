@@ -361,12 +361,12 @@ beforeAll(async () => {
 > under `tests/e2e/contracts/`. The suffix carries the tier (the `tests/e2e/`
 > directory name is legacy). True black-box **E2E** is effectively none today.
 
-> ⚠️ **Before adding a real-Postgres integration test:** the `component-tests` CI
+> ⚠️ **Before adding a real-Postgres integration test:** the `component-integration-tests` CI
 > job runs `pnpm test:integration` but provisions **only Redis** — there are no
 > `*.integration.test.ts` files today (the tiers here use in-process PGLite or
 > static fixtures). The first real-Postgres integration test will be picked up by
 > the repo-wide glob and hit `ECONNREFUSED` in CI; add a Postgres service to the
-> `component-tests` job (or a dedicated integration job) at the same time. Tracked
+> `component-integration-tests` job (or a dedicated integration job) at the same time. Tracked
 > in [`backlog/cold/follow-ups.md`](../../../backlog/cold/follow-ups.md).
 
 **Use when:**

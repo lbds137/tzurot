@@ -206,8 +206,8 @@ jobs:
       - name: Audit service integration test coverage
         run: pnpm ops test:audit --category=services
 
-  test:
-    name: test (${{ matrix.cell }})
+  unit-tests:
+    name: unit-tests (${{ matrix.cell }})
     runs-on: ubuntu-latest
     strategy:
       # One red cell must not cancel the others — each cell's result is
@@ -297,6 +297,10 @@ jobs:
         if: ${{ matrix.cell == 'packages' }}
         run: pnpm run typecheck
 
+  # Mutation-score ratchet (audit-class — see mutation-check.WHY.md). Stryker
+  # runs report-only on the tracked packages; the ops checker compares the
+  # scores against .github/baselines/mutation-baseline.json and fails on a
+  # drop below a package's floor (baseline − graceMargin).
   mutation-tests:
     runs-on: ubuntu-latest
     steps:
@@ -334,7 +338,7 @@ jobs:
   # Component tier (PGLite, in-process) + the real-dependency tiers (integration
   # + contract). Only Redis is a real external dependency here — every DB-backed
   # test uses in-process PGLite, so no Postgres service is provisioned.
-  component-tests:
+  component-integration-tests:
     runs-on: ubuntu-latest
     services:
       redis:
@@ -406,7 +410,7 @@ jobs:
           fail_ci_if_error: true
           verbose: true
 
-  voice-engine-test:
+  voice-engine-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
