@@ -1,7 +1,7 @@
 ---
 name: tzurot-docs
 description: 'Session workflow procedures. Invoke with /tzurot-docs for session start/end, CURRENT.md and backlog management.'
-lastUpdated: '2026-06-17'
+lastUpdated: '2026-07-03'
 ---
 
 # Documentation & Session Workflow
@@ -20,11 +20,12 @@ The backlog is HOT/COLD split — load only the HOT surface at start (see `BACKL
 ## Session End Procedure
 
 1. Update `CURRENT.md` with progress
-2. If task incomplete, note blockers in Scratchpad
-3. **Run both BACKLOG gates** (see `.claude/rules/06-backlog.md`):
+2. **Enforce the CURRENT.md cap**: current-state sections + the last **2** session retrospectives only — delete older "Last Session" sections (git preserves them). CURRENT.md is the first file read every session; it once grew to 662 lines (5× the whole hot backlog) before this cap existed.
+3. If task incomplete, note blockers in Scratchpad
+4. **Run both BACKLOG gates** (see `.claude/rules/06-backlog.md`):
    - **Additions gate**: every promised backlog item from this session's plans is actually written to the appropriate `backlog/**/*.md` file
    - **Removals gate**: every item that shipped in this session's merged PRs is removed from its backlog file. `grep -r backlog/` (recursive — includes `cold/`) against the session's PR titles and scope terms; delete matches. This gate most often gets skipped, producing backlog rot. (Removal is for _shipped_ or _genuinely obsolete_ items only — never time-based pruning; aging escalates, it doesn't delete.)
-4. Commit with `wip:` prefix if session ended with incomplete work
+5. Commit with `wip:` prefix if session ended with incomplete work
 
 ## Work Tracking Files
 
