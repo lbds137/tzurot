@@ -8,12 +8,12 @@
 
 **Released v3.0.0-beta.145 on 2026-07-02** (notes: [tag v3.0.0-beta.145](https://github.com/lbds137/tzurot/releases/tag/v3.0.0-beta.145)). `release:finalize` SHA-aligned develop with main — **nothing unreleased on develop.**
 
-**beta.145 post-deploy watch-items**:
+**beta.145 post-deploy watch-items** (3 of 4 CLOSED 2026-07-02, beta.146 warmup session):
 
-- **Lifecycle handlers are deploy-latent**: the unified shutdown paths (#1444) first execute at the NEXT deploy/restart. A supervised `railway redeploy --service bot-client` (policy `log-and-live`) is the cheap way to exercise one under observation.
-- **TTS pointer resolution in prod**: the tier-4 free-default read now goes through the AdminSettings pointer; the next TTS generation by a no-override user exercises it (resolver logs the source).
+- ✅ **Lifecycle handlers**: exercised under supervision (prod bot-client redeploy) — full graceful sequence (`Shutting down gracefully...` trigger=SIGTERM → dispose fan-out → `Shutdown complete`), zero re-entry/hard-exit lines; an in-flight multi-tag job was marked stale and RESUMED by the replacement instance (`entriesResumed=1 slotsTrustedToStream=1`) — the shutdown→recovery handoff proven on a real job.
+- ✅ **TTS pointer resolution in prod**: runtime-verified on BOTH read paths — gateway (`/voice view`) and ai-worker (a real generation) each logged `Free default TTS config loaded from database` → `kyutai-self-hosted`, and synthesis dispatched via the self-hosted primary.
 - **Vision error-pattern recall**: an error phrased outside the new anchors would positive-cache for 1h — tracked with promote-when in `cold/follow-ups.md`.
-- **`guard:workflow-sync` narrowing**: validation empirically confirmed file-scoped (PR #1454 got a real review despite ci.yml drift) — narrow the guard + skill wording per the follow-ups row before the next routine ci.yml edit.
+- ✅ **`guard:workflow-sync` narrowing**: shipped as #1457 (guard scoped to the claude workflow files; skill + rules wording corrected; validated in-PR by a ci.yml-drifted develop branch getting a full review).
 
 ---
 

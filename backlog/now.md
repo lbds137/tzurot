@@ -24,8 +24,7 @@ _beta.145 SHIPPED 2026-07-02 (14 PRs): all five openers + the backlog-shrink pas
 
 _Small tasks that can be done between major features. Good for momentum._
 
-- **🧹 `[CHORE]` Supervised lifecycle exercise** — one `railway redeploy --service bot-client` (user present) exercises the beta.145 unified shutdown path (`log-and-live` policy) under observation; watch for the dispose sequence + clean exit in logs.
-- **🧹 `[CHORE]` Verify TTS pointer resolution in prod** — a `/voice view` on a no-override user + one TTS generation confirms the tier-4 pointer read (resolver logs the source). Cheap, user-driven.
+_(empty — the beta.146 warmup sweep cleared all of them 2026-07-02)_
 
 ### 📥 Untriaged (max 10)
 
