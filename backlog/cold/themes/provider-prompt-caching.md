@@ -2,6 +2,8 @@
 
 _Focus: restructure prompt assembly so the prefix is stable enough to benefit from provider-side prompt caching (OpenRouter, z.ai, Anthropic-direct), without sacrificing freshness. Target: meaningful cost reduction on multi-turn conversations within the cache TTL window._
 
+**Why this is the highest-leverage cost lever (user note 2026-07-03)**: this bot's spend is INPUT-token-dominated (the fact that killed the 402 max_tokens-reduction idea), and prompt caching discounts exactly the input side. Lived proof of magnitude: the user's Claude Code quota lasted dramatically longer than raw usage would predict purely because of its aggressive prompt caching — the same effect compounds most in long multi-turn conversations, which is precisely Tzurot's activated-channel shape.
+
 Currently we deliberately _break_ caching with a `<request_id>` token in the system prompt at `services/ai-worker/src/services/PromptBuilder.ts:231`, added in commit `6bbb25c08` (cross-turn duplication detection epic) on the theory it would help suppress free-model repetition. The hypothesis behind the buster is shaky — provider prefix caching only changes billing, not stochastic sampling, so adding nondeterminism to the prefix shouldn't influence output behavior either way. **First phase verifies and removes if confirmed.**
 
 #### Current architecture (relevant for caching design)
