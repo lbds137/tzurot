@@ -337,4 +337,69 @@ describe('TtsConfigResolver', () => {
       expect(firstCall).toHaveBeenCalledTimes(1); // second call hit cache
     });
   });
+
+  describe('query shapes (the Prisma seam)', () => {
+    it('selects the user row with the default-TTS join flags', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(null);
+      mockPrisma.personalityDefaultTtsConfig.findUnique.mockResolvedValue(null);
+      mockPrisma.adminSettings.findUnique.mockResolvedValue(null);
+
+      await resolver.resolveConfig('discord-1', 'p-uuid-123', FAKE_PERSONALITY);
+
+      expect(mockPrisma.user.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { discordId: 'discord-1' },
+          select: expect.objectContaining({
+            id: true,
+            defaultTtsConfigId: true,
+          }),
+        })
+      );
+    });
+  });
+
+  describe('user-not-found caching', () => {
+    it('caches the user-not-found resolution (single lookup for repeat calls)', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(null);
+      mockPrisma.personalityDefaultTtsConfig.findUnique.mockResolvedValue(null);
+      mockPrisma.adminSettings.findUnique.mockResolvedValue(null);
+
+      await resolver.resolveConfig('discord-1', 'p-uuid-123', FAKE_PERSONALITY);
+      await resolver.resolveConfig('discord-1', 'p-uuid-123', FAKE_PERSONALITY);
+
+      expect(mockPrisma.user.findFirst).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('absent tiers stay quiet', () => {
+    // "No row configured" is the normal state, not a failure: it must fall
+    // through on the silent path. The ERROR log is reserved for actual lookup
+    // failures (that severity contract is pinned elsewhere in this file).
+
+    it('does not ERROR-log when the personality simply has no TTS default', async () => {
+      mockLoggerError.mockClear();
+      mockPrisma.personalityDefaultTtsConfig.findUnique.mockResolvedValue(null);
+      mockPrisma.adminSettings.findUnique.mockResolvedValue(null);
+
+      await resolver.resolveConfig(undefined, 'p-uuid-123', FAKE_PERSONALITY);
+
+      expect(mockLoggerError).not.toHaveBeenCalled();
+    });
+
+    it('getFreeDefaultConfig returns null without an error log when the admin row is absent', async () => {
+      mockLoggerError.mockClear();
+      mockPrisma.adminSettings.findUnique.mockResolvedValue(null);
+
+      expect(await resolver.getFreeDefaultConfig()).toBeNull();
+      expect(mockLoggerError).not.toHaveBeenCalled();
+    });
+
+    it('getFreeDefaultConfig returns null without an error log when the pointer is unset', async () => {
+      mockLoggerError.mockClear();
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({ freeDefaultTtsConfig: null });
+
+      expect(await resolver.getFreeDefaultConfig()).toBeNull();
+      expect(mockLoggerError).not.toHaveBeenCalled();
+    });
+  });
 });

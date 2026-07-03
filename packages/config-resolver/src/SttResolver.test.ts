@@ -2,6 +2,23 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SttResolver } from './SttResolver.js';
 import type { PrismaClient } from '@tzurot/common-types';
 
+// Shared logger instance so tests can assert on (absence of) warnings — the
+// resolver's logger is created once in the constructor.
+const mockLogger = vi.hoisted(() => ({
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+}));
+
+vi.mock('@tzurot/common-types', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+  return {
+    ...actual,
+    createLogger: () => mockLogger,
+  };
+});
+
 // Minimal Prisma double — the resolver only consumes `prisma.user.findFirst`,
 // so a typed double is sufficient and avoids dragging the live Prisma client
 // into every test.
@@ -169,6 +186,89 @@ describe('SttResolver', () => {
 
       const second = await resolver.resolveProvider('discord-1');
       expect(second).toEqual({ provider: 'mistral', source: 'user-default' });
+    });
+  });
+
+  describe('cascade guards', () => {
+    it('Layer 3 (hardcoded) for an empty-string userId — no DB lookup', async () => {
+      const resolver = new SttResolver(mockPrisma);
+
+      const result = await resolver.resolveProvider('');
+
+      expect(result).toEqual({ provider: 'voice-engine', source: 'hardcoded' });
+      expect(mockFindFirst).not.toHaveBeenCalled();
+    });
+
+    it('does NOT derive STT from a self-hosted TTS default (BYOK-only layer)', async () => {
+      // Self-hosted TTS (Pocket TTS) does not imply self-hosted STT — the
+      // tts-derived layer exists to reuse a BYOK key, and 'self-hosted' has
+      // no key to reuse. Must fall through to the hardcoded layer, not
+      // mislabel the source as tts-derived.
+      mockFindFirst.mockResolvedValue(userRow({ defaultTtsConfig: { provider: 'self-hosted' } }));
+      const resolver = new SttResolver(mockPrisma);
+
+      const result = await resolver.resolveProvider('discord-1');
+
+      expect(result).toEqual({ provider: 'voice-engine', source: 'hardcoded' });
+    });
+
+    it('does not warn when the STT override is simply unset', async () => {
+      // The "unknown provider string" warning is for corrupt DB values only —
+      // a NULL override is the normal state and must stay silent.
+      mockLogger.warn.mockClear();
+      mockFindFirst.mockResolvedValue(userRow());
+      const resolver = new SttResolver(mockPrisma);
+
+      await resolver.resolveProvider('discord-1');
+
+      expect(mockLogger.warn).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('caching behavior', () => {
+    it('caches the user-not-found resolution (single lookup for repeat calls)', async () => {
+      // User-not-found is definitive and must cache; only thrown errors skip
+      // the cache (so transient DB blips retry).
+      mockFindFirst.mockResolvedValue(null);
+      const resolver = new SttResolver(mockPrisma);
+
+      await resolver.resolveProvider('discord-1');
+      await resolver.resolveProvider('discord-1');
+
+      expect(mockFindFirst).toHaveBeenCalledTimes(1);
+    });
+
+    it('applies a custom cacheTtlMs — entries expire on the custom window', async () => {
+      vi.useFakeTimers();
+      try {
+        mockFindFirst.mockResolvedValue(userRow({ defaultSttProviderId: 'voice-engine' }));
+        const resolver = new SttResolver(mockPrisma, { cacheTtlMs: 1_000, now: () => Date.now() });
+
+        await resolver.resolveProvider('discord-1');
+        vi.advanceTimersByTime(1_500); // past the CUSTOM ttl
+        await resolver.resolveProvider('discord-1');
+
+        expect(mockFindFirst).toHaveBeenCalledTimes(2);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
+  describe('query shape (the Prisma seam)', () => {
+    it('selects exactly the STT override + the TTS-provider join', async () => {
+      mockFindFirst.mockResolvedValue(null);
+      const resolver = new SttResolver(mockPrisma);
+
+      await resolver.resolveProvider('discord-1');
+
+      expect(mockFindFirst).toHaveBeenCalledWith({
+        where: { discordId: 'discord-1' },
+        select: {
+          defaultSttProviderId: true,
+          defaultTtsConfig: { select: { provider: true } },
+        },
+      });
     });
   });
 });

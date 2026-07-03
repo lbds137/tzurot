@@ -351,4 +351,105 @@ describe('VisionConfigResolver', () => {
       expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(2);
     });
   });
+
+  describe('constructor options', () => {
+    it('constructs without an options argument and still resolves system defaults', async () => {
+      // Every options access (positive AND negative cache) must tolerate
+      // `undefined` — production call sites construct resolvers bare.
+      const bare = new VisionConfigResolver(mockPrisma as unknown as PrismaClient);
+      mockPrisma.adminSettings.findUnique.mockResolvedValue(null);
+
+      expect(await bare.getGlobalDefaultConfig()).toBeNull();
+    });
+
+    it('applies a custom cacheTtlMs to the negative-default sentinel', async () => {
+      // The sentinel must expire on the SAME custom window as the positive
+      // cache — a longer sentinel would mask a newly-created default until
+      // the wrong TTL elapsed.
+      const short = new VisionConfigResolver(mockPrisma as unknown as PrismaClient, {
+        cacheTtlMs: 1_000,
+        now: () => Date.now(),
+      });
+      mockPrisma.adminSettings.findUnique.mockResolvedValue(null);
+
+      await short.getGlobalDefaultConfig(); // miss → sentinel set
+      vi.advanceTimersByTime(1_500); // past the CUSTOM ttl
+      await short.getGlobalDefaultConfig(); // sentinel expired → re-query
+
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('negative-default caching for an absent admin row', () => {
+    // The admin_settings row itself missing (fresh DB pre-bootstrap) must
+    // behave exactly like an unset pointer: null result, negative-cached,
+    // no error log.
+
+    it('getGlobalDefaultConfig caches the miss without an error log', async () => {
+      mockLoggerError.mockClear();
+      mockPrisma.adminSettings.findUnique.mockResolvedValue(null);
+
+      expect(await resolver.getGlobalDefaultConfig()).toBeNull();
+      expect(await resolver.getGlobalDefaultConfig()).toBeNull();
+
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(1);
+      expect(mockLoggerError).not.toHaveBeenCalled();
+    });
+
+    it('getFreeDefaultVisionConfig caches the miss without an error log', async () => {
+      mockLoggerError.mockClear();
+      mockPrisma.adminSettings.findUnique.mockResolvedValue(null);
+
+      expect(await resolver.getFreeDefaultVisionConfig()).toBeNull();
+      expect(await resolver.getFreeDefaultVisionConfig()).toBeNull();
+
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(1);
+      expect(mockLoggerError).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('query shapes (the Prisma seam)', () => {
+    it('selects the user row with the default-vision join flags', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(null);
+      mockPrisma.personalityVisionDefaultConfig.findUnique.mockResolvedValue(null);
+      mockPrisma.adminSettings.findUnique.mockResolvedValue(null);
+
+      await resolver.resolveConfig('discord-1', 'p-uuid-123', FAKE_PERSONALITY);
+
+      expect(mockPrisma.user.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { discordId: 'discord-1' },
+          select: expect.objectContaining({
+            id: true,
+            defaultVisionConfigId: true,
+          }),
+        })
+      );
+    });
+  });
+
+  describe('user-not-found caching', () => {
+    it('caches the user-not-found resolution (single lookup for repeat calls)', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(null);
+      mockPrisma.personalityVisionDefaultConfig.findUnique.mockResolvedValue(null);
+      mockPrisma.adminSettings.findUnique.mockResolvedValue(null);
+
+      await resolver.resolveConfig('discord-1', 'p-uuid-123', FAKE_PERSONALITY);
+      await resolver.resolveConfig('discord-1', 'p-uuid-123', FAKE_PERSONALITY);
+
+      expect(mockPrisma.user.findFirst).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('absent tiers stay quiet', () => {
+    it('does not ERROR-log when the personality simply has no vision default', async () => {
+      mockLoggerError.mockClear();
+      mockPrisma.personalityVisionDefaultConfig.findUnique.mockResolvedValue(null);
+      mockPrisma.adminSettings.findUnique.mockResolvedValue(null);
+
+      await resolver.resolveConfig(undefined, 'p-uuid-123', FAKE_PERSONALITY);
+
+      expect(mockLoggerError).not.toHaveBeenCalled();
+    });
+  });
 });

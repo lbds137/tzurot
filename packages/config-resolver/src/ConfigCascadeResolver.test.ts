@@ -6,17 +6,21 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ConfigCascadeResolver } from './ConfigCascadeResolver.js';
 import { HARDCODED_CONFIG_DEFAULTS, ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types';
 
-// Mock logger
+// Shared logger instance so tests can assert on (absence of) warnings — the
+// resolver's module-level logger is created once at import time, so the mock
+// must hand back a capturable singleton rather than a fresh object per call.
+const mockLogger = vi.hoisted(() => ({
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+}));
+
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
   return {
     ...actual,
-    createLogger: () => ({
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    }),
+    createLogger: () => mockLogger,
   };
 });
 
@@ -42,6 +46,9 @@ describe('ConfigCascadeResolver', () => {
   let resolver: ConfigCascadeResolver;
 
   beforeEach(() => {
+    // The shared mockLogger outlives individual tests (module-level logger);
+    // clear its call history so warn-absence assertions see only this test.
+    vi.clearAllMocks();
     vi.useFakeTimers();
     mockPrisma = createMockPrisma();
     // `now: () => Date.now()` makes TTLCache's TTL respect vi.useFakeTimers
@@ -247,6 +254,11 @@ describe('ConfigCascadeResolver', () => {
 
       // Should still return hardcoded defaults
       expect(result.maxMessages).toBe(HARDCODED_CONFIG_DEFAULTS.maxMessages);
+      // The degraded tier must be visible to operators, not swallowed silently.
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ err: expect.any(Error) }),
+        'Failed to load channel config overrides'
+      );
     });
 
     it('should skip invalid JSONB with warning', async () => {
@@ -311,12 +323,123 @@ describe('ConfigCascadeResolver', () => {
 
       // Should still return hardcoded defaults
       expect(result.maxMessages).toBe(HARDCODED_CONFIG_DEFAULTS.maxMessages);
+      // The degraded tier must be visible to operators, not swallowed silently.
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ err: expect.any(Error) }),
+        'Failed to load admin config defaults'
+      );
     });
 
     it('should handle DB error gracefully (user tier)', async () => {
       mockPrisma.user.findFirst.mockRejectedValue(new Error('DB error'));
 
       const result = await resolver.resolveOverrides('user-123', 'personality-456');
+
+      expect(result.maxMessages).toBe(HARDCODED_CONFIG_DEFAULTS.maxMessages);
+      // Same operator-visibility requirement as the admin tier.
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ err: expect.any(Error) }),
+        'Failed to load user config defaults'
+      );
+    });
+  });
+
+  describe('tier query shapes (the Prisma seam)', () => {
+    // With Prisma mocked, a wrong `select`/`where` shape is invisible to the
+    // value-flow tests above — the mock returns whatever it's programmed to
+    // regardless. These assert the exact arguments crossing the seam.
+
+    it('queries the personality tier with the exact select shape', async () => {
+      await resolver.resolveOverrides('user-123', 'personality-456');
+
+      expect(mockPrisma.personality.findUnique).toHaveBeenCalledWith({
+        where: { id: 'personality-456' },
+        select: { configDefaults: true },
+      });
+    });
+
+    it('queries the channel tier with the exact select shape', async () => {
+      await resolver.resolveOverrides('user-123', 'personality-456', 'channel-789');
+
+      expect(mockPrisma.channelSettings.findUnique).toHaveBeenCalledWith({
+        where: { channelId: 'channel-789' },
+        select: { configOverrides: true },
+      });
+    });
+
+    it('queries the user tiers with the nested per-personality sub-select', async () => {
+      await resolver.resolveOverrides('user-123', 'personality-456');
+
+      expect(mockPrisma.user.findFirst).toHaveBeenCalledWith({
+        where: { discordId: 'user-123' },
+        select: {
+          id: true,
+          configDefaults: true,
+          personalityConfigs: {
+            where: { personalityId: 'personality-456' },
+            select: { configOverrides: true },
+            take: 1,
+          },
+        },
+      });
+    });
+
+    it('omits the per-personality sub-select when no personalityId is given', async () => {
+      await resolver.resolveOverrides('user-123');
+
+      expect(mockPrisma.user.findFirst).toHaveBeenCalledWith({
+        where: { discordId: 'user-123' },
+        select: {
+          id: true,
+          configDefaults: true,
+          personalityConfigs: undefined,
+        },
+      });
+    });
+  });
+
+  describe('absent rows stay silent (no spurious warnings)', () => {
+    // Every tier loader guards its row/JSONB access; a broken guard degrades
+    // to the catch path, which produces the SAME empty-tier result but emits
+    // a spurious warning. The warn channel is the only observable — and it
+    // matters, because operators alert on it.
+
+    it('does not warn when every tier row is absent', async () => {
+      // createMockPrisma defaults: all lookups resolve null.
+      await resolver.resolveOverrides('user-123', 'personality-456', 'channel-789');
+
+      expect(mockLogger.warn).not.toHaveBeenCalled();
+    });
+
+    it('does not warn for a user row with null overrides and no per-personality key', async () => {
+      // No personalityId → the select omits personalityConfigs entirely, so
+      // the row comes back without that key; configDefaults NULL in the DB.
+      mockPrisma.user.findFirst.mockResolvedValue({ id: 'u1', configDefaults: null });
+
+      await resolver.resolveOverrides('user-123');
+
+      expect(mockLogger.warn).not.toHaveBeenCalled();
+    });
+
+    it('does not warn for a user row with an empty per-personality result', async () => {
+      // personalityId present but the user has no override row → empty array.
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'u1',
+        configDefaults: null,
+        personalityConfigs: [],
+      });
+
+      await resolver.resolveOverrides('user-123', 'personality-456');
+
+      expect(mockLogger.warn).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('constructor options', () => {
+    it('constructs without an options argument and still resolves', async () => {
+      const bare = new ConfigCascadeResolver(mockPrisma as any);
+
+      const result = await bare.resolveOverrides('user-123');
 
       expect(result.maxMessages).toBe(HARDCODED_CONFIG_DEFAULTS.maxMessages);
     });
