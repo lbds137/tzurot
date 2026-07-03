@@ -34,6 +34,7 @@
     "knip:dead": "tsx packages/tooling/src/cli.ts dev:dead-files",
     "commands:audit": "tsx packages/tooling/src/cli.ts commands:audit",
     "backlog:lint": "tsx packages/tooling/src/cli.ts backlog",
+    "ops:health": "tsx packages/tooling/src/cli.ts health",
     "test:tiers": "tsx packages/tooling/src/cli.ts test:tiers",
     "quality": "pnpm lint && pnpm ops codegen:routes --check && pnpm ops topology:check && pnpm knip && pnpm cpd && pnpm ops cpd:check && pnpm ops test:audit && pnpm depcruise && pnpm typecheck && pnpm typecheck:spec && pnpm backlog:lint && pnpm ops guard:test-taxonomy && pnpm ops guard:workflow-sync",
     "focus:lint": "pnpm ops dev:lint",

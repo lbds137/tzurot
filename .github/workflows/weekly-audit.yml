@@ -1,0 +1,94 @@
+# Weekly audit-health cron (Layer 6 of the periodic-audit-enforcement
+# architecture — docs/proposals/backlog/periodic-audit-enforcement.md).
+#
+# Runs `pnpm ops health` (the Layer-5 aggregator) every Saturday morning and
+# posts the consolidated report to Discord via an OUT-OF-BAND webhook — not
+# through the bot, because the bot IS the system being audited: when it's
+# broken (exactly when an audit alert matters), the bot notification channel
+# is broken with it. A plain Discord webhook URL has no such dependency.
+#
+# Setup: create a webhook in the target Discord channel (Channel Settings →
+# Integrations → Webhooks) and store it: `gh secret set DISCORD_AUDIT_WEBHOOK_URL`.
+# Without the secret, the run still executes and the report lives in the
+# Actions log — delivery degrades, the audit itself never skips.
+#
+# NOTE: scheduled workflows only fire from the DEFAULT branch — this starts
+# running after it reaches main with a release.
+
+name: weekly-audit
+
+on:
+  schedule:
+    # Saturday 09:00 UTC
+    - cron: '0 9 * * 6'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  audit-health:
+    runs-on: ubuntu-latest
+    # The aggregator already budgets 5 min per tool; a stuck job should die
+    # visibly rather than inherit GitHub's 360-minute default.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Build packages
+        run: pnpm --filter './packages/*' build
+
+      - name: Run audit-health aggregator
+        id: health
+        # Capture the report for the Discord step; the aggregator's exit code
+        # still fails the job so a red run is visible in the Actions UI.
+        run: |
+          set +e
+          pnpm ops health | tee health-report.txt
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Post report to Discord (out-of-band webhook)
+        if: ${{ always() }}
+        # Delivery failure must never be conflated with audit failure — a
+        # Discord outage or webhook misconfig is not a red audit. The real
+        # verdict propagates via the aggregator exit-code step below.
+        continue-on-error: true
+        env:
+          WEBHOOK_URL: ${{ secrets.DISCORD_AUDIT_WEBHOOK_URL }}
+        run: |
+          if [ -z "$WEBHOOK_URL" ]; then
+            echo "DISCORD_AUDIT_WEBHOOK_URL not configured — report is in the step log only."
+            exit 0
+          fi
+          if [ ! -f health-report.txt ]; then
+            echo "No health-report.txt (an earlier step failed before the audit ran) — nothing to post."
+            exit 0
+          fi
+          # Discord caps content at 2000 chars. Slice from the verdict header
+          # onward (dropping the progress preamble), then truncate the TAIL —
+          # the header is the one line that must always survive; per-tool
+          # bullets are the sacrificial part if the roster ever grows large.
+          # iconv drops a trailing partial UTF-8 sequence if the byte cut
+          # lands mid-emoji (the status icons are all multi-byte).
+          REPORT=$(sed -n '/^## Audit health/,$p' health-report.txt | head -c 1800 | iconv -c -f utf-8 -t utf-8)
+          jq -n --arg content "$REPORT" '{content: $content}' \
+            | curl -sf -H 'Content-Type: application/json' -d @- "$WEBHOOK_URL"
+
+      - name: Propagate aggregator exit code
+        if: ${{ steps.health.outputs.exit_code != '0' }}
+        run: exit 1

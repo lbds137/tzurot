@@ -14,24 +14,27 @@ Diagnostic tools that are user-invoked for inspection (`inspect:queue`, `inspect
 
 `memory:analyze` is a borderline case: it has a measurement (duplicate memories) but is one-shot remediation, not a periodic audit. It's intentionally **not** registered in `AUDIT_TOOL_REGISTRY` even though it has a `WHY.md`.
 
-## The registered audit tools (12)
+## The registered audit tools (15)
 
 Single source of truth: [`packages/tooling/src/audits/audit-tool-registry.ts`](../../packages/tooling/src/audits/audit-tool-registry.ts).
 
-| Command                        | Implementation                                          | What it gates                                                                                                                                                                          |
-| ------------------------------ | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lint:complexity-report`       | `packages/tooling/src/lint/complexity-report.ts`        | ESLint max-\* rule findings at 80% of hard limits                                                                                                                                      |
-| `db:check-safety`              | `packages/tooling/src/db/check-migration-safety.ts`     | Migrations don't drop protected indexes                                                                                                                                                |
-| `db:check-drift`               | `packages/tooling/src/db/check-migration-drift.ts`      | Migration file checksums match the `_prisma_migrations` table                                                                                                                          |
-| `guard:proposal-links`         | `packages/tooling/src/audits/check-proposal-orphans.ts` | Every `docs/proposals/backlog/*.md` has an inbound link                                                                                                                                |
-| `guard:boundaries`             | `packages/tooling/src/dev/check-boundaries.ts`          | Service-boundary import rules — registered but `--summary` not yet wired (tracked in `backlog/cold/follow-ups.md`); no canary yet either (Layer 1 conditional on emitting `--summary`) |
-| `guard:audit-tool-docs`        | `packages/tooling/src/audits/check-audit-tool-docs.ts`  | Every registered audit tool has a non-stub WHY.md                                                                                                                                      |
-| `cpd:filtered`                 | `packages/tooling/src/commands/cpd.ts`                  | Filtered duplication ratchet with drift detection (companion commands: `cpd:check`, `cpd:update-baseline` — only `cpd:filtered` is the registry entry)                                 |
-| `dev:schema-audit`             | `packages/tooling/src/dev/schema-audit.ts`              | Prisma `?` fields with non-null-meaningful semantics                                                                                                                                   |
-| `dev:dead-files` (`knip:dead`) | `packages/tooling/src/dev/find-dead-files.ts`           | Production files imported only by their own tests                                                                                                                                      |
-| `test:audit`                   | `packages/tooling/src/test/audit-unified.ts`            | Service + contract test coverage ratchet with drift detection                                                                                                                          |
-| `voice-refs:audit`             | `packages/tooling/src/voice/audit-references.ts`        | Voice reference durations vs Mistral 30s cap                                                                                                                                           |
-| `xray`                         | `packages/tooling/src/xray/`                            | Monorepo structural report + lint-suppression audit                                                                                                                                    |
+| Command                        | Implementation                                             | What it gates                                                                                                                                          |
+| ------------------------------ | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `lint:complexity-report`       | `packages/tooling/src/lint/complexity-report.ts`           | ESLint max-\* rule findings at 80% of hard limits                                                                                                      |
+| `db:check-safety`              | `packages/tooling/src/db/check-migration-safety.ts`        | Migrations don't drop protected indexes                                                                                                                |
+| `db:check-drift`               | `packages/tooling/src/db/check-migration-drift.ts`         | Migration file checksums match the `_prisma_migrations` table                                                                                          |
+| `guard:proposal-links`         | `packages/tooling/src/audits/check-proposal-orphans.ts`    | Every `docs/proposals/backlog/*.md` has an inbound link                                                                                                |
+| `guard:boundaries`             | `packages/tooling/src/dev/check-boundaries.ts`             | Service-boundary import rules — `--summary` wired (runs in the `ops health` roster); no canary yet (the remaining Layer 1 gap for this tool)           |
+| `guard:audit-tool-docs`        | `packages/tooling/src/audits/check-audit-tool-docs.ts`     | Every registered audit tool has a non-stub WHY.md                                                                                                      |
+| `cpd:filtered`                 | `packages/tooling/src/commands/cpd.ts`                     | Filtered duplication ratchet with drift detection (companion commands: `cpd:check`, `cpd:update-baseline` — only `cpd:filtered` is the registry entry) |
+| `dev:schema-audit`             | `packages/tooling/src/dev/schema-audit.ts`                 | Prisma `?` fields with non-null-meaningful semantics                                                                                                   |
+| `dev:dead-files` (`knip:dead`) | `packages/tooling/src/dev/find-dead-files.ts`              | Production files imported only by their own tests                                                                                                      |
+| `test:audit`                   | `packages/tooling/src/test/audit-unified.ts`               | Service + contract test coverage ratchet with drift detection                                                                                          |
+| `mutation:check`               | `packages/tooling/src/test/mutation-check.ts`              | Mutation-score ratchet over Stryker reports (per-package floors, drift-detected)                                                                       |
+| `voice-refs:audit`             | `packages/tooling/src/voice/audit-references.ts`           | Voice reference durations vs Mistral 30s cap                                                                                                           |
+| `xray`                         | `packages/tooling/src/xray/`                               | Monorepo structural report + lint-suppression audit                                                                                                    |
+| `guard:claude-content-refs`    | `packages/tooling/src/audits/check-claude-content-refs.ts` | `.claude/` content references resolve (no dangling `pnpm ops` command refs)                                                                            |
+| `commands:audit`               | `packages/tooling/src/dev/commandsAudit.ts`                | Slash-command manifest integrity (categories, descriptions, handler completeness)                                                                      |
 
 Each command's WHY.md is at the path `<implementation>.WHY.md` (or `WHY.md` if the implementation is a directory). The four-section template is: **What** / **Why** / **Threshold rationale** / **Decay check**.
 
@@ -130,9 +133,28 @@ Both write a fresh `meta` block on refresh, so the new `configHash` reflects the
 - **Registry**: [`packages/tooling/src/audits/audit-tool-registry.ts`](../../packages/tooling/src/audits/audit-tool-registry.ts)
 - **Baseline meta helpers**: [`packages/tooling/src/audits/baseline-meta.ts`](../../packages/tooling/src/audits/baseline-meta.ts)
 
-## What's NOT yet shipped (Layers 4-5 of the proposal)
+## Layer 5 — the `ops health` aggregator + weekly cron (SHIPPED)
+
+`pnpm ops health` (root shortcut `pnpm ops:health`) runs every roster tool as
+a real `pnpm ops <tool> --summary` subprocess, parses each JSONL summary line,
+and prints one consolidated report. The roster is the static `HEALTH_TOOLS`
+const in [`packages/tooling/src/audits/health.ts`](../../packages/tooling/src/audits/health.ts) —
+criteria: summary-capable AND meaningful on a bare argument-less run (tools
+whose bare run is perma-red, like `lint:complexity-report` and
+`db:check-safety`, are excluded with tuning follow-ups in
+`backlog/cold/follow-ups.md`). A tool emitting a `fail` summary is a finding;
+a tool emitting no parseable line is BROKEN and fails the aggregate loudly —
+silent tool rot is the failure mode the system exists to catch.
+
+`.github/workflows/weekly-audit.yml` runs it every Saturday 09:00 UTC (from
+the default branch — scheduled workflows only fire there) and posts the report
+to Discord via the out-of-band `DISCORD_AUDIT_WEBHOOK_URL` secret — never
+through the bot, which is itself the system under audit. Missing secret
+degrades to log-only; the audit never skips.
+
+## What's NOT yet shipped
 
 - **Layer 4 — Markdown baselines**: the proposal originally drafted converting baselines from JSON to markdown for diff-readability. Deferred — JSON + meta block delivers the drift-detection invariant; the markdown migration is independent and probably skippable.
-- **Layer 5 — `ops:health` cron aggregator**: a daily/weekly cron that runs every audit tool with `--summary`, parses the JSONL lines, and reports aggregate health via Discord webhook. The goal layer of the proposal. Not yet built.
+- **The 45-day CI age-gate + month-3 evaluation**: enforcement that the weekly audit actually keeps running (age from the GitHub Actions run history, not a file), and the pruning pass over always-green roster tools. Both deliberately wait on a few months of weekly runs to evaluate against.
 
 If you're working on either, this doc + the proposal doc are the starting context.

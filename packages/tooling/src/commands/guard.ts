@@ -112,4 +112,20 @@ export function registerGuardCommands(cli: CAC): void {
       const { checkTestTaxonomyCommand } = await import('../dev/check-test-taxonomy.js');
       await checkTestTaxonomyCommand();
     });
+
+  registerHealthCommand(cli);
+}
+
+/**
+ * The Layer-5 audit aggregator — runs every summary-capable static audit
+ * tool and prints one consolidated report (see audits/health.ts).
+ */
+function registerHealthCommand(cli: CAC): void {
+  cli
+    .command('health', 'Run all summary-capable audit tools and aggregate one health report')
+    .example('ops health')
+    .action(async () => {
+      const { runHealth } = await import('../audits/health.js');
+      runHealth();
+    });
 }
