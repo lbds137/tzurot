@@ -9,7 +9,7 @@
  *
  * Drift is caught on BOTH sides, structurally: a Python field rename breaks the
  * Python fixture-equality assert; regenerating the fixture then breaks the Zod
- * `.parse` here. Both CI jobs (`voice-engine-test` + `component-tests`, which runs
+ * `.parse` here. Both CI jobs (`voice-engine-tests` + `component-integration-tests`, which runs
  * `pnpm test:integration`) run on every PR, so a one-sided fixture change can't merge.
  */
 
