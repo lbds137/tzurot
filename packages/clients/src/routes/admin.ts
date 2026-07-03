@@ -24,44 +24,50 @@
  */
 
 import { z } from 'zod';
+import { CONFIG_KINDS } from '@tzurot/common-types/constants/ai';
+import { GATEWAY_TIMEOUTS } from '@tzurot/common-types/constants/discord';
+import { DbSyncSchema, InvalidateCacheSchema } from '@tzurot/common-types/schemas/api/admin';
 import {
-  CONFIG_KINDS,
-  AddDenylistResponseSchema,
   AdminCleanupResponseSchema,
-  AdminPersonalityResponseSchema,
-  AdminSettingsSchema,
-  AdminUsageStatsSchema,
-  ConfigOverridesSchema,
-  CreateLlmConfigResponseSchema,
-  CreateTtsConfigResponseSchema,
   DbSyncResponseSchema,
-  DbSyncSchema,
-  DeleteLlmConfigResponseSchema,
-  DeleteTtsConfigResponseSchema,
+  InvalidateCacheResponseSchema,
+} from '@tzurot/common-types/schemas/api/admin-operations';
+import { AdminSettingsSchema } from '@tzurot/common-types/schemas/api/adminSettings';
+import { ConfigOverridesSchema } from '@tzurot/common-types/schemas/api/configOverrides';
+import {
+  AddDenylistResponseSchema,
   DenylistAddSchema,
   denylistEntityTypeSchema,
   denylistScopeSchema,
-  GATEWAY_TIMEOUTS,
-  GetLlmConfigResponseSchema,
-  GetTtsConfigResponseSchema,
-  InvalidateCacheResponseSchema,
-  InvalidateCacheSchema,
   ListDenylistResponseSchema,
+  RemoveDenylistResponseSchema,
+} from '@tzurot/common-types/schemas/api/denylist';
+import {
+  CreateLlmConfigResponseSchema,
+  DeleteLlmConfigResponseSchema,
+  GetLlmConfigResponseSchema,
   ListLlmConfigsResponseSchema,
-  ListTtsConfigsResponseSchema,
   LlmConfigCreateSchema,
   LlmConfigUpdateSchema,
+  SetDefaultLlmConfigResponseSchema,
+  UpdateLlmConfigResponseSchema,
+} from '@tzurot/common-types/schemas/api/llm-config';
+import {
+  AdminPersonalityResponseSchema,
   PersonalityCreateSchema,
   PersonalityUpdateSchema,
-  RemoveDenylistResponseSchema,
-  SetDefaultLlmConfigResponseSchema,
+} from '@tzurot/common-types/schemas/api/personality';
+import {
+  CreateTtsConfigResponseSchema,
+  DeleteTtsConfigResponseSchema,
+  GetTtsConfigResponseSchema,
+  ListTtsConfigsResponseSchema,
   SetDefaultTtsConfigResponseSchema,
   TtsConfigCreateSchema,
   TtsConfigUpdateSchema,
-  UpdateLlmConfigResponseSchema,
   UpdateTtsConfigResponseSchema,
-} from '@tzurot/common-types';
-
+} from '@tzurot/common-types/schemas/api/tts-config';
+import { AdminUsageStatsSchema } from '@tzurot/common-types/schemas/api/usage';
 import type { RouteDef } from './types.js';
 
 // Shared path constants — extracted because GET/PUT/DELETE on the same

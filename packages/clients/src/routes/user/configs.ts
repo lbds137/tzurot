@@ -11,48 +11,57 @@
  */
 
 import { z } from 'zod';
+import { CONFIG_KINDS } from '@tzurot/common-types/constants/ai';
+import { GATEWAY_TIMEOUTS } from '@tzurot/common-types/constants/discord';
 import {
-  CONFIG_KINDS,
-  ClearDefaultConfigResponseSchema,
-  ClearSttDefaultProviderResponseSchema,
-  ClearTtsDefaultConfigResponseSchema,
   CreateLlmConfigResponseSchema,
-  CreateTtsConfigResponseSchema,
   DeleteLlmConfigResponseSchema,
-  DeleteModelOverrideResponseSchema,
-  DeleteTtsConfigResponseSchema,
-  DeleteTtsOverrideResponseSchema,
-  GATEWAY_TIMEOUTS,
   GetLlmConfigResponseSchema,
-  GetTimezoneResponseSchema,
-  GetTtsConfigResponseSchema,
-  GetTtsDefaultConfigResponseSchema,
   ListLlmConfigsResponseSchema,
-  ListModelOverridesResponseSchema,
-  ListTtsConfigsResponseSchema,
-  ListTtsOverridesResponseSchema,
   LlmConfigCreateSchema,
   LlmConfigUpdateSchema,
   ResolveLlmConfigInputSchema,
   ResolveLlmConfigResponseSchema,
+  UpdateLlmConfigResponseSchema,
+} from '@tzurot/common-types/schemas/api/llm-config';
+import {
+  ClearDefaultConfigResponseSchema,
+  DeleteModelOverrideResponseSchema,
+  ListModelOverridesResponseSchema,
   SetDefaultConfigResponseSchema,
   SetDefaultConfigSchema,
   SetModelOverrideResponseSchema,
   SetModelOverrideSchema,
+} from '@tzurot/common-types/schemas/api/model-override';
+import {
+  ClearSttDefaultProviderResponseSchema,
   SetSttDefaultProviderResponseSchema,
   SetSttDefaultProviderSchema,
+} from '@tzurot/common-types/schemas/api/stt-override';
+import {
+  GetTimezoneResponseSchema,
   SetTimezoneInputSchema,
   SetTimezoneResponseSchema,
+} from '@tzurot/common-types/schemas/api/timezone';
+import {
+  CreateTtsConfigResponseSchema,
+  DeleteTtsConfigResponseSchema,
+  GetTtsConfigResponseSchema,
+  ListTtsConfigsResponseSchema,
+  TtsConfigCreateSchema,
+  TtsConfigUpdateSchema,
+  UpdateTtsConfigResponseSchema,
+} from '@tzurot/common-types/schemas/api/tts-config';
+import {
+  ClearTtsDefaultConfigResponseSchema,
+  DeleteTtsOverrideResponseSchema,
+  GetTtsDefaultConfigResponseSchema,
+  ListTtsOverridesResponseSchema,
   SetTtsDefaultConfigResponseSchema,
   SetTtsDefaultConfigSchema,
   SetTtsOverrideResponseSchema,
   SetTtsOverrideSchema,
-  TtsConfigCreateSchema,
-  TtsConfigUpdateSchema,
-  UpdateLlmConfigResponseSchema,
-  UpdateTtsConfigResponseSchema,
-} from '@tzurot/common-types';
-
+} from '@tzurot/common-types/schemas/api/tts-override';
 import type { RouteDef } from '../types.js';
 
 // Shared CRUD-detail path constants — GET/PUT/DELETE on the same :id share

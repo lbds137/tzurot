@@ -54,8 +54,9 @@ function buildImports(flavor: ClientFlavor, routes: Record<string, RouteDef>): s
   // Intra-package symbols (transport, manifest, route types) import via
   // relative paths rather than the `@tzurot/clients` index to avoid a
   // self-import cycle: the package index re-exports the generated classes
-  // themselves. Cross-package symbols (GatewayUser) import from
-  // `@tzurot/common-types` — a one-way dependency, no cycle.
+  // themselves. Cross-package symbols (GatewayUser) import from the deep
+  // `@tzurot/common-types/types/gateway-context` subpath (the root barrel is
+  // being retired) — a one-way dependency, no cycle.
   const transportSymbols: string[] = ['callGateway', 'type GatewayResult'];
   const manifestSymbols: string[] = ['ROUTE_MANIFEST'];
   const typeSymbols: string[] = [];
@@ -75,7 +76,7 @@ function buildImports(flavor: ClientFlavor, routes: Record<string, RouteDef>): s
     lines.push(`import { ${typeSymbols.join(', ')} } from '../../routes/types.js';`);
   }
   if (flavor === 'user') {
-    lines.push(`import type { GatewayUser } from '@tzurot/common-types';`);
+    lines.push(`import type { GatewayUser } from '@tzurot/common-types/types/gateway-context';`);
   }
 
   lines.push('');
