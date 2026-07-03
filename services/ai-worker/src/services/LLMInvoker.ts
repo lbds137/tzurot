@@ -495,7 +495,31 @@ export class LLMInvoker {
 
     // Log finish_reason for completion quality diagnostics
     // This helps identify models that fail to emit stop tokens (hallucinated turn bug)
-    this.logFinishReason(response, modelName);
+    const finishReason = this.logFinishReason(response, modelName);
+
+    // A provider failure inside an HTTP 200: OpenRouter surfaces upstream
+    // mid-generation errors as finish_reason 'error', typically with partial
+    // (often single-character) content that would pass the emptiness guard
+    // below, reach delivery, and be stored to LTM. Throw retryable instead —
+    // a retry re-enters OpenRouter's provider routing, which usually lands on
+    // a DIFFERENT upstream host than the one that just failed. Scoped
+    // strictly to 'error': other non-standard reasons (content_filter,
+    // length) carry their own semantics and stay observability-only. The
+    // thrown message is STABLE (see ERROR_MESSAGES.PROVIDER_ERROR_FINISH);
+    // the provider's own failure detail rides this warn log.
+    if (finishReason === FINISH_REASONS.ERROR) {
+      const providerErrorFailure = new Error(ERROR_MESSAGES.PROVIDER_ERROR_FINISH);
+      logger.warn(
+        {
+          err: providerErrorFailure,
+          modelName,
+          providerErrorDetail: this.extractProviderErrorDetail(response),
+          ...this.extractResponseDiagnostics(response),
+        },
+        'Provider reported an error finish_reason, treating as retryable error'
+      );
+      throw providerErrorFailure;
+    }
 
     // Guard against empty responses (treat as retryable error)
     // Handle both string content and multimodal array content
@@ -543,25 +567,26 @@ export class LLMInvoker {
   }
 
   /**
-   * Log finish_reason and token usage for completion-quality diagnostics.
+   * Log finish_reason and token usage for completion-quality diagnostics,
+   * returning the resolved reason so the caller can act on it (the
+   * error-finish guard in invokeSingleAttempt keys on the return value).
    *
    * This helps identify:
    * - Models that hit token limits (finish_reason: "length") - may truncate responses
    * - Models that completed naturally (finish_reason: "stop") - the ideal case
    */
-  private logFinishReason(response: BaseMessage, modelName: string): void {
+  private logFinishReason(response: BaseMessage, modelName: string): string {
     const metadata = (response as { response_metadata?: Record<string, unknown> })
       .response_metadata;
 
     if (!metadata) {
       logger.debug({ modelName }, 'No response_metadata available for finish_reason');
-      return;
+      return FINISH_REASONS.UNKNOWN;
     }
 
     const finishReason = resolveFinishReason(metadata);
     const usage = metadata.usage as
-      | { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
-      | undefined;
+      { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | undefined;
 
     const logContext: Record<string, unknown> = { modelName, finishReason };
     if (usage !== undefined) {
@@ -580,6 +605,32 @@ export class LLMInvoker {
     } else {
       logger.info(logContext, 'Model completion with non-standard finish_reason');
     }
+    return finishReason;
+  }
+
+  /**
+   * Provider-failure detail for an error finish_reason, read from the
+   * diagnostic metadata the OpenRouter extractor captured before deleting
+   * `__raw_response` (response_metadata.openrouter.providerError). Log-only:
+   * the thrown error's message stays stable for classification safety.
+   */
+  private extractProviderErrorDetail(response: BaseMessage): string | undefined {
+    const metadata = (response as { response_metadata?: Record<string, unknown> })
+      .response_metadata;
+    const openrouter = metadata?.openrouter as
+      { providerError?: { message?: string; code?: number | string } } | undefined;
+    const providerError = openrouter?.providerError;
+    if (providerError === undefined) {
+      return undefined;
+    }
+    const parts: string[] = [];
+    if (providerError.code !== undefined) {
+      parts.push(`code ${providerError.code}`);
+    }
+    if (providerError.message !== undefined) {
+      parts.push(providerError.message);
+    }
+    return parts.length > 0 ? parts.join(': ') : undefined;
   }
 
   /**
@@ -594,8 +645,7 @@ export class LLMInvoker {
       .additional_kwargs;
     const finishReason = resolveFinishReason(metadata);
     const usage = metadata?.usage as
-      | { prompt_tokens?: number; completion_tokens?: number }
-      | undefined;
+      { prompt_tokens?: number; completion_tokens?: number } | undefined;
 
     return {
       responseType: Array.isArray(response.content) ? 'array' : typeof response.content,
