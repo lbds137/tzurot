@@ -6,7 +6,7 @@ _Not a classic single epic — a sweep over the sibling themes that exist becaus
 
 ### Warmup (agreed 2026-07-02 — before theme work)
 
-1. 🐛 **Effective-route threading on the auto-promotion both-fail path** (error-footer mis-attribution) — Current Focus #1 in `now.md`; spec on the `cold/follow-ups.md` row. Also the close-out of the z.ai "routing bug" confusion family (diagnosed 2026-07-02: fallback visibility, not mis-routing). Open design call: on both-fail, does the footer follow the root-cause message (primary) or the last-attempted route?
+1. ✅ **Effective-route threading on the auto-promotion both-fail path** (error-footer mis-attribution) — SHIPPED as #1456 (2026-07-02): the error footer now renders the full route chain (`via Z.AI Coding Plan → OpenRouter (both routes failed)`). Closes the z.ai "routing bug" confusion family (diagnosed 2026-07-02: fallback visibility, not mis-routing).
 2. 🧹 **`guard:workflow-sync` narrowing** to the claude workflow files (Quick Win; spec on the follow-ups row)
 3. 🧹 **Supervised lifecycle redeploy** — `railway redeploy --service bot-client`, user present (Quick Win)
 4. 🧹 **Prod TTS pointer verification** — `/voice view` + one generation by a no-override user (Quick Win)
