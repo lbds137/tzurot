@@ -26,6 +26,7 @@ export const WalletKeySchema = z.object({
   createdAt: z.string(), // ISO date string
   lastUsedAt: z.string().nullable(), // ISO date string or null
 });
+
 export type WalletKey = z.infer<typeof WalletKeySchema>;
 
 // ============================================================================
@@ -37,6 +38,7 @@ export const ListWalletKeysResponseSchema = z.object({
   keys: z.array(WalletKeySchema),
   timestamp: z.string(), // ISO date string
 });
+
 export type ListWalletKeysResponse = z.infer<typeof ListWalletKeysResponseSchema>;
 
 // ============================================================================
@@ -50,6 +52,7 @@ export const RemoveWalletKeyResponseSchema = z.object({
   message: z.string(),
   timestamp: z.string(), // ISO date string
 });
+
 export type RemoveWalletKeyResponse = z.infer<typeof RemoveWalletKeyResponseSchema>;
 
 // ============================================================================
@@ -64,6 +67,7 @@ export const TestWalletKeyResponseSchema = z.object({
   error: z.string().optional(), // Error message if invalid
   timestamp: z.string(), // ISO date string
 });
+
 export type TestWalletKeyResponse = z.infer<typeof TestWalletKeyResponseSchema>;
 
 // ============================================================================
@@ -76,6 +80,7 @@ export const SetWalletKeyResponseSchema = z.object({
   credits: z.number().optional(),
   timestamp: z.string(),
 });
+
 // ============================================================================
 // Input Schemas (request body validation)
 // ============================================================================

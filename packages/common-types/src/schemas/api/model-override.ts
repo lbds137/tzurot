@@ -39,6 +39,7 @@ export const ModelOverrideSummarySchema = z.object({
    */
   supportsVision: z.boolean(),
 });
+
 export type ModelOverrideSummary = z.infer<typeof ModelOverrideSummarySchema>;
 
 /** User's default LLM config reference */
@@ -46,6 +47,7 @@ export const UserDefaultConfigSchema = z.object({
   configId: z.string().nullable(),
   configName: z.string().nullable(),
 });
+
 export type UserDefaultConfig = z.infer<typeof UserDefaultConfigSchema>;
 
 // ============================================================================
@@ -56,6 +58,7 @@ export type UserDefaultConfig = z.infer<typeof UserDefaultConfigSchema>;
 export const ListModelOverridesResponseSchema = z.object({
   overrides: z.array(ModelOverrideSummarySchema),
 });
+
 export type ListModelOverridesResponse = z.infer<typeof ListModelOverridesResponseSchema>;
 
 // ============================================================================
@@ -66,6 +69,7 @@ export type ListModelOverridesResponse = z.infer<typeof ListModelOverridesRespon
 export const SetModelOverrideResponseSchema = z.object({
   override: ModelOverrideSummarySchema,
 });
+
 export type SetModelOverrideResponse = z.infer<typeof SetModelOverrideResponseSchema>;
 
 // ============================================================================
@@ -76,6 +80,7 @@ export type SetModelOverrideResponse = z.infer<typeof SetModelOverrideResponseSc
 export const SetDefaultConfigResponseSchema = z.object({
   default: UserDefaultConfigSchema,
 });
+
 export type SetDefaultConfigResponse = z.infer<typeof SetDefaultConfigResponseSchema>;
 
 // ============================================================================
@@ -104,6 +109,7 @@ export const ClearDefaultConfigResponseSchema = z.object({
     vision: FreeDefaultRefSchema.nullable().optional(),
   }),
 });
+
 export type ClearDefaultConfigResponse = z.infer<typeof ClearDefaultConfigResponseSchema>;
 
 // ============================================================================
@@ -118,6 +124,7 @@ export const DeleteModelOverrideResponseSchema = z.object({
    *  with hypothetical older clients — current handlers always emit it. */
   wasSet: z.boolean().optional(),
 });
+
 export type DeleteModelOverrideResponse = z.infer<typeof DeleteModelOverrideResponseSchema>;
 
 // ============================================================================

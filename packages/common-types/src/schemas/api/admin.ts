@@ -29,6 +29,7 @@ export const InvalidateCacheSchema = z
 export const DbSyncSchema = z.object({
   dryRun: z.boolean().optional().default(false),
 });
+
 // ============================================================================
 // PATCH /admin/diagnostic/:requestId/response-ids
 // ============================================================================

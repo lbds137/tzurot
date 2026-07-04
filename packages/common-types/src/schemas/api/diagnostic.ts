@@ -46,6 +46,7 @@ export const DiagnosticLogSchema = z.object({
   // DiagnosticPayload at the boundary.
   data: z.unknown(),
 });
+
 export type DiagnosticLog = z.infer<typeof DiagnosticLogSchema>;
 
 /**
@@ -55,6 +56,7 @@ export type DiagnosticLog = z.infer<typeof DiagnosticLogSchema>;
 export const DiagnosticLogResponseSchema = z.object({
   log: DiagnosticLogSchema,
 });
+
 export type DiagnosticLogResponse = z.infer<typeof DiagnosticLogResponseSchema>;
 
 /**
@@ -66,6 +68,7 @@ export const DiagnosticLogsResponseSchema = z.object({
   logs: z.array(DiagnosticLogSchema),
   count: z.number().int().nonnegative(),
 });
+
 export type DiagnosticLogsResponse = z.infer<typeof DiagnosticLogsResponseSchema>;
 
 /**
@@ -94,6 +97,7 @@ export const RecentDiagnosticLogsResponseSchema = z.object({
   logs: z.array(RecentDiagnosticLogSchema),
   count: z.number().int().nonnegative(),
 });
+
 export type RecentDiagnosticLogsResponse = z.infer<typeof RecentDiagnosticLogsResponseSchema>;
 
 /**

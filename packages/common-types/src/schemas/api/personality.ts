@@ -37,6 +37,7 @@ export const PersonalitySummarySchema = z.object({
   /** Computed permissions for the requesting user */
   permissions: EntityPermissionsSchema,
 });
+
 export type PersonalitySummary = z.infer<typeof PersonalitySummarySchema>;
 
 /** Full personality data for dashboard/editing */
@@ -67,6 +68,7 @@ export const PersonalityFullSchema = z.object({
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
+
 export type PersonalityFull = z.infer<typeof PersonalityFullSchema>;
 
 // ============================================================================
@@ -78,6 +80,7 @@ export const CreatePersonalityResponseSchema = z.object({
   success: z.literal(true),
   personality: PersonalityFullSchema,
 });
+
 export type CreatePersonalityResponse = z.infer<typeof CreatePersonalityResponseSchema>;
 
 // ============================================================================
@@ -92,6 +95,7 @@ export const GetPersonalityResponseSchema = z.object({
   // Required for callers that gate edit-only UI on the requester's permission.
   canEdit: z.boolean(),
 });
+
 export type GetPersonalityResponse = z.infer<typeof GetPersonalityResponseSchema>;
 
 // ============================================================================
@@ -102,6 +106,7 @@ export type GetPersonalityResponse = z.infer<typeof GetPersonalityResponseSchema
 export const ListPersonalitiesResponseSchema = z.object({
   personalities: z.array(PersonalitySummarySchema),
 });
+
 export type ListPersonalitiesResponse = z.infer<typeof ListPersonalitiesResponseSchema>;
 
 // ============================================================================
@@ -281,6 +286,7 @@ export type PersonalityUpdateInput = z.infer<typeof PersonalityUpdateSchema>;
 export const SetVisibilitySchema = z.object({
   isPublic: z.boolean({ error: 'isPublic field is required' }),
 });
+
 // ============================================================================
 // Admin Response Schemas (different format from user routes)
 // ============================================================================

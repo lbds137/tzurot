@@ -23,6 +23,7 @@ import { IncognitoSessionSchema } from '../../types/incognito.js';
 export const IncognitoSessionWithRemainingSchema = IncognitoSessionSchema.extend({
   timeRemaining: z.string().min(1),
 });
+
 export type IncognitoSessionWithRemaining = z.infer<typeof IncognitoSessionWithRemainingSchema>;
 
 // ============================================================================
@@ -33,6 +34,7 @@ export const GetIncognitoStatusResponseSchema = z.object({
   active: z.boolean(),
   sessions: z.array(IncognitoSessionWithRemainingSchema),
 });
+
 // ============================================================================
 // POST /user/memory/incognito (enable)
 // Returns CREATED when newly enabled, OK when wasAlreadyActive is true.
@@ -49,6 +51,7 @@ export const EnableIncognitoResponseSchema = z.object({
   wasAlreadyActive: z.boolean(),
   message: z.string(),
 });
+
 // ============================================================================
 // DELETE /user/memory/incognito (disable)
 // ============================================================================
@@ -57,6 +60,7 @@ export const DisableIncognitoResponseSchema = z.object({
   disabled: z.boolean(),
   message: z.string(),
 });
+
 // ============================================================================
 // POST /user/memory/incognito/forget
 // Retroactively delete memories created in the last `timeframe` window.

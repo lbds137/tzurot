@@ -45,6 +45,7 @@ export const PersonaDetailsSchema = PersonaFullSchema.extend({
   createdAt: z.string(),
   updatedAt: z.string(),
 });
+
 export type PersonaDetails = z.infer<typeof PersonaDetailsSchema>;
 
 /** Persona summary for lists (subset of PersonaDetails) */
@@ -59,6 +60,7 @@ export const PersonaSummarySchema = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
 });
+
 export type PersonaSummary = z.infer<typeof PersonaSummarySchema>;
 
 // ============================================================================
@@ -69,6 +71,7 @@ export type PersonaSummary = z.infer<typeof PersonaSummarySchema>;
 export const ListPersonasResponseSchema = z.object({
   personas: z.array(PersonaSummarySchema),
 });
+
 export type ListPersonasResponse = z.infer<typeof ListPersonasResponseSchema>;
 
 // ============================================================================
@@ -79,6 +82,7 @@ export type ListPersonasResponse = z.infer<typeof ListPersonasResponseSchema>;
 export const GetPersonaResponseSchema = z.object({
   persona: PersonaDetailsSchema,
 });
+
 export type GetPersonaResponse = z.infer<typeof GetPersonaResponseSchema>;
 
 // ============================================================================
@@ -90,6 +94,7 @@ export const CreatePersonaResponseSchema = z.object({
   success: z.literal(true),
   persona: PersonaDetailsSchema,
 });
+
 export type CreatePersonaResponse = z.infer<typeof CreatePersonaResponseSchema>;
 
 // ============================================================================
@@ -100,6 +105,7 @@ export const UpdatePersonaResponseSchema = z.object({
   success: z.literal(true),
   persona: PersonaDetailsSchema,
 });
+
 // ============================================================================
 // DELETE /user/persona/:id — delete an owned persona (not the default)
 // ============================================================================
@@ -114,6 +120,7 @@ export const UpdatePersonaResponseSchema = z.object({
 export const DeletePersonaResponseSchema = z.object({
   message: z.string(),
 });
+
 // ============================================================================
 // PATCH /user/persona/:id/default
 // Sets a persona as the user's default
@@ -124,6 +131,7 @@ export const SetDefaultPersonaResponseSchema = z.object({
   persona: PersonaRefSchema,
   alreadyDefault: z.boolean(),
 });
+
 export type SetDefaultPersonaResponse = z.infer<typeof SetDefaultPersonaResponseSchema>;
 
 // ============================================================================
@@ -134,6 +142,7 @@ export type SetDefaultPersonaResponse = z.infer<typeof SetDefaultPersonaResponse
 export const OverrideInfoResponseSchema = z.object({
   personality: PersonalityRefSchema,
 });
+
 export type OverrideInfoResponse = z.infer<typeof OverrideInfoResponseSchema>;
 
 // ============================================================================
@@ -148,9 +157,11 @@ const PersonaOverrideSummarySchema = z.object({
   personaId: z.string(),
   personaName: z.string(),
 });
+
 export const ListPersonaOverridesResponseSchema = z.object({
   overrides: z.array(PersonaOverrideSummarySchema),
 });
+
 // ============================================================================
 // PUT /user/persona/override/:personalitySlug
 // Sets an existing persona as override for a personality
@@ -161,6 +172,7 @@ export const SetOverrideResponseSchema = z.object({
   personality: PersonalityRefSchema,
   persona: PersonaRefSchema,
 });
+
 export type SetOverrideResponse = z.infer<typeof SetOverrideResponseSchema>;
 
 // ============================================================================
@@ -173,6 +185,7 @@ export const ClearOverrideResponseSchema = z.object({
   personality: PersonalityRefSchema,
   hadOverride: z.boolean(),
 });
+
 export type ClearOverrideResponse = z.infer<typeof ClearOverrideResponseSchema>;
 
 // ============================================================================
@@ -188,6 +201,7 @@ export const CreateOverrideResponseSchema = z.object({
     displayName: z.string().nullable(),
   }),
 });
+
 export type CreateOverrideResponse = z.infer<typeof CreateOverrideResponseSchema>;
 
 // ============================================================================
@@ -227,6 +241,7 @@ export const PersonaUpdateSchema = z.object({
   description: nullableString(500),
   pronouns: nullableString(100),
 });
+
 export type PersonaUpdateInput = z.infer<typeof PersonaUpdateSchema>;
 
 /**
@@ -235,6 +250,7 @@ export type PersonaUpdateInput = z.infer<typeof PersonaUpdateSchema>;
 export const SetPersonaOverrideSchema = z.object({
   personaId: z.string().uuid('Invalid persona ID format'),
 });
+
 // ============================================================================
 // Database Constants
 // ============================================================================
