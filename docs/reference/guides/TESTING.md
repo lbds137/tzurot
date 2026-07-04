@@ -293,7 +293,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { vector } from '@electric-sql/pglite/vector';
 import { citext } from '@electric-sql/pglite/contrib/citext';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
-import { PrismaClient } from '@tzurot/common-types';
+import { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { loadPGliteSchema } from '@tzurot/test-utils';
 
 let pglite: PGlite;
@@ -484,7 +484,7 @@ describe('Module Name', () => {
 ```typescript
 // src/test/mocks/PersonalityService.mock.ts
 import { vi } from 'vitest';
-import type { PersonalityService } from '@tzurot/common-types';
+import type { PersonalityService } from '@tzurot/common-types/types/personaResolution';
 
 export function createMockPersonalityService(personalities: MockPersonality[]): PersonalityService {
   const personalityMap = new Map(personalities.map(p => [p.name.toLowerCase(), p]));

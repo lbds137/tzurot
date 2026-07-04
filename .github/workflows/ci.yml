@@ -107,8 +107,8 @@ jobs:
         # doc/generated comments that embed the specifier as text, not imports.
         run: |
           if grep -rInE "from ['\"]@tzurot/common-types['\"]|import\(['\"]@tzurot/common-types['\"]\)" \
-               --include='*.ts' --exclude-dir=node_modules --exclude-dir=dist services packages tests \
-             | grep -vE 'check-boundaries\.test\.ts|audit-unified\.test\.ts|importAssertions\.test\.ts|coverageTopology\.test\.ts|codegen/command-types\.ts|generated/commandOptions\.ts|schemas/index\.ts'; then
+               --include='*.ts' --exclude-dir=node_modules --exclude-dir=dist services packages tests scripts \
+             | grep -vE 'check-boundaries\.test\.ts|audit-unified\.test\.ts|importAssertions\.test\.ts|coverageTopology\.test\.ts|codegen/command-types\.ts|generated/commandOptions\.ts'; then
             echo "❌ Bare @tzurot/common-types barrel import found — use a deep subpath (e.g. @tzurot/common-types/types/jobs)."
             exit 1
           fi

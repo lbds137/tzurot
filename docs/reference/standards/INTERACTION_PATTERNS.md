@@ -312,7 +312,10 @@ All autocomplete across the bot uses the shared `formatAutocompleteOption` utili
 ### Example Usage
 
 ```typescript
-import { formatAutocompleteOption, AUTOCOMPLETE_BADGES } from '@tzurot/common-types';
+import {
+  formatAutocompleteOption,
+  AUTOCOMPLETE_BADGES,
+} from '@tzurot/common-types/utils/autocompleteFormat';
 
 const choice = formatAutocompleteOption({
   name: 'Global Default',

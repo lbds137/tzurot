@@ -87,7 +87,7 @@ export async function handleButton(interaction: ButtonInteraction) {...}
 **Import Discord limits from `@tzurot/common-types`:**
 
 ```typescript
-import { DISCORD_LIMITS, DISCORD_COLORS, TEXT_LIMITS } from '@tzurot/common-types';
+import { DISCORD_LIMITS, DISCORD_COLORS, TEXT_LIMITS } from '@tzurot/common-types/constants/discord';
 
 // ✅ Correct
 const modal = new ModalBuilder()...
@@ -328,7 +328,7 @@ export async function execute(interaction) {
 
 ```typescript
 import { SlashCommandBuilder, ChatInputCommandInteraction } from 'discord.js';
-import { DISCORD_LIMITS } from '@tzurot/common-types';
+import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 
 export const data = new SlashCommandBuilder()
