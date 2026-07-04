@@ -5,7 +5,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   PersonaCacheInvalidationService,
-  isValidPersonaInvalidationEvent,
   type PersonaInvalidationEvent,
 } from './PersonaCacheInvalidationService.js';
 import { REDIS_CHANNELS } from '@tzurot/common-types/constants/queue';
@@ -48,51 +47,6 @@ describe('PersonaCacheInvalidationService', () => {
 
   afterEach(() => {
     vi.clearAllMocks();
-  });
-
-  describe('isValidPersonaInvalidationEvent', () => {
-    it('should validate user invalidation event', () => {
-      expect(isValidPersonaInvalidationEvent({ type: 'user', discordId: '123456' })).toBe(true);
-    });
-
-    it('should validate all invalidation event', () => {
-      expect(isValidPersonaInvalidationEvent({ type: 'all' })).toBe(true);
-    });
-
-    it('should reject null', () => {
-      expect(isValidPersonaInvalidationEvent(null)).toBe(false);
-    });
-
-    it('should reject undefined', () => {
-      expect(isValidPersonaInvalidationEvent(undefined)).toBe(false);
-    });
-
-    it('should reject non-objects', () => {
-      expect(isValidPersonaInvalidationEvent('string')).toBe(false);
-      expect(isValidPersonaInvalidationEvent(123)).toBe(false);
-    });
-
-    it('should reject invalid event types', () => {
-      expect(isValidPersonaInvalidationEvent({ type: 'unknown' })).toBe(false);
-    });
-
-    it('should reject user event without discordId', () => {
-      expect(isValidPersonaInvalidationEvent({ type: 'user' })).toBe(false);
-    });
-
-    it('should reject user event with wrong discordId type', () => {
-      expect(isValidPersonaInvalidationEvent({ type: 'user', discordId: 123 })).toBe(false);
-    });
-
-    it('should reject all event with extra properties', () => {
-      expect(isValidPersonaInvalidationEvent({ type: 'all', extra: 'field' })).toBe(false);
-    });
-
-    it('should reject user event with extra properties', () => {
-      expect(
-        isValidPersonaInvalidationEvent({ type: 'user', discordId: '123', extra: 'field' })
-      ).toBe(false);
-    });
   });
 
   describe('subscribe', () => {

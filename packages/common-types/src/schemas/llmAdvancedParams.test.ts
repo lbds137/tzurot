@@ -6,7 +6,6 @@ import {
   OutputParamsSchema,
   OpenRouterParamsSchema,
   AdvancedParamsSchema,
-  validateAdvancedParams,
   safeValidateAdvancedParams,
   hasReasoningEnabled,
   validateReasoningConstraints,
@@ -276,25 +275,6 @@ describe('LLM Advanced Params Schema', () => {
       });
       expect(result).toEqual({ temperature: 0.7 });
       expect(result).not.toHaveProperty('unknown_param');
-    });
-  });
-
-  describe('validateAdvancedParams', () => {
-    it('should return validated params', () => {
-      const params = { temperature: 0.5 };
-      expect(validateAdvancedParams(params)).toEqual(params);
-    });
-
-    it('should throw on invalid params', () => {
-      expect(() => validateAdvancedParams({ temperature: 5 })).toThrow();
-    });
-
-    it('should accept null (converts to empty object)', () => {
-      expect(validateAdvancedParams(null)).toEqual({});
-    });
-
-    it('should accept undefined (converts to empty object)', () => {
-      expect(validateAdvancedParams(undefined)).toEqual({});
     });
   });
 

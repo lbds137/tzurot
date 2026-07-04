@@ -7,10 +7,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import {
-  SttResolverCacheInvalidationService,
-  isValidSttResolverInvalidationEvent,
-} from './SttResolverCacheInvalidationService.js';
+import { SttResolverCacheInvalidationService } from './SttResolverCacheInvalidationService.js';
 import { REDIS_CHANNELS } from '@tzurot/common-types/constants/queue';
 import type { Redis } from 'ioredis';
 vi.mock('@tzurot/common-types/utils/logger', async importOriginal => {
@@ -25,34 +22,6 @@ vi.mock('@tzurot/common-types/utils/logger', async importOriginal => {
     }),
   };
 });
-describe('isValidSttResolverInvalidationEvent', () => {
-  it('accepts user event', () => {
-    expect(isValidSttResolverInvalidationEvent({ type: 'user', discordId: '123' })).toBe(true);
-  });
-
-  it('accepts all event', () => {
-    expect(isValidSttResolverInvalidationEvent({ type: 'all' })).toBe(true);
-  });
-
-  it('rejects user event missing discordId', () => {
-    expect(isValidSttResolverInvalidationEvent({ type: 'user' })).toBe(false);
-  });
-
-  it('rejects config event (STT has no per-config surface)', () => {
-    expect(isValidSttResolverInvalidationEvent({ type: 'config', configId: 'cfg' })).toBe(false);
-  });
-
-  it('rejects unknown event type', () => {
-    expect(isValidSttResolverInvalidationEvent({ type: 'mystery' })).toBe(false);
-  });
-
-  it('rejects null and primitives', () => {
-    expect(isValidSttResolverInvalidationEvent(null)).toBe(false);
-    expect(isValidSttResolverInvalidationEvent(undefined)).toBe(false);
-    expect(isValidSttResolverInvalidationEvent('not-an-object')).toBe(false);
-  });
-});
-
 describe('SttResolverCacheInvalidationService', () => {
   function makeService(): {
     service: SttResolverCacheInvalidationService;

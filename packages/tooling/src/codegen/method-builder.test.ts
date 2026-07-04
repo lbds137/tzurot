@@ -270,8 +270,8 @@ describe('buildMethod — user flavor', () => {
   });
 
   it('accepts a ZodObject query schema (not just Record<string, ZodTypeAny>)', () => {
-    // Shared/reusable query schemas (e.g., createPaginationSchema output) are
-    // ZodObjects, not plain Records. Codegen must unwrap via resolveQueryShape
+    // Shared/reusable query schemas (e.g., a pagination schema built with
+    // z.object) are ZodObjects, not plain Records. Codegen must unwrap via resolveQueryShape
     // so the generated client signature is identical for both forms.
     const querySchema = z.object({
       limit: z.number().int().optional(),

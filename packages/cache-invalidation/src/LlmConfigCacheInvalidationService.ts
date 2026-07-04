@@ -32,7 +32,7 @@ type LlmConfigInvalidationEvent =
 /**
  * Type guard to validate LlmConfigInvalidationEvent structure
  */
-export const isValidLlmConfigInvalidationEvent = createEventValidator<LlmConfigInvalidationEvent>([
+const isValidLlmConfigInvalidationEvent = createEventValidator<LlmConfigInvalidationEvent>([
   { type: 'user', fields: { discordId: 'string' } },
   { type: 'config', fields: { configId: 'string' } },
   { type: 'all' },

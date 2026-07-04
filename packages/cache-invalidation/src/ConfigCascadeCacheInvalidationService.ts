@@ -36,14 +36,13 @@ export type ConfigCascadeInvalidationEvent =
 /**
  * Type guard to validate ConfigCascadeInvalidationEvent structure
  */
-export const isValidConfigCascadeInvalidationEvent =
-  createEventValidator<ConfigCascadeInvalidationEvent>([
-    { type: 'user', fields: { discordId: 'string' } },
-    { type: 'personality', fields: { personalityId: 'string' } },
-    { type: 'channel', fields: { channelId: 'string' } },
-    { type: 'admin' },
-    { type: 'all' },
-  ]);
+const isValidConfigCascadeInvalidationEvent = createEventValidator<ConfigCascadeInvalidationEvent>([
+  { type: 'user', fields: { discordId: 'string' } },
+  { type: 'personality', fields: { personalityId: 'string' } },
+  { type: 'channel', fields: { channelId: 'string' } },
+  { type: 'admin' },
+  { type: 'all' },
+]);
 
 /**
  * Config Cascade Cache Invalidation Service

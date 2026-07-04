@@ -28,7 +28,7 @@ type TtsConfigInvalidationEvent =
   { type: 'user'; discordId: string } | { type: 'config'; configId: string } | { type: 'all' };
 
 /** Type guard for incoming pub/sub events. */
-export const isValidTtsConfigInvalidationEvent = createEventValidator<TtsConfigInvalidationEvent>([
+const isValidTtsConfigInvalidationEvent = createEventValidator<TtsConfigInvalidationEvent>([
   { type: 'user', fields: { discordId: 'string' } },
   { type: 'config', fields: { configId: 'string' } },
   { type: 'all' },

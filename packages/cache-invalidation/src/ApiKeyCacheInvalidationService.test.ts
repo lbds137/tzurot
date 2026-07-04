@@ -5,7 +5,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   ApiKeyCacheInvalidationService,
-  isValidApiKeyInvalidationEvent,
   type ApiKeyInvalidationEvent,
 } from './ApiKeyCacheInvalidationService.js';
 import { REDIS_CHANNELS } from '@tzurot/common-types/constants/queue';
@@ -35,25 +34,6 @@ describe('ApiKeyCacheInvalidationService', () => {
 
   afterEach(() => {
     vi.clearAllMocks();
-  });
-
-  describe('isValidApiKeyInvalidationEvent', () => {
-    it('should validate user invalidation event', () => {
-      expect(isValidApiKeyInvalidationEvent({ type: 'user', discordId: '123456' })).toBe(true);
-    });
-
-    it('should validate all invalidation event', () => {
-      expect(isValidApiKeyInvalidationEvent({ type: 'all' })).toBe(true);
-    });
-
-    it('should reject invalid events', () => {
-      expect(isValidApiKeyInvalidationEvent(null)).toBe(false);
-      expect(isValidApiKeyInvalidationEvent(undefined)).toBe(false);
-      expect(isValidApiKeyInvalidationEvent('string')).toBe(false);
-      expect(isValidApiKeyInvalidationEvent({ type: 'unknown' })).toBe(false);
-      expect(isValidApiKeyInvalidationEvent({ type: 'user' })).toBe(false); // missing discordId
-      expect(isValidApiKeyInvalidationEvent({ type: 'all', extra: 'field' })).toBe(false);
-    });
   });
 
   describe('subscribe', () => {

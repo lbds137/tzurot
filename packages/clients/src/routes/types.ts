@@ -174,8 +174,8 @@ export interface RouteDef<
    *   - `Record<string, ZodTypeAny>` — the "spread" form, one entry per
    *     query param. Use this for ad-hoc per-route queries.
    *   - `ZodObject<TQuery>` — the "schema" form. Use this when you want
-   *     to share a reusable query schema across routes (e.g., the
-   *     `createPaginationSchema(sortFields)` factory output). The codegen
+   *     to share a reusable query schema across routes (e.g., a shared
+   *     pagination schema built with `z.object()`). The codegen
    *     unwraps to `.shape` internally so the two forms are equivalent
    *     at the wire level; the schema form lets you `.extend()` it with
    *     per-route fields without copying the record entries.
@@ -342,42 +342,4 @@ export function resolveQueryShape(
     return query.shape;
   }
   return query;
-}
-
-// ============================================================================
-// Pagination factory (shared across paginated list endpoints)
-// ============================================================================
-
-/**
- * Build a reusable Zod object capturing the standard pagination params:
- * `limit`, `offset`, `sort`, `order`. Returned as a `ZodObject` so callers
- * can `.extend()` it with route-specific filters and `RouteDef.query`
- * accepts it directly.
- *
- * The `sortFields` tuple is preserved at the type level — generated clients
- * see `sort?: 'createdAt' | 'updatedAt'` rather than `sort?: string`,
- * catching drift between the route's declared sort fields and what callers
- * pass.
- *
- * @example
- * ```ts
- * const MemoryListQuery = createPaginationSchema(['createdAt', 'updatedAt']);
- * // RouteDef entry:
- * query: MemoryListQuery.extend({ personalityId: z.string().uuid() })
- * ```
- *
- * Defaults follow the project convention: `limit=20`, `offset=0`,
- * `sort=<first field>`, `order='desc'`. Callers wanting different defaults
- * can override on the returned schema's individual fields.
- */
-// eslint-disable-next-line @typescript-eslint/explicit-function-return-type -- Zod 4's enum-generic inference is too strict for a hand-written return signature; tuple sortFields would erode to `string` if explicitly typed. Inference preserves the narrow type via `const TSort`.
-export function createPaginationSchema<const TSort extends readonly [string, ...string[]]>(
-  sortFields: TSort
-) {
-  return z.object({
-    limit: z.number().int().min(1).max(100).optional(),
-    offset: z.number().int().min(0).optional(),
-    sort: z.enum(sortFields).optional(),
-    order: z.enum(['asc', 'desc'] as const).optional(),
-  });
 }

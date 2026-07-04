@@ -38,7 +38,7 @@ import { GATEWAY_TIMEOUTS } from '@tzurot/common-types/constants/discord';
 import { type ApiErrorSubcode } from '@tzurot/common-types/constants/error';
 import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
 import { isTimeoutError } from '@tzurot/common-types/utils/errors';
-import { GatewayApiError, type GatewayFailureKind, parseErrorResponse } from './errors.js';
+import { type GatewayFailureKind, parseErrorResponse } from './errors.js';
 
 /**
  * Result envelope mirroring the legacy `callGatewayApi` discriminated union.
@@ -96,8 +96,8 @@ export interface TransportOptions {
    * WARNING: when omitted, the response body is returned as `data` via an
    * unchecked `as T` cast — there is NO runtime contract enforcement. Generated
    * clients always pass `routeDef.output`, so this only bites direct callers of
-   * `callGateway` / `callGatewayOrThrow` that skip the schema. Omit only when
-   * the body is genuinely opaque (e.g. a passthrough proxy); otherwise pass one.
+   * `callGateway` that skip the schema. Omit only when the body is genuinely
+   * opaque (e.g. a passthrough proxy); otherwise pass one.
    */
   outputSchema?: z.ZodTypeAny;
   /** Optional logger callback for diagnostics. Avoids hard dep on pino. */
@@ -263,17 +263,4 @@ export async function callGateway<T>(options: TransportOptions): Promise<Gateway
     onWarn?.({ path, method, error: errorMessage, kind }, 'Request error');
     return { ok: false, kind, error: errorMessage, status: 0 };
   }
-}
-
-/**
- * Throwing variant: same contract as {@link callGateway}, but rejects
- * with `GatewayApiError` on non-ok responses. Useful for command handlers
- * that prefer try/catch over discriminated-union branching.
- */
-export async function callGatewayOrThrow<T>(options: TransportOptions): Promise<T> {
-  const result = await callGateway<T>(options);
-  if (!result.ok) {
-    throw new GatewayApiError(result.error, result.status, result.kind, result.code, result.issues);
-  }
-  return result.data;
 }

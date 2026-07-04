@@ -8,8 +8,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { GATEWAY_TIMEOUTS } from '@tzurot/common-types/constants/discord';
-import { callGateway, callGatewayOrThrow } from './transport.js';
-import { GatewayApiError } from './errors.js';
+import { callGateway } from './transport.js';
 
 function jsonResponse(body: unknown, init?: ResponseInit): Response {
   return new Response(JSON.stringify(body), {
@@ -249,60 +248,5 @@ describe('callGateway', () => {
       }),
       'Request error'
     );
-  });
-});
-
-describe('callGatewayOrThrow', () => {
-  it('returns data on success', async () => {
-    fetchSpy.mockResolvedValueOnce(jsonResponse({ tz: 'UTC' }));
-    const data = await callGatewayOrThrow<{ tz: string }>(baseOpts);
-    expect(data).toEqual({ tz: 'UTC' });
-  });
-
-  it('throws GatewayApiError on non-2xx', async () => {
-    fetchSpy.mockResolvedValueOnce(
-      jsonResponse({ message: 'Forbidden', code: 'AUTH_REQUIRED' }, { status: 403 })
-    );
-    await expect(callGatewayOrThrow(baseOpts)).rejects.toMatchObject({
-      name: 'GatewayApiError',
-      message: 'Forbidden',
-      status: 403,
-      code: 'AUTH_REQUIRED',
-      kind: 'http',
-    });
-  });
-
-  it('throws GatewayApiError carrying kind:network on a network failure', async () => {
-    fetchSpy.mockRejectedValueOnce(new Error('ECONNREFUSED'));
-    // kind propagates to the throw path so try/catch callers get the same
-    // network-vs-timeout distinction the result path has.
-    const error = await callGatewayOrThrow(baseOpts).catch((e: unknown) => e);
-    expect(error).toBeInstanceOf(GatewayApiError);
-    expect(error).toMatchObject({ status: 0, kind: 'network' });
-  });
-
-  it('throws GatewayApiError carrying kind:timeout on a TimeoutError', async () => {
-    // The most user-relevant failure on a slow gateway — callGatewayOrThrow is a
-    // separate code path from callGateway, so assert the kind propagates here too.
-    const abortError = new Error('aborted');
-    abortError.name = 'TimeoutError';
-    fetchSpy.mockRejectedValueOnce(abortError);
-    const error = await callGatewayOrThrow(baseOpts).catch((e: unknown) => e);
-    expect(error).toBeInstanceOf(GatewayApiError);
-    expect(error).toMatchObject({ status: 0, kind: 'timeout' });
-  });
-
-  it('throws GatewayApiError carrying kind:schema + the Zod issues on contract drift', async () => {
-    // The raw Zod issues forward to the throw path too, so try/catch callers can
-    // inspect contract drift structurally instead of re-parsing the message.
-    const schema = z.object({ tz: z.string() });
-    fetchSpy.mockResolvedValueOnce(jsonResponse({ wrong: 'shape' }));
-    const error = await callGatewayOrThrow({ ...baseOpts, outputSchema: schema }).catch(
-      (e: unknown) => e
-    );
-    expect(error).toBeInstanceOf(GatewayApiError);
-    expect(error).toMatchObject({ status: 0, kind: 'schema' });
-    expect((error as GatewayApiError).issues).toEqual(expect.any(Array));
-    expect((error as GatewayApiError).issues?.length ?? 0).toBeGreaterThan(0);
   });
 });
