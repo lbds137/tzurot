@@ -22,11 +22,12 @@ const ROOTS = ['packages', 'services'] as const;
 const SKIP_DIRS = new Set(['node_modules', 'dist', '.turbo', 'coverage']);
 /** Files under these path segments aren't part of the dead-export surface. */
 const EXEMPT_PATH = /\/(generated|_generated|__mocks__)\/|\/test\/(mocks|fixtures)\//;
-// Matches a wildcard re-export `export * from '…'` — the shape that masks knip
-// (every re-exported name becomes untraceable). `export * as ns from '…'` is
-// deliberately NOT matched: it binds a single named `ns` export, which knip
-// traces like any named export, so it doesn't mask anything.
-const STAR_EXPORT = /^\s*export\s+\*\s+from\s+['"]/;
+// Matches a wildcard re-export `export * from '…'` OR `export type * from '…'`
+// (TS 5.0+) — both mask knip (every re-exported name becomes untraceable). The
+// `as ns` forms (`export * as ns`, `export type * as ns`) are deliberately NOT
+// matched: they bind a single named export, which knip traces like any named
+// export, so they don't mask anything.
+const STAR_EXPORT = /^\s*export\s+(?:type\s+)?\*\s+from\s+['"]/;
 
 export interface StarExportViolation {
   filePath: string;

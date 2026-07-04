@@ -65,8 +65,16 @@ describe('findStarExports', () => {
     expect(findStarExports(tmp)).toEqual([]);
   });
 
-  it('ignores `export * as ns from` — a named binding knip can trace, not a masking wildcard', () => {
+  it('flags `export type * from` (TS 5.0+ wildcard type re-export masks knip too)', () => {
+    write('packages/a/src/types.ts', "export type * from './types-impl.js';\n");
+    expect(findStarExports(tmp).map(v => v.filePath.slice(tmp.length + 1))).toEqual([
+      'packages/a/src/types.ts',
+    ]);
+  });
+
+  it('ignores the `as ns` forms — named bindings knip can trace, not masking wildcards', () => {
     write('packages/a/src/index.ts', "export * as helpers from './helpers.js';\n");
+    write('packages/a/src/types.ts', "export type * as T from './types-impl.js';\n");
     expect(findStarExports(tmp)).toEqual([]);
   });
 
