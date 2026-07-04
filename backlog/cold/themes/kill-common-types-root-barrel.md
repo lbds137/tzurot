@@ -17,12 +17,20 @@ _Focus: replace the ~976-export root `index.ts` barrel with a `package.json` exp
 
 ### Status (2026-07-03)
 
-In flight via grouped PRs (dual-publish — barrel `"."` stays alive until Phase 3). **PR #1472** = tooling + all `packages/*` (taxonomy decided: file-level mirror subpaths + per-subtree wildcard `exports` map, generated deterministically from `getExportSymbols()`; codemod in `scripts/migrations/barrel-kill/`). PR 2 = the three services. PR 3 = the gut below. The codemod's `remainingBareRefs` scan surfaces dynamic `import()` / string-embedded / barrel-centric refs the AST can't rewrite — the PR-3 checklist for clearing them.
+In flight via grouped PRs (dual-publish — barrel `"."` stays alive until Phase 3). **PR #1472** (merged) = tooling + all `packages/*`. **Archaeology sweep #1473** (merged) rode between. **PR #1474** (in review) = the three heavy services (ai-worker/api-gateway/bot-client), all green (3347 + 2252 + 5177 tests). PR 3 = the gut below. The codemod's `remainingBareRefs` scan surfaces dynamic `import()` / string-embedded / barrel-centric refs the AST can't rewrite — the PR-3 checklist for clearing them.
 
-**Codemod-quality follow-ups (from PR #1472 review, do before PR 2):**
+**Codemod-quality follow-ups (from PR #1472 review) — ✅ done in PR #1474:**
 
-- `mock-codemod.ts`: preserve the trailing blank line after a rewritten `vi.mock()` block — `statement.remove()` + `insertStatements()` drops it, so the mock ends up flush against the following `describe(...)`. Cosmetic diff noise; fix before PR 2's larger mock volume.
-- Format only codemod-CHANGED files, not the whole package — running `prettier --write "packages/$pkg/src/**"` swept an unrelated file (`xray/types.ts`, no barrel import) into PR #1472. Restrict the format pass to files the codemod actually touched.
+- ~~`mock-codemod.ts`: preserve the trailing blank line after a rewritten `vi.mock()` block~~ — fixed via `replaceWithText` (preserves the node's trailing trivia) instead of `remove()`+`insertStatements()`.
+- ~~Format only codemod-CHANGED files, not the whole package~~ — the PR-2 workflow formats `git diff --name-only` files only.
+
+**Codemod correctness fixes made IN PR #1474** (all latent in PR 1, surfaced by the per-service test gate):
+
+- **Preserve `import type`** — `imp.set()`/`exp.set()` now carry `isTypeOnly`; the mutate-in-place path was silently dropping whole-import `type` (→ runtime value import of `PrismaClient`, a bot-client boundary risk). PR 1's `packages/*` carry a tolerated version → follow-ups.md.
+- **Always spread the real subpath in split mocks** — a deep `vi.mock('.../constants/ai')` intercepts common-types' OWN internal `../constants/ai` import (config.ts `z.nativeEnum(AIProvider)`), so no-spread blanking crashed suite load. `buildGroupMock` no longer mirrors the original's no-spread.
+- **Widened `scanRemainingBareRefs`** to catch vitest string-arg forms (`vi.doMock`/`vi.doUnmock`/`vi.importActual`), not just `import()`/`from`.
+
+**Manual-site classes PR 2 hit (for the PR-3 service sweep, though PR-3 touches common-types not services):** namespace spies (`vi.spyOn(ns,'getConfig')` → repoint to the deep module), factory-local bindings (`const { mockIsBotOwner } = await import('./test-utils.js')` re-added inside the split mock that uses it — 4 api-gateway route tests), dynamic `await import('@tzurot/common-types')`, and a dead barrel mock (override of a non-common-types export).
 
 **PR-3 map cleanup:** the nested `exports` entries (`schemas/api/*`, `services/tts/*`, `types/schemas/*`) are redundant — Node's `exports` `*` spans `/`, so the parent wildcard already resolves them (contradicting the design-time council claim). Verify with a resolution test, then drop the nested entries.
 
@@ -32,3 +40,4 @@ In flight via grouped PRs (dual-publish — barrel `"."` stays alive until Phase
 - [ ] Update the boundary checker (`dev/check-boundaries.ts`) to detect DEEP-path Prisma imports (`@tzurot/common-types/services/prisma`) in bot-client — after the barrel dies, that's the new shape of the "bot-client imports Prisma" violation it currently matches via the bare barrel string.
 - [ ] Gut the root `index.ts`; drop the `"."` entry from the `exports` map.
 - [ ] Guard against regression: eslint `no-restricted-imports` on the bare `@tzurot/common-types` specifier + a CI grep asserting the bare-specifier count is 0 (minus the fixture allowlist).
+- [ ] **Restore `import type` precision in PR-1's `packages/*`** (folded in here per user, 2026-07-03). The codemod's mutate-in-place path dropped whole-import `isTypeOnly` before the PR-2 fix, so PR 1's merged packages carry `import type { X }` → `import { X }` on a split import's first group. Compiles + lints (`@typescript-eslint/consistent-type-imports` not enforced) and no boundary breach in those packages, but imprecise — for value-classes (`PrismaClient`) it turns an elided type-import into a runtime import. **Fix shape**: either grep `packages/*` for deep `import { … } from '@tzurot/common-types/…'` where the symbol is type-only-used and restore `import type`, OR enable `@typescript-eslint/consistent-type-imports` (auto-fixable) as the structural guard that catches this class repo-wide (pairs naturally with the `no-restricted-imports` guard above). Surfaced 2026-07-03 (barrel-kill PR 2 test gate).
