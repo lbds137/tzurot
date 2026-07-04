@@ -47,19 +47,15 @@ export function flattenSuppressions(report: XrayReport): FlatSuppression[] {
 }
 
 /**
- * Return every suppression whose justification is missing or blank
- * (undefined or whitespace-only). This is the same "⚠️ No justification"
- * bucket that {@link formatSuppressions} renders in yellow — extracted as a
- * pure predicate so the `xray --suppressions --check` gate can fail on it.
+ * A suppression is unjustified when its `-- justification` is absent or blank
+ * (undefined or whitespace-only) — the same "⚠️ No justification" bucket
+ * {@link formatSuppressions} renders in yellow. The single source of truth for
+ * that rule, shared by the rendered report and the `xray --check` gate so the
+ * two can't disagree on what counts as unjustified.
  */
-/** A suppression is unjustified when its `-- justification` is absent or blank. */
 export function isUnjustifiedSuppression({ suppression }: FlatSuppression): boolean {
   const j = suppression.justification;
   return j === undefined || j.trim() === '';
-}
-
-export function collectUnjustifiedSuppressions(report: XrayReport): FlatSuppression[] {
-  return flattenSuppressions(report).filter(isUnjustifiedSuppression);
 }
 
 function renderCountSection(lines: string[], heading: string, entries: [string, number][]): void {
@@ -72,11 +68,11 @@ function renderCountSection(lines: string[], heading: string, entries: [string, 
 }
 
 function renderJustificationSection(lines: string[], flat: FlatSuppression[]): void {
-  const byJustification = countBy(flat, f => {
-    const j = f.suppression.justification;
-    if (j === undefined || j.trim() === '') return '\u26a0\ufe0f  No justification';
-    return j;
-  });
+  const byJustification = countBy(flat, f =>
+    isUnjustifiedSuppression(f)
+      ? '\u26a0\ufe0f  No justification'
+      : (f.suppression.justification ?? '')
+  );
   lines.push(chalk.cyan.bold('By justification:'));
   const entries = [...byJustification.entries()];
   const labelWidth = Math.max(...entries.map(([k]) => k.length));

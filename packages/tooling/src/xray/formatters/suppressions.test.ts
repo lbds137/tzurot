@@ -10,7 +10,11 @@ vi.mock('chalk', () => ({
   },
 }));
 
-import { formatSuppressions, collectUnjustifiedSuppressions } from './suppressions.js';
+import {
+  formatSuppressions,
+  flattenSuppressions,
+  isUnjustifiedSuppression,
+} from './suppressions.js';
 import type { XrayReport, SuppressionInfo, FileInfo, PackageInfo } from '../types.js';
 
 function makeSuppression(overrides: Partial<SuppressionInfo> = {}): SuppressionInfo {
@@ -180,7 +184,7 @@ describe('formatSuppressions', () => {
   });
 });
 
-describe('collectUnjustifiedSuppressions', () => {
+describe('isUnjustifiedSuppression (via flatten + filter)', () => {
   it('returns exactly the suppressions with missing/blank justification across files', () => {
     const report = makeReport([
       makePackage('svc-a', [
@@ -198,7 +202,7 @@ describe('collectUnjustifiedSuppressions', () => {
       ]),
     ]);
 
-    const unjustified = collectUnjustifiedSuppressions(report);
+    const unjustified = flattenSuppressions(report).filter(isUnjustifiedSuppression);
 
     // undefined (line 20), empty-string (line 30), whitespace-only (line 40) — not the two justified ones.
     expect(unjustified).toHaveLength(3);
@@ -228,11 +232,11 @@ describe('collectUnjustifiedSuppressions', () => {
       ]),
     ]);
 
-    expect(collectUnjustifiedSuppressions(report)).toEqual([]);
+    expect(flattenSuppressions(report).filter(isUnjustifiedSuppression)).toEqual([]);
   });
 
   it('returns an empty array for a report with no suppressions', () => {
     const report = makeReport([makePackage('svc-a', [makeFile('/root/svc-a/src/x.ts')])]);
-    expect(collectUnjustifiedSuppressions(report)).toEqual([]);
+    expect(flattenSuppressions(report).filter(isUnjustifiedSuppression)).toEqual([]);
   });
 });
