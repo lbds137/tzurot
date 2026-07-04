@@ -41,6 +41,7 @@ export const DbSyncResponseSchema = z.object({
   info: z.array(z.string()),
   changes: z.unknown().optional(),
 });
+
 /**
  * Response for POST /admin/cleanup — orphan history / tombstone purge.
  * `message` is a pre-formatted human-readable summary the bot-client
@@ -55,6 +56,7 @@ export const AdminCleanupResponseSchema = z.object({
   daysKept: z.number().int().nonnegative(),
   timestamp: z.string(),
 });
+
 /**
  * Response for POST /admin/invalidate-cache — single-personality or
  * bot-wide cache invalidation. Two response sub-shapes depending on the

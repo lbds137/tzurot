@@ -131,6 +131,7 @@ export const SetModelOverrideSchema = z.object({
   personalityId: z.string().uuid('Invalid personalityId format'),
   configId: z.string().uuid('Invalid configId format'),
 });
+
 /**
  * Schema for setting user's global default LLM config.
  */

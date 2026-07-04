@@ -109,6 +109,7 @@ export const SetTtsOverrideSchema = z.object({
   personalityId: z.string().uuid('Invalid personalityId format'),
   configId: z.string().uuid('Invalid configId format'),
 });
+
 /** Set user's global default TTS config. */
 export const SetTtsDefaultConfigSchema = z.object({
   configId: z.string().uuid('Invalid configId format'),

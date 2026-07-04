@@ -86,6 +86,7 @@ export const RecentDiagnosticLogSchema = z.object({
   createdAt: z.union([z.string(), z.date()]),
   personalityName: z.string().nullable(),
 });
+
 /**
  * Response shape for GET /diagnostic/recent — up to 100 most recent logs.
  */

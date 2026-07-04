@@ -81,6 +81,7 @@ export const AddDenylistResponseSchema = z.object({
   success: z.literal(true),
   entry: DenylistEntrySchema,
 });
+
 /**
  * Response for GET /admin/denylist — full list of entries with count.
  * Optional `?type=USER|GUILD` filter is applied at the handler before
@@ -91,6 +92,7 @@ export const ListDenylistResponseSchema = z.object({
   entries: z.array(DenylistEntrySchema),
   count: z.number().int().nonnegative(),
 });
+
 /**
  * Response for DELETE /admin/denylist/:type/:discordId/:scope/:scopeId.
  * `removed: true` is redundant with `success: true` but the handler emits

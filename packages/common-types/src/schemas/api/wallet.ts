@@ -90,6 +90,7 @@ export const SetWalletKeySchema = z.object({
     .transform(s => s.trim())
     .pipe(z.string().min(1, 'apiKey is required')),
 });
+
 /**
  * Schema for testing a stored API key.
  */

@@ -27,9 +27,8 @@ const logger = createLogger('ShapesPreflight');
 const PREFLIGHT_TIMEOUT_MS = 5000;
 
 /**
- * `/api/users/info` is a known-to-exist endpoint on shapes.inc (typed
- * response `ShapesIncUserProfile` in `@tzurot/common-types` is already
- * used by the fetcher flow). Council-recommended over `/api/auth/session`
+ * `/api/users/info` is a known-to-exist endpoint on shapes.inc.
+ * Council-recommended over `/api/auth/session`
  * (Better Auth convention) because:
  *
  *  1. **Fate-sharing with the actual fetcher surface.** If shapes.inc ever
