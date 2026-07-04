@@ -16,7 +16,12 @@
 import { z } from 'zod';
 import { EntityPermissionsSchema, optionalString, nullableString } from './shared.js';
 import { AdvancedParamsSchema } from '../llmAdvancedParams.js';
-import { MESSAGE_LIMITS, AI_DEFAULTS, CONFIG_KINDS } from '../../constants/index.js';
+import {
+  MESSAGE_LIMITS,
+  AI_DEFAULTS,
+  CONFIG_KINDS,
+  CONFIG_NAME_MAX_LENGTH,
+} from '../../constants/index.js';
 
 // ============================================================================
 // Context Settings Schema (shared validation for context history limits)
@@ -81,7 +86,10 @@ export const ContextSettingsSchema = z.object({
  */
 export const LlmConfigCreateSchema = z.object({
   // Required fields
-  name: z.string().min(1, 'name is required').max(100, 'name must be 100 characters or less'),
+  name: z
+    .string()
+    .min(1, 'name is required')
+    .max(CONFIG_NAME_MAX_LENGTH, 'name must be 100 characters or less'),
   model: z.string().min(1, 'model is required').max(200),
 
   // Config kind discriminator (text | vision | …). Optional; when omitted the
@@ -134,7 +142,7 @@ export type LlmConfigCreateInput = z.infer<typeof LlmConfigCreateSchema>;
  */
 export const LlmConfigUpdateSchema = z.object({
   // Required DB fields: empty string → undefined (preserve existing value)
-  name: optionalString(100),
+  name: optionalString(CONFIG_NAME_MAX_LENGTH),
   provider: optionalString(50),
   model: optionalString(200),
 

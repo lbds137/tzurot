@@ -14,6 +14,7 @@
 import { z } from 'zod';
 import { EntityPermissionsSchema, optionalString, nullableString } from './shared.js';
 import { isTtsProviderId } from '../../services/tts/TtsProvider.js';
+import { CONFIG_NAME_MAX_LENGTH } from '../../constants/index.js';
 
 // ============================================================================
 // Provider validation (mirrors `isTtsProviderId` runtime guard)
@@ -57,7 +58,10 @@ export const TtsAdvancedParamsSchema = z.record(z.string(), z.unknown());
  */
 export const TtsConfigCreateSchema = z.object({
   // Required fields
-  name: z.string().min(1, 'name is required').max(100, 'name must be 100 characters or less'),
+  name: z
+    .string()
+    .min(1, 'name is required')
+    .max(CONFIG_NAME_MAX_LENGTH, 'name must be 100 characters or less'),
   provider: TtsProviderIdSchema,
 
   // Optional fields
@@ -91,7 +95,7 @@ export type TtsConfigCreateInput = z.infer<typeof TtsConfigCreateSchema>;
  */
 export const TtsConfigUpdateSchema = z.object({
   // Required DB fields: empty string → undefined (preserve existing value)
-  name: optionalString(100),
+  name: optionalString(CONFIG_NAME_MAX_LENGTH),
   /** Provider can be re-pointed (e.g. swap a config from elevenlabs to
    *  mistral) — empty string preserves existing. */
   provider: optionalString(40),

@@ -28,6 +28,12 @@ export const PLACEHOLDERS = {
  * Message context limits
  * These control how much context is included in AI requests
  */
+/**
+ * Max length for an LlmConfig/TtsConfig `name`. Single source for the `.max()` in
+ * both config schemas AND the promote-normalization util, so they can't drift.
+ */
+export const CONFIG_NAME_MAX_LENGTH = 100;
+
 export const MESSAGE_LIMITS = {
   /**
    * Default value for maxMessages in LlmConfig

@@ -26,7 +26,11 @@ function fitSlugToMaxLength(base: string, suffix: string, maxLength: number): st
   if (combined.length <= maxLength) {
     return combined;
   }
-  // Reserve room for the suffix + `-${hash}`; keep at least 1 base char.
+  // Reserve room for the suffix + `-${hash}`; keep at least 1 base char. The
+  // `max(1, …)` floor can only produce a result over maxLength if
+  // `suffix.length > maxLength - (SLUG_TAIL_HASH_LENGTH + 1)` — impossible for real
+  // callers (Discord usernames ≤32 → suffix ≤33, against maxLength 50/100). Revisit
+  // this floor if ever reused with a much smaller cap or a longer suffix source.
   const baseBudget = Math.max(1, maxLength - suffix.length - (SLUG_TAIL_HASH_LENGTH + 1));
   // Truncate to the budget, then back off any trailing hyphens so we don't emit
   // `--hash`. Non-regex to avoid the super-linear-move lint on `-+$`.
