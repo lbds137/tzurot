@@ -48,7 +48,7 @@ export function reasoningConstraintViolation(
 /** Warn (never reject) when the reasoning budget leaves no room for the response. */
 export function warnOnReasoningConstraintViolation(
   logger: WarnLogger,
-  context: { configId: string; name?: string },
+  context: { configId: string },
   advancedParameters: unknown
 ): void {
   const violation = reasoningConstraintViolation(advancedParameters);

@@ -56,12 +56,12 @@ describe('warnOnReasoningConstraintViolation', () => {
     const logger = { warn: vi.fn() };
     warnOnReasoningConstraintViolation(
       logger,
-      { configId: 'c1', name: 'my-config' },
+      { configId: 'c1' },
       { max_tokens: 1024, reasoning: { max_tokens: 2000 } }
     );
     expect(logger.warn).toHaveBeenCalledTimes(1);
     expect(logger.warn).toHaveBeenCalledWith(
-      { configId: 'c1', name: 'my-config', reasoningMaxTokens: 2000, maxTokens: 1024 },
+      { configId: 'c1', reasoningMaxTokens: 2000, maxTokens: 1024 },
       expect.stringContaining('reasoning.max_tokens >= max_tokens')
     );
   });
