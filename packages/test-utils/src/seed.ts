@@ -1,7 +1,7 @@
 /**
  * Integration test seed helpers.
  *
- * Phase 5b introduced a structural invariant: every `users` row MUST have a
+ * A structural invariant: every `users` row MUST have a
  * non-null `default_persona_id` pointing to an existing `personas` row whose
  * `owner_id` equals that user's id. Because the two tables have mutually
  * circular FKs, the only way to create a valid pair is via a single-statement
@@ -20,7 +20,7 @@
 // listing test-utils as a devDependency creates a Turbo build-DAG cycle the
 // moment test-utils starts depending on common-types at any level. Breaking
 // it cleanly requires either extracting shared constants to a third package
-// or dropping test-utils out of common-types's devDeps — both are 5c scope.
+// or dropping test-utils out of common-types's devDeps — both are out of scope here.
 interface PrismaExecuteRaw {
   $executeRaw: (query: TemplateStringsArray, ...values: unknown[]) => Promise<number>;
 }
@@ -71,7 +71,7 @@ export async function seedUserWithPersona(
     // Mirrors `DEFAULT_PERSONA_DESCRIPTION` in
     // `common-types/src/constants/persona.ts`. Can't import the constant
     // directly — see the comment at the top of this file for why. Keep the
-    // two values in sync until Phase 5c breaks the Turbo build-DAG cycle.
+    // two values in sync until the Turbo build-DAG cycle is broken.
     personaDescription = 'Default persona',
   } = options;
 

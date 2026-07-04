@@ -47,8 +47,8 @@ describe('PersonalityService', () => {
     // Create Prisma client with PGlite adapter
     prisma = new PrismaClient({ adapter }) as PrismaClient;
 
-    // Seed test data — Phase 5b NOT NULL requires user + default persona
-    // to be created atomically.
+    // Seed test data — default_persona_id is NOT NULL, so user + default
+    // persona must be created atomically.
     await seedUserWithPersona(prisma, {
       userId: testOwnerId,
       personaId: '00000000-0000-0000-0000-0000000000a1',

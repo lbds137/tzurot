@@ -54,7 +54,7 @@ describe('HardcodedConstraints', () => {
 
     it('should prohibit leaking specific input-format scaffolding tags', () => {
       // Concrete named prohibitions land harder than abstract "XML" for
-      // RLHF-fighting models (validated via MCP council, 2026-04-22).
+      // RLHF-fighting models (validated via MCP council).
       // Addresses the GLM-4.5-Air fake-user-message-echo quirk observed
       // in req b533e288-fb07-46c0-a5e2-a0f78883e63e.
       expect(OUTPUT_CONSTRAINTS).toContain('<from_id>');

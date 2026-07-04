@@ -6,7 +6,7 @@
  * and types for HTTP requests/responses, catching breaking changes during refactoring.
  *
  * WHY THIS IS CRITICAL:
- * - Phase 1 will refactor the database schema extensively
+ * - The database schema undergoes extensive refactoring
  * - API requests/responses reference database entities (Personality, User, etc.)
  * - Schema changes could silently break API contracts
  * - These tests catch those breaks at build time

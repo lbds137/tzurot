@@ -95,9 +95,9 @@ describe('LLM Config Resolution Integration', () => {
     // Clean up test data - order matters due to foreign keys
     await prisma.userPersonalityConfig.deleteMany({});
 
-    // Find and delete user-owned data. Phase 5b made default_persona_id NOT
-    // NULL, so we can't "unlink" the default persona before deleting — instead,
-    // deleting the user cascades to its personas via the reverse owner FK.
+    // Find and delete user-owned data. default_persona_id is NOT NULL, so we
+    // can't "unlink" the default persona before deleting — instead, deleting
+    // the user cascades to its personas via the reverse owner FK.
     const testUser = await prisma.user.findFirst({
       where: { discordId: TEST_DISCORD_ID },
     });

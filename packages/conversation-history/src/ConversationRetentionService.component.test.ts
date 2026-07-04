@@ -65,15 +65,15 @@ describe('ConversationRetentionService', () => {
   }, 30000);
 
   beforeEach(async () => {
-    // Clear tables between tests. After Phase 5 (Restrict FK on
-    // users.default_persona_id) we delete users FIRST — the Cascade on
+    // Clear tables between tests. Because of the Restrict FK on
+    // users.default_persona_id we delete users FIRST — the Cascade on
     // persona.owner_id removes personas in the same statement.
     await prisma.conversationHistoryTombstone.deleteMany();
     await prisma.conversationHistory.deleteMany();
     await prisma.personality.deleteMany();
     await prisma.user.deleteMany();
 
-    // Create test user + default persona atomically (Phase 5b NOT NULL).
+    // Create test user + default persona atomically (default_persona_id is NOT NULL).
     await seedUserWithPersona(prisma, {
       userId: testUserId,
       personaId: testPersonaId,

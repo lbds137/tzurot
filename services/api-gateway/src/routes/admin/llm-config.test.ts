@@ -519,8 +519,8 @@ describe('Admin LLM Config Routes', () => {
       expect(response.body.config.isGlobal).toBe(true);
     });
 
-    it('should accept memory settings in create (Phase 1 parity fix)', async () => {
-      // This test verifies the Phase 1 fix - memory settings were previously missing from admin
+    it('should accept memory settings in create (parity fix)', async () => {
+      // This test verifies the fix - memory settings were previously missing from admin
       prisma.llmConfig.findFirst.mockResolvedValue(null);
       prisma.llmConfig.create.mockResolvedValue({
         id: 'new-config-id',
@@ -805,8 +805,8 @@ describe('Admin LLM Config Routes', () => {
       expect(prisma.llmConfig.update).not.toHaveBeenCalled();
     });
 
-    it('should accept memory settings in update (Phase 1 parity fix)', async () => {
-      // This test verifies the Phase 1 fix - memory settings were previously missing from admin
+    it('should accept memory settings in update (parity fix)', async () => {
+      // This test verifies the fix - memory settings were previously missing from admin
       prisma.llmConfig.findUnique.mockResolvedValue({
         id: 'config-id',
         name: 'Existing Config',

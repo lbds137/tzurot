@@ -134,7 +134,7 @@ export class LLMGenerationHandler {
     //   pre-downloaded bytes instead of re-fetching per attachment.
     // - DependencyStep: Fetches preprocessing results AND processes extended context attachments.
     //   Runs after AuthStep because extended context vision processing needs the user's BYOK key
-    //   to avoid leaking system API keys (see PR #447 for BYOK security fix).
+    //   to avoid leaking system API keys.
     //   DependencyStep only reads from Redis (preprocessing jobs) and calls MultimodalProcessor,
     //   neither of which depend on running before Config/Auth.
     // - ContextStep: Builds conversation history (needs preprocessing from DependencyStep)
@@ -231,8 +231,8 @@ export class LLMGenerationHandler {
       // Classify the failure for the bot's user-facing error message. Without
       // an `errorInfo` field, bot-client's `buildErrorContent` falls through
       // to a generic "Sorry, I encountered an error" with no spoiler-tag
-      // detail — observed during the 2026-04-25 attachment incident, where
-      // users had no visible signal about what actually broke. Map known
+      // detail, leaving users with no visible signal about what actually
+      // broke. Map known
       // failed-step values to their user-facing categories; everything else
       // surfaces as UNKNOWN with the technical message in the spoiler.
       const category =

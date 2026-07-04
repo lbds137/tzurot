@@ -4,7 +4,7 @@
  * Tests conversation history with REAL database (PGlite in-memory PostgreSQL).
  *
  * WHY THIS IS CRITICAL:
- * - Phase 1 will refactor the database schema extensively
+ * - The database schema undergoes extensive refactoring
  * - ConversationHistoryService is used by every AI interaction
  * - These tests catch breaking changes in conversation history patterns
  * - Ensures CRUD, pagination, and cleanup operations work with real DB
@@ -55,8 +55,8 @@ describe('ConversationHistoryService Component Test', () => {
     // Create Prisma client with PGlite adapter
     prisma = new PrismaClient({ adapter }) as PrismaClient;
 
-    // Seed test data. Phase 5b made users.default_persona_id NOT NULL, so
-    // the user + default persona must be created atomically (CTE helper).
+    // Seed test data. users.default_persona_id is NOT NULL, so the user +
+    // default persona must be created atomically (CTE helper).
     await seedUserWithPersona(prisma, {
       userId: testUserId,
       personaId: testPersonaId,

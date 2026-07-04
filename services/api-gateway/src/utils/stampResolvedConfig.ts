@@ -73,7 +73,7 @@ export async function stampResolvedConfig(
 
   // VISION model: stamp personality.visionModel from the INDEPENDENT vision cascade,
   // plus the ordered DB-resolved fallback chain the worker retries down on a RUNTIME
-  // vision failure (Phase 4). The worker has no Prisma, so all DB resolution stays here.
+  // vision failure. The worker has no Prisma, so all DB resolution stays here.
   if (visionConfigResolver !== undefined) {
     try {
       // resolveConfig picks the effective vision model; the two default readers supply the

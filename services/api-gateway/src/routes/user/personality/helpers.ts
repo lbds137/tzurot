@@ -153,9 +153,9 @@ interface ResolvePersonalityForEditParams {
  * Callers specify a Prisma select clause; the result personality is cast to T.
  * The select MUST include `id` and `ownerId` — enforced at the type level.
  *
- * Contract change vs. pre-Phase-5c: this helper used to return a deliberate
+ * This helper used to return a deliberate
  * HTTP 403 ("User not found") when the caller's Discord ID didn't resolve to
- * a users row. Post-Phase-5c, every user-scoped route runs behind
+ * a users row. Every user-scoped route now runs behind
  * `requireProvisionedUser`, which either attaches `req.provisionedUserId`
  * directly or (during the shadow-mode window) delegates to
  * `getOrCreateUserShell` — both of which guarantee the user exists by the

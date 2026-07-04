@@ -94,8 +94,7 @@ export class LinkExtractor {
       // source channel before fetching. Without this check, the bot's credentials
       // would let anyone expand a message link from a channel they cannot see,
       // leaking private content into the AI reply via context assembly.
-      // Phase 2 of the Identity & Provisioning Hardening epic — see
-      // docs/reference/architecture/epic-identity-hardening.md.
+      // See docs/reference/architecture/epic-identity-hardening.md.
       const invokerCanAccess = await this.verifyInvokerCanAccessSource(channel, invokingMessage);
       if (!invokerCanAccess) {
         // Access denial is a security event — log at info so it surfaces in

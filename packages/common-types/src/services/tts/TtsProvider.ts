@@ -1,12 +1,12 @@
 /**
  * TtsProvider — Generic interface for TTS providers
  *
- * The TTS Engine Upgrade Phase 1 abstraction. Each concrete provider
+ * The TTS Engine Upgrade abstraction. Each concrete provider
  * (`SelfHostedTtsProvider`, `ElevenLabsTtsProvider`, `MistralTtsProvider`)
  * implements this interface; the `TtsDispatcher` walks a fallback chain of
  * providers determined by `TtsConfigResolver`.
  *
- * Design notes (from three-council reconciled review, 2026-05-01):
+ * Design notes (from three-council reconciled review):
  *
  *   - **`PreparedTts` is opaque + branded** — discriminated union unifies
  *     stateful (voice-id) and stateless (inline-audio) providers under one

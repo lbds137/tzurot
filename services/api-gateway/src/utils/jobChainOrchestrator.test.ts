@@ -1014,7 +1014,7 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
       expect(flowCall.data.personality.visionModel).toBeUndefined();
     });
 
-    it('stamps the visionFallbackModels chain from the global + free vision defaults (Phase 4)', async () => {
+    it('stamps the visionFallbackModels chain from the global + free vision defaults', async () => {
       await createJobChain({
         requestId: 'req-vision-fallbacks',
         personality: mockPersonality,
