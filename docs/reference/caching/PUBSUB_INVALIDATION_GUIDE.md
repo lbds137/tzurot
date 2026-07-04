@@ -81,7 +81,7 @@ export {
 
 ```typescript
 // services/bot-client/src/services/serviceRegistry.ts
-import type { YourCacheInvalidationService } from '@tzurot/common-types';
+import type { YourCacheInvalidationService } from '@tzurot/common-types/types/personaResolution';
 
 let yourCacheInvalidationService: YourCacheInvalidationService | undefined;
 

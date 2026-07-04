@@ -23,7 +23,7 @@ The handler factory pattern separates route handler logic into discrete, testabl
  */
 
 import { ... } from 'express';
-import { ... } from '@tzurot/common-types';
+import { ... } from '@tzurot/common-types/constants/discord';
 // ... other imports
 
 const logger = createLogger('route-name');

@@ -2,7 +2,7 @@
  * Validation Schemas - Barrel Export
  *
  * Re-exports all schema modules for backward compatibility.
- * Import from '@tzurot/common-types' or './schemas.js' as before.
+ * Import from a deep subpath (e.g. '@tzurot/common-types/schemas/discord') or './schemas.js'.
  */
 
 export * from './discord.js';

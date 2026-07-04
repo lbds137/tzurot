@@ -99,7 +99,7 @@ mockCallGatewayApi.mockResolvedValue({
 });
 
 // AFTER (validated - crashes if schema changes)
-import { mockSetOverrideResponse } from '@tzurot/common-types';
+import { mockSetOverrideResponse } from '@tzurot/common-types/schemas/api/persona';
 
 mockCallGatewayApi.mockResolvedValue({
   ok: true,
