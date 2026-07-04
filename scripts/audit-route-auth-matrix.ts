@@ -26,12 +26,11 @@
  */
 
 import { Project, SyntaxKind } from 'ts-morph';
-import type { CallExpression, Node, SourceFile, FunctionDeclaration } from 'ts-morph';
+import type { CallExpression, Node, SourceFile } from 'ts-morph';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
 const REPO_ROOT = join(import.meta.dirname, '..');
-const ROUTES_DIR = join(REPO_ROOT, 'services/api-gateway/src/routes');
 const INDEX_TS = join(REPO_ROOT, 'services/api-gateway/src/index.ts');
 const OUTPUT_DIR = join(REPO_ROOT, 'reports');
 const OUTPUT_JSON = join(OUTPUT_DIR, 'route-auth-matrix.json');
@@ -179,7 +178,7 @@ function resolveSpreadHandlerMiddleware(arg: Node): string[] | null {
  * middleware applied via `router.use(mw())` in document order so each
  * route's effective middleware list reflects what actually runs.
  */
-function collectRoutesFromFile(file: SourceFile, project: Project): RouteEntry[] {
+function collectRoutesFromFile(file: SourceFile): RouteEntry[] {
   const entries: RouteEntry[] = [];
   const filePath = relative(REPO_ROOT, file.getFilePath());
 
@@ -518,7 +517,7 @@ function main(): void {
     const path = file.getFilePath();
     if (!path.includes('/services/api-gateway/src/routes/')) continue;
     if (path.endsWith('.test.ts')) continue; // `.component.test.ts` ends with `.test.ts`
-    routes.push(...collectRoutesFromFile(file, project));
+    routes.push(...collectRoutesFromFile(file));
   }
 
   // Collect mounts from index.ts
