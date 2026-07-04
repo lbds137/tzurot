@@ -65,6 +65,8 @@ export const DISCORD_LIMITS = {
   MODAL_INPUT_MAX_LENGTH: 4000,
   /** Maximum length for short paragraph fields (traits, tone, error message) */
   SHORT_PARAGRAPH_MAX_LENGTH: 1000,
+  /** Maximum length for a personality slug (mirrors slugSchema's .max in personality.ts; edit-modal caps must match to avoid a 400) */
+  SLUG_MAX_LENGTH: 50,
   /** Discord modal title character limit */
   MODAL_TITLE_MAX_LENGTH: 45,
   /** Safe length for dynamic content in modal title (accounting for prefix like "Persona for ") */

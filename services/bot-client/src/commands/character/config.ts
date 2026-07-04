@@ -164,7 +164,8 @@ export const characterSeedFields: FieldDefinition[] = [
     placeholder: 'e.g., luna (lowercase, hyphens only)',
     required: true,
     style: 'short' as const,
-    maxLength: 255,
+    // Match slugSchema's cap (50); a 51-255-char slug would clear the modal then 400.
+    maxLength: DISCORD_LIMITS.SLUG_MAX_LENGTH,
   },
   {
     id: 'characterInfo',
