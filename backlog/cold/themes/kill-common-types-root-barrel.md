@@ -15,7 +15,13 @@ _Focus: replace the ~976-export root `index.ts` barrel with a `package.json` exp
 
 - [ ] Codemod all consumer import sites from the root barrel to deep subpath imports (mechanical; per-package slices)
 
+### Status (2026-07-03)
+
+In flight via grouped PRs (dual-publish — barrel `"."` stays alive until Phase 3). **PR #1472** = tooling + all `packages/*` (taxonomy decided: file-level mirror subpaths + per-subtree wildcard `exports` map, generated deterministically from `getExportSymbols()`; codemod in `scripts/migrations/barrel-kill/`). PR 2 = the three services. PR 3 = the gut below. The codemod's `remainingBareRefs` scan surfaces dynamic `import()` / string-embedded / barrel-centric refs the AST can't rewrite — the PR-3 checklist for clearing them.
+
 ### Phase 3 — Barrel deletion + guard
 
-- [ ] Gut the root `index.ts`; land the `package.json` `exports` map
-- [ ] Guard against regression: knip (or a structural check) fails when new root-barrel re-exports accumulate
+- [ ] Clear/allowlist the BARE barrel refs from the codemod's `remainingBareRefs` scan — dynamic `import()`, string-embedded imports, and INTENTIONAL barrel-centric test fixtures (`dev/check-boundaries.test.ts` + `topology/*.test.ts` feed barrel-import strings to the analyzers; `check-boundaries.test.ts:409` verifies barrel exports). The fixtures need a deliberate allowlist or rework once the barrel is gone.
+- [ ] Update the boundary checker (`dev/check-boundaries.ts`) to detect DEEP-path Prisma imports (`@tzurot/common-types/services/prisma`) in bot-client — after the barrel dies, that's the new shape of the "bot-client imports Prisma" violation it currently matches via the bare barrel string.
+- [ ] Gut the root `index.ts`; drop the `"."` entry from the `exports` map.
+- [ ] Guard against regression: eslint `no-restricted-imports` on the bare `@tzurot/common-types` specifier + a CI grep asserting the bare-specifier count is 0 (minus the fixture allowlist).
