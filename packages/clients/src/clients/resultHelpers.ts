@@ -10,23 +10,17 @@
  * really a transient blip. (Runtime-confirmed in prod: a `status: 0` transport
  * failure surfaced to a user as "Character not found".)
  *
- * Two collapse strategies, picked by the CALLER's needs:
+ * The collapse strategy (`nullOn404`) is for code that feeds a user-facing
+ * message: `null` means DEFINITIVELY absent (a real 404). An infra failure
+ * (5xx / timeout / network) THROWS `InfraError` → the command framework's "try
+ * again" message; a non-404 4xx (the request was rejected — retrying won't
+ * help) THROWS `GatewayClientError` → the generic error message.
  *
- *   - **Pattern B** (`nullOn404` / `emptyOn404`): for code that feeds a
- *     user-facing message. `null` / `[]` means DEFINITIVELY absent (a real 404).
- *     An infra failure (5xx / timeout / network) THROWS `InfraError` → the
- *     command framework's "try again" message; a non-404 4xx (the request was
- *     rejected — retrying won't help) THROWS `GatewayClientError` → the generic
- *     error message. The default for terminal command paths.
- *   - **Pattern A** (`nullOnAnyError`): for routing / mention-parsing paths that
- *     intentionally treat "unknown" as "no match" — a transient blip must not
- *     blind routing, so EVERY failure collapses to `null`. Use ONLY where a
- *     definitive negative is not surfaced to the user (and the caller does not
- *     negative-cache the `null`).
- *
- * Decision rule: result feeds a user message → Pattern B; result feeds further
- * logic / routing / aggregation → Pattern A, or thread the `GatewayResult`
- * through and branch on it explicitly.
+ * Decision rule: a genuine 404 collapses to `null`; every other failure throws,
+ * so a transient blip is never mistaken for a definitive "doesn't exist". A
+ * caller that needs to branch on the failure category rather than throw can
+ * thread the `GatewayResult` through and inspect it directly (see
+ * {@link isInfraFailure}).
  *
  * The `status > 0 ⟺ kind === 'http'` invariant (see `GatewayResult`) is what
  * makes `status === 404` an unambiguous "genuine miss": a `status: 0` infra
@@ -71,10 +65,9 @@ export class InfraError extends Error {
  * a caller wanting a resource-specific message (e.g. "you don't have access")
  * can catch this type.
  *
- * Distinct from {@link GatewayApiError}: that one is thrown by the transport
- * layer (the `callGatewayOrThrow` promise-based path); `GatewayClientError` is
- * thrown by these result-collapse helpers when a `GatewayResult` carries a
- * non-404 4xx.
+ * Distinct from {@link GatewayApiError}, which callers throw when they reject on
+ * a non-ok `GatewayResult`; `GatewayClientError` is thrown by these
+ * result-collapse helpers when a `GatewayResult` carries a non-404 4xx.
  */
 export class GatewayClientError extends Error {
   /** The 4xx status the gateway returned (e.g. 401/403/409). */
@@ -103,7 +96,7 @@ export function isInfraFailure(failure: GatewayFailure): boolean {
 }
 
 /**
- * Pattern B for single-resource reads. Returns the data on success, `null` ONLY
+ * Single-resource read collapse. Returns the data on success, `null` ONLY
  * on a genuine 404 — so `null` unambiguously means "the resource does not
  * exist". Other failures throw: {@link InfraError} for an infra failure (5xx /
  * timeout / network — "try again"), {@link GatewayClientError} for a non-404
@@ -120,32 +113,4 @@ export function nullOn404<T>(result: GatewayResult<T>): T | null {
     throw new InfraError(result);
   }
   throw new GatewayClientError(result);
-}
-
-/**
- * Pattern B for list reads. Returns the array on success, `[]` ONLY on a genuine
- * 404. Other failures throw: {@link InfraError} for an infra failure,
- * {@link GatewayClientError} for a non-404 4xx.
- */
-export function emptyOn404<T>(result: GatewayResult<T[]>): T[] {
-  if (result.ok) {
-    return result.data;
-  }
-  if (result.status === 404) {
-    return [];
-  }
-  if (isInfraFailure(result)) {
-    throw new InfraError(result);
-  }
-  throw new GatewayClientError(result);
-}
-
-/**
- * Pattern A for routing / mention-parsing. Collapses EVERY failure (including
- * infra) to `null` — "treat unknown as no match". Never throws. Use ONLY where a
- * transient failure must not surface a definitive negative to the user and the
- * caller does not negative-cache the `null`.
- */
-export function nullOnAnyError<T>(result: GatewayResult<T>): T | null {
-  return result.ok ? result.data : null;
 }

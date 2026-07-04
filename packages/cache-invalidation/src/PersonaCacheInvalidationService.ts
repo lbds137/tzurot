@@ -30,8 +30,7 @@ export type PersonaInvalidationEvent = StandardInvalidationEvent;
 /**
  * Type guard to validate PersonaInvalidationEvent structure
  */
-export const isValidPersonaInvalidationEvent =
-  createStandardEventValidator<PersonaInvalidationEvent>();
+const isValidPersonaInvalidationEvent = createStandardEventValidator<PersonaInvalidationEvent>();
 
 /**
  * Persona Cache Invalidation Service

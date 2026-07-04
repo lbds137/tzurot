@@ -14,32 +14,6 @@ const logger = createLogger('ZodSchemas');
 // ===========================================
 
 /**
- * Preprocess empty/whitespace strings to undefined.
- *
- * This is the STANDARD way to handle optional string fields from form inputs.
- * When users clear a field in a modal, the client often sends "" instead of
- * omitting the field. This transform lets `.optional()` work correctly.
- *
- * IMPORTANT: Use with `.optional()` on the INNER schema, not the outer result.
- *
- * @example
- * ```typescript
- * const schema = emptyToUndefined(z.string().min(1).optional());
- * schema.parse("");      // undefined
- * schema.parse("hello"); // "hello"
- * ```
- */
-export function emptyToUndefined<T extends z.ZodTypeAny>(schema: T): z.ZodType<z.infer<T>> {
-  return z.preprocess(val => {
-    if (typeof val === 'string') {
-      const trimmed = val.trim();
-      return trimmed.length === 0 ? undefined : trimmed;
-    }
-    return val;
-  }, schema);
-}
-
-/**
  * Preprocess empty/whitespace strings to null.
  *
  * Use for nullable fields where empty input should explicitly set null

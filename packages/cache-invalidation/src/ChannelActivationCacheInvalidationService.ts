@@ -36,7 +36,7 @@ export type ChannelActivationInvalidationEvent =
 /**
  * Type guard to validate ChannelActivationInvalidationEvent structure
  */
-export const isValidChannelActivationInvalidationEvent =
+const isValidChannelActivationInvalidationEvent =
   createEventValidator<ChannelActivationInvalidationEvent>([
     { type: 'channel', fields: { channelId: 'string' } },
     { type: 'all' },

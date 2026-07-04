@@ -168,24 +168,6 @@ export type AdvancedParams = z.infer<typeof AdvancedParamsSchema>;
 // ============================================
 
 /**
- * Validate advancedParameters from database/user input.
- * Returns validated params or throws ZodError.
- *
- * Handles null/undefined from database JSONB by returning empty object.
- *
- * @param params - Raw params from database JSONB or user input
- * @returns Validated AdvancedParams
- * @throws ZodError if validation fails
- */
-export function validateAdvancedParams(params: unknown): AdvancedParams {
-  // Handle null/undefined from database JSONB
-  if (params === null || params === undefined) {
-    return {};
-  }
-  return AdvancedParamsSchema.parse(params);
-}
-
-/**
  * Safely validate advancedParameters, returning null on failure.
  * Logs validation errors at debug level.
  *

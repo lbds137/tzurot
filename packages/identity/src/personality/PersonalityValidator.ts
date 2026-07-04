@@ -72,34 +72,6 @@ export const LlmConfigSchema = z
   .nullish();
 
 /**
- * Inferred TypeScript type from the Zod schema
- */
-type LlmConfig = z.infer<typeof LlmConfigSchema>;
-
-/**
- * Safely parses an unknown database object into a clean LlmConfig object
- * @param dbConfig - Unknown config object from database
- * @returns Validated and transformed LlmConfig or null
- */
-export function parseLlmConfig(dbConfig: unknown): LlmConfig {
-  const result = LlmConfigSchema.safeParse(dbConfig);
-  if (result.success) {
-    return result.data;
-  }
-  // Log validation errors with field-level detail for debugging
-  const invalidFields = result.error.issues.map(issue => issue.path.join('.'));
-  logger.warn(
-    {
-      error: result.error.format(),
-      invalidFields,
-      receivedConfig: dbConfig,
-    },
-    'Failed to parse LLM config, using defaults'
-  );
-  return null;
-}
-
-/**
  * Raw LLM config shape from database (nested inside defaultConfigLink).
  *
  * Uses advancedParameters JSONB column instead of legacy individual columns.

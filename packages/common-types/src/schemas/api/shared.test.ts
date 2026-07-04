@@ -4,54 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
-import { emptyToUndefined, emptyToNull, optionalString, nullableString } from './shared.js';
-
-describe('emptyToUndefined', () => {
-  // IMPORTANT: Use with `.optional()` INSIDE the preprocess, not outside
-  // This uses a union to accept either undefined or valid string
-  const schema = emptyToUndefined(z.union([z.undefined(), z.string().min(1)]));
-
-  it('should convert empty string to undefined', () => {
-    const result = schema.safeParse('');
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data).toBeUndefined();
-    }
-  });
-
-  it('should convert whitespace-only string to undefined', () => {
-    const result = schema.safeParse('   ');
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data).toBeUndefined();
-    }
-  });
-
-  it('should trim and keep valid strings', () => {
-    const result = schema.safeParse('  hello  ');
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data).toBe('hello');
-    }
-  });
-
-  it('should pass through non-string values', () => {
-    const numSchema = emptyToUndefined(z.number().optional());
-    const result = numSchema.safeParse(42);
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data).toBe(42);
-    }
-  });
-
-  it('should handle undefined input', () => {
-    const result = schema.safeParse(undefined);
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data).toBeUndefined();
-    }
-  });
-});
+import { emptyToNull, optionalString, nullableString } from './shared.js';
 
 describe('emptyToNull', () => {
   // IMPORTANT: Use with `.nullable()` INSIDE the preprocess, not outside
