@@ -36,7 +36,7 @@
     "backlog:lint": "tsx packages/tooling/src/cli.ts backlog",
     "ops:health": "tsx packages/tooling/src/cli.ts health",
     "test:tiers": "tsx packages/tooling/src/cli.ts test:tiers",
-    "quality": "pnpm lint && pnpm ops codegen:routes --check && pnpm ops codegen:command-types --check && pnpm ops topology:check && pnpm knip && pnpm knip:dead && pnpm cpd && pnpm ops cpd:check && pnpm ops test:audit && pnpm depcruise && pnpm typecheck && pnpm typecheck:spec && pnpm backlog:lint && pnpm ops guard:test-taxonomy && pnpm ops guard:workflow-sync && pnpm ops guard:proposal-links && pnpm ops guard:audit-tool-docs && pnpm ops guard:claude-content-refs && pnpm ops guard:duplicate-exports && pnpm ops guard:dockerfile-dist && pnpm ops commands:audit && pnpm ops lines:check && pnpm ops guard:gate-parity",
+    "quality": "pnpm lint && pnpm ops codegen:routes --check && pnpm ops codegen:command-types --check && pnpm ops topology:check && pnpm knip && pnpm knip:dead && pnpm cpd && pnpm ops cpd:check && pnpm ops test:audit && pnpm depcruise && pnpm typecheck && pnpm typecheck:spec && pnpm backlog:lint && pnpm ops guard:test-taxonomy && pnpm ops guard:workflow-sync && pnpm ops guard:proposal-links && pnpm ops guard:audit-tool-docs && pnpm ops guard:claude-content-refs && pnpm ops guard:duplicate-exports && pnpm ops guard:dockerfile-dist && pnpm ops commands:audit && pnpm ops xray --suppressions --check && pnpm ops lines:check && pnpm ops guard:gate-parity",
     "focus:lint": "pnpm ops dev:lint",
     "focus:test": "pnpm ops dev:test",
     "focus:build": "pnpm ops dev:focus build",
