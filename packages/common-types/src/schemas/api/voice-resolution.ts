@@ -41,6 +41,7 @@ export const ResolvedTtsViewSchema = z.object({
   provider: z.string(), // not narrowed to SttProvider — TTS may report 'self-hosted' etc.
   source: TtsResolutionSourceSchema,
 });
+
 export type ResolvedTtsView = z.infer<typeof ResolvedTtsViewSchema>;
 
 /** Resolved STT view for one personality. */
@@ -48,6 +49,7 @@ export const ResolvedSttViewSchema = z.object({
   provider: SttProviderSchema,
   source: SttResolutionSourceSchema,
 });
+
 export type ResolvedSttView = z.infer<typeof ResolvedSttViewSchema>;
 
 /** Cloned-voice summary (truncated preview, not full list). */
@@ -59,6 +61,7 @@ export const ClonedVoicesSummarySchema = z.object({
   /** First few voice slugs for inline display. Capped at ~5 by the route. */
   previewSlugs: z.array(z.string()),
 });
+
 export type ClonedVoicesSummary = z.infer<typeof ClonedVoicesSummarySchema>;
 
 // ============================================================================
@@ -74,6 +77,7 @@ export const GetVoiceResolutionResponseSchema = z.object({
   stt: ResolvedSttViewSchema,
   voices: ClonedVoicesSummarySchema,
 });
+
 export type GetVoiceResolutionResponse = z.infer<typeof GetVoiceResolutionResponseSchema>;
 
 // ============================================================================

@@ -17,6 +17,7 @@ export const GetNsfwStatusResponseSchema = z.object({
   nsfwVerified: z.boolean(),
   nsfwVerifiedAt: z.string().nullable(),
 });
+
 // ============================================================================
 // POST /user/nsfw/verify
 // Marks user as NSFW verified; idempotent — already-verified returns the

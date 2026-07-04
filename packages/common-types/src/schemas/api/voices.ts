@@ -29,6 +29,7 @@ export const ProviderWarningSchema = z.object({
   provider: AudioProviderIdSchema,
   message: z.string(),
 });
+
 // ============================================================================
 // GET /user/voices
 // ============================================================================
@@ -39,6 +40,7 @@ export const ListVoicesResponseSchema = z.object({
   tzurotCount: z.number().int().nonnegative(),
   warnings: z.array(ProviderWarningSchema).optional(),
 });
+
 // ============================================================================
 // GET /user/voices/models
 // ============================================================================
@@ -47,9 +49,11 @@ export const VoiceModelSchema = z.object({
   modelId: z.string(),
   name: z.string(),
 });
+
 export const ListVoiceModelsResponseSchema = z.object({
   models: z.array(VoiceModelSchema),
 });
+
 // ============================================================================
 // POST /user/voices/clear
 // Always returns 200; partial failures land in `errors`.
@@ -61,6 +65,7 @@ export const ClearVoicesResponseSchema = z.object({
   message: z.string().optional(),
   errors: z.array(z.string()).optional(),
 });
+
 // ============================================================================
 // DELETE /user/voices/:provider/:voiceId
 // ============================================================================

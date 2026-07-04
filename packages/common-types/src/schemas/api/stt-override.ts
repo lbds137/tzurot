@@ -20,6 +20,7 @@ const SttProviderSchema = z.enum(STT_PROVIDERS);
 export const UserDefaultSttProviderSchema = z.object({
   providerId: SttProviderSchema.nullable(),
 });
+
 export type UserDefaultSttProvider = z.infer<typeof UserDefaultSttProviderSchema>;
 
 // ============================================================================
@@ -29,6 +30,7 @@ export type UserDefaultSttProvider = z.infer<typeof UserDefaultSttProviderSchema
 export const SetSttDefaultProviderResponseSchema = z.object({
   default: UserDefaultSttProviderSchema,
 });
+
 // ============================================================================
 // DELETE /user/stt-override
 // ============================================================================
@@ -38,6 +40,7 @@ export const ClearSttDefaultProviderResponseSchema = z.object({
   /** True if a preference was actually cleared; false on idempotent no-op. */
   wasSet: z.boolean().optional(),
 });
+
 // ============================================================================
 // Input schemas (request body validation)
 // ============================================================================

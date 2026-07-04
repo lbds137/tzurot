@@ -16,6 +16,7 @@ export const ClearHistorySchema = z.object({
   personalitySlug: z.string().min(1, PERSONALITY_SLUG_REQUIRED),
   personaId: z.string().optional(),
 });
+
 // ============================================================================
 // POST /user/history/undo
 // ============================================================================
@@ -24,6 +25,7 @@ export const UndoHistorySchema = z.object({
   personalitySlug: z.string().min(1, PERSONALITY_SLUG_REQUIRED),
   personaId: z.string().optional(),
 });
+
 // ============================================================================
 // DELETE /user/history/hard-delete
 // ============================================================================
@@ -33,6 +35,7 @@ export const HardDeleteHistorySchema = z.object({
   channelId: z.string().min(1, 'channelId is required'),
   personaId: z.string().optional(),
 });
+
 // ============================================================================
 // GET /user/history/stats (query params)
 // ============================================================================
@@ -42,6 +45,7 @@ export const HistoryStatsQuerySchema = z.object({
   channelId: z.string().min(1, 'channelId query parameter is required'),
   personaId: z.string().optional(),
 });
+
 // ============================================================================
 // Response schemas
 // ============================================================================

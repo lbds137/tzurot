@@ -45,6 +45,7 @@ export const FocusModeSchema = z.object({
   personalityId: z.string().min(1, PERSONALITY_ID_REQUIRED),
   enabled: z.boolean({ error: 'enabled must be a boolean' }),
 });
+
 // ============================================================================
 // PUT /user/memory/:id/lock
 // Sets the lock state explicitly (idempotent on retry, unlike the prior
@@ -54,6 +55,7 @@ export const FocusModeSchema = z.object({
 export const SetMemoryLockSchema = z.object({
   locked: z.boolean({ error: 'locked must be a boolean' }),
 });
+
 // ============================================================================
 // PATCH /user/memory/:id
 // ============================================================================
@@ -72,6 +74,7 @@ export const MemoryUpdateSchema = z.object({
     .transform(s => s.trim())
     .pipe(z.string().min(1, 'Content is required')),
 });
+
 // ============================================================================
 // POST /user/memory/delete/preview
 // Issues a short-lived PreviewToken bound to the supplied filter. The token
@@ -84,6 +87,7 @@ export const BatchDeletePreviewSchema = z.object({
   personaId: z.string().optional(),
   timeframe: z.string().optional(),
 });
+
 export type BatchDeletePreviewInput = z.infer<typeof BatchDeletePreviewSchema>;
 
 // ============================================================================
@@ -95,6 +99,7 @@ export type BatchDeletePreviewInput = z.infer<typeof BatchDeletePreviewSchema>;
 export const BatchDeleteSchema = z.object({
   previewToken: PreviewTokenSchema,
 });
+
 // ============================================================================
 // POST /user/memory/purge/token
 // Issues a short-lived PurgeToken after validating the confirmation phrase.
@@ -104,6 +109,7 @@ export const IssuePurgeTokenSchema = z.object({
   personalityId: z.string().min(1, PERSONALITY_ID_REQUIRED),
   confirmationPhrase: z.string().min(1, 'confirmationPhrase is required'),
 });
+
 // ============================================================================
 // POST /user/memory/purge
 // Body is a token previously obtained from /memory/purge/token. The
@@ -113,6 +119,7 @@ export const IssuePurgeTokenSchema = z.object({
 export const PurgeMemoriesSchema = z.object({
   purgeToken: PurgeTokenSchema,
 });
+
 // ============================================================================
 // POST /user/memory/search
 // ============================================================================
@@ -137,6 +144,7 @@ export const MemorySearchSchema = z.object({
   dateTo: z.string().datetime({ offset: true }).optional(),
   preferTextSearch: z.boolean().optional(),
 });
+
 // ============================================================================
 // Response schemas — used by RouteDef.output to give generated clients
 // runtime validation + correct return-type inference.
@@ -155,6 +163,7 @@ export const MemoryItemSchema = z.object({
   personalityName: z.string(),
   isLocked: z.boolean(),
 });
+
 export type MemoryItem = z.infer<typeof MemoryItemSchema>;
 
 /** GET /user/memory/stats */
@@ -177,6 +186,7 @@ export const MemoryListResponseSchema = z.object({
   offset: z.number(),
   hasMore: z.boolean(),
 });
+
 export type MemoryListResponse = z.infer<typeof MemoryListResponseSchema>;
 
 /** GET /user/memory/focus */
@@ -248,6 +258,7 @@ export const PurgeMemoriesResponseSchema = z.object({
   personalityName: z.string(),
   message: z.string(),
 });
+
 export type PurgeMemoriesResponse = z.infer<typeof PurgeMemoriesResponseSchema>;
 
 /**

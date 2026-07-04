@@ -31,6 +31,7 @@ export const RecentUsersResponseSchema = z.object({
   discordIds: z.array(DiscordSnowflakeSchema),
   sinceDays: z.number().int().positive(),
 });
+
 // ============================================================================
 // POST /internal/channel/dm-session/set
 // Records active personality in a DM session. Called by bot-client after a
@@ -43,10 +44,12 @@ export const DmSessionSetRequestSchema = z.object({
   channelId: z.string(),
   personalitySlug: z.string(),
 });
+
 export const DmSessionSetResponseSchema = z.object({
   channelId: z.string(),
   personalitySlug: z.string(),
 });
+
 // ============================================================================
 // GET /internal/conversation/message-personality (reclassified from /user/*)
 // Looks up the personality that owns a given Discord message ID. Used by
@@ -63,6 +66,7 @@ export const MessagePersonalityResponseSchema = z.object({
   // row may have only the personality UUID without the display-name denormalized.
   personalityName: z.string().nullable().optional(),
 });
+
 // ============================================================================
 // POST /internal/conversation/assistant-message
 // Persists the assistant conversation-history row after bot-client confirms
@@ -85,6 +89,7 @@ export const PersistAssistantMessageRequestSchema = z.object({
   /** ISO timestamp of the triggering user message; the assistant row is persisted at +1ms. */
   userMessageTime: z.string().datetime(),
 });
+
 export const PersistAssistantMessageResponseSchema = z.object({
   /** Deterministic conversation-history row ID. */
   id: z.string(),
@@ -97,6 +102,7 @@ export const PersistAssistantMessageResponseSchema = z.object({
    */
   matched: z.boolean().optional(),
 });
+
 export type PersistAssistantMessageResponse = z.infer<typeof PersistAssistantMessageResponseSchema>;
 
 // ============================================================================
@@ -133,6 +139,7 @@ export const PersistUserMessageResponseSchema = z.object({
   created: z.boolean(),
   matched: z.boolean().optional(),
 });
+
 export type PersistUserMessageResponse = z.infer<typeof PersistUserMessageResponseSchema>;
 
 // ============================================================================
@@ -160,12 +167,14 @@ export const ConversationSyncRequestSchema = z.object({
     .min(1)
     .max(SYNC_LIMITS.MAX_DISCORD_ID_LOOKUP),
 });
+
 export const ConversationSyncResponseSchema = z.object({
   /** Messages whose content was updated (edit detected). */
   updated: z.number().int().nonnegative(),
   /** Messages soft-deleted (present in DB window, absent from the snapshot). */
   deleted: z.number().int().nonnegative(),
 });
+
 export type ConversationSyncResponse = z.infer<typeof ConversationSyncResponseSchema>;
 
 // ============================================================================
@@ -181,6 +190,7 @@ export type ConversationSyncResponse = z.infer<typeof ConversationSyncResponseSc
 export const LoadPersonalityInternalResponseSchema = z.object({
   personality: loadedPersonalitySchema.nullable(),
 });
+
 export type LoadPersonalityInternalResponse = z.infer<typeof LoadPersonalityInternalResponseSchema>;
 
 // ============================================================================
@@ -224,6 +234,7 @@ export const RoutingContextRequestSchema = z.object({
    */
   personalityId: z.string().uuid(),
 });
+
 export type RoutingContextRequest = z.infer<typeof RoutingContextRequestSchema>;
 
 export const RoutingContextResponseSchema = z.object({
@@ -243,4 +254,5 @@ export const RoutingContextResponseSchema = z.object({
   /** STM context-epoch (last-reset) as ISO; null when no reset is recorded. */
   contextEpoch: z.string().datetime().nullable(),
 });
+
 export type RoutingContextResponse = z.infer<typeof RoutingContextResponseSchema>;

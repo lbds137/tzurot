@@ -180,6 +180,7 @@ export const TtsConfigSummarySchema = z.object({
   isOwned: z.boolean(),
   permissions: EntityPermissionsSchema,
 });
+
 export type TtsConfigSummary = z.infer<typeof TtsConfigSummarySchema>;
 
 // ============================================================================
@@ -190,6 +191,7 @@ export type TtsConfigSummary = z.infer<typeof TtsConfigSummarySchema>;
 export const ListTtsConfigsResponseSchema = z.object({
   configs: z.array(TtsConfigSummarySchema),
 });
+
 // ============================================================================
 // POST /user/tts-config
 // Creates a new user-owned config
@@ -198,6 +200,7 @@ export const ListTtsConfigsResponseSchema = z.object({
 export const CreateTtsConfigResponseSchema = z.object({
   config: TtsConfigSummarySchema,
 });
+
 // ============================================================================
 // DELETE /user/tts-config/:id
 // Deletes a user-owned config
@@ -206,6 +209,7 @@ export const CreateTtsConfigResponseSchema = z.object({
 export const DeleteTtsConfigResponseSchema = z.object({
   deleted: z.literal(true),
 });
+
 // ============================================================================
 // GET /admin/tts-config/:id and GET /user/tts-config/:id
 // Returns a single TTS config (admin: global; user: ownership-checked).
@@ -214,6 +218,7 @@ export const DeleteTtsConfigResponseSchema = z.object({
 export const GetTtsConfigResponseSchema = z.object({
   config: TtsConfigSummarySchema,
 });
+
 // ============================================================================
 // PUT /admin/tts-config/:id and PUT /user/tts-config/:id
 // Updates a TTS config; returns the post-update shape.
@@ -222,6 +227,7 @@ export const GetTtsConfigResponseSchema = z.object({
 export const UpdateTtsConfigResponseSchema = z.object({
   config: TtsConfigSummarySchema,
 });
+
 // ============================================================================
 // PUT /admin/tts-config/:id/set-default
 // PUT /admin/tts-config/:id/set-free-default

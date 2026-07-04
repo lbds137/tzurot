@@ -34,6 +34,7 @@ export const TtsOverrideSummarySchema = z.object({
   configId: z.string().nullable(),
   configName: z.string().nullable(),
 });
+
 export type TtsOverrideSummary = z.infer<typeof TtsOverrideSummarySchema>;
 
 /** User's default TTS config reference. */
@@ -41,6 +42,7 @@ export const UserDefaultTtsConfigSchema = z.object({
   configId: z.string().nullable(),
   configName: z.string().nullable(),
 });
+
 export type UserDefaultTtsConfig = z.infer<typeof UserDefaultTtsConfigSchema>;
 
 // ============================================================================
@@ -50,6 +52,7 @@ export type UserDefaultTtsConfig = z.infer<typeof UserDefaultTtsConfigSchema>;
 export const ListTtsOverridesResponseSchema = z.object({
   overrides: z.array(TtsOverrideSummarySchema),
 });
+
 // ============================================================================
 // PUT /user/tts-override
 // ============================================================================
@@ -57,6 +60,7 @@ export const ListTtsOverridesResponseSchema = z.object({
 export const SetTtsOverrideResponseSchema = z.object({
   override: TtsOverrideSummarySchema,
 });
+
 // ============================================================================
 // GET /user/tts-override/default
 // ============================================================================
@@ -64,6 +68,7 @@ export const SetTtsOverrideResponseSchema = z.object({
 export const GetTtsDefaultConfigResponseSchema = z.object({
   default: UserDefaultTtsConfigSchema,
 });
+
 // ============================================================================
 // PUT /user/tts-override/default
 // ============================================================================
@@ -71,6 +76,7 @@ export const GetTtsDefaultConfigResponseSchema = z.object({
 export const SetTtsDefaultConfigResponseSchema = z.object({
   default: UserDefaultTtsConfigSchema,
 });
+
 // ============================================================================
 // DELETE /user/tts-override/default
 // ============================================================================
@@ -89,6 +95,7 @@ export const ClearTtsDefaultConfigResponseSchema = z.object({
     })
     .nullable(),
 });
+
 export type ClearTtsDefaultConfigResponse = z.infer<typeof ClearTtsDefaultConfigResponseSchema>;
 
 // ============================================================================
@@ -100,6 +107,7 @@ export const DeleteTtsOverrideResponseSchema = z.object({
   /** True if an override was actually cleared; false on idempotent no-op. */
   wasSet: z.boolean().optional(),
 });
+
 // ============================================================================
 // Input schemas (request body validation)
 // ============================================================================
