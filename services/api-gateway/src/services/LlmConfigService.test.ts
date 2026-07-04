@@ -11,6 +11,7 @@ import {
   CloneNameExhaustedError,
   type LlmConfigScope,
 } from './LlmConfigService.js';
+import { warnOnReasoningConstraintViolation } from './reasoningConstraintCheck.js';
 import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { LlmConfigCacheInvalidationService } from '@tzurot/cache-invalidation';
@@ -30,6 +31,14 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
     }),
   };
 });
+
+// Mock the reasoning-constraint check so create/update seam tests can assert the
+// wiring (that the right `advancedParameters` is forwarded) without depending on
+// the module logger instance. The real check logic is tested in
+// reasoningConstraintCheck.test.ts.
+vi.mock('./reasoningConstraintCheck.js', () => ({
+  warnOnReasoningConstraintViolation: vi.fn(),
+}));
 
 // Helper to create mock Prisma client
 function createMockPrisma() {
@@ -299,6 +308,25 @@ describe('LlmConfigService', () => {
         })
       );
       expect(cacheService.invalidateAll).toHaveBeenCalled();
+    });
+
+    it('forwards advancedParameters to the reasoning-constraint check (seam)', async () => {
+      prisma.llmConfig.create.mockResolvedValue(sampleConfigDetail);
+      const advancedParameters = { max_tokens: 1024, reasoning: { max_tokens: 2000 } };
+
+      await service.create(
+        { type: 'GLOBAL' },
+        { name: 'T', model: 'm', advancedParameters },
+        'owner'
+      );
+
+      // Asserts create() forwards the SAVED params (not e.g. a dropped/swapped
+      // value) across the seam — the real warn logic is tested separately.
+      expect(warnOnReasoningConstraintViolation).toHaveBeenCalledWith(
+        expect.anything(),
+        { configId: 'config-123' },
+        advancedParameters
+      );
     });
 
     it('should create a user config for USER scope', async () => {
@@ -611,6 +639,19 @@ describe('LlmConfigService', () => {
         select: expect.any(Object),
       });
       expect(cacheService.invalidateAll).toHaveBeenCalled();
+    });
+
+    it('forwards advancedParameters to the reasoning-constraint check (seam)', async () => {
+      prisma.llmConfig.update.mockResolvedValue(sampleConfigDetail);
+      const advancedParameters = { max_tokens: 1024, reasoning: { max_tokens: 2000 } };
+
+      await service.update('config-123', { advancedParameters });
+
+      expect(warnOnReasoningConstraintViolation).toHaveBeenCalledWith(
+        expect.anything(),
+        { configId: 'config-123' },
+        advancedParameters
+      );
     });
 
     it('should update memory settings', async () => {
