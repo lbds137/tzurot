@@ -7,7 +7,7 @@
  * `<= 0` is rejected as quota-exhausted.
  */
 
-import { VALIDATION_TIMEOUTS } from '@tzurot/common-types';
+import { VALIDATION_TIMEOUTS } from '@tzurot/common-types/constants/timing';
 import { VALIDATION_MESSAGES, type ApiKeyValidationResult } from './types.js';
 
 export async function validateOpenRouterKey(apiKey: string): Promise<ApiKeyValidationResult> {

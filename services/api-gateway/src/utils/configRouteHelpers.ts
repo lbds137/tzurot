@@ -18,10 +18,10 @@ import { z } from 'zod';
 import {
   CONFIG_KINDS,
   DEFAULT_CONFIG_KIND,
-  type PrismaClient,
-  type EntityPermissions,
   type ConfigKind,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/constants/ai';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { type EntityPermissions } from '@tzurot/common-types/utils/permissions';
 import { sendError } from './responseHelpers.js';
 import { sendZodError } from './zodHelpers.js';
 import { ErrorResponses } from './errorResponses.js';
@@ -127,10 +127,7 @@ export async function findConfigOrSendNotFound<T>(
 
 /** Operations governed by the isGlobal guard. Each maps to a scoped error wording. */
 export type GlobalGuardOperation =
-  | 'edit'
-  | 'delete'
-  | 'set as system default'
-  | 'set as free tier default';
+  'edit' | 'delete' | 'set as system default' | 'set as free tier default';
 
 /**
  * Fetch a config row by id (caller supplies the typed thunk) and verify it is

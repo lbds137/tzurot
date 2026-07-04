@@ -7,11 +7,9 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import {
-  createLogger,
-  DISCORD_COLORS,
-  type SetDefaultLlmConfigResponse,
-} from '@tzurot/common-types';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { type SetDefaultLlmConfigResponse } from '@tzurot/common-types/schemas/api/llm-config';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type GatewayResult, type OwnerClient } from '@tzurot/clients';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { clientsFor } from '../../../utils/gatewayClients.js';

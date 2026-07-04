@@ -14,7 +14,7 @@ import {
   ButtonStyle,
   type MessageActionRowComponentBuilder,
 } from 'discord.js';
-import { Duration } from '@tzurot/common-types';
+import { Duration } from '@tzurot/common-types/utils/Duration';
 import {
   type SettingsDashboardConfig,
   type SettingsDashboardSession,

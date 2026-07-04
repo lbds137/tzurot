@@ -14,15 +14,26 @@ import type { CatalogModel } from '../../utils/modelCatalog.js';
 import { makeOk, makeErr } from '../../test/gatewayClientStubs.js';
 import { mockListWalletKeysResponse, mockListLlmConfigsResponse } from '@tzurot/test-factories';
 
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/generated/commandOptions', async () => {
+  const actual = await vi.importActual<
+    typeof import('@tzurot/common-types/generated/commandOptions')
+  >('@tzurot/common-types/generated/commandOptions');
   return {
     ...actual,
-    createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
     modelsBrowseOptions: vi.fn(() => ({
       capability: () => undefined,
       query: () => null,
     })),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
+    createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
   };
 });
 
@@ -44,7 +55,7 @@ vi.mock('../../utils/gatewayClients.js', () => ({
   clientsFor: vi.fn(() => ({ userClient: walletStub as unknown as UserClient })),
 }));
 
-import { modelsBrowseOptions } from '@tzurot/common-types';
+import { modelsBrowseOptions } from '@tzurot/common-types/generated/commandOptions';
 import {
   handleBrowse,
   handleBrowsePagination,

@@ -23,7 +23,7 @@
  */
 
 import type { ChatInputCommandInteraction } from 'discord.js';
-import type { EnvConfig } from '@tzurot/common-types';
+import type { EnvConfig } from '@tzurot/common-types/config/config';
 import type { UserClient } from '@tzurot/clients';
 import { DashboardUpdateError } from '../../utils/dashboard/saveError.js';
 import type { CharacterData } from './characterTypes.js';

@@ -15,15 +15,12 @@
 
 import { Router, type Response, type Request, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import {
-  createLogger,
-  isBotOwner,
-  isValidUUID,
-  Prisma,
-  type PrismaClient,
-  type DiagnosticPayload,
-  DiagnosticUpdateSchema,
-} from '@tzurot/common-types';
+import { isValidUUID } from '@tzurot/common-types/constants/service';
+import { DiagnosticUpdateSchema } from '@tzurot/common-types/schemas/api/admin';
+import { Prisma, type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { type DiagnosticPayload } from '@tzurot/common-types/types/diagnostic';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import { requireServiceAuth, requireUserAuth } from '../../services/AuthMiddleware.js';
 import type { AuthenticatedRequest } from '../../types.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';

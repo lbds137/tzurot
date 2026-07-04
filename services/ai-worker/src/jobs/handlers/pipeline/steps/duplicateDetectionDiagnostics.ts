@@ -5,7 +5,7 @@
  * Logs anomalies when conversation history exists but no assistant messages are found.
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('GenerationStep');
 

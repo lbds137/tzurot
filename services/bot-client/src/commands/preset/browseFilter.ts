@@ -9,7 +9,7 @@
  * the encoding; everything else passes the composite around verbatim.
  */
 
-import { CONFIG_KINDS } from '@tzurot/common-types';
+import { CONFIG_KINDS } from '@tzurot/common-types/constants/ai';
 
 // Single source of truth for each axis: the runtime arrays drive the types
 // (`typeof[number]`) AND the customId factory's validation, so the two can't

@@ -4,7 +4,7 @@
  */
 
 import type { Request, Response } from 'express';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { ErrorResponses } from './errorResponses.js';
 import { sendError } from './responseHelpers.js';
 import { ParameterError } from './requestParams.js';

@@ -13,4 +13,4 @@
  * `@tzurot/common-types/schemas/api/denylist.ts`.
  */
 
-export type { DenylistEntry as DenylistEntryResponse } from '@tzurot/common-types';
+export type { DenylistEntry as DenylistEntryResponse } from '@tzurot/common-types/schemas/api/denylist';

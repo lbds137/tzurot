@@ -8,15 +8,13 @@
  */
 
 import { PgvectorMemoryAdapter, MemoryQueryOptions } from './PgvectorMemoryAdapter.js';
-import {
-  createLogger,
-  AI_DEFAULTS,
-  TEXT_LIMITS,
-  formatMemoryTimestamp,
-  type LoadedPersonality,
-  type PrismaClient,
-  type ResolvedConfigOverrides,
-} from '@tzurot/common-types';
+import { AI_DEFAULTS } from '@tzurot/common-types/constants/ai';
+import { TEXT_LIMITS } from '@tzurot/common-types/constants/discord';
+import { type ResolvedConfigOverrides } from '@tzurot/common-types/schemas/api/configOverrides';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { formatMemoryTimestamp } from '@tzurot/common-types/utils/dateFormatting';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type {
   MemoryDocument,
   ConversationContext,

@@ -3,7 +3,8 @@
  * Resolves user, personality, and persona context for history operations.
  */
 
-import { createLogger, type PrismaClient } from '@tzurot/common-types';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { PersonaResolver } from '@tzurot/identity';
 
 const logger = createLogger('history-context');

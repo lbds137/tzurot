@@ -5,7 +5,10 @@
  * Extracted from PromptBuilder to reduce file size.
  */
 
-import { createLogger, formatMemoryTimestamp, TEXT_LIMITS, getConfig } from '@tzurot/common-types';
+import { getConfig } from '@tzurot/common-types/config/config';
+import { TEXT_LIMITS } from '@tzurot/common-types/constants/discord';
+import { formatMemoryTimestamp } from '@tzurot/common-types/utils/dateFormatting';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type {
   MemoryDocument,
   ConversationContext,

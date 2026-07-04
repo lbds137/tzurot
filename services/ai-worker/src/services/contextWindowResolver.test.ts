@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { AIProvider, type LoadedPersonality } from '@tzurot/common-types';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { resolveEffectiveContextWindow } from './contextWindowResolver.js';
 import { checkModelContextLength } from '../redis.js';
 

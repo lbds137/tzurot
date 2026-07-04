@@ -6,7 +6,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ChannelType } from 'discord.js';
 import { ReplyResolutionService } from './ReplyResolutionService.js';
 import type { Message, MessageReference } from 'discord.js';
-import type { LoadedPersonality } from '@tzurot/common-types';
+import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 
 // Mock dependencies
 vi.mock('../utils/gatewayServiceCalls.js', () => ({
@@ -21,14 +21,6 @@ vi.mock('../redis.js', () => ({
     close: vi.fn(),
   },
 }));
-
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
-  return {
-    ...actual,
-    PersonalityService: vi.fn(),
-  };
-});
 
 import { redisService } from '../redis.js';
 import { lookupPersonalityFromMessage } from '../utils/gatewayServiceCalls.js';

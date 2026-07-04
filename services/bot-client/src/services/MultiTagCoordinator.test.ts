@@ -9,8 +9,10 @@
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import type { Message } from 'discord.js';
-import type { LLMGenerationResult, LoadedPersonality, TypingChannel } from '@tzurot/common-types';
-import { MULTI_TAG } from '@tzurot/common-types';
+import type { TypingChannel } from '@tzurot/common-types/types/discord-types';
+import type { LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
+import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { MULTI_TAG } from '@tzurot/common-types/constants/message';
 import {
   MultiTagCoordinator,
   type StartFanOutInput,
@@ -25,10 +27,12 @@ vi.mock('../utils/gatewayServiceCalls.js', () => ({
   setDmSessionPersonality: vi.fn(),
 }));
 
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal();
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
-    ...(actual as Record<string, unknown>),
+    ...actual,
     createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
   };
 });

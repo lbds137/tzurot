@@ -5,7 +5,8 @@
 
 import { Router, type Response, type Request, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, Duration, DurationParseError } from '@tzurot/common-types';
+import { Duration, DurationParseError } from '@tzurot/common-types/utils/Duration';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendCustomSuccess } from '../../utils/responseHelpers.js';

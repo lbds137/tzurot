@@ -9,7 +9,8 @@
  * don't have to thread a userId through.
  */
 
-import { createLogger, type MemoryItem } from '@tzurot/common-types';
+import { type MemoryItem } from '@tzurot/common-types/schemas/api/memory';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type UserClient } from '@tzurot/clients';
 
 const logger = createLogger('memory-detail-api');

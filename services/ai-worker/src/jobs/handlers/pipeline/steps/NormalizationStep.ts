@@ -10,7 +10,8 @@
  * Runs after ValidationStep to ensure the data structure is valid before normalization.
  */
 
-import { createLogger, normalizeTimestamp } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { normalizeTimestamp } from '@tzurot/common-types/utils/messageNormalization';
 import type { IPipelineStep, GenerationContext } from '../types.js';
 
 const logger = createLogger('NormalizationStep');

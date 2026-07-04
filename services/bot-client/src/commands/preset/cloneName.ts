@@ -13,7 +13,7 @@
  * (shown to the user in confirmation UX).
  */
 
-import { generateClonedName } from '@tzurot/common-types';
+import { generateClonedName } from '@tzurot/common-types/utils/presetCloneName';
 import { type UserClient } from '@tzurot/clients';
 import { createPreset } from './api.js';
 import type { FlattenedPresetData } from './config.js';

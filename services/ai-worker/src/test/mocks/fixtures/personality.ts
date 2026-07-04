@@ -5,7 +5,7 @@
  * These are pure data factories - no vi.fn() or mocking involved.
  */
 
-import type { LoadedPersonality } from '@tzurot/common-types';
+import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 
 /**
  * Create a mock LoadedPersonality with sensible defaults

@@ -8,8 +8,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Redis } from 'ioredis';
 
 // Mock dependencies before imports
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -22,7 +24,7 @@ vi.mock('@tzurot/common-types', async () => {
 });
 
 import { OpenRouterModelCache } from './OpenRouterModelCache.js';
-import type { OpenRouterModel } from '@tzurot/common-types';
+import type { OpenRouterModel } from '@tzurot/common-types/types/ai';
 
 // Sample model data for testing
 const sampleTextModel: OpenRouterModel = {

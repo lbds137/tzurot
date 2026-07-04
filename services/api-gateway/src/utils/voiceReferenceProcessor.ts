@@ -5,7 +5,8 @@
  * Unlike avatars, voice references are stored as-is (no optimization/resizing).
  */
 
-import { createLogger, VOICE_REFERENCE_LIMITS } from '@tzurot/common-types';
+import { VOICE_REFERENCE_LIMITS } from '@tzurot/common-types/constants/media';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { ErrorResponses, type ErrorResponse } from './errorResponses.js';
 
 const logger = createLogger('voiceReferenceProcessor');

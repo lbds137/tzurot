@@ -5,11 +5,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MessageContextBuilder } from './MessageContextBuilder.js';
 import { redisService } from '../redis.js';
-import type { PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { Collection } from 'discord.js';
 import type { Message, Attachment, Guild, GuildMember, TextChannel, User } from 'discord.js';
-import { MessageRole } from '@tzurot/common-types';
-import type { LoadedPersonality, ReferencedMessage } from '@tzurot/common-types';
+import { MessageRole } from '@tzurot/common-types/constants/message';
+import type { ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
+import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 
 // Mock PersonaResolver
 const mockPersonaResolver = {
@@ -22,8 +23,10 @@ const mockPersonaResolver = {
 };
 
 // Mock dependencies
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({

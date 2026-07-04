@@ -8,7 +8,7 @@
  * (no componentPrefixes hack needed)
  */
 
-import { DISCORD_COLORS, DISCORD_LIMITS } from '@tzurot/common-types';
+import { DISCORD_COLORS, DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 import {
   SectionStatus,
   type SectionDefinition,

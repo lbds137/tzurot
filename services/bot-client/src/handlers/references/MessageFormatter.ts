@@ -6,12 +6,10 @@
  */
 
 import type { Message } from 'discord.js';
-import {
-  type ReferencedMessage,
-  appendVoiceTranscripts,
-  formatLocationAsXml,
-  createLogger,
-} from '@tzurot/common-types';
+import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
+import { formatLocationAsXml } from '@tzurot/common-types/utils/environmentFormatter';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { appendVoiceTranscripts } from '@tzurot/common-types/utils/referenceEnrichment';
 
 const logger = createLogger('MessageFormatter');
 import { extractDiscordEnvironment } from '../../utils/discordContext.js';

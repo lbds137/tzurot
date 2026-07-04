@@ -23,14 +23,14 @@
 
 import { Router, type Response, type Request, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
+import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
 import {
-  createLogger,
-  isSelfHostedTtsProvider,
-  ADMIN_SETTINGS_SINGLETON_ID,
-  type PrismaClient,
   TtsConfigCreateSchema,
   TtsConfigUpdateSchema,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/schemas/api/tts-config';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { isSelfHostedTtsProvider } from '@tzurot/common-types/services/tts/TtsProvider';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';

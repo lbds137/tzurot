@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ResponsePostProcessor, looksLikeLeakedThinking } from './ResponsePostProcessor.js';
-import type { ReferencedMessage } from '@tzurot/common-types';
+import type { ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 
 // Use vi.hoisted() to create mocks that persist across test resets
 const {
@@ -29,8 +29,10 @@ const {
   mockLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => mockLogger,

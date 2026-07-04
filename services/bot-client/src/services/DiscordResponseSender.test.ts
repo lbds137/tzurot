@@ -4,7 +4,8 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { DiscordResponseSender } from './DiscordResponseSender.js';
-import type { LoadedPersonality, TypingChannel } from '@tzurot/common-types';
+import type { TypingChannel } from '@tzurot/common-types/types/discord-types';
+import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import type { Message } from 'discord.js';
 import { TextChannel, ThreadChannel } from 'discord.js';
 import type { WebhookManager } from '../utils/WebhookManager.js';
@@ -27,8 +28,10 @@ const { mockIsBotOwner } = vi.hoisted(() => ({
   mockIsBotOwner: vi.fn((_id: string) => false),
 }));
 
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/discord', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/discord')>(
+    '@tzurot/common-types/utils/discord'
+  );
   return {
     ...actual,
     splitMessage: vi.fn((content: string) => {
@@ -39,6 +42,15 @@ vi.mock('@tzurot/common-types', async () => {
       }
       return chunks.length > 0 ? chunks : [content];
     }),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/ownerMiddleware', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/ownerMiddleware')>(
+    '@tzurot/common-types/utils/ownerMiddleware'
+  );
+  return {
+    ...actual,
     isBotOwner: mockIsBotOwner,
   };
 });

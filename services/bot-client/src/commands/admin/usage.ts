@@ -6,7 +6,8 @@
  * because the parent command uses deferralMode: 'ephemeral'.
  */
 
-import { createLogger, adminUsageOptions } from '@tzurot/common-types';
+import { adminUsageOptions } from '@tzurot/common-types/generated/commandOptions';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { buildAdminUsageEmbed } from '../../utils/usageFormatter.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';

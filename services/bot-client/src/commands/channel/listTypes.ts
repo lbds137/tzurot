@@ -2,7 +2,7 @@
  * Channel List Types and Constants
  */
 
-import type { ChannelSettings } from '@tzurot/common-types';
+import type { ChannelSettings } from '@tzurot/common-types/schemas/api/channel';
 
 /** Channels per page for pagination (single guild mode) */
 export const CHANNELS_PER_PAGE = 10;

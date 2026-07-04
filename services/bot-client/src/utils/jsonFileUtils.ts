@@ -6,7 +6,8 @@
  */
 
 import { AttachmentBuilder, type Attachment } from 'discord.js';
-import { createLogger, DISCORD_LIMITS } from '@tzurot/common-types';
+import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { validateDiscordCdnUrl } from './discordCdnGuard.js';
 
 const logger = createLogger('json-file-utils');

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Prisma } from '@tzurot/common-types';
+import { Prisma } from '@tzurot/common-types/services/prisma';
 import {
   buildWhereConditions,
   buildSimilaritySearchQuery,

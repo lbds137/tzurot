@@ -1,24 +1,39 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('@tzurot/common-types', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-  VOICE_REFERENCE_LIMITS: {
-    MAX_SIZE: 10 * 1024 * 1024,
-    ALLOWED_TYPES: [
-      'audio/wav',
-      'audio/mpeg',
-      'audio/ogg',
-      'audio/flac',
-      'audio/x-wav',
-      'audio/wave',
-    ],
-  },
-}));
+vi.mock('@tzurot/common-types/constants/media', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/constants/media')>(
+    '@tzurot/common-types/constants/media'
+  );
+  return {
+    ...actual,
+    VOICE_REFERENCE_LIMITS: {
+      MAX_SIZE: 10 * 1024 * 1024,
+      ALLOWED_TYPES: [
+        'audio/wav',
+        'audio/mpeg',
+        'audio/ogg',
+        'audio/flac',
+        'audio/x-wav',
+        'audio/wave',
+      ],
+    },
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
+    createLogger: () => ({
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+    }),
+  };
+});
 
 vi.mock('./errorResponses.js', () => ({
   ErrorResponses: {

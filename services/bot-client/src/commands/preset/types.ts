@@ -5,7 +5,7 @@
  * Extracted to avoid circular dependencies between config.ts and presetSections.ts.
  */
 
-import type { EntityPermissions } from '@tzurot/common-types';
+import type { EntityPermissions } from '@tzurot/common-types/utils/permissions';
 import type { BrowseContext } from '../../utils/dashboard/types.js';
 
 /**

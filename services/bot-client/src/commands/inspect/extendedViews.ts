@@ -1,7 +1,7 @@
 // Extracted from views.ts to stay under the 400-line ESLint limit.
 
 import { AttachmentBuilder, MessageFlags } from 'discord.js';
-import type { DiagnosticPayload, PipelineStep } from '@tzurot/common-types';
+import type { DiagnosticPayload, PipelineStep } from '@tzurot/common-types/types/diagnostic';
 import type { ViewContext } from './viewContext.js';
 import type { DebugViewResult } from './views.js';
 

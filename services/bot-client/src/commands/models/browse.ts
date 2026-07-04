@@ -15,7 +15,9 @@ import {
   type ButtonInteraction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
-import { createLogger, DISCORD_COLORS, modelsBrowseOptions } from '@tzurot/common-types';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { modelsBrowseOptions } from '@tzurot/common-types/generated/commandOptions';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { type ClientCarryingInteraction, clientsFor } from '../../utils/gatewayClients.js';
 import {

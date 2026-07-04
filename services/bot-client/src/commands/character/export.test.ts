@@ -10,7 +10,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { handleExport } from './export.js';
-import type { EnvConfig } from '@tzurot/common-types';
+import type { EnvConfig } from '@tzurot/common-types/config/config';
 import type { UserClient } from '@tzurot/clients';
 import { AttachmentBuilder } from 'discord.js';
 
@@ -26,13 +26,24 @@ vi.mock('../../utils/gatewayClients.js', () => ({
   clientsFor: vi.fn(() => ({ userClient: stub as unknown as UserClient })),
 }));
 
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal();
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
   return {
-    ...(actual as Record<string, unknown>),
+    ...actual,
     getConfig: vi.fn().mockReturnValue({
       GATEWAY_URL: 'http://localhost:3000',
     }),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
     createLogger: () => ({
       info: vi.fn(),
       warn: vi.fn(),

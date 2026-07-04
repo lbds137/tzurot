@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import {
   createMockPrisma,
   createMockReqRes,
@@ -14,14 +14,39 @@ import {
 } from './test-utils.js';
 
 // Mock dependencies before imports
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
+    createLogger: () => ({
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/ownerMiddleware', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/ownerMiddleware')>(
+    '@tzurot/common-types/utils/ownerMiddleware'
+  );
   const { mockIsBotOwner: mockFn } = await import('./test-utils.js');
-
-  // Create isBotOwner that uses the mockable function
   const isBotOwner = (...args: unknown[]) => (mockFn as (...args: unknown[]) => boolean)(...args);
+  return {
+    ...actual,
+    isBotOwner,
+  };
+});
 
-  // Redefine computePersonalityPermissions to use the mocked isBotOwner
+vi.mock('@tzurot/common-types/utils/permissions', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/permissions')>(
+    '@tzurot/common-types/utils/permissions'
+  );
+  const { mockIsBotOwner: mockFn } = await import('./test-utils.js');
+  const isBotOwner = (...args: unknown[]) => (mockFn as (...args: unknown[]) => boolean)(...args);
   const computePersonalityPermissions = (
     ownerId: string,
     requestingUserId: string | null,
@@ -34,16 +59,8 @@ vi.mock('@tzurot/common-types', async () => {
       canDelete: isCreator || isAdmin,
     };
   };
-
   return {
     ...actual,
-    createLogger: () => ({
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    }),
-    isBotOwner,
     computePersonalityPermissions,
   };
 });

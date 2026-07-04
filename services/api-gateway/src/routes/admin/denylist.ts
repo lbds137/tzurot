@@ -11,13 +11,13 @@
 
 import { Router, type Request, type RequestHandler, type Response } from 'express';
 import {
-  createLogger,
-  isBotOwner,
   DenylistAddSchema,
   denylistEntityTypeSchema,
   denylistScopeSchema,
-  type PrismaClient,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/schemas/api/denylist';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import { type DenylistCacheInvalidationService } from '@tzurot/cache-invalidation';
 import { extractOwnerId, requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';

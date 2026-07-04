@@ -40,14 +40,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { processAttachments } from '../MultimodalProcessor.js';
 import type { ResolveVisionConfigOptions } from './visionAuthResolver.js';
 import type { ApiKeyResolver } from '../ApiKeyResolver.js';
-import {
-  AttachmentType,
-  CONTENT_TYPES,
-  ApiErrorCategory,
-  AIProvider,
-  type AttachmentMetadata,
-  type LoadedPersonality,
-} from '@tzurot/common-types';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
+import { AttachmentType, CONTENT_TYPES } from '@tzurot/common-types/constants/media';
+import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 
 // vi.hoisted so the mock fns survive vi.clearAllMocks() between tests.
 const {

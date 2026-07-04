@@ -17,8 +17,10 @@ vi.mock('../../utils/discordContext.js', () => ({
 }));
 
 // Mock the shared location formatter from common-types
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/environmentFormatter', async () => {
+  const actual = await vi.importActual<
+    typeof import('@tzurot/common-types/utils/environmentFormatter')
+  >('@tzurot/common-types/utils/environmentFormatter');
   return {
     ...actual,
     formatLocationAsXml: vi

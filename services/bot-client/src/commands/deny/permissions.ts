@@ -8,7 +8,7 @@
  */
 
 import { escapeMarkdown } from 'discord.js';
-import { isBotOwner } from '@tzurot/common-types';
+import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import { isInfraFailure } from '@tzurot/clients';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { requireManageMessagesContext } from '../../utils/permissions.js';

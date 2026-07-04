@@ -39,28 +39,43 @@ const { mockResolveOverrides, mockResolveConfig } = vi.hoisted(() => ({
 }));
 
 // Mock dependencies before imports
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
-    // Default: requester is NOT the bot owner.
-    isBotOwner: vi.fn(() => false),
-    // Mock the permissions helper directly. The real implementation calls
-    // isBotOwner via a relative-path import inside the package, which the
-    // public-export mock above doesn't intercept; mocking the helper itself
-    // is the cleaner seam for route-level tests.
-    computeLlmConfigPermissions: vi.fn(
-      (config: { ownerId: string }, requestingUserId: string | null) => {
-        const isOwner = requestingUserId !== null && config.ownerId === requestingUserId;
-        return { canEdit: isOwner, canDelete: isOwner };
-      }
-    ),
     createLogger: () => ({
       debug: vi.fn(),
       info: vi.fn(),
       warn: vi.fn(),
       error: vi.fn(),
     }),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/ownerMiddleware', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/ownerMiddleware')>(
+    '@tzurot/common-types/utils/ownerMiddleware'
+  );
+  return {
+    ...actual,
+    isBotOwner: vi.fn(() => false),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/permissions', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/permissions')>(
+    '@tzurot/common-types/utils/permissions'
+  );
+  return {
+    ...actual,
+    computeLlmConfigPermissions: vi.fn(
+      (config: { ownerId: string }, requestingUserId: string | null) => {
+        const isOwner = requestingUserId !== null && config.ownerId === requestingUserId;
+        return { canEdit: isOwner, canDelete: isOwner };
+      }
+    ),
   };
 });
 
@@ -160,7 +175,8 @@ const mockCacheInvalidation = {
 
 import { createLlmConfigRoutes } from './llm-config.js';
 import { getRouteHandler, findRoute } from '../../test/expressRouterUtils.js';
-import { computeLlmConfigPermissions, type PrismaClient } from '@tzurot/common-types';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { computeLlmConfigPermissions } from '@tzurot/common-types/utils/permissions';
 
 // Helper to create mock request/response
 function createMockReqRes(

@@ -1,10 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
-import {
-  MessageRole,
-  TEXT_LIMITS,
-  type ConversationMessage,
-  type ReferencedMessage,
-} from '@tzurot/common-types';
+import { TEXT_LIMITS } from '@tzurot/common-types/constants/discord';
+import { MessageRole } from '@tzurot/common-types/constants/message';
+import { type ConversationMessage } from '@tzurot/common-types/types/conversationMessage';
+import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import { enrichRawReferences } from './referenceEnricher.js';
 
 const NOW = new Date('2026-06-01T12:00:00Z').getTime();

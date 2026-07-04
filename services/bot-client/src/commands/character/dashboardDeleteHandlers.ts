@@ -7,7 +7,8 @@
  */
 
 import { MessageFlags, type ButtonInteraction } from 'discord.js';
-import { createLogger, type EnvConfig } from '@tzurot/common-types';
+import { type EnvConfig } from '@tzurot/common-types/config/config';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { buildDeleteConfirmation } from '../../utils/dashboard/deleteConfirmation.js';
 import { DASHBOARD_MESSAGES, formatSuccessBanner } from '../../utils/dashboard/messages.js';
 import { getSessionManager } from '../../utils/dashboard/SessionManager.js';

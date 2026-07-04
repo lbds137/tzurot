@@ -14,7 +14,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
 import type { Queue, QueueEvents } from 'bullmq';
-import { PrismaClient } from '@tzurot/common-types';
+import { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import {

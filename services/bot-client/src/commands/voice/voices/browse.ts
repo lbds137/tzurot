@@ -10,7 +10,9 @@ import {
   type ActionRowBuilder,
   type ButtonBuilder,
 } from 'discord.js';
-import { createLogger, DISCORD_COLORS, type AudioProviderId } from '@tzurot/common-types';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { type AudioProviderId } from '@tzurot/common-types/types/audio-provider';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { clientsFor } from '../../../utils/gatewayClients.js';
 import {

@@ -22,7 +22,9 @@
  * prevent resource exhaustion attacks (a message full of `@`-noise).
  */
 
-import { createLogger, type LoadedPersonality, MULTI_TAG } from '@tzurot/common-types';
+import { MULTI_TAG } from '@tzurot/common-types/constants/message';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 
 const logger = createLogger('PersonalityMentionParser');

@@ -6,10 +6,10 @@
  */
 
 import {
-  Prisma,
   PERSONALITY_DETAIL_SELECT,
   type PersonalityCharacterFields,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/schemas/api/personality';
+import { Prisma } from '@tzurot/common-types/services/prisma';
 
 type PersonalityFromDb = Prisma.PersonalityGetPayload<{
   select: typeof PERSONALITY_DETAIL_SELECT;

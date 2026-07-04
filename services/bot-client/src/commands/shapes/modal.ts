@@ -11,7 +11,9 @@
  */
 
 import { type ModalSubmitInteraction, MessageFlags, EmbedBuilder } from 'discord.js';
-import { createLogger, DISCORD_COLORS, parseShapesSessionCookieInput } from '@tzurot/common-types';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { parseShapesSessionCookieInput } from '@tzurot/common-types/types/shapes-import';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { ShapesCustomIds } from '../../utils/customIds.js';
 

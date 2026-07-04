@@ -15,7 +15,8 @@
  */
 
 import sharp from 'sharp';
-import { createLogger, MEDIA_LIMITS, CONTENT_TYPES } from '@tzurot/common-types';
+import { MEDIA_LIMITS, CONTENT_TYPES } from '@tzurot/common-types/constants/media';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('attachmentFetch');
 

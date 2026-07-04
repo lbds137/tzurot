@@ -6,11 +6,11 @@
  */
 
 import type { TextChannel, DMChannel, NewsChannel, Collection, Message } from 'discord.js';
+import type { ConversationMessage } from '@tzurot/common-types/types/conversationMessage';
 import type {
-  ConversationMessage,
   AttachmentMetadata,
   GuildMemberInfo,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/schemas/discord';
 
 /**
  * Guild member info for participant context.

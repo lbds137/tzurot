@@ -17,7 +17,7 @@ import {
   type ChatInputCommandInteraction,
   MessageFlags,
 } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { showModalWithTimeoutCatch } from '../showModalWithTimeoutCatch.js';
 import { ackWithTimeoutCatch } from '../ackWithTimeoutCatch.js';
 import {

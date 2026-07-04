@@ -6,13 +6,13 @@
  */
 
 import { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import {
-  DISCORD_COLORS,
-  formatDateShort,
   type DenylistEntityType,
   type DenylistScope,
   type DenylistMode,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/schemas/api/denylist';
+import { formatDateShort } from '@tzurot/common-types/utils/dateFormatting';
 import type { BrowseContext } from '../../utils/dashboard/types.js';
 import type { DenylistEntryResponse } from './browseTypes.js';
 

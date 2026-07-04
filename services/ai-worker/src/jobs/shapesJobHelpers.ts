@@ -7,7 +7,7 @@
  */
 
 import type { Job } from 'bullmq';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { classifyShapesError } from './shapesCredentials.js';
 
 const logger = createLogger('shapesJobHelpers');

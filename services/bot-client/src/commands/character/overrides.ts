@@ -11,13 +11,11 @@
  * - Max Images: 0-20 or Auto
  */
 
-import {
-  createLogger,
-  DISCORD_COLORS,
-  type EnvConfig,
-  type ResolvedConfigOverrides,
-  characterSettingsOptions,
-} from '@tzurot/common-types';
+import { type EnvConfig } from '@tzurot/common-types/config/config';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { characterSettingsOptions } from '@tzurot/common-types/generated/commandOptions';
+import { type ResolvedConfigOverrides } from '@tzurot/common-types/schemas/api/configOverrides';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import {

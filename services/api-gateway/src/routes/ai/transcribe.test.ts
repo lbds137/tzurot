@@ -7,8 +7,8 @@ import express, { type Express } from 'express';
 import request from 'supertest';
 import { handleAiTranscribe } from './transcribe.js';
 import type { Queue, QueueEvents, Job } from 'bullmq';
-import type { PrismaClient } from '@tzurot/common-types';
-import { JobStatus } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
+import { JobStatus } from '@tzurot/common-types/constants/queue';
 
 // Create mock BullMQ queue
 const createMockQueue = () => ({

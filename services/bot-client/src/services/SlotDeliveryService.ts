@@ -20,13 +20,11 @@
  */
 
 import type { Message } from 'discord.js';
-import {
-  createLogger,
-  stripErrorSpoiler,
-  type LLMGenerationResult,
-  type LoadedPersonality,
-  type TypingChannel,
-} from '@tzurot/common-types';
+import { stripErrorSpoiler } from '@tzurot/common-types/constants/error';
+import { type TypingChannel } from '@tzurot/common-types/types/discord-types';
+import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DiscordResponseSender } from './DiscordResponseSender.js';
 import type { ConversationPersistence } from './ConversationPersistence.js';
 import { updateDiagnosticResponseIds } from '../utils/gatewayServiceCalls.js';

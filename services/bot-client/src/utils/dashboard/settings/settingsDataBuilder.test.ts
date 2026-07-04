@@ -5,7 +5,10 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { HARDCODED_CONFIG_DEFAULTS, type ResolvedConfigOverrides } from '@tzurot/common-types';
+import {
+  HARDCODED_CONFIG_DEFAULTS,
+  type ResolvedConfigOverrides,
+} from '@tzurot/common-types/schemas/api/configOverrides';
 import {
   buildCascadeSettingsData,
   buildFallbackSettingsData,

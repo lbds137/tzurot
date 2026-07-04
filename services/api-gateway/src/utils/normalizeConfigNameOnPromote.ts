@@ -23,7 +23,7 @@
  */
 
 import type { Request } from 'express';
-import { normalizeSlugForUser } from '@tzurot/common-types';
+import { normalizeSlugForUser } from '@tzurot/common-types/utils/slugUtils';
 
 interface PromotionContext {
   /** Current state of the config (from `service.getById`). */

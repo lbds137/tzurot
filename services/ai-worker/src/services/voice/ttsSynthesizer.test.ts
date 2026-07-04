@@ -30,8 +30,10 @@ const mockLogger = vi.hoisted(() => ({
   error: vi.fn(),
 }));
 
-vi.mock('@tzurot/common-types', async importActual => {
-  const actual = await importActual<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => mockLogger,

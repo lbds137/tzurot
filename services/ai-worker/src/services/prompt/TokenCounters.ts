@@ -5,7 +5,8 @@
  * Extracted from PromptBuilder to reduce file size.
  */
 
-import { countTextTokens, formatMemoryTimestamp } from '@tzurot/common-types';
+import { formatMemoryTimestamp } from '@tzurot/common-types/utils/dateFormatting';
+import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
 import type { MemoryDocument } from '../ConversationalRAGTypes.js';
 import type { ProcessedAttachment } from '../MultimodalProcessor.js';
 import { extractContentDescriptions } from '../RAGUtils.js';

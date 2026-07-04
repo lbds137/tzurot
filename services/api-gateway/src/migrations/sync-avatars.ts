@@ -20,7 +20,9 @@
 
 import { writeFile, access, unlink } from 'fs/promises';
 import { basename } from 'path';
-import { createPrismaClient, createLogger, DB_POOL_DEFAULTS } from '@tzurot/common-types';
+import { DB_POOL_DEFAULTS } from '@tzurot/common-types/services/poolConfig';
+import { createPrismaClient } from '@tzurot/common-types/services/prisma';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import {
   extractSlugFromFilename,
   extractTimestampFromFilename,

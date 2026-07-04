@@ -17,12 +17,12 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { PrismaClient } from '@tzurot/common-types/services/prisma';
 import {
-  PrismaClient,
   generateSystemGlobalTtsConfigUuid,
   generateUserPersonalityConfigUuid,
   newTtsConfigId,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/utils/deterministicUuid';
 import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { createTestPGlite, loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';

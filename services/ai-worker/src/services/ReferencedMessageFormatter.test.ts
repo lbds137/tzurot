@@ -4,11 +4,9 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ReferencedMessageFormatter } from './ReferencedMessageFormatter.js';
-import {
-  AttachmentType,
-  type ReferencedMessage,
-  type LoadedPersonality,
-} from '@tzurot/common-types';
+import { AttachmentType } from '@tzurot/common-types/constants/media';
+import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 
 // Use vi.hoisted() to create mocks that persist across test resets
 const { mockDescribeImage, mockTranscribeAudio, mockFormatTimestampWithDelta } = vi.hoisted(() => ({
@@ -24,8 +22,10 @@ vi.mock('./MultimodalProcessor.js', () => ({
 }));
 
 // Mock formatTimestampWithDelta for consistent test output
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/dateFormatting', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/dateFormatting')>(
+    '@tzurot/common-types/utils/dateFormatting'
+  );
   return {
     ...actual,
     formatTimestampWithDelta: mockFormatTimestampWithDelta,

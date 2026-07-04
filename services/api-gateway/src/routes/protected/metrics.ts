@@ -8,7 +8,7 @@
 import { Router } from 'express';
 import type { Queue } from 'bullmq';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getDeduplicationCache } from '../../utils/deduplicationCache.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 

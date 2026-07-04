@@ -8,13 +8,16 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Redis } from 'ioredis';
-import { MULTI_TAG, REDIS_KEY_PREFIXES } from '@tzurot/common-types';
+import { MULTI_TAG } from '@tzurot/common-types/constants/message';
+import { REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
 import { MultiTagPersistence, type CoordinatorEntrySnapshot } from './MultiTagPersistence.js';
 
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal();
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
-    ...(actual as Record<string, unknown>),
+    ...actual,
     createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
   };
 });

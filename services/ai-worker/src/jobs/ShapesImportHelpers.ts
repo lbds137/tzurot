@@ -5,13 +5,12 @@
  * to keep the main job file within line limits.
  */
 
+import { type PrismaClient, type Prisma } from '@tzurot/common-types/services/prisma';
 import {
-  createLogger,
-  type PrismaClient,
   type ShapesIncPersonalityConfig,
   SHAPES_USER_AGENT,
-  type Prisma,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/shapes-import';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import {
   mapShapesConfigToPersonality,
   type MappedPersonalityData,

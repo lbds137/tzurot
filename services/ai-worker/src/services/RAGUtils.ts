@@ -5,14 +5,12 @@
  * These functions have no dependencies on class instances and can be used standalone.
  */
 
-import {
-  createLogger,
-  AttachmentType,
-  AI_DEFAULTS,
-  type PrismaClient,
-  type AttachmentMetadata,
-  type StoredReferencedMessage,
-} from '@tzurot/common-types';
+import { AI_DEFAULTS } from '@tzurot/common-types/constants/ai';
+import { AttachmentType } from '@tzurot/common-types/constants/media';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
+import { type StoredReferencedMessage } from '@tzurot/common-types/types/schemas/message';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { VisionDescriptionCache } from './VisionDescriptionCache.js';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import type { InlineImageDescription } from '../jobs/utils/conversationUtils.js';

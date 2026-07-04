@@ -9,7 +9,7 @@
  * exercise the full schema envelope.
  */
 
-import { encryptApiKey } from '@tzurot/common-types';
+import { encryptApiKey } from '@tzurot/common-types/utils/encryption';
 
 import type { ConformanceEntry, SeedContext } from './types.js';
 import { createPersonality } from './seedHelpers.js';

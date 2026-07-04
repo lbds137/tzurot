@@ -10,11 +10,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { loadPersonasAndResolveReferences } from './personaReferenceLoader.js';
 import type { MemoryRetriever } from './MemoryRetriever.js';
 import type { UserReferenceResolver } from './UserReferenceResolver.js';
-import type { LoadedPersonality } from '@tzurot/common-types';
+import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import type { ConversationContext } from './ConversationalRAGTypes.js';
 
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() }),

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { stampResolvedConfig } from './stampResolvedConfig.js';
-import type { LoadedPersonality } from '@tzurot/common-types';
+import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import type { LlmConfigResolver, VisionConfigResolver } from '@tzurot/config-resolver';
 
 // stampResolvedConfig only reads id/model/visionModel and spreads the rest, so a minimal

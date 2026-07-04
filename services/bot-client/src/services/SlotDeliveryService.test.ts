@@ -5,7 +5,9 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Message } from 'discord.js';
-import type { LLMGenerationResult, LoadedPersonality, TypingChannel } from '@tzurot/common-types';
+import type { TypingChannel } from '@tzurot/common-types/types/discord-types';
+import type { LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
+import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { SlotDeliveryService, type SlotDeliveryContext } from './SlotDeliveryService.js';
 import type { DiscordResponseSender } from './DiscordResponseSender.js';
 import type { ConversationPersistence } from './ConversationPersistence.js';

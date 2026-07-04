@@ -17,7 +17,7 @@ import {
   type ModalSubmitInteraction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { parseMemoryActionId, handleMemorySelect } from './detail.js';
 import { handleEditModalSubmit } from './detailModals.js';
 import { findMemoryListSessionByMessage } from './browseSession.js';

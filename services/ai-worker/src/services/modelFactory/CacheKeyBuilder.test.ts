@@ -10,20 +10,35 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock @tzurot/common-types
-vi.mock('@tzurot/common-types', () => ({
-  getConfig: () => ({
-    AI_PROVIDER: 'openrouter',
-    DEFAULT_AI_MODEL: 'anthropic/claude-sonnet-4.5',
-    OPENROUTER_API_KEY: 'test-openrouter-key',
-  }),
-  AIProvider: {
-    OpenRouter: 'openrouter',
-    ElevenLabs: 'elevenlabs',
-    ZaiCoding: 'zai-coding',
-  },
-}));
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
+  return {
+    ...actual,
+    getConfig: () => ({
+      AI_PROVIDER: 'openrouter',
+      DEFAULT_AI_MODEL: 'anthropic/claude-sonnet-4.5',
+      OPENROUTER_API_KEY: 'test-openrouter-key',
+    }),
+  };
+});
 
-import { AIProvider } from '@tzurot/common-types';
+vi.mock('@tzurot/common-types/constants/ai', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/constants/ai')>(
+    '@tzurot/common-types/constants/ai'
+  );
+  return {
+    ...actual,
+    AIProvider: {
+      OpenRouter: 'openrouter',
+      ElevenLabs: 'elevenlabs',
+      ZaiCoding: 'zai-coding',
+    },
+  };
+});
+
+import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { getModelCacheKey } from './CacheKeyBuilder.js';
 import type { ModelConfig } from '../ModelFactory.js';
 

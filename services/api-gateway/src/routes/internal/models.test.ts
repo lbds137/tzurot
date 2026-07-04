@@ -1,13 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
-import type { ModelAutocompleteOption } from '@tzurot/common-types';
+import type { ModelAutocompleteOption } from '@tzurot/common-types/types/ai';
 import { handleGetModels } from './models.js';
 import type { OpenRouterModelCache } from '../../services/OpenRouterModelCache.js';
 import type { RouteDeps } from '../routeDeps.js';
 
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() }),

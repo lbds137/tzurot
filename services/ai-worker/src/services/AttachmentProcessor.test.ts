@@ -6,7 +6,9 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { AttachmentType, AIProvider, type LoadedPersonality } from '@tzurot/common-types';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { AttachmentType } from '@tzurot/common-types/constants/media';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { processAttachmentsParallel } from './AttachmentProcessor.js';
 
 // Use vi.hoisted() to create mocks that persist across test resets

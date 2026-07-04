@@ -7,8 +7,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // Mock dependencies before imports
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: vi.fn(() => ({
@@ -31,7 +33,7 @@ vi.mock('./api.js', () => ({
 
 import { handleVoice } from './voice.js';
 import { fetchCharacter, updateCharacter } from './api.js';
-import type { EnvConfig } from '@tzurot/common-types';
+import type { EnvConfig } from '@tzurot/common-types/config/config';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
 const mockConfig = { GATEWAY_URL: 'http://test' } as unknown as EnvConfig;

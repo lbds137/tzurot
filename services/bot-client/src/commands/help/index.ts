@@ -11,13 +11,10 @@
  */
 
 import { SlashCommandBuilder, EmbedBuilder, type AutocompleteInteraction } from 'discord.js';
-import {
-  createLogger,
-  DISCORD_COLORS,
-  DISCORD_LIMITS,
-  getConfig,
-  helpOptions,
-} from '@tzurot/common-types';
+import { getConfig } from '@tzurot/common-types/config/config';
+import { DISCORD_COLORS, DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
+import { helpOptions } from '@tzurot/common-types/generated/commandOptions';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import {
   defineCommand,
   type DeferredCommandContext,

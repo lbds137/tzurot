@@ -11,7 +11,9 @@
  */
 
 import type { Message } from 'discord.js';
-import type { LLMGenerationResult, LoadedPersonality, TypingChannel } from '@tzurot/common-types';
+import type { TypingChannel } from '@tzurot/common-types/types/discord-types';
+import type { LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
+import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import type { SlotDeliveryContext } from './SlotDeliveryService.js';
 import type { CoordinatorEntrySnapshot } from './MultiTagPersistence.js';
 import type { SlotSource } from './SlotResolver.js';

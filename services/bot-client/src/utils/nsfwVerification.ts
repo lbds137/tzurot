@@ -13,7 +13,7 @@ import {
   type Message,
   type SendableChannels,
 } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type UserClient } from '@tzurot/clients';
 import { clientsForUser } from './gatewayClients.js';
 import { redis } from '../redis.js';

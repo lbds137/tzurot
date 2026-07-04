@@ -29,13 +29,11 @@
 
 import { randomUUID } from 'node:crypto';
 import type { Message } from 'discord.js';
-import {
-  createLogger,
-  MULTI_TAG,
-  type LLMGenerationResult,
-  type LoadedPersonality,
-  type TypingChannel,
-} from '@tzurot/common-types';
+import { MULTI_TAG } from '@tzurot/common-types/constants/message';
+import { type TypingChannel } from '@tzurot/common-types/types/discord-types';
+import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { PersonalityChatManager } from './character/PersonalityChatManager.js';
 import type { JobTracker } from './JobTracker.js';
 import type { ResponseOrderingService } from './ResponseOrderingService.js';

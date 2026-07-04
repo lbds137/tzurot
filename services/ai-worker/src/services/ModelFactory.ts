@@ -9,13 +9,9 @@
  */
 
 import { ChatOpenAI } from '@langchain/openai';
-import {
-  createLogger,
-  getConfig,
-  AIProvider,
-  AI_DEFAULTS,
-  AI_ENDPOINTS,
-} from '@tzurot/common-types';
+import { getConfig } from '@tzurot/common-types/config/config';
+import { AIProvider, AI_DEFAULTS, AI_ENDPOINTS } from '@tzurot/common-types/constants/ai';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isReasoningModel } from '../utils/reasoningModelUtils.js';
 import {
   createOpenRouterFetch,

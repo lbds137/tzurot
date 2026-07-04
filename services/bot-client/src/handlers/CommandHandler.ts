@@ -5,7 +5,7 @@
  * Simple, modular approach - just scan files and build a Map
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { InfraError } from '@tzurot/clients';
 import {
   Collection,

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { DISCORD_COLORS } from '@tzurot/common-types';
-import type { DiagnosticPayload } from '@tzurot/common-types';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import type { DiagnosticPayload } from '@tzurot/common-types/types/diagnostic';
 import {
   getEmbedColor,
   buildReasoningField,

@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import type { ModelAutocompleteOption } from '@tzurot/common-types';
+import type { ModelAutocompleteOption } from '@tzurot/common-types/types/ai';
 import type { OpenRouterModelCache } from './OpenRouterModelCache.js';
 import { ModelCapabilityService } from './ModelCapabilityService.js';
 

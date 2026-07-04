@@ -5,15 +5,14 @@
 
 import { type Response, type RequestHandler } from 'express';
 import {
-  createLogger,
   GetPersonalityResponseSchema,
-  isBotOwner,
-  type PrismaClient,
   PersonalityUpdateSchema,
   type PersonalityUpdateInput,
   PERSONALITY_DETAIL_SELECT,
-  Prisma,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/schemas/api/personality';
+import { type PrismaClient, Prisma } from '@tzurot/common-types/services/prisma';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import { type CacheInvalidationService } from '@tzurot/cache-invalidation';
 import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';

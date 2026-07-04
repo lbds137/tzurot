@@ -6,7 +6,7 @@
  */
 
 import type { AutocompleteInteraction } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import {
   handlePersonalityAutocomplete as sharedHandlePersonalityAutocomplete,
   handlePersonaAutocomplete as sharedHandlePersonaAutocomplete,

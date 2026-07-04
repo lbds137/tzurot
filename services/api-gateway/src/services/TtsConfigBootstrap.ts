@@ -1,11 +1,9 @@
 /** System-globals bootstrap for `TtsConfigService.list(GLOBAL)`. */
 
-import {
-  type PrismaClient,
-  ADMIN_SETTINGS_SINGLETON_ID,
-  generateSystemGlobalTtsConfigUuid,
-  createLogger,
-} from '@tzurot/common-types';
+import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { generateSystemGlobalTtsConfigUuid } from '@tzurot/common-types/utils/deterministicUuid';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('TtsConfigBootstrap');
 

@@ -5,16 +5,12 @@
 
 import { type Request, type Response, type RequestHandler } from 'express';
 import { randomUUID } from 'crypto';
-import {
-  createLogger,
-  TIMEOUTS,
-  JobStatus,
-  JobType,
-  JOB_PREFIXES,
-  type AudioTranscriptionResult,
-  type PrismaClient,
-  TranscribeRequestSchema,
-} from '@tzurot/common-types';
+import { JobStatus, JobType, JOB_PREFIXES } from '@tzurot/common-types/constants/queue';
+import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
+import { TranscribeRequestSchema } from '@tzurot/common-types/schemas/api/transcribe';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { type AudioTranscriptionResult } from '@tzurot/common-types/types/jobs';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';

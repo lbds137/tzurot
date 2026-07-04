@@ -6,7 +6,8 @@
  */
 
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
-import type { AIProvider, ConvertedLlmParams } from '@tzurot/common-types';
+import type { AIProvider } from '@tzurot/common-types/constants/ai';
+import type { ConvertedLlmParams } from '@tzurot/common-types/schemas/llmAdvancedParams';
 
 /**
  * Model configuration for creating chat models.

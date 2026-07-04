@@ -6,16 +6,16 @@
  */
 
 import type { BaseMessage } from '@langchain/core/messages';
+import type { AIProvider } from '@tzurot/common-types/constants/ai';
+import type { ResolvedConfigOverrides } from '@tzurot/common-types/schemas/api/configOverrides';
+import type { AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import type {
   CrossChannelHistoryGroupEntry,
-  LoadedPersonality,
-  AttachmentMetadata,
   ReferencedMessage,
-  ResolvedConfigOverrides,
-  SttDispatch,
-  AIProvider,
-  SummonAnonymity,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/schemas/message';
+import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import type { SttDispatch } from '@tzurot/common-types/types/sttProvider';
+import type { SummonAnonymity } from '@tzurot/common-types/types/summon-anonymity';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 
 /**

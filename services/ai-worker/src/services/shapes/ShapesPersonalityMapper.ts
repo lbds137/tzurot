@@ -6,14 +6,14 @@
  * and LlmConfig records from a ShapesIncPersonalityConfig.
  */
 
+import { type PersonalityCharacterFields } from '@tzurot/common-types/schemas/api/personality';
+import { type ShapesIncPersonalityConfig } from '@tzurot/common-types/types/shapes-import';
 import {
-  createLogger,
   generatePersonalityUuid,
   generateSystemPromptUuid,
   generateLlmConfigUuid,
-  type PersonalityCharacterFields,
-  type ShapesIncPersonalityConfig,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/utils/deterministicUuid';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('ShapesPersonalityMapper');
 

@@ -5,7 +5,9 @@
  * Clean implementation ported from v2 webhookManager.js patterns.
  */
 
-import { createLogger, INTERVALS, DISCORD_LIMITS } from '@tzurot/common-types';
+import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
+import { INTERVALS } from '@tzurot/common-types/constants/timing';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import {
   ChannelType,
   Client,

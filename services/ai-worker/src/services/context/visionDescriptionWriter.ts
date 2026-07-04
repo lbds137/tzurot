@@ -17,7 +17,9 @@
  * acceptable degradation the bot-side path had.
  */
 
-import { createLogger, AttachmentType, type JobContext } from '@tzurot/common-types';
+import { AttachmentType } from '@tzurot/common-types/constants/media';
+import { type JobContext } from '@tzurot/common-types/types/jobs';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type ConversationHistoryService } from '@tzurot/conversation-history';
 import { buildAttachmentDescriptions } from '../RAGUtils.js';
 import type { ProcessedAttachment } from '../MultimodalProcessor.js';

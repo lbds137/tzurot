@@ -6,7 +6,8 @@
  */
 
 import sharp from 'sharp';
-import { createLogger, AVATAR_LIMITS } from '@tzurot/common-types';
+import { AVATAR_LIMITS } from '@tzurot/common-types/constants/media';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('image-processor');
 

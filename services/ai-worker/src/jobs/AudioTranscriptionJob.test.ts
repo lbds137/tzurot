@@ -5,8 +5,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { processAudioTranscriptionJob } from './AudioTranscriptionJob.js';
 import type { Job } from 'bullmq';
-import type { AudioTranscriptionJobData } from '@tzurot/common-types';
-import { JobType, CONTENT_TYPES, TimeoutError, AudioTooLongError } from '@tzurot/common-types';
+import type { AudioTranscriptionJobData } from '@tzurot/common-types/types/jobs';
+import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
+import { JobType } from '@tzurot/common-types/constants/queue';
+import { TimeoutError, AudioTooLongError } from '@tzurot/common-types/utils/errors';
 
 // Mock transcribeAudio and withRetry
 vi.mock('../services/multimodal/AudioProcessor.js', () => ({

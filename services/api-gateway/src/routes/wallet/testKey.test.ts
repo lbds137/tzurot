@@ -17,8 +17,20 @@ import { validateApiKey } from '../../utils/apiKeyValidation.js';
 const mockValidateApiKey = vi.mocked(validateApiKey);
 
 // Mock dependencies before imports
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/encryption', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/encryption')>(
+    '@tzurot/common-types/utils/encryption'
+  );
+  return {
+    ...actual,
+    decryptApiKey: vi.fn().mockReturnValue('decrypted-api-key'),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -27,11 +39,10 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
-    decryptApiKey: vi.fn().mockReturnValue('decrypted-api-key'),
   };
 });
 
-import { decryptApiKey } from '@tzurot/common-types';
+import { decryptApiKey } from '@tzurot/common-types/utils/encryption';
 const mockDecryptApiKey = vi.mocked(decryptApiKey);
 
 // Uses the shared mock at `src/services/__mocks__/AuthMiddleware.ts`
@@ -60,7 +71,8 @@ const mockPrisma = {
 };
 
 import { createTestKeyRoute } from './testKey.js';
-import { AIProvider, type PrismaClient } from '@tzurot/common-types';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { findRoute, getRouteHandler } from '../../test/expressRouterUtils.js';
 
 // Helper to create mock request/response

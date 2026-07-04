@@ -12,12 +12,15 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { WebhookManager } from './WebhookManager.js';
 import { ChannelType, Client, TextChannel, ThreadChannel, ForumChannel } from 'discord.js';
 import type { Webhook } from 'discord.js';
-import type { LoadedPersonality } from '@tzurot/common-types';
-import { INTERVALS, DISCORD_LIMITS } from '@tzurot/common-types';
+import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
+import { INTERVALS } from '@tzurot/common-types/constants/timing';
 
 // Mock the logger
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({

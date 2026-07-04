@@ -4,7 +4,8 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ResponseOrderingService } from './ResponseOrderingService.js';
-import { MULTI_TAG, type LLMGenerationResult } from '@tzurot/common-types';
+import { MULTI_TAG } from '@tzurot/common-types/constants/message';
+import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
 
 /** Comfortably past the ordering buffer's safety timeout. */
 const PAST_ORDERING_TIMEOUT_MS = MULTI_TAG.ORDERING_MAX_WAIT_MS + 60 * 1000;

@@ -6,7 +6,8 @@
  * export cleanup scheduled jobs.
  */
 
-import { createLogger, type PrismaClient } from '@tzurot/common-types';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 
 /** How long an in_progress job can run before being considered stuck */
 const STUCK_THRESHOLD_MS = 60 * 60 * 1000; // 1 hour

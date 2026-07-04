@@ -15,12 +15,10 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import {
-  createLogger,
-  DISCORD_COLORS,
-  isSelfHostedTtsProvider,
-  type TtsConfigSummary,
-} from '@tzurot/common-types';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { type TtsConfigSummary } from '@tzurot/common-types/schemas/api/tts-config';
+import { isSelfHostedTtsProvider } from '@tzurot/common-types/services/tts/TtsProvider';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type UserClient } from '@tzurot/clients';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 

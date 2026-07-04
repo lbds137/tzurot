@@ -8,7 +8,7 @@
  * Used by both TTS (TTSStep) and STT (AudioProcessor) paths.
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { VoiceEngineClient } from './VoiceEngineClient.js';
 
 const logger = createLogger('VoiceEngineWarmup');

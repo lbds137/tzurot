@@ -8,7 +8,8 @@
  */
 
 import type { Response } from 'express';
-import { type PrismaClient, Duration, DurationParseError } from '@tzurot/common-types';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { Duration, DurationParseError } from '@tzurot/common-types/utils/Duration';
 import { sendError } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 

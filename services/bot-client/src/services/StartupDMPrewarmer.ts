@@ -23,7 +23,7 @@
  */
 
 import type { Client } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getServiceClient } from '../utils/gatewayClients.js';
 import type { DMCacheWarmer } from './DMCacheWarmer.js';
 

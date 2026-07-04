@@ -6,15 +6,13 @@
  * Delegates attachment processing to AttachmentProcessor for parallel image/voice handling.
  */
 
-import {
-  createLogger,
-  type ReferencedMessage,
-  type LoadedPersonality,
-  type SttDispatch,
-  type AIProvider,
-  TEXT_LIMITS,
-  formatTimestampWithDelta,
-} from '@tzurot/common-types';
+import { type AIProvider } from '@tzurot/common-types/constants/ai';
+import { TEXT_LIMITS } from '@tzurot/common-types/constants/discord';
+import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
+import { formatTimestampWithDelta } from '@tzurot/common-types/utils/dateFormatting';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import {
   formatQuoteElement,

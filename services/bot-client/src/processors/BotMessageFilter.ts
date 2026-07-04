@@ -6,7 +6,7 @@
  */
 
 import type { Message } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { IMessageProcessor } from './IMessageProcessor.js';
 
 const logger = createLogger('BotMessageFilter');

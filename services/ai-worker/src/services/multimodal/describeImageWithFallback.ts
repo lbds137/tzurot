@@ -13,14 +13,12 @@
  * user-facing `[Image unavailable: …]` text.
  */
 
-import {
-  createLogger,
-  getConfig,
-  MODEL_DEFAULTS,
-  ApiErrorCategory,
-  type AttachmentMetadata,
-  type LoadedPersonality,
-} from '@tzurot/common-types';
+import { getConfig } from '@tzurot/common-types/config/config';
+import { MODEL_DEFAULTS } from '@tzurot/common-types/constants/ai';
+import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
+import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import {
   describeImage,
   selectVisionModel,

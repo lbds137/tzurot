@@ -8,7 +8,7 @@
  * exercise.
  */
 
-import type { ApiErrorSubcode } from '@tzurot/common-types';
+import type { ApiErrorSubcode } from '@tzurot/common-types/constants/error';
 import type {
   GatewayFailureKind,
   GatewayResult,

@@ -14,7 +14,8 @@
  */
 
 import type { Message, DMChannel } from 'discord.js';
-import { createLogger, type LoadedPersonality } from '@tzurot/common-types';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { IMessageProcessor } from './IMessageProcessor.js';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import { InfraError, GatewayClientError } from '@tzurot/clients';

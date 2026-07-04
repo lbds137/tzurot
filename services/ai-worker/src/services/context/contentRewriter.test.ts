@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
-import type { RawAssemblyInputs, ReferencedMessage, UserMentionDeps } from '@tzurot/common-types';
+import type { ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
+import type { RawAssemblyInputs } from '@tzurot/common-types/types/schemas/rawEnvelope';
+import type { UserMentionDeps } from '@tzurot/common-types/utils/mentionRewriter';
 import { rewriteRawContent } from './contentRewriter.js';
 
 const USER_ID = '567890123456789012';

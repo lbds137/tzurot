@@ -9,7 +9,9 @@
  * - Reference filtering
  */
 
-import { createLogger, type MessageContent, type ReferencedMessage } from '@tzurot/common-types';
+import { type MessageContent } from '@tzurot/common-types/types/ai';
+import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { stripResponseArtifacts, stripUserMessageEcho } from '../utils/responseArtifacts.js';
 import { removeDuplicateResponse } from '../utils/duplicateDetection.js';
 import {

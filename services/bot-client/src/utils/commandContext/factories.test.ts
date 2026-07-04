@@ -17,16 +17,28 @@ import type { DeferredCommandContext, SafeCommandContext } from './types.js';
 import { isDeferredContext, isModalContext, isManualContext } from './types.js';
 
 // Mock common-types
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
   return {
     ...actual,
     getConfig: vi.fn(() => ({ BOT_OWNER_ID: 'owner-123' })),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/ownerMiddleware', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/ownerMiddleware')>(
+    '@tzurot/common-types/utils/ownerMiddleware'
+  );
+  return {
+    ...actual,
     isBotOwner: vi.fn((id: string) => id === 'owner-123'),
   };
 });
 
-import { getConfig, isBotOwner } from '@tzurot/common-types';
+import { getConfig } from '@tzurot/common-types/config/config';
+import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 
 // Mock Discord.js interaction
 function createMockInteraction(): ChatInputCommandInteraction {

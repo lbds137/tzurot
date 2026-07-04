@@ -15,12 +15,14 @@ import type {
   SlashCommandOptionsOnlyBuilder,
 } from 'discord.js';
 import {
-  type CrossChannelHistoryGroupEntry,
   type GenerateResponse,
+  type TranscribeResponse,
+} from '@tzurot/common-types/types/api-types';
+import { type CrossChannelHistoryGroupEntry } from '@tzurot/common-types/types/schemas/message';
+import {
   type LoadedPersonality,
   type RequestContext,
-  type TranscribeResponse,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/schemas/personality';
 import type { DeferralMode, SafeCommandContext } from './utils/commandContext/index.js';
 
 // Re-export shared API types

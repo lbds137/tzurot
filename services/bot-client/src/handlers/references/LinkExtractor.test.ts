@@ -12,7 +12,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { LinkExtractor } from './LinkExtractor.js';
 import { ChannelType } from 'discord.js';
 import type { Message, Guild, Channel, TextChannel, Client } from 'discord.js';
-import type { ParsedMessageLink } from '@tzurot/common-types';
+import type { ParsedMessageLink } from '@tzurot/common-types/utils/messageLinkParser';
 
 // The standard same-guild link every test resolves against createMockMessage's
 // guild-123 / channel-123 fixture. Passed straight to fetchMessageFromLink —

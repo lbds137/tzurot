@@ -33,7 +33,8 @@
  * MEDIA_NOT_FOUND so users see the failure list in a Discord spoiler tag.
  */
 
-import { createLogger, type AttachmentMetadata } from '@tzurot/common-types';
+import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { IPipelineStep, GenerationContext } from '../types.js';
 import {
   JobPayloadTooLargeError,

@@ -9,19 +9,43 @@ import { MemoryBudgetManager } from './MemoryBudgetManager.js';
 import type { MemoryDocument } from '../ConversationalRAGTypes.js';
 
 // Mock common-types
-vi.mock('@tzurot/common-types', () => ({
-  countTextTokens: vi.fn((text: string) => Math.ceil(text.length / 4)),
-  createLogger: () => ({
-    info: vi.fn(),
-    debug: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
-  AI_DEFAULTS: {
-    MEMORY_TOKEN_BUDGET_RATIO: 0.25,
-    RESPONSE_SAFETY_MARGIN_RATIO: 0.05,
-  },
-}));
+vi.mock('@tzurot/common-types/constants/ai', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/constants/ai')>(
+    '@tzurot/common-types/constants/ai'
+  );
+  return {
+    ...actual,
+    AI_DEFAULTS: {
+      MEMORY_TOKEN_BUDGET_RATIO: 0.25,
+      RESPONSE_SAFETY_MARGIN_RATIO: 0.05,
+    },
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
+    createLogger: () => ({
+      info: vi.fn(),
+      debug: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/tokenCounter', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/tokenCounter')>(
+    '@tzurot/common-types/utils/tokenCounter'
+  );
+  return {
+    ...actual,
+    countTextTokens: vi.fn((text: string) => Math.ceil(text.length / 4)),
+  };
+});
 
 // Mock MemoryFormatter (now uses XML format with <historical_note> for structural distancing)
 vi.mock('../prompt/MemoryFormatter.js', () => ({

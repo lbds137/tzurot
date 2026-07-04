@@ -20,13 +20,11 @@
  * reachable only when no system free-fallback key is configured).
  */
 
-import {
-  createLogger,
-  type AIProvider,
-  type LoadedPersonality,
-  type PrismaClient,
-  type SttDispatch,
-} from '@tzurot/common-types';
+import { type AIProvider } from '@tzurot/common-types/constants/ai';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { resolveVisionConfig } from './visionAuthResolver.js';
 import { processAttachments, deriveApiKeySource } from '../MultimodalProcessor.js';
 import { enrichConversationHistory } from '../RAGUtils.js';

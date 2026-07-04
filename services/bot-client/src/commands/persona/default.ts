@@ -7,7 +7,8 @@
  * Uses gateway API for all data access (no direct Prisma).
  */
 
-import { createLogger, personaDefaultOptions } from '@tzurot/common-types';
+import { personaDefaultOptions } from '@tzurot/common-types/generated/commandOptions';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
   AUTOCOMPLETE_UNAVAILABLE_MESSAGE,

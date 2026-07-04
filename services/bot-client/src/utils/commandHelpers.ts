@@ -9,7 +9,8 @@
  */
 
 import { EmbedBuilder, type ChatInputCommandInteraction } from 'discord.js';
-import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isGatewayConfigured } from './gatewayClients.js';
 
 const logger = createLogger('command-helpers');

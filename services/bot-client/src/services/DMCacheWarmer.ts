@@ -20,7 +20,7 @@
  * restart clears the memo, matching Discord-side cache lifecycle.
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { User } from 'discord.js';
 
 const logger = createLogger('DMCacheWarmer');

@@ -18,14 +18,20 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock @tzurot/common-types
-vi.mock('@tzurot/common-types', () => ({
-  createLogger: () => ({
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
-}));
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
+    createLogger: () => ({
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }),
+  };
+});
 
 import { createOpenRouterFetch } from './OpenRouterFetch.js';
 

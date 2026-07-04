@@ -6,7 +6,7 @@
  */
 
 import type { ModalSubmitInteraction } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DashboardConfig, SectionDefinition } from './types.js';
 import { extractModalValues } from './ModalFactory.js';
 

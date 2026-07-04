@@ -16,13 +16,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import {
-  AIProvider,
-  ApiErrorCategory,
-  MODEL_DEFAULTS,
-  type AttachmentMetadata,
-  type LoadedPersonality,
-} from '@tzurot/common-types';
+import { AIProvider, MODEL_DEFAULTS } from '@tzurot/common-types/constants/ai';
+import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
+import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { composeVisionTiers, describeImageWithFallback } from './describeImageWithFallback.js';
 import {
   describeImage,
@@ -44,14 +41,25 @@ const FALLBACK_PAID_MODEL = 'openrouter/paid-floor';
 // The literal is inlined here (not FALLBACK_PAID_MODEL) because vi.mock factories
 // are hoisted above top-level consts; the exported FALLBACK_PAID_MODEL const below
 // just mirrors it for use in assertions.
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
   return {
     ...actual,
     getConfig: () => ({
       ...actual.getConfig(),
       VISION_FALLBACK_MODEL: 'openrouter/paid-floor',
     }),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
     createLogger: () => ({
       debug: vi.fn(),
       info: vi.fn(),

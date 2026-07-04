@@ -29,18 +29,20 @@
  * as the message would double it with the attachment-description path.
  */
 
+import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import {
-  MessageLinkParser,
+  type MentionedPersona,
+  type ReferencedChannel,
+} from '@tzurot/common-types/types/schemas/personality';
+import { type RawAssemblyInputs } from '@tzurot/common-types/types/schemas/rawEnvelope';
+import {
   resolveUserMentions,
   rewriteChannelMentions,
   rewriteRoleMentions,
-  type MentionedPersona,
   type MentionTargetUser,
-  type RawAssemblyInputs,
-  type ReferencedChannel,
-  type ReferencedMessage,
   type UserMentionDeps,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/utils/mentionRewriter';
+import { MessageLinkParser } from '@tzurot/common-types/utils/messageLinkParser';
 
 export interface RewriteRawContentParams {
   raw: RawAssemblyInputs;

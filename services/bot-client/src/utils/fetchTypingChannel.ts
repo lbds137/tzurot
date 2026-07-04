@@ -9,7 +9,8 @@
  */
 
 import type { Channel, Client, Message } from 'discord.js';
-import { createLogger, isTypingChannel, type TypingChannel } from '@tzurot/common-types';
+import { isTypingChannel, type TypingChannel } from '@tzurot/common-types/types/discord-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('fetchTypingChannel');
 

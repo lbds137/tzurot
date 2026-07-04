@@ -17,13 +17,11 @@
  * 300s budget, and Redis storage of the normalized output.
  */
 
-import {
-  createLogger,
-  isVoiceEnabled,
-  TimeoutError,
-  type AudioProviderId,
-  type TtsProviderId,
-} from '@tzurot/common-types';
+import { type TtsProviderId } from '@tzurot/common-types/services/tts/TtsProvider';
+import { type AudioProviderId } from '@tzurot/common-types/types/audio-provider';
+import { isVoiceEnabled } from '@tzurot/common-types/types/schemas/personality';
+import { TimeoutError } from '@tzurot/common-types/utils/errors';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { TtsConfigResolver } from '@tzurot/config-resolver';
 import type { IPipelineStep, GenerationContext } from '../types.js';
 import { dispatchTts } from '../../../../services/voice/TtsDispatcher.js';

@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import type { TypingChannel } from '@tzurot/common-types';
+import type { TypingChannel } from '@tzurot/common-types/types/discord-types';
 import { JobTracker, type PendingJobContext } from './JobTracker.js';
 
 // Helper to create mock context. `trackJob` reads the channel from

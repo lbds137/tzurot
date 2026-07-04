@@ -19,7 +19,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Client, Message, Channel } from 'discord.js';
 import type { Queue } from 'bullmq';
 import { ChannelType } from 'discord.js';
-import type { LLMGenerationResult, LoadedPersonality } from '@tzurot/common-types';
+import type { LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
+import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { MultiTagRecovery, type MultiTagRecoveryDeps } from './MultiTagRecovery.js';
 import type { CoordinatorEntrySnapshot, SlotSnapshot } from './MultiTagPersistence.js';
 

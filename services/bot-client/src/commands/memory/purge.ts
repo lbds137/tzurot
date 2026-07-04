@@ -26,7 +26,9 @@ import {
   type ButtonInteraction,
   type ModalSubmitInteraction,
 } from 'discord.js';
-import { createLogger, memoryPurgeOptions, type PurgeMemoriesResponse } from '@tzurot/common-types';
+import { memoryPurgeOptions } from '@tzurot/common-types/generated/commandOptions';
+import { type PurgeMemoriesResponse } from '@tzurot/common-types/schemas/api/memory';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type UserClient } from '@tzurot/clients';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { clientsFor } from '../../utils/gatewayClients.js';

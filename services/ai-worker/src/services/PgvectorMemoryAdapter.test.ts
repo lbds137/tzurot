@@ -30,16 +30,12 @@ function createMockEmbeddingService(): IEmbeddingService {
 }
 
 // Mock dependencies
-vi.mock('@tzurot/common-types', async () => {
-  const actual =
-    await vi.importActual<typeof import('@tzurot/common-types')>('@tzurot/common-types');
+vi.mock('@tzurot/common-types/constants/ai', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/constants/ai')>(
+    '@tzurot/common-types/constants/ai'
+  );
   return {
-    createLogger: () => ({
-      info: vi.fn(),
-      debug: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    }),
+    ...actual,
     MODEL_DEFAULTS: {
       EMBEDDING: 'Xenova/bge-small-en-v1.5',
     },
@@ -48,18 +44,51 @@ vi.mock('@tzurot/common-types', async () => {
       EMBEDDING_CHUNK_LIMIT: 7500,
       EMBEDDING_MAX_TOKENS: 8191,
     },
+  };
+});
+
+vi.mock('@tzurot/common-types/constants/discord', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/constants/discord')>(
+    '@tzurot/common-types/constants/discord'
+  );
+  return {
+    ...actual,
     filterValidDiscordIds: (ids: string[]) => ids.filter(id => /^\d{17,19}$/.test(id)),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
+    createLogger: () => ({
+      info: vi.fn(),
+      debug: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/textChunker', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/textChunker')>(
+    '@tzurot/common-types/utils/textChunker'
+  );
+  return {
+    ...actual,
     splitTextByTokens: (...args: unknown[]) => mockSplitTextByTokens(...args),
-    // Use actual deterministic UUID generators for testing idempotency
-    generateMemoryChunkGroupUuid: actual.generateMemoryChunkGroupUuid,
-    hashContent: actual.hashContent,
-    deterministicMemoryUuid: actual.deterministicMemoryUuid,
-    // Mock countTextTokens for defensive validation check
-    countTextTokens: () => 100, // Return safe value under limit
-    // Pass through the real `Prisma` namespace — `PgvectorQueryBuilder` calls
-    // `Prisma.sql` / `Prisma.join` to construct similarity-search SQL, and a
-    // missing entry here makes those calls throw and the catch path return [].
-    Prisma: actual.Prisma,
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/tokenCounter', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/tokenCounter')>(
+    '@tzurot/common-types/utils/tokenCounter'
+  );
+  return {
+    ...actual,
+    countTextTokens: () => 100,
   };
 });
 

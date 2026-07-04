@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ContextWindowManager } from './ContextWindowManager.js';
-import { MessageRole, type DiscordEnvironment } from '@tzurot/common-types';
+import { MessageRole } from '@tzurot/common-types/constants/message';
+import { type DiscordEnvironment } from '@tzurot/common-types/types/schemas/discord';
 
 describe('ContextWindowManager', () => {
   let manager: ContextWindowManager;

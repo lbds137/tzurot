@@ -15,7 +15,8 @@
  * quota impact is negligible.
  */
 
-import { AI_ENDPOINTS, VALIDATION_TIMEOUTS, ZAI_VALIDATION_MODEL } from '@tzurot/common-types';
+import { AI_ENDPOINTS, ZAI_VALIDATION_MODEL } from '@tzurot/common-types/constants/ai';
+import { VALIDATION_TIMEOUTS } from '@tzurot/common-types/constants/timing';
 import { VALIDATION_MESSAGES, type ApiKeyValidationResult } from './types.js';
 
 export async function validateZaiCodingKey(apiKey: string): Promise<ApiKeyValidationResult> {

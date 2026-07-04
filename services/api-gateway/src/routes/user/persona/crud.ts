@@ -10,15 +10,15 @@
 import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
-  createLogger,
-  type PrismaClient,
-  generatePersonaUuid,
   PersonaCreateSchema,
   PersonaUpdateSchema,
   PERSONA_SELECT,
   type PersonaSummary,
   type PersonaDetails,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/schemas/api/persona';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { generatePersonaUuid } from '@tzurot/common-types/utils/deterministicUuid';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';

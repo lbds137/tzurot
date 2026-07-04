@@ -7,12 +7,12 @@
  */
 
 import {
-  formatDateOnly,
   type ShapesIncPersonalityConfig,
   type ShapesIncMemory,
   type ShapesIncStory,
   type ShapesIncUserPersonalization,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/shapes-import';
+import { formatDateOnly } from '@tzurot/common-types/utils/dateFormatting';
 
 // ============================================================================
 // Types

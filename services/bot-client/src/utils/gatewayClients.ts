@@ -25,7 +25,8 @@ import type {
   ModalSubmitInteraction,
   User as DiscordUser,
 } from 'discord.js';
-import { getConfig, type GatewayUser } from '@tzurot/common-types';
+import { getConfig } from '@tzurot/common-types/config/config';
+import { type GatewayUser } from '@tzurot/common-types/types/gateway-context';
 import {
   asActor,
   ServiceClient,

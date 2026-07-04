@@ -6,12 +6,10 @@
  */
 
 import type { Message } from 'discord.js';
-import {
-  createLogger,
-  MESSAGE_LIMITS,
-  type MessageReaction,
-  INTERNAL_DISCORD_ID_PREFIX,
-} from '@tzurot/common-types';
+import { MESSAGE_LIMITS } from '@tzurot/common-types/constants/message';
+import { INTERNAL_DISCORD_ID_PREFIX } from '@tzurot/common-types/constants/personaId';
+import { type MessageReaction } from '@tzurot/common-types/types/schemas/message';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { ParticipantGuildInfo, ExtendedContextUser } from './types.js';
 
 const logger = createLogger('ParticipantContextCollector');

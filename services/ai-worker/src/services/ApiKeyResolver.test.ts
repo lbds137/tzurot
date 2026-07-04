@@ -4,11 +4,53 @@
 
 import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 import { ApiKeyResolver } from './ApiKeyResolver.js';
-import { AIProvider, decryptApiKey, type PrismaClient } from '@tzurot/common-types';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { decryptApiKey } from '@tzurot/common-types/utils/encryption';
 
 // Mock the common-types module
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
+  return {
+    ...actual,
+    getConfig: () => ({
+      API_KEY_ENCRYPTION_KEY: 'test-encryption-key-32-bytes-long!',
+      OPENROUTER_API_KEY: 'system-openrouter-key',
+      ELEVENLABS_API_KEY: 'system-elevenlabs-key',
+    }),
+  };
+});
+
+vi.mock('@tzurot/common-types/constants/ai', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/constants/ai')>(
+    '@tzurot/common-types/constants/ai'
+  );
+  return {
+    ...actual,
+    AIProvider: {
+      OpenRouter: 'openrouter',
+      ElevenLabs: 'elevenlabs',
+      ZaiCoding: 'zai-coding',
+    },
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/encryption', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/encryption')>(
+    '@tzurot/common-types/utils/encryption'
+  );
+  return {
+    ...actual,
+    decryptApiKey: vi.fn(),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -17,17 +59,6 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
-    getConfig: () => ({
-      API_KEY_ENCRYPTION_KEY: 'test-encryption-key-32-bytes-long!',
-      OPENROUTER_API_KEY: 'system-openrouter-key',
-      ELEVENLABS_API_KEY: 'system-elevenlabs-key',
-    }),
-    decryptApiKey: vi.fn(),
-    AIProvider: {
-      OpenRouter: 'openrouter',
-      ElevenLabs: 'elevenlabs',
-      ZaiCoding: 'zai-coding',
-    },
   };
 });
 

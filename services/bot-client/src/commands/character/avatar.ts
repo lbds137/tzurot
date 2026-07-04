@@ -5,7 +5,9 @@
  * Automatically resizes large images to fit within the API gateway's body limit.
  */
 
-import { createLogger, type EnvConfig, characterAvatarOptions } from '@tzurot/common-types';
+import { type EnvConfig } from '@tzurot/common-types/config/config';
+import { characterAvatarOptions } from '@tzurot/common-types/generated/commandOptions';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { validateDiscordCdnUrl } from '../../utils/discordCdnGuard.js';

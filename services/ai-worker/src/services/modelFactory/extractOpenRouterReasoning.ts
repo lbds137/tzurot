@@ -32,7 +32,7 @@
  */
 
 import { type BaseMessage } from '@langchain/core/messages';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { extractApiReasoningContent } from '../../utils/thinkingExtraction.js';
 
 const logger = createLogger('ModelFactory');

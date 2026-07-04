@@ -9,7 +9,7 @@
  */
 
 import { escapeMarkdown } from 'discord.js';
-import { DISCORD_LIMITS } from '@tzurot/common-types';
+import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 import {
   type SectionDefinition,
   type DashboardContext,

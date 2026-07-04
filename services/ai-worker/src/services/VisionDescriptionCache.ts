@@ -24,15 +24,15 @@
  */
 
 import type { Redis } from 'ioredis';
+import { TEXT_LIMITS } from '@tzurot/common-types/constants/discord';
 import {
-  createLogger,
-  deriveAttachmentCacheKey,
-  REDIS_KEY_PREFIXES,
-  INTERVALS,
-  TEXT_LIMITS,
   VISION_FAILURE_CACHE_POLICY,
   ApiErrorCategory,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/constants/error';
+import { REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
+import { INTERVALS } from '@tzurot/common-types/constants/timing';
+import { deriveAttachmentCacheKey } from '@tzurot/common-types/utils/attachmentCacheKey';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('VisionDescriptionCache');
 

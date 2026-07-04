@@ -28,7 +28,7 @@
 
 import type { Queue, QueueEvents } from 'bullmq';
 import type { Redis } from 'ioredis';
-import type { PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type {
   ApiKeyCacheInvalidationService,
   CacheInvalidationService,

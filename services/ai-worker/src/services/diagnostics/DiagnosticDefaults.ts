@@ -6,8 +6,8 @@
  * reaching that stage).
  */
 
+import { FINISH_REASONS } from '@tzurot/common-types/constants/finishReasons';
 import {
-  FINISH_REASONS,
   type DiagnosticInputProcessing,
   type DiagnosticMemoryRetrieval,
   type DiagnosticTokenBudget,
@@ -15,7 +15,7 @@ import {
   type DiagnosticLlmConfig,
   type DiagnosticLlmResponse,
   type DiagnosticPostProcessing,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/diagnostic';
 
 /** Sentinel value for pipeline stages that didn't record their data. */
 const NOT_RECORDED = '[not recorded]' as const;

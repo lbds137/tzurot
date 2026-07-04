@@ -5,7 +5,7 @@
  * attachments, references, and recent history context.
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { ProcessedAttachment } from '../MultimodalProcessor.js';
 import { extractContentDescriptions } from '../RAGUtils.js';
 

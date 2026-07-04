@@ -12,7 +12,7 @@
  */
 
 import { SlashCommandBuilder, type ModalSubmitInteraction } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { defineCommand } from '../../utils/defineCommand.js';
 import { createMixedModeSubcommandRouter } from '../../utils/mixedModeSubcommandRouter.js';
 import { handleAuth } from './auth.js';

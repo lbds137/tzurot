@@ -6,15 +6,17 @@ import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vite
 import { EmbedBuilder } from 'discord.js';
 import type { Attachment } from 'discord.js';
 import { handleImport, CHARACTER_JSON_TEMPLATE, REQUIRED_IMPORT_FIELDS } from './import.js';
-import { DISCORD_LIMITS } from '@tzurot/common-types';
+import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 
 // Mock dependencies
 const { mockNormalizeSlug } = vi.hoisted(() => ({
   // Default: passthrough (bot owner behavior). Tests override for non-owner scenarios.
   mockNormalizeSlug: vi.fn((slug: string, _userId: string, _username: string) => slug),
 }));
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -23,7 +25,25 @@ vi.mock('@tzurot/common-types', async importOriginal => {
       warn: vi.fn(),
       debug: vi.fn(),
     }),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/ownerMiddleware', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/ownerMiddleware')>(
+    '@tzurot/common-types/utils/ownerMiddleware'
+  );
+  return {
+    ...actual,
     isBotOwner: vi.fn().mockReturnValue(true),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/slugUtils', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/slugUtils')>(
+    '@tzurot/common-types/utils/slugUtils'
+  );
+  return {
+    ...actual,
     normalizeSlugForUser: mockNormalizeSlug,
   };
 });

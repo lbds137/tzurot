@@ -5,26 +5,28 @@
  * Handles job dependencies to ensure preprocessing completes before generation.
  */
 
+import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
 import {
-  createLogger,
   JobType,
   JOB_PREFIXES,
   JOB_REQUEST_SUFFIXES,
   REDIS_KEY_PREFIXES,
-  CONTENT_TYPES,
-  type AttachmentMetadata,
-  type LoadedPersonality,
+  JobStatus,
+} from '@tzurot/common-types/constants/queue';
+import {
   type AudioTranscriptionJobData,
   type ImageDescriptionJobData,
   type LLMGenerationJobData,
   type JobDependency,
   type JobContext,
   type ResponseDestination,
-  JobStatus,
   audioTranscriptionJobDataSchema,
   imageDescriptionJobDataSchema,
   llmGenerationJobDataSchema,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/jobs';
+import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { LlmConfigResolver, VisionConfigResolver } from '@tzurot/config-resolver';
 import { flowProducer } from '../queue.js';
 import { stampResolvedConfig } from './stampResolvedConfig.js';
@@ -389,7 +391,7 @@ export async function createJobChain(params: {
     visionConfigResolver,
   } = params;
 
-  const config = await import('@tzurot/common-types').then(m => m.getConfig());
+  const config = await import('@tzurot/common-types/config/config').then(m => m.getConfig());
   const QUEUE_NAME = config.QUEUE_NAME;
 
   // Resolve the user's effective text + vision models once and stamp both onto the

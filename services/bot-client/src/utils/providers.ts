@@ -3,7 +3,7 @@
  * Shared utilities for AI provider display and handling
  */
 
-import { AIProvider } from '@tzurot/common-types';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
 
 /**
  * Get human-readable display name for a provider

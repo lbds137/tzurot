@@ -25,11 +25,9 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import {
-  PersonalityUpdateSchema,
-  PersonaUpdateSchema,
-  LlmConfigUpdateSchema,
-} from '@tzurot/common-types';
+import { LlmConfigUpdateSchema } from '@tzurot/common-types/schemas/api/llm-config';
+import { PersonaUpdateSchema } from '@tzurot/common-types/schemas/api/persona';
+import { PersonalityUpdateSchema } from '@tzurot/common-types/schemas/api/personality';
 import { toCharacterData, omitEmptyRequiredText } from '../../commands/character/api.js';
 import { flattenPersonaData, unflattenPersonaData } from '../../commands/persona/config.js';
 import { flattenPresetData, unflattenPresetData } from '../../commands/preset/config.js';

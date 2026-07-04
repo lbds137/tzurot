@@ -7,7 +7,8 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { addValidatedJob, addValidatedJobs } from './validatedQueue.js';
-import { JobType, CONTENT_TYPES } from '@tzurot/common-types';
+import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
+import { JobType } from '@tzurot/common-types/constants/queue';
 import type { Queue, Job } from 'bullmq';
 
 // Create a mock queue

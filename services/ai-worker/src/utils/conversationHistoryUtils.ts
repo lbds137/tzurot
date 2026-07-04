@@ -6,7 +6,7 @@
  * independent of the duplicate detection algorithm.
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('ConversationHistoryUtils');
 

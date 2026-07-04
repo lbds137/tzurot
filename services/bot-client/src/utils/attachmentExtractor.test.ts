@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest';
 import { Collection } from 'discord.js';
 import type { Attachment, Snowflake } from 'discord.js';
 import { extractAttachments } from './attachmentExtractor.js';
-import { CONTENT_TYPES } from '@tzurot/common-types';
+import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
 
 // Helper to create mock Attachment
 function createMockAttachment(

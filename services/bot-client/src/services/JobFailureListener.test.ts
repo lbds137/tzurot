@@ -29,8 +29,10 @@ vi.mock('bullmq', () => ({
 }));
 
 // Mock getConfig so start() finds a valid REDIS_URL without environment setup.
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
   return {
     ...actual,
     getConfig: () => ({

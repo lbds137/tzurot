@@ -3,7 +3,7 @@
  * Reusable validation functions for common request validation patterns
  */
 
-import { customFieldsSchema } from '@tzurot/common-types';
+import { customFieldsSchema } from '@tzurot/common-types/types/schemas/personality';
 import { ErrorResponses, type ErrorResponse } from './errorResponses.js';
 
 /**

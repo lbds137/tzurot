@@ -8,7 +8,8 @@
  * cleans up the deferred "thinking..." reply for the explicit-pick path.
  */
 
-import { createLogger, type LoadedPersonality } from '@tzurot/common-types';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { getCachedPersonalities } from '../../utils/autocomplete/autocompleteCache.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
@@ -20,8 +21,7 @@ const logger = createLogger('character-random-pick');
  * Either a slug to load, or an error message to surface to the user.
  */
 export type ResolvedSlug =
-  | { kind: 'slug'; slug: string; randomPick: boolean }
-  | { kind: 'error'; message: string };
+  { kind: 'slug'; slug: string; randomPick: boolean } | { kind: 'error'; message: string };
 
 export interface ResolveCharacterSlugOptions {
   /** When true and no slug was provided, exclude private personalities from the random pool. */

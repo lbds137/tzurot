@@ -7,7 +7,8 @@
  * - Non-owners can view global presets in autocomplete but cannot edit them
  */
 
-import { createLogger, presetEditOptions } from '@tzurot/common-types';
+import { presetEditOptions } from '@tzurot/common-types/generated/commandOptions';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
   buildDashboardEmbed,

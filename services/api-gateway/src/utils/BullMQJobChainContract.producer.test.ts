@@ -17,25 +17,30 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { contractFixtureFile, stableFixtureJson } from '@tzurot/test-utils';
+import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
+import { JobType } from '@tzurot/common-types/constants/queue';
 import {
-  JobType,
-  CONTENT_TYPES,
   audioTranscriptionJobDataSchema,
   imageDescriptionJobDataSchema,
   llmGenerationJobDataSchema,
-  type LoadedPersonality,
   type JobContext,
   type ResponseDestination,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/jobs';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import type { LlmConfigResolver, VisionConfigResolver } from '@tzurot/config-resolver';
 
 // Mock the queue (capture the FlowProducer.add payload without a real queue)
 vi.mock('../queue.js', () => ({ flowProducer: { add: vi.fn() } }));
 
 // Mock getConfig so QUEUE_NAME is deterministic in the captured payload
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
-  return { ...actual, getConfig: () => ({ QUEUE_NAME: 'test-queue' }) };
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
+  return {
+    ...actual,
+    getConfig: () => ({ QUEUE_NAME: 'test-queue' }),
+  };
 });
 
 import { createJobChain } from './jobChainOrchestrator.js';

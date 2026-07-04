@@ -3,11 +3,9 @@
  * Handles /settings timezone set command
  */
 
-import {
-  createLogger,
-  TIMEZONE_DISCORD_CHOICES,
-  settingsTimezoneSetOptions,
-} from '@tzurot/common-types';
+import { TIMEZONE_DISCORD_CHOICES } from '@tzurot/common-types/constants/timezone';
+import { settingsTimezoneSetOptions } from '@tzurot/common-types/generated/commandOptions';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { clientsFor } from '../../../utils/gatewayClients.js';
 import { createSuccessEmbed } from '../../../utils/commandHelpers.js';

@@ -9,7 +9,7 @@
  * Extracted from UserReferenceResolver to reduce file size.
  */
 
-import type { LoadedPersonality } from '@tzurot/common-types';
+import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 
 /**
  * Personality text fields that may contain user references and should be resolved.

@@ -11,8 +11,22 @@ import type { Message } from 'discord.js';
 import * as nsfwVerification from '../utils/nsfwVerification.js';
 
 // Mock common-types
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
+  return {
+    ...actual,
+    getConfig: () => ({
+      BOT_MENTION_CHAR: '@',
+    }),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -20,9 +34,6 @@ vi.mock('@tzurot/common-types', async () => {
       info: vi.fn(),
       warn: vi.fn(),
       error: vi.fn(),
-    }),
-    getConfig: () => ({
-      BOT_MENTION_CHAR: '@',
     }),
   };
 });

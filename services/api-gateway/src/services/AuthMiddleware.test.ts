@@ -20,17 +20,28 @@ import {
   isAuthorizedForWrite,
   getOrCreateUserService,
 } from './AuthMiddleware.js';
-import { PrismaClient } from '@tzurot/common-types';
-import * as commonTypes from '@tzurot/common-types';
+import { PrismaClient } from '@tzurot/common-types/services/prisma';
+import { getConfig } from '@tzurot/common-types/config/config';
 
 // Mock getConfig and isBotOwner
 const mockIsBotOwnerFn = vi.fn();
 const mockGetOrCreateUser = vi.fn();
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
   return {
     ...actual,
     getConfig: vi.fn(),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/ownerMiddleware', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/ownerMiddleware')>(
+    '@tzurot/common-types/utils/ownerMiddleware'
+  );
+  return {
+    ...actual,
     isBotOwner: (userId: string) => mockIsBotOwnerFn(userId),
   };
 });
@@ -140,7 +151,7 @@ describe('authMiddleware', () => {
     });
 
     it('should return true when owner ID matches config', () => {
-      vi.mocked(commonTypes.getConfig).mockReturnValue({
+      vi.mocked(getConfig).mockReturnValue({
         BOT_OWNER_ID: 'valid-owner-id',
       } as any);
 
@@ -148,7 +159,7 @@ describe('authMiddleware', () => {
     });
 
     it('should return false when owner ID does not match', () => {
-      vi.mocked(commonTypes.getConfig).mockReturnValue({
+      vi.mocked(getConfig).mockReturnValue({
         BOT_OWNER_ID: 'valid-owner-id',
       } as any);
 
@@ -156,7 +167,7 @@ describe('authMiddleware', () => {
     });
 
     it('should return false when owner ID is undefined', () => {
-      vi.mocked(commonTypes.getConfig).mockReturnValue({
+      vi.mocked(getConfig).mockReturnValue({
         BOT_OWNER_ID: 'valid-owner-id',
       } as any);
 
@@ -164,7 +175,7 @@ describe('authMiddleware', () => {
     });
 
     it('should return false when BOT_OWNER_ID is not configured', () => {
-      vi.mocked(commonTypes.getConfig).mockReturnValue({
+      vi.mocked(getConfig).mockReturnValue({
         BOT_OWNER_ID: undefined,
       } as any);
 
@@ -172,7 +183,7 @@ describe('authMiddleware', () => {
     });
 
     it('should return false when both are undefined', () => {
-      vi.mocked(commonTypes.getConfig).mockReturnValue({
+      vi.mocked(getConfig).mockReturnValue({
         BOT_OWNER_ID: undefined,
       } as any);
 
@@ -180,7 +191,7 @@ describe('authMiddleware', () => {
     });
 
     it('should return false when owner ID is empty string', () => {
-      vi.mocked(commonTypes.getConfig).mockReturnValue({
+      vi.mocked(getConfig).mockReturnValue({
         BOT_OWNER_ID: 'valid-owner-id',
       } as any);
 
@@ -188,7 +199,7 @@ describe('authMiddleware', () => {
     });
 
     it('should handle case-sensitive comparison', () => {
-      vi.mocked(commonTypes.getConfig).mockReturnValue({
+      vi.mocked(getConfig).mockReturnValue({
         BOT_OWNER_ID: 'CaseSensitiveId',
       } as any);
 
@@ -219,7 +230,7 @@ describe('authMiddleware', () => {
     });
 
     it('should call next() when owner ID is valid', () => {
-      vi.mocked(commonTypes.getConfig).mockReturnValue({
+      vi.mocked(getConfig).mockReturnValue({
         BOT_OWNER_ID: 'valid-owner',
       } as any);
 
@@ -234,7 +245,7 @@ describe('authMiddleware', () => {
     });
 
     it('should return 403 when owner ID is invalid', () => {
-      vi.mocked(commonTypes.getConfig).mockReturnValue({
+      vi.mocked(getConfig).mockReturnValue({
         BOT_OWNER_ID: 'valid-owner',
       } as any);
 
@@ -254,7 +265,7 @@ describe('authMiddleware', () => {
     });
 
     it('should return 403 when owner ID is missing', () => {
-      vi.mocked(commonTypes.getConfig).mockReturnValue({
+      vi.mocked(getConfig).mockReturnValue({
         BOT_OWNER_ID: 'valid-owner',
       } as any);
 
@@ -266,7 +277,7 @@ describe('authMiddleware', () => {
     });
 
     it('should use custom message when provided', () => {
-      vi.mocked(commonTypes.getConfig).mockReturnValue({
+      vi.mocked(getConfig).mockReturnValue({
         BOT_OWNER_ID: 'valid-owner',
       } as any);
 
@@ -283,7 +294,7 @@ describe('authMiddleware', () => {
     });
 
     it('should NOT authenticate via a body ownerId', () => {
-      vi.mocked(commonTypes.getConfig).mockReturnValue({
+      vi.mocked(getConfig).mockReturnValue({
         BOT_OWNER_ID: 'valid-owner',
       } as any);
 
@@ -298,7 +309,7 @@ describe('authMiddleware', () => {
     });
 
     it('should include timestamp in error response', () => {
-      vi.mocked(commonTypes.getConfig).mockReturnValue({
+      vi.mocked(getConfig).mockReturnValue({
         BOT_OWNER_ID: 'valid-owner',
       } as any);
 
@@ -313,7 +324,7 @@ describe('authMiddleware', () => {
     });
 
     it('should not call next() when BOT_OWNER_ID is not configured', () => {
-      vi.mocked(commonTypes.getConfig).mockReturnValue({
+      vi.mocked(getConfig).mockReturnValue({
         BOT_OWNER_ID: undefined,
       } as any);
 
@@ -327,7 +338,7 @@ describe('authMiddleware', () => {
     });
 
     it('should handle empty string owner ID', () => {
-      vi.mocked(commonTypes.getConfig).mockReturnValue({
+      vi.mocked(getConfig).mockReturnValue({
         BOT_OWNER_ID: 'valid-owner',
       } as any);
 
@@ -698,7 +709,7 @@ describe('authMiddleware', () => {
     });
 
     it('should return true when key matches configured key', () => {
-      vi.mocked(commonTypes.getConfig).mockReturnValue({
+      vi.mocked(getConfig).mockReturnValue({
         INTERNAL_SERVICE_SECRET: 'valid-service-secret',
       } as any);
 
@@ -706,7 +717,7 @@ describe('authMiddleware', () => {
     });
 
     it('should return false when key does not match', () => {
-      vi.mocked(commonTypes.getConfig).mockReturnValue({
+      vi.mocked(getConfig).mockReturnValue({
         INTERNAL_SERVICE_SECRET: 'valid-service-secret',
       } as any);
 
@@ -714,7 +725,7 @@ describe('authMiddleware', () => {
     });
 
     it('should return false when key is undefined', () => {
-      vi.mocked(commonTypes.getConfig).mockReturnValue({
+      vi.mocked(getConfig).mockReturnValue({
         INTERNAL_SERVICE_SECRET: 'valid-service-secret',
       } as any);
 
@@ -722,7 +733,7 @@ describe('authMiddleware', () => {
     });
 
     it('should return false when INTERNAL_SERVICE_SECRET is not configured', () => {
-      vi.mocked(commonTypes.getConfig).mockReturnValue({
+      vi.mocked(getConfig).mockReturnValue({
         INTERNAL_SERVICE_SECRET: undefined,
       } as any);
 
@@ -730,7 +741,7 @@ describe('authMiddleware', () => {
     });
 
     it('should return false when key is empty string', () => {
-      vi.mocked(commonTypes.getConfig).mockReturnValue({
+      vi.mocked(getConfig).mockReturnValue({
         INTERNAL_SERVICE_SECRET: 'valid-service-secret',
       } as any);
 
@@ -738,7 +749,7 @@ describe('authMiddleware', () => {
     });
 
     it('should handle case-sensitive comparison', () => {
-      vi.mocked(commonTypes.getConfig).mockReturnValue({
+      vi.mocked(getConfig).mockReturnValue({
         INTERNAL_SERVICE_SECRET: 'CaseSensitiveKey',
       } as any);
 
@@ -747,7 +758,7 @@ describe('authMiddleware', () => {
     });
 
     it('should use constant-time comparison (same length keys)', () => {
-      vi.mocked(commonTypes.getConfig).mockReturnValue({
+      vi.mocked(getConfig).mockReturnValue({
         INTERNAL_SERVICE_SECRET: 'abcdef',
       } as any);
 
@@ -781,7 +792,7 @@ describe('authMiddleware', () => {
     });
 
     it('should call next() when service secret is valid', () => {
-      vi.mocked(commonTypes.getConfig).mockReturnValue({
+      vi.mocked(getConfig).mockReturnValue({
         INTERNAL_SERVICE_SECRET: 'valid-service-secret',
       } as any);
 
@@ -796,7 +807,7 @@ describe('authMiddleware', () => {
     });
 
     it('should return 403 when service secret is invalid', () => {
-      vi.mocked(commonTypes.getConfig).mockReturnValue({
+      vi.mocked(getConfig).mockReturnValue({
         INTERNAL_SERVICE_SECRET: 'valid-service-secret',
       } as any);
 
@@ -816,7 +827,7 @@ describe('authMiddleware', () => {
     });
 
     it('should return 403 when service secret is missing', () => {
-      vi.mocked(commonTypes.getConfig).mockReturnValue({
+      vi.mocked(getConfig).mockReturnValue({
         INTERNAL_SERVICE_SECRET: 'valid-service-secret',
       } as any);
 
@@ -828,7 +839,7 @@ describe('authMiddleware', () => {
     });
 
     it('should use custom message when provided', () => {
-      vi.mocked(commonTypes.getConfig).mockReturnValue({
+      vi.mocked(getConfig).mockReturnValue({
         INTERNAL_SERVICE_SECRET: 'valid-service-secret',
       } as any);
 
@@ -845,7 +856,7 @@ describe('authMiddleware', () => {
     });
 
     it('should return 403 when INTERNAL_SERVICE_SECRET is not configured', () => {
-      vi.mocked(commonTypes.getConfig).mockReturnValue({
+      vi.mocked(getConfig).mockReturnValue({
         INTERNAL_SERVICE_SECRET: undefined,
       } as any);
 
@@ -859,7 +870,7 @@ describe('authMiddleware', () => {
     });
 
     it('should include timestamp in error response', () => {
-      vi.mocked(commonTypes.getConfig).mockReturnValue({
+      vi.mocked(getConfig).mockReturnValue({
         INTERNAL_SERVICE_SECRET: 'valid-service-secret',
       } as any);
 
@@ -881,7 +892,7 @@ describe('authMiddleware', () => {
      * Without this, admin settings commands fail with "Only bot owners can modify settings".
      */
     it('should attach userId to request when X-User-Id header is provided', () => {
-      vi.mocked(commonTypes.getConfig).mockReturnValue({
+      vi.mocked(getConfig).mockReturnValue({
         INTERNAL_SERVICE_SECRET: 'valid-service-secret',
       } as any);
 
@@ -898,7 +909,7 @@ describe('authMiddleware', () => {
     });
 
     it('should not attach userId when X-User-Id header is missing', () => {
-      vi.mocked(commonTypes.getConfig).mockReturnValue({
+      vi.mocked(getConfig).mockReturnValue({
         INTERNAL_SERVICE_SECRET: 'valid-service-secret',
       } as any);
 

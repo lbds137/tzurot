@@ -11,7 +11,7 @@ import {
   personaSeedFields,
 } from './config.js';
 import { SectionStatus } from '../../utils/dashboard/types.js';
-import { DISCORD_LIMITS } from '@tzurot/common-types';
+import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 import type { PersonaDetails, FlattenedPersonaData } from './types.js';
 
 // Helper to create test persona data with defaults

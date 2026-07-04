@@ -23,8 +23,22 @@ vi.mock('./guestModeValidation.js', () => ({
   checkTtsByokAccess: mockCheckTtsByokAccess,
 }));
 
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/generated/commandOptions', async () => {
+  const actual = await vi.importActual<
+    typeof import('@tzurot/common-types/generated/commandOptions')
+  >('@tzurot/common-types/generated/commandOptions');
+  return {
+    ...actual,
+    voiceTtsSetDefaultOptions: vi.fn(() => ({
+      tts: () => 'cfg-uuid-1',
+    })),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -33,9 +47,6 @@ vi.mock('@tzurot/common-types', async importOriginal => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
-    voiceTtsSetDefaultOptions: vi.fn(() => ({
-      tts: () => 'cfg-uuid-1',
-    })),
   };
 });
 

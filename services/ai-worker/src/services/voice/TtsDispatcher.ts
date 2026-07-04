@@ -43,15 +43,15 @@
  */
 
 import {
-  createLogger,
-  TtsProviderError,
-  type AudioProviderId,
   type PreparedTts,
   type ResolvedTtsConfig,
   type TtsContext,
   type TtsProvider,
   type TtsProviderId,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/services/tts/TtsProvider';
+import { TtsProviderError } from '@tzurot/common-types/services/tts/TtsProviderError';
+import { type AudioProviderId } from '@tzurot/common-types/types/audio-provider';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { MistralReferenceAudioTooLongError } from './MistralTtsClient.js';
 
 const logger = createLogger('TtsDispatcher');

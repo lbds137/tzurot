@@ -7,8 +7,9 @@ import { ZodError } from 'zod';
 import { VoiceRegistrationService } from './VoiceRegistrationService.js';
 import { VoiceEngineError } from './VoiceEngineClient.js';
 import type { VoiceEngineClient } from './VoiceEngineClient.js';
-import * as commonTypes from '@tzurot/common-types';
-import { TimeoutError, type EnvConfig } from '@tzurot/common-types';
+import * as configModule from '@tzurot/common-types/config/config';
+import { type EnvConfig } from '@tzurot/common-types/config/config';
+import { TimeoutError } from '@tzurot/common-types/utils/errors';
 
 // Mock global fetch
 const mockFetch = vi.fn();
@@ -30,7 +31,7 @@ describe('VoiceRegistrationService', () => {
       registerVoice: vi.fn(),
     };
 
-    getConfigSpy = vi.spyOn(commonTypes, 'getConfig').mockReturnValue({
+    getConfigSpy = vi.spyOn(configModule, 'getConfig').mockReturnValue({
       GATEWAY_URL: 'http://localhost:3000',
       INTERNAL_SERVICE_SECRET: 'test-secret',
     } as unknown as EnvConfig);

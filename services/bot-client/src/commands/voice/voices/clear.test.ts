@@ -18,8 +18,10 @@ import type { DeferredCommandContext } from '../../../utils/commandContext/types
 import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
 import type { UserClient } from '@tzurot/clients';
 
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -141,8 +143,7 @@ describe('handleClearVoices', () => {
     await handleClearVoices(createMockContext());
 
     const callArg = mockBuildDestructiveWarning.mock.calls[0]?.[0] as
-      | { entityName?: string }
-      | undefined;
+      { entityName?: string } | undefined;
     expect(callArg?.entityName).toBe('all your Tzurot voices');
     // Specifically, no digits — defends against regression where the count returns
     expect(callArg?.entityName).not.toMatch(/\d/);

@@ -11,14 +11,14 @@
 import { Router, type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import type { Redis } from 'ioredis';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import {
-  createLogger,
   getDurationLabel,
-  type PrismaClient,
   EnableIncognitoRequestSchema,
   DisableIncognitoRequestSchema,
   IncognitoForgetRequestSchema,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/incognito';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';

@@ -10,7 +10,8 @@
  */
 
 import type { Queue } from 'bullmq';
-import { createLogger, type LLMGenerationResult } from '@tzurot/common-types';
+import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { SlotSnapshot } from './MultiTagPersistence.js';
 
 const logger = createLogger('MultiTagRecoveryHelpers');

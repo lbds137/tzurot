@@ -7,7 +7,12 @@ import { LLMInvoker } from './LLMInvoker.js';
 import { RetryError } from '../utils/retry.js';
 import { BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
-import { TIMEOUTS, ApiErrorType, ApiErrorCategory, ERROR_MESSAGES } from '@tzurot/common-types';
+import {
+  ApiErrorType,
+  ApiErrorCategory,
+  ERROR_MESSAGES,
+} from '@tzurot/common-types/constants/error';
+import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
 
 // Mock ModelFactory
 vi.mock('./ModelFactory.js', () => ({

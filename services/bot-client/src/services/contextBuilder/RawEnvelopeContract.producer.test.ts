@@ -26,12 +26,10 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { contractFixtureFile, stableFixtureJson } from '@tzurot/test-utils';
-import {
-  MessageRole,
-  type ConversationMessage,
-  type DiscordEnvironment,
-  type RawAssemblyInputs,
-} from '@tzurot/common-types';
+import { MessageRole } from '@tzurot/common-types/constants/message';
+import { type ConversationMessage } from '@tzurot/common-types/types/conversationMessage';
+import { type DiscordEnvironment } from '@tzurot/common-types/types/schemas/discord';
+import { type RawAssemblyInputs } from '@tzurot/common-types/types/schemas/rawEnvelope';
 import type { Message } from 'discord.js';
 
 const { mockGetVoiceTranscript, mockBuildKnownChannelEnvironments } = vi.hoisted(() => ({
@@ -41,15 +39,13 @@ const { mockGetVoiceTranscript, mockBuildKnownChannelEnvironments } = vi.hoisted
   // scenario overrides it with `mockReturnValueOnce` for its own richer map. The
   // explicit return type keeps `mockReturnValueOnce` open to any env-map shape
   // (without it TS pins the type to this single-key literal).
-  mockBuildKnownChannelEnvironments: vi.fn(
-    (): Record<string, DiscordEnvironment> => ({
-      'channel-cross-1': {
-        type: 'guild',
-        guild: { id: 'guild-1', name: 'Contract Guild' },
-        channel: { id: 'channel-cross-1', name: 'cross-channel', type: 'GUILD_TEXT' },
-      },
-    })
-  ),
+  mockBuildKnownChannelEnvironments: vi.fn((): Record<string, DiscordEnvironment> => ({
+    'channel-cross-1': {
+      type: 'guild',
+      guild: { id: 'guild-1', name: 'Contract Guild' },
+      channel: { id: 'channel-cross-1', name: 'cross-channel', type: 'GUILD_TEXT' },
+    },
+  })),
 }));
 vi.mock('../../processors/VoiceMessageProcessor.js', () => ({
   VoiceMessageProcessor: { getVoiceTranscript: mockGetVoiceTranscript },

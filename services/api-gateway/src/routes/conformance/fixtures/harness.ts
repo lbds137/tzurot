@@ -14,7 +14,8 @@
 
 import express, { type Express } from 'express';
 import request from 'supertest';
-import { PrismaClient, resetConfig } from '@tzurot/common-types';
+import { resetConfig } from '@tzurot/common-types/config/config';
+import { PrismaClient } from '@tzurot/common-types/services/prisma';
 import {
   CacheInvalidationService,
   DenylistCacheInvalidationService,

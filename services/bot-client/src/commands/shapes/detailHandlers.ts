@@ -16,7 +16,8 @@ import {
   ButtonStyle,
   ActionRowBuilder,
 } from 'discord.js';
-import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { ShapesCustomIds } from '../../utils/customIds.js';
 import type { BrowseSortType } from '../../utils/browse/constants.js';
 import { startImport } from './import.js';

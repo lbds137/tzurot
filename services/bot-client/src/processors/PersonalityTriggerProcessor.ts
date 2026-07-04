@@ -23,12 +23,10 @@
  */
 
 import type { Message } from 'discord.js';
-import {
-  createLogger,
-  getConfig,
-  type LoadedPersonality,
-  isTypingChannel,
-} from '@tzurot/common-types';
+import { getConfig } from '@tzurot/common-types/config/config';
+import { isTypingChannel } from '@tzurot/common-types/types/discord-types';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { IMessageProcessor } from './IMessageProcessor.js';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import type { ReplyResolutionService } from '../services/ReplyResolutionService.js';

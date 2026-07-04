@@ -10,13 +10,29 @@ import {
   handleEditModalSubmit,
   MAX_MODAL_CONTENT_LENGTH,
 } from './detailModals.js';
-import type { MemoryItem } from '@tzurot/common-types';
+import type { MemoryItem } from '@tzurot/common-types/schemas/api/memory';
 import { DiscordAPIError } from 'discord.js';
 import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
 import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/constants/discord', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/constants/discord')>(
+    '@tzurot/common-types/constants/discord'
+  );
+  return {
+    ...actual,
+    DISCORD_COLORS: {
+      BLURPLE: 0x5865f2,
+      WARNING: 0xfee75c,
+      ERROR: 0xed4245,
+    },
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -25,11 +41,6 @@ vi.mock('@tzurot/common-types', async importOriginal => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
-    DISCORD_COLORS: {
-      BLURPLE: 0x5865f2,
-      WARNING: 0xfee75c,
-      ERROR: 0xed4245,
-    },
   };
 });
 

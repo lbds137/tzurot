@@ -12,8 +12,10 @@ import {
 import type { MemoryDocument } from '../ConversationalRAGTypes.js';
 
 // Mock formatPromptTimestamp
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/dateFormatting', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/dateFormatting')>(
+    '@tzurot/common-types/utils/dateFormatting'
+  );
   return {
     ...actual,
     formatPromptTimestamp: vi.fn((dateInput: Date | number | string) => {

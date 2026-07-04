@@ -4,7 +4,9 @@
 
 import { describe, it, expect } from 'vitest';
 import { buildConversationContext } from './conversationContextBuilder.js';
-import { AttachmentType, MessageRole, type LLMGenerationJobData } from '@tzurot/common-types';
+import { AttachmentType } from '@tzurot/common-types/constants/media';
+import { MessageRole } from '@tzurot/common-types/constants/message';
+import { type LLMGenerationJobData } from '@tzurot/common-types/types/jobs';
 import type { PreparedContext, PreprocessingResults } from '../types.js';
 
 function createMinimalJobContext(): LLMGenerationJobData['context'] {

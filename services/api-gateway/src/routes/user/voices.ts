@@ -12,13 +12,10 @@
  */
 
 import { Router, type Response as ExpressResponse, type RequestHandler } from 'express';
-import {
-  createLogger,
-  TTS_VOICE_NAME_PREFIX,
-  isAudioProviderId,
-  type AudioProviderId,
-  type PrismaClient,
-} from '@tzurot/common-types';
+import { TTS_VOICE_NAME_PREFIX } from '@tzurot/common-types/constants/ai';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { isAudioProviderId, type AudioProviderId } from '@tzurot/common-types/types/audio-provider';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { ErrorCode, type AuthenticatedRequest } from '../../types.js';
 import { type ErrorResponse, ErrorResponses } from '../../utils/errorResponses.js';
 import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';

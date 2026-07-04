@@ -12,18 +12,17 @@
 
 import { Router, type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
 import {
-  createLogger,
-  isBotOwner,
   type LlmConfigSummary,
-  type PrismaClient,
-  toConfigKind,
-  computeLlmConfigPermissions,
-  AIProvider,
-  // Shared schemas from common-types - single source of truth
   LlmConfigCreateSchema,
   LlmConfigUpdateSchema,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/schemas/api/llm-config';
+import { toConfigKind } from '@tzurot/common-types/services/LlmConfigMapper';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
+import { computeLlmConfigPermissions } from '@tzurot/common-types/utils/permissions';
 import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';

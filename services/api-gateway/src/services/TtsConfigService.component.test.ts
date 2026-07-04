@@ -15,12 +15,12 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { PrismaClient } from '@tzurot/common-types/services/prisma';
 import {
-  PrismaClient,
   generateUserUuid,
   generatePersonaUuid,
   newTtsConfigId,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/utils/deterministicUuid';
 import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import {

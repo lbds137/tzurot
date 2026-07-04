@@ -10,12 +10,12 @@
  */
 
 import type { Job } from 'bullmq';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import {
-  createLogger,
-  type PrismaClient,
   type ShapesExportJobData,
   type ShapesExportJobResult,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/shapes-import';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { ShapesDataFetcher } from '../services/shapes/ShapesDataFetcher.js';
 import { formatExportAsMarkdown, formatExportAsJson } from './ShapesExportFormatters.js';
 import { getDecryptedCookie, persistUpdatedCookie } from './shapesCredentials.js';

@@ -5,11 +5,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { sendChunkedReply } from './chunkedReply.js';
 import { MessageFlags } from 'discord.js';
-import { DISCORD_LIMITS } from '@tzurot/common-types';
+import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 
-vi.mock('@tzurot/common-types', async () => {
-  const actual =
-    await vi.importActual<typeof import('@tzurot/common-types')>('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/discord', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/discord')>(
+    '@tzurot/common-types/utils/discord'
+  );
   return {
     ...actual,
     splitMessage: vi.fn((content: string, maxLen: number) => {

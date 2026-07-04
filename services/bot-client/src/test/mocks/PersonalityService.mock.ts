@@ -9,7 +9,7 @@
  */
 
 import { vi } from 'vitest';
-import type { LoadedPersonality } from '@tzurot/common-types';
+import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import type { IPersonalityLoader } from '../../types/IPersonalityLoader.js';
 
 interface MockPersonality {

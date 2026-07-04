@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { MessageRole, type ConversationMessage } from '@tzurot/common-types';
+import { MessageRole } from '@tzurot/common-types/constants/message';
+import { type ConversationMessage } from '@tzurot/common-types/types/conversationMessage';
 import { recoverRelayEchoIdentities } from './relayEchoRecovery.js';
 
 function relayEcho(over: Partial<ConversationMessage> = {}): ConversationMessage {

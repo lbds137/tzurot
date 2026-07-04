@@ -14,7 +14,7 @@ import * as api from './api.js';
 import type { FetchedCharacter } from './api.js';
 import * as dashboardUtils from '../../utils/dashboard/index.js';
 import { EmbedBuilder, ActionRowBuilder } from 'discord.js';
-import type { EnvConfig } from '@tzurot/common-types';
+import type { EnvConfig } from '@tzurot/common-types/config/config';
 
 // Mock dependencies. `clientsFor` runs in production code to mint the
 // userClient, but the mocked `./api.js` helpers ignore that argument —
@@ -34,17 +34,27 @@ vi.mock('../../utils/dashboard/index.js', () => ({
   getSessionManager: vi.fn(),
 }));
 
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal();
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
-    ...(actual as Record<string, unknown>),
+    ...actual,
     createLogger: () => ({
       info: vi.fn(),
       warn: vi.fn(),
       error: vi.fn(),
       debug: vi.fn(),
     }),
-    // Mock isBotOwner - returns false by default for regular users
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/ownerMiddleware', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/ownerMiddleware')>(
+    '@tzurot/common-types/utils/ownerMiddleware'
+  );
+  return {
+    ...actual,
     isBotOwner: vi.fn(() => false),
   };
 });

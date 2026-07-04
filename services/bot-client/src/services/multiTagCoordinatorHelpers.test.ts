@@ -9,7 +9,8 @@
 
 import { describe, it, expect } from 'vitest';
 import type { Message } from 'discord.js';
-import type { LoadedPersonality, TypingChannel } from '@tzurot/common-types';
+import type { TypingChannel } from '@tzurot/common-types/types/discord-types';
+import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import {
   buildSlotContext,
   toSnapshot,

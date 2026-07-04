@@ -27,7 +27,7 @@ import {
 } from './types.js';
 import type { APIButtonComponentWithCustomId, APIStringSelectComponent } from 'discord.js';
 import { EXTENDED_CONTEXT_SETTINGS } from './settingsConfig.js';
-import { DISCORD_COLORS } from '@tzurot/common-types';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 
 // Test fixtures
 const createTestConfig = (): SettingsDashboardConfig => ({

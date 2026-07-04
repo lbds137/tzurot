@@ -12,12 +12,9 @@ import {
   escapeMarkdown,
   type ButtonInteraction,
 } from 'discord.js';
-import {
-  createLogger,
-  Duration,
-  DurationParseError,
-  memoryDeleteOptions,
-} from '@tzurot/common-types';
+import { memoryDeleteOptions } from '@tzurot/common-types/generated/commandOptions';
+import { Duration, DurationParseError } from '@tzurot/common-types/utils/Duration';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { createWarningEmbed, createSuccessEmbed } from '../../utils/commandHelpers.js';

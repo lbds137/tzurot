@@ -285,11 +285,12 @@ const { mockLogger } = vi.hoisted(() => ({
     error: vi.fn(),
   },
 }));
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/constants/discord', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/constants/discord')>(
+    '@tzurot/common-types/constants/discord'
+  );
   return {
     ...actual,
-    createLogger: () => mockLogger,
     DISCORD_COLORS: {
       BLURPLE: 0x5865f2,
       WARNING: 0xfee75c,
@@ -297,6 +298,16 @@ vi.mock('@tzurot/common-types', async () => {
       // by buildReadyToEditEmbed (utils/dashboard/truncationGate/embeds.ts).
       SUCCESS: 0x00ff00,
     },
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
+    createLogger: () => mockLogger,
   };
 });
 

@@ -11,7 +11,9 @@
  * to provide context about the quote source.
  */
 
-import { escapeXml, escapeXmlContent, type ReferenceAuthorRole } from '@tzurot/common-types';
+import { type ReferenceAuthorRole } from '@tzurot/common-types/types/schemas/message';
+import { escapeXmlContent } from '@tzurot/common-types/utils/promptSanitizer';
+import { escapeXml } from '@tzurot/common-types/utils/xmlBuilder';
 
 /**
  * Options for formatting a single <quote> element.

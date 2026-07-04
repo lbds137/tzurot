@@ -8,12 +8,10 @@
  * - Search query construction
  */
 
-import {
-  createLogger,
-  type LoadedPersonality,
-  type MessageContent,
-  type SttDispatch,
-} from '@tzurot/common-types';
+import { type MessageContent } from '@tzurot/common-types/types/ai';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import {
   processAttachments,
   deriveApiKeySource,

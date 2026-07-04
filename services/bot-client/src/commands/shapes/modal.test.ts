@@ -9,8 +9,10 @@ import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js'
 
 // Mock common-types — keep parseShapesSessionCookieInput real so we test the
 // integration between modal handler and parser.
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({

@@ -9,7 +9,8 @@
  * Extracted from ShapesImportJob.ts to stay within the 400-line ESLint limit.
  */
 
-import { createLogger, type PrismaClient } from '@tzurot/common-types';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { PgvectorMemoryAdapter } from '../services/PgvectorMemoryAdapter.js';
 import type { MemoryMetadata } from '../services/PgvectorTypes.js';
 

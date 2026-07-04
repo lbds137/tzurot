@@ -18,7 +18,7 @@
  */
 
 import { SlashCommandBuilder, type AutocompleteInteraction } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { defineCommand } from '../../utils/defineCommand.js';
 import type {
   DeferredCommandContext,

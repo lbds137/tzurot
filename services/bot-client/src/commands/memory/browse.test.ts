@@ -31,15 +31,35 @@ const {
   mockUpdateMemoryListSessionPage: vi.fn(),
 }));
 
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/generated/commandOptions', async () => {
+  const actual = await vi.importActual<
+    typeof import('@tzurot/common-types/generated/commandOptions')
+  >('@tzurot/common-types/generated/commandOptions');
   return {
     ...actual,
-    createLogger: () => ({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() }),
     memoryBrowseOptions: (interaction: { options?: { getString: (name: string) => string } }) => ({
       character: () => interaction.options?.getString('character') ?? null,
     }),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/dateFormatting', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/dateFormatting')>(
+    '@tzurot/common-types/utils/dateFormatting'
+  );
+  return {
+    ...actual,
     formatDateShort: (d: string | Date) => String(d),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
+    createLogger: () => ({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() }),
   };
 });
 

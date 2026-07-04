@@ -10,7 +10,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { EmbedBuilder } from 'discord.js';
 import type { UserClient } from '@tzurot/clients';
-import type { ConfigKind } from '@tzurot/common-types';
+import type { ConfigKind } from '@tzurot/common-types/constants/ai';
 import { makeOk, makeErr } from '../test/gatewayClientStubs.js';
 import {
   type OverrideBrowseConfig,

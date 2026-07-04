@@ -8,7 +8,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { resolveUserContext } from './UserContextResolver.js';
-import type { LoadedPersonality } from '@tzurot/common-types';
+import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import type { ServiceClient } from '@tzurot/clients';
 
 const createMockPersonality = (): LoadedPersonality =>

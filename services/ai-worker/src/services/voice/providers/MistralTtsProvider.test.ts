@@ -15,8 +15,10 @@ const { mockLoggerWarn, mockLoggerInfo } = vi.hoisted(() => ({
   mockLoggerInfo: vi.fn(),
 }));
 
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -551,11 +553,9 @@ describe('MistralTtsProvider', () => {
   describe('eviction mutex', () => {
     it('serializes concurrent prepare() calls', async () => {
       let resolveFirst:
-        | ((v: { id: string; name: string; userId: string | null }) => void)
-        | undefined;
+        ((v: { id: string; name: string; userId: string | null }) => void) | undefined;
       let resolveSecond:
-        | ((v: { id: string; name: string; userId: string | null }) => void)
-        | undefined;
+        ((v: { id: string; name: string; userId: string | null }) => void) | undefined;
 
       mockedListVoices.mockResolvedValue(okList([]));
       mockedCloneVoice

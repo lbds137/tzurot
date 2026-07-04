@@ -7,12 +7,10 @@
 
 import { Router, type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import {
-  createLogger,
-  decryptApiKey,
-  type PrismaClient,
-  TestWalletKeySchema,
-} from '@tzurot/common-types';
+import { TestWalletKeySchema } from '@tzurot/common-types/schemas/api/wallet';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { decryptApiKey } from '@tzurot/common-types/utils/encryption';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';

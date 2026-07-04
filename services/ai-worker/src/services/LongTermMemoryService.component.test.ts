@@ -17,16 +17,18 @@ import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { createTestPGlite, loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
 import { LongTermMemoryService } from './LongTermMemoryService.js';
 import type { PgvectorMemoryAdapter } from './PgvectorMemoryAdapter.js';
-import type { LoadedPersonality } from '@tzurot/common-types';
+import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import type { ConversationContext } from './ConversationalRAGTypes.js';
 
 // We need to use the same PrismaClient type that the service uses
-import { PrismaClient } from '@tzurot/common-types';
+import { PrismaClient } from '@tzurot/common-types/services/prisma';
 
 // Mock common-types: silence the logger. The PGlite-backed PrismaClient is
 // injected into the service via its constructor (no singleton to stub).
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({

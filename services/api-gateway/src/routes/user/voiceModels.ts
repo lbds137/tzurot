@@ -9,7 +9,9 @@
  */
 
 import { z } from 'zod';
-import { createLogger, TTLCache, type PrismaClient } from '@tzurot/common-types';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
 import type { Response as ExpressResponse } from 'express';
 import { resolveElevenLabsKey } from '../../utils/elevenLabsKeyResolver.js';
 import { fetchFromElevenLabs } from '../../utils/elevenLabsFetch.js';

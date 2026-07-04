@@ -15,9 +15,20 @@ vi.mock('../../utils/deduplicationCache.js', () => ({
   })),
 }));
 
-vi.mock('@tzurot/common-types', async () => {
-  const actual =
-    await vi.importActual<typeof import('@tzurot/common-types')>('@tzurot/common-types');
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
+  return {
+    ...actual,
+    getConfig: () => ({ INTERNAL_SERVICE_SECRET: 'test-secret' }),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -26,10 +37,6 @@ vi.mock('@tzurot/common-types', async () => {
       error: vi.fn(),
       debug: vi.fn(),
     }),
-    // requireServiceAuth reads getConfig().INTERNAL_SERVICE_SECRET — stub
-    // it to a known value so the auth-protection test can verify rejection
-    // (missing header) and acceptance (matching header).
-    getConfig: () => ({ INTERNAL_SERVICE_SECRET: 'test-secret' }),
   };
 });
 

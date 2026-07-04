@@ -9,7 +9,7 @@
  * All reasoning models may emit `<thinking>` tags that should be stripped from output.
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { SystemMessage, HumanMessage, BaseMessage } from '@langchain/core/messages';
 
 const logger = createLogger('ReasoningModelUtils');

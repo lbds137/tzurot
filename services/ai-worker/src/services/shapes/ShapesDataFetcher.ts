@@ -14,7 +14,6 @@
  */
 
 import {
-  createLogger,
   SHAPES_BASE_URL,
   SHAPES_USER_AGENT,
   type ShapesIncPersonalityConfig,
@@ -22,7 +21,8 @@ import {
   type ShapesIncStory,
   type ShapesIncUserPersonalization,
   type ShapesDataFetchResult,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/shapes-import';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import {
   ShapesAuthError,
   ShapesFetchError,

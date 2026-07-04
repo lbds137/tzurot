@@ -17,7 +17,7 @@ import * as viewModule from './view.js';
 import * as truncationWarning from './truncationWarning.js';
 import * as dashboardUtils from '../../utils/dashboard/index.js';
 import * as customIds from '../../utils/customIds.js';
-import type { EnvConfig } from '@tzurot/common-types';
+import type { EnvConfig } from '@tzurot/common-types/config/config';
 import type {
   StringSelectMenuInteraction,
   ButtonInteraction,
@@ -137,11 +137,22 @@ vi.mock('../../utils/customIds.js', () => ({
   },
 }));
 
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal();
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
   return {
-    ...(actual as Record<string, unknown>),
+    ...actual,
     getConfig: vi.fn().mockReturnValue({ GATEWAY_URL: 'http://localhost:3000' }),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
     createLogger: () => ({
       info: vi.fn(),
       warn: vi.fn(),

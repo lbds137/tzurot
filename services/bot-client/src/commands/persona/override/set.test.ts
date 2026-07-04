@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleOverrideSet, handleOverrideCreateModalSubmit } from './set.js';
 import { MessageFlags } from 'discord.js';
 import { CREATE_NEW_PERSONA_VALUE } from '../autocomplete.js';
-import { API_ERROR_SUBCODE } from '@tzurot/common-types';
+import { API_ERROR_SUBCODE } from '@tzurot/common-types/constants/error';
 import {
   mockSetOverrideResponse,
   mockOverrideInfoResponse,
@@ -20,8 +20,24 @@ vi.mock('../../../utils/gatewayClients.js', () => ({
   clientsFor: clientsForMock,
 }));
 
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/discord', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/discord')>(
+    '@tzurot/common-types/utils/discord'
+  );
+  return {
+    ...actual,
+    truncateText: (text: string, maxLength: number, ellipsis = '…') => {
+      if (!text) return '';
+      if (text.length <= maxLength) return text;
+      return text.slice(0, maxLength - ellipsis.length) + ellipsis;
+    },
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -30,11 +46,6 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
-    truncateText: (text: string, maxLength: number, ellipsis = '…') => {
-      if (!text) return '';
-      if (text.length <= maxLength) return text;
-      return text.slice(0, maxLength - ellipsis.length) + ellipsis;
-    },
   };
 });
 

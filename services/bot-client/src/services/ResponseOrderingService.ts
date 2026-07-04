@@ -13,7 +13,9 @@
  *    blocking if a job is lost
  */
 
-import { createLogger, MULTI_TAG, type LLMGenerationResult } from '@tzurot/common-types';
+import { MULTI_TAG } from '@tzurot/common-types/constants/message';
+import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('ResponseOrderingService');
 

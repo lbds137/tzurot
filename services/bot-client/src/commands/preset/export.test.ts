@@ -12,26 +12,55 @@ import { AttachmentBuilder } from 'discord.js';
 import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal();
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
   return {
-    ...(actual as Record<string, unknown>),
+    ...actual,
     getConfig: vi.fn().mockReturnValue({
       GATEWAY_URL: 'http://localhost:3000',
     }),
-    createLogger: () => ({
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn(),
-    }),
-    isBotOwner: (userId: string) => userId === 'bot-owner-id',
+  };
+});
+
+vi.mock('@tzurot/common-types/generated/commandOptions', async () => {
+  const actual = await vi.importActual<
+    typeof import('@tzurot/common-types/generated/commandOptions')
+  >('@tzurot/common-types/generated/commandOptions');
+  return {
+    ...actual,
     presetExportOptions: (interaction: unknown) => ({
       preset: () =>
         (interaction as { options: { getString: (name: string) => string } }).options.getString(
           'preset'
         ),
     }),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
+    createLogger: () => ({
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+    }),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/ownerMiddleware', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/ownerMiddleware')>(
+    '@tzurot/common-types/utils/ownerMiddleware'
+  );
+  return {
+    ...actual,
+    isBotOwner: (userId: string) => userId === 'bot-owner-id',
   };
 });
 

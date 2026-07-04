@@ -4,17 +4,28 @@ import type { DeferredCommandContext } from '../../utils/commandContext/types.js
 import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
 // Mock dependencies
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
-    isBotOwner: vi.fn(),
     createLogger: vi.fn(() => ({
       info: vi.fn(),
       error: vi.fn(),
       debug: vi.fn(),
       warn: vi.fn(),
     })),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/ownerMiddleware', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/ownerMiddleware')>(
+    '@tzurot/common-types/utils/ownerMiddleware'
+  );
+  return {
+    ...actual,
+    isBotOwner: vi.fn(),
   };
 });
 
@@ -27,7 +38,7 @@ vi.mock('../../utils/gatewayClients.js', () => ({
   clientsFor: clientsForMock,
 }));
 
-import { isBotOwner } from '@tzurot/common-types';
+import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import { requireManageMessagesContext } from '../../utils/permissions.js';
 
 interface UserStub {

@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleTemplate } from './template.js';
 import { AttachmentBuilder } from 'discord.js';
 import { CHARACTER_JSON_TEMPLATE } from './import.js';
-import type { EnvConfig } from '@tzurot/common-types';
+import type { EnvConfig } from '@tzurot/common-types/config/config';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
 describe('handleTemplate', () => {

@@ -23,7 +23,8 @@
  */
 
 import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
-import { createLogger, isBotOwner } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import { getSessionManager } from '../../utils/dashboard/SessionManager.js';
 import { buildDeleteConfirmation } from '../../utils/dashboard/deleteConfirmation.js';
 import { DASHBOARD_MESSAGES, formatSuccessBanner } from '../../utils/dashboard/messages.js';

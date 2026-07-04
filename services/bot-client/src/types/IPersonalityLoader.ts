@@ -3,7 +3,7 @@
  * Implemented by PersonalityService and HttpPersonalityLoader.
  */
 
-import type { LoadedPersonality } from '@tzurot/common-types';
+import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 
 export interface IPersonalityLoader {
   /**

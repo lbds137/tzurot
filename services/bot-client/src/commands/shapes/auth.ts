@@ -23,7 +23,8 @@ import {
   EmbedBuilder,
   MessageFlags,
 } from 'discord.js';
-import { DISCORD_COLORS, SHAPES_TOKEN_MIN_LENGTH } from '@tzurot/common-types';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { SHAPES_TOKEN_MIN_LENGTH } from '@tzurot/common-types/types/shapes-import';
 import type { ModalCommandContext } from '../../utils/commandContext/types.js';
 import { ShapesCustomIds } from '../../utils/customIds.js';
 

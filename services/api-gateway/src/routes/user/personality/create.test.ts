@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import {
   createMockPrisma,
   createMockPersonality,
@@ -14,8 +14,10 @@ import {
 } from './test-utils.js';
 
 // Mock dependencies before imports
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -24,6 +26,15 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/typeGuards', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/typeGuards')>(
+    '@tzurot/common-types/utils/typeGuards'
+  );
+  return {
+    ...actual,
     assertDefined: vi.fn((value: unknown, name: string) => {
       if (value === undefined || value === null) {
         throw new Error(`${name} must be defined`);

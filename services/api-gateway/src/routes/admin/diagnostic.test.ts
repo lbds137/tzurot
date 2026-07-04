@@ -11,7 +11,8 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createDiagnosticRoutes } from './diagnostic.js';
-import type { PrismaClient, DiagnosticPayload } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
+import type { DiagnosticPayload } from '@tzurot/common-types/types/diagnostic';
 import express from 'express';
 import request from 'supertest';
 import { findRoute, getAllRoutes } from '../../test/expressRouterUtils.js';
@@ -24,8 +25,10 @@ const MOCK_OWNER_ID = 'admin-discord-id';
 
 // Mock logger and isBotOwner — the route handlers branch on isBotOwner to
 // decide whether to apply the userId WHERE-clause filter.
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -34,6 +37,15 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/ownerMiddleware', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/ownerMiddleware')>(
+    '@tzurot/common-types/utils/ownerMiddleware'
+  );
+  return {
+    ...actual,
     isBotOwner: (id: string) => id === MOCK_OWNER_ID,
   };
 });

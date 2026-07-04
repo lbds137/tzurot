@@ -5,7 +5,7 @@
  */
 
 import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getSessionManager } from './SessionManager.js';
 import {
   buildDashboardEmbed,

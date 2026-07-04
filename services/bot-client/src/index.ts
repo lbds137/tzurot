@@ -8,14 +8,11 @@ import {
 } from 'discord.js';
 import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
-import {
-  createLogger,
-  registerProcessLifecycle,
-  isBotOwner,
-  getConfig,
-  parseRedisUrl,
-  createBullMQRedisConfig,
-} from '@tzurot/common-types';
+import { getConfig } from '@tzurot/common-types/config/config';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
+import { registerProcessLifecycle } from '@tzurot/common-types/utils/processLifecycle';
+import { parseRedisUrl, createBullMQRedisConfig } from '@tzurot/common-types/utils/redis';
 import {
   CacheInvalidationService,
   ChannelActivationCacheInvalidationService,

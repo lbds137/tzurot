@@ -4,12 +4,10 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Job } from 'bullmq';
-import {
-  JobType,
-  type LLMGenerationJobData,
-  type LoadedPersonality,
-  type ReferencedMessage,
-} from '@tzurot/common-types';
+import { JobType } from '@tzurot/common-types/constants/queue';
+import { type LLMGenerationJobData } from '@tzurot/common-types/types/jobs';
+import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { NormalizationStep } from './NormalizationStep.js';
 import type { GenerationContext } from '../types.js';
 
@@ -22,8 +20,10 @@ const mockLogger = vi.hoisted(() => ({
   debug: vi.fn(),
 }));
 
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => mockLogger,

@@ -6,12 +6,24 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { ShapesIncPersonalityConfig } from '@tzurot/common-types';
+import type { ShapesIncPersonalityConfig } from '@tzurot/common-types/types/shapes-import';
 import { createFullPersonality, downloadAndStoreAvatar } from './ShapesImportHelpers.js';
 
 // Mock common-types
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/types/shapes-import', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/types/shapes-import')>(
+    '@tzurot/common-types/types/shapes-import'
+  );
+  return {
+    ...actual,
+    SHAPES_USER_AGENT: 'test-user-agent',
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -20,7 +32,6 @@ vi.mock('@tzurot/common-types', async importOriginal => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
-    SHAPES_USER_AGENT: 'test-user-agent',
   };
 });
 

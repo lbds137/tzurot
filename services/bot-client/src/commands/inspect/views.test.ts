@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { MessageFlags } from 'discord.js';
-import type { DiagnosticPayload } from '@tzurot/common-types';
+import type { DiagnosticPayload } from '@tzurot/common-types/types/diagnostic';
 import {
   buildFullJsonView,
   buildCompactJsonView,

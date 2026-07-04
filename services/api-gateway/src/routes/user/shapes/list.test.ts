@@ -6,8 +6,24 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Request, Response } from 'express';
 
 // Mock dependencies
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/encryption', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/encryption')>(
+    '@tzurot/common-types/utils/encryption'
+  );
+  return {
+    ...actual,
+    decryptApiKey: vi
+      .fn()
+      .mockReturnValue(
+        '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-session-token-abcdef'
+      ),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -16,11 +32,6 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
-    decryptApiKey: vi
-      .fn()
-      .mockReturnValue(
-        '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-session-token-abcdef'
-      ),
   };
 });
 
@@ -35,7 +46,7 @@ vi.mock('../../../utils/asyncHandler.js', () => ({
 }));
 
 import { handleListShapes } from './list.js';
-import type { PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 
 const mockPrisma = {
   user: {

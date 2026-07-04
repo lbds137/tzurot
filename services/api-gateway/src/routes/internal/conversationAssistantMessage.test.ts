@@ -5,19 +5,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
-import {
-  generateConversationHistoryUuid,
-  MessageRole,
-  type PrismaClient,
-} from '@tzurot/common-types';
+import { MessageRole } from '@tzurot/common-types/constants/message';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { generateConversationHistoryUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import { handlePersistAssistantMessage } from './conversationAssistantMessage.js';
 
 const { mockLogger } = vi.hoisted(() => ({
   mockLogger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => mockLogger,

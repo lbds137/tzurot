@@ -3,19 +3,22 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const { mockLogger } = vi.hoisted(() => ({
   mockLogger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
-  return { ...actual, createLogger: () => mockLogger };
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
+    createLogger: () => mockLogger,
+  };
 });
 
-import {
-  MessageRole,
-  rawAssemblyInputsSchema,
-  type ConversationMessage,
-  type JobContext,
-  type LoadedPersonality,
-  type ResolvedConfigOverrides,
-} from '@tzurot/common-types';
+import { MessageRole } from '@tzurot/common-types/constants/message';
+import { type ResolvedConfigOverrides } from '@tzurot/common-types/schemas/api/configOverrides';
+import { type ConversationMessage } from '@tzurot/common-types/types/conversationMessage';
+import { type JobContext } from '@tzurot/common-types/types/jobs';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { rawAssemblyInputsSchema } from '@tzurot/common-types/types/schemas/rawEnvelope';
 import { ContextAssembler, type ContextAssemblerDeps } from './ContextAssembler.js';
 import type { ContextDataSource } from './types.js';
 

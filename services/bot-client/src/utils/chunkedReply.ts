@@ -6,7 +6,8 @@
  */
 
 import { MessageFlags, type ButtonInteraction } from 'discord.js';
-import { DISCORD_LIMITS, splitMessage } from '@tzurot/common-types';
+import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
+import { splitMessage } from '@tzurot/common-types/utils/discord';
 
 export interface ChunkedReplyOptions {
   interaction: ButtonInteraction;

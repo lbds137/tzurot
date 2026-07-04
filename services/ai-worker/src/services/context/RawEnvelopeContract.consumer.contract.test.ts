@@ -13,20 +13,20 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { MessageRole } from '@tzurot/common-types/constants/message';
+import { type ResolvedConfigOverrides } from '@tzurot/common-types/schemas/api/configOverrides';
+import { PrismaClient } from '@tzurot/common-types/services/prisma';
+import { type JobContext } from '@tzurot/common-types/types/jobs';
+import { type DiscordEnvironment } from '@tzurot/common-types/types/schemas/discord';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { rawAssemblyInputsSchema } from '@tzurot/common-types/types/schemas/rawEnvelope';
 import {
-  PrismaClient,
-  MessageRole,
   generateUserUuid,
   generatePersonaUuid,
   generatePersonalityUuid,
   generateSystemPromptUuid,
   generateConversationHistoryUuid,
-  rawAssemblyInputsSchema,
-  type JobContext,
-  type LoadedPersonality,
-  type ResolvedConfigOverrides,
-  type DiscordEnvironment,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/utils/deterministicUuid';
 import { UserService, PersonaResolver } from '@tzurot/identity';
 import {
   createTestPGlite,

@@ -8,8 +8,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Request, Response } from 'express';
 
 // Mock dependencies before imports
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -18,9 +20,6 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
-    // Keep actual implementations for timezone functions
-    isValidTimezone: actual.isValidTimezone,
-    getTimezoneInfo: actual.getTimezoneInfo,
   };
 });
 
@@ -67,7 +66,7 @@ const mockPrisma = {
 };
 
 import { createTimezoneRoutes } from './timezone.js';
-import type { PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { getRouteHandler, findRoute } from '../../test/expressRouterUtils.js';
 
 // Helper to create mock request/response

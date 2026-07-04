@@ -3,7 +3,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { GetPersonalityResponseSchema, type PrismaClient } from '@tzurot/common-types';
+import { GetPersonalityResponseSchema } from '@tzurot/common-types/schemas/api/personality';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import {
   createMockPrisma,
   createMockPersonality,
@@ -15,9 +16,10 @@ import {
 } from './test-utils.js';
 
 // Mock dependencies before imports
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
-  const { mockIsBotOwner: mockFn } = await import('./test-utils.js');
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -26,6 +28,16 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/ownerMiddleware', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/ownerMiddleware')>(
+    '@tzurot/common-types/utils/ownerMiddleware'
+  );
+  const { mockIsBotOwner: mockFn } = await import('./test-utils.js');
+  return {
+    ...actual,
     isBotOwner: (...args: unknown[]) => (mockFn as (...args: unknown[]) => boolean)(...args),
   };
 });

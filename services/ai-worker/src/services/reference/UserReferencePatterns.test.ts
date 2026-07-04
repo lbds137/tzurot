@@ -4,7 +4,7 @@ import {
   RESOLVABLE_PERSONALITY_FIELDS,
   setPersonalityField,
 } from './UserReferencePatterns.js';
-import type { LoadedPersonality } from '@tzurot/common-types';
+import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 
 describe('UserReferencePatterns', () => {
   describe('USER_REFERENCE_PATTERNS', () => {

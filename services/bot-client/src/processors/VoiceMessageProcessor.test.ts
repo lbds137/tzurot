@@ -16,11 +16,22 @@ vi.mock('../utils/gatewayServiceCalls.js', () => ({
   getAdminSettingsCached: vi.fn(),
 }));
 
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
   return {
     ...actual,
     getConfig: vi.fn(),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
     createLogger: vi.fn(() => ({
       debug: vi.fn(),
       info: vi.fn(),
@@ -34,7 +45,7 @@ vi.mock('../utils/personalityMentionParser.js', () => ({
   findPersonalityMentions: vi.fn(),
 }));
 
-import { getConfig } from '@tzurot/common-types';
+import { getConfig } from '@tzurot/common-types/config/config';
 import { findPersonalityMentions } from '../utils/personalityMentionParser.js';
 import { getAdminSettingsCached } from '../utils/gatewayServiceCalls.js';
 

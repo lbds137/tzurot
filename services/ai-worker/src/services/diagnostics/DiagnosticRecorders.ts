@@ -6,7 +6,8 @@
  */
 
 import type { DiagnosticCollector } from '../DiagnosticCollector.js';
-import { resolveFinishReason, type LoadedPersonality } from '@tzurot/common-types';
+import { resolveFinishReason } from '@tzurot/common-types/constants/finishReasons';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { hasThinkingBlocks } from '../../utils/thinkingExtraction.js';
 import { contentToText } from '../../utils/baseMessageContent.js';
 import type { LlmResponseData } from './DiagnosticTypes.js';

@@ -5,7 +5,7 @@
  * Uses a time-based cache to prevent spamming users with repeated notifications.
  */
 
-import { INTERVALS } from '@tzurot/common-types';
+import { INTERVALS } from '@tzurot/common-types/constants/timing';
 
 /** How long to wait before notifying the same user again about private personality access (1 hour) */
 const NOTIFICATION_COOLDOWN_MS = INTERVALS.ONE_HOUR_MS;

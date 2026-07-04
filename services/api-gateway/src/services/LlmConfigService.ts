@@ -12,21 +12,20 @@
  * This eliminates duplication between /admin/llm-config and /user/llm-config routes.
  */
 
+import { type ConfigKind, DEFAULT_CONFIG_KIND } from '@tzurot/common-types/constants/ai';
+import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
 import {
-  type PrismaClient,
   type LlmConfigCreateInput,
   type LlmConfigUpdateInput,
   LLM_CONFIG_LIST_SELECT,
   LLM_CONFIG_DETAIL_SELECT,
   LLM_CONFIG_DEFAULTS,
-  newLlmConfigId,
-  createLogger,
-  safeValidateAdvancedParams,
-  toConfigKind,
-  type ConfigKind,
-  DEFAULT_CONFIG_KIND,
-  ADMIN_SETTINGS_SINGLETON_ID,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/schemas/api/llm-config';
+import { safeValidateAdvancedParams } from '@tzurot/common-types/schemas/llmAdvancedParams';
+import { toConfigKind } from '@tzurot/common-types/services/LlmConfigMapper';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { newLlmConfigId } from '@tzurot/common-types/utils/deterministicUuid';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type LlmConfigCacheInvalidationService } from '@tzurot/cache-invalidation';
 
 import { isPrismaUniqueConstraintErrorOn } from '../utils/prismaErrors.js';

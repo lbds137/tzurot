@@ -31,11 +31,9 @@
 
 import { randomBytes } from 'node:crypto';
 import type { Redis } from 'ioredis';
-import {
-  createLogger,
-  REDIS_KEY_PREFIXES,
-  type BatchDeletePreviewInput,
-} from '@tzurot/common-types';
+import { REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
+import { type BatchDeletePreviewInput } from '@tzurot/common-types/schemas/api/memory';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('MemoryActionTokenService');
 

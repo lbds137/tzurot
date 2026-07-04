@@ -8,7 +8,7 @@
  * Migration: OpenAI embeddings → Local BGE embeddings
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { LocalEmbeddingService, LOCAL_EMBEDDING_DIMENSIONS } from '@tzurot/embeddings';
 
 const logger = createLogger('embedding-service');

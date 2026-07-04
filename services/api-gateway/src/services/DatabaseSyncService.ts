@@ -43,7 +43,8 @@
  * running again picks up where it left off.
  */
 
-import { type PrismaClient, createLogger } from '@tzurot/common-types';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { SYNC_CONFIG, SYNC_TABLE_ORDER, type TableSyncConfig } from './sync/config/syncTables.js';
 import { checkSchemaVersions, validateSyncConfig } from './sync/utils/syncValidation.js';
 import { loadTombstoneIds, deleteMessagesWithTombstones } from './sync/utils/tombstoneUtils.js';

@@ -5,7 +5,11 @@
  * Extracted from conversationUtils.ts for better modularity and sharing.
  */
 
-import type { MessageRole, StoredReferencedMessage, MessageReaction } from '@tzurot/common-types';
+import type { MessageRole } from '@tzurot/common-types/constants/message';
+import type {
+  StoredReferencedMessage,
+  MessageReaction,
+} from '@tzurot/common-types/types/schemas/message';
 
 /**
  * Image description for inline display in chat_log

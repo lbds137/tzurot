@@ -8,10 +8,26 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ElevenLabsVoiceService } from './ElevenLabsVoiceService.js';
 import { ElevenLabsApiError } from './ElevenLabsClient.js';
-import type { EnvConfig } from '@tzurot/common-types';
+import type { EnvConfig } from '@tzurot/common-types/config/config';
 
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
+  return {
+    ...actual,
+    getConfig: () =>
+      ({
+        GATEWAY_URL: 'http://localhost:3000',
+        INTERNAL_SERVICE_SECRET: 'test-secret',
+      }) as unknown as EnvConfig,
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -20,11 +36,6 @@ vi.mock('@tzurot/common-types', async importOriginal => {
       error: vi.fn(),
       debug: vi.fn(),
     }),
-    getConfig: () =>
-      ({
-        GATEWAY_URL: 'http://localhost:3000',
-        INTERNAL_SERVICE_SECRET: 'test-secret',
-      }) as unknown as EnvConfig,
   };
 });
 

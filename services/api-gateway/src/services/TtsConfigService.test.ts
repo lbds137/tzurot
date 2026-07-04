@@ -17,13 +17,16 @@ import {
   TtsInvalidProviderError,
   type TtsConfigScope,
 } from './TtsConfigService.js';
-import { ADMIN_SETTINGS_SINGLETON_ID, type PrismaClient } from '@tzurot/common-types';
+import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { TtsConfigCacheInvalidationService } from '@tzurot/cache-invalidation';
 import { NotFoundError } from '../utils/appErrors.js';
 
 // Mock logger to keep test output clean
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({

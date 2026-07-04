@@ -15,7 +15,8 @@ import {
   type ButtonInteraction,
   type ModalSubmitInteraction,
 } from 'discord.js';
-import { createLogger, type DenylistScope } from '@tzurot/common-types';
+import { type DenylistScope } from '@tzurot/common-types/schemas/api/denylist';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getSessionManager } from '../../utils/dashboard/SessionManager.js';
 import { showModalWithTimeoutCatch } from '../../utils/dashboard/showModalWithTimeoutCatch.js';
 import { ackWithTimeoutCatch } from '../../utils/dashboard/ackWithTimeoutCatch.js';

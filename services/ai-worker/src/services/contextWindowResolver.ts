@@ -8,13 +8,10 @@
  * default) that exceed what the model can actually hold.
  */
 
-import {
-  createLogger,
-  clampContextWindow,
-  getZaiCodingPlanContextLength,
-  AIProvider,
-  type LoadedPersonality,
-} from '@tzurot/common-types';
+import { getZaiCodingPlanContextLength, AIProvider } from '@tzurot/common-types/constants/ai';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { clampContextWindow } from '@tzurot/common-types/utils/contextWindowCap';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { checkModelContextLength } from '../redis.js';
 
 const logger = createLogger('ContextWindowResolver');

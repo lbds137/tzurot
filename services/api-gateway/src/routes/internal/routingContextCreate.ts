@@ -20,10 +20,10 @@
 
 import { type Response, type RequestHandler } from 'express';
 import {
-  createLogger,
   RoutingContextRequestSchema,
   type RoutingContextResponse,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/schemas/api/internal';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { PersonaResolver, resolveRoutingContext } from '@tzurot/identity';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';

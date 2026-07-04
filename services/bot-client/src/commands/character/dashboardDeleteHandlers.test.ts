@@ -7,7 +7,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MessageFlags } from 'discord.js';
 import type { ButtonInteraction } from 'discord.js';
-import type { EnvConfig } from '@tzurot/common-types';
+import type { EnvConfig } from '@tzurot/common-types/config/config';
 import type { UserClient } from '@tzurot/clients';
 
 // Mock dependencies
@@ -63,10 +63,12 @@ vi.mock('../../utils/dashboard/postActionScreen.js', () => ({
   renderPostActionScreen: (...args: unknown[]) => mockRenderPostActionScreen(...args),
 }));
 
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal();
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
-    ...(actual as Record<string, unknown>),
+    ...actual,
     createLogger: () => ({
       info: vi.fn(),
       warn: vi.fn(),

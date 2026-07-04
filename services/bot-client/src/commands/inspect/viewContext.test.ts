@@ -2,9 +2,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock isBotOwner before import — we need to control admin determination per test
 const mockIsBotOwner = vi.hoisted(() => vi.fn());
-vi.mock('@tzurot/common-types', () => ({
-  isBotOwner: mockIsBotOwner,
-}));
+vi.mock('@tzurot/common-types/utils/ownerMiddleware', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/ownerMiddleware')>(
+    '@tzurot/common-types/utils/ownerMiddleware'
+  );
+  return {
+    ...actual,
+    isBotOwner: mockIsBotOwner,
+  };
+});
 
 import type { DiagnosticLog } from './types.js';
 import { computeViewContext } from './viewContext.js';

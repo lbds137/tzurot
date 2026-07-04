@@ -8,7 +8,8 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { JobStatus, type LLMGenerationResult } from '@tzurot/common-types';
+import { JobStatus } from '@tzurot/common-types/constants/queue';
+import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
 
 /**
  * Local interface for documenting the expected JobResult structure

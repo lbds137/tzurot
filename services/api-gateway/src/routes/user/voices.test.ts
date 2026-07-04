@@ -11,11 +11,29 @@ import express from 'express';
 import request from 'supertest';
 import { createVoicesRoutes, describeProviderError } from './voices.js';
 import { ErrorCode } from '../../types.js';
-import type { PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 
 // Mock common-types
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/encryption', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/encryption')>(
+    '@tzurot/common-types/utils/encryption'
+  );
+  return {
+    ...actual,
+    decryptApiKey: vi.fn().mockImplementation(({ content }: { content: string }) => {
+      // Return a different key per provider so tests can verify which key
+      // got passed to which API call.
+      if (content === 'el-content') return 'test-elevenlabs-key';
+      if (content === 'mi-content') return 'test-mistral-key';
+      return 'unknown-key';
+    }),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -23,13 +41,6 @@ vi.mock('@tzurot/common-types', async importOriginal => {
       warn: vi.fn(),
       error: vi.fn(),
       debug: vi.fn(),
-    }),
-    decryptApiKey: vi.fn().mockImplementation(({ content }: { content: string }) => {
-      // Return a different key per provider so tests can verify which key
-      // got passed to which API call.
-      if (content === 'el-content') return 'test-elevenlabs-key';
-      if (content === 'mi-content') return 'test-mistral-key';
-      return 'unknown-key';
     }),
   };
 });
@@ -49,7 +60,8 @@ vi.mock('../../services/AuthMiddleware.js', () => ({
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
-import { decryptApiKey, AIProvider } from '@tzurot/common-types';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { decryptApiKey } from '@tzurot/common-types/utils/encryption';
 
 describe('Voice Management Routes', () => {
   let app: express.Express;

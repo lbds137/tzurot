@@ -9,9 +9,10 @@ import type { Request, Response } from 'express';
 const mockGetMessageByDiscordId = vi.fn();
 
 // Mock dependencies before imports
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
-
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -37,7 +38,7 @@ vi.mock('../../utils/asyncHandler.js', () => ({
 const mockPrisma = {};
 
 import { createConversationLookupRoutes } from './conversationLookup.js';
-import type { PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 
 // Helper to create mock request/response
 function createMockReqRes(query: Record<string, unknown> = {}) {

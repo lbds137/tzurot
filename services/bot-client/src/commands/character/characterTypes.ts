@@ -7,7 +7,7 @@
  * declares the section definitions parameterized by `CharacterData`).
  */
 
-import type { PersonalityCharacterFields } from '@tzurot/common-types';
+import type { PersonalityCharacterFields } from '@tzurot/common-types/schemas/api/personality';
 import type { BrowseContext } from '../../utils/dashboard/index.js';
 
 /**

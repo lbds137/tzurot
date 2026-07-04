@@ -16,15 +16,15 @@
  */
 
 import type { Redis } from 'ioredis';
+import { REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
 import {
-  createLogger,
-  REDIS_KEY_PREFIXES,
   type IncognitoSession,
   type IncognitoDuration,
   type IncognitoStatusResponse,
   INCOGNITO_DURATIONS,
   IncognitoSessionSchema,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/incognito';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('IncognitoSessionManager');
 

@@ -19,7 +19,8 @@ import {
   type MessageActionRowComponentBuilder,
   type ButtonInteraction,
 } from 'discord.js';
-import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { PersonaCustomIds } from '../../utils/customIds.js';
 import { clientsFor } from '../../utils/gatewayClients.js';

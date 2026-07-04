@@ -7,8 +7,41 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock common-types before importing module
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
+  return {
+    ...actual,
+    getConfig: vi.fn(() => ({
+      API_KEY_ENCRYPTION_KEY: undefined,
+      REDIS_URL: 'redis://localhost:6379',
+      DATABASE_URL: 'postgresql://localhost:5432/test',
+      INTERNAL_SERVICE_SECRET: 'test-secret',
+    })),
+  };
+});
+
+vi.mock('@tzurot/common-types/constants/service', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/constants/service')>(
+    '@tzurot/common-types/constants/service'
+  );
+  return {
+    ...actual,
+    HealthStatus: {
+      Ok: 'ok',
+      Error: 'error',
+      Healthy: 'healthy',
+      Degraded: 'degraded',
+      Unhealthy: 'unhealthy',
+    },
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -17,19 +50,6 @@ vi.mock('@tzurot/common-types', async importOriginal => {
       error: vi.fn(),
       debug: vi.fn(),
     }),
-    getConfig: vi.fn(() => ({
-      API_KEY_ENCRYPTION_KEY: undefined,
-      REDIS_URL: 'redis://localhost:6379',
-      DATABASE_URL: 'postgresql://localhost:5432/test',
-      INTERNAL_SERVICE_SECRET: 'test-secret',
-    })),
-    HealthStatus: {
-      Ok: 'ok',
-      Error: 'error',
-      Healthy: 'healthy',
-      Degraded: 'degraded',
-      Unhealthy: 'unhealthy',
-    },
   };
 });
 
@@ -41,7 +61,7 @@ vi.mock('fs/promises', () => ({
 }));
 
 import { access, mkdir, readdir } from 'fs/promises';
-import { getConfig } from '@tzurot/common-types';
+import { getConfig } from '@tzurot/common-types/config/config';
 
 describe('Startup Utilities', () => {
   beforeEach(() => {

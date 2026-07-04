@@ -8,8 +8,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Request, Response } from 'express';
 
 // Mock dependencies before imports
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -77,7 +79,8 @@ const mockPrisma = {
 
 import { createModelOverrideRoutes } from './model-override.js';
 import { getRouteHandler, findRoute } from '../../test/expressRouterUtils.js';
-import { type PrismaClient, ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types';
+import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 
 // Helper to create mock request/response
 function createMockReqRes(

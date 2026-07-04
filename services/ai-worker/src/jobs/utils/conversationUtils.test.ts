@@ -16,24 +16,20 @@ import {
   getFormattedMessageCharLength,
   type RawHistoryEntry,
 } from './conversationUtils.js';
+import { MessageRole } from '@tzurot/common-types/constants/message';
 import {
-  MessageRole,
   type CrossChannelHistoryGroupEntry,
   type StoredReferencedMessage,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/schemas/message';
 
 // Mock common-types - use importOriginal to get actual implementations
 // but override logger and timestamp formatters for test isolation
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/dateFormatting', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/dateFormatting')>(
+    '@tzurot/common-types/utils/dateFormatting'
+  );
   return {
     ...actual,
-    createLogger: () => ({
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn(),
-    }),
     formatRelativeTime: vi.fn((_timestamp: string) => {
       // Simple mock that returns a formatted string
       return 'just now';
@@ -41,6 +37,21 @@ vi.mock('@tzurot/common-types', async importOriginal => {
     formatPromptTimestamp: vi.fn((_timestamp: string | Date | number) => {
       // Simple mock that returns a unified timestamp string
       return '2025-01-25 (Sat) 14:30 • just now';
+    }),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
+    createLogger: () => ({
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
     }),
   };
 });

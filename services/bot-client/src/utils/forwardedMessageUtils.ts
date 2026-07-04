@@ -25,7 +25,7 @@ import {
   type APIEmbed,
   MessageReferenceType,
 } from 'discord.js';
-import { type AttachmentMetadata } from '@tzurot/common-types';
+import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import { extractAttachments } from './attachmentExtractor.js';
 import { extractEmbedImages } from './embedImageExtractor.js';
 import { isVoiceAttachment } from './voiceAttachment.js';

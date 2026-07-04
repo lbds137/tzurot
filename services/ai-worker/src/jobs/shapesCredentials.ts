@@ -5,14 +5,10 @@
  * Handles cookie decryption, persistence after rotation, and error classification.
  */
 
-import {
-  createLogger,
-  decryptApiKey,
-  encryptApiKey,
-  type PrismaClient,
-  CREDENTIAL_SERVICES,
-  CREDENTIAL_TYPES,
-} from '@tzurot/common-types';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { CREDENTIAL_SERVICES, CREDENTIAL_TYPES } from '@tzurot/common-types/types/shapes-import';
+import { decryptApiKey, encryptApiKey } from '@tzurot/common-types/utils/encryption';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import {
   ShapesAuthError,
   ShapesFetchError,

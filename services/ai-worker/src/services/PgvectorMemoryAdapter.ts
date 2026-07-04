@@ -3,14 +3,12 @@
  * PostgreSQL + pgvector adapter for memory retrieval and storage
  */
 
-import {
-  type PrismaClient,
-  createLogger,
-  AI_DEFAULTS,
-  splitTextByTokens,
-  generateMemoryChunkGroupUuid,
-  countTextTokens,
-} from '@tzurot/common-types';
+import { AI_DEFAULTS } from '@tzurot/common-types/constants/ai';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { generateMemoryChunkGroupUuid } from '@tzurot/common-types/utils/deterministicUuid';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { splitTextByTokens } from '@tzurot/common-types/utils/textChunker';
+import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
 import type { IEmbeddingService } from '@tzurot/embeddings';
 import {
   EMBEDDING_DIMENSION,

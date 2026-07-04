@@ -8,8 +8,10 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Message } from 'discord.js';
-import type { LLMGenerationResult, LoadedPersonality, TypingChannel } from '@tzurot/common-types';
-import { MULTI_TAG } from '@tzurot/common-types';
+import type { TypingChannel } from '@tzurot/common-types/types/discord-types';
+import type { LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
+import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { MULTI_TAG } from '@tzurot/common-types/constants/message';
 import { deliverGroup, type DeliveryFlowDeps } from './multiTagDeliveryFlow.js';
 import type { RuntimeEntry, RuntimeSlot } from './multiTagCoordinatorHelpers.js';
 import { confirmDelivery, setDmSessionPersonality } from '../utils/gatewayServiceCalls.js';

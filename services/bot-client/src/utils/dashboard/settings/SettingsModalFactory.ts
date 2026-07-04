@@ -12,7 +12,7 @@ import {
   ActionRowBuilder,
   type ModalActionRowComponentBuilder,
 } from 'discord.js';
-import { Duration, DurationParseError } from '@tzurot/common-types';
+import { Duration, DurationParseError } from '@tzurot/common-types/utils/Duration';
 import { type SettingDefinition, buildSettingsCustomId } from './types.js';
 
 /**

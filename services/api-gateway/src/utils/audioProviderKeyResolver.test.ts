@@ -1,17 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { resolveAudioProviderKeys } from './audioProviderKeyResolver.js';
-import type { PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/encryption', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/encryption')>(
+    '@tzurot/common-types/utils/encryption'
+  );
   return {
     ...actual,
-    createLogger: () => ({
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn(),
-    }),
     decryptApiKey: vi.fn().mockImplementation(({ content }: { content: string }) => {
       if (content === 'el-content') return 'sk_el_decrypted';
       if (content === 'mi-content') return 'mi_decrypted';
@@ -20,7 +16,23 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-import { decryptApiKey, AIProvider } from '@tzurot/common-types';
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
+    createLogger: () => ({
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+    }),
+  };
+});
+
+import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { decryptApiKey } from '@tzurot/common-types/utils/encryption';
 
 describe('resolveAudioProviderKeys', () => {
   const mockFindFirst = vi.fn();

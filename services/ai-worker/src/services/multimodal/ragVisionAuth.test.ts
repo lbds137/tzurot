@@ -3,7 +3,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { AIProvider, type LoadedPersonality } from '@tzurot/common-types';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { resolveRagVisionAuth } from './ragVisionAuth.js';
 import type { ApiKeyResolver } from '../ApiKeyResolver.js';
 
@@ -15,8 +16,10 @@ vi.mock('./visionAuthResolver.js', () => ({
   resolveVisionConfig: mockResolveVisionConfig,
 }));
 
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({

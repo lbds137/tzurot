@@ -18,9 +18,10 @@ const mockClearHistory = vi.fn();
 const mockResolve = vi.fn();
 
 // Mock dependencies before imports
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
-
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -86,7 +87,7 @@ const mockPrisma = {
 
 import { createHistoryRoutes } from './history.js';
 import { getRouteHandler, findRoute } from '../../test/expressRouterUtils.js';
-import type { PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 
 // Test constants
 const TEST_USER_ID = '00000000-0000-0000-0000-000000000001';

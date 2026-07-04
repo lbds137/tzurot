@@ -5,11 +5,8 @@
  * Used by both user and admin LLM config routes.
  */
 
-import {
-  computeContextCap,
-  getZaiCodingPlanContextLength,
-  ZAI_MODEL_PREFIX,
-} from '@tzurot/common-types';
+import { getZaiCodingPlanContextLength, ZAI_MODEL_PREFIX } from '@tzurot/common-types/constants/ai';
+import { computeContextCap } from '@tzurot/common-types/utils/contextWindowCap';
 import type { OpenRouterModelCache } from '../services/OpenRouterModelCache.js';
 
 /**

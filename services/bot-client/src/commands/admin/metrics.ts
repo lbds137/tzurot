@@ -13,7 +13,8 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { serviceFetch } from '../../utils/serviceFetch.js';
 import { formatDuration } from '../../utils/formatting.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';

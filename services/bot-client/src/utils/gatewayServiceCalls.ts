@@ -15,19 +15,16 @@
  * stateless `getServiceClient()` factory.
  */
 
-import {
-  createLogger,
-  getConfig,
-  CONTENT_TYPES,
-  JobStatus,
-  TIMEOUTS,
-  TimeoutError,
-  AudioTooLongError,
-  TTLCache,
-  type GetChannelSettingsResponse,
-  type GetAdminSettingsResponse,
-  type SttProvider,
-} from '@tzurot/common-types';
+import { getConfig } from '@tzurot/common-types/config/config';
+import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
+import { JobStatus } from '@tzurot/common-types/constants/queue';
+import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
+import { type GetAdminSettingsResponse } from '@tzurot/common-types/schemas/api/adminSettings';
+import { type GetChannelSettingsResponse } from '@tzurot/common-types/schemas/api/channel';
+import { type SttProvider } from '@tzurot/common-types/types/sttProvider';
+import { TimeoutError, AudioTooLongError } from '@tzurot/common-types/utils/errors';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
 import type { LoadedPersonality, MessageContext, TranscribeResponse } from '../types.js';
 import { getValidatedServiceSecret } from '../startup.js';
 import { getServiceClient } from './gatewayClients.js';

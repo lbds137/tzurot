@@ -4,7 +4,8 @@
  */
 
 import { type Response, type RequestHandler } from 'express';
-import { createLogger, GetChannelSettingsResponseSchema } from '@tzurot/common-types';
+import { GetChannelSettingsResponseSchema } from '@tzurot/common-types/schemas/api/channel';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { requireServiceAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendContractSuccess, sendError } from '../../../utils/responseHelpers.js';

@@ -24,14 +24,14 @@
 import { Router, type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
-  createLogger,
-  isBotOwner,
   type TtsConfigSummary,
-  type TtsProviderId,
-  computeLlmConfigPermissions,
   TtsConfigCreateSchema,
   TtsConfigUpdateSchema,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/schemas/api/tts-config';
+import { type TtsProviderId } from '@tzurot/common-types/services/tts/TtsProvider';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
+import { computeLlmConfigPermissions } from '@tzurot/common-types/utils/permissions';
 import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';

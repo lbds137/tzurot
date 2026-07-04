@@ -6,7 +6,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { VoiceTranscriptionService } from './VoiceTranscriptionService.js';
 import type { Message } from 'discord.js';
 import { MessageReferenceType } from 'discord.js';
-import { CONTENT_TYPES } from '@tzurot/common-types';
+import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
 
 // Mock dependencies
 vi.mock('../utils/gatewayServiceCalls.js', () => ({
@@ -20,8 +20,10 @@ vi.mock('../redis.js', () => ({
   },
 }));
 
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/discord', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/discord')>(
+    '@tzurot/common-types/utils/discord'
+  );
   return {
     ...actual,
     splitMessage: vi.fn((content: string) => {
@@ -35,7 +37,8 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
-import { splitMessage, AudioTooLongError } from '@tzurot/common-types';
+import { splitMessage } from '@tzurot/common-types/utils/discord';
+import { AudioTooLongError } from '@tzurot/common-types/utils/errors';
 import { voiceTranscriptCache } from '../redis.js';
 import { transcribe } from '../utils/gatewayServiceCalls.js';
 
@@ -1332,8 +1335,7 @@ function createMockMessage(options: MockMessageOptions = {}): Message {
 
   // Create messageSnapshots if provided
   let messageSnapshots:
-    | Map<string, { attachments: ReturnType<typeof createMockAttachmentsMap> }>
-    | undefined;
+    Map<string, { attachments: ReturnType<typeof createMockAttachmentsMap> }> | undefined;
   if (options.messageSnapshots && options.messageSnapshots.length > 0) {
     messageSnapshots = new Map();
     options.messageSnapshots.forEach((snapshot, index) => {

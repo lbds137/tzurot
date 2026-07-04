@@ -22,13 +22,13 @@
 
 import {
   buildPreparedVoiceId,
-  createLogger,
   type PreparedTts,
   type ResolvedTtsConfig,
   type TtsCapabilities,
   type TtsContext,
   type TtsProvider,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/services/tts/TtsProvider';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { ElevenLabsVoiceService } from '../ElevenLabsVoiceService.js';
 import { elevenLabsTTS, ElevenLabsApiError } from '../ElevenLabsClient.js';
 

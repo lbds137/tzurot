@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MessageFlags } from 'discord.js';
 import { _testExports, handleView, handleViewPagination, handleExpandField } from './view.js';
 import type { CharacterData } from './characterTypes.js';
-import { DISCORD_LIMITS, TEXT_LIMITS } from '@tzurot/common-types';
+import { DISCORD_LIMITS, TEXT_LIMITS } from '@tzurot/common-types/constants/discord';
 import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 import { sendChunkedReply } from '../../utils/chunkedReply.js';
 
@@ -14,12 +14,23 @@ import { sendChunkedReply } from '../../utils/chunkedReply.js';
 const slugMock = vi.hoisted(() => ({ value: 'test-character' }));
 const clientsForMock = vi.hoisted(() => vi.fn());
 
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/generated/commandOptions', async () => {
+  const actual = await vi.importActual<
+    typeof import('@tzurot/common-types/generated/commandOptions')
+  >('@tzurot/common-types/generated/commandOptions');
+  return {
+    ...actual,
+    characterViewOptions: () => ({ character: () => slugMock.value }),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() }),
-    characterViewOptions: () => ({ character: () => slugMock.value }),
   };
 });
 

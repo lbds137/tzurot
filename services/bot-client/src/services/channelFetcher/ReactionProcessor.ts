@@ -6,13 +6,11 @@
  */
 
 import type { Message } from 'discord.js';
-import {
-  createLogger,
-  MESSAGE_LIMITS,
-  type MessageReaction,
-  type ConversationMessage,
-  INTERNAL_DISCORD_ID_PREFIX,
-} from '@tzurot/common-types';
+import { MESSAGE_LIMITS } from '@tzurot/common-types/constants/message';
+import { INTERNAL_DISCORD_ID_PREFIX } from '@tzurot/common-types/constants/personaId';
+import { type ConversationMessage } from '@tzurot/common-types/types/conversationMessage';
+import { type MessageReaction } from '@tzurot/common-types/types/schemas/message';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { ExtendedContextUser } from './types.js';
 import { collectReactorUsers } from './ParticipantContextCollector.js';
 

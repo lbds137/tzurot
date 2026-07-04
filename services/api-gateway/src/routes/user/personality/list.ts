@@ -6,13 +6,13 @@
 import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
-  createLogger,
-  type PrismaClient,
   type PersonalitySummary,
-  isBotOwner,
-  computePersonalityPermissions,
   PERSONALITY_LIST_SELECT,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/schemas/api/personality';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
+import { computePersonalityPermissions } from '@tzurot/common-types/utils/permissions';
 import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';

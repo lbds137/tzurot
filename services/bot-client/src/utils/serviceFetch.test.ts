@@ -1,9 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { serviceFetch } from './serviceFetch.js';
 
-vi.mock('@tzurot/common-types', () => ({
-  getConfig: () => ({ GATEWAY_URL: 'https://example.test' }),
-}));
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
+  return {
+    ...actual,
+    getConfig: () => ({ GATEWAY_URL: 'https://example.test' }),
+  };
+});
 
 vi.mock('../startup.js', () => ({
   getValidatedServiceSecret: () => 'test-secret',
@@ -53,7 +59,7 @@ describe('serviceFetch', () => {
   });
 
   it('throws when GATEWAY_URL is empty', async () => {
-    const commonTypes = await import('@tzurot/common-types');
+    const commonTypes = await import('@tzurot/common-types/config/config');
     vi.spyOn(commonTypes, 'getConfig').mockReturnValueOnce({ GATEWAY_URL: '' } as never);
 
     await expect(serviceFetch('/health')).rejects.toThrow(/GATEWAY_URL is not configured/);

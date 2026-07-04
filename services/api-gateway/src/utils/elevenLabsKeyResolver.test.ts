@@ -4,10 +4,22 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { resolveElevenLabsKey } from './elevenLabsKeyResolver.js';
-import type { PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/encryption', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/encryption')>(
+    '@tzurot/common-types/utils/encryption'
+  );
+  return {
+    ...actual,
+    decryptApiKey: vi.fn().mockReturnValue('decrypted-elevenlabs-key'),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -16,11 +28,10 @@ vi.mock('@tzurot/common-types', async importOriginal => {
       error: vi.fn(),
       debug: vi.fn(),
     }),
-    decryptApiKey: vi.fn().mockReturnValue('decrypted-elevenlabs-key'),
   };
 });
 
-import { decryptApiKey } from '@tzurot/common-types';
+import { decryptApiKey } from '@tzurot/common-types/utils/encryption';
 
 describe('resolveElevenLabsKey', () => {
   const mockPrisma = {

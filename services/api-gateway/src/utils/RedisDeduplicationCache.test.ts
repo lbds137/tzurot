@@ -28,20 +28,44 @@ vi.mock('ioredis', () => ({
 }));
 
 // Mock common-types
-vi.mock('@tzurot/common-types', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-  INTERVALS: {
-    REQUEST_DEDUP_WINDOW: 5000,
-  },
-  REDIS_KEY_PREFIXES: {
-    REQUEST_DEDUP: 'dedup:',
-  },
-}));
+vi.mock('@tzurot/common-types/constants/queue', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/constants/queue')>(
+    '@tzurot/common-types/constants/queue'
+  );
+  return {
+    ...actual,
+    REDIS_KEY_PREFIXES: {
+      REQUEST_DEDUP: 'dedup:',
+    },
+  };
+});
+
+vi.mock('@tzurot/common-types/constants/timing', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/constants/timing')>(
+    '@tzurot/common-types/constants/timing'
+  );
+  return {
+    ...actual,
+    INTERVALS: {
+      REQUEST_DEDUP_WINDOW: 5000,
+    },
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
+    createLogger: () => ({
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+    }),
+  };
+});
 
 import { RedisDeduplicationCache } from './RedisDeduplicationCache.js';
 

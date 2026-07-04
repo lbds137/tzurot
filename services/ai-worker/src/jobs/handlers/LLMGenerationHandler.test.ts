@@ -10,16 +10,12 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Job } from 'bullmq';
-import {
-  JobType,
-  JobStatus,
-  AIProvider,
-  ApiErrorCategory,
-  type LLMGenerationJobData,
-  type LoadedPersonality,
-  type PrismaClient,
-  REDIS_KEY_PREFIXES,
-} from '@tzurot/common-types';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
+import { JobType, JobStatus, REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { type LLMGenerationJobData } from '@tzurot/common-types/types/jobs';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { LLMGenerationHandler } from './LLMGenerationHandler.js';
 import { DownloadAttachmentsStep } from './pipeline/steps/DownloadAttachmentsStep.js';
 import type { ApiKeyResolver, ApiKeyResolutionResult } from '../../services/ApiKeyResolver.js';

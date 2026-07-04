@@ -11,7 +11,7 @@ import {
   type ConfigOverrides,
   type ConfigOverrideSource,
   type ResolvedConfigOverrides,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/schemas/api/configOverrides';
 import type { SettingsData, SettingValue } from './types.js';
 
 /** All ConfigOverrides field names */

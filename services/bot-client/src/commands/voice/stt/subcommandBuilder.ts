@@ -9,7 +9,11 @@
  */
 
 import type { SlashCommandSubcommandGroupBuilder } from 'discord.js';
-import { STT_PROVIDERS, sttProviderDisplayName, type SttProvider } from '@tzurot/common-types';
+import {
+  STT_PROVIDERS,
+  sttProviderDisplayName,
+  type SttProvider,
+} from '@tzurot/common-types/types/sttProvider';
 
 const PROVIDER_CHOICES = STT_PROVIDERS.map(p => ({
   name: sttProviderDisplayName(p),

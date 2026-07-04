@@ -14,7 +14,7 @@ import {
   ButtonStyle,
   type MessageActionRowComponentBuilder,
 } from 'discord.js';
-import { DISCORD_COLORS } from '@tzurot/common-types';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import {
   type DashboardConfig,
   STATUS_EMOJI,

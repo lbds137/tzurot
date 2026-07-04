@@ -6,12 +6,9 @@
  * with no service state beyond the injected Prisma client.
  */
 
-import {
-  type PrismaClient,
-  type ConfigKind,
-  generateClonedName,
-  stripCopySuffix,
-} from '@tzurot/common-types';
+import { type ConfigKind } from '@tzurot/common-types/constants/ai';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { generateClonedName, stripCopySuffix } from '@tzurot/common-types/utils/presetCloneName';
 import { CloneNameExhaustedError } from './LlmConfigErrors.js';
 
 /**

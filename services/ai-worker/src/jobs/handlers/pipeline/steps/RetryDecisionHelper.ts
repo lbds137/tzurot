@@ -5,7 +5,7 @@
  * Extracted from GenerationStep to maintain file size limits.
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { RAGResponse } from '../../../../services/ConversationalRAGTypes.js';
 
 const logger = createLogger('RetryDecisionHelper');

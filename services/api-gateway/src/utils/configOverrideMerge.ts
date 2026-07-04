@@ -3,7 +3,7 @@
  * Used by both user config-overrides and admin settings routes.
  */
 
-import { ConfigOverridesSchema } from '@tzurot/common-types';
+import { ConfigOverridesSchema } from '@tzurot/common-types/schemas/api/configOverrides';
 
 /**
  * Merge partial config overrides into existing JSONB.

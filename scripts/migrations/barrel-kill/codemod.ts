@@ -24,6 +24,7 @@
  */
 
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   Project,
   QuoteKind,
@@ -108,7 +109,11 @@ function rewriteImportDeclarations(sf: SourceFile, map: SymbolMap, report: Codem
     // and any file-level pragma like `/* eslint-disable */`) attached exactly
     // once — remove() strips leading comments, and re-attaching them by hand
     // double-adds a surviving file-level pragma. Remaining groups insert after.
-    imp.set({ moduleSpecifier: `${PACKAGE}/${first[0]}`, namedImports: first[1] });
+    imp.set({
+      moduleSpecifier: `${PACKAGE}/${first[0]}`,
+      namedImports: first[1],
+      isTypeOnly: importIsTypeOnly,
+    });
     let insertAt = imp.getChildIndex() + 1;
     for (const [subpath, specs] of sorted.slice(1)) {
       sf.insertImportDeclaration(insertAt++, {
@@ -159,7 +164,11 @@ function rewriteExportDeclarations(sf: SourceFile, map: SymbolMap, report: Codem
     if (first === undefined) continue;
     // Mutate the first group in place (preserves leading trivia — see the import
     // rewrite above), insert the rest after.
-    exp.set({ moduleSpecifier: `${PACKAGE}/${first[0]}`, namedExports: first[1] });
+    exp.set({
+      moduleSpecifier: `${PACKAGE}/${first[0]}`,
+      namedExports: first[1],
+      isTypeOnly: exportIsTypeOnly,
+    });
     let insertAt = exp.getChildIndex() + 1;
     for (const [subpath, specs] of sorted.slice(1)) {
       sf.insertExportDeclaration(insertAt++, {
@@ -204,7 +213,13 @@ function rewriteInlineTypeImports(sf: SourceFile, map: SymbolMap, report: Codemo
  * intentional barrel-centric test fixtures → allowlist at PR 3).
  */
 function scanRemainingBareRefs(filePath: string, text: string, report: CodemodReport): void {
-  const re = /import\s*\(\s*['"`]@tzurot\/common-types['"`]|from\s+['"`]@tzurot\/common-types['"`]/;
+  // Match ANY bare-barrel string literal the AST rewrite couldn't reach: dynamic
+  // `import()`, `from`, and crucially the vitest string-arg forms in test bodies —
+  // `vi.doMock('@tzurot/common-types', …)`, `vi.doUnmock(…)`, `vi.importActual(…)`.
+  // The closing quote immediately after `common-types` excludes deep specifiers
+  // (`@tzurot/common-types/config` has a `/` there, so it won't match). This runs
+  // AFTER the rewrites, so a surviving bare literal is genuinely unhandled.
+  const re = /['"`]@tzurot\/common-types['"`]/;
   const lines = text.split('\n');
   for (let i = 0; i < lines.length; i++) {
     if (re.test(lines[i])) report.remainingBareRefs.push(`${filePath}:${i + 1}`);
@@ -310,4 +325,8 @@ function main(): void {
   if (dryRun) console.log(`\n(dry run — no files written)`);
 }
 
-main();
+// Only run when invoked directly (`tsx codemod.ts`), not on import.
+const invokedPath = process.argv[1];
+if (invokedPath !== undefined && path.resolve(invokedPath) === fileURLToPath(import.meta.url)) {
+  main();
+}

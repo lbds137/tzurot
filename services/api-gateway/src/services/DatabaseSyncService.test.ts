@@ -6,7 +6,7 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { DatabaseSyncService } from './DatabaseSyncService.js';
 import { SYNC_TABLE_ORDER } from './sync/config/syncTables.js';
-import type { PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 
 // Mock Prisma clients
 const createMockPrismaClient = () => {

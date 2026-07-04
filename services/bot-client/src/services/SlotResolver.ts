@@ -15,7 +15,8 @@
  * Capped at MULTI_TAG.MAX_TAGS.
  */
 
-import { type LoadedPersonality, MULTI_TAG } from '@tzurot/common-types';
+import { MULTI_TAG } from '@tzurot/common-types/constants/message';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 
 /** What kind of trigger produced this slot. Drives isAutoResponse and DM-activation behavior. */
 export type SlotSource = 'reply' | 'activation' | 'dm-session' | 'mention';

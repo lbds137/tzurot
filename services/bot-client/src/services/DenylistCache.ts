@@ -17,7 +17,11 @@
  * - personalityUsers: Map of userId → Map of personalityId → DenylistMode
  */
 
-import { createLogger, type DenylistCacheResponse, type DenylistMode } from '@tzurot/common-types';
+import {
+  type DenylistCacheResponse,
+  type DenylistMode,
+} from '@tzurot/common-types/schemas/api/denylist';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type DenylistInvalidationEvent } from '@tzurot/cache-invalidation';
 import { getServiceClient } from '../utils/gatewayClients.js';
 

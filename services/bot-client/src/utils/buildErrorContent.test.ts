@@ -8,7 +8,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { buildErrorContent } from './buildErrorContent.js';
-import type { LLMGenerationResult } from '@tzurot/common-types';
+import type { LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
 
 describe('buildErrorContent', () => {
   describe('with errorInfo and personalityErrorMessage', () => {

@@ -6,7 +6,7 @@
  * Bot owner only.
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { requireBotOwnerContext } from '../../utils/commandContext/index.js';
 import { clientsFor } from '../../utils/gatewayClients.js';

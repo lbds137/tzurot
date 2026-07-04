@@ -7,7 +7,7 @@
  */
 
 import { TextInputBuilder, TextInputStyle, ActionRowBuilder } from 'discord.js';
-import { DISCORD_LIMITS } from '@tzurot/common-types';
+import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 
 /**
  * Existing persona data for pre-filling modal fields

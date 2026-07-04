@@ -14,7 +14,7 @@ import {
   type ChatInputCommandInteraction,
   type GuildMember,
 } from 'discord.js';
-import { isBotOwner } from '@tzurot/common-types';
+import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import type { DeferredCommandContext } from './commandContext/types.js';
 
 /** Error message for commands that require a guild context */

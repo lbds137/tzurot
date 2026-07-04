@@ -14,7 +14,9 @@
  * gateway that's harder to attribute.
  */
 
-import { createLogger, getConfig, TimeoutError } from '@tzurot/common-types';
+import { getConfig } from '@tzurot/common-types/config/config';
+import { TimeoutError } from '@tzurot/common-types/utils/errors';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('VoiceReferenceHelper');
 

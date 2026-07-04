@@ -1,8 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { TimeoutError } from '@tzurot/common-types';
+import { TimeoutError } from '@tzurot/common-types/utils/errors';
 
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
+  return {
+    ...actual,
+    getConfig: vi.fn(),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -11,14 +23,13 @@ vi.mock('@tzurot/common-types', async importOriginal => {
       error: vi.fn(),
       debug: vi.fn(),
     }),
-    getConfig: vi.fn(),
   };
 });
 
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
-import { getConfig } from '@tzurot/common-types';
+import { getConfig } from '@tzurot/common-types/config/config';
 import { fetchVoiceReference, parseAudioDurationSec } from './voiceReferenceHelper.js';
 
 /**

@@ -6,11 +6,11 @@
  * operations go through `ownerClient`.
  */
 
+import { type ConfigKind } from '@tzurot/common-types/constants/ai';
 import {
   type LlmConfigDetail,
   type LlmConfigUpdateInput,
-  type ConfigKind,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/schemas/api/llm-config';
 import { GatewayApiError, type OwnerClient, type UserClient } from '@tzurot/clients';
 import { DashboardUpdateError } from '../../utils/dashboard/saveError.js';
 import type { PresetData } from './types.js';

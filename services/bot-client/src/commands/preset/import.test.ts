@@ -19,28 +19,57 @@ vi.mock('../../utils/jsonFileUtils.js', () => ({
   validateAndParseJsonFile: vi.fn(),
 }));
 
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal();
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
   return {
-    ...(actual as Record<string, unknown>),
+    ...actual,
     getConfig: vi.fn().mockReturnValue({
       GATEWAY_URL: 'http://localhost:3000',
     }),
-    createLogger: () => ({
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn(),
-    }),
+  };
+});
+
+vi.mock('@tzurot/common-types/constants/discord', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/constants/discord')>(
+    '@tzurot/common-types/constants/discord'
+  );
+  return {
+    ...actual,
+    DISCORD_COLORS: {
+      SUCCESS: 0x00ff00,
+    },
+  };
+});
+
+vi.mock('@tzurot/common-types/generated/commandOptions', async () => {
+  const actual = await vi.importActual<
+    typeof import('@tzurot/common-types/generated/commandOptions')
+  >('@tzurot/common-types/generated/commandOptions');
+  return {
+    ...actual,
     presetImportOptions: (interaction: unknown) => ({
       file: () =>
         (
           interaction as { options: { getAttachment: (name: string) => Attachment } }
         ).options.getAttachment('file'),
     }),
-    DISCORD_COLORS: {
-      SUCCESS: 0x00ff00,
-    },
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
+    createLogger: () => ({
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+    }),
   };
 });
 

@@ -35,11 +35,11 @@
  */
 
 import {
-  createLogger,
   AIProvider,
   isZaiCodingPlanModel,
   ZAI_MODEL_PREFIX,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/constants/ai';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { ApiKeyResolver } from './ApiKeyResolver.js';
 
 const logger = createLogger('ProviderRouter');

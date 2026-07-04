@@ -7,8 +7,23 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock common-types before importing module
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
+  return {
+    ...actual,
+    getConfig: vi.fn(() => ({
+      REDIS_URL: 'redis://localhost:6379',
+      INTERNAL_SERVICE_SECRET: 'test-secret',
+    })),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -18,11 +33,6 @@ vi.mock('@tzurot/common-types', async importOriginal => {
       fatal: vi.fn(),
       debug: vi.fn(),
     }),
-    getConfig: vi.fn(() => ({
-      REDIS_URL: 'redis://localhost:6379',
-      INTERNAL_SERVICE_SECRET: 'test-secret',
-    })),
-    HealthStatus: actual.HealthStatus,
   };
 });
 
@@ -30,7 +40,7 @@ vi.mock('./services/voice/VoiceEngineClient.js', () => ({
   getVoiceEngineClient: vi.fn(),
 }));
 
-import { HealthStatus } from '@tzurot/common-types';
+import { HealthStatus } from '@tzurot/common-types/constants/service';
 import { getVoiceEngineClient } from './services/voice/VoiceEngineClient.js';
 import { validateRequiredEnvVars, buildHealthResponse, checkVoiceEngineHealth } from './startup.js';
 
@@ -47,7 +57,7 @@ describe('Startup Utilities', () => {
       };
       expect(() =>
         validateRequiredEnvVars(
-          config as ReturnType<typeof import('@tzurot/common-types').getConfig>
+          config as ReturnType<typeof import('@tzurot/common-types/config/config').getConfig>
         )
       ).not.toThrow();
     });
@@ -59,7 +69,7 @@ describe('Startup Utilities', () => {
       };
       expect(() =>
         validateRequiredEnvVars(
-          config as ReturnType<typeof import('@tzurot/common-types').getConfig>
+          config as ReturnType<typeof import('@tzurot/common-types/config/config').getConfig>
         )
       ).toThrow('REDIS_URL environment variable is required');
     });
@@ -71,7 +81,7 @@ describe('Startup Utilities', () => {
       };
       expect(() =>
         validateRequiredEnvVars(
-          config as ReturnType<typeof import('@tzurot/common-types').getConfig>
+          config as ReturnType<typeof import('@tzurot/common-types/config/config').getConfig>
         )
       ).toThrow('REDIS_URL environment variable is required');
     });
@@ -83,7 +93,7 @@ describe('Startup Utilities', () => {
       };
       expect(() =>
         validateRequiredEnvVars(
-          config as ReturnType<typeof import('@tzurot/common-types').getConfig>
+          config as ReturnType<typeof import('@tzurot/common-types/config/config').getConfig>
         )
       ).toThrow('INTERNAL_SERVICE_SECRET environment variable is required');
     });
@@ -95,7 +105,7 @@ describe('Startup Utilities', () => {
       };
       expect(() =>
         validateRequiredEnvVars(
-          config as ReturnType<typeof import('@tzurot/common-types').getConfig>
+          config as ReturnType<typeof import('@tzurot/common-types/config/config').getConfig>
         )
       ).toThrow('INTERNAL_SERVICE_SECRET environment variable is required');
     });

@@ -14,14 +14,14 @@
 
 import {
   buildPreparedVoiceId,
-  createLogger,
   type PreparedTts,
   type ResolvedTtsConfig,
   type TtsCapabilities,
   type TtsContext,
   type TtsProvider,
   type TtsProviderId,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/services/tts/TtsProvider';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { VoiceRegistrationService } from '../VoiceRegistrationService.js';
 import { synthesizeWithChunking } from '../ttsSynthesizer.js';
 import { waitForVoiceEngine } from '../voiceEngineWarmup.js';

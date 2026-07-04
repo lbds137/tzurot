@@ -9,11 +9,11 @@
 import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
-  createLogger,
-  generateChannelSettingsUuid,
   ActivateChannelRequestSchema,
   ActivateChannelResponseSchema,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/schemas/api/channel';
+import { generateChannelSettingsUuid } from '@tzurot/common-types/utils/deterministicUuid';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';

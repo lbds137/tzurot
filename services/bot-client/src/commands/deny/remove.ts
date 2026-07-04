@@ -5,7 +5,7 @@
  * model as add — you can only remove denials you have access to.
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { checkDenyPermission } from './permissions.js';

@@ -4,12 +4,10 @@
  * Opens the dashboard for editing an existing character.
  */
 
-import {
-  createLogger,
-  isBotOwner,
-  type EnvConfig,
-  characterEditOptions,
-} from '@tzurot/common-types';
+import { type EnvConfig } from '@tzurot/common-types/config/config';
+import { characterEditOptions } from '@tzurot/common-types/generated/commandOptions';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
   buildDashboardEmbed,

@@ -10,8 +10,9 @@ import {
   resetVoiceEngineClient,
   isTransientVoiceEngineError,
 } from './VoiceEngineClient.js';
-import * as commonTypes from '@tzurot/common-types';
-import { TimeoutError, type EnvConfig } from '@tzurot/common-types';
+import * as configModule from '@tzurot/common-types/config/config';
+import { type EnvConfig } from '@tzurot/common-types/config/config';
+import { TimeoutError } from '@tzurot/common-types/utils/errors';
 
 // Mock global fetch
 const mockFetch = vi.fn();
@@ -442,7 +443,7 @@ describe('getVoiceEngineClient', () => {
   });
 
   it('should return null when VOICE_ENGINE_URL is not configured', () => {
-    vi.spyOn(commonTypes, 'getConfig').mockReturnValue({
+    vi.spyOn(configModule, 'getConfig').mockReturnValue({
       VOICE_ENGINE_URL: undefined,
     } as unknown as EnvConfig);
 
@@ -451,7 +452,7 @@ describe('getVoiceEngineClient', () => {
   });
 
   it('should return client when VOICE_ENGINE_URL is configured', () => {
-    vi.spyOn(commonTypes, 'getConfig').mockReturnValue({
+    vi.spyOn(configModule, 'getConfig').mockReturnValue({
       VOICE_ENGINE_URL: 'http://voice-engine:8000',
       VOICE_ENGINE_API_KEY: 'test-key',
     } as unknown as EnvConfig);
@@ -461,7 +462,7 @@ describe('getVoiceEngineClient', () => {
   });
 
   it('should return same instance on subsequent calls (singleton)', () => {
-    vi.spyOn(commonTypes, 'getConfig').mockReturnValue({
+    vi.spyOn(configModule, 'getConfig').mockReturnValue({
       VOICE_ENGINE_URL: 'http://voice-engine:8000',
     } as unknown as EnvConfig);
 

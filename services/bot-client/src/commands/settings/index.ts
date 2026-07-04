@@ -19,13 +19,10 @@ import {
   type ButtonInteraction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
-import {
-  createLogger,
-  CONFIG_SLOT_OPTION_DESCRIPTION,
-  DISCORD_LIMITS,
-  DISCORD_PROVIDER_CHOICES,
-  TIMEZONE_OPTIONS,
-} from '@tzurot/common-types';
+import { CONFIG_SLOT_OPTION_DESCRIPTION } from '@tzurot/common-types/constants/ai';
+import { DISCORD_LIMITS, DISCORD_PROVIDER_CHOICES } from '@tzurot/common-types/constants/discord';
+import { TIMEZONE_OPTIONS } from '@tzurot/common-types/constants/timezone';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { defineCommand } from '../../utils/defineCommand.js';
 import type {
   SafeCommandContext,

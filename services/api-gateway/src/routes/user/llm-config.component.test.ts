@@ -16,12 +16,12 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import express, { type Express, type Request, type Response, type NextFunction } from 'express';
 import request from 'supertest';
+import { PrismaClient } from '@tzurot/common-types/services/prisma';
 import {
-  PrismaClient,
   generateUserUuid,
   generatePersonaUuid,
   generatePersonalityUuid,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/utils/deterministicUuid';
 import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import {

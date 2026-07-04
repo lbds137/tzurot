@@ -6,13 +6,11 @@
  * Extracted from conversationUtils.ts for better modularity.
  */
 
-import {
-  escapeXml,
-  escapeXmlContent,
-  formatPromptTimestamp,
-  capDedupText,
-  type StoredReferencedMessage,
-} from '@tzurot/common-types';
+import { type StoredReferencedMessage } from '@tzurot/common-types/types/schemas/message';
+import { formatPromptTimestamp } from '@tzurot/common-types/utils/dateFormatting';
+import { escapeXmlContent } from '@tzurot/common-types/utils/promptSanitizer';
+import { capDedupText } from '@tzurot/common-types/utils/referenceEnrichment';
+import { escapeXml } from '@tzurot/common-types/utils/xmlBuilder';
 import { formatQuoteElement, formatDedupedQuote } from '../../services/prompt/QuoteFormatter.js';
 import { deriveRefRole } from '../../services/prompt/referenceRole.js';
 import type { RawHistoryEntry } from './conversationTypes.js';

@@ -7,7 +7,9 @@
  * Discord-event surface.
  */
 
-import { createLogger, SYNC_LIMITS, type MessageMetadata } from '@tzurot/common-types';
+import { SYNC_LIMITS } from '@tzurot/common-types/constants/timing';
+import { type MessageMetadata } from '@tzurot/common-types/types/schemas/message';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getServiceClient } from './gatewayClients.js';
 
 const logger = createLogger('gatewayWriteHelpers');

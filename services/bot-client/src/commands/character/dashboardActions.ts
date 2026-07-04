@@ -11,7 +11,9 @@
  */
 
 import { MessageFlags, type StringSelectMenuInteraction } from 'discord.js';
-import { createLogger, isBotOwner, type EnvConfig } from '@tzurot/common-types';
+import { type EnvConfig } from '@tzurot/common-types/config/config';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import {
   buildDashboardEmbed,
   buildDashboardComponents,

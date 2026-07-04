@@ -18,8 +18,8 @@ import {
   isFreeModel,
   isZaiCodingPlanModel,
   listZaiCodingPlanModels,
-  type ModelAutocompleteOption,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/constants/ai';
+import { type ModelAutocompleteOption } from '@tzurot/common-types/types/ai';
 import { fetchModels } from './modelAutocomplete.js';
 
 /** Where a catalog entry's data came from. */

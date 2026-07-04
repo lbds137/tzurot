@@ -16,19 +16,30 @@ import {
 } from './jsonFileUtils.js';
 
 // Mock dependencies
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal();
+vi.mock('@tzurot/common-types/constants/discord', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/constants/discord')>(
+    '@tzurot/common-types/constants/discord'
+  );
   return {
-    ...(actual as Record<string, unknown>),
+    ...actual,
+    DISCORD_LIMITS: {
+      AVATAR_SIZE: 10 * 1024 * 1024, // 10MB
+    },
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
     createLogger: () => ({
       info: vi.fn(),
       warn: vi.fn(),
       error: vi.fn(),
       debug: vi.fn(),
     }),
-    DISCORD_LIMITS: {
-      AVATAR_SIZE: 10 * 1024 * 1024, // 10MB
-    },
   };
 });
 

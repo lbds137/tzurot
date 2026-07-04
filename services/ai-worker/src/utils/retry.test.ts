@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Logger } from 'pino';
-import { TimeoutError } from '@tzurot/common-types';
+import { TimeoutError } from '@tzurot/common-types/utils/errors';
 import { withRetry, withTimeout, RetryError } from './retry.js';
 
 describe('retryService', () => {

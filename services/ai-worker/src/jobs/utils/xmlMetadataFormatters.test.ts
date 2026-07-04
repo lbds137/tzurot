@@ -16,16 +16,47 @@ import {
 import type { RawHistoryEntry } from './conversationTypes.js';
 
 // Mock common-types
-vi.mock('@tzurot/common-types', () => ({
-  escapeXml: (s: string) =>
-    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'),
-  escapeXmlContent: (s: string) =>
-    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'),
-  formatPromptTimestamp: (ts: string) => `formatted:${ts}`,
-  // Real capDedupText behavior (cap to DEDUP_STUB_CONTENT=100 + ellipsis). This is now the
-  // single truncation point for the stored deduped path; formatDedupedQuote renders as-is.
-  capDedupText: (text: string) => (text.length > 100 ? text.substring(0, 100) + '...' : text),
-}));
+vi.mock('@tzurot/common-types/utils/dateFormatting', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/dateFormatting')>(
+    '@tzurot/common-types/utils/dateFormatting'
+  );
+  return {
+    ...actual,
+    formatPromptTimestamp: (ts: string) => `formatted:${ts}`,
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/promptSanitizer', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/promptSanitizer')>(
+    '@tzurot/common-types/utils/promptSanitizer'
+  );
+  return {
+    ...actual,
+    escapeXmlContent: (s: string) =>
+      s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/referenceEnrichment', async () => {
+  const actual = await vi.importActual<
+    typeof import('@tzurot/common-types/utils/referenceEnrichment')
+  >('@tzurot/common-types/utils/referenceEnrichment');
+  return {
+    ...actual,
+    capDedupText: (text: string) => (text.length > 100 ? text.substring(0, 100) + '...' : text),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/xmlBuilder', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/xmlBuilder')>(
+    '@tzurot/common-types/utils/xmlBuilder'
+  );
+  return {
+    ...actual,
+    escapeXml: (s: string) =>
+      s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'),
+  };
+});
 
 // Mock QuoteFormatter - pass through to real implementation for structural tests
 const { mockFormatQuoteElement, mockFormatDedupedQuote } = vi.hoisted(() => {

@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
+import { MessageRole } from '@tzurot/common-types/constants/message';
+import { type ConversationMessage } from '@tzurot/common-types/types/conversationMessage';
 import {
-  MessageRole,
   rawAssemblyInputsSchema,
-  type ConversationMessage,
   type RawAssemblyInputs,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/schemas/rawEnvelope';
 import { MessageReferenceType, type Message } from 'discord.js';
 
 const { mockGetVoiceTranscript } = vi.hoisted(() => ({

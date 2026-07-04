@@ -9,7 +9,9 @@
  * 2. Legacy XML format: Raw XML string passed through after placeholder replacement
  */
 
-import { createLogger, escapeXmlContent, type LoadedPersonality } from '@tzurot/common-types';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { escapeXmlContent } from '@tzurot/common-types/utils/promptSanitizer';
 import { replacePromptPlaceholders } from '../../utils/promptPlaceholders.js';
 
 const logger = createLogger('PersonalityFieldsFormatter');

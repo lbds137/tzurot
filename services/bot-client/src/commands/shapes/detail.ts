@@ -7,7 +7,8 @@
  */
 
 import { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
-import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type UserClient } from '@tzurot/clients';
 import { ShapesCustomIds } from '../../utils/customIds.js';
 import type { BrowseSortType } from '../../utils/browse/constants.js';

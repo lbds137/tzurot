@@ -7,7 +7,7 @@
  */
 
 import type { HumanMessage } from '@langchain/core/messages';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { contentToText } from '../utils/baseMessageContent.js';
 import type { PromptBuilder } from './PromptBuilder.js';
 import type { ContextWindowManager } from './context/ContextWindowManager.js';

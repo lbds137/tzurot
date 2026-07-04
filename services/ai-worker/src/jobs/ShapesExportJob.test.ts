@@ -4,20 +4,19 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Job } from 'bullmq';
-import type { ShapesExportJobData, ShapesDataFetchResult } from '@tzurot/common-types';
+import type {
+  ShapesExportJobData,
+  ShapesDataFetchResult,
+} from '@tzurot/common-types/types/shapes-import';
 import { processShapesExportJob } from './ShapesExportJob.js';
 
 // Mock common-types
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/encryption', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/encryption')>(
+    '@tzurot/common-types/utils/encryption'
+  );
   return {
     ...actual,
-    createLogger: () => ({
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    }),
     decryptApiKey: vi
       .fn()
       .mockReturnValue(
@@ -26,6 +25,21 @@ vi.mock('@tzurot/common-types', async importOriginal => {
     encryptApiKey: vi
       .fn()
       .mockReturnValue({ iv: 'new-iv', content: 'new-content', tag: 'new-tag' }),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
+    createLogger: () => ({
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }),
   };
 });
 

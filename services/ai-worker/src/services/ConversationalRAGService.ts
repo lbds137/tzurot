@@ -12,13 +12,11 @@
 
 import { BaseMessage } from '@langchain/core/messages';
 import { PgvectorMemoryAdapter } from './PgvectorMemoryAdapter.js';
-import {
-  MessageContent,
-  createLogger,
-  TEXT_LIMITS,
-  type LoadedPersonality,
-  type PrismaClient,
-} from '@tzurot/common-types';
+import { TEXT_LIMITS } from '@tzurot/common-types/constants/discord';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { MessageContent } from '@tzurot/common-types/types/ai';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { contentToText } from '../utils/baseMessageContent.js';
 import { logAndThrow } from '../utils/errorHandling.js';
 import { validateAIProvider } from '../utils/providerValidation.js';

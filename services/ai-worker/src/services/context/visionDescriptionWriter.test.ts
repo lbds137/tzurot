@@ -3,12 +3,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const { mockLogger } = vi.hoisted(() => ({
   mockLogger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
-  return { ...actual, createLogger: () => mockLogger };
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
+    createLogger: () => mockLogger,
+  };
 });
 
-import { AttachmentType, type JobContext } from '@tzurot/common-types';
+import { AttachmentType } from '@tzurot/common-types/constants/media';
+import { type JobContext } from '@tzurot/common-types/types/jobs';
 import { VisionDescriptionWriter } from './visionDescriptionWriter.js';
 import type { ProcessedAttachment } from '../MultimodalProcessor.js';
 

@@ -13,7 +13,7 @@
  * flip or two, not minutes later.
  */
 
-import { TTLCache } from '@tzurot/common-types';
+import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
 import type { UserClient } from '@tzurot/clients';
 
 /** Browse caches refresh within ~a page flip or two of a key/preset change. */

@@ -16,12 +16,10 @@ import {
   MessageFlags,
   type ModalSubmitInteraction,
 } from 'discord.js';
-import {
-  createLogger,
-  isBotOwner,
-  normalizeSlugForUser,
-  type EnvConfig,
-} from '@tzurot/common-types';
+import { type EnvConfig } from '@tzurot/common-types/config/config';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
+import { normalizeSlugForUser } from '@tzurot/common-types/utils/slugUtils';
 import type { ModalCommandContext } from '../../utils/commandContext/types.js';
 import {
   buildDashboardEmbed,

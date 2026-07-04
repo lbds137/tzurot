@@ -9,7 +9,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { findPersonalityMentions } from './personalityMentionParser.js';
 import { createMockPersonalityService } from '../test/mocks/PersonalityService.mock.js';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
-import { MULTI_TAG } from '@tzurot/common-types';
+import { MULTI_TAG } from '@tzurot/common-types/constants/message';
 
 const TEST_USER_ID = 'test-user-123';
 

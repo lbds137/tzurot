@@ -7,7 +7,9 @@
  * module under the line limit and to give the resolve-and-stamp logic its own test surface.
  */
 
-import { createLogger, type LoadedPersonality, type ConfigSourceId } from '@tzurot/common-types';
+import { type ConfigSourceId } from '@tzurot/common-types/types/schemas/generation';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { LlmConfigResolver, VisionConfigResolver } from '@tzurot/config-resolver';
 
 const logger = createLogger('ConfigStamping');

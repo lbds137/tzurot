@@ -16,14 +16,14 @@
 import { Router, type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
-  createLogger,
   type GetVoiceResolutionResponse,
   type ResolvedTtsView,
   type ResolvedSttView,
   type ClonedVoicesSummary,
   GetVoiceResolutionQuerySchema,
-  type LoadedTtsPersonality,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/schemas/api/voice-resolution';
+import { type LoadedTtsPersonality } from '@tzurot/common-types/types/configResolution';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { TtsConfigResolver, SttResolver } from '@tzurot/config-resolver';
 import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';

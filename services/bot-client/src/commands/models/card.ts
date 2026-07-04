@@ -12,7 +12,8 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import { DISCORD_COLORS, buildModelInfoUrl, AIProvider } from '@tzurot/common-types';
+import { buildModelInfoUrl, AIProvider } from '@tzurot/common-types/constants/ai';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { formatContextLength } from '../../utils/modelAutocomplete.js';
 import {
   formatCapabilities,

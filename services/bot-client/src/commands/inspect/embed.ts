@@ -3,7 +3,9 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import { DISCORD_COLORS, FINISH_REASONS, type DiagnosticPayload } from '@tzurot/common-types';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { FINISH_REASONS } from '@tzurot/common-types/constants/finishReasons';
+import { type DiagnosticPayload } from '@tzurot/common-types/types/diagnostic';
 
 /**
  * Determine embed color based on diagnostic state
@@ -108,8 +110,7 @@ export function buildReasoningField(
   payload: DiagnosticPayload
 ): { name: string; value: string } | null {
   const reasoningConfig = payload.llmConfig.allParams.reasoning as
-    | { effort?: string; enabled?: boolean }
-    | undefined;
+    { effort?: string; enabled?: boolean } | undefined;
   if (reasoningConfig === undefined) {
     return null;
   }

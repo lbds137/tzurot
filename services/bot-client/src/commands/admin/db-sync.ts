@@ -7,12 +7,9 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import {
-  createLogger,
-  DISCORD_COLORS,
-  TEXT_LIMITS,
-  adminDbSyncOptions,
-} from '@tzurot/common-types';
+import { DISCORD_COLORS, TEXT_LIMITS } from '@tzurot/common-types/constants/discord';
+import { adminDbSyncOptions } from '@tzurot/common-types/generated/commandOptions';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 

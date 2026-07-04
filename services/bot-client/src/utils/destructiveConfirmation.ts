@@ -32,7 +32,7 @@ import {
   type ModalSubmitInteraction,
   type InteractionEditReplyOptions,
 } from 'discord.js';
-import { DISCORD_COLORS } from '@tzurot/common-types';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { DestructiveCustomIds } from './customIds.js';
 
 /**

@@ -25,7 +25,9 @@
  * you touch one function. Free engineering hygiene.
  */
 
-import { createLogger, AI_ENDPOINTS, TimeoutError } from '@tzurot/common-types';
+import { AI_ENDPOINTS } from '@tzurot/common-types/constants/ai';
+import { TimeoutError } from '@tzurot/common-types/utils/errors';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('MistralTtsClient');
 

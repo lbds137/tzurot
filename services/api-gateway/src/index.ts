@@ -16,15 +16,15 @@ import express, { type Express } from 'express';
 import helmet from 'helmet';
 import { Redis } from 'ioredis';
 import { createRequire } from 'module';
+import { getConfig } from '@tzurot/common-types/config/config';
+import { fastPoolConnectionOptions } from '@tzurot/common-types/services/poolConfig';
 import {
-  createLogger,
-  getConfig,
   createPrismaClient,
-  fastPoolConnectionOptions,
   verifyPoolTimeouts,
-  registerProcessLifecycle,
   type PrismaClient,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/services/prisma';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { registerProcessLifecycle } from '@tzurot/common-types/utils/processLifecycle';
 import {
   CacheInvalidationService,
   ApiKeyCacheInvalidationService,

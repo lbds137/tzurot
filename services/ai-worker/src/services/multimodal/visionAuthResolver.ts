@@ -26,13 +26,10 @@
  * once every fallback tier is exhausted.
  */
 
-import {
-  createLogger,
-  AIProvider,
-  ApiErrorCategory,
-  MODEL_DEFAULTS,
-  type LoadedPersonality,
-} from '@tzurot/common-types';
+import { AIProvider, MODEL_DEFAULTS } from '@tzurot/common-types/constants/ai';
+import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { detectVisionProvider } from '../ProviderRouter.js';
 import { selectVisionModel, buildFailureFallback } from './VisionProcessor.js';
 import { visionFallbackQuota } from '../../redis.js';

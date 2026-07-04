@@ -10,18 +10,13 @@
  */
 
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
-import {
-  createLogger,
-  getConfig,
-  AI_DEFAULTS,
-  TIMEOUTS,
-  MODEL_DEFAULTS,
-  ERROR_MESSAGES,
-  ApiErrorCategory,
-  AIProvider,
-  type AttachmentMetadata,
-  type LoadedPersonality,
-} from '@tzurot/common-types';
+import { getConfig } from '@tzurot/common-types/config/config';
+import { AI_DEFAULTS, MODEL_DEFAULTS, AIProvider } from '@tzurot/common-types/constants/ai';
+import { ERROR_MESSAGES, ApiErrorCategory } from '@tzurot/common-types/constants/error';
+import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
+import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { createChatModel } from '../ModelFactory.js';
 import { detectVisionProvider } from '../ProviderRouter.js';
 import { parseApiError } from '../../utils/apiErrorParser.js';

@@ -10,7 +10,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import type { Queue } from 'bullmq';
-import type { LLMGenerationResult } from '@tzurot/common-types';
+import type { LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
 import { pollPriorJobState, synthesizeFailureResult } from './multiTagRecoveryHelpers.js';
 import type { SlotSnapshot } from './MultiTagPersistence.js';
 

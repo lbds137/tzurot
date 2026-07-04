@@ -7,7 +7,8 @@
  */
 
 import { Redis } from 'ioredis';
-import { createLogger, type PrismaClient } from '@tzurot/common-types';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import {
   CacheInvalidationService,
   ApiKeyCacheInvalidationService,
@@ -178,9 +179,7 @@ interface InvalidatableResolver {
 
 /** Three-event invalidation shape shared by LlmConfig + TtsConfig services. */
 type ConfigInvalidationEvent =
-  | { type: 'user'; discordId: string }
-  | { type: 'config'; configId: string }
-  | { type: 'all' };
+  { type: 'user'; discordId: string } | { type: 'config'; configId: string } | { type: 'all' };
 
 interface ConfigInvalidationService {
   subscribe(handler: (event: ConfigInvalidationEvent) => void): Promise<void>;

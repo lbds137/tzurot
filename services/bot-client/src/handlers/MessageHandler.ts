@@ -7,7 +7,9 @@
  */
 
 import { MessageType, type Client, type Message } from 'discord.js';
-import { createLogger, type LLMGenerationResult, stripErrorSpoiler } from '@tzurot/common-types';
+import { stripErrorSpoiler } from '@tzurot/common-types/constants/error';
+import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { buildErrorContent } from '../utils/buildErrorContent.js';
 import type { IMessageProcessor } from '../processors/IMessageProcessor.js';
 import { isUserContentMessage } from '../utils/messageTypeUtils.js';

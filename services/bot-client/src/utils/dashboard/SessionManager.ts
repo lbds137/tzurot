@@ -21,7 +21,8 @@
  */
 
 import type { Redis } from 'ioredis';
-import { createLogger, REDIS_KEY_PREFIXES } from '@tzurot/common-types';
+import { REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type DashboardSession, StoredSessionSchema, type StoredSession } from './types.js';
 
 const logger = createLogger('DashboardSessionManager');

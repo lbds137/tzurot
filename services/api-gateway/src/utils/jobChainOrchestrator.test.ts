@@ -5,13 +5,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createJobChain } from './jobChainOrchestrator.js';
 import { flowProducer } from '../queue.js';
-import {
-  JobType,
-  type LoadedPersonality,
-  type JobContext,
-  type ResponseDestination,
-  CONTENT_TYPES,
-} from '@tzurot/common-types';
+import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
+import { JobType } from '@tzurot/common-types/constants/queue';
+import { type JobContext, type ResponseDestination } from '@tzurot/common-types/types/jobs';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import type { LlmConfigResolver, VisionConfigResolver } from '@tzurot/config-resolver';
 
 // Mock the queue (flowProducer for job dependencies)
@@ -22,8 +19,10 @@ vi.mock('../queue.js', () => ({
 }));
 
 // Mock getConfig
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
   return {
     ...actual,
     getConfig: () => ({ QUEUE_NAME: 'test-queue' }),

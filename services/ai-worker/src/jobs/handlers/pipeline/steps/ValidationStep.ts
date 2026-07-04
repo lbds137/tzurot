@@ -4,7 +4,8 @@
  * Validates job data against the schema.
  */
 
-import { createLogger, llmGenerationJobDataSchema } from '@tzurot/common-types';
+import { llmGenerationJobDataSchema } from '@tzurot/common-types/types/jobs';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { ZodIssue } from 'zod';
 import type { IPipelineStep, GenerationContext } from '../types.js';
 

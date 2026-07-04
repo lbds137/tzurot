@@ -11,26 +11,27 @@ import { ConversationalRAGService } from '../services/ConversationalRAGService.j
 import { PgvectorMemoryAdapter } from '../services/PgvectorMemoryAdapter.js';
 import type { EmbeddingServiceInterface } from '../utils/duplicateDetection.js';
 import { ApiKeyResolver } from '../services/ApiKeyResolver.js';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { JobType } from '@tzurot/common-types/constants/queue';
+import { type PrismaClient, type Prisma } from '@tzurot/common-types/services/prisma';
 import {
-  createLogger,
-  AIProvider,
   type AnyJobData,
   type AnyJobResult,
   type AudioTranscriptionJobData,
   type ImageDescriptionJobData,
   type LLMGenerationJobData,
-  type ShapesImportJobData,
-  type ShapesExportJobData,
   type AudioTranscriptionResult,
   type ImageDescriptionResult,
-  type LLMGenerationResult,
+} from '@tzurot/common-types/types/jobs';
+import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
+import {
+  type ShapesImportJobData,
+  type ShapesExportJobData,
   type ShapesImportJobResult,
   type ShapesExportJobResult,
-  generateUsageLogUuid,
-  JobType,
-  type PrismaClient,
-  type Prisma,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/shapes-import';
+import { generateUsageLogUuid } from '@tzurot/common-types/utils/deterministicUuid';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import {
   LlmConfigResolver,
   TtsConfigResolver,

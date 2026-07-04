@@ -6,12 +6,12 @@
  */
 
 import type { AutocompleteInteraction } from 'discord.js';
+import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 import {
-  createLogger,
-  DISCORD_LIMITS,
   AUTOCOMPLETE_BADGES,
   formatAutocompleteOption,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/utils/autocompleteFormat';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getCachedPersonas } from './autocompleteCache.js';
 import { clientsFor } from '../gatewayClients.js';
 import { AUTOCOMPLETE_ERROR_SENTINEL } from '../apiCheck.js';

@@ -7,7 +7,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { extractGuildMemberInfo, resolveEffectiveMember } from './GuildMemberResolver.js';
 import type { Message, GuildMember, Role, Collection, Guild } from 'discord.js';
-import { MESSAGE_LIMITS } from '@tzurot/common-types';
+import { MESSAGE_LIMITS } from '@tzurot/common-types/constants/message';
 
 /**
  * Create a mock role for testing

@@ -4,8 +4,9 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { describeImage, transcribeAudio, processAttachments } from './MultimodalProcessor.js';
-import type { AttachmentMetadata, LoadedPersonality } from '@tzurot/common-types';
-import { AttachmentType, CONTENT_TYPES } from '@tzurot/common-types';
+import type { AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
+import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { AttachmentType, CONTENT_TYPES } from '@tzurot/common-types/constants/media';
 import type { ResolveVisionConfigOptions } from './multimodal/visionAuthResolver.js';
 import type { ApiKeyResolver } from './ApiKeyResolver.js';
 

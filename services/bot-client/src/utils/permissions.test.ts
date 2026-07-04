@@ -7,8 +7,10 @@ import { MessageFlags, PermissionFlagsBits } from 'discord.js';
 import type { ChatInputCommandInteraction, GuildMember, PermissionsBitField } from 'discord.js';
 
 // Mock isBotOwner before importing permissions
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/ownerMiddleware', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/ownerMiddleware')>(
+    '@tzurot/common-types/utils/ownerMiddleware'
+  );
   return {
     ...actual,
     isBotOwner: vi.fn().mockReturnValue(false),
@@ -16,7 +18,7 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 });
 
 import { requireManageMessages, requireManageMessagesDeferred } from './permissions.js';
-import { isBotOwner } from '@tzurot/common-types';
+import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 
 describe('permissions utilities', () => {
   // Create a mock interaction factory

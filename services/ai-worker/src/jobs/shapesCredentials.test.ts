@@ -13,8 +13,21 @@ import {
 const mockDecryptApiKey = vi.fn();
 const mockEncryptApiKey = vi.fn();
 
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/encryption', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/encryption')>(
+    '@tzurot/common-types/utils/encryption'
+  );
+  return {
+    ...actual,
+    decryptApiKey: (...args: unknown[]) => mockDecryptApiKey(...args),
+    encryptApiKey: (...args: unknown[]) => mockEncryptApiKey(...args),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -23,8 +36,6 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
-    decryptApiKey: (...args: unknown[]) => mockDecryptApiKey(...args),
-    encryptApiKey: (...args: unknown[]) => mockEncryptApiKey(...args),
   };
 });
 

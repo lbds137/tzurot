@@ -1,4 +1,5 @@
-import type { AttachmentMetadata, ConversationMessage } from '@tzurot/common-types';
+import type { ConversationMessage } from '@tzurot/common-types/types/conversationMessage';
+import type { AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 
 /**
  * Fan a converted extended-context message's attachments into the two flat

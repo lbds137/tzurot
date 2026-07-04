@@ -8,7 +8,8 @@
 
 import { describe, it, expect } from 'vitest';
 import type { Job } from 'bullmq';
-import { AIProvider, type LLMGenerationJobData } from '@tzurot/common-types';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { type LLMGenerationJobData } from '@tzurot/common-types/types/jobs';
 import { validatePrerequisites } from './generationStepValidation.js';
 import type { GenerationContext } from '../types.js';
 

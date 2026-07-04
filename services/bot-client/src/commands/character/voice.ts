@@ -9,7 +9,9 @@
  */
 
 import { escapeMarkdown } from 'discord.js';
-import { createLogger, type EnvConfig, VOICE_REFERENCE_LIMITS } from '@tzurot/common-types';
+import { type EnvConfig } from '@tzurot/common-types/config/config';
+import { VOICE_REFERENCE_LIMITS } from '@tzurot/common-types/constants/media';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
   AUTOCOMPLETE_UNAVAILABLE_MESSAGE,

@@ -16,28 +16,36 @@
  * cannot drift during burn-in.
  */
 
+import { MESSAGE_LIMITS, MessageRole } from '@tzurot/common-types/constants/message';
+import { type ResolvedConfigOverrides } from '@tzurot/common-types/schemas/api/configOverrides';
+import { type ConversationMessage } from '@tzurot/common-types/types/conversationMessage';
+import { type JobContext } from '@tzurot/common-types/types/jobs';
 import {
-  buildFallbackEnvironment,
-  createLogger,
-  mapCrossChannelToApiFormat,
-  mergeWithHistory,
-  resolveExtendedContextPersonaIds,
-  MESSAGE_LIMITS,
-  MessageRole,
   type AttachmentMetadata,
-  type ConversationMessage,
-  type CrossChannelHistoryGroupEntry,
   type GuildMemberInfo,
-  type JobContext,
+} from '@tzurot/common-types/types/schemas/discord';
+import {
+  type CrossChannelHistoryGroupEntry,
+  type ReferencedMessage,
+} from '@tzurot/common-types/types/schemas/message';
+import {
   type LoadedPersonality,
   type MentionedPersona,
-  resolveSummonAnonymity,
-  type RawAssemblyInputs,
   type ReferencedChannel,
-  type ReferencedMessage,
-  type ResolvedConfigOverrides,
+} from '@tzurot/common-types/types/schemas/personality';
+import { type RawAssemblyInputs } from '@tzurot/common-types/types/schemas/rawEnvelope';
+import {
+  resolveSummonAnonymity,
   type SummonAnonymity,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/summon-anonymity';
+import {
+  buildFallbackEnvironment,
+  mapCrossChannelToApiFormat,
+} from '@tzurot/common-types/utils/crossChannelEnvironment';
+import { resolveExtendedContextPersonaIds } from '@tzurot/common-types/utils/extendedContextPersonaResolver';
+import { mergeWithHistory } from '@tzurot/common-types/utils/historyMerger';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { fromApiMessage } from './fromApiMessage.js';
 import type { PersonaResolver, UserService } from '@tzurot/identity';
 import { rewriteRawContent, type RewrittenContent } from './contentRewriter.js';
 import { enrichRawReferences } from './referenceEnricher.js';
@@ -141,27 +149,6 @@ export interface ContextAssemblerDeps {
  * by construction), so both are filled from the job here — `satisfies`
  * keeps the mapping structurally checked against ConversationMessage.
  */
-function fromApiMessage(
-  msg: NonNullable<RawAssemblyInputs['rawExtendedContextMessages']>[number],
-  channelId: string,
-  guildId: string | null
-): ConversationMessage {
-  return {
-    ...msg,
-    channelId,
-    guildId,
-    // id/personaId are schema-optional on the wire but always populated by
-    // the bot-side fetcher; '' mirrors the shadow diff's own normalization
-    // ('' ids are excluded from id-keyed diffs, personaIds compare via ?? '').
-    id: msg.id ?? '',
-    personaId: msg.personaId ?? '',
-    // Discord messages always carry timestamps; epoch-0 is a defensive
-    // fallback that sorts such a row first rather than crashing assembly.
-    createdAt: msg.createdAt !== undefined ? new Date(msg.createdAt) : new Date(0),
-    discordMessageId: msg.discordMessageId ?? [],
-  } satisfies ConversationMessage;
-}
-
 export class ContextAssembler {
   constructor(private readonly deps: ContextAssemblerDeps) {}
 

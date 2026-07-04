@@ -12,16 +12,13 @@
  * 3. Used with personality's system prompt (including jailbreaks)
  */
 
-import {
-  createLogger,
-  AttachmentType,
-  CONTENT_TYPES,
-  RETRY_CONFIG,
-  AIProvider,
-  type AttachmentMetadata,
-  type LoadedPersonality,
-  type SttDispatch,
-} from '@tzurot/common-types';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { AttachmentType, CONTENT_TYPES } from '@tzurot/common-types/constants/media';
+import { RETRY_CONFIG } from '@tzurot/common-types/constants/timing';
+import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { withParallelRetry } from '../utils/parallelRetry.js';
 import { shouldRetryError, parseApiError } from '../utils/apiErrorParser.js';
 import { describeImage, type VisionLoggingContext } from './multimodal/VisionProcessor.js';

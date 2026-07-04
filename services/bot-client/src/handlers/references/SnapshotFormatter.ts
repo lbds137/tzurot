@@ -5,12 +5,9 @@
  */
 
 import type { Message, APIEmbed, MessageSnapshot } from 'discord.js';
-import {
-  type ReferencedMessage,
-  formatLocationAsXml,
-  UNKNOWN_USER_DISCORD_ID,
-  UNKNOWN_USER_NAME,
-} from '@tzurot/common-types';
+import { UNKNOWN_USER_DISCORD_ID, UNKNOWN_USER_NAME } from '@tzurot/common-types/constants/message';
+import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
+import { formatLocationAsXml } from '@tzurot/common-types/utils/environmentFormatter';
 import { extractDiscordEnvironment } from '../../utils/discordContext.js';
 import { extractAttachments } from '../../utils/attachmentExtractor.js';
 import { extractEmbedImages } from '../../utils/embedImageExtractor.js';

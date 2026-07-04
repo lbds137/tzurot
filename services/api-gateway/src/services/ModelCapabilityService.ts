@@ -14,7 +14,8 @@
  * validators, not here, so `resolve` takes only the model id.
  */
 
-import { zaiCodingPlanModelCapabilities, type ModelCapabilities } from '@tzurot/common-types';
+import { zaiCodingPlanModelCapabilities } from '@tzurot/common-types/constants/ai';
+import { type ModelCapabilities } from '@tzurot/common-types/types/ai';
 import type { OpenRouterModelCache } from './OpenRouterModelCache.js';
 
 export class ModelCapabilityService {

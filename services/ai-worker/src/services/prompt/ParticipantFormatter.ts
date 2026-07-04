@@ -14,7 +14,8 @@
  * Extracted from PromptBuilder for better modularity.
  */
 
-import { escapeXml, formatDateOnly } from '@tzurot/common-types';
+import { formatDateOnly } from '@tzurot/common-types/utils/dateFormatting';
+import { escapeXml } from '@tzurot/common-types/utils/xmlBuilder';
 import type { ParticipantInfo } from '../ConversationalRAGTypes.js';
 
 /**

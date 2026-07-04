@@ -1,4 +1,5 @@
-import { KNOWN_PROXY_APP_IDS, type ReferenceAuthorRole } from '@tzurot/common-types';
+import { KNOWN_PROXY_APP_IDS } from '@tzurot/common-types/constants/proxyBots';
+import { type ReferenceAuthorRole } from '@tzurot/common-types/types/schemas/message';
 
 /** The authorship signals a Discord message carries, narrowed for classification. */
 export interface AuthorRoleSignals {

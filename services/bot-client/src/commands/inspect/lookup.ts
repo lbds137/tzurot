@@ -13,12 +13,10 @@
  * never returns another user's log to a non-owner caller.
  */
 
-import {
-  createLogger,
-  normalizeDateTime,
-  type DiagnosticLog as ApiDiagnosticLog,
-  type DiagnosticPayload,
-} from '@tzurot/common-types';
+import { type DiagnosticLog as ApiDiagnosticLog } from '@tzurot/common-types/schemas/api/diagnostic';
+import { type DiagnosticPayload } from '@tzurot/common-types/types/diagnostic';
+import { normalizeDateTime } from '@tzurot/common-types/utils/dateFormatting';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type UserClient } from '@tzurot/clients';
 import type { LookupResult, DiagnosticLog } from './types.js';
 

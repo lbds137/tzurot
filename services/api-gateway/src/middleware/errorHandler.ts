@@ -6,7 +6,7 @@
 
 import type { Request, Response, NextFunction } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { ErrorResponses } from '../utils/errorResponses.js';
 
 const logger = createLogger('api-gateway');

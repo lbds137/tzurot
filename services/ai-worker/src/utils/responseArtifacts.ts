@@ -12,12 +12,9 @@
  * - Still occasionally add "Name:" prefixes
  */
 
-import {
-  createLogger,
-  findLeadingMentionsEnd,
-  stripLeadingMentions,
-  type MessageContent,
-} from '@tzurot/common-types';
+import { type MessageContent } from '@tzurot/common-types/types/ai';
+import { findLeadingMentionsEnd, stripLeadingMentions } from '@tzurot/common-types/utils/discord';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('ResponseArtifacts');
 

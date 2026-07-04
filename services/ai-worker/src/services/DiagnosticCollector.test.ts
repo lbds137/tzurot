@@ -17,13 +17,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { HumanMessage, AIMessage, SystemMessage } from '@langchain/core/messages';
 import { DiagnosticCollector, type DiagnosticCollectorOptions } from './DiagnosticCollector.js';
-import { AttachmentType } from '@tzurot/common-types';
+import { AttachmentType } from '@tzurot/common-types/constants/media';
 
 // Mock logger
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal();
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
-    ...(actual as Record<string, unknown>),
+    ...actual,
     createLogger: () => ({
       info: vi.fn(),
       warn: vi.fn(),

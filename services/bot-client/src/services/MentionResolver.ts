@@ -19,9 +19,11 @@
 import {
   type RawMentionedChannel,
   type RawMentionedRole,
+} from '@tzurot/common-types/types/schemas/rawEnvelope';
+import {
   rewriteChannelMentions,
   rewriteRoleMentions,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/utils/mentionRewriter';
 import type { Guild } from 'discord.js';
 import type {
   FullMentionResolutionResult,

@@ -7,13 +7,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { RedisService } from './RedisService.js';
 import type { Redis } from 'ioredis';
-import { REDIS_KEY_PREFIXES, INTERVALS } from '@tzurot/common-types';
+import { REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
+import { INTERVALS } from '@tzurot/common-types/constants/timing';
 
 // Mock dependencies
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal();
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
-    ...(actual as Record<string, unknown>),
+    ...actual,
     createLogger: () => ({
       info: vi.fn(),
       warn: vi.fn(),

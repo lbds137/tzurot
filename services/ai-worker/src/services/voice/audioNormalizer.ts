@@ -24,7 +24,7 @@
  */
 
 import { spawn } from 'node:child_process';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('audioNormalizer');
 

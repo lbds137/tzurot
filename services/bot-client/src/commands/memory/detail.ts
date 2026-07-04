@@ -15,12 +15,10 @@ import {
   type ButtonInteraction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
-import {
-  createLogger,
-  DISCORD_COLORS,
-  formatDateTimeCompact,
-  type MemoryItem,
-} from '@tzurot/common-types';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { type MemoryItem } from '@tzurot/common-types/schemas/api/memory';
+import { formatDateTimeCompact } from '@tzurot/common-types/utils/dateFormatting';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { CUSTOM_ID_DELIMITER } from '../../utils/customIds.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { replyError } from '../../utils/dashboard/replyError.js';

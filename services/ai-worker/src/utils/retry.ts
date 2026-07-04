@@ -12,7 +12,8 @@
  */
 
 import type { Logger } from 'pino';
-import { RETRY_CONFIG, TimeoutError, normalizeErrorForLogging } from '@tzurot/common-types';
+import { RETRY_CONFIG } from '@tzurot/common-types/constants/timing';
+import { TimeoutError, normalizeErrorForLogging } from '@tzurot/common-types/utils/errors';
 
 /**
  * Configuration options for retry behavior

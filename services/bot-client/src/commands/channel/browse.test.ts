@@ -7,8 +7,10 @@ import type { ButtonInteraction } from 'discord.js';
 import type { GatewayResult, UserClient } from '@tzurot/clients';
 import { handleBrowse, handleBrowsePagination, isChannelBrowseInteraction } from './browse.js';
 
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -17,6 +19,15 @@ vi.mock('@tzurot/common-types', async importOriginal => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/ownerMiddleware', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/ownerMiddleware')>(
+    '@tzurot/common-types/utils/ownerMiddleware'
+  );
+  return {
+    ...actual,
     isBotOwner: vi.fn().mockReturnValue(false),
   };
 });
@@ -75,7 +86,7 @@ describe('handleBrowse', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    const { isBotOwner } = await import('@tzurot/common-types');
+    const { isBotOwner } = await import('@tzurot/common-types/utils/ownerMiddleware');
     vi.mocked(isBotOwner).mockReturnValue(false);
 
     mockRequireManageMessagesContext.mockResolvedValue(true);
@@ -163,7 +174,7 @@ describe('handleBrowse', () => {
   });
 
   it('should allow all filter for bot owners', async () => {
-    const { isBotOwner } = await import('@tzurot/common-types');
+    const { isBotOwner } = await import('@tzurot/common-types/utils/ownerMiddleware');
     vi.mocked(isBotOwner).mockReturnValue(true);
 
     stub.listUserChannels.mockResolvedValue(
@@ -269,7 +280,7 @@ describe('handleBrowsePagination', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    const { isBotOwner } = await import('@tzurot/common-types');
+    const { isBotOwner } = await import('@tzurot/common-types/utils/ownerMiddleware');
     vi.mocked(isBotOwner).mockReturnValue(false);
 
     stub = createStubClient();
@@ -337,7 +348,7 @@ describe('handleBrowsePagination', () => {
   });
 
   it('should allow all filter for bot owners', async () => {
-    const { isBotOwner } = await import('@tzurot/common-types');
+    const { isBotOwner } = await import('@tzurot/common-types/utils/ownerMiddleware');
     vi.mocked(isBotOwner).mockReturnValue(true);
 
     stub.listUserChannels.mockResolvedValue(ok({ settings: [] }));
@@ -448,7 +459,7 @@ describe('backfillMissingGuildIds', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    const { isBotOwner } = await import('@tzurot/common-types');
+    const { isBotOwner } = await import('@tzurot/common-types/utils/ownerMiddleware');
     vi.mocked(isBotOwner).mockReturnValue(false);
     mockRequireManageMessagesContext.mockResolvedValue(true);
     stub = createStubClient();
@@ -588,7 +599,7 @@ describe('buildGuildPages (all-servers view)', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    const { isBotOwner } = await import('@tzurot/common-types');
+    const { isBotOwner } = await import('@tzurot/common-types/utils/ownerMiddleware');
     vi.mocked(isBotOwner).mockReturnValue(true);
     mockRequireManageMessagesContext.mockResolvedValue(true);
     stub = createStubClient();

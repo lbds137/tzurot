@@ -18,14 +18,14 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
+import { MessageRole } from '@tzurot/common-types/constants/message';
+import { PrismaClient } from '@tzurot/common-types/services/prisma';
 import {
-  PrismaClient,
-  MessageRole,
   generatePersonalityUuid,
   generateSystemPromptUuid,
   generatePersonaUuid,
   generateUserUuid,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/utils/deterministicUuid';
 import { ConversationHistoryService } from '@tzurot/conversation-history';
 import { isRecentDuplicate } from '../utils/crossTurnDetection.js';
 import { getRecentAssistantMessages } from '../utils/conversationHistoryUtils.js';

@@ -4,7 +4,8 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Redis } from 'ioredis';
-import { REDIS_KEY_PREFIXES, type OpenRouterModel } from '@tzurot/common-types';
+import { REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
+import { type OpenRouterModel } from '@tzurot/common-types/types/ai';
 import {
   modelSupportsVision,
   modelSupportsReasoning,

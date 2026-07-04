@@ -13,7 +13,7 @@
  * string unchanged.
  */
 
-import { isShapesAllowedCookieName } from '@tzurot/common-types';
+import { isShapesAllowedCookieName } from '@tzurot/common-types/types/shapes-import';
 
 /**
  * Parse Set-Cookie headers and merge allowlisted values into the existing

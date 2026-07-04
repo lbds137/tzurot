@@ -30,8 +30,20 @@ vi.mock('../../utils/configOverrideHelpers.js', async importOriginal => {
   };
 });
 
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/deterministicUuid', async () => {
+  const actual = await vi.importActual<
+    typeof import('@tzurot/common-types/utils/deterministicUuid')
+  >('@tzurot/common-types/utils/deterministicUuid');
+  return {
+    ...actual,
+    generateUserPersonalityConfigUuid: vi.fn(() => 'upc-uuid-1'),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -40,7 +52,6 @@ vi.mock('@tzurot/common-types', async importOriginal => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
-    generateUserPersonalityConfigUuid: vi.fn(() => 'upc-uuid-1'),
   };
 });
 

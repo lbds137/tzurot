@@ -9,7 +9,7 @@
  */
 
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import {
   type OverrideBrowseConfig,

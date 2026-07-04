@@ -6,12 +6,10 @@
  */
 
 import type { Message } from 'discord.js';
-import {
-  createLogger,
-  type ReferencedMessage,
-  buildDedupedReferenceStub,
-  MessageLinkParser,
-} from '@tzurot/common-types';
+import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { MessageLinkParser } from '@tzurot/common-types/utils/messageLinkParser';
+import { buildDedupedReferenceStub } from '@tzurot/common-types/utils/referenceEnrichment';
 import { isForwardedMessage, type ReferenceMetadata } from './types.js';
 import { MessageFormatter } from './MessageFormatter.js';
 import { SnapshotFormatter } from './SnapshotFormatter.js';

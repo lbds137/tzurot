@@ -3,13 +3,15 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { ModelAutocompleteOption } from '@tzurot/common-types';
+import type { ModelAutocompleteOption } from '@tzurot/common-types/types/ai';
 import type { ServiceClient } from '@tzurot/clients';
 import { InfraError, GatewayClientError } from '@tzurot/clients';
 import { makeOk, makeErr } from '../test/gatewayClientStubs.js';
 
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),

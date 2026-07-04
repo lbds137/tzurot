@@ -12,8 +12,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Request, Response } from 'express';
 
 // Mock dependencies before imports
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -66,7 +68,7 @@ import {
   handleDisableIncognito,
 } from './memoryIncognito.js';
 import { getRouteHandler, findRoute } from '../../test/expressRouterUtils.js';
-import type { PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { Redis } from 'ioredis';
 
 // Test constants - Must be valid v4 UUIDs (position 14 = '4', position 19 = 8/9/a/b)

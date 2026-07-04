@@ -7,15 +7,15 @@
  */
 
 import { Job } from 'bullmq';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
+import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
 import {
-  createLogger,
-  CONTENT_TYPES,
-  TIMEOUTS,
-  AIProvider,
   type ImageDescriptionJobData,
   type ImageDescriptionResult,
   imageDescriptionJobDataSchema,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/jobs';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { describeImage } from '../services/MultimodalProcessor.js';
 import { describeImageWithFallback } from '../services/multimodal/describeImageWithFallback.js';
 import { withRetry } from '../utils/retry.js';

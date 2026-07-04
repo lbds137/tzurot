@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Prisma, type PrismaClient } from '@tzurot/common-types';
+import { Prisma, type PrismaClient } from '@tzurot/common-types/services/prisma';
 import express from 'express';
 import request from 'supertest';
 import { createChannelRoutes } from './index.js';
@@ -26,9 +26,10 @@ vi.mock('../../../services/AuthMiddleware.js', () => ({
 }));
 
 // Mock isBotOwner
-vi.mock('@tzurot/common-types', async () => {
-  const actual =
-    await vi.importActual<typeof import('@tzurot/common-types')>('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/ownerMiddleware', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/ownerMiddleware')>(
+    '@tzurot/common-types/utils/ownerMiddleware'
+  );
   return {
     ...actual,
     isBotOwner: vi.fn().mockReturnValue(false),
