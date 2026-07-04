@@ -33,7 +33,7 @@ describe('VisionDescriptionCache Integration', () => {
       const description = 'A colorful sunset over the ocean with clouds';
 
       // Store description with attachmentId and url
-      await cache.store({ attachmentId, url: imageUrl }, description);
+      await cache.store({ model: 'test/paid-model', attachmentId, url: imageUrl }, description);
 
       // Retrieve description using attachmentId
       const retrieved = await cache.get({ attachmentId, url: imageUrl });
@@ -59,8 +59,8 @@ describe('VisionDescriptionCache Integration', () => {
       const description2 = 'A group of people at a party';
 
       // Store both
-      await cache.store({ attachmentId: id1, url: url1 }, description1);
-      await cache.store({ attachmentId: id2, url: url2 }, description2);
+      await cache.store({ model: 'test/paid-model', attachmentId: id1, url: url1 }, description1);
+      await cache.store({ model: 'test/paid-model', attachmentId: id2, url: url2 }, description2);
 
       // Retrieve and verify both
       const retrieved1 = await cache.get({ attachmentId: id1, url: url1 });
@@ -77,10 +77,10 @@ describe('VisionDescriptionCache Integration', () => {
       const description2 = 'Updated description with more detail';
 
       // Store first version
-      await cache.store({ attachmentId, url }, description1);
+      await cache.store({ model: 'test/paid-model', attachmentId, url }, description1);
 
       // Overwrite with second version
-      await cache.store({ attachmentId, url }, description2);
+      await cache.store({ model: 'test/paid-model', attachmentId, url }, description2);
 
       // Should return the updated version
       const retrieved = await cache.get({ attachmentId, url });
@@ -96,7 +96,7 @@ describe('VisionDescriptionCache Integration', () => {
       const ttl = 1; // 1 second
 
       // Store with short TTL
-      await cache.store({ attachmentId, url }, description, ttl);
+      await cache.store({ model: 'test/paid-model', attachmentId, url }, description, ttl);
 
       // Should be available immediately
       const immediate = await cache.get({ attachmentId, url });
@@ -117,7 +117,7 @@ describe('VisionDescriptionCache Integration', () => {
       const url = 'https://cdn.discordapp.com/attachments/999/111/empty.png';
       const emptyDescription = '';
 
-      await cache.store({ attachmentId, url }, emptyDescription);
+      await cache.store({ model: 'test/paid-model', attachmentId, url }, emptyDescription);
 
       // Empty string is treated as null (intentional behavior)
       // The cache checks `description.length > 0` before returning
@@ -130,7 +130,7 @@ describe('VisionDescriptionCache Integration', () => {
       const url = 'https://cdn.discordapp.com/attachments/222/333/detailed.png';
       const longDescription = 'This is a very detailed image showing '.repeat(100);
 
-      await cache.store({ attachmentId, url }, longDescription);
+      await cache.store({ model: 'test/paid-model', attachmentId, url }, longDescription);
 
       const retrieved = await cache.get({ attachmentId, url });
       expect(retrieved).toBe(longDescription);
@@ -142,7 +142,7 @@ describe('VisionDescriptionCache Integration', () => {
       const specialDescription =
         'Image shows: "quoted text", <html tags>, 日本語, 🎨 emojis, \n newlines';
 
-      await cache.store({ attachmentId, url }, specialDescription);
+      await cache.store({ model: 'test/paid-model', attachmentId, url }, specialDescription);
 
       const retrieved = await cache.get({ attachmentId, url });
       expect(retrieved).toBe(specialDescription);
@@ -154,10 +154,24 @@ describe('VisionDescriptionCache Integration', () => {
         'https://cdn.discordapp.com/attachments/123/456/image%20with%20spaces.png?ex=abc&is=def';
       const description = 'A normal image description';
 
-      await cache.store({ attachmentId, url }, description);
+      await cache.store({ model: 'test/paid-model', attachmentId, url }, description);
 
       const retrieved = await cache.get({ attachmentId, url });
       expect(retrieved).toBe(description);
+    });
+  });
+
+  describe('Tier promotion (real Redis)', () => {
+    it('keeps a paid description over a later free-model store, and serves it model-agnostically', async () => {
+      const attachmentId = '135791357913579135';
+      const url = 'https://cdn.discordapp.com/attachments/135/791/promoted.png';
+
+      await cache.store({ model: 'qwen/qwen3.7-plus', attachmentId, url }, 'paid description');
+      await cache.store({ model: 'openrouter/free', attachmentId, url }, 'weak free description');
+
+      // The free-tier write must NOT clobber the paid entry, and a read without
+      // any model (e.g. the stored-reference hydrator) must still hit it.
+      expect(await cache.get({ attachmentId, url })).toBe('paid description');
     });
   });
 
@@ -167,8 +181,14 @@ describe('VisionDescriptionCache Integration', () => {
       const otherId = '999000111222333444';
       const url = 'https://cdn.discordapp.com/attachments/123/456/image.png';
 
-      await cache.store({ attachmentId: baseId, url }, 'Base ID description');
-      await cache.store({ attachmentId: otherId, url }, 'Other ID description');
+      await cache.store(
+        { model: 'test/paid-model', attachmentId: baseId, url },
+        'Base ID description'
+      );
+      await cache.store(
+        { model: 'test/paid-model', attachmentId: otherId, url },
+        'Other ID description'
+      );
 
       // Should be different cache entries based on attachmentId
       const baseResult = await cache.get({ attachmentId: baseId, url });

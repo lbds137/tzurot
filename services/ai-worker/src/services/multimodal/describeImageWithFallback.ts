@@ -10,7 +10,7 @@
  * All DB resolution stays gateway-side (the tiers are stamped on the personality); this
  * loop only picks the next model + resolves its per-tier auth via `resolveVisionAuth`.
  * It NEVER throws `VisionModelError` — the loop is the boundary that turns a failure into
- * user-facing `[Image unavailable: …]` text.
+ * the prompt-facing `[Image … couldn't be processed …]` placeholder.
  */
 
 import { getConfig } from '@tzurot/common-types/config/config';
@@ -30,7 +30,7 @@ import {
 import {
   resolveVisionAuth,
   createVisionQuotaTracker,
-  VISION_AUTH_FAIL_FAST_DESCRIPTION,
+  visionAuthFailFastDescription,
   type ResolveVisionConfigOptions,
   type VisionConfig,
 } from './visionAuthResolver.js';
@@ -93,7 +93,10 @@ async function runVisionTier(
         { attachmentId: attachment.id, model: config.model, category: error.category },
         'Vision terminate category — image itself rejected, not retrying other tiers'
       );
-      return { kind: 'resolved', description: buildFailureFallback(error.category, config.source) };
+      return {
+        kind: 'resolved',
+        description: buildFailureFallback(error.category, config.source, attachment.name),
+      };
     }
     logger.info(
       { attachmentId: attachment.id, model: config.model, category: error.category },
@@ -141,8 +144,8 @@ export function composeVisionTiers(
 
 /**
  * Describe an image, retrying down the vision fallback chain on a retryable failure.
- * Returns a description string on success, or a `[Image unavailable: …]` placeholder when
- * a tier hits a terminate category or the whole chain is exhausted. **NEVER throws** — it is
+ * Returns a description string on success, or a `[Image … couldn't be processed …]`
+ * placeholder when a tier hits a terminate category or the whole chain is exhausted. **NEVER throws** — it is
  * the graceful-degradation boundary its callers rely on for per-image isolation, so any
  * unexpected error degrades to a generic placeholder rather than failing the whole batch.
  */
@@ -162,7 +165,7 @@ export async function describeImageWithFallback(
       { err: error, attachmentId: attachment.id },
       'Vision fallback loop threw unexpectedly — rendering generic fallback'
     );
-    return buildFailureFallback(ApiErrorCategory.UNKNOWN, undefined);
+    return buildFailureFallback(ApiErrorCategory.UNKNOWN, undefined, attachment.name);
   }
 }
 
@@ -219,7 +222,7 @@ async function walkFallbackChain(
   // user to fix a key they don't own (buildFailureFallback maps system-source AUTH to a
   // non-blaming "temporarily unavailable" message).
   if (lastAttempt === undefined) {
-    return VISION_AUTH_FAIL_FAST_DESCRIPTION;
+    return visionAuthFailFastDescription(attachment.name);
   }
-  return buildFailureFallback(lastAttempt.category, lastAttempt.source);
+  return buildFailureFallback(lastAttempt.category, lastAttempt.source, attachment.name);
 }

@@ -21,8 +21,8 @@ const logger = createLogger('RAGUtils');
 /**
  * Bare placeholder descriptions that should be filtered from content.
  * These are generic type labels produced when processing fails completely.
- * Vision failure descriptions like `[Image unavailable: bad_request]` are NOT
- * filtered — they provide useful context about what was in the message.
+ * Vision failure placeholders (`[Image … couldn't be processed …]`) are NOT
+ * filtered — they tell the model an image was there and how to respond.
  */
 const BARE_PLACEHOLDERS = new Set(['[image]', '[audio]', '[unsupported format]']);
 

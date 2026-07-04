@@ -19,9 +19,9 @@ import {
   resolveVisionConfig,
   resolveVisionAuth,
   createVisionQuotaTracker,
-  VISION_AUTH_FAIL_FAST_DESCRIPTION,
+  visionAuthFailFastDescription,
 } from './visionAuthResolver.js';
-import { selectVisionModel } from './VisionProcessor.js';
+import { selectVisionModel, buildFailureFallback } from './VisionProcessor.js';
 import type { ApiKeyResolver } from '../ApiKeyResolver.js';
 
 // Logger mock — visionAuthResolver imports createLogger from common-types
@@ -45,11 +45,12 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
 // without reaching into Redis (hasVisionSupport).
 vi.mock('./VisionProcessor.js', () => ({
   selectVisionModel: vi.fn(),
-  // Evaluated at MODULE LOAD (VISION_AUTH_FAIL_FAST_DESCRIPTION derives from it),
-  // so the mock must return a real string — a bare vi.fn() would bake `undefined`
-  // into the exported constant.
-  buildFailureFallback: (category: string, source?: string) =>
-    `[Image unavailable: mock ${String(category)}/${source ?? 'none'}]`,
+  // visionAuthFailFastDescription delegates to this at call time. vi.fn so the
+  // delegation test can assert the args that cross the seam (incl. the filename).
+  buildFailureFallback: vi.fn(
+    (category: string, source?: string) =>
+      `[Image unavailable: mock ${String(category)}/${source ?? 'none'}]`
+  ),
 }));
 
 // VisionDescriptionCache singleton mock — stubbed for module-load safety; we just
@@ -539,11 +540,17 @@ describe('createVisionQuotaTracker', () => {
     expect(mockTryConsume).toHaveBeenCalledTimes(1);
   });
 
-  it('derives VISION_AUTH_FAIL_FAST_DESCRIPTION as a real string at module load', () => {
-    // Guards the module-load derivation: if a mock (or future refactor) let the
-    // constant freeze to undefined, downstream toBe() assertions would silently
-    // become undefined===undefined tautologies.
-    expect(typeof VISION_AUTH_FAIL_FAST_DESCRIPTION).toBe('string');
-    expect(VISION_AUTH_FAIL_FAST_DESCRIPTION.length).toBeGreaterThan(0);
+  it('visionAuthFailFastDescription renders the AUTH+user placeholder with the filename', () => {
+    // Delegates to buildFailureFallback (mocked above as
+    // `[Image unavailable: mock <category>/<source>]`) with the AUTH+user branch;
+    // the filename is forwarded as the third arg for the per-request render.
+    const rendered = visionAuthFailFastDescription('photo.png');
+    expect(rendered).toBe('[Image unavailable: mock authentication/user]');
+    // The seam: category, source, AND the filename must all cross to the renderer.
+    expect(vi.mocked(buildFailureFallback)).toHaveBeenCalledWith(
+      'authentication',
+      'user',
+      'photo.png'
+    );
   });
 });
