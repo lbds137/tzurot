@@ -242,7 +242,7 @@ function getNodeLineCount(node: {
 
 // Each pattern captures the raw tail after the directive as ONE group; the
 // rule name and ` -- ` justification are split apart in code (splitSuppressionTail).
-// A single greedy/lazy-to-a-literal-terminator capture is linear \u2014 the old nested
+// A single greedy/lazy-to-a-literal-terminator capture is linear -- the old nested
 // optional groups (`(?:\s+(rule))?(?:\s+--\s+(just))?`) let the rule quantifier and
 // the ` -- ` delimiter's `\s+` exchange characters, which regexp/no-super-linear-
 // backtracking flags as polynomial ReDoS.
@@ -292,15 +292,19 @@ function buildSuppressionInfo(
   rawTail: string
 ): SuppressionInfo {
   const info: SuppressionInfo = { kind, line: lineNumber };
-  const { rulePart, justification } = splitSuppressionTail(rawTail);
 
   if (kind === 'eslint-disable-next-line' || kind === 'eslint-disable') {
+    const { rulePart, justification } = splitSuppressionTail(rawTail);
     if (rulePart !== '') info.rule = rulePart;
     if (justification !== undefined) info.justification = justification;
   } else if (kind === 'ts-expect-error') {
-    // No rule name \u2014 the justification is either after ` -- ` or the bare trailing text.
-    const justText = justification ?? (rulePart !== '' ? rulePart : undefined);
-    if (justText !== undefined) info.justification = justText;
+    // No rule concept: the justification is the whole trailing text, or the text
+    // after a LEADING ' -- '. The old regex only recognised '--' immediately after
+    // the directive, so free text before an INTERNAL '--' stays part of the
+    // justification rather than being split off as a (nonexistent) rule.
+    const tail = rawTail.trim();
+    const justText = tail.startsWith('-- ') ? tail.slice('-- '.length).trim() : tail;
+    if (justText !== '') info.justification = justText;
   }
 
   return info;
