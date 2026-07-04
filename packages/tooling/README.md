@@ -13,7 +13,7 @@ pnpm ops run --env dev <command>          # Inject dev DATABASE_URL
 pnpm ops run --env prod --force <command> # Inject prod DATABASE_URL
 
 # Shortcut (from root)
-pnpm with-env dev tsx scripts/src/db/backfill-local-embeddings.ts
+pnpm with-env dev tsx scripts/<your-db-script>.ts
 
 # Database operations
 pnpm ops db:check-drift      # Check for migration drift
@@ -53,13 +53,13 @@ The `ops run` command provides a **generic way to run any script** with Railway 
 
 ```bash
 # Run a one-off script directly (no npm script needed)
-pnpm ops run --env dev tsx scripts/src/db/backfill-local-embeddings.ts
+pnpm ops run --env dev tsx scripts/<your-db-script>.ts
 
 # Run Prisma Studio against Railway dev
 pnpm ops run --env dev npx prisma studio
 
-# Run a reusable npm script (for scripts that may be run multiple times)
-pnpm ops run --env dev pnpm --filter @tzurot/scripts run db:fix-phantom
+# Run a reusable Railway-scoped command (safe to run multiple times)
+pnpm ops run --env dev npx prisma migrate status
 
 # Production operations (requires confirmation or --force)
 pnpm ops run --env prod --force npx prisma migrate deploy
@@ -70,7 +70,7 @@ pnpm ops run --env prod --force npx prisma migrate deploy
 For convenience, use the `with-env` shortcut from the root:
 
 ```bash
-pnpm with-env dev tsx scripts/src/db/backfill-local-embeddings.ts
+pnpm with-env dev tsx scripts/<your-db-script>.ts
 ```
 
 ### When to Use npm Scripts vs Direct Execution
