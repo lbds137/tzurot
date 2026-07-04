@@ -126,6 +126,7 @@ export const PersistUserMessageRequestSchema = z.object({
   /** ISO timestamp of the Discord message (becomes the row's createdAt). */
   messageTime: z.string().datetime(),
 });
+
 /** Shape intentionally identical to the assistant-message response. */
 export const PersistUserMessageResponseSchema = z.object({
   id: z.string(),

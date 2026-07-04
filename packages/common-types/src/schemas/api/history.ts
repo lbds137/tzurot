@@ -54,6 +54,7 @@ export const ClearHistoryResponseSchema = z.object({
   canUndo: z.boolean(),
   message: z.string(),
 });
+
 /** POST /user/history/undo */
 export const UndoHistoryResponseSchema = z.object({
   success: z.literal(true),
@@ -61,6 +62,7 @@ export const UndoHistoryResponseSchema = z.object({
   personaId: z.string(),
   message: z.string(),
 });
+
 /** GET /user/history/stats */
 export const HistoryStatsResponseSchema = z.object({
   channelId: z.string(),
@@ -84,6 +86,7 @@ export const HistoryStatsResponseSchema = z.object({
   contextEpoch: z.string().nullable(),
   canUndo: z.boolean(),
 });
+
 /** DELETE /user/history/hard-delete */
 export const HardDeleteHistoryResponseSchema = z.object({
   success: z.literal(true),

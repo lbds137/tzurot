@@ -28,6 +28,7 @@ export const DeleteShapesAuthResponseSchema = z.object({
   message: z.string(),
   timestamp: z.string(),
 });
+
 /**
  * Status response — discriminated by `hasCredentials`. When true, the
  * three timestamp fields are present; when false, only the service tag.
@@ -83,6 +84,7 @@ export const StartShapesImportResponseSchema = z.object({
   importType: z.string(),
   status: z.string(),
 });
+
 /**
  * Import job summary as returned by GET /user/shapes/import/jobs.
  * `importMetadata` is Prisma JSON — passthrough so we don't drift on its shape.
@@ -129,6 +131,7 @@ export const StartShapesExportResponseSchema = z.object({
   status: z.string(),
   downloadUrl: z.string(),
 });
+
 /**
  * Export job summary as returned by GET /user/shapes/export/jobs.
  * `downloadUrl` is populated only for completed jobs.
