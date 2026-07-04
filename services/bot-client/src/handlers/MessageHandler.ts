@@ -14,10 +14,10 @@ import { buildErrorContent } from '../utils/buildErrorContent.js';
 import type { IMessageProcessor } from '../processors/IMessageProcessor.js';
 import { isUserContentMessage } from '../utils/messageTypeUtils.js';
 import { fetchTypingChannel } from '../utils/fetchTypingChannel.js';
-import { DiscordResponseSender } from '../services/DiscordResponseSender.js';
-import { ConversationPersistence } from '../services/ConversationPersistence.js';
+import { type DiscordResponseSender } from '../services/DiscordResponseSender.js';
+import { type ConversationPersistence } from '../services/ConversationPersistence.js';
 import {
-  JobTracker,
+  type JobTracker,
   type MessageJobContext,
   type SlashJobContext,
 } from '../services/JobTracker.js';

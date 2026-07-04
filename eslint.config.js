@@ -660,5 +660,43 @@ export default tseslint.config(
     rules: {
       'no-restricted-syntax': 'off',
     },
+  },
+  // Barrel-kill regression guard: the @tzurot/common-types ROOT barrel is gone.
+  // Import from a deep subpath. `paths` is EXACT-match, so deep specifiers
+  // (…/types/jobs, …/services/prisma) are allowed — only the bare specifier is
+  // banned. Deliberately NOT ignoring test files: both prior bare importers were
+  // tests. String-literal fixtures that embed the specifier are not import nodes,
+  // so they are not flagged (the CI `guard:no-bare-barrel` grep owns the
+  // text-level allowlist). Catches STATIC imports only — dynamic `import('…')` is
+  // invisible to this rule; the CI grep is the backstop for that.
+  {
+    files: ['**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@tzurot/common-types',
+              message:
+                "The @tzurot/common-types root barrel was removed. Import from a deep subpath, e.g. '@tzurot/common-types/types/jobs', '@tzurot/common-types/constants/queue', '@tzurot/common-types/services/prisma'.",
+            },
+          ],
+        },
+      ],
+      // Restore + enforce `import type` precision. The barrel-kill codemod's
+      // mutate-in-place path dropped whole-import `isTypeOnly` markers on some
+      // split imports; this rule (auto-fixable) restores them and prevents
+      // recurrence. `inline-type-imports` aligns with the `import/no-duplicates`
+      // prefer-inline setting so the fixer emits `import { type X }` directly
+      // rather than a second `import type {}` statement it would then re-merge.
+      // `disallowTypeAnnotations: false` keeps the legit `typeof import('…')`
+      // type-query pattern (used for lazy-module typing in tests) allowed — this
+      // rule is about import-STATEMENT precision, not banning inline type queries.
+      '@typescript-eslint/consistent-type-imports': [
+        'error',
+        { fixStyle: 'inline-type-imports', disallowTypeAnnotations: false },
+      ],
+    },
   }
 );

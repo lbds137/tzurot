@@ -8,7 +8,7 @@
  * which is routed through CommandHandler — not inline collectors.
  */
 
-import { EmbedBuilder, ActionRowBuilder, type ButtonBuilder } from 'discord.js';
+import { EmbedBuilder, type ActionRowBuilder, type ButtonBuilder } from 'discord.js';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type UserClient } from '@tzurot/clients';

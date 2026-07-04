@@ -4,13 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Shared types and validation schemas for Tzurot",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    },
     "./config/*": {
       "types": "./dist/config/*.d.ts",
       "default": "./dist/config/*.js"

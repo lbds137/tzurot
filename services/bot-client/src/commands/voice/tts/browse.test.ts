@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { EmbedBuilder } from 'discord.js';
+import { type EmbedBuilder } from 'discord.js';
 import type { UserClient } from '@tzurot/clients';
 import { makeOk } from '../../../test/gatewayClientStubs.js';
 import {

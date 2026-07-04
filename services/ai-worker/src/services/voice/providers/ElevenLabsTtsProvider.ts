@@ -29,7 +29,7 @@ import {
   type TtsProvider,
 } from '@tzurot/common-types/services/tts/TtsProvider';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { ElevenLabsVoiceService } from '../ElevenLabsVoiceService.js';
+import { type ElevenLabsVoiceService } from '../ElevenLabsVoiceService.js';
 import { elevenLabsTTS, ElevenLabsApiError } from '../ElevenLabsClient.js';
 
 const logger = createLogger('ElevenLabsTtsProvider');

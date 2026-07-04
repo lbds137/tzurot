@@ -6,7 +6,7 @@
  * listens for cache bust events from api-gateway.
  */
 
-import { Redis } from 'ioredis';
+import { type Redis } from 'ioredis';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import {

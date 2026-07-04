@@ -13,7 +13,7 @@ import {
 } from '@tzurot/common-types/utils/referenceEnrichment';
 import type { IReferenceStrategy } from './strategies/IReferenceStrategy.js';
 import { type ReferenceMetadata, type ReferenceResult, ReferenceType } from './types.js';
-import { LinkExtractor } from './LinkExtractor.js';
+import { type LinkExtractor } from './LinkExtractor.js';
 
 const logger = createLogger('ReferenceCrawler');
 

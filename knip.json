@@ -19,8 +19,7 @@
       "ignoreDependencies": ["langchain", "onnxruntime-node"]
     },
     "packages/common-types": {
-      "entry": ["src/**/*.test.ts"],
-      "includeEntryExports": true,
+      "entry": ["src/**/*.test.ts", "src/schemas/api/**/*.ts", "src/generated/**/*.ts"],
       "ignoreDependencies": ["openai", "pg", "@prisma/client", "prisma"],
       "ignoreMembers": ["ECONNRESET", "ETIMEDOUT", "ENOTFOUND", "ECONNREFUSED"]
     },

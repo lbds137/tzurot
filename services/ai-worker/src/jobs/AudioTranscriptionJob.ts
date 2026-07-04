@@ -6,7 +6,7 @@
  * Results are stored in Redis for dependent jobs to consume.
  */
 
-import { Job } from 'bullmq';
+import { type Job } from 'bullmq';
 import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
 import { RETRY_CONFIG } from '@tzurot/common-types/constants/timing';
 import {

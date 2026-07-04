@@ -6,9 +6,9 @@
  * and returns results back to the api-gateway.
  */
 
-import { Job } from 'bullmq';
+import { type Job } from 'bullmq';
 import { ConversationalRAGService } from '../services/ConversationalRAGService.js';
-import { PgvectorMemoryAdapter } from '../services/PgvectorMemoryAdapter.js';
+import { type PgvectorMemoryAdapter } from '../services/PgvectorMemoryAdapter.js';
 import type { EmbeddingServiceInterface } from '../utils/duplicateDetection.js';
 import { ApiKeyResolver } from '../services/ApiKeyResolver.js';
 import { AIProvider } from '@tzurot/common-types/constants/ai';
@@ -38,7 +38,7 @@ import {
   SttResolver,
   type ConfigCascadeResolver,
 } from '@tzurot/config-resolver';
-import { PersonaResolver } from '@tzurot/identity';
+import { type PersonaResolver } from '@tzurot/identity';
 import { redisService } from '../redis.js';
 import { cleanupOldJobResults } from './CleanupJobResults.js';
 import { processAudioTranscriptionJob } from './AudioTranscriptionJob.js';

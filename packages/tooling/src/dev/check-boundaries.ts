@@ -45,7 +45,7 @@ export const BOT_CLIENT_BANNED_COMMON_TYPES_PRISMA_SYMBOLS = [
 ] as const;
 
 const BOT_CLIENT_PRISMA_SYMBOL_PATTERN = new RegExp(
-  `\\b(${BOT_CLIENT_BANNED_COMMON_TYPES_PRISMA_SYMBOLS.join('|')})\\b[\\s\\S]*?from\\s+['"]@tzurot/common-types['"]`
+  `\\b(${BOT_CLIENT_BANNED_COMMON_TYPES_PRISMA_SYMBOLS.join('|')})\\b[\\s\\S]*?from\\s+['"]@tzurot/common-types(?:/services/prisma)?['"]`
 );
 
 const BOUNDARY_RULES: {
@@ -61,11 +61,12 @@ const BOUNDARY_RULES: {
         severity: 'error',
       },
       {
-        // Prisma reaches bot-client via re-exports from the @tzurot/common-types
-        // barrel, not a direct @prisma/client import — depcruise (module-path
-        // matching) can't see the barrel re-export, so this symbol-level rule is
-        // the enforcement. Banned symbols + rationale live on
-        // BOT_CLIENT_BANNED_COMMON_TYPES_PRISMA_SYMBOLS above (drift-tested).
+        // Prisma reaches bot-client via @tzurot/common-types/services/prisma
+        // (Prisma-backed exports), not a direct @prisma/client import — depcruise
+        // (module-path matching) treats that subpath as an allowed common-types
+        // dependency, so this symbol-level rule is the enforcement. Banned symbols
+        // + rationale live on BOT_CLIENT_BANNED_COMMON_TYPES_PRISMA_SYMBOLS above
+        // (drift-tested against the services/prisma module).
         pattern: BOT_CLIENT_PRISMA_SYMBOL_PATTERN,
         reason:
           'bot-client must not import Prisma-backed code from @tzurot/common-types - these reach the database; use the gateway HTTP API (HttpPersonalityLoader, routing-context)',

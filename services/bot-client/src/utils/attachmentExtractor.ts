@@ -5,7 +5,7 @@
  * Shared utility for both regular messages and referenced messages
  */
 
-import { Collection, Snowflake, Attachment } from 'discord.js';
+import { type Collection, type Snowflake, type Attachment } from 'discord.js';
 import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import { isVoiceAttachment } from './voiceAttachment.js';

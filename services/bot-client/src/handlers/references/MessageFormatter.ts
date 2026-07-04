@@ -16,7 +16,7 @@ import { extractDiscordEnvironment } from '../../utils/discordContext.js';
 import { extractAttachments } from '../../utils/attachmentExtractor.js';
 import { extractEmbedImages } from '../../utils/embedImageExtractor.js';
 import { EmbedParser } from '../../utils/EmbedParser.js';
-import { TranscriptRetriever } from './TranscriptRetriever.js';
+import { type TranscriptRetriever } from './TranscriptRetriever.js';
 import { classifyReferenceAuthorRole } from './authorRole.js';
 import {
   isForwardedMessage,

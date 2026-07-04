@@ -6,8 +6,8 @@
  * of select objects and mapping logic used in 3+ query methods.
  */
 
-import { MessageRole } from '@tzurot/common-types/constants/message';
-import { Prisma } from '@tzurot/common-types/services/prisma';
+import { type MessageRole } from '@tzurot/common-types/constants/message';
+import { type Prisma } from '@tzurot/common-types/services/prisma';
 import { type ConversationMessage } from '@tzurot/common-types/types/conversationMessage';
 import {
   messageMetadataSchema,

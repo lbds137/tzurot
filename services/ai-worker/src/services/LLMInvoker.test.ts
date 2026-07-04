@@ -5,8 +5,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { LLMInvoker } from './LLMInvoker.js';
 import { RetryError } from '../utils/retry.js';
-import { BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
-import { BaseChatModel } from '@langchain/core/language_models/chat_models';
+import { type BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
+import { type BaseChatModel } from '@langchain/core/language_models/chat_models';
 import {
   ApiErrorType,
   ApiErrorCategory,

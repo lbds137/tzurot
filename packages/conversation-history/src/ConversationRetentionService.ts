@@ -10,7 +10,7 @@
  */
 
 import { CLEANUP_DEFAULTS, SYNC_LIMITS } from '@tzurot/common-types/constants/timing';
-import { type PrismaClient, Prisma } from '@tzurot/common-types/services/prisma';
+import { type PrismaClient, type Prisma } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('ConversationRetentionService');

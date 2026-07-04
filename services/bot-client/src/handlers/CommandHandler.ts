@@ -9,11 +9,11 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import { InfraError } from '@tzurot/clients';
 import {
   Collection,
-  ChatInputCommandInteraction,
-  ModalSubmitInteraction,
-  AutocompleteInteraction,
-  StringSelectMenuInteraction,
-  ButtonInteraction,
+  type ChatInputCommandInteraction,
+  type ModalSubmitInteraction,
+  type AutocompleteInteraction,
+  type StringSelectMenuInteraction,
+  type ButtonInteraction,
   MessageFlags,
 } from 'discord.js';
 import { fileURLToPath, pathToFileURL } from 'node:url';

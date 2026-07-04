@@ -14,7 +14,7 @@
 
 import { UNKNOWN_USER_DISCORD_ID } from '@tzurot/common-types/constants/message';
 import { DEFAULT_PERSONA_DESCRIPTION } from '@tzurot/common-types/constants/persona';
-import { type PrismaClient, Prisma } from '@tzurot/common-types/services/prisma';
+import { type PrismaClient, type Prisma } from '@tzurot/common-types/services/prisma';
 import {
   generateUserUuid,
   generatePersonaUuid,

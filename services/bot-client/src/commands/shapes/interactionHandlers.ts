@@ -19,8 +19,8 @@
 import {
   type ButtonInteraction,
   type StringSelectMenuInteraction,
-  ButtonBuilder,
-  ActionRowBuilder,
+  type ButtonBuilder,
+  type ActionRowBuilder,
 } from 'discord.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { ShapesCustomIds } from '../../utils/customIds.js';

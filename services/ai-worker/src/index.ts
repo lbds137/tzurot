@@ -9,7 +9,7 @@
  * 5. Runs scheduled job to retry pending memory storage
  */
 
-import { Worker, Job, Queue } from 'bullmq';
+import { Worker, type Job, Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 import { PgvectorMemoryAdapter } from './services/PgvectorMemoryAdapter.js';
 import { LocalEmbeddingService } from '@tzurot/embeddings';

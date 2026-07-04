@@ -27,7 +27,7 @@ import type { Redis } from 'ioredis';
 import { TEXT_LIMITS } from '@tzurot/common-types/constants/discord';
 import {
   VISION_FAILURE_CACHE_POLICY,
-  ApiErrorCategory,
+  type ApiErrorCategory,
 } from '@tzurot/common-types/constants/error';
 import { REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
 import { INTERVALS } from '@tzurot/common-types/constants/timing';

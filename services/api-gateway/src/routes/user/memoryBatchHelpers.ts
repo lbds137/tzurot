@@ -9,7 +9,7 @@
 import type { Response } from 'express';
 import type { Redis } from 'ioredis';
 import { StatusCodes } from 'http-status-codes';
-import { Prisma, type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { type Prisma, type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { RouteDeps } from '../routeDeps.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';

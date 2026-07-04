@@ -40,7 +40,7 @@ import { ConversationPersistence } from './services/ConversationPersistence.js';
 import { VoiceTranscriptionService } from './services/VoiceTranscriptionService.js';
 import { ReplyResolutionService } from './services/ReplyResolutionService.js';
 import { SlotDeliveryService } from './services/SlotDeliveryService.js';
-import { MultiTagCoordinator } from './services/MultiTagCoordinator.js';
+import { type MultiTagCoordinator } from './services/MultiTagCoordinator.js';
 import type { MultiTagPersistence } from './services/MultiTagPersistence.js';
 import type { MultiTagRecovery } from './services/MultiTagRecovery.js';
 import { HttpPersonalityLoader } from './services/HttpPersonalityLoader.js';

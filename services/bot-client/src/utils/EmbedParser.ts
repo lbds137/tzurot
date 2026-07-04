@@ -5,7 +5,7 @@
  * Uses consistent XML format to match the rest of the prompt structure.
  */
 
-import { APIEmbed, APIEmbedField, Message } from 'discord.js';
+import { type APIEmbed, type APIEmbedField, type Message } from 'discord.js';
 import { escapeXml } from '@tzurot/common-types/utils/xmlBuilder';
 
 /**

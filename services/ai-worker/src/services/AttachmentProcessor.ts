@@ -6,7 +6,7 @@
  * Extracted from ReferencedMessageFormatter for maintainability.
  */
 
-import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { type AIProvider } from '@tzurot/common-types/constants/ai';
 import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
 import { RETRY_CONFIG } from '@tzurot/common-types/constants/timing';
 import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';

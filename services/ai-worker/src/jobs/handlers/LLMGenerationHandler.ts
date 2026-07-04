@@ -17,9 +17,9 @@
  * - Extensibility: New steps can be added without modifying existing code
  */
 
-import { Job } from 'bullmq';
+import { type Job } from 'bullmq';
 import { randomUUID } from 'node:crypto';
-import { ConversationalRAGService } from '../../services/ConversationalRAGService.js';
+import { type ConversationalRAGService } from '../../services/ConversationalRAGService.js';
 import {
   ApiErrorCategory,
   ApiErrorType,
@@ -40,7 +40,7 @@ import type {
 import { PrismaContextDataSource } from '../../services/context/PrismaContextDataSource.js';
 import { ContextAssembler } from '../../services/context/ContextAssembler.js';
 import { VisionDescriptionWriter } from '../../services/context/visionDescriptionWriter.js';
-import { ApiKeyResolver } from '../../services/ApiKeyResolver.js';
+import { type ApiKeyResolver } from '../../services/ApiKeyResolver.js';
 import type { EmbeddingServiceInterface } from '../../utils/duplicateDetection.js';
 import { storeDiagnosticLog } from './pipeline/steps/diagnosticStorage.js';
 import {

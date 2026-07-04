@@ -29,7 +29,7 @@ import {
   IssuePurgeTokenSchema,
   PurgeMemoriesSchema,
 } from '@tzurot/common-types/schemas/api/memory';
-import { Prisma, type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { type Prisma, type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { RouteDeps } from '../routeDeps.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';

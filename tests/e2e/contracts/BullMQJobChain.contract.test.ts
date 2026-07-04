@@ -18,12 +18,12 @@
 
 import { describe, it, expect, beforeAll } from 'vitest';
 import { loadContractFixture } from '@tzurot/test-utils';
+import { JobType } from '@tzurot/common-types/constants/queue';
 import {
-  JobType,
   audioTranscriptionJobDataSchema,
   imageDescriptionJobDataSchema,
   llmGenerationJobDataSchema,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/jobs';
 
 /** The captured `flowProducer.add` payload shape (parent + preprocessing children). */
 interface CapturedChain {

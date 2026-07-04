@@ -22,7 +22,7 @@ import {
   type CreateLlmConfigResponse,
   type DeleteLlmConfigResponse,
 } from '@tzurot/common-types/schemas/api/llm-config';
-import { z } from 'zod';
+import { type z } from 'zod';
 
 type LlmConfigSummary = z.infer<typeof LlmConfigSummarySchema>;
 type LlmConfigDetail = z.infer<typeof LlmConfigDetailSchema>;

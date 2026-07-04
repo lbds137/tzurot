@@ -10,7 +10,7 @@ import { INTERVALS } from '@tzurot/common-types/constants/timing';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import {
   ChannelType,
-  Client,
+  type Client,
   type TextChannel,
   type ThreadChannel,
   type ForumChannel,

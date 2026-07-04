@@ -15,8 +15,8 @@ import {
   type TextChannel,
   type Client,
   EmbedBuilder,
-  ButtonBuilder,
-  ActionRowBuilder,
+  type ButtonBuilder,
+  type ActionRowBuilder,
   escapeMarkdown,
 } from 'discord.js';
 import {

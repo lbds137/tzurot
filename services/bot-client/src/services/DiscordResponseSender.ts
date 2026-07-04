@@ -23,7 +23,7 @@ import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/perso
 import { splitMessage } from '@tzurot/common-types/utils/discord';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
-import { WebhookManager } from '../utils/WebhookManager.js';
+import { type WebhookManager } from '../utils/WebhookManager.js';
 import { redisService } from '../redis.js';
 import { buildBotAudioFilename } from '../utils/botAudioClassifier.js';
 

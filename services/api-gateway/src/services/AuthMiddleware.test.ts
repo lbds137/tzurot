@@ -20,7 +20,7 @@ import {
   isAuthorizedForWrite,
   getOrCreateUserService,
 } from './AuthMiddleware.js';
-import { PrismaClient } from '@tzurot/common-types/services/prisma';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { getConfig } from '@tzurot/common-types/config/config';
 
 // Mock getConfig and isBotOwner

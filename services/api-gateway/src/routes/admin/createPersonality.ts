@@ -10,7 +10,7 @@ import {
   PersonalityCreateSchema,
   type PersonalityCreateInput,
 } from '@tzurot/common-types/schemas/api/personality';
-import { Prisma } from '@tzurot/common-types/services/prisma';
+import { type Prisma } from '@tzurot/common-types/services/prisma';
 import { generatePersonalityUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type CacheInvalidationService } from '@tzurot/cache-invalidation';

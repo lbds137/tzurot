@@ -33,7 +33,7 @@ import {
   TTS_CONFIG_DETAIL_SELECT,
   TTS_CONFIG_DEFAULTS,
 } from '@tzurot/common-types/schemas/api/tts-config';
-import { Prisma, type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { type Prisma, type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { isTtsProviderId } from '@tzurot/common-types/services/tts/TtsProvider';
 import { newTtsConfigId } from '@tzurot/common-types/utils/deterministicUuid';
 import { createLogger } from '@tzurot/common-types/utils/logger';

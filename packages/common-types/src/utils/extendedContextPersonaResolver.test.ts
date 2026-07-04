@@ -6,8 +6,9 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import type { ConversationMessage, PersonaResolverLike } from '../index.js';
-import { MessageRole } from '../index.js';
+import type { ConversationMessage } from '../types/conversationMessage.js';
+import type { PersonaResolverLike } from '../types/personaResolution.js';
+import { MessageRole } from '../constants/message.js';
 import {
   collectAllDiscordIdsNeedingResolution,
   batchResolvePersonas,

@@ -5,7 +5,7 @@
 
 import { z } from 'zod';
 import { type PersonalityCharacterFields } from '@tzurot/common-types/schemas/api/personality';
-import { Prisma } from '@tzurot/common-types/services/prisma';
+import { type Prisma } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 
 // Re-export Decimal type for convenience

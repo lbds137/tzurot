@@ -5,7 +5,7 @@
  * Extracted from conversationUtils.ts for better modularity.
  */
 
-import { BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
+import { type BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
 import { MessageRole } from '@tzurot/common-types/constants/message';
 import { formatRelativeTime } from '@tzurot/common-types/utils/dateFormatting';
 import { isRoleMatch } from './participantUtils.js';

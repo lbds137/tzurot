@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { APIEmbed, Message } from 'discord.js';
+import { type APIEmbed, type Message } from 'discord.js';
 import { EmbedParser } from './EmbedParser.js';
 
 describe('EmbedParser', () => {

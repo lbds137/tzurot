@@ -10,7 +10,13 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { WebhookManager } from './WebhookManager.js';
-import { ChannelType, Client, TextChannel, ThreadChannel, ForumChannel } from 'discord.js';
+import {
+  ChannelType,
+  type Client,
+  TextChannel,
+  ThreadChannel,
+  type ForumChannel,
+} from 'discord.js';
 import type { Webhook } from 'discord.js';
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';

@@ -8,7 +8,7 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { type AIProvider } from '@tzurot/common-types/constants/ai';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { settingsApikeyTestOptions } from '@tzurot/common-types/generated/commandOptions';
 import { createLogger } from '@tzurot/common-types/utils/logger';

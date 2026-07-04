@@ -14,7 +14,7 @@
 
 import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { type ResolvedConfigOverrides } from '@tzurot/common-types/schemas/api/configOverrides';
-import { MessageContent } from '@tzurot/common-types/types/ai';
+import { type MessageContent } from '@tzurot/common-types/types/ai';
 import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { ConversationalRAGService } from '../../../../services/ConversationalRAGService.js';

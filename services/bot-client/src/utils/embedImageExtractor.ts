@@ -5,7 +5,7 @@
  * to AttachmentMetadata format so they can be processed by the vision model
  */
 
-import { Embed } from 'discord.js';
+import { type Embed } from 'discord.js';
 import { CONTENT_TYPES, EMBED_NAMING } from '@tzurot/common-types/constants/media';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 

@@ -24,7 +24,7 @@ import {
   setDmSessionPersonality,
   lookupPersonalityFromMessage,
 } from '../utils/gatewayServiceCalls.js';
-import { PersonalityMessageHandler } from '../services/PersonalityMessageHandler.js';
+import { type PersonalityMessageHandler } from '../services/PersonalityMessageHandler.js';
 import { VoiceMessageProcessor } from './VoiceMessageProcessor.js';
 import {
   isDMChannel,
