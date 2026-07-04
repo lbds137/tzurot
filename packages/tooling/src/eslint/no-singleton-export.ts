@@ -55,8 +55,8 @@ function reportArraySingletons(context: Rule.RuleContext, elements: (Node | null
 // Helper: Report singleton in object properties
 function reportObjectSingletons(context: Rule.RuleContext, properties: (Property | Node)[]): void {
   for (const prop of properties) {
-    if (prop.type === 'Property' && isNewExpressionWithIdentifier((prop as Property).value)) {
-      const propValue = (prop as Property).value as Node & {
+    if (prop.type === 'Property' && isNewExpressionWithIdentifier(prop.value)) {
+      const propValue = prop.value as Node & {
         callee: { name: string };
       };
       context.report({
@@ -111,19 +111,21 @@ function handleExportDefault(
   }
 }
 
-// Helper: Handle export named declarations
-function handleExportNamed(
+interface ExportSpecifierNode {
+  type: string;
+  local: { type: string; name: string };
+}
+interface ExportDeclaratorNode {
+  init: Node | null;
+}
+
+// Handle: export { instance }
+function reportExportSpecifierSingletons(
   context: Rule.RuleContext,
-  node: Rule.Node,
+  specifiers: ExportSpecifierNode[],
   moduleInstances: TrackedInstance[]
 ): void {
-  const exportNode = node as unknown as {
-    specifiers?: { type: string; local: { type: string; name: string } }[];
-    declaration?: { type: string; declarations?: { init: Node | null }[] };
-  };
-
-  // Handle: export { instance }
-  for (const specifier of exportNode.specifiers ?? []) {
+  for (const specifier of specifiers) {
     if (specifier.type !== 'ExportSpecifier') continue;
     if (specifier.local.type !== 'Identifier') continue;
 
@@ -135,11 +137,14 @@ function handleExportNamed(
       });
     }
   }
+}
 
-  // Handle: export const x = new Foo() / [new Foo()] / { mgr: new Foo() }
-  if (exportNode.declaration?.type !== 'VariableDeclaration') return;
-
-  for (const declarator of exportNode.declaration.declarations ?? []) {
+// Handle: export const x = new Foo() / [new Foo()] / { mgr: new Foo() }
+function reportExportDeclaratorSingletons(
+  context: Rule.RuleContext,
+  declarators: ExportDeclaratorNode[]
+): void {
+  for (const declarator of declarators) {
     const init = declarator.init;
     if (!init) continue;
 
@@ -162,6 +167,23 @@ function handleExportNamed(
       reportObjectSingletons(context, init.properties);
     }
   }
+}
+
+// Helper: Handle export named declarations
+function handleExportNamed(
+  context: Rule.RuleContext,
+  node: Rule.Node,
+  moduleInstances: TrackedInstance[]
+): void {
+  const exportNode = node as unknown as {
+    specifiers?: ExportSpecifierNode[];
+    declaration?: { type: string; declarations?: ExportDeclaratorNode[] };
+  };
+
+  reportExportSpecifierSingletons(context, exportNode.specifiers ?? [], moduleInstances);
+
+  if (exportNode.declaration?.type !== 'VariableDeclaration') return;
+  reportExportDeclaratorSingletons(context, exportNode.declaration.declarations ?? []);
 }
 
 const rule: Rule.RuleModule = {
