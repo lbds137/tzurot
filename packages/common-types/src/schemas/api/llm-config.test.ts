@@ -297,7 +297,7 @@ describe('LLM Config API Contract Tests', () => {
   });
 
   // ==========================================================================
-  // Input Schema Contract Tests (Phase 1 - Service Layer Consolidation)
+  // Input Schema Contract Tests (Service Layer Consolidation)
   // ==========================================================================
 
   describe('ContextSettingsSchema', () => {

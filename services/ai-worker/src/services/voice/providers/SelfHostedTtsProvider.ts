@@ -59,7 +59,7 @@ export class SelfHostedTtsProvider implements TtsProvider {
   /**
    * Self-hosted handles any TTS config that names provider 'self-hosted'.
    * Provider-specific knobs (e.g. selfHostedEngine: 'kyutai' | 'neutts-air'
-   * once Phase 2 lands) get parsed from `config.advancedParameters` inside
+   * once those engines land) get parsed from `config.advancedParameters` inside
    * `synthesize`, not here.
    */
   canHandle(config: ResolvedTtsConfig, _ctx: TtsContext): boolean {
@@ -74,7 +74,7 @@ export class SelfHostedTtsProvider implements TtsProvider {
    * Calls `waitForVoiceEngine` before registration to absorb Railway
    * Serverless cold-start (~56s observed). Without this, `ensureVoiceRegistered`
    * runs into the cold-start delay during a much shorter HTTP timeout
-   * and fails. Pre-PR-2 this happened in `TTSStep.performVoiceEngineTTS`;
+   * and fails. Previously this happened in `TTSStep.performVoiceEngineTTS`;
    * the dispatcher refactor moved the responsibility into the provider
    * since only this provider talks to voice-engine.
    */

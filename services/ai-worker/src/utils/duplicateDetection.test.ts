@@ -515,7 +515,7 @@ describe('isRecentDuplicate', () => {
 });
 
 /**
- * Production Scenario Tests (January 2026 Incident)
+ * Production Scenario Tests
  *
  * Tests based on real production incident where Katie Killjoy gave the
  * exact same 270-token response to two different user messages 11 minutes apart.
@@ -623,7 +623,7 @@ Now sit there, be quiet, and try to learn something about how a real professiona
 
     it('should detect a verbatim regurgitation from far back in history', () => {
       // Regression for the `glm-4.5-air:free` 13-day-old regurgitation
-      // incident (2026-04-20). The old 5-message cap silently dropped any
+      // incident. The old 5-message cap silently dropped any
       // assistant turn beyond the 5th most recent, so a model that
       // regurgitated a 10-turn-old response would pass detection.
       const OLD_REGURGITATED_RESPONSE =

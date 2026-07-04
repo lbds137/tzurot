@@ -1,11 +1,10 @@
 /**
- * Regression guard: Phase 5 DB-level schema invariants
+ * Regression guard: DB-level schema invariants
  *
- * Phase 5 of the Identity & Provisioning Hardening Epic added two CHECK
- * constraints on `personas.name` as defense-in-depth tripwires against the
- * original `c88ae5b7` snowflake-as-persona-name bug class. These live at
- * the schema level (not in Prisma), so application-layer tests don't cover
- * them.
+ * Two CHECK constraints on `personas.name` act as defense-in-depth tripwires
+ * against the original `c88ae5b7` snowflake-as-persona-name bug class. These
+ * live at the schema level (not in Prisma), so application-layer tests don't
+ * cover them.
  *
  * Migration: `prisma/migrations/20260416164756_identity_epic_phase_5_db_invariants/migration.sql`
  *
@@ -24,12 +23,8 @@
  * migration SQL still contains the CHECK DDL strings. A future migration
  * that accidentally drops the constraints (or a `drift-ignore.json` rule
  * that over-matches the DROP pattern) would produce the exact class of
- * silent regression the original Phase 5 work was guarding against.
+ * silent regression these constraints guard against.
  * Pinning the DDL text in a test pins the invariant.
- *
- * Descoped from Phase 6 per council review (2026-04-23) because it's
- * orthogonal to the "catch Phase 5c drift" goal — shipped as a separate
- * quick win in the same session.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -50,7 +45,7 @@ const MIGRATION_SQL_PATH = join(
   'migration.sql'
 );
 
-describe('Phase 5 DB-level schema invariants (structural guard)', () => {
+describe('DB-level schema invariants (structural guard)', () => {
   const migrationSql = readFileSync(MIGRATION_SQL_PATH, 'utf8');
 
   it('migration file exists and is non-empty', () => {
@@ -67,8 +62,8 @@ describe('Phase 5 DB-level schema invariants (structural guard)', () => {
 
     it('uses TRIM + LENGTH to reject empty-or-whitespace names', () => {
       // Pin the specific shape — a naive CHECK on `name <> ''` would pass
-      // whitespace-only names through, which was specifically the bug
-      // Phase 5 was guarding against.
+      // whitespace-only names through, which is specifically the bug
+      // these constraints guard against.
       expect(migrationSql).toMatch(/LENGTH\(TRIM\("name"\)\)\s*>\s*0/);
     });
   });
@@ -89,7 +84,7 @@ describe('Phase 5 DB-level schema invariants (structural guard)', () => {
   });
 
   it('adds both constraints via ALTER TABLE ADD CONSTRAINT (not inline in CREATE TABLE)', () => {
-    // Phase 5 constraints were deliberately added via ALTER after-the-fact
+    // The constraints were deliberately added via ALTER after-the-fact
     // rather than embedded in the personas table creation — the distinction
     // matters because a future prisma-generated migration that recreates
     // the personas table would drop the CHECKs and not re-add them. An

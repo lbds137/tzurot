@@ -8,7 +8,7 @@
  * the cloned voice's id; `synthesize()` posts to `elevenLabsTTS`.
  *
  * Adds an **eviction mutex** that serializes `prepare()` calls per-instance
- * (per the three-council reconciled design, 2026-05-01). Without it, two
+ * (per the three-council reconciled design). Without it, two
  * concurrent `prepare()` calls for the SAME slug at fresh-account state
  * could both list, both not find the voice, and both POST a clone —
  * producing duplicate `tzurot-X` voices in the user's account. The mutex

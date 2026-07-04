@@ -101,8 +101,8 @@ describe('Discord ID Validation', () => {
   });
 });
 
-// DISCORD_ID_PREFIX, buildDiscordPersonaId, and extractDiscordId were deleted
-// in Identity Epic Phase 4. The `discord:XXXX` format is now strictly internal
+// DISCORD_ID_PREFIX, buildDiscordPersonaId, and extractDiscordId were deleted.
+// The `discord:XXXX` format is now strictly internal
 // to bot-client's ExtendedContextPersonaResolver module; the common-types
 // exports were never used in production code outside that module and
 // lingered as a cross-package API that shouldn't exist. The internal
@@ -275,7 +275,7 @@ describe('DISCORD_PROVIDER_CHOICES', () => {
     // branch, etc.) but the slash-command argument-choices list is missed.
     // Without this assertion, /settings apikey set <provider> silently omits
     // the new provider and users can't add their key — which is exactly what
-    // happened in PR #921 with zai-coding (caught manually 2026-04-27).
+    // happened with zai-coding.
     const enumValues = Object.values(AIProvider) as string[];
     const choiceValues = DISCORD_PROVIDER_CHOICES.map(c => c.value);
 

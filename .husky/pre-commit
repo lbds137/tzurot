@@ -105,11 +105,20 @@ if [ -n "$STAGED_CODE_FILES" ]; then
     # (`Fixes #N`, `Closed #N`, `Caught in round N`) are caught too.
     #
     # Smoke-test after editing TEMPORAL_PATTERN (run in a shell where it's set):
-    #   for s in 'Fixes #42' 'bug #1254' 'the #1254 drift' '(#1254)'; do \
+    #   for s in 'Fixes #42' 'bug #1254' 'the #1254 drift' '(#1254)' \
+    #            'Phase 5b' 'Epic Phase 3' 'Post-Phase 4' 'Phase 6 made X'; do \
     #     echo "$s" | grep -qEi "$TEMPORAL_PATTERN" && echo "catch: $s"; done
-    #   for s in '#FF0000' '#123456' '#123' 'close the door'; do \
+    #   for s in '#FF0000' '#123456' '#123' 'close the door' \
+    #            'Phase 1 (scan)' 'Phase 2 (flush)'; do \
     #     echo "$s" | grep -qEi "$TEMPORAL_PATTERN" || echo "ignore: $s"; done
-    TEMPORAL_PATTERN='PR #[0-9]+|PR-[0-9]+(\.[0-9a-z]+)*|GH-[0-9]+|[Bb]ug #[0-9]+|[Ii]ssue #[0-9]+|\(#[0-9]+\)|(fix(e[sd])?|close[sd]?|resolve[sd]?) #[0-9]+|#[0-9]{4,5}([^0-9]|$)|202[0-9]-[0-9]{2}-[0-9]{2}|Surfaced 202[0-9]|caught in (round|PR )|flagged by (review|PR)|round [0-9]+ (claude-review|review)'
+    #
+    # Epic-phase archaeology: `Phase 5b` / `Epic Phase` / `Post-Phase` name WHICH
+    # epic a change landed in — journey, not invariant (02-code-standards rule).
+    # The letter-suffixed form (`Phase N<letter>`, e.g. `5b`/`5c` — the range is
+    # `[a-z]`, not closed at `c`) + explicit "Epic/Post-Phase" + a bare `Phase N`
+    # followed by a change-verb are caught; bare `Phase N (word)` is NOT
+    # (algorithm phases like `Phase 1 (scan)` describe code, not archaeology).
+    TEMPORAL_PATTERN='PR #[0-9]+|PR-[0-9]+(\.[0-9a-z]+)*|GH-[0-9]+|[Bb]ug #[0-9]+|[Ii]ssue #[0-9]+|\(#[0-9]+\)|(fix(e[sd])?|close[sd]?|resolve[sd]?) #[0-9]+|#[0-9]{4,5}([^0-9]|$)|202[0-9]-[0-9]{2}-[0-9]{2}|Surfaced 202[0-9]|caught in (round|PR )|flagged by (review|PR)|round [0-9]+ (claude-review|review)|Epic Phase|[Pp]ost-[Pp]hase|Phase [0-9]+[a-z]|Phase [0-9]+ (made|added|introduced|landed|removed|renamed|dropped)'
     HAS_VIOLATIONS=0
     VIOLATION_OUTPUT=""
     for file in $STAGED_CODE_FILES; do

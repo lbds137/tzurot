@@ -47,7 +47,7 @@ export const loadedPersonalitySchema = z.object({
   visionModel: z.string().optional(),
   /**
    * Ordered vision-model fallback chain the worker retries down when the primary
-   * vision model FAILS at runtime (Phase 4 auto-fallback). Gateway-stamped from the
+   * vision model FAILS at runtime (auto-fallback). Gateway-stamped from the
    * DB-resolved defaults (`AdminSettings.globalDefaultVisionConfigId` →
    * `freeDefaultVisionConfigId`) since the worker has no Prisma — all DB resolution
    * stays gateway-side, the worker just walks the list. Absent/empty = no admin

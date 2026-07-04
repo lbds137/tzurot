@@ -48,8 +48,8 @@ describe('UserService', () => {
 
   /**
    * Helper: decode the values passed to a tagged-template $executeRaw call
-   * into an object matching the CTE column order. Phase 5b uses one CTE per
-   * path:
+   * into an object matching the CTE column order. getOrCreateUser uses one
+   * CTE per path:
    *
    *   persona: (id, name, preferred_name, description, content, owner_id)
    *   user:    (id, discord_id, username, is_superuser, default_persona_id)
@@ -110,7 +110,7 @@ describe('UserService', () => {
       userPersonalityConfig: {
         findUnique: vi.fn(),
       },
-      // Phase 5b: user + default persona are created atomically via a single
+      // User + default persona are created atomically via a single
       // CTE. Default mock returns 1 (rows affected) so the happy path doesn't
       // need to configure it per-test.
       $executeRaw: vi.fn().mockResolvedValue(1),
@@ -147,7 +147,7 @@ describe('UserService', () => {
 
   describe('getOrCreateUser', () => {
     it('should return cached user ID if available', async () => {
-      // First call to populate cache. Phase 5b: defaultPersonaId is always
+      // First call to populate cache. defaultPersonaId is always
       // non-null at the type level, so runMaintenanceTasks has no backfill
       // branch — the mock just needs a valid defaultPersonaId to match reality.
       mockPrisma.user.findUnique.mockResolvedValueOnce({

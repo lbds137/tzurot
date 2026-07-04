@@ -72,7 +72,7 @@ export function createMockPrisma(): {
   return {
     user: {
       findFirst: vi.fn(),
-      // Phase 5b: defaultPersonaId is NOT NULL at the type level, so the
+      // defaultPersonaId is NOT NULL at the type level, so the
       // default findUnique result must supply one.
       findUnique: vi.fn().mockResolvedValue({
         id: MOCK_USER_UUID,

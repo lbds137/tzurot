@@ -63,8 +63,8 @@ describe('LlmConfigService Integration', () => {
 
   beforeEach(async () => {
     // Clean up test data - order matters due to foreign keys.
-    // Users must be deleted BEFORE personas because Phase 5 made
-    // users.default_persona_id FK Restrict (user cascade-deletes its own
+    // Users must be deleted BEFORE personas because
+    // users.default_persona_id is a Restrict FK (user cascade-deletes its own
     // personas via the reverse owner FK).
     await prisma.userPersonalityConfig.deleteMany({});
     await prisma.personalityDefaultConfig.deleteMany({});
@@ -72,7 +72,7 @@ describe('LlmConfigService Integration', () => {
     await prisma.personality.deleteMany({});
     await prisma.user.deleteMany({});
 
-    // Create test users. Phase 5b made users.default_persona_id NOT NULL, so
+    // Create test users. users.default_persona_id is NOT NULL, so
     // each user must be seeded with a matching persona via the CTE helper.
     testUserId = generateUserUuid(TEST_DISCORD_ID);
     adminUserId = generateUserUuid(ADMIN_DISCORD_ID);
@@ -675,7 +675,7 @@ describe('LlmConfigService Integration', () => {
   });
 
   /**
-   * Regression test for the phantom-PK-collision bug observed 2026-04-19.
+   * Regression test for the phantom-PK-collision bug.
    *
    * Before fix: `id: generateLlmConfigUuid(name)` (deterministic UUIDv5 from
    * the user-editable name) meant the flow below hit PK collision on step 4:

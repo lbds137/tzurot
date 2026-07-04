@@ -59,7 +59,7 @@ const mockPrisma = {
     .mockImplementation(async (callback: (tx: unknown) => Promise<unknown>) =>
       callback(mockPrisma)
     ),
-  // Phase 5b: UserService uses a single $executeRaw CTE to atomically
+  // UserService uses a single $executeRaw CTE to atomically
   // create user + default persona. Plain resolve covers the happy path.
   $executeRaw: vi.fn().mockResolvedValue(1),
 };

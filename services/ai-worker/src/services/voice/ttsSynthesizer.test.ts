@@ -131,13 +131,13 @@ describe('splitTextIntoChunks', () => {
   });
 
   describe('FormData CRLF expansion safety', () => {
-    // Production root cause confirmed 2026-04-30 via council analysis:
+    // Root cause (confirmed via council analysis):
     // multipart/form-data spec mandates `\n` → `\r\n` normalization before
     // serialization (WHATWG HTML standard, RFC 7578). Node's built-in
     // FormData implements this. So a JS-side 2000-char chunk containing N
     // newlines becomes a 2000+N-char payload on the wire, and Python's
-    // voice-engine `len(text)` check rejects it. The historical "off-by-six"
-    // (2026-04-27) and today's "off-by-one" (2026-04-30) both fit:
+    // voice-engine `len(text)` check rejects it. The "off-by-six"
+    // and "off-by-one" failure modes both fit:
     // off-by-N = newline count.
     //
     // Existing tests use `'A'.repeat(2000)` which has zero newlines, so
@@ -255,7 +255,7 @@ describe('enforceChunkLengthCap', () => {
 
   it('should truncate any chunk exceeding the cap to MAX_CHUNK_LENGTH', () => {
     // Synthetic over-cap input — the production-failing shape was 2006 chars
-    // against the 2000 cap (Lilith observation 2026-04-27).
+    // against the 2000 cap.
     const oversized = 'A'.repeat(2006);
     const result = enforceChunkLengthCap([oversized]);
 

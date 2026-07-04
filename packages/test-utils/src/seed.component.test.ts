@@ -70,7 +70,7 @@ describe('seedUserWithPersona (integration)', () => {
 
     const persona = await prisma.persona.findUnique({ where: { id: personaId } });
     // The default persona name satisfies the personas_name_not_snowflake
-    // CHECK constraint added in Phase 5 — a bare snowflake would be rejected.
+    // CHECK constraint on personas.name — a bare snowflake would be rejected.
     expect(persona?.name).toBe(`User ${discordId}`);
     expect(persona?.preferredName).toBe(`User ${discordId}`);
     expect(persona?.content).toBe('');

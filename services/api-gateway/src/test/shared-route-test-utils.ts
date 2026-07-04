@@ -36,7 +36,7 @@ export const createMockUpdatedAt = (): Date => new Date('2024-01-02T00:00:00.000
  * and therefore exercise the shadow-mode fallback branch of
  * `resolveProvisionedUserId` / `getOrCreateInternalUser` rather than the
  * common provisioned path. When the middleware is tightened from shadow-
- * mode-fallthrough to strict-400 (tracked in BACKLOG.md Phase 5c work
+ * mode-fallthrough to strict-400 (tracked in BACKLOG.md work
  * items), those no-op mocks will produce 400s at the middleware layer and
  * every unmigrated test file will break en masse.
  *

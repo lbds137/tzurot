@@ -6,7 +6,7 @@
  * and types, catching breaking changes during refactoring.
  *
  * WHY THIS IS CRITICAL:
- * - Phase 1 will refactor the database schema extensively
+ * - The database schema undergoes extensive refactoring
  * - Job payloads reference database entities (Personality, User, etc.)
  * - Schema changes could silently break job contracts
  * - This test catches those breaks at build time

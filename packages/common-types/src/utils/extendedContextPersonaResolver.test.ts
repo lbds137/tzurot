@@ -402,7 +402,7 @@ describe('ExtendedContextPersonaResolver', () => {
     });
 
     it('should strip unresolved discord: placeholders when userMap is empty', async () => {
-      // Post-Phase-4 contract: the strip pass runs unconditionally. An empty
+      // Contract: the strip pass runs unconditionally. An empty
       // userMap means zero users got provisioned — every discord: placeholder
       // is unresolvable and must be stripped to '' so ai-worker never sees
       // the format. messageCount/reactorCount count resolved entries (zero

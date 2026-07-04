@@ -10,7 +10,7 @@
  * Purpose: Verify that role values ('assistant'/'user') are preserved
  * correctly through the entire pipeline, enabling duplicate detection.
  *
- * Background: January 2026 production incident where duplicate detection
+ * Background: a production incident where duplicate detection
  * failed despite conversation history being present. This test validates
  * the data flow to catch any serialization or type issues.
  */
@@ -54,7 +54,7 @@ describe('Duplicate Detection Data Flow', () => {
     prisma = new PrismaClient({ adapter }) as PrismaClient;
     conversationService = new ConversationHistoryService(prisma);
 
-    // Seed required FK records. Phase 5b: user + default persona must be
+    // Seed required FK records. User + default persona must be
     // created atomically because users.default_persona_id is NOT NULL.
     await seedUserWithPersona(prisma, {
       userId: testUserId,

@@ -48,7 +48,7 @@ const VOICE_LIST_PAGE_SIZE = 50;
  * duration > 30s using HTTP 400 ("Reference audio duration {N}s exceeds the
  * maximum allowed duration of 30.0s"). The provider pre-flight-checks this
  * locally to avoid the wasted round-trip + negative-cache poisoning that the
- * reactive path produces. Empirically observed in prod 2026-05-04 via the
+ * reactive path produces. Empirically observed in prod via the
  * `ha-shem-keev-ima` slug (31.78s reference).
  */
 export const MISTRAL_MAX_REFERENCE_AUDIO_SEC = 30;

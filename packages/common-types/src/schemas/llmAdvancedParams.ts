@@ -414,7 +414,7 @@ export const LLM_CONFIG_OVERRIDE_KEYS = [
   // Context window (model-coupled, stays in LlmConfig)
   'contextWindowTokens',
   // Note: memoryScoreThreshold, memoryLimit, maxMessages, maxAge, maxImages
-  // have been moved to ConfigOverrides cascade (Phase 3 cleanup).
+  // have been moved to ConfigOverrides cascade.
   // They remain on the LlmConfig DB schema but are no longer read by the resolver.
 ] as const;
 

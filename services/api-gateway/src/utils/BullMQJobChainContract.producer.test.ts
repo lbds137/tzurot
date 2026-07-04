@@ -60,7 +60,7 @@ const visionResolverStub: VisionConfigResolver = {
     source: 'personality',
     config: { model: 'resolved/vision-model' },
   }),
-  // Phase 4: stampResolvedConfig also reads the two default pointers for the
+  // stampResolvedConfig also reads the two default pointers for the
   // visionFallbackModels chain. Return null (no admin fallbacks) so the snapshot
   // carries only the resolved visionModel, not a fallback chain.
   getGlobalDefaultConfig: vi.fn().mockResolvedValue(null),

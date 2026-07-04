@@ -88,13 +88,13 @@ describe('LongTermMemoryService', () => {
   }, 30000);
 
   beforeEach(async () => {
-    // Clear tables. Phase 5 Restrict FK means we delete users first — the
+    // Clear tables. The Restrict FK means we delete users first — the
     // Cascade on persona.owner_id removes personas in the same statement.
     await prisma.pendingMemory.deleteMany();
     await prisma.personality.deleteMany();
     await prisma.user.deleteMany();
 
-    // Create test user + default persona atomically (Phase 5b NOT NULL).
+    // Create test user + default persona atomically (default_persona_id is NOT NULL).
     await seedUserWithPersona(prisma, {
       userId: testUserId,
       personaId: testPersonaId,

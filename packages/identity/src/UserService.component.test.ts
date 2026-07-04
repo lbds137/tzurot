@@ -60,13 +60,13 @@ describe('UserService', () => {
   }, 30000);
 
   beforeEach(async () => {
-    // Clear tables between tests. Post-Phase-5, personas referenced as a
+    // Clear tables between tests. Personas referenced as a
     // user's default can't be deleted directly (Restrict FK). Deleting the
     // user first cascades to their personas (Persona.owner onDelete: Cascade),
     // which Postgres orders correctly within the transaction.
     await prisma.user.deleteMany();
     // Belt-and-suspenders: clean up any orphaned personas (unreachable
-    // post-Phase-5 owner cascade but preserves test isolation if anything
+    // given the owner cascade but preserves test isolation if anything
     // slips through).
     await prisma.persona.deleteMany();
 
@@ -342,8 +342,8 @@ describe('UserService', () => {
     });
   });
 
-  describe('Identity Epic Phase 5 — DB-level invariants', () => {
-    // These tests verify the constraints added in the Phase 5 migration at
+  describe('DB-level invariants', () => {
+    // These tests verify the constraints added in the migration at
     // the DB level. The app layer has its own guards (e.g., crud.ts:254's
     // "Cannot delete your default persona" validation error) — these tests
     // exercise the structural safety net that fires if the app guard is
@@ -356,8 +356,8 @@ describe('UserService', () => {
     // by the real-Postgres migration applies (local + Railway).
 
     it("should reject deleting a persona that is still someone's default (Restrict FK)", async () => {
-      // Pre-Phase-5: this delete would succeed and silently null the FK.
-      // Post-Phase-5: the FK is ON DELETE RESTRICT, so the delete is rejected
+      // Without the Restrict FK, this delete would succeed and silently null the FK.
+      // The FK is ON DELETE RESTRICT, so the delete is rejected
       // at the DB level. Match the violation message rather than a Prisma error
       // code — the driver adapter surfaces FK violations as a raw
       // DriverAdapterError (no `code: P2003`), so the message is the stable

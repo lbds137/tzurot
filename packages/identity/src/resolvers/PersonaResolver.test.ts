@@ -123,7 +123,7 @@ describe('PersonaResolver', () => {
     });
 
     it('should return first owned persona as transient resolution without persisting', async () => {
-      // Phase 3 regression guard: resolution is strictly read-only. When a user
+      // Resolution is strictly read-only. When a user
       // has owned personas but no defaultPersonaId, we pick the first-owned
       // persona for this request only. Persistence is UserService's job (via
       // runMaintenanceTasks → backfillDefaultPersona on the next interaction).
@@ -165,7 +165,7 @@ describe('PersonaResolver', () => {
 
     it('should log error and fall through when defaultPersonaId is dangling', async () => {
       // Schema has onDelete: SetNull, so this shouldn't happen — but we guard
-      // defensively as a precursor signal for Phase 5's NOT NULL FK upgrade.
+      // defensively as a precursor signal for the NOT NULL FK upgrade.
       mockPrismaClient.user.findUnique.mockResolvedValue({
         id: 'user-uuid',
         defaultPersonaId: 'persona-that-was-deleted',
@@ -214,7 +214,7 @@ describe('PersonaResolver', () => {
       expect(result.source).toBe('system-default');
       expect(result.config.personaId).toBe('');
 
-      // Post-Phase-2, every user should have at least one persona. Log at error
+      // Every user should have at least one persona. Log at error
       // level so provisioning bugs surface loudly in logs.
       expect(mockLogger.error).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -564,8 +564,8 @@ describe('PersonaResolver', () => {
       expect(mockPrismaClient.user.findUnique).not.toHaveBeenCalled();
     });
 
-    it('should return null for discord: format with a warn log (post-Phase-4 tripwire)', async () => {
-      // Post-Phase-4, resolveToUuid is UUID-only. The `discord:XXXX`
+    it('should return null for discord: format with a warn log (UUID-only tripwire)', async () => {
+      // resolveToUuid is UUID-only. The `discord:XXXX`
       // format should have been stripped at the bot-client boundary by
       // ExtendedContextPersonaResolver. A non-UUID reaching here signals
       // a regression, so we warn-log for visibility and return null.
@@ -600,7 +600,7 @@ describe('PersonaResolver', () => {
   });
 
   // Note: the "auto-default persistence error handling" describe block was
-  // removed in the Phase 3 refactor. Persistence is no longer part of the
+  // removed. Persistence is no longer part of the
   // resolve() path, so there's no write-failure mode to test here. Provisioning
   // tests live in UserService.test.ts (createUserWithDefaultPersona +
   // backfillDefaultPersona).

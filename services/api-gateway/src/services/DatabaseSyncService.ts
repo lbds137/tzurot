@@ -31,8 +31,8 @@
  *
  * Previously this used a "two-pass" pattern (pass 1 insert with
  * default_persona_id=NULL; pass 2 UPDATE to backfill). That broke when
- * migration 20260416215546 made default_persona_id NOT NULL in Phase 5b
- * of the Identity Epic — NOT NULL is a column property, not a deferrable
+ * migration 20260416215546 made default_persona_id NOT NULL — NOT NULL
+ * is a column property, not a deferrable
  * constraint, so pass 1's NULL INSERT failed immediately with 23502.
  * The Ouroboros Insert approach is structurally simpler (single pass,
  * no ForeignKeyReconciler pass-2 machinery) and future-proofs against
@@ -149,7 +149,7 @@ export class DatabaseSyncService {
       // the cross-table FK order, since partial flushes lose the "every
       // referenced row exists at COMMIT" guarantee that the Ouroboros
       // pattern relies on. Keep it one-shot until the memory pressure
-      // is observed. (PR #826 R1 #3.)
+      // is observed.
       const devBoundWrites: PendingWrite[] = [];
       const prodBoundWrites: PendingWrite[] = [];
 

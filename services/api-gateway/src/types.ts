@@ -44,12 +44,12 @@ export interface AuthenticatedRequest extends Request {
  * `provisionedUserId` is the internal UUID (not the Discord snowflake) for
  * the user, obtained via `UserService.getOrCreateUser()` — the full
  * provisioning path that uses the real Discord username/displayName from
- * headers set by bot-client in Phase 5c PR A.
+ * headers set by bot-client.
  *
  * Both fields are optional because the middleware degrades gracefully
  * (doesn't fail the request) when the headers are absent or malformed.
  * Handlers that want to consume them must narrow the optional first — or
- * wait for PR C to tighten the invariant once prod bot-client is fully
+ * wait for the invariant to be tightened once prod bot-client is fully
  * on the new code path.
  */
 export interface ProvisionedRequest extends AuthenticatedRequest {

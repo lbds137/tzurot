@@ -15,7 +15,7 @@
  *      `POST /v1/audio/voices`, cache the returned voice_id
  *   6. **Eviction mutex** serializes the list-then-clone critical section to
  *      prevent the concurrent-clone-double-write race (per three-council
- *      reconciled design 2026-05-01)
+ *      reconciled design)
  *
  * Mistral slot quota behavior is undocumented (smoke test didn't probe). If
  * a future MistralApiError surfaces a slot-limit error, eviction code is

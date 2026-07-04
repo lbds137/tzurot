@@ -2,8 +2,8 @@
  * Integration test: Identity provisioning invariant
  *
  * Covers the `c88ae5b7` regression class — persona data being stale or
- * incorrect after a user is provisioned. The regression shipped in 2025-12
- * when user creation was centralized through `UserService.getOrCreateUser`;
+ * incorrect after a user is provisioned. The regression shipped when
+ * user creation was centralized through `UserService.getOrCreateUser`;
  * it produced wrong `activePersonaId` / `activePersonaName` values in
  * downstream prompt generation, because `PersonaResolver.resolve` could
  * return data that didn't match what `getOrCreateUser` had just created.
@@ -16,11 +16,9 @@
  * The test exercises the real services against a real Postgres-compatible
  * engine (PGlite), so any regression in the Prisma query paths, persona
  * auto-creation invariants, or persona-resolver cache coherence will
- * produce a loud failure here — which is the explicit goal of Phase 6 of
- * the Identity & Provisioning Hardening epic.
+ * produce a loud failure here — which is the explicit goal of this test.
  *
- * Phase 6 goal (epic-identity-hardening.md): "The c88ae5b7 class of
- * regression fails loudly in tests."
+ * The goal (per epic-identity-hardening.md): "The c88ae5b7 class of regression fails loudly in tests."
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
@@ -50,12 +48,12 @@ describe('Identity provisioning integration (c88ae5b7 regression guard)', () => 
 
     // A personality row needs an owner user. Seed a bot-owner user + default
     // persona via the atomic CTE helper (personas and users have mutually
-    // circular FKs post-Phase-5b; direct prisma.user.create no longer works).
+    // circular FKs; direct prisma.user.create no longer works).
     //
     // Inlined rather than importing `seedUserWithPersona` from `@tzurot/test-utils`
     // because that package currently can't be a runtime dep of common-types
-    // without reopening the Turbo build-DAG cycle flagged in Phase 5c work
-    // items. The CTE below is the same SQL the helper uses.
+    // without reopening the Turbo build-DAG cycle. The CTE below is the
+    // same SQL the helper uses.
     await prisma.$executeRawUnsafe(`
       WITH new_persona AS (
         INSERT INTO personas (id, name, preferred_name, description, content, owner_id, updated_at)
@@ -196,7 +194,7 @@ describe('Identity provisioning integration (c88ae5b7 regression guard)', () => 
   });
 
   describe('bot rejection', () => {
-    // Phase 2 invariant (post-c88ae5b7): UserService rejects bot users at
+    // UserService rejects bot users at
     // the provisioning boundary so no persona gets associated with a bot
     // account. This test pins the rejection contract at the integration
     // seam rather than relying on the unit test alone.

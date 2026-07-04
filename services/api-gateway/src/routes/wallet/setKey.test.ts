@@ -71,7 +71,7 @@ const mockPrisma = {
   userApiKey: {
     upsert: vi.fn().mockResolvedValue({ id: 'key-uuid-123' }),
   },
-  // Phase 5b: UserService creates user + default persona atomically via a
+  // UserService creates user + default persona atomically via a
   // single $executeRaw CTE. The mock just needs to resolve successfully.
   $executeRaw: vi.fn().mockResolvedValue(1),
 };

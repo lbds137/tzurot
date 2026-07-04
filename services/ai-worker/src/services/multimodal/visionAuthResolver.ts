@@ -225,7 +225,7 @@ async function resolveBroadFreeFallback(
 
 /**
  * Resolve the API key + provider for a SPECIFIC vision model. Parameterized by the
- * target model so a caller can resolve auth for ANY tier (Phase 4's runtime fallback
+ * target model so a caller can resolve auth for ANY tier (the runtime fallback
  * loop), not just the primary — a cross-provider fallback and a free-tier downgrade
  * each need their own key. `resolveVisionConfig` is the primary-model entry point that
  * computes the natural model then delegates here.
@@ -389,7 +389,7 @@ export async function resolveVisionAuth(
 /**
  * Resolve the API key + provider + model for the PRIMARY vision call atomically.
  * Computes the natural vision model via `selectVisionModel`, then delegates auth
- * resolution to `resolveVisionAuth`. (Phase 4's fallback loop calls `resolveVisionAuth`
+ * resolution to `resolveVisionAuth`. (the fallback loop calls `resolveVisionAuth`
  * directly, once per tier, with that tier's model.)
  */
 export async function resolveVisionConfig(

@@ -1,5 +1,5 @@
 /**
- * Vision fallback loop — Phase 4.
+ * Vision fallback loop.
  *
  * Wraps the single-model `describeImage` with a runtime retry-down-the-chain: when the
  * chosen vision model FAILS on a RETRYABLE category, try the next fallback tier (the

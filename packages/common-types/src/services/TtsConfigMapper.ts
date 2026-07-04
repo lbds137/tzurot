@@ -56,7 +56,7 @@ export interface MappedTtsConfigWithName {
  *
  * - `provider` is narrowed from `string` to `TtsProviderId` via the shared
  *   `isTtsProviderId` type guard from `TtsProvider.ts` — single source of
- *   truth so future provider additions (NeuTTS Air in Phase 2) don't
+ *   truth so future provider additions (e.g. NeuTTS Air) don't
  *   require updating both places. Non-matching values fall back silently
  *   to `'self-hosted'` (no logging) — DB rows with stale provider strings
  *   shouldn't crash the cascade. The dispatcher will produce a normal

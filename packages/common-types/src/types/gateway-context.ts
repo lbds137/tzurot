@@ -9,7 +9,7 @@
  * - bot-client constructs `GatewayUser` from Discord interaction/message
  *   objects via its local `toGatewayUser(DiscordUser)` helper.
  * - api-gateway middleware reads the headers and reconstructs `GatewayUser`
- *   for provisioning (Identity Epic Phase 5c PR B).
+ *   for provisioning.
  *
  * Keeping the type in common-types means both sides agree on field names
  * and semantics by compile-time contract, not convention.

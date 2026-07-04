@@ -202,7 +202,7 @@ export const MODEL_DEFAULTS = {
  * distinguished only by `kind`.
  *
  * Single source of truth: the Prisma column default, the resolver queries, the
- * `LlmConfigService` filters, and (Phase 2) the slash-command `kind` choices all
+ * `LlmConfigService` filters, and the slash-command `kind` choices all
  * reference this — so adding a modality is a one-line change here, with the type
  * system enforcing exhaustiveness at every switch on a `ConfigKind`.
  */
@@ -505,9 +505,8 @@ export enum AIProvider {
   ElevenLabs = 'elevenlabs',
   ZaiCoding = 'zai-coding',
   /**
-   * Mistral direct API. Authorizes both `/v1/audio/speech` (Voxtral TTS, used
-   * in TTS Engine Upgrade Phase 1) and `/v1/audio/transcriptions` (Voxtral
-   * STT, used in Phase 3). Same key for both endpoints — see
+   * Mistral direct API. Authorizes both `/v1/audio/speech` (Voxtral TTS)
+   * and `/v1/audio/transcriptions` (Voxtral STT). Same key for both endpoints — see
    * `audioProviderKeys` map shape in `ResolvedAuth`.
    */
   Mistral = 'mistral',

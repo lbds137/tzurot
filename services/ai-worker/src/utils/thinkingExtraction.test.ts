@@ -674,7 +674,7 @@ def hello():
   });
 
   describe('GLM-4.5-Air fake-user-message-echo pattern', () => {
-    // Observed 2026-04-22 (req b533e288-fb07-46c0-a5e2-a0f78883e63e).
+    // Observed in production (req b533e288-fb07-46c0-a5e2-a0f78883e63e).
     // Model emitted chain-of-thought wrapped in tags that mimic our
     // prompt-assembly format. Three structural rules protect extraction
     // safety: start-of-response anchor, UUID shape, strict tag sequence.
@@ -839,7 +839,7 @@ Response.`;
     });
 
     it('pins the Pass-1/Pass-2 double-extraction edge case for nested <think> tags', () => {
-      // Reviewer flagged (PR #875 round 3, 2026-04-22): Pass 2 reads from
+      // Pass 2 reads from
       // `normalized` (pre-Pass-1-strip), so if a Pass-1 <message> block
       // contains a Pass-2 tag (like <think>), the inner content ends up in
       // `thinkingParts` twice — once as part of the whole <message> block
@@ -894,7 +894,7 @@ Response.`;
   });
 
   describe('Standalone <from_id> echo pattern (GLM-4.7 bare-from-id leak)', () => {
-    // Observed 2026-04-30 in production. GLM-4.7 emitted just
+    // Observed in production. GLM-4.7 emitted just
     // <from_id>UUID</from_id> followed by the response, without the rest of
     // the 4.5-Air vocabulary (<user>, <message>). The 4.5-Air full-sequence
     // pattern requires all three tags and silently passes through this bare
@@ -981,7 +981,7 @@ Response.`;
   });
 
   describe('GLM-4.7 meta-preamble pattern', () => {
-    // Observed 2026-04-24 (req 9b2aa0f3-d659-4f00-95f4-36da3a9b40f3). Model
+    // Observed in production (req 9b2aa0f3-d659-4f00-95f4-36da3a9b40f3). Model
     // emitted scene-setting preamble before the in-character response. Same
     // bug class as the 4.5-Air fake-user-message echo, different vocabulary.
     // Safety relies on: start-of-response anchor, presence of <analysis> as
@@ -1272,7 +1272,7 @@ describe('hasThinkingBlocks', () => {
     // `hasReasoningTagsInContent` would be `false` for pure-GLM responses
     // where the fake-user-message wrapper is the only thinking-content
     // signal — even though `extractThinkingBlocks` would correctly find
-    // and strip the block. Surfaced by PR #875 round 4 review (2026-04-22).
+    // and strip the block.
     const uuid = '62a59660-cd89-51dc-8c54-7100f4e33329';
     const content = `<from_id>${uuid}</from_id>
 <user>User</user>

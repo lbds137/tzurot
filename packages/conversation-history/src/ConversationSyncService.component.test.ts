@@ -45,7 +45,7 @@ describe('ConversationSyncService Integration Test', () => {
     // Create Prisma client with PGlite adapter
     prisma = new PrismaClient({ adapter }) as PrismaClient;
 
-    // Seed test data. Phase 5b made users.default_persona_id NOT NULL, so
+    // Seed test data. users.default_persona_id is NOT NULL, so
     // we create the user + persona pair atomically via the CTE helper.
     const now = new Date().toISOString();
     const systemPromptId = '00000000-0000-0000-0000-000000000004';

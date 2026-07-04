@@ -783,8 +783,8 @@ describe('/user/llm-config routes', () => {
       expect(res.status).toHaveBeenCalledWith(201);
     });
 
-    it('should create config with memory settings (Phase 1 parity)', async () => {
-      // This test verifies Phase 1 parity - user routes must accept same fields as admin
+    it('should create config with memory settings (parity)', async () => {
+      // This test verifies parity - user routes must accept same fields as admin
       mockPrisma.llmConfig.create.mockResolvedValue({
         id: 'new-config',
         name: 'Memory Config',

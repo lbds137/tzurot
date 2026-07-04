@@ -651,7 +651,7 @@ describe('LLM Advanced Params Schema', () => {
     it('should contain database-specific keys', () => {
       // These keys exist in LoadedPersonality/ResolvedLlmConfig but not in AdvancedParams
       // Note: memoryScoreThreshold, memoryLimit, maxMessages, maxAge, maxImages
-      // moved to ConfigOverrides cascade (Phase 3 cleanup)
+      // moved to ConfigOverrides cascade
       const dbSpecificKeys = ['contextWindowTokens'];
 
       for (const key of dbSpecificKeys) {
