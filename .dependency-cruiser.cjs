@@ -65,10 +65,17 @@ module.exports = {
     // === WARNINGS ===
     {
       name: 'ai-worker-no-discord',
-      comment: 'ai-worker should use common-types for Discord types, not discord.js',
+      comment: 'ai-worker should use common-types for Discord types, not the discord.js library',
       severity: 'warn',
       from: { path: '^services/ai-worker/' },
-      to: { path: 'discord\\.js' },
+      // Ban the discord.js NPM library, NOT common-types' own discord-NAMED
+      // modules (constants/discord.js, types/schemas/discord.js, utils/discord.js)
+      // — ai-worker legitimately consumes those shared Discord types, which is
+      // the rule's entire point. The `discord\.js` path pattern collides with
+      // those filenames; `pathNot: 'common-types'` keeps the ban on the library
+      // while allowing the shared types. (The root barrel hid this collision —
+      // ai-worker's imports resolved through index.js; deep imports exposed it.)
+      to: { path: 'discord\\.js', pathNot: 'common-types' },
     },
   ],
   options: {
