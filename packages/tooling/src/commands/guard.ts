@@ -39,6 +39,17 @@ export function registerGuardCommands(cli: CAC): void {
 
   cli
     .command(
+      'guard:no-export-star',
+      'Fail if any production source uses `export *` (re-masks knip)'
+    )
+    .example('ops guard:no-export-star')
+    .action(async () => {
+      const { checkNoExportStar } = await import('../dev/check-no-export-star.js');
+      checkNoExportStar();
+    });
+
+  cli
+    .command(
       'guard:dockerfile-dist',
       'Check service Dockerfile runner stages copy every runtime workspace dep dist'
     )

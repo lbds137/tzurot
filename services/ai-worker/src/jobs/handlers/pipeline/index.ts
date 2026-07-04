@@ -2,7 +2,16 @@
  * Pipeline exports
  */
 
-export * from './types.js';
+export {
+  type ConversationHistoryEntry,
+  type GenerationContext,
+  type IPipelineStep,
+  type Participant,
+  type PreparedContext,
+  type PreprocessingResults,
+  type ResolvedAuth,
+  type ResolvedConfig,
+} from './types.js';
 export { ValidationStep } from './steps/ValidationStep.js';
 export { NormalizationStep } from './steps/NormalizationStep.js';
 export { DependencyStep } from './steps/DependencyStep.js';
