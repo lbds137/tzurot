@@ -21,6 +21,7 @@
     "build": "rm -rf dist tsconfig.tsbuildinfo && tsc",
     "dev": "tsc --watch",
     "clean": "rm -rf dist",
+    "lint": "eslint src --max-warnings=0",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
