@@ -65,8 +65,11 @@ async function runSuppressionsCheck(packages: string[], includeTests?: boolean):
     packages: packages.length > 0 ? packages : undefined,
     includeTests,
   });
-  const unjustified = suppressions.collectUnjustifiedSuppressions(report);
-  const totalCount = suppressions.flattenSuppressions(report).length;
+  // Flatten once; derive both the total (trend count) and the unjustified subset
+  // from the same list rather than flattening the report twice.
+  const allSuppressions = suppressions.flattenSuppressions(report);
+  const unjustified = allSuppressions.filter(suppressions.isUnjustifiedSuppression);
+  const totalCount = allSuppressions.length;
   const { failed, violations, summary } = evaluateSuppressionCheck(
     unjustified,
     totalCount,

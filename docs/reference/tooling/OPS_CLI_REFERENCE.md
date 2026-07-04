@@ -176,18 +176,20 @@ These use `gh api` directly, bypassing the broken GraphQL calls.
 
 Analyze TypeScript codebase structure via AST parsing. Extracts classes, functions, interfaces, types, imports, and lint suppressions.
 
-| Command                                 | Description                                   |
-| --------------------------------------- | --------------------------------------------- |
-| `pnpm ops xray`                         | Full analysis (terminal format)               |
-| `pnpm ops xray --summary`               | File-level overview (no per-declaration list) |
-| `pnpm ops xray bot-client`              | Analyze a single package                      |
-| `pnpm ops xray bot-client ai-worker`    | Analyze multiple packages                     |
-| `pnpm ops xray --format md`             | Markdown output (GFM tables, for LLMs)        |
-| `pnpm ops xray --format json`           | JSON output (for tooling)                     |
-| `pnpm ops xray --summary --output f.md` | Write summary to file                         |
-| `pnpm ops xray --include-private`       | Include non-exported declarations             |
-| `pnpm ops xray --include-tests`         | Include test files                            |
-| `pnpm ops xray --imports`               | Include import analysis (auto for md/json)    |
+| Command                                 | Description                                                             |
+| --------------------------------------- | ----------------------------------------------------------------------- |
+| `pnpm ops xray`                         | Full analysis (terminal format)                                         |
+| `pnpm ops xray --summary`               | File-level overview (no per-declaration list)                           |
+| `pnpm ops xray bot-client`              | Analyze a single package                                                |
+| `pnpm ops xray bot-client ai-worker`    | Analyze multiple packages                                               |
+| `pnpm ops xray --format md`             | Markdown output (GFM tables, for LLMs)                                  |
+| `pnpm ops xray --format json`           | JSON output (for tooling)                                               |
+| `pnpm ops xray --summary --output f.md` | Write summary to file                                                   |
+| `pnpm ops xray --include-private`       | Include non-exported declarations                                       |
+| `pnpm ops xray --include-tests`         | Include test files                                                      |
+| `pnpm ops xray --imports`               | Include import analysis (auto for md/json)                              |
+| `pnpm ops xray --suppressions`          | Lint-suppression audit report (by rule + justification)                 |
+| `pnpm ops xray --suppressions --check`  | CI gate: exit 1 on any unjustified suppression (runs in `pnpm quality`) |
 
 **Options:**
 
