@@ -198,7 +198,7 @@ const redisConfig = {
 };
 
 // AFTER
-import { parseRedisUrl, createRedisSocketConfig } from '@tzurot/common-types';
+import { parseRedisUrl, createRedisSocketConfig } from '@tzurot/common-types/utils/redis';
 
 const parsedUrl =
   config.REDIS_URL && config.REDIS_URL.length > 0 ? parseRedisUrl(config.REDIS_URL) : null;
