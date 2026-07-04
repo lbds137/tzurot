@@ -22,7 +22,7 @@ import {
   type TtsProviderId,
 } from '@tzurot/common-types/services/tts/TtsProvider';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { VoiceRegistrationService } from '../VoiceRegistrationService.js';
+import { type VoiceRegistrationService } from '../VoiceRegistrationService.js';
 import { synthesizeWithChunking } from '../ttsSynthesizer.js';
 import { waitForVoiceEngine } from '../voiceEngineWarmup.js';
 

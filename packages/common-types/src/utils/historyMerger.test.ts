@@ -10,7 +10,8 @@ import {
   enrichDbMessagesWithExtendedMetadata,
   mergeWithHistory,
 } from './historyMerger.js';
-import { MessageRole, NO_TEXT_CONTENT_PLACEHOLDER, type ConversationMessage } from '../index.js';
+import { MessageRole, NO_TEXT_CONTENT_PLACEHOLDER } from '../constants/message.js';
+import { type ConversationMessage } from '../types/conversationMessage.js';
 
 /**
  * Create a minimal conversation message for testing

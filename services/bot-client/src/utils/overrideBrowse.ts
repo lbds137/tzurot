@@ -23,7 +23,7 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ActionRowBuilder,
-  StringSelectMenuBuilder,
+  type StringSelectMenuBuilder,
   escapeMarkdown,
   type ButtonInteraction,
   type StringSelectMenuInteraction,

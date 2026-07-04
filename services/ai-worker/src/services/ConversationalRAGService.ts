@@ -10,11 +10,11 @@
  * - MemoryPersistenceService: Long-term memory storage
  */
 
-import { BaseMessage } from '@langchain/core/messages';
-import { PgvectorMemoryAdapter } from './PgvectorMemoryAdapter.js';
+import { type BaseMessage } from '@langchain/core/messages';
+import { type PgvectorMemoryAdapter } from './PgvectorMemoryAdapter.js';
 import { TEXT_LIMITS } from '@tzurot/common-types/constants/discord';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
-import { MessageContent } from '@tzurot/common-types/types/ai';
+import { type MessageContent } from '@tzurot/common-types/types/ai';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { contentToText } from '../utils/baseMessageContent.js';
@@ -26,7 +26,7 @@ import { MemoryRetriever } from './MemoryRetriever.js';
 import { PromptBuilder } from './PromptBuilder.js';
 import { LongTermMemoryService } from './LongTermMemoryService.js';
 import { ContextWindowManager } from './context/ContextWindowManager.js';
-import { PersonaResolver } from '@tzurot/identity';
+import { type PersonaResolver } from '@tzurot/identity';
 import { UserReferenceResolver } from './UserReferenceResolver.js';
 import { ContentBudgetManager } from './ContentBudgetManager.js';
 import { buildAttachmentDescriptions, countMediaAttachments } from './RAGUtils.js';

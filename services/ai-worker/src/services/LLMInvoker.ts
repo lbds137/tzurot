@@ -10,8 +10,8 @@
  * - Thinking tag extraction delegated to ResponsePostProcessor
  */
 
-import { BaseMessage } from '@langchain/core/messages';
-import { BaseChatModel } from '@langchain/core/language_models/chat_models';
+import { type BaseMessage } from '@langchain/core/messages';
+import { type BaseChatModel } from '@langchain/core/language_models/chat_models';
 import {
   ERROR_MESSAGES,
   ApiErrorType,

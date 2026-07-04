@@ -25,8 +25,8 @@ import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import type { UserClient } from '@tzurot/clients';
 import { generate } from '../../utils/gatewayServiceCalls.js';
 import { clientsForUser } from '../../utils/gatewayClients.js';
-import { MessageContextBuilder } from '../MessageContextBuilder.js';
-import { ConversationPersistence } from '../ConversationPersistence.js';
+import { type MessageContextBuilder } from '../MessageContextBuilder.js';
+import { type ConversationPersistence } from '../ConversationPersistence.js';
 import {
   handleNsfwVerification,
   sendVerificationConfirmation,

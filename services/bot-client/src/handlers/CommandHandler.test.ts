@@ -7,7 +7,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { CommandHandler, infraAwareErrorText } from './CommandHandler.js';
 import { InfraError } from '@tzurot/clients';
-import { Collection, MessageFlags, SlashCommandBuilder } from 'discord.js';
+import { Collection, MessageFlags, type SlashCommandBuilder } from 'discord.js';
 import type {
   ChatInputCommandInteraction,
   ModalSubmitInteraction,

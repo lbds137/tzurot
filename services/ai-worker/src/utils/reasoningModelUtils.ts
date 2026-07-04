@@ -10,7 +10,7 @@
  */
 
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { SystemMessage, HumanMessage, BaseMessage } from '@langchain/core/messages';
+import { SystemMessage, HumanMessage, type BaseMessage } from '@langchain/core/messages';
 
 const logger = createLogger('ReasoningModelUtils');
 

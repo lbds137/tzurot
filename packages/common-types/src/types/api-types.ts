@@ -5,7 +5,7 @@
  * Core types are now defined in schemas.ts using Zod and re-exported here.
  */
 
-import { JobStatus } from '../constants/index.js';
+import { type JobStatus } from '../constants/index.js';
 import type { LLMGenerationResult } from './schemas/index.js';
 import type { AudioTranscriptionResult } from './jobs.js';
 

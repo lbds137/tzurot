@@ -11,7 +11,7 @@
 
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { getConfig } from '@tzurot/common-types/config/config';
-import { AI_DEFAULTS, MODEL_DEFAULTS, AIProvider } from '@tzurot/common-types/constants/ai';
+import { AI_DEFAULTS, MODEL_DEFAULTS, type AIProvider } from '@tzurot/common-types/constants/ai';
 import { ERROR_MESSAGES, ApiErrorCategory } from '@tzurot/common-types/constants/error';
 import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';

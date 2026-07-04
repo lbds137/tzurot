@@ -4,7 +4,7 @@
  */
 
 import type { Response } from 'express';
-import { Prisma, type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { type Prisma, type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
 import type { ProvisionedRequest } from '../../../types.js';
