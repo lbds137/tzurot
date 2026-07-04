@@ -104,6 +104,18 @@ describe('computeNameForPromotion', () => {
       expect(result).toBe('MyVoice-bob');
     });
 
+    it('does NOT truncate a 50-100 char config name (config names cap at 100, not the slug 50)', () => {
+      const longName = 'A'.repeat(70); // over the 50 slug cap, under the 100 config-name cap
+      const result = computeNameForPromotion({
+        currentName: longName,
+        currentIsGlobal: false,
+        requestedIsGlobal: true,
+        ...REGULAR_USER,
+      });
+      // Suffixed but intact — NOT truncated + hashed (which the default 50 cap would do).
+      expect(result).toBe(`${longName}-bob`);
+    });
+
     it('suffixes a fresh rename when post-state is global', () => {
       const result = computeNameForPromotion({
         currentName: 'OldName',

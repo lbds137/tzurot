@@ -19,18 +19,15 @@ const SLUG_TAIL_HASH_LENGTH = 6;
  * unchanged (the common case). When it doesn't, truncates the base and appends a
  * short hash of the removed tail — so two long slugs sharing a prefix stay
  * distinct (no collision on the `slug` unique constraint) — then re-appends the
- * suffix. Guarantees the result is ≤ SLUG_MAX_LENGTH and still a valid slug.
+ * suffix. Guarantees the result is ≤ maxLength and still a valid slug/name.
  */
-function fitSlugToMaxLength(base: string, suffix: string): string {
+function fitSlugToMaxLength(base: string, suffix: string, maxLength: number): string {
   const combined = `${base}${suffix}`;
-  if (combined.length <= DISCORD_LIMITS.SLUG_MAX_LENGTH) {
+  if (combined.length <= maxLength) {
     return combined;
   }
   // Reserve room for the suffix + `-${hash}`; keep at least 1 base char.
-  const baseBudget = Math.max(
-    1,
-    DISCORD_LIMITS.SLUG_MAX_LENGTH - suffix.length - (SLUG_TAIL_HASH_LENGTH + 1)
-  );
+  const baseBudget = Math.max(1, maxLength - suffix.length - (SLUG_TAIL_HASH_LENGTH + 1));
   // Truncate to the budget, then back off any trailing hyphens so we don't emit
   // `--hash`. Non-regex to avoid the super-linear-move lint on `-+$`.
   let keptEnd = Math.min(baseBudget, base.length);
@@ -73,10 +70,13 @@ function sanitizeUsernameForSlug(username: string): string {
  * This prevents slug collisions between different users creating
  * characters with the same name.
  *
- * @param slug - The base slug provided by the user
+ * @param slug - The base slug (or name) provided by the user
  * @param discordUserId - The Discord user ID
  * @param discordUsername - The Discord username
- * @returns The normalized slug (possibly with username suffix)
+ * @param maxLength - Cap for the result. Defaults to the character-slug cap (50);
+ *   callers in other domains (e.g. LLM/TTS config-name promotion, capped at 100)
+ *   MUST pass their own limit so this doesn't force-fit the slug cap onto them.
+ * @returns The normalized slug (possibly with username suffix, truncated to fit)
  *
  * @example
  * // Bot owner creates "lilith"
@@ -88,11 +88,12 @@ function sanitizeUsernameForSlug(username: string): string {
 export function normalizeSlugForUser(
   slug: string,
   discordUserId: string,
-  discordUsername: string
+  discordUsername: string,
+  maxLength: number = DISCORD_LIMITS.SLUG_MAX_LENGTH
 ): string {
-  // Bot owner gets no suffix — but a long slug is still capped to SLUG_MAX_LENGTH.
+  // Bot owner gets no suffix — but a long slug is still capped to maxLength.
   if (isBotOwner(discordUserId)) {
-    return fitSlugToMaxLength(slug, '');
+    return fitSlugToMaxLength(slug, '', maxLength);
   }
 
   // Regular users get username appended
@@ -104,8 +105,8 @@ export function normalizeSlugForUser(
   // would double-suffix (`lilith-bob` → `lilith-bob-bob`). Matters in update
   // paths where the input may already carry the suffix from a prior call.
   if (slug.endsWith(suffix)) {
-    return fitSlugToMaxLength(slug, '');
+    return fitSlugToMaxLength(slug, '', maxLength);
   }
 
-  return fitSlugToMaxLength(slug, suffix);
+  return fitSlugToMaxLength(slug, suffix, maxLength);
 }

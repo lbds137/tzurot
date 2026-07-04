@@ -25,6 +25,9 @@
 import type { Request } from 'express';
 import { normalizeSlugForUser } from '@tzurot/common-types/utils/slugUtils';
 
+/** Config `name` cap — mirrors LlmConfig/TtsConfig `name.max(100)`, NOT the 50-char character-slug cap. */
+const CONFIG_NAME_MAX_LENGTH = 100;
+
 interface PromotionContext {
   /** Current state of the config (from `service.getById`). */
   currentName: string;
@@ -72,7 +75,15 @@ export function computeNameForPromotion(opts: PromotionContext): string | undefi
   }
 
   const baseName = opts.requestedName ?? opts.currentName;
-  const normalized = normalizeSlugForUser(baseName, opts.discordId, opts.discordUsername);
+  // Config names are capped at 100 (LlmConfig/TtsConfig `name.max(100)`), NOT the
+  // 50-char character-slug cap — pass the config-name limit so a 50-100 char name
+  // isn't force-truncated by normalizeSlugForUser's default.
+  const normalized = normalizeSlugForUser(
+    baseName,
+    opts.discordId,
+    opts.discordUsername,
+    CONFIG_NAME_MAX_LENGTH
+  );
 
   // If normalization didn't actually change the name (bot owner, or already
   // suffixed), preserve the route's original intent: only emit `name` in the
