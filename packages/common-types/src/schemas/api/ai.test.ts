@@ -47,7 +47,7 @@ describe('AiJobAckResponseSchema', () => {
 });
 
 describe('AiGenerateResponseSchema and AiTranscribeResponseSchema', () => {
-  it('share the ack envelope shape (both alias AiJobAckResponseSchema)', () => {
+  it('share the ack envelope shape (distinct schema values built from aiJobAckShape)', () => {
     const sample = { jobId: 'j', requestId: 'r', status: JobStatus.Queued };
     expect(AiGenerateResponseSchema.safeParse(sample).success).toBe(true);
     expect(AiTranscribeResponseSchema.safeParse(sample).success).toBe(true);
