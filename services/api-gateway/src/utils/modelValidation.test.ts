@@ -5,7 +5,7 @@ import {
   computeRequiresZaiKey,
 } from './modelValidation.js';
 import type { OpenRouterModelCache } from '../services/OpenRouterModelCache.js';
-import type { ModelAutocompleteOption } from '@tzurot/common-types';
+import type { ModelAutocompleteOption } from '@tzurot/common-types/types/ai';
 
 function createMockModelCache(
   getModelByIdResult: ModelAutocompleteOption | null = null

@@ -8,12 +8,10 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import {
-  createLogger,
-  DISCORD_COLORS,
-  AIProvider,
-  settingsApikeyRemoveOptions,
-} from '@tzurot/common-types';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { settingsApikeyRemoveOptions } from '@tzurot/common-types/generated/commandOptions';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { clientsFor } from '../../../utils/gatewayClients.js';
 import { getProviderDisplayName } from '../../../utils/providers.js';

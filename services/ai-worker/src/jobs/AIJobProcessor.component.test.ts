@@ -20,17 +20,17 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vites
 import { AIJobProcessor } from './AIJobProcessor.js';
 import type { ConversationalRAGService } from '../services/ConversationalRAGService.js';
 import type { RAGResponse } from '../services/ConversationalRAGTypes.js';
+import { JobType } from '@tzurot/common-types/constants/queue';
+import { type LLMGenerationJobData } from '@tzurot/common-types/types/jobs';
 import {
-  JobType,
-  type LLMGenerationJobData,
   generateSystemPromptUuid,
   generatePersonalityUuid,
   generatePersonaUuid,
   generateUserUuid,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/utils/deterministicUuid';
 import type { GenerationContext } from './handlers/pipeline/types.js';
 import type { Job } from 'bullmq';
-import { PrismaClient } from '@tzurot/common-types';
+import { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { createTestPGlite, loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
@@ -209,7 +209,8 @@ describe('AIJobProcessor Component Test', () => {
 
       // Process the job
       const rawResult = await jobProcessor.processJob(mockJob);
-      const result = rawResult as import('@tzurot/common-types').LLMGenerationResult;
+      const result =
+        rawResult as import('@tzurot/common-types/types/schemas/generation').LLMGenerationResult;
 
       // Verify RAG service was called
       expect(mockRagService.generateResponse).toHaveBeenCalledTimes(1);
@@ -287,7 +288,8 @@ describe('AIJobProcessor Component Test', () => {
 
       // Process the job - errors are caught and returned as failed results
       const rawResult = await jobProcessor.processJob(mockJob);
-      const result = rawResult as import('@tzurot/common-types').LLMGenerationResult;
+      const result =
+        rawResult as import('@tzurot/common-types/types/schemas/generation').LLMGenerationResult;
 
       // Verify error is captured in result
       expect(result.success).toBe(false);

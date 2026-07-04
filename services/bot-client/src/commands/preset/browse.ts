@@ -16,13 +16,11 @@ import {
   type ButtonInteraction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
-import {
-  createLogger,
-  DISCORD_COLORS,
-  isFreeModel,
-  presetBrowseOptions,
-  type LlmConfigSummary,
-} from '@tzurot/common-types';
+import { isFreeModel } from '@tzurot/common-types/constants/ai';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { presetBrowseOptions } from '@tzurot/common-types/generated/commandOptions';
+import { type LlmConfigSummary } from '@tzurot/common-types/schemas/api/llm-config';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { UserClient } from '@tzurot/clients';
 import { clientsFor } from '../../utils/gatewayClients.js';

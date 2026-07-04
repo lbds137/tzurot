@@ -6,8 +6,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -20,7 +22,7 @@ vi.mock('@tzurot/common-types', async () => {
 });
 
 import { createExportsRouter } from './exports.js';
-import type { PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 
 const VALID_UUID = '12345678-1234-1234-1234-123456789012';
 /** Fixed time for deterministic tests */

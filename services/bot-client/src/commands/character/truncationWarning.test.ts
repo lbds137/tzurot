@@ -13,8 +13,20 @@ import { MessageFlags } from 'discord.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 
 // Mock common-types — logger, DISCORD_COLORS, isBotOwner, getConfig.
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
+  return {
+    ...actual,
+    getConfig: vi.fn().mockReturnValue({}),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -23,8 +35,16 @@ vi.mock('@tzurot/common-types', async importOriginal => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/ownerMiddleware', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/ownerMiddleware')>(
+    '@tzurot/common-types/utils/ownerMiddleware'
+  );
+  return {
+    ...actual,
     isBotOwner: vi.fn().mockReturnValue(false),
-    getConfig: vi.fn().mockReturnValue({}),
   };
 });
 

@@ -5,13 +5,11 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import {
-  createLogger,
-  DISCORD_COLORS,
-  settingsPresetSetDefaultOptions,
-  toConfigKind,
-  DEFAULT_CONFIG_KIND,
-} from '@tzurot/common-types';
+import { DEFAULT_CONFIG_KIND } from '@tzurot/common-types/constants/ai';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { settingsPresetSetDefaultOptions } from '@tzurot/common-types/generated/commandOptions';
+import { toConfigKind } from '@tzurot/common-types/services/LlmConfigMapper';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { clientsFor } from '../../../utils/gatewayClients.js';
 import { handleUnlockModelsUpsell, checkGuestModePremiumAccess } from './guestModeValidation.js';

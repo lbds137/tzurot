@@ -62,13 +62,11 @@
 
 import type { Client, Message } from 'discord.js';
 import type { Queue } from 'bullmq';
-import {
-  createLogger,
-  type LLMGenerationResult,
-  type LoadedPersonality,
-  type TypingChannel,
-  MULTI_TAG,
-} from '@tzurot/common-types';
+import { MULTI_TAG } from '@tzurot/common-types/constants/message';
+import { type TypingChannel } from '@tzurot/common-types/types/discord-types';
+import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { fetchTypingChannel } from '../utils/fetchTypingChannel.js';
 import type { MultiTagCoordinator } from './MultiTagCoordinator.js';
 import type {

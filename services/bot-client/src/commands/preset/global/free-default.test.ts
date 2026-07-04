@@ -10,10 +10,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EmbedBuilder } from 'discord.js';
 import { makeOk, makeErr, asOwnerClient } from '../../../test/gatewayClientStubs.js';
 
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal();
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
-    ...(actual as Record<string, unknown>),
+    ...actual,
     createLogger: () => ({
       info: vi.fn(),
       warn: vi.fn(),

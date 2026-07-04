@@ -10,7 +10,8 @@
 import type { Redis } from 'ioredis';
 import type { Request, Response, NextFunction, RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, REDIS_KEY_PREFIXES } from '@tzurot/common-types';
+import { REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('RedisRateLimiter');
 

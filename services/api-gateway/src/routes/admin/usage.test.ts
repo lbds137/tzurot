@@ -4,14 +4,16 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createAdminUsageRoutes } from './usage.js';
-import type { PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import express from 'express';
 import request from 'supertest';
 import { getAllRoutes } from '../../test/expressRouterUtils.js';
 
 // Mock logger
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({

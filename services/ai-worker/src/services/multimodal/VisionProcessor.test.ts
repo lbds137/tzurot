@@ -10,15 +10,15 @@ import {
   VISION_TERMINATE_CATEGORIES,
   FAILURE_LABELS,
 } from './VisionProcessor.js';
-import type { AttachmentMetadata, LoadedPersonality } from '@tzurot/common-types';
+import type { AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
+import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { AI_DEFAULTS, MODEL_DEFAULTS } from '@tzurot/common-types/constants/ai';
 import {
-  AI_DEFAULTS,
   ApiErrorCategory,
   ERROR_MESSAGES,
-  INTERVALS,
-  MODEL_DEFAULTS,
   VISION_FAILURE_CACHE_POLICY,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/constants/error';
+import { INTERVALS } from '@tzurot/common-types/constants/timing';
 
 /**
  * Factory function to create a mock LoadedPersonality with sensible defaults.

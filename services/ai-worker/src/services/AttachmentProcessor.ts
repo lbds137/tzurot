@@ -6,15 +6,13 @@
  * Extracted from ReferencedMessageFormatter for maintainability.
  */
 
-import {
-  createLogger,
-  type ReferencedMessage,
-  type LoadedPersonality,
-  CONTENT_TYPES,
-  RETRY_CONFIG,
-  AIProvider,
-  type SttDispatch,
-} from '@tzurot/common-types';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
+import { RETRY_CONFIG } from '@tzurot/common-types/constants/timing';
+import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { describeImage, transcribeAudio, type ProcessedAttachment } from './MultimodalProcessor.js';
 import type { VisionLoggingContext } from './multimodal/VisionProcessor.js';
 import { withRetry } from '../utils/retry.js';

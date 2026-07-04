@@ -18,13 +18,13 @@
  */
 
 import type { Message, Client } from 'discord.js';
+import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
+import { type StoredReferencedMessage } from '@tzurot/common-types/types/schemas/message';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import {
-  createLogger,
-  type StoredReferencedMessage,
-  type AttachmentMetadata,
   MessageLinkParser,
   type ParsedMessageLink,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/utils/messageLinkParser';
 import { buildMessageContent } from './MessageContentBuilder.js';
 
 const logger = createLogger('HistoryLinkResolver');

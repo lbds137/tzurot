@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { AIProvider } from '@tzurot/common-types';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
 import {
   ProviderRouter,
   detectVisionProvider,
@@ -18,8 +18,10 @@ import {
 import type { ApiKeyResolver, ApiKeyResolutionResult } from './ApiKeyResolver.js';
 
 // Mock logger via the shared common-types mock pattern
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({

@@ -10,8 +10,10 @@ import historyCommand from './index.js';
 const { data, execute, autocomplete, handleButton, handleModal } = historyCommand;
 
 // Mock common-types
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -126,8 +128,7 @@ describe('History Command Definition', () => {
   it('should have clear subcommand with correct options', () => {
     const json = data.toJSON();
     const clearSubcommand = json.options?.find((opt: { name: string }) => opt.name === 'clear') as
-      | { options?: Array<{ name: string; required?: boolean }> }
-      | undefined;
+      { options?: Array<{ name: string; required?: boolean }> } | undefined;
     expect(clearSubcommand).toBeDefined();
     expect(clearSubcommand?.options).toHaveLength(2);
     expect(clearSubcommand?.options?.[0]?.name).toBe('character');

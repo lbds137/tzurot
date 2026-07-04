@@ -5,7 +5,7 @@
  * to ensure correct behavior for each user's configuration.
  */
 
-import { getConfig } from '@tzurot/common-types';
+import { getConfig } from '@tzurot/common-types/config/config';
 import type { ModelConfig } from './types.js';
 
 const config = getConfig();

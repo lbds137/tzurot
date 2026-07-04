@@ -12,7 +12,8 @@
  */
 
 import { Client } from 'pg';
-import { createLogger, DATABASE_RECONNECT } from '@tzurot/common-types';
+import { DATABASE_RECONNECT } from '@tzurot/common-types/constants/timing';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import {
   isValidInvalidationEvent,
   type CacheInvalidationService,

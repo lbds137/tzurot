@@ -11,7 +11,7 @@
  * All placeholder matching is case-insensitive ({{Char}} is treated as {{char}}).
  */
 
-import { PLACEHOLDERS } from '@tzurot/common-types';
+import { PLACEHOLDERS } from '@tzurot/common-types/constants/message';
 
 /**
  * Escape all regex special characters in a string

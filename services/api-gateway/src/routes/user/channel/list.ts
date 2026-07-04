@@ -8,7 +8,8 @@
 
 import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, ListChannelSettingsResponseSchema } from '@tzurot/common-types';
+import { ListChannelSettingsResponseSchema } from '@tzurot/common-types/schemas/api/channel';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';

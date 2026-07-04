@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
-import type { PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createDbSyncRoute } from './dbSync.js';
 import type { RouteDeps } from '../routeDeps.js';
 
@@ -18,20 +18,30 @@ vi.mock('../../services/DatabaseSyncService.js', () => ({
 }));
 
 // Mock PrismaClient and getConfig
-vi.mock('@tzurot/common-types', async () => {
-  const actual =
-    await vi.importActual<typeof import('@tzurot/common-types')>('@tzurot/common-types');
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
+  return {
+    ...actual,
+    getConfig: () => ({
+      ...actual.getConfig(),
+      DEV_DATABASE_URL: 'postgresql://dev-url',
+      PROD_DATABASE_URL: 'postgresql://prod-url',
+    }),
+  };
+});
+
+vi.mock('@tzurot/common-types/services/prisma', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/services/prisma')>(
+    '@tzurot/common-types/services/prisma'
+  );
   return {
     ...actual,
     PrismaClient: class MockPrismaClient {
       $connect = vi.fn().mockResolvedValue(undefined);
       $disconnect = vi.fn().mockResolvedValue(undefined);
     },
-    getConfig: () => ({
-      ...actual.getConfig(),
-      DEV_DATABASE_URL: 'postgresql://dev-url',
-      PROD_DATABASE_URL: 'postgresql://prod-url',
-    }),
   };
 });
 

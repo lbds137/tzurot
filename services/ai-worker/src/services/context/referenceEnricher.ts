@@ -30,16 +30,16 @@
  * the worker enriches exactly the list it received.
  */
 
+import { type ConversationMessage } from '@tzurot/common-types/types/conversationMessage';
+import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import {
   appendVoiceTranscripts,
   buildDedupedReferenceStub,
   isBotAuthoredReference,
   isDuplicateReference,
   stripBotVoiceAttachments,
-  type ConversationMessage,
-  type ReferencedMessage,
   type TranscriptRetrieveFn,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/utils/referenceEnrichment';
 
 export interface EnrichRawReferencesParams {
   /** Pre-enrichment snapshots from the raw envelope, in wire order. */

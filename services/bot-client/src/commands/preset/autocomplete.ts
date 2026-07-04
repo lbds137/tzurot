@@ -4,16 +4,16 @@
  */
 
 import type { AutocompleteInteraction } from 'discord.js';
+import { isFreeModel } from '@tzurot/common-types/constants/ai';
+import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
+import { type LlmConfigSummary } from '@tzurot/common-types/schemas/api/llm-config';
 import {
-  createLogger,
-  DISCORD_LIMITS,
-  TTLCache,
   AUTOCOMPLETE_BADGES,
   formatAutocompleteOption,
-  isFreeModel,
-  type LlmConfigSummary,
   type AutocompleteBadge,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/utils/autocompleteFormat';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import {
   fetchTextModels,

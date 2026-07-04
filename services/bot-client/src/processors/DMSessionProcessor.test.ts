@@ -8,7 +8,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { ChannelType, Collection } from 'discord.js';
 import { DMSessionProcessor } from './DMSessionProcessor.js';
 import type { Message, DMChannel, Client } from 'discord.js';
-import type { LoadedPersonality } from '@tzurot/common-types';
+import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { InfraError } from '@tzurot/clients';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import type { PersonalityMessageHandler } from '../services/PersonalityMessageHandler.js';

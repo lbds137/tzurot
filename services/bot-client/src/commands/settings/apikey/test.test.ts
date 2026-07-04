@@ -5,15 +5,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { handleTestKey } from './test.js';
-import { AIProvider } from '@tzurot/common-types';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { mockTestWalletKeyResponse } from '@tzurot/test-factories';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
 import type { UserClient } from '@tzurot/clients';
 
 // Mock common-types
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({

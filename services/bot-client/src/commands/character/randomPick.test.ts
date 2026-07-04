@@ -6,15 +6,17 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { LoadedPersonality } from '@tzurot/common-types';
+import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
 const { mockLogger } = vi.hoisted(() => ({
   mockLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = (await importOriginal()) as Record<string, unknown>;
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => mockLogger,

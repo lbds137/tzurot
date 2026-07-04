@@ -4,7 +4,9 @@
  * Initialization and validation functions run during AI worker startup.
  */
 
-import { createLogger, getConfig, HealthStatus } from '@tzurot/common-types';
+import { getConfig } from '@tzurot/common-types/config/config';
+import { HealthStatus } from '@tzurot/common-types/constants/service';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getVoiceEngineClient } from './services/voice/VoiceEngineClient.js';
 
 const logger = createLogger('ai-worker');

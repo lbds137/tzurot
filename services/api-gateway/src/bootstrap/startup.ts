@@ -5,7 +5,9 @@
  */
 
 import { access, mkdir, readdir } from 'fs/promises';
-import { createLogger, getConfig, HealthStatus } from '@tzurot/common-types';
+import { getConfig } from '@tzurot/common-types/config/config';
+import { HealthStatus } from '@tzurot/common-types/constants/service';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('api-gateway');
 const envConfig = getConfig();

@@ -14,7 +14,7 @@
  * that voice-engine rejects with HTTP 400.
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { VoiceEngineClient, SynthesisResult } from './VoiceEngineClient.js';
 
 const logger = createLogger('ttsSynthesizer');

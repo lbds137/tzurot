@@ -37,8 +37,10 @@ const { mockGetOrCreateUser, mockGetOrCreateUserShell, mockResolveOverrides } = 
   }),
 }));
 
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -88,7 +90,7 @@ const mockPrisma = {
 
 import { createPersonalityConfigOverrideRoutes } from './personality-config-overrides.js';
 import { getRouteHandler, findRoute } from '../../test/expressRouterUtils.js';
-import type { PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 
 const TEST_DISCORD_USER_ID = 'discord-user-123';
 const TEST_PERSONALITY_ID = '00000000-0000-0000-0000-000000000003';

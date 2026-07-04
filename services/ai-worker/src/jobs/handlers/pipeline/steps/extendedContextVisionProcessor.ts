@@ -8,12 +8,10 @@
  * cross-provider case here.
  */
 
-import {
-  createLogger,
-  type AIProvider,
-  type AttachmentMetadata,
-  type SttDispatch,
-} from '@tzurot/common-types';
+import { type AIProvider } from '@tzurot/common-types/constants/ai';
+import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
+import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { ApiKeyResolver } from '../../../../services/ApiKeyResolver.js';
 import type { GenerationContext } from '../types.js';
 import type { ProcessedAttachment } from '../../../../services/MultimodalProcessor.js';

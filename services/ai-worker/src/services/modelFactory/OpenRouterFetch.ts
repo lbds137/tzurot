@@ -22,7 +22,7 @@
  * extraction without touching HTTP bytes.
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { extractApiReasoningContent } from '../../utils/thinkingExtraction.js';
 
 const logger = createLogger('ModelFactory');

@@ -9,13 +9,11 @@
  */
 
 import type { Redis } from 'ioredis';
-import {
-  createLogger,
-  REDIS_KEY_PREFIXES,
-  AI_DEFAULTS,
-  TTLCache,
-  type OpenRouterModel,
-} from '@tzurot/common-types';
+import { AI_DEFAULTS } from '@tzurot/common-types/constants/ai';
+import { REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
+import { type OpenRouterModel } from '@tzurot/common-types/types/ai';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
 
 const logger = createLogger('ModelCapabilityChecker');
 

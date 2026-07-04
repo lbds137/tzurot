@@ -19,13 +19,13 @@
  */
 
 import { type Response, type RequestHandler } from 'express';
+import { MessageRole } from '@tzurot/common-types/constants/message';
 import {
-  createLogger,
-  generateConversationHistoryUuid,
-  MessageRole,
   PersistUserMessageRequestSchema,
   type PersistUserMessageResponse,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/schemas/api/internal';
+import { generateConversationHistoryUuid } from '@tzurot/common-types/utils/deterministicUuid';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { ConversationHistoryService } from '@tzurot/conversation-history';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendCustomSuccess } from '../../utils/responseHelpers.js';

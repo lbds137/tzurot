@@ -9,8 +9,22 @@ import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
 import type { UserClient } from '@tzurot/clients';
 
 // Mock common-types
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
+  return {
+    ...actual,
+    getConfig: () => ({
+      GATEWAY_URL: 'http://localhost:3000',
+    }),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -18,9 +32,6 @@ vi.mock('@tzurot/common-types', async importOriginal => {
       info: vi.fn(),
       warn: vi.fn(),
       error: vi.fn(),
-    }),
-    getConfig: () => ({
-      GATEWAY_URL: 'http://localhost:3000',
     }),
   };
 });

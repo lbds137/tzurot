@@ -4,7 +4,9 @@
  */
 
 import { EmbedBuilder, escapeMarkdown } from 'discord.js';
-import { createLogger, DISCORD_COLORS, presetImportOptions } from '@tzurot/common-types';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { presetImportOptions } from '@tzurot/common-types/generated/commandOptions';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { UserClient } from '@tzurot/clients';
 import { clientsFor } from '../../utils/gatewayClients.js';

@@ -13,12 +13,10 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import {
-  createLogger,
-  DISCORD_COLORS,
-  AUTOCOMPLETE_BADGES,
-  type WalletKey,
-} from '@tzurot/common-types';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { type WalletKey } from '@tzurot/common-types/schemas/api/wallet';
+import { AUTOCOMPLETE_BADGES } from '@tzurot/common-types/utils/autocompleteFormat';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { clientsFor } from '../../../utils/gatewayClients.js';
 import { getProviderDisplayName } from '../../../utils/providers.js';

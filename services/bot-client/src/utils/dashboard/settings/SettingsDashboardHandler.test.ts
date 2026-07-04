@@ -19,7 +19,7 @@ import {
   parseSettingsCustomId,
 } from './types.js';
 import { EXTENDED_CONTEXT_SETTINGS } from './settingsConfig.js';
-import { DISCORD_COLORS } from '@tzurot/common-types';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 
 // Mock the session manager
 const mockSessionManager = {

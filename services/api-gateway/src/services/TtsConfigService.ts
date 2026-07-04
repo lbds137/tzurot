@@ -25,21 +25,19 @@
  * - Single source of truth for validation, defaults, and DB operations
  */
 
+import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
 import {
-  Prisma,
-  type PrismaClient,
   type TtsConfigCreateInput,
   type TtsConfigUpdateInput,
   TTS_CONFIG_LIST_SELECT,
   TTS_CONFIG_DETAIL_SELECT,
   TTS_CONFIG_DEFAULTS,
-  ADMIN_SETTINGS_SINGLETON_ID,
-  newTtsConfigId,
-  generateClonedName,
-  stripCopySuffix,
-  isTtsProviderId,
-  createLogger,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/schemas/api/tts-config';
+import { Prisma, type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { isTtsProviderId } from '@tzurot/common-types/services/tts/TtsProvider';
+import { newTtsConfigId } from '@tzurot/common-types/utils/deterministicUuid';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { generateClonedName, stripCopySuffix } from '@tzurot/common-types/utils/presetCloneName';
 import { type TtsConfigCacheInvalidationService } from '@tzurot/cache-invalidation';
 
 import { isPrismaUniqueConstraintErrorOn } from '../utils/prismaErrors.js';

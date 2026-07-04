@@ -6,18 +6,39 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ChannelType, type Message } from 'discord.js';
-import { type LoadedPersonality, MULTI_TAG } from '@tzurot/common-types';
+import { MULTI_TAG } from '@tzurot/common-types/constants/message';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { InfraError, GatewayClientError } from '@tzurot/clients';
 import { PersonalityTriggerProcessor } from './PersonalityTriggerProcessor.js';
 
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal();
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
   return {
-    ...(actual as Record<string, unknown>),
-    createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
+    ...actual,
     getConfig: () => ({ BOT_MENTION_CHAR: '@' }),
+  };
+});
+
+vi.mock('@tzurot/common-types/types/discord-types', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/types/discord-types')>(
+    '@tzurot/common-types/types/discord-types'
+  );
+  return {
+    ...actual,
     isTypingChannel: (channel: { type?: number }) =>
       channel.type === ChannelType.GuildText || channel.type === ChannelType.DM,
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
+    createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
   };
 });
 

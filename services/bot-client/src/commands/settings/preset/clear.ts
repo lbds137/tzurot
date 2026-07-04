@@ -3,7 +3,9 @@
  * Handles /settings preset clear subcommand
  */
 
-import { createLogger, settingsPresetClearOptions, toConfigKind } from '@tzurot/common-types';
+import { settingsPresetClearOptions } from '@tzurot/common-types/generated/commandOptions';
+import { toConfigKind } from '@tzurot/common-types/services/LlmConfigMapper';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import {
   AUTOCOMPLETE_UNAVAILABLE_MESSAGE,

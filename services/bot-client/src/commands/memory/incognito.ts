@@ -12,15 +12,17 @@
 
 import { escapeMarkdown } from 'discord.js';
 import {
-  createLogger,
-  getDurationLabel,
-  IncognitoForgetRequestSchema,
   memoryIncognitoEnableOptions,
   memoryIncognitoDisableOptions,
   memoryIncognitoForgetOptions,
+} from '@tzurot/common-types/generated/commandOptions';
+import { type IncognitoSessionWithRemaining } from '@tzurot/common-types/schemas/api/memoryIncognito';
+import {
+  getDurationLabel,
+  IncognitoForgetRequestSchema,
   type IncognitoDuration,
-  type IncognitoSessionWithRemaining,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/incognito';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
   AUTOCOMPLETE_UNAVAILABLE_MESSAGE,

@@ -26,23 +26,47 @@ vi.mock('fs/promises', () => ({
 }));
 
 // Mock Prisma client
-vi.mock('@tzurot/common-types', () => ({
-  createPrismaClient: () => ({
-    prisma: {
-      personality: {
-        findMany: mockFindMany,
+vi.mock('@tzurot/common-types/services/poolConfig', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/services/poolConfig')>(
+    '@tzurot/common-types/services/poolConfig'
+  );
+  return {
+    ...actual,
+    DB_POOL_DEFAULTS: { TRANSIENT_MAX: 5 },
+  };
+});
+
+vi.mock('@tzurot/common-types/services/prisma', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/services/prisma')>(
+    '@tzurot/common-types/services/prisma'
+  );
+  return {
+    ...actual,
+    createPrismaClient: () => ({
+      prisma: {
+        personality: {
+          findMany: mockFindMany,
+        },
       },
-    },
-    dispose: mockDispose,
-  }),
-  DB_POOL_DEFAULTS: { TRANSIENT_MAX: 5 },
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-}));
+      dispose: mockDispose,
+    }),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
+    createLogger: () => ({
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+    }),
+  };
+});
 
 import { syncAvatars } from './sync-avatars.js';
 

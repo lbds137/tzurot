@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Prisma } from '@tzurot/common-types';
+import { Prisma } from '@tzurot/common-types/services/prisma';
 
 const { mockLogger } = vi.hoisted(() => ({
   mockLogger: {
@@ -10,8 +10,10 @@ const { mockLogger } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => mockLogger,

@@ -14,15 +14,15 @@
  */
 
 import { EmbedBuilder, escapeMarkdown } from 'discord.js';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { voiceViewOptions } from '@tzurot/common-types/generated/commandOptions';
+import { type TtsResolutionSource } from '@tzurot/common-types/schemas/api/voice-resolution';
 import {
-  createLogger,
-  DISCORD_COLORS,
-  voiceViewOptions,
   sttProviderDisplayName,
   isSttProvider,
   type SttResolutionSource,
-  type TtsResolutionSource,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/sttProvider';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
   AUTOCOMPLETE_UNAVAILABLE_MESSAGE,

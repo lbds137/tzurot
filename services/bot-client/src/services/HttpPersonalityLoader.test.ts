@@ -8,7 +8,7 @@ vi.mock('../utils/gatewayClients.js', () => ({
   getServiceClient: () => mockServiceClient,
 }));
 
-import { TIMEOUTS } from '@tzurot/common-types';
+import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
 import { InfraError, GatewayClientError } from '@tzurot/clients';
 import { HttpPersonalityLoader, NEGATIVE_TTL_MS } from './HttpPersonalityLoader.js';
 

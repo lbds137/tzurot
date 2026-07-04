@@ -5,14 +5,11 @@
  */
 
 import { Queue, QueueEvents, FlowProducer } from 'bullmq';
-import {
-  createLogger,
-  getConfig,
-  TIMEOUTS,
-  QUEUE_CONFIG,
-  parseRedisUrl,
-  createBullMQRedisConfig,
-} from '@tzurot/common-types';
+import { getConfig } from '@tzurot/common-types/config/config';
+import { QUEUE_CONFIG } from '@tzurot/common-types/constants/queue';
+import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { parseRedisUrl, createBullMQRedisConfig } from '@tzurot/common-types/utils/redis';
 
 const logger = createLogger('Queue');
 const config = getConfig();

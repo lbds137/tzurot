@@ -21,7 +21,8 @@ import {
   type StringSelectMenuInteraction,
   type Guild,
 } from 'discord.js';
-import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
   buildBrowseButtons,

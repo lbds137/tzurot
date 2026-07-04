@@ -11,12 +11,9 @@
  */
 
 import { z } from 'zod';
-import {
-  AI_ENDPOINTS,
-  TTS_VOICE_NAME_PREFIX,
-  VALIDATION_TIMEOUTS,
-  createLogger,
-} from '@tzurot/common-types';
+import { AI_ENDPOINTS, TTS_VOICE_NAME_PREFIX } from '@tzurot/common-types/constants/ai';
+import { VALIDATION_TIMEOUTS } from '@tzurot/common-types/constants/timing';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type ErrorResponse, ErrorResponses } from './errorResponses.js';
 import { fetchFromElevenLabs } from './elevenLabsFetch.js';
 

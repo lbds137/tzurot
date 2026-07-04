@@ -16,7 +16,8 @@
  */
 
 import type { Response } from 'express';
-import { DEFAULT_CONFIG_KIND, toConfigKind, type ConfigKind } from '@tzurot/common-types';
+import { DEFAULT_CONFIG_KIND, type ConfigKind } from '@tzurot/common-types/constants/ai';
+import { toConfigKind } from '@tzurot/common-types/services/LlmConfigMapper';
 import { sendError } from './responseHelpers.js';
 import { ErrorResponses } from './errorResponses.js';
 import { validateModelAndContextWindow } from './modelValidation.js';

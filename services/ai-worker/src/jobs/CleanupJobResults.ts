@@ -7,7 +7,8 @@
  * Called occasionally when publishing new job results (probabilistic approach).
  */
 
-import { type PrismaClient, createLogger } from '@tzurot/common-types';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('CleanupJobResults');
 

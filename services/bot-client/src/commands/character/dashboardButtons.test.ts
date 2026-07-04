@@ -67,18 +67,38 @@ vi.mock('../../utils/dashboard/closeHandler.js', () => ({
   handleDashboardClose: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
   return {
     ...actual,
     getConfig: () => ({ GATEWAY_URL: 'http://localhost:3000' }),
-    isBotOwner: () => false,
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
     createLogger: () => ({
       info: vi.fn(),
       warn: vi.fn(),
       error: vi.fn(),
       debug: vi.fn(),
     }),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/ownerMiddleware', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/ownerMiddleware')>(
+    '@tzurot/common-types/utils/ownerMiddleware'
+  );
+  return {
+    ...actual,
+    isBotOwner: () => false,
   };
 });
 

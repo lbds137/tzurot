@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { INTERVALS } from '@tzurot/common-types';
+import { INTERVALS } from '@tzurot/common-types/constants/timing';
 import {
   shouldNotifyUser,
   _resetNotificationCacheForTesting,

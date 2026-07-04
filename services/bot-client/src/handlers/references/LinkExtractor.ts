@@ -15,7 +15,8 @@ import {
   ChannelType,
   PermissionsBitField,
 } from 'discord.js';
-import { createLogger, type ParsedMessageLink } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { type ParsedMessageLink } from '@tzurot/common-types/utils/messageLinkParser';
 
 const logger = createLogger('LinkExtractor');
 

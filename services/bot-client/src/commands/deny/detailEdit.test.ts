@@ -4,11 +4,22 @@ import { DiscordAPIError } from 'discord.js';
 import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
 import { makeOk, makeErr, asOwnerClient } from '../../test/gatewayClientStubs.js';
 
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/constants/discord', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/constants/discord')>(
+    '@tzurot/common-types/constants/discord'
+  );
   return {
     ...actual,
     DISCORD_COLORS: { ERROR: 0xff0000, WARNING: 0xffaa00 },
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
     createLogger: vi.fn(() => ({
       info: vi.fn(),
       error: vi.fn(),

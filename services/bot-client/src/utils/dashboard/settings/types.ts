@@ -6,7 +6,7 @@
  */
 
 import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
-import type { ConfigOverrideSource } from '@tzurot/common-types';
+import type { ConfigOverrideSource } from '@tzurot/common-types/schemas/api/configOverrides';
 
 /**
  * Setting type determines the UI pattern used

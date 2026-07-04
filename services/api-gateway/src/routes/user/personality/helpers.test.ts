@@ -3,15 +3,17 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { ProvisionedRequest } from '../../../types.js';
 
 // Mock isBotOwner - must be before vi.mock to be hoisted
 const mockIsBotOwner = vi.fn().mockReturnValue(false);
 
 // Mock dependencies before imports
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/ownerMiddleware', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/ownerMiddleware')>(
+    '@tzurot/common-types/utils/ownerMiddleware'
+  );
   return {
     ...actual,
     isBotOwner: (...args: unknown[]) => mockIsBotOwner(...args),

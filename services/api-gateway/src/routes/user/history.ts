@@ -13,14 +13,14 @@
 import { Router, type Response, type Request, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
-  createLogger,
-  type PrismaClient,
-  generateUserPersonaHistoryConfigUuid,
   ClearHistorySchema,
   UndoHistorySchema,
   HardDeleteHistorySchema,
   HistoryStatsQuerySchema,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/schemas/api/history';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { generateUserPersonaHistoryConfigUuid } from '@tzurot/common-types/utils/deterministicUuid';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import {
   ConversationHistoryService,
   ConversationRetentionService,

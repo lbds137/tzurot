@@ -24,35 +24,59 @@ vi.mock('@langchain/openai', () => ({
 }));
 
 // Mock @tzurot/common-types
-vi.mock('@tzurot/common-types', () => ({
-  createLogger: () => ({
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
-  getConfig: () => mockConfigData,
-  AIProvider: {
-    OpenRouter: 'openrouter',
-    ElevenLabs: 'elevenlabs',
-    ZaiCoding: 'zai-coding',
-  },
-  AI_DEFAULTS: {
-    MAX_TOKENS: 4096,
-    REASONING_MODEL_MAX_TOKENS: {
-      xhigh: 65536,
-      high: 32768,
-      medium: 16384,
-      low: 8192,
-      minimal: 6144,
-      none: 4096,
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
+  return {
+    ...actual,
+    getConfig: () => mockConfigData,
+  };
+});
+
+vi.mock('@tzurot/common-types/constants/ai', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/constants/ai')>(
+    '@tzurot/common-types/constants/ai'
+  );
+  return {
+    ...actual,
+    AIProvider: {
+      OpenRouter: 'openrouter',
+      ElevenLabs: 'elevenlabs',
+      ZaiCoding: 'zai-coding',
     },
-  },
-  AI_ENDPOINTS: {
-    OPENROUTER_BASE_URL: 'https://openrouter.ai/api/v1',
-    ZAI_CODING_BASE_URL: 'https://api.z.ai/api/coding/paas/v4',
-  },
-}));
+    AI_DEFAULTS: {
+      MAX_TOKENS: 4096,
+      REASONING_MODEL_MAX_TOKENS: {
+        xhigh: 65536,
+        high: 32768,
+        medium: 16384,
+        low: 8192,
+        minimal: 6144,
+        none: 4096,
+      },
+    },
+    AI_ENDPOINTS: {
+      OPENROUTER_BASE_URL: 'https://openrouter.ai/api/v1',
+      ZAI_CODING_BASE_URL: 'https://api.z.ai/api/coding/paas/v4',
+    },
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
+    createLogger: () => ({
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }),
+  };
+});
 
 // Mock reasoningModelUtils - control isReasoningModel per test
 const mockIsReasoningModel = vi.fn().mockReturnValue(false);
@@ -60,7 +84,7 @@ vi.mock('../utils/reasoningModelUtils.js', () => ({
   isReasoningModel: (modelName: string) => mockIsReasoningModel(modelName),
 }));
 
-import { AIProvider } from '@tzurot/common-types';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { createChatModel, type ModelConfig } from './ModelFactory.js';
 
 describe('ModelFactory', () => {

@@ -11,7 +11,9 @@
  * - Preserves memory integrity: never truncates individual memories
  */
 
-import { countTextTokens, createLogger, AI_DEFAULTS } from '@tzurot/common-types';
+import { AI_DEFAULTS } from '@tzurot/common-types/constants/ai';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
 import { formatSingleMemory, getMemoryWrapperOverheadText } from '../prompt/MemoryFormatter.js';
 import type { MemoryDocument } from '../ConversationalRAGTypes.js';
 import {

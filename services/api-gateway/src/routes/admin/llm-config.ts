@@ -14,15 +14,14 @@
 
 import { Router, type Response, type Request, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
+import { isFreeModel } from '@tzurot/common-types/constants/ai';
+import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
 import {
-  createLogger,
-  isFreeModel,
-  type PrismaClient,
-  ADMIN_SETTINGS_SINGLETON_ID,
-  // Shared schemas from common-types - single source of truth
   LlmConfigCreateSchema,
   LlmConfigUpdateSchema,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/schemas/api/llm-config';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';

@@ -6,7 +6,7 @@
  * an idempotent cleanup operation (safe if run multiple times).
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getVerificationCleanupService } from './VerificationCleanupService.js';
 
 const logger = createLogger('verification-cleanup-scheduler');

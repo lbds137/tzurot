@@ -21,11 +21,11 @@
 import {
   ApiErrorCategory,
   ApiErrorType,
-  createLogger,
-  MULTI_TAG,
   USER_ERROR_MESSAGES,
-  type LLMGenerationResult,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/constants/error';
+import { MULTI_TAG } from '@tzurot/common-types/constants/message';
+import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { buildErrorContent } from '../utils/buildErrorContent.js';
 import { pickNewDMActivePersonality } from './SlotResolver.js';
 import {

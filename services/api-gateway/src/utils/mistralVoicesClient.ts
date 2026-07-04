@@ -13,7 +13,9 @@
  */
 
 import { z } from 'zod';
-import { AI_ENDPOINTS, VALIDATION_TIMEOUTS, createLogger } from '@tzurot/common-types';
+import { AI_ENDPOINTS } from '@tzurot/common-types/constants/ai';
+import { VALIDATION_TIMEOUTS } from '@tzurot/common-types/constants/timing';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type ErrorResponse, ErrorResponses } from './errorResponses.js';
 
 const logger = createLogger('MistralVoicesClient');

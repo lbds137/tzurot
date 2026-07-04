@@ -22,13 +22,10 @@
  */
 
 import { QueueEvents } from 'bullmq';
-import {
-  createLogger,
-  getConfig,
-  parseRedisUrl,
-  createBullMQRedisConfig,
-  type LLMGenerationResult,
-} from '@tzurot/common-types';
+import { getConfig } from '@tzurot/common-types/config/config';
+import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { parseRedisUrl, createBullMQRedisConfig } from '@tzurot/common-types/utils/redis';
 import type { JobTracker } from './JobTracker.js';
 import type { MultiTagCoordinator } from './MultiTagCoordinator.js';
 import type { ResponseOrderingService } from './ResponseOrderingService.js';

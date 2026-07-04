@@ -6,7 +6,10 @@
  * ElevenLabs key (voice management, future TTS endpoints, etc.).
  */
 
-import { createLogger, decryptApiKey, AIProvider, type PrismaClient } from '@tzurot/common-types';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { decryptApiKey } from '@tzurot/common-types/utils/encryption';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type ErrorResponse, ErrorResponses } from './errorResponses.js';
 
 const logger = createLogger('ElevenLabsKeyResolver');

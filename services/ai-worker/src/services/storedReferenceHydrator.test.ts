@@ -4,18 +4,24 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { hydrateStoredReferences } from './storedReferenceHydrator.js';
-import type { StoredReferencedMessage } from '@tzurot/common-types';
+import type { StoredReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import type { RawHistoryEntry } from '../jobs/utils/conversationTypes.js';
 
 // Mock dependencies
-vi.mock('@tzurot/common-types', () => ({
-  createLogger: () => ({
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
-}));
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
+    createLogger: () => ({
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }),
+  };
+});
 
 const mockBatchResolveByDiscordIds = vi.fn();
 vi.mock('./reference/BatchResolvers.js', () => ({

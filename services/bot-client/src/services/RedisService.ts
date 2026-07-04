@@ -6,7 +6,9 @@
  */
 
 import type { Redis } from 'ioredis';
-import { createLogger, REDIS_KEY_PREFIXES, INTERVALS } from '@tzurot/common-types';
+import { REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
+import { INTERVALS } from '@tzurot/common-types/constants/timing';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('RedisService');
 

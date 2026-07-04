@@ -11,15 +11,15 @@
  */
 
 import type { Redis } from 'ioredis';
+import { REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
+import { INTERVALS } from '@tzurot/common-types/constants/timing';
 import {
-  createLogger,
-  REDIS_KEY_PREFIXES,
-  INTERVALS,
   type OpenRouterModel,
   type OpenRouterModelsResponse,
   type ModelAutocompleteOption,
   type ModelModality,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/ai';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('OpenRouterModelCache');
 

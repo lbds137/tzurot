@@ -9,7 +9,9 @@
 
 import { ZodError } from 'zod';
 
-import { createLogger, TTLCache, isTransientNetworkError } from '@tzurot/common-types';
+import { isTransientNetworkError } from '@tzurot/common-types/constants/error';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
 import { VoiceEngineError, type VoiceEngineClient } from './VoiceEngineClient.js';
 import { fetchVoiceReference } from './voiceReferenceHelper.js';
 

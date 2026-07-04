@@ -3,8 +3,9 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { AttachmentType } from '@tzurot/common-types';
-import type { AttachmentMetadata, StoredReferencedMessage } from '@tzurot/common-types';
+import { AttachmentType } from '@tzurot/common-types/constants/media';
+import type { AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
+import type { StoredReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import {
   buildAttachmentDescriptions,
   extractContentDescriptions,

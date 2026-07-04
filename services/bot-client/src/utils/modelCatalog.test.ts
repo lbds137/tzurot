@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { ModelAutocompleteOption } from '@tzurot/common-types';
+import type { ModelAutocompleteOption } from '@tzurot/common-types/types/ai';
 import { InfraError } from '@tzurot/clients';
 
 // Mock the OpenRouter fetch layer so tests control the OpenRouter side of the

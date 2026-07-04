@@ -4,7 +4,7 @@
  */
 
 import type { AutocompleteInteraction } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { handlePersonalityAutocomplete } from '../../utils/autocomplete/index.js';
 
 const logger = createLogger('channel-autocomplete');

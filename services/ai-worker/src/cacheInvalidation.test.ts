@@ -33,8 +33,10 @@ const mockCascadeResolver = {
   invalidateChannelCache: vi.fn(),
 };
 
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -132,7 +134,7 @@ vi.mock('@tzurot/identity', () => ({
 }));
 
 import { setupCacheInvalidation } from './cacheInvalidation.js';
-import type { PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { Redis } from 'ioredis';
 
 describe('setupCacheInvalidation', () => {

@@ -25,7 +25,8 @@
 
 import { replyError } from '../../utils/dashboard/replyError.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
-import { isBotOwner, type EnvConfig } from '@tzurot/common-types';
+import { type EnvConfig } from '@tzurot/common-types/config/config';
+import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import {
   type DashboardConfig,
   type DashboardContext,

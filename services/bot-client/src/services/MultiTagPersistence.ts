@@ -19,7 +19,9 @@
  */
 
 import type { Redis } from 'ioredis';
-import { createLogger, MULTI_TAG, REDIS_KEY_PREFIXES } from '@tzurot/common-types';
+import { MULTI_TAG } from '@tzurot/common-types/constants/message';
+import { REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { SlotSource } from './SlotResolver.js';
 
 const logger = createLogger('MultiTagPersistence');

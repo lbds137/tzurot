@@ -5,8 +5,10 @@ const mockGetCrossChannelHistory = vi.hoisted(() => vi.fn());
 const mockGetMessageByDiscordId = vi.hoisted(() => vi.fn());
 const mockGetUserTimezone = vi.hoisted(() => vi.fn());
 
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() }),
@@ -28,7 +30,8 @@ vi.mock('@tzurot/identity', () => ({
 }));
 
 import { PrismaContextDataSource } from './PrismaContextDataSource.js';
-import { MessageRole, type PrismaClient } from '@tzurot/common-types';
+import { MessageRole } from '@tzurot/common-types/constants/message';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 
 const mockFindUnique = vi.fn();
 const mockUserFindUnique = vi.fn();

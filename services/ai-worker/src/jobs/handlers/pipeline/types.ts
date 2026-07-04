@@ -7,15 +7,13 @@
  */
 
 import type { Job } from 'bullmq';
-import type {
-  AIProvider,
-  AudioProviderId,
-  CrossChannelHistoryGroupEntry,
-  LLMGenerationJobData,
-  LLMGenerationResult,
-  ResolvedConfigOverrides,
-  SttDispatch,
-} from '@tzurot/common-types';
+import type { AIProvider } from '@tzurot/common-types/constants/ai';
+import type { ResolvedConfigOverrides } from '@tzurot/common-types/schemas/api/configOverrides';
+import type { AudioProviderId } from '@tzurot/common-types/types/audio-provider';
+import type { LLMGenerationJobData } from '@tzurot/common-types/types/jobs';
+import type { LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
+import type { CrossChannelHistoryGroupEntry } from '@tzurot/common-types/types/schemas/message';
+import type { SttDispatch } from '@tzurot/common-types/types/sttProvider';
 import type { BaseMessage } from '@langchain/core/messages';
 import type { DiagnosticCollector } from '../../../services/DiagnosticCollector.js';
 import type { ProcessedAttachment } from '../../../services/MultimodalProcessor.js';

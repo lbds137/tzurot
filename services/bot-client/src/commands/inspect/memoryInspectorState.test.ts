@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { ButtonStyle, type APIButtonComponentWithCustomId } from 'discord.js';
-import type { DiagnosticMemoryEntry } from '@tzurot/common-types';
+import type { DiagnosticMemoryEntry } from '@tzurot/common-types/types/diagnostic';
 import {
   applyMemoryFilter,
   applySort,

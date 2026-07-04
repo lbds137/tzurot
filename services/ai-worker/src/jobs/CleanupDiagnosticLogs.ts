@@ -8,7 +8,8 @@
  * They capture full LLM request/response data for debugging prompt issues.
  */
 
-import { createLogger, type PrismaClient } from '@tzurot/common-types';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('cleanup-diagnostic-logs');
 

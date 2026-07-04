@@ -19,7 +19,7 @@ import { replacePromptPlaceholders } from './promptPlaceholders.js';
 export { LOCAL_EMBEDDING_DIMENSIONS as EMBEDDING_DIMENSION } from '@tzurot/embeddings';
 
 // Re-export shared memory UUID utilities from common-types (single source of truth)
-export { hashContent, deterministicMemoryUuid } from '@tzurot/common-types';
+export { hashContent, deterministicMemoryUuid } from '@tzurot/common-types/constants/memory';
 
 /**
  * Type guard to validate a string ID is present and non-empty

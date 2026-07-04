@@ -6,7 +6,7 @@
  */
 
 import { XMLParser } from 'fast-xml-parser';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('xmlTextExtractor');
 

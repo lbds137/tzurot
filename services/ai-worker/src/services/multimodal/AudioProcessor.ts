@@ -10,17 +10,12 @@
  * Includes Redis caching for faster repeated access.
  */
 
-import {
-  createLogger,
-  TIMEOUTS,
-  isTransientNetworkError,
-  isTimeoutError,
-  TimeoutError,
-  AudioTooLongError,
-  type AttachmentMetadata,
-  type SttDispatch,
-  type SttProvider,
-} from '@tzurot/common-types';
+import { isTransientNetworkError } from '@tzurot/common-types/constants/error';
+import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
+import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
+import { type SttDispatch, type SttProvider } from '@tzurot/common-types/types/sttProvider';
+import { isTimeoutError, TimeoutError, AudioTooLongError } from '@tzurot/common-types/utils/errors';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { withRetry, RetryError } from '../../utils/retry.js';
 import { validateAttachmentUrl, isDataUrl } from '../../utils/attachmentFetch.js';
 import {

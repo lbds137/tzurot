@@ -4,11 +4,13 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { mapShapesConfigToPersonality, parseBirthday } from './ShapesPersonalityMapper.js';
-import type { ShapesIncPersonalityConfig } from '@tzurot/common-types';
+import type { ShapesIncPersonalityConfig } from '@tzurot/common-types/types/shapes-import';
 
 // Mock common-types
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({

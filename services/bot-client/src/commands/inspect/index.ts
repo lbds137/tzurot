@@ -16,7 +16,8 @@ import {
   type ButtonInteraction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
-import { createLogger, inspectOptions } from '@tzurot/common-types';
+import { inspectOptions } from '@tzurot/common-types/generated/commandOptions';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { defineCommand } from '../../utils/defineCommand.js';
 import type {
   SafeCommandContext,

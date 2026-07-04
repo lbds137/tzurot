@@ -10,8 +10,10 @@ import {
 // Mock isBotOwner so we can flip between bot-owner and regular-user identities
 // independent of process env. The actual `normalizeSlugForUser` is fully tested
 // in common-types; here we focus on the route-level decision logic that wraps it.
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/slugUtils', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/slugUtils')>(
+    '@tzurot/common-types/utils/slugUtils'
+  );
   return {
     ...actual,
     normalizeSlugForUser: (slug: string, _id: string, username: string): string => {

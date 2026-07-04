@@ -5,7 +5,8 @@
  * Handles base64 avatar decoding, optimization via sharp, and error wrapping.
  */
 
-import { createLogger, AVATAR_LIMITS } from '@tzurot/common-types';
+import { AVATAR_LIMITS } from '@tzurot/common-types/constants/media';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { optimizeAvatar } from './imageProcessor.js';
 import { ErrorResponses, type ErrorResponse } from './errorResponses.js';
 

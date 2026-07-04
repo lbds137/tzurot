@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { type PrismaClient } from '@tzurot/common-types';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { classifyDbTimeout, withDeadConnRetry, applyFastPoolDeadConnRetry } from './dbTimeout.js';
 
 describe('classifyDbTimeout', () => {

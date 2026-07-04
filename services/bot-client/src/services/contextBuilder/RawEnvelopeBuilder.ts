@@ -10,17 +10,21 @@
  */
 
 import type { Message } from 'discord.js';
+import { type ConversationMessage } from '@tzurot/common-types/types/conversationMessage';
+import {
+  type AttachmentMetadata,
+  type GuildMemberInfo,
+} from '@tzurot/common-types/types/schemas/discord';
 import {
   apiConversationMessageSchema,
-  type AttachmentMetadata,
-  type ConversationMessage,
-  type GuildMemberInfo,
+  type ReferencedMessage,
+} from '@tzurot/common-types/types/schemas/message';
+import {
   type RawAssemblyInputs,
   type RawDiscordUser,
-  type ReferencedMessage,
   type RawMentionedChannel,
   type RawMentionedRole,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/schemas/rawEnvelope';
 import type { z } from 'zod';
 import type { ExtendedContextUser, FetchResult } from '../channelFetcher/types.js';
 import { VoiceMessageProcessor } from '../../processors/VoiceMessageProcessor.js';

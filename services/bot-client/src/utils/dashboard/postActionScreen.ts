@@ -9,7 +9,7 @@
 // `{ kind: 'error', content: ... }` on failure.
 
 import type { ButtonInteraction } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { renderTerminalScreen, type TerminalScreenSession } from './terminalScreen.js';
 import { getBrowseRebuilder } from './browseRebuilderRegistry.js';
 import { getSessionManager } from './SessionManager.js';
@@ -30,8 +30,7 @@ const logger = createLogger('postActionScreen');
  *   message to render as the terminal screen body.
  */
 export type PostActionOutcome =
-  | { kind: 'success'; banner: string }
-  | { kind: 'error'; content: string };
+  { kind: 'success'; banner: string } | { kind: 'error'; content: string };
 
 export interface PostActionScreenOptions {
   /** Already-deferred button interaction. */

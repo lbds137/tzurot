@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SHAPES_SESSION_COOKIE_NAME } from '@tzurot/common-types';
+import { SHAPES_SESSION_COOKIE_NAME } from '@tzurot/common-types/types/shapes-import';
 import { updateCookieFromResponse } from './shapesCookieParser.js';
 
 /**

@@ -25,12 +25,10 @@
 
 import { Router, type RequestHandler, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import {
-  createLogger,
-  Prisma,
-  generateUserPersonalityConfigUuid,
-  FocusModeSchema,
-} from '@tzurot/common-types';
+import { FocusModeSchema } from '@tzurot/common-types/schemas/api/memory';
+import { Prisma } from '@tzurot/common-types/services/prisma';
+import { generateUserPersonalityConfigUuid } from '@tzurot/common-types/utils/deterministicUuid';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { RouteDeps } from '../routeDeps.js';
 import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';

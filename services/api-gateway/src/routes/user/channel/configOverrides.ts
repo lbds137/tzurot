@@ -17,12 +17,10 @@
 
 import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import {
-  createLogger,
-  generateChannelSettingsUuid,
-  isValidDiscordId,
-  Prisma,
-} from '@tzurot/common-types';
+import { isValidDiscordId } from '@tzurot/common-types/constants/discord';
+import { Prisma } from '@tzurot/common-types/services/prisma';
+import { generateChannelSettingsUuid } from '@tzurot/common-types/utils/deterministicUuid';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import {

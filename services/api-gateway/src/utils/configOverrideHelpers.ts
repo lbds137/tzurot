@@ -7,7 +7,8 @@
  */
 
 import type { Response } from 'express';
-import { Prisma, createLogger } from '@tzurot/common-types';
+import { Prisma } from '@tzurot/common-types/services/prisma';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { mergeConfigOverrides } from './configOverrideMerge.js';
 import { sendError } from './responseHelpers.js';
 import { ErrorResponses } from './errorResponses.js';

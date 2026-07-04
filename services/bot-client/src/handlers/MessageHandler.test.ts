@@ -9,7 +9,7 @@ import { MessageType } from 'discord.js';
 import { MessageHandler } from './MessageHandler.js';
 import type { IMessageProcessor } from '../processors/IMessageProcessor.js';
 import type { Message } from 'discord.js';
-import type { LLMGenerationResult } from '@tzurot/common-types';
+import type { LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
 import type { DiscordResponseSender } from '../services/DiscordResponseSender.js';
 import type { ConversationPersistence } from '../services/ConversationPersistence.js';
 import type { JobTracker } from '../services/JobTracker.js';

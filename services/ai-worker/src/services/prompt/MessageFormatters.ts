@@ -5,7 +5,8 @@
  * Extracted from PromptBuilder to reduce file size.
  */
 
-import { escapeXml, escapeXmlContent } from '@tzurot/common-types';
+import { escapeXmlContent } from '@tzurot/common-types/utils/promptSanitizer';
+import { escapeXml } from '@tzurot/common-types/utils/xmlBuilder';
 
 /**
  * Build disambiguated display name when persona name matches personality name.

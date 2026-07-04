@@ -7,7 +7,8 @@
  */
 
 import type { Message, SendableChannels } from 'discord.js';
-import { createLogger, getConfig } from '@tzurot/common-types';
+import { getConfig } from '@tzurot/common-types/config/config';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { IMessageProcessor } from './IMessageProcessor.js';
 import { handleNsfwVerification, sendVerificationConfirmation } from '../utils/nsfwVerification.js';
 

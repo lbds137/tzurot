@@ -14,7 +14,11 @@
  * each test starts with a fresh registry. Use it in `beforeEach`.
  */
 
-import { type TtsProvider, type TtsProviderId, createLogger } from '@tzurot/common-types';
+import {
+  type TtsProvider,
+  type TtsProviderId,
+} from '@tzurot/common-types/services/tts/TtsProvider';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { TtsProviderRegistry } from './TtsDispatcher.js';
 import { ElevenLabsTtsProvider } from './providers/ElevenLabsTtsProvider.js';
 import { MistralTtsProvider } from './providers/MistralTtsProvider.js';

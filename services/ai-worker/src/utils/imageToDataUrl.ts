@@ -13,7 +13,7 @@
  * DownloadAttachmentsStep.
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import {
   validateAttachmentUrl,
   fetchAttachmentBytes,

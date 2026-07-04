@@ -4,13 +4,17 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Job } from 'bullmq';
-import { JobType, type LLMGenerationJobData, type LoadedPersonality } from '@tzurot/common-types';
+import { JobType } from '@tzurot/common-types/constants/queue';
+import { type LLMGenerationJobData } from '@tzurot/common-types/types/jobs';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { ValidationStep } from './ValidationStep.js';
 import type { GenerationContext } from '../types.js';
 
 // Mock common-types logger
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({

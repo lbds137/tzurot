@@ -12,22 +12,51 @@ import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js'
 import { makeOk, makeErr, asOwnerClient } from '../../test/gatewayClientStubs.js';
 
 // Mock dependencies
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/constants/discord', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/constants/discord')>(
+    '@tzurot/common-types/constants/discord'
+  );
   return {
     ...actual,
-    isBotOwner: vi.fn(),
     DISCORD_COLORS: { ERROR: 0xff0000 },
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/dateFormatting', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/dateFormatting')>(
+    '@tzurot/common-types/utils/dateFormatting'
+  );
+  return {
+    ...actual,
     formatDateShort: vi.fn((date: string | Date) => {
       const d = typeof date === 'string' ? new Date(date) : date;
       return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
     }),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
     createLogger: vi.fn(() => ({
       info: vi.fn(),
       error: vi.fn(),
       debug: vi.fn(),
       warn: vi.fn(),
     })),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/ownerMiddleware', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/ownerMiddleware')>(
+    '@tzurot/common-types/utils/ownerMiddleware'
+  );
+  return {
+    ...actual,
+    isBotOwner: vi.fn(),
   };
 });
 
@@ -138,7 +167,7 @@ vi.mock('./detail.js', () => ({
   showDetailView: vi.fn(),
 }));
 
-import { isBotOwner } from '@tzurot/common-types';
+import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import { requireBotOwnerContext } from '../../utils/commandContext/index.js';
 import { showDetailView } from './detail.js';
 

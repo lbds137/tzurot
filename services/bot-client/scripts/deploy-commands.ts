@@ -12,7 +12,7 @@
 import { config as loadDotenv } from 'dotenv';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { getConfig } from '@tzurot/common-types';
+import { getConfig } from '@tzurot/common-types/config/config';
 import { deployCommands } from '../src/utils/deployCommands.js';
 
 // Load .env from monorepo root (two levels up from this script)

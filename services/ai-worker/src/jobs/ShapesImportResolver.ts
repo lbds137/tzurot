@@ -9,12 +9,10 @@
  *   3. Shapes.inc UUID via customFields.shapesId (canonical match)
  */
 
-import {
-  createLogger,
-  isBotOwner,
-  type PrismaClient,
-  type ShapesIncPersonalityConfig,
-} from '@tzurot/common-types';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { type ShapesIncPersonalityConfig } from '@tzurot/common-types/types/shapes-import';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import { createFullPersonality } from './ShapesImportHelpers.js';
 
 const logger = createLogger('ShapesImportResolver');

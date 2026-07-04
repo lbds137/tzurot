@@ -8,13 +8,9 @@
  */
 
 import { EmbedBuilder, type AutocompleteInteraction } from 'discord.js';
-import {
-  createLogger,
-  DISCORD_COLORS,
-  DISCORD_LIMITS,
-  isAudioProviderId,
-  type AudioProviderId,
-} from '@tzurot/common-types';
+import { DISCORD_COLORS, DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
+import { isAudioProviderId, type AudioProviderId } from '@tzurot/common-types/types/audio-provider';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { clientsFor } from '../../../utils/gatewayClients.js';
 import { getCachedVoices, setCachedVoices, invalidateVoiceCache } from './voiceCache.js';

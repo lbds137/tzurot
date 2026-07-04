@@ -11,20 +11,20 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AIJobProcessor } from './AIJobProcessor.js';
 import type { Job } from 'bullmq';
-import type { PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { ConversationalRAGService } from '../services/ConversationalRAGService.js';
 import type { ApiKeyResolver } from '../services/ApiKeyResolver.js';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
+import { JobType } from '@tzurot/common-types/constants/queue';
 import {
-  AIProvider,
-  JobType,
-  CONTENT_TYPES,
   type AudioTranscriptionJobData,
   type ImageDescriptionJobData,
   type LLMGenerationJobData,
   type AnyJobData,
   type AudioTranscriptionResult,
   type ImageDescriptionResult,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/jobs';
 
 // Mock modules
 vi.mock('../redis.js', () => ({
@@ -757,7 +757,8 @@ describe('AIJobProcessor', () => {
         const job = createMockJob(jobDataWithTriggerMessageId, 'llm-job-123');
 
         const result = await processor.processJob(job);
-        const llmResult = result as import('@tzurot/common-types').LLMGenerationResult;
+        const llmResult =
+          result as import('@tzurot/common-types/types/schemas/generation').LLMGenerationResult;
 
         expect(llmResult.success).toBe(false);
         expect(llmResult.error).toBe('Duplicate message - already processed');

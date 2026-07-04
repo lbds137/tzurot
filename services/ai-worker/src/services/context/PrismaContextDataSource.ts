@@ -10,12 +10,12 @@
  * wrapper).
  */
 
+import { MessageRole } from '@tzurot/common-types/constants/message';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import {
-  MessageRole,
   type ConversationMessage,
   type CrossChannelHistoryGroup,
-  type PrismaClient,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/conversationMessage';
 import { ConversationHistoryService } from '@tzurot/conversation-history';
 import { UserService } from '@tzurot/identity';
 import type {

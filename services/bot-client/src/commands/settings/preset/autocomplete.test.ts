@@ -5,12 +5,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { handleAutocomplete } from './autocomplete.js';
 import type { AutocompleteInteraction, User } from 'discord.js';
-import { type PersonalitySummary } from '@tzurot/common-types';
+import { type PersonalitySummary } from '@tzurot/common-types/schemas/api/personality';
 import { mockListWalletKeysResponse, mockLlmConfigSummary } from '@tzurot/test-factories';
 
 // Mock logger
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({

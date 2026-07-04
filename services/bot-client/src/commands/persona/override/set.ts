@@ -13,13 +13,11 @@
  */
 
 import { MessageFlags, ModalBuilder, type ModalSubmitInteraction } from 'discord.js';
-import {
-  createLogger,
-  DISCORD_LIMITS,
-  truncateText,
-  personaOverrideSetOptions,
-  API_ERROR_SUBCODE,
-} from '@tzurot/common-types';
+import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
+import { API_ERROR_SUBCODE } from '@tzurot/common-types/constants/error';
+import { personaOverrideSetOptions } from '@tzurot/common-types/generated/commandOptions';
+import { truncateText } from '@tzurot/common-types/utils/discord';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { ModalCommandContext } from '../../../utils/commandContext/types.js';
 import { CREATE_NEW_PERSONA_VALUE } from '../autocomplete.js';
 import { buildPersonaModalFields } from '../utils/modalBuilder.js';

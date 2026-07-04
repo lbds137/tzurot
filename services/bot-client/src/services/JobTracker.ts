@@ -6,7 +6,9 @@
  * Stores all context needed to handle async results (moved from MessageHandler).
  */
 
-import { createLogger, type TypingChannel, type LoadedPersonality } from '@tzurot/common-types';
+import { type TypingChannel } from '@tzurot/common-types/types/discord-types';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { Message } from 'discord.js';
 import { sendTypingIndicator } from '../utils/typingErrorClassifier.js';
 import type { ResponseOrderingService } from './ResponseOrderingService.js';

@@ -8,7 +8,7 @@
 
 import type { Client } from 'discord.js';
 import type { Redis } from 'ioredis';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isTextBasedMessageChannel } from '../utils/discordChannelTypes.js';
 import {
   getPendingVerificationMessages,

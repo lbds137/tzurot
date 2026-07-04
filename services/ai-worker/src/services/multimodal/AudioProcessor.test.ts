@@ -5,13 +5,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { transcribeAudio } from './AudioProcessor.js';
 import { VoiceEngineError } from '../voice/VoiceEngineClient.js';
-import {
-  CONTENT_TYPES,
-  TIMEOUTS,
-  TimeoutError,
-  AudioTooLongError,
-  type AttachmentMetadata,
-} from '@tzurot/common-types';
+import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
+import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
+import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
+import { TimeoutError, AudioTooLongError } from '@tzurot/common-types/utils/errors';
 
 // Create mock functions
 const mockVoiceTranscriptCacheGet = vi.fn().mockResolvedValue(null);

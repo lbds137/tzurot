@@ -7,7 +7,8 @@
  * - Deferred memory storage (for retry scenarios)
  */
 
-import { createLogger, type LoadedPersonality } from '@tzurot/common-types';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { LongTermMemoryService } from './LongTermMemoryService.js';
 import type { MemoryRetriever } from './MemoryRetriever.js';
 import type { ConversationContext, DeferredMemoryData } from './ConversationalRAGTypes.js';

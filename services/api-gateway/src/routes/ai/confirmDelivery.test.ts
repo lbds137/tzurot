@@ -6,7 +6,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
 import { handleAiConfirmDelivery } from './confirmDelivery.js';
-import type { PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 
 // Create mock Prisma client
 const createMockPrismaClient = () => ({

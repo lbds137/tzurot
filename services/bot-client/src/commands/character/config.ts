@@ -5,7 +5,8 @@
  * Organizes fields into logical sections that fit Discord's 5-field modal limit.
  */
 
-import { DISCORD_COLORS, DISCORD_LIMITS, formatDateShort } from '@tzurot/common-types';
+import { DISCORD_COLORS, DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
+import { formatDateShort } from '@tzurot/common-types/utils/dateFormatting';
 import {
   type DashboardConfig,
   type ActionButtonOptions,

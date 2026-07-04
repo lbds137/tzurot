@@ -8,7 +8,7 @@ import {
   ButtonStyle,
   type MessageActionRowComponentBuilder,
 } from 'discord.js';
-import type { DiagnosticMemoryEntry } from '@tzurot/common-types';
+import type { DiagnosticMemoryEntry } from '@tzurot/common-types/types/diagnostic';
 import { DebugViewType } from './types.js';
 import { INSPECT_PREFIX as PREFIX, INSPECT_DELIMITER as DELIMITER } from './constants.js';
 

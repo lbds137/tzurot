@@ -5,8 +5,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { processImageDescriptionJob } from './ImageDescriptionJob.js';
 import type { Job } from 'bullmq';
-import type { ImageDescriptionJobData, LoadedPersonality } from '@tzurot/common-types';
-import { JobType, CONTENT_TYPES, TIMEOUTS } from '@tzurot/common-types';
+import type { ImageDescriptionJobData } from '@tzurot/common-types/types/jobs';
+import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
+import { JobType } from '@tzurot/common-types/constants/queue';
+import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
 
 // Mirrors the module-level constant in ImageDescriptionJob.ts. Intentionally
 // kept as a copy so the test asserts the expected *contract* (vision uses 2

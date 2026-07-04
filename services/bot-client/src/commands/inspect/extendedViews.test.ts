@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { DiagnosticPayload, PipelineStep } from '@tzurot/common-types';
+import type { DiagnosticPayload, PipelineStep } from '@tzurot/common-types/types/diagnostic';
 import { buildPipelineHealthView, buildQuickCopySummaryView } from './extendedViews.js';
 import type { ViewContext } from './viewContext.js';
 

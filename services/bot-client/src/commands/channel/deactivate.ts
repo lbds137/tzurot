@@ -9,7 +9,7 @@
  * because the parent command uses deferralMode: 'ephemeral'.
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { requireManageMessagesContext } from '../../utils/permissions.js';

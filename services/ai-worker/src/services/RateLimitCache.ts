@@ -39,7 +39,9 @@
  */
 
 import type { Redis } from 'ioredis';
-import { ApiErrorCategory, CACHE_KEY_PREFIXES, createLogger } from '@tzurot/common-types';
+import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
+import { CACHE_KEY_PREFIXES } from '@tzurot/common-types/constants/redis-keys';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('RateLimitCache');
 

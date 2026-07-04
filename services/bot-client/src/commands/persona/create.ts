@@ -12,7 +12,8 @@
  */
 
 import { MessageFlags, ModalBuilder, type ModalSubmitInteraction } from 'discord.js';
-import { createLogger, API_ERROR_SUBCODE } from '@tzurot/common-types';
+import { API_ERROR_SUBCODE } from '@tzurot/common-types/constants/error';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { ModalCommandContext } from '../../utils/commandContext/types.js';
 import { buildPersonaModalFields } from './utils/modalBuilder.js';
 import { PersonaCustomIds } from '../../utils/customIds.js';

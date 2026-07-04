@@ -18,7 +18,7 @@
  * external tooling.
  */
 
-import { getConfig } from '@tzurot/common-types';
+import { getConfig } from '@tzurot/common-types/config/config';
 import { getValidatedServiceSecret } from '../startup.js';
 
 /**

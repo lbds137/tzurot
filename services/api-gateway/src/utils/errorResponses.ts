@@ -5,7 +5,7 @@
  * Eliminates duplicate error response code and provides type-safe error handling.
  */
 
-import { API_ERROR_SUBCODE } from '@tzurot/common-types';
+import { API_ERROR_SUBCODE } from '@tzurot/common-types/constants/error';
 import { ErrorCode, type ErrorResponse } from '../types.js';
 
 // Re-export for consumers that import from this module

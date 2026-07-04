@@ -80,11 +80,12 @@ vi.mock('../../utils/resolveProvisionedUserId.js', () => ({
   resolveProvisionedUserId: vi.fn(() => 'user-uuid-1'),
 }));
 
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
-    isBotOwner: vi.fn(() => false),
     createLogger: () => ({
       debug: vi.fn(),
       info: vi.fn(),
@@ -94,11 +95,21 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
+vi.mock('@tzurot/common-types/utils/ownerMiddleware', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/ownerMiddleware')>(
+    '@tzurot/common-types/utils/ownerMiddleware'
+  );
+  return {
+    ...actual,
+    isBotOwner: vi.fn(() => false),
+  };
+});
+
 // Imports must come after vi.mock setup
 const { createTtsConfigRoutes } = await import('./tts-config.js');
 const { TtsAutoSuffixCollisionError, TtsCloneNameExhaustedError, TtsInvalidProviderError } =
   await import('../../services/TtsConfigService.js');
-const { isBotOwner } = await import('@tzurot/common-types');
+const { isBotOwner } = await import('@tzurot/common-types/utils/ownerMiddleware');
 
 function makeMockRes() {
   const json = vi.fn();

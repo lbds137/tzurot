@@ -5,7 +5,8 @@
  * gateway client.
  */
 
-import { createLogger, type PersonaUpdateInput } from '@tzurot/common-types';
+import { type PersonaUpdateInput } from '@tzurot/common-types/schemas/api/persona';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { nullOn404, type UserClient } from '@tzurot/clients';
 import { DashboardUpdateError } from '../../utils/dashboard/saveError.js';
 import type { PersonaDetails, PersonaSummary } from './types.js';

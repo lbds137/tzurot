@@ -40,7 +40,9 @@
  *     empty list.
  */
 
-import { createLogger, TTLCache, type PersonalitySummary } from '@tzurot/common-types';
+import { type PersonalitySummary } from '@tzurot/common-types/schemas/api/personality';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
 import { type UserClient } from '@tzurot/clients';
 import { isTransientHttpStatus, type ApiCheck } from '../apiCheck.js';
 

@@ -23,7 +23,8 @@ import {
   type ButtonInteraction,
   type ModalSubmitInteraction,
 } from 'discord.js';
-import { createLogger, CONFIG_SLOT_OPTION_DESCRIPTION } from '@tzurot/common-types';
+import { CONFIG_SLOT_OPTION_DESCRIPTION } from '@tzurot/common-types/constants/ai';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { defineCommand } from '../../utils/defineCommand.js';
 import { createTypedSubcommandRouter } from '../../utils/subcommandRouter.js';
 import { createMixedModeSubcommandRouter } from '../../utils/mixedModeSubcommandRouter.js';

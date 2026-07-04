@@ -11,12 +11,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Response } from 'express';
 import type { Redis } from 'ioredis';
-import type { PrismaClient, BatchDeletePreviewInput } from '@tzurot/common-types';
+import type { BatchDeletePreviewInput } from '@tzurot/common-types/schemas/api/memory';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { ProvisionedRequest } from '../../types.js';
 import type { RouteDeps } from '../routeDeps.js';
 
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({

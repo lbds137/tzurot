@@ -17,7 +17,8 @@
  * `ModelFactory` from receiving a value that doesn't match any branch.
  */
 
-import { AIProvider, createLogger } from '@tzurot/common-types';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('providerValidation');
 

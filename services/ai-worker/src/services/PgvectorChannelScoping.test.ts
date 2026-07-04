@@ -13,18 +13,42 @@ import type { PgvectorMemoryDocument, MemoryQueryOptions } from './PgvectorTypes
 const VALID_CHANNEL_ID_1 = '123456789012345678';
 const VALID_CHANNEL_ID_2 = '234567890123456789';
 
-vi.mock('@tzurot/common-types', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    debug: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
-  AI_DEFAULTS: {
-    CHANNEL_MEMORY_BUDGET_RATIO: 0.5,
-  },
-  filterValidDiscordIds: (ids: string[]) => ids.filter(id => /^\d{17,19}$/.test(id)),
-}));
+vi.mock('@tzurot/common-types/constants/ai', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/constants/ai')>(
+    '@tzurot/common-types/constants/ai'
+  );
+  return {
+    ...actual,
+    AI_DEFAULTS: {
+      CHANNEL_MEMORY_BUDGET_RATIO: 0.5,
+    },
+  };
+});
+
+vi.mock('@tzurot/common-types/constants/discord', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/constants/discord')>(
+    '@tzurot/common-types/constants/discord'
+  );
+  return {
+    ...actual,
+    filterValidDiscordIds: (ids: string[]) => ids.filter(id => /^\d{17,19}$/.test(id)),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
+    createLogger: () => ({
+      info: vi.fn(),
+      debug: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }),
+  };
+});
 
 describe('waterfallMemoryQuery', () => {
   let mockQueryFn: QueryMemoriesFn & ReturnType<typeof vi.fn>;

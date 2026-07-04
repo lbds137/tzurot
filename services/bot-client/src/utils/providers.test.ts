@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { AIProvider } from '@tzurot/common-types';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { getProviderDisplayName } from './providers.js';
 
 describe('providers', () => {

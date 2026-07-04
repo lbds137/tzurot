@@ -3,7 +3,7 @@
  * Extracted from MessageContextBuilder for max-lines compliance.
  */
 
-import type { ResolvedExtendedContextSettings } from '@tzurot/common-types';
+import type { ResolvedExtendedContextSettings } from '@tzurot/common-types/schemas/api/adminSettings';
 import type { GuildMember, User } from 'discord.js';
 
 export interface ContextBuildOptions {

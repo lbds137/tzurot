@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { UserClient } from '@tzurot/clients';
-import { AIProvider } from '@tzurot/common-types';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { makeOk, makeErr } from '../../test/gatewayClientStubs.js';
 import { mockListWalletKeysResponse, mockListLlmConfigsResponse } from '@tzurot/test-factories';
 import {

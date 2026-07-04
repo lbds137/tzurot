@@ -10,13 +10,10 @@
  */
 
 import { EmbedBuilder, type ButtonInteraction, type StringSelectMenuInteraction } from 'discord.js';
-import {
-  createLogger,
-  type EnvConfig,
-  DISCORD_COLORS,
-  characterBrowseOptions,
-  getConfig,
-} from '@tzurot/common-types';
+import { type EnvConfig, getConfig } from '@tzurot/common-types/config/config';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { characterBrowseOptions } from '@tzurot/common-types/generated/commandOptions';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { UserClient } from '@tzurot/clients';
 import { clientsFor } from '../../utils/gatewayClients.js';

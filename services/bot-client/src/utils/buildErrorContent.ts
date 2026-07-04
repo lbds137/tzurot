@@ -9,8 +9,8 @@ import {
   formatPersonalityErrorMessage,
   formatErrorSpoiler,
   USER_ERROR_MESSAGES,
-  type LLMGenerationResult,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/constants/error';
+import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
 
 const DEFAULT_ERROR =
   'Sorry, I encountered an error generating a response. Please try again later.';

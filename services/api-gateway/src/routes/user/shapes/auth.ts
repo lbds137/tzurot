@@ -12,19 +12,19 @@
 
 import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
+import { StoreShapesAuthInputSchema } from '@tzurot/common-types/schemas/api/shapes';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import {
-  createLogger,
-  encryptApiKey,
-  type PrismaClient,
-  generateUserCredentialUuid,
   CREDENTIAL_SERVICES,
   CREDENTIAL_TYPES,
   SHAPES_SESSION_COOKIE_NAME,
   SHAPES_TOKEN_MIN_LENGTH,
   SHAPES_TOKEN_MAX_LENGTH,
   isPlausibleShapesTokenValue,
-  StoreShapesAuthInputSchema,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/shapes-import';
+import { generateUserCredentialUuid } from '@tzurot/common-types/utils/deterministicUuid';
+import { encryptApiKey } from '@tzurot/common-types/utils/encryption';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js';

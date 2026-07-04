@@ -15,7 +15,9 @@
  * Voice naming: "tzurot-{slug}" — identifiable in ElevenLabs dashboard.
  */
 
-import { createLogger, TTLCache, TTS_VOICE_NAME_PREFIX } from '@tzurot/common-types';
+import { TTS_VOICE_NAME_PREFIX } from '@tzurot/common-types/constants/ai';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
 import {
   elevenLabsCloneVoice,
   elevenLabsListVoices,

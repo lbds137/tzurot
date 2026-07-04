@@ -10,12 +10,9 @@
 
 import type { RequestHandler, Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import {
-  createLogger,
-  type PrismaClient,
-  MemoryUpdateSchema,
-  SetMemoryLockSchema,
-} from '@tzurot/common-types';
+import { MemoryUpdateSchema, SetMemoryLockSchema } from '@tzurot/common-types/schemas/api/memory';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { RouteDeps } from '../routeDeps.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';

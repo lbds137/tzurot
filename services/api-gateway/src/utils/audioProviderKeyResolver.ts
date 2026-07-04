@@ -12,13 +12,11 @@
  * inside the pipeline.
  */
 
-import {
-  createLogger,
-  decryptApiKey,
-  AIProvider,
-  type AudioProviderId,
-  type PrismaClient,
-} from '@tzurot/common-types';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { type AudioProviderId } from '@tzurot/common-types/types/audio-provider';
+import { decryptApiKey } from '@tzurot/common-types/utils/encryption';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type ErrorResponse, ErrorResponses } from './errorResponses.js';
 
 const logger = createLogger('AudioProviderKeyResolver');

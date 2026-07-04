@@ -9,11 +9,9 @@
  * `MessageContextBuilder` expects.
  */
 
-import {
-  createLogger,
-  type LoadedPersonality,
-  type ConversationMessage,
-} from '@tzurot/common-types';
+import { type ConversationMessage } from '@tzurot/common-types/types/conversationMessage';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { ServiceClient } from '@tzurot/clients';
 
 const logger = createLogger('UserContextResolver');

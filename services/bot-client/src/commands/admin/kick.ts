@@ -6,7 +6,8 @@
  * because the parent command uses deferralMode: 'ephemeral'.
  */
 
-import { createLogger, adminKickOptions } from '@tzurot/common-types';
+import { adminKickOptions } from '@tzurot/common-types/generated/commandOptions';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
 const logger = createLogger('admin-kick');

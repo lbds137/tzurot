@@ -5,14 +5,10 @@
  * API keys are NEVER passed through BullMQ jobs - they're resolved at runtime.
  */
 
-import {
-  createLogger,
-  AIProvider,
-  GUEST_MODE,
-  isFreeModel,
-  type AudioProviderId,
-  type SttDispatch,
-} from '@tzurot/common-types';
+import { AIProvider, GUEST_MODE, isFreeModel } from '@tzurot/common-types/constants/ai';
+import { type AudioProviderId } from '@tzurot/common-types/types/audio-provider';
+import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { SttResolver, LlmConfigResolver } from '@tzurot/config-resolver';
 import type { ApiKeyResolver } from '../../../../services/ApiKeyResolver.js';
 import { ProviderRouter } from '../../../../services/ProviderRouter.js';

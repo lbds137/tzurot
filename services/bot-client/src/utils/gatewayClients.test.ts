@@ -13,8 +13,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { OwnerClient, ServiceClient, UserClient } from '@tzurot/clients';
 import type { ChatInputCommandInteraction, User as DiscordUser } from 'discord.js';
 
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
   return {
     ...actual,
     getConfig: () => ({
@@ -98,8 +100,8 @@ describe('clientsFor', () => {
 
   it('throws when GATEWAY_URL is missing', async () => {
     vi.resetModules();
-    vi.doMock('@tzurot/common-types', async () => {
-      const actual = await vi.importActual('@tzurot/common-types');
+    vi.doMock('@tzurot/common-types/config/config', async () => {
+      const actual = await vi.importActual('@tzurot/common-types/config/config');
       return { ...actual, getConfig: () => ({ GATEWAY_URL: '' }) };
     });
     vi.doMock('../startup.js', () => ({
@@ -107,7 +109,7 @@ describe('clientsFor', () => {
     }));
     const mod = await import('./gatewayClients.js');
     expect(() => mod.clientsFor(makeInteraction(makeUser()))).toThrow('GATEWAY_URL');
-    vi.doUnmock('@tzurot/common-types');
+    vi.doUnmock('@tzurot/common-types/config/config');
     vi.doUnmock('../startup.js');
   });
 });
@@ -138,8 +140,8 @@ describe('getServiceClient', () => {
 
   it('throws when GATEWAY_URL is missing (same defense as clientsFor)', async () => {
     vi.resetModules();
-    vi.doMock('@tzurot/common-types', async () => {
-      const actual = await vi.importActual('@tzurot/common-types');
+    vi.doMock('@tzurot/common-types/config/config', async () => {
+      const actual = await vi.importActual('@tzurot/common-types/config/config');
       return { ...actual, getConfig: () => ({ GATEWAY_URL: '' }) };
     });
     vi.doMock('../startup.js', () => ({
@@ -147,7 +149,7 @@ describe('getServiceClient', () => {
     }));
     const mod = await import('./gatewayClients.js');
     expect(() => mod.getServiceClient()).toThrow('GATEWAY_URL');
-    vi.doUnmock('@tzurot/common-types');
+    vi.doUnmock('@tzurot/common-types/config/config');
     vi.doUnmock('../startup.js');
   });
 });
@@ -188,8 +190,8 @@ describe('isGatewayConfigured', () => {
 
   it('returns false when GATEWAY_URL is missing', async () => {
     vi.resetModules();
-    vi.doMock('@tzurot/common-types', async () => {
-      const actual = await vi.importActual('@tzurot/common-types');
+    vi.doMock('@tzurot/common-types/config/config', async () => {
+      const actual = await vi.importActual('@tzurot/common-types/config/config');
       return { ...actual, getConfig: () => ({ GATEWAY_URL: '' }) };
     });
     vi.doMock('../startup.js', () => ({
@@ -197,7 +199,7 @@ describe('isGatewayConfigured', () => {
     }));
     const mod = await import('./gatewayClients.js');
     expect(mod.isGatewayConfigured()).toBe(false);
-    vi.doUnmock('@tzurot/common-types');
+    vi.doUnmock('@tzurot/common-types/config/config');
     vi.doUnmock('../startup.js');
   });
 });

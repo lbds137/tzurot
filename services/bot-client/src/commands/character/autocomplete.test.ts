@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleAutocomplete } from './autocomplete.js';
-import type { PersonalitySummary } from '@tzurot/common-types';
+import type { PersonalitySummary } from '@tzurot/common-types/schemas/api/personality';
 
 // Mock the autocomplete cache (character/autocomplete uses handlePersonalityAutocomplete which uses the cache)
 const mockGetCachedPersonalities = vi.fn();
@@ -19,8 +19,10 @@ vi.mock('../../utils/gatewayClients.js', () => ({
 }));
 
 // Mock logger
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({

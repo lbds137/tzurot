@@ -17,10 +17,12 @@ vi.mock('../../utils/discordContext.js', () => ({
   }),
 }));
 
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const original = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/environmentFormatter', async () => {
+  const actual = await vi.importActual<
+    typeof import('@tzurot/common-types/utils/environmentFormatter')
+  >('@tzurot/common-types/utils/environmentFormatter');
   return {
-    ...original,
+    ...actual,
     formatLocationAsXml: vi
       .fn()
       .mockReturnValue('<location type="guild"><server name="Test Guild"/></location>'),

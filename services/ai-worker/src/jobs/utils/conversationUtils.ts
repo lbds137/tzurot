@@ -10,17 +10,17 @@
  * - conversationTypes.ts: Shared type definitions
  */
 
+import { type CrossChannelHistoryGroupEntry } from '@tzurot/common-types/types/schemas/message';
+import { formatPromptTimestamp } from '@tzurot/common-types/utils/dateFormatting';
+import { formatLocationAsXml } from '@tzurot/common-types/utils/environmentFormatter';
+import { escapeXmlContent } from '@tzurot/common-types/utils/promptSanitizer';
 import {
-  escapeXml,
-  escapeXmlContent,
-  formatPromptTimestamp,
   shouldShowGap,
   calculateTimeGap,
   formatTimeGapMarker,
-  formatLocationAsXml,
   type TimeGapConfig,
-  type CrossChannelHistoryGroupEntry,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/utils/timeGap';
+import { escapeXml } from '@tzurot/common-types/utils/xmlBuilder';
 import { formatForwardedQuote } from '../../services/prompt/QuoteFormatter.js';
 
 // Re-export from extracted modules for backward compatibility

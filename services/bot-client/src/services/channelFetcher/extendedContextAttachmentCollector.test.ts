@@ -1,9 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import {
-  MessageRole,
-  type AttachmentMetadata,
-  type ConversationMessage,
-} from '@tzurot/common-types';
+import { MessageRole } from '@tzurot/common-types/constants/message';
+import { type ConversationMessage } from '@tzurot/common-types/types/conversationMessage';
+import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import { collectExtendedContextAttachments } from './extendedContextAttachmentCollector.js';
 
 const image: AttachmentMetadata = {

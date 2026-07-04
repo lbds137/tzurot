@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { JobStatus, TimeoutError, AudioTooLongError } from '@tzurot/common-types';
+import { JobStatus } from '@tzurot/common-types/constants/queue';
+import { TimeoutError, AudioTooLongError } from '@tzurot/common-types/utils/errors';
 
 // Mock the ServiceClient factory + the service-secret accessor so the helpers
 // run without real config/network. (The context write-path helpers live in

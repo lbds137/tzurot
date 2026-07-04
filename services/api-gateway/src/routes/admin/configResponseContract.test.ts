@@ -25,7 +25,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
 import { ROUTE_MANIFEST } from '@tzurot/clients';
-import type { PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 
 // Owner-gate passthrough: set an admin Discord ID and continue.
 vi.mock('../../services/AuthMiddleware.js', () => ({

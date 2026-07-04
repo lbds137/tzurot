@@ -1,7 +1,19 @@
 import { describe, it, expect, vi } from 'vitest';
 
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/dateFormatting', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/dateFormatting')>(
+    '@tzurot/common-types/utils/dateFormatting'
+  );
+  return {
+    ...actual,
+    formatMemoryTimestamp: vi.fn(() => '2 weeks ago'),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -10,13 +22,21 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/tokenCounter', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/tokenCounter')>(
+    '@tzurot/common-types/utils/tokenCounter'
+  );
+  return {
+    ...actual,
     countTextTokens: vi.fn((text: string) => Math.ceil(text.length / 4)),
-    formatMemoryTimestamp: vi.fn(() => '2 weeks ago'),
   };
 });
 
 import { countTokens, countMemoryTokens, countAttachmentTokens } from './TokenCounters.js';
-import { AttachmentType } from '@tzurot/common-types';
+import { AttachmentType } from '@tzurot/common-types/constants/media';
 import type { ProcessedAttachment } from '../MultimodalProcessor.js';
 import type { MemoryDocument } from '../ConversationalRAGTypes.js';
 

@@ -16,26 +16,41 @@ vi.mock('../../bootstrap/startup.js', () => ({
   checkAvatarStorage: vi.fn(),
 }));
 
-vi.mock('@tzurot/common-types', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-  HealthStatus: {
-    Ok: 'ok',
-    Error: 'error',
-    Healthy: 'healthy',
-    Degraded: 'degraded',
-    Unhealthy: 'unhealthy',
-  },
-}));
+vi.mock('@tzurot/common-types/constants/service', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/constants/service')>(
+    '@tzurot/common-types/constants/service'
+  );
+  return {
+    ...actual,
+    HealthStatus: {
+      Ok: 'ok',
+      Error: 'error',
+      Healthy: 'healthy',
+      Degraded: 'degraded',
+      Unhealthy: 'unhealthy',
+    },
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
+    createLogger: () => ({
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+    }),
+  };
+});
 
 import { checkQueueHealth } from '../../queue.js';
 import { checkAvatarStorage } from '../../bootstrap/startup.js';
 import { createHealthRouter } from './health.js';
-import { HealthStatus } from '@tzurot/common-types';
+import { HealthStatus } from '@tzurot/common-types/constants/service';
 
 describe('Health Route', () => {
   let app: express.Express;

@@ -8,7 +8,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { LongTermMemoryService } from './LongTermMemoryService.js';
 import type { PgvectorMemoryAdapter } from './PgvectorMemoryAdapter.js';
-import type { LoadedPersonality, PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
+import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import type { ConversationContext } from './ConversationalRAGTypes.js';
 
 // Mock Prisma client (injected via constructor)
@@ -25,8 +26,10 @@ const mockPrismaClient = {
 } as unknown as PrismaClient;
 
 // Mock dependencies
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({

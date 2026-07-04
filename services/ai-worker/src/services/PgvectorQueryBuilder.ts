@@ -3,7 +3,7 @@
  * Constructs Prisma.sql queries for pgvector operations
  */
 
-import { Prisma } from '@tzurot/common-types';
+import { Prisma } from '@tzurot/common-types/services/prisma';
 import { isValidId } from '../utils/memoryUtils.js';
 import type { MemoryQueryOptions } from './PgvectorTypes.js';
 

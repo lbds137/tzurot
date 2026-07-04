@@ -5,7 +5,7 @@
  */
 
 import { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
-import { DISCORD_COLORS } from '@tzurot/common-types';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { DASHBOARD_MESSAGES } from './messages.js';
 
 /**

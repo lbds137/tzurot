@@ -4,7 +4,9 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Job } from 'bullmq';
-import { JobType, type LLMGenerationJobData, type LoadedPersonality } from '@tzurot/common-types';
+import { JobType } from '@tzurot/common-types/constants/queue';
+import { type LLMGenerationJobData } from '@tzurot/common-types/types/jobs';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { DownloadAttachmentsStep } from './DownloadAttachmentsStep.js';
 import {
   AttachmentTooLargeError,
@@ -27,8 +29,10 @@ const { loggerMock } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => loggerMock,

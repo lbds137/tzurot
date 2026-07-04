@@ -4,19 +4,19 @@
  * Generates AI response using the RAG service with all prepared context.
  */
 
+import { type AIProvider } from '@tzurot/common-types/constants/ai';
 import {
-  createLogger,
-  MessageContent,
-  RETRY_CONFIG,
   ApiErrorCategory,
   ApiErrorType,
   generateErrorReferenceId,
   USER_ERROR_MESSAGES,
-  type PrismaClient,
-  type ResolvedConfigOverrides,
-  type SttDispatch,
-  type AIProvider,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/constants/error';
+import { RETRY_CONFIG } from '@tzurot/common-types/constants/timing';
+import { type ResolvedConfigOverrides } from '@tzurot/common-types/schemas/api/configOverrides';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { MessageContent } from '@tzurot/common-types/types/ai';
+import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { createDiagnosticCollectorForRequest } from '../../../../services/diagnostics/personalityOwnerResolver.js';
 import type { ConversationalRAGService } from '../../../../services/ConversationalRAGService.js';
 import type {

@@ -13,7 +13,9 @@ import {
   type ButtonInteraction,
   type ModalSubmitInteraction,
 } from 'discord.js';
-import { createLogger, getConfig, isBotOwner, type EnvConfig } from '@tzurot/common-types';
+import { getConfig, type EnvConfig } from '@tzurot/common-types/config/config';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import {
   buildDashboardEmbed,
   buildDashboardComponents,

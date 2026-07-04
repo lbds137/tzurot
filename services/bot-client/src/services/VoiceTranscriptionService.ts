@@ -7,17 +7,16 @@
 
 import type { Message, MessageMentionOptions } from 'discord.js';
 import { transcribe } from '../utils/gatewayServiceCalls.js';
+import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
+import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
 import {
-  splitMessage,
-  createLogger,
-  CONTENT_TYPES,
-  DISCORD_LIMITS,
-  isTimeoutError,
-  isTooLongError,
   sttProviderDisplayName,
   sttProviderInfoUrl,
   type SttProvider,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/sttProvider';
+import { splitMessage } from '@tzurot/common-types/utils/discord';
+import { isTimeoutError, isTooLongError } from '@tzurot/common-types/utils/errors';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { voiceTranscriptCache } from '../redis.js';
 import { hasForwardedSnapshots, getSnapshots } from '../utils/forwardedMessageUtils.js';
 import { isVoiceAttachment } from '../utils/voiceAttachment.js';
