@@ -24,9 +24,8 @@
 
 import type { Request } from 'express';
 import { normalizeSlugForUser } from '@tzurot/common-types/utils/slugUtils';
-
-/** Config `name` cap — mirrors LlmConfig/TtsConfig `name.max(100)`, NOT the 50-char character-slug cap. */
-const CONFIG_NAME_MAX_LENGTH = 100;
+// Shared cap so the config schemas + this promote-normalization can't drift (NOT the 50-char slug cap).
+import { CONFIG_NAME_MAX_LENGTH } from '@tzurot/common-types/constants/message';
 
 interface PromotionContext {
   /** Current state of the config (from `service.getById`). */
