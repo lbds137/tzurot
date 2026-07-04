@@ -383,6 +383,12 @@ describe('Personality API Contract Tests', () => {
       expect(result.success).toBe(false);
     });
 
+    it('should reject slug that is too long (> 50)', () => {
+      const input = { ...validCreateInput, slug: `a${'b'.repeat(50)}` }; // 51 chars
+      const result = PersonalityCreateSchema.safeParse(input);
+      expect(result.success).toBe(false);
+    });
+
     it('should reject slug with invalid characters', () => {
       const input = { ...validCreateInput, slug: 'Test_Character!' };
       const result = PersonalityCreateSchema.safeParse(input);

@@ -106,11 +106,38 @@ describe('normalizeSlugForUser', () => {
       expect(result).toBe('char-user-789');
     });
 
-    it('should handle very long usernames', () => {
-      const longUsername = 'a'.repeat(100);
-      const result = normalizeSlugForUser('char', 'user-456', longUsername);
+    it('caps slug + max-length (32-char) username to SLUG_MAX_LENGTH', () => {
+      const maxUsername = 'a'.repeat(32); // Discord username hard max
+      const result = normalizeSlugForUser(
+        'a-long-base-slug-that-overflows-fifty',
+        'user-456',
+        maxUsername
+      );
 
-      expect(result).toBe(`char-${longUsername}`);
+      expect(result.length).toBeLessThanOrEqual(50);
+      expect(result.endsWith(`-${maxUsername}`)).toBe(true); // username suffix preserved intact
+      expect(result).toMatch(/^[a-z][a-z0-9-]+$/); // still a valid slug
+    });
+
+    it('leaves a slug + suffix that already fits untouched', () => {
+      expect(normalizeSlugForUser('lilith', 'user-456', 'cooluser')).toBe('lilith-cooluser');
+    });
+
+    it('disambiguates two long slugs sharing a truncated prefix (hash of the removed tail)', () => {
+      const longUser = 'a'.repeat(32);
+      const a = normalizeSlugForUser('shared-prefix-then-divergent-tail-alpha', 'user-1', longUser);
+      const b = normalizeSlugForUser('shared-prefix-then-divergent-tail-bravo', 'user-1', longUser);
+
+      expect(a).not.toBe(b); // different removed tails → different hash
+      expect(a.length).toBeLessThanOrEqual(50);
+    });
+
+    it('caps a long bot-owner slug (no suffix) to SLUG_MAX_LENGTH', () => {
+      vi.mocked(isBotOwner).mockReturnValue(true);
+      const result = normalizeSlugForUser('x'.repeat(80), 'owner-123', 'owner');
+
+      expect(result.length).toBeLessThanOrEqual(50);
+      expect(result).toMatch(/^[a-z][a-z0-9-]+$/);
     });
   });
 });
