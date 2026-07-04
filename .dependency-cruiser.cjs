@@ -75,7 +75,7 @@ module.exports = {
       // those filenames; `pathNot: 'common-types'` keeps the ban on the library
       // while allowing the shared types. (The root barrel hid this collision —
       // ai-worker's imports resolved through index.js; deep imports exposed it.)
-      to: { path: 'discord\\.js', pathNot: 'common-types' },
+      to: { path: 'discord\\.js', pathNot: 'packages/common-types/' },
     },
   ],
   options: {

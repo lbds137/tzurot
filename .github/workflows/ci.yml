@@ -125,6 +125,9 @@ jobs:
       - name: Check for duplicate export names
         run: pnpm ops guard:duplicate-exports
 
+      - name: Check for export* barrels (re-mask knip)
+        run: pnpm ops guard:no-export-star
+
       - name: Check Dockerfile runner-stage dist copies
         run: pnpm ops guard:dockerfile-dist
 
