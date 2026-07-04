@@ -10,7 +10,7 @@ vi.mock('chalk', () => ({
   },
 }));
 
-import { formatSuppressions } from './suppressions.js';
+import { formatSuppressions, collectUnjustifiedSuppressions } from './suppressions.js';
 import type { XrayReport, SuppressionInfo, FileInfo, PackageInfo } from '../types.js';
 
 function makeSuppression(overrides: Partial<SuppressionInfo> = {}): SuppressionInfo {
@@ -177,5 +177,62 @@ describe('formatSuppressions', () => {
     expect(result).toContain('max-lines');
     expect(result).toContain('svc-a');
     expect(result).toContain('svc-b');
+  });
+});
+
+describe('collectUnjustifiedSuppressions', () => {
+  it('returns exactly the suppressions with missing/blank justification across files', () => {
+    const report = makeReport([
+      makePackage('svc-a', [
+        makeFile('/root/svc-a/src/x.ts', [
+          makeSuppression({ line: 10, justification: 'Multi-strategy lookup: UUID → name → slug' }),
+          makeSuppression({ line: 20, justification: undefined }),
+          makeSuppression({ line: 30, justification: '' }),
+        ]),
+        makeFile('/root/svc-a/src/y.ts', [makeSuppression({ line: 40, justification: '   ' })]),
+      ]),
+      makePackage('svc-b', [
+        makeFile('/root/svc-b/src/z.ts', [
+          makeSuppression({ line: 50, justification: 'Express router internals are untyped' }),
+        ]),
+      ]),
+    ]);
+
+    const unjustified = collectUnjustifiedSuppressions(report);
+
+    // undefined (line 20), empty-string (line 30), whitespace-only (line 40) — not the two justified ones.
+    expect(unjustified).toHaveLength(3);
+    expect(unjustified.map(f => f.suppression.line).sort((a, b) => a - b)).toEqual([20, 30, 40]);
+    expect(unjustified.map(f => f.filePath).sort()).toEqual([
+      '/root/svc-a/src/x.ts',
+      '/root/svc-a/src/x.ts',
+      '/root/svc-a/src/y.ts',
+    ]);
+    // Justified suppressions (lines 10, 50) are excluded.
+    expect(unjustified.some(f => f.suppression.line === 10)).toBe(false);
+    expect(unjustified.some(f => f.suppression.line === 50)).toBe(false);
+  });
+
+  it('returns an empty array when every suppression is justified', () => {
+    const report = makeReport([
+      makePackage('svc-a', [
+        makeFile('/root/svc-a/src/x.ts', [
+          makeSuppression({ line: 1, justification: 'BFS traversal with inherent nested loops' }),
+          makeSuppression({ line: 2, justification: 'Null guard before property access' }),
+        ]),
+      ]),
+      makePackage('svc-b', [
+        makeFile('/root/svc-b/src/y.ts', [
+          makeSuppression({ line: 3, justification: 'Untyped third-party callback signature' }),
+        ]),
+      ]),
+    ]);
+
+    expect(collectUnjustifiedSuppressions(report)).toEqual([]);
+  });
+
+  it('returns an empty array for a report with no suppressions', () => {
+    const report = makeReport([makePackage('svc-a', [makeFile('/root/svc-a/src/x.ts')])]);
+    expect(collectUnjustifiedSuppressions(report)).toEqual([]);
   });
 });
