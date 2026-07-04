@@ -64,4 +64,15 @@ describe('findStarExports', () => {
     write('packages/a/src/index.ts', "export { Bar } from './bar.js';\n");
     expect(findStarExports(tmp)).toEqual([]);
   });
+
+  it('ignores `export * as ns from` — a named binding knip can trace, not a masking wildcard', () => {
+    write('packages/a/src/index.ts', "export * as helpers from './helpers.js';\n");
+    expect(findStarExports(tmp)).toEqual([]);
+  });
+
+  it('ignores `export *` outside src/ (config/scripts files knip does not trace)', () => {
+    write('packages/a/vitest.config.ts', "export * from './base.js';\n");
+    write('packages/a/scripts/gen.ts', "export * from './templates.js';\n");
+    expect(findStarExports(tmp)).toEqual([]);
+  });
 });
