@@ -168,6 +168,7 @@ export const MemoryStatsResponseSchema = z.object({
   newestMemory: z.string().nullable(),
   focusModeEnabled: z.boolean(),
 });
+
 /** GET /user/memory/list */
 export const MemoryListResponseSchema = z.object({
   memories: z.array(MemoryItemSchema),
@@ -183,6 +184,7 @@ export const FocusModeStatusResponseSchema = z.object({
   personalityId: z.string(),
   focusModeEnabled: z.boolean(),
 });
+
 /** POST /user/memory/focus */
 export const SetFocusResponseSchema = z.object({
   personalityId: z.string(),
@@ -190,12 +192,14 @@ export const SetFocusResponseSchema = z.object({
   focusModeEnabled: z.boolean(),
   message: z.string(),
 });
+
 /** Search result row: MemoryItem extended with a per-row similarity score
  *  (null when the response falls back to text search). The wrapping
  *  `MemorySearchResponseSchema` carries `searchType` for the whole batch. */
 export const MemorySearchResultSchema = MemoryItemSchema.extend({
   similarity: z.number().nullable(),
 });
+
 /** POST /user/memory/search */
 export const MemorySearchResponseSchema = z.object({
   results: z.array(MemorySearchResultSchema),
@@ -203,6 +207,7 @@ export const MemorySearchResponseSchema = z.object({
   hasMore: z.boolean(),
   searchType: z.enum(['semantic', 'text']).optional(),
 });
+
 /** POST /user/memory/delete/preview */
 export const BatchDeletePreviewResponseSchema = z.object({
   wouldDelete: z.number(),
@@ -216,6 +221,7 @@ export const BatchDeletePreviewResponseSchema = z.object({
   // would let a caller paste any string into the next call.
   previewToken: PreviewTokenSchema,
 });
+
 /** POST /user/memory/delete */
 export const BatchDeleteResponseSchema = z.object({
   deletedCount: z.number(),
@@ -224,6 +230,7 @@ export const BatchDeleteResponseSchema = z.object({
   personalityName: z.string().optional(),
   message: z.string(),
 });
+
 /** POST /user/memory/purge/token */
 export const IssuePurgeTokenResponseSchema = z.object({
   // Branded so the round-trip purge-token → purge call site is type-checked
@@ -232,6 +239,7 @@ export const IssuePurgeTokenResponseSchema = z.object({
   personalityId: z.string(),
   personalityName: z.string(),
 });
+
 /** POST /user/memory/purge */
 export const PurgeMemoriesResponseSchema = z.object({
   deletedCount: z.number(),
@@ -249,6 +257,7 @@ export type PurgeMemoriesResponse = z.infer<typeof PurgeMemoriesResponseSchema>;
 export const SingleMemoryResponseSchema = z.object({
   memory: MemoryItemSchema,
 });
+
 /** DELETE /user/memory/:id */
 export const DeleteMemoryResponseSchema = z.object({
   success: z.boolean(),

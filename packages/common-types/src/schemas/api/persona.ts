@@ -213,6 +213,7 @@ export const PersonaCreateSchema = z.object({
   description: nullableString(500),
   pronouns: nullableString(100),
 });
+
 /**
  * Schema for updating a persona.
  * Uses empty-to-undefined/null transforms so clients can send "" to preserve or clear fields.

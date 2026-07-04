@@ -210,22 +210,27 @@ export const ResolveUserConfigDefaultsResponseSchema = ConfigOverridesSchema.req
   sources: z.record(ConfigOverridesKeySchema, ConfigOverrideSourceSchema),
   userOverrides: z.record(z.string(), z.unknown()).nullable(),
 });
+
 /** Response for GET /user/config-overrides/defaults — the raw JSONB column (or null). */
 export const GetUserConfigDefaultsResponseSchema = z.object({
   configDefaults: z.record(z.string(), z.unknown()).nullable(),
 });
+
 /** Response for PATCH /user/config-overrides/defaults — merged result echoed back. */
 export const UpdateConfigDefaultsResponseSchema = z.object({
   configDefaults: z.record(z.string(), z.unknown()),
 });
+
 /** Response for DELETE /user/config-overrides/defaults — bare success ack. */
 export const ClearUserConfigDefaultsResponseSchema = z.object({
   success: z.literal(true),
 });
+
 /** Response for PATCH /user/config-overrides/:personalityId — merged per-personality overrides. */
 export const UpdatePersonalityConfigOverridesResponseSchema = z.object({
   configOverrides: z.record(z.string(), z.unknown()),
 });
+
 /** Response for DELETE /user/config-overrides/:personalityId — bare success ack. */
 export const ClearPersonalityConfigOverridesResponseSchema = z.object({
   success: z.literal(true),
@@ -238,6 +243,7 @@ export const ClearPersonalityConfigOverridesResponseSchema = z.object({
 export const GetChannelConfigOverridesResponseSchema = z.object({
   configOverrides: z.record(z.string(), z.unknown()).nullable(),
 });
+
 /**
  * Request for PATCH /user/channel/:channelId/config-overrides — partial merge.
  * Bare record (not `ConfigOverridesSchema.partial()`) because the wire format
@@ -254,6 +260,7 @@ export const UpdateChannelConfigOverridesRequestSchema = z.record(z.string(), z.
 export const UpdateChannelConfigOverridesResponseSchema = z.object({
   configOverrides: z.record(z.string(), z.unknown()),
 });
+
 /** Response for DELETE /user/channel/:channelId/config-overrides — bare success ack. */
 export const ClearChannelConfigOverridesResponseSchema = z.object({
   success: z.literal(true),
