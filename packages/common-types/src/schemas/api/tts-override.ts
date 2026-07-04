@@ -50,8 +50,6 @@ export type UserDefaultTtsConfig = z.infer<typeof UserDefaultTtsConfigSchema>;
 export const ListTtsOverridesResponseSchema = z.object({
   overrides: z.array(TtsOverrideSummarySchema),
 });
-export type ListTtsOverridesResponse = z.infer<typeof ListTtsOverridesResponseSchema>;
-
 // ============================================================================
 // PUT /user/tts-override
 // ============================================================================
@@ -59,8 +57,6 @@ export type ListTtsOverridesResponse = z.infer<typeof ListTtsOverridesResponseSc
 export const SetTtsOverrideResponseSchema = z.object({
   override: TtsOverrideSummarySchema,
 });
-export type SetTtsOverrideResponse = z.infer<typeof SetTtsOverrideResponseSchema>;
-
 // ============================================================================
 // GET /user/tts-override/default
 // ============================================================================
@@ -68,8 +64,6 @@ export type SetTtsOverrideResponse = z.infer<typeof SetTtsOverrideResponseSchema
 export const GetTtsDefaultConfigResponseSchema = z.object({
   default: UserDefaultTtsConfigSchema,
 });
-export type GetTtsDefaultConfigResponse = z.infer<typeof GetTtsDefaultConfigResponseSchema>;
-
 // ============================================================================
 // PUT /user/tts-override/default
 // ============================================================================
@@ -77,8 +71,6 @@ export type GetTtsDefaultConfigResponse = z.infer<typeof GetTtsDefaultConfigResp
 export const SetTtsDefaultConfigResponseSchema = z.object({
   default: UserDefaultTtsConfigSchema,
 });
-export type SetTtsDefaultConfigResponse = z.infer<typeof SetTtsDefaultConfigResponseSchema>;
-
 // ============================================================================
 // DELETE /user/tts-override/default
 // ============================================================================
@@ -108,8 +100,6 @@ export const DeleteTtsOverrideResponseSchema = z.object({
   /** True if an override was actually cleared; false on idempotent no-op. */
   wasSet: z.boolean().optional(),
 });
-export type DeleteTtsOverrideResponse = z.infer<typeof DeleteTtsOverrideResponseSchema>;
-
 // ============================================================================
 // Input schemas (request body validation)
 // ============================================================================
@@ -119,10 +109,7 @@ export const SetTtsOverrideSchema = z.object({
   personalityId: z.string().uuid('Invalid personalityId format'),
   configId: z.string().uuid('Invalid configId format'),
 });
-export type SetTtsOverrideInput = z.infer<typeof SetTtsOverrideSchema>;
-
 /** Set user's global default TTS config. */
 export const SetTtsDefaultConfigSchema = z.object({
   configId: z.string().uuid('Invalid configId format'),
 });
-export type SetTtsDefaultConfigInput = z.infer<typeof SetTtsDefaultConfigSchema>;

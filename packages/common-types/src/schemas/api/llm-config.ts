@@ -342,8 +342,6 @@ export type DeleteLlmConfigResponse = z.infer<typeof DeleteLlmConfigResponseSche
 export const GetLlmConfigResponseSchema = z.object({
   config: LlmConfigDetailSchema,
 });
-export type GetLlmConfigResponse = z.infer<typeof GetLlmConfigResponseSchema>;
-
 // ============================================================================
 // PUT /admin/llm-config/:id and PUT /user/llm-config/:id
 // Updates a config; returns the post-update shape.
@@ -352,8 +350,6 @@ export type GetLlmConfigResponse = z.infer<typeof GetLlmConfigResponseSchema>;
 export const UpdateLlmConfigResponseSchema = z.object({
   config: LlmConfigDetailSchema,
 });
-export type UpdateLlmConfigResponse = z.infer<typeof UpdateLlmConfigResponseSchema>;
-
 // ============================================================================
 // PUT /admin/llm-config/:id/set-default
 // PUT /admin/llm-config/:id/set-free-default
@@ -396,8 +392,6 @@ export const ResolveLlmConfigInputSchema = z.object({
     .passthrough(),
   channelId: z.string().optional(),
 });
-export type ResolveLlmConfigInput = z.infer<typeof ResolveLlmConfigInputSchema>;
-
 export const ResolveLlmConfigResponseSchema = z
   .object({
     config: z
@@ -412,4 +406,3 @@ export const ResolveLlmConfigResponseSchema = z
     overrides: z.unknown().optional(),
   })
   .passthrough();
-export type ResolveLlmConfigResponse = z.infer<typeof ResolveLlmConfigResponseSchema>;

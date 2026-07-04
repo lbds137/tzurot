@@ -31,8 +31,6 @@ export const RecentUsersResponseSchema = z.object({
   discordIds: z.array(DiscordSnowflakeSchema),
   sinceDays: z.number().int().positive(),
 });
-export type RecentUsersResponse = z.infer<typeof RecentUsersResponseSchema>;
-
 // ============================================================================
 // POST /internal/channel/dm-session/set
 // Records active personality in a DM session. Called by bot-client after a
@@ -45,14 +43,10 @@ export const DmSessionSetRequestSchema = z.object({
   channelId: z.string(),
   personalitySlug: z.string(),
 });
-export type DmSessionSetRequest = z.infer<typeof DmSessionSetRequestSchema>;
-
 export const DmSessionSetResponseSchema = z.object({
   channelId: z.string(),
   personalitySlug: z.string(),
 });
-export type DmSessionSetResponse = z.infer<typeof DmSessionSetResponseSchema>;
-
 // ============================================================================
 // GET /internal/conversation/message-personality (reclassified from /user/*)
 // Looks up the personality that owns a given Discord message ID. Used by
@@ -69,8 +63,6 @@ export const MessagePersonalityResponseSchema = z.object({
   // row may have only the personality UUID without the display-name denormalized.
   personalityName: z.string().nullable().optional(),
 });
-export type MessagePersonalityResponse = z.infer<typeof MessagePersonalityResponseSchema>;
-
 // ============================================================================
 // POST /internal/conversation/assistant-message
 // Persists the assistant conversation-history row after bot-client confirms
@@ -93,8 +85,6 @@ export const PersistAssistantMessageRequestSchema = z.object({
   /** ISO timestamp of the triggering user message; the assistant row is persisted at +1ms. */
   userMessageTime: z.string().datetime(),
 });
-export type PersistAssistantMessageRequest = z.infer<typeof PersistAssistantMessageRequestSchema>;
-
 export const PersistAssistantMessageResponseSchema = z.object({
   /** Deterministic conversation-history row ID. */
   id: z.string(),
@@ -136,8 +126,6 @@ export const PersistUserMessageRequestSchema = z.object({
   /** ISO timestamp of the Discord message (becomes the row's createdAt). */
   messageTime: z.string().datetime(),
 });
-export type PersistUserMessageRequest = z.infer<typeof PersistUserMessageRequestSchema>;
-
 /** Shape intentionally identical to the assistant-message response. */
 export const PersistUserMessageResponseSchema = z.object({
   id: z.string(),
@@ -171,8 +159,6 @@ export const ConversationSyncRequestSchema = z.object({
     .min(1)
     .max(SYNC_LIMITS.MAX_DISCORD_ID_LOOKUP),
 });
-export type ConversationSyncRequest = z.infer<typeof ConversationSyncRequestSchema>;
-
 export const ConversationSyncResponseSchema = z.object({
   /** Messages whose content was updated (edit detected). */
   updated: z.number().int().nonnegative(),

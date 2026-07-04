@@ -19,24 +19,31 @@
       "ignoreDependencies": ["langchain", "onnxruntime-node"]
     },
     "packages/common-types": {
-      "entry": ["src/**/*.test.ts", "src/schemas/api/**/*.ts", "src/generated/**/*.ts"],
+      "entry": ["src/**/*.test.ts"],
+      "ignore": ["src/generated/**"],
+      "includeEntryExports": true,
       "ignoreDependencies": ["openai", "pg", "@prisma/client", "prisma"],
       "ignoreMembers": ["ECONNRESET", "ETIMEDOUT", "ENOTFOUND", "ECONNREFUSED"]
     },
     "packages/clients": {
-      "entry": ["src/**/*.test.ts"]
+      "entry": ["src/**/*.test.ts"],
+      "includeEntryExports": true
     },
     "packages/config-resolver": {
-      "entry": ["src/**/*.test.ts"]
+      "entry": ["src/**/*.test.ts"],
+      "includeEntryExports": true
     },
     "packages/identity": {
-      "entry": ["src/**/*.test.ts"]
+      "entry": ["src/**/*.test.ts"],
+      "includeEntryExports": true
     },
     "packages/conversation-history": {
-      "entry": ["src/**/*.test.ts"]
+      "entry": ["src/**/*.test.ts"],
+      "includeEntryExports": true
     },
     "packages/cache-invalidation": {
-      "entry": ["src/**/*.test.ts"]
+      "entry": ["src/**/*.test.ts"],
+      "includeEntryExports": true
     },
     "packages/tooling": {
       "entry": ["src/**/*.test.ts"],

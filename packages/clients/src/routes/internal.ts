@@ -377,6 +377,3 @@ export const internalRoutes = {
     timeoutMs: TIMEOUTS.GATEWAY_RPC,
   },
 } as const satisfies Record<string, RouteDef>;
-
-/** Internal-route ID union — used as a manifest key by generated clients. */
-export type InternalRouteId = keyof typeof internalRoutes;

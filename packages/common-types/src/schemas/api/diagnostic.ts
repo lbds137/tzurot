@@ -86,8 +86,6 @@ export const RecentDiagnosticLogSchema = z.object({
   createdAt: z.union([z.string(), z.date()]),
   personalityName: z.string().nullable(),
 });
-export type RecentDiagnosticLog = z.infer<typeof RecentDiagnosticLogSchema>;
-
 /**
  * Response shape for GET /diagnostic/recent — up to 100 most recent logs.
  */
@@ -104,4 +102,3 @@ export type RecentDiagnosticLogsResponse = z.infer<typeof RecentDiagnosticLogsRe
 export const DiagnosticUpdateResponseSchema = z.object({
   success: z.literal(true),
 });
-export type DiagnosticUpdateResponse = z.infer<typeof DiagnosticUpdateResponseSchema>;

@@ -40,10 +40,6 @@ export const userRoutes = {
   ...userShapesRoutes,
   ...userDiagnosticRoutes,
 } as const satisfies Record<string, RouteDef>;
-
-/** User-route ID union — used as a manifest key by generated clients. */
-export type UserRouteId = keyof typeof userRoutes;
-
 // Re-export the sub-manifests so tests + future tooling can inspect them
 // individually (e.g., assert which file contributed which route id).
 export {

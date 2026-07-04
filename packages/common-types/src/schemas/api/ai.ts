@@ -42,8 +42,6 @@ export const AiJobAckResponseSchema = z.object({
   result: z.unknown().optional(),
   timestamp: z.string().optional(),
 });
-export type AiJobAckResponse = z.infer<typeof AiJobAckResponseSchema>;
-
 /**
  * Response shape for POST /ai/generate. Same envelope as the shared ack
  * but redeclared as its own z.object so the schema VALUE is distinct
@@ -58,8 +56,6 @@ export const AiGenerateResponseSchema = z.object({
   result: z.unknown().optional(),
   timestamp: z.string().optional(),
 });
-export type AiGenerateResponse = z.infer<typeof AiGenerateResponseSchema>;
-
 /**
  * Response shape for POST /ai/transcribe. Same envelope as ack/generate
  * but redeclared for the same knip-duplicate-export reason. The `result`
@@ -73,8 +69,6 @@ export const AiTranscribeResponseSchema = z.object({
   result: z.unknown().optional(),
   timestamp: z.string().optional(),
 });
-export type AiTranscribeResponse = z.infer<typeof AiTranscribeResponseSchema>;
-
 /**
  * Response shape for GET /ai/job/:jobId — BullMQ job introspection.
  *
@@ -90,8 +84,6 @@ export const AiJobStatusResponseSchema = z.object({
   result: z.unknown().optional(),
   timestamp: z.string(),
 });
-export type AiJobStatusResponse = z.infer<typeof AiJobStatusResponseSchema>;
-
 /**
  * Response shape for POST /ai/job/:jobId/confirm-delivery — bot-client
  * acknowledges the job result was successfully delivered to Discord.
@@ -106,4 +98,3 @@ export const AiConfirmDeliveryResponseSchema = z.object({
   status: z.string(),
   message: z.string(),
 });
-export type AiConfirmDeliveryResponse = z.infer<typeof AiConfirmDeliveryResponseSchema>;

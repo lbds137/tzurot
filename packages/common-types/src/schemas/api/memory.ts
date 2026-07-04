@@ -28,8 +28,6 @@ export const PreviewTokenSchema = z
   .string()
   .regex(/^preview_[A-Za-z0-9_-]{16,64}$/, 'Invalid preview token format')
   .brand<'PreviewToken'>();
-export type PreviewToken = z.infer<typeof PreviewTokenSchema>;
-
 /**
  * Branded type for purge confirmation. Same shape as `PreviewToken` but
  * a distinct brand so callers can't pass a delete-preview token to a
@@ -39,8 +37,6 @@ export const PurgeTokenSchema = z
   .string()
   .regex(/^purge_[A-Za-z0-9_-]{16,64}$/, 'Invalid purge token format')
   .brand<'PurgeToken'>();
-export type PurgeToken = z.infer<typeof PurgeTokenSchema>;
-
 // ============================================================================
 // POST /user/memory/focus
 // ============================================================================
@@ -49,8 +45,6 @@ export const FocusModeSchema = z.object({
   personalityId: z.string().min(1, PERSONALITY_ID_REQUIRED),
   enabled: z.boolean({ error: 'enabled must be a boolean' }),
 });
-export type FocusModeInput = z.infer<typeof FocusModeSchema>;
-
 // ============================================================================
 // PUT /user/memory/:id/lock
 // Sets the lock state explicitly (idempotent on retry, unlike the prior
@@ -60,8 +54,6 @@ export type FocusModeInput = z.infer<typeof FocusModeSchema>;
 export const SetMemoryLockSchema = z.object({
   locked: z.boolean({ error: 'locked must be a boolean' }),
 });
-export type SetMemoryLockInput = z.infer<typeof SetMemoryLockSchema>;
-
 // ============================================================================
 // PATCH /user/memory/:id
 // ============================================================================
@@ -80,8 +72,6 @@ export const MemoryUpdateSchema = z.object({
     .transform(s => s.trim())
     .pipe(z.string().min(1, 'Content is required')),
 });
-export type MemoryUpdateInput = z.infer<typeof MemoryUpdateSchema>;
-
 // ============================================================================
 // POST /user/memory/delete/preview
 // Issues a short-lived PreviewToken bound to the supplied filter. The token
@@ -105,8 +95,6 @@ export type BatchDeletePreviewInput = z.infer<typeof BatchDeletePreviewSchema>;
 export const BatchDeleteSchema = z.object({
   previewToken: PreviewTokenSchema,
 });
-export type BatchDeleteInput = z.infer<typeof BatchDeleteSchema>;
-
 // ============================================================================
 // POST /user/memory/purge/token
 // Issues a short-lived PurgeToken after validating the confirmation phrase.
@@ -116,8 +104,6 @@ export const IssuePurgeTokenSchema = z.object({
   personalityId: z.string().min(1, PERSONALITY_ID_REQUIRED),
   confirmationPhrase: z.string().min(1, 'confirmationPhrase is required'),
 });
-export type IssuePurgeTokenInput = z.infer<typeof IssuePurgeTokenSchema>;
-
 // ============================================================================
 // POST /user/memory/purge
 // Body is a token previously obtained from /memory/purge/token. The
@@ -127,8 +113,6 @@ export type IssuePurgeTokenInput = z.infer<typeof IssuePurgeTokenSchema>;
 export const PurgeMemoriesSchema = z.object({
   purgeToken: PurgeTokenSchema,
 });
-export type PurgeMemoriesInput = z.infer<typeof PurgeMemoriesSchema>;
-
 // ============================================================================
 // POST /user/memory/search
 // ============================================================================
@@ -153,8 +137,6 @@ export const MemorySearchSchema = z.object({
   dateTo: z.string().datetime({ offset: true }).optional(),
   preferTextSearch: z.boolean().optional(),
 });
-export type MemorySearchInput = z.infer<typeof MemorySearchSchema>;
-
 // ============================================================================
 // Response schemas — used by RouteDef.output to give generated clients
 // runtime validation + correct return-type inference.
@@ -186,8 +168,6 @@ export const MemoryStatsResponseSchema = z.object({
   newestMemory: z.string().nullable(),
   focusModeEnabled: z.boolean(),
 });
-export type MemoryStatsResponse = z.infer<typeof MemoryStatsResponseSchema>;
-
 /** GET /user/memory/list */
 export const MemoryListResponseSchema = z.object({
   memories: z.array(MemoryItemSchema),
@@ -203,8 +183,6 @@ export const FocusModeStatusResponseSchema = z.object({
   personalityId: z.string(),
   focusModeEnabled: z.boolean(),
 });
-export type FocusModeStatusResponse = z.infer<typeof FocusModeStatusResponseSchema>;
-
 /** POST /user/memory/focus */
 export const SetFocusResponseSchema = z.object({
   personalityId: z.string(),
@@ -212,16 +190,12 @@ export const SetFocusResponseSchema = z.object({
   focusModeEnabled: z.boolean(),
   message: z.string(),
 });
-export type SetFocusResponse = z.infer<typeof SetFocusResponseSchema>;
-
 /** Search result row: MemoryItem extended with a per-row similarity score
  *  (null when the response falls back to text search). The wrapping
  *  `MemorySearchResponseSchema` carries `searchType` for the whole batch. */
 export const MemorySearchResultSchema = MemoryItemSchema.extend({
   similarity: z.number().nullable(),
 });
-export type MemorySearchResult = z.infer<typeof MemorySearchResultSchema>;
-
 /** POST /user/memory/search */
 export const MemorySearchResponseSchema = z.object({
   results: z.array(MemorySearchResultSchema),
@@ -229,8 +203,6 @@ export const MemorySearchResponseSchema = z.object({
   hasMore: z.boolean(),
   searchType: z.enum(['semantic', 'text']).optional(),
 });
-export type MemorySearchResponse = z.infer<typeof MemorySearchResponseSchema>;
-
 /** POST /user/memory/delete/preview */
 export const BatchDeletePreviewResponseSchema = z.object({
   wouldDelete: z.number(),
@@ -244,8 +216,6 @@ export const BatchDeletePreviewResponseSchema = z.object({
   // would let a caller paste any string into the next call.
   previewToken: PreviewTokenSchema,
 });
-export type BatchDeletePreviewResponse = z.infer<typeof BatchDeletePreviewResponseSchema>;
-
 /** POST /user/memory/delete */
 export const BatchDeleteResponseSchema = z.object({
   deletedCount: z.number(),
@@ -254,8 +224,6 @@ export const BatchDeleteResponseSchema = z.object({
   personalityName: z.string().optional(),
   message: z.string(),
 });
-export type BatchDeleteResponse = z.infer<typeof BatchDeleteResponseSchema>;
-
 /** POST /user/memory/purge/token */
 export const IssuePurgeTokenResponseSchema = z.object({
   // Branded so the round-trip purge-token → purge call site is type-checked
@@ -264,8 +232,6 @@ export const IssuePurgeTokenResponseSchema = z.object({
   personalityId: z.string(),
   personalityName: z.string(),
 });
-export type IssuePurgeTokenResponse = z.infer<typeof IssuePurgeTokenResponseSchema>;
-
 /** POST /user/memory/purge */
 export const PurgeMemoriesResponseSchema = z.object({
   deletedCount: z.number(),
@@ -283,10 +249,7 @@ export type PurgeMemoriesResponse = z.infer<typeof PurgeMemoriesResponseSchema>;
 export const SingleMemoryResponseSchema = z.object({
   memory: MemoryItemSchema,
 });
-export type SingleMemoryResponse = z.infer<typeof SingleMemoryResponseSchema>;
-
 /** DELETE /user/memory/:id */
 export const DeleteMemoryResponseSchema = z.object({
   success: z.boolean(),
 });
-export type DeleteMemoryResponse = z.infer<typeof DeleteMemoryResponseSchema>;
