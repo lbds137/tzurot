@@ -15,6 +15,7 @@ import { loadedPersonalitySchema, requestContextSchema } from './personality.js'
  * tuple, so a new layer is a one-line change here.
  */
 export const CONFIG_SOURCE_IDS = ['personality', 'user-personality', 'user-default'] as const;
+
 export type ConfigSourceId = (typeof CONFIG_SOURCE_IDS)[number];
 
 /**
@@ -177,6 +178,8 @@ export const llmGenerationResultSchema = generationPayloadSchema.extend({
 
 // Infer TypeScript types from schemas
 export type GenerateRequest = z.infer<typeof generateRequestSchema>;
+
 /** Structured error info type for error classification consumers */
 export type ApiErrorInfo = z.infer<typeof errorInfoSchema>;
+
 export type LLMGenerationResult = z.infer<typeof llmGenerationResultSchema>;

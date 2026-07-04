@@ -48,6 +48,7 @@ export const ShapesAuthStatusResponseSchema = z.discriminatedUnion('hasCredentia
     expiresAt: z.string().nullable(),
   }),
 ]);
+
 // ============================================================================
 // /user/shapes/list
 // ============================================================================
@@ -110,6 +111,7 @@ export const ShapesImportJobSummarySchema = z
     importMetadata: z.unknown(),
   })
   .passthrough();
+
 export const ListShapesImportJobsResponseSchema = z.object({
   jobs: z.array(ShapesImportJobSummarySchema),
 });
@@ -164,6 +166,7 @@ export const ShapesExportJobSummarySchema = z
     downloadUrl: z.string().nullable(),
   })
   .passthrough();
+
 export const ListShapesExportJobsResponseSchema = z.object({
   jobs: z.array(ShapesExportJobSummarySchema),
 });

@@ -240,5 +240,7 @@ export function isVoiceEnabled(personality: LoadedPersonality): boolean {
 }
 
 export type MentionedPersona = z.infer<typeof mentionedPersonaSchema>;
+
 export type ReferencedChannel = z.infer<typeof referencedChannelSchema>;
+
 export type RequestContext = z.infer<typeof requestContextSchema>;
