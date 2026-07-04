@@ -72,10 +72,12 @@ module.exports = {
       // modules (constants/discord.js, types/schemas/discord.js, utils/discord.js)
       // — ai-worker legitimately consumes those shared Discord types, which is
       // the rule's entire point. The `discord\.js` path pattern collides with
-      // those filenames; `pathNot: 'common-types'` keeps the ban on the library
-      // while allowing the shared types. (The root barrel hid this collision —
-      // ai-worker's imports resolved through index.js; deep imports exposed it.)
-      to: { path: 'discord\\.js', pathNot: 'packages/common-types/' },
+      // those filenames; `pathNot: '^packages/common-types/'` keeps the ban on
+      // the library while allowing the shared types. Anchored (like the sibling
+      // `^packages/...` rules) so a future `common-types-v2` isn't exempted.
+      // (The root barrel hid this collision — ai-worker's imports resolved
+      // through index.js; deep imports exposed it.)
+      to: { path: 'discord\\.js', pathNot: '^packages/common-types/' },
     },
   ],
   options: {
