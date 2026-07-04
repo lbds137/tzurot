@@ -31,6 +31,7 @@ import { type LlmConfigCacheInvalidationService } from '@tzurot/cache-invalidati
 import { isPrismaUniqueConstraintErrorOn } from '../utils/prismaErrors.js';
 import { CloneNameExhaustedError, AutoSuffixCollisionError } from './LlmConfigErrors.js';
 import { resolveNonCollidingName } from './llmConfigNameCollision.js';
+import { warnOnReasoningConstraintViolation } from './reasoningConstraintCheck.js';
 import { compareConfigsForList, derivePointerSets } from './llmConfigListHelpers.js';
 
 // Re-exported so route/test importers keep a stable `from './LlmConfigService.js'`
@@ -367,6 +368,8 @@ export class LlmConfigService {
       'Created LLM config'
     );
 
+    warnOnReasoningConstraintViolation(logger, { configId: config.id }, data.advancedParameters);
+
     // Invalidate list caches
     await this.invalidateCacheSafely('create', config.id);
 
@@ -428,6 +431,8 @@ export class LlmConfigService {
     });
 
     logger.info({ configId, updates: Object.keys(updateData) }, 'Updated LLM config');
+
+    warnOnReasoningConstraintViolation(logger, { configId }, data.advancedParameters);
 
     await this.invalidateCacheSafely('update', configId);
 
