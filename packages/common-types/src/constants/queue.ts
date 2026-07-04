@@ -57,8 +57,14 @@ export const REDIS_KEY_PREFIXES = {
   WEBHOOK_MESSAGE: 'webhook:',
   /** Prefix for voice transcript cache */
   VOICE_TRANSCRIPT: 'transcript:',
-  /** Prefix for vision description cache (keyed by image URL) */
-  VISION_DESCRIPTION: 'vision:',
+  /**
+   * Prefix for the model-AGNOSTIC "best available" vision description (two-tier
+   * cache). Every consumer reads this, so a free-tier user gets a description a
+   * paid model already produced. Writes are tier-promoted (a weaker model can't
+   * clobber a stronger model's description). Deliberately distinct from the
+   * retired legacy per-model `vision:` prefix, whose entries just aged out.
+   */
+  VISION_CANONICAL: 'vision:canon:',
   /** Key for OpenRouter models cache */
   OPENROUTER_MODELS: 'openrouter:models',
   /** Prefix for request deduplication cache */

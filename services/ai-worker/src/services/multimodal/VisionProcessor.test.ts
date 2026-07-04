@@ -8,7 +8,6 @@ import {
   describeImage,
   LONG_TTL_FAILURE_CATEGORIES,
   VISION_TERMINATE_CATEGORIES,
-  FAILURE_LABELS,
 } from './VisionProcessor.js';
 import type { AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
@@ -159,6 +158,14 @@ describe('VisionProcessor', () => {
       contentType: 'image/png',
       size: 1024,
     };
+
+    // Expected placeholder renders for mockAttachment — one per buildFailureFallback
+    // branch (permanent / transient / auth-user / auth-system). All must keep the
+    // `[Image` prefix (isValidVisionDescription's cache guard) and include the filename.
+    const PLACEHOLDER_PERMANENT = `[Image "test-image.png" was shared but couldn't be processed — you can acknowledge it if relevant, but can't see its contents]`;
+    const PLACEHOLDER_TRANSIENT = `[Image "test-image.png" was shared but couldn't be processed right now — it may succeed later; you can acknowledge it, but can't see its contents]`;
+    const PLACEHOLDER_AUTH_USER = `[Image "test-image.png" was shared but couldn't be processed — the vision API key was rejected; it can be fixed with /settings apikey set]`;
+    const PLACEHOLDER_AUTH_SYSTEM = `[Image "test-image.png" was shared but couldn't be processed right now — the vision service had a temporary problem; it may work again shortly]`;
 
     describe('image materialization (download → data URL)', () => {
       it('downloads a non-data: image and keys the cache on the ORIGINAL url', async () => {
@@ -635,9 +642,7 @@ describe('VisionProcessor', () => {
 
         const result = await describeImage(mockAttachment, personality);
 
-        expect(result).toBe(
-          '[Image unavailable: vision service temporarily unavailable, please retry shortly]'
-        );
+        expect(result).toBe(PLACEHOLDER_AUTH_SYSTEM);
         expect(mockModelInvoke).not.toHaveBeenCalled();
         expect(mockVisionCacheStore).not.toHaveBeenCalled();
       });
@@ -657,9 +662,7 @@ describe('VisionProcessor', () => {
           loggingContext: { apiKeySource: 'user' },
         });
 
-        expect(result).toBe(
-          '[Image unavailable: your API key was rejected — check /settings apikey set for the vision provider key]'
-        );
+        expect(result).toBe(PLACEHOLDER_AUTH_USER);
       });
 
       it('should return system-key-specific message when apiKeySource is "system"', async () => {
@@ -677,9 +680,7 @@ describe('VisionProcessor', () => {
           loggingContext: { apiKeySource: 'system' },
         });
 
-        expect(result).toBe(
-          '[Image unavailable: vision service temporarily unavailable, please retry shortly]'
-        );
+        expect(result).toBe(PLACEHOLDER_AUTH_SYSTEM);
       });
 
       it('should use friendly label for content_policy failures', async () => {
@@ -695,7 +696,7 @@ describe('VisionProcessor', () => {
 
         const result = await describeImage(mockAttachment, personality);
 
-        expect(result).toBe('[Image unavailable: content filtered]');
+        expect(result).toBe(PLACEHOLDER_PERMANENT);
       });
 
       it('should use friendly label for media_not_found failures', async () => {
@@ -711,7 +712,7 @@ describe('VisionProcessor', () => {
 
         const result = await describeImage(mockAttachment, personality);
 
-        expect(result).toBe('[Image unavailable: image unavailable]');
+        expect(result).toBe(PLACEHOLDER_PERMANENT);
       });
 
       it('should fall back to generic message for unrecognized categories', async () => {
@@ -730,7 +731,7 @@ describe('VisionProcessor', () => {
 
         const result = await describeImage(mockAttachment, personality);
 
-        expect(result).toBe('[Image temporarily unavailable]');
+        expect(result).toBe(PLACEHOLDER_TRANSIENT);
       });
 
       it('should return transient failure fallback when cooldown is active', async () => {
@@ -746,7 +747,7 @@ describe('VisionProcessor', () => {
 
         const result = await describeImage(mockAttachment, personality);
 
-        expect(result).toBe('[Image temporarily unavailable]');
+        expect(result).toBe(PLACEHOLDER_TRANSIENT);
         expect(mockModelInvoke).not.toHaveBeenCalled();
       });
 
@@ -767,7 +768,7 @@ describe('VisionProcessor', () => {
 
         const result = await describeImage(mockAttachment, personality);
 
-        expect(result).toBe('[Image temporarily unavailable]');
+        expect(result).toBe(PLACEHOLDER_TRANSIENT);
         expect(mockModelInvoke).not.toHaveBeenCalled();
       });
 
@@ -1007,7 +1008,7 @@ describe('VisionProcessor', () => {
         expect(mockVisionCacheGetFailure).toHaveBeenCalled();
         // No vision call — the cross-provider storm is prevented.
         expect(mockModelInvoke).not.toHaveBeenCalled();
-        expect(result).toBe('[Image unavailable: image unavailable]');
+        expect(result).toBe(PLACEHOLDER_PERMANENT);
       });
 
       it('should still check negative cache when skipNegativeCache is false', async () => {
@@ -1026,7 +1027,7 @@ describe('VisionProcessor', () => {
         });
 
         expect(mockVisionCacheGetFailure).toHaveBeenCalled();
-        expect(result).toBe('[Image temporarily unavailable]');
+        expect(result).toBe(PLACEHOLDER_TRANSIENT);
         expect(mockModelInvoke).not.toHaveBeenCalled();
       });
 
@@ -1044,7 +1045,7 @@ describe('VisionProcessor', () => {
         const result = await describeImage(mockAttachment, personality);
 
         expect(mockVisionCacheGetFailure).toHaveBeenCalled();
-        expect(result).toBe('[Image temporarily unavailable]');
+        expect(result).toBe(PLACEHOLDER_TRANSIENT);
         expect(mockModelInvoke).not.toHaveBeenCalled();
       });
 
@@ -1328,7 +1329,7 @@ describe('VisionProcessor', () => {
 
         // Should check negative cache (skipNegativeCache not set)
         expect(mockVisionCacheGetFailure).toHaveBeenCalled();
-        expect(result).toBe('[Image temporarily unavailable]');
+        expect(result).toBe(PLACEHOLDER_TRANSIENT);
       });
 
       it('should bypass both caches when both skip options are true', async () => {
@@ -1378,16 +1379,9 @@ describe('VisionProcessor', () => {
       }
     });
 
-    it('every LONG_TTL_FAILURE_CATEGORIES member must have a FAILURE_LABELS entry', () => {
-      // Without an entry here, `buildFailureFallback` falls through to the `?? category`
-      // safety net and surfaces raw enum strings (e.g. `[Image unavailable: new_thing]`)
-      // to users. The runtime fallback is defensive but the invariant catches the gap
-      // at PR time instead of waiting for a user to hit it.
-      for (const category of LONG_TTL_FAILURE_CATEGORIES) {
-        expect(FAILURE_LABELS[category]).toBeDefined();
-        expect(FAILURE_LABELS[category]?.length ?? 0).toBeGreaterThan(0);
-      }
-    });
+    // (The FAILURE_LABELS-coverage invariant test was removed with FAILURE_LABELS
+    // itself: buildFailureFallback no longer renders per-category labels — the
+    // placeholder distinguishes only permanent vs transient vs auth wording.)
   });
 
   describe('terminate-set / attachment-bound-set invariant', () => {

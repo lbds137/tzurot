@@ -13,7 +13,8 @@
  * few heavy users could starve genuine guests. This cap bounds each user's daily
  * consumption of that shared resource. Once a user exceeds the cap, the tier's
  * auth resolution fail-fasts and the fallback loop advances / renders the
- * "[Image unavailable]" placeholder instead of serving another free-fallback call.
+ * `[Image … couldn't be processed …]` placeholder instead of serving another
+ * free-fallback call.
  *
  * **Counted per image (per system-key vision call)**: the fallback loop
  * (`describeImageWithFallback`) creates a fresh quota tracker per ATTACHMENT, so each

@@ -68,27 +68,6 @@ export const VISION_TERMINATE_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Se
 ]);
 
 /**
- * User-friendly labels for the ATTACHMENT-BOUND error categories that actually reach
- * `FAILURE_LABELS` via `buildFailureFallback`. Other categories (auth, quota, rate-limit,
- * server-error, timeout, network, etc.) return the generic "temporarily unavailable"
- * fallback before ever consulting this map, so listing them here would be dead code.
- *
- * **Invariant**: every member of `LONG_TTL_FAILURE_CATEGORIES` MUST have an entry
- * here. The two structures encode the same "this category gets a specific label" decision
- * and must stay in sync — adding a new attachment-bound category to the set without an
- * entry here would surface raw enum strings to users (e.g. `[Image unavailable: new_thing]`).
- * Enforced by an invariant test in `VisionProcessor.test.ts`.
- *
- * Exported for the invariant test only — call sites should use `buildFailureFallback`.
- */
-export const FAILURE_LABELS: Partial<Record<ApiErrorCategory, string>> = {
-  [ApiErrorCategory.CONTENT_POLICY]: 'content filtered',
-  [ApiErrorCategory.MODEL_NOT_FOUND]: 'model unavailable',
-  [ApiErrorCategory.MEDIA_NOT_FOUND]: 'image unavailable',
-  [ApiErrorCategory.CENSORED]: 'content filtered',
-};
-
-/**
  * Diagnostic context for failure logging — answers "whose request was this, on what key,
  * for what attachment" without forcing the caller to grep across multiple log lines.
  *
@@ -407,9 +386,9 @@ async function invokeVisionModelForDescribe(
 
 /**
  * Categories whose failures are bound to attachment properties (URL, content, model
- * availability) and unlikely to recover for the same attachment. The user-facing
- * fallback for these uses the specific `FAILURE_LABELS` wording; other categories
- * (auth, quota, rate-limit, etc.) get the generic "temporarily unavailable" wording.
+ * availability) and unlikely to recover for the same attachment. The prompt-facing
+ * placeholder for these uses the permanent "can't see its contents" wording; other
+ * categories (auth, quota, rate-limit, etc.) get the transient "may succeed later" wording.
  *
  * **Invariant**: every member of this set MUST also have its `l1TtlSeconds` set to
  * `INTERVALS.VISION_FAILURE_TTL_LONG` in `VISION_FAILURE_CACHE_POLICY`. The two
@@ -439,37 +418,42 @@ export const LONG_TTL_FAILURE_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Se
 ]);
 
 /**
- * Build a user-facing fallback string for a cached vision failure.
+ * Build the placeholder injected into the prompt when an image couldn't be described.
  *
- * AUTH gets a source-aware variant: a system-key failure shouldn't blame the user
- * for "API key issue" wording (they'd think their Discord account is broken),
- * while a user-key failure points them at `/settings apikey set` to fix the underlying key.
- * Other categories use either `FAILURE_LABELS` (attachment-bound) or the generic
- * "temporarily unavailable" message.
+ * Written for the LLM reading the prompt, not as a status code: the previous
+ * `[Image unavailable: <reason-label>]` shape read like UI jargon and personas
+ * narrated it verbatim ("the image description is still showing as unavailable").
+ * The placeholder keeps the failure SIGNAL (the model should know an image was
+ * there) and the filename (often has semantic content worth acknowledging), and
+ * tells the model how to behave instead of reporting an internal state.
+ *
+ * Two load-bearing constraints on the wording:
+ * - It MUST start with `[Image` — `isValidVisionDescription` uses that prefix to
+ *   keep failure placeholders out of the positive description cache.
+ * - It must NOT contain any `ERROR_DESCRIPTION_PATTERNS` substring (e.g. "cannot
+ *   process") — those mark error-shaped text, and matching one would make cached
+ *   reads treat every placeholder as a poisoned entry.
+ *
+ * AUTH keeps a source-aware variant: a user-key failure points at
+ * `/settings apikey set`; a system-key (or unknown-source) failure uses the
+ * non-blaming transient wording — the user can't act on a key they don't own.
  */
 export function buildFailureFallback(
   category: ApiErrorCategory,
-  apiKeySource: 'user' | 'system' | undefined
+  apiKeySource: 'user' | 'system' | undefined,
+  filename?: string
 ): string {
+  const subject = filename !== undefined && filename.length > 0 ? `[Image "${filename}"` : '[Image';
   if (category === ApiErrorCategory.AUTHENTICATION) {
     if (apiKeySource === 'user') {
-      return '[Image unavailable: your API key was rejected — check /settings apikey set for the vision provider key]';
+      return `${subject} was shared but couldn't be processed — the vision API key was rejected; it can be fixed with /settings apikey set]`;
     }
-    // Unknown source defaults to the system-side wording (same as `apiKeySource === 'system'`):
-    // a user can't act on "API key issue" if they don't know whose key. Defaulting to the
-    // service-unavailable phrasing is the conservative choice — it doesn't blame the user
-    // when we can't be sure whose key failed, and the user has nothing to do anyway because
-    // any actionable wallet-level remediation only applies when source is definitely 'user'.
-    return '[Image unavailable: vision service temporarily unavailable, please retry shortly]';
+    return `${subject} was shared but couldn't be processed right now — the vision service had a temporary problem; it may work again shortly]`;
   }
   if (LONG_TTL_FAILURE_CATEGORIES.has(category)) {
-    // `?? category` is a defensive safety net: every member of
-    // LONG_TTL_FAILURE_CATEGORIES has an entry in FAILURE_LABELS, so the
-    // fallback shouldn't be reachable. Kept in case the two collections drift apart.
-    const label = FAILURE_LABELS[category] ?? category;
-    return `[Image unavailable: ${label}]`;
+    return `${subject} was shared but couldn't be processed — you can acknowledge it if relevant, but can't see its contents]`;
   }
-  return '[Image temporarily unavailable]';
+  return `${subject} was shared but couldn't be processed right now — it may succeed later; you can acknowledge it, but can't see its contents]`;
 }
 
 /**
@@ -645,17 +629,20 @@ export async function describeImage(
     'describeImage called - checking vision model configuration'
   );
 
-  // Resolve the vision model FIRST — the cache keys are namespaced by model (a model
-  // swap must re-attempt rather than replay the old model's entry), so it's needed
-  // before any cache read. Honor a caller-supplied model (from the gateway's
-  // VisionConfigResolver stamping / resolveVisionConfig) over internal selection — the
-  // resolver may have forced a free-tier downgrade selectVisionModel wouldn't reproduce.
+  // Resolve the vision model FIRST — the success cache is model-agnostic (canonical),
+  // but the NEGATIVE cache is per-model ("has this model failed on this image?") and
+  // the canonical store needs the model's tier, so it's needed before any cache write.
+  // Honor a caller-supplied model (from the gateway's VisionConfigResolver stamping /
+  // resolveVisionConfig) over internal selection — the resolver may have forced a
+  // free-tier downgrade selectVisionModel wouldn't reproduce.
   const usedModel =
     options.model !== undefined && options.model.length > 0
       ? options.model
       : await selectVisionModel(personality, isGuestMode);
 
-  // Check cache first to avoid duplicate vision API calls (keyed by attachment + model).
+  // Check the canonical cache first — model-agnostic, so a description ANY model
+  // produced (e.g. a paid model on an earlier turn) is reused here, including by
+  // free-tier requests that could never produce one themselves.
   const cacheKeyOptions = { attachmentId: attachment.id, url: attachment.url, model: usedModel };
   if (options?.skipCache !== true) {
     const cachedDescription = await visionDescriptionCache.get(cacheKeyOptions);
@@ -699,7 +686,7 @@ export async function describeImage(
     if (options?.throwOnFailure === true) {
       throw new VisionModelError(cachedCategory, 'vision negative-cache hit');
     }
-    return buildFailureFallback(cachedCategory, loggingContext.apiKeySource);
+    return buildFailureFallback(cachedCategory, loggingContext.apiKeySource, attachment.name);
   }
 
   const systemPrompt =

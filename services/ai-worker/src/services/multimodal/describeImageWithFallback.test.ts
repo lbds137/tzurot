@@ -10,7 +10,7 @@
  * - `describeImage` / `selectVisionModel` / `buildFailureFallback` from VisionProcessor
  *   (the REAL `VisionModelError` and `VISION_TERMINATE_CATEGORIES` are kept via importOriginal).
  * - `resolveVisionAuth` / `createVisionQuotaTracker` from visionAuthResolver
- *   (the REAL `VISION_AUTH_FAIL_FAST_DESCRIPTION` is kept).
+ *   (the REAL `visionAuthFailFastDescription` is kept).
  * - `getConfig` from common-types so `config.VISION_FALLBACK_MODEL` is deterministic
  *   (the REAL `MODEL_DEFAULTS` / `ApiErrorCategory` are kept).
  */
@@ -27,11 +27,7 @@ import {
   buildFailureFallback,
   VisionModelError,
 } from './VisionProcessor.js';
-import {
-  resolveVisionAuth,
-  createVisionQuotaTracker,
-  VISION_AUTH_FAIL_FAST_DESCRIPTION,
-} from './visionAuthResolver.js';
+import { resolveVisionAuth, createVisionQuotaTracker } from './visionAuthResolver.js';
 import type { ResolveVisionConfigOptions, VisionConfigResult } from './visionAuthResolver.js';
 
 const FALLBACK_PAID_MODEL = 'openrouter/paid-floor';
@@ -78,10 +74,9 @@ vi.mock('./VisionProcessor.js', async importOriginal => {
     ...actual,
     describeImage: vi.fn(),
     selectVisionModel: vi.fn(),
-    // Declaration-time real-string impl, NOT a bare vi.fn(): visionAuthResolver
-    // derives VISION_AUTH_FAIL_FAST_DESCRIPTION from this at MODULE LOAD (before
-    // any beforeEach), so a bare mock would bake `undefined` into the constant and
-    // turn the exhaustion assertions into undefined===undefined tautologies.
+    // Declaration-time real-string impl as a safety default; beforeEach re-sets it
+    // to the source-aware `[fallback:<category>/<source>]` render the assertions use.
+    // (visionAuthFailFastDescription calls this at CALL time — no module-load bake.)
     buildFailureFallback: vi.fn(
       (category: unknown, source?: unknown) =>
         `[Image unavailable: mock ${String(category)}/${String(source ?? 'none')}]`
@@ -90,7 +85,8 @@ vi.mock('./VisionProcessor.js', async importOriginal => {
 });
 
 // visionAuthResolver: mock resolveVisionAuth + createVisionQuotaTracker,
-// keep the REAL VISION_AUTH_FAIL_FAST_DESCRIPTION constant.
+// keep the REAL visionAuthFailFastDescription (it delegates to the mocked
+// buildFailureFallback above at call time).
 vi.mock('./visionAuthResolver.js', async importOriginal => {
   const actual = await importOriginal<typeof import('./visionAuthResolver.js')>();
   return {
@@ -164,9 +160,12 @@ beforeEach(() => {
   mockCreateVisionQuotaTracker.mockReturnValue({ tryConsume: vi.fn().mockResolvedValue(true) });
   // Default: resolve auth to the tier's own model (exercises dedup-by-resolved-model realistically).
   mockResolveVisionAuth.mockImplementation(async tierModel => resolvedFor(tierModel));
-  // Default buildFailureFallback: `[fallback:<category>]`.
+  // Default buildFailureFallback: `[fallback:<category>/<source>]` — source-aware so the
+  // fail-fast render (source 'user') stays distinguishable from an attempted-401 (source
+  // 'system') now that both derive from the same mocked function at call time.
   mockBuildFailureFallback.mockImplementation(
-    (category: ApiErrorCategory) => `[fallback:${category}]`
+    (category: ApiErrorCategory, source?: 'user' | 'system') =>
+      `[fallback:${category}/${source ?? 'none'}]`
   );
 });
 
@@ -299,7 +298,11 @@ describe('describeImageWithFallback', () => {
       makeAuthOptions({ personality })
     );
 
-    expect(mockBuildFailureFallback).toHaveBeenCalledWith(ApiErrorCategory.UNKNOWN, undefined);
+    expect(mockBuildFailureFallback).toHaveBeenCalledWith(
+      ApiErrorCategory.UNKNOWN,
+      undefined,
+      'img.png'
+    );
     expect(mockDescribeImage).not.toHaveBeenCalled();
     expect(typeof result).toBe('string');
   });
@@ -318,10 +321,11 @@ describe('describeImageWithFallback', () => {
     );
 
     // Returns buildFailureFallback(CONTENT_POLICY, ...) immediately.
-    expect(result).toBe(`[fallback:${ApiErrorCategory.CONTENT_POLICY}]`);
+    expect(result).toBe(`[fallback:${ApiErrorCategory.CONTENT_POLICY}/system]`);
     expect(mockBuildFailureFallback).toHaveBeenCalledWith(
       ApiErrorCategory.CONTENT_POLICY,
-      expect.anything()
+      expect.anything(),
+      'img.png' // the filename crosses the seam so the placeholder can name the image
     );
     // Only the primary tier was attempted — no later tiers.
     expect(mockDescribeImage).toHaveBeenCalledTimes(1);
@@ -340,7 +344,7 @@ describe('describeImageWithFallback', () => {
       { model: 'primary/model' }
     );
 
-    expect(result).toBe(`[fallback:${ApiErrorCategory.MEDIA_NOT_FOUND}]`);
+    expect(result).toBe(`[fallback:${ApiErrorCategory.MEDIA_NOT_FOUND}/system]`);
     expect(mockDescribeImage).toHaveBeenCalledTimes(1);
   });
 
@@ -358,13 +362,14 @@ describe('describeImageWithFallback', () => {
       { model: 'primary/model' }
     );
 
-    expect(result).toBe(`[fallback:${ApiErrorCategory.RATE_LIMIT}]`);
+    expect(result).toBe(`[fallback:${ApiErrorCategory.RATE_LIMIT}/system]`);
     // primary/model, tier-a, and the paid floor are three distinct resolved models.
     expect(mockDescribeImage).toHaveBeenCalledTimes(3);
     // Source is threaded from the last attempted tier (resolvedFor → 'system').
     expect(mockBuildFailureFallback).toHaveBeenLastCalledWith(
       ApiErrorCategory.RATE_LIMIT,
-      'system'
+      'system',
+      'img.png'
     );
   });
 
@@ -386,14 +391,15 @@ describe('describeImageWithFallback', () => {
     // A resolved-key 401 must respect the source (buildFailureFallback maps system-source AUTH
     // to a non-blaming "temporarily unavailable"), NOT the fixed "configure your key" string
     // — which would wrongly tell a guest to fix a key they don't own.
-    expect(result).not.toBe(VISION_AUTH_FAIL_FAST_DESCRIPTION);
+    expect(result).toBe(`[fallback:${ApiErrorCategory.AUTHENTICATION}/system]`);
     expect(mockBuildFailureFallback).toHaveBeenCalledWith(
       ApiErrorCategory.AUTHENTICATION,
-      'system'
+      'system',
+      'img.png'
     );
   });
 
-  it('returns VISION_AUTH_FAIL_FAST_DESCRIPTION when every tier resolves to failFast', async () => {
+  it('renders the fail-fast auth placeholder (with the filename) when every tier resolves to failFast', async () => {
     const personality = makePersonality({ visionFallbackModels: ['tier-a'] });
     // Never resolves auth — every tier fails fast on the provider.
     mockResolveVisionAuth.mockResolvedValue({ kind: 'failFast', provider: AIProvider.OpenRouter });
@@ -405,7 +411,13 @@ describe('describeImageWithFallback', () => {
       { model: 'primary/model' }
     );
 
-    expect(result).toBe(VISION_AUTH_FAIL_FAST_DESCRIPTION);
+    // visionAuthFailFastDescription(attachment.name) → AUTH + 'user' + the filename.
+    expect(result).toBe(`[fallback:${ApiErrorCategory.AUTHENTICATION}/user]`);
+    expect(mockBuildFailureFallback).toHaveBeenCalledWith(
+      ApiErrorCategory.AUTHENTICATION,
+      'user',
+      'img.png'
+    );
     // failFast means describeImage is never invoked for any tier.
     expect(mockDescribeImage).not.toHaveBeenCalled();
   });
@@ -434,8 +446,12 @@ describe('describeImageWithFallback', () => {
 
     // Rendered via buildFailureFallback(RATE_LIMIT, <the attempted tier's source>), NOT the
     // auth placeholder — the genuine RATE_LIMIT failure survives the later failFast tiers.
-    expect(result).not.toBe(VISION_AUTH_FAIL_FAST_DESCRIPTION);
-    expect(mockBuildFailureFallback).toHaveBeenCalledWith(ApiErrorCategory.RATE_LIMIT, 'system');
+    expect(result).toBe(`[fallback:${ApiErrorCategory.RATE_LIMIT}/system]`);
+    expect(mockBuildFailureFallback).toHaveBeenCalledWith(
+      ApiErrorCategory.RATE_LIMIT,
+      'system',
+      'img.png'
+    );
     // Only tier 1 was actually attempted (tiers 2/3 failFast).
     expect(mockDescribeImage).toHaveBeenCalledTimes(1);
   });
@@ -481,7 +497,7 @@ describe('describeImageWithFallback', () => {
     // Every attempt collapsed onto 'collapsed-free' → only one real describeImage call.
     expect(mockDescribeImage).toHaveBeenCalledTimes(1);
     // Chain exhausted on a retryable (rate-limit) category → generic fallback.
-    expect(result).toBe(`[fallback:${ApiErrorCategory.RATE_LIMIT}]`);
+    expect(result).toBe(`[fallback:${ApiErrorCategory.RATE_LIMIT}/system]`);
   });
 
   it('passes throwOnFailure + skipNegativeCache to describeImage', async () => {

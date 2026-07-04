@@ -22,7 +22,7 @@
  * can't auth the vision provider, not a specific provider's users.
  *
  * On `failFast`, the fallback loop (`describeImageWithFallback`) renders the
- * `VISION_AUTH_FAIL_FAST_DESCRIPTION` "configure your key" placeholder per attachment
+ * `visionAuthFailFastDescription` "configure your key" placeholder per attachment
  * once every fallback tier is exhausted.
  */
 
@@ -40,15 +40,18 @@ const logger = createLogger('VisionAuthResolver');
 /**
  * Fallback description shown to the LLM when no usable vision key exists across
  * every fallback tier. DERIVED from `buildFailureFallback`'s AUTH+user branch —
- * this constant is the "no tier ever resolved a key" rendering, which is the
- * same user-actionable situation, so the wording must stay identical. Deriving
+ * this is the "no tier ever resolved a key" rendering, which is the same
+ * user-actionable situation, so the wording must stay identical. Deriving
  * (rather than duplicating the literal) makes a future wording change land in
  * both places by construction.
+ *
+ * A function (not a module-level constant) so the per-request filename reaches
+ * the placeholder — every other failure path names the image file, and the
+ * fail-fast path shouldn't be the one exception.
  */
-export const VISION_AUTH_FAIL_FAST_DESCRIPTION = buildFailureFallback(
-  ApiErrorCategory.AUTHENTICATION,
-  'user'
-);
+export function visionAuthFailFastDescription(filename?: string): string {
+  return buildFailureFallback(ApiErrorCategory.AUTHENTICATION, 'user', filename);
+}
 
 /**
  * Resolved auth + model context for a vision call. Unifies the auth decision
@@ -78,7 +81,7 @@ export interface VisionConfig {
  * - `resolved` — caller proceeds with the vision call using `config`
  * - `failFast` — even the free-model system fallback is unavailable (no system
  *   OpenRouter key configured); the fallback loop treats this tier as unusable and
- *   advances (rendering `VISION_AUTH_FAIL_FAST_DESCRIPTION` once all tiers exhaust).
+ *   advances (rendering `visionAuthFailFastDescription` once all tiers exhaust).
  *   `provider` is the ORIGINAL vision provider the user actually lacked, so
  *   telemetry reflects what they were missing rather than the free-fallback provider.
  */
