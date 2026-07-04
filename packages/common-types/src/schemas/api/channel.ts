@@ -27,6 +27,7 @@ export const ChannelSettingsSchema = z.object({
   activatedBy: z.string().uuid().nullable(),
   createdAt: z.string(),
 });
+
 export type ChannelSettings = z.infer<typeof ChannelSettingsSchema>;
 
 // ============================================================================
@@ -44,6 +45,7 @@ export const ActivateChannelResponseSchema = z.object({
   activation: ChannelSettingsSchema,
   replaced: z.boolean(), // True if an existing activation was replaced
 });
+
 // ============================================================================
 // DELETE /user/channel/deactivate
 // Deactivates a personality from a channel
@@ -57,6 +59,7 @@ export const DeactivateChannelResponseSchema = z.object({
   deactivated: z.boolean(),
   personalityName: z.string().optional(), // Present if something was deactivated
 });
+
 // ============================================================================
 // GET /user/channel/:channelId
 // Gets settings for a specific channel
@@ -66,6 +69,7 @@ export const GetChannelSettingsResponseSchema = z.object({
   hasSettings: z.boolean(),
   settings: ChannelSettingsSchema.optional(),
 });
+
 export type GetChannelSettingsResponse = z.infer<typeof GetChannelSettingsResponseSchema>;
 
 // ============================================================================
@@ -77,6 +81,7 @@ export type GetChannelSettingsResponse = z.infer<typeof GetChannelSettingsRespon
 export const ListChannelSettingsResponseSchema = z.object({
   settings: z.array(ChannelSettingsSchema),
 });
+
 // ============================================================================
 // PATCH /user/channel/update-guild
 // Updates guildId for an existing channel settings record

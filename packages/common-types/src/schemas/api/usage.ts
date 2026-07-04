@@ -36,6 +36,7 @@ export const UsageStatsSchema = z.object({
   /** True if results were truncated due to query limits */
   limitReached: z.boolean().optional(),
 });
+
 export type UsageStats = z.infer<typeof UsageStatsSchema>;
 
 /** Top-user summary returned by GET /admin/usage. */
@@ -80,4 +81,5 @@ export const AdminUsageStatsSchema = z.object({
   uniqueUsers: z.number().int().nonnegative(),
   topUsers: z.array(TopUserUsageSchema),
 });
+
 export type AdminUsageStats = z.infer<typeof AdminUsageStatsSchema>;

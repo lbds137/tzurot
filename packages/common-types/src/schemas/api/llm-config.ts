@@ -265,6 +265,7 @@ export const LlmConfigSummarySchema = z.object({
   isOwned: z.boolean(),
   permissions: EntityPermissionsSchema,
 });
+
 export type LlmConfigSummary = z.infer<typeof LlmConfigSummarySchema>;
 
 // The DETAIL shape: GET-by-id / POST / PUT return the full preset the dashboard
@@ -302,6 +303,7 @@ export const LlmConfigDetailSchema = LlmConfigSummarySchema.omit({
   requiresZaiKey: z.boolean().optional(),
   params: AdvancedParamsSchema,
 });
+
 export type LlmConfigDetail = z.infer<typeof LlmConfigDetailSchema>;
 
 // ============================================================================
@@ -312,6 +314,7 @@ export type LlmConfigDetail = z.infer<typeof LlmConfigDetailSchema>;
 export const ListLlmConfigsResponseSchema = z.object({
   configs: z.array(LlmConfigSummarySchema),
 });
+
 export type ListLlmConfigsResponse = z.infer<typeof ListLlmConfigsResponseSchema>;
 
 // ============================================================================
@@ -322,6 +325,7 @@ export type ListLlmConfigsResponse = z.infer<typeof ListLlmConfigsResponseSchema
 export const CreateLlmConfigResponseSchema = z.object({
   config: LlmConfigDetailSchema,
 });
+
 export type CreateLlmConfigResponse = z.infer<typeof CreateLlmConfigResponseSchema>;
 
 // ============================================================================
@@ -332,6 +336,7 @@ export type CreateLlmConfigResponse = z.infer<typeof CreateLlmConfigResponseSche
 export const DeleteLlmConfigResponseSchema = z.object({
   deleted: z.literal(true),
 });
+
 export type DeleteLlmConfigResponse = z.infer<typeof DeleteLlmConfigResponseSchema>;
 
 // ============================================================================
@@ -342,6 +347,7 @@ export type DeleteLlmConfigResponse = z.infer<typeof DeleteLlmConfigResponseSche
 export const GetLlmConfigResponseSchema = z.object({
   config: LlmConfigDetailSchema,
 });
+
 // ============================================================================
 // PUT /admin/llm-config/:id and PUT /user/llm-config/:id
 // Updates a config; returns the post-update shape.
@@ -350,6 +356,7 @@ export const GetLlmConfigResponseSchema = z.object({
 export const UpdateLlmConfigResponseSchema = z.object({
   config: LlmConfigDetailSchema,
 });
+
 // ============================================================================
 // PUT /admin/llm-config/:id/set-default
 // PUT /admin/llm-config/:id/set-free-default
@@ -361,6 +368,7 @@ export const SetDefaultLlmConfigResponseSchema = z.object({
   success: z.literal(true),
   configName: z.string(),
 });
+
 export type SetDefaultLlmConfigResponse = z.infer<typeof SetDefaultLlmConfigResponseSchema>;
 
 // ============================================================================
@@ -392,6 +400,7 @@ export const ResolveLlmConfigInputSchema = z.object({
     .passthrough(),
   channelId: z.string().optional(),
 });
+
 export const ResolveLlmConfigResponseSchema = z
   .object({
     config: z

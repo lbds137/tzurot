@@ -19,10 +19,12 @@ export const StoreShapesAuthInputSchema = z.object({
   // than falling through to the downstream `isPlausibleShapesTokenValue` check.
   sessionCookie: z.string().trim().min(1),
 });
+
 export const StoreShapesAuthResponseSchema = z.object({
   success: z.literal(true),
   timestamp: z.string(),
 });
+
 export const DeleteShapesAuthResponseSchema = z.object({
   success: z.literal(true),
   message: z.string(),
@@ -57,10 +59,12 @@ export const ShapesListItemSchema = z.object({
   avatar: z.string(),
   createdAt: z.string().nullable(),
 });
+
 export const ListShapesResponseSchema = z.object({
   shapes: z.array(ShapesListItemSchema),
   total: z.number().int().nonnegative(),
 });
+
 // ============================================================================
 // /user/shapes/import
 // ============================================================================
@@ -77,6 +81,7 @@ export const StartShapesImportInputSchema = z.object({
   sourceSlug: z.string().trim().min(1),
   importType: z.enum(['full', 'memory_only']).optional(),
 });
+
 export const StartShapesImportResponseSchema = z.object({
   success: z.literal(true),
   importJobId: z.string(),
@@ -108,6 +113,7 @@ export const ShapesImportJobSummarySchema = z
 export const ListShapesImportJobsResponseSchema = z.object({
   jobs: z.array(ShapesImportJobSummarySchema),
 });
+
 // ============================================================================
 // /user/shapes/export
 // ============================================================================
@@ -123,6 +129,7 @@ export const StartShapesExportInputSchema = z.object({
   slug: z.string().trim().min(1),
   format: z.enum(['json', 'markdown']).optional(),
 });
+
 export const StartShapesExportResponseSchema = z.object({
   success: z.literal(true),
   exportJobId: z.string(),

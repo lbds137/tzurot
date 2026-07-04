@@ -20,6 +20,7 @@ export const GetTimezoneResponseSchema = z.object({
   timezone: z.string(),
   isDefault: z.boolean(),
 });
+
 export type GetTimezoneResponse = z.infer<typeof GetTimezoneResponseSchema>;
 
 // ============================================================================
@@ -33,6 +34,7 @@ export const SetTimezoneResponseSchema = z.object({
   label: z.string(),
   offset: z.string(),
 });
+
 export type SetTimezoneResponse = z.infer<typeof SetTimezoneResponseSchema>;
 
 // ============================================================================

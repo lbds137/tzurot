@@ -52,6 +52,7 @@ export const DenylistAddSchema = z.object({
   mode: denylistModeSchema.default('BLOCK'),
   reason: z.string().max(500, 'Reason too long').optional(),
 });
+
 // ============================================================================
 // Response DTOs
 // ============================================================================
@@ -68,12 +69,14 @@ export const DenylistEntrySchema = z.object({
   addedBy: z.string(),
   addedAt: z.coerce.date(),
 });
+
 export type DenylistEntry = z.infer<typeof DenylistEntrySchema>;
 
 /** Bulk cache hydration response (used by bot-client on startup) */
 export const DenylistCacheResponseSchema = z.object({
   entries: z.array(DenylistEntrySchema),
 });
+
 export type DenylistCacheResponse = z.infer<typeof DenylistCacheResponseSchema>;
 
 /** Response for POST /admin/denylist — newly added (or upserted) entry. */

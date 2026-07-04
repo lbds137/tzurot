@@ -24,6 +24,7 @@ export const AdminSettingsSchema = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
 });
+
 export type AdminSettings = z.infer<typeof AdminSettingsSchema>;
 
 /** GET /admin/settings response uses AdminSettingsSchema directly */
@@ -53,12 +54,7 @@ export const ADMIN_SETTINGS_SINGLETON_ID = '550e8400-e29b-41d4-a716-446655440001
  * - user-default: From user's global default LlmConfig or User.configDefaults
  */
 export type SettingSource =
-  | 'hardcoded'
-  | 'admin'
-  | 'personality'
-  | 'channel'
-  | 'user-personality'
-  | 'user-default';
+  'hardcoded' | 'admin' | 'personality' | 'channel' | 'user-personality' | 'user-default';
 
 const settingSourceEnum = z.enum([
   'hardcoded',
@@ -87,4 +83,5 @@ export const ResolvedExtendedContextSettingsSchema = z.object({
     maxImages: settingSourceEnum,
   }),
 });
+
 export type ResolvedExtendedContextSettings = z.infer<typeof ResolvedExtendedContextSettingsSchema>;

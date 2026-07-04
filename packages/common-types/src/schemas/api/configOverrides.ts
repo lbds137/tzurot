@@ -235,6 +235,7 @@ export const UpdatePersonalityConfigOverridesResponseSchema = z.object({
 export const ClearPersonalityConfigOverridesResponseSchema = z.object({
   success: z.literal(true),
 });
+
 // ============================================================================
 // Channel-tier overrides (/user/channel/:channelId/config-overrides)
 // ============================================================================
