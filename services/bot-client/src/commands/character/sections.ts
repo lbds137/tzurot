@@ -70,8 +70,13 @@ export const identitySection: SectionDefinition<CharacterData> = {
       label: 'Tone',
       placeholder: 'e.g., friendly, sarcastic, professional',
       required: false,
-      style: 'short',
-      maxLength: 255,
+      // paragraph + the schema's SHORT_PARAGRAPH cap (1000) — personalityTone's
+      // storage limit. Was a hardcoded 255 (correct for name/displayName, wrong
+      // here), which silently truncated Tone values of 256-1000 chars in the
+      // edit modal. Must equal the schema cap in personality.ts to avoid
+      // truncation; paragraph style matches the sibling 1000-char field.
+      style: 'paragraph',
+      maxLength: DISCORD_LIMITS.SHORT_PARAGRAPH_MAX_LENGTH,
     },
     {
       id: 'personalityAge',
@@ -296,7 +301,9 @@ export const adminSection: SectionDefinition<CharacterData> = {
       placeholder: 'lowercase-with-hyphens',
       required: true,
       style: 'short',
-      maxLength: 255,
+      // Match slugSchema's cap (50). Was 255, so a 51-255-char slug passed the
+      // modal then got a server-side 400 — the reverse of the Tone truncation.
+      maxLength: DISCORD_LIMITS.SLUG_MAX_LENGTH,
       // Only visible to admins (defense-in-depth - section is also conditionally included)
       hidden: (ctx: DashboardContext) => !ctx.isAdmin,
     },
