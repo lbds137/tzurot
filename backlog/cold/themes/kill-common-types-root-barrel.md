@@ -19,6 +19,13 @@ _Focus: replace the ~976-export root `index.ts` barrel with a `package.json` exp
 
 In flight via grouped PRs (dual-publish — barrel `"."` stays alive until Phase 3). **PR #1472** = tooling + all `packages/*` (taxonomy decided: file-level mirror subpaths + per-subtree wildcard `exports` map, generated deterministically from `getExportSymbols()`; codemod in `scripts/migrations/barrel-kill/`). PR 2 = the three services. PR 3 = the gut below. The codemod's `remainingBareRefs` scan surfaces dynamic `import()` / string-embedded / barrel-centric refs the AST can't rewrite — the PR-3 checklist for clearing them.
 
+**Codemod-quality follow-ups (from PR #1472 review, do before PR 2):**
+
+- `mock-codemod.ts`: preserve the trailing blank line after a rewritten `vi.mock()` block — `statement.remove()` + `insertStatements()` drops it, so the mock ends up flush against the following `describe(...)`. Cosmetic diff noise; fix before PR 2's larger mock volume.
+- Format only codemod-CHANGED files, not the whole package — running `prettier --write "packages/$pkg/src/**"` swept an unrelated file (`xray/types.ts`, no barrel import) into PR #1472. Restrict the format pass to files the codemod actually touched.
+
+**PR-3 map cleanup:** the nested `exports` entries (`schemas/api/*`, `services/tts/*`, `types/schemas/*`) are redundant — Node's `exports` `*` spans `/`, so the parent wildcard already resolves them (contradicting the design-time council claim). Verify with a resolution test, then drop the nested entries.
+
 ### Phase 3 — Barrel deletion + guard
 
 - [ ] Clear/allowlist the BARE barrel refs from the codemod's `remainingBareRefs` scan — dynamic `import()`, string-embedded imports, and INTENTIONAL barrel-centric test fixtures (`dev/check-boundaries.test.ts` + `topology/*.test.ts` feed barrel-import strings to the analyzers; `check-boundaries.test.ts:409` verifies barrel exports). The fixtures need a deliberate allowlist or rework once the barrel is gone.
