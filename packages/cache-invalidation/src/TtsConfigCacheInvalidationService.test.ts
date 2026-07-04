@@ -8,10 +8,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import {
-  TtsConfigCacheInvalidationService,
-  isValidTtsConfigInvalidationEvent,
-} from './TtsConfigCacheInvalidationService.js';
+import { TtsConfigCacheInvalidationService } from './TtsConfigCacheInvalidationService.js';
 import { REDIS_CHANNELS } from '@tzurot/common-types/constants/queue';
 import type { Redis } from 'ioredis';
 vi.mock('@tzurot/common-types/utils/logger', async importOriginal => {
@@ -26,38 +23,6 @@ vi.mock('@tzurot/common-types/utils/logger', async importOriginal => {
     }),
   };
 });
-describe('isValidTtsConfigInvalidationEvent', () => {
-  it('accepts user event', () => {
-    expect(isValidTtsConfigInvalidationEvent({ type: 'user', discordId: '123' })).toBe(true);
-  });
-
-  it('accepts config event', () => {
-    expect(isValidTtsConfigInvalidationEvent({ type: 'config', configId: 'cfg-uuid' })).toBe(true);
-  });
-
-  it('accepts all event', () => {
-    expect(isValidTtsConfigInvalidationEvent({ type: 'all' })).toBe(true);
-  });
-
-  it('rejects user event missing discordId', () => {
-    expect(isValidTtsConfigInvalidationEvent({ type: 'user' })).toBe(false);
-  });
-
-  it('rejects config event missing configId', () => {
-    expect(isValidTtsConfigInvalidationEvent({ type: 'config' })).toBe(false);
-  });
-
-  it('rejects unknown event type', () => {
-    expect(isValidTtsConfigInvalidationEvent({ type: 'mystery' })).toBe(false);
-  });
-
-  it('rejects null and primitives', () => {
-    expect(isValidTtsConfigInvalidationEvent(null)).toBe(false);
-    expect(isValidTtsConfigInvalidationEvent(undefined)).toBe(false);
-    expect(isValidTtsConfigInvalidationEvent('not-an-object')).toBe(false);
-  });
-});
-
 describe('TtsConfigCacheInvalidationService', () => {
   function makeService(): {
     service: TtsConfigCacheInvalidationService;

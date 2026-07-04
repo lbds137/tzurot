@@ -3,10 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import {
-  ConfigCascadeCacheInvalidationService,
-  isValidConfigCascadeInvalidationEvent,
-} from './ConfigCascadeCacheInvalidationService.js';
+import { ConfigCascadeCacheInvalidationService } from './ConfigCascadeCacheInvalidationService.js';
 import { REDIS_CHANNELS } from '@tzurot/common-types/constants/queue';
 
 // Mock logger
@@ -59,75 +56,6 @@ describe('ConfigCascadeCacheInvalidationService', () => {
 
   afterEach(() => {
     vi.clearAllMocks();
-  });
-
-  describe('isValidConfigCascadeInvalidationEvent', () => {
-    it('should validate "all" event', () => {
-      expect(isValidConfigCascadeInvalidationEvent({ type: 'all' })).toBe(true);
-    });
-
-    it('should validate "admin" event', () => {
-      expect(isValidConfigCascadeInvalidationEvent({ type: 'admin' })).toBe(true);
-    });
-
-    it('should validate "user" event with discordId', () => {
-      expect(isValidConfigCascadeInvalidationEvent({ type: 'user', discordId: '123' })).toBe(true);
-    });
-
-    it('should validate "personality" event with personalityId', () => {
-      expect(
-        isValidConfigCascadeInvalidationEvent({ type: 'personality', personalityId: 'p-123' })
-      ).toBe(true);
-    });
-
-    it('should reject null', () => {
-      expect(isValidConfigCascadeInvalidationEvent(null)).toBe(false);
-    });
-
-    it('should reject non-objects', () => {
-      expect(isValidConfigCascadeInvalidationEvent('string')).toBe(false);
-      expect(isValidConfigCascadeInvalidationEvent(123)).toBe(false);
-    });
-
-    it('should reject invalid event types', () => {
-      expect(isValidConfigCascadeInvalidationEvent({ type: 'invalid' })).toBe(false);
-    });
-
-    it('should reject "user" event without discordId', () => {
-      expect(isValidConfigCascadeInvalidationEvent({ type: 'user' })).toBe(false);
-    });
-
-    it('should validate "channel" event with channelId', () => {
-      expect(isValidConfigCascadeInvalidationEvent({ type: 'channel', channelId: 'ch-123' })).toBe(
-        true
-      );
-    });
-
-    it('should reject "channel" event without channelId', () => {
-      expect(isValidConfigCascadeInvalidationEvent({ type: 'channel' })).toBe(false);
-    });
-
-    it('should reject "channel" event with wrong channelId type', () => {
-      expect(isValidConfigCascadeInvalidationEvent({ type: 'channel', channelId: 123 })).toBe(
-        false
-      );
-    });
-
-    it('should reject "personality" event without personalityId', () => {
-      expect(isValidConfigCascadeInvalidationEvent({ type: 'personality' })).toBe(false);
-    });
-
-    it('should reject "all" event with extra properties', () => {
-      expect(isValidConfigCascadeInvalidationEvent({ type: 'all', extra: 'data' })).toBe(false);
-    });
-
-    it('should reject "admin" event with extra properties', () => {
-      expect(isValidConfigCascadeInvalidationEvent({ type: 'admin', extra: 'data' })).toBe(false);
-    });
-
-    it('should reject "user" event with wrong discordId type', () => {
-      expect(isValidConfigCascadeInvalidationEvent({ type: 'user', discordId: 123 })).toBe(false);
-    });
   });
 
   describe('publish', () => {

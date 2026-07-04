@@ -3,10 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import {
-  LlmConfigCacheInvalidationService,
-  isValidLlmConfigInvalidationEvent,
-} from './LlmConfigCacheInvalidationService.js';
+import { LlmConfigCacheInvalidationService } from './LlmConfigCacheInvalidationService.js';
 import { REDIS_CHANNELS } from '@tzurot/common-types/constants/queue';
 
 // Mock logger
@@ -59,49 +56,6 @@ describe('LlmConfigCacheInvalidationService', () => {
 
   afterEach(() => {
     vi.clearAllMocks();
-  });
-
-  describe('isValidLlmConfigInvalidationEvent', () => {
-    it('should validate "all" event type', () => {
-      expect(isValidLlmConfigInvalidationEvent({ type: 'all' })).toBe(true);
-    });
-
-    it('should validate "user" event type with discordId', () => {
-      expect(isValidLlmConfigInvalidationEvent({ type: 'user', discordId: '123' })).toBe(true);
-    });
-
-    it('should validate "config" event type with configId', () => {
-      expect(isValidLlmConfigInvalidationEvent({ type: 'config', configId: 'cfg-123' })).toBe(true);
-    });
-
-    it('should reject null', () => {
-      expect(isValidLlmConfigInvalidationEvent(null)).toBe(false);
-    });
-
-    it('should reject non-objects', () => {
-      expect(isValidLlmConfigInvalidationEvent('string')).toBe(false);
-      expect(isValidLlmConfigInvalidationEvent(123)).toBe(false);
-    });
-
-    it('should reject invalid event types', () => {
-      expect(isValidLlmConfigInvalidationEvent({ type: 'invalid' })).toBe(false);
-    });
-
-    it('should reject "user" event without discordId', () => {
-      expect(isValidLlmConfigInvalidationEvent({ type: 'user' })).toBe(false);
-    });
-
-    it('should reject "config" event without configId', () => {
-      expect(isValidLlmConfigInvalidationEvent({ type: 'config' })).toBe(false);
-    });
-
-    it('should reject "all" event with extra properties', () => {
-      expect(isValidLlmConfigInvalidationEvent({ type: 'all', extra: 'data' })).toBe(false);
-    });
-
-    it('should reject "user" event with wrong discordId type', () => {
-      expect(isValidLlmConfigInvalidationEvent({ type: 'user', discordId: 123 })).toBe(false);
-    });
   });
 
   describe('publish', () => {

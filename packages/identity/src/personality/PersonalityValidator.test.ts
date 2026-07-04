@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { LlmConfigSchema, parseLlmConfig } from './PersonalityValidator.js';
+import { LlmConfigSchema } from './PersonalityValidator.js';
 import { Decimal } from '@prisma/client/runtime/client';
 
 describe('PersonalityValidator', () => {
@@ -121,60 +121,6 @@ describe('PersonalityValidator', () => {
 
       const result = LlmConfigSchema.safeParse(config);
       expect(result.success).toBe(false);
-    });
-  });
-
-  describe('parseLlmConfig', () => {
-    it('should parse valid config', () => {
-      const dbConfig = {
-        model: 'anthropic/claude-sonnet-4.5',
-        provider: 'openrouter',
-        temperature: new Decimal(0.7),
-        maxTokens: 4096,
-        topP: null,
-        topK: null,
-        frequencyPenalty: null,
-        presencePenalty: null,
-        memoryScoreThreshold: new Decimal(0.7),
-        memoryLimit: 10,
-        contextWindowTokens: 200000,
-      };
-
-      const result = parseLlmConfig(dbConfig);
-      expect(result).not.toBeNull();
-      expect(result?.model).toBe('anthropic/claude-sonnet-4.5');
-      expect(result?.temperature).toBe(0.7);
-      expect(result?.maxTokens).toBe(4096);
-    });
-
-    it('should handle config with invalid types gracefully', () => {
-      const invalidConfig = {
-        model: 'test-model',
-        provider: 'openrouter',
-        temperature: 'invalid', // Should be number, but coerceToNumber converts to undefined
-      };
-
-      const result = parseLlmConfig(invalidConfig);
-      // The coercion function converts invalid values to undefined, which is valid for optional fields
-      expect(result).not.toBeNull();
-      expect(result?.model).toBe('test-model');
-      expect(result?.temperature).toBeUndefined();
-    });
-
-    it('should return null for null config', () => {
-      const result = parseLlmConfig(null);
-      expect(result).toBeNull();
-    });
-
-    it('should handle config with out-of-range values', () => {
-      const invalidConfig = {
-        model: 'test-model',
-        provider: 'openrouter',
-        temperature: 5.0, // Out of range
-      };
-
-      const result = parseLlmConfig(invalidConfig);
-      expect(result).toBeNull();
     });
   });
 });

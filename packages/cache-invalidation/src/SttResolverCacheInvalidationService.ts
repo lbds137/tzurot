@@ -26,11 +26,10 @@ import type { Redis } from 'ioredis';
 
 type SttResolverInvalidationEvent = { type: 'user'; discordId: string } | { type: 'all' };
 
-export const isValidSttResolverInvalidationEvent =
-  createEventValidator<SttResolverInvalidationEvent>([
-    { type: 'user', fields: { discordId: 'string' } },
-    { type: 'all' },
-  ]);
+const isValidSttResolverInvalidationEvent = createEventValidator<SttResolverInvalidationEvent>([
+  { type: 'user', fields: { discordId: 'string' } },
+  { type: 'all' },
+]);
 
 export class SttResolverCacheInvalidationService extends BaseCacheInvalidationService<SttResolverInvalidationEvent> {
   constructor(redis: Redis) {

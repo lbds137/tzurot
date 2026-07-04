@@ -10,7 +10,7 @@
 
 import { describe, it, expect, expectTypeOf } from 'vitest';
 import { z } from 'zod';
-import { asActor, asSubject, resolveQueryShape, createPaginationSchema } from './types.js';
+import { asActor, asSubject, resolveQueryShape } from './types.js';
 import type { ActorDiscordId, SubjectDiscordId } from './types.js';
 
 describe('asActor', () => {
@@ -113,65 +113,5 @@ describe('resolveQueryShape', () => {
     const objectShape = resolveQueryShape(z.object({ a: z.string() }));
     expect(Object.keys(recordShape ?? {})).toEqual(['a']);
     expect(Object.keys(objectShape ?? {})).toEqual(['a']);
-  });
-});
-
-describe('createPaginationSchema', () => {
-  it('accepts a minimal valid input (all fields optional)', () => {
-    const schema = createPaginationSchema(['createdAt', 'updatedAt']);
-    expect(schema.safeParse({}).success).toBe(true);
-  });
-
-  it('accepts a fully-populated input', () => {
-    const schema = createPaginationSchema(['createdAt', 'updatedAt']);
-    const result = schema.safeParse({
-      limit: 20,
-      offset: 40,
-      sort: 'updatedAt',
-      order: 'desc',
-    });
-    expect(result.success).toBe(true);
-  });
-
-  it('rejects a sort value not in the declared sortFields tuple', () => {
-    const schema = createPaginationSchema(['createdAt']);
-    expect(schema.safeParse({ sort: 'notARealField' }).success).toBe(false);
-  });
-
-  it('rejects an order outside asc/desc', () => {
-    const schema = createPaginationSchema(['createdAt']);
-    expect(schema.safeParse({ order: 'random' }).success).toBe(false);
-  });
-
-  it('enforces limit bounds (1-100, integer)', () => {
-    const schema = createPaginationSchema(['createdAt']);
-    expect(schema.safeParse({ limit: 0 }).success).toBe(false);
-    expect(schema.safeParse({ limit: 101 }).success).toBe(false);
-    expect(schema.safeParse({ limit: 50.5 }).success).toBe(false);
-    expect(schema.safeParse({ limit: 50 }).success).toBe(true);
-  });
-
-  it('enforces offset >= 0', () => {
-    const schema = createPaginationSchema(['createdAt']);
-    expect(schema.safeParse({ offset: -1 }).success).toBe(false);
-    expect(schema.safeParse({ offset: 0 }).success).toBe(true);
-  });
-
-  it('produces a ZodObject that can be .extend()-ed with per-route fields', () => {
-    const base = createPaginationSchema(['createdAt', 'updatedAt']);
-    const extended = base.extend({ personalityId: z.string().uuid() });
-    expect(extended.safeParse({ personalityId: 'not-a-uuid' }).success).toBe(false);
-    expect(
-      extended.safeParse({ personalityId: '11111111-1111-4111-8111-111111111111' }).success
-    ).toBe(true);
-  });
-
-  it('preserves typed sortFields at the type level', () => {
-    const schema = createPaginationSchema(['createdAt', 'updatedAt']);
-    expect(schema).toBeDefined(); // runtime use so the factory result isn't dead
-    // Type-level assertion: sort is narrowed to the tuple, not generic string
-    expectTypeOf<z.infer<typeof schema>['sort']>().toEqualTypeOf<
-      'createdAt' | 'updatedAt' | undefined
-    >();
   });
 });

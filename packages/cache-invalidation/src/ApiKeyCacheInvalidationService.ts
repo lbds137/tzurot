@@ -30,8 +30,7 @@ export type ApiKeyInvalidationEvent = StandardInvalidationEvent;
 /**
  * Type guard to validate ApiKeyInvalidationEvent structure
  */
-export const isValidApiKeyInvalidationEvent =
-  createStandardEventValidator<ApiKeyInvalidationEvent>();
+const isValidApiKeyInvalidationEvent = createStandardEventValidator<ApiKeyInvalidationEvent>();
 
 /**
  * API Key Cache Invalidation Service

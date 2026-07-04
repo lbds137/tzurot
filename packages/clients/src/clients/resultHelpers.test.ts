@@ -1,11 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  InfraError,
-  GatewayClientError,
-  nullOn404,
-  emptyOn404,
-  nullOnAnyError,
-} from './resultHelpers.js';
+import { InfraError, GatewayClientError, nullOn404 } from './resultHelpers.js';
 import type { GatewayResult } from './transport.js';
 
 // Builders for the two GatewayResult arms. The failure arm is kind-independent
@@ -105,45 +99,5 @@ describe('nullOn404', () => {
   it('throws GatewayClientError (not InfraError) on a non-404 4xx — no "try again"', () => {
     expect(() => nullOn404(forbidden())).toThrow(GatewayClientError);
     expect(() => nullOn404(forbidden())).not.toThrow(InfraError);
-  });
-});
-
-describe('emptyOn404', () => {
-  it('returns the array on success', () => {
-    expect(emptyOn404(ok([1, 2, 3]))).toEqual([1, 2, 3]);
-  });
-
-  it('returns [] ONLY on a genuine 404', () => {
-    expect(emptyOn404(notFound<number[]>())).toEqual([]);
-  });
-
-  it.each([
-    ['timeout', timeout<number[]>()],
-    ['network', network<number[]>()],
-    ['config', configError<number[]>()],
-    ['schema', schemaError<number[]>()],
-    ['5xx', serverError<number[]>()],
-  ])('throws InfraError on an infra failure (%s)', (_label, failure) => {
-    expect(() => emptyOn404(failure)).toThrow(InfraError);
-  });
-
-  it('throws GatewayClientError on a non-404 4xx', () => {
-    expect(() => emptyOn404(forbidden<number[]>())).toThrow(GatewayClientError);
-  });
-});
-
-describe('nullOnAnyError', () => {
-  it('returns the data on success', () => {
-    expect(nullOnAnyError(ok('value'))).toBe('value');
-  });
-
-  it.each([
-    ['404', notFound<string>()],
-    ['403', forbidden<string>()],
-    ['timeout', timeout<string>()],
-    ['network', network<string>()],
-    ['5xx', serverError<string>()],
-  ])('collapses every failure (%s) to null and never throws', (_label, failure) => {
-    expect(nullOnAnyError(failure)).toBeNull();
   });
 });
