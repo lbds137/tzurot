@@ -15,9 +15,14 @@
  * own their client — see `createPrismaClient` in `@tzurot/common-types`).
  */
 
-export * from './BaseConfigResolver.js';
-export * from './LlmConfigResolver.js';
-export * from './TtsConfigResolver.js';
-export * from './VisionConfigResolver.js';
-export * from './SttResolver.js';
-export * from './ConfigCascadeResolver.js';
+export {
+  BaseConfigResolver,
+  type BaseConfigResolverOptions,
+  type ConfigOverrideEntry,
+  type UserWithDefault,
+} from './BaseConfigResolver.js';
+export { LlmConfigResolver } from './LlmConfigResolver.js';
+export { TtsConfigResolver } from './TtsConfigResolver.js';
+export { VisionConfigResolver } from './VisionConfigResolver.js';
+export { type SttResolutionResult, SttResolver, type SttResolverOptions } from './SttResolver.js';
+export { ConfigCascadeResolver } from './ConfigCascadeResolver.js';

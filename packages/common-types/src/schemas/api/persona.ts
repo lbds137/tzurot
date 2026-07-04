@@ -100,8 +100,6 @@ export const UpdatePersonaResponseSchema = z.object({
   success: z.literal(true),
   persona: PersonaDetailsSchema,
 });
-export type UpdatePersonaResponse = z.infer<typeof UpdatePersonaResponseSchema>;
-
 // ============================================================================
 // DELETE /user/persona/:id — delete an owned persona (not the default)
 // ============================================================================
@@ -116,8 +114,6 @@ export type UpdatePersonaResponse = z.infer<typeof UpdatePersonaResponseSchema>;
 export const DeletePersonaResponseSchema = z.object({
   message: z.string(),
 });
-export type DeletePersonaResponse = z.infer<typeof DeletePersonaResponseSchema>;
-
 // ============================================================================
 // PATCH /user/persona/:id/default
 // Sets a persona as the user's default
@@ -152,13 +148,9 @@ const PersonaOverrideSummarySchema = z.object({
   personaId: z.string(),
   personaName: z.string(),
 });
-export type PersonaOverrideSummaryEntry = z.infer<typeof PersonaOverrideSummarySchema>;
-
 export const ListPersonaOverridesResponseSchema = z.object({
   overrides: z.array(PersonaOverrideSummarySchema),
 });
-export type ListPersonaOverridesResponse = z.infer<typeof ListPersonaOverridesResponseSchema>;
-
 // ============================================================================
 // PUT /user/persona/override/:personalitySlug
 // Sets an existing persona as override for a personality
@@ -221,8 +213,6 @@ export const PersonaCreateSchema = z.object({
   description: nullableString(500),
   pronouns: nullableString(100),
 });
-export type PersonaCreateInput = z.infer<typeof PersonaCreateSchema>;
-
 /**
  * Schema for updating a persona.
  * Uses empty-to-undefined/null transforms so clients can send "" to preserve or clear fields.
@@ -244,8 +234,6 @@ export type PersonaUpdateInput = z.infer<typeof PersonaUpdateSchema>;
 export const SetPersonaOverrideSchema = z.object({
   personaId: z.string().uuid('Invalid persona ID format'),
 });
-export type SetPersonaOverrideInput = z.infer<typeof SetPersonaOverrideSchema>;
-
 // ============================================================================
 // Database Constants
 // ============================================================================

@@ -12,7 +12,11 @@
  * client — see `createPrismaClient` in `@tzurot/common-types`).
  */
 
-export * from './UserService.js';
-export * from './RoutingContextResolver.js';
-export * from './resolvers/index.js';
-export * from './personality/index.js';
+export {
+  buildShellPlaceholderPersonaName,
+  type ProvisionedUser,
+  UserService,
+} from './UserService.js';
+export { resolveRoutingContext, type RoutingContextDeps } from './RoutingContextResolver.js';
+export { type PersonaPromptData, PersonaResolver } from './resolvers/index.js';
+export { PersonalityService } from './personality/index.js';

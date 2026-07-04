@@ -16,8 +16,6 @@ export const UsageBreakdownSchema = z.object({
   tokensIn: z.number().int().nonnegative(),
   tokensOut: z.number().int().nonnegative(),
 });
-export type UsageBreakdown = z.infer<typeof UsageBreakdownSchema>;
-
 /** Valid time periods for usage queries */
 export const UsagePeriodSchema = z.enum(['day', 'week', 'month', 'all']);
 export type UsagePeriod = z.infer<typeof UsagePeriodSchema>;
@@ -45,8 +43,6 @@ export const TopUserUsageSchema = z.object({
   requests: z.number().int().nonnegative(),
   tokens: z.number().int().nonnegative(),
 });
-export type TopUserUsage = z.infer<typeof TopUserUsageSchema>;
-
 /**
  * Token usage statistics — admin-flavor (returned by GET /admin/usage).
  *

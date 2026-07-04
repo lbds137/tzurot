@@ -95,12 +95,7 @@ export const HARDCODED_CONFIG_DEFAULTS: {
  *   hardcoded → admin → personality → channel → user-default → user-personality
  */
 export type ConfigOverrideSource =
-  | 'hardcoded'
-  | 'admin'
-  | 'personality'
-  | 'channel'
-  | 'user-default'
-  | 'user-personality';
+  'hardcoded' | 'admin' | 'personality' | 'channel' | 'user-default' | 'user-personality';
 
 /**
  * Fully resolved config overrides with source tracking.
@@ -215,44 +210,26 @@ export const ResolveUserConfigDefaultsResponseSchema = ConfigOverridesSchema.req
   sources: z.record(ConfigOverridesKeySchema, ConfigOverrideSourceSchema),
   userOverrides: z.record(z.string(), z.unknown()).nullable(),
 });
-export type ResolveUserConfigDefaultsResponse = z.infer<
-  typeof ResolveUserConfigDefaultsResponseSchema
->;
-
 /** Response for GET /user/config-overrides/defaults — the raw JSONB column (or null). */
 export const GetUserConfigDefaultsResponseSchema = z.object({
   configDefaults: z.record(z.string(), z.unknown()).nullable(),
 });
-export type GetUserConfigDefaultsResponse = z.infer<typeof GetUserConfigDefaultsResponseSchema>;
-
 /** Response for PATCH /user/config-overrides/defaults — merged result echoed back. */
 export const UpdateConfigDefaultsResponseSchema = z.object({
   configDefaults: z.record(z.string(), z.unknown()),
 });
-export type UpdateConfigDefaultsResponse = z.infer<typeof UpdateConfigDefaultsResponseSchema>;
-
 /** Response for DELETE /user/config-overrides/defaults — bare success ack. */
 export const ClearUserConfigDefaultsResponseSchema = z.object({
   success: z.literal(true),
 });
-export type ClearUserConfigDefaultsResponse = z.infer<typeof ClearUserConfigDefaultsResponseSchema>;
-
 /** Response for PATCH /user/config-overrides/:personalityId — merged per-personality overrides. */
 export const UpdatePersonalityConfigOverridesResponseSchema = z.object({
   configOverrides: z.record(z.string(), z.unknown()),
 });
-export type UpdatePersonalityConfigOverridesResponse = z.infer<
-  typeof UpdatePersonalityConfigOverridesResponseSchema
->;
-
 /** Response for DELETE /user/config-overrides/:personalityId — bare success ack. */
 export const ClearPersonalityConfigOverridesResponseSchema = z.object({
   success: z.literal(true),
 });
-export type ClearPersonalityConfigOverridesResponse = z.infer<
-  typeof ClearPersonalityConfigOverridesResponseSchema
->;
-
 // ============================================================================
 // Channel-tier overrides (/user/channel/:channelId/config-overrides)
 // ============================================================================
@@ -261,10 +238,6 @@ export type ClearPersonalityConfigOverridesResponse = z.infer<
 export const GetChannelConfigOverridesResponseSchema = z.object({
   configOverrides: z.record(z.string(), z.unknown()).nullable(),
 });
-export type GetChannelConfigOverridesResponse = z.infer<
-  typeof GetChannelConfigOverridesResponseSchema
->;
-
 /**
  * Request for PATCH /user/channel/:channelId/config-overrides — partial merge.
  * Bare record (not `ConfigOverridesSchema.partial()`) because the wire format
@@ -277,22 +250,11 @@ export type GetChannelConfigOverridesResponse = z.infer<
  * config layer (typed `settingId → apiField` map).
  */
 export const UpdateChannelConfigOverridesRequestSchema = z.record(z.string(), z.unknown());
-export type UpdateChannelConfigOverridesRequest = z.infer<
-  typeof UpdateChannelConfigOverridesRequestSchema
->;
-
 /** Response for PATCH /user/channel/:channelId/config-overrides — merged result echoed back. */
 export const UpdateChannelConfigOverridesResponseSchema = z.object({
   configOverrides: z.record(z.string(), z.unknown()),
 });
-export type UpdateChannelConfigOverridesResponse = z.infer<
-  typeof UpdateChannelConfigOverridesResponseSchema
->;
-
 /** Response for DELETE /user/channel/:channelId/config-overrides — bare success ack. */
 export const ClearChannelConfigOverridesResponseSchema = z.object({
   success: z.literal(true),
 });
-export type ClearChannelConfigOverridesResponse = z.infer<
-  typeof ClearChannelConfigOverridesResponseSchema
->;

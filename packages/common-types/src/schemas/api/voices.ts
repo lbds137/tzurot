@@ -23,15 +23,11 @@ export const TaggedVoiceSchema = z.object({
   name: z.string(),
   slug: z.string(),
 });
-export type TaggedVoice = z.infer<typeof TaggedVoiceSchema>;
-
 /** Per-provider warning surfaced when one provider fails but the request succeeded. */
 export const ProviderWarningSchema = z.object({
   provider: AudioProviderIdSchema,
   message: z.string(),
 });
-export type ProviderWarning = z.infer<typeof ProviderWarningSchema>;
-
 // ============================================================================
 // GET /user/voices
 // ============================================================================
@@ -42,8 +38,6 @@ export const ListVoicesResponseSchema = z.object({
   tzurotCount: z.number().int().nonnegative(),
   warnings: z.array(ProviderWarningSchema).optional(),
 });
-export type ListVoicesResponse = z.infer<typeof ListVoicesResponseSchema>;
-
 // ============================================================================
 // GET /user/voices/models
 // ============================================================================
@@ -52,13 +46,9 @@ export const VoiceModelSchema = z.object({
   modelId: z.string(),
   name: z.string(),
 });
-export type VoiceModel = z.infer<typeof VoiceModelSchema>;
-
 export const ListVoiceModelsResponseSchema = z.object({
   models: z.array(VoiceModelSchema),
 });
-export type ListVoiceModelsResponse = z.infer<typeof ListVoiceModelsResponseSchema>;
-
 // ============================================================================
 // POST /user/voices/clear
 // Always returns 200; partial failures land in `errors`.
@@ -70,8 +60,6 @@ export const ClearVoicesResponseSchema = z.object({
   message: z.string().optional(),
   errors: z.array(z.string()).optional(),
 });
-export type ClearVoicesResponse = z.infer<typeof ClearVoicesResponseSchema>;
-
 // ============================================================================
 // DELETE /user/voices/:provider/:voiceId
 // ============================================================================
@@ -83,4 +71,3 @@ export const DeleteVoiceResponseSchema = z.object({
   name: z.string(),
   slug: z.string(),
 });
-export type DeleteVoiceResponse = z.infer<typeof DeleteVoiceResponseSchema>;

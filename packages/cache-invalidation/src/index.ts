@@ -13,13 +13,44 @@
  * in `@tzurot/common-types` (`REDIS_CHANNELS`, alongside the BullMQ queue names).
  */
 
-export * from './BaseCacheInvalidationService.js';
-export * from './CacheInvalidationService.js';
-export * from './ApiKeyCacheInvalidationService.js';
-export * from './LlmConfigCacheInvalidationService.js';
-export * from './PersonaCacheInvalidationService.js';
-export * from './ChannelActivationCacheInvalidationService.js';
-export * from './ConfigCascadeCacheInvalidationService.js';
-export * from './DenylistCacheInvalidationService.js';
-export * from './TtsConfigCacheInvalidationService.js';
-export * from './SttResolverCacheInvalidationService.js';
+export {
+  type AllInvalidationEvent,
+  BaseCacheInvalidationService,
+  createEventValidator,
+  createStandardEventValidator,
+  type EventFieldSpec,
+  type EventTypeSpec,
+  type EventValidator,
+  type StandardInvalidationEvent,
+  type UserInvalidationEvent,
+} from './BaseCacheInvalidationService.js';
+export {
+  CacheInvalidationService,
+  isValidInvalidationEvent,
+  type PersonalityCacheTarget,
+} from './CacheInvalidationService.js';
+export {
+  ApiKeyCacheInvalidationService,
+  type ApiKeyInvalidationEvent,
+} from './ApiKeyCacheInvalidationService.js';
+export { LlmConfigCacheInvalidationService } from './LlmConfigCacheInvalidationService.js';
+export {
+  PersonaCacheInvalidationService,
+  type PersonaInvalidationEvent,
+} from './PersonaCacheInvalidationService.js';
+export {
+  ChannelActivationCacheInvalidationService,
+  type ChannelActivationInvalidationEvent,
+} from './ChannelActivationCacheInvalidationService.js';
+export {
+  ConfigCascadeCacheInvalidationService,
+  type ConfigCascadeInvalidationEvent,
+} from './ConfigCascadeCacheInvalidationService.js';
+export {
+  DenylistCacheInvalidationService,
+  type DenylistEntryRef,
+  type DenylistInvalidationEvent,
+  isValidDenylistInvalidationEvent,
+} from './DenylistCacheInvalidationService.js';
+export { TtsConfigCacheInvalidationService } from './TtsConfigCacheInvalidationService.js';
+export { SttResolverCacheInvalidationService } from './SttResolverCacheInvalidationService.js';

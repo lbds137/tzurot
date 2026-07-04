@@ -15,22 +15,51 @@
 export { type DeepPartial, deepMerge } from './factoryUtils.js';
 
 // Persona endpoint mocks
-export * from './persona.js';
+export {
+  mockClearOverrideResponse,
+  mockCreateOverrideResponse,
+  mockCreatePersonaResponse,
+  mockGetPersonaResponse,
+  mockListPersonasResponse,
+  mockOverrideInfoResponse,
+  mockSetDefaultPersonaResponse,
+  mockSetOverrideResponse,
+} from './persona.js';
 
 // Personality endpoint mocks
-export * from './personality.js';
+export {
+  mockCreatePersonalityResponse,
+  mockGetPersonalityResponse,
+  mockListPersonalitiesResponse,
+} from './personality.js';
 
 // Model Override endpoint mocks
-export * from './model-override.js';
+export {
+  mockClearDefaultConfigResponse,
+  mockDeleteModelOverrideResponse,
+  mockListModelOverridesResponse,
+  mockSetDefaultConfigResponse,
+  mockSetModelOverrideResponse,
+} from './model-override.js';
 
 // Wallet endpoint mocks
-export * from './wallet.js';
+export {
+  mockListWalletKeysResponse,
+  mockRemoveWalletKeyResponse,
+  mockTestWalletKeyResponse,
+} from './wallet.js';
 
 // Timezone endpoint mocks
-export * from './timezone.js';
+export { mockGetTimezoneResponse, mockSetTimezoneResponse } from './timezone.js';
 
 // LLM Config endpoint mocks
-export * from './llm-config.js';
+export {
+  mockCreateLlmConfigResponse,
+  mockDeleteLlmConfigResponse,
+  mockListLlmConfigsResponse,
+  mockLlmConfigDetail,
+  mockLlmConfigSummary,
+} from './llm-config.js';
 
 // TTS Override endpoint mocks
-export * from './tts-override.js';
+export { mockClearTtsDefaultConfigResponse } from './tts-override.js';

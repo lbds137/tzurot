@@ -19,8 +19,22 @@
  * share one implementation without a cross-service import.
  */
 
-export * from './ConversationHistoryService.js';
-export * from './ConversationRetentionService.js';
-export * from './ConversationSyncService.js';
-export * from './ConversationMessageMapper.js';
-export * from './referenceImageDescriptions.js';
+export {
+  ConversationHistoryService,
+  type HistoryTimeFilter,
+} from './ConversationHistoryService.js';
+export { ConversationRetentionService } from './ConversationRetentionService.js';
+export { type ConversationSyncResult, ConversationSyncService } from './ConversationSyncService.js';
+export {
+  type ConversationHistoryQueryResult,
+  conversationHistorySelect,
+  conversationRecencyOrderBy,
+  mapToConversationMessage,
+  mapToConversationMessages,
+  parseMessageMetadata,
+} from './ConversationMessageMapper.js';
+export {
+  collectRefImageDescriptions,
+  type ReferenceDescriptionScope,
+  writeReferenceImageDescriptions,
+} from './referenceImageDescriptions.js';

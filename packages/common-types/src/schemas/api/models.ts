@@ -43,5 +43,3 @@ export const ModelsListResponseSchema = z.object({
   models: z.array(ModelAutocompleteOptionSchema),
   count: z.number(),
 });
-
-export type ModelsListResponse = z.infer<typeof ModelsListResponseSchema>;
