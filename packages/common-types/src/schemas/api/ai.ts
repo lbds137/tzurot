@@ -27,50 +27,37 @@ import { z } from 'zod';
 import { JobStatus } from '../../constants/queue.js';
 
 /**
- * Shared envelope for AI-job responses: the queued / completed acknowledgment
- * shape used by both `/ai/generate` and `/ai/transcribe`.
+ * Shared field shape for the AI-job acknowledgment envelope — the queued /
+ * completed shape returned by `/ai/generate`, `/ai/transcribe`, and the shared
+ * ack. Defined once and spread into each named schema below: knip's
+ * duplicate-exports check rejects a pure alias (`X = Y`), but each `z.object(...)`
+ * call below is a distinct schema VALUE, so this stays DRY without aliasing —
+ * and the intention-revealing names remain the load-bearing piece for
+ * generated-client return types.
  *
- * `result` and `timestamp` are present only when `wait=true` was requested
- * on the transcribe route OR when the deduplication cache returns a
+ * `result` and `timestamp` are present only when `wait=true` was requested on
+ * the transcribe route OR when the deduplication cache returns a
  * previously-completed result; for the default async queueing path they're
- * absent.
+ * absent. `result` stays `z.unknown()` because the heavy payload (full LLM
+ * completion / transcription artifacts) is narrowed at the call site — see the
+ * file header for why it isn't validated here.
  */
-export const AiJobAckResponseSchema = z.object({
+const aiJobAckShape = {
   jobId: z.string(),
   requestId: z.string(),
   status: z.nativeEnum(JobStatus),
   result: z.unknown().optional(),
   timestamp: z.string().optional(),
-});
+};
 
-/**
- * Response shape for POST /ai/generate. Same envelope as the shared ack
- * but redeclared as its own z.object so the schema VALUE is distinct
- * (knip's duplicate-exports check rejects pure aliases). The intention-
- * revealing name is the load-bearing piece for generated-client return
- * types.
- */
-export const AiGenerateResponseSchema = z.object({
-  jobId: z.string(),
-  requestId: z.string(),
-  status: z.nativeEnum(JobStatus),
-  result: z.unknown().optional(),
-  timestamp: z.string().optional(),
-});
+/** Shared queued/completed ack envelope for AI-job responses. */
+export const AiJobAckResponseSchema = z.object(aiJobAckShape);
 
-/**
- * Response shape for POST /ai/transcribe. Same envelope as ack/generate
- * but redeclared for the same knip-duplicate-export reason. The `result`
- * field carries different content per route; typing it as `unknown` here
- * keeps the schema simple — route handlers narrow at the call site.
- */
-export const AiTranscribeResponseSchema = z.object({
-  jobId: z.string(),
-  requestId: z.string(),
-  status: z.nativeEnum(JobStatus),
-  result: z.unknown().optional(),
-  timestamp: z.string().optional(),
-});
+/** Response shape for POST /ai/generate. */
+export const AiGenerateResponseSchema = z.object(aiJobAckShape);
+
+/** Response shape for POST /ai/transcribe (`result` carries transcription content). */
+export const AiTranscribeResponseSchema = z.object(aiJobAckShape);
 
 /**
  * Response shape for GET /ai/job/:jobId — BullMQ job introspection.

@@ -32,6 +32,7 @@ export const TtsResolutionSourceSchema = z.enum([
   'free-default',
   'hardcoded',
 ]);
+
 export type TtsResolutionSource = z.infer<typeof TtsResolutionSourceSchema>;
 
 /** Resolved TTS view for one personality. */

@@ -188,7 +188,9 @@ export const ResolvedConfigOverridesSchema = ConfigOverridesSchema.required().ex
  */
 type _ReservedKeysDoNotCollide =
   Extract<keyof ConfigOverrides, 'sources' | 'userOverrides'> extends never ? true : false;
+
 const _reservedKeysCheck: _ReservedKeysDoNotCollide = true;
+
 // Reference the check so `noUnusedLocals` keeps it. Compile-time guard only.
 void _reservedKeysCheck;
 
@@ -257,6 +259,7 @@ export const GetChannelConfigOverridesResponseSchema = z.object({
  * config layer (typed `settingId → apiField` map).
  */
 export const UpdateChannelConfigOverridesRequestSchema = z.record(z.string(), z.unknown());
+
 /** Response for PATCH /user/channel/:channelId/config-overrides — merged result echoed back. */
 export const UpdateChannelConfigOverridesResponseSchema = z.object({
   configOverrides: z.record(z.string(), z.unknown()),

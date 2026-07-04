@@ -167,6 +167,9 @@ export const rawAssemblyInputsSchema = z.object({
 });
 
 export type RawDiscordUser = z.infer<typeof rawDiscordUserSchema>;
+
 export type RawMentionedChannel = z.infer<typeof rawMentionedChannelSchema>;
+
 export type RawMentionedRole = z.infer<typeof rawMentionedRoleSchema>;
+
 export type RawAssemblyInputs = z.infer<typeof rawAssemblyInputsSchema>;

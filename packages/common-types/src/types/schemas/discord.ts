@@ -81,5 +81,7 @@ export const guildMemberInfoSchema = z.object({
 
 // Infer TypeScript types from schemas
 export type DiscordEnvironment = z.infer<typeof discordEnvironmentSchema>;
+
 export type AttachmentMetadata = z.infer<typeof attachmentMetadataSchema>;
+
 export type GuildMemberInfo = z.infer<typeof guildMemberInfoSchema>;
