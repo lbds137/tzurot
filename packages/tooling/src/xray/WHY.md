@@ -25,10 +25,10 @@ The suppression-audit threshold targets in `02-code-standards.md` ("target 0 unj
 
 ## Threshold rationale
 
-`xray` itself doesn't fail CI — it's an inspection tool. The thresholds it enforces are in other tools' configs:
+`xray` is primarily an inspection tool, with ONE gate it owns: `xray --suppressions --check` exits non-zero on any lint suppression lacking a `--` justification (wired into `pnpm quality` + the CI `lint` job — it replaced the old ci.yml bash-grep wrapper). Plain `xray` / `xray --suppressions` stays report-only. The other thresholds it surfaces are actioned elsewhere, not by xray:
 
-- Package size: ~3000 lines / 50 exports per `common-types`-class package (per `01-architecture.md`)
-- Suppression justification quality: per the `02-code-standards.md` "lint suppression standards" table
+- Package size: ~3000 lines / 50 exports per `common-types`-class package (per `01-architecture.md`) — surfaced by xray, actioned by reviewer judgment
+- Suppression justification quality: enforced by the `--check` gate above (rule table in `02-code-standards.md`)
 
 If `xray` reports a package crossing a size threshold, the fix is to split the package (extract a domain-specific sub-package), not to raise the threshold.
 
