@@ -76,9 +76,9 @@ function extractDeclarations(sourceFile: SourceFile, includePrivate: boolean): D
     getStartLineNumber: () => number;
   };
   const simpleDecls: { items: NamedNode[]; kind: DeclarationKind }[] = [
-    { items: sourceFile.getInterfaces() as NamedNode[], kind: 'interface' },
-    { items: sourceFile.getTypeAliases() as NamedNode[], kind: 'type' },
-    { items: sourceFile.getEnums() as NamedNode[], kind: 'enum' },
+    { items: sourceFile.getInterfaces(), kind: 'interface' },
+    { items: sourceFile.getTypeAliases(), kind: 'type' },
+    { items: sourceFile.getEnums(), kind: 'enum' },
   ];
 
   for (const { items, kind } of simpleDecls) {
@@ -240,21 +240,27 @@ function getNodeLineCount(node: {
   return node.getEndLineNumber() - node.getStartLineNumber() + 1;
 }
 
+// Each pattern captures the raw tail after the directive as ONE group; the
+// rule name and ` -- ` justification are split apart in code (splitSuppressionTail).
+// A single greedy/lazy-to-a-literal-terminator capture is linear \u2014 the old nested
+// optional groups (`(?:\s+(rule))?(?:\s+--\s+(just))?`) let the rule quantifier and
+// the ` -- ` delimiter's `\s+` exchange characters, which regexp/no-super-linear-
+// backtracking flags as polynomial ReDoS.
 const SUPPRESSION_PATTERNS: {
   kind: SuppressionKind;
   regex: RegExp;
 }[] = [
   {
     kind: 'eslint-disable-next-line',
-    regex: /\/\/\s*eslint-disable-next-line(?:\s+([^\s-][^\n]*?))?(?:\s+--\s+(.+))?$/,
+    regex: /\/\/\s*eslint-disable-next-line(\s[^\n]*)?$/,
   },
   {
     kind: 'eslint-disable',
-    regex: /\/\*\s*eslint-disable(?:\s+([^\s*][^*]*?))?(?:\s+--\s+(.+?))?\s*\*\//,
+    regex: /\/\*\s*eslint-disable(\s[\s\S]*?)?\*\//,
   },
   {
     kind: 'ts-expect-error',
-    regex: /\/\/\s*@ts-expect-error(?:\s+--\s+(.+)|(\s+.+))?$/,
+    regex: /\/\/\s*@ts-expect-error(\s[^\n]*)?$/,
   },
   {
     kind: 'ts-nocheck',
@@ -263,39 +269,58 @@ const SUPPRESSION_PATTERNS: {
 ];
 
 /**
- * Extract lint suppression comments from raw file content.
+ * Split a suppression comment's raw tail into its rule part and justification on
+ * the ` -- ` delimiter (the project's lint-suppression convention). Splits on the
+ * FIRST delimiter so a justification may itself contain ` -- `.
  */
-// eslint-disable-next-line sonarjs/cognitive-complexity -- pattern-matching loop with simple branches
-export function extractSuppressions(content: string): SuppressionInfo[] {
-  const suppressions: SuppressionInfo[] = [];
-  const lines = content.split('\n');
+function splitSuppressionTail(raw: string): { rulePart: string; justification?: string } {
+  const DELIMITER = ' -- ';
+  const delimIndex = raw.indexOf(DELIMITER);
+  if (delimIndex === -1) {
+    return { rulePart: raw.trim() };
+  }
+  return {
+    rulePart: raw.slice(0, delimIndex).trim(),
+    justification: raw.slice(delimIndex + DELIMITER.length).trim() || undefined,
+  };
+}
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+/** Build a SuppressionInfo from a matched directive's kind + raw tail. */
+function buildSuppressionInfo(
+  kind: SuppressionKind,
+  lineNumber: number,
+  rawTail: string
+): SuppressionInfo {
+  const info: SuppressionInfo = { kind, line: lineNumber };
+  const { rulePart, justification } = splitSuppressionTail(rawTail);
 
-    for (const { kind, regex } of SUPPRESSION_PATTERNS) {
-      const match = regex.exec(line);
-      if (match === null) continue;
-
-      const info: SuppressionInfo = { kind, line: i + 1 };
-
-      if (kind === 'eslint-disable-next-line' || kind === 'eslint-disable') {
-        if (match[1] !== undefined && match[1].trim() !== '') info.rule = match[1].trim();
-        if (match[2] !== undefined && match[2].trim() !== '') {
-          info.justification = match[2].trim();
-        }
-      } else if (kind === 'ts-expect-error') {
-        // match[1] is after " -- ", match[2] is trailing text without " -- "
-        const justText = match[1] ?? match[2];
-        if (justText !== undefined && justText.trim() !== '') {
-          info.justification = justText.trim();
-        }
-      }
-
-      suppressions.push(info);
-      break; // Only match first pattern per line
-    }
+  if (kind === 'eslint-disable-next-line' || kind === 'eslint-disable') {
+    if (rulePart !== '') info.rule = rulePart;
+    if (justification !== undefined) info.justification = justification;
+  } else if (kind === 'ts-expect-error') {
+    // No rule name \u2014 the justification is either after ` -- ` or the bare trailing text.
+    const justText = justification ?? (rulePart !== '' ? rulePart : undefined);
+    if (justText !== undefined) info.justification = justText;
   }
 
-  return suppressions;
+  return info;
+}
+
+/** Match the first suppression directive on a single line, if any. */
+function matchSuppressionLine(line: string, lineNumber: number): SuppressionInfo | null {
+  for (const { kind, regex } of SUPPRESSION_PATTERNS) {
+    const match = regex.exec(line);
+    if (match !== null) return buildSuppressionInfo(kind, lineNumber, match[1] ?? '');
+  }
+  return null;
+}
+
+/**
+ * Extract lint suppression comments from raw file content.
+ */
+export function extractSuppressions(content: string): SuppressionInfo[] {
+  return content.split('\n').flatMap((line, i) => {
+    const info = matchSuppressionLine(line, i + 1);
+    return info !== null ? [info] : [];
+  });
 }

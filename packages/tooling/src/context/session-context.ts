@@ -119,9 +119,9 @@ function getPendingMigrations(cwd: string): string[] | null {
     // Prisma migrate status exits with non-zero when migrations are pending
     // We need to capture the output from stderr/stdout
     if (error && typeof error === 'object' && 'stdout' in error) {
-      result = String((error as { stdout: unknown }).stdout);
+      result = String(error.stdout);
     } else if (error && typeof error === 'object' && 'message' in error) {
-      result = String((error as { message: unknown }).message);
+      result = String(error.message);
     } else {
       return null;
     }
