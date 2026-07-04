@@ -52,11 +52,14 @@ export function flattenSuppressions(report: XrayReport): FlatSuppression[] {
  * bucket that {@link formatSuppressions} renders in yellow — extracted as a
  * pure predicate so the `xray --suppressions --check` gate can fail on it.
  */
+/** A suppression is unjustified when its `-- justification` is absent or blank. */
+export function isUnjustifiedSuppression({ suppression }: FlatSuppression): boolean {
+  const j = suppression.justification;
+  return j === undefined || j.trim() === '';
+}
+
 export function collectUnjustifiedSuppressions(report: XrayReport): FlatSuppression[] {
-  return flattenSuppressions(report).filter(({ suppression }) => {
-    const j = suppression.justification;
-    return j === undefined || j.trim() === '';
-  });
+  return flattenSuppressions(report).filter(isUnjustifiedSuppression);
 }
 
 function renderCountSection(lines: string[], heading: string, entries: [string, number][]): void {
