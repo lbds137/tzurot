@@ -14,7 +14,7 @@ const SEPARATOR = '════════════════════�
 const MAX_BAR_WIDTH = 20;
 const TOP_N = 10;
 
-interface FlatSuppression {
+export interface FlatSuppression {
   suppression: SuppressionInfo;
   filePath: string;
   packageName: string;
@@ -34,7 +34,7 @@ function renderBar(count: number, maxCount: number): string {
   return '█'.repeat(width);
 }
 
-function flattenSuppressions(report: XrayReport): FlatSuppression[] {
+export function flattenSuppressions(report: XrayReport): FlatSuppression[] {
   return report.packages.flatMap(pkg =>
     pkg.files.flatMap(file =>
       file.suppressions.map(suppression => ({
@@ -44,6 +44,19 @@ function flattenSuppressions(report: XrayReport): FlatSuppression[] {
       }))
     )
   );
+}
+
+/**
+ * Return every suppression whose justification is missing or blank
+ * (undefined or whitespace-only). This is the same "⚠️ No justification"
+ * bucket that {@link formatSuppressions} renders in yellow — extracted as a
+ * pure predicate so the `xray --suppressions --check` gate can fail on it.
+ */
+export function collectUnjustifiedSuppressions(report: XrayReport): FlatSuppression[] {
+  return flattenSuppressions(report).filter(({ suppression }) => {
+    const j = suppression.justification;
+    return j === undefined || j.trim() === '';
+  });
 }
 
 function renderCountSection(lines: string[], heading: string, entries: [string, number][]): void {

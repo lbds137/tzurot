@@ -25,9 +25,6 @@ export const CI_ONLY: Record<string, string> = {
   'test:generate-schema':
     'pglite-schema sync check needs a dummy DATABASE_URL + fresh prisma client; ' +
     'locally the pre-commit hook regenerates the schema whenever schema.prisma changes',
-  xray:
-    'the unjustified-suppressions fail-grep lives in a CI shell wrapper; ' +
-    'xray itself has no threshold mode yet (follow-up tracked in backlog)',
 };
 
 /**
