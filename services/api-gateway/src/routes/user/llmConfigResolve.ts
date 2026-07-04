@@ -10,12 +10,10 @@
 import { type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { z } from 'zod';
-import {
-  createLogger,
-  DISCORD_SNOWFLAKE,
-  type PrismaClient,
-  type LoadedPersonality,
-} from '@tzurot/common-types';
+import { DISCORD_SNOWFLAKE } from '@tzurot/common-types/constants/discord';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { LlmConfigResolver, ConfigCascadeResolver } from '@tzurot/config-resolver';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';

@@ -11,14 +11,16 @@
 import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
-  createLogger,
-  generatePersonaUuid,
-  generateUserPersonalityConfigUuid,
   PERSONA_SELECT,
   PersonaCreateSchema,
-  type PrismaClient,
   SetPersonaOverrideSchema,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/schemas/api/persona';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import {
+  generatePersonaUuid,
+  generateUserPersonalityConfigUuid,
+} from '@tzurot/common-types/utils/deterministicUuid';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';

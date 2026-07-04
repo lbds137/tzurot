@@ -6,7 +6,8 @@
  */
 
 import type { ButtonInteraction } from 'discord.js';
-import { getConfig, isBotOwner } from '@tzurot/common-types';
+import { getConfig } from '@tzurot/common-types/config/config';
+import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import {
   buildDashboardEmbed,
   buildDashboardComponents,

@@ -20,7 +20,7 @@
  * tier — no per-message wire mutation and still zero Prisma in bot-client.
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { voiceTranscriptCache } from '../../redis.js';
 
 const logger = createLogger('TranscriptRetriever');

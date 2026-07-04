@@ -20,11 +20,11 @@
 
 import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
 import {
-  createLogger,
   type ConfigOverrides,
   type ConfigOverrideSource,
   type ResolvedConfigOverrides,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/schemas/api/configOverrides';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type GatewayResult, type UserClient } from '@tzurot/clients';
 import { clientsFor } from '../../gatewayClients.js';
 import type {

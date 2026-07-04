@@ -11,12 +11,23 @@ import { makeOk } from '../../test/gatewayClientStubs.js';
 import { mockListWalletKeysResponse } from '@tzurot/test-factories';
 
 let viewModelId = 'anthropic/claude-sonnet-4';
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/generated/commandOptions', async () => {
+  const actual = await vi.importActual<
+    typeof import('@tzurot/common-types/generated/commandOptions')
+  >('@tzurot/common-types/generated/commandOptions');
+  return {
+    ...actual,
+    modelsViewOptions: vi.fn(() => ({ model: () => viewModelId })),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
-    modelsViewOptions: vi.fn(() => ({ model: () => viewModelId })),
   };
 });
 

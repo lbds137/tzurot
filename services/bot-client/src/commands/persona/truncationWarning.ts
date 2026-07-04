@@ -20,7 +20,7 @@ import {
   type ButtonInteraction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type SectionDefinition } from '../../utils/dashboard/types.js';
 import { buildSectionModal } from '../../utils/dashboard/ModalFactory.js';
 import { showModalWithTimeoutCatch } from '../../utils/dashboard/showModalWithTimeoutCatch.js';

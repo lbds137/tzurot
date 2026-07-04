@@ -12,7 +12,8 @@
  */
 
 import type { Message } from 'discord.js';
-import { createLogger, isBotOwner } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import type { IMessageProcessor } from './IMessageProcessor.js';
 import type { DenylistCache } from '../services/DenylistCache.js';
 import { getThreadParentId } from '../utils/discordChannelTypes.js';

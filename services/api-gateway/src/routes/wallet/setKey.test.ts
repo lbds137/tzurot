@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Request, Response } from 'express';
-import { AIProvider } from '@tzurot/common-types';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
 
 // Mock apiKeyValidation module
 vi.mock('../../utils/apiKeyValidation.js', () => ({
@@ -22,8 +22,36 @@ const mockValidateApiKey = vi.mocked(validateApiKey);
 let mockBotOwnerId: string | undefined = undefined;
 
 // Mock dependencies
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/config/config', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
+    '@tzurot/common-types/config/config'
+  );
+  return {
+    ...actual,
+    getConfig: () => ({
+      BOT_OWNER_ID: mockBotOwnerId,
+    }),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/encryption', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/encryption')>(
+    '@tzurot/common-types/utils/encryption'
+  );
+  return {
+    ...actual,
+    encryptApiKey: vi.fn().mockReturnValue({
+      iv: 'mock-iv-12345678901234567890123456789012',
+      content: 'mock-encrypted-content',
+      tag: 'mock-tag-12345678901234567890123456',
+    }),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -32,19 +60,18 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
-    getConfig: () => ({
-      BOT_OWNER_ID: mockBotOwnerId,
-    }),
-    // Must mock isBotOwner separately since it uses getConfig internally,
-    // and the actual isBotOwner wouldn't see our mocked getConfig
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/ownerMiddleware', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/ownerMiddleware')>(
+    '@tzurot/common-types/utils/ownerMiddleware'
+  );
+  return {
+    ...actual,
     isBotOwner: (discordId: string) => {
       return mockBotOwnerId !== undefined && mockBotOwnerId === discordId;
     },
-    encryptApiKey: vi.fn().mockReturnValue({
-      iv: 'mock-iv-12345678901234567890123456789012',
-      content: 'mock-encrypted-content',
-      tag: 'mock-tag-12345678901234567890123456',
-    }),
   };
 });
 
@@ -77,7 +104,7 @@ const mockPrisma = {
 };
 
 import { createSetKeyRoute } from './setKey.js';
-import type { PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { findRoute, getRouteHandler } from '../../test/expressRouterUtils.js';
 
 // Helper to create mock request/response

@@ -6,7 +6,8 @@
  * then updated with rich descriptions after vision/transcription processing.
  */
 
-import { type AttachmentMetadata, CONTENT_TYPES } from '@tzurot/common-types';
+import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
+import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 
 /**
  * Generate placeholder description for a single attachment

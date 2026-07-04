@@ -9,7 +9,8 @@ import { REST, Routes } from 'discord.js';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import type { Command } from '../types.js';
-import { createLogger, getConfig } from '@tzurot/common-types';
+import { getConfig } from '@tzurot/common-types/config/config';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getCommandFiles } from './commandFileUtils.js';
 
 const logger = createLogger('deploy-commands');

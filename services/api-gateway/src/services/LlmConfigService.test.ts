@@ -11,12 +11,15 @@ import {
   CloneNameExhaustedError,
   type LlmConfigScope,
 } from './LlmConfigService.js';
-import { type PrismaClient, ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types';
+import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { LlmConfigCacheInvalidationService } from '@tzurot/cache-invalidation';
 
 // Mock logger
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({

@@ -9,7 +9,8 @@
  * This eliminates the previous dual-client overhead (node-redis + ioredis).
  */
 
-import { createLogger, initCoreRedisServices } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { initCoreRedisServices } from '@tzurot/common-types/utils/redis';
 import { RedisService } from './services/RedisService.js';
 import { initSessionManager, shutdownSessionManager } from './utils/dashboard/index.js';
 

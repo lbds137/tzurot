@@ -14,11 +14,9 @@
  * Extracted from ContextAssembler to keep that file under the 400-line cap.
  */
 
-import {
-  INTERNAL_DISCORD_ID_PREFIX,
-  MessageRole,
-  type ConversationMessage,
-} from '@tzurot/common-types';
+import { MessageRole } from '@tzurot/common-types/constants/message';
+import { INTERNAL_DISCORD_ID_PREFIX } from '@tzurot/common-types/constants/personaId';
+import { type ConversationMessage } from '@tzurot/common-types/types/conversationMessage';
 import type { ContextDataSource } from './types.js';
 
 /**

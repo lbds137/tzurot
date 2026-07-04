@@ -5,13 +5,11 @@
  * Helper modules extracted to contextBuilder/ subdirectory.
  */
 
-import {
-  type LoadedPersonality,
-  type ConversationMessage,
-  createLogger,
-  MESSAGE_LIMITS,
-  isTypingChannel,
-} from '@tzurot/common-types';
+import { MESSAGE_LIMITS } from '@tzurot/common-types/constants/message';
+import { type ConversationMessage } from '@tzurot/common-types/types/conversationMessage';
+import { isTypingChannel } from '@tzurot/common-types/types/discord-types';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { Message } from 'discord.js';
 import type { ServiceClient } from '@tzurot/clients';
 import type { MessageContext } from '../types.js';

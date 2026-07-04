@@ -10,14 +10,12 @@
 
 import { Router, type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import {
-  createLogger,
-  encryptApiKey,
-  WALLET_ERROR_MESSAGES,
-  type PrismaClient,
-  generateUserApiKeyUuid,
-  SetWalletKeySchema,
-} from '@tzurot/common-types';
+import { WALLET_ERROR_MESSAGES } from '@tzurot/common-types/constants/wallet';
+import { SetWalletKeySchema } from '@tzurot/common-types/schemas/api/wallet';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { generateUserApiKeyUuid } from '@tzurot/common-types/utils/deterministicUuid';
+import { encryptApiKey } from '@tzurot/common-types/utils/encryption';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type ApiKeyCacheInvalidationService } from '@tzurot/cache-invalidation';
 import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';

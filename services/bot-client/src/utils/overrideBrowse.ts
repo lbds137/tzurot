@@ -28,12 +28,9 @@ import {
   type ButtonInteraction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
-import {
-  CONFIG_KINDS,
-  DISCORD_COLORS,
-  type createLogger,
-  type ConfigKind,
-} from '@tzurot/common-types';
+import { CONFIG_KINDS, type ConfigKind } from '@tzurot/common-types/constants/ai';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { type createLogger } from '@tzurot/common-types/utils/logger';
 import type { GatewayResult, UserClient } from '@tzurot/clients';
 import type { DeferredCommandContext } from './commandContext/types.js';
 import { clientsFor } from './gatewayClients.js';

@@ -25,8 +25,22 @@ vi.mock('../../services/EmbeddingService.js', () => ({
 }));
 
 // Mock dependencies before imports
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/deterministicUuid', async () => {
+  const actual = await vi.importActual<
+    typeof import('@tzurot/common-types/utils/deterministicUuid')
+  >('@tzurot/common-types/utils/deterministicUuid');
+  return {
+    ...actual,
+    generateUserPersonalityConfigUuid: vi.fn(
+      (userId: string, personalityId: string) => `config-${userId}-${personalityId}`
+    ),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -35,9 +49,6 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
-    generateUserPersonalityConfigUuid: vi.fn(
-      (userId: string, personalityId: string) => `config-${userId}-${personalityId}`
-    ),
   };
 });
 
@@ -73,7 +84,7 @@ const mockPrisma = {
 
 import { createMemoryRoutes } from './memory.js';
 import { getRouteHandler, findRoute } from '../../test/expressRouterUtils.js';
-import type { PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 
 // Test constants
 const TEST_USER_ID = '00000000-0000-0000-0000-000000000001';

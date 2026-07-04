@@ -9,13 +9,9 @@
  * inserted directly.
  */
 
-import {
-  CREDENTIAL_SERVICES,
-  CREDENTIAL_TYPES,
-  encryptApiKey,
-  generateUserCredentialUuid,
-} from '@tzurot/common-types';
-
+import { CREDENTIAL_SERVICES, CREDENTIAL_TYPES } from '@tzurot/common-types/types/shapes-import';
+import { generateUserCredentialUuid } from '@tzurot/common-types/utils/deterministicUuid';
+import { encryptApiKey } from '@tzurot/common-types/utils/encryption';
 import type { ConformanceEntry, SeedContext } from './types.js';
 
 /** Store an encrypted shapes.inc session-cookie credential for the actor. */

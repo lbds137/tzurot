@@ -6,12 +6,9 @@
 
 import { Router, type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import {
-  createLogger,
-  isValidTimezone,
-  getTimezoneInfo,
-  SetTimezoneInputSchema,
-} from '@tzurot/common-types';
+import { isValidTimezone, getTimezoneInfo } from '@tzurot/common-types/constants/timezone';
+import { SetTimezoneInputSchema } from '@tzurot/common-types/schemas/api/timezone';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';

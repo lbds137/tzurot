@@ -14,10 +14,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ConversationalRAGService } from './ConversationalRAGService.js';
 import type { MemoryDocument } from './ConversationalRAGTypes.js';
-import type { AttachmentMetadata, PrismaClient, ReferencedMessage } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
+import type { AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
+import type { ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import type { ApiKeyResolver } from './ApiKeyResolver.js';
-import { CONTENT_TYPES, AttachmentType, AIProvider } from '@tzurot/common-types';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { CONTENT_TYPES, AttachmentType } from '@tzurot/common-types/constants/media';
 
 // Mock the cross-provider vision resolver so we can assert resolveVisionAuth wiring
 // without exercising the real key-resolution path.
@@ -380,8 +383,7 @@ describe('ConversationalRAGService', () => {
       await service.generateResponse(personality, 'Hello', context);
 
       const call = getPromptBuilderMock().buildFullSystemPrompt.mock.calls[0]?.[0] as
-        | { participantPersonas: Map<string, { personaId: string; content?: string }> }
-        | undefined;
+        { participantPersonas: Map<string, { personaId: string; content?: string }> } | undefined;
       expect(call).toBeDefined();
       const participants = call!.participantPersonas;
       expect(participants.has('Foreign')).toBe(false);

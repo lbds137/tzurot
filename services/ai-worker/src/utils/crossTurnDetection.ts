@@ -11,7 +11,8 @@
  * - Layer 4: Semantic embedding (O(n) + embedding, catches meaning equivalence)
  */
 
-import { createLogger, stripBotFooters } from '@tzurot/common-types';
+import { stripBotFooters } from '@tzurot/common-types/utils/discord';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import {
   stringSimilarity,
   wordJaccardSimilarity,

@@ -11,7 +11,8 @@ import {
   collectReactorUsers,
 } from './ParticipantContextCollector.js';
 import type { Message, GuildMember, Role, Collection } from 'discord.js';
-import { MESSAGE_LIMITS, type MessageReaction } from '@tzurot/common-types';
+import { MESSAGE_LIMITS } from '@tzurot/common-types/constants/message';
+import { type MessageReaction } from '@tzurot/common-types/types/schemas/message';
 
 /**
  * Create a mock role for testing

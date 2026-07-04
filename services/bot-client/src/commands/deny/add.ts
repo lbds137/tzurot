@@ -5,7 +5,7 @@
  * checks three-tier permissions before calling the gateway API.
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { checkDenyPermission } from './permissions.js';

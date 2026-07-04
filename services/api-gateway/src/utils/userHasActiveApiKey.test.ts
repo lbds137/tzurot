@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { AIProvider, type PrismaClient } from '@tzurot/common-types';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { userHasActiveApiKey } from './userHasActiveApiKey.js';
 
 const mockFindFirst = vi.fn();

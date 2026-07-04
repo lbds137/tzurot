@@ -5,12 +5,10 @@
  * and oldest timestamp calculation for LTM deduplication.
  */
 
-import {
-  createLogger,
-  type MessageRole,
-  type AttachmentMetadata,
-  type SttDispatch,
-} from '@tzurot/common-types';
+import { type MessageRole } from '@tzurot/common-types/constants/message';
+import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
+import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import {
   extractParticipants,
   convertConversationHistory,

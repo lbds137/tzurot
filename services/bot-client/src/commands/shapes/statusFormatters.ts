@@ -9,7 +9,7 @@ import {
   formatDateShort,
   normalizeDateTime,
   normalizeDateTimeNullable,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/utils/dateFormatting';
 
 export interface ImportJob {
   id: string;

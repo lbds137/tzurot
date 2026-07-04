@@ -16,15 +16,17 @@
  */
 
 import type { Queue, JobsOptions, Job } from 'bullmq';
+import { JobType } from '@tzurot/common-types/constants/queue';
 import {
-  createLogger,
   audioTranscriptionJobDataSchema,
   imageDescriptionJobDataSchema,
   llmGenerationJobDataSchema,
+} from '@tzurot/common-types/types/jobs';
+import {
   shapesImportJobDataSchema,
   shapesExportJobDataSchema,
-  JobType,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/shapes-import';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { ZodSchema } from 'zod';
 
 const logger = createLogger('ValidatedQueue');

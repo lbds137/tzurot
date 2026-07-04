@@ -9,14 +9,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { makeErr } from '../../test/gatewayClientStubs.js';
 import { MessageFlags } from 'discord.js';
-import type { DiagnosticLogResponse, DiagnosticPayload } from '@tzurot/common-types';
+import type { DiagnosticLogResponse } from '@tzurot/common-types/schemas/api/diagnostic';
+import type { DiagnosticPayload } from '@tzurot/common-types/types/diagnostic';
 import type { GatewayResult, UserClient } from '@tzurot/clients';
 import { InspectCustomIds } from './customIds.js';
 import { DebugViewType } from './types.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -25,6 +28,15 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/ownerMiddleware', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/ownerMiddleware')>(
+    '@tzurot/common-types/utils/ownerMiddleware'
+  );
+  return {
+    ...actual,
     isBotOwner: (id: string) => id === 'owner-123',
   };
 });

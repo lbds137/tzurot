@@ -4,17 +4,15 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Job } from 'bullmq';
-import {
-  AIProvider,
-  ApiErrorCategory,
-  JobType,
-  MessageRole,
-  AttachmentType,
-  type LLMGenerationJobData,
-  type LoadedPersonality,
-  type PrismaClient,
-  type ResolvedConfigOverrides,
-} from '@tzurot/common-types';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
+import { AttachmentType } from '@tzurot/common-types/constants/media';
+import { MessageRole } from '@tzurot/common-types/constants/message';
+import { JobType } from '@tzurot/common-types/constants/queue';
+import { type ResolvedConfigOverrides } from '@tzurot/common-types/schemas/api/configOverrides';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { type LLMGenerationJobData } from '@tzurot/common-types/types/jobs';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { GenerationStep } from './GenerationStep.js';
 import type { GenerationContext, ResolvedConfig, ResolvedAuth, PreparedContext } from '../types.js';
 import type { ConversationalRAGService } from '../../../../services/ConversationalRAGService.js';
@@ -22,8 +20,10 @@ import type { RAGResponse } from '../../../../services/ConversationalRAGTypes.js
 import { RetryError } from '../../../../utils/retry.js';
 
 // Mock common-types logger
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({

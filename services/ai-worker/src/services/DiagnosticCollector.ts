@@ -16,10 +16,10 @@
  */
 
 import type { BaseMessage } from '@langchain/core/messages';
+import { FINISH_REASONS } from '@tzurot/common-types/constants/finishReasons';
+import { AttachmentType } from '@tzurot/common-types/constants/media';
+import { type TtsProviderId } from '@tzurot/common-types/services/tts/TtsProvider';
 import {
-  createLogger,
-  AttachmentType,
-  FINISH_REASONS,
   type DiagnosticPayload,
   type DiagnosticMeta,
   type DiagnosticInputProcessing,
@@ -33,8 +33,8 @@ import {
   type DiagnosticPostProcessing,
   type DiagnosticTiming,
   type DiagnosticError,
-  type TtsProviderId,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/diagnostic';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { MemoryDocument } from './ConversationalRAGTypes.js';
 import type {
   DiagnosticCollectorOptions,

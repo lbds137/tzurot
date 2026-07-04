@@ -18,13 +18,12 @@
 import { Router, type Request, type RequestHandler, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
-  type PrismaClient,
   type GetAdminSettingsResponse,
-  Prisma,
   AdminSettingsSchema,
   ADMIN_SETTINGS_SINGLETON_ID,
-  createLogger,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/schemas/api/adminSettings';
+import { type PrismaClient, Prisma } from '@tzurot/common-types/services/prisma';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type ConfigCascadeCacheInvalidationService } from '@tzurot/cache-invalidation';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { mergeConfigOverrides } from '../../utils/configOverrideMerge.js';

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { generateClonedName, type PrismaClient } from '@tzurot/common-types';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { generateClonedName } from '@tzurot/common-types/utils/presetCloneName';
 import { resolveNonCollidingName, MAX_CLONE_NAME_ATTEMPTS } from './llmConfigNameCollision.js';
 import { CloneNameExhaustedError } from './LlmConfigErrors.js';
 

@@ -5,12 +5,12 @@
  * Used by autocomplete handlers for model selection in /llm-config and /model commands.
  */
 
+import { type ModelAutocompleteOption } from '@tzurot/common-types/types/ai';
 import {
-  createLogger,
   AUTOCOMPLETE_BADGES,
   formatAutocompleteOption,
-  type ModelAutocompleteOption,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/utils/autocompleteFormat';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getServiceClient } from './gatewayClients.js';
 import { nullOn404 } from '@tzurot/clients';
 

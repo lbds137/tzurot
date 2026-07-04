@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import sharp from 'sharp';
-import { MEDIA_LIMITS } from '@tzurot/common-types';
+import { MEDIA_LIMITS } from '@tzurot/common-types/constants/media';
 import {
   validateAttachmentUrl,
   isDataUrl,

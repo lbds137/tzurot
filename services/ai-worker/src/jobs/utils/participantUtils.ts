@@ -5,7 +5,8 @@
  * Extracted from conversationUtils.ts for better modularity.
  */
 
-import { MessageRole, createLogger } from '@tzurot/common-types';
+import { MessageRole } from '@tzurot/common-types/constants/message';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('participantUtils');
 

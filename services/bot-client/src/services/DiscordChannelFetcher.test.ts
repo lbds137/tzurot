@@ -5,13 +5,31 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Collection, MessageType, MessageReferenceType } from 'discord.js';
 import type { Message, TextChannel } from 'discord.js';
-import { MessageRole } from '@tzurot/common-types';
+import { MessageRole } from '@tzurot/common-types/constants/message';
 import { DiscordChannelFetcher, type FetchableChannel } from './DiscordChannelFetcher.js';
 import { executeDatabaseSync } from './channelFetcher/SyncExecutor.js';
 
 // Mock the logger (keep everything else from actual module)
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/constants/message', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/constants/message')>(
+    '@tzurot/common-types/constants/message'
+  );
+  return {
+    ...actual,
+    MESSAGE_LIMITS: {
+      ...actual.MESSAGE_LIMITS,
+      MAX_EXTENDED_CONTEXT: 100,
+      MAX_REACTION_MESSAGES: 5,
+      MAX_REACTIONS_PER_MESSAGE: 3,
+      MAX_USERS_PER_REACTION: 5,
+    },
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -20,14 +38,6 @@ vi.mock('@tzurot/common-types', async importOriginal => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
-    // Ensure MESSAGE_LIMITS is available for the module under test
-    MESSAGE_LIMITS: {
-      ...actual.MESSAGE_LIMITS,
-      MAX_EXTENDED_CONTEXT: 100,
-      MAX_REACTION_MESSAGES: 5,
-      MAX_REACTIONS_PER_MESSAGE: 3,
-      MAX_USERS_PER_REACTION: 5,
-    },
   };
 });
 

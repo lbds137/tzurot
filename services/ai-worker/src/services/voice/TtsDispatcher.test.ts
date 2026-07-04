@@ -1,16 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
 import {
-  TtsProviderError,
-  ApiErrorCategory,
   buildPreparedVoiceId,
-  type AudioProviderId,
   type PreparedTts,
   type ResolvedTtsConfig,
   type TtsCapabilities,
   type TtsContext,
   type TtsProvider,
   type TtsProviderId,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/services/tts/TtsProvider';
+import { TtsProviderError } from '@tzurot/common-types/services/tts/TtsProviderError';
+import { type AudioProviderId } from '@tzurot/common-types/types/audio-provider';
 
 // Hoisted logger spy so tests can pin the dispose-error logging contract.
 // `vi.hoisted` is required because vi.mock factories run before plain const
@@ -19,8 +19,10 @@ const { mockLoggerWarn } = vi.hoisted(() => ({
   mockLoggerWarn: vi.fn(),
 }));
 
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({

@@ -19,7 +19,10 @@
  * ContextAssembler), keeping this interface a pure reader.
  */
 
-import type { ConversationMessage, CrossChannelHistoryGroup } from '@tzurot/common-types';
+import type {
+  ConversationMessage,
+  CrossChannelHistoryGroup,
+} from '@tzurot/common-types/types/conversationMessage';
 
 export interface CrossChannelHistoryParams {
   /** Active persona whose other-channel conversations to fetch */

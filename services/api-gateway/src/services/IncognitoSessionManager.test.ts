@@ -5,7 +5,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Redis } from 'ioredis';
 import { IncognitoSessionManager } from './IncognitoSessionManager.js';
-import { REDIS_KEY_PREFIXES, type IncognitoSession } from '@tzurot/common-types';
+import { REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
+import { type IncognitoSession } from '@tzurot/common-types/types/incognito';
 
 /**
  * Create a mock Redis client

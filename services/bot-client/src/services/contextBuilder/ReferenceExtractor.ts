@@ -6,15 +6,15 @@
  */
 
 import type { Message } from 'discord.js';
+import { MessageRole } from '@tzurot/common-types/constants/message';
+import { INTERVALS } from '@tzurot/common-types/constants/timing';
+import { type ConversationMessage } from '@tzurot/common-types/types/conversationMessage';
+import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import {
-  createLogger,
-  MessageRole,
-  INTERVALS,
-  type ReferencedMessage,
-  type ConversationMessage,
   type RawMentionedChannel,
   type RawMentionedRole,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/schemas/rawEnvelope';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { MessageReferenceExtractor } from '../../handlers/MessageReferenceExtractor.js';
 import { hasVoiceAttachments } from '../../utils/forwardedMessageUtils.js';
 import type { MentionResolver } from '../MentionResolver.js';

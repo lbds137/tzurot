@@ -23,17 +23,16 @@
  */
 
 import { Collection, escapeMarkdown, type Message } from 'discord.js';
+import { type EnvConfig } from '@tzurot/common-types/config/config';
+import { MESSAGE_LIMITS } from '@tzurot/common-types/constants/message';
 import {
-  createLogger,
-  isTypingChannel,
-  MESSAGE_LIMITS,
   characterChatOptions,
   characterRandomOptions,
   characterChimeInOptions,
-  type TypingChannel,
-  type EnvConfig,
-  type LoadedPersonality,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/generated/commandOptions';
+import { isTypingChannel, type TypingChannel } from '@tzurot/common-types/types/discord-types';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
   getPersonalityLoader,

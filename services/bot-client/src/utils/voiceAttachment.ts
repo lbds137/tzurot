@@ -7,7 +7,7 @@
  * already depends on `attachmentExtractor`).
  */
 
-import { CONTENT_TYPES } from '@tzurot/common-types';
+import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
 
 /**
  * Single source of truth for "is this attachment a voice message?".

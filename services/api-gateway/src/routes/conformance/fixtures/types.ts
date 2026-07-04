@@ -17,7 +17,7 @@
  * index signature — the runtime bijection is the stronger guarantee.
  */
 
-import type { PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 
 /** HTTP methods the harness can replay (mirrors the manifest's HttpMethod). */
 export type HarnessMethod = 'get' | 'post' | 'put' | 'patch' | 'delete';

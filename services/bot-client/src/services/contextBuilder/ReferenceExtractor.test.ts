@@ -8,7 +8,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Message } from 'discord.js';
 import { Collection } from 'discord.js';
-import type { ConversationMessage } from '@tzurot/common-types';
+import type { ConversationMessage } from '@tzurot/common-types/types/conversationMessage';
 
 // Hoist mock so it's available before module loading
 const { mockExtractReferences } = vi.hoisted(() => ({
@@ -30,20 +30,49 @@ const mockMentionResolver = {
 };
 
 // Mock common-types
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal();
+vi.mock('@tzurot/common-types/constants/media', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/constants/media')>(
+    '@tzurot/common-types/constants/media'
+  );
   return {
-    ...(actual as Record<string, unknown>),
+    ...actual,
+    CONTENT_TYPES: { AUDIO_PREFIX: 'audio/' },
+  };
+});
+
+vi.mock('@tzurot/common-types/constants/message', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/constants/message')>(
+    '@tzurot/common-types/constants/message'
+  );
+  return {
+    ...actual,
+    MessageRole: { Assistant: 'assistant', User: 'user' },
+    MESSAGE_LIMITS: { DEFAULT_MAX_MESSAGES: 50 },
+  };
+});
+
+vi.mock('@tzurot/common-types/constants/timing', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/constants/timing')>(
+    '@tzurot/common-types/constants/timing'
+  );
+  return {
+    ...actual,
+    INTERVALS: { EMBED_PROCESSING_DELAY: 500 },
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
     createLogger: () => ({
       info: vi.fn(),
       warn: vi.fn(),
       error: vi.fn(),
       debug: vi.fn(),
     }),
-    MessageRole: { Assistant: 'assistant', User: 'user' },
-    CONTENT_TYPES: { AUDIO_PREFIX: 'audio/' },
-    INTERVALS: { EMBED_PROCESSING_DELAY: 500 },
-    MESSAGE_LIMITS: { DEFAULT_MAX_MESSAGES: 50 },
   };
 });
 

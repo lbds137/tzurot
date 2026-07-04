@@ -14,13 +14,15 @@ import {
   _getCacheSizeForTesting,
   _getStaleCacheSizeForTesting,
 } from './autocompleteCache.js';
-import type { PersonalitySummary } from '@tzurot/common-types';
+import type { PersonalitySummary } from '@tzurot/common-types/schemas/api/personality';
 import type { UserClient } from '@tzurot/clients';
 import type { PersonaSummary, ShapesSummary } from './autocompleteCache.js';
 import { makeOk, makeErr } from '../../test/gatewayClientStubs.js';
 
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({

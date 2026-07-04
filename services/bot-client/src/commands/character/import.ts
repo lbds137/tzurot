@@ -4,14 +4,12 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import {
-  createLogger,
-  DISCORD_COLORS,
-  normalizeSlugForUser,
-  type EnvConfig,
-  characterImportOptions,
-  PersonalityCreateSchema,
-} from '@tzurot/common-types';
+import { type EnvConfig } from '@tzurot/common-types/config/config';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { characterImportOptions } from '@tzurot/common-types/generated/commandOptions';
+import { PersonalityCreateSchema } from '@tzurot/common-types/schemas/api/personality';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { normalizeSlugForUser } from '@tzurot/common-types/utils/slugUtils';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { UserClient } from '@tzurot/clients';
 import { clientsFor } from '../../utils/gatewayClients.js';

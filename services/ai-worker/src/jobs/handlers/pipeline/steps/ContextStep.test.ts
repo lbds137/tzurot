@@ -11,15 +11,13 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Job } from 'bullmq';
-import {
-  JobType,
-  MessageRole,
-  type LLMGenerationJobData,
-  type LoadedPersonality,
-} from '@tzurot/common-types';
+import { MessageRole } from '@tzurot/common-types/constants/message';
+import { JobType } from '@tzurot/common-types/constants/queue';
+import { type LLMGenerationJobData } from '@tzurot/common-types/types/jobs';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { HumanMessage, AIMessage } from '@langchain/core/messages';
 import { ContextStep, reTranscribeExtendedContextVoice } from './ContextStep.js';
-import type { AttachmentMetadata } from '@tzurot/common-types';
+import type { AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import type { GenerationContext, ResolvedConfig } from '../types.js';
 
 // Use vi.hoisted to create mock functions before they're used in vi.mock
@@ -34,8 +32,10 @@ const { mockExtractParticipants, mockConvertConversationHistory, mockTranscribeA
 
 // Mock common-types logger — use the hoisted mockLogger so tests can inspect
 // log calls for race-window telemetry assertions.
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => mockLogger,

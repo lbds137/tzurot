@@ -11,7 +11,9 @@
  * Extracted from PromptBuilder for better modularity.
  */
 
-import { formatPromptTimestamp, escapeXml, escapeXmlContent } from '@tzurot/common-types';
+import { formatPromptTimestamp } from '@tzurot/common-types/utils/dateFormatting';
+import { escapeXmlContent } from '@tzurot/common-types/utils/promptSanitizer';
+import { escapeXml } from '@tzurot/common-types/utils/xmlBuilder';
 import type { MemoryDocument } from '../ConversationalRAGTypes.js';
 
 /**

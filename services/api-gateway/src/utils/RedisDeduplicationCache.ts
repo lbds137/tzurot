@@ -10,7 +10,9 @@
 
 import { createHash } from 'node:crypto';
 import type { Redis } from 'ioredis';
-import { createLogger, INTERVALS, REDIS_KEY_PREFIXES } from '@tzurot/common-types';
+import { REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
+import { INTERVALS } from '@tzurot/common-types/constants/timing';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { GenerateRequest, CachedRequest } from '../types.js';
 
 const logger = createLogger('RequestDeduplication');

@@ -6,7 +6,8 @@
  */
 
 import { BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
-import { MessageRole, formatRelativeTime } from '@tzurot/common-types';
+import { MessageRole } from '@tzurot/common-types/constants/message';
+import { formatRelativeTime } from '@tzurot/common-types/utils/dateFormatting';
 import { isRoleMatch } from './participantUtils.js';
 
 /** Format user message with persona name and timestamp */

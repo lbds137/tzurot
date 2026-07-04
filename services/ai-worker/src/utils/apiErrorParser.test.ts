@@ -17,7 +17,7 @@ import {
   ApiErrorCategory,
   ERROR_MESSAGES,
   MAX_ERROR_MESSAGE_LENGTH,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/constants/error';
 
 describe('parseApiError', () => {
   describe('HTTP status code extraction', () => {

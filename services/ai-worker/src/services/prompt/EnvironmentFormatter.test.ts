@@ -8,11 +8,13 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { formatEnvironmentContext } from './EnvironmentFormatter.js';
-import type { DiscordEnvironment } from '@tzurot/common-types';
+import type { DiscordEnvironment } from '@tzurot/common-types/types/schemas/discord';
 
 // Mock the logger but keep formatLocationAsXml as real implementation
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({

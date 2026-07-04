@@ -16,7 +16,8 @@
 
 import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
-import type { AttachmentMetadata, LoadedPersonality } from '@tzurot/common-types';
+import type { AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
+import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 
 // The mocked seams are the two NETWORK boundaries: the LLM client factory and
 // the attachment downloader (describeImage fetches the image bytes to a data:

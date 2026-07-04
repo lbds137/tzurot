@@ -9,12 +9,10 @@
  */
 
 import { ModalBuilder, ActionRowBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
-import {
-  createLogger,
-  AIProvider,
-  API_KEY_FORMATS,
-  settingsApikeySetOptions,
-} from '@tzurot/common-types';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { API_KEY_FORMATS } from '@tzurot/common-types/constants/wallet';
+import { settingsApikeySetOptions } from '@tzurot/common-types/generated/commandOptions';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { ModalCommandContext } from '../../../utils/commandContext/types.js';
 import { ApikeyCustomIds } from '../../../utils/customIds.js';
 

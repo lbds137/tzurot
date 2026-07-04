@@ -11,7 +11,8 @@ import {
   type AnyThreadChannel,
   ChannelType,
 } from 'discord.js';
-import { createLogger, type DiscordEnvironment } from '@tzurot/common-types';
+import { type DiscordEnvironment } from '@tzurot/common-types/types/schemas/discord';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('DiscordContext');
 

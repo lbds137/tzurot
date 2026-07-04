@@ -12,18 +12,18 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import {
-  AIProvider,
-  AttachmentType,
-  type LoadedPersonality,
-  type AttachmentMetadata,
-} from '@tzurot/common-types';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { AttachmentType } from '@tzurot/common-types/constants/media';
+import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { processCrossProviderVisionImages } from './extendedContextVisionProcessor.js';
 import type { ApiKeyResolver } from '../../../../services/ApiKeyResolver.js';
 import type { GenerationContext } from '../types.js';
 
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({

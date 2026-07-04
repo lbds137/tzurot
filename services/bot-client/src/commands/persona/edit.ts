@@ -10,7 +10,7 @@
  * Uses gateway API for all data access (no direct Prisma).
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
   buildDashboardEmbed,

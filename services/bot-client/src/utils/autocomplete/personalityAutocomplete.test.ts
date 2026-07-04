@@ -5,7 +5,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handlePersonalityAutocomplete, getVisibilityIcon } from './personalityAutocomplete.js';
-import type { PersonalitySummary } from '@tzurot/common-types';
+import type { PersonalitySummary } from '@tzurot/common-types/schemas/api/personality';
 import { AUTOCOMPLETE_ERROR_SENTINEL } from '../apiCheck.js';
 
 // Mock the autocomplete cache
@@ -20,8 +20,10 @@ vi.mock('../gatewayClients.js', () => ({
   clientsFor: vi.fn(() => ({ userClient: {} })),
 }));
 
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({

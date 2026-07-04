@@ -7,8 +7,8 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ADMIN_SETTINGS_SINGLETON_ID, type PrismaClient } from '@tzurot/common-types';
-
+import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { bootstrapTtsSystemGlobalsIfNeeded } from './TtsConfigBootstrap.js';
 
 const KYUTAI_ID = '50411d3c-cc98-5f39-839e-abd4fb84b0c8';

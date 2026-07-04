@@ -15,15 +15,13 @@
  * ```
  */
 
-import {
-  createLogger,
-  getConfig,
-  decryptApiKey,
-  AIProvider,
-  INTERVALS,
-  TTLCache,
-  type PrismaClient,
-} from '@tzurot/common-types';
+import { getConfig } from '@tzurot/common-types/config/config';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { INTERVALS } from '@tzurot/common-types/constants/timing';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { decryptApiKey } from '@tzurot/common-types/utils/encryption';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
 
 const logger = createLogger('ApiKeyResolver');
 const config = getConfig();

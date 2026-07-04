@@ -12,7 +12,8 @@
  */
 
 import type { Message } from 'discord.js';
-import { createLogger, type LoadedPersonality } from '@tzurot/common-types';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { JobTracker } from './JobTracker.js';
 import { PersonalityChatManager } from './character/PersonalityChatManager.js';
 

@@ -4,7 +4,7 @@
  */
 
 import { AttachmentBuilder } from 'discord.js';
-import type { EnvConfig } from '@tzurot/common-types';
+import type { EnvConfig } from '@tzurot/common-types/config/config';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { CHARACTER_JSON_TEMPLATE } from './import.js';
 

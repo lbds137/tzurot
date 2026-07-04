@@ -8,7 +8,8 @@
  * testable.
  */
 
-import { createLogger, type LoadedPersonality } from '@tzurot/common-types';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { MemoryRetriever } from './MemoryRetriever.js';
 import type { UserReferenceResolver } from './UserReferenceResolver.js';
 import type { ConversationContext, PersonaLoadResult } from './ConversationalRAGTypes.js';

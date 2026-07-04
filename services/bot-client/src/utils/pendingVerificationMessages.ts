@@ -6,7 +6,7 @@
  * message deletion limit.
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { Redis } from 'ioredis';
 import { z } from 'zod';
 

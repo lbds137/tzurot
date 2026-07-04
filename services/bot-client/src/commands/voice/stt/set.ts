@@ -6,13 +6,10 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import {
-  createLogger,
-  DISCORD_COLORS,
-  voiceSttSetOptions,
-  sttProviderDisplayName,
-  type SttProvider,
-} from '@tzurot/common-types';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { voiceSttSetOptions } from '@tzurot/common-types/generated/commandOptions';
+import { sttProviderDisplayName, type SttProvider } from '@tzurot/common-types/types/sttProvider';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { clientsFor } from '../../../utils/gatewayClients.js';
 

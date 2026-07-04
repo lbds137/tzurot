@@ -6,7 +6,8 @@
 
 import { Router } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, HealthStatus } from '@tzurot/common-types';
+import { HealthStatus } from '@tzurot/common-types/constants/service';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { checkQueueHealth } from '../../queue.js';
 import { checkAvatarStorage } from '../../bootstrap/startup.js';
 import type { HealthResponse } from '../../types.js';

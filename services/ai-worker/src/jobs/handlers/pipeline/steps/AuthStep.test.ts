@@ -4,25 +4,34 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Job } from 'bullmq';
-import {
-  JobType,
-  AIProvider,
-  GUEST_MODE,
-  type LLMGenerationJobData,
-  type LoadedPersonality,
-} from '@tzurot/common-types';
+import { AIProvider, GUEST_MODE } from '@tzurot/common-types/constants/ai';
+import { JobType } from '@tzurot/common-types/constants/queue';
+import { type LLMGenerationJobData } from '@tzurot/common-types/types/jobs';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { AuthStep } from './AuthStep.js';
 import type { GenerationContext, ResolvedConfig } from '../types.js';
 import type {
   ApiKeyResolver,
   ApiKeyResolutionResult,
 } from '../../../../services/ApiKeyResolver.js';
-import type { SttProvider } from '@tzurot/common-types';
+import type { SttProvider } from '@tzurot/common-types/types/sttProvider';
 import type { LlmConfigResolver, SttResolver } from '@tzurot/config-resolver';
 
 // Mock common-types logger and isFreeModel
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/constants/ai', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/constants/ai')>(
+    '@tzurot/common-types/constants/ai'
+  );
+  return {
+    ...actual,
+    isFreeModel: vi.fn((model: string) => model.includes('free') || model.includes('gemma')),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -31,7 +40,6 @@ vi.mock('@tzurot/common-types', async importOriginal => {
       error: vi.fn(),
       debug: vi.fn(),
     }),
-    isFreeModel: vi.fn((model: string) => model.includes('free') || model.includes('gemma')),
   };
 });
 

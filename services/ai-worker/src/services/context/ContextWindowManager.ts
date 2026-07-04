@@ -6,13 +6,11 @@
  * Cross-channel history from other channels is included when budget permits.
  */
 
-import {
-  countTextTokens,
-  createLogger,
-  formatLocationAsXml,
-  type CrossChannelHistoryGroupEntry,
-  type DiscordEnvironment,
-} from '@tzurot/common-types';
+import { type DiscordEnvironment } from '@tzurot/common-types/types/schemas/discord';
+import { type CrossChannelHistoryGroupEntry } from '@tzurot/common-types/types/schemas/message';
+import { formatLocationAsXml } from '@tzurot/common-types/utils/environmentFormatter';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
 import type { MemoryDocument } from '../ConversationalRAGTypes.js';
 import {
   type RawHistoryEntry,

@@ -6,20 +6,21 @@
  */
 
 import type { Message, Collection } from 'discord.js';
+import { MessageRole, MESSAGE_LIMITS } from '@tzurot/common-types/constants/message';
+import { INTERNAL_DISCORD_ID_PREFIX } from '@tzurot/common-types/constants/personaId';
+import { computeHistoryCutoff } from '@tzurot/common-types/services/historyCutoff';
+import { type ConversationMessage } from '@tzurot/common-types/types/conversationMessage';
+import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import {
-  createLogger,
-  MessageRole,
-  MESSAGE_LIMITS,
-  computeHistoryCutoff,
-  normalizeMessageForContext,
-  extractMessagePrefixName,
-  type ConversationMessage,
-  type AttachmentMetadata,
   type MessageReaction,
   type StoredReferencedMessage,
-  INTERNAL_DISCORD_ID_PREFIX,
-  mergeWithHistory,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/schemas/message';
+import {
+  normalizeMessageForContext,
+  extractMessagePrefixName,
+} from '@tzurot/common-types/utils/discord';
+import { mergeWithHistory } from '@tzurot/common-types/utils/historyMerger';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { buildMessageContent, hasMessageContent } from '../utils/MessageContentBuilder.js';
 import { isUserContentMessage } from '../utils/messageTypeUtils.js';
 import { collectExtendedContextAttachments } from './channelFetcher/extendedContextAttachmentCollector.js';

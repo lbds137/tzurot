@@ -10,14 +10,14 @@
  * - XML formatting happens only at prompt-building time, NOT in storage
  */
 
+import { NO_TEXT_CONTENT_PLACEHOLDER } from '@tzurot/common-types/constants/message';
 import {
-  createLogger,
-  type LoadedPersonality,
   type ReferencedMessage,
   type MessageMetadata,
   type StoredReferencedMessage,
-  NO_TEXT_CONTENT_PLACEHOLDER,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/schemas/message';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { Message } from 'discord.js';
 import { generateAttachmentPlaceholders } from '../utils/attachmentPlaceholders.js';
 import { isForwardedMessage } from '../utils/forwardedMessageUtils.js';

@@ -6,13 +6,11 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ConversationInputProcessor } from './ConversationInputProcessor.js';
-import {
-  AttachmentType,
-  AIProvider,
-  type LoadedPersonality,
-  type MessageContent,
-  type ReferencedMessage,
-} from '@tzurot/common-types';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { AttachmentType } from '@tzurot/common-types/constants/media';
+import { type MessageContent } from '@tzurot/common-types/types/ai';
+import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import type { ConversationContext } from './ConversationalRAGTypes.js';
 import type { PromptBuilder } from './PromptBuilder.js';
 import type { ReferencedMessageFormatter } from './ReferencedMessageFormatter.js';

@@ -4,7 +4,8 @@
  * Initialization and validation functions run during bot-client startup.
  */
 
-import { createLogger, getConfig } from '@tzurot/common-types';
+import { getConfig } from '@tzurot/common-types/config/config';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('bot-client');
 

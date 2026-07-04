@@ -6,10 +6,10 @@
 import { Router, type Request, type RequestHandler, type Response } from 'express';
 import {
   AdminPersonalityResponseSchema,
-  createLogger,
   PersonalityUpdateSchema,
   type PersonalityUpdateInput,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/schemas/api/personality';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type CacheInvalidationService } from '@tzurot/cache-invalidation';
 import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import type { RouteDeps } from '../routeDeps.js';

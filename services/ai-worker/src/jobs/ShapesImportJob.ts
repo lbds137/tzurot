@@ -17,15 +17,14 @@
  */
 
 import type { Job } from 'bullmq';
+import { type Prisma, type PrismaClient } from '@tzurot/common-types/services/prisma';
 import {
-  createLogger,
-  normalizeSlugForUser,
-  type Prisma,
-  type PrismaClient,
   type ShapesImportJobData,
   type ShapesImportJobResult,
   type ShapesDataFetchResult,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/shapes-import';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { normalizeSlugForUser } from '@tzurot/common-types/utils/slugUtils';
 import { ShapesDataFetcher } from '../services/shapes/ShapesDataFetcher.js';
 import { getDecryptedCookie, persistUpdatedCookie } from './shapesCredentials.js';
 import { handleShapesJobError } from './shapesJobHelpers.js';

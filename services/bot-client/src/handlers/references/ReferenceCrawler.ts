@@ -6,7 +6,11 @@
  */
 
 import type { Message } from 'discord.js';
-import { createLogger, isDuplicateReference, isBotAuthoredReference } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import {
+  isDuplicateReference,
+  isBotAuthoredReference,
+} from '@tzurot/common-types/utils/referenceEnrichment';
 import type { IReferenceStrategy } from './strategies/IReferenceStrategy.js';
 import { type ReferenceMetadata, type ReferenceResult, ReferenceType } from './types.js';
 import { LinkExtractor } from './LinkExtractor.js';

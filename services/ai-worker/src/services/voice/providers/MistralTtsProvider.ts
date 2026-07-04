@@ -22,18 +22,18 @@
  * straightforward to add (mirror ElevenLabsVoiceService.evictAndClone).
  */
 
+import { TTS_VOICE_NAME_PREFIX } from '@tzurot/common-types/constants/ai';
 import {
   buildPreparedVoiceId,
-  createLogger,
-  TTLCache,
-  TTS_VOICE_NAME_PREFIX,
   type PreparedTts,
   type ResolvedTtsConfig,
   type TtsCapabilities,
   type TtsContext,
   type TtsProvider,
   type TtsProviderId,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/services/tts/TtsProvider';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
 import {
   mistralCloneVoice,
   mistralListVoices,

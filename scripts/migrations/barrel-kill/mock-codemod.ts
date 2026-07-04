@@ -38,8 +38,6 @@ export interface MockReport {
 interface FactoryShape {
   returnObj: ObjectLiteralExpression;
   actualBinding: string | undefined; // name bound to importOriginal()/importActual()
-  hadSpread: boolean;
-  usesImportActual: boolean; // vi.importActual(...) vs importOriginal(...)
   paramName: string | undefined; // the arrow param (importOriginal)
 }
 
@@ -81,13 +79,8 @@ function analyzeFactory(factory: Node): FactoryShape | undefined {
     factory.asKind(SyntaxKind.ArrowFunction) ?? factory.asKind(SyntaxKind.FunctionExpression);
   const paramName = arrow?.getParameters()[0]?.getName();
 
-  // Spread: any `...expr` in the returned object.
-  const spread = returnObj.getProperties().find(p => p.getKind() === SyntaxKind.SpreadAssignment);
-  const hadSpread = spread !== undefined;
-
   // Find the `const <name> = await (importOriginal|vi.importActual)(...)` binding.
   let actualBinding: string | undefined;
-  let usesImportActual = false;
   const block = arrow?.getBody().asKind(SyntaxKind.Block);
   if (block !== undefined) {
     for (const stmt of block.getStatements()) {
@@ -102,12 +95,11 @@ function analyzeFactory(factory: Node): FactoryShape | undefined {
         callText.includes('importOriginal')
       ) {
         actualBinding = varDecl?.getName();
-        usesImportActual = callText.includes('importActual');
         break;
       }
     }
   }
-  return { returnObj, actualBinding, hadSpread, usesImportActual, paramName };
+  return { returnObj, actualBinding, paramName };
 }
 
 interface OverrideProp {
@@ -144,27 +136,20 @@ function hasCrossSubpathActualRef(
   return false;
 }
 
-function buildGroupMock(
-  subpath: string,
-  props: OverrideProp[],
-  hadSpread: boolean,
-  usesImportActual: boolean
-): string {
+function buildGroupMock(subpath: string, props: OverrideProp[]): string {
   const spec = `${PACKAGE}/${subpath}`;
   const body = props.map(p => `    ${p.text},`).join('\n');
-  if (!hadSpread) {
-    return `vi.mock('${spec}', () => ({\n${body}\n}));`;
-  }
-  if (usesImportActual) {
-    return (
-      `vi.mock('${spec}', async () => {\n` +
-      `  const actual = await vi.importActual<typeof import('${spec}')>('${spec}');\n` +
-      `  return {\n    ...actual,\n${body}\n  };\n});`
-    );
-  }
+  // ALWAYS spread the real subpath, even when the original barrel mock had no
+  // spread. A barrel `vi.mock('@tzurot/common-types')` only intercepts imports
+  // of that exact specifier; a deep `vi.mock('.../constants/ai')` intercepts by
+  // RESOLVED FILE, so it also hijacks common-types' OWN internal relative import
+  // of that file (e.g. config/config.ts's `../constants/ai`). Blanking the
+  // non-overridden exports there starves those internal consumers (observed:
+  // `z.nativeEnum(undefined)` when AIProvider went missing). Spreading preserves
+  // the real module and overrides only the listed keys.
   return (
-    `vi.mock('${spec}', async importOriginal => {\n` +
-    `  const actual = await importOriginal<typeof import('${spec}')>();\n` +
+    `vi.mock('${spec}', async () => {\n` +
+    `  const actual = await vi.importActual<typeof import('${spec}')>('${spec}');\n` +
     `  return {\n    ...actual,\n${body}\n  };\n});`
   );
 }
@@ -188,7 +173,7 @@ export function rewriteViMocks(sf: SourceFile, map: SymbolMap, report: MockRepor
     const groups = new Map<string, OverrideProp[]>();
     let flagFile = false;
     for (const prop of shape.returnObj.getProperties()) {
-      if (prop.getKind() === SyntaxKind.SpreadAssignment) continue; // handled via hadSpread
+      if (prop.getKind() === SyntaxKind.SpreadAssignment) continue; // buildGroupMock always re-emits the spread
       const key =
         prop.asKind(SyntaxKind.PropertyAssignment)?.getName() ??
         prop.asKind(SyntaxKind.ShorthandPropertyAssignment)?.getName() ??
@@ -231,13 +216,13 @@ export function rewriteViMocks(sf: SourceFile, map: SymbolMap, report: MockRepor
     }
     const newMocks = [...groups.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([subpath, props]) =>
-        buildGroupMock(subpath, props, shape.hadSpread, shape.usesImportActual)
-      );
+      .map(([subpath, props]) => buildGroupMock(subpath, props));
 
-    const idx = statement.getChildIndex();
-    statement.remove();
-    sf.insertStatements(idx, newMocks);
+    // replaceWithText (not remove()+insertStatements) preserves the statement's
+    // TRAILING trivia — the blank line that separated the original vi.mock from
+    // the following statement (e.g. describe) survives. Inter-mock spacing comes
+    // from joining the emitted groups with a blank line.
+    statement.replaceWithText(newMocks.join('\n\n'));
     report.mocksRewritten += 1;
     report.mockGroupsEmitted += groups.size;
   }

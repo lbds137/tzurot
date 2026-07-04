@@ -13,10 +13,10 @@
 import { type Request, type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
-  createLogger,
   RecentUsersResponseSchema,
   DiscordSnowflakeSchema,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/schemas/api/internal';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';

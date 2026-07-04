@@ -3,7 +3,9 @@
  * Waterfall query strategy for channel-scoped memory retrieval
  */
 
-import { AI_DEFAULTS, filterValidDiscordIds, createLogger } from '@tzurot/common-types';
+import { AI_DEFAULTS } from '@tzurot/common-types/constants/ai';
+import { filterValidDiscordIds } from '@tzurot/common-types/constants/discord';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { MemoryQueryOptions, PgvectorMemoryDocument } from './PgvectorTypes.js';
 
 const logger = createLogger('PgvectorChannelScoping');

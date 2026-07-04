@@ -3,7 +3,8 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import { DISCORD_COLORS, type AdminUsageStats } from '@tzurot/common-types';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { type AdminUsageStats } from '@tzurot/common-types/schemas/api/usage';
 
 /**
  * Base usage stats structure (shared between user and admin)

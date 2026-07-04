@@ -24,7 +24,9 @@
 
 import { Router } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, VOICE_REFERENCE_LIMITS, type PrismaClient } from '@tzurot/common-types';
+import { VOICE_REFERENCE_LIMITS } from '@tzurot/common-types/constants/media';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { validateSlug } from '../../utils/validators.js';
 

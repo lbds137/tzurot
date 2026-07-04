@@ -8,11 +8,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoryRetriever } from './MemoryRetriever.js';
 import type { PgvectorMemoryAdapter } from './PgvectorMemoryAdapter.js';
-import type {
-  LoadedPersonality,
-  PrismaClient,
-  ResolvedConfigOverrides,
-} from '@tzurot/common-types';
+import type { ResolvedConfigOverrides } from '@tzurot/common-types/schemas/api/configOverrides';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
+import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import type { ConversationContext } from './ConversationalRAGTypes.js';
 import type { PersonaResolver } from '@tzurot/identity';
 

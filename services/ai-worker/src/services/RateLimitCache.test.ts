@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Redis } from 'ioredis';
-import { ApiErrorCategory } from '@tzurot/common-types';
+import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
 import { RateLimitCache, deriveCacheKeyId, assertValidCacheKeyId } from './RateLimitCache.js';
 
 // Frozen "now" for deterministic TTL math in clamping tests

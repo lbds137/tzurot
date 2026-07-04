@@ -15,15 +15,13 @@
  */
 
 import type { Message, SendableChannels } from 'discord.js';
-import {
-  type ConfigResolutionResult,
-  createLogger,
-  isBotOwner,
-  isTypingChannel,
-  type LoadedPersonality,
-  MESSAGE_LIMITS,
-  type SettingSource,
-} from '@tzurot/common-types';
+import { MESSAGE_LIMITS } from '@tzurot/common-types/constants/message';
+import { type SettingSource } from '@tzurot/common-types/schemas/api/adminSettings';
+import { type ConfigResolutionResult } from '@tzurot/common-types/types/configResolution';
+import { isTypingChannel } from '@tzurot/common-types/types/discord-types';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import type { UserClient } from '@tzurot/clients';
 import { generate } from '../../utils/gatewayServiceCalls.js';
 import { clientsForUser } from '../../utils/gatewayClients.js';

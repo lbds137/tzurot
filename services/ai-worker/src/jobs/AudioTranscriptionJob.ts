@@ -7,18 +7,17 @@
  */
 
 import { Job } from 'bullmq';
+import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
+import { RETRY_CONFIG } from '@tzurot/common-types/constants/timing';
 import {
-  createLogger,
-  CONTENT_TYPES,
-  RETRY_CONFIG,
-  isTimeoutError,
-  isTooLongError,
   type AudioTranscriptionJobData,
   type AudioTranscriptionResult,
   type SttFailureReason,
   audioTranscriptionJobDataSchema,
-  type SttDispatch,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/jobs';
+import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
+import { isTimeoutError, isTooLongError } from '@tzurot/common-types/utils/errors';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { transcribeAudio } from '../services/multimodal/AudioProcessor.js';
 import { withRetry, RetryError } from '../utils/retry.js';
 import { checkQueueAge } from '../utils/jobAgeGate.js';

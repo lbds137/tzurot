@@ -22,7 +22,7 @@ import {
   ButtonBuilder,
   ActionRowBuilder,
 } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { ShapesCustomIds } from '../../utils/customIds.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { buildBrowsePage, fetchShapesList, shapesBrowseIds } from './browse.js';

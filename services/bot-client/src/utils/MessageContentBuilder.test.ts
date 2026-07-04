@@ -13,11 +13,13 @@ import {
   formatAttachmentDescription,
   hasMessageContent,
 } from './MessageContentBuilder.js';
-import type { AttachmentMetadata } from '@tzurot/common-types';
+import type { AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 
 // Mock dependencies
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({

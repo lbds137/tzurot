@@ -24,7 +24,7 @@
 
 import { resolve, basename } from 'path';
 import { unlink, mkdir, glob } from 'fs/promises';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('avatar-paths');
 

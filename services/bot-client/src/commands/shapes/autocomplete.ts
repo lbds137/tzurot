@@ -8,7 +8,7 @@
  */
 
 import type { AutocompleteInteraction } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getCachedShapes } from '../../utils/autocomplete/autocompleteCache.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { truncateForSelect } from '../../utils/browse/truncation.js';

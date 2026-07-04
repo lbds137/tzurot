@@ -7,7 +7,7 @@ import {
   generateAttachmentPlaceholder,
   generateAttachmentPlaceholders,
 } from './attachmentPlaceholders.js';
-import type { AttachmentMetadata } from '@tzurot/common-types';
+import type { AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 
 describe('attachmentPlaceholders', () => {
   describe('generateAttachmentPlaceholder', () => {

@@ -17,17 +17,28 @@ vi.mock('./autocomplete.js', () => ({
   UNLOCK_MODELS_VALUE: '__UNLOCK_ALL_MODELS__',
 }));
 
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal();
+vi.mock('@tzurot/common-types/constants/ai', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/constants/ai')>(
+    '@tzurot/common-types/constants/ai'
+  );
   return {
-    ...(actual as Record<string, unknown>),
+    ...actual,
+    isFreeModel: vi.fn((model: string) => model.startsWith('free-')),
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
     createLogger: () => ({
       info: vi.fn(),
       debug: vi.fn(),
       warn: vi.fn(),
       error: vi.fn(),
     }),
-    isFreeModel: vi.fn((model: string) => model.startsWith('free-')),
   };
 });
 

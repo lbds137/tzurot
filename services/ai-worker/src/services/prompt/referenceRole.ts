@@ -20,7 +20,7 @@
  * classifier exists to prevent.
  */
 
-import type { ReferenceAuthorRole } from '@tzurot/common-types';
+import type { ReferenceAuthorRole } from '@tzurot/common-types/types/schemas/message';
 
 /**
  * Whether an author name matches an AI personality (assistant) by prefix.

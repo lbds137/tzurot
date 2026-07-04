@@ -27,7 +27,7 @@
 
 import { promises as dns } from 'node:dns';
 import { isIPv4, isIPv6 } from 'node:net';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { fetchAttachmentBytes, type FetchAttachmentBytesOptions } from './attachmentFetch.js';
 
 const logger = createLogger('safeExternalFetch');

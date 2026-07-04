@@ -6,7 +6,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
 import { handleAiGenerate } from './generate.js';
-import { JobStatus } from '@tzurot/common-types';
+import { JobStatus } from '@tzurot/common-types/constants/queue';
 import type { RouteDeps } from '../routeDeps.js';
 
 // Mock dependencies

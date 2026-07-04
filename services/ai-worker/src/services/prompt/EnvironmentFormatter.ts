@@ -8,7 +8,9 @@
  * adding logging for the ai-worker context.
  */
 
-import { createLogger, formatLocationAsXml, type DiscordEnvironment } from '@tzurot/common-types';
+import { type DiscordEnvironment } from '@tzurot/common-types/types/schemas/discord';
+import { formatLocationAsXml } from '@tzurot/common-types/utils/environmentFormatter';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('EnvironmentFormatter');
 

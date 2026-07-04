@@ -22,20 +22,44 @@ vi.mock('fs/promises', () => ({
 }));
 
 // Mock common-types
-vi.mock('@tzurot/common-types', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-  CONTENT_TYPES: {
-    IMAGE_PNG: 'image/png',
-  },
-  CACHE_CONTROL: {
-    AVATAR_MAX_AGE: 604800, // 7 days
-  },
-}));
+vi.mock('@tzurot/common-types/constants/media', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/constants/media')>(
+    '@tzurot/common-types/constants/media'
+  );
+  return {
+    ...actual,
+    CONTENT_TYPES: {
+      IMAGE_PNG: 'image/png',
+    },
+  };
+});
+
+vi.mock('@tzurot/common-types/constants/timing', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/constants/timing')>(
+    '@tzurot/common-types/constants/timing'
+  );
+  return {
+    ...actual,
+    CACHE_CONTROL: {
+      AVATAR_MAX_AGE: 604800, // 7 days
+    },
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
+    createLogger: () => ({
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+    }),
+  };
+});
 
 // Mock errorResponses
 vi.mock('../../utils/errorResponses.js', () => ({

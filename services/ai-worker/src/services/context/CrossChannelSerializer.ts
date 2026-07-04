@@ -6,12 +6,10 @@
  * max-lines limit.
  */
 
-import {
-  countTextTokens,
-  createLogger,
-  formatLocationAsXml,
-  type CrossChannelHistoryGroupEntry,
-} from '@tzurot/common-types';
+import { type CrossChannelHistoryGroupEntry } from '@tzurot/common-types/types/schemas/message';
+import { formatLocationAsXml } from '@tzurot/common-types/utils/environmentFormatter';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
 import {
   formatCrossChannelHistoryAsXml,
   getFormattedMessageCharLength,

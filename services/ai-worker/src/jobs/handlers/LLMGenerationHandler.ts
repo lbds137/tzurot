@@ -21,14 +21,14 @@ import { Job } from 'bullmq';
 import { randomUUID } from 'node:crypto';
 import { ConversationalRAGService } from '../../services/ConversationalRAGService.js';
 import {
-  createLogger,
   ApiErrorCategory,
   ApiErrorType,
   USER_ERROR_MESSAGES,
-  type LLMGenerationJobData,
-  type LLMGenerationResult,
-  type PrismaClient,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/constants/error';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { type LLMGenerationJobData } from '@tzurot/common-types/types/jobs';
+import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { ConversationHistoryService } from '@tzurot/conversation-history';
 import { PersonaResolver, UserService } from '@tzurot/identity';
 import type {

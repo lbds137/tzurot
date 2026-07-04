@@ -5,13 +5,10 @@
  * between dev and prod databases to avoid unique constraint violations during sync.
  */
 
-import {
-  type PrismaClient,
-  CONFIG_KINDS,
-  type ConfigKind,
-  toConfigKind,
-  createLogger,
-} from '@tzurot/common-types';
+import { CONFIG_KINDS, type ConfigKind } from '@tzurot/common-types/constants/ai';
+import { toConfigKind } from '@tzurot/common-types/services/LlmConfigMapper';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('db-sync-llm-config');
 

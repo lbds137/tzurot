@@ -18,7 +18,8 @@
  * 3. Add a `<provider>.test.ts` file colocated with the validator.
  */
 
-import { createLogger, AIProvider } from '@tzurot/common-types';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { validateOpenRouterKey } from './apiKeyValidation/openrouter.js';
 import { validateElevenLabsKey } from './apiKeyValidation/elevenlabs.js';
 import { validateMistralKey } from './apiKeyValidation/mistral.js';

@@ -8,7 +8,7 @@ import { ContentBudgetManager } from './ContentBudgetManager.js';
 import type { PromptBuilder } from './PromptBuilder.js';
 import type { ContextWindowManager } from './context/ContextWindowManager.js';
 import type { BudgetAllocationOptions, MemoryDocument } from './ConversationalRAGTypes.js';
-import type { LoadedPersonality } from '@tzurot/common-types';
+import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 
 describe('ContentBudgetManager', () => {
   let mockPromptBuilder: PromptBuilder;

@@ -6,7 +6,9 @@
  * because the parent command uses deferralMode: 'ephemeral'.
  */
 
-import { createLogger, CLEANUP_DEFAULTS, adminCleanupOptions } from '@tzurot/common-types';
+import { CLEANUP_DEFAULTS } from '@tzurot/common-types/constants/timing';
+import { adminCleanupOptions } from '@tzurot/common-types/generated/commandOptions';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 

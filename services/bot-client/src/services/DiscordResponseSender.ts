@@ -12,18 +12,17 @@ import {
   ThreadChannel,
   escapeMarkdown,
 } from 'discord.js';
+import { GUEST_MODE, buildModelInfoUrl } from '@tzurot/common-types/constants/ai';
 import {
-  splitMessage,
-  createLogger,
-  GUEST_MODE,
   DISCORD_LIMITS,
   BOT_FOOTER_TEXT,
   buildModelFooterText,
-  buildModelInfoUrl,
-  isBotOwner,
-  type TypingChannel,
-  type LoadedPersonality,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/constants/discord';
+import { type TypingChannel } from '@tzurot/common-types/types/discord-types';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { splitMessage } from '@tzurot/common-types/utils/discord';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import { WebhookManager } from '../utils/WebhookManager.js';
 import { redisService } from '../redis.js';
 import { buildBotAudioFilename } from '../utils/botAudioClassifier.js';

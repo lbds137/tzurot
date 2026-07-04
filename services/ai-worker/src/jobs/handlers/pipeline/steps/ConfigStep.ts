@@ -6,11 +6,11 @@
  */
 
 import {
-  createLogger,
   HARDCODED_CONFIG_DEFAULTS,
   type ConfigOverrideSource,
   type ResolvedConfigOverrides,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/schemas/api/configOverrides';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { ConfigCascadeResolver } from '@tzurot/config-resolver';
 import type { IPipelineStep, GenerationContext, ResolvedConfig } from '../types.js';
 

@@ -5,7 +5,7 @@
 
 import type { RequestHandler, Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { sendCustomSuccess } from '../../utils/responseHelpers.js';
 import type { ProvisionedRequest } from '../../types.js';
 import type { RouteDeps } from '../routeDeps.js';

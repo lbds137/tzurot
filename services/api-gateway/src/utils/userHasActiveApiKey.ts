@@ -9,7 +9,8 @@
  * z.ai's catalog rather than OpenRouter's.
  */
 
-import type { AIProvider, PrismaClient } from '@tzurot/common-types';
+import type { AIProvider } from '@tzurot/common-types/constants/ai';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 
 /**
  * Return `true` if the user has an active API key for the given provider.

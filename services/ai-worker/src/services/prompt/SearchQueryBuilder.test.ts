@@ -1,7 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({
@@ -21,7 +23,7 @@ vi.mock('../RAGUtils.js', () => ({
 
 import { buildSearchQuery } from './SearchQueryBuilder.js';
 import type { ProcessedAttachment } from '../MultimodalProcessor.js';
-import { AttachmentType } from '@tzurot/common-types';
+import { AttachmentType } from '@tzurot/common-types/constants/media';
 
 function makeAttachment(overrides = {}): ProcessedAttachment {
   return {

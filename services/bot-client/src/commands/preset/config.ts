@@ -5,11 +5,9 @@
  * Uses the Dashboard Framework pattern for consistent UX.
  */
 
-import {
-  DISCORD_COLORS,
-  type LlmConfigUpdateInput,
-  type AdvancedParams,
-} from '@tzurot/common-types';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { type LlmConfigUpdateInput } from '@tzurot/common-types/schemas/api/llm-config';
+import { type AdvancedParams } from '@tzurot/common-types/schemas/llmAdvancedParams';
 import type { DashboardConfig, FieldDefinition } from '../../utils/dashboard/types.js';
 import type { ActionButtonOptions } from '../../utils/dashboard/index.js';
 import type { PresetData, FlattenedPresetData } from './types.js';

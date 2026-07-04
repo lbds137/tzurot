@@ -3,8 +3,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import type { LoadedPersonality } from '@tzurot/common-types';
-import { MULTI_TAG } from '@tzurot/common-types';
+import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { MULTI_TAG } from '@tzurot/common-types/constants/message';
 import { pickNewDMActivePersonality, resolveSlots } from './SlotResolver.js';
 
 // Build a minimal LoadedPersonality fixture by name. Tests only care about

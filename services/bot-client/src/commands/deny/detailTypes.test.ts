@@ -2,13 +2,28 @@ import { describe, it, expect, vi } from 'vitest';
 import type { APIButtonComponentWithCustomId } from 'discord.js';
 import { buildDetailEmbed, buildDetailButtons, ENTITY_TYPE, VALID_SCOPES } from './detailTypes.js';
 
-vi.mock('@tzurot/common-types', () => ({
-  DISCORD_COLORS: { ERROR: 0xff0000, WARNING: 0xffaa00 },
-  formatDateShort: vi.fn((date: string | Date) => {
-    const d = typeof date === 'string' ? new Date(date) : date;
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
-  }),
-}));
+vi.mock('@tzurot/common-types/constants/discord', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/constants/discord')>(
+    '@tzurot/common-types/constants/discord'
+  );
+  return {
+    ...actual,
+    DISCORD_COLORS: { ERROR: 0xff0000, WARNING: 0xffaa00 },
+  };
+});
+
+vi.mock('@tzurot/common-types/utils/dateFormatting', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/dateFormatting')>(
+    '@tzurot/common-types/utils/dateFormatting'
+  );
+  return {
+    ...actual,
+    formatDateShort: vi.fn((date: string | Date) => {
+      const d = typeof date === 'string' ? new Date(date) : date;
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
+    }),
+  };
+});
 
 const sampleEntry = {
   id: 'entry-uuid-1234',

@@ -15,12 +15,10 @@ import {
   ensureAvatarDir,
 } from '../../utils/avatarPaths.js';
 import { StatusCodes } from 'http-status-codes';
-import {
-  createLogger,
-  CONTENT_TYPES,
-  CACHE_CONTROL,
-  type PrismaClient,
-} from '@tzurot/common-types';
+import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
+import { CACHE_CONTROL } from '@tzurot/common-types/constants/timing';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 
 const logger = createLogger('api-gateway');

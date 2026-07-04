@@ -9,7 +9,7 @@
  */
 
 import { MessageFlags, type ButtonInteraction } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import {
   buildDeleteConfirmation,

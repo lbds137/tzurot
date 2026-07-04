@@ -4,7 +4,8 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ConversationPersistence } from './ConversationPersistence.js';
-import type { LoadedPersonality, ReferencedMessage } from '@tzurot/common-types';
+import type { ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
+import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import type { Message } from 'discord.js';
 
 vi.mock('../utils/attachmentPlaceholders.js', () => ({

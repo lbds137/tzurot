@@ -14,7 +14,8 @@
  * Only an explicit 401/403 from shapes.inc is treated as "invalid".
  */
 
-import { createLogger, SHAPES_BASE_URL, SHAPES_USER_AGENT } from '@tzurot/common-types';
+import { SHAPES_BASE_URL, SHAPES_USER_AGENT } from '@tzurot/common-types/types/shapes-import';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('ShapesPreflight');
 

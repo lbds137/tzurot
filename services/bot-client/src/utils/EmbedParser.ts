@@ -6,7 +6,7 @@
  */
 
 import { APIEmbed, APIEmbedField, Message } from 'discord.js';
-import { escapeXml } from '@tzurot/common-types';
+import { escapeXml } from '@tzurot/common-types/utils/xmlBuilder';
 
 /**
  * Check if a string value is present and non-empty

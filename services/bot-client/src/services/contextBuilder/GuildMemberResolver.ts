@@ -5,7 +5,8 @@
  */
 
 import type { Message, GuildMember } from 'discord.js';
-import { MESSAGE_LIMITS, type GuildMemberInfo } from '@tzurot/common-types';
+import { MESSAGE_LIMITS } from '@tzurot/common-types/constants/message';
+import { type GuildMemberInfo } from '@tzurot/common-types/types/schemas/discord';
 
 /** Options that may contain member override */
 interface MemberResolveOptions {

@@ -4,23 +4,23 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Job } from 'bullmq';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { AttachmentType } from '@tzurot/common-types/constants/media';
+import { JobType, JobStatus, REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
 import {
-  JobType,
-  JobStatus,
-  AttachmentType,
-  AIProvider,
-  REDIS_KEY_PREFIXES,
   type LLMGenerationJobData,
-  type LoadedPersonality,
   type AudioTranscriptionResult,
   type ImageDescriptionResult,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/jobs';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { DependencyStep, deriveExtendedContextImages } from './DependencyStep.js';
 import type { GenerationContext } from '../types.js';
 
 // Mock common-types logger
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
     ...actual,
     createLogger: () => ({

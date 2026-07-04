@@ -8,7 +8,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { Response } from 'express';
 import type { Redis } from 'ioredis';
-import type { PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { RouteDeps } from '../routeDeps.js';
 vi.mock('./memoryHelpers.js', () => ({
   parseTimeframeFilter: vi.fn(),

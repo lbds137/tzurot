@@ -9,12 +9,10 @@
  */
 
 import { PgvectorMemoryAdapter } from './PgvectorMemoryAdapter.js';
-import {
-  createLogger,
-  type LoadedPersonality,
-  type PrismaClient,
-  generatePendingMemoryUuid,
-} from '@tzurot/common-types';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { generatePendingMemoryUuid } from '@tzurot/common-types/utils/deterministicUuid';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { ConversationContext } from './ConversationalRAGTypes.js';
 
 const logger = createLogger('LongTermMemoryService');

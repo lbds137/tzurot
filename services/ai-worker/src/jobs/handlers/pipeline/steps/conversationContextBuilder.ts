@@ -5,7 +5,8 @@
  * Extracted from GenerationStep to keep file under max-lines limit.
  */
 
-import { resolveSummonAnonymity, type LLMGenerationJobData } from '@tzurot/common-types';
+import { type LLMGenerationJobData } from '@tzurot/common-types/types/jobs';
+import { resolveSummonAnonymity } from '@tzurot/common-types/types/summon-anonymity';
 import type { ConversationContext } from '../../../../services/ConversationalRAGTypes.js';
 import type { PreparedContext, PreprocessingResults } from '../types.js';
 

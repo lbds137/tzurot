@@ -14,12 +14,12 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
+import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
+import { PrismaClient } from '@tzurot/common-types/services/prisma';
 import {
-  ADMIN_SETTINGS_SINGLETON_ID,
   generatePersonaUuid,
   generateUserUuid,
-  PrismaClient,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/utils/deterministicUuid';
 import {
   createTestPGlite,
   setupTestEnvironment,

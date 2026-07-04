@@ -11,7 +11,7 @@ import {
   type StringSelectMenuInteraction,
   type ModalSubmitInteraction,
 } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getSessionManager } from './SessionManager.js';
 import { type DashboardSession } from './types.js';
 import { DASHBOARD_MESSAGES, formatSessionExpiredMessage } from './messages.js';

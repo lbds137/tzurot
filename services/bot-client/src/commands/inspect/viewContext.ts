@@ -11,7 +11,7 @@
  * but each click still re-evaluates ownership against the clicker.
  */
 
-import { isBotOwner } from '@tzurot/common-types';
+import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import type { DiagnosticLog } from './types.js';
 
 export interface ViewContext {

@@ -8,11 +8,11 @@
 
 import { escapeMarkdown } from 'discord.js';
 import {
-  createLogger,
   memoryFocusEnableOptions,
   memoryFocusDisableOptions,
   memoryFocusStatusOptions,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/generated/commandOptions';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { createSuccessEmbed, createInfoEmbed } from '../../utils/commandHelpers.js';

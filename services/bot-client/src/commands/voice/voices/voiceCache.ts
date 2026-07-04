@@ -6,7 +6,7 @@
  * sibling coupling between the two command handlers.
  */
 
-import { TTLCache } from '@tzurot/common-types';
+import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
 import type { VoiceEntry } from './types.js';
 
 /** Cache voice lists per user to avoid hitting ElevenLabs API on every autocomplete keystroke */

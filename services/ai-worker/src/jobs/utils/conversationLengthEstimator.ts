@@ -6,11 +6,9 @@
  * Extracted from conversationUtils.ts for better modularity.
  */
 
-import {
-  MessageRole,
-  formatPromptTimestamp,
-  type StoredReferencedMessage,
-} from '@tzurot/common-types';
+import { MessageRole } from '@tzurot/common-types/constants/message';
+import { type StoredReferencedMessage } from '@tzurot/common-types/types/schemas/message';
+import { formatPromptTimestamp } from '@tzurot/common-types/utils/dateFormatting';
 import type { RawHistoryEntry } from './conversationTypes.js';
 import { isRoleMatch } from './participantUtils.js';
 

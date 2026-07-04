@@ -21,7 +21,7 @@ import {
 import * as api from './api.js';
 import type { FetchedCharacter } from './api.js';
 import type { Attachment } from 'discord.js';
-import type { EnvConfig } from '@tzurot/common-types';
+import type { EnvConfig } from '@tzurot/common-types/config/config';
 
 // Mock dependencies. The api.js helpers (fetchCharacter / updateCharacter)
 // are stubbed directly, so the userClient that production passes to them
@@ -38,10 +38,12 @@ vi.mock('./api.js', () => ({
   updateCharacter: vi.fn(),
 }));
 
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal();
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
   return {
-    ...(actual as Record<string, unknown>),
+    ...actual,
     createLogger: () => ({
       info: vi.fn(),
       warn: vi.fn(),

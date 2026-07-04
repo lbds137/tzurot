@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoryPersistenceService } from './MemoryPersistenceService.js';
-import type { LoadedPersonality } from '@tzurot/common-types';
+import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import type { LongTermMemoryService } from './LongTermMemoryService.js';
 import type { MemoryRetriever } from './MemoryRetriever.js';
 import type { ConversationContext } from './ConversationalRAGTypes.js';

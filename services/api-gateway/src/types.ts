@@ -6,10 +6,12 @@
  */
 
 import type { Request } from 'express';
-import type { ApiErrorSubcode, HealthStatus } from '@tzurot/common-types';
+import type { ApiErrorSubcode } from '@tzurot/common-types/constants/error';
+import type { HealthStatus } from '@tzurot/common-types/constants/service';
 
 // Re-export shared API types from common-types
-export type { GenerateRequest, GenerateResponse } from '@tzurot/common-types';
+export type { GenerateResponse } from '@tzurot/common-types/types/api-types';
+export type { GenerateRequest } from '@tzurot/common-types/types/schemas/generation';
 
 /**
  * Standard error codes used across the API

@@ -9,7 +9,7 @@
  */
 
 import type { Redis } from 'ioredis';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import {
   RedisDeduplicationCache,
   type RedisDeduplicationOptions,

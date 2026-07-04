@@ -14,7 +14,7 @@
 // the user into the same failure.
 
 import type { ButtonInteraction } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getSessionManager } from './SessionManager.js';
 import { renderTerminalScreen, type BrowseCapableEntityType } from './terminalScreen.js';
 import { getBrowseRebuilder, type BrowseRebuildResult } from './browseRebuilderRegistry.js';

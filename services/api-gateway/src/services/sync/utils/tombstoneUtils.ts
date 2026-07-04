@@ -5,7 +5,8 @@
  * to prevent db-sync from restoring hard-deleted conversation history.
  */
 
-import { type PrismaClient, createLogger } from '@tzurot/common-types';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('db-sync-tombstones');
 

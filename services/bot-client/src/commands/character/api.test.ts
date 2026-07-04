@@ -20,7 +20,7 @@ import {
   fetchUsernames,
   toCharacterData,
 } from './api.js';
-import type { EnvConfig } from '@tzurot/common-types';
+import type { EnvConfig } from '@tzurot/common-types/config/config';
 import type { UserClient } from '@tzurot/clients';
 
 interface StubUserClient {

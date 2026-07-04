@@ -23,8 +23,8 @@ import {
   generateErrorReferenceId,
   classifyHttpStatus,
   isPermanentError,
-  type ApiErrorInfo,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/constants/error';
+import { type ApiErrorInfo } from '@tzurot/common-types/types/schemas/generation';
 
 /**
  * Patterns to detect specific error types from error messages

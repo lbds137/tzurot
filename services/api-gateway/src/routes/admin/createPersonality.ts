@@ -7,12 +7,12 @@ import { Router, type RequestHandler, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   AdminPersonalityResponseSchema,
-  createLogger,
-  generatePersonalityUuid,
   PersonalityCreateSchema,
   type PersonalityCreateInput,
-  Prisma,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/schemas/api/personality';
+import { Prisma } from '@tzurot/common-types/services/prisma';
+import { generatePersonalityUuid } from '@tzurot/common-types/utils/deterministicUuid';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type CacheInvalidationService } from '@tzurot/cache-invalidation';
 import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';

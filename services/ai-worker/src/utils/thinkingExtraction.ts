@@ -24,7 +24,7 @@
  * 3. Logged for debugging purposes
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('ThinkingExtraction');
 

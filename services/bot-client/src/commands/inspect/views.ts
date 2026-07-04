@@ -15,7 +15,10 @@ import {
   MessageFlags,
   type MessageActionRowComponentBuilder,
 } from 'discord.js';
-import type { DiagnosticPayload, DiagnosticMemoryEntry } from '@tzurot/common-types';
+import type {
+  DiagnosticPayload,
+  DiagnosticMemoryEntry,
+} from '@tzurot/common-types/types/diagnostic';
 import type { ViewContext } from './viewContext.js';
 import {
   DEFAULT_MEMORY_STATE,

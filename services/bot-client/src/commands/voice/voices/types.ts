@@ -13,7 +13,7 @@
  * silently against a local literal-union duplicate.
  */
 
-import type { AudioProviderId } from '@tzurot/common-types';
+import type { AudioProviderId } from '@tzurot/common-types/types/audio-provider';
 
 export interface VoiceEntry {
   provider: AudioProviderId;

@@ -11,7 +11,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { PersonalityMessageHandler } from './PersonalityMessageHandler.js';
 import type { Message } from 'discord.js';
 import { ChannelType } from 'discord.js';
-import type { LoadedPersonality } from '@tzurot/common-types';
+import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 
 describe('PersonalityMessageHandler', () => {
   let handler: PersonalityMessageHandler;

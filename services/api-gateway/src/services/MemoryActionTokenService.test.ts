@@ -5,7 +5,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Redis } from 'ioredis';
 import { MemoryActionTokenService } from './MemoryActionTokenService.js';
-import { REDIS_KEY_PREFIXES, type BatchDeletePreviewInput } from '@tzurot/common-types';
+import { REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
+import { type BatchDeletePreviewInput } from '@tzurot/common-types/schemas/api/memory';
 
 function createMockRedis(): Redis {
   return {

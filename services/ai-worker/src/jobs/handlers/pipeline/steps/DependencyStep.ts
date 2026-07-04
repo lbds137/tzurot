@@ -6,17 +6,16 @@
  * Also processes extended context image attachments inline.
  */
 
+import { type AIProvider } from '@tzurot/common-types/constants/ai';
+import { AttachmentType } from '@tzurot/common-types/constants/media';
+import { REDIS_KEY_PREFIXES, JobType } from '@tzurot/common-types/constants/queue';
 import {
-  createLogger,
-  REDIS_KEY_PREFIXES,
-  AttachmentType,
-  JobType,
-  type AIProvider,
-  type AttachmentMetadata,
   type AudioTranscriptionResult,
   type ImageDescriptionResult,
-  type SttDispatch,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/types/jobs';
+import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
+import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { ProcessedAttachment } from '../../../../services/MultimodalProcessor.js';
 import type { IPipelineStep, GenerationContext, PreprocessingResults } from '../types.js';
 import type { ApiKeyResolver } from '../../../../services/ApiKeyResolver.js';

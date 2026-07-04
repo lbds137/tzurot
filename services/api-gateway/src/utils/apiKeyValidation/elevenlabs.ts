@@ -12,7 +12,8 @@
  * with provider error details there.
  */
 
-import { AI_ENDPOINTS, VALIDATION_TIMEOUTS } from '@tzurot/common-types';
+import { AI_ENDPOINTS } from '@tzurot/common-types/constants/ai';
+import { VALIDATION_TIMEOUTS } from '@tzurot/common-types/constants/timing';
 import { VALIDATION_MESSAGES, type ApiKeyValidationResult } from './types.js';
 
 /** Permissions Tzurot needs from a scoped ElevenLabs key. */

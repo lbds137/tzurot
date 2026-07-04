@@ -4,11 +4,9 @@
  * Sets a global config as the free tier default for guest users (owner only)
  */
 
-import {
-  presetGlobalFreeDefaultOptions,
-  toConfigKind,
-  DEFAULT_CONFIG_KIND,
-} from '@tzurot/common-types';
+import { DEFAULT_CONFIG_KIND } from '@tzurot/common-types/constants/ai';
+import { presetGlobalFreeDefaultOptions } from '@tzurot/common-types/generated/commandOptions';
+import { toConfigKind } from '@tzurot/common-types/services/LlmConfigMapper';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { handleGlobalPresetUpdate } from './globalPresetHelpers.js';
 

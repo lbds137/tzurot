@@ -4,14 +4,14 @@
  */
 
 import type { AutocompleteInteraction } from 'discord.js';
+import { isFreeModel } from '@tzurot/common-types/constants/ai';
+import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 import {
-  createLogger,
-  DISCORD_LIMITS,
-  isFreeModel,
   AUTOCOMPLETE_BADGES,
   formatAutocompleteOption,
   type AutocompleteBadge,
-} from '@tzurot/common-types';
+} from '@tzurot/common-types/utils/autocompleteFormat';
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import { clientsFor } from '../../../utils/gatewayClients.js';
 import { handlePersonalityAutocomplete } from '../../../utils/autocomplete/index.js';
 
