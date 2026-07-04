@@ -26,14 +26,17 @@ import { z } from 'zod';
 
 /** Who is being denied */
 export const denylistEntityTypeSchema = z.enum(['USER', 'GUILD']);
+
 export type DenylistEntityType = z.infer<typeof denylistEntityTypeSchema>;
 
 /** What level of denial */
 export const denylistScopeSchema = z.enum(['BOT', 'GUILD', 'CHANNEL', 'PERSONALITY']);
+
 export type DenylistScope = z.infer<typeof denylistScopeSchema>;
 
 /** Denial mode: BLOCK (full deny) or MUTE (don't respond but keep in context) */
 export const denylistModeSchema = z.enum(['BLOCK', 'MUTE']);
+
 export type DenylistMode = z.infer<typeof denylistModeSchema>;
 
 // ============================================================================

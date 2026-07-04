@@ -22,6 +22,7 @@ export const InvalidateCacheSchema = z
   .refine(data => data.all || (data.personalityId !== undefined && data.personalityId.length > 0), {
     message: 'Must provide either "personalityId" or "all: true"',
   });
+
 // ============================================================================
 // POST /admin/db-sync
 // ============================================================================

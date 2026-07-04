@@ -19,6 +19,7 @@ export const UsageBreakdownSchema = z.object({
 
 /** Valid time periods for usage queries */
 export const UsagePeriodSchema = z.enum(['day', 'week', 'month', 'all']);
+
 export type UsagePeriod = z.infer<typeof UsagePeriodSchema>;
 
 /** Token usage statistics — per-user (returned by GET /user/usage). */

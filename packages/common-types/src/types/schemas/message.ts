@@ -47,6 +47,7 @@ export const apiConversationMessageSchema = z.object({
  * stored-history snapshot.
  */
 export const referenceAuthorRoleSchema = z.enum(['assistant', 'user', 'bot']);
+
 export type ReferenceAuthorRole = z.infer<typeof referenceAuthorRoleSchema>;
 
 /**
@@ -199,10 +200,17 @@ export const crossChannelHistoryGroupSchema = z.object({
 
 // Infer TypeScript types from schemas
 export type ReferencedMessage = z.infer<typeof referencedMessageSchema>;
+
 export type StoredReferencedMessage = z.infer<typeof storedReferencedMessageSchema>;
+
 export type ResolvedImageDescription = z.infer<typeof resolvedImageDescriptionSchema>;
+
 export type ReactionReactor = z.infer<typeof reactionReactorSchema>;
+
 export type MessageReaction = z.infer<typeof messageReactionSchema>;
+
 export type MessageMetadata = z.infer<typeof messageMetadataSchema>;
+
 export type CrossChannelMessage = z.infer<typeof crossChannelMessageSchema>;
+
 export type CrossChannelHistoryGroupEntry = z.infer<typeof crossChannelHistoryGroupSchema>;

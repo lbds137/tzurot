@@ -28,6 +28,7 @@ export const PreviewTokenSchema = z
   .string()
   .regex(/^preview_[A-Za-z0-9_-]{16,64}$/, 'Invalid preview token format')
   .brand<'PreviewToken'>();
+
 /**
  * Branded type for purge confirmation. Same shape as `PreviewToken` but
  * a distinct brand so callers can't pass a delete-preview token to a
@@ -37,6 +38,7 @@ export const PurgeTokenSchema = z
   .string()
   .regex(/^purge_[A-Za-z0-9_-]{16,64}$/, 'Invalid purge token format')
   .brand<'PurgeToken'>();
+
 // ============================================================================
 // POST /user/memory/focus
 // ============================================================================
