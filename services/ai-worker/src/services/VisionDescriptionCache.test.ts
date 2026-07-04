@@ -1,13 +1,13 @@
 /**
  * Unit Tests for VisionDescriptionCache
  *
- * Covers Redis L1 cache for vision descriptions and per-category negative cache.
- * (L2 PostgreSQL was removed in beta.110 — see VisionDescriptionCache.ts header.)
+ * Two-tier cache: a model-AGNOSTIC canonical success key (tier-promoted) + a
+ * per-model negative cache. (L2 PostgreSQL was removed in beta.110.)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Redis } from 'ioredis';
-import { VisionDescriptionCache } from './VisionDescriptionCache.js';
+import { VisionDescriptionCache, shouldPromoteCanonical } from './VisionDescriptionCache.js';
 import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
 import { REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
 import { INTERVALS } from '@tzurot/common-types/constants/timing';
@@ -19,20 +19,37 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   );
   return {
     ...actual,
-    createLogger: () => ({
-      info: vi.fn(),
-      debug: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    }),
+    createLogger: () => ({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() }),
   };
 });
 
+const CANON = REDIS_KEY_PREFIXES.VISION_CANONICAL;
+const FAIL = REDIS_KEY_PREFIXES.VISION_FAILURE;
+
+function canonicalEntry(description: string, tier: number, tsOffsetMs = 0): string {
+  return JSON.stringify({ description, model: 'm', tier, ts: Date.now() + tsOffsetMs });
+}
+
+describe('shouldPromoteCanonical (pure promotion decision)', () => {
+  const now = 1_000_000_000;
+  it('promotes when nothing is cached', () => {
+    expect(shouldPromoteCanonical(null, 1, now)).toBe(true);
+  });
+  it('promotes an equal-or-higher tier (paid over free, or same-tier refresh)', () => {
+    expect(shouldPromoteCanonical({ tier: 1, ts: now }, 2, now)).toBe(true);
+    expect(shouldPromoteCanonical({ tier: 2, ts: now }, 2, now)).toBe(true);
+  });
+  it('does NOT promote a lower tier over a higher one (no race to the bottom)', () => {
+    expect(shouldPromoteCanonical({ tier: 2, ts: now }, 1, now)).toBe(false);
+  });
+  it('promotes over a stale (>24h) entry regardless of tier', () => {
+    const staleTs = now - 25 * 60 * 60 * 1000;
+    expect(shouldPromoteCanonical({ tier: 2, ts: staleTs }, 1, now)).toBe(true);
+  });
+});
+
 describe('VisionDescriptionCache', () => {
-  let mockRedis: {
-    setex: ReturnType<typeof vi.fn>;
-    get: ReturnType<typeof vi.fn>;
-  };
+  let mockRedis: { setex: ReturnType<typeof vi.fn>; get: ReturnType<typeof vi.fn> };
   let cache: VisionDescriptionCache;
 
   beforeEach(() => {
@@ -44,206 +61,196 @@ describe('VisionDescriptionCache', () => {
     cache = new VisionDescriptionCache(mockRedis as unknown as Redis);
   });
 
-  describe('storeFailure (per-category cache policy)', () => {
-    it('should cache AUTHENTICATION failures with SHORT TTL (5min)', async () => {
-      await cache.storeFailure({
-        attachmentId: '123',
-        url: 'https://example.com/image.png',
-        category: ApiErrorCategory.AUTHENTICATION,
-      });
-
+  describe('store / get — canonical (model-agnostic) success cache', () => {
+    it('stores a canonical JSON entry under the model-agnostic key', async () => {
+      await cache.store({ attachmentId: '123', url: 'u', model: 'qwen/qwen3.7-plus' }, 'a cat');
       expect(mockRedis.setex).toHaveBeenCalledWith(
-        `${REDIS_KEY_PREFIXES.VISION_FAILURE}id:123`,
-        INTERVALS.VISION_FAILURE_TTL_SHORT,
-        expect.stringContaining(`"category":"${ApiErrorCategory.AUTHENTICATION}"`)
+        `${CANON}id:123`,
+        INTERVALS.VISION_DESCRIPTION_TTL,
+        expect.stringContaining('"description":"a cat"')
       );
     });
 
-    it('should cache QUOTA_EXCEEDED failures with SHORT TTL (5min)', async () => {
-      await cache.storeFailure({
-        attachmentId: '123',
-        url: 'https://example.com/image.png',
-        category: ApiErrorCategory.QUOTA_EXCEEDED,
-      });
-
-      const [, ttl] = mockRedis.setex.mock.calls[0];
-      expect(ttl).toBe(INTERVALS.VISION_FAILURE_TTL_SHORT);
+    it('serves a paid model’s description to a DIFFERENT (free) model — the free-tier fix', async () => {
+      // A paid model already cached the description (canonical, model-agnostic).
+      mockRedis.get.mockResolvedValueOnce(canonicalEntry('a cat on a keyboard', 2));
+      // A free-tier read hits the SAME canonical key and gets it — no re-describe.
+      const result = await cache.get({ attachmentId: '123', url: 'u', model: 'openrouter/free' });
+      expect(result).toBe('a cat on a keyboard');
     });
 
-    it('should cache CONTENT_POLICY failures with LONG TTL (60min)', async () => {
-      await cache.storeFailure({
-        attachmentId: '123',
-        url: 'https://example.com/image.png',
-        category: ApiErrorCategory.CONTENT_POLICY,
-      });
-
-      const [, ttl] = mockRedis.setex.mock.calls[0];
-      expect(ttl).toBe(INTERVALS.VISION_FAILURE_TTL_LONG);
+    it('returns null on miss', async () => {
+      mockRedis.get.mockResolvedValueOnce(null);
+      expect(await cache.get({ attachmentId: '123', url: 'u' })).toBeNull();
     });
 
-    it('should cache MEDIA_NOT_FOUND failures with LONG TTL', async () => {
-      await cache.storeFailure({
-        attachmentId: '123',
-        url: 'https://example.com/image.png',
-        category: ApiErrorCategory.MEDIA_NOT_FOUND,
-      });
-
-      const [, ttl] = mockRedis.setex.mock.calls[0];
-      expect(ttl).toBe(INTERVALS.VISION_FAILURE_TTL_LONG);
+    it('returns null (not a throw) on a corrupt canonical entry', async () => {
+      mockRedis.get.mockResolvedValueOnce('not json');
+      expect(await cache.get({ attachmentId: '123', url: 'u' })).toBeNull();
     });
 
-    it('should cache RATE_LIMIT (transient retryable) with default TTL (10min)', async () => {
-      await cache.storeFailure({
-        attachmentId: '123',
-        url: 'https://example.com/image.png',
-        category: ApiErrorCategory.RATE_LIMIT,
-      });
-
-      const [, ttl] = mockRedis.setex.mock.calls[0];
-      expect(ttl).toBe(INTERVALS.VISION_FAILURE_TTL);
+    it('returns null on a valid-JSON entry with the wrong shape (e.g. a legacy bare string)', async () => {
+      // Parses fine but has none of the CanonicalEntry fields — treated as absent.
+      mockRedis.get.mockResolvedValueOnce(JSON.stringify({ foo: 1 }));
+      expect(await cache.get({ attachmentId: '123', url: 'u' })).toBeNull();
     });
 
-    it('should embed cachedAt timestamp in the stored value', async () => {
+    it('uses the SAME canonical key for any model (model-agnostic)', async () => {
+      await cache.store({ attachmentId: '123', url: 'u', model: 'qwen/qwen3.7-plus' }, 'a');
+      await cache.store({ attachmentId: '123', url: 'u', model: 'openai/gpt-4o' }, 'b');
+      expect(mockRedis.setex.mock.calls[0][0]).toBe(`${CANON}id:123`);
+      expect(mockRedis.setex.mock.calls[1][0]).toBe(`${CANON}id:123`);
+    });
+  });
+
+  describe('store — tier promotion', () => {
+    it('does NOT overwrite a paid (tier 2) description with a free (tier 1) one', async () => {
+      mockRedis.get.mockResolvedValueOnce(canonicalEntry('paid desc', 2));
+      await cache.store(
+        { attachmentId: '123', url: 'u', model: 'openrouter/free' },
+        'weak free desc'
+      );
+      expect(mockRedis.setex).not.toHaveBeenCalled();
+    });
+
+    it('treats an empty-string model as the LOWEST tier (fail-safe, cannot clobber paid)', async () => {
+      // `model: ''` satisfies the `string` type but must not claim PAID
+      // (isFreeModel('') is false) — the runtime backstop maps it to FREE.
+      mockRedis.get.mockResolvedValueOnce(canonicalEntry('paid desc', 2));
+      await cache.store({ attachmentId: '123', url: 'u', model: '' }, 'unknown-origin desc');
+      expect(mockRedis.setex).not.toHaveBeenCalled();
+    });
+
+    it('promotes a paid (tier 2) description over an existing free (tier 1) one', async () => {
+      mockRedis.get.mockResolvedValueOnce(canonicalEntry('free desc', 1));
+      await cache.store({ attachmentId: '123', url: 'u', model: 'qwen/qwen3.7-plus' }, 'paid desc');
+      expect(mockRedis.setex).toHaveBeenCalledWith(
+        `${CANON}id:123`,
+        INTERVALS.VISION_DESCRIPTION_TTL,
+        expect.stringContaining('"description":"paid desc"')
+      );
+    });
+  });
+
+  describe('storeFailure (per-model, per-category cache policy)', () => {
+    it('caches AUTHENTICATION failures with SHORT TTL under the per-model failure key', async () => {
       await cache.storeFailure({
         attachmentId: '123',
-        url: 'https://example.com/image.png',
+        url: 'u',
+        model: 'openrouter/free',
         category: ApiErrorCategory.AUTHENTICATION,
       });
+      const [key, ttl, value] = mockRedis.setex.mock.calls[0];
+      expect(key).toBe(`${FAIL}openrouter_free:id:123`); // per-model — a paid model isn't blocked
+      expect(ttl).toBe(INTERVALS.VISION_FAILURE_TTL_SHORT);
+      expect(value).toContain(`"category":"${ApiErrorCategory.AUTHENTICATION}"`);
+    });
 
-      const [, , value] = mockRedis.setex.mock.calls[0];
-      const parsed = JSON.parse(value);
-      expect(parsed.cachedAt).toBeDefined();
+    it('caches CONTENT_POLICY + MEDIA_NOT_FOUND with LONG TTL, RATE_LIMIT with default', async () => {
+      const cases: [ApiErrorCategory, number][] = [
+        [ApiErrorCategory.CONTENT_POLICY, INTERVALS.VISION_FAILURE_TTL_LONG],
+        [ApiErrorCategory.MEDIA_NOT_FOUND, INTERVALS.VISION_FAILURE_TTL_LONG],
+        [ApiErrorCategory.RATE_LIMIT, INTERVALS.VISION_FAILURE_TTL],
+        [ApiErrorCategory.QUOTA_EXCEEDED, INTERVALS.VISION_FAILURE_TTL_SHORT],
+      ];
+      for (const [category, expectedTtl] of cases) {
+        mockRedis.setex.mockClear();
+        await cache.storeFailure({ attachmentId: '123', url: 'u', category });
+        expect(mockRedis.setex.mock.calls[0][1]).toBe(expectedTtl);
+      }
+    });
+
+    it('embeds an ISO cachedAt timestamp', async () => {
+      await cache.storeFailure({
+        attachmentId: '123',
+        url: 'u',
+        category: ApiErrorCategory.AUTHENTICATION,
+      });
+      const parsed = JSON.parse(mockRedis.setex.mock.calls[0][2]);
       expect(typeof parsed.cachedAt).toBe('string');
-      // Should parse as a valid ISO date
       expect(() => new Date(parsed.cachedAt).toISOString()).not.toThrow();
     });
 
-    it('should use URL-hash fallback key when attachmentId is missing', async () => {
+    it('falls back to a URL-hash key when attachmentId is missing', async () => {
       await cache.storeFailure({
-        url: 'https://example.com/image.png?ex=abc',
+        url: 'https://x/i.png?ex=abc',
         category: ApiErrorCategory.AUTHENTICATION,
       });
-
-      const [key] = mockRedis.setex.mock.calls[0];
-      expect(key).toMatch(new RegExp(`^${REDIS_KEY_PREFIXES.VISION_FAILURE}url:[a-f0-9]+$`));
+      expect(mockRedis.setex.mock.calls[0][0]).toMatch(new RegExp(`^${FAIL}url:[a-f0-9]+$`));
     });
 
-    it('should not throw on Redis errors', async () => {
+    it('does not throw on Redis errors', async () => {
       mockRedis.setex.mockRejectedValueOnce(new Error('Redis down'));
       await expect(
         cache.storeFailure({
           attachmentId: '123',
-          url: 'https://example.com/image.png',
+          url: 'u',
           category: ApiErrorCategory.AUTHENTICATION,
         })
       ).resolves.toBeUndefined();
     });
   });
 
+  describe('wiring/seam: real store→promote→get chain over a stateful Redis fake', () => {
+    // Replays the production bug scenario end-to-end with only Redis mocked:
+    // a paid model describes an image; a free-tier request for the SAME image
+    // must read that description; a later free-model store must not clobber it.
+    it('free tier reads the paid description; a weaker store cannot clobber it', async () => {
+      const kv = new Map<string, string>();
+      const statefulRedis = {
+        get: vi.fn((key: string) => Promise.resolve(kv.get(key) ?? null)),
+        setex: vi.fn((key: string, _ttl: number, value: string) => {
+          kv.set(key, value);
+          return Promise.resolve('OK');
+        }),
+      };
+      const seamCache = new VisionDescriptionCache(statefulRedis as unknown as Redis);
+      const image = {
+        attachmentId: '1522411708520333492',
+        url: 'https://cdn.discordapp.com/a.png',
+      };
+
+      // 1. Paid model describes and stores.
+      await seamCache.store({ ...image, model: 'qwen/qwen3.7-plus' }, 'a cat on a keyboard');
+      // 2. Free-tier request reads the SAME image — gets the paid description.
+      expect(await seamCache.get({ ...image, model: 'openrouter/free' })).toBe(
+        'a cat on a keyboard'
+      );
+      // 3. A weaker (free) store cannot clobber it...
+      await seamCache.store({ ...image, model: 'openrouter/free' }, 'weak free description');
+      expect(await seamCache.get(image)).toBe('a cat on a keyboard');
+      // 4. ...but an equal-tier (paid) store refreshes it.
+      await seamCache.store({ ...image, model: 'anthropic/claude-sonnet-4' }, 'better description');
+      expect(await seamCache.get(image)).toBe('better description');
+    });
+  });
+
   describe('getFailure', () => {
-    it('should return null when no entry cached', async () => {
+    it('returns null when no entry cached', async () => {
       mockRedis.get.mockResolvedValueOnce(null);
-      const result = await cache.getFailure({
-        attachmentId: '123',
-        url: 'https://example.com/image.png',
-      });
-      expect(result).toBeNull();
+      expect(await cache.getFailure({ attachmentId: '123', url: 'u' })).toBeNull();
     });
 
-    it('should return entry with category + cachedAt on hit', async () => {
+    it('returns the category + cachedAt on hit', async () => {
       const cachedAt = '2026-04-28T18:22:42.000Z';
       mockRedis.get.mockResolvedValueOnce(
         JSON.stringify({ category: ApiErrorCategory.AUTHENTICATION, cachedAt })
       );
-      const result = await cache.getFailure({
-        attachmentId: '123',
-        url: 'https://example.com/image.png',
-      });
-      expect(result).toEqual({ category: ApiErrorCategory.AUTHENTICATION, cachedAt });
-    });
-
-    it('should return null on Redis errors (fail open)', async () => {
-      mockRedis.get.mockRejectedValueOnce(new Error('Redis down'));
-      const result = await cache.getFailure({
-        attachmentId: '123',
-        url: 'https://example.com/image.png',
-      });
-      expect(result).toBeNull();
-    });
-
-    it('should use URL-hash fallback key when attachmentId is missing', async () => {
-      mockRedis.get.mockResolvedValueOnce(null);
-      await cache.getFailure({ url: 'https://example.com/image.png' });
-      const [key] = mockRedis.get.mock.calls[0];
-      expect(key).toMatch(new RegExp(`^${REDIS_KEY_PREFIXES.VISION_FAILURE}url:[a-f0-9]+$`));
-    });
-  });
-
-  describe('store / get (success cache)', () => {
-    it('should store description with default TTL', async () => {
-      await cache.store({ attachmentId: '123', url: 'https://example.com/image.png' }, 'a cat');
-      expect(mockRedis.setex).toHaveBeenCalledWith(
-        `${REDIS_KEY_PREFIXES.VISION_DESCRIPTION}id:123`,
-        INTERVALS.VISION_DESCRIPTION_TTL,
-        'a cat'
-      );
-    });
-
-    it('should return cached description on hit', async () => {
-      mockRedis.get.mockResolvedValueOnce('a cat');
-      const result = await cache.get({
-        attachmentId: '123',
-        url: 'https://example.com/image.png',
-      });
-      expect(result).toBe('a cat');
-    });
-
-    it('should return null on miss', async () => {
-      mockRedis.get.mockResolvedValueOnce(null);
-      const result = await cache.get({
-        attachmentId: '123',
-        url: 'https://example.com/image.png',
-      });
-      expect(result).toBeNull();
-    });
-  });
-
-  describe('model namespacing (cache key includes the resolved vision model)', () => {
-    it('produces different keys for different models on the same attachment', async () => {
-      await cache.store({ attachmentId: '123', url: 'u', model: 'qwen/qwen3.7-plus' }, 'desc-a');
-      await cache.store({ attachmentId: '123', url: 'u', model: 'openai/gpt-4o' }, 'desc-b');
-
-      const keyA = mockRedis.setex.mock.calls[0][0] as string;
-      const keyB = mockRedis.setex.mock.calls[1][0] as string;
-      // Different models → different keys, so a model swap re-attempts instead of
-      // replaying the old model's cached entry.
-      expect(keyA).not.toBe(keyB);
-      // ...but both still key off the same attachment id.
-      expect(keyA).toContain('id:123');
-      expect(keyB).toContain('id:123');
-    });
-
-    it('sanitizes the model segment so it cannot inject the key delimiter', async () => {
-      await cache.store({ attachmentId: '123', url: 'u', model: 'qwen/qwen3.7-plus' }, 'desc');
-      const key = mockRedis.setex.mock.calls[0][0] as string;
-      expect(key).toContain('qwen_qwen3.7-plus'); // '/' → '_'
-    });
-
-    it('falls back to the un-namespaced legacy key when no model is given', async () => {
-      await cache.store({ attachmentId: '123', url: 'u' }, 'desc');
-      const key = mockRedis.setex.mock.calls[0][0] as string;
-      expect(key).toBe(`${REDIS_KEY_PREFIXES.VISION_DESCRIPTION}id:123`);
-    });
-
-    it('also namespaces the failure-cache key by model', async () => {
-      await cache.storeFailure({
-        attachmentId: '123',
-        url: 'u',
-        model: 'qwen/qwen3.7-plus',
+      expect(await cache.getFailure({ attachmentId: '123', url: 'u' })).toEqual({
         category: ApiErrorCategory.AUTHENTICATION,
+        cachedAt,
       });
-      const key = mockRedis.setex.mock.calls[0][0] as string;
-      expect(key).toContain('qwen_qwen3.7-plus');
+    });
+
+    it('returns null on Redis errors (fail open)', async () => {
+      mockRedis.get.mockRejectedValueOnce(new Error('Redis down'));
+      expect(await cache.getFailure({ attachmentId: '123', url: 'u' })).toBeNull();
+    });
+
+    it('reads the per-model failure key', async () => {
+      mockRedis.get.mockResolvedValueOnce(null);
+      await cache.getFailure({ attachmentId: '123', url: 'u', model: 'openrouter/free' });
+      expect(mockRedis.get.mock.calls[0][0]).toBe(`${FAIL}openrouter_free:id:123`);
     });
   });
 });

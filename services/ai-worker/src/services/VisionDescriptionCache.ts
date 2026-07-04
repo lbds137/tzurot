@@ -2,25 +2,26 @@
  * VisionDescriptionCache
  * Redis-backed L1 cache for image vision-API outputs and negative-cache cooldowns.
  *
- * Cache layout:
- * - Success descriptions: 1h Redis TTL (`VISION_DESCRIPTION_TTL`).
- * - Failure entries: per-category cooldown via `VISION_FAILURE_CACHE_POLICY`.
- *   AUTH/QUOTA failures get 5min cooldowns so transient OpenRouter glitches
- *   don't poison an attachment for its lifetime; attachment-bound failures
- *   (content-policy, dead URL, missing model) get 60min cooldowns.
+ * Two-tier layout (fixes the free-tier "can't reuse a paid model's description" bug):
+ * - **Canonical success** (`vision:canon:{attachmentId|urlHash}`) — model-AGNOSTIC
+ *   "best available" description. Every consumer reads this via `get()`, so a
+ *   free-tier user is served a description a stronger (paid) model already
+ *   produced. Writes go through a **tier-promotion** (`shouldPromoteCanonical`):
+ *   a weaker model's description can never overwrite a stronger one's
+ *   (`visionModelTier`), and a stale (>24h) or corrupt entry is replaced. 1h TTL.
+ * - **Per-model failure** (`vision:fail:{model}:{…}`) — the negative cache is kept
+ *   model-namespaced: it answers "has THIS model failed recently?" so a different
+ *   (e.g. paid) model isn't blocked by a free model's failure and can still
+ *   populate the canonical entry. Per-category cooldown via
+ *   `VISION_FAILURE_CACHE_POLICY` (5min transient … 60min attachment-bound).
  *
- * Cache key strategy:
- * 1. Namespace by the resolved vision model — so swapping the model (e.g. changing the
- *    global vision default) re-attempts immediately instead of replaying a poisoned /
- *    wrong-model entry for the OLD model
- * 2. Then prefer Discord attachment ID (stable snowflake) when available
- * 3. Fall back to URL hash (with query params stripped) for embed images
+ * Key derivation prefers the Discord attachment ID (stable snowflake) and falls
+ * back to a query-stripped URL hash for embed images (`deriveAttachmentCacheKey`).
  *
- * History note: a PostgreSQL L2 layer existed prior to v3.0.0-beta.110 to
- * survive Redis restarts. It was removed because (a) Discord attachments are
- * ephemeral, so the persistence value is small, and (b) lacking a TTL or
- * eviction path, transient failures became permanent for affected attachments.
- * See git history / release notes for the original vision negative-cache incident.
+ * History note: a PostgreSQL L2 layer existed prior to v3.0.0-beta.110 to survive
+ * Redis restarts; removed because Discord attachments are ephemeral and a missing
+ * TTL turned transient failures permanent. The legacy per-model success key
+ * (`vision:` un-prefixed) is no longer written; those entries simply age out.
  */
 
 import type { Redis } from 'ioredis';
@@ -34,7 +35,44 @@ import { INTERVALS } from '@tzurot/common-types/constants/timing';
 import { deriveAttachmentCacheKey } from '@tzurot/common-types/utils/attachmentCacheKey';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 
+import { visionModelTier, VISION_MODEL_TIER } from './multimodal/visionModelTier.js';
+
 const logger = createLogger('VisionDescriptionCache');
+
+/**
+ * Beyond this age an existing canonical entry no longer blocks lower-tier writes.
+ * Defensive only: entries carry a fresh `ts` per write and a 1h TTL, so a >24h
+ * entry implies clock skew or an anomalous write — better replaced than defended.
+ */
+const MAX_CANONICAL_AGE_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Pure promotion decision for the canonical key: should a new description
+ * (`newTier`, produced `nowMs`) overwrite the existing canonical `existing`?
+ *
+ * True when there is no entry, the entry is stale (older than MAX_CANONICAL_AGE),
+ * or the new model's tier is >= the stored tier — so a weaker model can never
+ * clobber a stronger model's description, but an equal/stronger one refreshes it.
+ *
+ * Extracted as a pure function so the promotion matrix is unit-testable without a
+ * Lua-capable Redis. The store's read→decide→setex is not atomic, so two
+ * concurrent stores for the SAME image race to last-writer-wins — rare (the
+ * per-request describe flow means one describe per image at a time) and
+ * low-impact (a lower-tier description survives at most one TTL cycle).
+ */
+export function shouldPromoteCanonical(
+  existing: { tier: number; ts: number } | null,
+  newTier: number,
+  nowMs: number
+): boolean {
+  if (existing === null) {
+    return true;
+  }
+  if (nowMs - existing.ts > MAX_CANONICAL_AGE_MS) {
+    return true;
+  }
+  return newTier >= existing.tier;
+}
 
 /** Options for cache key generation */
 interface VisionCacheKeyOptions {
@@ -43,16 +81,22 @@ interface VisionCacheKeyOptions {
   /** Image URL (fallback) */
   url: string;
   /**
-   * Resolved vision model that produced (or will produce) the entry. Namespaces the
-   * cache key so a model swap re-attempts immediately instead of replaying a
-   * poisoned/wrong-model entry for the old model. Optional: a missing model uses the
-   * un-namespaced (legacy) key.
+   * Resolved vision model that produced (or will produce) the entry. Used for the
+   * canonical tier (`visionModelTier`) and to namespace the per-model failure key.
    */
   model?: string;
 }
 
-/** Options for storing a description (success path) */
-type VisionStoreOptions = VisionCacheKeyOptions;
+/**
+ * Options for storing a description (success path). `model` is REQUIRED here —
+ * the canonical tier promotion derives dominance from it, and an absent model
+ * would otherwise default to the strongest tier (`isFreeModel('') === false`),
+ * letting an unknown-quality write clobber a genuine paid description. Making
+ * it required fails that misuse at compile time instead.
+ */
+interface VisionStoreOptions extends VisionCacheKeyOptions {
+  model: string;
+}
 
 /** Options for storing a vision failure */
 interface VisionFailureOptions extends VisionCacheKeyOptions {
@@ -72,11 +116,27 @@ export interface VisionFailureEntry {
   cachedAt?: string;
 }
 
+/** JSON shape of a canonical success entry. */
+interface CanonicalEntry {
+  description: string;
+  /**
+   * Model that produced it — observability/debugging ONLY (log fields). Never
+   * feeds a decision, which is why `readCanonicalEntry` deliberately does not
+   * validate it; promote it into the validated set if that ever changes.
+   */
+  model: string;
+  /** `visionModelTier` of the producing model — drives promotion dominance. */
+  tier: number;
+  /** epoch ms — drives the MAX_CANONICAL_AGE staleness check. */
+  ts: number;
+}
+
 export class VisionDescriptionCache {
   constructor(private redis: Redis) {}
 
   /**
-   * Store a vision description in Redis L1.
+   * Store a vision description in the model-agnostic canonical cache, tier-promoted
+   * so a weaker model can't overwrite a stronger model's description.
    */
   async store(
     options: VisionStoreOptions,
@@ -84,45 +144,85 @@ export class VisionDescriptionCache {
     ttlSeconds: number = INTERVALS.VISION_DESCRIPTION_TTL
   ): Promise<void> {
     try {
-      const key = this.getCacheKey(options);
-      await this.redis.setex(key, ttlSeconds, description);
+      const key = this.getCanonicalKey(options);
+      // Runtime backstop for the type-level guard: `model: ''` still satisfies
+      // `string`, and `visionModelTier('')` would report PAID (the strongest tier).
+      // An unknown-quality write must fail SAFE (lowest tier), not dominant.
+      const tier =
+        options.model.length > 0 ? visionModelTier(options.model) : VISION_MODEL_TIER.FREE;
+      const now = Date.now();
+
+      const existing = await this.readCanonicalEntry(key);
+      if (!shouldPromoteCanonical(existing, tier, now)) {
+        logger.debug(
+          {
+            attachmentId: options.attachmentId,
+            model: options.model,
+            tier,
+            existingTier: existing?.tier,
+          },
+          '[VisionDescriptionCache] Skipped canonical write — a stronger/current description is cached'
+        );
+        return;
+      }
+
+      const entry: CanonicalEntry = { description, model: options.model, tier, ts: now };
+      await this.redis.setex(key, ttlSeconds, JSON.stringify(entry));
       logger.debug(
         {
           attachmentId: options.attachmentId,
+          model: options.model,
+          tier,
           urlPrefix: options.url.substring(0, TEXT_LIMITS.URL_LOG_PREVIEW),
         },
-        '[VisionDescriptionCache] Stored description in L1'
+        '[VisionDescriptionCache] Stored/promoted canonical description'
       );
     } catch (error) {
       logger.error({ err: error }, '[VisionDescriptionCache] Failed to store description');
     }
   }
 
+  /** Read + parse the canonical entry; null on miss or corrupt JSON. */
+  private async readCanonicalEntry(key: string): Promise<CanonicalEntry | null> {
+    const raw = await this.redis.get(key);
+    if (raw === null || raw.length === 0) {
+      return null;
+    }
+    try {
+      const entry = JSON.parse(raw) as Partial<CanonicalEntry>;
+      if (
+        typeof entry.description === 'string' &&
+        typeof entry.tier === 'number' &&
+        typeof entry.ts === 'number'
+      ) {
+        return entry as CanonicalEntry;
+      }
+      return null;
+    } catch {
+      // Corrupt JSON is a genuinely unexpected state — make it greppable rather
+      // than silently treating it as a miss (consistent with the failure WARN).
+      logger.warn({ key }, '[VisionDescriptionCache] Corrupt canonical entry — treating as absent');
+      return null;
+    }
+  }
+
   /**
-   * Get cached vision description from Redis L1.
+   * Get the model-agnostic canonical description (the best any model has produced
+   * for this image). Returns the description string, or null on miss / corrupt entry.
    */
   async get(options: VisionCacheKeyOptions): Promise<string | null> {
     try {
-      const key = this.getCacheKey(options);
-      const description = await this.redis.get(key);
-
-      if (description !== null && description.length > 0) {
-        logger.info(
-          {
-            attachmentId: options.attachmentId,
-            urlPrefix: options.url.substring(0, TEXT_LIMITS.URL_LOG_PREVIEW),
-          },
-          '[VisionDescriptionCache] L1 cache HIT'
+      const entry = await this.readCanonicalEntry(this.getCanonicalKey(options));
+      if (entry !== null && entry.description.length > 0) {
+        logger.debug(
+          { attachmentId: options.attachmentId, model: entry.model, tier: entry.tier },
+          '[VisionDescriptionCache] Canonical HIT'
         );
-        return description;
+        return entry.description;
       }
-
       logger.debug(
-        {
-          attachmentId: options.attachmentId,
-          urlPrefix: options.url.substring(0, TEXT_LIMITS.URL_LOG_PREVIEW),
-        },
-        '[VisionDescriptionCache] Cache MISS'
+        { attachmentId: options.attachmentId },
+        '[VisionDescriptionCache] Canonical MISS'
       );
       return null;
     } catch (error) {
@@ -132,12 +232,13 @@ export class VisionDescriptionCache {
   }
 
   /**
-   * Store a vision failure in the negative cache.
+   * Store a vision failure in the per-model negative cache.
    *
-   * TTL is selected per-category via `VISION_FAILURE_CACHE_POLICY` so that
-   * possibly-transient failures (auth glitches, quota resets) get short
-   * cooldowns and recover quickly, while attachment-bound failures (content
-   * policy, dead URL, missing model) get longer cooldowns to avoid re-hammering.
+   * Kept model-namespaced: it answers "should THIS model retry?", so a free
+   * model's failure doesn't block a paid model from describing the same image
+   * and promoting a canonical success. TTL is per-category via
+   * `VISION_FAILURE_CACHE_POLICY` (short cooldowns for transient failures, longer
+   * for attachment-bound ones like a dead URL / content policy).
    */
   async storeFailure(options: VisionFailureOptions): Promise<void> {
     try {
@@ -148,9 +249,19 @@ export class VisionDescriptionCache {
 
       await this.redis.setex(key, ttlSeconds, value);
 
-      logger.info(
+      // WARN (not info): this is the single structured diagnostic for a vision failure
+      // entering cached state — one greppable line answering "which model failed on
+      // which attachment, why, and for how long" without reconstructing the request flow.
+      logger.warn(
         {
           attachmentId: options.attachmentId,
+          model: options.model,
+          // No model → no tier claim: `visionModelTier('')` would report PAID (the
+          // strongest tier) for an unknown model, and this WARN exists to be trusted.
+          tier:
+            options.model !== undefined && options.model.length > 0
+              ? visionModelTier(options.model)
+              : undefined,
           category: options.category,
           ttlSeconds,
           cachedAt,
@@ -163,7 +274,7 @@ export class VisionDescriptionCache {
   }
 
   /**
-   * Check if a vision failure is cached (negative cache check).
+   * Check if a vision failure is cached for this (model, attachment).
    * Returns the entry on hit, null on miss / OK to retry.
    */
   async getFailure(options: VisionCacheKeyOptions): Promise<VisionFailureEntry | null> {
@@ -179,6 +290,7 @@ export class VisionDescriptionCache {
       logger.info(
         {
           attachmentId: options.attachmentId,
+          model: options.model,
           category: entry.category,
           cachedAt: entry.cachedAt,
         },
@@ -192,22 +304,19 @@ export class VisionDescriptionCache {
   }
 
   /**
-   * Generate cache key from attachment ID (preferred) or query-stripped URL
-   * hash (fallback). Delegates to the shared `deriveAttachmentCacheKey` so the
-   * voice + vision caches share one normalization strategy.
+   * Model-AGNOSTIC canonical key: prefers the Discord attachment ID (stable
+   * snowflake), falls back to a query-stripped URL hash. No model in the key —
+   * that's the whole point (any model's description is reusable by any consumer).
    */
-  private getCacheKey(options: VisionCacheKeyOptions): string {
-    return deriveAttachmentCacheKey(
-      this.prefixWithModel(REDIS_KEY_PREFIXES.VISION_DESCRIPTION, options.model),
-      {
-        id: options.attachmentId,
-        url: options.url,
-      }
-    );
+  private getCanonicalKey(options: VisionCacheKeyOptions): string {
+    return deriveAttachmentCacheKey(REDIS_KEY_PREFIXES.VISION_CANONICAL, {
+      id: options.attachmentId,
+      url: options.url,
+    });
   }
 
   /**
-   * Generate failure cache key (separate namespace from success cache).
+   * Per-model failure key (separate namespace from the canonical success cache).
    */
   private getFailureKey(options: VisionCacheKeyOptions): string {
     return deriveAttachmentCacheKey(
@@ -220,16 +329,16 @@ export class VisionDescriptionCache {
   }
 
   /**
-   * Namespace a key prefix by the resolved vision model so entries are per-(attachment,
-   * model) — a model swap re-attempts rather than replaying the old model's entry. The
-   * model is sanitized (only `[A-Za-z0-9._-]` survive) so it can't introduce the `:`
-   * key delimiter. A missing model returns the bare prefix (legacy un-namespaced key).
+   * Namespace a key prefix by the resolved vision model so failure entries are
+   * per-(attachment, model). The model is sanitized (only `[A-Za-z0-9._-]` survive)
+   * so it can't introduce the `:` key delimiter. A missing model returns the bare prefix.
    */
   private prefixWithModel(prefix: string, model?: string): string {
     if (model === undefined || model.length === 0) {
       return prefix;
     }
     const safeModel = model.replace(/[^a-zA-Z0-9._-]/g, '_');
-    return `${prefix}:${safeModel}`;
+    // Keep the trailing-colon contract deriveAttachmentCacheKey expects of prefixes.
+    return `${prefix}${safeModel}:`;
   }
 }
