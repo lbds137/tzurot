@@ -1,24 +1,18 @@
-#!/usr/bin/env tsx
 /**
- * Generate Type-Safe Command Option Schemas
+ * Command-option schema codegen.
  *
- * Scans all command files for SlashCommandBuilder definitions and extracts
- * option names, types, and required status to generate type-safe schemas.
- *
- * Usage:
- *   pnpm generate:command-types
- *
- * Output:
- *   packages/common-types/src/generated/commandOptions.ts
+ * Scans the bot-client command files for SlashCommandBuilder definitions and
+ * extracts option names, types, and required status to generate the type-safe
+ * schemas in `packages/common-types/src/generated/commandOptions.ts`. Exposed
+ * as `pnpm ops codegen:command-types` (with `--check` for CI drift detection).
  */
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const projectRoot = path.resolve(__dirname, '..');
+const OUTPUT_REL_PATH = 'packages/common-types/src/generated/commandOptions.ts';
+const COMMANDS_REL_DIR = 'services/bot-client/src/commands';
 
 interface ExtractedOption {
   name: string;
@@ -65,37 +59,6 @@ const optionMethodToType: Record<string, ExtractedOption['type']> = {
 };
 
 /**
- * Extract options from an option chain
- * Looks for patterns like:
- *   .setName('personality')
- *   .setRequired(true)
- */
-function extractOptionFromChain(chain: string): ExtractedOption | null {
-  // Extract option name
-  const nameMatch = /\.setName\(['"]([^'"]+)['"]\)/.exec(chain);
-  if (!nameMatch) return null;
-
-  // Extract required status (defaults to false if not specified)
-  const requiredMatch = /\.setRequired\((true|false)\)/.exec(chain);
-  const required = requiredMatch ? requiredMatch[1] === 'true' : false;
-
-  // Determine type from the method that starts this chain
-  let type: ExtractedOption['type'] = 'string';
-  for (const [method, optType] of Object.entries(optionMethodToType)) {
-    if (chain.includes(method)) {
-      type = optType;
-      break;
-    }
-  }
-
-  return {
-    name: nameMatch[1],
-    type,
-    required,
-  };
-}
-
-/**
  * Find a balanced block starting from a position
  * Returns the content between ( and ) accounting for nesting
  */
@@ -128,7 +91,7 @@ function extractOptionsFromBlock(block: string): ExtractedOption[] {
   const optionMethodRegex =
     /\.(addStringOption|addIntegerOption|addNumberOption|addBooleanOption|addUserOption|addChannelOption|addRoleOption|addAttachmentOption|addMentionableOption)\s*\(/g;
 
-  let match;
+  let match: RegExpExecArray | null;
   while ((match = optionMethodRegex.exec(block)) !== null) {
     const method = match[1];
     const optionBlock = findBalancedBlock(block, match.index + match[0].length - 1);
@@ -199,7 +162,7 @@ function extractSubcommandGroup(
 
     // Find subcommands within this group
     const subcommandRegex = /\.addSubcommand\s*\(/g;
-    let match;
+    let match: RegExpExecArray | null;
     while ((match = subcommandRegex.exec(block)) !== null) {
       const subcommandBlock = findBalancedBlock(block, match.index + match[0].length - 1);
       if (subcommandBlock) {
@@ -256,12 +219,12 @@ function resolveAndParseBuilderFunction(
   const importRegex = new RegExp(`import\\s*\\{([^}]*)\\}\\s*from\\s*['"]([^'"]+)['"]`, 'mg');
   let originalName = funcName;
   let importPath: string | null = null;
-  let importMatch;
+  let importMatch: RegExpExecArray | null;
   while ((importMatch = importRegex.exec(parentContent)) !== null) {
     const specs = importMatch[1].split(',').map(s => s.trim());
     for (const spec of specs) {
       // `original as alias` → split on " as ", trim each
-      const [orig, alias] = spec.split(/\s+as\s+/).map(s => s.trim());
+      const [orig, alias] = spec.split(' as ').map(s => s.trim());
       const localName = alias ?? orig;
       if (localName === funcName) {
         originalName = orig;
@@ -304,27 +267,18 @@ function resolveAndParseBuilderFunction(
 }
 
 /**
- * Parse a command file and extract command structure
+ * Collect subcommands nested in `addSubcommandGroup(...)` blocks, recording each
+ * group's character range in `groupRanges` so standalone-subcommand scanning can
+ * skip them.
  */
-function parseCommandFile(filePath: string): ExtractedCommand | null {
-  const content = fs.readFileSync(filePath, 'utf-8');
-
-  // Find command name from SlashCommandBuilder
-  const commandNameMatch = /new SlashCommandBuilder\(\)[\s\S]*?\.setName\(['"]([^'"]+)['"]\)/.exec(
-    content
-  );
-  if (!commandNameMatch) return null;
-
-  const commandName = commandNameMatch[1];
+function collectGroupSubcommands(
+  content: string,
+  filePath: string,
+  groupRanges: { start: number; end: number }[]
+): ExtractedSubcommand[] {
   const subcommands: ExtractedSubcommand[] = [];
-  const commandOptions: ExtractedOption[] = [];
-
-  // Track positions of subcommand groups to exclude from direct subcommand search
-  const groupRanges: Array<{ start: number; end: number }> = [];
-
-  // First, find all subcommand groups
   const groupRegex = /\.addSubcommandGroup\s*\(/g;
-  let groupMatch;
+  let groupMatch: RegExpExecArray | null;
   while ((groupMatch = groupRegex.exec(content)) !== null) {
     const groupBlock = findBalancedBlock(content, groupMatch.index + groupMatch[0].length - 1);
     if (groupBlock) {
@@ -333,66 +287,65 @@ function parseCommandFile(filePath: string): ExtractedCommand | null {
         end: groupMatch.index + groupMatch[0].length + groupBlock.length + 1,
       });
       const group = extractSubcommandGroup(groupBlock, filePath);
-      if (group) {
-        subcommands.push(...group.subcommands);
-      }
+      if (group) subcommands.push(...group.subcommands);
     }
   }
+  return subcommands;
+}
 
-  // Find all standalone subcommand definitions (not in groups)
+/**
+ * Collect top-level `addSubcommand(...)` definitions, skipping any that fall
+ * within a subcommand group's range (those were already collected).
+ */
+function collectStandaloneSubcommands(
+  content: string,
+  groupRanges: { start: number; end: number }[]
+): ExtractedSubcommand[] {
+  const subcommands: ExtractedSubcommand[] = [];
   const subcommandRegex = /\.addSubcommand\s*\(/g;
-  let match;
+  let match: RegExpExecArray | null;
   while ((match = subcommandRegex.exec(content)) !== null) {
-    // Check if this subcommand is inside a group
-    const isInGroup = groupRanges.some(
-      range => match.index > range.start && match.index < range.end
-    );
-    if (isInGroup) continue;
-
-    const subcommandBlock = findBalancedBlock(content, match.index + match[0].length - 1);
+    const idx = match.index;
+    if (groupRanges.some(range => idx > range.start && idx < range.end)) continue;
+    const subcommandBlock = findBalancedBlock(content, idx + match[0].length - 1);
     if (subcommandBlock) {
       const subcommand = extractSubcommand(subcommandBlock);
-      if (subcommand) {
-        subcommands.push(subcommand);
-      }
+      if (subcommand) subcommands.push(subcommand);
     }
   }
+  return subcommands;
+}
 
-  // If no subcommands, look for options at the command level
-  // Use balanced parenthesis matching (like subcommands) to handle nested parens in option chains
-  if (subcommands.length === 0) {
-    const optionMethodRegex =
-      /\.(addStringOption|addIntegerOption|addNumberOption|addBooleanOption|addUserOption|addChannelOption|addRoleOption|addAttachmentOption|addMentionableOption)\s*\(/g;
+/**
+ * Parse a command file and extract its command structure (name, subcommands,
+ * command-level options).
+ */
+function parseCommandFile(filePath: string): ExtractedCommand | null {
+  const content = fs.readFileSync(filePath, 'utf-8');
 
-    let optMatch;
-    while ((optMatch = optionMethodRegex.exec(content)) !== null) {
-      const method = optMatch[1];
-      const optionBlock = findBalancedBlock(content, optMatch.index + optMatch[0].length - 1);
+  const commandNameMatch = /new SlashCommandBuilder\(\)[\s\S]*?\.setName\(['"]([^'"]+)['"]\)/.exec(
+    content
+  );
+  if (!commandNameMatch) return null;
 
-      const nameMatch = /\.setName\(['"]([^'"]+)['"]\)/.exec(optionBlock);
-      if (nameMatch) {
-        const requiredMatch = /\.setRequired\((true|false)\)/.exec(optionBlock);
-        commandOptions.push({
-          name: nameMatch[1],
-          type: optionMethodToType[method] ?? 'string',
-          required: requiredMatch ? requiredMatch[1] === 'true' : false,
-        });
-      }
-    }
-  }
+  const groupRanges: { start: number; end: number }[] = [];
+  const subcommands = [
+    ...collectGroupSubcommands(content, filePath, groupRanges),
+    ...collectStandaloneSubcommands(content, groupRanges),
+  ];
 
-  return {
-    name: commandName,
-    subcommands,
-    options: commandOptions,
-  };
+  // Command-level options apply only when there are no subcommands (same block
+  // shape as a subcommand, so reuse extractOptionsFromBlock).
+  const options = subcommands.length === 0 ? extractOptionsFromBlock(content) : [];
+
+  return { name: commandNameMatch[1], subcommands, options };
 }
 
 /**
  * Convert a string to camelCase, handling hyphens
  */
 function toCamelCase(str: string): string {
-  return str.replace(/-(\w)/g, (_, c) => c.toUpperCase());
+  return str.replace(/-(\w)/g, (_: string, c: string) => c.toUpperCase());
 }
 
 /**
@@ -424,6 +377,28 @@ function formatPropertyName(name: string): string {
 }
 
 /**
+ * Render one `export const <identifier> = defineTypedOptions({...})` schema
+ * block. `pathLabel` is the human-readable command path shown in the JSDoc
+ * (e.g. `channel activate` or `tts config set`).
+ */
+function emitSchema(identifier: string, pathLabel: string, options: ExtractedOption[]): string[] {
+  const optionNames = options.map(o => o.name).join(', ');
+  const out = [
+    `/**`,
+    ` * /${pathLabel} <${optionNames}>`,
+    ` */`,
+    `export const ${identifier} = defineTypedOptions({`,
+  ];
+  for (const option of options) {
+    out.push(
+      `  ${formatPropertyName(option.name)}: { type: '${option.type}', required: ${option.required} },`
+    );
+  }
+  out.push(`});`, '');
+  return out;
+}
+
+/**
  * Generate the output TypeScript file
  */
 function generateOutput(commands: ExtractedCommand[]): string {
@@ -431,7 +406,7 @@ function generateOutput(commands: ExtractedCommand[]): string {
     '/**',
     ' * AUTO-GENERATED FILE - DO NOT EDIT MANUALLY',
     ' *',
-    ' * Generated by: pnpm generate:command-types',
+    ' * Generated by: pnpm ops codegen:command-types',
     ' *',
     ' * Type-Safe Command Option Schemas',
     ' *',
@@ -462,104 +437,92 @@ function generateOutput(commands: ExtractedCommand[]): string {
     if (command.subcommands.length > 0) {
       for (const subcommand of command.subcommands) {
         if (subcommand.options.length === 0) continue;
-
-        const identifier = toIdentifier(command.name, subcommand.name, subcommand.group);
-        const optionNames = subcommand.options.map(o => o.name).join(', ');
         const pathParts = [command.name];
         if (subcommand.group) pathParts.push(subcommand.group);
         pathParts.push(subcommand.name);
-
-        lines.push(`/**`);
-        lines.push(` * /${pathParts.join(' ')} <${optionNames}>`);
-        lines.push(` */`);
-        lines.push(`export const ${identifier} = defineTypedOptions({`);
-
-        for (const option of subcommand.options) {
-          const propName = formatPropertyName(option.name);
-          lines.push(`  ${propName}: { type: '${option.type}', required: ${option.required} },`);
-        }
-
-        lines.push(`});`);
-        lines.push('');
+        const identifier = toIdentifier(command.name, subcommand.name, subcommand.group);
+        lines.push(...emitSchema(identifier, pathParts.join(' '), subcommand.options));
       }
     } else if (command.options.length > 0) {
-      const identifier = toIdentifier(command.name);
-      const optionNames = command.options.map(o => o.name).join(', ');
-
-      lines.push(`/**`);
-      lines.push(` * /${command.name} <${optionNames}>`);
-      lines.push(` */`);
-      lines.push(`export const ${identifier} = defineTypedOptions({`);
-
-      for (const option of command.options) {
-        const propName = formatPropertyName(option.name);
-        lines.push(`  ${propName}: { type: '${option.type}', required: ${option.required} },`);
-      }
-
-      lines.push(`});`);
-      lines.push('');
+      lines.push(...emitSchema(toIdentifier(command.name), command.name, command.options));
     }
   }
 
   return lines.join('\n');
 }
 
+export interface CommandTypesRunOptions {
+  /** Workspace root; defaults to the monorepo root derived from this file. */
+  rootDir?: string;
+  /** If true, fail with a non-zero exit when the generated file would change. */
+  check?: boolean;
+}
+
+export interface CommandTypesRunResult {
+  /** The output file's absolute path mapped to its generated source text. */
+  files: Record<string, string>;
+  /** In `check` mode, the path if its on-disk content differs from generated. */
+  drifted: string[];
+  /** True if the file matched on disk (drift-detection passed). */
+  upToDate: boolean;
+}
+
 /**
- * Main entry point
+ * Parse the bot-client command files under `rootDir` and return the generated
+ * commandOptions source text. Pure (reads command files, writes nothing) so
+ * tests can assert on the output.
  */
-async function main(): Promise<void> {
-  console.log('Generating type-safe command options...\n');
-
-  const commandsDir = path.join(projectRoot, 'services/bot-client/src/commands');
-  const outputPath = path.join(
-    projectRoot,
-    'packages/common-types/src/generated/commandOptions.ts'
-  );
-
-  // Find all command index files
+export function generateCommandOptions(rootDir: string): string {
+  const commandsDir = path.join(rootDir, COMMANDS_REL_DIR);
   const commandDirs = fs
     .readdirSync(commandsDir, { withFileTypes: true })
     .filter(d => d.isDirectory())
     .map(d => d.name);
 
   const commands: ExtractedCommand[] = [];
-
   for (const dir of commandDirs) {
     const indexPath = path.join(commandsDir, dir, 'index.ts');
     if (!fs.existsSync(indexPath)) continue;
-
-    console.log(`  Parsing /${dir}...`);
     const command = parseCommandFile(indexPath);
-    if (command) {
-      const optionCount =
-        command.options.length +
-        command.subcommands.reduce((sum, sc) => sum + sc.options.length, 0);
-      console.log(`    Found ${command.subcommands.length} subcommands, ${optionCount} options`);
-      commands.push(command);
-    }
+    if (command) commands.push(command);
   }
 
-  console.log(`\nParsed ${commands.length} commands`);
-
-  // Generate output
-  const output = generateOutput(commands);
-
-  // Ensure output directory exists
-  const outputDir = path.dirname(outputPath);
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true });
-  }
-
-  // Write output
-  fs.writeFileSync(outputPath, output, 'utf-8');
-  console.log(`\nGenerated: ${path.relative(projectRoot, outputPath)}`);
-
-  // Count generated schemas
-  const schemaCount = (output.match(/export const \w+Options/g) ?? []).length;
-  console.log(`Total schemas: ${schemaCount}`);
+  return generateOutput(commands);
 }
 
-main().catch(err => {
-  console.error('Error:', err);
-  process.exit(1);
-});
+/**
+ * Run the command-types codegen against the live command files and either
+ * write the generated file or, in `check` mode, report whether it drifts from
+ * the committed output.
+ */
+export function runCommandTypesCodegen(
+  options: CommandTypesRunOptions = {}
+): CommandTypesRunResult {
+  const rootDir = options.rootDir ?? defaultRootDir();
+  const outputPath = path.join(rootDir, OUTPUT_REL_PATH);
+  const output = generateCommandOptions(rootDir);
+  const files = { [outputPath]: output };
+
+  if (options.check === true) {
+    const actual = readFileSafe(outputPath);
+    const drifted = actual === output ? [] : [outputPath];
+    return { files, drifted, upToDate: drifted.length === 0 };
+  }
+
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+  fs.writeFileSync(outputPath, output, 'utf-8');
+  return { files, drifted: [], upToDate: true };
+}
+
+function readFileSafe(filePath: string): string | null {
+  try {
+    return fs.readFileSync(filePath, 'utf-8');
+  } catch {
+    return null;
+  }
+}
+
+function defaultRootDir(): string {
+  // codegen/ → src/ → tooling/ → packages/ → repo root (mirrors dist/ layout).
+  return path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
+}

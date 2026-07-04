@@ -15,12 +15,6 @@
       "path": "../packages/embeddings"
     }
   ],
-  "include": [
-    "src/**/*.ts",
-    "testing/**/*.ts",
-    "debug/**/*.ts",
-    "migrations/**/*.ts",
-    "utils/**/*.ts"
-  ],
-  "exclude": ["node_modules", "dist"]
+  "include": ["*.ts", "migrations/**/*.ts"],
+  "exclude": ["node_modules", "dist", "vitest.config.ts"]
 }

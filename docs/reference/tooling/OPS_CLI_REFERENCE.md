@@ -282,18 +282,18 @@ Structural enforcement checks that hard-fail CI on findings:
 
 Root `package.json` provides shortcuts for common ops CLI commands:
 
-| Script                        | Maps To                                 | Description                |
-| ----------------------------- | --------------------------------------- | -------------------------- |
-| `pnpm focus:lint`             | `pnpm ops dev:lint`                     | Lint changed packages      |
-| `pnpm focus:test`             | `pnpm ops dev:test`                     | Test changed packages      |
-| `pnpm focus:build`            | `pnpm ops dev:focus build`              | Build changed packages     |
-| `pnpm test:summary`           | `pnpm ops dev:test-summary`             | Summarize test results     |
-| `pnpm audit:*`                | `pnpm ops test:audit-*`                 | Coverage ratchet audits    |
-| `pnpm with-env`               | `pnpm ops run --env`                    | Run with Railway env       |
-| `pnpm bump-version`           | `pnpm ops release:bump`                 | Bump monorepo version      |
-| `pnpm focus:typecheck`        | `pnpm ops dev:typecheck`                | Typecheck changed packages |
-| `pnpm generate:pglite`        | `pnpm ops test:generate-schema`         | Regenerate PGLite schema   |
-| `pnpm generate:command-types` | `tsx scripts/generate-command-types.ts` | Generate command type defs |
-| `pnpm update-deps`            | `pnpm ops dev:update-deps`              | Update dependencies        |
-| `pnpm import-personality`     | `pnpm ops data:import`                  | Import a personality       |
-| `pnpm bulk-import`            | `pnpm ops data:bulk-import`             | Bulk import personalities  |
+| Script                        | Maps To                          | Description                |
+| ----------------------------- | -------------------------------- | -------------------------- |
+| `pnpm focus:lint`             | `pnpm ops dev:lint`              | Lint changed packages      |
+| `pnpm focus:test`             | `pnpm ops dev:test`              | Test changed packages      |
+| `pnpm focus:build`            | `pnpm ops dev:focus build`       | Build changed packages     |
+| `pnpm test:summary`           | `pnpm ops dev:test-summary`      | Summarize test results     |
+| `pnpm audit:*`                | `pnpm ops test:audit-*`          | Coverage ratchet audits    |
+| `pnpm with-env`               | `pnpm ops run --env`             | Run with Railway env       |
+| `pnpm bump-version`           | `pnpm ops release:bump`          | Bump monorepo version      |
+| `pnpm focus:typecheck`        | `pnpm ops dev:typecheck`         | Typecheck changed packages |
+| `pnpm generate:pglite`        | `pnpm ops test:generate-schema`  | Regenerate PGLite schema   |
+| `pnpm generate:command-types` | `pnpm ops codegen:command-types` | Generate command type defs |
+| `pnpm update-deps`            | `pnpm ops dev:update-deps`       | Update dependencies        |
+| `pnpm import-personality`     | `pnpm ops data:import`           | Import a personality       |
+| `pnpm bulk-import`            | `pnpm ops data:bulk-import`      | Bulk import personalities  |

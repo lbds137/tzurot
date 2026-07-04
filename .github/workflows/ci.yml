@@ -92,6 +92,13 @@ jobs:
         # produce. To fix locally: `pnpm ops codegen:routes` then commit.
         run: pnpm ops codegen:routes --check
 
+      - name: Enforce command-types codegen drift
+        # Same backstop for the command-option schemas generated into
+        # packages/common-types/src/generated/commandOptions.ts from the
+        # bot-client command files. To fix locally:
+        # `pnpm ops codegen:command-types` then commit.
+        run: pnpm ops codegen:command-types --check
+
       - name: Enforce coverage-topology drift
         # Byte-compares the committed coverage-topology.json against what the
         # current code (ROUTE_MANIFEST + JobType payload schemas + the context
