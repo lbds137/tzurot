@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { Request } from 'express';
+import { normalizeSlugForUser } from '@tzurot/common-types/utils/slugUtils';
 import {
   applyOwnerNamePromotion,
   buildCollisionMessage,
@@ -16,14 +17,16 @@ vi.mock('@tzurot/common-types/utils/slugUtils', async () => {
   );
   return {
     ...actual,
-    normalizeSlugForUser: (slug: string, _id: string, username: string): string => {
+    // vi.fn so tests can assert the arguments that cross this seam (e.g. the
+    // maxLength cap) — not just the return value, which the mock never truncates.
+    normalizeSlugForUser: vi.fn((slug: string, _id: string, username: string): string => {
       // Recreate the production-equivalent contract for these tests:
       // - bot-owner ('owner-id') gets unchanged slug
       // - others get `-${username}` suffix, idempotent if already present
       if (_id === 'owner-id') return slug;
       const suffix = `-${username}`;
       return slug.endsWith(suffix) ? slug : `${slug}${suffix}`;
-    },
+    }),
   };
 });
 
@@ -104,16 +107,19 @@ describe('computeNameForPromotion', () => {
       expect(result).toBe('MyVoice-bob');
     });
 
-    it('does NOT truncate a 50-100 char config name (config names cap at 100, not the slug 50)', () => {
+    it('normalizes config names with the 100-char cap, not the 50-char slug default (seam)', () => {
+      vi.mocked(normalizeSlugForUser).mockClear();
       const longName = 'A'.repeat(70); // over the 50 slug cap, under the 100 config-name cap
-      const result = computeNameForPromotion({
+      computeNameForPromotion({
         currentName: longName,
         currentIsGlobal: false,
         requestedIsGlobal: true,
         ...REGULAR_USER,
       });
-      // Suffixed but intact — NOT truncated + hashed (which the default 50 cap would do).
-      expect(result).toBe(`${longName}-bob`);
+      // The wiring that actually matters: the 100 cap must cross the seam. Asserting
+      // the return value alone would pass even if the 4th arg were dropped (reverting
+      // to the default 50) — the mock never truncates. This asserts the arg instead.
+      expect(normalizeSlugForUser).toHaveBeenCalledWith(longName, 'user-456', 'bob', 100);
     });
 
     it('suffixes a fresh rename when post-state is global', () => {
