@@ -11,8 +11,8 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import { MessageLinkParser } from '@tzurot/common-types/utils/messageLinkParser';
 import { buildDedupedReferenceStub } from '@tzurot/common-types/utils/referenceEnrichment';
 import { isForwardedMessage, type ReferenceMetadata } from './types.js';
-import { MessageFormatter } from './MessageFormatter.js';
-import { SnapshotFormatter } from './SnapshotFormatter.js';
+import { type MessageFormatter } from './MessageFormatter.js';
+import { type SnapshotFormatter } from './SnapshotFormatter.js';
 
 const logger = createLogger('ReferenceFormatter');
 

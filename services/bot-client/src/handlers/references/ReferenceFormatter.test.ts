@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { Collection, MessageReferenceType } from 'discord.js';
+import { type Collection, MessageReferenceType } from 'discord.js';
 import type { Message, MessageSnapshot } from 'discord.js';
 import { ReferenceFormatter } from './ReferenceFormatter.js';
 import type { ReferenceMetadata } from './types.js';

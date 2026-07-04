@@ -10,7 +10,7 @@ import { getConfig } from '@tzurot/common-types/config/config';
 import { HARDCODED_CONFIG_DEFAULTS } from '@tzurot/common-types/schemas/api/configOverrides';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { IMessageProcessor } from './IMessageProcessor.js';
-import { VoiceTranscriptionService } from '../services/VoiceTranscriptionService.js';
+import { type VoiceTranscriptionService } from '../services/VoiceTranscriptionService.js';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import { getAdminSettingsCached } from '../utils/gatewayServiceCalls.js';
 import { findPersonalityMentions } from '../utils/personalityMentionParser.js';

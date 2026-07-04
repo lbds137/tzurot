@@ -159,6 +159,26 @@ const prisma = new PrismaClient();
       expect(process.exitCode).toBe(1);
     });
 
+    it('should detect bot-client importing Prisma from the deep services/prisma subpath', async () => {
+      // Post-barrel: PrismaClient/Prisma live at @tzurot/common-types/services/prisma.
+      // The widened boundary regex must catch that deep path, not just the bare barrel.
+      vi.mocked(readdirSync).mockImplementation(((dir: unknown) =>
+        String(dir).includes('bot-client/src') ? ['test.ts'] : []) as typeof readdirSync);
+      vi.mocked(statSync).mockReturnValue({ isDirectory: () => false } as ReturnType<
+        typeof statSync
+      >);
+      vi.mocked(readFileSync).mockReturnValue(
+        `import { PrismaClient } from '@tzurot/common-types/services/prisma';`
+      );
+
+      await checkBoundaries();
+
+      const output = consoleLogSpy.mock.calls.flat().join(' ');
+      expect(output).toContain('boundary violation');
+      expect(output).toContain('Prisma-backed');
+      expect(process.exitCode).toBe(1);
+    });
+
     it('should detect bot-client importing createPrismaClient from the common-types barrel', async () => {
       // createPrismaClient is the Prisma entry point after the singleton eviction;
       // bot-client owning a client would reintroduce the direct-DB boundary break.
@@ -398,22 +418,22 @@ import { formatMessage } from './utils/formatter.js';
 });
 
 describe('bot-client Prisma-symbol allowlist (drift guard)', () => {
-  // Loading the full @tzurot/common-types barrel pulls in the generated Prisma
+  // Loading @tzurot/common-types/services/prisma pulls in the generated Prisma
   // client, which is heavy to transform+load the first time. Done once in
   // beforeAll (with a generous hook timeout) so the import cost lands in setup,
   // not under the 5s per-test budget: when every package's vitest runs at once
-  // under concurrent CI load, the first-time barrel load can exceed the default
-  // test timeout even though the assertion itself is instant.
-  let commonTypes: typeof import('@tzurot/common-types');
+  // under concurrent CI load, the first-time load can exceed the default test
+  // timeout even though the assertion itself is instant.
+  let prismaModule: typeof import('@tzurot/common-types/services/prisma');
   beforeAll(async () => {
-    commonTypes = await import('@tzurot/common-types');
+    prismaModule = await import('@tzurot/common-types/services/prisma');
   }, 30_000);
 
-  it('every banned common-types Prisma symbol is still a real @tzurot/common-types export', () => {
+  it('every banned Prisma symbol is still a real @tzurot/common-types/services/prisma export', () => {
     for (const symbol of BOT_CLIENT_BANNED_COMMON_TYPES_PRISMA_SYMBOLS) {
       expect(
-        symbol in commonTypes,
-        `"${symbol}" is in check-boundaries' bot-client ban list but is no longer exported from @tzurot/common-types — prune it from BOT_CLIENT_BANNED_COMMON_TYPES_PRISMA_SYMBOLS (the symbol was renamed, deleted, or moved to a dedicated package with its own depcruise ban).`
+        symbol in prismaModule,
+        `"${symbol}" is in check-boundaries' bot-client ban list but is no longer exported from @tzurot/common-types/services/prisma — prune it from BOT_CLIENT_BANNED_COMMON_TYPES_PRISMA_SYMBOLS (the symbol was renamed, deleted, or moved elsewhere).`
       ).toBe(true);
     }
   });

@@ -6,7 +6,7 @@
  * between voice and model routes.
  */
 
-import { z } from 'zod';
+import { type z } from 'zod';
 import { AI_ENDPOINTS } from '@tzurot/common-types/constants/ai';
 import { VALIDATION_TIMEOUTS } from '@tzurot/common-types/constants/timing';
 import { createLogger } from '@tzurot/common-types/utils/logger';

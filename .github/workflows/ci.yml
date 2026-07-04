@@ -99,6 +99,21 @@ jobs:
         # `pnpm ops codegen:command-types` then commit.
         run: pnpm ops codegen:command-types --check
 
+      - name: Enforce no bare @tzurot/common-types barrel import
+        # The root barrel was removed (barrel-kill epic) — import from a deep
+        # subpath. eslint's no-restricted-imports catches STATIC bare imports;
+        # this grep is the backstop for the dynamic `import()` / type-query forms
+        # it can't see. The excludes are the intentional fixture strings + the
+        # doc/generated comments that embed the specifier as text, not imports.
+        run: |
+          if grep -rInE "from ['\"]@tzurot/common-types['\"]|import\(['\"]@tzurot/common-types['\"]\)" \
+               --include='*.ts' --exclude-dir=node_modules --exclude-dir=dist services packages tests \
+             | grep -vE 'check-boundaries\.test\.ts|audit-unified\.test\.ts|importAssertions\.test\.ts|coverageTopology\.test\.ts|codegen/command-types\.ts|generated/commandOptions\.ts|schemas/index\.ts'; then
+            echo "❌ Bare @tzurot/common-types barrel import found — use a deep subpath (e.g. @tzurot/common-types/types/jobs)."
+            exit 1
+          fi
+          echo "✓ No bare @tzurot/common-types barrel imports."
+
       - name: Enforce coverage-topology drift
         # Byte-compares the committed coverage-topology.json against what the
         # current code (ROUTE_MANIFEST + JobType payload schemas + the context

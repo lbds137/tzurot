@@ -7,7 +7,7 @@
  * Uses PersonaResolver for consistent persona resolution with caching and auto-defaulting.
  */
 
-import { PgvectorMemoryAdapter, MemoryQueryOptions } from './PgvectorMemoryAdapter.js';
+import { type PgvectorMemoryAdapter, type MemoryQueryOptions } from './PgvectorMemoryAdapter.js';
 import { AI_DEFAULTS } from '@tzurot/common-types/constants/ai';
 import { TEXT_LIMITS } from '@tzurot/common-types/constants/discord';
 import { type ResolvedConfigOverrides } from '@tzurot/common-types/schemas/api/configOverrides';

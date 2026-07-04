@@ -10,7 +10,7 @@
  */
 
 import {
-  ActionRowBuilder,
+  type ActionRowBuilder,
   AttachmentBuilder,
   MessageFlags,
   type MessageActionRowComponentBuilder,

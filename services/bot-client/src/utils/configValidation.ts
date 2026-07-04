@@ -17,7 +17,7 @@
  * ```
  */
 
-import { EmbedBuilder } from 'discord.js';
+import { type EmbedBuilder } from 'discord.js';
 import { createWarningEmbed, createErrorEmbed } from './commandHelpers.js';
 
 // ============================================

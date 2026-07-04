@@ -12,7 +12,7 @@
  * 3. Used with personality's system prompt (including jailbreaks)
  */
 
-import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { type AIProvider } from '@tzurot/common-types/constants/ai';
 import { AttachmentType, CONTENT_TYPES } from '@tzurot/common-types/constants/media';
 import { RETRY_CONFIG } from '@tzurot/common-types/constants/timing';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';

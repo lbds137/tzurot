@@ -26,7 +26,7 @@
  * once every fallback tier is exhausted.
  */
 
-import { AIProvider, MODEL_DEFAULTS } from '@tzurot/common-types/constants/ai';
+import { type AIProvider, MODEL_DEFAULTS } from '@tzurot/common-types/constants/ai';
 import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';

@@ -16,7 +16,7 @@ import {
   type GuildMemberInfo,
 } from '@tzurot/common-types/types/schemas/discord';
 import {
-  apiConversationMessageSchema,
+  type apiConversationMessageSchema,
   type ReferencedMessage,
 } from '@tzurot/common-types/types/schemas/message';
 import {

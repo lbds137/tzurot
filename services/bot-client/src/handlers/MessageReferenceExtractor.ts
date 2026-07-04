@@ -11,7 +11,7 @@
 import { INTERVALS } from '@tzurot/common-types/constants/timing';
 import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { Message } from 'discord.js';
+import { type Message } from 'discord.js';
 import { TranscriptRetriever } from './references/TranscriptRetriever.js';
 import { SnapshotFormatter } from './references/SnapshotFormatter.js';
 import { MessageFormatter } from './references/MessageFormatter.js';

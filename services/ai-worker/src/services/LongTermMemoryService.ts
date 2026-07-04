@@ -8,7 +8,7 @@
  * This service only handles LTM (pgvector) storage.
  */
 
-import { PgvectorMemoryAdapter } from './PgvectorMemoryAdapter.js';
+import { type PgvectorMemoryAdapter } from './PgvectorMemoryAdapter.js';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { generatePendingMemoryUuid } from '@tzurot/common-types/utils/deterministicUuid';

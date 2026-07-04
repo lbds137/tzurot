@@ -14,7 +14,7 @@ import {
 import { RETRY_CONFIG } from '@tzurot/common-types/constants/timing';
 import { type ResolvedConfigOverrides } from '@tzurot/common-types/schemas/api/configOverrides';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
-import { MessageContent } from '@tzurot/common-types/types/ai';
+import { type MessageContent } from '@tzurot/common-types/types/ai';
 import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { createDiagnosticCollectorForRequest } from '../../../../services/diagnostics/personalityOwnerResolver.js';
@@ -33,7 +33,7 @@ import { runWithAutoPromotionFallback } from './autoPromotionFallback.js';
 import { composeGenerationFailureResult } from './generationFailureResult.js';
 import { validatePrerequisites } from './generationStepValidation.js';
 import { getRecentAssistantMessages } from '../../../../utils/conversationHistoryUtils.js';
-import { DiagnosticCollector } from '../../../../services/DiagnosticCollector.js';
+import { type DiagnosticCollector } from '../../../../services/DiagnosticCollector.js';
 import {
   shouldRetryEmptyResponse,
   logDuplicateDetection,
