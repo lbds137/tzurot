@@ -344,6 +344,18 @@ const y: any = 2;
     expect(result[0].justification).toBe('testing invalid input');
   });
 
+  it('should keep the full trailing text as justification when @ts-expect-error has an internal --', () => {
+    // ts-expect-error has no rule concept, so a '--' that is NOT immediately after
+    // the directive does not split off a rule — the whole trailing text is the
+    // justification (pins the pre-refactor regex behavior).
+    const content = `// @ts-expect-error necessary for narrow inference -- see issue\nconst x = badCall();\n`;
+    const result = extractSuppressions(content);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].kind).toBe('ts-expect-error');
+    expect(result[0].justification).toBe('necessary for narrow inference -- see issue');
+  });
+
   it('should extract @ts-nocheck', () => {
     const content = `// @ts-nocheck\nconst x: any = 1;\n`;
     const result = extractSuppressions(content);
