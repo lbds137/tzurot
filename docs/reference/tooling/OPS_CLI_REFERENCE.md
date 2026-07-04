@@ -255,6 +255,9 @@ Structural enforcement checks that hard-fail CI on findings:
 | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
 | `pnpm ops guard:boundaries`                | Service-boundary imports (bot-client never imports Prisma directly, etc.) (audit-class, `--summary` not yet wired)           |
 | `pnpm ops guard:duplicate-exports`         | Same name exported from multiple files within a package (CI gate, intentionally not audit-class — no `--summary`)            |
+| `pnpm ops guard:no-export-star`            | Fail if any production `src/**` uses `export *` (re-masks knip's dead-export tracing) (CI gate, not audit-class)             |
+| `pnpm ops guard:dockerfile-dist`           | Service Dockerfile runner stages copy every runtime workspace dep's dist (CI gate, not audit-class)                          |
+| `pnpm ops guard:workflow-sync`             | Fail when the claude workflow files differ from origin/main (a develop-first change silently disables claude-review)         |
 | `pnpm ops guard:proposal-links`            | Every `docs/proposals/backlog/*.md` has an inbound link                                                                      |
 | `pnpm ops guard:proposal-links --summary`  | Emit JSONL summary line (for aggregator)                                                                                     |
 | `pnpm ops guard:audit-tool-docs`           | Every registered audit tool has a non-stub WHY.md (bidirectional check)                                                      |
