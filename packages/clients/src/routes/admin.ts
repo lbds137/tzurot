@@ -454,6 +454,3 @@ export const adminRoutes = {
     meta: { safeRead: true },
   },
 } as const satisfies Record<string, RouteDef>;
-
-/** Admin-route ID union — used as a manifest key by generated clients. */
-export type AdminRouteId = keyof typeof adminRoutes;

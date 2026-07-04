@@ -16,8 +16,6 @@ export const ClearHistorySchema = z.object({
   personalitySlug: z.string().min(1, PERSONALITY_SLUG_REQUIRED),
   personaId: z.string().optional(),
 });
-export type ClearHistoryInput = z.infer<typeof ClearHistorySchema>;
-
 // ============================================================================
 // POST /user/history/undo
 // ============================================================================
@@ -26,8 +24,6 @@ export const UndoHistorySchema = z.object({
   personalitySlug: z.string().min(1, PERSONALITY_SLUG_REQUIRED),
   personaId: z.string().optional(),
 });
-export type UndoHistoryInput = z.infer<typeof UndoHistorySchema>;
-
 // ============================================================================
 // DELETE /user/history/hard-delete
 // ============================================================================
@@ -37,8 +33,6 @@ export const HardDeleteHistorySchema = z.object({
   channelId: z.string().min(1, 'channelId is required'),
   personaId: z.string().optional(),
 });
-export type HardDeleteHistoryInput = z.infer<typeof HardDeleteHistorySchema>;
-
 // ============================================================================
 // GET /user/history/stats (query params)
 // ============================================================================
@@ -48,8 +42,6 @@ export const HistoryStatsQuerySchema = z.object({
   channelId: z.string().min(1, 'channelId query parameter is required'),
   personaId: z.string().optional(),
 });
-export type HistoryStatsQueryInput = z.infer<typeof HistoryStatsQuerySchema>;
-
 // ============================================================================
 // Response schemas
 // ============================================================================
@@ -62,8 +54,6 @@ export const ClearHistoryResponseSchema = z.object({
   canUndo: z.boolean(),
   message: z.string(),
 });
-export type ClearHistoryResponse = z.infer<typeof ClearHistoryResponseSchema>;
-
 /** POST /user/history/undo */
 export const UndoHistoryResponseSchema = z.object({
   success: z.literal(true),
@@ -71,8 +61,6 @@ export const UndoHistoryResponseSchema = z.object({
   personaId: z.string(),
   message: z.string(),
 });
-export type UndoHistoryResponse = z.infer<typeof UndoHistoryResponseSchema>;
-
 /** GET /user/history/stats */
 export const HistoryStatsResponseSchema = z.object({
   channelId: z.string(),
@@ -96,8 +84,6 @@ export const HistoryStatsResponseSchema = z.object({
   contextEpoch: z.string().nullable(),
   canUndo: z.boolean(),
 });
-export type HistoryStatsResponse = z.infer<typeof HistoryStatsResponseSchema>;
-
 /** DELETE /user/history/hard-delete */
 export const HardDeleteHistoryResponseSchema = z.object({
   success: z.literal(true),
@@ -105,4 +91,3 @@ export const HardDeleteHistoryResponseSchema = z.object({
   personaId: z.string(),
   message: z.string(),
 });
-export type HardDeleteHistoryResponse = z.infer<typeof HardDeleteHistoryResponseSchema>;

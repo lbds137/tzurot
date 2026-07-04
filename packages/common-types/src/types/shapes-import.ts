@@ -118,13 +118,6 @@ export interface ShapesIncUserPersonalization {
   [key: string]: unknown;
 }
 
-/** User profile from /api/users/info */
-export interface ShapesIncUserProfile {
-  id: string;
-  email?: string;
-  shapes?: { id: string; username: string }[];
-}
-
 // ============================================================================
 // Import Job Types (BullMQ payloads)
 // ============================================================================

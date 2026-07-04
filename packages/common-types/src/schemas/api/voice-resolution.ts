@@ -83,4 +83,3 @@ export type GetVoiceResolutionResponse = z.infer<typeof GetVoiceResolutionRespon
 export const GetVoiceResolutionQuerySchema = z.object({
   personalityId: z.string().uuid('Invalid personalityId format'),
 });
-export type GetVoiceResolutionQuery = z.infer<typeof GetVoiceResolutionQuerySchema>;

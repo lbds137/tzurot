@@ -46,4 +46,3 @@ export type SetTimezoneResponse = z.infer<typeof SetTimezoneResponseSchema>;
 export const SetTimezoneInputSchema = z.object({
   timezone: z.string().min(1, 'timezone is required'),
 });
-export type SetTimezoneInput = z.infer<typeof SetTimezoneInputSchema>;

@@ -41,8 +41,6 @@ export const DbSyncResponseSchema = z.object({
   info: z.array(z.string()),
   changes: z.unknown().optional(),
 });
-export type DbSyncResponse = z.infer<typeof DbSyncResponseSchema>;
-
 /**
  * Response for POST /admin/cleanup — orphan history / tombstone purge.
  * `message` is a pre-formatted human-readable summary the bot-client
@@ -57,8 +55,6 @@ export const AdminCleanupResponseSchema = z.object({
   daysKept: z.number().int().nonnegative(),
   timestamp: z.string(),
 });
-export type AdminCleanupResponse = z.infer<typeof AdminCleanupResponseSchema>;
-
 /**
  * Response for POST /admin/invalidate-cache — single-personality or
  * bot-wide cache invalidation. Two response sub-shapes depending on the
@@ -76,4 +72,3 @@ export const InvalidateCacheResponseSchema = z
     personalityId: z.string().optional(),
   })
   .passthrough();
-export type InvalidateCacheResponse = z.infer<typeof InvalidateCacheResponseSchema>;

@@ -33,8 +33,6 @@ export const GetIncognitoStatusResponseSchema = z.object({
   active: z.boolean(),
   sessions: z.array(IncognitoSessionWithRemainingSchema),
 });
-export type GetIncognitoStatusResponse = z.infer<typeof GetIncognitoStatusResponseSchema>;
-
 // ============================================================================
 // POST /user/memory/incognito (enable)
 // Returns CREATED when newly enabled, OK when wasAlreadyActive is true.
@@ -51,8 +49,6 @@ export const EnableIncognitoResponseSchema = z.object({
   wasAlreadyActive: z.boolean(),
   message: z.string(),
 });
-export type EnableIncognitoResponse = z.infer<typeof EnableIncognitoResponseSchema>;
-
 // ============================================================================
 // DELETE /user/memory/incognito (disable)
 // ============================================================================
@@ -61,8 +57,6 @@ export const DisableIncognitoResponseSchema = z.object({
   disabled: z.boolean(),
   message: z.string(),
 });
-export type DisableIncognitoResponse = z.infer<typeof DisableIncognitoResponseSchema>;
-
 // ============================================================================
 // POST /user/memory/incognito/forget
 // Retroactively delete memories created in the last `timeframe` window.
@@ -73,4 +67,3 @@ export const IncognitoForgetResponseSchema = z.object({
   personalities: z.array(z.string()),
   message: z.string(),
 });
-export type IncognitoForgetResponse = z.infer<typeof IncognitoForgetResponseSchema>;

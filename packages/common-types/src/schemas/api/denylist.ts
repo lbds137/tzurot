@@ -52,8 +52,6 @@ export const DenylistAddSchema = z.object({
   mode: denylistModeSchema.default('BLOCK'),
   reason: z.string().max(500, 'Reason too long').optional(),
 });
-export type DenylistAddInput = z.infer<typeof DenylistAddSchema>;
-
 // ============================================================================
 // Response DTOs
 // ============================================================================
@@ -83,8 +81,6 @@ export const AddDenylistResponseSchema = z.object({
   success: z.literal(true),
   entry: DenylistEntrySchema,
 });
-export type AddDenylistResponse = z.infer<typeof AddDenylistResponseSchema>;
-
 /**
  * Response for GET /admin/denylist — full list of entries with count.
  * Optional `?type=USER|GUILD` filter is applied at the handler before
@@ -95,8 +91,6 @@ export const ListDenylistResponseSchema = z.object({
   entries: z.array(DenylistEntrySchema),
   count: z.number().int().nonnegative(),
 });
-export type ListDenylistResponse = z.infer<typeof ListDenylistResponseSchema>;
-
 /**
  * Response for DELETE /admin/denylist/:type/:discordId/:scope/:scopeId.
  * `removed: true` is redundant with `success: true` but the handler emits
@@ -106,4 +100,3 @@ export const RemoveDenylistResponseSchema = z.object({
   success: z.literal(true),
   removed: z.literal(true),
 });
-export type RemoveDenylistResponse = z.infer<typeof RemoveDenylistResponseSchema>;

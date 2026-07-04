@@ -48,9 +48,5 @@ export const ROUTE_MANIFEST = {
   ...adminRoutes,
   ...userRoutes,
 } as const satisfies Record<string, RouteDef>;
-
-/** Union of every route ID in the manifest. Used by generated clients. */
-export type RouteId = keyof typeof ROUTE_MANIFEST;
-
 /** Re-export the audience-scoped registries so tooling can iterate by audience. */
 export { adminRoutes, internalRoutes, userRoutes };
