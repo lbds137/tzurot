@@ -8,7 +8,7 @@
  * and assert the assembler re-derives the core surfaces from actual DB state.
  *
  * This is the real-data third of the producer→schema→consumer contract that the
- * 2.5d Prisma-eviction epic deleted bot-client code against on the claim "the
+ * Prisma-eviction epic deleted bot-client code against on the claim "the
  * worker re-derives identical context from rawAssemblyInputs":
  *  - producer half  → RawEnvelopeBuilder.test.ts (real builder conforms to schema)
  *  - mocked consumer → ContextAssembler.test.ts (assembleCore over faithful doubles)
@@ -60,7 +60,7 @@ describe('ContextAssembler.assembleCore — PGLite component', () => {
     await pglite.exec(loadPGliteSchema());
     prisma = new PrismaClient({ adapter: new PrismaPGlite(pglite) }) as PrismaClient;
 
-    // User + default persona (Phase 5b: the pair must be created atomically).
+    // User + default persona (the pair must be created atomically).
     userId = generateUserUuid(DISCORD_USER_ID);
     personaId = generatePersonaUuid('test-user', userId);
     await seedUserWithPersona(prisma, {

@@ -426,7 +426,7 @@ const baseJobDataSchema = z.object({
   jobType: z.nativeEnum(JobType),
   responseDestination: responseDestinationSchema,
   userApiKey: z.string().optional(),
-  /** Schema version for backward compatibility (Phase 1 migrations) */
+  /** Schema version for backward compatibility */
   version: z.literal(1).default(1),
 });
 

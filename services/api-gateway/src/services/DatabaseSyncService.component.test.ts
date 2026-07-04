@@ -90,7 +90,7 @@ function loadAlignTtsGlobalsMigration(): string {
  * independent of which migration actually landed last. Previously the
  * seed row hardcoded `20260418010642_…`, which would start failing this
  * suite with a schema-version-mismatch error the moment any new
- * migration shipped. (PR #826 R4 #3.)
+ * migration shipped.
  */
 function getLatestMigrationName(): string {
   const entries = readdirSync(migrationsDir());
@@ -133,7 +133,7 @@ const SETUP_PRISMA_MIGRATIONS_TABLE = `
 /**
  * Build the seed SQL for `_prisma_migrations` using the current latest
  * migration name. Dynamic so future-added migrations don't break the
- * schema-version check in this suite. (PR #826 R4 #3.)
+ * schema-version check in this suite.
  */
 function buildSeedMigrationRow(): string {
   const latest = getLatestMigrationName();
@@ -195,7 +195,7 @@ describe('DatabaseSyncService Integration (Ouroboros pattern)', () => {
     // Clean up inside a transaction with SET CONSTRAINTS ALL DEFERRED so
     // the circular FK pair doesn't make us care about table order. This
     // mirrors the Ouroboros pattern of the service under test and removes
-    // a pre-existing ordering fragility (PR #826 R2 #1): `personas.owner_id`
+    // a pre-existing ordering fragility: `personas.owner_id`
     // ON DELETE CASCADE + `users.default_persona_id` ON DELETE RESTRICT
     // gives Postgres conflicting directives when deleting both sides, and
     // the delete ordering that "works" depends on which row gets cascade-
@@ -225,8 +225,8 @@ describe('DatabaseSyncService Integration (Ouroboros pattern)', () => {
    * users.default_persona_id NOT NULL. Post-Ouroboros, this test passes.
    *
    * If the test starts failing after a future migration tightens an FK
-   * somewhere else, that's the canary: something similar to the Phase 5b
-   * drift recurred and needs the same treatment.
+   * somewhere else, that's the canary: something similar to the earlier
+   * NOT NULL drift recurred and needs the same treatment.
    */
   it('syncs a user+persona pair with circular FKs from prod to empty dev', async () => {
     const discordId = '12345678901234567890';
@@ -339,7 +339,7 @@ describe('DatabaseSyncService Integration (Ouroboros pattern)', () => {
    * `$transaction`, so Postgres discards all staged INSERTs on an error.
    * This is load-bearing for the Ouroboros pattern: deferred FKs only
    * validate at COMMIT, so an abort before COMMIT means we can't leave
-   * orphaned half-inserted rows behind. PR #826 R3 #2.
+   * orphaned half-inserted rows behind.
    *
    * We spy on `upsertRow` to force a throw after a single write. If
    * `$transaction` doesn't roll back, dev would end up with a partial

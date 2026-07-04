@@ -249,7 +249,7 @@ export class MemoryRetriever {
    *   - Active speaker: from activePersonaGuildInfo
    *   - Other participants: from participantGuildInfo (when extended context is enabled)
    *
-   * Post-Phase-4 contract: `participant.personaId` is always either a valid
+   * Contract: `participant.personaId` is always either a valid
    * UUID (DB history or resolved extended context) or the empty-string
    * sentinel (unresolvable extended-context participant). The legacy
    * `discord:XXXX` placeholder format is stripped by bot-client's
@@ -280,7 +280,7 @@ export class MemoryRetriever {
 
     // Fetch content for each participant
     for (const participant of context.participants) {
-      // Post-Phase-4 contract: personaId is always a UUID (from DB history
+      // Contract: personaId is always a UUID (from DB history
       // or resolved extended context) OR the empty string sentinel (for
       // extended-context messages whose author couldn't be resolved to a
       // registered persona). resolveToUuid is now a UUID-or-null guard —
@@ -366,7 +366,7 @@ export class MemoryRetriever {
       // Include guild info:
       // - For active speaker: use activePersonaGuildInfo (from triggering message)
       // - For other participants: look up in participantGuildInfo (from extended context)
-      // Keys in participantGuildInfo are UUIDs post-Phase-4 (remapped by
+      // Keys in participantGuildInfo are UUIDs (remapped by
       // ExtendedContextPersonaResolver alongside the persona resolution pass).
       let guildInfo;
       if (participant.isActive) {

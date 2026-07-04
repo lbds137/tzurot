@@ -89,7 +89,7 @@ export class AuthStep implements IPipelineStep {
         );
       }
 
-      // Mistral (new — TTS Phase 1). Same shape: failure to resolve is logged
+      // Mistral (new). Same shape: failure to resolve is logged
       // and tolerated; the dispatcher will skip Mistral providers when its
       // entry is missing from the map.
       try {

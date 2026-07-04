@@ -73,7 +73,7 @@ describe('PgvectorMemoryAdapter Component Test', () => {
     const pgliteAdapter = new PrismaPGlite(pglite);
     prisma = new PrismaClient({ adapter: pgliteAdapter }) as PrismaClient;
 
-    // Seed test data. Phase 5b: user + default persona must be created
+    // Seed test data. User + default persona must be created
     // atomically via the CTE helper (users.default_persona_id is NOT NULL).
     const systemPromptId = '00000000-0000-0000-0000-000000000004';
 

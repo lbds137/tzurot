@@ -159,7 +159,7 @@ export interface DescribeImageOptions {
   /**
    * When true, a failure (fresh API error OR negative-cache hit) THROWS a typed
    * `VisionModelError` instead of returning a `[Image unavailable: …]` placeholder string.
-   * The Phase-4 fallback loop sets this so it can catch the category and decide
+   * The fallback loop sets this so it can catch the category and decide
    * terminate-vs-advance; every legacy caller omits it and keeps the string-returning
    * behavior. (A fresh invocation error already propagates as `VisionModelError` in both
    * modes — this flag only governs the negative-cache-hit path's throw-vs-return.)
@@ -280,7 +280,7 @@ async function invokeVisionModel(
   // do not initiate the fetch — the provider does, on their hardened infra —
   // so there is no SSRF execution surface on our stack; and (b) the only
   // attacker-controlled URL injection vector is via Discord embed/attachment
-  // shapes, which limits practical exploitation. Council-reviewed 2026-04-25.
+  // shapes, which limits practical exploitation. Council-reviewed.
   //
   // Behavior note: `new URL().toString()` is NOT equivalent to
   // `validateAttachmentUrl` minus the allowlist — that helper also stripped
@@ -698,7 +698,7 @@ export async function describeImage(
     { longTtlOnly: options?.skipNegativeCache === true }
   );
   if (cachedCategory !== null) {
-    // A cached failure for this (model, attachment). The Phase-4 fallback loop
+    // A cached failure for this (model, attachment). The fallback loop
     // (throwOnFailure) wants the typed error so it can advance tiers / render the terminal
     // placeholder; legacy single-model callers get the rendered placeholder string as before.
     if (options?.throwOnFailure === true) {

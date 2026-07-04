@@ -19,7 +19,7 @@
  * Phase-1 scope: this resolves the PAID vision default for the no-override case. The
  * GUEST downgrade stays downstream (AuthStep + selectVisionModel → VISION_FALLBACK_FREE);
  * guest-aware DB resolution (consulting a kind='vision' isFreeDefault row) is deferred
- * to Phase 2 alongside the vision editing surface.
+ * alongside the vision editing surface.
  *
  * Sister concerns: `LlmConfigResolver` (text model) and `TtsConfigResolver` (this is
  * templated on TtsConfigResolver, the closest analogue — separate config rows + a
@@ -267,7 +267,7 @@ export class VisionConfigResolver extends BaseConfigResolver<
    * (`freeDefaultVisionConfigId`) — the vision analogue of
    * `LlmConfigResolver.getFreeDefaultConfig`. This is the admin-set free-tier
    * fallback the worker's vision path consults before the hardcoded
-   * `VISION_FALLBACK_FREE` floor (Phase 4). Returns null if no pointer is set
+   * `VISION_FALLBACK_FREE` floor. Returns null if no pointer is set
    * (callers fall through to the hardcoded floor). `source` is 'personality' (the
    * "system default" tier), matching `getGlobalDefaultConfig`.
    */

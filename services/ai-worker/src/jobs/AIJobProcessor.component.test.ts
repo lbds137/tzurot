@@ -96,7 +96,7 @@ describe('AIJobProcessor Component Test', () => {
 
     // Seed test data (using deterministic UUIDs for consistency)
 
-    // Create test user + default persona atomically (Phase 5b NOT NULL).
+    // Create test user + default persona atomically (default_persona_id is NOT NULL).
     const testDiscordId = 'test-discord-id';
     const testUserId = generateUserUuid(testDiscordId);
     await seedUserWithPersona(prisma, {

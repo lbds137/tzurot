@@ -56,13 +56,13 @@ const KNOWN_THINKING_TAGS = [
   'reflection', // Reflection AI
   'scratchpad', // Legacy research models
   'character_analysis', // GLM 4.5 Air internal chain-of-thought
-  'understanding', // GLM 4.5 Air (observed 2026-04-22, reasoning=medium, req deb8b063)
+  'understanding', // GLM 4.5 Air (reasoning=medium, req deb8b063)
 ] as const;
 
 /**
  * GLM-4.5-Air fake-user-message-echo pattern.
  *
- * Observed 2026-04-22 (req b533e288-fb07-46c0-a5e2-a0f78883e63e): with
+ * Observed in production (req b533e288-fb07-46c0-a5e2-a0f78883e63e): with
  * `reasoning.enabled=true` and no OpenRouter-side reasoning extraction,
  * GLM-4.5-Air improvised a reasoning channel by wrapping its chain-of-thought
  * in tags that mimic our prompt-assembly format:
@@ -104,7 +104,7 @@ const KNOWN_THINKING_TAGS = [
  *
  * Architecture: this is a "model-specific pattern extractor" that runs as a
  * first pass in `extractThinkingBlocks`, before the generic `KNOWN_THINKING_TAGS`
- * loop. Council (Gemini 3.1 Pro Preview, 2026-04-22) recommended the
+ * loop. Council (Gemini 3.1 Pro Preview) recommended the
  * Chain-of-Extractors pattern: complex model-specific regexes first,
  * simple generic tag patterns second.
  *
@@ -119,7 +119,7 @@ const GLM_FAKE_USER_MESSAGE_ECHO_PATTERN =
 /**
  * Standalone `<from_id>` echo — bare variant of the 4.5-Air leak.
  *
- * Observed 2026-04-30 in production (Lilith persona, image-vision context,
+ * Observed in production (Lilith persona, image-vision context,
  * `z-ai/glm-4.7 • 📍 auto`). GLM-4.7 emitted just
  * `<from_id>UUID</from_id>` followed by the in-character response, without
  * the rest of the GLM-4.5-Air vocabulary (`<user>`, `<message>`). The
@@ -160,7 +160,7 @@ const STANDALONE_FROM_ID_ECHO_PATTERN =
 /**
  * GLM-4.7 meta-preamble pattern.
  *
- * Observed 2026-04-24 (req 9b2aa0f3-d659-4f00-95f4-36da3a9b40f3): with
+ * Observed in production (req 9b2aa0f3-d659-4f00-95f4-36da3a9b40f3): with
  * `reasoning.enabled=true` and `showThinking=false`, GLM-4.7 emitted a scene-
  * setting preamble before the in-character response:
  *
