@@ -4,9 +4,17 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "noEmit": true,
-    "outDir": "dist"
+    "outDir": "dist",
+    "types": ["node"]
   },
-  "references": [{ "path": "../packages/common-types" }, { "path": "../packages/embeddings" }],
+  "references": [
+    {
+      "path": "../packages/common-types"
+    },
+    {
+      "path": "../packages/embeddings"
+    }
+  ],
   "include": [
     "src/**/*.ts",
     "testing/**/*.ts",

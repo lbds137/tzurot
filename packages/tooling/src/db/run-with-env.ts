@@ -5,7 +5,7 @@
  * This is the implementation for `pnpm ops run --env <env> <command>`.
  *
  * Usage:
- *   pnpm ops run --env dev tsx scripts/src/db/backfill-local-embeddings.ts
+ *   pnpm ops run --env dev tsx scripts/<your-db-script>.ts
  *   pnpm ops run --env prod npx prisma studio
  *   pnpm with-env prod npx prisma studio  (shortcut)
  */
@@ -36,9 +36,7 @@ export async function runWithEnv(
   if (commandParts.length === 0) {
     console.error(chalk.red('❌ No command specified'));
     console.error(chalk.dim('Usage: pnpm ops run --env dev <command> [args...]'));
-    console.error(
-      chalk.dim('Example: pnpm ops run --env dev tsx scripts/src/db/backfill-local-embeddings.ts')
-    );
+    console.error(chalk.dim('Example: pnpm ops run --env dev tsx scripts/<your-db-script>.ts'));
     process.exit(1);
   }
 
