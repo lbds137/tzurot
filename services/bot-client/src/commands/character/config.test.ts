@@ -4,6 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { characterSeedFields, getCharacterDashboardConfig } from './config.js';
+import { adminSection } from './sections.js';
 import type { CharacterData } from './characterTypes.js';
 import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 import { SectionStatus, type DashboardContext } from '../../utils/dashboard/index.js';
@@ -95,6 +96,21 @@ describe('Character Dashboard Configuration', () => {
     it('should enforce SHORT_PARAGRAPH_MAX_LENGTH for personalityTraits', () => {
       const traits = identitySection.fields.find(f => f.id === 'personalityTraits')!;
       expect(traits.maxLength).toBe(DISCORD_LIMITS.SHORT_PARAGRAPH_MAX_LENGTH);
+    });
+
+    it('should enforce SHORT_PARAGRAPH_MAX_LENGTH for personalityTone (locks the 255→1000 fix)', () => {
+      const tone = identitySection.fields.find(f => f.id === 'personalityTone')!;
+      expect(tone.maxLength).toBe(DISCORD_LIMITS.SHORT_PARAGRAPH_MAX_LENGTH);
+    });
+
+    it('should cap the seed-modal slug at SLUG_MAX_LENGTH (matches slugSchema)', () => {
+      const seedSlug = characterSeedFields.find(f => f.id === 'slug')!;
+      expect(seedSlug.maxLength).toBe(DISCORD_LIMITS.SLUG_MAX_LENGTH);
+    });
+
+    it('should cap the admin edit-modal slug at SLUG_MAX_LENGTH (matches slugSchema)', () => {
+      const adminSlug = adminSection.fields.find(f => f.id === 'slug')!;
+      expect(adminSlug.maxLength).toBe(DISCORD_LIMITS.SLUG_MAX_LENGTH);
     });
 
     it('should return COMPLETE when name and traits are set', () => {
