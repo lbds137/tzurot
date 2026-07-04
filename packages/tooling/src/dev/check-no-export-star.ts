@@ -22,6 +22,10 @@ const ROOTS = ['packages', 'services'] as const;
 const SKIP_DIRS = new Set(['node_modules', 'dist', '.turbo', 'coverage']);
 /** Files under these path segments aren't part of the dead-export surface. */
 const EXEMPT_PATH = /\/(generated|_generated|__mocks__)\/|\/test\/(mocks|fixtures)\//;
+// Matches a wildcard re-export `export * from '…'` — the shape that masks knip
+// (every re-exported name becomes untraceable). `export * as ns from '…'` is
+// deliberately NOT matched: it binds a single named `ns` export, which knip
+// traces like any named export, so it doesn't mask anything.
 const STAR_EXPORT = /^\s*export\s+\*\s+from\s+['"]/;
 
 export interface StarExportViolation {
@@ -65,19 +69,33 @@ function walk(dir: string, out: string[]): void {
   }
 }
 
-/** Find every `export * from '…'` in production source across the monorepo. */
+/**
+ * Find every `export * from '…'` under each package's `src/` across the
+ * monorepo. Scoped to `<pkg>/src` (not the whole package dir) to match knip's
+ * own `src/**` audit surface — an `export *` outside src/ (a config or scripts
+ * file) isn't traced by knip, so it can't mask anything knip would have caught.
+ */
 export function findStarExports(rootDir: string): StarExportViolation[] {
   const violations: StarExportViolation[] = [];
   for (const root of ROOTS) {
-    const files: string[] = [];
-    walk(join(rootDir, root), files);
-    for (const file of files) {
-      const lines = readFileSync(file, 'utf-8').split('\n');
-      lines.forEach((line, i) => {
-        if (STAR_EXPORT.test(line)) {
-          violations.push({ filePath: file, line: i + 1, text: line.trim() });
-        }
-      });
+    const rootPath = join(rootDir, root);
+    let packages: string[];
+    try {
+      packages = readdirSync(rootPath);
+    } catch {
+      continue; // root doesn't exist
+    }
+    for (const pkg of packages) {
+      const files: string[] = [];
+      walk(join(rootPath, pkg, 'src'), files);
+      for (const file of files) {
+        const lines = readFileSync(file, 'utf-8').split('\n');
+        lines.forEach((line, i) => {
+          if (STAR_EXPORT.test(line)) {
+            violations.push({ filePath: file, line: i + 1, text: line.trim() });
+          }
+        });
+      }
     }
   }
   return violations;
