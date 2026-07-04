@@ -8,43 +8,77 @@ import { relative } from 'node:path';
 
 import type { CAC } from 'cac';
 
+import type { FlatSuppression } from '../xray/formatters/suppressions.js';
+
+/** Plain-text output + pass/fail decision for the suppression gate. */
+export interface SuppressionCheckResult {
+  failed: boolean;
+  /** Per-violation lines (empty on success). */
+  violations: string[];
+  /** The trailing summary/success line (colorized by the caller). */
+  summary: string;
+}
+
 /**
- * The `--check` gate: analyze the target, then fail non-zero if any lint
- * suppression lacks a `-- justification`. Extracted from the command action so
- * the action stays a thin dispatcher (keeps cognitive complexity in bounds).
- * Sets `process.exitCode = 1` on violations rather than throwing — mirrors the
- * validation-error style already used in the action.
+ * Pure gate evaluation — no IO — so the `path:line kind` format, the
+ * singular/plural summary, the trend-count on success, and the pass/fail
+ * decision are unit-testable without mocking process/console (mirrors how
+ * `cpd.ts` extracts its threshold logic).
  */
+export function evaluateSuppressionCheck(
+  unjustified: FlatSuppression[],
+  totalCount: number,
+  rootDir: string
+): SuppressionCheckResult {
+  if (unjustified.length === 0) {
+    // Preserve the CI trend signal the old bash step printed on every run.
+    return {
+      failed: false,
+      violations: [],
+      summary: `✓ No unjustified lint suppressions (${totalCount} total, all justified)`,
+    };
+  }
+  const violations = unjustified.map(
+    ({ suppression, filePath }) =>
+      `${relative(rootDir, filePath)}:${suppression.line}  ${suppression.kind}`
+  );
+  const plural = unjustified.length === 1 ? '' : 's';
+  return {
+    failed: true,
+    violations,
+    summary:
+      `\n❌ ${unjustified.length} unjustified lint suppression${plural} found. ` +
+      'Every eslint-disable and ts-expect-error must have a -- justification comment ' +
+      '(see .claude/rules/02-code-standards.md).',
+  };
+}
+
 async function runSuppressionsCheck(packages: string[], includeTests?: boolean): Promise<void> {
   const rootDir = process.cwd();
-  const [{ analyzeMonorepo }, { collectUnjustifiedSuppressions }, { default: chalk }] =
-    await Promise.all([
-      import('../xray/analyzer.js'),
-      import('../xray/formatters/suppressions.js'),
-      import('chalk'),
-    ]);
+  const [{ analyzeMonorepo }, suppressions, { default: chalk }] = await Promise.all([
+    import('../xray/analyzer.js'),
+    import('../xray/formatters/suppressions.js'),
+    import('chalk'),
+  ]);
 
   const report = analyzeMonorepo(rootDir, {
     packages: packages.length > 0 ? packages : undefined,
     includeTests,
   });
-  const unjustified = collectUnjustifiedSuppressions(report);
+  const unjustified = suppressions.collectUnjustifiedSuppressions(report);
+  const totalCount = suppressions.flattenSuppressions(report).length;
+  const { failed, violations, summary } = evaluateSuppressionCheck(
+    unjustified,
+    totalCount,
+    rootDir
+  );
 
-  if (unjustified.length === 0) {
-    console.log(chalk.green('✓ No unjustified lint suppressions'));
+  if (!failed) {
+    console.log(chalk.green(summary));
     return;
   }
-
-  for (const { suppression, filePath } of unjustified) {
-    console.error(`${relative(rootDir, filePath)}:${suppression.line}  ${suppression.kind}`);
-  }
-  console.error(
-    chalk.red(
-      `\n❌ ${unjustified.length} unjustified lint suppression${unjustified.length === 1 ? '' : 's'} found. ` +
-        'Every eslint-disable and ts-expect-error must have a -- justification comment ' +
-        '(see .claude/rules/02-code-standards.md).'
-    )
-  );
+  for (const line of violations) console.error(line);
+  console.error(chalk.red(summary));
   process.exitCode = 1;
 }
 
