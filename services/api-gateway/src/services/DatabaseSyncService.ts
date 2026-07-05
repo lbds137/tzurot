@@ -49,10 +49,6 @@ import { SYNC_CONFIG, SYNC_TABLE_ORDER, type TableSyncConfig } from './sync/conf
 import { checkSchemaVersions, validateSyncConfig } from './sync/utils/syncValidation.js';
 import { loadTombstoneIds, deleteMessagesWithTombstones } from './sync/utils/tombstoneUtils.js';
 import {
-  prepareLlmConfigSingletonFlags,
-  finalizeLlmConfigSingletonFlags,
-} from './sync/utils/llmConfigSingletons.js';
-import {
   fetchAllRows,
   resolveMemoriesSyncColumns,
   buildRowMap,
@@ -166,14 +162,6 @@ export class DatabaseSyncService {
         const config = SYNC_CONFIG[tableName];
         logger.info({ table: tableName }, 'Scanning table');
 
-        if (tableName === 'llm_configs' && !options.dryRun) {
-          await prepareLlmConfigSingletonFlags(this.devClient, this.prodClient);
-        }
-        // tts_configs needs no singleton preparation: TTS default-ness lives
-        // on the AdminSettings pointers, and admin_settings is excluded from
-        // sync entirely (env-specific) — each env keeps its own defaults, so
-        // there is no per-row flag contention to reconcile.
-
         if (tableName === 'conversation_history') {
           const { devDeleted, prodDeleted } = await deleteMessagesWithTombstones(
             this.devClient,
@@ -211,12 +199,6 @@ export class DatabaseSyncService {
       if (!options.dryRun) {
         await this.flushWrites(this.devClient, devBoundWrites, 'dev');
         await this.flushWrites(this.prodClient, prodBoundWrites, 'prod');
-
-        // Singleton-flag finalization runs OUTSIDE the sync transactions —
-        // it needs to see the post-commit state of llm_configs to decide
-        // which row wins the is_default / is_free_default flag in each env.
-        // (TTS has no equivalent: its defaults are AdminSettings pointers.)
-        await finalizeLlmConfigSingletonFlags(this.devClient, this.prodClient);
       }
 
       logger.info({ stats }, 'Sync complete');

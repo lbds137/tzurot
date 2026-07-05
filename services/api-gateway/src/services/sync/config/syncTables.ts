@@ -52,7 +52,7 @@ export interface TableSyncConfig {
    * These columns are not copied between environments, allowing dev and prod to have
    * different values. Useful for environment-specific settings like default flags.
    *
-   * Example: llm_configs.is_default should be different in dev vs prod
+   * Example: tts_configs.is_default should be different in dev vs prod
    */
   excludeColumns?: string[];
   // NOTE: `deferredFkColumns` was removed in the Ouroboros Insert refactor.
@@ -138,8 +138,6 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     updatedAt: 'updated_at',
     uuidColumns: ['id', 'owner_id'],
     timestampColumns: ['created_at', 'updated_at'],
-    // Exclude singleton flags from sync - dev and prod should have independent defaults
-    excludeColumns: ['is_default', 'is_free_default'],
   },
   tts_configs: {
     pk: 'id',
@@ -147,12 +145,12 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     updatedAt: 'updated_at',
     uuidColumns: ['id', 'owner_id'],
     timestampColumns: ['created_at', 'updated_at'],
-    // The stale is_default/is_free_default columns (pending-DROP) stay
-    // excluded so the partial unique index tts_configs_free_default_unique
-    // can never collide during sync. TTS default-ness lives on the
-    // AdminSettings pointers, and admin_settings is excluded from sync
-    // (env-specific) — so no singleton pre-resolution is needed (unlike
-    // llm_configs' llmConfigSingletons).
+    // The stale is_default/is_free_default columns (pending their own DROP,
+    // mirroring the llm_configs retirement) stay excluded so the partial
+    // unique index tts_configs_free_default_unique can never collide during
+    // sync. TTS default-ness lives on the AdminSettings pointers, and
+    // admin_settings is excluded from sync (env-specific) — so no singleton
+    // pre-resolution is needed.
     excludeColumns: ['is_default', 'is_free_default'],
   },
   personalities: {

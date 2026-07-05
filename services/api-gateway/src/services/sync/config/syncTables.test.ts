@@ -280,13 +280,12 @@ describe('syncTables Configuration', () => {
   });
 
   describe('Excluded columns (not synced between environments)', () => {
-    it('should exclude is_default and is_free_default from llm_configs sync', () => {
-      // These singleton flags should be different in dev vs prod
-      // Each environment has its own system default preset
+    it('has no excluded columns on llm_configs (legacy default flags dropped)', () => {
+      // The is_default/is_free_default columns were retired — default-ness
+      // lives on the AdminSettings pointers, which are env-specific and
+      // excluded from sync at the table level.
       const llmConfigsConfig = SYNC_CONFIG.llm_configs;
-      expect(llmConfigsConfig.excludeColumns).toBeDefined();
-      expect(llmConfigsConfig.excludeColumns).toContain('is_default');
-      expect(llmConfigsConfig.excludeColumns).toContain('is_free_default');
+      expect(llmConfigsConfig.excludeColumns).toBeUndefined();
     });
 
     it('should exclude is_default and is_free_default from tts_configs sync', () => {

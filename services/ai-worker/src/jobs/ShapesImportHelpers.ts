@@ -126,7 +126,7 @@ async function upsertLlmConfig(
       ownerId,
       isGlobal: false,
       // isDefault omitted — schema @default(false) fills it. Default-ness lives
-      // on the AdminSettings pointers (S3); this column is dead pending its DROP.
+      // on the AdminSettings pointers (S3); the column was dropped in the retirement.
     },
     update: {
       model: llm.model,
