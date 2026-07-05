@@ -27,3 +27,7 @@ _Beyond text: voice and images. Gated on agentic scaffolding (media generation =
 
 - **Image Generation** — artifact Phase 2 (`generate_image` local tool, tool-only surface, caps + in-voice moderation recovery)
 - **Video Generation** - same tool-registration shape as image generation once the loop exists
+
+#### Vision as a tool call (post-agentic-Phase-1)
+
+Ingested 2026-07-05 (notes cleanup): once the agentic tool loop runs, image vision should become a `describe_image` tool the model invokes on demand, rather than an unconditional preprocessing step — saves vision calls on messages where the image is decorative, and lets the model ask for re-description with a focus ("what does the sign say?"). Slots into the agentic design's tool roadmap after v1's recall/web/image-gen trio.
