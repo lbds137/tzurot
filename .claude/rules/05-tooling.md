@@ -165,7 +165,7 @@ EOF
 **Types:** `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `perf`, `debug`
 **Scopes:** `ai-worker`, `api-gateway`, `bot-client`, `common-types`, `ci`, `deps`
 
-**Commitlint gotchas** (the hook catches these, but every trip costs a retry): the subject must start **lowercase** (`subject-case`), and the scope must be in the configured enum **or omitted entirely** — an unknown scope is rejected, no scope is fine.
+**Commitlint gotchas** (the hook catches these, but every trip costs a retry): the **full header must be ≤100 chars** (`header-max-length` — the most-tripped rule in practice; count before writing a long subject), the subject must start **lowercase** (`subject-case`), and the scope must be in the configured enum **or omitted entirely** — an unknown scope is rejected, no scope is fine.
 
 The list above is the project's primary set. `commitlint.config.cjs` also accepts the rest of the standard Conventional Commits types — `build`, `ci`, `revert`, `style` — and the `.husky/pre-push` branch-name allowlist permits all of them as branch prefixes too, so a valid commit type is always a valid branch prefix. Reach for the standard ones when they genuinely fit (`build:` for bundler/Docker changes, `revert:` for a clean revert); otherwise the primary set covers most work.
 
