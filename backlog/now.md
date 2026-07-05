@@ -33,9 +33,7 @@ _beta.146 SHIPPED 2026-07-03 (11 PRs #1456–#1466): 2 prod provider-failure fix
 
 _Small tasks that can be done between major features. Good for momentum._
 
-- 🐛 `[FIX]` ~~**Settings-dashboard handler Map leaks closures on native dismiss**~~ ✅ fix in flight (fix/settings-session-handler-leak): the Map was write-only dead weight — handlers are rebuilt per-interaction; Map + `getUpdateHandler` + dead params deleted outright. Unblocks design-system spec D18 (Close-button removal). Remove at merge.
-
-- ✨ `[FEAT]` **Codify the boulder-design process as a skill + re-sweep the mined corpus for OTHER repeatable-skill candidates** — User 2026-07-05 ("we should definitely codify as a skill… revisit that [mined-corpus summary] and identify any other repeatable skills"). Two parts: (a) write `tzurot-design-boulder` SKILL.md distilling the 4-session process that just worked (ground via parallel agents incl. first-party fact-verification of ALL provider/library claims → draft artifact with decision table → full-trio council per the council skill roster → owner decision pass → land with theme/backlog wiring + absorption map); (b) re-read `~/.claude/projects/-home-deck-Projects-tzurot/mined-corpus/` summary with a NEW-skill lens (the 2026-07-03 sweep was improvement-focused on existing rules/skills, not skill-gap discovery) and list candidates. Skills are review-gated (.claude/skills → PR). Surfaced 2026-07-05.
+_(empty)_
 
 ### 📥 Untriaged (max 10)
 
