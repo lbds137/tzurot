@@ -235,6 +235,82 @@ describe('PgvectorMemoryAdapter Component Test', () => {
       expect(results.length).toBeLessThanOrEqual(3);
     });
 
+    it('excludes soft-deleted memories from retrieval (visibility filter)', async () => {
+      const baseMetadata: MemoryMetadata = {
+        personaId: testPersonaId,
+        personalityId: testPersonalityId,
+        createdAt: Date.now(),
+        canonScope: 'personal',
+        summaryType: 'conversation',
+      };
+
+      await adapter.addMemory({
+        text: '{user}: remember the dragon heist\n{assistant}: The dragon heist was legendary!',
+        metadata: baseMetadata,
+      });
+      await adapter.addMemory({
+        text: '{user}: remember the tavern brawl\n{assistant}: That tavern brawl got wild.',
+        metadata: baseMetadata,
+      });
+
+      // Soft-delete one memory the way every deletion path in the app does.
+      await prisma.$executeRaw`
+        UPDATE memories SET visibility = 'deleted'
+        WHERE content LIKE '%dragon heist%'
+      `;
+
+      const results = await adapter.queryMemories('remember the dragon heist tavern', {
+        personaId: testPersonaId,
+        personalityId: testPersonalityId,
+        limit: 10,
+        scoreThreshold: 0.1,
+        includeSiblings: false,
+      });
+
+      expect(results.length).toBeGreaterThan(0);
+      for (const doc of results) {
+        expect(doc.pageContent).not.toContain('dragon heist');
+      }
+    });
+
+    it('excludes soft-deleted sibling chunks from expansion', async () => {
+      const baseMetadata: MemoryMetadata = {
+        personaId: testPersonaId,
+        personalityId: testPersonalityId,
+        createdAt: Date.now(),
+        canonScope: 'personal',
+        summaryType: 'conversation',
+      };
+
+      // Force chunking with a long text (chunker splits over the token limit),
+      // then soft-delete one chunk and verify expansion skips it.
+      const longText = `{user}: chronicle of the long voyage\n{assistant}: ${'The ship sailed onward through storm and calm. '.repeat(1600)}`;
+      await adapter.addMemory({ text: longText, metadata: baseMetadata });
+
+      const chunkRows = await prisma.$queryRaw<{ id: string }[]>`
+        SELECT id FROM memories WHERE chunk_group_id IS NOT NULL ORDER BY chunk_index ASC
+      `;
+      // Hard assertion: the fixture (~75k chars vs the 7500-token chunk limit)
+      // must actually chunk. If a threshold change ever stops it chunking,
+      // fail loudly rather than silently skip the sibling-exclusion path.
+      expect(chunkRows.length).toBeGreaterThan(1);
+
+      await prisma.$executeRaw`
+        UPDATE memories SET visibility = 'deleted' WHERE id = ${chunkRows[0].id}::uuid
+      `;
+
+      const results = await adapter.queryMemories('chronicle of the long voyage', {
+        personaId: testPersonaId,
+        personalityId: testPersonalityId,
+        limit: 10,
+        scoreThreshold: 0.05,
+        includeSiblings: true,
+      });
+
+      const returnedIds = results.map(r => r.metadata?.id);
+      expect(returnedIds).not.toContain(chunkRows[0].id);
+    });
+
     it('should filter by personaId', async () => {
       // Create a second persona using parameterized query
       const otherPersonaId = '00000000-0000-0000-0000-000000000099';

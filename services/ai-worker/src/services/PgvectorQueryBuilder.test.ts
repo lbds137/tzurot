@@ -8,11 +8,13 @@ import {
 
 describe('PgvectorQueryBuilder', () => {
   describe('buildWhereConditions', () => {
-    it('always includes persona_id condition', () => {
+    it('always includes persona_id and visibility conditions', () => {
       const conditions = buildWhereConditions({ personaId: 'persona-123' });
 
-      expect(conditions.length).toBe(1);
+      expect(conditions.length).toBe(2);
       expect(conditions[0].strings[0]).toContain('persona_id');
+      // Soft-deleted/hidden/archived memories must never reach RAG retrieval.
+      expect(conditions[1].strings.join('')).toContain("visibility = 'normal'");
     });
 
     it('adds personality_id condition when provided', () => {
@@ -21,7 +23,7 @@ describe('PgvectorQueryBuilder', () => {
         personalityId: 'personality-456',
       });
 
-      expect(conditions.length).toBe(2);
+      expect(conditions.length).toBe(3);
     });
 
     it('adds excludeNewerThan condition when provided', () => {
@@ -30,7 +32,7 @@ describe('PgvectorQueryBuilder', () => {
         excludeNewerThan: 1704067200000, // 2024-01-01
       });
 
-      expect(conditions.length).toBe(2);
+      expect(conditions.length).toBe(3);
     });
 
     it('adds excludeIds condition when provided', () => {
@@ -39,7 +41,7 @@ describe('PgvectorQueryBuilder', () => {
         excludeIds: ['id1', 'id2'],
       });
 
-      expect(conditions.length).toBe(2);
+      expect(conditions.length).toBe(3);
     });
 
     it('adds channelIds condition when provided', () => {
@@ -48,7 +50,7 @@ describe('PgvectorQueryBuilder', () => {
         channelIds: ['channel-1', 'channel-2'],
       });
 
-      expect(conditions.length).toBe(2);
+      expect(conditions.length).toBe(3);
     });
 
     it('combines all conditions', () => {
@@ -60,7 +62,7 @@ describe('PgvectorQueryBuilder', () => {
         channelIds: ['channel-1'],
       });
 
-      expect(conditions.length).toBe(5);
+      expect(conditions.length).toBe(6);
     });
 
     it('ignores invalid personalityId', () => {
@@ -69,7 +71,7 @@ describe('PgvectorQueryBuilder', () => {
         personalityId: '',
       });
 
-      expect(conditions.length).toBe(1);
+      expect(conditions.length).toBe(2);
     });
 
     it('ignores zero excludeNewerThan', () => {
@@ -78,7 +80,7 @@ describe('PgvectorQueryBuilder', () => {
         excludeNewerThan: 0,
       });
 
-      expect(conditions.length).toBe(1);
+      expect(conditions.length).toBe(2);
     });
 
     it('ignores empty excludeIds array', () => {
@@ -87,7 +89,7 @@ describe('PgvectorQueryBuilder', () => {
         excludeIds: [],
       });
 
-      expect(conditions.length).toBe(1);
+      expect(conditions.length).toBe(2);
     });
 
     it('ignores empty channelIds array', () => {
@@ -96,7 +98,7 @@ describe('PgvectorQueryBuilder', () => {
         channelIds: [],
       });
 
-      expect(conditions.length).toBe(1);
+      expect(conditions.length).toBe(2);
     });
   });
 
