@@ -2,7 +2,12 @@
 
 _Focus: lift the bot's UI + messaging vocabulary to the same standardized, declarative level the routing layer already has — encode UX **intent** separately from its Discord expression, so the experience is consistent **by construction** (not reconciled by periodic audits) and portable to other platforms via adapters._
 
-**Design artifact (ACCEPTED 2026-07-04, boulder #1 session)**: [`docs/proposals/backlog/platform-portable-ux-design.md`](../../../docs/proposals/backlog/platform-portable-ux-design.md) — grounded on a 3-agent code sweep, council-passed (GLM 5.2 + Kimi K2.7), all open calls decided by owner. **The artifact governs**: architecture (§4), phasing (§5 — supersedes the sketch that used to live here), and decisions (§6, incl. multi-tag all-failed → each errored persona replies its own in-character error line). Implementation phases pull from it.
+**Design artifacts (both ACCEPTED 2026-07-04, boulder #1 session)** — two docs, one system:
+
+1. [`docs/proposals/backlog/ux-design-system-spec.md`](../../../docs/proposals/backlog/ux-design-system-spec.md) — **the WHAT** (normative design system): tokens (entity emojis, badge glossary + collision rule, colors, list grammar, sentinels/timestamps), components (browse/detail/dashboard/modals/outcome/pending states, expand mechanism, button vocabulary), command grammar (verb table, option conventions, IA moves incl. `/settings preset`→`/preset override`, `/deny` modal-form redesign), discoverability (picker hiding, description style, context-menu Inspect), `/inspect` + owner-surface dispositions. Full-trio council pass (GLM 5.2 · Kimi K2.7 · Qwen 3.7 Max); all 21 decisions adopted.
+2. [`docs/proposals/backlog/platform-portable-ux-design.md`](../../../docs/proposals/backlog/platform-portable-ux-design.md) — **the HOW** (machinery): message catalog + outcome-honesty classifier, builder consolidation, enforcement (ESLint rules, ratchet, depcruise boundary), phasing. The spec's §9 maps every normative decision onto these phases.
+
+Implementation phases pull from the spec via the machinery doc. Key owner decisions on record: multi-tag all-failed → each errored persona replies its own in-character error line; owner/admin surfaces are first-class UX; emoji criterion = obvious to the lowest common denominator.
 
 **Consolidates / supersedes**: the two `cold/ideas.md` entries — "Platform Abstraction Layer — decouple UX from Discord" and "Slash command architecture redesign `[TRIAGE-NEEDED]`" — plus the 2025-12 proposal `SLASH_COMMAND_ARCHITECTURE.md` (triaged shipped/superseded/dead in the artifact's §2, tier table mined into §4.1; file deleted 2026-07-04, git preserves it). Promoted from idea → theme 2026-06-28 after a 5-dimension UX audit gave it a concrete requirements base.
 
