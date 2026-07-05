@@ -2,7 +2,9 @@
 
 _Focus: lift the bot's UI + messaging vocabulary to the same standardized, declarative level the routing layer already has — encode UX **intent** separately from its Discord expression, so the experience is consistent **by construction** (not reconciled by periodic audits) and portable to other platforms via adapters._
 
-**Consolidates / supersedes**: the two `cold/ideas.md` entries — "Platform Abstraction Layer — decouple UX from Discord" and "Slash command architecture redesign `[TRIAGE-NEEDED]`" — plus the 2025-12 proposal [`docs/proposals/backlog/SLASH_COMMAND_ARCHITECTURE.md`](../../../docs/proposals/backlog/SLASH_COMMAND_ARCHITECTURE.md) (mine its ADRs + tier system; triage what already shipped). Promoted from idea → theme 2026-06-28 after a 5-dimension UX audit gave it a concrete requirements base.
+**Design artifact (ACCEPTED 2026-07-04, boulder #1 session)**: [`docs/proposals/backlog/platform-portable-ux-design.md`](../../../docs/proposals/backlog/platform-portable-ux-design.md) — grounded on a 3-agent code sweep, council-passed (GLM 5.2 + Kimi K2.7), all open calls decided by owner. **The artifact governs**: architecture (§4), phasing (§5 — supersedes the sketch that used to live here), and decisions (§6, incl. multi-tag all-failed → each errored persona replies its own in-character error line). Implementation phases pull from it.
+
+**Consolidates / supersedes**: the two `cold/ideas.md` entries — "Platform Abstraction Layer — decouple UX from Discord" and "Slash command architecture redesign `[TRIAGE-NEEDED]`" — plus the 2025-12 proposal `SLASH_COMMAND_ARCHITECTURE.md` (triaged shipped/superseded/dead in the artifact's §2, tier table mined into §4.1; file deleted 2026-07-04, git preserves it). Promoted from idea → theme 2026-06-28 after a 5-dimension UX audit gave it a concrete requirements base.
 
 **Why now (user framing, 2026-06-28)**: "we have inconsistent experiences in places and it bothers me, and periodic audits aren't enough to reconcile. We need bigger building blocks and standard ways of creating slash command UX… an independent layer representing our UX that could easily be ported to other platforms." Key insight from the prior 2026-04-13 investigation: **the design-system problem and the portability problem are the same problem** — a DSL that eliminates per-command boilerplate must encode the UX intent above Discord.js, which is exactly what a cross-platform adapter layer needs.
 
@@ -52,18 +54,8 @@ The routing "DSL nucleus" is solid; the **UI + messaging vocabulary is the hapha
 
 Both the in-character directive and platform portability resolve at the same seam: if commands emit **intent** (a message intent, a component intent) instead of raw Discord.js trees + literal strings, then "how Discord renders it," "how the persona voices it," and "how a web UI / Revolt adapter renders it" all become pluggable renderers. The ~40–50% irreducible Discord.js surface IS the adapter boundary. So the real open call isn't "is CPD low enough" — it's "how thin an abstraction, and how seriously do we pursue portability now."
 
-#### Phase sketch (refine via council + plan)
+#### Phasing + design calls — RESOLVED, see the artifact
 
-- **Phase 0 — triage + design call**: reconcile the 2025-12 proposal against shipped surface; pick abstraction depth (thin builders vs codegen vs schema-compiler — the investigation's core question).
-- **Phase 1 — message catalog + in-character delivery**: highest user-visible value; discharges the standing in-character-errors directive.
-- **Phase 2 — modal factory + detail-card builder adoption**: biggest dedup.
-- **Phase 3 — vocabulary constants + verb taxonomy + enforcement lint**: kills drift structurally.
-- **Phase 4 (aspirational) — platform-adapter seam**: prove the intent→renderer split with a second (even toy) adapter.
+Phase 0 (triage + design) completed 2026-07-04. The phase plan now lives in the artifact's §5 (1: catalog + voice · 2: components · 3: vocabulary + enforcement · 4: adapter, trigger-gated); every open design call is decided in its §6. Do not re-derive here — plan-mode for each phase starts from the artifact.
 
-#### Open design calls (council agenda)
-
-- Abstraction depth: thin builders vs codegen vs schema-compiler (over-engineering risk is real — crystallize patterns the existing utils already validated; don't invent speculative abstractions).
-- How far to push portability now vs. design-for-it-later.
-- In-character messaging mechanism: per-persona templated lines vs LLM-generated vs tiered (latency/cost/failure-during-failure).
-
-_Audit detail: 5 Explore-agent reports (2026-06-28) — command-structure/options, components, flows, messaging, framework-adoption — distilled above. Re-run per-dimension if deeper evidence is needed before plan-mode._
+_Audit detail: 5 Explore-agent reports (2026-06-28) distilled above; re-grounded 2026-07-04 by a 3-agent code sweep (deltas: 9 modal sites not 8; 3 button-order violations incl. one in shared `destructiveConfirmation.ts`; generation-path errors already in-character via webhook — the "100% system-voiced" audit row was wrong for that path; three parallel custom-ID conventions)._

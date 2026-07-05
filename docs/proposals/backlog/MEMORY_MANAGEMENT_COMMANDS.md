@@ -693,5 +693,4 @@ Download all memories as JSON/CSV:
 
 ## References
 
-- [ADR-003: Context Epochs](./SLASH_COMMAND_ARCHITECTURE.md#adr-003-context-epochs-for-history-reset)
-- [ADR-005: Memory Management](./SLASH_COMMAND_ARCHITECTURE.md#adr-005-memory-management-via-semantic-search)
+- ADR-003 (context epochs) and ADR-005 (memory via semantic search) both **shipped**: `UserPersonaHistoryConfig.lastContextReset`/`previousContextReset` in `prisma/schema.prisma`, and the `/memory search|purge|…` command family. Their originating proposal (`SLASH_COMMAND_ARCHITECTURE.md`, 2025-12) was deleted 2026-07-04 — shipped/superseded/dead triage lives in [`platform-portable-ux-design.md`](./platform-portable-ux-design.md) §2.
