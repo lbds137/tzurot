@@ -183,7 +183,17 @@ export const PersonalityCharacterFieldsSchema = z.object({
 /**
  * Slug validation pattern: lowercase letters, numbers, hyphens.
  * Must start with a letter, 3-50 characters.
+ *
+ * Exported as the single source for client-side pre-validation (character
+ * create modal, JSON import) — a client regex looser than this one lets
+ * input through that the gateway then rejects with a raw 400.
  */
+export const SLUG_PATTERN = /^[a-z][a-z0-9-]*$/;
+
+/** Friendly requirements line paired with SLUG_PATTERN for client error messages. */
+export const SLUG_REQUIREMENTS_MESSAGE =
+  'Slugs must start with a letter and contain only lowercase letters, numbers, and hyphens.';
+
 const slugSchema = z
   .string()
   .min(3, 'slug must be at least 3 characters')
@@ -192,7 +202,7 @@ const slugSchema = z
     `slug must be ${DISCORD_LIMITS.SLUG_MAX_LENGTH} characters or less`
   )
   .regex(
-    /^[a-z][a-z0-9-]*$/,
+    SLUG_PATTERN,
     'slug must start with a letter and contain only lowercase letters, numbers, and hyphens'
   );
 

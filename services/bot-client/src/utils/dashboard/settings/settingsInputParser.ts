@@ -3,11 +3,12 @@
  *
  * Pure coercion helpers shared by the settings dashboard modal handler. They
  * translate raw text-input strings into the handler's value format
- * (null = inherit/auto, -1 = off sentinel, number = concrete value) or an error
+ * (null = inherit/auto, CONFIG_WIRE_OFF = off sentinel, number = concrete value) or an error
  * message. Extracted from SettingsDashboardHandler to keep that file under the
  * max-lines limit and to make the parsing rules independently testable.
  */
 
+import { CONFIG_WIRE_OFF } from '@tzurot/common-types/schemas/api/configOverrides';
 import { parseDurationInput } from './SettingsModalFactory.js';
 
 /** Result of parsing a modal text input: a value (number | null) or an error. */
@@ -58,8 +59,9 @@ export function parseDurationInputValue(input: string): ParsedSettingValue {
     case 'auto':
       return { value: null };
     case 'off':
-      // -1 is a sentinel for "off" - the handler interprets this
-      return { value: -1 };
+      // The canonical wire OFF sentinel — persisted by the gateway as stored
+      // null (explicit terminal OFF); see CONFIG_WIRE_OFF's contract.
+      return { value: CONFIG_WIRE_OFF };
     case 'value':
       return { value: result.seconds };
     case 'error':

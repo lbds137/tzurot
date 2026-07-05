@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { normalizeSlugForUser } from './slugUtils.js';
+import { normalizeSlugForUser, suggestSlugExample } from './slugUtils.js';
 
 // Mock ownerMiddleware for isBotOwner control
 vi.mock('./ownerMiddleware.js', () => ({
@@ -161,5 +161,34 @@ describe('normalizeSlugForUser', () => {
       expect(result.length).toBeLessThanOrEqual(50);
       expect(result).toMatch(/^[a-z][a-z0-9-]+$/);
     });
+  });
+});
+
+describe('fitSlugToMaxLength all-hyphen fallback (via normalizeSlugForUser)', () => {
+  it('substitutes a letter when truncation strips an all-hyphen base to empty', () => {
+    // Reachable in production via config-name promotion and shapes import,
+    // which are NOT leading-letter-gated like character create/import.
+    const result = normalizeSlugForUser('-'.repeat(60), 'user-456', 'someuser');
+    expect(result).toMatch(/^[a-z]/);
+    expect(result.length).toBeLessThanOrEqual(50);
+  });
+});
+
+describe('suggestSlugExample', () => {
+  it('cleans a display name into a valid leading-letter slug', () => {
+    expect(suggestSlugExample('My Cool Character!')).toBe('my-cool-character');
+  });
+
+  it('trims leading digits/hyphens so the suggestion itself passes validation', () => {
+    expect(suggestSlugExample('123 Robot')).toBe('robot');
+  });
+
+  it('falls back when nothing usable remains', () => {
+    expect(suggestSlugExample('!!!')).toBe('my-character');
+    expect(suggestSlugExample('42')).toBe('my-character');
+  });
+
+  it('drops trailing hyphens', () => {
+    expect(suggestSlugExample('name!!')).toBe('name');
   });
 });
