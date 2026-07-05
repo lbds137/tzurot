@@ -40,6 +40,12 @@ vi.mock('../../utils/resolveProvisionedUserId.js', () => ({
   resolveProvisionedUserId: vi.fn(),
 }));
 
+vi.mock('../../services/EmbeddingService.js', () => ({
+  isEmbeddingServiceAvailable: vi.fn(),
+  generateEmbedding: vi.fn(),
+  formatAsVector: (embedding: number[]) => `[${embedding.join(',')}]`,
+}));
+
 import {
   handleGetMemory,
   handleUpdateMemory,
@@ -48,6 +54,7 @@ import {
 } from './memorySingle.js';
 import { getDefaultPersonaId } from './memoryHelpers.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
+import { isEmbeddingServiceAvailable, generateEmbedding } from '../../services/EmbeddingService.js';
 
 // Test constants
 const TEST_USER_ID = '00000000-0000-0000-0000-000000000001';
@@ -63,7 +70,12 @@ const mockPrisma = {
     findUnique: vi.fn(),
     update: vi.fn(),
   },
+  $executeRaw: vi.fn(),
+  $transaction: vi.fn(),
 };
+
+const mockIsEmbeddingAvailable = vi.mocked(isEmbeddingServiceAvailable);
+const mockGenerateEmbedding = vi.mocked(generateEmbedding);
 
 const mockResolveProvisionedUserId = vi.mocked(resolveProvisionedUserId);
 const mockGetDefaultPersonaId = vi.mocked(getDefaultPersonaId);
@@ -111,6 +123,11 @@ describe('memorySingle handlers', () => {
     mockGetDefaultPersonaId.mockResolvedValue(TEST_PERSONA_ID);
     mockPrisma.memory.findFirst.mockResolvedValue(defaultMemory);
     mockPrisma.memory.update.mockResolvedValue(defaultMemory);
+    mockPrisma.$executeRaw.mockResolvedValue(1);
+    // Array-form $transaction: the operations are already-invoked mock promises.
+    mockPrisma.$transaction.mockImplementation(async (ops: Promise<unknown>[]) => Promise.all(ops));
+    mockIsEmbeddingAvailable.mockReturnValue(true);
+    mockGenerateEmbedding.mockResolvedValue([0.1, 0.2, 0.3]);
   });
 
   describe('handleGetMemory', () => {
@@ -354,6 +371,57 @@ describe('memorySingle handlers', () => {
         })
       );
       expect(mockPrisma.memory.update).not.toHaveBeenCalled();
+    });
+
+    it('re-embeds the edited content with the new vector', async () => {
+      const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID }, { content: ' new content ' });
+
+      await handleUpdateMemory(deps())(req, res, () => undefined);
+
+      // The trimmed edited text is what gets embedded — not the raw body.
+      expect(mockGenerateEmbedding).toHaveBeenCalledWith('new content');
+      // The UPDATE carries the formatted vector and the memory id.
+      expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
+      const call = mockPrisma.$executeRaw.mock.calls[0];
+      expect(call[0].join('')).toContain('SET embedding =');
+      expect(call).toContain('[0.1,0.2,0.3]');
+      expect(call).toContain(TEST_MEMORY_ID);
+    });
+
+    it('NULLs the embedding when re-embedding fails (stale vector must not survive)', async () => {
+      mockGenerateEmbedding.mockRejectedValue(new Error('model down'));
+      const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID }, { content: 'new content' });
+
+      await handleUpdateMemory(deps())(req, res, () => undefined);
+
+      const call = mockPrisma.$executeRaw.mock.calls[0];
+      expect(call[0].join('')).toContain('SET embedding = NULL');
+      expect(res.status).toHaveBeenCalledWith(200); // edit still succeeds
+    });
+
+    it('NULLs the embedding when the embedding service is unavailable', async () => {
+      mockIsEmbeddingAvailable.mockReturnValue(false);
+      const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID }, { content: 'new content' });
+
+      await handleUpdateMemory(deps())(req, res, () => undefined);
+
+      expect(mockGenerateEmbedding).not.toHaveBeenCalled();
+      const call = mockPrisma.$executeRaw.mock.calls[0];
+      expect(call[0].join('')).toContain('SET embedding = NULL');
+    });
+
+    it('commits the content update and vector write in one transaction', async () => {
+      // A partial commit (content updated, vector write failed) would leave
+      // the new text retrievable by its OLD embedding — the exact bug class
+      // this route guards against.
+      const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID }, { content: 'new content' });
+
+      await handleUpdateMemory(deps())(req, res, () => undefined);
+
+      expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
+      const ops = mockPrisma.$transaction.mock.calls[0][0] as unknown[];
+      expect(ops).toHaveLength(2);
+      expect(res.status).toHaveBeenCalledWith(200);
     });
   });
 

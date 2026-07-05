@@ -22,6 +22,11 @@ import { getParam } from '../../utils/requestParams.js';
 import type { ProvisionedRequest } from '../../types.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { getDefaultPersonaId } from './memoryHelpers.js';
+import {
+  generateEmbedding,
+  formatAsVector,
+  isEmbeddingServiceAvailable,
+} from '../../services/EmbeddingService.js';
 
 const logger = createLogger('user-memory-single');
 
@@ -189,19 +194,63 @@ export const handleUpdateMemory = (deps: RouteDeps): RequestHandler => {
       return;
     }
 
-    const memory = await prisma.memory.update({
-      where: { id: memoryId },
-      data: {
-        content: content.trim(),
-        updatedAt: new Date(),
-      },
-      include: PERSONALITY_INCLUDE,
-    });
+    // Re-embed the edited content so semantic search matches what the memory
+    // now says: editing content while keeping the old vector makes retrieval
+    // match text the user deliberately changed away from. The vector (or a
+    // NULL when embedding is unavailable — invisible-to-RAG is safer than
+    // wrongly matched) is computed BEFORE the write so content and embedding
+    // commit in one transaction; a partial commit would resurrect the exact
+    // stale-vector bug this route guards against. Schema already trims.
+    const vector = await computeMemoryVector(memoryId, content);
+    const [memory] = await prisma.$transaction([
+      prisma.memory.update({
+        where: { id: memoryId },
+        data: {
+          content,
+          updatedAt: new Date(),
+        },
+        include: PERSONALITY_INCLUDE,
+      }),
+      vector === null
+        ? prisma.$executeRaw`UPDATE memories SET embedding = NULL WHERE id = ${memoryId}::uuid`
+        : prisma.$executeRaw`UPDATE memories SET embedding = ${vector}::vector WHERE id = ${memoryId}::uuid`,
+    ]);
 
     logger.info({ discordUserId, memoryId }, 'Memory updated');
     sendCustomSuccess(res, { memory: transformMemory(memory) }, StatusCodes.OK);
   });
 };
+
+/**
+ * Compute the pgvector text literal for edited memory content — bound as a
+ * text parameter and cast server-side via ::vector, no raw SQL interpolation.
+ * Never throws: any failure (service unavailable, generation error,
+ * non-finite values) degrades to null so the caller writes a NULL vector.
+ * @internal Exported for testing
+ */
+export async function computeMemoryVector(
+  memoryId: string,
+  content: string
+): Promise<string | null> {
+  if (!isEmbeddingServiceAvailable()) {
+    logger.warn(
+      { memoryId },
+      'Clearing embedding for edited memory (embedding service unavailable)'
+    );
+    return null;
+  }
+  try {
+    const embedding = await generateEmbedding(content);
+    if (embedding === null) {
+      logger.warn({ memoryId }, 'Clearing embedding for edited memory (re-embed returned null)');
+      return null;
+    }
+    return formatAsVector(embedding);
+  } catch (error) {
+    logger.error({ err: error, memoryId }, 'Failed to re-embed edited memory; clearing embedding');
+    return null;
+  }
+}
 
 /**
  * Handler for PUT /user/memory/:id/lock

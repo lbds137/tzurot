@@ -38,6 +38,7 @@ export async function fetchChunkSiblings(
     JOIN personalities personality ON m.personality_id = personality.id
     WHERE m.persona_id = ${personaId}::uuid
       AND m.chunk_group_id = ${chunkGroupId}::uuid
+      AND m.visibility = 'normal'
     ORDER BY m.chunk_index ASC
   `;
 
