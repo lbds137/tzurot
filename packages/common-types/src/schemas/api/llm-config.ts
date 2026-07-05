@@ -89,7 +89,7 @@ export const LlmConfigCreateSchema = z.object({
   name: z
     .string()
     .min(1, 'name is required')
-    .max(CONFIG_NAME_MAX_LENGTH, 'name must be 100 characters or less'),
+    .max(CONFIG_NAME_MAX_LENGTH, `name must be ${CONFIG_NAME_MAX_LENGTH} characters or less`),
   model: z.string().min(1, 'model is required').max(200),
 
   // Config kind discriminator (text | vision | …). Optional; when omitted the

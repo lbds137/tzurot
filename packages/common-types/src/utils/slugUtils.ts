@@ -104,12 +104,27 @@ export function normalizeSlugForUser(
   const sanitizedUsername = sanitizeUsernameForSlug(discordUsername);
   const suffix = sanitizedUsername.length === 0 ? `-${discordUserId}` : `-${sanitizedUsername}`;
 
-  // Idempotent: if the slug is already suffixed for this user, leave it alone.
+  // Idempotent: if the slug is already suffixed for this user, don't re-append.
   // Without this, calling normalizeSlugForUser on a previously-normalized slug
   // would double-suffix (`lilith-bob` → `lilith-bob-bob`). Matters in update
   // paths where the input may already carry the suffix from a prior call.
+  //
+  // `endsWith` is a heuristic, not a provenance marker: a user who deliberately
+  // types a slug ending in their own suffix (bob typing `mybob-bob`) is treated
+  // as already-normalized. That false-positive is benign by construction —
+  // only the CALLING user's suffix matches (Discord usernames are unique, so a
+  // `-bob` tail always means bob authored it either way), collisions still hit
+  // the DB unique constraint, and skipping the append is what the user wanted
+  // (`mybob-bob`, not `mybob-bob-bob`). Tracking normalization out-of-band
+  // would add schema surface for a failure mode with no damage vector.
+  //
+  // Split the existing suffix off and re-fit base+suffix (rather than fitting the
+  // whole string with an empty suffix) so an over-length already-suffixed slug —
+  // reachable via shapes imports, which don't length-cap before normalizing —
+  // truncates only the BASE and keeps the `-username` provenance suffix intact,
+  // exactly like the fresh-suffix path below.
   if (slug.endsWith(suffix)) {
-    return fitSlugToMaxLength(slug, '', maxLength);
+    return fitSlugToMaxLength(slug.slice(0, -suffix.length), suffix, maxLength);
   }
 
   return fitSlugToMaxLength(slug, suffix, maxLength);

@@ -23,6 +23,7 @@ export {
   zaiCodingPlanModelCapabilities,
   listZaiCodingPlanModels,
   buildModelInfoUrl,
+  CONFIG_NAME_MAX_LENGTH,
 } from './ai.js';
 export type { ZaiCodingPlanModelInfo, ConfigKind } from './ai.js';
 
@@ -102,7 +103,6 @@ export {
   MessageRole,
   PLACEHOLDERS,
   MESSAGE_LIMITS,
-  CONFIG_NAME_MAX_LENGTH,
   MULTI_TAG,
   NO_TEXT_CONTENT_PLACEHOLDER,
   UNKNOWN_USER_DISCORD_ID,
