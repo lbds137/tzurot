@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { CONFIG_WIRE_OFF } from '@tzurot/common-types/schemas/api/configOverrides';
 import { parseNumericInputValue, parseDurationInputValue } from './settingsInputParser.js';
 
 describe('parseNumericInputValue', () => {
@@ -47,8 +48,8 @@ describe('parseDurationInputValue', () => {
   });
 
   it('treats "off"/"disabled" as the -1 sentinel', () => {
-    expect(parseDurationInputValue('off')).toEqual({ value: -1 });
-    expect(parseDurationInputValue('disabled')).toEqual({ value: -1 });
+    expect(parseDurationInputValue('off')).toEqual({ value: CONFIG_WIRE_OFF });
+    expect(parseDurationInputValue('disabled')).toEqual({ value: CONFIG_WIRE_OFF });
   });
 
   it('parses short-form durations to seconds', () => {

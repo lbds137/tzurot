@@ -19,7 +19,11 @@ import {
 import { type EnvConfig } from '@tzurot/common-types/config/config';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
-import { normalizeSlugForUser } from '@tzurot/common-types/utils/slugUtils';
+import { normalizeSlugForUser, suggestSlugExample } from '@tzurot/common-types/utils/slugUtils';
+import {
+  SLUG_PATTERN,
+  SLUG_REQUIREMENTS_MESSAGE,
+} from '@tzurot/common-types/schemas/api/personality';
 import type { ModalCommandContext } from '../../utils/commandContext/types.js';
 import {
   buildDashboardEmbed,
@@ -79,11 +83,13 @@ export async function handleSeedModalSubmit(
     characterSeedFields.map(f => f.id)
   );
 
-  // Validate slug format (before normalization)
-  if (!/^[a-z0-9-]+$/.test(values.slug)) {
+  // Validate slug format (before normalization) — same pattern the gateway
+  // enforces, so a digit-leading slug fails here with a friendly message
+  // instead of a raw 400 after submit.
+  if (!SLUG_PATTERN.test(values.slug)) {
     await interaction.editReply(
-      '❌ Invalid slug format. Use only lowercase letters, numbers, and hyphens.\n' +
-        `Example: \`${values.name.toLowerCase().replace(/[^a-z0-9-]/g, '-')}\``
+      `❌ Invalid slug format. ${SLUG_REQUIREMENTS_MESSAGE}\n` +
+        `Example: \`${suggestSlugExample(values.name)}\``
     );
     return;
   }

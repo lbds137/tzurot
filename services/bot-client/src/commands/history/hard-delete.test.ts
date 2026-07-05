@@ -101,6 +101,15 @@ describe('handleHardDelete', () => {
       operation: 'hard-delete',
       entityId: 'lilith|channel-123',
     });
+    // The warning must state the TRUE scope (persona-scoped) — the old copy
+    // claimed "All messages in this channel" while deleting only the caller's.
+    const firstCall = mockCreateHardDeleteConfig.mock.calls[0] as unknown as [
+      { additionalWarning: string },
+    ];
+    const warning = firstCall[0].additionalWarning;
+    expect(warning).toContain('**Your** conversation history');
+    expect(warning).toContain('other users');
+    expect(warning).not.toContain('All messages in this channel');
     expect(mockBuildDestructiveWarning).toHaveBeenCalled();
     expect(context.editReply).toHaveBeenCalledWith({
       embeds: expect.any(Array),

@@ -38,7 +38,11 @@ function fitSlugToMaxLength(base: string, suffix: string, maxLength: number): st
   while (keptEnd > 0 && base[keptEnd - 1] === '-') {
     keptEnd--;
   }
-  const kept = base.slice(0, keptEnd);
+  // Defense-in-depth: an all-hyphen base backs off to empty, which would emit
+  // a leading-hyphen slug. Not reachable via the character create/import paths
+  // (both leading-letter-gated), but the config-name-promotion and shapes-import
+  // callers are NOT gated the same way — keep this fallback.
+  const kept = keptEnd > 0 ? base.slice(0, keptEnd) : 'x';
   const removedTail = base.slice(keptEnd);
   // Non-security disambiguation hash (collision avoidance, not a credential) —
   // SHA-256 mirrors attachmentCacheKey.ts; only the first few hex chars are used.
@@ -128,4 +132,26 @@ export function normalizeSlugForUser(
   }
 
   return fitSlugToMaxLength(slug, suffix, maxLength);
+}
+
+/**
+ * Suggest a valid slug example from a display name for validation error
+ * messages. Guarantees the suggestion itself satisfies SLUG_PATTERN
+ * (leading letter): strips invalid chars, trims leading digits/hyphens,
+ * and falls back to a generic slug when nothing usable remains.
+ */
+export function suggestSlugExample(name: string): string {
+  const collapsed = name.toLowerCase().replace(/[^a-z0-9-]+/g, '-');
+  // Trim to a leading letter and drop trailing hyphens without `-+$`-style
+  // regexes (super-linear-move lint; same approach as fitSlugToMaxLength).
+  let start = 0;
+  while (start < collapsed.length && !/[a-z]/.test(collapsed[start])) {
+    start++;
+  }
+  let end = collapsed.length;
+  while (end > start && collapsed[end - 1] === '-') {
+    end--;
+  }
+  const cleaned = collapsed.slice(start, end);
+  return cleaned.length >= 3 ? cleaned : 'my-character';
 }

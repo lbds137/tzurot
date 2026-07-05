@@ -7,9 +7,13 @@ import { EmbedBuilder } from 'discord.js';
 import { type EnvConfig } from '@tzurot/common-types/config/config';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { characterImportOptions } from '@tzurot/common-types/generated/commandOptions';
-import { PersonalityCreateSchema } from '@tzurot/common-types/schemas/api/personality';
+import {
+  PersonalityCreateSchema,
+  SLUG_PATTERN,
+  SLUG_REQUIREMENTS_MESSAGE,
+} from '@tzurot/common-types/schemas/api/personality';
+import { suggestSlugExample, normalizeSlugForUser } from '@tzurot/common-types/utils/slugUtils';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { normalizeSlugForUser } from '@tzurot/common-types/utils/slugUtils';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { UserClient } from '@tzurot/clients';
 import { clientsFor } from '../../utils/gatewayClients.js';
@@ -124,11 +128,14 @@ function validateCharacterData(
   }
 
   const rawSlug = data.slug as string;
-  if (!/^[a-z0-9-]+$/.test(rawSlug)) {
+  // Same pattern the gateway enforces (leading letter) — also closes the
+  // all-hyphen base that could reach fitSlugToMaxLength and emit a
+  // leading-hyphen result.
+  if (!SLUG_PATTERN.test(rawSlug)) {
     return {
       error:
-        '❌ Invalid slug format in JSON. Use only lowercase letters, numbers, and hyphens.\n' +
-        `Example: \`${rawSlug.toLowerCase().replace(/[^a-z0-9-]/g, '-')}\``,
+        `❌ Invalid slug format in JSON. ${SLUG_REQUIREMENTS_MESSAGE}\n` +
+        `Example: \`${suggestSlugExample(rawSlug)}\``,
     };
   }
 
