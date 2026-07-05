@@ -25,7 +25,7 @@ _(nothing — beta.147 shipped everything on 2026-07-04)_
 
 **Fable-only (design):** the boulder agenda in `backlog/now.md` — design system → prompt-assembly → memory → agentic, each with council pass + written adjudication.
 
-Passive check: did the Saturday 2026-07-04 09:00 UTC scheduled audit run fire on its own (dispatch test proved the pipeline; the cron trigger gets its first exercise then).
+Weekly audit cron: first ORGANIC scheduled run completed/success 2026-07-04 10:45 UTC (cron drift from 09:00 nominal is normal) — the trigger is proven end-to-end; no further passive checks needed.
 
 ## Last Session — the pre-handoff process refit + CI split + boulder sweep (2026-07-03)
 
