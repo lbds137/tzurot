@@ -287,6 +287,39 @@ describe('/user/usage routes', () => {
       );
     });
 
+    it('merges the same model reached via different providers into one row', async () => {
+      // The owner-reported duplicate: z-ai/glm-5.2 (zai-coding) and glm-5.2
+      // (openrouter) are the same model — one Top Models row, summed.
+      mockPrisma.usageLog.findMany.mockResolvedValue([
+        {
+          model: 'z-ai/glm-5.2',
+          provider: 'zai-coding',
+          tokensIn: 100,
+          tokensOut: 50,
+          requestType: 'chat',
+        },
+        {
+          model: 'glm-5.2',
+          provider: 'openrouter',
+          tokensIn: 200,
+          tokensOut: 100,
+          requestType: 'chat',
+        },
+      ]);
+
+      const { req, res } = createMockReqRes({});
+
+      await callHandler(mockPrisma, req, res);
+
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          byModel: {
+            'glm-5.2': { requests: 2, tokensIn: 300, tokensOut: 150 },
+          },
+        })
+      );
+    });
+
     it('should aggregate by request type', async () => {
       mockPrisma.usageLog.findMany.mockResolvedValue([
         {

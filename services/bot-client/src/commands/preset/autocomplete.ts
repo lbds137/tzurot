@@ -14,6 +14,7 @@ import {
 } from '@tzurot/common-types/utils/autocompleteFormat';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
+import { shortModelName } from '@tzurot/common-types/utils/modelNames';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import {
   fetchTextModels,
@@ -206,7 +207,7 @@ async function handlePresetAutocomplete(
       // 👁 for vision-capable models (capability, not config kind)
       statusBadges: c.supportsVision ? [AUTOCOMPLETE_BADGES.VISION] : undefined,
       // Show model short name as metadata
-      metadata: c.model.split('/').pop(),
+      metadata: shortModelName(c.model),
     });
   });
 
@@ -339,7 +340,7 @@ async function handleGlobalConfigAutocomplete(
         value: c.id,
         scopeBadge: AUTOCOMPLETE_BADGES.GLOBAL,
         statusBadges: statusBadges.length > 0 ? statusBadges : undefined,
-        metadata: c.model.split('/').pop(),
+        metadata: shortModelName(c.model),
       });
     });
 
