@@ -19,6 +19,9 @@ import {
   UpdateChannelConfigOverridesResponseSchema,
   ClearChannelConfigOverridesResponseSchema,
   CONFIG_OVERRIDES_KEYS,
+  NULL_TERMINAL_FIELDS,
+  isNullTerminalField,
+  CONFIG_WIRE_OFF,
 } from './configOverrides.js';
 
 describe('ConfigOverridesSchema', () => {
@@ -410,5 +413,30 @@ describe('Config-Overrides Response Schemas', () => {
         false
       );
     });
+  });
+});
+
+describe('NULL_TERMINAL_FIELDS registry', () => {
+  it('matches the schema nullable set exactly — every field accepts null iff registered', () => {
+    for (const key of CONFIG_OVERRIDES_KEYS) {
+      const accepts = ConfigOverridesSchema.safeParse({ [key]: null }).success;
+      expect(accepts, `${key}: nullable-in-schema must equal registry membership`).toBe(
+        isNullTerminalField(key)
+      );
+    }
+  });
+
+  it('pins the hardcoded maxAge default to null forever', () => {
+    // Legacy rows wrote "off" as key-absence (pre-sentinel write path stripped
+    // nulls), so those users actually inherit — they experience OFF only
+    // because this default is null. Changing it would silently flip their
+    // setting. See the comment on HARDCODED_CONFIG_DEFAULTS.
+    expect(HARDCODED_CONFIG_DEFAULTS.maxAge).toBeNull();
+  });
+
+  it('CONFIG_WIRE_OFF is not a legal stored value anywhere', () => {
+    for (const key of NULL_TERMINAL_FIELDS) {
+      expect(ConfigOverridesSchema.safeParse({ [key]: CONFIG_WIRE_OFF }).success).toBe(false);
+    }
   });
 });

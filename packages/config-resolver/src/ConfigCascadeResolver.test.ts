@@ -552,3 +552,25 @@ describe('ConfigCascadeResolver', () => {
     });
   });
 });
+
+describe('stored null as explicit OFF (terminal)', () => {
+  it('a tier-stored null overrides lower tiers and carries its source', async () => {
+    const mockPrisma = createMockPrisma();
+    // Admin tier sets a real value; user tier stores explicit OFF (null).
+    mockPrisma.adminSettings.findUnique.mockResolvedValue({
+      configDefaults: { maxAge: 3600 },
+    });
+    mockPrisma.user.findFirst.mockResolvedValue({
+      id: 'u1',
+      configDefaults: { maxAge: null },
+      personalityConfigs: [],
+    });
+
+    const resolver = new ConfigCascadeResolver(mockPrisma as never, { enableCleanup: false });
+    const result = await resolver.resolveOverrides('user-1');
+
+    // Stored null is terminal OFF — it must NOT fall through to admin's 3600.
+    expect(result.maxAge).toBeNull();
+    expect(result.sources.maxAge).toBe('user-default');
+  });
+});

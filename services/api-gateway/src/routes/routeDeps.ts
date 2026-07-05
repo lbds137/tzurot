@@ -81,7 +81,11 @@ export interface RouteDeps {
 
   /** Conversation retention sweep — used by admin cleanup. */
   readonly retentionService?: ConversationRetentionService;
-  /** Cascade-overrides resolver — used by user channel config-overrides read. */
+  /** Cascade-overrides resolver — the pub/sub-invalidated singleton. Consuming
+   * factories fail fast at mount time when absent (a locally-constructed
+   * fallback would never hear invalidation events and serve stale config);
+   * optional here only because ~65 route tests build ad-hoc RouteDeps subsets —
+   * the compile-level tightening is a queued mechanical sweep. */
   readonly cascadeResolver?: ConfigCascadeResolver;
   /**
    * LLM model-config cascade resolver — used by the /ai/generate handler to
@@ -107,4 +111,18 @@ export interface RouteDeps {
   readonly aiQueue?: Queue;
   /** BullMQ queue events for sync-completion waiting. */
   readonly queueEvents?: QueueEvents;
+}
+
+/**
+ * Mount-time assertion for deps that are runtime-required but type-optional.
+ * Throwing at route-factory time turns a forgotten wiring into a boot crash
+ * (caught by any component test) instead of a silently-stale local resolver.
+ */
+export function requireDep<T>(dep: T | undefined, name: string): T {
+  if (dep === undefined) {
+    throw new Error(
+      `RouteDeps.${name} is required — wire the pub/sub-invalidated singleton from index.ts`
+    );
+  }
+  return dep;
 }

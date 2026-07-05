@@ -487,7 +487,9 @@ describe('Admin Settings Dashboard', () => {
 
       await handleAdminSettingsModal(interaction as never);
 
-      expect(stub.updateAdminSettings).toHaveBeenCalledWith({ maxAge: null });
+      // "off" travels as the wire OFF sentinel (-1); the gateway persists it as
+      // stored null (explicit terminal OFF) — distinct from auto/clear below.
+      expect(stub.updateAdminSettings).toHaveBeenCalledWith({ maxAge: -1 });
     });
 
     it('should clear maxAge override when set to "auto"', async () => {

@@ -7,7 +7,6 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import type { Response } from 'express';
-import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { LlmConfigResolver, ConfigCascadeResolver } from '@tzurot/config-resolver';
 import { createResolveHandler, resolveConfigBodySchema } from './llmConfigResolve.js';
 import type { AuthenticatedRequest } from '../../types.js';
@@ -78,7 +77,7 @@ describe('createResolveHandler injection', () => {
     const injectedLlm = { resolveConfig } as unknown as LlmConfigResolver;
     const injectedCascade = { resolveOverrides } as unknown as ConfigCascadeResolver;
 
-    const handler = createResolveHandler({} as PrismaClient, injectedCascade, injectedLlm);
+    const handler = createResolveHandler(injectedCascade, injectedLlm);
 
     const req = {
       userId: 'discord-123',

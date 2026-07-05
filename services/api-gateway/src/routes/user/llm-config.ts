@@ -54,7 +54,7 @@ import {
   getDiscordUsernameFromRequest,
 } from '../../utils/normalizeConfigNameOnPromote.js';
 import { createResolveHandler } from './llmConfigResolve.js';
-import type { RouteDeps } from '../routeDeps.js';
+import { requireDep, type RouteDeps } from '../routeDeps.js';
 
 const logger = createLogger('user-llm-config');
 
@@ -533,7 +533,12 @@ export const handleCreateUserLlmConfig = (deps: RouteDeps): RequestHandler =>
   asyncHandler(createCreateHandler(buildService(deps), deps.prisma, deps.modelCache));
 
 export const handleResolveUserLlmConfig = (deps: RouteDeps): RequestHandler =>
-  asyncHandler(createResolveHandler(deps.prisma, deps.cascadeResolver, deps.llmConfigResolver));
+  asyncHandler(
+    createResolveHandler(
+      requireDep(deps.cascadeResolver, 'cascadeResolver'),
+      requireDep(deps.llmConfigResolver, 'llmConfigResolver')
+    )
+  );
 
 export const handleUpdateUserLlmConfig = (deps: RouteDeps): RequestHandler =>
   asyncHandler(createUpdateHandler(buildService(deps), deps.prisma, deps.modelCache));

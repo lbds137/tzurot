@@ -29,6 +29,9 @@ import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.j
 import { getDefaultPersonaId } from './memoryHelpers.js';
 import type { RouteDeps } from '../routeDeps.js';
 
+/** Incognito handlers touch only prisma + redis. */
+type IncognitoDeps = Pick<RouteDeps, 'prisma' | 'redis'>;
+
 const logger = createLogger('user-memory-incognito');
 
 /**
@@ -314,7 +317,7 @@ async function handleForget(
 // `new IncognitoSessionManager(...)` into the factory body behind a redis-
 // present guard.
 
-function requireRedis(deps: RouteDeps, res: Response): Redis | null {
+function requireRedis(deps: IncognitoDeps, res: Response): Redis | null {
   if (deps.redis === undefined) {
     sendError(
       res,
@@ -326,7 +329,7 @@ function requireRedis(deps: RouteDeps, res: Response): Redis | null {
 }
 
 /** GET /api/user/memory/incognito */
-export const handleGetIncognitoStatus = (deps: RouteDeps): RequestHandler =>
+export const handleGetIncognitoStatus = (deps: IncognitoDeps): RequestHandler =>
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const redis = requireRedis(deps, res);
     if (redis === null) {
@@ -337,7 +340,7 @@ export const handleGetIncognitoStatus = (deps: RouteDeps): RequestHandler =>
   });
 
 /** POST /api/user/memory/incognito */
-export const handleEnableIncognito = (deps: RouteDeps): RequestHandler =>
+export const handleEnableIncognito = (deps: IncognitoDeps): RequestHandler =>
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const redis = requireRedis(deps, res);
     if (redis === null) {
@@ -348,7 +351,7 @@ export const handleEnableIncognito = (deps: RouteDeps): RequestHandler =>
   });
 
 /** DELETE /api/user/memory/incognito */
-export const handleDisableIncognito = (deps: RouteDeps): RequestHandler =>
+export const handleDisableIncognito = (deps: IncognitoDeps): RequestHandler =>
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const redis = requireRedis(deps, res);
     if (redis === null) {
@@ -359,7 +362,7 @@ export const handleDisableIncognito = (deps: RouteDeps): RequestHandler =>
   });
 
 /** POST /api/user/memory/incognito/forget */
-export const handleIncognitoForget = (deps: RouteDeps): RequestHandler =>
+export const handleIncognitoForget = (deps: IncognitoDeps): RequestHandler =>
   asyncHandler((req: ProvisionedRequest, res: Response) => handleForget(deps.prisma, req, res));
 
 /**
@@ -369,7 +372,7 @@ export const handleIncognitoForget = (deps: RouteDeps): RequestHandler =>
  */
 export function createIncognitoRoutes(prisma: PrismaClient, redis: Redis): Router {
   const router = Router();
-  const deps: RouteDeps = { prisma, redis };
+  const deps: IncognitoDeps = { prisma, redis };
 
   router.get(
     '/',

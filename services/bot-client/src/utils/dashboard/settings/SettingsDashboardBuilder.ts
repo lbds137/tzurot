@@ -53,7 +53,7 @@ function formatSettingValue(
   setting: SettingDefinition,
   value: SettingValue<unknown>
 ): { display: string; status: string } {
-  const { localValue, effectiveValue, source } = value;
+  const { hasLocalOverride, effectiveValue, source } = value;
 
   let display: string;
   let status: string;
@@ -86,7 +86,7 @@ function formatSettingValue(
       display = String(effectiveValue);
   }
 
-  if (localValue !== null) {
+  if (hasLocalOverride) {
     status = '🔵 Override';
   } else if (source === 'hardcoded') {
     status = '⚪ Auto (default)';
@@ -169,7 +169,7 @@ export function buildSettingEmbed(
   });
 
   // Show inherited value if this level has an override
-  if (value.localValue !== null && value.source !== 'hardcoded') {
+  if (value.hasLocalOverride && value.source !== 'hardcoded') {
     let inheritedDisplay: string;
     switch (setting.type) {
       case SettingType.TRI_STATE: {
@@ -375,7 +375,9 @@ export function buildEditButtons(
   setting: SettingDefinition
 ): ActionRowBuilder<MessageActionRowComponentBuilder> {
   const value = session.data[setting.id as keyof typeof session.data] as SettingValue<unknown>;
-  const hasOverride = value.localValue !== null;
+  // Presence, not value: a stored null (explicit OFF) IS an override — the
+  // Reset-to-Auto button must stay enabled for it.
+  const hasOverride = value.hasLocalOverride;
 
   const row = new ActionRowBuilder<MessageActionRowComponentBuilder>();
 

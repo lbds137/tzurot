@@ -27,6 +27,8 @@ import { validateApiKey, type ApiKeyValidationResult } from '../../utils/apiKeyV
 import type { ProvisionedRequest } from '../../types.js';
 import type { RouteDeps } from '../routeDeps.js';
 
+type WalletSetDeps = Pick<RouteDeps, 'prisma' | 'apiKeyCacheInvalidation'>;
+
 const logger = createLogger('wallet-set-key');
 
 /**
@@ -54,7 +56,7 @@ function mapValidationErrorToResponse(validation: ApiKeyValidationResult): Error
 }
 
 /** POST /api/user/wallet — store a validated API key for the current user. */
-export const handleSetWalletKey = (deps: RouteDeps): RequestHandler => {
+export const handleSetWalletKey = (deps: WalletSetDeps): RequestHandler => {
   const { prisma, apiKeyCacheInvalidation } = deps;
   return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const parseResult = SetWalletKeySchema.safeParse(req.body);

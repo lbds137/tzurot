@@ -10,7 +10,6 @@
 
 import { Router, type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { ConfigCascadeResolver } from '@tzurot/config-resolver';
 import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import {
@@ -22,7 +21,7 @@ import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { getRequiredParam } from '../../utils/requestParams.js';
 import type { AuthenticatedRequest, ProvisionedRequest } from '../../types.js';
-import type { RouteDeps } from '../routeDeps.js';
+import { requireDep, type RouteDeps } from '../routeDeps.js';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -33,7 +32,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
  * (same data any user would experience). Only writes (PATCH) are creator-gated.
  */
 export const handleResolvePersonalityCascade = (deps: RouteDeps): RequestHandler => {
-  const cascadeResolver = new ConfigCascadeResolver(deps.prisma, { enableCleanup: false });
+  const cascadeResolver = requireDep(deps.cascadeResolver, 'cascadeResolver');
   return asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const personalityId = getRequiredParam(req.params.personalityId, 'personalityId');
 

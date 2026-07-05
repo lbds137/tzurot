@@ -3,37 +3,52 @@
  * Used by both user config-overrides and admin settings routes.
  */
 
-import { ConfigOverridesSchema } from '@tzurot/common-types/schemas/api/configOverrides';
+import {
+  ConfigOverridesSchema,
+  isNullTerminalField,
+  CONFIG_WIRE_OFF,
+} from '@tzurot/common-types/schemas/api/configOverrides';
 
 /**
  * Merge partial config overrides into existing JSONB.
  * Validates input against ConfigOverridesSchema.partial(), merges with existing,
- * and strips null/undefined fields to keep JSONB clean.
+ * and strips cleared fields to keep JSONB clean.
  *
- * **Limitation**: Explicit null values cannot be stored — null is treated as "clear
- * this override" (key removed from JSONB). This affects `maxAge` where null semantically
- * means "no age limit". Currently unobservable because the hardcoded default is also null,
- * so clearing the key produces the same resolved value. If the default changes, this will
- * need revisiting. Tracked in BACKLOG under "Unify Config Cascade API Endpoints".
+ * Wire contract per field:
+ * - value            → set the override
+ * - null             → clear the override (key removed from JSONB)
+ * - CONFIG_WIRE_OFF  → explicit OFF for NULL_TERMINAL_FIELDS: persisted as stored
+ *                      JSON null, which cascade resolution treats as terminal
+ *                      (an OFF at any tier stops fall-through). On any other
+ *                      field the sentinel fails schema validation → 'invalid'.
  *
  * @param existing - Current JSONB value from the database (may be null, non-object, etc.)
  * @param input - Partial config overrides to merge in
  * @returns Merged object, null if empty after merge, or 'invalid' if input fails validation
  */
+/**
+ * Normalize the wire shape for validation: null means "clear this override"
+ * (→ undefined, so Zod's .optional() accepts it and the cleanup loop drops the
+ * key), while CONFIG_WIRE_OFF on a null-terminal field becomes a null that
+ * survives validation (the field is .nullable()) and the cleanup loop.
+ */
+function sanitizeWireInput(input: Record<string, unknown>): Record<string, unknown> {
+  const sanitized: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(input)) {
+    if (value === CONFIG_WIRE_OFF && isNullTerminalField(key)) {
+      sanitized[key] = null;
+    } else {
+      sanitized[key] = value === null ? undefined : value;
+    }
+  }
+  return sanitized;
+}
+
 export function mergeConfigOverrides(
   existing: unknown,
   input: Record<string, unknown>
 ): Record<string, unknown> | null | 'invalid' {
-  // Convert null values to undefined before validation.
-  // Dashboard "auto" buttons send null to mean "clear this override" — Zod's .optional()
-  // accepts undefined but not null, so we normalize here. The cleanup loop below then
-  // removes undefined keys from the merged result, effectively clearing the override.
-  const sanitized: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(input)) {
-    sanitized[key] = value === null ? undefined : value;
-  }
-
-  const parseResult = ConfigOverridesSchema.partial().safeParse(sanitized);
+  const parseResult = ConfigOverridesSchema.partial().safeParse(sanitizeWireInput(input));
   if (!parseResult.success) {
     return 'invalid';
   }
@@ -44,9 +59,14 @@ export function mergeConfigOverrides(
       : {};
   const merged: Record<string, unknown> = { ...existingObj, ...parseResult.data };
 
-  // Remove undefined/null fields to keep JSONB clean
+  // Remove undefined/cleared fields to keep JSONB clean. Null survives ONLY on
+  // null-terminal fields (explicit OFF — from this write's sentinel mapping or a
+  // prior OFF already persisted in `existing`); null anywhere else is legacy dirt
+  // and is stripped as before. Clears can't reach here as null: input null was
+  // normalized to undefined above, and undefined overwrites the existing value
+  // in the spread.
   for (const key of Object.keys(merged)) {
-    if (merged[key] === undefined || merged[key] === null) {
+    if (merged[key] === undefined || (merged[key] === null && !isNullTerminalField(key))) {
       delete merged[key];
     }
   }

@@ -23,7 +23,10 @@ export const ConfigOverridesSchema = z
   .object({
     /** Max messages to include in conversation context (1-100) */
     maxMessages: z.number().int().min(1).max(100).optional(),
-    /** Max age in seconds for context messages (null = no limit, 0 = disabled) */
+    /** Max age in seconds for context messages. Stored `null` = explicit OFF (no age
+     * limit, terminal — stops cascade fall-through); key absent = inherit. On the wire,
+     * clients send CONFIG_WIRE_OFF (-1) for OFF; `null` on the wire means "clear this
+     * override" for every field (see NULL_TERMINAL_FIELDS below). */
     maxAge: z.number().int().min(0).nullable().optional(),
     /** Max images to process from extended context (0-20) */
     maxImages: z.number().int().min(0).max(20).optional(),
@@ -49,6 +52,42 @@ export const ConfigOverridesSchema = z
 export type ConfigOverrides = z.infer<typeof ConfigOverridesSchema>;
 
 // ============================================================================
+// OFF-sentinel wire contract
+// ============================================================================
+
+/**
+ * Fields whose domain has an explicit OFF state expressed as stored JSON `null`
+ * (absence = inherit, stored null = OFF and terminal in cascade resolution).
+ *
+ * The wire contract keeps `null` meaning "clear this override" for EVERY field
+ * (the pre-existing dashboard contract); OFF travels as CONFIG_WIRE_OFF and the
+ * gateway merge maps it to stored null. Only fields in this set may store null —
+ * the schema's `.nullable()` markers must match this set exactly (asserted by
+ * the colocated test), so a new nullable field cannot silently skip the registry.
+ *
+ * Checklist when adding a cascade field (the "field #12" checklist from the
+ * config-cascade-semantics design): OFF domain + registry membership, tier
+ * writability (admin-only?), dashboard family + tri-state vocabulary,
+ * hardcoded default, source-indicator label.
+ */
+export const NULL_TERMINAL_FIELDS = [
+  'maxAge',
+] as const satisfies readonly (keyof ConfigOverrides)[];
+
+/** Membership predicate for the registry (string-in, so wire-layer callers can pass raw keys). */
+export function isNullTerminalField(key: string): key is (typeof NULL_TERMINAL_FIELDS)[number] {
+  return (NULL_TERMINAL_FIELDS as readonly string[]).includes(key);
+}
+
+/**
+ * Wire sentinel for "explicitly OFF" on NULL_TERMINAL_FIELDS. Chosen because the
+ * dashboard duration parser already produced -1 for "off", and `null` on the wire
+ * was already taken (= clear). Never stored: the gateway merge converts it to
+ * stored JSON null before persistence.
+ */
+export const CONFIG_WIRE_OFF = -1;
+
+// ============================================================================
 // Hardcoded Defaults
 // ============================================================================
 
@@ -56,6 +95,12 @@ export type ConfigOverrides = z.infer<typeof ConfigOverridesSchema>;
  * Hardcoded defaults for all config override fields.
  * These are the values used when no tier provides an override.
  * Must include every field in ConfigOverrides (fully resolved, no undefined).
+ */
+/**
+ * NOTE: `maxAge: null` is PINNED. Legacy rows wrote "off" as key-absence (the
+ * pre-sentinel write path stripped nulls), so those users actually inherit.
+ * They only experience OFF because this default IS null — changing it would
+ * silently flip their setting. Asserted by the colocated test.
  */
 export const HARDCODED_CONFIG_DEFAULTS: {
   readonly maxMessages: 50;

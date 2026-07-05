@@ -30,6 +30,9 @@ import { getParam } from '../../utils/requestParams.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import type { RouteDeps } from '../routeDeps.js';
 
+/** These handlers touch only the DB — callers mount them with a bare `{ prisma }`. */
+type DiagnosticDeps = Pick<RouteDeps, 'prisma'>;
+
 const logger = createLogger('admin-diagnostic');
 
 /** Maximum number of recent logs to return */
@@ -160,7 +163,7 @@ function formatRecentLogResponse(row: RecentLogRow): RecentLogResponse {
  * Handler: GET /admin/diagnostic/recent
  * List recent diagnostic logs (last 100) with personality name extracted from JSONB
  */
-export const handleGetRecentDiagnostics = (deps: RouteDeps): RequestHandler => {
+export const handleGetRecentDiagnostics = (deps: DiagnosticDeps): RequestHandler => {
   const { prisma } = deps;
   return asyncHandler(async (req: Request, res: Response) => {
     const callerUserId = resolveCallerUserId(req, res);
@@ -233,7 +236,7 @@ export const handleGetRecentDiagnostics = (deps: RouteDeps): RequestHandler => {
  * Handler: GET /admin/diagnostic/by-message/:messageId
  * Get all diagnostic logs for a Discord message ID
  */
-export const handleGetDiagnosticByMessage = (deps: RouteDeps): RequestHandler => {
+export const handleGetDiagnosticByMessage = (deps: DiagnosticDeps): RequestHandler => {
   const { prisma } = deps;
   return asyncHandler(async (req: Request, res: Response) => {
     const callerUserId = resolveCallerUserId(req, res);
@@ -286,7 +289,7 @@ export const handleGetDiagnosticByMessage = (deps: RouteDeps): RequestHandler =>
  * Handler: GET /admin/diagnostic/:requestId
  * Get full diagnostic log by request ID
  */
-export const handleGetDiagnosticByRequestId = (deps: RouteDeps): RequestHandler => {
+export const handleGetDiagnosticByRequestId = (deps: DiagnosticDeps): RequestHandler => {
   const { prisma } = deps;
   return asyncHandler(async (req: Request, res: Response) => {
     const callerUserId = resolveCallerUserId(req, res);
@@ -335,7 +338,7 @@ export const handleGetDiagnosticByRequestId = (deps: RouteDeps): RequestHandler 
  * Handler: GET /admin/diagnostic/by-response/:messageId
  * Get diagnostic log by AI response message ID (array containment query)
  */
-export const handleGetDiagnosticByResponse = (deps: RouteDeps): RequestHandler => {
+export const handleGetDiagnosticByResponse = (deps: DiagnosticDeps): RequestHandler => {
   const { prisma } = deps;
   return asyncHandler(async (req: Request, res: Response) => {
     const callerUserId = resolveCallerUserId(req, res);
@@ -388,7 +391,7 @@ export const handleGetDiagnosticByResponse = (deps: RouteDeps): RequestHandler =
  * Update the response message IDs for a diagnostic log
  * Called by bot-client after sending response to Discord
  */
-export const handleUpdateDiagnosticResponseIds = (deps: RouteDeps): RequestHandler => {
+export const handleUpdateDiagnosticResponseIds = (deps: DiagnosticDeps): RequestHandler => {
   const { prisma } = deps;
   return asyncHandler(async (req: Request, res: Response) => {
     const requestId = getParam(req.params.requestId);
