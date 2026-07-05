@@ -8,7 +8,7 @@ _The hot surface — loaded at session start alongside `BACKLOG.md`, `active-epi
 
 _Active bugs observed in production. Fix before new features. Cleared issues are removed once released — see git history + the GitHub release notes._
 
-_(none active)_
+- 🐛 `[FIX]` **"Deleted" memories are still retrievable by the AI — retrieval SQL has no `visibility` filter** — All memory deletion paths (`/memory delete`, batch delete, typed-phrase `purge`) soft-delete via `visibility='deleted'`, but `PgvectorQueryBuilder.buildSimilaritySearchQuery` filters only persona/personality/timestamp/channel — never `visibility`. Consequence (code-confirmed missing filter; runtime repro pending): purged/deleted memories keep flowing into RAG prompts, silently violating the user's explicit deletion. **Fix shape**: add a visibility guard to the similarity query (+ decide semantics for `hidden`/`archived` — likely also excluded from RAG) + tests incl. a component test over PGLite; **rider in the same PR**: memory edit doesn't re-embed (`handleUpdateMemory` updates `content` only — search matches the old text; re-embed on edit). Surfaced 2026-07-05 (boulder-#3 current-impl grounding sweep). |
 
 _Recently resolved items move to the GitHub release notes at ship time — this section stays empty between incidents (history: git + releases)._
 
