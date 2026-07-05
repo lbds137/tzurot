@@ -34,6 +34,18 @@ Prevents bot from spamming unwanted channels, reduces server kicks.
 
 #### ✅ Multi-Character Invocation Per Message — SHIPPED (MultiTagCoordinator: fan-out, slot-ordered delivery, crash recovery)
 
+#### ✨ PluralKit Interop — system import/sync + proxied-message persona pairing
+
+User request 2026-07-05 (recalled from earlier thinking). Three connected parts for plural systems using PluralKit alongside Tzurot:
+
+1. **PK system export → Tzurot persona import/update**: a user exports their PluralKit system (members: names, avatars, descriptions, pronouns) and imports it to create/update matching Tzurot personas — one persona per system member.
+2. **Identity stability via PK's internal IDs**: PK members carry stable internal identifiers that survive display-name changes; store the PK member ID on the imported persona so a **PK-sync** re-import updates in place instead of duplicating, and identity holds even when the proxied webhook name changes.
+3. **Proxied-message → persona pairing**: when a PK member speaks (PK webhook proxy), Tzurot should attribute the message to the corresponding imported persona — so the character knows WHO is speaking, the right persona accrues memories, and multi-member conversations attribute correctly.
+
+**Known interactions to ground**: the dormant `isProxyMessage` stub (prior intent in code); the human-users-only invariant (#1464 — PK-proxied messages are webhook/bot messages and may be filtered from context today); prompt-assembly's speaker attribution (accepted design — PK members are distinct speakers); memory's persona scoping (accepted design — memories must accrue to the right member's persona). PK's public REST API likely provides the pairing primitive (message-lookup endpoint) — verify in design grounding.
+
+**Design session queued with the message-actions design** (shared PluralKit research wave, 2026-07-05).
+
 #### ✨ Message-Action Affordances: edit / regenerate / delete / ping (emoji reactions + edit flow)
 
 User request 2026-07-03, expanding the earlier emoji-actions idea. Inspiration is part shapes.inc (emoji-reaction support for a couple of these) and part PluralKit (proxied-message editing; 🔔 bell to ping the proxied user). **Research-first**: PluralKit is open source — study how it does webhook-message editing/reactions for one working reference (not to copy, but as information on one way of doing it). Scope should also include a brainstorming/research pass on adjacent usability improvements that would make Tzurot better.
