@@ -91,6 +91,28 @@ describe('normalizeSlugForUser', () => {
       const result = normalizeSlugForUser('char-user-456', 'user-456', '!!!');
       expect(result).toBe('char-user-456');
     });
+
+    it('preserves the username suffix intact when an already-suffixed slug is over-length', () => {
+      // Reachable via shapes imports (no length cap before normalization): a long
+      // slug that already ends in this user's suffix must truncate the BASE only —
+      // eating into the `-username` provenance tail would break the guarantee the
+      // fresh-suffix path provides.
+      const longBase = 'a'.repeat(60);
+      const result = normalizeSlugForUser(`${longBase}-bob`, 'user-456', 'bob');
+
+      expect(result.length).toBeLessThanOrEqual(50);
+      expect(result.endsWith('-bob')).toBe(true);
+      // The truncated base carries the disambiguation hash before the suffix.
+      expect(result).toMatch(/-[0-9a-f]{6}-bob$/);
+    });
+
+    it('is stable when re-normalizing its own over-length output', () => {
+      // normalize(normalize(x)) === normalize(x): the truncated result is under the
+      // cap and already suffixed, so a second pass must return it unchanged.
+      const first = normalizeSlugForUser(`${'a'.repeat(60)}-bob`, 'user-456', 'bob');
+      const second = normalizeSlugForUser(first, 'user-456', 'bob');
+      expect(second).toBe(first);
+    });
   });
 
   describe('edge cases', () => {

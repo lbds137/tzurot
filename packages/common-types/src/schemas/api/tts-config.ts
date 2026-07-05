@@ -61,7 +61,7 @@ export const TtsConfigCreateSchema = z.object({
   name: z
     .string()
     .min(1, 'name is required')
-    .max(CONFIG_NAME_MAX_LENGTH, 'name must be 100 characters or less'),
+    .max(CONFIG_NAME_MAX_LENGTH, `name must be ${CONFIG_NAME_MAX_LENGTH} characters or less`),
   provider: TtsProviderIdSchema,
 
   // Optional fields
