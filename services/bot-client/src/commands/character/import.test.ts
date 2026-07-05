@@ -505,6 +505,33 @@ describe('handleImport', () => {
       expect(editReplyArg).toContain('lowercase letters, numbers, and hyphens');
     });
 
+    it('should reject a too-short slug with the friendly length message', async () => {
+      const context = createMockContext();
+      mockFetch.mockResolvedValue({
+        ok: true,
+        text: () => Promise.resolve(JSON.stringify(createValidCharacterData({ slug: 'ab' }))),
+      });
+
+      await handleImport(context, mockConfig);
+
+      const editReplyArg = (context.editReply as Mock).mock.calls[0][0] as string;
+      expect(editReplyArg).toContain('3–50 characters');
+    });
+
+    it('should reject a too-long slug with the friendly length message', async () => {
+      const context = createMockContext();
+      mockFetch.mockResolvedValue({
+        ok: true,
+        text: () =>
+          Promise.resolve(JSON.stringify(createValidCharacterData({ slug: 'a'.repeat(60) }))),
+      });
+
+      await handleImport(context, mockConfig);
+
+      const editReplyArg = (context.editReply as Mock).mock.calls[0][0] as string;
+      expect(editReplyArg).toContain('3–50 characters');
+    });
+
     it('should reject digit-leading and all-hyphen slugs (leading-letter rule)', async () => {
       for (const badSlug of ['1test', '---']) {
         vi.clearAllMocks();

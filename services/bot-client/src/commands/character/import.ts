@@ -5,12 +5,13 @@
 
 import { EmbedBuilder } from 'discord.js';
 import { type EnvConfig } from '@tzurot/common-types/config/config';
-import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { DISCORD_COLORS, DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 import { characterImportOptions } from '@tzurot/common-types/generated/commandOptions';
 import {
   PersonalityCreateSchema,
   SLUG_PATTERN,
   SLUG_REQUIREMENTS_MESSAGE,
+  SLUG_MIN_LENGTH,
 } from '@tzurot/common-types/schemas/api/personality';
 import { suggestSlugExample, normalizeSlugForUser } from '@tzurot/common-types/utils/slugUtils';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -105,7 +106,7 @@ function buildTemplateMessage(): string {
   return (
     '💡 **Tip:** Use `/character template` to download a template JSON file.\n\n' +
     '**Required fields:** `name`, `slug`, `characterInfo`, `personalityTraits`\n' +
-    '**Slug format:** lowercase letters, numbers, and hyphens only (e.g., `my-character`)\n' +
+    '**Slug format:** starts with a letter; lowercase letters, numbers, and hyphens (e.g., `my-character`)\n' +
     '**Avatar:** Upload an image separately using the `avatar` option'
   );
 }
@@ -136,6 +137,13 @@ function validateCharacterData(
       error:
         `❌ Invalid slug format in JSON. ${SLUG_REQUIREMENTS_MESSAGE}\n` +
         `Example: \`${suggestSlugExample(rawSlug)}\``,
+    };
+  }
+  if (rawSlug.length < SLUG_MIN_LENGTH || rawSlug.length > DISCORD_LIMITS.SLUG_MAX_LENGTH) {
+    return {
+      error:
+        `❌ Slug must be ${SLUG_MIN_LENGTH}–${DISCORD_LIMITS.SLUG_MAX_LENGTH} characters ` +
+        `(yours is ${rawSlug.length}).`,
     };
   }
 

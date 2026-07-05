@@ -647,3 +647,20 @@ describe('processShapesImportJob', () => {
     expect(updateCalls[1][0].data.status).toBe('failed');
   });
 });
+
+describe('slug sanitization seam', () => {
+  it('feeds the SANITIZED source slug into normalizeSlugForUser for digit-leading identifiers', async () => {
+    mockNormalizeSlugForUser.mockClear();
+    const job = createMockJob({ sourceSlug: '123shape' });
+
+    await processShapesImportJob(job, {
+      prisma: mockPrisma as never,
+      memoryAdapter: mockMemoryAdapter as never,
+    });
+
+    // The seam this PR wires: normalizeSlugForUser(sanitizeExternalSlug(src), ...).
+    // Reverting to raw sourceSlug would fail here — the mock must receive the
+    // prefixed shape, not the digit-leading original.
+    expect(mockNormalizeSlugForUser).toHaveBeenCalledWith('s-123shape', 'discord-123', 'testuser');
+  });
+});
