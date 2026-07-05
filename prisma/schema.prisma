@@ -194,10 +194,6 @@ model LlmConfig {
   kind                              String                           @default("text") @db.VarChar(10)
   ownerId                           String                           @map("owner_id") @db.Uuid
   isGlobal                          Boolean                          @default(false) @map("is_global")
-  isDefault                         Boolean                          @default(false) @map("is_default")
-  /// Default config for guest mode (users without API keys). Only one should be true.
-  /// Enforced by partial unique index: llm_configs_free_default_unique (WHERE is_free_default = true)
-  isFreeDefault                     Boolean                          @default(false) @map("is_free_default")
   provider                          String                           @default("openrouter") @db.VarChar(20)
   model                             String                           @db.VarChar(255)
   /// JSONB field for provider-specific parameters (temperature, topP, topK, etc.)
@@ -231,7 +227,6 @@ model LlmConfig {
   @@unique([ownerId, name], map: "llm_configs_owner_id_name_key")
   @@index([ownerId])
   @@index([isGlobal])
-  @@index([isFreeDefault])
   @@index([kind])
   @@map("llm_configs")
 }

@@ -38,11 +38,6 @@
       "action": "remove"
     },
     {
-      "pattern": "DROP INDEX.*llm_configs_free_default_unique",
-      "reason": "Partial unique index with WHERE clause cannot be represented in Prisma schema",
-      "action": "remove"
-    },
-    {
       "pattern": "DROP INDEX.*tts_configs_free_default_unique",
       "reason": "Partial unique index with WHERE clause cannot be represented in Prisma schema (mirrors llm_configs_free_default_unique)",
       "action": "remove"
@@ -58,43 +53,38 @@
       "action": "remove"
     },
     {
-      "pattern": "DROP INDEX.*llm_configs_default_unique",
-      "reason": "Partial unique index (UNIQUE per kind WHERE is_default = true) added in vision_config_kind to make the per-kind single-default invariant DB-enforced. Prisma can't represent partial-unique indexes.",
-      "action": "remove"
-    },
-    {
       "pattern": "DROP INDEX.*idx_memories_is_locked",
       "reason": "Partial index with WHERE clause cannot be represented in Prisma schema",
       "action": "remove"
     },
     {
       "pattern": "ALTER TABLE.*personas.*DROP CONSTRAINT.*personas_name_non_empty",
-      "reason": "CHECK constraint added in Identity Epic Phase 5 — Prisma doesn't represent CHECK constraints so future migrate diffs try to drop it",
+      "reason": "CHECK constraint added in Identity Epic Phase 5 \u2014 Prisma doesn't represent CHECK constraints so future migrate diffs try to drop it",
       "action": "remove"
     },
     {
       "pattern": "ALTER TABLE.*personas.*DROP CONSTRAINT.*personas_name_not_snowflake",
-      "reason": "CHECK constraint added in Identity Epic Phase 5 (snowflake-name tripwire) — Prisma doesn't represent CHECK constraints so future migrate diffs try to drop it",
+      "reason": "CHECK constraint added in Identity Epic Phase 5 (snowflake-name tripwire) \u2014 Prisma doesn't represent CHECK constraints so future migrate diffs try to drop it",
       "action": "remove"
     },
     {
       "pattern": "ALTER TABLE.*users.*ALTER CONSTRAINT.*users_default_persona_id_fkey.*NOT DEFERRABLE",
-      "reason": "FK made DEFERRABLE INITIALLY IMMEDIATE in migration 20260418010642 so db-sync can atomically insert both sides of the users↔personas circular NOT NULL FK pair in one transaction. Prisma schema can't express DEFERRABLE so future diffs try to strip it.",
+      "reason": "FK made DEFERRABLE INITIALLY IMMEDIATE in migration 20260418010642 so db-sync can atomically insert both sides of the users\u2194personas circular NOT NULL FK pair in one transaction. Prisma schema can't express DEFERRABLE so future diffs try to strip it.",
       "action": "remove"
     },
     {
       "pattern": "ALTER TABLE.*users.*ALTER CONSTRAINT.*users_default_llm_config_id_fkey.*NOT DEFERRABLE",
-      "reason": "FK made DEFERRABLE INITIALLY IMMEDIATE in migration 20260418010642 for the users↔llm_configs circular pair. Prisma schema can't express DEFERRABLE.",
+      "reason": "FK made DEFERRABLE INITIALLY IMMEDIATE in migration 20260418010642 for the users\u2194llm_configs circular pair. Prisma schema can't express DEFERRABLE.",
       "action": "remove"
     },
     {
       "pattern": "ALTER TABLE.*personas.*ALTER CONSTRAINT.*personas_owner_id_fkey.*NOT DEFERRABLE",
-      "reason": "FK made DEFERRABLE INITIALLY IMMEDIATE in migration 20260418010642 for the users↔personas circular pair. Prisma schema can't express DEFERRABLE.",
+      "reason": "FK made DEFERRABLE INITIALLY IMMEDIATE in migration 20260418010642 for the users\u2194personas circular pair. Prisma schema can't express DEFERRABLE.",
       "action": "remove"
     },
     {
       "pattern": "ALTER TABLE.*llm_configs.*ALTER CONSTRAINT.*llm_configs_owner_id_fkey.*NOT DEFERRABLE",
-      "reason": "FK made DEFERRABLE INITIALLY IMMEDIATE in migration 20260418010642 for the users↔llm_configs circular pair. Prisma schema can't express DEFERRABLE.",
+      "reason": "FK made DEFERRABLE INITIALLY IMMEDIATE in migration 20260418010642 for the users\u2194llm_configs circular pair. Prisma schema can't express DEFERRABLE.",
       "action": "remove"
     },
     {

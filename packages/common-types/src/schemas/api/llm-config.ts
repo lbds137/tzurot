@@ -191,7 +191,7 @@ export const LLM_CONFIG_LIST_SELECT = {
   // isDefault/isFreeDefault are NOT selected: default-ness is an AdminSettings
   // pointer relationship (S3), and LlmConfigService.list derives the summary
   // flags from those pointers (applyDefaultFlags), not these columns. The
-  // columns are dead pending their DROP; nothing reads them off a config row.
+  // columns were dropped in the legacy-column retirement; the flags are derived.
   ownerId: true,
 } as const;
 

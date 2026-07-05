@@ -165,7 +165,6 @@ describe('LlmConfigService Integration', () => {
             model: 'model-1',
             provider: 'openrouter',
             isGlobal: true,
-            isDefault: true,
             ownerId: adminUserId,
             contextWindowTokens: 100000,
             maxMessages: 25,
@@ -177,7 +176,6 @@ describe('LlmConfigService Integration', () => {
             model: 'model-2',
             provider: 'openrouter',
             isGlobal: true,
-            isDefault: false,
             ownerId: adminUserId,
             contextWindowTokens: 100000,
             maxMessages: 25,
@@ -189,7 +187,6 @@ describe('LlmConfigService Integration', () => {
             model: 'model-3',
             provider: 'openrouter',
             isGlobal: false,
-            isDefault: false,
             ownerId: testUserId,
             contextWindowTokens: 100000,
             maxMessages: 25,
@@ -639,7 +636,6 @@ describe('LlmConfigService Integration', () => {
           model: 'test-model',
           provider: 'openrouter',
           isGlobal: true,
-          isDefault: false,
           ownerId: adminUserId,
           memoryScoreThreshold: 0.8,
           memoryLimit: 100,
@@ -909,76 +905,6 @@ describe('LlmConfigService Integration', () => {
       maxMessages: 25,
       maxImages: 5,
       ...overrides,
-    });
-
-    it('allows one text default AND one vision default to coexist (per-kind isDefault)', async () => {
-      await prisma.llmConfig.create({
-        data: baseConfig({
-          id: newLlmConfigId(),
-          name: 'text-default',
-          kind: 'text',
-          isGlobal: true,
-          isDefault: true,
-        }),
-      });
-      // Same isDefault=true but kind='vision' → must NOT collide with the text default.
-      await expect(
-        prisma.llmConfig.create({
-          data: baseConfig({
-            id: newLlmConfigId(),
-            name: 'vision-default',
-            kind: 'vision',
-            isGlobal: true,
-            isDefault: true,
-          }),
-        })
-      ).resolves.toBeDefined();
-    });
-
-    it('rejects a second default of the same kind (llm_configs_default_unique)', async () => {
-      await prisma.llmConfig.create({
-        data: baseConfig({
-          id: newLlmConfigId(),
-          name: 'first-default',
-          kind: 'text',
-          isGlobal: true,
-          isDefault: true,
-        }),
-      });
-      await expect(
-        prisma.llmConfig.create({
-          data: baseConfig({
-            id: newLlmConfigId(),
-            name: 'second-default',
-            kind: 'text',
-            isGlobal: true,
-            isDefault: true,
-          }),
-        })
-      ).rejects.toThrow();
-    });
-
-    it('allows one text + one vision free-default to coexist (per-kind isFreeDefault)', async () => {
-      await prisma.llmConfig.create({
-        data: baseConfig({
-          id: newLlmConfigId(),
-          name: 'text-free',
-          kind: 'text',
-          isGlobal: true,
-          isFreeDefault: true,
-        }),
-      });
-      await expect(
-        prisma.llmConfig.create({
-          data: baseConfig({
-            id: newLlmConfigId(),
-            name: 'vision-free',
-            kind: 'vision',
-            isGlobal: true,
-            isFreeDefault: true,
-          }),
-        })
-      ).resolves.toBeDefined();
     });
 
     it('scopes the global-name unique by kind (same name, different kind coexist)', async () => {
