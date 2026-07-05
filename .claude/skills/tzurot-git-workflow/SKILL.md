@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-07-03'
+lastUpdated: '2026-07-04'
 ---
 
 # Git Workflow Procedures
@@ -38,6 +38,18 @@ EOF
 **Types:** `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `perf`, `debug`
 (`debug` = temporary diagnostic instrumentation, added then removed; see `.claude/rules/05-tooling.md` § "The `debug` type" for when to use it vs. `chore`/`feat`.)
 **Scopes:** `ai-worker`, `api-gateway`, `bot-client`, `common-types`, `ci`, `deps`
+
+**Command-shape rules for commit/push** (each class cost multiple cycles in practice):
+
+- Chain with `&&`, never `;` — a hook-rejected commit must halt the chain; with `;` the dead commit flows into a push that no-ops as "Everything up-to-date" and the rejection reason scrolls away.
+- **Never filter commit/push output** through `grep`/`tail`/`head` — hook rejections (commitlint, pre-push gate) get swallowed and cost a blind re-diagnosis cycle. Read the full output; it's short when things work and essential when they don't.
+- **Pass `timeout: 600000`** on Bash calls that commit or push — lint-staged + the pre-push gate run the full local pipeline (minutes); default timeouts kill mid-hook and leave ambiguous state (commit landed, push didn't).
+- In compound commands that `cd` into a package, run the git step as `git -C <repo-root> …` (or with absolute paths) — repo-relative pathspecs break after the cd, failing AFTER the tests already passed.
+- Canonical push-verify (don't improvise greps — a pattern starting with `-` parses as an option flag). Use this `ls-remote` form when you need a scriptable boolean; the `-> branch` ref-update line / `git status -sb` check below is the quick visual form — same goal, pick by context:
+
+```bash
+test "$(git rev-parse HEAD)" = "$(git ls-remote origin "refs/heads/<branch>" | cut -f1)" && echo PUSH_LANDED
+```
 
 ### 3. Push
 
