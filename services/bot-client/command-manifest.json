@@ -51,6 +51,12 @@
                 "description": "Preview changes without applying them",
                 "required": false,
                 "type": 5
+              },
+              {
+                "name": "allow-schema-skew",
+                "description": "Proceed despite a migration-soak version mismatch (skew is logged)",
+                "required": false,
+                "type": 5
               }
             ]
           },

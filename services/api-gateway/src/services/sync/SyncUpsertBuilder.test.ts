@@ -20,8 +20,14 @@ vi.mock('./utils/syncValidation.js', () => ({
   assertValidColumnName: vi.fn(),
 }));
 
-import { buildRowMap, compareTimestamps } from './SyncUpsertBuilder.js';
+import {
+  buildRowMap,
+  compareTimestamps,
+  resolveMemoriesSyncColumns,
+  MEMORIES_SYNC_COLUMNS,
+} from './SyncUpsertBuilder.js';
 import type { SYNC_CONFIG } from './config/syncTables.js';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 
 describe('SyncUpsertBuilder', () => {
   describe('buildRowMap', () => {
@@ -106,5 +112,27 @@ describe('SyncUpsertBuilder', () => {
       const prodRow = { updatedAt: '2025-01-19' };
       expect(compareTimestamps(devRow, prodRow, config)).toBe('same');
     });
+  });
+});
+
+describe('resolveMemoriesSyncColumns — skew tolerance', () => {
+  const clientWith = (cols: string[]) =>
+    ({
+      $queryRawUnsafe: vi.fn().mockResolvedValue(cols.map(c => ({ column_name: c }))),
+    }) as unknown as PrismaClient;
+
+  it('returns the full canonical list when both sides match', async () => {
+    const all = [...MEMORIES_SYNC_COLUMNS];
+    const result = await resolveMemoriesSyncColumns(clientWith(all), clientWith(all));
+    expect(result).toEqual(all);
+  });
+
+  it('drops columns missing on either side (soak window) instead of failing', async () => {
+    const all = [...MEMORIES_SYNC_COLUMNS];
+    const prodMissingNew = all.filter(c => c !== 'pool' && c !== 'is_fiction');
+    const result = await resolveMemoriesSyncColumns(clientWith(all), clientWith(prodMissingNew));
+    expect(result).not.toContain('pool');
+    expect(result).not.toContain('is_fiction');
+    expect(result).toContain('visibility');
   });
 });

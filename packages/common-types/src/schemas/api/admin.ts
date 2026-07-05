@@ -29,6 +29,10 @@ export const InvalidateCacheSchema = z
 
 export const DbSyncSchema = z.object({
   dryRun: z.boolean().optional().default(false),
+  /** Conscious override for migration-soak windows: proceed despite differing
+   * migration versions (the memories column intersection handles that table's
+   * skew; other diverged tables fail loudly on their own fetch/upsert). */
+  allowSchemaSkew: z.boolean().optional().default(false),
 });
 
 // ============================================================================

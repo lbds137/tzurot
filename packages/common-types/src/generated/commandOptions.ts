@@ -23,10 +23,11 @@ import { defineTypedOptions } from '../utils/typedOptions.js';
 // =============================================================================
 
 /**
- * /admin db-sync <dry-run>
+ * /admin db-sync <dry-run, allow-schema-skew>
  */
 export const adminDbSyncOptions = defineTypedOptions({
   'dry-run': { type: 'boolean', required: false },
+  'allow-schema-skew': { type: 'boolean', required: false },
 });
 
 /**

@@ -214,6 +214,12 @@ export default defineCommand({
             .setDescription('Preview changes without applying them')
             .setRequired(false)
         )
+        .addBooleanOption(option =>
+          option
+            .setName('allow-schema-skew')
+            .setDescription('Proceed despite a migration-soak version mismatch (skew is logged)')
+            .setRequired(false)
+        )
     )
     .addSubcommand(subcommand =>
       subcommand.setName('servers').setDescription('List all servers the bot is in')

@@ -84,7 +84,7 @@ describe('POST /admin/db-sync', () => {
     expect(response.body.success).toBe(true);
     expect(response.body.totalTables).toBe(3);
     expect(response.body.totalRowsSynced).toBe(150);
-    expect(mockSync).toHaveBeenCalledWith({ dryRun: false });
+    expect(mockSync).toHaveBeenCalledWith({ dryRun: false, allowSchemaSkew: false });
   });
 
   it('should perform dry run when requested', async () => {
@@ -101,7 +101,7 @@ describe('POST /admin/db-sync', () => {
     expect(response.status).toBe(200);
     expect(response.body.success).toBe(true);
     expect(response.body.dryRun).toBe(true);
-    expect(mockSync).toHaveBeenCalledWith({ dryRun: true });
+    expect(mockSync).toHaveBeenCalledWith({ dryRun: true, allowSchemaSkew: false });
   });
 
   it('should default to dryRun false when not specified', async () => {
@@ -115,7 +115,7 @@ describe('POST /admin/db-sync', () => {
     const response = await request(app).post('/admin/db-sync').send({});
 
     expect(response.status).toBe(200);
-    expect(mockSync).toHaveBeenCalledWith({ dryRun: false });
+    expect(mockSync).toHaveBeenCalledWith({ dryRun: false, allowSchemaSkew: false });
   });
 
   it('should handle sync errors gracefully', async () => {

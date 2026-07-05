@@ -209,16 +209,58 @@ export class ConversationSyncService {
    */
   async softDeleteMessage(messageId: string): Promise<boolean> {
     try {
-      await this.prisma.conversationHistory.update({
+      const row = await this.prisma.conversationHistory.update({
         where: { id: messageId },
         data: { deletedAt: new Date() },
+        select: { discordMessageId: true },
       });
 
       logger.debug({ messageId }, 'Soft deleted message');
+      await this.propagateDeletionToMemories(row.discordMessageId);
       return true;
     } catch (error) {
       logger.error({ err: error, messageId }, 'Failed to soft delete message');
       return false;
+    }
+  }
+
+  /**
+   * Propagate source-message deletion to linked long-term memories
+   * (memory-architecture Phase 0, R8: deletion means deletion). Memories carry
+   * the triggering Discord message id in `messageIds`; when that turn is
+   * deleted, the memory is soft-deleted (visibility='deleted' — the same state
+   * the RAG retrieval filter excludes). Locked memories are deliberately
+   * PRESERVED: a user pin is explicit curation that outranks source deletion —
+   * the skip is logged so the tension stays observable. Non-fatal by design:
+   * a propagation failure must never break the sync path.
+   */
+  private async propagateDeletionToMemories(discordMessageIds: string[]): Promise<void> {
+    const ids = discordMessageIds.filter(id => id.length > 0);
+    if (ids.length === 0) {
+      return;
+    }
+    try {
+      const result = await this.prisma.memory.updateMany({
+        where: { messageIds: { hasSome: ids }, visibility: 'normal', isLocked: false },
+        data: { visibility: 'deleted' },
+      });
+      if (result.count > 0) {
+        logger.info(
+          { memoriesDeleted: result.count, sourceMessages: ids.length },
+          'Propagated message deletion to linked memories'
+        );
+      }
+      const lockedRetained = await this.prisma.memory.count({
+        where: { messageIds: { hasSome: ids }, visibility: 'normal', isLocked: true },
+      });
+      if (lockedRetained > 0) {
+        logger.warn(
+          { lockedRetained, sourceMessages: ids.length },
+          'Locked memories retained despite source-message deletion (pin outranks propagation)'
+        );
+      }
+    } catch (error) {
+      logger.error({ err: error }, 'Memory deletion propagation failed (non-fatal)');
     }
   }
 
@@ -244,6 +286,7 @@ export class ConversationSyncService {
           channelId: true,
           personalityId: true,
           personaId: true,
+          discordMessageId: true,
         },
         take: Math.min(messageIds.length, SYNC_LIMITS.MAX_MESSAGE_BATCH),
       });
@@ -273,6 +316,13 @@ export class ConversationSyncService {
         { count: messageIds.length },
         `Soft deleted ${messageIds.length} messages with tombstones`
       );
+
+      // NOTE: propagation shares the tombstone fetch's MAX_MESSAGE_BATCH bound —
+      // a >1000-id bulk delete would soft-delete all rows but only propagate the
+      // first 1000 turns' memories. Current callers (opportunistic sync windows)
+      // are far below the bound; revisit with an unbounded id-only fetch if a
+      // bulk path ever exceeds it.
+      await this.propagateDeletionToMemories(messages.flatMap(m => m.discordMessageId));
       return messageIds.length;
     } catch (error) {
       logger.error({ err: error, count: messageIds.length }, `Failed to bulk soft delete messages`);
