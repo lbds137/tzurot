@@ -1,13 +1,12 @@
 # Current
 
-> **Version**: v3.0.0-beta.147 (released 2026-07-04) — **no migrations**. Headliners: **free-tier vision fix** (#1485 — model-agnostic canonical description cache with tier promotion; hydrator dead-path fixed; filename-bearing failure placeholder), **edit-modal caps** (#1484 — Tone 255→1000, slug single-sourced at 50 with truncate+hash), **slug suffix preservation + cap-message drift** (#1486), **vision log-noise sweep** (#1487 — 11 demotions + structured failure WARN), **reasoning-budget warn** (#1467), **the barrel-kill epic** (#1472–#1483 — 955-export root barrel gone, deep imports + guards, knip audit, tooling lint gate), **CI matrix split** (#1471). 4 release reviews, zero blocking findings. _Prior: v3.0.0-beta.146 (2026-07-03) — provider-failure fixes, Stryker pilot arc, weekly audit cron (11 PRs)._
+> **Version**: v3.0.0-beta.148 (released 2026-07-05) — **no migrations**. The trust-and-honesty release: **deleted memories out of RAG + atomic re-embed** (#1490), **settings-dashboard closure leak deleted** (#1491), **maxAge "off" actually off + detached-resolver footgun closed** (#1492), **honest deletion UX + accurate forget counts + slug alignment** (#1493), **slug completeness incl. shapes reimport continuity** (#1494). 5 fix PRs, ~14 review rounds total, clean holistic release review. Same day: EIGHT accepted design artifacts (see Next Session Goal). _Prior: v3.0.0-beta.147 (2026-07-04)._
 
 ---
 
 ## Unreleased on Develop
 
-- **#1490 fix(ai-worker): deleted memories no longer retrievable in RAG** — visibility guard in the similarity query + sibling expansion (the prod trust bug from the boulder-#3 sweep); rider: memory edits re-embed atomically (content + vector in one transaction, NULL on failure). 4 review rounds, review-hardened (atomicity restructure was a reviewer catch; the hard chunking assertion exposed a silently-skipping test).
-- **#1491 fix(bot-client): settings-dashboard closure leak removed** — the per-session handler Map was write-only dead weight (zero readers); Map + `getUpdateHandler` + dead params deleted, −184 net lines. Unblocks design-system D18 (Close-button removal).
+_(nothing — beta.148 shipped everything on 2026-07-05)_
 
 ## Next Session Goal
 
