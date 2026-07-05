@@ -1,0 +1,98 @@
+{
+  "$comment": "Retrieval golden corpus (memory-architecture §3.9). Each golden seeds memories, runs a real query through the production retrieval stack, and measures recall@K. expectRecall entries are substrings that must appear in the top-K contents; expectAbsent entries must NOT appear (hard invariants). Accrete real conversation snapshots here as they surface — synthetic seeds below establish the format and the baseline categories. Run: pnpm eval:memory",
+  "goldens": [
+    {
+      "id": "episodic-callback-paraphrase",
+      "category": "R1 episodic callback",
+      "description": "A distinctive shared joke must be recallable from a paraphrased query, not just exact words",
+      "seed": [
+        {
+          "text": "{user}: remember when we tried to convince Lila that the moon rental market was crashing?\n{assistant}: She almost believed the part about lunar landlords before she caught on."
+        },
+        {
+          "text": "{user}: what's your favorite soup?\n{assistant}: Tomato, obviously. It pairs with dramatic monologues."
+        },
+        {
+          "text": "{user}: the weather has been awful this week\n{assistant}: Endless rain. Good for brooding by windows."
+        }
+      ],
+      "query": "that bit about renting property on the moon",
+      "k": 3,
+      "expectRecall": ["moon rental"],
+      "expectAbsent": []
+    },
+    {
+      "id": "distractor-resistance",
+      "category": "precision under near-topic noise",
+      "description": "Among several cooking memories, the query must surface the specific paella disaster",
+      "seed": [
+        {
+          "text": "{user}: I burned the paella so badly the smoke alarm wrote a review\n{assistant}: Two stars: dramatic presentation, inedible rice."
+        },
+        {
+          "text": "{user}: made a decent carbonara tonight\n{assistant}: Guanciale or pancetta? The distinction matters to me deeply."
+        },
+        {
+          "text": "{user}: thinking about baking sourdough again\n{assistant}: Feed the starter. It remembers neglect."
+        },
+        {
+          "text": "{user}: my knife skills are improving\n{assistant}: The onions tremble before you."
+        }
+      ],
+      "query": "the time the rice dish went horribly wrong",
+      "k": 2,
+      "expectRecall": ["paella"],
+      "expectAbsent": []
+    },
+    {
+      "id": "deleted-memory-exclusion",
+      "category": "R8 integrity — deletion means deletion",
+      "description": "A soft-deleted memory that would otherwise be the best match must never surface (the beta.148 invariant)",
+      "seed": [
+        {
+          "text": "{user}: my secret plan is to move to Lisbon next spring\n{assistant}: Pastel de nata every morning. I approve of this secret.",
+          "visibility": "deleted"
+        },
+        {
+          "text": "{user}: I like planning trips in general\n{assistant}: The spreadsheet phase is your favorite part, admit it."
+        }
+      ],
+      "query": "what is my secret relocation plan",
+      "k": 5,
+      "expectRecall": [],
+      "expectAbsent": ["Lisbon"]
+    },
+    {
+      "id": "cross-persona-isolation",
+      "category": "scoping — private pool boundaries",
+      "description": "Another persona's memory must not leak into this persona's retrieval",
+      "seed": [
+        {
+          "text": "{user}: my dog is named Bartholomew and he fears umbrellas\n{assistant}: A noble name for a creature of such specific anxieties.",
+          "persona": "other"
+        },
+        {
+          "text": "{user}: I have a cat called Mote\n{assistant}: Small name, large opinions, no doubt."
+        }
+      ],
+      "query": "what pets do I have and what are their names",
+      "k": 5,
+      "expectRecall": ["Mote"],
+      "expectAbsent": ["Bartholomew"]
+    },
+    {
+      "id": "verbatim-texture-survives",
+      "category": "R1 verbatim wording",
+      "description": "Retrieval returns the stored wording (the texture IS the product), verified via a distinctive phrase",
+      "seed": [
+        {
+          "text": "{user}: describe your ideal vacation\n{assistant}: A lighthouse, a thunderstorm, and absolutely no obligations — melancholy tourism at its finest."
+        }
+      ],
+      "query": "what kind of holiday would you enjoy",
+      "k": 3,
+      "expectRecall": ["melancholy tourism"],
+      "expectAbsent": []
+    }
+  ]
+}
