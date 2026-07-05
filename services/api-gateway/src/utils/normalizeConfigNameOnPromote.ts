@@ -25,7 +25,7 @@
 import type { Request } from 'express';
 import { normalizeSlugForUser } from '@tzurot/common-types/utils/slugUtils';
 // Shared cap so the config schemas + this promote-normalization can't drift (NOT the 50-char slug cap).
-import { CONFIG_NAME_MAX_LENGTH } from '@tzurot/common-types/constants/message';
+import { CONFIG_NAME_MAX_LENGTH } from '@tzurot/common-types/constants/ai';
 
 interface PromotionContext {
   /** Current state of the config (from `service.getById`). */

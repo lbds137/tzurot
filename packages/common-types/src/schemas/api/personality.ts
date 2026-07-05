@@ -187,7 +187,10 @@ export const PersonalityCharacterFieldsSchema = z.object({
 const slugSchema = z
   .string()
   .min(3, 'slug must be at least 3 characters')
-  .max(DISCORD_LIMITS.SLUG_MAX_LENGTH, 'slug must be 50 characters or less')
+  .max(
+    DISCORD_LIMITS.SLUG_MAX_LENGTH,
+    `slug must be ${DISCORD_LIMITS.SLUG_MAX_LENGTH} characters or less`
+  )
   .regex(
     /^[a-z][a-z0-9-]*$/,
     'slug must start with a letter and contain only lowercase letters, numbers, and hyphens'

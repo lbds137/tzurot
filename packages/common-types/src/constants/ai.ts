@@ -208,6 +208,14 @@ export const MODEL_DEFAULTS = {
  */
 export const CONFIG_KINDS = ['text', 'vision'] as const;
 export type ConfigKind = (typeof CONFIG_KINDS)[number];
+
+/**
+ * Max length for an LlmConfig/TtsConfig `name`. Single source for the `.max()` in
+ * both config schemas AND the promote-normalization util, so they can't drift.
+ * Lives here with the other config-domain constants (`CONFIG_KINDS` etc.).
+ */
+export const CONFIG_NAME_MAX_LENGTH = 100;
+
 /** Default kind for a newly-created config — matches the Prisma `kind` column default. */
 export const DEFAULT_CONFIG_KIND: ConfigKind = 'text';
 
