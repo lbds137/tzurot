@@ -194,9 +194,12 @@ export const SLUG_PATTERN = /^[a-z][a-z0-9-]*$/;
 export const SLUG_REQUIREMENTS_MESSAGE =
   'Slugs must start with a letter and contain only lowercase letters, numbers, and hyphens.';
 
+/** Slug length bounds — mirror slugSchema's min/max for client-side pre-validation. */
+export const SLUG_MIN_LENGTH = 3;
+
 const slugSchema = z
   .string()
-  .min(3, 'slug must be at least 3 characters')
+  .min(SLUG_MIN_LENGTH, 'slug must be at least 3 characters')
   .max(
     DISCORD_LIMITS.SLUG_MAX_LENGTH,
     `slug must be ${DISCORD_LIMITS.SLUG_MAX_LENGTH} characters or less`

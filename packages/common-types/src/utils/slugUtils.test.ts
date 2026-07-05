@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { normalizeSlugForUser, suggestSlugExample } from './slugUtils.js';
+import { normalizeSlugForUser, suggestSlugExample, sanitizeExternalSlug } from './slugUtils.js';
 
 // Mock ownerMiddleware for isBotOwner control
 vi.mock('./ownerMiddleware.js', () => ({
@@ -190,5 +190,42 @@ describe('suggestSlugExample', () => {
 
   it('drops trailing hyphens', () => {
     expect(suggestSlugExample('name!!')).toBe('name');
+  });
+
+  it('clamps very long names to the schema max so the suggestion itself validates', () => {
+    const suggestion = suggestSlugExample('a'.repeat(255));
+    expect(suggestion.length).toBeLessThanOrEqual(50);
+    expect(suggestion).toMatch(/^[a-z][a-z0-9-]*$/);
+  });
+
+  it('re-trims a hyphen exposed by the length clamp', () => {
+    // 49 letters + hyphen at position 50 → clamp cuts mid-word leaving a
+    // trailing hyphen that must be re-trimmed.
+    const suggestion = suggestSlugExample('a'.repeat(49) + '-' + 'b'.repeat(30));
+    expect(suggestion.endsWith('-')).toBe(false);
+  });
+});
+
+describe('sanitizeExternalSlug', () => {
+  it('passes through already-valid slugs', () => {
+    expect(sanitizeExternalSlug('my-shape')).toBe('my-shape');
+  });
+
+  it('prefixes digit-leading identifiers instead of trimming (distinctness preserved)', () => {
+    expect(sanitizeExternalSlug('123cat')).toBe('s-123cat');
+  });
+
+  it('collapses invalid characters, lowercases, and trims trailing hyphens', () => {
+    expect(sanitizeExternalSlug('My Shape!')).toBe('my-shape');
+  });
+
+  it('floors short sources to the schema minimum (bot-owner imports skip the suffix)', () => {
+    expect(sanitizeExternalSlug('ab')).toBe('imported-ab');
+    expect(sanitizeExternalSlug('7')).toBe('s-7'); // prefix already reaches min length
+  });
+
+  it('handles hyphen-leading and all-invalid input', () => {
+    expect(sanitizeExternalSlug('--abc')).toBe('s-abc');
+    expect(sanitizeExternalSlug('---')).toBe('imported');
   });
 });
