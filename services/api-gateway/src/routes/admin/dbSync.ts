@@ -34,7 +34,7 @@ export const handleDbSync = (_deps: RouteDeps): RequestHandler =>
       return sendZodError(res, parseResult.error);
     }
 
-    const { dryRun } = parseResult.data;
+    const { dryRun, allowSchemaSkew } = parseResult.data;
     const config = getConfig();
 
     // Verify database URLs are configured
@@ -52,7 +52,7 @@ export const handleDbSync = (_deps: RouteDeps): RequestHandler =>
       );
     }
 
-    logger.info({ dryRun }, 'Starting database sync');
+    logger.info({ dryRun, allowSchemaSkew }, 'Starting database sync');
 
     // Create Prisma clients for dev and prod databases using driver adapters.
     // transientPoolOptions caps these short-lived cross-env sync pools and gives
@@ -71,7 +71,7 @@ export const handleDbSync = (_deps: RouteDeps): RequestHandler =>
 
     // Execute sync - the service handles connect/disconnect internally
     const syncService = new DatabaseSyncService(devClient, prodClient);
-    const result = await syncService.sync({ dryRun });
+    const result = await syncService.sync({ dryRun, allowSchemaSkew });
 
     logger.info({ result }, 'Database sync complete');
 

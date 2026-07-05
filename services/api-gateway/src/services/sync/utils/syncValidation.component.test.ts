@@ -10,6 +10,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { MEMORIES_SYNC_COLUMNS } from '../SyncUpsertBuilder.js';
 import { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
@@ -50,5 +51,16 @@ describe('syncValidation guard — SYNC_CONFIG covers the live schema', () => {
     // schema. A non-empty array confirms the exclusion list isn't ENTIRELY phantom;
     // individual phantom entries are caught by the zero-warnings assertion above.
     expect(info.length).toBeGreaterThan(0);
+  });
+
+  describe('MEMORIES_SYNC_COLUMNS guard — the explicit SELECT list matches the live schema', () => {
+    it('lists every memories column exactly once (a new column must be added here to sync)', async () => {
+      const rows = (await prisma.$queryRawUnsafe(
+        `SELECT column_name FROM information_schema.columns WHERE table_name = 'memories' ORDER BY column_name`
+      )) as { column_name: string }[];
+      const schemaColumns = rows.map(r => r.column_name).sort();
+      const listed = [...MEMORIES_SYNC_COLUMNS].sort();
+      expect(listed).toEqual(schemaColumns);
+    });
   });
 });

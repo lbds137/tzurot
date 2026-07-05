@@ -15,6 +15,45 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import { assertValidTableName, assertValidColumnName } from './utils/syncValidation.js';
 import type { SYNC_CONFIG } from './config/syncTables.js';
 
+/**
+ * Every column of the memories table, explicitly enumerated because the
+ * vector column needs a ::text cast (SELECT * can't express that). This list
+ * previously rotted silently — columns added after it was written (visibility,
+ * is_locked, type, chunk fields) were dropped from db-sync. The
+ * syncValidation component guard now asserts this list matches the live
+ * schema, so a new memories column fails the build until listed here.
+ */
+export const MEMORIES_SYNC_COLUMNS = [
+  'id',
+  'persona_id',
+  'personality_id',
+  'source_system',
+  'content',
+  'embedding',
+  'is_summarized',
+  'original_message_count',
+  'summarized_at',
+  'session_id',
+  'canon_scope',
+  'summary_type',
+  'channel_id',
+  'guild_id',
+  'message_ids',
+  'senders',
+  'created_at',
+  'updated_at',
+  'legacy_shapes_user_id',
+  'type',
+  'is_locked',
+  'visibility',
+  'chunk_group_id',
+  'chunk_index',
+  'total_chunks',
+  'pool',
+  'canon_group_id',
+  'is_fiction',
+] as const;
+
 const logger = createLogger('db-sync');
 
 /**
@@ -64,20 +103,63 @@ export interface UpsertRowOptions {
 }
 
 /**
- * Fetch all rows from a table using raw SQL
+ * Resolve the memories sync column set for THIS run: the canonical list
+ * intersected with the columns both databases actually have. Migration-soak
+ * windows (a column added on dev but not yet released to prod, or dropped on
+ * one side first) would otherwise break db-sync outright for the whole table;
+ * with the intersection, sync keeps working and the skew is WARNed loudly —
+ * the skipped columns simply don't mirror until both sides agree.
  */
-export async function fetchAllRows(client: PrismaClient, tableName: string): Promise<unknown[]> {
+export async function resolveMemoriesSyncColumns(
+  devClient: PrismaClient,
+  prodClient: PrismaClient
+): Promise<readonly string[]> {
+  const fetchCols = async (client: PrismaClient): Promise<Set<string>> => {
+    const rows = await client.$queryRawUnsafe<{ column_name: string }[]>(
+      `SELECT column_name FROM information_schema.columns WHERE table_name = 'memories'`
+    );
+    return new Set(rows.map(r => r.column_name));
+  };
+  const [devCols, prodCols] = await Promise.all([fetchCols(devClient), fetchCols(prodClient)]);
+  // Fail open: an empty introspection result means we couldn't determine the
+  // schema (not that memories has zero columns) — use the canonical list
+  // rather than emitting a zero-column SELECT.
+  if (devCols.size === 0 || prodCols.size === 0) {
+    logger.warn(
+      { devColumns: devCols.size, prodColumns: prodCols.size },
+      'memories schema introspection returned no columns — falling back to the canonical sync list'
+    );
+    return MEMORIES_SYNC_COLUMNS;
+  }
+  const usable = MEMORIES_SYNC_COLUMNS.filter(c => devCols.has(c) && prodCols.has(c));
+  const skipped = MEMORIES_SYNC_COLUMNS.filter(c => !devCols.has(c) || !prodCols.has(c));
+  if (skipped.length > 0) {
+    logger.warn(
+      { skipped, usableCount: usable.length },
+      'memories schema skew between environments — skipped columns will not sync until both sides have them (expected during a migration soak window)'
+    );
+  }
+  return usable;
+}
+
+/**
+ * Fetch all rows from a table using raw SQL.
+ * For memories, callers must pass the run's resolved column set (see
+ * resolveMemoriesSyncColumns) so both fetch AND the row-key-derived upsert
+ * use columns that exist on BOTH databases.
+ */
+export async function fetchAllRows(
+  client: PrismaClient,
+  tableName: string,
+  memoriesSyncColumns: readonly string[] = MEMORIES_SYNC_COLUMNS
+): Promise<unknown[]> {
   // Defense-in-depth: validate table name before SQL interpolation
   assertValidTableName(tableName);
 
   // Special handling for memories table - cast vector to text for Prisma deserialization
   if (tableName === 'memories') {
     const rows = await client.$queryRawUnsafe(`
-      SELECT
-        id, persona_id, personality_id, source_system, content,
-        embedding::text as embedding,
-        session_id, canon_scope, summary_type, channel_id, guild_id,
-        message_ids, senders, created_at, legacy_shapes_user_id
+      SELECT ${memoriesSyncColumns.map(c => (c === 'embedding' ? 'embedding::text as embedding' : c)).join(', ')}
       FROM "memories"
     `);
     return Array.isArray(rows) ? (rows as unknown[]) : [];

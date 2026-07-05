@@ -42,6 +42,7 @@ export function buildConversationContext(
     serverId: jobContext.serverId,
     sessionId: jobContext.sessionId,
     isProxyMessage: jobContext.isProxyMessage,
+    triggerMessageId: jobContext.triggerMessageId,
     isWeighIn: jobContext.isWeighIn,
     summonAnonymity,
     activePersonaId: jobContext.activePersonaId,

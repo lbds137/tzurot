@@ -126,10 +126,11 @@ function buildSyncSummary(result: SyncResult, dryRun: boolean): string {
 export async function handleDbSync(context: DeferredCommandContext): Promise<void> {
   const options = adminDbSyncOptions(context.interaction);
   const dryRun = options['dry-run']() ?? false;
+  const allowSchemaSkew = options['allow-schema-skew']() ?? false;
 
   try {
     const { ownerClient } = clientsFor(context.interaction);
-    const apiResult = await ownerClient.dbSync({ dryRun });
+    const apiResult = await ownerClient.dbSync({ dryRun, allowSchemaSkew });
 
     if (!apiResult.ok) {
       logger.error({ status: apiResult.status, error: apiResult.error }, 'DB sync failed');

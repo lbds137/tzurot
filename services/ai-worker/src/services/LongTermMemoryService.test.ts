@@ -406,4 +406,38 @@ describe('LongTermMemoryService', () => {
       });
     });
   });
+
+  describe('source-turn linkage (memory-architecture Phase 0)', () => {
+    it('stamps the triggering message id into metadata.messageIds', async () => {
+      await service.storeInteraction(
+        testPersonality,
+        'Hello',
+        'Hi there!',
+        { ...baseContext, triggerMessageId: '810000000000000042' },
+        'persona-1'
+      );
+
+      expect(mockMemoryManager.addMemory).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({ messageIds: ['810000000000000042'] }),
+        })
+      );
+    });
+
+    it('stamps an empty linkage when no trigger id is available', async () => {
+      await service.storeInteraction(
+        testPersonality,
+        'Hello',
+        'Hi there!',
+        baseContext,
+        'persona-1'
+      );
+
+      expect(mockMemoryManager.addMemory).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({ messageIds: [] }),
+        })
+      );
+    });
+  });
 });

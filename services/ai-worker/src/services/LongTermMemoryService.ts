@@ -9,6 +9,7 @@
  */
 
 import { type PgvectorMemoryAdapter } from './PgvectorMemoryAdapter.js';
+import type { MemoryMetadata } from './PgvectorTypes.js';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { generatePendingMemoryUuid } from '@tzurot/common-types/utils/deterministicUuid';
@@ -52,25 +53,9 @@ export class LongTermMemoryService {
         return;
       }
 
-      // Determine canon scope and prepare memory metadata
-      const canonScope: 'global' | 'personal' | 'session' =
-        context.sessionId !== undefined && context.sessionId.length > 0 ? 'session' : 'personal';
       // Use {user} and {assistant} tokens - actual names injected at retrieval time
       const interactionText = `{user}: ${userMessage}\n{assistant}: ${aiResponse}`;
-
-      const memoryMetadata = {
-        personaId,
-        personalityId: personality.id,
-        sessionId: context.sessionId,
-        canonScope,
-        createdAt: Date.now(), // Current timestamp in milliseconds for LTM
-        summaryType: 'conversation',
-        contextType:
-          context.channelId !== undefined && context.channelId.length > 0 ? 'channel' : 'dm',
-        channelId: context.channelId,
-        guildId: context.serverId,
-        serverId: context.serverId,
-      };
+      const memoryMetadata = buildMemoryMetadata(personality, context, personaId);
 
       // Create pending_memory record (safety net for vector storage)
       // Note: conversationHistoryId is optional (bot-client can backfill if needed)
@@ -99,7 +84,7 @@ export class LongTermMemoryService {
         where: { id: pendingMemoryId },
       });
       logger.info(
-        { canonScope, personalityName: personality.name, personaId },
+        { canonScope: memoryMetadata.canonScope, personalityName: personality.name, personaId },
         'Stored interaction to LTM'
       );
     } catch (error) {
@@ -125,4 +110,35 @@ export class LongTermMemoryService {
       // Don't throw - this is a non-critical error
     }
   }
+}
+
+/**
+ * Assemble the metadata for a captured interaction memory. Extracted so the
+ * store path stays within complexity limits.
+ */
+function buildMemoryMetadata(
+  personality: LoadedPersonality,
+  context: ConversationContext,
+  personaId: string
+): MemoryMetadata {
+  const canonScope: 'global' | 'personal' | 'session' =
+    context.sessionId !== undefined && context.sessionId.length > 0 ? 'session' : 'personal';
+  return {
+    personaId,
+    // Source-turn linkage (memory-architecture Phase 0, R8): the triggering
+    // message id — deletion of the source turn propagates to this memory.
+    messageIds:
+      context.triggerMessageId !== undefined && context.triggerMessageId.length > 0
+        ? [context.triggerMessageId]
+        : [],
+    personalityId: personality.id,
+    sessionId: context.sessionId,
+    canonScope,
+    createdAt: Date.now(), // Current timestamp in milliseconds for LTM
+    summaryType: 'conversation',
+    contextType: context.channelId !== undefined && context.channelId.length > 0 ? 'channel' : 'dm',
+    channelId: context.channelId,
+    guildId: context.serverId,
+    serverId: context.serverId,
+  };
 }

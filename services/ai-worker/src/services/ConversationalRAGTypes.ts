@@ -72,6 +72,10 @@ export interface ConversationContext {
   userName?: string;
   userTimezone?: string;
   isProxyMessage?: boolean;
+  /** Discord id of the triggering user message — links captured memories to
+   * their source turn (deletion propagation; response ids aren't known at
+   * capture time since bot-client sends after generation). */
+  triggerMessageId?: string;
   /** Weigh-in mode: read-the-room framing (controls framing, not anonymity). */
   isWeighIn?: boolean;
   /**

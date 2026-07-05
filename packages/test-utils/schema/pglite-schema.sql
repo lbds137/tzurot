@@ -347,6 +347,9 @@ CREATE TABLE "memories" (
     "type" VARCHAR(20) NOT NULL DEFAULT 'memory',
     "is_locked" BOOLEAN NOT NULL DEFAULT false,
     "visibility" VARCHAR(20) NOT NULL DEFAULT 'normal',
+    "pool" VARCHAR(20) NOT NULL DEFAULT 'private',
+    "canon_group_id" UUID,
+    "is_fiction" BOOLEAN NOT NULL DEFAULT false,
     "chunk_group_id" UUID,
     "chunk_index" INTEGER,
     "total_chunks" INTEGER,
@@ -682,6 +685,12 @@ CREATE INDEX "memories_legacy_shapes_user_id_idx" ON "memories"("legacy_shapes_u
 
 -- CreateIndex
 CREATE INDEX "memories_source_system_idx" ON "memories"("source_system");
+
+-- CreateIndex
+CREATE INDEX "memories_message_ids_idx" ON "memories" USING GIN ("message_ids");
+
+-- CreateIndex
+CREATE INDEX "memories_pool_idx" ON "memories"("pool");
 
 -- CreateIndex
 CREATE INDEX "memories_is_locked_idx" ON "memories"("is_locked");

@@ -594,8 +594,23 @@ model Memory {
   type                 String                 @default("memory") @map("type") @db.VarChar(20)
   /// Protected "core memories" that survive batch delete and purge operations
   isLocked             Boolean                @default(false) @map("is_locked")
-  /// Memory visibility: normal, hidden, archived (for future use)
+  /// Memory visibility: normal (live), deleted (soft-deleted — excluded from RAG
+  /// retrieval and user-facing lists; written by memory delete paths and
+  /// message-deletion propagation), hidden/archived (reserved for future use)
   visibility           String                 @default("normal") @map("visibility") @db.VarChar(20)
+  /// Memory pool (social scoping matrix): 'private' = persona×personality (today's
+  /// only behavior, the default); 'community' = server-communal pool (Phase 3 —
+  /// rows only ever written after per-user opt-in consent); 'canon' = canon-group
+  /// world knowledge (Phase 3+). Column lands in Phase 0 so later extraction
+  /// writes correctly-scoped rows without a re-scope migration.
+  pool                 String                 @default("private") @map("pool") @db.VarChar(20)
+  /// Canon-group id for pool='canon' rows; null for private/community pools
+  /// (state-machine-by-status: tied to pool, meaningless otherwise).
+  canonGroupId         String?                @map("canon_group_id") @db.Uuid
+  /// Fiction/reality split (R7): true = in-character canon (scene events), false =
+  /// true-user-facts. Defaults false; Phase 2 extraction sets it from scope
+  /// defaults + explicit user markers (owner decision: scope+markers canonical).
+  isFiction            Boolean                @default(false) @map("is_fiction")
   // Chunk linking fields for oversized memories split into multiple chunks
   chunkGroupId         String?                @map("chunk_group_id") @db.Uuid
   chunkIndex           Int?                   @map("chunk_index")
@@ -612,6 +627,8 @@ model Memory {
   @@index([isSummarized])
   @@index([legacyShapesUserId])
   @@index([sourceSystem])
+  @@index([messageIds], type: Gin)
+  @@index([pool])
   // NOTE: isLocked uses a PARTIAL index (WHERE is_locked = true) managed via raw migration
   // for efficient locked memory queries. Declared here for drift detection.
   @@index([isLocked])
