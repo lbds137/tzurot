@@ -8,12 +8,10 @@ import {
   handleSettingsSelectMenu,
   handleSettingsButton,
   handleSettingsModal,
-  getUpdateHandler,
 } from './SettingsDashboardHandler.js';
 import {
   type SettingsDashboardConfig,
   type SettingsData,
-  type SettingUpdateResult,
   SettingType,
   isSettingsInteraction,
   parseSettingsCustomId,
@@ -231,7 +229,6 @@ describe('SettingsDashboardHandler', () => {
       const config = createTestConfig();
       const data = createTestData();
       const interaction = createMockInteraction();
-      const updateHandler = vi.fn();
 
       await createSettingsDashboard(interaction as never, {
         config,
@@ -239,7 +236,6 @@ describe('SettingsDashboardHandler', () => {
         entityId: 'entity-1',
         entityName: 'Test Entity',
         userId: 'user-123',
-        updateHandler,
       });
 
       expect(interaction.editReply).toHaveBeenCalledWith(
@@ -254,7 +250,6 @@ describe('SettingsDashboardHandler', () => {
       const config = createTestConfig();
       const data = createTestData();
       const interaction = createMockInteraction();
-      const updateHandler = vi.fn();
 
       await createSettingsDashboard(interaction as never, {
         config,
@@ -262,7 +257,6 @@ describe('SettingsDashboardHandler', () => {
         entityId: 'entity-1',
         entityName: 'Test Entity',
         userId: 'user-123',
-        updateHandler,
       });
 
       const editReplyCall = interaction.editReply.mock.calls[0][0];
@@ -275,7 +269,6 @@ describe('SettingsDashboardHandler', () => {
       const config = createTestConfig();
       const data = createTestData();
       const interaction = createMockInteraction();
-      const updateHandler = vi.fn();
 
       await createSettingsDashboard(interaction as never, {
         config,
@@ -283,7 +276,6 @@ describe('SettingsDashboardHandler', () => {
         entityId: 'entity-1',
         entityName: 'Test Entity',
         userId: 'user-123',
-        updateHandler,
       });
 
       const editReplyCall = interaction.editReply.mock.calls[0][0];
@@ -334,65 +326,11 @@ describe('SettingsDashboardHandler', () => {
     });
   });
 
-  describe('update handler integration', () => {
-    it('should support async update handlers', async () => {
-      const updateResult: SettingUpdateResult = {
-        success: true,
-        newData: createTestData(),
-      };
-
-      const updateHandler = vi.fn().mockResolvedValue(updateResult);
-
-      const config = createTestConfig();
-      const data = createTestData();
-      const interaction = createMockInteraction();
-
-      await createSettingsDashboard(interaction as never, {
-        config,
-        data,
-        entityId: 'entity-1',
-        entityName: 'Test Entity',
-        userId: 'user-123',
-        updateHandler,
-      });
-
-      // The update handler is stored and called later when buttons are pressed
-      // Here we just verify it was registered properly
-      expect(interaction.editReply).toHaveBeenCalled();
-    });
-
-    it('should handle update handler errors gracefully', async () => {
-      const updateResult: SettingUpdateResult = {
-        success: false,
-        error: 'Something went wrong',
-      };
-
-      const updateHandler = vi.fn().mockResolvedValue(updateResult);
-
-      const config = createTestConfig();
-      const data = createTestData();
-      const interaction = createMockInteraction();
-
-      await createSettingsDashboard(interaction as never, {
-        config,
-        data,
-        entityId: 'entity-1',
-        entityName: 'Test Entity',
-        userId: 'user-123',
-        updateHandler,
-      });
-
-      // Dashboard should still be created even if update handler will fail later
-      expect(interaction.editReply).toHaveBeenCalled();
-    });
-  });
-
   describe('edge cases', () => {
     it('should handle empty entity name', async () => {
       const config = createTestConfig();
       const data = createTestData();
       const interaction = createMockInteraction();
-      const updateHandler = vi.fn();
 
       await createSettingsDashboard(interaction as never, {
         config,
@@ -400,7 +338,6 @@ describe('SettingsDashboardHandler', () => {
         entityId: 'entity-1',
         entityName: '',
         userId: 'user-123',
-        updateHandler,
       });
 
       expect(interaction.editReply).toHaveBeenCalled();
@@ -430,7 +367,6 @@ describe('SettingsDashboardHandler', () => {
         voiceTranscriptionEnabled: { localValue: null, effectiveValue: true, source: 'hardcoded' },
       };
       const interaction = createMockInteraction();
-      const updateHandler = vi.fn();
 
       await createSettingsDashboard(interaction as never, {
         config,
@@ -438,7 +374,6 @@ describe('SettingsDashboardHandler', () => {
         entityId: 'entity-1',
         entityName: 'Test',
         userId: 'user-123',
-        updateHandler,
       });
 
       expect(interaction.editReply).toHaveBeenCalled();
@@ -468,7 +403,6 @@ describe('SettingsDashboardHandler', () => {
         voiceTranscriptionEnabled: { localValue: null, effectiveValue: true, source: 'hardcoded' },
       };
       const interaction = createMockInteraction();
-      const updateHandler = vi.fn();
 
       await createSettingsDashboard(interaction as never, {
         config,
@@ -476,7 +410,6 @@ describe('SettingsDashboardHandler', () => {
         entityId: 'entity-1',
         entityName: 'Test',
         userId: 'user-123',
-        updateHandler,
       });
 
       expect(interaction.editReply).toHaveBeenCalled();
@@ -527,9 +460,8 @@ describe('SettingsDashboardHandler', () => {
     it('should return early for invalid customId', async () => {
       const interaction = createSelectInteraction('invalid', 'maxMessages');
       const config = createTestConfig();
-      const updateHandler = vi.fn();
 
-      await handleSettingsSelectMenu(interaction as never, config, updateHandler);
+      await handleSettingsSelectMenu(interaction as never, config);
 
       expect(interaction.reply).not.toHaveBeenCalled();
       expect(interaction.update).not.toHaveBeenCalled();
@@ -540,9 +472,8 @@ describe('SettingsDashboardHandler', () => {
 
       const interaction = createSelectInteraction('test-settings::select::entity-1', 'maxMessages');
       const config = createTestConfig();
-      const updateHandler = vi.fn();
 
-      await handleSettingsSelectMenu(interaction as never, config, updateHandler);
+      await handleSettingsSelectMenu(interaction as never, config);
 
       // Ack-first: deferUpdate precedes the Redis getSession; expiry surfaces via followUp.
       expect(interaction.deferUpdate).toHaveBeenCalled();
@@ -569,9 +500,8 @@ describe('SettingsDashboardHandler', () => {
         'user-123'
       );
       const config = createTestConfig();
-      const updateHandler = vi.fn();
 
-      await handleSettingsSelectMenu(interaction as never, config, updateHandler);
+      await handleSettingsSelectMenu(interaction as never, config);
 
       expect(interaction.followUp).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -595,9 +525,8 @@ describe('SettingsDashboardHandler', () => {
         'nonexistent-setting'
       );
       const config = createTestConfig();
-      const updateHandler = vi.fn();
 
-      await handleSettingsSelectMenu(interaction as never, config, updateHandler);
+      await handleSettingsSelectMenu(interaction as never, config);
 
       expect(interaction.followUp).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -618,9 +547,8 @@ describe('SettingsDashboardHandler', () => {
 
       const interaction = createSelectInteraction('test-settings::select::entity-1', 'maxMessages');
       const config = createTestConfig();
-      const updateHandler = vi.fn();
 
-      await handleSettingsSelectMenu(interaction as never, config, updateHandler);
+      await handleSettingsSelectMenu(interaction as never, config);
 
       // Ack-first invariant: defer precedes the re-render even on the happy path.
       expect(interaction.deferUpdate).toHaveBeenCalled();
@@ -635,6 +563,8 @@ describe('SettingsDashboardHandler', () => {
   });
 
   describe('handleSettingsButton', () => {
+    const updateHandler = vi.fn();
+
     const createButtonInteraction = (customId: string, userId = 'user-123') => ({
       customId,
       user: { id: userId },
@@ -649,7 +579,6 @@ describe('SettingsDashboardHandler', () => {
     it('should return early for invalid customId', async () => {
       const interaction = createButtonInteraction('invalid');
       const config = createTestConfig();
-      const updateHandler = vi.fn();
 
       await handleSettingsButton(interaction as never, config, updateHandler);
 
@@ -672,7 +601,6 @@ describe('SettingsDashboardHandler', () => {
       // rather than silently return (stale-customId-after-deploy scenario).
       const interaction = createButtonInteraction('test-settings::frobnicate::entity-1');
       const config = createTestConfig();
-      const updateHandler = vi.fn();
 
       await handleSettingsButton(interaction as never, config, updateHandler);
 
@@ -689,7 +617,6 @@ describe('SettingsDashboardHandler', () => {
 
       const interaction = createButtonInteraction('test-settings::back::entity-1');
       const config = createTestConfig();
-      const updateHandler = vi.fn();
 
       await handleSettingsButton(interaction as never, config, updateHandler);
 
@@ -714,7 +641,6 @@ describe('SettingsDashboardHandler', () => {
 
       const interaction = createButtonInteraction('test-settings::back::entity-1', 'user-123');
       const config = createTestConfig();
-      const updateHandler = vi.fn();
 
       await handleSettingsButton(interaction as never, config, updateHandler);
 
@@ -732,7 +658,6 @@ describe('SettingsDashboardHandler', () => {
       // notify() must resolve to reply, not followUp, on the session-expired guard.
       const interaction = createButtonInteraction('test-settings::edit::entity-1::maxMessages');
       const config = createTestConfig();
-      const updateHandler = vi.fn();
 
       await handleSettingsButton(interaction as never, config, updateHandler);
 
@@ -759,7 +684,6 @@ describe('SettingsDashboardHandler', () => {
 
         const interaction = createButtonInteraction('test-settings::back::entity-1');
         const config = createTestConfig();
-        const updateHandler = vi.fn();
 
         await handleSettingsButton(interaction as never, config, updateHandler);
 
@@ -788,7 +712,6 @@ describe('SettingsDashboardHandler', () => {
 
         const interaction = createButtonInteraction('test-settings::close::entity-1');
         const config = createTestConfig();
-        const updateHandler = vi.fn();
 
         await handleSettingsButton(interaction as never, config, updateHandler);
 
@@ -818,7 +741,6 @@ describe('SettingsDashboardHandler', () => {
 
         const interaction = createButtonInteraction('test-settings::set::entity-1');
         const config = createTestConfig();
-        const updateHandler = vi.fn();
 
         await handleSettingsButton(interaction as never, config, updateHandler);
 
@@ -847,7 +769,6 @@ describe('SettingsDashboardHandler', () => {
           'test-settings::set::entity-1::nonexistent:true'
         );
         const config = createTestConfig();
-        const updateHandler = vi.fn();
 
         await handleSettingsButton(interaction as never, config, updateHandler);
 
@@ -1012,7 +933,6 @@ describe('SettingsDashboardHandler', () => {
 
         const interaction = createButtonInteraction('test-settings::edit::entity-1');
         const config = createTestConfig();
-        const updateHandler = vi.fn();
 
         await handleSettingsButton(interaction as never, config, updateHandler);
 
@@ -1038,7 +958,6 @@ describe('SettingsDashboardHandler', () => {
 
         const interaction = createButtonInteraction('test-settings::edit::entity-1::nonexistent');
         const config = createTestConfig();
-        const updateHandler = vi.fn();
 
         await handleSettingsButton(interaction as never, config, updateHandler);
 
@@ -1061,7 +980,6 @@ describe('SettingsDashboardHandler', () => {
 
         const interaction = createButtonInteraction('test-settings::edit::entity-1::maxMessages');
         const config = createTestConfig();
-        const updateHandler = vi.fn();
 
         await handleSettingsButton(interaction as never, config, updateHandler);
 
@@ -1071,6 +989,8 @@ describe('SettingsDashboardHandler', () => {
   });
 
   describe('handleSettingsModal', () => {
+    const updateHandler = vi.fn();
+
     const createModalInteraction = (customId: string, inputValue: string, userId = 'user-123') => ({
       customId,
       user: { id: userId },
@@ -1086,7 +1006,6 @@ describe('SettingsDashboardHandler', () => {
     it('should return early for invalid customId', async () => {
       const interaction = createModalInteraction('invalid', '50');
       const config = createTestConfig();
-      const updateHandler = vi.fn();
 
       await handleSettingsModal(interaction as never, config, updateHandler);
 
@@ -1096,7 +1015,6 @@ describe('SettingsDashboardHandler', () => {
     it('should reply with invalid submission when setting ID is missing', async () => {
       const interaction = createModalInteraction('test-settings::modal::entity-1', '50');
       const config = createTestConfig();
-      const updateHandler = vi.fn();
 
       await handleSettingsModal(interaction as never, config, updateHandler);
 
@@ -1115,7 +1033,6 @@ describe('SettingsDashboardHandler', () => {
         '50'
       );
       const config = createTestConfig();
-      const updateHandler = vi.fn();
 
       await handleSettingsModal(interaction as never, config, updateHandler);
 
@@ -1143,7 +1060,6 @@ describe('SettingsDashboardHandler', () => {
         '50'
       );
       const config = createTestConfig();
-      const updateHandler = vi.fn();
 
       await handleSettingsModal(interaction as never, config, updateHandler);
 
@@ -1261,7 +1177,6 @@ describe('SettingsDashboardHandler', () => {
           'abc'
         );
         const config = createTestConfig();
-        const updateHandler = vi.fn();
 
         await handleSettingsModal(interaction as never, config, updateHandler);
 
@@ -1289,7 +1204,6 @@ describe('SettingsDashboardHandler', () => {
           '0'
         );
         const config = createTestConfig();
-        const updateHandler = vi.fn();
 
         await handleSettingsModal(interaction as never, config, updateHandler);
 
@@ -1317,7 +1231,6 @@ describe('SettingsDashboardHandler', () => {
           '999'
         );
         const config = createTestConfig();
-        const updateHandler = vi.fn();
 
         await handleSettingsModal(interaction as never, config, updateHandler);
 
@@ -1482,7 +1395,6 @@ describe('SettingsDashboardHandler', () => {
 
         const interaction = createModalInteraction('test-settings::modal::entity-1::maxAge', 'abc');
         const config = createTestConfig();
-        const updateHandler = vi.fn();
 
         await handleSettingsModal(interaction as never, config, updateHandler);
 
@@ -1507,7 +1419,6 @@ describe('SettingsDashboardHandler', () => {
 
         const interaction = createModalInteraction('test-settings::modal::entity-1::maxAge', '30s');
         const config = createTestConfig();
-        const updateHandler = vi.fn();
 
         await handleSettingsModal(interaction as never, config, updateHandler);
 
@@ -1628,32 +1539,6 @@ describe('SettingsDashboardHandler', () => {
           components: expect.any(Array),
         })
       );
-    });
-  });
-
-  describe('getUpdateHandler', () => {
-    it('should return undefined for unknown session', () => {
-      const handler = getUpdateHandler('unknown-user', 'unknown-type', 'unknown-entity');
-      expect(handler).toBeUndefined();
-    });
-
-    it('should return handler after dashboard creation', async () => {
-      const config = createTestConfig();
-      const data = createTestData();
-      const interaction = createMockInteraction({ channelId: 'channel-123' });
-      const updateHandler = vi.fn();
-
-      await createSettingsDashboard(interaction as never, {
-        config,
-        data,
-        entityId: 'test-entity',
-        entityName: 'Test',
-        userId: 'user-123',
-        updateHandler,
-      });
-
-      const retrieved = getUpdateHandler('user-123', 'test-settings', 'test-entity');
-      expect(retrieved).toBe(updateHandler);
     });
   });
 });

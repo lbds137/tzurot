@@ -285,7 +285,7 @@ The five ranked rough spots + fixes (all flow through part-1 machinery):
 | D15 | Modal form toolkit (§3.6): right-input-per-type (checkbox/radio/selects/file in modals), Label descriptions as inline docs, preserve-input-on-validation-failure | Adopt |
 | D16 | Context-menu command "Inspect Message" (right-click → Apps) — first context-menu command in the bot | Adopt (biggest single `/inspect` ergonomics win) |
 | D17 | Components V2 posture: not a Phase 1–3 dependency; pilot on character view when Phase 2 touches it | Adopt posture |
-| D18 | Remove Close buttons from all ephemeral dashboards; precondition for settings dashboards: the `SettingsSessionStorage` handler-registry fix (live closure leak on native dismiss — filed as Quick Win) | Adopt |
+| D18 | Remove Close buttons from all ephemeral dashboards; ~~precondition: the `SettingsSessionStorage` closure leak~~ **precondition SATISFIED 2026-07-05** — the leak fix shipped (write-only handler Map deleted outright; no registry needed). D18 is unblocked | Adopt |
 | D19 | Empty-list states as designed surfaces with CTAs (§2.4) | Adopt |
 | D20 | Pending-states pattern for >~10s ops + ephemerality rule codified (§3.4) | Adopt |
 | D21 | Button style vocabulary (§3.8) | Adopt |

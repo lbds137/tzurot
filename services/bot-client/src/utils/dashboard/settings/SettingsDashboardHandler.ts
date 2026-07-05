@@ -38,7 +38,6 @@ import {
 import { buildSettingEditModal } from './SettingsModalFactory.js';
 import { storeSession, getSession, deleteSession } from './SettingsSessionStorage.js';
 import { parseNumericInputValue, parseDurationInputValue } from './settingsInputParser.js';
-export { getUpdateHandler } from './SettingsSessionStorage.js';
 
 const logger = createLogger('SettingsDashboardHandler');
 
@@ -56,8 +55,6 @@ interface CreateDashboardOptions {
   entityName: string;
   /** User ID who owns this dashboard */
   userId: string;
-  /** Handler for setting updates */
-  updateHandler: SettingUpdateHandler;
 }
 
 /**
@@ -67,7 +64,7 @@ export async function createSettingsDashboard(
   interaction: ChatInputCommandInteraction,
   options: CreateDashboardOptions
 ): Promise<void> {
-  const { config, data, entityId, entityName, userId, updateHandler } = options;
+  const { config, data, entityId, entityName, userId } = options;
 
   // Build initial overview message
   const session: SettingsDashboardSession = {
@@ -92,7 +89,7 @@ export async function createSettingsDashboard(
 
   // Store session with message ID
   session.messageId = reply.id;
-  await storeSession(session, config.entityType, updateHandler);
+  await storeSession(session, config.entityType);
 
   logger.debug({ entityType: config.entityType, entityId, userId }, 'Created dashboard');
 }
@@ -128,8 +125,7 @@ async function resolveValidatedSession(
  */
 export async function handleSettingsSelectMenu(
   interaction: StringSelectMenuInteraction,
-  config: SettingsDashboardConfig,
-  updateHandler: SettingUpdateHandler
+  config: SettingsDashboardConfig
 ): Promise<void> {
   const parsed = parseSettingsCustomId(interaction.customId);
   if (parsed === null) {
@@ -168,7 +164,7 @@ export async function handleSettingsSelectMenu(
   session.view = DashboardView.SETTING;
   session.activeSetting = settingId;
   session.lastActivityAt = new Date();
-  await storeSession(session, config.entityType, updateHandler);
+  await storeSession(session, config.entityType);
 
   // Build and update message
   const message = buildSettingMessage(config, session, setting);
@@ -230,7 +226,7 @@ export async function handleSettingsButton(
   // Handle different actions
   switch (parsed.action) {
     case 'back':
-      await handleBackButton(interaction, config, session, updateHandler);
+      await handleBackButton(interaction, config, session);
       break;
     case 'close':
       await handleCloseButton(interaction, config, session);
@@ -257,13 +253,12 @@ export async function handleSettingsButton(
 async function handleBackButton(
   interaction: ButtonInteraction,
   config: SettingsDashboardConfig,
-  session: SettingsDashboardSession,
-  updateHandler: SettingUpdateHandler
+  session: SettingsDashboardSession
 ): Promise<void> {
   session.view = DashboardView.OVERVIEW;
   session.activeSetting = undefined;
   session.lastActivityAt = new Date();
-  await storeSession(session, config.entityType, updateHandler);
+  await storeSession(session, config.entityType);
 
   const message = buildOverviewMessage(config, session);
 
@@ -362,7 +357,7 @@ async function handleSetButton(
     session.data = result.newData;
   }
   session.lastActivityAt = new Date();
-  await storeSession(session, config.entityType, updateHandler);
+  await storeSession(session, config.entityType);
 
   // Rebuild the current view
   if (session.view === DashboardView.SETTING && session.activeSetting !== undefined) {
@@ -560,7 +555,7 @@ export async function handleSettingsModal(
     session.data = result.newData;
   }
   session.lastActivityAt = new Date();
-  await storeSession(session, config.entityType, updateHandler);
+  await storeSession(session, config.entityType);
 
   // Rebuild the setting view
   const message = buildSettingMessage(config, session, setting);

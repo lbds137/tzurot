@@ -98,7 +98,7 @@ export function createSettingsCommandHandlers(
       if (entityId === null) {
         return;
       }
-      await handleSettingsSelectMenu(interaction, settingsConfig, createUpdateHandler(entityId));
+      await handleSettingsSelectMenu(interaction, settingsConfig);
     },
 
     handleButton: async interaction => {

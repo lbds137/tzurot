@@ -115,7 +115,6 @@ export async function handleSettings(
       entityId: personality.id,
       entityName: `${personality.name} (${personality.slug})`,
       userId,
-      updateHandler: createUpdateHandler(personality.id),
     });
 
     logger.info({ characterSlug, userId }, 'Dashboard opened');
