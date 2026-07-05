@@ -47,6 +47,21 @@ if echo "$PROMPT" | grep -qiE 'doc.*audit|audit.*doc|documentation.*fresh|stale.
     RELEVANT_SKILLS="$RELEVANT_SKILLS tzurot-doc-audit"
 fi
 
+# Bug remediation → tzurot-bug-remediation skill
+if echo "$PROMPT" | grep -qiE 'keeps? (biting|happening|recurring)|recurring bug|regress(ed|ion)|why didn.t.*tests? catch|root.?cause'; then
+    RELEVANT_SKILLS="$RELEVANT_SKILLS tzurot-bug-remediation"
+fi
+
+# Reuse scout → tzurot-reuse-scout skill
+if echo "$PROMPT" | grep -qiE 'don.?t we already have|do we (already )?have (a|an|any)|duplicat\w*|drift(ed)? cop|consolidat'; then
+    RELEVANT_SKILLS="$RELEVANT_SKILLS tzurot-reuse-scout"
+fi
+
+# Design Boulder → tzurot-design-boulder skill
+if echo "$PROMPT" | grep -qiE 'boulder|design session|design pass|architecture design'; then
+    RELEVANT_SKILLS="$RELEVANT_SKILLS tzurot-design-boulder"
+fi
+
 # MCP Council → tzurot-council-mcp skill
 if echo "$PROMPT" | grep -qiE 'mcp|council|second.?opinion|stuck|brainstorm'; then
     RELEVANT_SKILLS="$RELEVANT_SKILLS tzurot-council-mcp"

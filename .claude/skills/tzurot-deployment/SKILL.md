@@ -1,7 +1,7 @@
 ---
 name: tzurot-deployment
 description: 'Railway deployment procedures. Invoke with /tzurot-deployment for deploying, checking logs, and troubleshooting.'
-lastUpdated: '2026-07-03'
+lastUpdated: '2026-07-05'
 ---
 
 # Deployment Procedures
@@ -146,6 +146,8 @@ The `--filter` flag uses Railway's query DSL (`@level:error`, quoted phrases lik
 **When this matters**: investigations into bugs that surfaced just before a release deploy, or cross-deployment timeline traces.
 
 ### Empty log results = debug the query, not the retention
+
+**Self-serve first**: before asking the owner for runtime facts, exhaust what's already retrievable — Railway CLI (incl. ended deploys), dev probe logs, and any `/inspect` output the owner already posted (its timestamps anchor log queries). Routing retrievable facts through the owner is the recurring anti-pattern ("you should have all the info you need already").
 
 Railway retains logs; an empty or suspiciously short result almost always means the **query** is wrong, not that the logs "rolled off" or "aged out" (this is a named anti-pattern in `.claude/rules/00-critical.md` § "Don't Present Speculation as Fact"). The real culprits, in order of how often they bite:
 

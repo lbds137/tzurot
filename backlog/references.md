@@ -8,7 +8,7 @@
 
 ## Claude Code / process resources (2026-07-05 links ingest)
 
-- **Claudeception** (github.com/blader/Claudeception, 2.4k★) — self-writing skills: agent persists non-obvious solutions as auto-loaded skills (Voyager-inspired). Directly adjacent to our memory→rules/skills promotion workflow — mine when building the boulder-process skill (Untriaged item).
+- **Claudeception** (github.com/blader/Claudeception, 2.4k★) — self-writing skills: agent persists non-obvious solutions as auto-loaded skills (Voyager-inspired). Directly adjacent to our memory→rules/skills promotion workflow — the boulder-process skill shipped 2026-07-05 (`/tzurot-design-boulder`); mine Claudeception's auto-persistence mechanics if we ever automate skill creation.
 - **Anthropic "Complete Guide to Building Skills for Claude"** (resources.anthropic.com PDF, ~32pp, late-Jan 2026) — skill authoring: frontmatter, progressive disclosure (~50-100 tokens/skill at startup), testing/distribution. Reference for any skill-writing session.
 - **everything-claude-code** (github.com/affaan-m/everything-claude-code) — viral mega-collection of harness config (67 agents, 277+ skills, 34 rule files, hooks, MCP). Browse-for-patterns, not adopt.
 - **BMAD-METHOD + github/spec-kit** — spec-driven/agile-AI development methodologies; possible comparative input when codifying the boulder process skill.
