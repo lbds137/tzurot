@@ -22,7 +22,8 @@ const logger = createLogger('db-sync');
  */
 export async function checkSchemaVersions(
   devClient: PrismaClient,
-  prodClient: PrismaClient
+  prodClient: PrismaClient,
+  allowSkew = false
 ): Promise<string> {
   const devMigrations = await devClient.$queryRaw<{ migration_name: string }[]>`
     SELECT migration_name FROM _prisma_migrations ORDER BY finished_at DESC LIMIT 1
@@ -40,12 +41,24 @@ export async function checkSchemaVersions(
   }
 
   if (devVersion !== prodVersion) {
-    throw new Error(
-      `Schema version mismatch!\n` +
-        `Dev: ${devVersion}\n` +
-        `Prod: ${prodVersion}\n\n` +
-        `Both databases must be on the same schema version before syncing.`
+    if (!allowSkew) {
+      throw new Error(
+        `Schema version mismatch!\n` +
+          `Dev: ${devVersion}\n` +
+          `Prod: ${prodVersion}\n\n` +
+          `Both databases must be on the same schema version before syncing.\n` +
+          `If this is a known migration-soak window, re-run with allow-schema-skew.`
+      );
+    }
+    // Conscious override for migration-soak windows: proceed, loudly. The
+    // memories column intersection (resolveMemoriesSyncColumns) handles that
+    // table's skew; any OTHER structurally-diverged table will fail its own
+    // fetch/upsert with a clear SQL error rather than corrupting silently.
+    logger.warn(
+      { devVersion, prodVersion },
+      'Schema versions differ — proceeding under allow-schema-skew (migration-soak window)'
     );
+    return `${devVersion} <> ${prodVersion} (skew allowed)`;
   }
 
   return devVersion;

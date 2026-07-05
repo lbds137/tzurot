@@ -54,6 +54,7 @@ import {
 } from './sync/utils/llmConfigSingletons.js';
 import {
   fetchAllRows,
+  resolveMemoriesSyncColumns,
   buildRowMap,
   compareTimestamps,
   upsertRow,
@@ -80,6 +81,8 @@ interface SyncResult {
 
 interface SyncOptions {
   dryRun: boolean;
+  /** Proceed despite a migration-version mismatch (soak window override). */
+  allowSchemaSkew?: boolean;
 }
 
 /**
@@ -127,7 +130,11 @@ export class DatabaseSyncService {
       await this.devClient.$connect();
       await this.prodClient.$connect();
 
-      const schemaVersion = await checkSchemaVersions(this.devClient, this.prodClient);
+      const schemaVersion = await checkSchemaVersions(
+        this.devClient,
+        this.prodClient,
+        options.allowSchemaSkew ?? false
+      );
       logger.info({ schemaVersion }, 'Schema versions verified');
 
       const configValidation = await validateSyncConfig(this.devClient, SYNC_CONFIG);
@@ -286,8 +293,15 @@ export class DatabaseSyncService {
     devBoundWrites: PendingWrite[],
     prodBoundWrites: PendingWrite[]
   ): Promise<{ devToProd: number; prodToDev: number; conflicts: number }> {
-    const devRows = await fetchAllRows(this.devClient, tableName);
-    const prodRows = await fetchAllRows(this.prodClient, tableName);
+    // Memories: resolve the skew-tolerant column set once per run so a
+    // migration-soak window (schema ahead on one side) degrades to a WARN +
+    // skipped columns instead of breaking the whole sync.
+    const memoriesColumns =
+      tableName === 'memories'
+        ? await resolveMemoriesSyncColumns(this.devClient, this.prodClient)
+        : undefined;
+    const devRows = await fetchAllRows(this.devClient, tableName, memoriesColumns);
+    const prodRows = await fetchAllRows(this.prodClient, tableName, memoriesColumns);
 
     const devMap = buildRowMap(devRows, config.pk);
     const prodMap = buildRowMap(prodRows, config.pk);

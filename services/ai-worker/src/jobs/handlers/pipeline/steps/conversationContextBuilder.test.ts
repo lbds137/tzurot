@@ -39,6 +39,18 @@ describe('buildConversationContext', () => {
     expect(result.preprocessedAttachments).toBeUndefined();
   });
 
+  it('forwards triggerMessageId from the job context (source-turn linkage seam)', () => {
+    // Dropping this one-line hop silently empties messageIds on every captured
+    // memory and kills deletion propagation — the exact forwarded-field class
+    // rule 7 exists for.
+    const jobContext = { ...createMinimalJobContext(), triggerMessageId: '810000000000000042' };
+    const prepared = createMinimalPreparedContext();
+
+    const result = buildConversationContext(jobContext, prepared, undefined);
+
+    expect(result.triggerMessageId).toBe('810000000000000042');
+  });
+
   it('should include preprocessed attachments when present', () => {
     const jobContext = createMinimalJobContext();
     const prepared = createMinimalPreparedContext();

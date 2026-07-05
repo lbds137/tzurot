@@ -121,8 +121,87 @@ describe('ConversationSyncService Integration Test', () => {
     });
   });
 
+  describe('memory deletion propagation (memory-architecture Phase 0)', () => {
+    it('soft-deletes linked unlocked memories and preserves locked ones', async () => {
+      // Seed two memories linked to the same source message: one unlocked, one pinned
+      await prisma.memory.createMany({
+        data: [
+          {
+            id: '00000000-0000-0000-0000-00000000a001',
+            personaId: testPersonaId,
+            personalityId: testPersonalityId,
+            content: 'linked memory (unlocked)',
+            messageIds: ['discord-prop-1'],
+            senders: [],
+          },
+          {
+            id: '00000000-0000-0000-0000-00000000a002',
+            personaId: testPersonaId,
+            personalityId: testPersonalityId,
+            content: 'linked memory (pinned)',
+            messageIds: ['discord-prop-1'],
+            senders: [],
+            isLocked: true,
+          },
+          {
+            id: '00000000-0000-0000-0000-00000000a003',
+            personaId: testPersonaId,
+            personalityId: testPersonalityId,
+            content: 'unrelated memory',
+            messageIds: ['discord-other'],
+            senders: [],
+          },
+        ],
+      });
+
+      await historyService.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'Turn whose deletion must propagate',
+        guildId: testGuildId,
+        discordMessageId: 'discord-prop-1',
+      });
+      const history = await historyService.getChannelHistory(testChannelId, 10);
+      const row = history.find(m => m.content === 'Turn whose deletion must propagate');
+      if (row === undefined) throw new Error('seed row missing');
+
+      const result = await syncService.softDeleteMessage(row.id);
+      expect(result).toBe(true);
+
+      const memories = await prisma.memory.findMany({
+        where: {
+          id: {
+            in: [
+              '00000000-0000-0000-0000-00000000a001',
+              '00000000-0000-0000-0000-00000000a002',
+              '00000000-0000-0000-0000-00000000a003',
+            ],
+          },
+        },
+        select: { id: true, visibility: true },
+        orderBy: { id: 'asc' },
+      });
+      expect(memories.map(m => m.visibility)).toEqual(['deleted', 'normal', 'normal']);
+    });
+  });
+
   describe('softDeleteMessages', () => {
     it('should bulk soft delete messages with tombstones', async () => {
+      // A memory linked to one of the bulk-deleted turns — the bulk path must
+      // propagate exactly like the singular path (same seam, different caller).
+      await prisma.memory.create({
+        data: {
+          id: '00000000-0000-0000-0000-00000000b001',
+          personaId: testPersonaId,
+          personalityId: testPersonalityId,
+          content: 'bulk-linked memory',
+          messageIds: ['discord-2'],
+          senders: [],
+        },
+      });
+
       // Add multiple messages
       await historyService.addMessage({
         channelId: testChannelId,
@@ -163,6 +242,13 @@ describe('ConversationSyncService Integration Test', () => {
         SELECT id FROM conversation_history_tombstones
       `;
       expect(tombstones).toHaveLength(2);
+
+      // Bulk propagation: the linked memory flipped to deleted
+      const linked = await prisma.memory.findUnique({
+        where: { id: '00000000-0000-0000-0000-00000000b001' },
+        select: { visibility: true },
+      });
+      expect(linked?.visibility).toBe('deleted');
     });
 
     it('should return 0 for empty array', async () => {

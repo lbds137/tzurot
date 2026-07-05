@@ -233,9 +233,18 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
   memories: {
     pk: 'id',
     createdAt: 'created_at',
-    // No updatedAt - append-only
-    uuidColumns: ['id', 'persona_id', 'personality_id', 'legacy_shapes_user_id', 'chunk_group_id'],
-    timestampColumns: ['created_at'],
+    // updated_at is genuinely mutated (lock toggles, deletion propagation,
+    // content edits) — last-write-wins needs it, not the created_at fallback.
+    updatedAt: 'updated_at',
+    uuidColumns: [
+      'id',
+      'persona_id',
+      'personality_id',
+      'legacy_shapes_user_id',
+      'chunk_group_id',
+      'canon_group_id',
+    ],
+    timestampColumns: ['created_at', 'updated_at', 'summarized_at'],
   },
   shapes_persona_mappings: {
     pk: 'id',

@@ -101,7 +101,7 @@ describe('handleDbSync', () => {
     const context = createMockContext(null);
     await handleDbSync(context);
 
-    expect(stub.dbSync).toHaveBeenCalledWith({ dryRun: false });
+    expect(stub.dbSync).toHaveBeenCalledWith({ dryRun: false, allowSchemaSkew: false });
   });
 
   it('should use provided dry-run value', async () => {
@@ -110,7 +110,7 @@ describe('handleDbSync', () => {
     const context = createMockContext(true);
     await handleDbSync(context);
 
-    expect(stub.dbSync).toHaveBeenCalledWith({ dryRun: true });
+    expect(stub.dbSync).toHaveBeenCalledWith({ dryRun: true, allowSchemaSkew: false });
   });
 
   it('should display success embed for dry run', async () => {
