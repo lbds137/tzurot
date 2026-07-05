@@ -247,7 +247,7 @@ Two LangChain workarounds remain in the OpenRouter path, both compensating for `
 
 #### 🏗️ Streaming Responses
 
-Stream LLM responses to Discord for better UX on long generations.
+**LOW PRIORITY (owner decision 2026-07-05)**: emulating streaming on Discord means rapidly editing a message as chunks arrive — janky UX and hungry against Discord's edit rate limits. Not worth the architecture work (completion-only delivery is by design). **Promote when**: Discord ships a native streaming affordance, OR a non-Discord surface (web UI) exists where real streaming is natural.
 
 #### 🏗️ Incognito Mode - Parallel API Calls
 
