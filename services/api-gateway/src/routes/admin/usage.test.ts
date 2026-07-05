@@ -191,6 +191,39 @@ describe('Admin Usage Routes', () => {
       });
     });
 
+    it('merges the same model reached via different providers into one row', async () => {
+      // The owner-reported duplicate: z-ai/glm-5.2 (zai-coding) and glm-5.2
+      // (openrouter) are the same model — one Top Models row, summed.
+      mockPrisma.usageLog.findMany.mockResolvedValue([
+        {
+          userId: 'user-1',
+          model: 'z-ai/glm-5.2',
+          provider: 'zai-coding',
+          tokensIn: 100,
+          tokensOut: 50,
+          requestType: 'chat',
+        },
+        {
+          userId: 'user-1',
+          model: 'glm-5.2',
+          provider: 'openrouter',
+          tokensIn: 200,
+          tokensOut: 100,
+          requestType: 'chat',
+        },
+      ]);
+      mockPrisma.user.findMany.mockResolvedValue([{ id: 'user-1', discordId: 'discord-123' }]);
+
+      const response = await request(app).get('/admin/usage');
+
+      expect(response.body.byModel['glm-5.2']).toEqual({
+        requests: 2,
+        tokensIn: 300,
+        tokensOut: 150,
+      });
+      expect(response.body.byModel['z-ai/glm-5.2']).toBeUndefined();
+    });
+
     it('should aggregate by request type', async () => {
       mockPrisma.usageLog.findMany.mockResolvedValue([
         {

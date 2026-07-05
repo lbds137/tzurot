@@ -21,6 +21,7 @@ import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { presetBrowseOptions } from '@tzurot/common-types/generated/commandOptions';
 import { type LlmConfigSummary } from '@tzurot/common-types/schemas/api/llm-config';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { shortModelName } from '@tzurot/common-types/utils/modelNames';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { UserClient } from '@tzurot/clients';
 import { clientsFor } from '../../utils/gatewayClients.js';
@@ -115,8 +116,7 @@ function buildPresetBadges(preset: LlmConfigSummary): string {
  * the user is in guest mode and the model isn't free.
  */
 function buildPresetDescription(preset: LlmConfigSummary, isGuestMode: boolean): string {
-  const shortModel = preset.model.includes('/') ? preset.model.split('/').pop() : preset.model;
-  let description = shortModel ?? preset.model;
+  let description = shortModelName(preset.model);
   if (isGuestMode && !isFreeModel(preset.model)) {
     description += ' (requires API key)';
   }
@@ -179,7 +179,7 @@ function filterPresets(
  */
 function formatPresetLine(c: LlmConfigSummary, isGuestMode: boolean, index: number): string {
   const badgeStr = presetBadgeArray(c).join('');
-  const shortModel = c.model.includes('/') ? c.model.split('/').pop() : c.model;
+  const shortModel = shortModelName(c.model);
   const safeName = escapeMarkdown(c.name);
 
   // In guest mode, dim paid presets

@@ -5,6 +5,7 @@
 import { EmbedBuilder } from 'discord.js';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { type AdminUsageStats } from '@tzurot/common-types/schemas/api/usage';
+import { shortModelName } from '@tzurot/common-types/utils/modelNames';
 
 /**
  * Base usage stats structure (shared between user and admin)
@@ -105,7 +106,7 @@ function addModelBreakdown(
     .slice(0, maxItems)
     .map(model => {
       const m = byModel[model];
-      const shortModel = model.includes('/') ? model.split('/').pop() : model;
+      const shortModel = shortModelName(model);
       if (includeTokens) {
         return `**${shortModel}**: ${m.requests} req • ${formatTokens(m.tokensIn + m.tokensOut)} tokens`;
       }
