@@ -8,8 +8,6 @@ _The hot surface — loaded at session start alongside `BACKLOG.md`, `active-epi
 
 _Active bugs observed in production. Fix before new features. Cleared issues are removed once released — see git history + the GitHub release notes._
 
-- 🐛 `[FIX]` ~~**"Deleted" memories are still retrievable by the AI**~~ ✅ **FIXED on develop 2026-07-05 (#1490)** — visibility guard in the RAG similarity query + sibling expansion, re-embed-on-edit rider (atomic transaction). Ships to prod with the next release; remove this entry at ship time.
-
 _Recently resolved items move to the GitHub release notes at ship time — this section stays empty between incidents (history: git + releases)._
 
 ---
