@@ -1,7 +1,7 @@
 ---
 name: tzurot-docs
 description: 'Session workflow procedures. Invoke with /tzurot-docs for session start/end, CURRENT.md and backlog management.'
-lastUpdated: '2026-07-03'
+lastUpdated: '2026-07-05'
 ---
 
 # Documentation & Session Workflow
@@ -105,3 +105,18 @@ For doc placement, naming, and lifecycle rules, see `.claude/rules/07-documentat
 - All work items: `BACKLOG.md` (manifest) → `backlog/now.md` + `backlog/active-epic.md` (HOT) → `backlog/cold/*` (COLD)
 - Documentation standards: `.claude/rules/07-documentation.md`
 - Documentation audit: `.claude/skills/tzurot-doc-audit/SKILL.md`
+
+## Backlog Quick-Wins / Net-Shrink Sweep
+
+A recurring owner ritual (session warm-up and pre-release); run it as a
+procedure, don't wait to be walked through it:
+
+1. **Hunt**: sweep `backlog/now.md` (Quick Wins, Untriaged) + `backlog/cold/follow-ups.md`
+   (oldest first — `pnpm ops backlog` surfaces them) for small-to-medium items
+   that are build-ready (no pending decision, no design dependency).
+2. **Batch**: group compatible items into FEW consolidated PRs (per-item PR
+   ceremony is the anti-pattern; one themed PR with separate logical commits).
+3. **Consolidate/prune while there**: items superseded by shipped work get
+   removed (verify by grep, not by date); umbrella entries get sub-items struck.
+4. **Measure net shrink**: the success metric is the backlog getting SMALLER —
+   report entries removed vs. added at the end of the sweep.

@@ -71,6 +71,8 @@ git push --force-with-lease origin <branch>     # CI's fixup-check now passes
 gh pr merge <PR#> --rebase --delete-branch      # then merge (or use the web UI)
 ```
 
+**Final-round one-push exception**: when a round's fixes are the _expected last edits_ (post-autosquash review findings, or a round the agent intends to merge after), combining the fixup with the pre-merge autosquash in ONE force-push is sanctioned — it saves a full CI cycle versus fixup-push → green → autosquash-push → green. Judgment call: use it only when nothing else is expected to change; if the next review finds more, the branch is already squashed and the next fixes start a fresh fixup cycle (no harm, just no savings).
+
 Mid-PR rebase (i.e., autosquash + force-push between review rounds) is reserved for three specific cases, all of which should be rare:
 
 - The user explicitly asks for clean history mid-review.
