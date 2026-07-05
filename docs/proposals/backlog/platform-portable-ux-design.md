@@ -1,6 +1,7 @@
 # Platform-Portable UX Layer — Design
 
 > **Status**: ACCEPTED 2026-07-04 (boulder #1 design session) — council pass done (GLM 5.2 + Kimi K2.7, findings folded in); all §6 calls decided by owner
+> **Companion**: [`ux-design-system-spec.md`](ux-design-system-spec.md) (part 2, ACCEPTED same day) — **the normative WHAT this machinery implements**: design-language tokens, component specs, command grammar, discoverability, `/inspect` + owner-surface dispositions. Each phase below pulls its content from the spec's §9 rollout mapping.
 > **Theme**: [`backlog/cold/themes/platform-portable-ux-layer.md`](../../../backlog/cold/themes/platform-portable-ux-layer.md)
 > **Supersedes**: `SLASH_COMMAND_ARCHITECTURE.md` (2025-12) — triage table in §2; file deleted with this doc's landing (git preserves it).
 
