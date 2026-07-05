@@ -1,0 +1,51 @@
+{
+  "generatedForPhase": "phase-0 (post-#1497: visibility filter + re-embed + linkage + propagation; pre-1a hybrid retrieval)",
+  "totals": {
+    "goldens": 5,
+    "qualityGoldens": 4,
+    "integrityGoldens": 1,
+    "meanRecallAtK": 1
+  },
+  "results": {
+    "episodic-callback-paraphrase": {
+      "category": "R1 episodic callback",
+      "recallAtK": 1,
+      "isQualityGolden": true,
+      "matched": ["moon rental"],
+      "missed": [],
+      "k": 3
+    },
+    "distractor-resistance": {
+      "category": "precision under near-topic noise",
+      "recallAtK": 1,
+      "isQualityGolden": true,
+      "matched": ["paella"],
+      "missed": [],
+      "k": 2
+    },
+    "deleted-memory-exclusion": {
+      "category": "R8 integrity \u2014 deletion means deletion",
+      "recallAtK": 1,
+      "isQualityGolden": false,
+      "matched": [],
+      "missed": [],
+      "k": 5
+    },
+    "cross-persona-isolation": {
+      "category": "scoping \u2014 private pool boundaries",
+      "recallAtK": 1,
+      "isQualityGolden": true,
+      "matched": ["Mote"],
+      "missed": [],
+      "k": 5
+    },
+    "verbatim-texture-survives": {
+      "category": "R1 verbatim wording",
+      "recallAtK": 1,
+      "isQualityGolden": true,
+      "matched": ["melancholy tourism"],
+      "missed": [],
+      "k": 3
+    }
+  }
+}
