@@ -12,6 +12,7 @@ import {
   type AutocompleteBadge,
 } from '@tzurot/common-types/utils/autocompleteFormat';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { shortModelName } from '@tzurot/common-types/utils/modelNames';
 import { clientsFor } from '../../../utils/gatewayClients.js';
 import { handlePersonalityAutocomplete } from '../../../utils/autocomplete/index.js';
 
@@ -153,7 +154,7 @@ async function handlePresetAutocomplete(
       value: c.id,
       scopeBadge: c.isGlobal ? AUTOCOMPLETE_BADGES.GLOBAL : AUTOCOMPLETE_BADGES.OWNED,
       statusBadges: statusBadges.length > 0 ? statusBadges : undefined,
-      metadata: c.model.split('/').pop(),
+      metadata: shortModelName(c.model),
     });
   });
 

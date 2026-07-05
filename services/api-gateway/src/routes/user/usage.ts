@@ -7,6 +7,7 @@ import { Router, type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { type UsagePeriod, type UsageStats } from '@tzurot/common-types/schemas/api/usage';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { shortModelName } from '@tzurot/common-types/utils/modelNames';
 import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
@@ -115,11 +116,14 @@ export const handleGetUserUsage = (deps: RouteDeps): RequestHandler => {
       stats.byProvider[log.provider].tokensIn += log.tokensIn;
       stats.byProvider[log.provider].tokensOut += log.tokensOut;
 
-      // By model
-      stats.byModel[log.model] ??= { requests: 0, tokensIn: 0, tokensOut: 0 };
-      stats.byModel[log.model].requests++;
-      stats.byModel[log.model].tokensIn += log.tokensIn;
-      stats.byModel[log.model].tokensOut += log.tokensOut;
+      // By model — keyed by the SHORT name so the same model reached via two
+      // providers (z-ai/glm-5.2 vs openrouter's glm-5.2) aggregates into one
+      // row; the per-provider split has its own section.
+      const modelKey = shortModelName(log.model);
+      stats.byModel[modelKey] ??= { requests: 0, tokensIn: 0, tokensOut: 0 };
+      stats.byModel[modelKey].requests++;
+      stats.byModel[modelKey].tokensIn += log.tokensIn;
+      stats.byModel[modelKey].tokensOut += log.tokensOut;
 
       // By request type
       stats.byRequestType[log.requestType] ??= { requests: 0, tokensIn: 0, tokensOut: 0 };
