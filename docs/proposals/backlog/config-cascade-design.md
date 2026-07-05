@@ -1,6 +1,6 @@
 # Unified Configuration Cascade
 
-> **Status**: Phase 1 COMPLETE — Phases 2-5 DEFERRED (future work)
+> **Status**: SUPERSEDED 2026-07-05 by [`config-cascade-semantics.md`](config-cascade-semantics.md) — Phases 1–2 shipped (incl. `ConfigCascadeResolver` + a channel tier this doc predates); the successor design adds the guild tier, fixes off-vs-inherit sentinels, and dispositions this doc's remaining phases (its §6 absorption map). Retained for the field-classification tables.
 > **Updated**: 2026-02-16
 
 ## Context
