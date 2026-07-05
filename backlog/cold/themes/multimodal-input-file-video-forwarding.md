@@ -10,3 +10,7 @@ _Focus: capture and forward `video` and `file` input modalities to capable model
 2. **`/models` surfacing** (only after #1 ships, else it misleads): add `supportsFileInput`/`supportsVideoInput` flags to `ModelAutocompleteOption` (+ Zod schema) and `toAutocompleteOption`; render badges in the browse list + card; consider browse capability filters for `file`/`video` (and `audio`, which we already capture but don't expose as a filter).
 
 **Plumbing already half-present**: `ModelModality` includes `video`/`file` and the gateway's `getFilteredModels` accepts them as `inputModality` — only the autocomplete projection + browse UI drop them. **Promote when**: prioritized as a feature (it's a real capability gap, not a defect).
+
+#### chunkr (2026-07-05 ingest)
+
+Self-hostable document-ingestion service (PDF/PPTX/DOCX/images → layout-aware OCR → structured HTML/MD chunks for RAG; Docker, AGPL-3.0 + commercial dual-license; OSS lacks the cloud's proprietary models; maintenance slowing — v2.2.1 July 2025). Candidate for the file-upload parsing seam IF we want structure-preserving ingestion; AGPL needs a look before any embed. The agentic design's file-parser plugin note is the integration point.

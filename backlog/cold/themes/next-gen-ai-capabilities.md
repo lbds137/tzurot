@@ -31,3 +31,15 @@ _Beyond text: voice and images. Gated on agentic scaffolding (media generation =
 #### Vision as a tool call (post-agentic-Phase-1)
 
 Ingested 2026-07-05 (notes cleanup): once the agentic tool loop runs, image vision should become a `describe_image` tool the model invokes on demand, rather than an unconditional preprocessing step — saves vision calls on messages where the image is decorative, and lets the model ask for re-description with a focus ("what does the sign say?"). Slots into the agentic design's tool roadmap after v1's recall/web/image-gen trio.
+
+#### OpenRouter Agent SDK — evaluation note against the accepted agentic design (2026-07-05 ingest)
+
+`@openrouter/agent` (TypeScript, launched 2026-04-24) is a real agentic loop, not a wrapper: Zod tools + runtime validation, multi-turn tool execution, composable stop conditions incl. `maxCost()`, concurrent text/tool/reasoning streams, per-response cost accounting, human approval gates. It predates the 2026-07-05 agentic adjudication but was NOT in evidence (grounding focused on LangChain/LangGraph per owner direction). **Action at agentic Phase-1 build time**: one honest comparison pass before writing the hand-rolled loop. Prior: the design's rationale likely survives — OpenRouter lock-in (we call z.ai + Gemini direct; guest routing spans providers) and quality-retries-never-re-bill-tools remain the decisive constraints — but "we didn't look" is not an adjudication.
+
+#### OpenRouter video generation API (2026-07-05 ingest)
+
+Unified text/image→video API (Seedance 2.0, Veo 3.1, Wan 2.7, Sora 2 Pro...), async job tracking + capability discovery. Extends the accepted agentic design's `generate_image` tool family naturally (`generate_video` = same tool shape, longer job). File under v2 tools; no action until image-gen ships.
+
+#### Aventura (prior art, 2026-07-05 ingest)
+
+Desktop/Android AI roleplay client (active, v0.7.6): autonomous lorebook/world-state agent + auto chapter summarization for long-narrative coherence — one working reference for the memory design's lore-book and consolidation phases. Study, don't adopt.

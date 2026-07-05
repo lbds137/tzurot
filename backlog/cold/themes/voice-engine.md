@@ -48,3 +48,7 @@ Intermittent failures from Railway Serverless cold starts (~56s). Significant pr
 - [ ] Parallel TTS chunking — synthesize chunks concurrently instead of sequentially (long messages still bottleneck)
 - [ ] Better user feedback during STT wait — "Transcription in progress..." → "Taking longer than expected..." → error
 - [ ] Transcription retry outcome surfacing — user sees generic error, not retry status
+
+#### TEN framework / turn-detection (2026-07-05 ingest)
+
+If live voice-channel conversation ever lands (vs today's attachment STT/TTS): **TEN_Turn_Detection** is a text-based semantic end-of-turn classifier (Qwen2.5-7B fine-tune, finished/unfinished/wait, EN+ZH, ~90.6% acc, Apache-2.0) — solves "when should the character speak" better than audio VAD. The parent TEN framework (10.8k stars, active) is a full realtime-voice-agent pipeline worth studying then, not adopting now.

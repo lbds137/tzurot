@@ -146,3 +146,14 @@ await prisma.$disconnect();
 If we end up needing this 2+ more times, promote to `pnpm ops voice-refs:export <slug> <out>` rather than recreating the scratch.
 
 **Reusable upload pattern** (railway ssh has no scp; argv length limit kills inline base64 for files >~500KB): `split -b 100000` the b64 into chunks, loop `printf '%s' "$chunk" >> /remote/file.b64` per chunk, decode on remote side. Verify with md5sum on both ends.
+
+#### Candidate sweep from the 2026-07-05 links ingest (verified via web agent)
+
+- **VoxCPM2 (OpenBMB)** — the strongest self-hosted candidate on paper: 2B tokenizer-free diffusion-AR, zero-shot + transcript-guided cloning, Apache-2.0, 1.84% WER (Seed-TTS-eval), RTF ~0.30 on a 4090 (~0.1 via vLLM-Omni), 32.5k stars, actively released (v2.0.3 May 2026).
+- **OmniVoice (k2-fsa)** — 600+ languages, cloning + attribute-based voice design, Apache-2.0, RTF to 0.025; Kaldi-ecosystem pedigree; active.
+- **MisoTTS (MisoLabs)** — 8B emotive English conversational TTS; **owner tested output: "isn't bad at all"**; caveats: ~24GB VRAM local (the 110ms latency claim is their hosted H100 TTFB), license unclear, thin commit history.
+- **Chroma 1.0 (FlashLabs)** — different category: true speech-to-speech dialogue (audio→audio), 4B, open weights, cloning 0.81 speaker-sim (above human baseline claim), 147ms TTFT — relevant if the bot ever converses IN voice rather than TTS-ing text.
+- **Kokoro** — local/offline TTS write-up (geeky-gadgets); known-quantity small model.
+- **vLLM-Omni serving** (2026-06-23 blog) — serving-layer speedups (VoxCPM2 +172%, Qwen3-TTS +61.5%) — matters for any self-hosted pick's hosting math.
+
+When this theme activates, start the bake-off from VoxCPM2 (license + quality + vLLM path) with MisoTTS as the emotive-quality comparison point.
