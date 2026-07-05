@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-07-04'
+lastUpdated: '2026-07-05'
 ---
 
 # Git Workflow Procedures
@@ -176,6 +176,22 @@ git push --force-with-lease origin feat/your-feature
 ```
 
 ## Release Procedure
+
+### 0. Risk & Coverage Appraisal (produce UNPROMPTED with any release proposal)
+
+The owner opens essentially every release with "any risks? anything that would
+raise confidence?" — answer it before being asked, as part of proposing the cut:
+
+- **Risk level** (low/medium/high) with the one-line basis (what's runtime-unverified,
+  what's blast-radius-bounded).
+- **Smoke scope derived from the release diff** — risk-scoped and minimal, not a
+  fixed checklist; name the specific user-visible paths this release touched.
+- **Coverage gaps that would raise confidence** — name them and offer to close
+  before cutting (or explicitly note why post-hoc observability suffices).
+- For minor features, offer **observability-instead-of-smoke** ("logging is in
+  place to check the first real use") as a first-class alternative to another
+  manual round.
+- Never cite "soaked in dev" as safety evidence (see /tzurot-deployment).
 
 ### 1. Version Bump
 
