@@ -36,6 +36,8 @@ Prevents bot from spamming unwanted channels, reduces server kicks.
 
 #### ✨ PluralKit Interop — system import/sync + proxied-message persona pairing
 
+**DESIGN ACCEPTED 2026-07-05**: [`docs/proposals/backlog/pluralkit-interop.md`](../../../docs/proposals/backlog/pluralkit-interop.md) — uuid-keyed mapping table, link/import/sync (tokens never stored), name-prefilter pairing with the discard privacy contract, hold+idempotency trigger dance; phases: import → pairing → triggers. Build when prioritized.
+
 User request 2026-07-05 (recalled from earlier thinking). Three connected parts for plural systems using PluralKit alongside Tzurot:
 
 1. **PK system export → Tzurot persona import/update**: a user exports their PluralKit system (members: names, avatars, descriptions, pronouns) and imports it to create/update matching Tzurot personas — one persona per system member.
@@ -47,6 +49,8 @@ User request 2026-07-05 (recalled from earlier thinking). Three connected parts 
 **Design session queued with the message-actions design** (shared PluralKit research wave, 2026-07-05).
 
 #### ✨ Message-Action Affordances: edit / regenerate / delete / ping (emoji reactions + edit flow)
+
+**DESIGN ACCEPTED 2026-07-05**: [`docs/proposals/backlog/message-actions.md`](../../../docs/proposals/backlog/message-actions.md) — context-menu → ephemeral panel (no reactions v1), Info/Delete → Regenerate → Edit phasing, edit-in-place-first chunk strategy (owner-refined), permissions = triggering user + bot owner. PluralKit research done (mandate below discharged). Build when prioritized.
 
 User request 2026-07-03, expanding the earlier emoji-actions idea. Inspiration is part shapes.inc (emoji-reaction support for a couple of these) and part PluralKit (proxied-message editing; 🔔 bell to ping the proxied user). **Research-first**: PluralKit is open source — study how it does webhook-message editing/reactions for one working reference (not to copy, but as information on one way of doing it). Scope should also include a brainstorming/research pass on adjacent usability improvements that would make Tzurot better.
 
