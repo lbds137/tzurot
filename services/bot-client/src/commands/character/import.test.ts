@@ -505,6 +505,23 @@ describe('handleImport', () => {
       expect(editReplyArg).toContain('lowercase letters, numbers, and hyphens');
     });
 
+    it('should reject digit-leading and all-hyphen slugs (leading-letter rule)', async () => {
+      for (const badSlug of ['1test', '---']) {
+        vi.clearAllMocks();
+        const context = createMockContext();
+        mockFetch.mockResolvedValue({
+          ok: true,
+          text: () => Promise.resolve(JSON.stringify(createValidCharacterData({ slug: badSlug }))),
+        });
+
+        await handleImport(context, mockConfig);
+
+        const editReplyArg = (context.editReply as Mock).mock.calls[0][0] as string;
+        expect(editReplyArg).toContain('❌ Invalid slug format');
+        expect(editReplyArg).toContain('start with a letter');
+      }
+    });
+
     it('should reject slugs with spaces', async () => {
       const context = createMockContext();
       mockFetch.mockResolvedValue({

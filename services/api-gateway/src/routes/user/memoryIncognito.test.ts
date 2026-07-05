@@ -551,6 +551,41 @@ describe('/user/memory/incognito routes', () => {
       );
     });
 
+    it('filters to live memories only — deleteMany where carries visibility normal', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: TEST_USER_ID,
+        discordId: TEST_DISCORD_USER_ID,
+        defaultPersonaId: 'persona-1',
+      });
+      mockPrisma.memory.findMany.mockResolvedValue([]);
+      mockPrisma.memory.deleteMany.mockResolvedValue({ count: 0 });
+
+      const router = createIncognitoRoutes(
+        mockPrisma as unknown as PrismaClient,
+        mockRedis as unknown as Redis
+      );
+      const handler = getHandler(router, 'post', '/forget');
+      const { req, res } = createMockReqRes({
+        personalityId: TEST_PERSONALITY_ID,
+        timeframe: '15m',
+      });
+
+      await handler(req, res);
+
+      // Without the visibility filter, already-soft-deleted rows are re-counted
+      // and the reported "forgot N memories" total is inflated.
+      expect(mockPrisma.memory.deleteMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ visibility: 'normal' }),
+        })
+      );
+      expect(mockPrisma.memory.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ visibility: 'normal' }),
+        })
+      );
+    });
+
     it('should return zero count when no persona', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({
         id: TEST_USER_ID,

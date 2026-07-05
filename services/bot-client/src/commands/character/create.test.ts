@@ -183,6 +183,30 @@ describe('Character Create', () => {
       );
     });
 
+    it('should reject a digit-leading slug (gateway requires a leading letter)', async () => {
+      vi.mocked(dashboardUtils.extractModalValues).mockReturnValue({
+        name: 'Test',
+        slug: '1nvalid-slug',
+        characterInfo: 'Info',
+        personalityTraits: 'Traits',
+      });
+
+      const mockInteraction = createMockModalInteraction({
+        name: 'Test',
+        slug: '1nvalid-slug',
+        characterInfo: 'Info',
+        personalityTraits: 'Traits',
+      });
+
+      await handleSeedModalSubmit(mockInteraction, mockConfig);
+
+      // Pre-#slug-alignment this passed client validation and died at the
+      // gateway with a raw 400; now it fails here with the friendly message.
+      expect(mockInteraction.editReply).toHaveBeenCalledWith(
+        expect.stringContaining('start with a letter')
+      );
+    });
+
     it('should accept valid slug with lowercase, numbers, and hyphens', async () => {
       vi.mocked(dashboardUtils.extractModalValues).mockReturnValue({
         name: 'Test',

@@ -252,6 +252,7 @@ async function handleForget(
     personaId: string;
     createdAt: { gte: Date };
     isLocked: boolean;
+    visibility: string;
     personalityId?: string;
   }
 
@@ -259,6 +260,9 @@ async function handleForget(
     personaId,
     createdAt: { gte: cutoff },
     isLocked: false, // Don't delete locked memories
+    // Only live memories: without this, already-soft-deleted rows are
+    // re-counted and the reported "forgot N memories" total is inflated.
+    visibility: 'normal',
   };
 
   if (personalityId !== 'all') {

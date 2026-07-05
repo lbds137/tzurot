@@ -333,7 +333,6 @@ function registerRoutes(
       prisma,
       aiQueue,
       queueEvents,
-      cascadeResolver,
       llmConfigResolver,
       visionConfigResolver,
     })
