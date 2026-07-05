@@ -14,7 +14,7 @@ _Focus: implement the ACCEPTED memory architecture — typed memories (episode/f
 - **Per-user quotas** → rides §3.8 cost guardrails + tier aging.
 - **Cross-channel retrieval limits** → orthogonal; still live below.
 
-**Implementation phases (pull from artifact §5)**: 0 integrity+eval-baseline (prod visibility-filter fix fast-tracked, already on the board) → 1a hybrid retrieval → 2 typed memories + extraction → 1b composite scoring → 3 scoping pools (consent package) → 4 relationship layer → 5 consolidation → 6 curation/lore books. **Phases 0+1a+2 are the minimum-viable bet; 3–6 are evidence-gated on the eval harness.** Each phase gets plan-mode + council at implementation time.
+**Implementation phases (pull from artifact §5)**: ~~0 integrity+eval-baseline~~ ✅ **DONE 2026-07-05** (#1490 visibility filter + re-embed; #1497 linkage + delete propagation + scoping schema + db-sync skew tolerance; #1498 eval harness, phase-0 baseline committed: 4 quality goldens recall@K 1.0 + 1 integrity golden) → **1a hybrid retrieval (NEXT)** → 2 typed memories + extraction → 1b composite scoring → 3 scoping pools (consent package) → 4 relationship layer → 5 consolidation → 6 curation/lore books. **Phases 0+1a+2 are the minimum-viable bet; 3–6 are evidence-gated on the eval harness.** Each phase gets plan-mode + council at implementation time.
 
 #### Still-live items not owned by the artifact
 
