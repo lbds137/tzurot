@@ -76,7 +76,8 @@ interface RawConfigList {
 /**
  * A list config with its default flags DERIVED from the AdminSettings pointers
  * (S3) by {@link LlmConfigService.list}'s `applyDefaultFlags` — NOT read from the
- * (dead, pending-DROP) `isDefault`/`isFreeDefault` columns. This is the shape
+ * (dropped in the legacy-column retirement) `isDefault`/`isFreeDefault`
+ * columns. This is the shape
  * `list()` returns and `formatConfigSummary` consumes.
  */
 interface RawConfigListWithFlags extends RawConfigList {
@@ -317,9 +318,8 @@ export class LlmConfigService {
           description: data.description ?? null,
           ownerId,
           isGlobal,
-          // isDefault/isFreeDefault omitted — the schema @default(false) fills
-          // them. Default-ness lives on the AdminSettings pointers (S3), never
-          // written here; these columns are dead pending their DROP.
+          // isDefault/isFreeDefault no longer exist on this model; default-ness
+          // lives entirely on the AdminSettings pointers (S3).
           provider: data.provider ?? LLM_CONFIG_DEFAULTS.provider,
           model: data.model.trim(),
           // Stamp the requested kind (Zod defaults it to 'text'). Per-kind capability
@@ -456,21 +456,6 @@ export class LlmConfigService {
   // Admin-only Operations
   // --------------------------------------------------------------------------
 
-  /**
-   * Resolve a config's kind and assert it exists, so the singleton-flag clear
-   * (isDefault / isFreeDefault) stays scoped to that kind. text and vision each carry
-   * their own per-kind partial-unique default (`llm_configs_default_unique` /
-   * `llm_configs_free_default_unique`), so an unscoped clear would wipe the OTHER kind's
-   * default — e.g. a text set-default silently un-setting the vision global default and
-   * collapsing vision resolution to the hardcoded fallback. Throws loud on a missing row:
-   * routes guard with findGlobalConfigOrSendError first, so a null here is a
-   * delete-between-fetch-and-set race, and a vanished config must never drive a clear.
-   * kind is immutable, so resolving it outside the clear+set transaction is safe.
-   *
-   * Returns a narrowed ConfigKind (via toConfigKind) rather than the raw Prisma
-   * `string`: callers pass it straight into the `updateMany` kind filter, so a DB
-   * drift value gets surfaced (toConfigKind warns) instead of flowing through silently.
-   */
   /**
    * Set a config as the global (paid) default for a slot.
    *

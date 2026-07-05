@@ -87,7 +87,6 @@ describe('PersonalityService', () => {
         provider: 'openrouter',
         advancedParameters: { temperature: 0.7 },
         isGlobal: true,
-        isDefault: true,
         ownerId: testOwnerId,
       },
     });
