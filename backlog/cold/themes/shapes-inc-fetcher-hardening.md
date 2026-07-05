@@ -23,3 +23,7 @@ Web Claude's companion recommendations to the cookie-migration guide. Each item 
 **Sequencing**: queue after the cookie migration bake-in period — these items depend on the new cookie path being stable first (beta.103 shipped 2026-04-22; bake for at least one additional release cycle before starting).
 
 Promoted from Inbox 2026-04-22.
+
+#### botasaurus (2026-07-05 ingest)
+
+Python anti-bot scraping framework (custom "humane" browser driver, claims Cloudflare WAF/Turnstile + Datadome bypasses, browser-like TLS in lightweight request mode; active, 5.5k stars). Relevant IF shapes.inc (or future import sources) escalate bot-walling beyond what UA/header tuning handles — heavier dependency (Python) than our current fetcher, so a last-resort option, filed for completeness.
