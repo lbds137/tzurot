@@ -1,8 +1,9 @@
 /**
  * Tests for SettingsSessionStorage
  *
- * Tests the session storage helpers that wrap SessionManager
- * with settings-specific metadata (non-serializable update handler).
+ * Tests the thin Redis-backed SessionManager wrappers. Update handlers are
+ * NOT session state — they're rebuilt per-interaction (see the production
+ * file's header for why the old handler Map was removed).
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
