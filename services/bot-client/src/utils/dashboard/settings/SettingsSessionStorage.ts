@@ -1,27 +1,21 @@
 /**
  * Session storage helpers for the settings dashboard.
  *
- * Wraps the shared SessionManager with settings-specific metadata
- * (the non-serializable update handler is stored in a separate Map).
+ * Thin wrappers over the shared Redis-backed SessionManager. Update handlers
+ * are NOT session state: they are rebuilt per-interaction by
+ * `createSettingsCommandHandlers` (`createUpdateHandler(entityId)`), so
+ * nothing handler-shaped is stored here. A previous in-memory Map of
+ * per-session handlers was written on every dashboard open and read by
+ * nothing — and, being deleted only on the explicit Close path, it leaked a
+ * closure for every natively-dismissed dashboard.
  */
 
-import type { SettingsDashboardSession, SettingUpdateHandler } from './types.js';
+import type { SettingsDashboardSession } from './types.js';
 import { getSessionManager } from '../SessionManager.js';
-
-interface SessionMetadata {
-  updateHandler: SettingUpdateHandler;
-}
-
-const sessionMetadata = new Map<string, SessionMetadata>();
-
-function getSessionKey(userId: string, entityType: string, entityId: string): string {
-  return `${userId}:${entityType}:${entityId}`;
-}
 
 export async function storeSession(
   session: SettingsDashboardSession,
-  entityType: string,
-  updateHandler: SettingUpdateHandler
+  entityType: string
 ): Promise<void> {
   const manager = getSessionManager();
   await manager.set({
@@ -32,10 +26,6 @@ export async function storeSession(
     messageId: session.messageId,
     channelId: session.channelId,
   });
-
-  // Store handler separately (can't be serialized)
-  const key = getSessionKey(session.userId, entityType, session.entityId);
-  sessionMetadata.set(key, { updateHandler });
 }
 
 export async function getSession(
@@ -59,19 +49,4 @@ export async function deleteSession(
 ): Promise<void> {
   const manager = getSessionManager();
   await manager.delete(userId, entityType, entityId);
-
-  const key = getSessionKey(userId, entityType, entityId);
-  sessionMetadata.delete(key);
-}
-
-/**
- * Get the update handler for a session
- */
-export function getUpdateHandler(
-  userId: string,
-  entityType: string,
-  entityId: string
-): SettingUpdateHandler | undefined {
-  const key = getSessionKey(userId, entityType, entityId);
-  return sessionMetadata.get(key)?.updateHandler;
 }

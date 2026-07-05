@@ -102,7 +102,6 @@ export async function handleSettings(context: DeferredCommandContext): Promise<v
       entityId: 'global',
       entityName: 'Global Settings',
       userId,
-      updateHandler: handleSettingUpdate,
     });
 
     logger.info({ userId }, 'Dashboard opened');
@@ -128,7 +127,7 @@ export async function handleAdminSettingsSelectMenu(
     return;
   }
 
-  await handleSettingsSelectMenu(interaction, ADMIN_SETTINGS_CONFIG, handleSettingUpdate);
+  await handleSettingsSelectMenu(interaction, ADMIN_SETTINGS_CONFIG);
 }
 
 /**

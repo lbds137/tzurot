@@ -117,7 +117,6 @@ export async function handleChannelSettings(context: DeferredCommandContext): Pr
       entityId: channelId,
       entityName: `<#${channelId}>`,
       userId,
-      updateHandler: createUpdateHandler(channelId),
     });
 
     logger.info({ channelId, userId }, 'Dashboard opened');

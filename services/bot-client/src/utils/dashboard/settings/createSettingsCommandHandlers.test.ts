@@ -189,12 +189,10 @@ describe('createSettingsCommandHandlers', () => {
 
       await handlers.handleSelectMenu(interaction);
 
-      expect(mockCreateUpdateHandler).toHaveBeenCalledWith('personality-uuid-456');
-      expect(handleSettingsSelectMenu).toHaveBeenCalledWith(
-        interaction,
-        testConfig,
-        mockUpdateHandler
-      );
+      // Select menus only navigate — no update handler is built for them
+      // (buttons/modals still receive one; see their tests below).
+      expect(mockCreateUpdateHandler).not.toHaveBeenCalled();
+      expect(handleSettingsSelectMenu).toHaveBeenCalledWith(interaction, testConfig);
     });
 
     it('returns early when isSettingsInteraction returns false', async () => {

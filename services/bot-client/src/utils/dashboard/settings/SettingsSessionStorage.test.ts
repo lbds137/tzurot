@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { SettingsDashboardSession, SettingUpdateHandler } from './types.js';
+import type { SettingsDashboardSession } from './types.js';
 
 // Mock SessionManager
 const mockSessionManager = {
@@ -19,12 +19,7 @@ vi.mock('../SessionManager.js', () => ({
   getSessionManager: () => mockSessionManager,
 }));
 
-import {
-  storeSession,
-  getSession,
-  deleteSession,
-  getUpdateHandler,
-} from './SettingsSessionStorage.js';
+import { storeSession, getSession, deleteSession } from './SettingsSessionStorage.js';
 
 describe('SettingsSessionStorage', () => {
   const mockSession: SettingsDashboardSession = {
@@ -55,15 +50,13 @@ describe('SettingsSessionStorage', () => {
     lastActivityAt: new Date(),
   };
 
-  const mockUpdateHandler: SettingUpdateHandler = vi.fn();
-
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   describe('storeSession', () => {
     it('should store session in SessionManager with correct params', async () => {
-      await storeSession(mockSession, 'admin-settings', mockUpdateHandler);
+      await storeSession(mockSession, 'admin-settings');
 
       expect(mockSessionManager.set).toHaveBeenCalledWith({
         userId: 'user-123',
@@ -112,31 +105,6 @@ describe('SettingsSessionStorage', () => {
         'admin-settings',
         'global'
       );
-    });
-  });
-
-  describe('getUpdateHandler', () => {
-    it('should return stored handler after storeSession', async () => {
-      await storeSession(mockSession, 'admin-settings', mockUpdateHandler);
-
-      const handler = getUpdateHandler('user-123', 'admin-settings', 'global');
-
-      expect(handler).toBe(mockUpdateHandler);
-    });
-
-    it('should return undefined for unknown session', () => {
-      const handler = getUpdateHandler('unknown', 'admin-settings', 'global');
-
-      expect(handler).toBeUndefined();
-    });
-
-    it('should return undefined after deleteSession', async () => {
-      await storeSession(mockSession, 'admin-settings', mockUpdateHandler);
-      await deleteSession('user-123', 'admin-settings', 'global');
-
-      const handler = getUpdateHandler('user-123', 'admin-settings', 'global');
-
-      expect(handler).toBeUndefined();
     });
   });
 });
