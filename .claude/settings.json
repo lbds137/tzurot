@@ -27,7 +27,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "pnpm exec eslint --fix \"$CLAUDE_FILE_PATH\" 2>&1 | head -50 || true"
+            "command": "pnpm exec eslint \"$CLAUDE_FILE_PATH\" 2>&1 | head -50 || true"
           }
         ]
       },

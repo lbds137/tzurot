@@ -85,5 +85,6 @@ When compacting context, preserve:
 - **The work-stack pointer**: the interrupted task and its resume point when a side-quest (prod bug, review round) preempted the main line
 - **Manual-test / smoke-checklist state**: which items the user has executed and their results (also written to CURRENT.md per `/tzurot-testing` — the file is the source of truth)
 - Re-read `.claude/rules/` files after compaction
+- **Read-state does not survive compaction**: Edit/Write requires a fresh Read of any file post-compaction — and auto-loaded content (rules, CLAUDE.md, CURRENT.md, backlog injections) never counts as Read for editing purposes; Read the file first or the edit is rejected
 
 **Recovery mechanism**: exact pre-compaction context (verbatim quotes, tool output, decisions) is recoverable by grepping the session JSONL under `~/.claude/projects/<project-slug>/` (the slug derives from the checkout path — `ls ~/.claude/projects/` to find it) — use it before re-deriving or guessing at lost state.
