@@ -86,7 +86,6 @@ export async function handleDefaultsEdit(context: DeferredCommandContext): Promi
       entityId: userId,
       entityName: 'Your Default Settings',
       userId,
-      updateHandler: handleSettingUpdate,
     });
 
     logger.info({ userId }, 'Dashboard opened');
@@ -111,7 +110,7 @@ export async function handleUserDefaultsSelectMenu(
     return;
   }
 
-  await handleSettingsSelectMenu(interaction, USER_DEFAULTS_CONFIG, handleSettingUpdate);
+  await handleSettingsSelectMenu(interaction, USER_DEFAULTS_CONFIG);
 }
 
 /**
