@@ -31,21 +31,22 @@ const SETTING_FIELDS = [
  * setting ID is not recognized.
  *
  * Special cases:
- * - maxAge: -1 means "off" → stored as null (clears override, inherits
- *   hardcoded default of null = no age limit)
- * - null values: mean "auto" → clear override (mergeConfigOverrides strips null keys)
+ * - maxAge: -1 (CONFIG_WIRE_OFF) means "off" and is sent AS -1 — the gateway
+ *   persists it as stored JSON null, an explicit terminal OFF at this tier
+ *   (does NOT fall through to lower tiers)
+ * - null values: mean "auto" → clear override (mergeConfigOverrides strips the key)
  */
 export function mapSettingToApiUpdate(
   settingId: string,
   value: unknown
 ): Record<string, unknown> | null {
-  // maxAge has special semantics: -1 means "off" (store as null in JSONB)
+  // maxAge: "off" (-1) and "auto" (null) are DIFFERENT wire states — collapsing
+  // them was the off-vs-inherit bug (off silently meant inherit).
   if (settingId === 'maxAge') {
-    if (value === null || value === -1) {
-      // "auto" or "off" → send null to clear override
-      return { maxAge: null };
+    if (value === null) {
+      return { maxAge: null }; // "auto" → clear override at this tier
     }
-    return { maxAge: value };
+    return { maxAge: value }; // seconds, or -1 (CONFIG_WIRE_OFF) → explicit OFF
   }
 
   // All other settings: null = clear override (auto/inherit), otherwise set the value

@@ -16,6 +16,8 @@ import { ErrorResponses } from '../../utils/errorResponses.js';
 import type { ProvisionedRequest } from '../../types.js';
 import type { RouteDeps } from '../routeDeps.js';
 
+type WalletRemoveDeps = Pick<RouteDeps, 'prisma' | 'apiKeyCacheInvalidation'>;
+
 const logger = createLogger('wallet-remove-key');
 
 /**
@@ -23,7 +25,7 @@ const logger = createLogger('wallet-remove-key');
  * Returns an array of middleware: [auth, handler]
  */
 /** DELETE /api/user/wallet/:provider — remove user's API key for a provider. */
-export const handleRemoveWalletKey = (deps: RouteDeps): RequestHandler => {
+export const handleRemoveWalletKey = (deps: WalletRemoveDeps): RequestHandler => {
   const { prisma, apiKeyCacheInvalidation } = deps;
   return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;

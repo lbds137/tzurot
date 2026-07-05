@@ -52,56 +52,67 @@ const createTestSession = (
   data: {
     maxMessages: {
       localValue: null,
+      hasLocalOverride: false,
       effectiveValue: 50,
       source: 'admin',
     },
     maxAge: {
       localValue: null,
+      hasLocalOverride: false,
       effectiveValue: 7200,
       source: 'admin',
     },
     maxImages: {
       localValue: null,
+      hasLocalOverride: false,
       effectiveValue: 10,
       source: 'admin',
     },
     crossChannelHistoryEnabled: {
       localValue: null,
+      hasLocalOverride: false,
       effectiveValue: false,
       source: 'hardcoded',
     },
     focusModeEnabled: {
       localValue: null,
+      hasLocalOverride: false,
       effectiveValue: false,
       source: 'hardcoded',
     },
     shareLtmAcrossPersonalities: {
       localValue: null,
+      hasLocalOverride: false,
       effectiveValue: false,
       source: 'hardcoded',
     },
     memoryScoreThreshold: {
       localValue: null,
+      hasLocalOverride: false,
       effectiveValue: 0.5,
       source: 'hardcoded',
     },
     memoryLimit: {
       localValue: null,
+      hasLocalOverride: false,
       effectiveValue: 20,
       source: 'hardcoded',
     },
     showModelFooter: {
       localValue: null,
+      hasLocalOverride: false,
       effectiveValue: true,
       source: 'hardcoded',
     },
     voiceResponseMode: {
       localValue: null,
+      hasLocalOverride: false,
       effectiveValue: 'always',
       source: 'hardcoded',
     },
     voiceTranscriptionEnabled: {
       localValue: null,
+      hasLocalOverride: false,
       effectiveValue: true,
       source: 'hardcoded',
     },
@@ -166,7 +177,12 @@ describe('SettingsDashboardBuilder', () => {
     it('should show override status when local value set', () => {
       const config = createTestConfig();
       const session = createTestSession({
-        maxMessages: { localValue: 25, effectiveValue: 25, source: 'channel' },
+        maxMessages: {
+          localValue: 25,
+          hasLocalOverride: true,
+          effectiveValue: 25,
+          source: 'channel',
+        },
       });
 
       const embed = buildOverviewEmbed(config, session);
@@ -190,7 +206,12 @@ describe('SettingsDashboardBuilder', () => {
     it('should show "Auto (from admin)" for admin-sourced values', () => {
       const config = createTestConfig();
       const session = createTestSession({
-        maxMessages: { localValue: null, effectiveValue: 75, source: 'admin' },
+        maxMessages: {
+          localValue: null,
+          hasLocalOverride: false,
+          effectiveValue: 75,
+          source: 'admin',
+        },
       });
 
       const embed = buildOverviewEmbed(config, session);
@@ -203,7 +224,12 @@ describe('SettingsDashboardBuilder', () => {
     it('should show "Auto (from personality)" for personality-sourced values', () => {
       const config = createTestConfig();
       const session = createTestSession({
-        maxMessages: { localValue: null, effectiveValue: 60, source: 'personality' },
+        maxMessages: {
+          localValue: null,
+          hasLocalOverride: false,
+          effectiveValue: 60,
+          source: 'personality',
+        },
       });
 
       const embed = buildOverviewEmbed(config, session);
@@ -216,7 +242,12 @@ describe('SettingsDashboardBuilder', () => {
     it('should show "Auto (from channel)" for channel-sourced values', () => {
       const config = createTestConfig();
       const session = createTestSession({
-        maxMessages: { localValue: null, effectiveValue: 40, source: 'channel' },
+        maxMessages: {
+          localValue: null,
+          hasLocalOverride: false,
+          effectiveValue: 40,
+          source: 'channel',
+        },
       });
 
       const embed = buildOverviewEmbed(config, session);
@@ -229,7 +260,12 @@ describe('SettingsDashboardBuilder', () => {
     it('should show "Auto (from your defaults)" for user-default-sourced values', () => {
       const config = createTestConfig();
       const session = createTestSession({
-        maxMessages: { localValue: null, effectiveValue: 30, source: 'user-default' },
+        maxMessages: {
+          localValue: null,
+          hasLocalOverride: false,
+          effectiveValue: 30,
+          source: 'user-default',
+        },
       });
 
       const embed = buildOverviewEmbed(config, session);
@@ -242,7 +278,12 @@ describe('SettingsDashboardBuilder', () => {
     it('should show "Auto (from your override)" for user-personality-sourced values', () => {
       const config = createTestConfig();
       const session = createTestSession({
-        maxMessages: { localValue: null, effectiveValue: 25, source: 'user-personality' },
+        maxMessages: {
+          localValue: null,
+          hasLocalOverride: false,
+          effectiveValue: 25,
+          source: 'user-personality',
+        },
       });
 
       const embed = buildOverviewEmbed(config, session);
@@ -255,7 +296,12 @@ describe('SettingsDashboardBuilder', () => {
     it('should show "Auto (default)" for hardcoded-sourced values', () => {
       const config = createTestConfig();
       const session = createTestSession({
-        maxMessages: { localValue: null, effectiveValue: 50, source: 'hardcoded' },
+        maxMessages: {
+          localValue: null,
+          hasLocalOverride: false,
+          effectiveValue: 50,
+          source: 'hardcoded',
+        },
       });
 
       const embed = buildOverviewEmbed(config, session);
@@ -268,7 +314,7 @@ describe('SettingsDashboardBuilder', () => {
     it('should format duration values', () => {
       const config = createTestConfig();
       const session = createTestSession({
-        maxAge: { localValue: 7200, effectiveValue: 7200, source: 'admin' },
+        maxAge: { localValue: 7200, hasLocalOverride: true, effectiveValue: 7200, source: 'admin' },
       });
 
       const embed = buildOverviewEmbed(config, session);
@@ -281,7 +327,12 @@ describe('SettingsDashboardBuilder', () => {
     it('should show "Off (no limit)" for null duration', () => {
       const config = createTestConfig();
       const session = createTestSession({
-        maxAge: { localValue: null, effectiveValue: null, source: 'admin' },
+        maxAge: {
+          localValue: null,
+          hasLocalOverride: false,
+          effectiveValue: null,
+          source: 'admin',
+        },
       });
 
       const embed = buildOverviewEmbed(config, session);
@@ -318,7 +369,12 @@ describe('SettingsDashboardBuilder', () => {
     it('should show current value field', () => {
       const config = createTestConfig();
       const session = createTestSession({
-        maxMessages: { localValue: 30, effectiveValue: 30, source: 'channel' },
+        maxMessages: {
+          localValue: 30,
+          hasLocalOverride: true,
+          effectiveValue: 30,
+          source: 'channel',
+        },
       });
       const setting = EXTENDED_CONTEXT_SETTINGS[0]; // maxMessages
 
@@ -332,7 +388,12 @@ describe('SettingsDashboardBuilder', () => {
     it('should show status field', () => {
       const config = createTestConfig();
       const session = createTestSession({
-        maxMessages: { localValue: 30, effectiveValue: 30, source: 'channel' },
+        maxMessages: {
+          localValue: 30,
+          hasLocalOverride: true,
+          effectiveValue: 30,
+          source: 'channel',
+        },
       });
       const setting = EXTENDED_CONTEXT_SETTINGS[0]; // maxMessages
 
@@ -405,7 +466,12 @@ describe('SettingsDashboardBuilder', () => {
     it('should include current value in description', () => {
       const config = createTestConfig();
       const session = createTestSession({
-        maxMessages: { localValue: 30, effectiveValue: 30, source: 'channel' },
+        maxMessages: {
+          localValue: 30,
+          hasLocalOverride: true,
+          effectiveValue: 30,
+          source: 'channel',
+        },
       });
 
       const row = buildSettingsSelectMenu(config, session);
@@ -438,6 +504,7 @@ describe('SettingsDashboardBuilder', () => {
       // Inject synthetic field into data so the builder can read it
       (session.data as unknown as Record<string, unknown>)['testToggle'] = {
         localValue,
+        hasLocalOverride: localValue !== null,
         effectiveValue,
         source,
       };
@@ -526,7 +593,12 @@ describe('SettingsDashboardBuilder', () => {
       source: 'admin' | 'hardcoded' = 'hardcoded'
     ) => {
       return createTestSession({
-        voiceResponseMode: { localValue, effectiveValue, source },
+        voiceResponseMode: {
+          localValue,
+          hasLocalOverride: localValue !== null,
+          effectiveValue,
+          source,
+        },
       });
     };
 
@@ -648,7 +720,12 @@ describe('SettingsDashboardBuilder', () => {
     it('should disable Reset button when no override', () => {
       const config = createTestConfig();
       const session = createTestSession({
-        maxMessages: { localValue: null, effectiveValue: 50, source: 'admin' },
+        maxMessages: {
+          localValue: null,
+          hasLocalOverride: false,
+          effectiveValue: 50,
+          source: 'admin',
+        },
       });
       const setting = EXTENDED_CONTEXT_SETTINGS[0]; // maxMessages
 
@@ -661,7 +738,12 @@ describe('SettingsDashboardBuilder', () => {
     it('should enable Reset button when override exists', () => {
       const config = createTestConfig();
       const session = createTestSession({
-        maxMessages: { localValue: 25, effectiveValue: 25, source: 'channel' },
+        maxMessages: {
+          localValue: 25,
+          hasLocalOverride: true,
+          effectiveValue: 25,
+          source: 'channel',
+        },
       });
       const setting = EXTENDED_CONTEXT_SETTINGS[0]; // maxMessages
 
@@ -681,6 +763,28 @@ describe('SettingsDashboardBuilder', () => {
 
       expect(buttons[0].custom_id).toBe('test-settings::edit::test-entity::maxMessages');
       expect(buttons[1].custom_id).toBe('test-settings::set::test-entity::maxMessages:auto');
+    });
+    it('keeps Reset-to-Auto enabled for a stored OFF (localValue null but hasLocalOverride true)', () => {
+      const config = createTestConfig();
+      const session = createTestSession({
+        maxAge: {
+          localValue: null,
+          hasLocalOverride: true,
+          effectiveValue: null,
+          source: 'channel',
+        },
+      });
+      const setting = EXTENDED_CONTEXT_SETTINGS.find(s => s.id === 'maxAge');
+      if (setting === undefined) throw new Error('maxAge setting missing');
+
+      const row = buildEditButtons(config, session, setting);
+      const buttons = getButtons(row);
+      const reset = buttons.find(
+        b => b.label?.includes('Auto') === true || b.label?.includes('Reset') === true
+      );
+      if (reset === undefined) throw new Error('reset button missing');
+
+      expect(reset.disabled).toBe(false);
     });
   });
 

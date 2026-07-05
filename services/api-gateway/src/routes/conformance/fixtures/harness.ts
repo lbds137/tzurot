@@ -34,6 +34,7 @@ import { getOrCreateUserService } from '../../../services/AuthMiddleware.js';
 import { ConversationRetentionService } from '@tzurot/conversation-history';
 import { initializeDeduplicationCache } from '../../../utils/deduplicationCache.js';
 import type { RouteDeps } from '../../routeDeps.js';
+import { ConfigCascadeResolver, LlmConfigResolver } from '@tzurot/config-resolver';
 import type { HarnessMethod, SeedContext } from './types.js';
 
 /** Discord snowflake of the harness actor. Max 20 chars (varchar(20)). */
@@ -124,6 +125,10 @@ export async function buildConformanceHarness(): Promise<ConformanceHarness> {
     redis: testEnv.redis,
     aiQueue: fakeQueue,
     queueEvents: fakeQueueEvents,
+    // Real resolvers over PGLite — required deps since the detached-resolver
+    // cleanup; enableCleanup off (no timers in tests).
+    cascadeResolver: new ConfigCascadeResolver(prisma, { enableCleanup: false }),
+    llmConfigResolver: new LlmConfigResolver(prisma, { enableCleanup: false }),
     // Real invalidation/retention services over the mock Redis/PGLite — the
     // publish path is all the route handlers exercise. The PersonalityService
     // arg feeds only the subscribe side, which the harness never starts.

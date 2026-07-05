@@ -589,7 +589,7 @@ describe('Character Settings Dashboard', () => {
 
       // "off" maps to null in cascade config overrides
       expect(stub.updatePersonalityConfigDefaults).toHaveBeenCalledWith('personality-123', {
-        maxAge: null,
+        maxAge: -1,
       });
     });
 

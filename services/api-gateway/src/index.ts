@@ -329,7 +329,14 @@ function registerRoutes(
 
   app.use(
     '/ai',
-    createAIRouter({ prisma, aiQueue, queueEvents, llmConfigResolver, visionConfigResolver })
+    createAIRouter({
+      prisma,
+      aiQueue,
+      queueEvents,
+      cascadeResolver,
+      llmConfigResolver,
+      visionConfigResolver,
+    })
   );
   logger.info('AI routes registered');
 
