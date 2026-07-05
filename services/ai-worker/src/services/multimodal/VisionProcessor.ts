@@ -523,14 +523,14 @@ export async function selectVisionModel(
     personality.visionModel !== null &&
     personality.visionModel.length > 0
   ) {
-    logger.info({ visionModel: personality.visionModel }, 'Using configured vision model');
+    logger.debug({ visionModel: personality.visionModel }, 'Using configured vision model');
     return personality.visionModel;
   }
 
   // Priority 2: Use personality's main model if it has native vision support
   const mainModelHasVision = await hasVisionSupport(personality.model);
   if (mainModelHasVision) {
-    logger.info(
+    logger.debug(
       { model: personality.model, source: 'main-model-vision' },
       'Using main LLM for vision (native vision support detected via cache/pattern)'
     );
@@ -540,7 +540,7 @@ export async function selectVisionModel(
   // Priority 3: Use fallback vision model
   // Guest users (no BYOK API key) use VISION_FALLBACK_FREE, BYOK users use VISION_FALLBACK (paid)
   const fallback = isGuestMode ? MODEL_DEFAULTS.VISION_FALLBACK_FREE : config.VISION_FALLBACK_MODEL;
-  logger.info(
+  logger.debug(
     { mainModel: personality.model, fallbackModel: fallback, isGuestMode, source: 'fallback' },
     'Using fallback vision model - main LLM lacks vision support'
   );
@@ -619,7 +619,7 @@ export async function describeImage(
   options: DescribeImageOptions = {}
 ): Promise<string> {
   const loggingContext: VisionLoggingContext = options.loggingContext ?? {};
-  logger.info(
+  logger.debug(
     {
       personalityName: personality.name,
       mainModel: personality.model,
@@ -651,7 +651,7 @@ export async function describeImage(
       // (e.g., "I cannot access the image URL") that looks valid but isn't useful.
       // Re-processing gives the vision model a chance to succeed with a fresh attempt.
       if (isValidVisionDescription(cachedDescription)) {
-        logger.info(
+        logger.debug(
           { attachmentName: attachment.name, attachmentId: attachment.id },
           'Using cached vision description - avoiding duplicate API call'
         );
