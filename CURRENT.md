@@ -10,7 +10,7 @@ _(nothing — beta.147 shipped everything on 2026-07-04)_
 
 ## Next Session Goal
 
-**beta.147 SHIPPED 2026-07-04.** Fable leaves subscription plans 2026-07-07 (capacity hiatus, expected back). Runway plan after the release: **Saturday/Sunday/Monday (Fable, fresh quota Sun 2am EDT)** — the boulder agenda in `backlog/now.md`: design system → prompt-assembly → memory → agentic, each producing a written adjudication + council pass.
+**Boulder #1 DONE 2026-07-04**: the design-system / platform-portable-UX design is **ACCEPTED** — artifact at `docs/proposals/backlog/platform-portable-ux-design.md` (grounded by 3-agent code sweep; council pass GLM 5.2 + Kimi K2.7; all open calls owner-decided, incl. multi-tag all-failed → each errored persona replies its own in-character error line). 2025-12 SLASH_COMMAND_ARCHITECTURE proposal triaged + deleted. **Next: boulder #2 — prompt-assembly architecture** (`backlog/now.md` agenda item 2; sequenced before memory + agentic because all three reshape the message-assembly surface). Fable window closes 2026-07-07 (fresh quota Sun 2am EDT).
 
 **Mechanical work queue (Opus-suitable — user directive 2026-07-03: run these on Opus between/after Fable design sessions; every item is build-sized with design decisions already written down):**
 
