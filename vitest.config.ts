@@ -30,6 +30,7 @@ export default defineConfig({
       '**/*.component.test.ts', // Component tests use vitest.component.config.ts
       '**/*.integration.test.ts', // Integration tier uses vitest.integration.config.ts
       '**/*.contract.test.ts', // Contract tier uses vitest.integration.config.ts (colocated or under tests/e2e/)
+      '**/*.eval.test.ts', // Eval measurements use vitest.eval.config.ts (manual, never CI)
       'tests/e2e/**', // Belt-and-suspenders for anything else under tests/e2e/
     ],
     coverage: {
