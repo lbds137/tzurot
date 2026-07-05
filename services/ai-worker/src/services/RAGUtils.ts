@@ -243,7 +243,7 @@ export function injectImageDescriptions(
   }
 
   if (injectedCount > 0) {
-    logger.info(
+    logger.debug(
       { injectedCount },
       'Injected image descriptions into history entries for inline display'
     );
@@ -394,7 +394,7 @@ export async function enrichConversationHistory(
     if (linkedImages.length > 0) {
       try {
         await processImagesFn(linkedImages);
-        logger.info(
+        logger.debug(
           { imageCount: linkedImages.length },
           'Warmed vision cache for linked-message images'
         );

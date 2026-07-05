@@ -287,7 +287,7 @@ export class VisionDescriptionCache {
       }
 
       const entry = JSON.parse(value) as VisionFailureEntry;
-      logger.info(
+      logger.debug(
         {
           attachmentId: options.attachmentId,
           model: options.model,

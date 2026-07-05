@@ -203,7 +203,7 @@ async function resolveBroadFreeFallback(
   if (sys.source === 'system' && !(await quotaTracker.tryConsume())) {
     return { kind: 'failFast', provider: originalVisionProvider };
   }
-  logger.info(
+  logger.debug(
     { userId, originalVisionProvider, freeProvider, freeModel, source: sys.source },
     'Authenticated user lacks vision-provider key — downgrading to free vision model on system key'
   );
@@ -332,7 +332,7 @@ export async function resolveVisionAuth(
       const guestModel = isPrimaryTier ? targetModel : MODEL_DEFAULTS.VISION_FALLBACK_FREE;
       const guestProvider = isPrimaryTier ? visionProvider : detectVisionProvider(guestModel);
       const result = await apiKeyResolver.resolveApiKey(userId, guestProvider);
-      logger.info(
+      logger.debug(
         { userId, visionProvider: guestProvider, mainProvider, source: result.source },
         'Cross-provider vision config resolved (guest path)'
       );
@@ -351,7 +351,7 @@ export async function resolveVisionAuth(
     // Authenticated user — try their key for the vision provider first.
     const userKey = await apiKeyResolver.tryResolveUserKey(userId, visionProvider);
     if (userKey !== null) {
-      logger.info(
+      logger.debug(
         { userId, visionProvider, mainProvider, source: 'user' },
         'Cross-provider vision config resolved (authenticated user key)'
       );
