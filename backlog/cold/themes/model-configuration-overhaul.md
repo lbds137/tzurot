@@ -4,6 +4,8 @@ _Focus: remaining residuals of the completed Model Configuration Overhaul epic._
 
 The vision-config epic itself SHIPPED (the `kind: 'text' | 'vision'` discriminator on `llm_configs`, `VisionConfigResolver` + gateway stamping, kind-aware service/route/command threading, capability validation, and the vision auto-fallback loop). What remains here are the residuals that were never part of the shipped scope. (The related expand-contract cleanup is its own theme: `llm-config-legacy-column-retirement.md`.)
 
+**DESIGNS ACCEPTED 2026-07-05**: the profiles + user-channel items below are designed in [`docs/proposals/backlog/llm-profiles-and-user-channel-tier.md`](../../../docs/proposals/backlog/llm-profiles-and-user-channel-tier.md) (profile = preset + tier-filtered fallback edge; Phase 0 = zero-schema tier-aware fallback closing the live BYOK gap; UserChannelConfig between user-default and user-personality). The server tier is designed in `config-cascade-semantics.md`. Free Model Quota Resilience is absorbed by that design's D2 switching layer. Sections below retained as background until the phases ship.
+
 #### ✨ Config cascade extension — server, user-server, user-channel tiers
 
 Current cascade: admin < personality < channel < user-default < user+personality. Missing tiers:
