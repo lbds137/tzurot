@@ -1,6 +1,6 @@
 # Memory Management Commands Implementation Plan
 
-> **Status**: Phase 1-2 COMPLETE ✅ — Phase 3 (Incognito) NEXT
+> **Status**: SHIPPED (all command phases live incl. incognito — the old "Phase 3 NEXT" header was stale). Retained for the command-surface record; the **Future Enhancements icebox was absorbed 2026-07-05** by [`memory-architecture.md`](memory-architecture.md) (consolidation → §3.5; facts-vs-vibes → typed memories §3.1; sharing → scoping pools §2.2; export → curation surfaces).
 > **Created**: 2025-12-13
 > **Last Updated**: 2026-01-17
 > **Priority**: High (User-requested feature)
