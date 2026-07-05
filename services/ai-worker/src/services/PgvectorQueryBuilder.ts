@@ -11,7 +11,13 @@ import type { MemoryQueryOptions } from './PgvectorTypes.js';
  * Build WHERE conditions for memory query based on options
  */
 export function buildWhereConditions(options: MemoryQueryOptions): Prisma.Sql[] {
-  const conditions: Prisma.Sql[] = [Prisma.sql`m.persona_id = ${options.personaId}::uuid`];
+  const conditions: Prisma.Sql[] = [
+    Prisma.sql`m.persona_id = ${options.personaId}::uuid`,
+    // Soft-deleted/hidden/archived memories must never reach RAG retrieval —
+    // every deletion path in the app is a soft delete (visibility='deleted'),
+    // so omitting this filter silently violates the user's explicit deletion.
+    Prisma.sql`m.visibility = 'normal'`,
+  ];
 
   // Optional personality filter
   if (isValidId(options.personalityId)) {
