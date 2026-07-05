@@ -72,6 +72,9 @@ export type SettingDefinition = EnumSettingDefinition | StandardSettingDefinitio
 export interface SettingValue<T = unknown> {
   /** The local value at this level (null = auto/inherit) */
   localValue: T | null;
+  /** True when this tier stores an override for the field — distinguishes a
+   * stored null (explicit OFF on null-terminal fields) from "not set here". */
+  hasLocalOverride: boolean;
   /** The effective/resolved value after inheritance */
   effectiveValue: T;
   /** Where the effective value came from */

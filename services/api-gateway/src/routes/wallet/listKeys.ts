@@ -18,10 +18,12 @@ import { sendCustomSuccess } from '../../utils/responseHelpers.js';
 import type { ProvisionedRequest } from '../../types.js';
 import type { RouteDeps } from '../routeDeps.js';
 
+type WalletListDeps = Pick<RouteDeps, 'prisma'>;
+
 const logger = createLogger('wallet-list-keys');
 
 /** GET /api/user/wallet — list configured API-key provider metadata. */
-export const handleListWalletKeys = (deps: RouteDeps): RequestHandler => {
+export const handleListWalletKeys = (deps: WalletListDeps): RequestHandler => {
   const { prisma } = deps;
   return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;

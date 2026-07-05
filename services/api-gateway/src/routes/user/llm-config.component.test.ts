@@ -59,6 +59,7 @@ vi.mock('../../services/AuthMiddleware.js', async () => {
 
 // Import after mocking
 const { createLlmConfigRoutes } = await import('./llm-config.js');
+const { ConfigCascadeResolver, LlmConfigResolver } = await import('@tzurot/config-resolver');
 
 describe('LLM Config Resolution Integration', () => {
   let testEnv: TestEnvironment;
@@ -80,8 +81,14 @@ describe('LLM Config Resolution Integration', () => {
     app = express();
     app.use(express.json());
 
-    // Mount LLM config routes (auth is mocked above)
-    const router = createLlmConfigRoutes({ prisma });
+    // Mount LLM config routes (auth is mocked above). Resolvers are runtime-
+    // required at mount (requireDep) — real instances over the PGLite prisma,
+    // cleanup timers off.
+    const router = createLlmConfigRoutes({
+      prisma,
+      cascadeResolver: new ConfigCascadeResolver(prisma, { enableCleanup: false }),
+      llmConfigResolver: new LlmConfigResolver(prisma, { enableCleanup: false }),
+    });
     app.use('/user/llm-config', router);
   }, 30000);
 

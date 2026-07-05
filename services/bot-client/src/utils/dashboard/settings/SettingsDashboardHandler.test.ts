@@ -45,56 +45,67 @@ const createTestConfig = (): SettingsDashboardConfig => ({
 const createTestData = (): SettingsData => ({
   maxMessages: {
     localValue: null,
+    hasLocalOverride: false,
     effectiveValue: 50,
     source: 'admin',
   },
   maxAge: {
     localValue: null,
+    hasLocalOverride: false,
     effectiveValue: 7200,
     source: 'admin',
   },
   maxImages: {
     localValue: null,
+    hasLocalOverride: false,
     effectiveValue: 10,
     source: 'admin',
   },
   focusModeEnabled: {
     localValue: null,
+    hasLocalOverride: false,
     effectiveValue: false,
     source: 'hardcoded',
   },
   crossChannelHistoryEnabled: {
     localValue: null,
+    hasLocalOverride: false,
     effectiveValue: false,
     source: 'hardcoded',
   },
   shareLtmAcrossPersonalities: {
     localValue: null,
+    hasLocalOverride: false,
     effectiveValue: false,
     source: 'hardcoded',
   },
   memoryScoreThreshold: {
     localValue: null,
+    hasLocalOverride: false,
     effectiveValue: 0.5,
     source: 'hardcoded',
   },
   memoryLimit: {
     localValue: null,
+    hasLocalOverride: false,
     effectiveValue: 20,
     source: 'hardcoded',
   },
   showModelFooter: {
     localValue: null,
+    hasLocalOverride: false,
     effectiveValue: true,
     source: 'hardcoded',
   },
   voiceResponseMode: {
     localValue: null,
+    hasLocalOverride: false,
     effectiveValue: 'always',
     source: 'hardcoded',
   },
   voiceTranscriptionEnabled: {
     localValue: null,
+    hasLocalOverride: false,
     effectiveValue: true,
     source: 'hardcoded',
   },
@@ -346,25 +357,72 @@ describe('SettingsDashboardHandler', () => {
     it('should handle null values in settings data', async () => {
       const config = createTestConfig();
       const data: SettingsData = {
-        maxMessages: { localValue: null, effectiveValue: 50, source: 'admin' },
-        maxAge: { localValue: null, effectiveValue: null, source: 'admin' },
-        maxImages: { localValue: null, effectiveValue: 0, source: 'admin' },
-        focusModeEnabled: { localValue: null, effectiveValue: false, source: 'hardcoded' },
+        maxMessages: {
+          localValue: null,
+          hasLocalOverride: false,
+          effectiveValue: 50,
+          source: 'admin',
+        },
+        maxAge: {
+          localValue: null,
+          hasLocalOverride: false,
+          effectiveValue: null,
+          source: 'admin',
+        },
+        maxImages: {
+          localValue: null,
+          hasLocalOverride: false,
+          effectiveValue: 0,
+          source: 'admin',
+        },
+        focusModeEnabled: {
+          localValue: null,
+          hasLocalOverride: false,
+          effectiveValue: false,
+          source: 'hardcoded',
+        },
         crossChannelHistoryEnabled: {
           localValue: null,
+          hasLocalOverride: false,
           effectiveValue: false,
           source: 'hardcoded',
         },
         shareLtmAcrossPersonalities: {
           localValue: null,
+          hasLocalOverride: false,
           effectiveValue: false,
           source: 'hardcoded',
         },
-        memoryScoreThreshold: { localValue: null, effectiveValue: 0.5, source: 'hardcoded' },
-        memoryLimit: { localValue: null, effectiveValue: 20, source: 'hardcoded' },
-        showModelFooter: { localValue: null, effectiveValue: true, source: 'hardcoded' },
-        voiceResponseMode: { localValue: null, effectiveValue: 'always', source: 'hardcoded' },
-        voiceTranscriptionEnabled: { localValue: null, effectiveValue: true, source: 'hardcoded' },
+        memoryScoreThreshold: {
+          localValue: null,
+          hasLocalOverride: false,
+          effectiveValue: 0.5,
+          source: 'hardcoded',
+        },
+        memoryLimit: {
+          localValue: null,
+          hasLocalOverride: false,
+          effectiveValue: 20,
+          source: 'hardcoded',
+        },
+        showModelFooter: {
+          localValue: null,
+          hasLocalOverride: false,
+          effectiveValue: true,
+          source: 'hardcoded',
+        },
+        voiceResponseMode: {
+          localValue: null,
+          hasLocalOverride: false,
+          effectiveValue: 'always',
+          source: 'hardcoded',
+        },
+        voiceTranscriptionEnabled: {
+          localValue: null,
+          hasLocalOverride: false,
+          effectiveValue: true,
+          source: 'hardcoded',
+        },
       };
       const interaction = createMockInteraction();
 
@@ -382,25 +440,67 @@ describe('SettingsDashboardHandler', () => {
     it('should handle override values', async () => {
       const config = createTestConfig();
       const data: SettingsData = {
-        maxMessages: { localValue: 25, effectiveValue: 25, source: 'channel' },
-        maxAge: { localValue: 3600, effectiveValue: 3600, source: 'channel' },
-        maxImages: { localValue: 5, effectiveValue: 5, source: 'channel' },
-        focusModeEnabled: { localValue: null, effectiveValue: false, source: 'hardcoded' },
+        maxMessages: {
+          localValue: 25,
+          hasLocalOverride: true,
+          effectiveValue: 25,
+          source: 'channel',
+        },
+        maxAge: {
+          localValue: 3600,
+          hasLocalOverride: true,
+          effectiveValue: 3600,
+          source: 'channel',
+        },
+        maxImages: { localValue: 5, hasLocalOverride: true, effectiveValue: 5, source: 'channel' },
+        focusModeEnabled: {
+          localValue: null,
+          hasLocalOverride: false,
+          effectiveValue: false,
+          source: 'hardcoded',
+        },
         crossChannelHistoryEnabled: {
           localValue: null,
+          hasLocalOverride: false,
           effectiveValue: false,
           source: 'hardcoded',
         },
         shareLtmAcrossPersonalities: {
           localValue: null,
+          hasLocalOverride: false,
           effectiveValue: false,
           source: 'hardcoded',
         },
-        memoryScoreThreshold: { localValue: null, effectiveValue: 0.5, source: 'hardcoded' },
-        memoryLimit: { localValue: null, effectiveValue: 20, source: 'hardcoded' },
-        showModelFooter: { localValue: null, effectiveValue: true, source: 'hardcoded' },
-        voiceResponseMode: { localValue: null, effectiveValue: 'always', source: 'hardcoded' },
-        voiceTranscriptionEnabled: { localValue: null, effectiveValue: true, source: 'hardcoded' },
+        memoryScoreThreshold: {
+          localValue: null,
+          hasLocalOverride: false,
+          effectiveValue: 0.5,
+          source: 'hardcoded',
+        },
+        memoryLimit: {
+          localValue: null,
+          hasLocalOverride: false,
+          effectiveValue: 20,
+          source: 'hardcoded',
+        },
+        showModelFooter: {
+          localValue: null,
+          hasLocalOverride: false,
+          effectiveValue: true,
+          source: 'hardcoded',
+        },
+        voiceResponseMode: {
+          localValue: null,
+          hasLocalOverride: false,
+          effectiveValue: 'always',
+          source: 'hardcoded',
+        },
+        voiceTranscriptionEnabled: {
+          localValue: null,
+          hasLocalOverride: false,
+          effectiveValue: true,
+          source: 'hardcoded',
+        },
       };
       const interaction = createMockInteraction();
 

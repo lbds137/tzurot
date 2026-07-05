@@ -532,9 +532,10 @@ describe('Channel Settings Dashboard', () => {
 
       await handleChannelSettingsModal(interaction as never);
 
-      // "off" maps to -1 in the modal, mapSettingToApiUpdate converts -1 → null
+      // "off" maps to -1 in the modal and travels as the wire OFF sentinel — the
+      // gateway persists it as stored null (explicit terminal OFF, not a clear).
       expect(stub.updateChannelConfigOverrides).toHaveBeenCalledWith('channel-123', {
-        maxAge: null,
+        maxAge: -1,
       });
     });
 

@@ -32,14 +32,17 @@ export function buildCascadeSettingsData(
   localSource: ConfigOverrideSource
 ): SettingsData {
   function buildValue<T>(field: keyof ConfigOverrides): SettingValue<T> {
-    const localValue = (localOverrides?.[field] ?? null) as T | null;
+    // Presence-aware: `in` check, not `?? null` — a stored null (explicit OFF on
+    // null-terminal fields) IS a local override and must not read as "unset".
+    const hasLocalOverride = localOverrides !== null && field in localOverrides;
+    const localValue = (hasLocalOverride ? localOverrides[field] : null) as T | null;
     const effectiveValue =
       resolved !== null
         ? (resolved[field as keyof ResolvedConfigOverrides] as T)
         : ((localValue ?? HARDCODED_CONFIG_DEFAULTS[field]) as T);
     const source: ConfigOverrideSource =
-      resolved !== null ? resolved.sources[field] : localValue !== null ? localSource : 'hardcoded';
-    return { localValue, effectiveValue, source };
+      resolved !== null ? resolved.sources[field] : hasLocalOverride ? localSource : 'hardcoded';
+    return { localValue, hasLocalOverride, effectiveValue, source };
   }
 
   const result = {} as Record<keyof ConfigOverrides, SettingValue<unknown>>;
@@ -102,6 +105,7 @@ export function buildFallbackSettingsData(): SettingsData {
   for (const field of CONFIG_FIELDS) {
     result[field] = {
       localValue: null,
+      hasLocalOverride: false,
       effectiveValue: HARDCODED_CONFIG_DEFAULTS[field],
       source: 'hardcoded',
     };

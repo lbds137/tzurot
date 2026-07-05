@@ -11,10 +11,9 @@ import { type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { z } from 'zod';
 import { DISCORD_SNOWFLAKE } from '@tzurot/common-types/constants/discord';
-import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { LlmConfigResolver, ConfigCascadeResolver } from '@tzurot/config-resolver';
+import { type LlmConfigResolver, type ConfigCascadeResolver } from '@tzurot/config-resolver';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import type { AuthenticatedRequest } from '../../types.js';
@@ -45,19 +44,15 @@ export const resolveConfigBodySchema = z.object({
 });
 
 export function createResolveHandler(
-  prisma: PrismaClient,
-  injectedCascadeResolver?: ConfigCascadeResolver,
-  injectedLlmResolver?: LlmConfigResolver
+  cascadeResolver: ConfigCascadeResolver,
+  resolver: LlmConfigResolver
 ) {
-  // Both resolvers should be the long-lived, pub/sub-subscribed instances from
+  // Both resolvers are the long-lived, pub/sub-subscribed instances from
   // index.ts so user/channel/personality config changes are reflected immediately
   // (not after the cache-TTL window). The shared LlmConfigResolver is the same
   // instance the /ai/generate job-chain uses, so a user's model change invalidates
-  // one cache, not two. Each falls back to a local instance when not injected
-  // (e.g. in tests).
-  const resolver = injectedLlmResolver ?? new LlmConfigResolver(prisma, { enableCleanup: false });
-  const cascadeResolver =
-    injectedCascadeResolver ?? new ConfigCascadeResolver(prisma, { enableCleanup: false });
+  // one cache, not two. Required (no local-fallback construction): a locally-built
+  // resolver never hears invalidation events and serves stale config after writes.
 
   return async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;

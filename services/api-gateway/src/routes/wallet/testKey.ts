@@ -21,10 +21,12 @@ import { validateApiKey } from '../../utils/apiKeyValidation.js';
 import type { ProvisionedRequest } from '../../types.js';
 import type { RouteDeps } from '../routeDeps.js';
 
+type WalletTestDeps = Pick<RouteDeps, 'prisma'>;
+
 const logger = createLogger('wallet-test-key');
 
 /** POST /api/user/wallet/test — verify a stored API key against the provider. */
-export const handleTestWalletKey = (deps: RouteDeps): RequestHandler => {
+export const handleTestWalletKey = (deps: WalletTestDeps): RequestHandler => {
   const { prisma } = deps;
   return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const parseResult = TestWalletKeySchema.safeParse(req.body);

@@ -91,4 +91,36 @@ describe('mergeConfigOverrides', () => {
       focusModeEnabled: true,
     });
   });
+
+  describe('explicit OFF (CONFIG_WIRE_OFF) on null-terminal fields', () => {
+    it('maps maxAge: -1 to stored null (explicit OFF survives the cleanup loop)', () => {
+      expect(mergeConfigOverrides(null, { maxAge: -1 })).toEqual({ maxAge: null });
+    });
+
+    it('clears maxAge when null is sent (auto) — distinct from OFF', () => {
+      expect(mergeConfigOverrides({ maxAge: 3600 }, { maxAge: null })).toBeNull();
+    });
+
+    it('preserves a previously stored OFF through unrelated writes', () => {
+      expect(mergeConfigOverrides({ maxAge: null }, { maxMessages: 25 })).toEqual({
+        maxAge: null,
+        maxMessages: 25,
+      });
+    });
+
+    it('replaces a stored OFF with a value', () => {
+      expect(mergeConfigOverrides({ maxAge: null }, { maxAge: 7200 })).toEqual({ maxAge: 7200 });
+    });
+
+    it('rejects the OFF sentinel on non-terminal fields', () => {
+      expect(mergeConfigOverrides(null, { maxMessages: -1 })).toBe('invalid');
+    });
+
+    it('still strips legacy null dirt on non-terminal fields from existing JSONB', () => {
+      expect(mergeConfigOverrides({ maxImages: null, maxAge: null }, { memoryLimit: 5 })).toEqual({
+        maxAge: null,
+        memoryLimit: 5,
+      });
+    });
+  });
 });

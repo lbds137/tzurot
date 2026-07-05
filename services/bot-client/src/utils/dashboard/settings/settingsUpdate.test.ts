@@ -26,8 +26,10 @@ describe('mapSettingToApiUpdate', () => {
       expect(mapSettingToApiUpdate('maxAge', null)).toEqual({ maxAge: null });
     });
 
-    it('should map -1 (off) to null', () => {
-      expect(mapSettingToApiUpdate('maxAge', -1)).toEqual({ maxAge: null });
+    it('should pass -1 (off) through as the wire OFF sentinel — distinct from auto', () => {
+      // Collapsing -1 to null was the off-vs-inherit bug: "off" silently
+      // meant "inherit" because null on the wire clears the override.
+      expect(mapSettingToApiUpdate('maxAge', -1)).toEqual({ maxAge: -1 });
     });
   });
 

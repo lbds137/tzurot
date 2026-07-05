@@ -25,7 +25,6 @@ import {
 import { Prisma } from '@tzurot/common-types/services/prisma';
 import { generateUserPersonalityConfigUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { ConfigCascadeResolver } from '@tzurot/config-resolver';
 import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import {
@@ -37,7 +36,7 @@ import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { getRequiredParam } from '../../utils/requestParams.js';
 import type { AuthenticatedRequest, ProvisionedRequest } from '../../types.js';
-import type { RouteDeps } from '../routeDeps.js';
+import { requireDep, type RouteDeps } from '../routeDeps.js';
 
 const logger = createLogger('user-config-overrides');
 
@@ -187,7 +186,7 @@ export const handleClearUserDefaults = (deps: RouteDeps): RequestHandler => {
 
 /** GET /api/user/config-overrides/resolve/:personalityId — full cascade resolution */
 export const handleResolveCascade = (deps: RouteDeps): RequestHandler => {
-  const cascadeResolver = new ConfigCascadeResolver(deps.prisma, { enableCleanup: false });
+  const cascadeResolver = requireDep(deps.cascadeResolver, 'cascadeResolver');
   return asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const personalityId = getRequiredParam(req.params.personalityId, 'personalityId');
     const queryResult = resolveQuerySchema.safeParse(req.query);
