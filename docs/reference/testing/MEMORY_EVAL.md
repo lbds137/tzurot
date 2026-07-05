@@ -7,6 +7,10 @@ The measurement tool behind the memory-architecture design's phase gates (§3.9)
 pnpm eval:memory
 ```
 
+The script is a bare vitest invocation (same pattern as the component/integration
+tiers): `@tzurot/embeddings` and `@tzurot/test-utils` resolve to `dist/`, so on
+a fresh clone or after a branch switch run `pnpm build` first.
+
 ## What it does
 
 Runs the golden corpus (`services/ai-worker/src/services/eval/retrieval-goldens.json`)
