@@ -9,6 +9,7 @@
 import crypto from 'crypto';
 
 import { DISCORD_LIMITS } from '../constants/discord.js';
+import { SLUG_MIN_LENGTH } from '../schemas/api/personality.js';
 import { isBotOwner } from './ownerMiddleware.js';
 
 /** Hex chars of the truncated-tail hash appended when a slug is too long. */
@@ -152,6 +153,50 @@ export function suggestSlugExample(name: string): string {
   while (end > start && collapsed[end - 1] === '-') {
     end--;
   }
-  const cleaned = collapsed.slice(start, end);
-  return cleaned.length >= 3 ? cleaned : 'my-character';
+  // Clamp to the schema's max so the suggestion itself validates when
+  // copy-pasted (a 255-char display name would otherwise suggest a slug
+  // that fails slugSchema's length rule); re-trim any hyphen the cut exposes.
+  let cleaned = collapsed.slice(start, end).slice(0, DISCORD_LIMITS.SLUG_MAX_LENGTH);
+  let clampedEnd = cleaned.length;
+  while (clampedEnd > 0 && cleaned[clampedEnd - 1] === '-') {
+    clampedEnd--;
+  }
+  cleaned = cleaned.slice(0, clampedEnd);
+  return cleaned.length >= SLUG_MIN_LENGTH ? cleaned : 'my-character';
+}
+
+/**
+ * Sanitize an externally-sourced identifier into SLUG_PATTERN shape for
+ * internal writers that bypass the HTTP-layer slugSchema (e.g. the shapes
+ * import job writes Personality.slug via Prisma directly, and shapes.inc
+ * usernames may lead with digits). Leading non-letters are prefixed rather
+ * than trimmed so distinct sources stay distinct ("123cat" → "s-123cat",
+ * not "cat" which could collide with a different import).
+ */
+export function sanitizeExternalSlug(source: string): string {
+  const collapsed = source.toLowerCase().replace(/[^a-z0-9-]+/g, '-');
+  if (/^[a-z]/.test(collapsed)) {
+    return finishExternalSlug(collapsed);
+  }
+  // Drop leading hyphens, then prefix — "s-" keeps the original visible.
+  let start = 0;
+  while (start < collapsed.length && collapsed[start] === '-') {
+    start++;
+  }
+  const body = collapsed.slice(start);
+  return body.length > 0 ? finishExternalSlug(`s-${body}`) : 'imported';
+}
+
+/** Shared tail for sanitizeExternalSlug: trailing-hyphen trim + length floor. */
+function finishExternalSlug(slug: string): string {
+  // Trim trailing hyphens (consistency with suggestSlugExample; SLUG_PATTERN
+  // permits them but they read as artifacts).
+  let end = slug.length;
+  while (end > 0 && slug[end - 1] === '-') {
+    end--;
+  }
+  const trimmed = slug.slice(0, end);
+  // Length floor: bot-owner imports skip the username suffix, so a 1-2 char
+  // source would otherwise write a sub-min slug straight past slugSchema.
+  return trimmed.length >= SLUG_MIN_LENGTH ? trimmed : `imported-${trimmed}`;
 }

@@ -23,7 +23,9 @@ import { normalizeSlugForUser, suggestSlugExample } from '@tzurot/common-types/u
 import {
   SLUG_PATTERN,
   SLUG_REQUIREMENTS_MESSAGE,
+  SLUG_MIN_LENGTH,
 } from '@tzurot/common-types/schemas/api/personality';
+import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 import type { ModalCommandContext } from '../../utils/commandContext/types.js';
 import {
   buildDashboardEmbed,
@@ -90,6 +92,13 @@ export async function handleSeedModalSubmit(
     await interaction.editReply(
       `❌ Invalid slug format. ${SLUG_REQUIREMENTS_MESSAGE}\n` +
         `Example: \`${suggestSlugExample(values.name)}\``
+    );
+    return;
+  }
+  if (values.slug.length < SLUG_MIN_LENGTH || values.slug.length > DISCORD_LIMITS.SLUG_MAX_LENGTH) {
+    await interaction.editReply(
+      `❌ Slug must be ${SLUG_MIN_LENGTH}–${DISCORD_LIMITS.SLUG_MAX_LENGTH} characters ` +
+        `(yours is ${values.slug.length}).`
     );
     return;
   }

@@ -58,6 +58,34 @@ async function resolveForFullImport(
   ) {
     throw new Error(`Cannot import: personality "${opts.sourceSlug}" is owned by another user.`);
   }
+
+  // Continuity: when no row carries the computed slug, this user may still have
+  // an earlier import of the SAME shapes source under a differently-shaped slug
+  // (slug derivation has changed over time — e.g. sanitizeExternalSlug reshapes
+  // digit-leading identifiers). Match on the canonical shapesId, scoped to this
+  // owner, and reuse the existing slug so a full reimport updates in place
+  // instead of forking a duplicate personality and orphaning its memories.
+  if (existing === null && opts.shapesId !== '') {
+    const byShapesId = await opts.prisma.personality.findFirst({
+      where: {
+        customFields: { path: ['shapesId'], equals: opts.shapesId },
+        ownerId: opts.internalUserId,
+      },
+      select: { id: true, slug: true },
+    });
+    if (byShapesId !== null && byShapesId.slug !== opts.sourceSlug) {
+      logger.info(
+        {
+          shapesId: opts.shapesId,
+          existingSlug: byShapesId.slug,
+          strategy: 'shapes-id-continuity',
+        },
+        RESOLVED_MSG
+      );
+      return createFullPersonality(opts.prisma, opts.config, byShapesId.slug, opts.internalUserId);
+    }
+  }
+
   return createFullPersonality(opts.prisma, opts.config, opts.sourceSlug, opts.internalUserId);
 }
 

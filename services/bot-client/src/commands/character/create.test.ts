@@ -207,6 +207,51 @@ describe('Character Create', () => {
       );
     });
 
+    it('should reject a too-long slug with the friendly length message', async () => {
+      const longSlug = 'a'.repeat(60);
+      vi.mocked(dashboardUtils.extractModalValues).mockReturnValue({
+        name: 'Test',
+        slug: longSlug,
+        characterInfo: 'Info',
+        personalityTraits: 'Traits',
+      });
+
+      const mockInteraction = createMockModalInteraction({
+        name: 'Test',
+        slug: longSlug,
+        characterInfo: 'Info',
+        personalityTraits: 'Traits',
+      });
+
+      await handleSeedModalSubmit(mockInteraction, mockConfig);
+
+      expect(mockInteraction.editReply).toHaveBeenCalledWith(
+        expect.stringContaining('3–50 characters')
+      );
+    });
+
+    it('should reject a too-short slug with the friendly length message', async () => {
+      vi.mocked(dashboardUtils.extractModalValues).mockReturnValue({
+        name: 'Test',
+        slug: 'ab',
+        characterInfo: 'Info',
+        personalityTraits: 'Traits',
+      });
+
+      const mockInteraction = createMockModalInteraction({
+        name: 'Test',
+        slug: 'ab',
+        characterInfo: 'Info',
+        personalityTraits: 'Traits',
+      });
+
+      await handleSeedModalSubmit(mockInteraction, mockConfig);
+
+      expect(mockInteraction.editReply).toHaveBeenCalledWith(
+        expect.stringContaining('3–50 characters')
+      );
+    });
+
     it('should accept valid slug with lowercase, numbers, and hyphens', async () => {
       vi.mocked(dashboardUtils.extractModalValues).mockReturnValue({
         name: 'Test',

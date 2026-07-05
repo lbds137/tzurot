@@ -119,6 +119,51 @@ describe('resolvePersonality', () => {
       expect(result.personalityId).toBe('created-pers-id');
     });
 
+    it('reuses an earlier import with a differently-shaped slug via shapesId continuity', async () => {
+      // First findFirst (by slug): no row carries the newly-computed slug.
+      // Second findFirst (by shapesId, owner-scoped): the pre-sanitize import.
+      mockPrisma.personality.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ id: 'old-import-id', slug: '123shape-user123' });
+
+      await resolvePersonality(createOpts());
+
+      // The continuity lookup must be shapesId-keyed AND owner-scoped — the
+      // scoping is what prevents adopting another user's import (below).
+      expect(mockPrisma.personality.findFirst).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          where: {
+            customFields: { path: ['shapesId'], equals: 'shapes-uuid-123' },
+            ownerId: 'user-uuid-123',
+          },
+        })
+      );
+      // Must upsert on the EXISTING slug — a slug-derivation change alone must
+      // not fork the personality and orphan its memories.
+      expect(mockCreateFullPersonality).toHaveBeenCalledWith(
+        mockPrisma,
+        baseConfig,
+        '123shape-user123',
+        'user-uuid-123'
+      );
+    });
+
+    it("does not adopt another user's import via shapesId — creates own row", async () => {
+      // Slug lookup: nothing. ShapesId lookup is owner-scoped, so another
+      // user's import of the same source is invisible → create new.
+      mockPrisma.personality.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
+
+      await resolvePersonality(createOpts());
+
+      expect(mockCreateFullPersonality).toHaveBeenCalledWith(
+        mockPrisma,
+        baseConfig,
+        'test-shape-user123',
+        'user-uuid-123'
+      );
+    });
+
     it('should allow owner to reimport their own personality', async () => {
       mockPrisma.personality.findFirst.mockResolvedValue({
         id: 'existing-id',

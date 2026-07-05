@@ -24,7 +24,7 @@ import {
   type ShapesDataFetchResult,
 } from '@tzurot/common-types/types/shapes-import';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { normalizeSlugForUser } from '@tzurot/common-types/utils/slugUtils';
+import { normalizeSlugForUser, sanitizeExternalSlug } from '@tzurot/common-types/utils/slugUtils';
 import { ShapesDataFetcher } from '../services/shapes/ShapesDataFetcher.js';
 import { getDecryptedCookie, persistUpdatedCookie } from './shapesCredentials.js';
 import { handleShapesJobError } from './shapesJobHelpers.js';
@@ -63,8 +63,14 @@ export async function processShapesImportJob(
     // 3. Look up user info (username for slug normalization, persona for memory ownership)
     const { username, personaId } = await resolveImportUser(prisma, userId);
 
-    // 4. Normalize slug — non-bot-owners get username suffix to prevent collisions
-    const normalizedSlug = normalizeSlugForUser(sourceSlug, discordUserId, username);
+    // 4. Sanitize then normalize — shapes.inc identifiers aren't gated by the
+    // HTTP-layer slugSchema (this job writes via Prisma), and their charset
+    // permits leading digits; sanitizeExternalSlug enforces SLUG_PATTERN shape.
+    const normalizedSlug = normalizeSlugForUser(
+      sanitizeExternalSlug(sourceSlug),
+      discordUserId,
+      username
+    );
 
     // 5. Fetch data from shapes.inc (uses original sourceSlug — the shapes.inc API
     //    identifier — not normalizedSlug which is the local personality slug)
