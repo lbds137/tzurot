@@ -7,6 +7,7 @@
 ## Unreleased on Develop
 
 - **ops Redis tooling reaches Railway** (fix PR, same day as beta.149): `getRailwayRedisUrl` now queries service `Redis` (with lowercase fallback), prefers `REDIS_PUBLIC_URL` (internal URL is off-platform-unreachable), and pins IPv4 (the forced IPv6 was the remote-hang cause) — un-breaking `maintenance on|off|status` + `inspect:queue`/`inspect:dlq` for `--env dev/prod`. **Runtime-verified against BOTH dev and prod** (flag OFF, queues running, cron ticks visible as delayed jobs). Maintenance mode is now confirmed operable for the next destructive release.
+- **Memory Phase 1a: hybrid BUILT + PARKED on evidence; salvage shipped** (#1505, 2026-07-06): the full dense+FTS+recency RRF hybrid is tested and parked on `feat/memory-hybrid-retrieval` — the A/B measured ZERO recall lift over dense-only (both 0.889) at toy corpus scale, so per the memory design's own evidence gate it does not merge until real-scale goldens (from prod memory data) demonstrate lift. Salvage on develop: 5 lexical goldens (4 pass dense-only — BGE-small subword tokenization is stronger at rare-token recall than assumed; 1 intentionally red documenting the Postgres-ts_rank-has-no-IDF gap, corpus mean 0.889), adapter threshold fallback aligned to `AI_DEFAULTS` (dead 0.85 removed), knob-retirement follow-up filed (threshold never adjusted on dev OR prod — DB-audited). Full status + resume gate in `backlog/cold/themes/memory-system-overhaul.md`.
 
 ## Next Session Goal
 
