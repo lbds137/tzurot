@@ -1,5 +1,9 @@
-import { describe, it, expect } from 'vitest';
-import { collectRefImageDescriptions } from './referenceImageDescriptions.js';
+import { describe, it, expect, vi } from 'vitest';
+import {
+  collectRefImageDescriptions,
+  writeReferenceImageDescriptions,
+} from './referenceImageDescriptions.js';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { StoredReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 
 function makeRef(attachments?: StoredReferencedMessage['attachments']): StoredReferencedMessage {
@@ -75,5 +79,70 @@ describe('collectRefImageDescriptions', () => {
   it('returns empty when the reference has no attachments', () => {
     expect(collectRefImageDescriptions(makeRef(undefined), new Map([['x', 'y']]))).toEqual([]);
     expect(collectRefImageDescriptions(makeRef([]), new Map([['x', 'y']]))).toEqual([]);
+  });
+});
+
+describe('writeReferenceImageDescriptions — write-path guards', () => {
+  const scope = { channelId: 'chan-1', personalityId: 'pers-1', personaId: 'persona-1' };
+
+  function makePrisma(findFirstResult: unknown): {
+    prisma: PrismaClient;
+    findFirst: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
+  } {
+    const findFirst = vi.fn().mockResolvedValue(findFirstResult);
+    const update = vi.fn().mockResolvedValue({});
+    const prisma = {
+      conversationHistory: { findFirst, update },
+    } as unknown as PrismaClient;
+    return { prisma, findFirst, update };
+  }
+
+  it('short-circuits on an empty description map without querying at all', async () => {
+    const { prisma, findFirst } = makePrisma(null);
+
+    const written = await writeReferenceImageDescriptions(prisma, scope, new Map());
+
+    expect(written).toBe(0);
+    expect(findFirst).not.toHaveBeenCalled();
+  });
+
+  it('returns 0 when no user message exists in scope', async () => {
+    const { prisma, update } = makePrisma(null);
+
+    const written = await writeReferenceImageDescriptions(
+      prisma,
+      scope,
+      new Map([['https://cdn/a.png', 'a cat']])
+    );
+
+    expect(written).toBe(0);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('returns 0 when the last message has no referenced-message metadata', async () => {
+    const { prisma, update } = makePrisma({ id: 'row-1', messageMetadata: null });
+
+    const written = await writeReferenceImageDescriptions(
+      prisma,
+      scope,
+      new Map([['https://cdn/a.png', 'a cat']])
+    );
+
+    expect(written).toBe(0);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('scopes the last-user-message lookup to the given channel/personality/persona + user role', async () => {
+    const { prisma, findFirst } = makePrisma(null);
+
+    await writeReferenceImageDescriptions(prisma, scope, new Map([['u', 'd']]));
+
+    expect(findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { ...scope, role: 'user' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      })
+    );
   });
 });
