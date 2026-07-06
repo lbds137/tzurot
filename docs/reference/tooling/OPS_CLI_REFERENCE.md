@@ -106,8 +106,10 @@ Runtime state inspection for debugging:
 
 Quiesce user-facing traffic for destructive-migration windows (bot-client
 replies with a friendly notice, api-gateway 503s below `/health`). The flag
-lives in Redis; `on` waits ~5s for service flag-caches to converge, then for
-the BullMQ queue (active + waiting) to drain. Full sequence: `/tzurot-deployment`.
+lives in Redis; `on` waits ~5s for service flag-caches to converge, PAUSES both
+BullMQ queues (`ai-requests` + `scheduled-jobs` — waiting/delayed jobs and cron
+ticks park until `off`), then waits only for ACTIVE jobs to finish. A large
+waiting backlog never blocks `on`. Full sequence: `/tzurot-deployment`.
 
 | Command                                       | Description                                         |
 | --------------------------------------------- | --------------------------------------------------- |

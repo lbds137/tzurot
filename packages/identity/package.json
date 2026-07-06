@@ -1,6 +1,6 @@
 {
   "name": "@tzurot/identity",
-  "version": "3.0.0-beta.148",
+  "version": "3.0.0-beta.149",
   "private": true,
   "type": "module",
   "description": "User / persona / personality provisioning + routing-context resolution (Prisma-backed identity services)",
