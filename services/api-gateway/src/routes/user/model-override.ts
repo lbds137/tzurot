@@ -31,12 +31,16 @@ import {
 } from '../../utils/configRouteHelpers.js';
 import { ensureVisionCapableModel } from '../../utils/llmConfigValidation.js';
 import { ModelCapabilityService } from '../../services/ModelCapabilityService.js';
-import { tryInvalidateCache } from '../../utils/configOverrideHelpers.js';
+import {
+  tryInvalidateCache,
+  findPersonalityOrSendNotFound,
+} from '../../utils/configOverrideHelpers.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import { getParam } from '../../utils/requestParams.js';
+import { OVERRIDE_SUMMARY_SELECT, parseClearSlots } from './modelOverrideShared.js';
 import type { ProvisionedRequest } from '../../types.js';
 import type { RouteDeps } from '../routeDeps.js';
 
@@ -91,15 +95,7 @@ export const handleListModelOverrides = (deps: RouteDeps): RequestHandler => {
             ? { visionConfigId: { not: null } }
             : { llmConfigId: { not: null } }),
       },
-      select: {
-        personalityId: true,
-        personality: { select: { name: true } },
-        llmConfigId: true,
-        // `model` feeds the capability-driven supportsVision badge (below).
-        llmConfig: { select: { name: true, model: true } },
-        visionConfigId: true,
-        visionConfig: { select: { name: true, model: true } },
-      },
+      select: OVERRIDE_SUMMARY_SELECT,
       // Bounds personality CONFIG rows, not output rows: for `slot=all` a
       // personality with both FKs expands to two summaries below, so the
       // response can be up to 2× this (≤200). Fine for the browse page size.
@@ -161,13 +157,9 @@ export const handleSetModelOverride = (deps: RouteDeps): RequestHandler => {
     const { personalityId, configId } = parseResult.data;
     const userId = resolveProvisionedUserId(req);
 
-    const personality = await prisma.personality.findFirst({
-      where: { id: personalityId },
-      select: { id: true, name: true },
-    });
-
+    const personality = await findPersonalityOrSendNotFound(res, prisma, personalityId);
     if (personality === null) {
-      return sendError(res, ErrorResponses.notFound('Personality'));
+      return;
     }
 
     const llmConfig = await verifyConfigAccess(prisma, configId, userId);
@@ -201,15 +193,7 @@ export const handleSetModelOverride = (deps: RouteDeps): RequestHandler => {
         ...fkData,
       },
       update: fkData,
-      select: {
-        personalityId: true,
-        personality: { select: { name: true } },
-        llmConfigId: true,
-        // `model` feeds the capability-driven supportsVision badge (below).
-        llmConfig: { select: { name: true, model: true } },
-        visionConfigId: true,
-        visionConfig: { select: { name: true, model: true } },
-      },
+      select: OVERRIDE_SUMMARY_SELECT,
     });
 
     const result: ModelOverrideSummary = {
@@ -354,14 +338,11 @@ export const handleClearDefaultModelConfig = (deps: RouteDeps): RequestHandler =
     const discordUserId = req.userId;
     const userId = resolveProvisionedUserId(req);
 
-    // `all` (the bot-client default when no slot is chosen) clears BOTH slots;
-    // an explicit text|vision clears just that one.
-    const slot = parseModelSlotQueryAllowAll(res, req.query);
-    if (slot === null) {
+    const slots = parseClearSlots(res, req.query);
+    if (slots === null) {
       return;
     }
-    const clearText = slot === 'text' || slot === 'all';
-    const clearVision = slot === 'vision' || slot === 'all';
+    const { slot, clearText, clearVision } = slots;
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -448,14 +429,11 @@ export const handleDeleteModelOverride = (deps: RouteDeps): RequestHandler => {
     const personalityId = getParam(req.params.personalityId);
     const userId = resolveProvisionedUserId(req);
 
-    // `all` (the bot-client default when no slot is chosen) clears BOTH slots;
-    // an explicit text|vision clears just that one.
-    const slot = parseModelSlotQueryAllowAll(res, req.query);
-    if (slot === null) {
+    const slots = parseClearSlots(res, req.query);
+    if (slots === null) {
       return;
     }
-    const clearText = slot === 'text' || slot === 'all';
-    const clearVision = slot === 'vision' || slot === 'all';
+    const { slot, clearText, clearVision } = slots;
 
     const override = await prisma.userPersonalityConfig.findFirst({
       where: {

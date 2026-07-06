@@ -20,7 +20,14 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   };
 });
 
-import { tryInvalidateCache, mergeAndValidateOverrides } from './configOverrideHelpers.js';
+import {
+  tryInvalidateCache,
+  mergeAndValidateOverrides,
+  getValidatedPersonalityId,
+  findPersonalityOrSendNotFound,
+} from './configOverrideHelpers.js';
+import type { Request, Response } from 'express';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 
 // Mock the merge function to control its return values
 const mockMerge = vi.fn();
@@ -36,6 +43,7 @@ vi.mock('./responseHelpers.js', () => ({
 vi.mock('./errorResponses.js', () => ({
   ErrorResponses: {
     validationError: (msg: string) => ({ error: 'VALIDATION', message: msg }),
+    notFound: (resource: string) => ({ error: 'NOT_FOUND', message: `${resource} not found` }),
   },
 }));
 
@@ -111,5 +119,58 @@ describe('mergeAndValidateOverrides', () => {
     const result = mergeAndValidateOverrides({}, { bad: 'data' }, mockRes);
     expect(result.merged).toBeUndefined();
     expect(mockSendError).toHaveBeenCalledOnce();
+  });
+});
+
+describe('getValidatedPersonalityId', () => {
+  beforeEach(() => vi.resetAllMocks());
+
+  const VALID_UUID = '123e4567-e89b-42d3-a456-426614174000';
+  const asReq = (personalityId: unknown): Request =>
+    ({ params: { personalityId } }) as unknown as Request;
+  const res = {} as Response;
+
+  it('returns a well-formed uuid untouched', () => {
+    expect(getValidatedPersonalityId(asReq(VALID_UUID), res)).toBe(VALID_UUID);
+    expect(mockSendError).not.toHaveBeenCalled();
+  });
+
+  it('sends a validation error and returns null for a malformed id', () => {
+    expect(getValidatedPersonalityId(asReq('not-a-uuid'), res)).toBeNull();
+    expect(mockSendError).toHaveBeenCalledWith(
+      res,
+      expect.objectContaining({ error: 'VALIDATION' })
+    );
+  });
+});
+
+describe('findPersonalityOrSendNotFound', () => {
+  beforeEach(() => vi.resetAllMocks());
+
+  const res = {} as Response;
+  const prismaWith = (row: { id: string; name: string } | null): PrismaClient =>
+    ({
+      personality: { findFirst: vi.fn().mockResolvedValue(row) },
+    }) as unknown as PrismaClient;
+
+  it('returns the personality id+name when it exists', async () => {
+    const found = await findPersonalityOrSendNotFound(
+      res,
+      prismaWith({ id: 'p-1', name: 'Ivy' }),
+      'p-1'
+    );
+
+    expect(found).toEqual({ id: 'p-1', name: 'Ivy' });
+    expect(mockSendError).not.toHaveBeenCalled();
+  });
+
+  it('sends a 404 and returns null when missing', async () => {
+    const found = await findPersonalityOrSendNotFound(res, prismaWith(null), 'p-missing');
+
+    expect(found).toBeNull();
+    expect(mockSendError).toHaveBeenCalledWith(
+      res,
+      expect.objectContaining({ error: 'NOT_FOUND' })
+    );
   });
 });
