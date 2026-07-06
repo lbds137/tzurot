@@ -169,6 +169,29 @@ describe('Bot Footer Text Constants', () => {
       );
     });
 
+    it('announces a quota fallback as a model swap with the reason', () => {
+      const outOfCredit = buildModelFooterText('free-model', 'https://example.com/m', {
+        quotaFallback: { fromModel: 'expensive/primary', category: 'credit_exhaustion' },
+      });
+      expect(outOfCredit).toBe(
+        'Model: [free-model](<https://example.com/m>) • expensive/primary → free-model (out of credit)'
+      );
+
+      const rateLimited = buildModelFooterText('paid-default', 'https://example.com/m', {
+        quotaFallback: { fromModel: 'expensive/primary', category: 'quota_exceeded' },
+      });
+      expect(rateLimited).toBe(
+        'Model: [paid-default](<https://example.com/m>) • expensive/primary → paid-default (rate limited)'
+      );
+    });
+
+    it('sanitizes markdown-hostile characters in the quota-fallback source model', () => {
+      const result = buildModelFooterText('free-model', 'https://example.com/m', {
+        quotaFallback: { fromModel: 'bad[model](x)', category: 'quota_exceeded' },
+      });
+      expect(result).toContain('badmodelx → free-model');
+    });
+
     it('renders the full route chain when a fallback attempt also failed', () => {
       // Both-routes-failed error: the footer names every route that was tried,
       // primary first, so neither attempt is mis-attributed as the only one.

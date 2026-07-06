@@ -26,6 +26,7 @@ import {
   SttResolver,
 } from '@tzurot/config-resolver';
 import { ApiKeyResolver } from './services/ApiKeyResolver.js';
+import { creditExhaustionCache } from './redis.js';
 
 const logger = createLogger('ai-worker-cache');
 
@@ -64,20 +65,10 @@ export async function setupCacheInvalidation(
   cleanupFns.push(() => cacheInvalidationService.unsubscribe());
   logger.info('Subscribed to personality cache invalidation events');
 
-  // ApiKeyResolver with cache invalidation
+  // ApiKeyResolver with cache invalidation (incl. the credit-exhaustion
+  // recovery edge on wallet-key updates).
   const apiKeyResolver = new ApiKeyResolver(prisma);
-  const apiKeyCacheInvalidation = new ApiKeyCacheInvalidationService(cacheRedis);
-  await apiKeyCacheInvalidation.subscribe(event => {
-    if (event.type === 'all') {
-      apiKeyResolver.clearCache();
-      logger.info('Cleared all API key cache entries');
-    } else {
-      apiKeyResolver.invalidateUserCache(event.discordId);
-      logger.info({ discordId: event.discordId }, 'Invalidated API key cache for user');
-    }
-  });
-  cleanupFns.push(() => apiKeyCacheInvalidation.unsubscribe());
-  logger.info('ApiKeyResolver initialized with cache invalidation');
+  await wireApiKeyInvalidation(apiKeyResolver, cacheRedis, cleanupFns);
 
   // LlmConfigResolver with cache invalidation
   const llmConfigResolver = new LlmConfigResolver(prisma);
@@ -166,6 +157,38 @@ export async function setupCacheInvalidation(
     cascadeResolver,
     cleanupFns,
   };
+}
+
+/**
+ * Wire the ApiKeyResolver to its invalidation events. A per-user event also
+ * clears that account's credit-exhaustion mark — the recovery edge: a wallet
+ * key set/update must not leave a top-up stranded behind a stale doom-cache
+ * until the TTL expires. Per-user only; the `system` bucket is the shared
+ * guest scope and is never cleared here.
+ */
+async function wireApiKeyInvalidation(
+  apiKeyResolver: ApiKeyResolver,
+  cacheRedis: Redis,
+  cleanupFns: (() => Promise<void>)[]
+): Promise<void> {
+  const apiKeyCacheInvalidation = new ApiKeyCacheInvalidationService(cacheRedis);
+  await apiKeyCacheInvalidation.subscribe(event => {
+    if (event.type === 'all') {
+      apiKeyResolver.clearCache();
+      logger.info('Cleared all API key cache entries');
+    } else {
+      apiKeyResolver.invalidateUserCache(event.discordId);
+      // Fires on ANY of the user's provider keys changing (the event is not
+      // provider-scoped) — an over-clear on e.g. an ElevenLabs key update is
+      // intentional slack: the mark self-restores on the next real 402.
+      void creditExhaustionCache.clearCreditExhausted({
+        cacheKeyId: `user:${event.discordId}`,
+      });
+      logger.info({ discordId: event.discordId }, 'Invalidated API key cache for user');
+    }
+  });
+  cleanupFns.push(() => apiKeyCacheInvalidation.unsubscribe());
+  logger.info('ApiKeyResolver initialized with cache invalidation');
 }
 
 /**

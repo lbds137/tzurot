@@ -157,6 +157,39 @@ export class ApiKeyResolver {
   }
 
   /**
+   * Resolve the system OpenRouter key, degrading to undefined on any failure
+   * (no key configured, resolver error). Never throws — the quota-fallback
+   * paths call this INSIDE error handling, where a fresh throw would replace
+   * the original quota error they exist to propagate pristinely.
+   */
+  async resolveSystemOpenRouterKey(): Promise<string | undefined> {
+    try {
+      const result = await this.resolveApiKey(undefined, AIProvider.OpenRouter);
+      return result.source === 'system' ? result.apiKey : undefined;
+    } catch (error) {
+      logger.warn({ err: error }, 'System OpenRouter key resolution failed');
+      return undefined;
+    }
+  }
+
+  /**
+   * Resolve the user's OWN OpenRouter key (BYOK only — undefined when the
+   * user has none, or on any resolver failure). A system-source result is
+   * deliberately rejected: callers use this where landing on the system key
+   * would be an owner-cost violation (e.g. a paid-default quota retarget).
+   * Never throws, for the same reason as {@link resolveSystemOpenRouterKey}.
+   */
+  async resolveUserOpenRouterKey(userId: string): Promise<string | undefined> {
+    try {
+      const result = await this.resolveApiKey(userId, AIProvider.OpenRouter);
+      return result.source === 'user' ? result.apiKey : undefined;
+    } catch (error) {
+      logger.warn({ err: error, userId }, 'User OpenRouter key resolution failed');
+      return undefined;
+    }
+  }
+
+  /**
    * Look up and decrypt a user's BYOK API key without falling back to the
    * system key. Returns `null` if the user has no key for the requested
    * provider OR encryption is disabled at the resolver level.

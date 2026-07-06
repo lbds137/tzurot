@@ -182,8 +182,13 @@ interface FallbackFailureInfo {
   provider: string;
 }
 
-/** Attach the fallback attempt's failure info to the error about to be rethrown. */
-function attachFallbackFailure(error: unknown, info: FallbackFailureInfo): void {
+/**
+ * Attach the fallback attempt's failure info to the error about to be
+ * rethrown. Exported for the quota-fallback runner, which has the same
+ * both-fail shape (retry a different route once, propagate the pristine
+ * original, carry the second failure out-of-band for the composer).
+ */
+export function attachFallbackFailure(error: unknown, info: FallbackFailureInfo): void {
   if (error !== null && typeof error === 'object') {
     (error as Record<PropertyKey, unknown>)[FALLBACK_FAILURE_INFO] = info;
   }
@@ -265,7 +270,7 @@ export function withFallbackFailure<T extends { technicalMessage?: string }>(
  * persona-voiced error stays readable. Sliced via code points (Array.from) so
  * a multi-byte character at the boundary can't be split into a mangled surrogate.
  */
-function summarizeError(error: unknown): string {
+export function summarizeError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   const MAX = 160;
   const points = Array.from(message);

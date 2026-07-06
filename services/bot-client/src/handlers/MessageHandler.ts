@@ -12,6 +12,7 @@ import { type MaintenanceFlag } from '@tzurot/common-types/services/MaintenanceF
 import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { buildErrorContent } from '../utils/buildErrorContent.js';
+import { buildResultMetadataPassthrough } from '../utils/resultMetadataPassthrough.js';
 import { acknowledgeMessageDuringMaintenance } from '../utils/maintenanceResponses.js';
 import type { IMessageProcessor } from '../processors/IMessageProcessor.js';
 import { isUserContentMessage } from '../utils/messageTypeUtils.js';
@@ -294,18 +295,7 @@ export class MessageHandler {
         clientId: ctx.clientId,
         recipientUserId: ctx.recipientUserId,
         isAutoResponse: ctx.isAutoResponse,
-        modelUsed: result.metadata?.modelUsed,
-        providerUsed: result.metadata?.providerUsed,
-        fallbackProviderAttempted: result.metadata?.fallbackProviderAttempted,
-        isGuestMode: result.metadata?.isGuestMode,
-        focusModeEnabled: result.metadata?.focusModeEnabled,
-        incognitoModeActive: result.metadata?.incognitoModeActive,
-        thinkingContent: result.metadata?.thinkingContent,
-        showThinking: result.metadata?.showThinking,
-        showModelFooter: result.metadata?.showModelFooter,
-        ttsAudioKey: result.metadata?.ttsAudioKey,
-        ttsAudioContentType: result.metadata?.ttsAudioContentType,
-        ttsNotices: result.metadata?.ttsNotices,
+        ...buildResultMetadataPassthrough(result),
       });
       logger.info(
         { jobId, personalityId: personality.id },
@@ -437,18 +427,7 @@ export class MessageHandler {
         guildId,
         clientId,
         recipientUserId: userId,
-        modelUsed: result.metadata?.modelUsed,
-        providerUsed: result.metadata?.providerUsed,
-        fallbackProviderAttempted: result.metadata?.fallbackProviderAttempted,
-        isGuestMode: result.metadata?.isGuestMode,
-        focusModeEnabled: result.metadata?.focusModeEnabled,
-        incognitoModeActive: result.metadata?.incognitoModeActive,
-        thinkingContent: result.metadata?.thinkingContent,
-        showThinking: result.metadata?.showThinking,
-        showModelFooter: result.metadata?.showModelFooter,
-        ttsAudioKey: result.metadata?.ttsAudioKey,
-        ttsAudioContentType: result.metadata?.ttsAudioContentType,
-        ttsNotices: result.metadata?.ttsNotices,
+        ...buildResultMetadataPassthrough(result),
       });
 
       // Persist the assistant response to conversation history — including
@@ -508,6 +487,7 @@ export class MessageHandler {
         modelUsed: result.metadata?.modelUsed,
         providerUsed: result.metadata?.providerUsed,
         fallbackProviderAttempted: result.metadata?.fallbackProviderAttempted,
+        quotaFallback: result.metadata?.quotaFallback,
         isGuestMode: result.metadata?.isGuestMode,
         focusModeEnabled: result.metadata?.focusModeEnabled,
         incognitoModeActive: result.metadata?.incognitoModeActive,
